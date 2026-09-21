@@ -285,6 +285,8 @@ export type PartnerSiteShopCopy = {
   orderFulfillmentChina: string
   orderSplitBanner: string
   orderEmsTracking: string
+  orderWaitingSeller: string
+  orderWaitingBuyer: string
   orderActionFailed: string
   orderAddressLabel: string
   authSendOtp: string
@@ -979,6 +981,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderFulfillmentChina: 'Hàng Trung Quốc',
     orderSplitBanner: 'Giỏ tách 2 mã đơn. Phí giao hàng chỉ tính một lần.',
     orderEmsTracking: 'Mã EMS',
+    orderWaitingSeller: 'Đang chờ shop xử lý bước tiếp theo.',
+    orderWaitingBuyer: 'Đang chờ bạn xác nhận đã nhận hàng.',
     orderActionFailed: 'Không thực hiện được. Thử lại.',
     orderAddressLabel: 'Địa chỉ giao',
     authSendOtp: 'Gửi mã OTP',
@@ -1668,6 +1672,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderFulfillmentChina: 'China source',
     orderSplitBanner: 'This cart splits into 2 order codes. Shipping is charged once.',
     orderEmsTracking: 'EMS tracking',
+    orderWaitingSeller: 'Waiting for the shop to complete the next step.',
+    orderWaitingBuyer: 'Waiting for you to confirm receipt.',
     orderActionFailed: 'Could not complete this action. Try again.',
     orderAddressLabel: 'Shipping address',
     authSendOtp: 'Send OTP',
@@ -2355,6 +2361,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderFulfillmentChina: '中国货源',
     orderSplitBanner: '购物车会拆成两个订单号，运费只收一次。',
     orderEmsTracking: 'EMS 运单',
+    orderWaitingSeller: '正在等待店铺处理下一步。',
+    orderWaitingBuyer: '正在等待您确认收货。',
     orderActionFailed: '操作失败，请重试。',
     orderAddressLabel: '收货地址',
     authSendOtp: '发送验证码',
@@ -3039,6 +3047,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderFulfillmentChina: '中国仕入',
     orderSplitBanner: 'カートは2つの注文番号に分かれます。送料は1回だけです。',
     orderEmsTracking: 'EMS追跡',
+    orderWaitingSeller: 'ショップの次の処理を待っています。',
+    orderWaitingBuyer: '受け取り確認を待っています。',
     orderActionFailed: '操作できませんでした。再試行してください。',
     orderAddressLabel: 'お届け先',
     authSendOtp: 'OTP送信',
@@ -3725,6 +3735,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     orderFulfillmentChina: '중국 소싱',
     orderSplitBanner: '장바구니는 주문 코드 2개로 나뉩니다. 배송비는 한 번만 받습니다.',
     orderEmsTracking: 'EMS 운송장',
+    orderWaitingSeller: '샵의 다음 처리를 기다리고 있습니다.',
+    orderWaitingBuyer: '수령 확인을 기다리고 있습니다.',
     orderActionFailed: '처리할 수 없습니다. 다시 시도하세요.',
     orderAddressLabel: '배송 주소',
     authSendOtp: 'OTP 전송',

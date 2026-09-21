@@ -31,6 +31,12 @@ import {
   type PartnerAdminFulfillmentFilter,
 } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import type { Database } from '@/types/database.types'
+import { orderWaitingState } from '@/lib/messaging/partner-order-notify-ui'
+import {
+  canCancelPartnerOrder,
+  canTransitionPartnerOrderShipping,
+  partnerOrderCancellationAxis,
+} from '@/lib/messaging/fulfillment/order-lifecycle-transition'
 import {
   confirmMyMessagingOrderDeposit,
   exportMyMessagingOrdersExcel,
@@ -115,10 +121,24 @@ type ShipmentEventRow = {
   scheduledAt: string | null
   completedAt: string | null
   note: string
+  updatedBy?: string
 }
 
 function fulfillmentSourceLabel(t: OrdersT, source?: string | null): string {
   return source === 'china' ? t.badgeChina : t.badgeVietnam
+}
+
+function shipmentStepLabel(t: OrdersT, step?: string | null): string {
+  if (step === 'confirmed') return t.shipmentStepConfirmed
+  if (step === 'tq_preparing') return t.shipmentStepChinaPreparing
+  if (step === 'tq_warehouse') return t.shipmentStepChinaWarehouse
+  if (step === 'international_shipping') return t.shipmentStepInternational
+  if (step === 'at_customs') return t.shipmentStepCustoms
+  if (step === 'domestic_shipping') return t.shipmentStepDomestic
+  if (step === 'vn_picking') return t.shipmentStepVietnamPicking
+  if (step === 'vn_packed') return t.shipmentStepVietnamPacked
+  if (step === 'awaiting_confirm') return t.shipmentStepAwaitingBuyer
+  return t.timelineHeading
 }
 
 type OrderEventRow = {
@@ -1646,6 +1666,27 @@ export function PartnerMessagingOrdersClient({
               <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/60 p-4">
                 <h3 className="mb-2 font-semibold text-blue-900">{t.timelineHeading}</h3>
                 {(shipmentEventsByOrder[selectedOrder.id] ?? []).length > 0 ? (
+                  <>
+                  {(() => {
+                    const waiting = orderWaitingState(
+                      (shipmentEventsByOrder[selectedOrder.id] ?? []) as never[]
+                    )
+                    if (!waiting.step) return null
+                    const actor =
+                      waiting.actor === 'buyer'
+                        ? t.shipmentActorBuyer
+                        : waiting.actor === 'carrier'
+                          ? t.shipmentActorCarrier
+                          : waiting.actor === 'seller'
+                            ? t.shipmentActorSeller
+                            : t.shipmentActorSystem
+                    const step = shipmentStepLabel(t, waiting.step)
+                    return (
+                      <p className="mb-3 rounded-md bg-blue-100 px-3 py-2 text-sm font-medium text-blue-900">
+                        {t.shipmentWaitingLabel.replace('{step}', step).replace('{actor}', actor)}
+                      </p>
+                    )
+                  })()}
                   <ul className="mb-4 space-y-2">
                     {(shipmentEventsByOrder[selectedOrder.id] ?? []).map((ev) => (
                       <li key={ev.id || ev.stepKey} className="text-sm">
@@ -1658,16 +1699,29 @@ export function PartnerMessagingOrdersClient({
                                 : 'text-gray-500'
                           }
                         >
-                          {ev.title}
+                          {shipmentStepLabel(t, ev.stepKey)}
                         </span>
                         {ev.completedAt ? (
                           <span className="ml-2 text-xs text-gray-500">{formatDate(ev.completedAt, locale)}</span>
                         ) : ev.scheduledAt ? (
                           <span className="ml-2 text-xs text-gray-500">{formatDate(ev.scheduledAt, locale)}</span>
                         ) : null}
+                        {ev.updatedBy === 'ems' ? (
+                          <span className="ml-2 text-xs text-blue-700">
+                            {t.shipmentCarrierMeta
+                              .replace('{source}', ev.updatedBy)
+                              .replace(
+                                '{time}',
+                                ev.completedAt || ev.scheduledAt
+                                  ? formatDate(ev.completedAt || ev.scheduledAt || '', locale)
+                                  : '—'
+                              )}
+                          </span>
+                        ) : null}
                       </li>
                     ))}
                   </ul>
+                  </>
                 ) : eventsByOrder[selectedOrder.id] === undefined ? (
                   <p className="text-sm text-gray-500">{t.timelineLoading}</p>
                 ) : (eventsByOrder[selectedOrder.id] ?? []).length ? (
@@ -1781,10 +1835,20 @@ export function PartnerMessagingOrdersClient({
                     {t.btnComplete}
                   </button>
                 ) : null}
-                {!partnerAdminOrderIsCancelled(selectedOrder) && selectedOrder.shipping_status !== 'returned' ? (
+                {partnerOrderCancellationAxis({
+                  status: selectedOrder.status,
+                  shippingStatus: selectedOrder.shipping_status,
+                }) ? (
                   <button
                     type="button"
-                    onClick={() => setStatus(selectedOrder.id, 'cancelled')}
+                    onClick={() => {
+                      const axis = partnerOrderCancellationAxis({
+                        status: selectedOrder.status,
+                        shippingStatus: selectedOrder.shipping_status,
+                      })
+                      if (axis === 'shipping') setShipping(selectedOrder.id, 'cancelled')
+                      else if (axis === 'payment') setStatus(selectedOrder.id, 'cancelled')
+                    }}
                     className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
                   >
                     {t.btnCancelOrder}
@@ -1801,7 +1865,13 @@ export function PartnerMessagingOrdersClient({
                     {t.btnRefundDeposit}
                   </button>
                 ) : null}
-                {['shipping', 'delivered'].includes(selectedOrder.shipping_status) ? (
+                {canTransitionPartnerOrderShipping(
+                  {
+                    status: selectedOrder.status,
+                    shippingStatus: selectedOrder.shipping_status,
+                  },
+                  'returned'
+                ) ? (
                   <button
                     type="button"
                     onClick={() => setShipping(selectedOrder.id, 'returned')}
@@ -1920,16 +1990,21 @@ export function PartnerMessagingOrdersClient({
               <button type="button" onClick={() => setPaymentOpen(false)} className="rounded-lg border px-4 py-2 hover:bg-gray-50">
                 {t.btnCancelModal}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPaymentOpen(false)
-                  setStatus(selectedOrder.id, 'cancelled')
-                }}
-                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-              >
-                {t.btnRejectDeposit}
-              </button>
+              {canCancelPartnerOrder({
+                status: selectedOrder.status,
+                shippingStatus: selectedOrder.shipping_status,
+              }) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPaymentOpen(false)
+                    setStatus(selectedOrder.id, 'cancelled')
+                  }}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                >
+                  {t.btnRejectDeposit}
+                </button>
+              ) : null}
               <button
                 type="button"
                 disabled={pending || !clampPartnerAdminDepositReceivedAmount(

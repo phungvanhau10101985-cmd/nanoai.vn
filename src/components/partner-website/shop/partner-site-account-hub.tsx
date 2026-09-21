@@ -158,15 +158,22 @@ export function PartnerSiteAccountHub({
   const phone = profile?.customer_phone?.trim() || ''
   const email = profile?.email?.trim() || ''
   const name = displayName || t.navAccount
+  const avatarUrl = profile?.avatar_url?.trim() || ''
+  const initials = accountInitials(name)
 
   return (
     <>
       <div className="pw-shop-account-hub-mobile">
         <div className="pw-shop-account-hub-head">
-          <h1 className="pw-shop-account-hub-name" data-pw-el={PW_EL.heading}>
-            {name}
-          </h1>
-          {phone ? <p className="pw-shop-account-hub-phone">{phone}</p> : null}
+          <div className="pw-shop-account-hub-identity">
+            <AccountAvatar src={avatarUrl} initials={initials} name={name} />
+            <div className="pw-shop-account-hub-copy">
+              <h1 className="pw-shop-account-hub-name" data-pw-el={PW_EL.heading}>
+                {name}
+              </h1>
+              {phone ? <p className="pw-shop-account-hub-phone">{phone}</p> : null}
+            </div>
+          </div>
           <a href={editHref} className="pw-shop-account-hub-edit">
             {t.accountEditPersonal}
           </a>
@@ -238,7 +245,10 @@ export function PartnerSiteAccountHub({
 
       <div className="pw-shop-account-hub-desktop">
         <div className="pw-shop-account-summary-head">
-          <h2 data-pw-el={PW_EL.heading}>{t.accountInfoTitle}</h2>
+          <div className="pw-shop-account-hub-identity">
+            <AccountAvatar src={avatarUrl} initials={initials} name={name} />
+            <h2 data-pw-el={PW_EL.heading}>{t.accountInfoTitle}</h2>
+          </div>
           <a href={editHref} className="pw-shop-btn">
             {t.accountEditProfile}
           </a>
@@ -275,6 +285,21 @@ export function PartnerSiteAccountHub({
         </div>
       </div>
     </>
+  )
+}
+
+function accountInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (!parts.length) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase()
+}
+
+function AccountAvatar({ src, initials, name }: { src: string; initials: string; name: string }) {
+  return (
+    <span className="pw-shop-account-avatar" title={name} aria-hidden={!src}>
+      {src ? <img src={src} alt="" /> : initials}
+    </span>
   )
 }
 

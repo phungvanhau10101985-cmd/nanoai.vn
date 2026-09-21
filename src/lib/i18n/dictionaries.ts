@@ -1133,6 +1133,21 @@ export type Dictionary = {
     shipmentTrackingLabel: string
     shipmentProviderLabel: string
     emsLatestLabel: string
+    shipmentWaitingLabel: string
+    shipmentActorSystem: string
+    shipmentActorSeller: string
+    shipmentActorCarrier: string
+    shipmentActorBuyer: string
+    shipmentCarrierMeta: string
+    shipmentStepConfirmed: string
+    shipmentStepChinaPreparing: string
+    shipmentStepChinaWarehouse: string
+    shipmentStepInternational: string
+    shipmentStepCustoms: string
+    shipmentStepDomestic: string
+    shipmentStepVietnamPicking: string
+    shipmentStepVietnamPacked: string
+    shipmentStepAwaitingBuyer: string
   }
   /** /dashboard/messaging/analytics — S0.8 dashboard doanh thu/conversion/UTM */
   partnerMessagingAnalytics: {
@@ -4756,6 +4771,21 @@ const VI_DICTIONARY: Dictionary = {
     shipmentTrackingLabel: 'Mã vận đơn',
     shipmentProviderLabel: 'Hãng',
     emsLatestLabel: 'EMS',
+    shipmentWaitingLabel: 'Đang chờ: {step} · {actor}',
+    shipmentActorSystem: 'Hệ thống',
+    shipmentActorSeller: 'Shop',
+    shipmentActorCarrier: 'Hãng vận chuyển',
+    shipmentActorBuyer: 'Khách mua',
+    shipmentCarrierMeta: 'Nguồn hãng: {source} · {time}',
+    shipmentStepConfirmed: 'Đã xác nhận đơn',
+    shipmentStepChinaPreparing: 'Chuẩn bị hàng tại Trung Quốc',
+    shipmentStepChinaWarehouse: 'Hàng về kho Trung Quốc',
+    shipmentStepInternational: 'Vận chuyển quốc tế',
+    shipmentStepCustoms: 'Thông quan',
+    shipmentStepDomestic: 'Vận chuyển về shop',
+    shipmentStepVietnamPicking: 'Lấy hàng / kiểm kho',
+    shipmentStepVietnamPacked: 'Đóng gói',
+    shipmentStepAwaitingBuyer: 'Chờ khách xác nhận nhận hàng',
   },
   partnerMessagingAnalytics: {
     pageTitle: 'Doanh thu & Chuyển đổi',
@@ -8386,6 +8416,21 @@ const EN_DICTIONARY: Dictionary = {
     shipmentTrackingLabel: 'Tracking number',
     shipmentProviderLabel: 'Carrier',
     emsLatestLabel: 'EMS',
+    shipmentWaitingLabel: 'Waiting: {step} · {actor}',
+    shipmentActorSystem: 'System',
+    shipmentActorSeller: 'Shop',
+    shipmentActorCarrier: 'Carrier',
+    shipmentActorBuyer: 'Buyer',
+    shipmentCarrierMeta: 'Carrier source: {source} · {time}',
+    shipmentStepConfirmed: 'Order confirmed',
+    shipmentStepChinaPreparing: 'Preparing goods in China',
+    shipmentStepChinaWarehouse: 'Arrived at China warehouse',
+    shipmentStepInternational: 'International shipping',
+    shipmentStepCustoms: 'Customs clearance',
+    shipmentStepDomestic: 'Shipping to shop',
+    shipmentStepVietnamPicking: 'Picking / stock check',
+    shipmentStepVietnamPacked: 'Packed',
+    shipmentStepAwaitingBuyer: 'Waiting for buyer receipt confirmation',
   },
   partnerMessagingAnalytics: {
     pageTitle: 'Revenue & Conversion',
@@ -11994,6 +12039,21 @@ const ZH_DICTIONARY: Dictionary = {
     shipmentTrackingLabel: '运单号',
     shipmentProviderLabel: '承运商',
     emsLatestLabel: 'EMS',
+    shipmentWaitingLabel: '等待：{step} · {actor}',
+    shipmentActorSystem: '系统',
+    shipmentActorSeller: '店铺',
+    shipmentActorCarrier: '承运商',
+    shipmentActorBuyer: '买家',
+    shipmentCarrierMeta: '承运商来源：{source} · {time}',
+    shipmentStepConfirmed: '订单已确认',
+    shipmentStepChinaPreparing: '中国境内备货',
+    shipmentStepChinaWarehouse: '已到中国仓库',
+    shipmentStepInternational: '国际运输',
+    shipmentStepCustoms: '清关',
+    shipmentStepDomestic: '运往店铺',
+    shipmentStepVietnamPicking: '拣货 / 核对库存',
+    shipmentStepVietnamPacked: '已打包',
+    shipmentStepAwaitingBuyer: '等待买家确认收货',
   },
   partnerMessagingAnalytics: {
     pageTitle: '营收与转化',
@@ -15533,6 +15593,21 @@ const JA_DICTIONARY: Dictionary = {
     shipmentTrackingLabel: '追跡番号',
     shipmentProviderLabel: '配送会社',
     emsLatestLabel: 'EMS',
+    shipmentWaitingLabel: '待機中：{step} · {actor}',
+    shipmentActorSystem: 'システム',
+    shipmentActorSeller: 'ショップ',
+    shipmentActorCarrier: '配送会社',
+    shipmentActorBuyer: '購入者',
+    shipmentCarrierMeta: '配送元：{source} · {time}',
+    shipmentStepConfirmed: '注文確認済み',
+    shipmentStepChinaPreparing: '中国で商品を準備中',
+    shipmentStepChinaWarehouse: '中国倉庫に到着',
+    shipmentStepInternational: '国際配送中',
+    shipmentStepCustoms: '通関',
+    shipmentStepDomestic: 'ショップへ配送中',
+    shipmentStepVietnamPicking: 'ピッキング / 在庫確認',
+    shipmentStepVietnamPacked: '梱包済み',
+    shipmentStepAwaitingBuyer: '購入者の受取確認待ち',
   },
   partnerMessagingAnalytics: {
     pageTitle: '売上とコンバージョン',
@@ -19132,6 +19207,21 @@ const KO_DICTIONARY: Dictionary = {
     shipmentTrackingLabel: '운송장 번호',
     shipmentProviderLabel: '운송사',
     emsLatestLabel: 'EMS',
+    shipmentWaitingLabel: '대기 중: {step} · {actor}',
+    shipmentActorSystem: '시스템',
+    shipmentActorSeller: '샵',
+    shipmentActorCarrier: '운송사',
+    shipmentActorBuyer: '구매자',
+    shipmentCarrierMeta: '운송사 소스: {source} · {time}',
+    shipmentStepConfirmed: '주문 확인 완료',
+    shipmentStepChinaPreparing: '중국에서 상품 준비 중',
+    shipmentStepChinaWarehouse: '중국 창고 도착',
+    shipmentStepInternational: '국제 배송 중',
+    shipmentStepCustoms: '통관',
+    shipmentStepDomestic: '샵으로 배송 중',
+    shipmentStepVietnamPicking: '피킹 / 재고 확인',
+    shipmentStepVietnamPacked: '포장 완료',
+    shipmentStepAwaitingBuyer: '구매자 수령 확인 대기',
   },
   partnerMessagingAnalytics: {
     pageTitle: '매출 및 전환',

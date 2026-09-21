@@ -218,6 +218,9 @@ export function pickGuestCartUrlTemplateByHost(input: {
       guestCartUrlTemplateFromEmbedPage(input.embedPage, input.siteSlug) || saas
     )
   }
+  // Đã biết chat đang nằm trên web khách ngoài NanoAI: chỉ dùng giỏ web khách đã lưu.
+  // Không rơi sang giỏ SaaS vì hai web có dữ liệu giỏ/checkout độc lập.
+  if (normalizeGuestChatEmbedPageUrl(input.embedPage)) return stored
   return stored || saas
 }
 

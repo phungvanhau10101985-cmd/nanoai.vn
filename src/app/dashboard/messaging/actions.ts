@@ -263,8 +263,12 @@ import {
   emailCustomerOrderRefunded,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
-import { notifyPartnerCustomerDeliveredWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
-import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
+import { runPartnerOrderDeliveredHook } from '@/lib/messaging/fulfillment/order-delivered-hook'
+import { runPartnerOrderLifecycleHook } from '@/lib/messaging/fulfillment/order-lifecycle-hook'
+import {
+  canTransitionPartnerOrderPayment,
+  canTransitionPartnerOrderShipping,
+} from '@/lib/messaging/fulfillment/order-lifecycle-transition'
 import { notifyPartnerOwnerPaymentVerified } from '@/lib/messaging/partner-admin-notifications'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 import {
@@ -1234,15 +1238,26 @@ export async function updateMyMessagingOrderStatus(input: {
   const { user } = auth
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
+  const existing = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!existing) return { error: 'Order not found.' }
+  if (
+    !canTransitionPartnerOrderPayment(
+      { status: existing.status, shippingStatus: existing.shipping_status },
+      input.status
+    )
+  ) {
+    return { error: 'Khong cap nhat duoc trang thai don.' }
+  }
   const ok = await updatePartnerOrderStatusForOwnerFromPg({
     ownerUserId: user.id,
     orderId: input.orderId,
     status: input.status,
     verifiedNote: (input.verifiedNote ?? '').trim().slice(0, 1000),
+    enforceOptimizedTransition: true,
   })
   if (!ok) return { error: 'Khong cap nhat duoc trang thai don.' }
   const row = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
-  if (row) {
+  if (row && existing.status !== input.status) {
     queuePartnerOrderGoogleSheetsSync(row.partner_id, row.id)
     try {
       await emailCustomerOrderPaymentStatusChanged({ order: row })
@@ -1256,14 +1271,17 @@ export async function updateMyMessagingOrderStatus(input: {
       )
       const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
       await onPartnerOrderPaidVerifiedFulfillment(row.id)
-      void import('@/lib/db/messaging-partner-affiliate-pg')
-        .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
-          grantPartnerAffiliateCommissionAfterPaidFromPg({
-            partnerId: row.partner_id,
-            orderId: row.id,
-          })
-        )
-        .catch((error) => console.warn('[updateMyMessagingOrderStatus:affiliate]', error))
+      await runPartnerOrderLifecycleHook({
+        partnerId: row.partner_id,
+        orderId: row.id,
+        event: 'paid',
+      })
+    } else if (input.status === 'cancelled') {
+      await runPartnerOrderLifecycleHook({
+        partnerId: row.partner_id,
+        orderId: row.id,
+        event: 'cancelled',
+      })
     }
   }
   revalidateMessagingDashboard()
@@ -1351,14 +1369,11 @@ export async function confirmMyMessagingOrderDeposit(input: {
     )
     const { onPartnerOrderPaidVerifiedFulfillment } = await import('@/lib/messaging/fulfillment/order-fulfillment-service')
     await onPartnerOrderPaidVerifiedFulfillment(row.id)
-    void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
-        grantPartnerAffiliateCommissionAfterPaidFromPg({
-          partnerId: row.partner_id,
-          orderId: row.id,
-        })
-      )
-      .catch((error) => console.warn('[confirmMyMessagingOrderDeposit:affiliate]', error))
+    await runPartnerOrderLifecycleHook({
+      partnerId: row.partner_id,
+      orderId: row.id,
+      event: 'paid',
+    })
   }
   revalidateMessagingDashboard()
   return { ok: true }
@@ -1458,51 +1473,34 @@ export async function updateMyMessagingOrderShipping(input: {
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   if (!isValidUuidString(input.orderId)) return { error: 'Invalid order id.' }
   const note = (input.note ?? '').trim().slice(0, 1000)
+  const existing = await fetchPartnerOrderForOwnerFromPg(user.id, input.orderId)
+  if (!existing) return { error: 'Order not found.' }
+  if (
+    !canTransitionPartnerOrderShipping(
+      { status: existing.status, shippingStatus: existing.shipping_status },
+      input.shippingStatus
+    )
+  ) {
+    return { error: 'Khong cap nhat duoc trang thai giao hang.' }
+  }
   const updated = await updatePartnerOrderShippingStatusForOwnerFromPg({
     ownerUserId: user.id,
     orderId: input.orderId,
     shippingStatus: input.shippingStatus,
     note,
+    enforceOptimizedTransition: true,
   })
   if (!updated) return { error: 'Khong cap nhat duoc trang thai giao hang.' }
-  if (input.shippingStatus === 'delivered') {
-    void import('@/lib/messaging/partner-promotion-auto-grant')
-      .then(({ processFirstDeliveredOrderPromotion }) =>
-        processFirstDeliveredOrderPromotion({
-          partnerId: updated.partner_id,
-          orderId: updated.id,
-          conversationId: updated.conversation_id,
-          emailNormalized: updated.customer_email,
-        })
-      )
-      .catch((error) =>
-        console.warn('[updateMyMessagingOrderShipping:first-delivered-promotion]', error)
-      )
+  if (existing.shipping_status === input.shippingStatus) {
+    revalidateMessagingDashboard()
+    return { ok: true }
   }
-  if (
-    input.shippingStatus === 'delivered' ||
-    input.shippingStatus === 'returned' ||
-    input.shippingStatus === 'cancelled'
-  ) {
-    void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(async ({ clawbackPartnerAffiliateForOrderFromPg, transitionPartnerAffiliateCommissionFromPg }) => {
-        if (input.shippingStatus === 'delivered') {
-          await transitionPartnerAffiliateCommissionFromPg({
-            partnerId: updated.partner_id,
-            orderId: updated.id,
-            state: 'confirmed',
-          })
-        } else {
-          await clawbackPartnerAffiliateForOrderFromPg({
-            partnerId: updated.partner_id,
-            orderId: updated.id,
-            refundWallet: input.shippingStatus !== 'returned',
-          })
-        }
-      })
-      .catch((error) =>
-        console.warn('[updateMyMessagingOrderShipping:affiliate]', error)
-      )
+  if (input.shippingStatus === 'returned' || input.shippingStatus === 'cancelled') {
+    await runPartnerOrderLifecycleHook({
+      partnerId: updated.partner_id,
+      orderId: updated.id,
+      event: input.shippingStatus,
+    })
   }
   queuePartnerOrderGoogleSheetsSync(updated.partner_id, updated.id)
   await insertPartnerOrderEventFromPg({
@@ -1535,19 +1533,11 @@ export async function updateMyMessagingOrderShipping(input: {
     },
   })
   if (input.shippingStatus === 'delivered') {
-    try {
-      await notifyPartnerCustomerDeliveredWebApp(updated, 'ems_auto', customerLocale)
-    } catch (e) {
-      console.warn('[updateMyMessagingOrderShipping] delivered webapp', e)
-    }
-    try {
-      await sendPartnerOrderDeliveredReviewOnce({
-        order: updated,
-        customerLocale: customerLocaleRaw,
-      })
-    } catch (e) {
-      console.warn('[updateMyMessagingOrderShipping] review email', e)
-    }
+    await runPartnerOrderDeliveredHook({
+      order: updated,
+      trigger: 'admin',
+      customerLocale: customerLocaleRaw,
+    })
   } else {
     try {
       await emailCustomerShippingStatusChanged({ order: updated, customerLocale: customerLocaleRaw })
@@ -1589,16 +1579,11 @@ export async function updateMyMessagingOrderRefund(input: {
     createdBy: user.id,
   })
   if (input.refundStatus === 'refunded') {
-    void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ clawbackPartnerAffiliateForOrderFromPg }) =>
-        clawbackPartnerAffiliateForOrderFromPg({
-          partnerId: updated.partner_id,
-          orderId: updated.id,
-        })
-      )
-      .catch((error) =>
-        console.warn('[updateMyMessagingOrderRefund:affiliate]', error)
-      )
+    await runPartnerOrderLifecycleHook({
+      partnerId: updated.partner_id,
+      orderId: updated.id,
+      event: 'refunded',
+    })
     await insertMessagePg({
       conversationId: updated.conversation_id,
       direction: 'outbound',

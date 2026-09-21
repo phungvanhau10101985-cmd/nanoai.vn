@@ -67,9 +67,11 @@ import {
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { PW_SHOP_CART_PAGE_CSS } from '@/lib/partner-website/shop/partner-site-cart-page-css'
 import {
-  PW_SHOP_CART_PAGE_CSS,
-} from '@/lib/partner-website/shop/partner-site-cart-page-css'
+  PartnerSiteShopEmptyState,
+  PartnerSiteShopSkeleton,
+} from '@/components/partner-website/shop/partner-site-shop-empty-state'
 
 type Props = {
   siteSlug: string
@@ -1278,12 +1280,15 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     <div className="pw-shop-cart">
       <style dangerouslySetInnerHTML={{ __html: PW_SHOP_CART_PAGE_CSS }} />
       <h1 data-pw-el={PW_EL.sectionTitle}>{t.cartTitle}</h1>
-      {loading && items.length === 0 ? <p className="pw-shop-muted">…</p> : null}
+      {loading && items.length === 0 ? <PartnerSiteShopSkeleton variant="cart" label={t.cartTitle} /> : null}
       {!loading && items.length === 0 ? (
-        <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>
-          {t.cartEmpty}{' '}
-          <Link href={partnerSiteProductsPath(siteSlug, { customDomain })}>{t.cartContinueShopping}</Link>
-        </p>
+        <PartnerSiteShopEmptyState
+          kind="cart"
+          title={t.cartEmpty}
+          actionHref={partnerSiteProductsPath(siteSlug, { customDomain })}
+          actionLabel={t.cartContinueShopping}
+          emptyEl={PW_EL.empty}
+        />
       ) : null}
       {items.length > 0 ? (
         <div className="pw-shop-cart-layout">

@@ -3,7 +3,11 @@ import {
   type PartnerOrderRow,
 } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchPartnerOrderShipmentEventsFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
-import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
+import {
+  buyerOrderActions,
+  publicOrderShipmentEvents,
+  stripInternalOrderSource,
+} from '@/lib/messaging/partner-order-notify-ui'
 import {
   buildGuestOrderDepositView,
   fetchPartnerOrderDetailForGuestWidgetIfAllowed,
@@ -18,6 +22,8 @@ export type GuestOrderPagePayload = Awaited<ReturnType<typeof buildGuestOrderDep
   shipment_events: Awaited<ReturnType<typeof fetchPartnerOrderShipmentEventsFromPg>>
   sibling_orders: Awaited<ReturnType<typeof fetchPartnerCheckoutGroupOrdersFromPg>>
   can_confirm_received: boolean
+  can_cancel: boolean
+  buyer_actions: ReturnType<typeof buyerOrderActions>
 }
 
 export async function buildGuestOrderPagePayload(input: {
@@ -32,18 +38,26 @@ export async function buildGuestOrderPagePayload(input: {
     fetchPartnerOrderShipmentEventsFromPg(order.id),
     fetchPartnerCheckoutGroupOrdersFromPg(input.partnerId, order.checkout_group_id),
   ])
+  const buyerActions = buyerOrderActions({
+    status: order.status,
+    shippingStatus: order.shipping_status,
+    requiredAmount: order.required_amount,
+    paidAmount: order.paid_amount,
+    shipmentEvents: events,
+  })
   return {
     ...view,
+    order: stripInternalOrderSource(view.order as unknown as Record<string, unknown>) as typeof view.order,
     payment_display: view.payment_display as PartnerSiteDepositPaymentDisplay | null,
     partner_display_name: input.partnerDisplayName,
     partner_slug: input.slug,
-    shipment_events: events,
-    sibling_orders: siblings.filter((row) => row.id !== order.id),
-    can_confirm_received:
-      order.status !== 'cancelled' &&
-      (events.length > 0
-        ? canConfirmReceivedFromShipment(events)
-        : order.shipping_status === 'shipping'),
+    shipment_events: publicOrderShipmentEvents(events) as typeof events,
+    sibling_orders: siblings
+      .filter((row) => row.id !== order.id)
+      .map((row) => stripInternalOrderSource(row as unknown as Record<string, unknown>)) as typeof siblings,
+    can_confirm_received: buyerActions.includes('confirm_received'),
+    can_cancel: buyerActions.includes('cancel'),
+    buyer_actions: buyerActions,
   }
 }
 

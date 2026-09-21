@@ -27,6 +27,15 @@ export type NanoaiIframeToParentMessage = {
   returnChatUrl?: string
 }
 
+/** Iframe chat → shop NanoAI: đơn vừa tạo/cập nhật, tải lại trang đơn cùng tài khoản. */
+export type NanoaiIframeOrderUpdatedMessage = {
+  source: typeof NANOAI_WIDGET_MSG_SOURCE
+  type: 'ORDER_UPDATED'
+  siteSlug?: string
+}
+
+export const PARTNER_SITE_ORDERS_UPDATED_EVENT = 'pw-partner-site-orders-updated'
+
 export function isOpenMyOrdersMessage(data: unknown): data is Extract<NanoaiWidgetToIframeMessage, { type: 'OPEN_MY_ORDERS' }> {
   if (!data || typeof data !== 'object') return false
   const o = data as Record<string, unknown>
@@ -86,6 +95,16 @@ export function isNavigateTopFromIframe(data: unknown): data is NanoaiIframeToPa
     o.type === 'NAVIGATE_TOP' &&
     typeof o.url === 'string' &&
     o.url.trim().length > 0
+  )
+}
+
+export function isOrderUpdatedFromIframe(data: unknown): data is NanoaiIframeOrderUpdatedMessage {
+  if (!data || typeof data !== 'object') return false
+  const o = data as Record<string, unknown>
+  return (
+    o.source === NANOAI_WIDGET_MSG_SOURCE &&
+    o.type === 'ORDER_UPDATED' &&
+    (o.siteSlug == null || typeof o.siteSlug === 'string')
   )
 }
 

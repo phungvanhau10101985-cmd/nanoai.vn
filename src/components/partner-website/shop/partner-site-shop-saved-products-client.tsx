@@ -14,6 +14,10 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
+import {
+  PartnerSiteShopEmptyState,
+  PartnerSiteShopSkeleton,
+} from '@/components/partner-website/shop/partner-site-shop-empty-state'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Mode = 'favorites' | 'recently-viewed'
@@ -167,16 +171,15 @@ export function PartnerSiteShopSavedProductsClient({
           {t.recentlyViewedSyncNote}
         </p>
       ) : null}
-      {loading ? <p className="pw-shop-muted">…</p> : null}
+      {loading ? <PartnerSiteShopSkeleton variant="list" /> : null}
       {!loading && products.length === 0 ? (
-        <div className="pw-shop-empty" style={{ marginTop: 20, textAlign: 'center' }}>
-          <p className="pw-shop-muted">{empty}</p>
-          <p style={{ marginTop: 12 }}>
-            <Link href={homeHref} className="pw-shop-btn pw-shop-btn-buy">
-              {isViewed ? t.recentlyViewedExplore : t.backToShop}
-            </Link>
-          </p>
-        </div>
+        <PartnerSiteShopEmptyState
+          kind="generic"
+          title={empty}
+          actionHref={homeHref}
+          actionLabel={isViewed ? t.recentlyViewedExplore : t.backToShop}
+          emptyEl={PW_EL.empty}
+        />
       ) : null}
       {message ? <p className="pw-shop-muted">{message}</p> : null}
       <div className="pw-shop-grid" style={{ marginTop: 20 }} data-pw-el={PW_EL.grid} data-pw-grid>

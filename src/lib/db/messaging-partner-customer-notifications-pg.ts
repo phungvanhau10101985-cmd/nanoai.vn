@@ -239,6 +239,7 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
   emailStatus?: PartnerCustomerNotificationEmailStatus
   pushStatus?: PartnerCustomerNotificationPushStatus
   broadcastId?: string | null
+  dedupeKey?: string | null
 }): Promise<PartnerCustomerNotificationRow | null> {
   if (!isPgConfigured()) return null
   const guestAccountId = input.guestAccountId.trim()
@@ -255,11 +256,14 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
     const row = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_customer_notifications (
          partner_id, guest_account_id, type, title, body, href, created_at,
-         scheduled_at, expires_at, email_status, push_status, broadcast_id
+         scheduled_at, expires_at, email_status, push_status, broadcast_id, dedupe_key
        ) values (
          $1::uuid, $2, $3, $4, $5, $6, now(),
-         $7::timestamptz, $8::timestamptz, $9, $10, $11::uuid
+         $7::timestamptz, $8::timestamptz, $9, $10, $11::uuid, $12
        )
+       on conflict (partner_id, guest_account_id, dedupe_key)
+         where dedupe_key is not null and dedupe_key <> ''
+       do nothing
        returning ${NOTIFICATION_SELECT}`,
       [
         input.partnerId,
@@ -273,6 +277,7 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
         input.emailStatus ?? 'none',
         input.pushStatus ?? 'pending',
         input.broadcastId?.trim() || null,
+        input.dedupeKey?.trim() || null,
       ]
     )
     return row ? mapRow(row) : null
@@ -309,6 +314,7 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
   orderId?: string | null
   /** 188 `create_notification` → `send_for_notification` ngay. Mặc định await. */
   awaitPush?: boolean
+  dedupeKey?: string | null
 }): Promise<void> {
   if (!isPgConfigured()) return
   try {
@@ -361,6 +367,7 @@ export async function notifyPartnerCustomerOrderUpdateFromPg(input: {
         body: input.body,
         href,
         pushStatus: 'pending',
+        dedupeKey: input.dedupeKey,
       })
       if (row) rows.push(row)
     }

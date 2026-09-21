@@ -12,6 +12,10 @@ import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { findGuestAccountIdByEmailPg } from '@/lib/db/messaging-guest-pg'
 import { sendPartnerCustomerWebPush } from '@/lib/messaging/partner-customer-notification-push'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import {
+  partnerOrderNotifyIdempotencyKey,
+  type PartnerOrderNotifyEvent,
+} from '@/lib/messaging/partner-order-notify-ui'
 
 /**
  * M4.1 — thông báo webapp cho người quản trị shop (chủ, tài khoản trùng email chủ, nhân viên).
@@ -34,6 +38,7 @@ async function notifyPartnerOwner(input: {
   pushUrl: string
   extraMeta?: Record<string, unknown>
   excludeUserId?: string | null
+  idempotencyKey?: string
 }): Promise<void> {
   try {
     const skip = input.excludeUserId?.trim() || ''
@@ -53,7 +58,17 @@ async function notifyPartnerOwner(input: {
     const phoneTitle = shopEmailSubject(shopName, input.title)
     await Promise.all(
       userIds.map(async (user_id) => {
-        await deliverUserNotificationPg({
+        if (input.idempotencyKey) {
+          const duplicate = await hasRecentUserNotificationFromPg({
+            userId: user_id,
+            type: input.type,
+            metaKey: 'idempotency_key',
+            metaValue: input.idempotencyKey,
+            withinMinutes: 60 * 24 * 365 * 10,
+          })
+          if (duplicate) return
+        }
+        const inserted = await deliverUserNotificationPg({
           user_id,
           type: input.type,
           title: input.title,
@@ -63,9 +78,11 @@ async function notifyPartnerOwner(input: {
             partner_id: input.partnerId,
             shop_display_name: shopName,
             skip_platform_push: true,
+            ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
             ...(input.extraMeta ?? {}),
           },
         })
+        if (!inserted) return
         const email = (await getAuthUserEmailFromPg(user_id))?.trim().toLowerCase() || ''
         const guestAccountId = email ? await findGuestAccountIdByEmailPg(input.partnerId, email) : null
         if (!guestAccountId) return
@@ -93,6 +110,12 @@ export async function notifyPartnerOwnerNewOrder(partnerId: string, order: Partn
     body: `${order.customer_name || 'Khách hàng'} vừa đặt đơn ${toVnd(amount)}${order.product_name ? ` — ${order.product_name}` : ''}.`,
     pushUrl: ownerOrdersUrl(partnerId),
     extraMeta: { order_id: order.id },
+    idempotencyKey: partnerOrderNotifyIdempotencyKey({
+      partnerId,
+      orderId: order.id,
+      event: 'order_placed',
+      channel: 'owner',
+    }),
   })
 }
 
@@ -110,6 +133,12 @@ export async function notifyPartnerOwnerPaymentVerified(
     pushUrl: ownerOrdersUrl(partnerId),
     extraMeta: { order_id: order.id },
     excludeUserId: opts?.excludeUserId,
+    idempotencyKey: partnerOrderNotifyIdempotencyKey({
+      partnerId,
+      orderId: order.id,
+      event: 'payment_confirmed',
+      channel: 'owner',
+    }),
   })
 }
 
@@ -122,6 +151,12 @@ export async function notifyPartnerOwnerPaymentNeedsReview(partnerId: string, or
     body: `Đơn ${ref} có chứng từ cần bạn xác nhận (${order.customer_name || 'khách'}).`,
     pushUrl: ownerOrdersUrl(partnerId),
     extraMeta: { order_id: order.id },
+    idempotencyKey: partnerOrderNotifyIdempotencyKey({
+      partnerId,
+      orderId: order.id,
+      event: 'payment_proof_received',
+      channel: 'owner',
+    }),
   })
 }
 
@@ -143,6 +178,9 @@ export async function notifyPartnerOwnerOrderCustomerAction(input: {
   partnerId: string
   title: string
   body: string
+  orderId?: string | null
+  conversationId?: string | null
+  event?: Extract<PartnerOrderNotifyEvent, 'customer_cancelled' | 'customer_received'>
 }): Promise<void> {
   await notifyPartnerOwner({
     partnerId: input.partnerId,
@@ -150,6 +188,15 @@ export async function notifyPartnerOwnerOrderCustomerAction(input: {
     title: input.title,
     body: input.body,
     pushUrl: ownerOrdersUrl(input.partnerId),
+    idempotencyKey: input.event
+      ? partnerOrderNotifyIdempotencyKey({
+          partnerId: input.partnerId,
+          orderId: input.orderId,
+          conversationId: input.conversationId,
+          event: input.event,
+          channel: 'owner',
+        })
+      : undefined,
   })
 }
 
@@ -241,6 +288,12 @@ export async function notifyPartnerOwnerChatNeedsReply(input: {
         : `${input.customerName || 'Khách'} vừa nhắn — AI đang tắt.`,
       pushUrl: `/dashboard/messaging?partner=${input.partnerId}`,
       extraMeta: { conversation_id: input.conversationId },
+      idempotencyKey: partnerOrderNotifyIdempotencyKey({
+        partnerId: input.partnerId,
+        conversationId: `${input.conversationId}:${Math.floor(Date.now() / (20 * 60_000))}`,
+        event: 'chat_needs_reply',
+        channel: 'owner',
+      }),
     })
   } catch (e) {
     console.warn('[notifyPartnerOwnerChatNeedsReply]', e)

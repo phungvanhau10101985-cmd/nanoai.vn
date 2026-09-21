@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
@@ -18,8 +18,12 @@ import {
   PARTNER_SITE_ORDER_STATUS_FILTER_KEYS,
   type PartnerSiteOrderStatusFilterKey,
 } from '@/lib/partner-website/shop/partner-site-order-status-filters'
-import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteStorefrontProductHref } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteOrderDepositPath, partnerSiteOrderDetailPath, partnerSiteProductsPath, partnerSiteStorefrontProductHref } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteProductHitLink } from '@/components/partner-website/shop/partner-site-product-hit-link'
+import {
+  PartnerSiteShopEmptyState,
+  PartnerSiteShopSkeleton,
+} from '@/components/partner-website/shop/partner-site-shop-empty-state'
 import { stashPartnerSiteOrderListHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import {
   readPartnerSiteAccountBrowserCache,
@@ -35,6 +39,7 @@ import {
   PartnerSiteOrderSplitGroup,
   genericShippingTimelineSteps,
 } from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
+import { PARTNER_SITE_ORDERS_UPDATED_EVENT } from '@/lib/messaging/widget-parent-bridge'
 
 type OrderRow = SiteOrderRow
 
@@ -114,7 +119,7 @@ export function PartnerSiteShopOrdersClient({
     setFilter(parsePartnerSiteOrderStatusFilter(initialFilter))
   }, [initialFilter])
 
-  const reload = async () => {
+  const reload = useCallback(async () => {
     const res = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/orders`, {
       credentials: 'same-origin',
       headers: authHeaders(),
@@ -124,7 +129,7 @@ export function PartnerSiteShopOrdersClient({
     const next = Array.isArray(json.orders) ? json.orders : []
     setOrders(next)
     writePartnerSiteAccountBrowserCache(siteSlug, { orders: next })
-  }
+  }, [authHeaders, captureFromResponse, partnerSlug, siteSlug])
 
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)
@@ -146,8 +151,18 @@ export function PartnerSiteShopOrdersClient({
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load on mount / session header identity
-  }, [authHeaders, captureFromResponse, initialOrders, partnerSlug, siteSlug])
+  }, [initialOrders, reload, siteSlug])
+
+  useEffect(() => {
+    const normalizedSlug = siteSlug.trim().toLowerCase()
+    const onOrderUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ siteSlug?: string | null }>).detail
+      if (detail?.siteSlug && detail.siteSlug !== normalizedSlug) return
+      void reload()
+    }
+    window.addEventListener(PARTNER_SITE_ORDERS_UPDATED_EVENT, onOrderUpdated)
+    return () => window.removeEventListener(PARTNER_SITE_ORDERS_UPDATED_EVENT, onOrderUpdated)
+  }, [reload, siteSlug])
 
   const counts = useMemo(() => countPartnerSiteOrdersByStatusFilter(orders), [orders])
   const visibleOrders = useMemo(
@@ -241,12 +256,20 @@ export function PartnerSiteShopOrdersClient({
         </div>
       ) : null}
 
-      {loading ? <p className="pw-shop-muted">…</p> : null}
-      {!loading && orders.length === 0 ? <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.ordersEmpty}</p> : null}
-      {!loading && orders.length > 0 && visibleOrders.length === 0 ? (
-        <p className="pw-shop-muted">{t.ordersFilterEmpty}</p>
+      {loading ? <PartnerSiteShopSkeleton variant="orders" label={t.ordersTitle} /> : null}
+      {!loading && orders.length === 0 ? (
+        <PartnerSiteShopEmptyState
+          kind="orders"
+          title={t.ordersEmpty}
+          actionHref={partnerSiteProductsPath(siteSlug, { customDomain })}
+          actionLabel={t.cartContinueShopping}
+          emptyEl={PW_EL.empty}
+        />
       ) : null}
-      {actionStatus ? <p className="pw-shop-muted" style={{ marginTop: 8 }}>{actionStatus}</p> : null}
+      {!loading && orders.length > 0 && visibleOrders.length === 0 ? (
+        <PartnerSiteShopEmptyState kind="orders" title={t.ordersFilterEmpty} />
+      ) : null}
+      {actionStatus ? <p className="pw-shop-muted pw-shop-page-status">{actionStatus}</p> : null}
 
       <ul className="pw-shop-orders-list">
         {visibleOrders.map((o) => {
@@ -255,12 +278,8 @@ export function PartnerSiteShopOrdersClient({
           const ref = displayShopOrderCode(o.payment_reference?.trim() ?? '')
           const showPayment = Boolean(qr || ref || (o.required_amount != null && o.required_amount > 0))
           const waitingPay = o.status === 'awaiting_payment' || o.status === 'payment_checking'
-          const canTrack =
-            o.status !== 'cancelled' &&
-            o.shipping_status !== 'cancelled' &&
-            (o.status === 'paid_verified' ||
-              o.status === 'pending_manual_review' ||
-              ['confirmed', 'packing', 'shipping', 'delivered'].includes(String(o.shipping_status ?? '')))
+          const buyerActions = new Set(o.buyer_actions || [])
+          const canTrack = buyerActions.has('track')
           const productHref = partnerSiteStorefrontProductHref(siteSlug, {
             inventoryId: o.product_inventory_id,
             name: o.product_name,
@@ -272,6 +291,29 @@ export function PartnerSiteShopOrdersClient({
 
           return (
             <li key={o.id} className="pw-shop-order-card" data-pw-el={PW_EL.card}>
+              <div className="pw-shop-order-card-top">
+                <div className="pw-shop-order-card-identity">
+                  <span>{t.orderIdLabel}</span>
+                  <strong>{ref || o.id}</strong>
+                  {o.created_at ? (
+                    <time dateTime={o.created_at}>
+                      {formatPartnerSiteOrderDate(locale, o.created_at)}
+                    </time>
+                  ) : null}
+                </div>
+                <div className="pw-shop-order-card-statuses">
+                  {o.status ? (
+                    <span className="pw-shop-order-status">
+                      {formatPartnerSiteOrderStatus(locale, o.status)}
+                    </span>
+                  ) : null}
+                  {o.shipping_status ? (
+                    <span className="pw-shop-order-shipping-status">
+                      {formatPartnerSiteShippingStatus(locale, o.shipping_status)}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
               <div className="pw-shop-order-card-head">
                 {o.product_image_url ? (
                   <PartnerSiteProductHitLink href={productHref} className="pw-shop-product-hit-media" aria-label={o.product_name || t.orderIdLabel}>
@@ -284,24 +326,6 @@ export function PartnerSiteShopOrdersClient({
                       {o.product_name || t.orderIdLabel}
                     </PartnerSiteProductHitLink>
                   </strong>
-                  <p className="pw-shop-muted">
-                    {t.orderIdLabel}: {ref || o.id}
-                  </p>
-                  {o.created_at ? (
-                    <p className="pw-shop-muted">
-                      {t.orderDateLabel}: {formatPartnerSiteOrderDate(locale, o.created_at)}
-                    </p>
-                  ) : null}
-                  {o.status ? (
-                    <p className="pw-shop-muted">
-                      {t.orderStatusLabel}: {formatPartnerSiteOrderStatus(locale, o.status)}
-                    </p>
-                  ) : null}
-                  {o.shipping_status ? (
-                    <p className="pw-shop-muted">
-                      {t.orderShippingStatusLabel}: {formatPartnerSiteShippingStatus(locale, o.shipping_status)}
-                    </p>
-                  ) : null}
                   <PartnerSiteOrderSplitGroup
                     t={t}
                     siteSlug={siteSlug}
@@ -334,7 +358,7 @@ export function PartnerSiteShopOrdersClient({
                 <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'detail')}>
                   {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
                 </button>
-                {showPayment && waitingPay ? (
+                {showPayment && waitingPay && buyerActions.has('pay_deposit') ? (
                   <a
                     href={partnerSiteOrderDepositPath(siteSlug, o.id, { customDomain })}
                     className="pw-shop-btn"
@@ -348,17 +372,17 @@ export function PartnerSiteShopOrdersClient({
                     {open && panel === 'track' ? t.orderHideTrack : t.orderTrack}
                   </button>
                 ) : null}
-                {o.can_confirm_received ? (
+                {buyerActions.has('confirm_received') ? (
                   <button type="button" className="pw-shop-btn" onClick={() => togglePanel(o.id, 'confirm')}>
                     {t.orderConfirmReceived}
                   </button>
                 ) : null}
-                {o.has_review === false && o.shipping_status === 'delivered' && reviewHref ? (
+                {buyerActions.has('review') && reviewHref ? (
                   <a href={reviewHref} className="pw-shop-btn pw-shop-btn-outline">
                     {t.orderReview}
                   </a>
                 ) : null}
-                {o.can_cancel ? (
+                {buyerActions.has('cancel') ? (
                   <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'cancel')}>
                     {t.orderCancel}
                   </button>

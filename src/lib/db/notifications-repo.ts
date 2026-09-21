@@ -23,9 +23,10 @@ export async function insertNotificationPg(input: InsertNotificationInput): Prom
   if (!isPgConfigured()) return { ok: false, error: 'database_not_configured' }
   try {
     const pool = getPgPool()
-    await pool.query(
+    const result = await pool.query(
       `insert into public.notifications (user_id, type, title, body, meta)
-       values ($1::uuid, $2, $3, $4, $5::jsonb)`,
+       values ($1::uuid, $2, $3, $4, $5::jsonb)
+       on conflict do nothing`,
       [
         input.user_id,
         input.type,
@@ -34,7 +35,9 @@ export async function insertNotificationPg(input: InsertNotificationInput): Prom
         JSON.stringify(input.meta ?? {}),
       ]
     )
-    return { ok: true }
+    return result.rowCount === 1
+      ? { ok: true }
+      : { ok: false, error: 'duplicate_notification' }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { ok: false, error: msg }

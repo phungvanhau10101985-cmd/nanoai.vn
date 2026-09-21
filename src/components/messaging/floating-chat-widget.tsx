@@ -7,8 +7,10 @@ import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-ur
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
 import {
   NANOAI_WIDGET_MSG_SOURCE,
+  PARTNER_SITE_ORDERS_UPDATED_EVENT,
   isAllowedHttpNavigationUrl,
   isNavigateTopFromIframe,
+  isOrderUpdatedFromIframe,
   parseWidgetPageContextFromChatUrl,
 } from '@/lib/messaging/widget-parent-bridge'
 import { stampGuestChatEmbedPageParam } from '@/lib/messaging/guest-purchase-flow'
@@ -73,8 +75,17 @@ function storeGuestIdentity(payload: unknown): void {
   try {
     const sid = String(data.guestSessionId || '').trim()
     const aid = String(data.guestAccountId || '').trim()
-    if (UUID_STRING_RE.test(sid)) window.localStorage.setItem(GUEST_SESSION_STORAGE_KEY, sid)
-    if (UUID_STRING_RE.test(aid)) window.localStorage.setItem(GUEST_ACCOUNT_STORAGE_KEY, aid)
+    if (UUID_STRING_RE.test(sid)) {
+      window.localStorage.setItem(GUEST_SESSION_STORAGE_KEY, sid)
+      for (const key of PARTNER_SITE_SESSION_KEYS) window.localStorage.setItem(key, sid)
+    }
+    if (UUID_STRING_RE.test(aid)) {
+      window.localStorage.setItem(GUEST_ACCOUNT_STORAGE_KEY, aid)
+      for (const key of PARTNER_SITE_ACCOUNT_KEYS) window.localStorage.setItem(key, aid)
+    }
+    if (UUID_STRING_RE.test(sid) || UUID_STRING_RE.test(aid)) {
+      window.dispatchEvent(new CustomEvent('pw-partner-site-guest-session-change'))
+    }
   } catch {
     /* quota / private mode */
   }
@@ -266,6 +277,12 @@ export function FloatingChatWidget({
       if (type === 'GUEST_IDENTITY') {
         storeGuestIdentity(data)
         if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+      } else if (isOrderUpdatedFromIframe(data)) {
+        window.dispatchEvent(
+          new CustomEvent(PARTNER_SITE_ORDERS_UPDATED_EVENT, {
+            detail: { siteSlug: data.siteSlug?.trim().toLowerCase() || null },
+          })
+        )
       } else if (type === 'CART_COUNT') {
         const n = Number((data as { count?: unknown }).count)
         setCartCount(Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0)

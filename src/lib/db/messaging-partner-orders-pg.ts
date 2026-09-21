@@ -17,6 +17,10 @@ import {
   paymentReferenceLookupKeys,
 } from '@/lib/messaging/shop-payment-reference'
 import { vietnamSlaBadge } from '@/lib/messaging/fulfillment/vietnam-order-sla'
+import {
+  partnerOrderPaymentTransitionSql,
+  partnerOrderShippingTransitionSql,
+} from '@/lib/messaging/fulfillment/order-lifecycle-transition'
 
 export type PartnerPaymentSettingsRow = {
   partner_id: string
@@ -290,6 +294,8 @@ function mapOrderRow(r: Record<string, unknown>): PartnerOrderRow {
     review_reminder_sent_at: r.review_reminder_sent_at ? String(r.review_reminder_sent_at) : null,
   }
 }
+
+export const mapPartnerOrderRowFromPg = mapOrderRow
 
 function mapOrderLineRow(r: Record<string, unknown>): PartnerOrderLineRow {
   return {
@@ -1691,21 +1697,24 @@ export async function updatePartnerOrderPaymentVerificationFromPg(input: {
   status: PartnerOrderRow['status']
   paidAmount: number
   verifiedNote: string
+  enforceOptimizedTransition?: boolean
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
-    await pgQuery(
-      `update public.messaging_partner_orders
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partner_orders o
        set status = $2,
            paid_amount = $3::numeric,
            verified_note = $4,
            verified_at = case when $2 in ('paid_verified', 'pending_manual_review') then now() else verified_at end,
            locked_at = case when $2 = 'paid_verified' then coalesce(locked_at, now()) else locked_at end,
            updated_at = now()
-       where id = $1::uuid`,
+       where o.id = $1::uuid
+         ${input.enforceOptimizedTransition !== false ? `and ${partnerOrderPaymentTransitionSql('$2')}` : ''}
+       returning o.id::text as id`,
       [input.orderId, input.status, Math.max(0, input.paidAmount || 0), input.verifiedNote]
     )
-    return true
+    return Boolean(row?.id)
   } catch (e) {
     console.warn('[updatePartnerOrderPaymentVerificationFromPg]', e)
     return false
@@ -2322,10 +2331,11 @@ export async function updatePartnerOrderStatusForOwnerFromPg(input: {
   orderId: string
   status: 'paid_verified' | 'pending_manual_review' | 'cancelled' | 'awaiting_payment' | 'payment_checking'
   verifiedNote: string
+  enforceOptimizedTransition?: boolean
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
-    await pgQuery(
+    const row = await pgQueryOne<{ id: string }>(
       `update public.messaging_partner_orders o
        set status = $3,
            verified_note = $4,
@@ -2335,10 +2345,12 @@ export async function updatePartnerOrderStatusForOwnerFromPg(input: {
        from public.messaging_partners mp
        where o.id = $1::uuid
          and mp.id = o.partner_id
-         and ${sqlPartnerMpActorHasPerm(2, 'orders')}`,
+         and ${sqlPartnerMpActorHasPerm(2, 'orders')}
+         ${input.enforceOptimizedTransition !== false ? `and ${partnerOrderPaymentTransitionSql()}` : ''}
+       returning o.id::text as id`,
       [input.orderId, input.ownerUserId, input.status, input.verifiedNote]
     )
-    return true
+    return Boolean(row?.id)
   } catch (e) {
     console.warn('[updatePartnerOrderStatusForOwnerFromPg]', e)
     return false
@@ -2368,7 +2380,7 @@ export async function confirmPartnerOrderDepositForOwnerFromPg(input: {
        from public.messaging_partners mp
        where o.id = $1::uuid
          and mp.id = o.partner_id
-         and o.status <> 'cancelled'
+         and o.status in ('awaiting_payment', 'payment_checking', 'pending_manual_review')
          and coalesce(o.shipping_status, 'pending') not in ('cancelled', 'returned')
          and ${ORDER_TOTAL_EXPR} > 0
          and $4::numeric > 0
@@ -2404,6 +2416,16 @@ export async function updatePartnerOrderRefundForOwnerFromPg(input: {
        where o.id = $1::uuid
          and mp.id = o.partner_id
          and ${sqlPartnerMpActorHasPerm(2, 'orders')}
+         and (
+           $3::text = coalesce(o.refund_status, 'none')
+           or (coalesce(o.refund_status, 'none') = 'none' and $3::text in ('requested', 'refunded'))
+           or (coalesce(o.refund_status, 'none') = 'requested' and $3::text = 'refunded')
+         )
+         and ($3::text <> 'refunded' or (
+           coalesce(o.paid_amount, 0) > 0
+           and $4::numeric >= 0
+           and $4::numeric <= coalesce(o.paid_amount, 0)
+         ))
        returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
                  o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
@@ -2445,6 +2467,7 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
   orderId: string
   shippingStatus: PartnerOrderRow['shipping_status']
   note: string
+  enforceOptimizedTransition?: boolean
 }): Promise<PartnerOrderAdminRow | null> {
   if (!isPgConfigured()) return null
   try {
@@ -2461,13 +2484,7 @@ export async function updatePartnerOrderShippingStatusForOwnerFromPg(input: {
        where o.id = $1::uuid
          and mp.id = o.partner_id
          and ${sqlPartnerMpActorHasPerm(2, 'orders')}
-         and (
-           $3 not in ('shipping', 'packing')
-           or not exists (
-             select 1 from public.messaging_partner_order_shipment_events se
-             where se.order_id = o.id
-           )
-         )
+         ${input.enforceOptimizedTransition !== false ? `and ${partnerOrderShippingTransitionSql()}` : ''}
        returning o.id::text, o.partner_id::text, o.conversation_id::text, o.external_thread_id, o.status,
                  o.customer_name, o.customer_email, o.customer_phone, o.shipping_address,
                  o.variant_color, o.variant_size, o.variant_image_urls, o.quantity, o.note,
@@ -2658,19 +2675,14 @@ export async function cancelPartnerOrderForConversationFromPg(input: {
   const reason = input.reason.trim().slice(0, 500)
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `update public.messaging_partner_orders
+      `update public.messaging_partner_orders o
        set status = 'cancelled',
-           shipping_status = case
-             when shipping_status in ('delivered', 'returned') then shipping_status
-             else 'cancelled'
-           end,
            verified_note = case when $4 <> '' then $4 else verified_note end,
            updated_at = now()
-       where id = $1::uuid
-         and partner_id = $2::uuid
-         and conversation_id = $3::uuid
-         and status in ('awaiting_payment', 'payment_checking')
-         and shipping_status not in ('delivered', 'returned')
+       where o.id = $1::uuid
+         and o.partner_id = $2::uuid
+         and o.conversation_id = $3::uuid
+         and ${partnerOrderPaymentTransitionSql("'cancelled'")}
        returning ${GUEST_ORDER_RETURNING}`,
       [input.orderId, input.partnerId, input.conversationId, reason]
     )
@@ -2690,15 +2702,15 @@ export async function confirmPartnerOrderReceivedForConversationFromPg(input: {
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `update public.messaging_partner_orders
+      `update public.messaging_partner_orders o
        set shipping_status = 'delivered',
            delivered_at = coalesce(delivered_at, now()),
            updated_at = now()
-       where id = $1::uuid
-         and partner_id = $2::uuid
-         and conversation_id = $3::uuid
-         and status <> 'cancelled'
-         and shipping_status = 'shipping'
+       where o.id = $1::uuid
+         and o.partner_id = $2::uuid
+         and o.conversation_id = $3::uuid
+         and coalesce(o.shipping_status, 'pending') = 'shipping'
+         and ${partnerOrderShippingTransitionSql("'delivered'")}
        returning ${GUEST_ORDER_RETURNING}`,
       [input.orderId, input.partnerId, input.conversationId]
     )

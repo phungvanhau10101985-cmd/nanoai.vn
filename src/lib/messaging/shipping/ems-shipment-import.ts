@@ -23,7 +23,7 @@ import { emsLookupCandidates, emsPhaseFromDescription, fetchEmsWithFallback } fr
 import type { EmsImportSummary, PartnerEmsListRow } from '@/lib/messaging/shipping/ems-types'
 import { isEmsDelivered } from '@/lib/messaging/shipping/shipping-ops'
 import { notifyPartnerCustomerEmsUpdateWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
-import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
+import { runPartnerOrderDeliveredHook } from '@/lib/messaging/fulfillment/order-delivered-hook'
 
 function shopHandoffMessage(orderCode?: string | null): string {
   const code = (orderCode || '').trim().toUpperCase()
@@ -56,59 +56,73 @@ async function trySyncShopOrder(input: {
   beforeEmsStatus?: string | null
   beforeEmsTracking?: string | null
   userId?: string | null
-}): Promise<{ synced: boolean; message: string; shippingStatus: 'shipping' | 'delivered' }> {
+}): Promise<{ synced: boolean; message: string; shippingStatus: string }> {
   const beforeOrder = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
   const delivered = isEmsDelivered(input.emsPhase, input.emsStatus)
   const shippingStatus = delivered ? 'delivered' : 'shipping'
   const tracking = (input.emsTrackingCode || input.referenceCode || '').trim()
+  const { applyEmsImportToPartnerOrderShipmentFromPg } = await import(
+    '@/lib/messaging/fulfillment/order-fulfillment-service'
+  )
+  const timeline = await applyEmsImportToPartnerOrderShipmentFromPg({
+    orderId: input.orderId,
+    shippingStatus,
+  })
   await syncPartnerOrderShippingFromEmsFromPg({
     partnerId: input.partnerId,
     orderId: input.orderId,
     trackingNumber: tracking,
-    shippingStatus,
+    shippingStatus: timeline.ok ? shippingStatus : null,
   })
   await insertPartnerOrderEventFromPg({
     orderId: input.orderId,
     eventType: 'shipping_status',
-    title: delivered ? 'EMS giao thành công' : 'Shop đã gửi EMS giao hàng',
-    detail: tracking ? `Mã vận: ${tracking}` : shopHandoffMessage(input.orderCode),
+    title: timeline.ok
+      ? delivered
+        ? 'EMS giao thành công'
+        : 'Shop đã gửi EMS giao hàng'
+      : 'EMS đã cập nhật vận đơn, lịch trình đang bị chặn',
+    detail: timeline.ok
+      ? tracking
+        ? `Mã vận: ${tracking}`
+        : shopHandoffMessage(input.orderCode)
+      : timeline.error || `Mã vận: ${tracking}`,
     source: 'shop',
     createdBy: input.userId || undefined,
   })
-  const { applyEmsImportToPartnerOrderShipmentFromPg } = await import(
-    '@/lib/messaging/fulfillment/order-fulfillment-service'
-  )
-  await applyEmsImportToPartnerOrderShipmentFromPg({
-    orderId: input.orderId,
-    shippingStatus,
-  })
+  if (!timeline.ok) {
+    return {
+      synced: false,
+      message: timeline.blockedAt === 'at_customs'
+        ? 'Đã lưu mã EMS; đơn Trung Quốc vẫn dừng ở cửa khẩu, cần quản trị xác nhận thông quan.'
+        : timeline.error || 'EMS chưa thể cập nhật lịch trình.',
+      shippingStatus: beforeOrder?.shipping_status || 'pending',
+    }
+  }
   const afterOrder =
     (await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)) || beforeOrder
   if (afterOrder) {
-    try {
-      await notifyPartnerCustomerEmsUpdateWebApp({
-        order: afterOrder,
-        before: {
-          shippingStatus: beforeOrder?.shipping_status,
-          trackingNumber: beforeOrder?.tracking_number || input.beforeEmsTracking,
-          emsPhase: input.beforeEmsPhase,
-          emsStatus: input.beforeEmsStatus,
-        },
-        after: {
-          shippingStatus,
-          trackingNumber: tracking,
-          emsPhase: input.emsPhase,
-          emsStatus: input.emsStatus,
-        },
-      })
-    } catch (e) {
-      console.warn('[trySyncShopOrder] customer webapp', e)
-    }
-    if (shippingStatus === 'delivered') {
+    if (afterOrder.shipping_status === 'delivered') {
+      await runPartnerOrderDeliveredHook({ order: afterOrder, trigger: 'ems' })
+    } else if (afterOrder.shipping_status === 'shipping') {
       try {
-        await sendPartnerOrderDeliveredReviewOnce({ order: afterOrder })
+        await notifyPartnerCustomerEmsUpdateWebApp({
+          order: afterOrder,
+          before: {
+            shippingStatus: beforeOrder?.shipping_status,
+            trackingNumber: beforeOrder?.tracking_number || input.beforeEmsTracking,
+            emsPhase: input.beforeEmsPhase,
+            emsStatus: input.beforeEmsStatus,
+          },
+          after: {
+            shippingStatus: afterOrder.shipping_status,
+            trackingNumber: tracking,
+            emsPhase: input.emsPhase,
+            emsStatus: input.emsStatus,
+          },
+        })
       } catch (e) {
-        console.warn('[trySyncShopOrder] delivered email', e)
+        console.warn('[trySyncShopOrder] customer webapp', e)
       }
     }
   }

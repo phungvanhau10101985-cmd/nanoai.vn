@@ -881,6 +881,15 @@ export interface Database {
           variant_image_urls: string
           note: string
           sort_order: number
+          fulfillment_source: string
+          source_platform: string | null
+          source_url: string
+          product_sku_snapshot: string
+          is_warehouse_item: boolean
+          warehouse_stock_reserved_at: string | null
+          warehouse_stock_deducted_at: string | null
+          warehouse_stock_restored_at: string | null
+          warehouse_stock_additive: boolean
           created_at: string
           updated_at: string
         }
@@ -899,6 +908,15 @@ export interface Database {
           variant_image_urls?: string
           note?: string
           sort_order?: number
+          fulfillment_source?: string
+          source_platform?: string | null
+          source_url?: string
+          product_sku_snapshot?: string
+          is_warehouse_item?: boolean
+          warehouse_stock_reserved_at?: string | null
+          warehouse_stock_deducted_at?: string | null
+          warehouse_stock_restored_at?: string | null
+          warehouse_stock_additive?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -917,6 +935,15 @@ export interface Database {
           variant_image_urls?: string
           note?: string
           sort_order?: number
+          fulfillment_source?: string
+          source_platform?: string | null
+          source_url?: string
+          product_sku_snapshot?: string
+          is_warehouse_item?: boolean
+          warehouse_stock_reserved_at?: string | null
+          warehouse_stock_deducted_at?: string | null
+          warehouse_stock_restored_at?: string | null
+          warehouse_stock_additive?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -974,6 +1001,7 @@ export interface Database {
           description: string
           stock_note: string
           stock_qty: number
+          warehouse_reserved?: number
           price_hint: string
           image_url: string
           product_url: string
@@ -1066,6 +1094,7 @@ export interface Database {
           description?: string
           stock_note?: string
           stock_qty?: number
+          warehouse_reserved?: number
           price_hint?: string
           image_url?: string
           product_url?: string
@@ -1158,6 +1187,7 @@ export interface Database {
           description?: string
           stock_note?: string
           stock_qty?: number
+          warehouse_reserved?: number
           price_hint?: string
           image_url?: string
           product_url?: string

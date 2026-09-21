@@ -155,6 +155,18 @@ const EMBED_GUEST_SESSION_QUERY_KEY = 'guest_session_id'
 const EMBED_GUEST_ACCOUNT_QUERY_KEY = 'guest_account_id'
 const UUID_STRING_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+function notifyParentOrderUpdated(siteSlug?: string | null): void {
+  if (typeof window === 'undefined' || window.parent === window) return
+  window.parent.postMessage(
+    {
+      source: NANOAI_WIDGET_MSG_SOURCE,
+      type: 'ORDER_UPDATED',
+      ...(siteSlug?.trim() ? { siteSlug: siteSlug.trim().toLowerCase() } : {}),
+    },
+    '*'
+  )
+}
+
 /**
  * `open_try_on` chỉ có trên URL lần đầu; effect strip query → React Strict Mode (dev) remount
  * mất param. Cache theo `slug` chỉ cho phiên thử đồ — không áp dụng khi `ctx_gateway=consult`.
@@ -3837,6 +3849,7 @@ export function PartnerGuestChatClient({
       setCartItems([])
       setCartOpen(false)
       toast({ title: 'Đã tạo đơn hàng từ giỏ.' })
+      notifyParentOrderUpdated(guestSiteSlug)
       await load()
     } catch {
       toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
@@ -3849,6 +3862,7 @@ export function PartnerGuestChatClient({
     captureGuestSessionFromResponse,
     cartItems,
     adsTracking,
+    guestSiteSlug,
     load,
     orderAddress,
     orderName,
@@ -4335,6 +4349,7 @@ export function PartnerGuestChatClient({
         setProofOrderIsSepay(false)
       }
       forceGuestChatScrollToBottomRef.current = true
+      notifyParentOrderUpdated(guestSiteSlug)
       await load()
       toast({
         title:

@@ -23,8 +23,8 @@ import {
 } from '@/lib/messaging/fulfillment/order-fulfillment-service'
 import { notifyPartnerOwnerOrderCustomerAction } from '@/lib/messaging/partner-admin-notifications'
 import { emailCustomerOrderCancelled } from '@/lib/messaging/partner-order-customer-email'
-import { notifyPartnerCustomerDeliveredWebApp } from '@/lib/messaging/partner-customer-webapp-notify'
-import { sendPartnerOrderDeliveredReviewOnce } from '@/lib/messaging/partner-order-review-reminder'
+import { runPartnerOrderDeliveredHook } from '@/lib/messaging/fulfillment/order-delivered-hook'
+import { stripInternalOrderSource } from '@/lib/messaging/partner-order-notify-ui'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +48,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!order) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   if (request.nextUrl.searchParams.get('poll') === '1') {
-    return NextResponse.json({ order })
+    return NextResponse.json({
+      order: stripInternalOrderSource(order as unknown as Record<string, unknown>),
+    })
   }
 
   return NextResponse.json(
@@ -97,7 +99,11 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       return NextResponse.json({ error: result.error }, { status: 409 })
     }
     const view = await buildGuestOrderDepositView({ partnerId: partner.partnerId, order: result.order })
-    return NextResponse.json({ ok: true, ...view })
+    return NextResponse.json({
+      ok: true,
+      ...view,
+      order: stripInternalOrderSource(view.order as unknown as Record<string, unknown>),
+    })
   }
 
   if (action === 'cancel') {
@@ -111,14 +117,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     if (!updated) {
       return NextResponse.json({ error: 'Cannot cancel this order' }, { status: 409 })
     }
-    void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ clawbackPartnerAffiliateForOrderFromPg }) =>
-        clawbackPartnerAffiliateForOrderFromPg({
-          partnerId: partner.partnerId,
-          orderId: updated.id,
-        })
-      )
-      .catch((error) => console.warn('[cancel_order:affiliate]', error))
     await insertPartnerOrderEventFromPg({
       orderId: updated.id,
       eventType: 'status',
@@ -126,10 +124,13 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       detail: reason,
       source: 'customer',
     })
-    void notifyPartnerOwnerOrderCustomerAction({
+    await notifyPartnerOwnerOrderCustomerAction({
       partnerId: partner.partnerId,
       title: 'Khách hủy đơn',
       body: `${updated.customer_name || 'Khách'} đã hủy đơn ${updated.payment_reference || updated.id.slice(0, 8)}.`,
+      orderId: updated.id,
+      conversationId: convId,
+      event: 'customer_cancelled',
     })
     try {
       await emailCustomerOrderCancelled({
@@ -141,7 +142,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       console.warn('[cancel_order:customer-notify]', e)
     }
     await onPartnerOrderCancelledFulfillment(updated.id)
-    return NextResponse.json({ ok: true, order: updated })
+    return NextResponse.json({
+      ok: true,
+      order: stripInternalOrderSource(updated as unknown as Record<string, unknown>),
+    })
   }
 
   if (action === 'confirm_received') {
@@ -157,27 +161,6 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     if (!updated) {
       return NextResponse.json({ error: 'Cannot confirm received' }, { status: 409 })
     }
-    void import('@/lib/messaging/partner-promotion-auto-grant')
-      .then(({ processFirstDeliveredOrderPromotion }) =>
-        processFirstDeliveredOrderPromotion({
-          partnerId: partner.partnerId,
-          orderId: updated.id,
-          conversationId: updated.conversation_id,
-          emailNormalized: updated.customer_email,
-        })
-      )
-      .catch((error) =>
-        console.warn('[confirm_received:first-delivered-promotion]', error)
-      )
-    void import('@/lib/db/messaging-partner-affiliate-pg')
-      .then(({ transitionPartnerAffiliateCommissionFromPg }) =>
-        transitionPartnerAffiliateCommissionFromPg({
-          partnerId: partner.partnerId,
-          orderId: updated.id,
-          state: 'confirmed',
-        })
-      )
-      .catch((error) => console.warn('[confirm_received:affiliate]', error))
     await insertPartnerOrderEventFromPg({
       orderId: updated.id,
       eventType: 'shipping_status',
@@ -185,23 +168,20 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       detail: 'shipping → delivered',
       source: 'customer',
     })
-    void notifyPartnerOwnerOrderCustomerAction({
+    await notifyPartnerOwnerOrderCustomerAction({
       partnerId: partner.partnerId,
       title: 'Khách đã nhận hàng',
       body: `${updated.customer_name || 'Khách'} xác nhận đã nhận đơn ${updated.payment_reference || updated.id.slice(0, 8)}.`,
+      orderId: updated.id,
+      conversationId: convId,
+      event: 'customer_received',
     })
-    try {
-      await notifyPartnerCustomerDeliveredWebApp(updated, 'customer_confirm')
-    } catch (e) {
-      console.warn('[confirm_received:customer-notify]', e)
-    }
-    try {
-      await sendPartnerOrderDeliveredReviewOnce({ order: updated })
-    } catch (e) {
-      console.warn('[confirm_received:review-email]', e)
-    }
     await onPartnerOrderCustomerConfirmedReceived(updated.id)
-    return NextResponse.json({ ok: true, order: updated })
+    await runPartnerOrderDeliveredHook({ order: updated, trigger: 'customer' })
+    return NextResponse.json({
+      ok: true,
+      order: stripInternalOrderSource(updated as unknown as Record<string, unknown>),
+    })
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

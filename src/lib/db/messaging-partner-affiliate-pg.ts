@@ -776,6 +776,22 @@ export async function createPartnerAffiliateCommissionForOrderFromPg(input: {
   }
 }
 
+export type PartnerAffiliateCommissionMutation =
+  | 'confirm_pending'
+  | 'reverse_pending'
+  | 'reverse_confirmed'
+  | 'none'
+
+export function partnerAffiliateCommissionMutation(
+  current: string,
+  requested: 'confirmed' | 'reversed'
+): PartnerAffiliateCommissionMutation {
+  if (requested === 'confirmed') return current === 'pending' ? 'confirm_pending' : 'none'
+  if (current === 'pending') return 'reverse_pending'
+  if (current === 'confirmed') return 'reverse_confirmed'
+  return 'none'
+}
+
 export async function transitionPartnerAffiliateCommissionFromPg(input: {
   partnerId: string
   orderId: string
@@ -785,15 +801,24 @@ export async function transitionPartnerAffiliateCommissionFromPg(input: {
   const order = await pgQueryOne<{
     shipping_status: string
     status: string
+    refund_status: string
     payment_reference: string | null
   }>(
-    `select shipping_status, status, payment_reference
+    `select shipping_status, status, coalesce(refund_status, 'none') as refund_status, payment_reference
      from public.messaging_partner_orders
      where id = $1::uuid and partner_id = $2::uuid`,
     [input.orderId, input.partnerId]
   )
   if (!order) return false
   if (input.state === 'confirmed' && order.shipping_status !== 'delivered') return false
+  if (
+    input.state === 'reversed' &&
+    order.status !== 'cancelled' &&
+    !['cancelled', 'returned'].includes(order.shipping_status) &&
+    order.refund_status !== 'refunded'
+  ) {
+    return false
+  }
   const pool = getPgPool()
   const client = await pool.connect()
   try {
@@ -816,11 +841,12 @@ export async function transitionPartnerAffiliateCommissionFromPg(input: {
       return false
     }
     const amount = money(row.commission_amount)
-    if (input.state === 'confirmed') {
-      if (row.status !== 'pending') {
-        await client.query('commit')
-        return false
-      }
+    const mutation = partnerAffiliateCommissionMutation(row.status, input.state)
+    if (mutation === 'none') {
+      await client.query('commit')
+      return false
+    }
+    if (mutation === 'confirm_pending') {
       const wallet = await client.query<{ balance: string | number; pending_balance: string | number }>(
         `select balance, pending_balance from public.messaging_partner_affiliate_wallets
          where affiliate_profile_id = $1::uuid for update`,
@@ -859,10 +885,6 @@ export async function transitionPartnerAffiliateCommissionFromPg(input: {
         body: `Hoa hồng ${amount.toLocaleString('vi-VN')}đ đã chuyển vào số dư khả dụng.`,
       })
     } else {
-      if (row.status !== 'pending' && row.status !== 'confirmed') {
-        await client.query('commit')
-        return false
-      }
       const wallet = await client.query<{ balance: string | number; pending_balance: string | number }>(
         `select balance, pending_balance from public.messaging_partner_affiliate_wallets
          where affiliate_profile_id = $1::uuid for update`,
@@ -871,7 +893,7 @@ export async function transitionPartnerAffiliateCommissionFromPg(input: {
       let nextPending = money(wallet.rows[0]?.pending_balance)
       let nextBalance = money(wallet.rows[0]?.balance)
       let txType = 'commission_cancel_pending'
-      if (row.status === 'pending') {
+      if (mutation === 'reverse_pending') {
         nextPending = Math.max(0, nextPending - amount)
       } else {
         nextBalance -= amount
@@ -940,8 +962,7 @@ export async function refundPartnerAffiliateWalletForOrderFromPg(input: {
      where id = $1::uuid and partner_id = $2::uuid`,
     [input.orderId, input.partnerId]
   )
-  const used = money(order?.wallet_amount_used)
-  if (!order || used <= 0) return false
+  if (!order || money(order.wallet_amount_used) <= 0) return false
   const conv = await pgQueryOne<{ guest_account_id: string | null; linked_user_id: string | null }>(
     `select guest_account_id::text, linked_user_id::text
      from public.customer_care_conversations where id = $1::uuid`,
@@ -957,6 +978,18 @@ export async function refundPartnerAffiliateWalletForOrderFromPg(input: {
   const client = await pool.connect()
   try {
     await client.query('begin')
+    const lockedOrder = await client.query<{ wallet_amount_used: string | number }>(
+      `select coalesce(wallet_amount_used,0) as wallet_amount_used
+       from public.messaging_partner_orders
+       where id = $1::uuid and partner_id = $2::uuid
+       for update`,
+      [input.orderId, input.partnerId]
+    )
+    const used = money(lockedOrder.rows[0]?.wallet_amount_used)
+    if (used <= 0) {
+      await client.query('commit')
+      return false
+    }
     const wallet = await client.query<{ balance: string | number; pending_balance: string | number }>(
       `select balance, pending_balance from public.messaging_partner_affiliate_wallets
        where affiliate_profile_id = $1::uuid for update`,

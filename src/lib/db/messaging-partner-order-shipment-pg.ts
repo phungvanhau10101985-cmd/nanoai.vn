@@ -1,11 +1,11 @@
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import type { PartnerFulfillmentSource, PartnerSourcePlatform } from '@/lib/messaging/fulfillment/fulfillment-routing'
 import {
-  applyEmsImportToShipmentEvents,
   buildInitialShipmentEvents,
   skipRemainingShipmentEvents,
+  transitionShipmentStateForTenant,
   type PartnerOrderShipmentEvent,
   type ShipmentEventStatus,
   type ShipmentStepKey,
@@ -82,10 +82,16 @@ export async function replacePartnerOrderShipmentEventsFromPg(
   events: PartnerOrderShipmentEvent[]
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const client = await getPgPool().connect()
   try {
-    await pgQuery(`delete from public.messaging_partner_order_shipment_events where order_id = $1::uuid`, [orderId])
+    await client.query('begin')
+    await client.query(
+      `select id from public.messaging_partner_orders where id = $1::uuid for update`,
+      [orderId]
+    )
+    await client.query(`delete from public.messaging_partner_order_shipment_events where order_id = $1::uuid`, [orderId])
     for (const event of events) {
-      await pgQuery(
+      await client.query(
         `insert into public.messaging_partner_order_shipment_events (
            order_id, step_key, title, sort_order, status, scheduled_at, completed_at, note, updated_by, created_at, updated_at
          ) values ($1::uuid, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $8, $9, now(), now())`,
@@ -102,10 +108,14 @@ export async function replacePartnerOrderShipmentEventsFromPg(
         ]
       )
     }
+    await client.query('commit')
     return true
   } catch (e) {
+    await client.query('rollback').catch(() => undefined)
     console.warn('[replacePartnerOrderShipmentEventsFromPg]', e)
     return false
+  } finally {
+    client.release()
   }
 }
 
@@ -130,22 +140,31 @@ export async function skipPartnerOrderShipmentTimelineFromPg(orderId: string): P
 export async function applyEmsImportToPartnerOrderShipmentFromPg(input: {
   orderId: string
   shippingStatus: 'shipping' | 'delivered' | 'returned'
-}): Promise<void> {
+}): Promise<{ ok: boolean; blockedAt?: ShipmentStepKey; error?: string }> {
+  const ctx = await fetchPartnerOrderFulfillmentContextFromPg(input.orderId)
+  if (!ctx) return { ok: false, error: 'Order not found.' }
   let events = await fetchPartnerOrderShipmentEventsFromPg(input.orderId)
   if (events.length === 0) {
-    const ctx = await fetchPartnerOrderFulfillmentContextFromPg(input.orderId)
-    if (!ctx) return
     events = await seedPartnerOrderShipmentTimelineFromPg({
       orderId: input.orderId,
       source: ctx.fulfillmentSource,
       shopName: ctx.shopName,
     })
   }
-  if (events.length === 0) return
-  await replacePartnerOrderShipmentEventsFromPg(
-    input.orderId,
-    applyEmsImportToShipmentEvents(events, input.shippingStatus)
-  )
+  if (events.length === 0) return { ok: false, error: 'Shipment timeline unavailable.' }
+  const result = transitionShipmentStateForTenant(ctx.partnerId, {
+    events,
+    source: ctx.fulfillmentSource,
+    actor: 'ems',
+    trigger:
+      input.shippingStatus === 'returned'
+        ? 'ems_returned'
+        : input.shippingStatus === 'delivered'
+          ? 'ems_delivered'
+          : 'ems_shipping',
+  })
+  if (result.changed) await replacePartnerOrderShipmentEventsFromPg(input.orderId, result.events)
+  return { ok: result.ok, blockedAt: result.blockedAt, error: result.error }
 }
 
 export async function fetchDueAutoAdvanceShipmentOrderIdsFromPg(limit = 80): Promise<string[]> {
@@ -274,70 +293,234 @@ export async function fetchPartnerOrderFulfillmentContextFromPg(orderId: string)
   }
 }
 
-export async function adjustPartnerInventoryStockQtyFromPg(input: {
-  partnerId: string
+export type PartnerWarehouseStockShortage = {
   inventoryId: string
-  delta: number
-}): Promise<void> {
-  if (!isPgConfigured() || !input.inventoryId) return
-  try {
-    await pgQuery(
-      `update public.messaging_partner_inventory
-       set stock_qty = greatest(0, coalesce(stock_qty, 0) + $3::int),
-           updated_at = now()
-       where id = $1::uuid and partner_id = $2::uuid`,
-      [input.inventoryId, input.partnerId, Math.trunc(input.delta)]
-    )
-  } catch (e) {
-    console.warn('[adjustPartnerInventoryStockQtyFromPg]', e)
-  }
+  requested: number
+  available: number
 }
 
-export async function markPartnerOrderLineStockDeductedFromPg(orderId: string): Promise<void> {
-  if (!isPgConfigured()) return
-  try {
-    await pgQuery(
-      `update public.messaging_partner_order_lines
-       set warehouse_stock_deducted_at = now(), updated_at = now()
-       where order_id = $1::uuid
-         and warehouse_stock_reserved_at is not null
-         and warehouse_stock_deducted_at is null`,
-      [orderId]
-    )
-  } catch (e) {
-    const err = e as { code?: string }
-    if (err.code !== '42P01' && err.code !== '42703') console.warn('[markPartnerOrderLineStockDeductedFromPg]', e)
-  }
+export type PartnerWarehouseStockMutationResult =
+  | { ok: true; changed: boolean }
+  | { ok: false; reason: 'not_configured' | 'shortage' | 'database_error'; shortages: PartnerWarehouseStockShortage[] }
+
+type StockMutation = 'reserve' | 'release' | 'deduct' | 'restore'
+
+export type PartnerWarehouseStockMarkers = {
+  reservedAt: string | null
+  deductedAt: string | null
+  restoredAt: string | null
 }
 
-export async function markPartnerOrderLineStockReservedFromPg(input: {
+export function partnerWarehouseStockMutationForTerminal(
+  markers: PartnerWarehouseStockMarkers
+): 'release' | 'restore' | 'none' {
+  if (markers.deductedAt && !markers.restoredAt) return 'restore'
+  if (markers.reservedAt && !markers.deductedAt) return 'release'
+  return 'none'
+}
+
+export function partnerWarehouseStockLinePredicate(mutation: StockMutation): string {
+  if (mutation === 'reserve') {
+    return `l.warehouse_stock_reserved_at is null
+           and l.warehouse_stock_deducted_at is null
+           and l.warehouse_stock_restored_at is null`
+  }
+  if (mutation === 'release') {
+    return `l.warehouse_stock_reserved_at is not null
+             and l.warehouse_stock_deducted_at is null`
+  }
+  if (mutation === 'deduct') {
+    return `l.warehouse_stock_reserved_at is not null
+               and l.warehouse_stock_deducted_at is null`
+  }
+  return `l.warehouse_stock_deducted_at is not null
+               and l.warehouse_stock_restored_at is null`
+}
+
+export function validatePartnerWarehouseStockAvailability(
+  requested: Array<{ inventoryId: string; quantity: number }>,
+  inventory: Array<{ id: string; stockQty: number; warehouseReserved: number }>,
+  mode: 'reserve' | 'deduct'
+): PartnerWarehouseStockShortage[] {
+  const byId = new Map(inventory.map((row) => [row.id, row]))
+  return requested.flatMap((line) => {
+    const row = byId.get(line.inventoryId)
+    const available = row
+      ? mode === 'reserve'
+        ? Math.max(0, row.stockQty - row.warehouseReserved)
+        : Math.max(0, row.stockQty)
+      : 0
+    return available < line.quantity
+      ? [{ inventoryId: line.inventoryId, requested: line.quantity, available }]
+      : []
+  })
+}
+
+/**
+ * Locks all affected inventory rows and mutates inventory + line markers in one
+ * transaction. stock_qty is physical stock; warehouse_reserved is additive.
+ */
+async function mutatePartnerOrderWarehouseStockFromPg(input: {
+  partnerId: string
   orderId: string
-  reserved: boolean
-}): Promise<void> {
-  if (!isPgConfigured()) return
+  mutation: StockMutation
+}): Promise<PartnerWarehouseStockMutationResult> {
+  if (!isPgConfigured()) return { ok: false, reason: 'not_configured', shortages: [] }
+  const client = await getPgPool().connect()
   try {
-    if (input.reserved) {
-      await pgQuery(
+    await client.query('begin')
+    const orderLock = await client.query(
+      `select id
+       from public.messaging_partner_orders
+       where id = $1::uuid and partner_id = $2::uuid
+       for update`,
+      [input.orderId, input.partnerId]
+    )
+    if (orderLock.rowCount !== 1) {
+      await client.query('rollback')
+      return { ok: false, reason: 'database_error', shortages: [] }
+    }
+    const linePredicate = partnerWarehouseStockLinePredicate(input.mutation)
+    const lines = await client.query<{ inventory_id: string; quantity: number }>(
+      `select l.product_inventory_id::text as inventory_id,
+              sum(greatest(1, coalesce(l.quantity, 1)))::int as quantity
+       from public.messaging_partner_order_lines l
+       join public.messaging_partner_orders o on o.id = l.order_id
+       where l.order_id = $1::uuid
+         and o.partner_id = $2::uuid
+         and l.fulfillment_source = 'vietnam'
+         and l.product_inventory_id is not null
+         and ${linePredicate}
+       group by l.product_inventory_id
+       order by l.product_inventory_id`,
+      [input.orderId, input.partnerId]
+    )
+    if (lines.rows.length === 0) {
+      await client.query('commit')
+      return { ok: true, changed: false }
+    }
+    const ids = lines.rows.map((row) => row.inventory_id)
+    const inventory = await client.query<{ id: string; stock_qty: number; warehouse_reserved: number }>(
+      `select id::text, coalesce(stock_qty, 0)::int as stock_qty,
+              coalesce(warehouse_reserved, 0)::int as warehouse_reserved
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = any($2::uuid[])
+       order by id
+       for update`,
+      [input.partnerId, ids]
+    )
+    const shortages =
+      input.mutation === 'reserve' || input.mutation === 'deduct'
+        ? validatePartnerWarehouseStockAvailability(
+            lines.rows.map((line) => ({ inventoryId: line.inventory_id, quantity: line.quantity })),
+            inventory.rows.map((row) => ({
+              id: row.id,
+              stockQty: Number(row.stock_qty),
+              warehouseReserved: Number(row.warehouse_reserved),
+            })),
+            input.mutation
+          )
+        : []
+    if (shortages.length > 0) {
+      await client.query('rollback')
+      return { ok: false, reason: 'shortage', shortages }
+    }
+    for (const line of lines.rows) {
+      if (input.mutation === 'reserve') {
+        await client.query(
+          `update public.messaging_partner_inventory
+           set warehouse_reserved = warehouse_reserved + $3::int, updated_at = now()
+           where id = $1::uuid and partner_id = $2::uuid`,
+          [line.inventory_id, input.partnerId, line.quantity]
+        )
+      } else if (input.mutation === 'release') {
+        await client.query(
+          `update public.messaging_partner_inventory
+           set warehouse_reserved = greatest(0, warehouse_reserved - $3::int), updated_at = now()
+           where id = $1::uuid and partner_id = $2::uuid`,
+          [line.inventory_id, input.partnerId, line.quantity]
+        )
+      } else if (input.mutation === 'deduct') {
+        await client.query(
+          `update public.messaging_partner_inventory
+           set stock_qty = stock_qty - $3::int,
+               warehouse_reserved = greatest(0, warehouse_reserved - $3::int),
+               updated_at = now()
+           where id = $1::uuid and partner_id = $2::uuid`,
+          [line.inventory_id, input.partnerId, line.quantity]
+        )
+      } else {
+        await client.query(
+          `update public.messaging_partner_inventory
+           set stock_qty = stock_qty + $3::int, updated_at = now()
+           where id = $1::uuid and partner_id = $2::uuid`,
+          [line.inventory_id, input.partnerId, line.quantity]
+        )
+      }
+    }
+    if (input.mutation === 'reserve') {
+      await client.query(
         `update public.messaging_partner_order_lines
-         set warehouse_stock_reserved_at = now(), updated_at = now()
-         where order_id = $1::uuid
-           and fulfillment_source = 'vietnam'
+         set warehouse_stock_reserved_at = now(),
+             warehouse_stock_additive = true,
+             updated_at = now()
+         where order_id = $1::uuid and fulfillment_source = 'vietnam'
            and product_inventory_id is not null
-           and warehouse_stock_reserved_at is null`,
+           and warehouse_stock_reserved_at is null
+           and warehouse_stock_deducted_at is null
+           and warehouse_stock_restored_at is null`,
+        [input.orderId]
+      )
+    } else if (input.mutation === 'release') {
+      await client.query(
+        `update public.messaging_partner_order_lines
+         set warehouse_stock_reserved_at = null, updated_at = now()
+         where order_id = $1::uuid
+           and warehouse_stock_reserved_at is not null
+           and warehouse_stock_deducted_at is null`,
+        [input.orderId]
+      )
+    } else if (input.mutation === 'deduct') {
+      await client.query(
+        `update public.messaging_partner_order_lines
+         set warehouse_stock_deducted_at = now(), updated_at = now()
+         where order_id = $1::uuid
+           and warehouse_stock_reserved_at is not null
+           and warehouse_stock_deducted_at is null`,
         [input.orderId]
       )
     } else {
-      await pgQuery(
+      await client.query(
         `update public.messaging_partner_order_lines
-         set warehouse_stock_reserved_at = null, updated_at = now()
-         where order_id = $1::uuid and warehouse_stock_reserved_at is not null and warehouse_stock_deducted_at is null`,
+         set warehouse_stock_restored_at = now(), updated_at = now()
+         where order_id = $1::uuid
+           and warehouse_stock_deducted_at is not null
+           and warehouse_stock_restored_at is null`,
         [input.orderId]
       )
     }
-  } catch (e) {
-    console.warn('[markPartnerOrderLineStockReservedFromPg]', e)
+    await client.query('commit')
+    return { ok: true, changed: true }
+  } catch (error) {
+    await client.query('rollback').catch(() => undefined)
+    console.warn(`[mutatePartnerOrderWarehouseStockFromPg:${input.mutation}]`, error)
+    return { ok: false, reason: 'database_error', shortages: [] }
+  } finally {
+    client.release()
   }
 }
+
+export const reservePartnerOrderWarehouseStockFromPg = (input: { partnerId: string; orderId: string }) =>
+  mutatePartnerOrderWarehouseStockFromPg({ ...input, mutation: 'reserve' })
+
+export const releasePartnerOrderWarehouseStockFromPg = (input: { partnerId: string; orderId: string }) =>
+  mutatePartnerOrderWarehouseStockFromPg({ ...input, mutation: 'release' })
+
+export const deductPartnerOrderWarehouseStockFromPg = (input: { partnerId: string; orderId: string }) =>
+  mutatePartnerOrderWarehouseStockFromPg({ ...input, mutation: 'deduct' })
+
+export const restorePartnerOrderWarehouseStockFromPg = (input: { partnerId: string; orderId: string }) =>
+  mutatePartnerOrderWarehouseStockFromPg({ ...input, mutation: 'restore' })
 
 export async function fetchVietnamDepositHoldDueFromPg(limit = 80): Promise<
   Array<{ id: string; partnerId: string }>

@@ -1,4 +1,7 @@
-import { fetchPartnerOrderByPaymentReferenceForPartnerFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerOrderByIdForPartnerFromPg,
+  fetchPartnerOrderByPaymentReferenceForPartnerFromPg,
+} from '@/lib/db/messaging-partner-orders-pg'
 import { insertPartnerOrderEventFromPg } from '@/lib/db/messaging-partner-orders-pg'
 import {
   confirmPartnerShopReturnFromPg,
@@ -9,6 +12,7 @@ import {
 import { cellStr, extractWarehouseSkuFromEmsLabel, looksLikeRecipientNotSku, readSpreadsheetRows } from '@/lib/messaging/shipping/ems-excel'
 import { parseWarehouseSourceSkuParts, resolveWarehouseIntakeHints } from '@/lib/messaging/fulfillment/warehouse-source-sku'
 import { isEmsRecordShopReturnReceived, isEmsReturnPendingShop } from '@/lib/messaging/shipping/shipping-ops'
+import { runPartnerOrderLifecycleHook } from '@/lib/messaging/fulfillment/order-lifecycle-hook'
 
 const CODE_SPLIT_RE = /[\s,;|\t]+/
 
@@ -16,12 +20,16 @@ export function classifyShopReturnStatus(input: {
   hasRecord: boolean
   alreadyReturned: boolean
   emsReportedReturn: boolean
+  orderTransitionAllowed?: boolean
 }): { status: 'not_found' | 'already_returned' | 'ready_to_confirm' | 'not_ready'; message: string } {
   if (!input.hasRecord) {
     return { status: 'not_found', message: 'Không tìm thấy trong bảng vận chuyển EMS.' }
   }
   if (input.alreadyReturned) {
     return { status: 'already_returned', message: 'Shop đã xác nhận nhận hàng hoàn.' }
+  }
+  if (input.orderTransitionAllowed === false) {
+    return { status: 'not_ready', message: 'Trạng thái đơn hiện tại không cho phép xác nhận hoàn.' }
   }
   if (input.emsReportedReturn) {
     return { status: 'ready_to_confirm', message: 'EMS đã báo hoàn — có thể xác nhận trả shop.' }
@@ -85,6 +93,8 @@ export async function previewShopReturns(partnerId: string, rawText: string) {
       hasRecord: Boolean(record),
       alreadyReturned: already,
       emsReportedReturn: isEmsReturnPendingShop(record?.ems_status),
+      orderTransitionAllowed:
+        !order || ['shipping', 'delivered', 'returned'].includes(String(order.shipping_status || 'pending')),
     })
     const status = classified.status
     const message =
@@ -130,7 +140,23 @@ export async function confirmShopReturns(input: {
       recordId: row.ems_shipping_record_id,
       orderId: row.order_id,
     })
+    if (!updated) {
+      confirmed.push({
+        ...row,
+        status: 'not_ready',
+        message: 'Trạng thái đơn đã thay đổi; chưa xác nhận hoàn.',
+      })
+      continue
+    }
     if (row.order_id) {
+      const returnedOrder = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, row.order_id)
+      if (returnedOrder?.shipping_status === 'returned') {
+        await runPartnerOrderLifecycleHook({
+          partnerId: input.partnerId,
+          orderId: row.order_id,
+          event: 'returned',
+        })
+      }
       await insertPartnerOrderEventFromPg({
         orderId: row.order_id,
         eventType: 'shipping_status',
@@ -144,7 +170,7 @@ export async function confirmShopReturns(input: {
       ...row,
       status: 'confirmed',
       message: 'Đã xác nhận hoàn trả shop.',
-      order_status: updated?.order_status || 'returned',
+      order_status: updated.order_status || 'returned',
     })
   }
   return {

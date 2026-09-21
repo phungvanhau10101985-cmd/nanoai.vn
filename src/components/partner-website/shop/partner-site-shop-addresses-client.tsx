@@ -28,6 +28,10 @@ import {
 } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  PartnerSiteShopEmptyState,
+  PartnerSiteShopSkeleton,
+} from '@/components/partner-website/shop/partner-site-shop-empty-state'
 
 type Props = {
   siteSlug: string
@@ -210,10 +214,10 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
           </button>
         ) : null}
       </div>
-      {loading ? <p className="pw-shop-muted">…</p> : null}
-      {!loading && needsAuth ? <p className="pw-shop-muted">…</p> : null}
+      {loading ? <PartnerSiteShopSkeleton variant="list" label={t.accountAddressBook} /> : null}
+      {!loading && needsAuth ? <PartnerSiteShopSkeleton variant="list" /> : null}
       {!loading && !needsAuth && addresses.length === 0 && !showForm ? (
-        <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.addressesEmptyHint}</p>
+        <PartnerSiteShopEmptyState kind="addresses" title={t.addressesEmptyHint} emptyEl={PW_EL.empty} />
       ) : null}
       {!loading && !needsAuth && addresses.length > 0 ? (
         <ul className="pw-shop-address-list">
@@ -273,7 +277,7 @@ export function PartnerSiteShopAddressesClient({ siteSlug, locale }: Props) {
         </PartnerSiteShopDialog>
       ) : null}
       {status ? <p className="pw-shop-muted">{status}</p> : null}
-      <p style={{ marginTop: 16 }}>
+      <p className="pw-shop-address-foot">
         <Link href={partnerSiteAccountPath(siteSlug)} className="pw-shop-btn pw-shop-btn-outline">
           {t.navAccount}
         </Link>

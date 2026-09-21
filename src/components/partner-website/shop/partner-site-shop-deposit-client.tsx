@@ -79,8 +79,6 @@ type DepositOrder = PartnerOrderDiscountFields & {
   product_url?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
-  fulfillment_source?: 'vietnam' | 'china' | null
-  source_platform?: string | null
   tracking_number?: string | null
   shipping_status?: string | null
 }
@@ -483,6 +481,7 @@ export function PartnerSiteShopDepositClient({
   if (loading) {
     return (
       <div className="pw-shop-deposit-center">
+        <span className="pw-shop-deposit-spin" aria-hidden />
         <p className="pw-shop-muted">{t.depositLoading}</p>
       </div>
     )

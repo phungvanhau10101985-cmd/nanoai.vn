@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   NANOAI_WIDGET_MSG_SOURCE,
+  isOrderUpdatedFromIframe,
   isSetPageContextMessage,
   parseWidgetPageContextFromChatUrl,
 } from '@/lib/messaging/widget-parent-bridge'
@@ -39,4 +40,16 @@ test('isSetPageContextMessage accepts parent SET_PAGE_CONTEXT', () => {
     true
   )
   assert.equal(isSetPageContextMessage({ type: 'SET_PAGE_CONTEXT' }), false)
+})
+
+test('isOrderUpdatedFromIframe accepts a scoped shop order refresh', () => {
+  assert.equal(
+    isOrderUpdatedFromIframe({
+      source: NANOAI_WIDGET_MSG_SOURCE,
+      type: 'ORDER_UPDATED',
+      siteSlug: 'demo-shop',
+    }),
+    true
+  )
+  assert.equal(isOrderUpdatedFromIframe({ type: 'ORDER_UPDATED' }), false)
 })

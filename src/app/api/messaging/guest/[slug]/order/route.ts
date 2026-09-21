@@ -15,6 +15,7 @@ import {
   getProductPurchaseOptions,
   listRelatedBuyProducts,
 } from '@/lib/messaging/guest-chat-ordering'
+import { stripInternalOrderSource } from '@/lib/messaging/partner-order-notify-ui'
 import { runMetaPurchaseAfterOrderComplete } from '@/lib/tracking/meta-purchase-after-order'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -142,7 +143,10 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     card,
   })
   if ('error' in created) return NextResponse.json({ error: created.error }, { status: 400 })
-  return NextResponse.json({ ok: true, order: created.order })
+  return NextResponse.json({
+    ok: true,
+    order: stripInternalOrderSource(created.order as unknown as Record<string, unknown>),
+  })
 }
 
 export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug: string }> }) {
@@ -297,8 +301,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
     }
     return NextResponse.json({
       ok: true,
-      order: done.order,
-      orders: done.orders,
+      order: stripInternalOrderSource(done.order as unknown as Record<string, unknown>),
+      orders: done.orders.map((order) =>
+        stripInternalOrderSource(order as unknown as Record<string, unknown>)
+      ),
       checkout_group_id: done.checkout_group_id,
       payment_display: done.payment_display,
       ...(metaPurchase ? { metaPurchase } : {}),
@@ -353,7 +359,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
 
   return NextResponse.json({
     ok: true,
-    order: done.order,
+    order: stripInternalOrderSource(done.order as unknown as Record<string, unknown>),
     ...(metaPurchase ? { metaPurchase } : {}),
   })
 }

@@ -1,41 +1,41 @@
 import {
   fetchPartnerOrderByIdForPartnerFromPg,
-  fetchPartnerOrderLinesFromPg,
   insertPartnerOrderEventFromPg,
   patchPartnerOrderDepositExceptionFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
+import { listDuePartnerEmsRecordsForRecurringSyncFromPg } from '@/lib/db/messaging-partner-ems-shipping-pg'
 import { depositReminderCopy, depositReminderHoursDue } from '@/lib/messaging/fulfillment/deposit-sla'
 import {
   emailCustomerDepositReminder,
   emailCustomerShippingStatusChanged,
 } from '@/lib/messaging/partner-order-customer-email'
 import {
-  adjustPartnerInventoryStockQtyFromPg,
-  applyEmsImportToPartnerOrderShipmentFromPg,
+  applyEmsImportToPartnerOrderShipmentFromPg as applyEmsTimelineFromPg,
+  deductPartnerOrderWarehouseStockFromPg,
   fetchDueAutoAdvanceShipmentOrderIdsFromPg,
   fetchPartnerDepositReminderDueFromPg,
   fetchPartnerOrderFulfillmentContextFromPg,
   fetchPartnerOrderShipmentEventsFromPg,
   fetchVietnamDepositHoldDueFromPg,
   markPartnerOrderDepositRemindedFromPg,
-  markPartnerOrderLineStockDeductedFromPg,
-  markPartnerOrderLineStockReservedFromPg,
   markPartnerOrderStockHoldReleasedFromPg,
+  releasePartnerOrderWarehouseStockFromPg,
+  reservePartnerOrderWarehouseStockFromPg,
   replacePartnerOrderShipmentEventsFromPg,
   seedPartnerOrderShipmentTimelineFromPg,
-  skipPartnerOrderShipmentTimelineFromPg,
+  type PartnerWarehouseStockMutationResult,
 } from '@/lib/db/messaging-partner-order-shipment-pg'
 import { FULFILLMENT_VIETNAM, type PartnerFulfillmentSource } from '@/lib/messaging/fulfillment/fulfillment-routing'
 import {
-  advanceAutoShipmentMilestones,
   canConfirmReceivedFromShipment,
-  clearCustomsShipment,
-  confirmReceivedShipment,
-  markOutForConfirmShipment,
-  startVietnamPackingShipment,
+  transitionShipmentStateForTenant,
+  type ShipmentStepKey,
 } from '@/lib/messaging/fulfillment/order-shipment-timeline'
+import { refreshEmsRecordTracking } from '@/lib/messaging/shipping/ems-shipment-import'
+import { runPartnerOrderLifecycleHook } from '@/lib/messaging/fulfillment/order-lifecycle-hook'
+import { partnerOrderShippingTransitionSql } from '@/lib/messaging/fulfillment/order-lifecycle-transition'
 
 export async function seedPartnerOrderTimelineIfReady(input: {
   orderId: string
@@ -57,14 +57,14 @@ export async function seedPartnerOrderTimelineIfReady(input: {
   if (!isPgConfigured()) return
   try {
     await pgQuery(
-      `update public.messaging_partner_orders
+      `update public.messaging_partner_orders o
        set shipping_status = case
              when shipping_status in ('pending', 'confirmed') then 'confirmed'
              else shipping_status
            end,
            updated_at = now()
-       where id = $1::uuid
-         and shipping_status in ('pending')`,
+       where o.id = $1::uuid
+         and ${partnerOrderShippingTransitionSql("'confirmed'")}`,
       [input.orderId]
     )
   } catch (e) {
@@ -72,36 +72,56 @@ export async function seedPartnerOrderTimelineIfReady(input: {
   }
 }
 
-export async function holdVietnamWarehouseStockForDeposit(input: {
+export async function reserveVietnamWarehouseStockForOrder(input: {
   partnerId: string
   orderId: string
   fulfillmentSource: PartnerFulfillmentSource
   requiredAmount: number
-}): Promise<void> {
-  if (input.fulfillmentSource !== FULFILLMENT_VIETNAM) return
-  if (Math.max(0, input.requiredAmount) <= 0) return
-  const lines = await fetchPartnerOrderLinesFromPg(input.orderId)
-  for (const line of lines) {
-    if (line.fulfillment_source && line.fulfillment_source !== 'vietnam') continue
-    if (!line.product_inventory_id) continue
-    await adjustPartnerInventoryStockQtyFromPg({
-      partnerId: input.partnerId,
-      inventoryId: line.product_inventory_id,
-      delta: -Math.max(1, line.quantity),
-    })
-  }
-  await markPartnerOrderLineStockReservedFromPg({ orderId: input.orderId, reserved: true })
-  if (!isPgConfigured()) return
+}): Promise<PartnerWarehouseStockMutationResult> {
+  if (input.fulfillmentSource !== FULFILLMENT_VIETNAM) return { ok: true, changed: false }
+  const reserved = await reservePartnerOrderWarehouseStockFromPg(input)
+  if (!reserved.ok) return reserved
+  if (!isPgConfigured()) return reserved
   try {
     await pgQuery(
       `update public.messaging_partner_orders
-       set stock_hold_expires_at = now() + interval '24 hours',
+       set stock_hold_expires_at = case
+             when $2::numeric > 0 then now() + interval '24 hours'
+             else null
+           end,
+           stock_hold_released_at = null,
+           deposit_hold_overdue = false,
            updated_at = now()
-       where id = $1::uuid and stock_hold_expires_at is null`,
-      [input.orderId]
+       where id = $1::uuid`,
+      [input.orderId, Math.max(0, input.requiredAmount)]
     )
   } catch (e) {
-    console.warn('[holdVietnamWarehouseStockForDeposit]', e)
+    console.warn('[reserveVietnamWarehouseStockForOrder]', e)
+  }
+  return reserved
+}
+
+/** Backward-compatible export for callers outside checkout. COD is reserved too. */
+export const holdVietnamWarehouseStockForDeposit = reserveVietnamWarehouseStockForOrder
+
+export async function cancelPartnerOrderAfterStockFailure(input: {
+  partnerId: string
+  orderId: string
+}): Promise<void> {
+  if (!isPgConfigured()) return
+  const cancelled = await pgQuery<{ id: string }>(
+    `update public.messaging_partner_orders o
+     set status = 'cancelled',
+         verified_note = 'Checkout cancelled: warehouse stock unavailable.',
+         updated_at = now()
+     where o.id = $1::uuid and o.partner_id = $2::uuid
+       and o.status in ('awaiting_payment', 'payment_checking')
+       and coalesce(o.shipping_status, 'pending') in ('pending', 'confirmed', 'packing')
+     returning o.id::text`,
+    [input.orderId, input.partnerId]
+  )
+  if (cancelled.length > 0) {
+    await runPartnerOrderLifecycleHook({ ...input, event: 'cancelled' })
   }
 }
 
@@ -109,31 +129,56 @@ export async function releaseVietnamWarehouseStockHold(input: {
   partnerId: string
   orderId: string
 }): Promise<void> {
-  const lines = await fetchPartnerOrderLinesFromPg(input.orderId)
-  for (const line of lines) {
-    if (!line.warehouse_stock_reserved_at || line.warehouse_stock_deducted_at) continue
-    if (!line.product_inventory_id) continue
-    await adjustPartnerInventoryStockQtyFromPg({
-      partnerId: input.partnerId,
-      inventoryId: line.product_inventory_id,
-      delta: Math.max(1, line.quantity),
-    })
-  }
-  await markPartnerOrderLineStockReservedFromPg({ orderId: input.orderId, reserved: false })
-  await markPartnerOrderStockHoldReleasedFromPg(input.orderId)
+  const released = await releasePartnerOrderWarehouseStockFromPg(input)
+  if (released.ok && released.changed) await markPartnerOrderStockHoldReleasedFromPg(input.orderId)
 }
 
 export async function onPartnerOrderCancelledFulfillment(orderId: string): Promise<void> {
   const ctx = await fetchPartnerOrderFulfillmentContextFromPg(orderId)
   if (!ctx) return
-  await skipPartnerOrderShipmentTimelineFromPg(orderId)
-  await releaseVietnamWarehouseStockHold({ partnerId: ctx.partnerId, orderId })
+  await runPartnerOrderLifecycleHook({
+    partnerId: ctx.partnerId,
+    orderId,
+    event: 'cancelled',
+  })
 }
 
-export async function onPartnerOrderPaidVerifiedFulfillment(orderId: string): Promise<void> {
+export async function onPartnerOrderPaidVerifiedFulfillment(
+  orderId: string
+): Promise<PartnerWarehouseStockMutationResult> {
   const ctx = await fetchPartnerOrderFulfillmentContextFromPg(orderId)
-  if (!ctx) return
-  await markPartnerOrderLineStockDeductedFromPg(orderId)
+  if (!ctx) return { ok: false, reason: 'database_error', shortages: [] }
+  const reserved = await reserveVietnamWarehouseStockForOrder({
+    partnerId: ctx.partnerId,
+    orderId,
+    fulfillmentSource: ctx.fulfillmentSource,
+    requiredAmount: 0,
+  })
+  if (!reserved.ok) {
+    await patchPartnerOrderDepositExceptionFromPg({
+      orderId,
+      depositException: true,
+      note:
+        reserved.reason === 'shortage'
+          ? `Thanh toán đến sau khi hết hạn giữ kho; không thể giữ lại ${reserved.shortages
+              .map((row) => `${row.inventoryId}:${row.requested}/${row.available}`)
+              .join(', ')}.`
+          : 'Không thể giữ lại tồn kho khi xác nhận thanh toán.',
+    })
+    return reserved
+  }
+  const deducted = await deductPartnerOrderWarehouseStockFromPg({
+    partnerId: ctx.partnerId,
+    orderId,
+  })
+  if (!deducted.ok) {
+    await patchPartnerOrderDepositExceptionFromPg({
+      orderId,
+      depositException: true,
+      note: 'Đã nhận thanh toán nhưng không thể khấu trừ tồn kho; cần xử lý thủ công.',
+    })
+    return deducted
+  }
   await patchPartnerOrderDepositExceptionFromPg({ orderId, depositException: false })
   await seedPartnerOrderTimelineIfReady({
     orderId,
@@ -143,6 +188,7 @@ export async function onPartnerOrderPaidVerifiedFulfillment(orderId: string): Pr
     fulfillmentSource: ctx.fulfillmentSource,
     shopName: ctx.shopName,
   })
+  return deducted
 }
 
 export async function advanceDuePartnerOrderShipmentTimelines(): Promise<{ advanced: number }> {
@@ -150,7 +196,14 @@ export async function advanceDuePartnerOrderShipmentTimelines(): Promise<{ advan
   let advanced = 0
   for (const orderId of ids) {
     const events = await fetchPartnerOrderShipmentEventsFromPg(orderId)
-    const next = advanceAutoShipmentMilestones(events)
+    const ctx = await fetchPartnerOrderFulfillmentContextFromPg(orderId)
+    if (!ctx) continue
+    const next = transitionShipmentStateForTenant(ctx.partnerId, {
+      events,
+      source: ctx.fulfillmentSource,
+      actor: 'cron',
+      trigger: 'auto_due',
+    })
     if (!next.changed) continue
     await replacePartnerOrderShipmentEventsFromPg(orderId, next.events)
     advanced += 1
@@ -225,11 +278,22 @@ export async function runPartnerOrderFulfillmentCron(): Promise<{
   advanced: number
   released: number
   reminded: number
+  emsRefreshed: number
 }> {
   const advanced = await advanceDuePartnerOrderShipmentTimelines()
   const released = await releaseOverdueVietnamDepositHolds()
   const reminded = await sendDuePartnerDepositReminders()
-  return { advanced: advanced.advanced, released: released.released, reminded: reminded.reminded }
+  const dueEms = await listDuePartnerEmsRecordsForRecurringSyncFromPg()
+  let emsRefreshed = 0
+  for (const record of dueEms) {
+    try {
+      await refreshEmsRecordTracking({ partnerId: record.partner_id, record })
+      emsRefreshed += 1
+    } catch (error) {
+      console.warn('[runPartnerOrderFulfillmentCron] EMS refresh', record.id, error)
+    }
+  }
+  return { advanced: advanced.advanced, released: released.released, reminded: reminded.reminded, emsRefreshed }
 }
 
 export async function runAdminShipmentAction(input: {
@@ -253,9 +317,26 @@ export async function runAdminShipmentAction(input: {
   }
   const now = new Date()
   if (input.action === 'clear_customs') {
-    const out = clearCustomsShipment(events, { now, updatedBy: input.updatedBy, note: input.note })
+    const out = transitionShipmentStateForTenant(ctx.partnerId, {
+      events,
+      source: ctx.fulfillmentSource,
+      actor: 'admin',
+      trigger: 'admin_clear_customs',
+      now,
+      updatedBy: input.updatedBy,
+      note: input.note,
+    })
     if (!out.ok) return { error: out.error || 'Cannot clear customs.' }
     await replacePartnerOrderShipmentEventsFromPg(input.orderId, out.events)
+    if (isPgConfigured()) {
+      await pgQuery(
+        `update public.messaging_partner_orders o
+         set shipping_status = 'shipping', updated_at = now()
+         where o.id = $1::uuid
+           and ${partnerOrderShippingTransitionSql("'shipping'")}`,
+        [input.orderId]
+      )
+    }
     await insertPartnerOrderEventFromPg({
       orderId: input.orderId,
       eventType: 'shipment',
@@ -267,12 +348,28 @@ export async function runAdminShipmentAction(input: {
     return { ok: true }
   }
   if (input.action === 'start_vn_packing') {
-    const out = startVietnamPackingShipment(events, { now, updatedBy: input.updatedBy, note: input.note })
+    const out = transitionShipmentStateForTenant(ctx.partnerId, {
+      events,
+      source: ctx.fulfillmentSource,
+      actor: 'admin',
+      trigger: 'admin_start_vn_packing',
+      now,
+      updatedBy: input.updatedBy,
+      note: input.note,
+    })
     if (!out.ok) return { error: out.error || 'Cannot start packing.' }
+    const deducted = await deductPartnerOrderWarehouseStockFromPg({
+      partnerId: ctx.partnerId,
+      orderId: input.orderId,
+    })
+    if (!deducted.ok) return { error: 'Cannot deduct reserved warehouse stock.' }
     await replacePartnerOrderShipmentEventsFromPg(input.orderId, out.events)
     if (isPgConfigured()) {
       await pgQuery(
-        `update public.messaging_partner_orders set shipping_status = 'packing', updated_at = now() where id = $1::uuid`,
+        `update public.messaging_partner_orders o
+         set shipping_status = 'packing', updated_at = now()
+         where o.id = $1::uuid
+           and ${partnerOrderShippingTransitionSql("'packing'")}`,
         [input.orderId]
       )
     }
@@ -286,7 +383,11 @@ export async function runAdminShipmentAction(input: {
     })
     return { ok: true }
   }
-  const out = markOutForConfirmShipment(events, ctx.fulfillmentSource, {
+  const out = transitionShipmentStateForTenant(ctx.partnerId, {
+    events,
+    source: ctx.fulfillmentSource,
+    actor: 'admin',
+    trigger: 'admin_mark_out_for_confirm',
     now,
     updatedBy: input.updatedBy,
     note: input.note,
@@ -297,12 +398,13 @@ export async function runAdminShipmentAction(input: {
   const provider = String(input.shippingProvider || 'EMS').trim() || 'EMS'
   if (isPgConfigured()) {
     await pgQuery(
-      `update public.messaging_partner_orders
+      `update public.messaging_partner_orders o
        set shipping_status = 'shipping',
            shipping_provider = case when $2 <> '' then $2 else shipping_provider end,
            tracking_number = case when $3 <> '' then $3 else tracking_number end,
            updated_at = now()
-       where id = $1::uuid`,
+       where o.id = $1::uuid
+         and ${partnerOrderShippingTransitionSql("'shipping'")}`,
       [input.orderId, provider, tracking]
     )
   }
@@ -327,16 +429,38 @@ export async function runAdminShipmentAction(input: {
 
 export async function partnerOrderCanConfirmReceived(orderId: string, shippingStatus: string): Promise<boolean> {
   const events = await fetchPartnerOrderShipmentEventsFromPg(orderId)
-  if (events.length > 0) return canConfirmReceivedFromShipment(events)
-  return shippingStatus === 'shipping'
+  if (events.length === 0) return false
+  return shippingStatus === 'shipping' && canConfirmReceivedFromShipment(events)
 }
 
 export async function onPartnerOrderCustomerConfirmedReceived(orderId: string): Promise<void> {
+  const ctx = await fetchPartnerOrderFulfillmentContextFromPg(orderId)
+  if (!ctx) return
   const events = await fetchPartnerOrderShipmentEventsFromPg(orderId)
   if (events.length === 0) return
-  const result = confirmReceivedShipment(events, { updatedBy: 'customer' })
+  const result = transitionShipmentStateForTenant(ctx.partnerId, {
+    events,
+    source: ctx.fulfillmentSource,
+    actor: 'customer',
+    trigger: 'customer_confirm_received',
+    updatedBy: 'customer',
+  })
   if (!result.ok) return
   await replacePartnerOrderShipmentEventsFromPg(orderId, result.events)
 }
 
-export { applyEmsImportToPartnerOrderShipmentFromPg }
+export async function applyEmsImportToPartnerOrderShipmentFromPg(input: {
+  orderId: string
+  shippingStatus: 'shipping' | 'delivered' | 'returned'
+}): Promise<{ ok: boolean; blockedAt?: ShipmentStepKey; error?: string }> {
+  const ctx = await fetchPartnerOrderFulfillmentContextFromPg(input.orderId)
+  if (!ctx) return { ok: false }
+  if (input.shippingStatus === 'shipping' || input.shippingStatus === 'delivered') {
+    const deducted = await deductPartnerOrderWarehouseStockFromPg({
+      partnerId: ctx.partnerId,
+      orderId: input.orderId,
+    })
+    if (!deducted.ok) return { ok: false }
+  }
+  return applyEmsTimelineFromPg(input)
+}

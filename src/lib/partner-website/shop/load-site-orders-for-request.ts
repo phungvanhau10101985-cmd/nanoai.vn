@@ -5,7 +5,11 @@ import {
 } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchPartnerOrderShipmentEventsForOrdersFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 import { fetchReviewedOrderIdsFromPg } from '@/lib/db/messaging-partner-reviews-pg'
-import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
+import {
+  buyerOrderActions,
+  publicOrderShipmentEvents,
+  stripInternalOrderSource,
+} from '@/lib/messaging/partner-order-notify-ui'
 import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 
 type BaseOrderRow = NonNullable<
@@ -19,6 +23,7 @@ export type SiteOrderRow = BaseOrderRow & {
   has_review: boolean
   can_cancel: boolean
   can_confirm_received: boolean
+  buyer_actions: ReturnType<typeof buyerOrderActions>
   shipment_events: Awaited<ReturnType<typeof fetchPartnerOrderShipmentEventsForOrdersFromPg>>[string]
   sibling_orders: SiblingOrderRow[]
 }
@@ -55,20 +60,24 @@ export async function loadSiteOrdersForRequest(
     const siblings = (
       order.checkout_group_id ? siblingsByGroup[order.checkout_group_id] || [] : []
     ).filter((row) => row.id !== order.id)
+    const buyerActions = buyerOrderActions({
+      status: order.status,
+      shippingStatus: order.shipping_status,
+      requiredAmount: order.required_amount,
+      paidAmount: order.paid_amount,
+      hasReview: reviewedIds.has(order.id),
+      shipmentEvents: events,
+    })
     return {
-      ...order,
+      ...stripInternalOrderSource(order as unknown as Record<string, unknown>),
       has_review: reviewedIds.has(order.id),
-      can_cancel:
-        (order.status === 'awaiting_payment' || order.status === 'payment_checking') &&
-        order.shipping_status !== 'delivered' &&
-        order.shipping_status !== 'returned',
-      can_confirm_received:
-        order.status !== 'cancelled' &&
-        (events.length > 0
-          ? canConfirmReceivedFromShipment(events)
-          : order.shipping_status === 'shipping'),
-      shipment_events: events,
-      sibling_orders: siblings,
-    }
+      can_cancel: buyerActions.includes('cancel'),
+      can_confirm_received: buyerActions.includes('confirm_received'),
+      buyer_actions: buyerActions,
+      shipment_events: publicOrderShipmentEvents(events),
+      sibling_orders: siblings.map((row) =>
+        stripInternalOrderSource(row as unknown as Record<string, unknown>)
+      ),
+    } as SiteOrderRow
   })
 }

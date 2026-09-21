@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Bell, Copy, Download, MessageCircle } from 'lucide-react'
+import { Copy, Download, MessageCircle } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { getPartnerSiteShopCopy, shopPromoErrorMessage } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -54,6 +54,10 @@ import {
   type PartnerSiteCachedWalletVoucher,
 } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  PartnerSiteShopEmptyState,
+  PartnerSiteShopSkeleton,
+} from '@/components/partner-website/shop/partner-site-shop-empty-state'
 
 function visitorProfileFromCache(p: PartnerSiteCachedAccountProfile): PartnerSiteVisitorProfile {
   return {
@@ -558,7 +562,7 @@ export function PartnerSiteShopAccountClient({
 
   return (
     <div>
-      {!showAccountShell ? <p className="pw-shop-muted">…</p> : null}
+      {!showAccountShell ? <PartnerSiteShopSkeleton variant="account" /> : null}
 
       {showAccountShell ? (
         <>
@@ -616,28 +620,21 @@ export function PartnerSiteShopAccountClient({
             {activeTab === 'wallet' ? (
               <section>
                 <h2 data-pw-el={PW_EL.heading}>{t.walletTitle}</h2>
-                <p className="pw-shop-muted" style={{ marginBottom: 16 }}>
+                <p className="pw-shop-muted pw-shop-wallet-hint">
                   {t.walletHint}
                 </p>
-                {walletLoading ? <p className="pw-shop-muted">…</p> : null}
+                {walletLoading ? <PartnerSiteShopSkeleton variant="list" label={t.walletTitle} /> : null}
                 {!walletLoading && wallet.length === 0 ? (
-                  <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.walletEmpty}</p>
+                  <PartnerSiteShopEmptyState kind="wallet" title={t.walletEmpty} emptyEl={PW_EL.empty} />
                 ) : null}
-                <div style={{ display: 'grid', gap: 12 }}>
+                <div className="pw-shop-wallet-list">
                   {wallet.map((v) => (
                     <div
                       key={v.code}
                       data-pw-el={PW_EL.card}
-                      style={{
-                        border: '1px dashed #d1d5db',
-                        borderRadius: 12,
-                        padding: 16,
-                        display: 'grid',
-                        gap: 6,
-                        opacity: v.eligible === false ? 0.7 : 1,
-                      }}
+                      className={`pw-shop-wallet-card${v.eligible === false ? ' is-ineligible' : ''}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                      <div className="pw-shop-wallet-card-head">
                         <strong>{v.name}</strong>
                         <span className="pw-shop-price">
                           {v.discountType === 'percent' ? `${v.discountPercent}%` : `${(v.discountAmount ?? 0).toLocaleString('vi-VN')}đ`}
@@ -659,13 +656,11 @@ export function PartnerSiteShopAccountClient({
                           {t.walletExpiresLabel}: {new Date(v.expiresAt).toLocaleDateString(locale)}
                         </p>
                       ) : null}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                        <code style={{ background: '#f3f4f6', padding: '4px 10px', borderRadius: 6, fontWeight: 700 }}>
-                          {v.code}
-                        </code>
+                      <div className="pw-shop-wallet-actions">
+                        <code className="pw-shop-wallet-code">{v.code}</code>
                         <button
                           type="button"
-                          className="pw-shop-btn pw-shop-btn-outline"
+                          className="pw-shop-btn pw-shop-btn-outline pw-shop-btn-sm"
                           onClick={() => copyVoucherCode(v.code)}
                         >
                           <Copy className="pw-shop-account-link-icon" aria-hidden="true" strokeWidth={2} style={{ width: 16, height: 16, marginRight: 4 }} />
@@ -859,8 +854,8 @@ export function PartnerSiteShopAccountClient({
             {activeTab === 'notifications' ? (
               <section className="pw-shop-account-edit">
                 {needsAuth ? (
-                  <div style={{ textAlign: 'center', padding: '32px 8px' }}>
-                    <p className="pw-shop-muted" style={{ marginBottom: 12 }}>{t.accountNotificationsLogin}</p>
+                  <div className="pw-shop-notif-login">
+                    <p className="pw-shop-muted">{t.accountNotificationsLogin}</p>
                     <button
                       type="button"
                       className="pw-shop-btn"
@@ -872,8 +867,8 @@ export function PartnerSiteShopAccountClient({
                 ) : (
                   <>
                     <PartnerSitePushEnableCard siteSlug={siteSlug} locale={locale} />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      <h2 style={{ margin: 0 }}>{t.accountNotificationsTitle}</h2>
+                    <div className="pw-shop-notif-head">
+                      <h2>{t.accountNotificationsTitle}</h2>
                       {unreadCount > 0 ? (
                         <button
                           type="button"
@@ -885,55 +880,39 @@ export function PartnerSiteShopAccountClient({
                       ) : null}
                     </div>
                     {notificationsLoading ? (
-                      <p className="pw-shop-muted" style={{ marginTop: 16 }}>{t.accountNotificationsLoading}</p>
+                      <PartnerSiteShopSkeleton variant="list" label={t.accountNotificationsLoading} />
                     ) : null}
                     {!notificationsLoading && notifications.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '40px 12px', marginTop: 16, borderRadius: 12, border: '1px solid var(--pw-border, #f3f4f6)', background: 'var(--pw-surface, #f9fafb)' }}>
-                        <Bell aria-hidden="true" strokeWidth={1.5} style={{ width: 48, height: 48, margin: '0 auto 12px', color: '#d1d5db' }} />
-                        <p className="pw-shop-muted" data-pw-el={PW_EL.empty}>{t.accountNotificationsEmpty}</p>
-                      </div>
+                      <PartnerSiteShopEmptyState
+                        kind="notifications"
+                        title={t.accountNotificationsEmpty}
+                        emptyEl={PW_EL.empty}
+                      />
                     ) : null}
-                    <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 0', display: 'grid', gap: 10 }}>
+                    <ul className="pw-shop-notif-list">
                       {notifications.map((item) => (
                         <li key={item.id}>
                           <button
                             type="button"
-                            className="pw-shop-account-link-card"
-                            style={{
-                              width: '100%',
-                              textAlign: 'left',
-                              background: item.readAt ? '#fff' : 'color-mix(in srgb, var(--pw-primary) 8%, #fff)',
-                              borderColor: item.readAt ? 'var(--pw-border, #f3f4f6)' : 'color-mix(in srgb, var(--pw-primary) 22%, #fff)',
-                              fontWeight: item.readAt ? 400 : 600,
-                            }}
+                            className={`pw-shop-notif-card${item.readAt ? '' : ' is-unread'}`}
                             onClick={() => {
                               if (!item.readAt) void markNotificationRead(item.id)
                               if (item.href) router.push(item.href)
                             }}
                           >
-                            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-                              <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                                {!item.readAt ? (
-                                  <span
-                                    aria-hidden="true"
-                                    style={{ width: 8, height: 8, borderRadius: 999, background: 'var(--pw-primary)', flexShrink: 0 }}
-                                  />
-                                ) : null}
-                                <strong style={{ display: 'block' }}>{item.title}</strong>
+                            <span className="pw-shop-notif-top">
+                              <span className="pw-shop-notif-title-row">
+                                {!item.readAt ? <span className="pw-shop-notif-dot" aria-hidden /> : null}
+                                <strong className="pw-shop-notif-title">{item.title}</strong>
                               </span>
-                              <span className="pw-shop-muted" style={{ fontSize: 12, fontWeight: 400, whiteSpace: 'nowrap' }}>
+                              <span className="pw-shop-muted pw-shop-notif-time">
                                 {item.createdAt
                                   ? new Date(item.createdAt).toLocaleString(locale, { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                                   : ''}
                               </span>
                             </span>
                             {item.body ? (
-                              <span
-                                className="pw-shop-muted"
-                                style={{ display: 'block', marginTop: 6, paddingLeft: 16, fontWeight: 400, whiteSpace: 'pre-line' }}
-                              >
-                                {item.body}
-                              </span>
+                              <span className="pw-shop-muted pw-shop-notif-body">{item.body}</span>
                             ) : null}
                           </button>
                         </li>

@@ -53,6 +53,10 @@ yarn-error.log*
 /public/sw.js.map
 /public/workbox-*.js.map
 
+# python
+__pycache__/
+*.py[cod]
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

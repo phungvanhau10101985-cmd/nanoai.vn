@@ -128,6 +128,16 @@ test('chat on same-platform domain uses SaaS cart, web khách keeps stored URL',
   )
   assert.equal(
     pickGuestCartUrlTemplateByHost({
+      storedTemplate: null,
+      saasTemplate: saas,
+      saasPublicUrl: saasPublic,
+      siteSlug: '188-com-vn-rl56',
+      embedPage: 'https://external-shop.example/products/bag',
+    }),
+    null
+  )
+  assert.equal(
+    pickGuestCartUrlTemplateByHost({
       storedTemplate: stored,
       saasTemplate: saas,
       saasPublicUrl: 'https://nanoai.vn/site/188-com-vn-rl56',

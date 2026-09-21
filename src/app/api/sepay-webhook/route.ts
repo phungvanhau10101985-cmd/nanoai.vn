@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'node:crypto'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
 import { authorizePartnerSePayWebhook, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
@@ -22,6 +23,8 @@ import {
   patchPartnerOrderDepositExceptionFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
+import { canTransitionPartnerOrderPayment } from '@/lib/messaging/fulfillment/order-lifecycle-transition'
+import { runPartnerOrderLifecycleHook } from '@/lib/messaging/fulfillment/order-lifecycle-hook'
 import {
   emailCustomerOrderPaymentManualReview,
   emailCustomerOrderPaymentVerified,
@@ -36,6 +39,13 @@ import {
   notifyPartnerOwnerPaymentNeedsReview,
   notifyPartnerOwnerPaymentVerified,
 } from '@/lib/messaging/partner-admin-notifications'
+import {
+  claimPartnerPaymentWebhookEventFromPg,
+  completePartnerPaymentWebhookEventFromPg,
+  failPartnerPaymentWebhookEventFromPg,
+  partnerPaymentWebhookEventId,
+  runPartnerPaymentWebhookEffectOnceFromPg,
+} from '@/lib/db/messaging-partner-payment-webhook-events-pg'
 
 type SePayBody = Record<string, string | number | boolean | null | undefined>
 
@@ -256,8 +266,38 @@ export async function POST(request: NextRequest) {
         console.warn('SePay partner webhook rejected:', partnerAuth.reason)
         return NextResponse.json({ error: 'unauthorized', reason: partnerAuth.reason }, { status: 401 })
       }
+      const providerEventId = partnerPaymentWebhookEventId({ transactionId, rawBody })
+      const webhookClaim = await claimPartnerPaymentWebhookEventFromPg({
+        partnerId,
+        provider: 'sepay',
+        providerEventId,
+        payloadHash: createHash('sha256').update(rawBody).digest('hex'),
+      })
+      if (!webhookClaim.claimed || !webhookClaim.eventId || !webhookClaim.claimToken) {
+        if (webhookClaim.existingStatus === 'processing') {
+          return NextResponse.json(
+            {
+              success: false,
+              message: 'Partner order webhook is still processing; retry later',
+              data: { duplicate: true, providerEventId },
+            },
+            { status: 503 }
+          )
+        }
+        return NextResponse.json({
+          success: true,
+          message: 'Partner order webhook already processed',
+          data: { duplicate: true, providerEventId },
+        })
+      }
+      try {
       const order = await fetchPartnerOrderByPaymentReferenceFromPg(partnerId, normalizedContent)
       if (!order) {
+        await failPartnerPaymentWebhookEventFromPg({
+          eventId: webhookClaim.eventId,
+          claimToken: webhookClaim.claimToken,
+          error: 'Order not found for partner webhook.',
+        })
         return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
       }
       const partnerRows = await fetchMessagingPartnersByIdsFromPg([partnerId])
@@ -267,7 +307,32 @@ export async function POST(request: NextRequest) {
       const accountMatched = expectedAccount ? receivedAccount.includes(expectedAccount) : true
       const amountMatched = amountIn >= Math.round(order.required_amount)
       const nextStatus = accountMatched && amountMatched ? 'paid_verified' : 'pending_manual_review'
-      await updatePartnerOrderPaymentVerificationFromPg({
+      const currentOrder = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
+      if (!currentOrder) throw new Error('Partner order disappeared before payment transition.')
+      if (currentOrder.status === 'paid_verified') {
+        await completePartnerPaymentWebhookEventFromPg({
+          eventId: webhookClaim.eventId,
+          claimToken: webhookClaim.claimToken,
+          orderId: currentOrder.id,
+        })
+        return NextResponse.json({
+          success: true,
+          message: 'Partner order payment was already verified',
+          data: { duplicate: true, orderId: currentOrder.id, providerEventId },
+        })
+      }
+      if (
+        !canTransitionPartnerOrderPayment(
+          {
+            status: currentOrder.status,
+            shippingStatus: currentOrder.shipping_status,
+          },
+          nextStatus
+        )
+      ) {
+        throw new Error('Partner order payment transition rejected.')
+      }
+      const paymentUpdated = await updatePartnerOrderPaymentVerificationFromPg({
         orderId: order.id,
         status: nextStatus,
         paidAmount: amountIn,
@@ -275,7 +340,9 @@ export async function POST(request: NextRequest) {
           nextStatus === 'paid_verified'
             ? 'Webhook doi chieu thanh cong.'
             : `Webhook can duyet tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
+        enforceOptimizedTransition: true,
       })
+      if (!paymentUpdated) throw new Error('Failed to update partner order payment status.')
       if (nextStatus === 'pending_manual_review') {
         await patchPartnerOrderDepositExceptionFromPg({
           orderId: order.id,
@@ -283,97 +350,145 @@ export async function POST(request: NextRequest) {
           note: `Webhook cần duyệt tay (accountMatched=${String(accountMatched)}, amountMatched=${String(amountMatched)}).`,
         })
       }
-      const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
+      let refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
+      const effectiveStatus: 'paid_verified' | 'pending_manual_review' = nextStatus
+      let stockReady = true
+      if (refreshed && nextStatus === 'paid_verified') {
+        const { onPartnerOrderPaidVerifiedFulfillment } = await import(
+          '@/lib/messaging/fulfillment/order-fulfillment-service'
+        )
+        const stockResult = await onPartnerOrderPaidVerifiedFulfillment(refreshed.id)
+        stockReady = stockResult.ok
+        if (!stockReady) {
+          // Keep accepted payment immutable. Fulfillment records the stock
+          // exception on its own axis for manual resolution.
+          refreshed = await fetchPartnerOrderByIdForPartnerFromPg(partnerId, order.id)
+        }
+      }
       const subtotal = Math.round(refreshed?.subtotal_amount ?? 0)
       const paidRounded = Math.round(refreshed?.paid_amount ?? amountIn)
       const remainingOnDelivery = Math.max(0, subtotal - paidRounded)
       const refMemo = (refreshed?.payment_reference ?? order.payment_reference).trim()
       const chatBody =
         refreshed
-          ? nextStatus === 'paid_verified'
+          ? effectiveStatus === 'paid_verified'
             ? `${shopBrand} đã xác nhận thanh toán cho đơn ${refMemo}. Đã nhận: ${formatVnd(amountIn)}. Thanh toán khi nhận hàng: ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng!`
             : `${shopBrand} đã nhận ${formatVnd(amountIn)}; đơn ${refMemo} đang chờ kiểm tra thêm. Thanh toán khi nhận hàng (ước tính): ${formatVnd(remainingOnDelivery)} (tổng đơn ${formatVnd(subtotal)}). Cảm ơn bạn đã đặt hàng — shop sẽ cập nhật ngay khi đối chiếu xong.`
-          : nextStatus === 'paid_verified'
+          : effectiveStatus === 'paid_verified'
             ? `${shopBrand} da xac nhan thanh toan thanh cong cho don ${order.payment_reference}. Cam on ban da dat hang!`
             : `${shopBrand} da nhan giao dich, don ${order.payment_reference} dang can duyet tay them. Cam on ban — shop se cap nhat sau khi doi chieu.`
-      await insertMessagePg({
-        conversationId: order.conversation_id,
-        direction: 'outbound',
-        body: chatBody,
-        rawPayload: {
-          source: 'system_order',
-          order_id: order.id,
-          order_status: nextStatus,
-          payment_webhook_source: 'sepay',
-          payment_amount_detected: amountIn,
-          payment_subtotal: subtotal,
-          payment_remaining_on_delivery: remainingOnDelivery,
-          payment_receiver_detected: receivedAccount,
+      await runPartnerPaymentWebhookEffectOnceFromPg({
+        eventId: webhookClaim.eventId,
+        effectKey: 'customer_chat',
+        run: () => insertMessagePg({
+          conversationId: order.conversation_id,
+          direction: 'outbound',
+          body: chatBody,
+          rawPayload: {
+            source: 'system_order',
+            order_id: order.id,
+            order_status: effectiveStatus,
+            payment_webhook_source: 'sepay',
+            payment_amount_detected: amountIn,
+            payment_subtotal: subtotal,
+            payment_remaining_on_delivery: remainingOnDelivery,
+            payment_receiver_detected: receivedAccount,
+          },
+        }),
+      })
+      await runPartnerPaymentWebhookEffectOnceFromPg({
+        eventId: webhookClaim.eventId,
+        effectKey: 'payment_event',
+        run: () => insertPartnerOrderEventFromPg({
+          orderId: order.id,
+          eventType: 'sepay_webhook_received',
+          title: 'Nhan webhook thanh toan',
+          detail: `Webhook da vao. So tien ${amountIn}. Ket qua ${effectiveStatus}.`,
+          source: 'system',
+          metadata: {
+            transaction_id: transactionId ?? '',
+            transaction_content: normalizedContent,
+            bank_account: receivedAccount,
+            account_matched: accountMatched,
+            amount_matched: amountMatched,
+          },
+        }),
+      })
+      await runPartnerPaymentWebhookEffectOnceFromPg({
+        eventId: webhookClaim.eventId,
+        effectKey: 'customer_notification',
+        run: async () => {
+          const paySettings = await fetchPartnerPaymentSettingsFromPg(partnerId)
+          if (refreshed && paySettings) {
+            if (effectiveStatus === 'paid_verified') {
+              await emailCustomerOrderPaymentVerified({
+                order: refreshed,
+                shopNotifyEmail: paySettings.notify_email || '',
+              })
+            } else {
+              await emailCustomerOrderPaymentManualReview({
+                order: refreshed,
+                shopNotifyEmail: paySettings.notify_email || '',
+              })
+            }
+          }
         },
       })
-      await insertPartnerOrderEventFromPg({
-        orderId: order.id,
-        eventType: 'sepay_webhook_received',
-        title: 'Nhan webhook thanh toan',
-        detail: `Webhook da vao. So tien ${amountIn}. Ket qua ${nextStatus}.`,
-        source: 'system',
-        metadata: {
-          transaction_id: transactionId ?? '',
-          transaction_content: normalizedContent,
-          bank_account: receivedAccount,
-          account_matched: accountMatched,
-          amount_matched: amountMatched,
-        },
-      })
-      try {
-        const paySettings = await fetchPartnerPaymentSettingsFromPg(partnerId)
-        if (refreshed && paySettings) {
-          if (nextStatus === 'paid_verified') {
-            await emailCustomerOrderPaymentVerified({
-              order: refreshed,
-              shopNotifyEmail: paySettings.notify_email || '',
-            })
+      await runPartnerPaymentWebhookEffectOnceFromPg({
+        eventId: webhookClaim.eventId,
+        effectKey: 'owner_notification',
+        run: async () => {
+          if (!refreshed) return
+          if (effectiveStatus === 'paid_verified') {
             await notifyPartnerOwnerPaymentVerified(partnerId, refreshed)
           } else {
-            await emailCustomerOrderPaymentManualReview({
-              order: refreshed,
-              shopNotifyEmail: paySettings.notify_email || '',
-            })
             await notifyPartnerOwnerPaymentNeedsReview(partnerId, refreshed)
           }
-        }
-      } catch (e) {
-        console.warn('[sepay-webhook partner order] email', e)
-      }
+        },
+      })
       queuePartnerOrderGoogleSheetsSync(partnerId, order.id)
-      if (refreshed && nextStatus === 'paid_verified') {
-        emitPartnerOutboundPaymentPaid(partnerId, refreshed)
+      if (refreshed && effectiveStatus === 'paid_verified') {
+        if (stockReady) emitPartnerOutboundPaymentPaid(partnerId, refreshed)
         // S0.3 — Purchase CAPI server-side khi thanh toán được xác nhận THẬT (event_id ổn định
         // theo đơn để dedupe đúng với lần gửi lúc tạo đơn). Xem docs/188_BEHAVIOR_SPEC.md mục E.4.
-        sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId, order: refreshed }).catch((e) =>
-          console.warn('[sepay-webhook] Meta CAPI Purchase (paid_verified)', e)
-        )
-        const { onPartnerOrderPaidVerifiedFulfillment } = await import(
-          '@/lib/messaging/fulfillment/order-fulfillment-service'
-        )
-        await onPartnerOrderPaidVerifiedFulfillment(refreshed.id)
-        void import('@/lib/db/messaging-partner-affiliate-pg')
-          .then(({ grantPartnerAffiliateCommissionAfterPaidFromPg }) =>
-            grantPartnerAffiliateCommissionAfterPaidFromPg({
+        if (stockReady) {
+          sendPartnerMetaPurchaseCapiOnPaymentConfirmed({ partnerId, order: refreshed }).catch((e) =>
+            console.warn('[sepay-webhook] Meta CAPI Purchase (paid_verified)', e)
+          )
+        }
+        await runPartnerPaymentWebhookEffectOnceFromPg({
+          eventId: webhookClaim.eventId,
+          effectKey: 'affiliate_grant',
+          run: () =>
+            runPartnerOrderLifecycleHook({
               partnerId,
               orderId: refreshed.id,
-            })
-          )
-          .catch((error) => console.warn('[sepay-webhook] affiliate commission', error))
+              event: 'paid',
+            }),
+        })
       }
+      await completePartnerPaymentWebhookEventFromPg({
+        eventId: webhookClaim.eventId,
+        claimToken: webhookClaim.claimToken,
+        orderId: order.id,
+      })
       return NextResponse.json({
         success: true,
         message: 'Partner order webhook processed',
         data: {
           orderId: order.id,
-          status: nextStatus,
+          status: effectiveStatus,
+          stockReady,
         },
       })
+      } catch (error) {
+        await failPartnerPaymentWebhookEventFromPg({
+          eventId: webhookClaim.eventId,
+          claimToken: webhookClaim.claimToken,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        throw error
+      }
     }
     if (!pending) {
       console.warn('No pending payment found for content:', normalizedContent)

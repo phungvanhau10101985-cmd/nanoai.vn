@@ -37,6 +37,7 @@ import {
   type ShopShipmentEventView,
   type ShopSiblingOrderView,
 } from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
+import { buyerOrderActions } from '@/lib/messaging/partner-order-notify-ui'
 
 type DetailOrder = PartnerOrderDiscountFields & {
   id: string
@@ -57,8 +58,6 @@ type DetailOrder = PartnerOrderDiscountFields & {
   product_url?: string | null
   promo_code?: string | null
   loyalty_tier_name?: string | null
-  fulfillment_source?: 'vietnam' | 'china' | null
-  source_platform?: string | null
   tracking_number?: string | null
 }
 
@@ -200,6 +199,7 @@ export function PartnerSiteShopOrderDetailClient({
   if (loading) {
     return (
       <div className="pw-shop-deposit-center">
+        <span className="pw-shop-deposit-spin" aria-hidden />
         <p className="pw-shop-muted">{t.depositLoading}</p>
       </div>
     )
@@ -223,6 +223,15 @@ export function PartnerSiteShopOrderDetailClient({
   })
   const ship = Math.max(0, Math.round(Number(order.shipping_fee_amount ?? 0)))
   const isCod = Number(order.required_amount ?? 0) <= 0
+  const validActions = new Set(
+    buyerOrderActions({
+      status: order.status,
+      shippingStatus: order.shipping_status,
+      requiredAmount: order.required_amount,
+      paidAmount: order.paid_amount,
+      shipmentEvents: shipmentEvents as never[],
+    })
+  )
 
   return (
     <div>
@@ -312,12 +321,12 @@ export function PartnerSiteShopOrderDetailClient({
             </div>
           ) : null}
           <div className="pw-shop-deposit-actions">
-            {waitingPay ? (
+            {waitingPay && validActions.has('pay_deposit') ? (
               <Link href={depositHref} className="pw-shop-btn pw-shop-btn-buy">
                 {t.orderPayDeposit}
               </Link>
             ) : null}
-            {canConfirm ? (
+            {canConfirm && validActions.has('confirm_received') ? (
               <button
                 type="button"
                 className="pw-shop-btn"

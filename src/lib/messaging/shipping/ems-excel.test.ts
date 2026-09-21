@@ -11,7 +11,7 @@ import {
 import * as XLSX from 'xlsx'
 import { parseCodSettlementRows } from './ems-cod-settlement'
 import type { PartnerEmsRecord } from './ems-types'
-import { accumulateOpsStats, deliveryBucket, hasCod, matchesEmsSyncChip, matchesOpsBucket, periodKey, vnCalendarParts } from './shipping-ops'
+import { accumulateOpsStats, deliveryBucket, hasCod, isEmsDelivered, matchesEmsSyncChip, matchesOpsBucket, periodKey, vnCalendarParts } from './shipping-ops'
 
 function sampleRecord(partial: Partial<PartnerEmsRecord>): PartnerEmsRecord {
   return {
@@ -123,5 +123,11 @@ describe('partner EMS shipping excel/ops', () => {
     const rec = sampleRecord({ cod_settlement_status: 'matched', ems_phase: 'delivered', ems_status: 'Phát thành công' })
     assert.equal(matchesOpsBucket(rec, 'cod_received_in_period'), true)
     assert.equal(matchesOpsBucket(rec, 'cod_paid'), true)
+  })
+
+  it('does not use COD collection or settlement alone as delivery evidence', () => {
+    assert.equal(isEmsDelivered('cod_collected', '[COD] Đã thu tiền'), false)
+    assert.equal(isEmsDelivered('cod_settled', '[COD] Trả tiền cho người gửi'), false)
+    assert.equal(isEmsDelivered('delivered', 'Phát thành công'), true)
   })
 })

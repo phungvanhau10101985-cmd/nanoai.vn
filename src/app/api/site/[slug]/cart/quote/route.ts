@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { fulfillmentSourceFromUrl, resolveInventoryFulfillmentUrl } from '@/lib/messaging/fulfillment/fulfillment-routing'
-import { buildCheckoutSplitPlans } from '@/lib/messaging/fulfillment/checkout-split'
+import { buildCheckoutSplitPlansForTenant } from '@/lib/messaging/fulfillment/checkout-split'
 import { resolveActiveBirthdayOfferForCustomer } from '@/lib/db/messaging-partner-birthday-promo-pg'
 import { fetchPartnerAffiliateMeFromPg } from '@/lib/db/messaging-partner-affiliate-pg'
 import { applyAffiliateWalletToSplitPlans } from '@/lib/partner-website/shop/partner-site-affiliate'
@@ -204,7 +204,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
       ? (await fetchPartnerInventoryRowsByIdsInOrderFromPg(shop.partnerId, billedInventoryIds)) || []
       : []
   const inventoryById = new Map(inventoryRows.map((row) => [row.id, row]))
-  const checkoutPlans = buildCheckoutSplitPlans({
+  const checkoutPlans = buildCheckoutSplitPlansForTenant(shop.partnerId, {
     lines: billedPriceLines.map((line) => {
       const inv = line.inventoryId ? inventoryById.get(line.inventoryId) : undefined
       const url = resolveInventoryFulfillmentUrl({

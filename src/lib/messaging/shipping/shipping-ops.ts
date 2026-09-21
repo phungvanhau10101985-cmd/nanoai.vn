@@ -1,7 +1,7 @@
 import type { PartnerEmsRecord } from '@/lib/messaging/shipping/ems-types'
 import type { OpsBucketKey } from '@/lib/messaging/shipping/ems-types'
 
-const EMS_DELIVERED_PHASES = new Set(['delivered', 'cod_collected', 'cod_settled'])
+const EMS_DELIVERED_PHASES = new Set(['delivered'])
 const EMS_IN_TRANSIT_PHASES = new Set(['posted', 'in_transit', 'out_for_delivery'])
 
 export const RETURN_PENDING_SHOP_LABEL = 'Đơn hoàn chưa trả shop'
@@ -44,9 +44,7 @@ export function isEmsDelivered(emsPhase: string | null | undefined, emsStatus: s
   const phase = (emsPhase || '').trim().toLowerCase()
   if (EMS_DELIVERED_PHASES.has(phase)) return true
   const text = (emsStatus || '').toLowerCase()
-  const compact = text.replace(/\s+/g, '')
-  if (compact.includes('[cod]đãthutiền') || compact.includes('đãthutiềnbưutá')) return true
-  if (compact.includes('[cod]trảtiền') || compact.includes('trảtiềnchongườigửi')) return true
+  // COD collection/settlement is accounting evidence, not delivery evidence.
   return text.includes('phát thành công') && !text.includes('phát hoàn')
 }
 

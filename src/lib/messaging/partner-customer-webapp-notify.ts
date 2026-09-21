@@ -11,6 +11,10 @@ import {
 } from '@/lib/messaging/partner-customer-inapp-copy'
 import { partnerAdminAmountDueOnDelivery } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import {
+  partnerOrderNotifyIdempotencyKey,
+  type PartnerOrderNotifyEvent,
+} from '@/lib/messaging/partner-order-notify-ui'
 
 function toVnd(n: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(n || 0)))}đ`
@@ -48,6 +52,8 @@ export async function notifyPartnerCustomerWebApp(input: {
   event: CustomerInAppEvent
   locale?: string | null
   type?: string
+  eventKey?: PartnerOrderNotifyEvent
+  occurrenceKey?: string | null
 }): Promise<void> {
   const copy = formatCustomerInAppCopy(input.locale, input.event)
   await notifyPartnerCustomerOrderUpdateFromPg({
@@ -60,6 +66,17 @@ export async function notifyPartnerCustomerWebApp(input: {
     body: copy.body,
     type: input.type ?? 'order',
     awaitPush: true,
+    dedupeKey: input.eventKey
+      ? partnerOrderNotifyIdempotencyKey({
+          partnerId: input.partnerId,
+          orderId: input.occurrenceKey
+            ? `${input.orderId || input.conversationId || 'order'}:${input.occurrenceKey}`
+            : input.orderId,
+          conversationId: input.conversationId,
+          event: input.eventKey,
+          channel: 'in_app',
+        })
+      : null,
   })
 }
 
@@ -67,6 +84,8 @@ export async function notifyPartnerCustomerOrderWebApp(input: {
   order: PartnerOrderRow
   event: Exclude<CustomerInAppEvent, { kind: 'promo_grant' }>
   locale?: string | null
+  eventKey: PartnerOrderNotifyEvent
+  occurrenceKey?: string | null
 }): Promise<void> {
   const locale = await localeForOrder(input.order, input.locale)
   await notifyPartnerCustomerWebApp({
@@ -77,6 +96,8 @@ export async function notifyPartnerCustomerOrderWebApp(input: {
     orderId: input.order.id,
     event: input.event,
     locale,
+    eventKey: input.eventKey,
+    occurrenceKey: input.occurrenceKey,
   })
 }
 
@@ -96,6 +117,7 @@ export async function notifyPartnerCustomerOrderPlacedWebApp(
       needsDeposit: (order.required_amount || 0) > 0,
       depositLabel: (order.required_amount || 0) > 0 ? toVnd(order.required_amount) : undefined,
     },
+    eventKey: 'order_placed',
   })
 }
 
@@ -113,6 +135,7 @@ export async function notifyPartnerCustomerDepositConfirmedWebApp(
       remaining: partnerAdminAmountDueOnDelivery(order),
       remainingLabel: toVnd(partnerAdminAmountDueOnDelivery(order)),
     },
+    eventKey: 'payment_confirmed',
   })
 }
 
@@ -124,6 +147,7 @@ export async function notifyPartnerCustomerCancelledWebApp(
     order,
     locale: opts?.locale,
     event: { kind: 'cancelled', orderCode: orderCode(order), byCustomer: opts?.byCustomer },
+    eventKey: 'cancelled',
   })
 }
 
@@ -135,6 +159,7 @@ export async function notifyPartnerCustomerProofReceivedWebApp(
     order,
     locale,
     event: { kind: 'proof_received', orderCode: orderCode(order) },
+    eventKey: 'payment_proof_received',
   })
 }
 
@@ -147,6 +172,7 @@ export async function notifyPartnerCustomerRefundedWebApp(
     order,
     locale,
     event: { kind: 'refunded', orderCode: orderCode(order), amountLabel },
+    eventKey: 'refunded',
   })
 }
 
@@ -164,6 +190,7 @@ export async function notifyPartnerCustomerShipperWebApp(
       shopName,
       tracking: order.tracking_number || undefined,
     },
+    eventKey: 'shipped',
   })
 }
 
@@ -181,6 +208,7 @@ export async function notifyPartnerCustomerDeliveredWebApp(
       orderCode: orderCode(order),
       shopName,
     },
+    eventKey: 'delivered',
   })
 }
 
@@ -271,5 +299,17 @@ export async function notifyPartnerCustomerEmsUpdateWebApp(input: {
     order: input.order,
     locale: input.locale,
     event: event as Exclude<CustomerInAppEvent, { kind: 'promo_grant' }>,
+    eventKey:
+      event.kind === 'delivered_ems'
+        ? 'delivered'
+        : event.kind === 'shipping' || event.kind === 'tracking_assigned' || event.kind === 'ems_phase'
+          ? 'shipped'
+          : 'shipped',
+    occurrenceKey:
+      event.kind === 'ems_phase'
+        ? `phase:${event.phase}`
+        : event.kind === 'tracking_assigned'
+          ? `tracking:${event.tracking}`
+          : event.kind,
   })
 }

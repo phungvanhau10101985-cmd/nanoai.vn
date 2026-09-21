@@ -1,7 +1,31 @@
 import type { PartnerFulfillmentSource } from '@/lib/messaging/fulfillment/fulfillment-routing'
 import { FULFILLMENT_CHINA } from '@/lib/messaging/fulfillment/fulfillment-routing'
+import { selectOptimizedFulfillmentOutcome } from '@/lib/messaging/fulfillment/optimized-fulfillment-runtime'
 
 export type ShipmentEventStatus = 'pending' | 'active' | 'completed' | 'skipped'
+
+export const SHIPMENT_TRANSITION_CONTRACT_VERSION = 1 as const
+export type ShipmentTransitionActor = 'system' | 'cron' | 'admin' | 'ems' | 'customer'
+export type ShipmentTransitionTrigger =
+  | 'auto_due'
+  | 'admin_clear_customs'
+  | 'admin_start_vn_packing'
+  | 'admin_mark_out_for_confirm'
+  | 'ems_shipping'
+  | 'ems_delivered'
+  | 'ems_returned'
+  | 'admin_confirm_return'
+  | 'customer_confirm_received'
+  | 'cancelled'
+
+export type ShipmentTransitionResult = {
+  contractVersion: typeof SHIPMENT_TRANSITION_CONTRACT_VERSION
+  events: PartnerOrderShipmentEvent[]
+  ok: boolean
+  changed: boolean
+  blockedAt?: ShipmentStepKey
+  error?: string
+}
 
 export type ShipmentStepKey =
   | 'confirmed'
@@ -229,13 +253,48 @@ export function applyEmsImportToShipmentEvents(
   events: PartnerOrderShipmentEvent[],
   shippingStatus: 'shipping' | 'delivered' | 'returned',
   now = new Date()
-): PartnerOrderShipmentEvent[] {
+): ShipmentTransitionResult {
   if (shippingStatus === 'returned') {
-    return skipRemainingShipmentEvents(events, now)
+    return {
+      contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+      events,
+      ok: false,
+      changed: false,
+      error: 'EMS can report a return, but shop confirmation is required before inventory is restored.',
+    }
+  }
+
+  // EMS is a carrier actor, not a customs actor. A China order must remain at
+  // customs until an authenticated admin explicitly clears that milestone.
+  const customs = events.find((event) => event.stepKey === 'at_customs')
+  if (customs && customs.status !== 'completed') {
+    const customsIndex = events.findIndex((event) => event.stepKey === 'at_customs')
+    const nextEvents = events.map((event, index) => {
+      if (index < customsIndex) {
+        return {
+          ...event,
+          status: 'completed' as const,
+          completedAt: event.completedAt || now.toISOString(),
+          updatedBy: 'ems',
+        }
+      }
+      if (event.stepKey === 'at_customs') {
+        return { ...event, status: 'active' as const, updatedBy: 'ems' }
+      }
+      return event
+    })
+    return {
+      contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+      events: nextEvents,
+      ok: false,
+      changed: JSON.stringify(nextEvents) !== JSON.stringify(events),
+      blockedAt: 'at_customs',
+      error: 'China shipment requires admin customs clearance before EMS can advance it.',
+    }
   }
   const completeThrough: ShipmentStepKey = shippingStatus === 'delivered' ? 'awaiting_confirm' : 'awaiting_confirm'
   const throughIndex = events.findIndex((row) => row.stepKey === completeThrough)
-  return events.map((event, index) => {
+  const nextEvents: PartnerOrderShipmentEvent[] = events.map((event, index) => {
     if (shippingStatus === 'shipping' && event.stepKey === 'awaiting_confirm') {
       return {
         ...event,
@@ -261,6 +320,57 @@ export function applyEmsImportToShipmentEvents(
     }
     return event
   })
+  return {
+    contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+    events: nextEvents,
+    ok: true,
+    changed: JSON.stringify(nextEvents) !== JSON.stringify(events),
+  }
+}
+
+/** Pre-contract EMS behavior retained for off/shadow rollout modes. */
+export function applyLegacyEmsImportToShipmentEvents(
+  events: PartnerOrderShipmentEvent[],
+  shippingStatus: 'shipping' | 'delivered' | 'returned',
+  now = new Date()
+): ShipmentTransitionResult {
+  if (shippingStatus === 'returned') {
+    return {
+      contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+      events: skipRemainingShipmentEvents(events, now),
+      ok: true,
+      changed: true,
+    }
+  }
+  const throughIndex = events.findIndex((row) => row.stepKey === 'awaiting_confirm')
+  const nextEvents = events.map((event, index) => {
+    if (shippingStatus === 'shipping' && event.stepKey === 'awaiting_confirm') {
+      return { ...event, status: 'active' as const, updatedBy: 'ems' }
+    }
+    if (throughIndex >= 0 && index < throughIndex) {
+      return {
+        ...event,
+        status: 'completed' as const,
+        completedAt: event.completedAt || now.toISOString(),
+        updatedBy: 'ems',
+      }
+    }
+    if (shippingStatus === 'delivered' && event.stepKey === 'awaiting_confirm') {
+      return {
+        ...event,
+        status: 'completed' as const,
+        completedAt: now.toISOString(),
+        updatedBy: 'ems',
+      }
+    }
+    return event
+  })
+  return {
+    contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+    events: nextEvents,
+    ok: true,
+    changed: JSON.stringify(nextEvents) !== JSON.stringify(events),
+  }
 }
 
 export function confirmReceivedShipment(
@@ -288,4 +398,125 @@ export function canConfirmReceivedFromShipment(events: PartnerOrderShipmentEvent
 
 export function isManualShipmentStep(step: ShipmentStepKey): boolean {
   return MANUAL_CHINA_STEPS.includes(step) || MANUAL_VN_STEPS.includes(step)
+}
+
+const ACTORS_BY_TRIGGER: Record<ShipmentTransitionTrigger, readonly ShipmentTransitionActor[]> = {
+  auto_due: ['cron', 'system'],
+  admin_clear_customs: ['admin'],
+  admin_start_vn_packing: ['admin'],
+  admin_mark_out_for_confirm: ['admin'],
+  ems_shipping: ['ems'],
+  ems_delivered: ['ems'],
+  ems_returned: ['ems'],
+  admin_confirm_return: ['admin'],
+  customer_confirm_received: ['customer'],
+  cancelled: ['admin', 'customer', 'system'],
+}
+
+/** Pure, versioned state-machine entrypoint. Persistence and side effects live outside this contract. */
+export function transitionShipmentState(input: {
+  events: PartnerOrderShipmentEvent[]
+  source: PartnerFulfillmentSource
+  actor: ShipmentTransitionActor
+  trigger: ShipmentTransitionTrigger
+  now?: Date
+  updatedBy?: string
+  note?: string
+}): ShipmentTransitionResult {
+  const now = input.now || new Date()
+  if (!ACTORS_BY_TRIGGER[input.trigger].includes(input.actor)) {
+    return {
+      contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+      events: input.events,
+      ok: false,
+      changed: false,
+      error: `Actor ${input.actor} cannot execute ${input.trigger}.`,
+    }
+  }
+  if (input.trigger === 'auto_due') {
+    const out = advanceAutoShipmentMilestones(input.events, now)
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: true, changed: out.changed }
+  }
+  if (input.trigger === 'admin_clear_customs') {
+    const out = clearCustomsShipment(input.events, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'admin_start_vn_packing') {
+    const out = startVietnamPackingShipment(input.events, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'admin_mark_out_for_confirm') {
+    const out = markOutForConfirmShipment(input.events, input.source, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'customer_confirm_received') {
+    const out = confirmReceivedShipment(input.events, { now, updatedBy: input.updatedBy || 'customer', note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'cancelled') {
+    const next = skipRemainingShipmentEvents(input.events, now)
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: next, ok: true, changed: true }
+  }
+  if (input.trigger === 'admin_confirm_return') {
+    const next = skipRemainingShipmentEvents(input.events, now)
+    return {
+      contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION,
+      events: next,
+      ok: true,
+      changed: JSON.stringify(next) !== JSON.stringify(input.events),
+    }
+  }
+  return applyEmsImportToShipmentEvents(
+    input.events,
+    input.trigger === 'ems_returned' ? 'returned' : input.trigger === 'ems_delivered' ? 'delivered' : 'shipping',
+    now
+  )
+}
+
+function transitionLegacyShipmentState(
+  input: Parameters<typeof transitionShipmentState>[0]
+): ShipmentTransitionResult {
+  const now = input.now || new Date()
+  if (input.trigger === 'auto_due') {
+    const out = advanceAutoShipmentMilestones(input.events, now)
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: true, changed: out.changed }
+  }
+  if (input.trigger === 'admin_clear_customs') {
+    const out = clearCustomsShipment(input.events, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'admin_start_vn_packing') {
+    const out = startVietnamPackingShipment(input.events, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'admin_mark_out_for_confirm') {
+    const out = markOutForConfirmShipment(input.events, input.source, { now, updatedBy: input.updatedBy, note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'customer_confirm_received') {
+    const out = confirmReceivedShipment(input.events, { now, updatedBy: input.updatedBy || 'customer', note: input.note })
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: out.events, ok: out.ok, changed: out.ok, error: out.error }
+  }
+  if (input.trigger === 'cancelled') {
+    const next = skipRemainingShipmentEvents(input.events, now)
+    return { contractVersion: SHIPMENT_TRANSITION_CONTRACT_VERSION, events: next, ok: true, changed: true }
+  }
+  return applyLegacyEmsImportToShipmentEvents(
+    input.events,
+    input.trigger === 'ems_returned' ? 'returned' : input.trigger === 'ems_delivered' ? 'delivered' : 'shipping',
+    now
+  )
+}
+
+export function transitionShipmentStateForTenant(
+  tenantId: string,
+  input: Parameters<typeof transitionShipmentState>[0]
+): ShipmentTransitionResult {
+  const normalizedInput = input.now ? input : { ...input, now: new Date() }
+  return selectOptimizedFulfillmentOutcome({
+    tenantId,
+    operation: 'shipping',
+    legacy: () => transitionLegacyShipmentState(normalizedInput),
+    optimized: () => transitionShipmentState(normalizedInput),
+  }).value
 }

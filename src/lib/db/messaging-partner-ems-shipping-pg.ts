@@ -2,6 +2,7 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerEmsRecord, EmsSyncStatus, EmsImportSummary } from '@/lib/messaging/shipping/ems-types'
 import { returnToShopLabel } from '@/lib/messaging/shipping/shipping-ops'
+import { partnerOrderShippingTransitionSql } from '@/lib/messaging/fulfillment/order-lifecycle-transition'
 
 function num(v: unknown, fallback = 0): number {
   const n = Number(v)
@@ -305,6 +306,21 @@ export async function listPartnerEmsRecordsByIdsFromPg(
   return rows.map(mapEmsRecord)
 }
 
+export async function listDuePartnerEmsRecordsForRecurringSyncFromPg(limit = 24): Promise<PartnerEmsRecord[]> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery(
+    `select ${RECORD_SELECT} ${FROM_JOIN}
+     where r.order_id is not null
+       and coalesce(o.shipping_status, 'pending') not in ('delivered', 'returned', 'cancelled')
+       and coalesce(r.sync_status, 'pending') not in ('parse_error', 'unlinked', 'order_not_found')
+       and r.updated_at <= now() - interval '30 minutes'
+     order by r.updated_at asc
+     limit $1`,
+    [Math.max(1, Math.min(80, Math.floor(limit)))]
+  )
+  return rows.map(mapEmsRecord)
+}
+
 export type UpsertEmsRecordInput = {
   partnerId: string
   referenceCode: string
@@ -552,6 +568,18 @@ export async function confirmPartnerShopReturnFromPg(input: {
   orderId?: string | null
 }): Promise<PartnerEmsRecord | null> {
   if (!isPgConfigured()) return null
+  if (input.orderId) {
+    const transitioned = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partner_orders o
+       set shipping_status = 'returned',
+           updated_at = now()
+       where o.partner_id = $1::uuid and o.id = $2::uuid
+         and ${partnerOrderShippingTransitionSql("'returned'")}
+       returning id::text as id`,
+      [input.partnerId, input.orderId],
+    )
+    if (!transitioned) return null
+  }
   await pgQuery(
     `update public.messaging_partner_ems_shipping_records
      set shop_return_received_at = coalesce(shop_return_received_at, now()),
@@ -560,16 +588,6 @@ export async function confirmPartnerShopReturnFromPg(input: {
      where partner_id = $1::uuid and id = $2::uuid`,
     [input.partnerId, input.recordId],
   )
-  if (input.orderId) {
-    await pgQuery(
-      `update public.messaging_partner_orders
-       set shipping_status = 'returned',
-           updated_at = now()
-       where partner_id = $1::uuid and id = $2::uuid
-         and shipping_status <> 'cancelled'`,
-      [input.partnerId, input.orderId],
-    )
-  }
   return fetchPartnerEmsRecordByIdFromPg(input.partnerId, input.recordId)
 }
 
@@ -577,7 +595,7 @@ export async function syncPartnerOrderShippingFromEmsFromPg(input: {
   partnerId: string
   orderId: string
   trackingNumber: string
-  shippingStatus: 'shipping' | 'delivered' | 'returned'
+  shippingStatus: 'shipping' | 'delivered' | 'returned' | null
 }): Promise<void> {
   if (!isPgConfigured()) return
   await pgQuery(
@@ -585,16 +603,18 @@ export async function syncPartnerOrderShippingFromEmsFromPg(input: {
      set tracking_number = case when trim($3) <> '' then $3 else tracking_number end,
          shipping_provider = case when trim($3) <> '' then 'EMS' else shipping_provider end,
          shipping_status = case
+           when $4::text is null then shipping_status
            when shipping_status in ('cancelled', 'returned') and $4 <> 'returned' then shipping_status
            when shipping_status = 'delivered' and $4 = 'shipping' then shipping_status
            else $4
          end,
          delivered_at = case
-           when $4 = 'delivered' then coalesce(delivered_at, now())
+           when $4::text = 'delivered' then coalesce(delivered_at, now())
            else delivered_at
          end,
          updated_at = now()
-     where partner_id = $1::uuid and id = $2::uuid`,
+     where partner_id = $1::uuid and id = $2::uuid
+       and status <> 'cancelled'`,
     [input.partnerId, input.orderId, input.trackingNumber, input.shippingStatus],
   )
 }

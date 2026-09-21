@@ -13,10 +13,24 @@ export type ShopShipmentEventView = {
   completedAt?: string | null
 }
 
+function publicShipmentLabel(
+  stepKey: string | undefined,
+  t: ReturnType<typeof getPartnerSiteShopCopy>
+): string {
+  if (stepKey === 'confirmed') return t.orderTimelineConfirmed
+  if (stepKey === 'awaiting_confirm') return t.orderTimelineShipping
+  if (stepKey === 'vn_picking' || stepKey === 'vn_packed' || stepKey === 'tq_preparing' || stepKey === 'tq_warehouse') {
+    return t.orderTimelinePacking
+  }
+  if (stepKey === 'international_shipping' || stepKey === 'at_customs' || stepKey === 'domestic_shipping') {
+    return t.orderTimelineShipping
+  }
+  return t.orderTimelineCreated
+}
+
 export type ShopSiblingOrderView = {
   id: string
   payment_reference?: string | null
-  fulfillment_source?: string | null
 }
 
 export function shopFulfillmentSourceLabel(
@@ -107,14 +121,14 @@ export function PartnerSiteOrderShipmentSteps({
   events?: ShopShipmentEventView[] | null
   fallback: Array<{ key: string; label: string; done: boolean; active: boolean }>
 }) {
-  const live = (events || []).filter((event) => event.title || event.stepKey)
+  const live = (events || []).filter((event) => event.stepKey)
   const steps =
     live.length > 0
       ? live
           .filter((event) => event.status !== 'skipped')
           .map((event) => ({
             key: event.stepKey || event.title || 'step',
-            label: event.title || event.stepKey || '',
+            label: publicShipmentLabel(event.stepKey, t),
             done: event.status === 'completed',
             active: event.status === 'active',
           }))
@@ -129,6 +143,13 @@ export function PartnerSiteOrderShipmentSteps({
           </li>
         ))}
       </ol>
+      {steps.find((step) => step.active) ? (
+        <p className="pw-shop-muted" style={{ marginTop: 8 }}>
+          {steps.find((step) => step.active)?.key === 'awaiting_confirm'
+            ? t.orderWaitingBuyer
+            : t.orderWaitingSeller}
+        </p>
+      ) : null}
     </>
   )
 }

@@ -5,6 +5,7 @@ import {
   type PartnerFulfillmentSource,
   type PartnerSourcePlatform,
 } from '@/lib/messaging/fulfillment/fulfillment-routing'
+import { selectOptimizedFulfillmentOutcome } from '@/lib/messaging/fulfillment/optimized-fulfillment-runtime'
 
 export type CheckoutSplitLine = {
   fulfillmentSource: PartnerFulfillmentSource
@@ -28,6 +29,15 @@ export type CheckoutSplitGroupPlan = {
   requiredAmount: number
 }
 
+export type CheckoutSplitPlanInput = {
+  lines: CheckoutSplitLine[]
+  totalDiscount: number
+  shippingFee: number
+  shopDepositMode: 'none' | 'percent' | 'fixed_amount'
+  shopDepositPercent: number
+  shopDepositFixed: number
+}
+
 export function groupCheckoutLines<T extends CheckoutSplitLine>(lines: T[]): Record<PartnerFulfillmentSource, T[]> {
   const grouped = {
     [FULFILLMENT_VIETNAM]: [] as T[],
@@ -43,14 +53,7 @@ export function orderedFulfillmentSources(grouped: Record<PartnerFulfillmentSour
   return ([FULFILLMENT_VIETNAM, FULFILLMENT_CHINA] as const).filter((source) => grouped[source].length > 0)
 }
 
-export function buildCheckoutSplitPlans(input: {
-  lines: CheckoutSplitLine[]
-  totalDiscount: number
-  shippingFee: number
-  shopDepositMode: 'none' | 'percent' | 'fixed_amount'
-  shopDepositPercent: number
-  shopDepositFixed: number
-}): CheckoutSplitGroupPlan[] {
+export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): CheckoutSplitGroupPlan[] {
   const grouped = groupCheckoutLines(input.lines)
   const sources = orderedFulfillmentSources(grouped)
   const regularWeights: Record<string, number> = {}
@@ -111,6 +114,22 @@ export function buildCheckoutSplitPlans(input: {
     }
   }
   return plans
+}
+
+/**
+ * Runtime rollout boundary. The current optimized planner is contract-equivalent
+ * to the established planner, so off/shadow preserve the existing checkout result.
+ */
+export function buildCheckoutSplitPlansForTenant(
+  tenantId: string,
+  input: CheckoutSplitPlanInput
+): CheckoutSplitGroupPlan[] {
+  return selectOptimizedFulfillmentOutcome({
+    tenantId,
+    operation: 'checkout',
+    legacy: () => buildCheckoutSplitPlans(input),
+    optimized: () => buildCheckoutSplitPlans(input),
+  }).value
 }
 
 export function pickPrimaryCheckoutOrderIndex(plans: CheckoutSplitGroupPlan[]): number {

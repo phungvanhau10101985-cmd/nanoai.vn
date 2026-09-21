@@ -12,7 +12,11 @@ import {
   fetchPartnerOrdersForConversationFromPg,
 } from '@/lib/db/messaging-partner-orders-pg'
 import { fetchPartnerOrderShipmentEventsForOrdersFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
-import { canConfirmReceivedFromShipment } from '@/lib/messaging/fulfillment/order-shipment-timeline'
+import {
+  buyerOrderActions,
+  publicOrderShipmentEvents,
+  stripInternalOrderSource,
+} from '@/lib/messaging/partner-order-notify-ui'
 import { fetchReviewedOrderIdsFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 
@@ -73,18 +77,24 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
       const siblings = (o.checkout_group_id ? siblingsByGroup[o.checkout_group_id] || [] : []).filter(
         (row) => row.id !== o.id
       )
+      const buyerActions = buyerOrderActions({
+        status: o.status,
+        shippingStatus: o.shipping_status,
+        requiredAmount: o.required_amount,
+        paidAmount: o.paid_amount,
+        hasReview: reviewedIds.has(o.id),
+        shipmentEvents: events,
+      })
       return {
-        ...o,
+        ...stripInternalOrderSource(o as unknown as Record<string, unknown>),
         has_review: reviewedIds.has(o.id),
-        can_cancel:
-          (o.status === 'awaiting_payment' || o.status === 'payment_checking') &&
-          o.shipping_status !== 'delivered' &&
-          o.shipping_status !== 'returned',
-        can_confirm_received:
-          o.status !== 'cancelled' &&
-          (events.length > 0 ? canConfirmReceivedFromShipment(events) : o.shipping_status === 'shipping'),
-        shipment_events: events,
-        sibling_orders: siblings,
+        buyer_actions: buyerActions,
+        can_cancel: buyerActions.includes('cancel'),
+        can_confirm_received: buyerActions.includes('confirm_received'),
+        shipment_events: publicOrderShipmentEvents(events),
+        sibling_orders: siblings.map((row) =>
+          stripInternalOrderSource(row as unknown as Record<string, unknown>)
+        ),
       }
     })
     const res = NextResponse.json({ orders: enriched })

@@ -19,13 +19,11 @@ import {
   insertPartnerPaymentProofFromPg,
   allocateNextPartnerShopOrderCodeFromPg,
   parseVndAmountFromText,
-  replacePartnerOrderLinesFromPg,
   syncPrimaryPartnerOrderLineFromOrderFromPg,
   type PartnerOrderRow,
   type PartnerOrderLineRow,
   type PartnerOrderLineUpsertInput,
   type PartnerPaymentSettingsRow,
-  updatePartnerOrderCartCheckoutFromPg,
   updatePartnerOrderCheckoutFromPg,
   updatePartnerOrderDepositQuoteFromPg,
   updatePartnerOrderPaymentVerificationFromPg,
@@ -98,12 +96,19 @@ import {
   resolveInventoryFulfillmentUrl,
   sourcePlatformFromUrl,
 } from '@/lib/messaging/fulfillment/fulfillment-routing'
-import { buildCheckoutSplitPlans, pickPrimaryCheckoutOrderIndex } from '@/lib/messaging/fulfillment/checkout-split'
-import { patchPartnerOrderFulfillmentFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 import {
+  buildCheckoutSplitPlansForTenant,
+  pickPrimaryCheckoutOrderIndex,
+} from '@/lib/messaging/fulfillment/checkout-split'
+import { patchPartnerOrderFulfillmentFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
+import { createPartnerCheckoutOrdersAtomicallyFromPg } from '@/lib/db/messaging-partner-checkout-transaction-pg'
+import {
+  cancelPartnerOrderAfterStockFailure,
   holdVietnamWarehouseStockForDeposit,
+  onPartnerOrderPaidVerifiedFulfillment,
   seedPartnerOrderTimelineIfReady,
 } from '@/lib/messaging/fulfillment/order-fulfillment-service'
+import { runPartnerOrderLifecycleHook } from '@/lib/messaging/fulfillment/order-lifecycle-hook'
 import {
   emitPartnerOutboundOrderCreated,
   emitPartnerOutboundPaymentPaid,
@@ -941,7 +946,7 @@ export async function completeOrderCheckout(input: {
   })
   const platform = sourcePlatformFromUrl(sourceUrl)
   const fulfillmentSource = fulfillmentSourceFromUrl(sourceUrl)
-  const checkoutPlan = buildCheckoutSplitPlans({
+  const checkoutPlan = buildCheckoutSplitPlansForTenant(input.partnerId, {
     lines: [
       {
         fulfillmentSource,
@@ -1083,12 +1088,29 @@ export async function completeOrderCheckout(input: {
     isWarehouseItem: inv?.is_clearance === true,
     depositRequired: inv?.deposit_required === true,
   })
-  await holdVietnamWarehouseStockForDeposit({
+  const stockReservation = await holdVietnamWarehouseStockForDeposit({
     partnerId: input.partnerId,
     orderId: updated.id,
     fulfillmentSource,
     requiredAmount: updated.required_amount,
   })
+  if (!stockReservation.ok) {
+    await cancelPartnerOrderAfterStockFailure({ partnerId: input.partnerId, orderId: updated.id })
+    return {
+      error:
+        stockReservation.reason === 'shortage'
+          ? 'Sản phẩm vừa hết số lượng khả dụng. Vui lòng giảm số lượng hoặc chọn sản phẩm khác.'
+          : 'Chưa thể giữ tồn kho cho đơn hàng. Vui lòng thử lại.',
+    }
+  }
+  if (updated.status === 'paid_verified') {
+    await onPartnerOrderPaidVerifiedFulfillment(updated.id)
+    await runPartnerOrderLifecycleHook({
+      partnerId: input.partnerId,
+      orderId: updated.id,
+      event: 'paid',
+    })
+  }
   const updatedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
   if (em) {
@@ -1356,7 +1378,7 @@ export async function completeCartCheckout(input: {
     province: input.form.shippingProvince,
     shippingAddress: input.form.shippingAddress,
   })
-  const plans = buildCheckoutSplitPlans({
+  const plans = buildCheckoutSplitPlansForTenant(input.partnerId, {
     lines: lines.map((line) => ({
       fulfillmentSource: line.fulfillmentSource === 'china' ? 'china' : 'vietnam',
       sourcePlatform: line.sourcePlatform === '1688' || line.sourcePlatform === 'taobao' || line.sourcePlatform === 'tmall'
@@ -1387,32 +1409,34 @@ export async function completeCartCheckout(input: {
     Boolean(String(settings.sepay_bank_code ?? '').trim()) &&
     Boolean(String(settings.sepay_account_number ?? '').trim())
 
-  const createdOrders: PartnerOrderRow[] = []
-  for (const plan of plans) {
+  if (plans.some((plan) => plan.requiredAmount > 0)) {
+    if (paymentMethodBase === 'ewallet') {
+      if (!String(settings.ewallet_qr_url ?? '').trim()) {
+        return { error: 'Shop chưa cài đặt QR ví điện tử.' }
+      }
+    } else if (!useSepayQr) {
+      const effectiveBankBin =
+        String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
+      if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
+        return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
+      }
+    }
+  }
+
+  const transactionGroups = plans.flatMap((plan, planIndex) => {
     const groupLines = lines.filter(
       (line) => (line.fulfillmentSource === 'china' ? 'china' : 'vietnam') === plan.source
     )
     const first = groupLines[0]
-    if (!first) continue
-    const draft = await insertPartnerOrderDraftFromPg({
-      partnerId: input.partnerId,
-      conversationId: conv.conversationId,
-      externalThreadId: input.externalThreadId,
-      productInventoryId: first.productInventoryId,
-      productName: first.productName,
-      productImageUrl: first.productImageUrl,
-      productUrl: first.productUrl,
-      unitPrice: first.unitPrice,
-      depositPercent: plan.depositPercent,
-      requiredAmount: plan.requiredAmount,
-      customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
-    })
-    if (!draft) return { error: 'Không tạo được đơn hàng.' }
-    const linesOk = await replacePartnerOrderLinesFromPg(draft.id, groupLines)
-    if (!linesOk) return { error: 'Không lưu được sản phẩm trong giỏ hàng.' }
+    if (!first) return []
     const needsReview = groupLines.some((line) => !String(line.sourceUrl || line.productUrl || '').trim())
-    await patchPartnerOrderFulfillmentFromPg({
-      orderId: draft.id,
+    const isPrimary = planIndex === primaryIndex
+    const groupSnapshot = {
+      ...finalDiscountSnapshot,
+      totalDiscountAmount: plan.discount,
+      amountAfterDiscount: plan.amountAfterDiscount,
+    }
+    return [{
       fulfillmentSource: plan.source,
       sourcePlatform:
         plan.lines.find((row) => row.sourcePlatform)?.sourcePlatform ??
@@ -1422,55 +1446,7 @@ export async function completeCartCheckout(input: {
       checkoutGroupId,
       splitIndex: plan.splitIndex,
       needsReview,
-    })
-    const paymentReference = await resolveCheckoutPaymentReference({
-      partnerId: input.partnerId,
-      shopDisplayName,
-      existingReference: draft.payment_reference,
-      orderId: draft.id,
-      useSepayQr,
-    })
-    let qrUrl = ''
-    if (plan.requiredAmount > 0) {
-      if (paymentMethodBase === 'ewallet') {
-        qrUrl = String(settings.ewallet_qr_url ?? '').trim()
-        if (!qrUrl) return { error: 'Shop chưa cài đặt QR ví điện tử.' }
-      } else {
-        if (!useSepayQr) {
-          const effectiveBankBin =
-            String(settings.bank_bin ?? '').trim() || inferVietQrBankCodeFromName(settings.bank_name ?? '')
-          if (!String(settings.account_number ?? '').trim() || !effectiveBankBin) {
-            return { error: 'Shop chưa cài đặt thông tin ngân hàng nhận cọc.' }
-          }
-        }
-        qrUrl = buildOrderPaymentQrBySettings({
-          amount: plan.requiredAmount,
-          paymentReference,
-          accountHolder: settings.account_holder,
-          settings: {
-            sepay_enabled: settings.sepay_enabled,
-            sepay_bank_code: settings.sepay_bank_code,
-            sepay_account_number: settings.sepay_account_number,
-            sepay_qr_template: settings.sepay_qr_template,
-            bank_name: settings.bank_name,
-            bank_bin: settings.bank_bin,
-            account_number: settings.account_number,
-          },
-        })
-        if (!qrUrl) return { error: 'Chưa xác định được mã ngân hàng để tạo QR. Vui lòng kiểm tra tên ngân hàng.' }
-      }
-    }
-    const isPrimary = createdOrders.length === primaryIndex
-    const groupSnapshot = {
-      ...finalDiscountSnapshot,
-      totalDiscountAmount: plan.discount,
-      amountAfterDiscount: plan.amountAfterDiscount,
-    }
-    const updated = await updatePartnerOrderCartCheckoutFromPg({
-      orderId: draft.id,
-      partnerId: input.partnerId,
-      conversationId: conv.conversationId,
-      externalThreadId: input.externalThreadId,
+      lines: groupLines,
       customerName: trim(input.form.customerName, 120),
       customerEmail: trim(input.form.customerEmail, 180).toLowerCase(),
       customerPhone: trim(input.form.customerPhone, 40),
@@ -1479,29 +1455,57 @@ export async function completeCartCheckout(input: {
       subtotalAmount: plan.subtotal,
       depositPercent: plan.depositPercent,
       requiredAmount: plan.requiredAmount,
-      paymentReference,
-      paymentQrUrl: qrUrl,
-      primaryLine: first,
       discountSnapshot: groupSnapshot,
       saleBreakdown: isPrimary ? saleBreakdown : undefined,
       promo: isPrimary ? appliedPromo : null,
       paymentMethod: paymentMethodBase,
       shippingFeeAmount: plan.shippingFee,
-    })
-    if (!updated) return { error: 'Không cập nhật được đơn hàng.' }
-    createdOrders.push(updated)
-    await holdVietnamWarehouseStockForDeposit({
-      partnerId: input.partnerId,
-      orderId: updated.id,
-      fulfillmentSource: plan.source,
-      requiredAmount: plan.requiredAmount,
-    })
+    }]
+  })
+  const atomicCheckout = await createPartnerCheckoutOrdersAtomicallyFromPg({
+    partnerId: input.partnerId,
+    conversationId: conv.conversationId,
+    externalThreadId: input.externalThreadId,
+    shopDisplayName,
+    useSepayQr,
+    groups: transactionGroups,
+    paymentQrUrl: ({ paymentReference, requiredAmount, paymentMethod }) => {
+      if (requiredAmount <= 0) return ''
+      if (paymentMethod === 'ewallet') return String(settings.ewallet_qr_url ?? '').trim()
+      const qrUrl = buildOrderPaymentQrBySettings({
+        amount: requiredAmount,
+        paymentReference,
+        accountHolder: settings.account_holder,
+        settings: {
+          sepay_enabled: settings.sepay_enabled,
+          sepay_bank_code: settings.sepay_bank_code,
+          sepay_account_number: settings.sepay_account_number,
+          sepay_qr_template: settings.sepay_qr_template,
+          bank_name: settings.bank_name,
+          bank_bin: settings.bank_bin,
+          account_number: settings.account_number,
+        },
+      })
+      if (!qrUrl) throw new Error('checkout_payment_qr_unavailable')
+      return qrUrl
+    },
+  })
+  if (!atomicCheckout.ok) {
+    return {
+      error:
+        atomicCheckout.reason === 'shortage'
+          ? 'Một sản phẩm vừa hết số lượng khả dụng. Vui lòng kiểm tra lại giỏ hàng.'
+          : 'Không thể tạo đầy đủ các đơn trong giỏ hàng. Vui lòng thử lại.',
+    }
+  }
+  const createdOrders = atomicCheckout.orders
+  for (const updated of createdOrders) {
     await seedPartnerOrderTimelineIfReady({
       orderId: updated.id,
       status: updated.status,
       requiredAmount: updated.required_amount,
       paidAmount: updated.paid_amount,
-      fulfillmentSource: plan.source,
+      fulfillmentSource: updated.fulfillment_source,
       shopName: shopDisplayName,
     })
   }
@@ -1541,6 +1545,15 @@ export async function completeCartCheckout(input: {
     if (createdOrders[i].id === updated.id) continue
     const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, createdOrders[i].id)
     if (refreshed) createdOrders[i] = refreshed
+  }
+  for (const order of createdOrders) {
+    if (order.status !== 'paid_verified') continue
+    await onPartnerOrderPaidVerifiedFulfillment(order.id)
+    await runPartnerOrderLifecycleHook({
+      partnerId: input.partnerId,
+      orderId: order.id,
+      event: 'paid',
+    })
   }
   const savedLines = await fetchPartnerOrderLinesFromPg(updated.id)
   const em = trim(input.form.customerEmail, 180).toLowerCase()
@@ -1920,6 +1933,14 @@ export async function verifyOrderPaymentProof(input: {
 
   const refreshed = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, order.id)
   if (!refreshed) return { error: 'Không tải lại được đơn hàng.' }
+  if (verification === 'verified') {
+    await onPartnerOrderPaidVerifiedFulfillment(refreshed.id)
+    await runPartnerOrderLifecycleHook({
+      partnerId: input.partnerId,
+      orderId: refreshed.id,
+      event: 'paid',
+    })
+  }
 
   await insertMessagePg({
     conversationId: order.conversation_id,

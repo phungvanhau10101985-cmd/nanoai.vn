@@ -24,6 +24,18 @@ describe('classifyShopReturnStatus', () => {
       'already_returned',
     )
   })
+
+  it('matches the DB transition guard before offering return confirmation', () => {
+    assert.equal(
+      classifyShopReturnStatus({
+        hasRecord: true,
+        alreadyReturned: false,
+        emsReportedReturn: true,
+        orderTransitionAllowed: false,
+      }).status,
+      'not_ready',
+    )
+  })
 })
 
 describe('parseWarehouseSkuParts', () => {

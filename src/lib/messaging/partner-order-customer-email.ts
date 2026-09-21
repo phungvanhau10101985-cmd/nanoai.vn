@@ -567,6 +567,18 @@ function reviewMailCta(locale: WebLocale): Pick<
   }
 }
 
+function depositReminderMailCta(locale: WebLocale): {
+  heading: string
+  button: string
+  closing: string
+} {
+  if (locale === 'zh') return { heading: '点击此处打开订单并快速支付订金：', button: '打开订金订单', closing: '此致' }
+  if (locale === 'ja') return { heading: 'こちらから注文を開いて手付金をお支払いください：', button: '手付金の注文を開く', closing: 'よろしくお願いいたします' }
+  if (locale === 'ko') return { heading: '여기에서 주문을 열고 계약금을 결제하세요:', button: '계약금 주문 열기', closing: '감사합니다' }
+  if (locale === 'en') return { heading: 'Open your order here to pay the deposit:', button: 'Open deposit order', closing: 'Regards' }
+  return { heading: 'Bấm vào đây để mở đơn và đặt cọc nhanh:', button: 'Mở đơn đặt cọc', closing: 'Trân trọng' }
+}
+
 export async function emailCustomerOrderDeliveredReview(input: {
   order: PartnerOrderRow
   customerLocale?: string | null
@@ -670,6 +682,7 @@ export async function emailCustomerDepositReminder(input: {
     orderCode: ref || input.orderId.slice(0, 8),
     hours: input.hours,
   })
+  const cta = depositReminderMailCta(locale)
   let qrText = ''
   let qrHtml = ''
   let attachments: SmtpInlineAttachment[] | undefined
@@ -689,7 +702,7 @@ export async function emailCustomerDepositReminder(input: {
       if (qr.attachment) attachments = [qr.attachment]
     }
   }
-  const text = [copy.text, qrText, openUrl ? `Mở đơn nhanh: ${openUrl}` : '', `Trân trọng,\n${shopLabel}`]
+  const text = [copy.text, qrText, openUrl ? `${cta.button}: ${openUrl}` : '', `${cta.closing},\n${shopLabel}`]
     .filter(Boolean)
     .join('\n\n') + '\n'
   const extraHtml =
@@ -697,11 +710,11 @@ export async function emailCustomerDepositReminder(input: {
     (openUrl
       ? orderOpenCtaHtml({
           url: openUrl,
-          heading: 'Bấm vào đây để mở đơn và đặt cọc nhanh:',
-          button: 'Mở đơn đặt cọc',
+          heading: cta.heading,
+          button: cta.button,
         })
       : '') +
-    `<p style="margin:20px 0 0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">Trân trọng,<br/>${escapeHtml(shopLabel)}</p>`
+    `<p style="margin:20px 0 0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.55;color:#111827;">${escapeHtml(cta.closing)},<br/>${escapeHtml(shopLabel)}</p>`
   await sendSmtpMail({
     to,
     subject: shopEmailSubject(shopLabel, copy.subjectRest),
@@ -717,5 +730,6 @@ export async function emailCustomerDepositReminder(input: {
     orderId: input.orderId,
     locale,
     event: { kind: 'deposit_reminder', orderCode: ref || input.orderId.slice(0, 8), hours: input.hours },
+    eventKey: input.hours === 20 ? 'deposit_reminder_20h' : 'deposit_reminder_2h',
   }).catch((e) => console.warn('[emailCustomerDepositReminder] in-app', e))
 }

@@ -60,7 +60,7 @@ export const PW_SHOP_CART_PAGE_CSS = `
 .pw-shop-cart-list,.pw-shop-cart-summary{
   background:#fff!important;
   border:1px solid var(--pw-border,#e5e7eb)!important;
-  border-radius:12px!important;
+  border-radius:16px!important;
 }
 .pw-shop-cart-row{
   grid-template-columns:22px 64px minmax(0,1fr)!important;
@@ -68,8 +68,9 @@ export const PW_SHOP_CART_PAGE_CSS = `
   gap:10px!important;
   min-width:0!important;
   max-width:100%!important;
+  border-radius:16px!important;
 }
-.pw-shop-cart-row img,.pw-shop-cart-product-media{width:64px!important;height:64px!important;max-width:64px!important}
+.pw-shop-cart-row img,.pw-shop-cart-product-media{width:64px!important;height:64px!important;max-width:64px!important;border-radius:12px!important}
 .pw-shop-cart-line-total-wrap{
   grid-column:1/-1!important;
   min-width:0!important;
