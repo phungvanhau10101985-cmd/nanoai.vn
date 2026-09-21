@@ -6,7 +6,8 @@ import {
 import { collectInventoryImageRefs, uniqueImageUrls } from './collect-image-refs'
 import { imageLocMaxImagesPerProduct, normalizeImageUrl } from './image-localization-config'
 import type { ImageProcessResult } from './image-localization-types'
-import { processOneImageUrl, type ProcessImageContext } from './process-one'
+import { prepareImageLocBatchOcr } from './batch-ocr'
+import { processPreparedImage, type ProcessImageContext } from './process-one'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 
 export function isTransientImageLocDbError(error: unknown): boolean {
@@ -131,17 +132,37 @@ export async function processInventoryProduct(opts: {
   const skuOrId = String(row.sku || row.remarketing_id || row.id)
   const ctx: ProcessImageContext = { ...opts.ctx, partnerId: opts.partnerId, skuOrId }
   const results: Record<string, ImageProcessResult> = {}
+  opts.progressCb?.(`tải/ghép ${urls.length} ảnh`)
+  const batchOcr = await prepareImageLocBatchOcr({
+    urls,
+    force: ctx.force,
+    userId: ctx.userId,
+    shouldCancel: ctx.shouldCancel,
+    progressCb: opts.progressCb,
+  })
+  for (const [url, result] of batchOcr.earlyResults) results[url] = result
+
   for (let i = 0; i < urls.length; i++) {
     if (ctx.shouldCancel?.()) throw new ImageLocalizationError('Job đã bị hủy')
+    const normalized = normalizeImageUrl(urls[i])
+    if (results[normalized]) continue
     opts.progressCb?.(`ảnh ${i + 1}/${urls.length}`)
     try {
-      results[urls[i]] = await processOneImageUrl(ctx, urls[i])
+      const prepared = batchOcr.prepared.get(normalized)
+      results[normalized] = prepared
+        ? await processPreparedImage(ctx, prepared)
+        : {
+            original_url: normalized,
+            final_url: normalized,
+            status: 'kept',
+            message: 'Không cần xử lý',
+          }
     } catch (e) {
       if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
       raiseIfFatalDependency(e)
-      results[urls[i]] = {
-        original_url: urls[i],
-        final_url: urls[i],
+      results[normalized] = {
+        original_url: normalized,
+        final_url: normalized,
         status: 'error',
         message: e instanceof Error ? e.message : String(e),
       }
@@ -151,7 +172,9 @@ export async function processInventoryProduct(opts: {
   if (ctx.shouldCancel?.()) throw new ImageLocalizationError('Job đã bị hủy')
 
   const failed = Object.values(results).filter((r) => r.status === 'error')
-  const changed = Object.values(results).filter((r) => r.final_url && r.final_url !== r.original_url)
+  const changed = Object.values(results).filter(
+    (r) => r.status === 'processed' || r.status === 'deleted'
+  )
   if (failed.length && !changed.length) {
     const failMsg = failed[0].message.slice(0, 2000)
     await withDbRetry(() => applyImageLocProductResultFromPg({

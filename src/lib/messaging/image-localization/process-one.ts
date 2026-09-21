@@ -197,6 +197,20 @@ export async function processOneImageUrl(
   const { bytes, filename } = await downloadLocalizationImage(normalized)
   throwIfCancelled(ctx)
   const { blocks } = await ocrImageBlocks(bytes, ctx.userId)
+  return processPreparedImage(ctx, { url: normalized, bytes, filename, blocks })
+}
+
+export async function processPreparedImage(
+  ctx: ProcessImageContext,
+  input: {
+    url: string
+    bytes: Buffer
+    filename: string
+    blocks: ImageLocOcrBlock[]
+  }
+): Promise<ImageProcessResult> {
+  const normalized = normalizeImageUrl(input.url)
+  const { bytes, filename, blocks } = input
   throwIfCancelled(ctx)
   const parts = await splitTallImageIfNeeded({ bytes, blocks, filename })
 

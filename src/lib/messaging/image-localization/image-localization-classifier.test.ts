@@ -34,6 +34,19 @@ describe('image localization classifier', () => {
     assert.equal(convertJinWeightText('1.5斤'), '0.75 kg')
   })
 
+  it('uses overlap against the smaller box like 188', () => {
+    const out = classifyImage(
+      [
+        { text: '显瘦显高', bbox: [0, 0, 120, 60] },
+        { text: '轻盈舒适', bbox: [20, 10, 80, 40] },
+      ],
+      [],
+      'https://example.com/shoe.jpg'
+    )
+    assert.equal(out.type, 'gemini')
+    assert.ok(Number(out.details.overlap_ratio) > 0.05)
+  })
+
   it('marks size/laundry for delete in local-only mode', () => {
     const blocks: ImageLocOcrBlock[] = [
       { text: '尺码表', bbox: [0, 0, 40, 12] },

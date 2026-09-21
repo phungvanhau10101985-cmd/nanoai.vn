@@ -29,7 +29,8 @@ export type VisionUsageLog = {
 export async function visionAnnotate(
   imageBuffer: Buffer,
   features: Array<{ type: string; maxResults?: number }>,
-  usage?: VisionUsageLog | null
+  usage?: VisionUsageLog | null,
+  options?: { languageHints?: string[] }
 ): Promise<unknown> {
   const token = await getVisionAccessToken()
   const res = await fetch(VISION_API_URL, {
@@ -42,6 +43,9 @@ export async function visionAnnotate(
       requests: [{
         image: { content: imageBuffer.toString('base64').replace(/\s/g, '') },
         features,
+        ...(options?.languageHints?.length
+          ? { imageContext: { languageHints: options.languageHints } }
+          : {}),
       }],
     }),
   })

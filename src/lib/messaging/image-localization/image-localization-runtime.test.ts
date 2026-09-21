@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import sharp from 'sharp'
 import { isOwnCdnUrl } from './image-localization-config'
-import { visionVerticesToPixelRect } from '@/lib/vision-ocr'
+import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vision-ocr'
 import { overlayTranslatedText } from '@/lib/translate-overlay'
+import { mergeDenseImageLocOverlayItems } from './local-pipeline'
 import { isTransientImageLocDbError } from './process-product'
 import { imageLocJobIsStalled } from './job-runtime'
 
@@ -31,6 +32,29 @@ describe('image localization runtime parity', () => {
       500
     )
     assert.deepEqual(rect, { x: 100, y: 100, width: 200, height: 100 })
+  })
+
+  it('groups Vision words by paragraph and separates cm from Chinese like 188', () => {
+    const word = (text: string, x1: number, x2: number) => ({
+      symbols: [...text].map((char) => ({ text: char })),
+      boundingBox: {
+        vertices: [
+          { x: x1, y: 100 },
+          { x: x2, y: 100 },
+          { x: x2, y: 140 },
+          { x: x1, y: 140 },
+        ],
+      },
+    })
+    const result = visionDocumentBlocksToText(
+      [{ confidence: 0.9, paragraphs: [{ confidence: 0.9, words: [word('8.5', 10, 55), word('cm', 55, 90), word('显瘦显高', 120, 300)] }] }],
+      600,
+      1_000
+    )
+    assert.deepEqual(result, [
+      { text: '8.5cm', bbox: { x: 10, y: 100, width: 80, height: 40 } },
+      { text: '显瘦显高', bbox: { x: 120, y: 100, width: 180, height: 40 } },
+    ])
   })
 
   it('treats only the configured NanoAI Bunny host as own CDN', () => {
@@ -69,6 +93,21 @@ describe('image localization runtime parity', () => {
     )
     const pixel = await sharp(out).extract({ left: 8, top: 8, width: 1, height: 1 }).raw().toBuffer()
     assert.deepEqual([...pixel.subarray(0, 3)], [255, 255, 255])
+  })
+
+  it('merges a nearby cm measurement with translated text like 188 drawing', () => {
+    const merged = mergeDenseImageLocOverlayItems(
+      [
+        { bbox: { x: 150, y: 400, width: 120, height: 45 }, translatedText: '8.5cm' },
+        { bbox: { x: 290, y: 395, width: 190, height: 55 }, translatedText: 'Tôn dáng, tăng chiều cao' },
+      ],
+      624,
+      1_024
+    )
+    assert.equal(merged.length, 1)
+    assert.equal(merged[0].translatedText, 'Tôn dáng, tăng chiều cao 8.5cm')
+    assert.ok(merged[0].bbox.x < 150)
+    assert.ok(merged[0].bbox.width > 330)
   })
 
   it('retries only transient database failures', () => {

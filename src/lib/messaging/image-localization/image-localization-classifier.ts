@@ -113,13 +113,12 @@ function containsComplexKeyword(blocks: ImageLocOcrBlock[]): string | null {
 
 function overlapRatio(blocks: ImageLocOcrBlock[]): number {
   if (blocks.length < 2) return 0
-  let hits = 0
-  let pairs = 0
+  let overlapTotal = 0
+  let overlapCount = 0
   for (let i = 0; i < blocks.length; i++) {
     const a = blocks[i].bbox
     for (let j = i + 1; j < blocks.length; j++) {
       const b = blocks[j].bbox
-      pairs += 1
       const ax1 = a[0]
       const ay1 = a[1]
       const ax2 = a[2]
@@ -132,10 +131,14 @@ function overlapRatio(blocks: ImageLocOcrBlock[]): number {
       const iy = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1))
       const inter = ix * iy
       const areaA = Math.max(1, (ax2 - ax1) * (ay2 - ay1))
-      if (inter / areaA > 0.05) hits += 1
+      const areaB = Math.max(1, (bx2 - bx1) * (by2 - by1))
+      if (inter > 0) {
+        overlapTotal += inter / Math.min(areaA, areaB)
+        overlapCount += 1
+      }
     }
   }
-  return pairs ? hits / pairs : 0
+  return overlapCount ? overlapTotal / overlapCount : 0
 }
 
 export function classifyImage(

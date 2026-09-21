@@ -1854,6 +1854,8 @@ export type DeepseekPartnerChatResult = {
 type DeepseekPartnerChatTelemetry = {
   feature?: string
   userId?: string | null
+  temperature?: number
+  maxTokens?: number
 }
 
 /** Đủ chỗ cho JSON nhiều thẻ SP (URL dài); 1100 cũ hay cắt giữa chừng → chỉ còn 3–5 mặt hàng. */
@@ -1885,8 +1887,8 @@ export async function deepseekPartnerChat(
             { role: 'system', content: system },
             { role: 'user', content: user },
           ],
-          max_tokens: deepseekPartnerAiMaxTokens(),
-          temperature: 0.35,
+          max_tokens: telemetry?.maxTokens ?? deepseekPartnerAiMaxTokens(),
+          temperature: telemetry?.temperature ?? 0.35,
         })
       ),
     })
