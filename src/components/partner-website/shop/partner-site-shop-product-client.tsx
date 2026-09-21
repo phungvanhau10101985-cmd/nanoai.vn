@@ -57,7 +57,7 @@ import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/par
 import { PartnerSiteProductReviewsQa } from '@/components/partner-website/shop/partner-site-product-reviews-qa'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { PartnerSiteSizeGuideModal } from '@/components/partner-website/shop/partner-site-size-guide-modal'
-import { resolvePartnerSizeGuideKind } from '@/lib/partner-website/shop/partner-site-size-guide'
+import { resolvePartnerSizeGuideKind, sanitizePartnerSizeGuideImageUrl } from '@/lib/partner-website/shop/partner-site-size-guide'
 import { readPdpWideStickyViewport } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
@@ -376,6 +376,14 @@ export function PartnerSiteShopProductClient({
   const sizeGuideHref = sizeGuideKind
     ? partnerSiteSizeGuidePath(siteSlug, sizeGuideKind, { customDomain: custom })
     : ''
+  const sizeGuideImageUrl = sanitizePartnerSizeGuideImageUrl(product.sizeGuideImageUrl, [
+    product.materialImageUrl,
+    product.imageUrl,
+    ...(product.galleryImages || []),
+    ...(product.detailImages || []),
+    ...(product.realUseImageUrls || []),
+    ...(product.colors || []).map((c) => c.img),
+  ])
 
   const unitPrice =
     saleFace.kind === 'teaser'
@@ -989,7 +997,7 @@ export function PartnerSiteShopProductClient({
             kind={sizeGuideKind}
             title={t.sizeGuideModalTitle}
             closeLabel={t.sizeGuideClose}
-            imageUrl={product.sizeGuideImageUrl || null}
+            imageUrl={sizeGuideImageUrl}
           />
 
           <div style={{ marginTop: 16 }}>

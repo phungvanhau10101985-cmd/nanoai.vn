@@ -1,5 +1,6 @@
 import type {
   ImageLocAuthStatus,
+  ImageLocCandidate,
   ImageLocJob,
   ImageLocJobList,
   ImageLocProductReport,
@@ -35,6 +36,33 @@ export const imageLocalizationClient = {
       `${base(partnerId)}/settings/deepseek-off-peak`,
       { method: 'PATCH', body: JSON.stringify({ enabled }) }
     )
+  },
+  setLogoUrl(partnerId: string, logoUrl: string) {
+    return json<{ logo_url: string | null }>(`${base(partnerId)}/settings/logo`, {
+      method: 'PATCH',
+      body: JSON.stringify({ logo_url: logoUrl }),
+    })
+  },
+  async uploadLogo(partnerId: string, file: File) {
+    const form = new FormData()
+    form.set('file', file)
+    const res = await fetch(`${base(partnerId)}/settings/logo-upload`, {
+      method: 'POST',
+      body: form,
+      cache: 'no-store',
+    })
+    const data = (await res.json().catch(() => ({}))) as {
+      logo_url?: string | null
+      error?: string
+      detail?: string
+    }
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`)
+    return { logo_url: data.logo_url || null }
+  },
+  candidates(partnerId: string, limit = 100) {
+    const u = new URL(base(partnerId) + '/candidates', window.location.origin)
+    u.searchParams.set('limit', String(limit))
+    return json<{ items: ImageLocCandidate[] }>(u.pathname + u.search)
   },
   summary(partnerId: string) {
     return json<ImageLocSummary>(`${base(partnerId)}/summary`)

@@ -49,6 +49,7 @@ import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-cont
 import {
   partnerHasProductSizes,
   resolvePartnerSizeGuideKind,
+  sanitizePartnerSizeGuideImageUrl,
 } from '@/lib/partner-website/shop/partner-site-size-guide'
 import { ensurePartnerPdpSizeGuideModalInHtml } from '@/lib/partner-website/shop/partner-site-size-guide-html'
 import {
@@ -1666,7 +1667,15 @@ export function bindLiveProductToPdpHtml(
   })
   out = ensureMissingPdpSlots(out, product, locale, siteSlug)
   const sizeGuideKind = partnerHasProductSizes(product.sizes) ? pdpSizeGuideKindOf(product) : null
-  const sizeGuideImg = shopPdpPageSrc(String(product.sizeGuideImageUrl || '').trim())
+  const leftoverSizeGuidePhotos = [
+    product.materialImageUrl,
+    product.imageUrl,
+    ...(product.galleryImages || []),
+    ...(product.detailImages || []),
+    ...(product.realUseImageUrls || []),
+    ...(product.colors || []).map((c) => c.img),
+  ]
+  const sizeGuideImg = sanitizePartnerSizeGuideImageUrl(product.sizeGuideImageUrl, leftoverSizeGuidePhotos)
   const t = getPartnerSiteShopCopy(locale)
   out = ensurePartnerPdpSizeGuideModalInHtml(out, {
     locale,
@@ -1675,7 +1684,8 @@ export function bindLiveProductToPdpHtml(
     kind: sizeGuideKind,
     closeLabel: t.sizeGuideClose,
     title: t.sizeGuideModalTitle,
-    imageUrl: sizeGuideImg || String(product.sizeGuideImageUrl || '').trim() || null,
+    imageUrl: sizeGuideImg,
+    leftoverPhotoUrls: leftoverSizeGuidePhotos,
   })
   out = fillPdpReviewQaSamples(out, product, locale)
   out = stampTryOnContextInHtml(out, product)

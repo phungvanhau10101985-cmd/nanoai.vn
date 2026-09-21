@@ -28,7 +28,7 @@ test('editor demo PDP sample fills every catalog-188 live field', () => {
   assert.ok((p.detailImages || []).length >= 4)
   assert.ok((p.realUseImageUrls || []).length >= 2)
   assert.ok(p.materialImageUrl)
-  assert.ok(p.sizeGuideImageUrl)
+  assert.equal(p.sizeGuideImageUrl, null)
   assert.ok(p.productVideoUrl && /\.mp4(\?|#|$)/i.test(p.productVideoUrl))
   assert.equal(p.depositPolicy, true)
   assert.equal(p.stockQty, 4)

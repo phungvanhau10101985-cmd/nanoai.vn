@@ -15,6 +15,7 @@ import {
   SIZE_GUIDE_SHOE_MALE_ROWS,
   partnerSizeGuideCopy,
   partnerSizeGuideKindPathTail,
+  sanitizePartnerSizeGuideImageUrl,
   type PartnerSizeGuideKind,
 } from '@/lib/partner-website/shop/partner-site-size-guide'
 import { partnerSiteHref } from '@/lib/messaging/partner-custom-domain-site-path'
@@ -300,6 +301,7 @@ export function buildPartnerSizeGuideModalHtml(input: {
   closeLabel: string
   title: string
   imageUrl?: string | null
+  leftoverPhotoUrls?: ReadonlyArray<string | null | undefined>
 }): string {
   const inner = buildPartnerSizeGuideHostHtml({
     kind: input.kind,
@@ -309,7 +311,7 @@ export function buildPartnerSizeGuideModalHtml(input: {
     customDomain: input.customDomain,
     includeLead: !input.kind,
   })
-  const img = String(input.imageUrl || '').trim()
+  const img = sanitizePartnerSizeGuideImageUrl(input.imageUrl, input.leftoverPhotoUrls)
   const imgHtml = img
     ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(input.title)}" decoding="async" style="width:100%;height:auto;margin-top:16px;border-radius:8px;border:1px solid var(--pw-border,#e5e7eb)" />`
     : ''
@@ -354,8 +356,7 @@ export function ensurePartnerSizeGuideInHtml(
     customDomain: input.customDomain,
     includeLead: false,
   })
-  let out = html.replace(/<style\b[^>]*data-pw-size-guide-css\b[^>]*>[\s\S]*?<\/style>/gi, '')
-  out = out.replace(/<([a-z0-9]+)([^>]*\bdata-pw-size-guide=(["'])[^"']*\3[^>]*)>[\s\S]*?<\/\1>/gi, '')
+  let out = stripPartnerSizeGuideFromHtml(html)
   if (/<\/head>/i.test(out)) {
     out = out.replace(/<\/head>/i, `${cssTag()}</head>`)
   } else {
@@ -376,11 +377,64 @@ export function ensurePartnerSizeGuideInHtml(
   return `${out}${host}`
 }
 
+function maskHtmlForTagScan(html: string): string {
+  return html.replace(
+    /<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi,
+    (block) => ' '.repeat(block.length)
+  )
+}
+
+function closingTagIndex(masked: string, from: number, tag: string): number {
+  const re = new RegExp(`<${tag}\\b[^>]*>|</${tag}\\s*>`, 'gi')
+  re.lastIndex = from
+  let depth = 1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(masked))) {
+    if (match[0][1] === '/') {
+      depth -= 1
+      if (depth === 0) return match.index
+      continue
+    }
+    if (!/\/>$/.test(match[0])) depth += 1
+  }
+  return -1
+}
+
+function dropElementsMatching(html: string, openRe: RegExp): string {
+  const masked = maskHtmlForTagScan(html)
+  const re = new RegExp(openRe.source, openRe.flags.includes('g') ? openRe.flags : `${openRe.flags}g`)
+  const chunks: Array<{ start: number; end: number }> = []
+  let match: RegExpExecArray | null
+  while ((match = re.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    if (chunks.some((chunk) => start >= chunk.start && start < chunk.end)) continue
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))?.[0] ?? `</${tag}>`
+    const end = close + closeTok.length
+    re.lastIndex = end
+    chunks.push({ start, end })
+  }
+  if (!chunks.length) return html
+  let out = ''
+  let cursor = 0
+  for (const chunk of chunks) {
+    out += html.slice(cursor, chunk.start)
+    cursor = chunk.end
+  }
+  return out + html.slice(cursor)
+}
+
 export function stripPartnerSizeGuideFromHtml(html: string): string {
-  return html
-    .replace(/<style\b[^>]*data-pw-size-guide-css\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<([a-z0-9]+)([^>]*\bdata-pw-size-guide-modal\b[^>]*)>[\s\S]*?<\/\1>/gi, '')
-    .replace(/<([a-z0-9]+)([^>]*\bdata-pw-size-guide=(["'])[^"']*\3[^>]*)>[\s\S]*?<\/\1>/gi, '')
+  let out = html.replace(/<style\b[^>]*data-pw-size-guide-css\b[^>]*>[\s\S]*?<\/style>/gi, '')
+  out = dropElementsMatching(out, /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-size-guide-modal\b)[^>]*>/gi)
+  out = dropElementsMatching(out, /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-size-guide\s*=)[^>]*>/gi)
+  out = dropElementsMatching(out, /<([a-z0-9]+)\b(?=[^>]*\bclass=["'][^"']*\bpw-size-guide-dialog\b)[^>]*>/gi)
+  out = dropElementsMatching(out, /<([a-z0-9]+)\b(?=[^>]*\bclass=["'][^"']*\bpw-size-guide-dialog-body\b)[^>]*>/gi)
+  out = dropElementsMatching(out, /<([a-z0-9]+)\b(?=[^>]*\bclass=["'][^"']*\bpw-size-guide-dialog-head\b)[^>]*>/gi)
+  return out
 }
 
 /** PDP: modal bảng size (chỉ khi SP có size). Idempotent. */
@@ -396,11 +450,10 @@ export function ensurePartnerPdpSizeGuideModalInHtml(
     closeLabel: string
     title: string
     imageUrl?: string | null
+    leftoverPhotoUrls?: ReadonlyArray<string | null | undefined>
   }
 ): string {
-  let out = html
-    .replace(/<style\b[^>]*data-pw-size-guide-css\b[^>]*>[\s\S]*?<\/style>/gi, '')
-    .replace(/<([a-z0-9]+)([^>]*\bdata-pw-size-guide-modal\b[^>]*)>[\s\S]*?<\/\1>/gi, '')
+  let out = stripPartnerSizeGuideFromHtml(html)
   if (!input.hasSizes || !input.kind) return out
   if (/<\/head>/i.test(out)) {
     out = out.replace(/<\/head>/i, `${cssTag()}</head>`)
@@ -416,6 +469,7 @@ export function ensurePartnerPdpSizeGuideModalInHtml(
     closeLabel: input.closeLabel,
     title: input.title,
     imageUrl: input.imageUrl,
+    leftoverPhotoUrls: input.leftoverPhotoUrls,
   })
   if (/<\/body>/i.test(out)) return out.replace(/<\/body>/i, `${modal}</body>`)
   return `${out}${modal}`

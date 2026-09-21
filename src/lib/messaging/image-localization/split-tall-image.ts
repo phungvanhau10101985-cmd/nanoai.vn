@@ -3,6 +3,8 @@ import type { ImageLocOcrBlock } from './image-localization-types'
 import { hasChineseText } from './image-localization-classifier'
 import { imageLocJpegQuality } from './image-localization-config'
 
+const LARGE_IMAGE_INPUT = { limitInputPixels: false, sequentialRead: true } as const
+
 /** Port of 188 `image_splitter.py` defaults. */
 export const IMAGE_LOC_SPLIT_MAX_HEIGHT = 1100
 export const IMAGE_LOC_SPLIT_MIN_CHINESE_BLOCKS = 5
@@ -96,34 +98,40 @@ export function adjustOcrBlocksForPart(
 }
 
 export async function cropImagePart(bytes: Buffer, y0: number, y1: number): Promise<Buffer> {
-  const meta = await sharp(bytes).metadata()
+  const meta = await sharp(bytes, LARGE_IMAGE_INPUT).metadata()
   const width = meta.width || 0
   const height = meta.height || 0
   if (!width || !height) return bytes
   const top = Math.max(0, Math.min(height - 1, Math.floor(y0)))
   const h = Math.max(1, Math.min(height - top, Math.ceil(y1) - top))
-  return sharp(bytes).extract({ left: 0, top, width, height: h }).toBuffer()
+  return sharp(bytes, LARGE_IMAGE_INPUT).extract({ left: 0, top, width, height: h }).toBuffer()
 }
 
-export async function vstackImageParts(parts: Buffer[]): Promise<Buffer> {
+export async function vstackImageParts(
+  parts: Buffer[],
+  originalShapes?: Array<{ width: number; height: number }>
+): Promise<Buffer> {
   if (!parts.length) throw new Error('Không có phần ảnh để ghép')
   if (parts.length === 1) return parts[0]
-  const metas = await Promise.all(parts.map((p) => sharp(p).metadata()))
-  const width = Math.max(1, ...metas.map((m) => m.width || 0))
+  const metas = await Promise.all(parts.map((p) => sharp(p, LARGE_IMAGE_INPUT).metadata()))
+  const width = Math.max(
+    1,
+    ...metas.map((m, index) => originalShapes?.[index]?.width || m.width || 0)
+  )
   const composites: Array<{ input: Buffer; top: number; left: number }> = []
   let y = 0
   for (let i = 0; i < parts.length; i++) {
-    const srcW = metas[i].width || width
-    const srcH = Math.max(1, metas[i].height || 1)
+    const target = originalShapes?.[i]
+    const srcW = Math.max(1, target?.width || metas[i].width || width)
+    const srcH = Math.max(1, target?.height || metas[i].height || 1)
     const input =
-      srcW === width
+      (metas[i].width || width) === srcW && (metas[i].height || srcH) === srcH
         ? parts[i]
-        : await sharp(parts[i])
+        : await sharp(parts[i], LARGE_IMAGE_INPUT)
             .resize({
-              width,
+              width: srcW,
               height: srcH,
-              fit: 'contain',
-              background: { r: 255, g: 255, b: 255 },
+              fit: 'fill',
             })
             .toBuffer()
     composites.push({ input, top: y, left: 0 })
@@ -140,6 +148,7 @@ export async function vstackImageParts(parts: Buffer[]): Promise<Buffer> {
 export type TallImagePart = {
   bytes: Buffer
   blocks: ImageLocOcrBlock[]
+  width: number
   y0: number
   y1: number
   filename: string
@@ -150,15 +159,15 @@ export async function splitTallImageIfNeeded(opts: {
   blocks: ImageLocOcrBlock[]
   filename: string
 }): Promise<TallImagePart[]> {
-  const meta = await sharp(opts.bytes).metadata()
+  const meta = await sharp(opts.bytes, LARGE_IMAGE_INPUT).metadata()
   const height = meta.height || 0
   if (!shouldSplitTallImage(height, opts.blocks)) {
-    return [{ bytes: opts.bytes, blocks: opts.blocks, y0: 0, y1: height, filename: opts.filename }]
+    return [{ bytes: opts.bytes, blocks: opts.blocks, width: meta.width || 0, y0: 0, y1: height, filename: opts.filename }]
   }
   const ys = findSafeSplitYs(height, opts.blocks)
   const ranges = splitYRanges(height, ys)
   if (ranges.length <= 1) {
-    return [{ bytes: opts.bytes, blocks: opts.blocks, y0: 0, y1: height, filename: opts.filename }]
+    return [{ bytes: opts.bytes, blocks: opts.blocks, width: meta.width || 0, y0: 0, y1: height, filename: opts.filename }]
   }
   const base = opts.filename.replace(/\.[^.]+$/, '') || 'image'
   const ext = (opts.filename.match(/\.[^.]+$/) || ['.jpg'])[0]
@@ -168,6 +177,7 @@ export async function splitTallImageIfNeeded(opts: {
     parts.push({
       bytes: await cropImagePart(opts.bytes, y0, y1),
       blocks: adjustOcrBlocksForPart(opts.blocks, y0, y1),
+      width: meta.width || 0,
       y0,
       y1,
       filename: `${base}_part${i + 1}_of_${ranges.length}${ext}`,

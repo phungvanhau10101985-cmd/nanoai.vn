@@ -8,17 +8,26 @@ import * as jose from 'jose'
 
 const cache = new Map<string, { token: string; exp: number }>()
 
-function resolveCredentialsPath(): string {
-  const credPath =
-    process.env.VISION_CREDENTIALS_PATH ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-    path.join(process.cwd(), 'gcp-credentials.json')
-  return path.isAbsolute(credPath) ? credPath : path.resolve(process.cwd(), credPath)
+export function resolveGoogleSaCredentialsPath(): string {
+  const cwd = process.cwd()
+  const configured = [
+    process.env.VISION_CREDENTIALS_PATH,
+    process.env.GOOGLE_APPLICATION_CREDENTIALS,
+    process.env.IMAGE_LOCALIZATION_GCP_KEY_FILE,
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+  const candidates = [
+    ...configured,
+    path.join(cwd, 'runtime', 'image_localization', 'gcp-vision-service-account.json'),
+    path.join(cwd, 'gcp-credentials.json'),
+  ].map((value) => (path.isAbsolute(value) ? value : path.resolve(cwd, value)))
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0]
 }
 
 export function hasGoogleSaCredentialsFile(): boolean {
   try {
-    return fs.existsSync(resolveCredentialsPath())
+    return fs.existsSync(resolveGoogleSaCredentialsPath())
   } catch {
     return false
   }
@@ -32,7 +41,7 @@ export async function getGoogleAccessToken(scopes: string[]): Promise<string> {
   const hit = cache.get(scopeKey)
   if (hit && hit.exp > Date.now() + 60_000) return hit.token
 
-  const resolvedPath = resolveCredentialsPath()
+  const resolvedPath = resolveGoogleSaCredentialsPath()
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`GCP: Không tìm thấy file credentials: ${resolvedPath}`)
   }
@@ -92,7 +101,7 @@ export function readGcpProjectIdFromEnvOrCredentials(): string {
   const fromEnv = process.env.GOOGLE_CLOUD_PROJECT_ID?.trim()
   if (fromEnv) return fromEnv
   try {
-    const resolvedPath = resolveCredentialsPath()
+    const resolvedPath = resolveGoogleSaCredentialsPath()
     if (!fs.existsSync(resolvedPath)) return ''
     const raw = fs.readFileSync(resolvedPath, 'utf8').replace(/^\uFEFF/, '')
     const cred = JSON.parse(raw) as { project_id?: string }

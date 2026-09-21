@@ -1756,6 +1756,14 @@ export type Dictionary = {
     imageLocStatRun: string
     imageLocOffPeak: string
     imageLocOffPeakHint: string
+    imageLocLogoLabel: string
+    imageLocLogoHint: string
+    imageLocLogoUpload: string
+    imageLocLogoSave: string
+    imageLocLogoSaved: string
+    imageLocTestProduct: string
+    imageLocAllPending: string
+    imageLocErrorDetails: string
     imageLocPeakWaitTitle: string
     imageLocPeakNowTitle: string
     imageLocStart: string
@@ -5371,6 +5379,14 @@ const VI_DICTIONARY: Dictionary = {
     imageLocStatRun: 'Đang chạy',
     imageLocOffPeak: 'Chờ giờ thấp điểm DeepSeek',
     imageLocOffPeakHint: 'Bật: job chờ hết giờ cao điểm (08–11h, 13–17h VN) rồi mới OCR/DeepSeek. Tắt: chạy ngay dù giá ×2.',
+    imageLocLogoLabel: 'Logo đóng trên ảnh đã dịch',
+    imageLocLogoHint: 'Không bắt buộc. Chỉ ảnh đã dịch và tải lên CDN NanoAI mới được đóng logo; để trống thì không đóng logo.',
+    imageLocLogoUpload: 'Tải logo',
+    imageLocLogoSave: 'Lưu logo',
+    imageLocLogoSaved: 'Đã lưu logo bản địa hóa ảnh.',
+    imageLocTestProduct: 'Sản phẩm kiểm thử',
+    imageLocAllPending: 'Tất cả sản phẩm đang chờ',
+    imageLocErrorDetails: 'Chi tiết lỗi gần nhất',
     imageLocPeakWaitTitle: 'Giờ cao điểm DeepSeek — job sẽ chờ',
     imageLocPeakNowTitle: 'Giờ cao điểm DeepSeek — giá ×2',
     imageLocStart: 'Chạy bản địa hóa ảnh',
@@ -8986,6 +9002,14 @@ const EN_DICTIONARY: Dictionary = {
     imageLocStatRun: 'Running',
     imageLocOffPeak: 'Wait for DeepSeek off-peak hours',
     imageLocOffPeakHint: 'On: jobs wait until peak hours end (08–11 and 13–17 VN) before OCR/DeepSeek. Off: run immediately at 2× token price.',
+    imageLocLogoLabel: 'Logo on localized images',
+    imageLocLogoHint: 'Optional. The logo is applied only to translated images uploaded to NanoAI CDN; leave blank for no logo.',
+    imageLocLogoUpload: 'Upload logo',
+    imageLocLogoSave: 'Save logo',
+    imageLocLogoSaved: 'Image-localization logo saved.',
+    imageLocTestProduct: 'Test product',
+    imageLocAllPending: 'All pending products',
+    imageLocErrorDetails: 'Latest error details',
     imageLocPeakWaitTitle: 'DeepSeek peak hours — job will wait',
     imageLocPeakNowTitle: 'DeepSeek peak hours — 2× price',
     imageLocStart: 'Run image localization',
@@ -12563,6 +12587,14 @@ const ZH_DICTIONARY: Dictionary = {
     imageLocStatRun: '进行中',
     imageLocOffPeak: '等待 DeepSeek 低峰时段',
     imageLocOffPeakHint: '开启：任务等到高峰（越南 08–11、13–17）结束后再 OCR/DeepSeek。关闭：立即运行（token 价格 ×2）。',
+    imageLocLogoLabel: '已翻译图片水印 Logo',
+    imageLocLogoHint: '可选。仅对已翻译并上传到 NanoAI CDN 的图片加 Logo；留空则不加。',
+    imageLocLogoUpload: '上传 Logo',
+    imageLocLogoSave: '保存 Logo',
+    imageLocLogoSaved: '图片本地化 Logo 已保存。',
+    imageLocTestProduct: '测试商品',
+    imageLocAllPending: '所有待处理商品',
+    imageLocErrorDetails: '最近错误详情',
     imageLocPeakWaitTitle: 'DeepSeek 高峰 — 任务将等待',
     imageLocPeakNowTitle: 'DeepSeek 高峰 — 价格 ×2',
     imageLocStart: '开始图片本地化',
@@ -16099,6 +16131,14 @@ const JA_DICTIONARY: Dictionary = {
     imageLocStatRun: '実行中',
     imageLocOffPeak: 'DeepSeek オフピークまで待つ',
     imageLocOffPeakHint: 'オン：ピーク（ベトナム 08–11 / 13–17）終了後に OCR/DeepSeek。オフ：すぐ実行（トークン 2 倍）。',
+    imageLocLogoLabel: '翻訳済み画像に入れるロゴ',
+    imageLocLogoHint: '任意。翻訳して NanoAI CDN にアップロードした画像だけにロゴを入れます。空欄ならロゴなしです。',
+    imageLocLogoUpload: 'ロゴをアップロード',
+    imageLocLogoSave: 'ロゴを保存',
+    imageLocLogoSaved: '画像ローカライズ用ロゴを保存しました。',
+    imageLocTestProduct: 'テスト商品',
+    imageLocAllPending: '保留中の商品すべて',
+    imageLocErrorDetails: '直近のエラー詳細',
     imageLocPeakWaitTitle: 'DeepSeek ピーク — ジョブは待機します',
     imageLocPeakNowTitle: 'DeepSeek ピーク — 料金 2 倍',
     imageLocStart: '画像ローカライズを実行',
@@ -19678,6 +19718,14 @@ const KO_DICTIONARY: Dictionary = {
     imageLocStatRun: '실행 중',
     imageLocOffPeak: 'DeepSeek 비피크 시간까지 대기',
     imageLocOffPeakHint: '켜기: 피크(베트남 08–11, 13–17)가 끝난 뒤 OCR/DeepSeek. 끄기: 바로 실행(토큰 2배).',
+    imageLocLogoLabel: '번역된 이미지에 넣을 로고',
+    imageLocLogoHint: '선택 사항입니다. 번역 후 NanoAI CDN에 업로드된 이미지에만 로고를 넣습니다. 비워 두면 로고를 넣지 않습니다.',
+    imageLocLogoUpload: '로고 업로드',
+    imageLocLogoSave: '로고 저장',
+    imageLocLogoSaved: '이미지 현지화 로고를 저장했습니다.',
+    imageLocTestProduct: '테스트 상품',
+    imageLocAllPending: '대기 중인 모든 상품',
+    imageLocErrorDetails: '최근 오류 상세',
     imageLocPeakWaitTitle: 'DeepSeek 피크 — 작업이 대기합니다',
     imageLocPeakNowTitle: 'DeepSeek 피크 — 요금 2배',
     imageLocStart: '이미지 현지화 실행',

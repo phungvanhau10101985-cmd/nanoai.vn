@@ -429,13 +429,20 @@ export async function fetchImageLocProductReportFromPg(
   }
 }
 
-export async function fetchImageLocSettingsFromPg(partnerId: string): Promise<{ deepseek_off_peak_only: boolean }> {
-  if (!isPgConfigured()) return { deepseek_off_peak_only: false }
-  const row = await pgQueryOne<{ deepseek_off_peak_only: boolean }>(
-    `select deepseek_off_peak_only from public.messaging_partner_image_localization_settings where partner_id = $1::uuid`,
+export async function fetchImageLocSettingsFromPg(
+  partnerId: string
+): Promise<{ deepseek_off_peak_only: boolean; logo_url: string | null }> {
+  if (!isPgConfigured()) return { deepseek_off_peak_only: false, logo_url: null }
+  const row = await pgQueryOne<{ deepseek_off_peak_only: boolean; logo_url: string | null }>(
+    `select deepseek_off_peak_only, logo_url
+     from public.messaging_partner_image_localization_settings
+     where partner_id = $1::uuid`,
     [partnerId]
   )
-  return { deepseek_off_peak_only: Boolean(row?.deepseek_off_peak_only) }
+  return {
+    deepseek_off_peak_only: Boolean(row?.deepseek_off_peak_only),
+    logo_url: String(row?.logo_url || '').trim() || null,
+  }
 }
 
 export async function upsertImageLocSettingsFromPg(partnerId: string, offPeak: boolean): Promise<void> {
@@ -446,6 +453,50 @@ export async function upsertImageLocSettingsFromPg(partnerId: string, offPeak: b
      on conflict (partner_id) do update set deepseek_off_peak_only = excluded.deepseek_off_peak_only, updated_at = now()`,
     [partnerId, offPeak]
   )
+}
+
+export async function upsertImageLocLogoUrlFromPg(partnerId: string, logoUrl: string | null): Promise<void> {
+  if (!isPgConfigured()) return
+  await pgQuery(
+    `insert into public.messaging_partner_image_localization_settings (partner_id, logo_url, updated_at)
+     values ($1::uuid, $2, now())
+     on conflict (partner_id) do update
+       set logo_url = excluded.logo_url, updated_at = now()`,
+    [partnerId, logoUrl]
+  )
+}
+
+export type ImageLocCandidate = {
+  id: string
+  sku: string | null
+  name: string
+  image_url: string | null
+  status: string
+}
+
+export async function listImageLocCandidatesFromPg(
+  partnerId: string,
+  limit = 100
+): Promise<ImageLocCandidate[]> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery<ImageLocCandidate>(
+    `select id::text as id, sku, name, image_url,
+            coalesce(nullif(image_localization_status, ''), 'pending') as status
+     from public.messaging_partner_inventory
+     where partner_id = $1::uuid and coalesce(is_active, true) = true
+     order by
+       case coalesce(nullif(image_localization_status, ''), 'pending')
+         when 'failed' then 0
+         when 'pending' then 1
+         when 'processing' then 2
+         else 3
+       end,
+       sort_order nulls last,
+       created_at desc
+     limit $2`,
+    [partnerId, Math.max(1, Math.min(200, Math.floor(limit)))]
+  )
+  return rows
 }
 
 export async function fetchLocalizedIdsInQueueFromPg(partnerId: string, ids: string[]): Promise<string[]> {

@@ -1076,3 +1076,28 @@ export function partnerHasProductSizes(sizes: unknown): boolean {
   if (!Array.isArray(sizes)) return false
   return sizes.some((s) => String(s || '').trim())
 }
+
+function sizeGuideImageKey(url: string): string {
+  return url
+    .trim()
+    .split('?')[0]
+    .replace(/_(\d+x\d+)(q\d+)?\.(jpe?g|webp|png)$/i, '.$3')
+    .toLowerCase()
+}
+
+/** Ảnh bảng size ≠ ảnh SP (chất liệu / gallery leftover demo). */
+export function sanitizePartnerSizeGuideImageUrl(
+  url: string | null | undefined,
+  productPhotoUrls: ReadonlyArray<string | null | undefined> = []
+): string | null {
+  const raw = String(url || '').trim()
+  if (!raw) return null
+  const rawKey = sizeGuideImageKey(raw)
+  if (!rawKey) return null
+  for (const photo of productPhotoUrls) {
+    const other = String(photo || '').trim()
+    if (!other) continue
+    if (other === raw || sizeGuideImageKey(other) === rawKey) return null
+  }
+  return raw
+}

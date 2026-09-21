@@ -1,11 +1,13 @@
 /**
  * Google Cloud Vision API – Document OCR.
  * Dùng cho hậu kiểm dịch ảnh tài liệu: phát hiện chữ còn sót (ngôn ngữ nguồn).
- * Vision API trả về tọa độ chuẩn hóa (0–1) → chuyển sang pixel.
+ * `fullTextAnnotation.boundingBox.vertices` của Vision REST đã là tọa độ pixel.
  */
 
 import sharp from 'sharp'
 import { visionAnnotate, type VisionUsageLog } from './vision-api'
+
+const LARGE_IMAGE_INPUT = { limitInputPixels: false, sequentialRead: true } as const
 
 export interface TextWithBbox {
   text: string
@@ -16,14 +18,21 @@ export interface TextWithBbox {
 interface Vertex { x?: number; y?: number }
 interface BoundingPoly { vertices?: Vertex[] }
 
-function verticesToRect(vertices: Vertex[]): { x: number; y: number; width: number; height: number } {
+export function visionVerticesToPixelRect(
+  vertices: Vertex[],
+  imgW: number,
+  imgH: number
+): { x: number; y: number; width: number; height: number } {
   const xs = vertices.map((v) => v.x ?? 0).filter((x) => x >= 0)
   const ys = vertices.map((v) => v.y ?? 0).filter((y) => y >= 0)
   if (xs.length === 0 || ys.length === 0) return { x: 0, y: 0, width: 0, height: 0 }
-  const x = Math.min(...xs)
-  const y = Math.min(...ys)
-  const width = Math.max(...xs) - x
-  const height = Math.max(...ys) - y
+  const looksNormalized = Math.max(...xs) <= 1 && Math.max(...ys) <= 1
+  const px = looksNormalized ? xs.map((x) => x * imgW) : xs
+  const py = looksNormalized ? ys.map((y) => y * imgH) : ys
+  const x = Math.min(...px)
+  const y = Math.min(...py)
+  const width = Math.max(...px) - x
+  const height = Math.max(...py) - y
   return { x, y, width: Math.max(1, width), height: Math.max(1, height) }
 }
 
@@ -50,13 +59,7 @@ function extractWords(
     const text = getWordText(w).trim()
     const verts = (w.boundingBox ?? w.bounding_box)?.vertices
     if (!text || !verts?.length) continue
-    const norm = verticesToRect(verts)
-    const bbox = {
-      x: norm.x * imgW,
-      y: norm.y * imgH,
-      width: Math.max(1, norm.width * imgW),
-      height: Math.max(1, norm.height * imgH),
-    }
+    const bbox = visionVerticesToPixelRect(verts, imgW, imgH)
     if (bbox.width > 0 && bbox.height > 0) {
       out.push({ text, bbox })
     }
@@ -114,7 +117,7 @@ export async function documentOcrWithScale(
 ): Promise<DocumentOcrResult> {
   try {
   let buf = imageBuffer
-  const meta = await sharp(buf).metadata()
+  const meta = await sharp(buf, LARGE_IMAGE_INPUT).metadata()
   const origW = meta.width ?? 0
   const origH = meta.height ?? 0
   let imgW = origW
@@ -132,7 +135,7 @@ export async function documentOcrWithScale(
   if (scale < 1) {
     const newW = Math.round(imgW * scale)
     const newH = Math.round(imgH * scale)
-    buf = await sharp(buf).resize(newW, newH, { fit: 'inside' }).png().toBuffer()
+    buf = await sharp(buf, LARGE_IMAGE_INPUT).resize(newW, newH, { fit: 'inside' }).png().toBuffer()
     const m2 = await sharp(buf).metadata()
     imgW = m2.width ?? imgW
     imgH = m2.height ?? imgH

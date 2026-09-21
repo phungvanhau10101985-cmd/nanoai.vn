@@ -7,7 +7,31 @@ import { collectInventoryImageRefs, uniqueImageUrls } from './collect-image-refs
 import { imageLocMaxImagesPerProduct, normalizeImageUrl } from './image-localization-config'
 import type { ImageProcessResult } from './image-localization-types'
 import { processOneImageUrl, type ProcessImageContext } from './process-one'
-import { ImageLocalizationError } from './gemini-adapter'
+import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
+
+export function isTransientImageLocDbError(error: unknown): boolean {
+  const code = String((error as { code?: unknown })?.code || '').toUpperCase()
+  if (['40001', '40P01', '53300', '57P01', '57P02', '57P03', '08000', '08001', '08003', '08004', '08006', '08007', '08P01'].includes(code)) {
+    return true
+  }
+  return /ECONNRESET|ETIMEDOUT|connection terminated|connection.*closed|server closed the connection|timeout acquiring a client/i.test(
+    error instanceof Error ? error.message : String(error || '')
+  )
+}
+
+async function withDbRetry<T>(work: () => Promise<T>, label: string): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await work()
+    } catch (error) {
+      lastError = error
+      if (!isTransientImageLocDbError(error) || attempt >= 3) throw error
+      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** (attempt - 1)))
+    }
+  }
+  throw new ImageLocalizationError(`${label}: ${lastError instanceof Error ? lastError.message : String(lastError)}`)
+}
 
 function asInfoObject(raw: unknown): Record<string, unknown> {
   if (raw && typeof raw === 'object' && !Array.isArray(raw)) return { ...(raw as Record<string, unknown>) }
@@ -75,7 +99,10 @@ export async function processInventoryProduct(opts: {
         language: opts.ctx.language,
         force: opts.ctx.force,
       })
-  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(opts.partnerId, opts.inventoryId)
+  const row = await withDbRetry(
+    () => fetchPartnerInventoryRowByIdForPartnerFromPg(opts.partnerId, opts.inventoryId),
+    'Đọc sản phẩm sau retry DB'
+  )
   if (!row) {
     return { status: 'skipped', processed_images: 0, message: 'Sản phẩm không còn trong kho.' }
   }
@@ -91,13 +118,13 @@ export async function processInventoryProduct(opts: {
   const refs = collectInventoryImageRefs(row)
   const urls = uniqueImageUrls(refs, imageLocMaxImagesPerProduct())
   if (!urls.length) {
-    await applyImageLocProductResultFromPg({
+    await withDbRetry(() => applyImageLocProductResultFromPg({
       partnerId: opts.partnerId,
       inventoryId: opts.inventoryId,
       language: opts.ctx.language,
       status: 'skipped',
       error: 'Sản phẩm không có URL ảnh ở O/P/Q/T',
-    })
+    }), 'Lưu trạng thái bỏ qua sau retry DB')
     return { status: 'skipped', processed_images: 0, message: 'Sản phẩm không có URL ảnh ở O/P/Q/T' }
   }
 
@@ -111,6 +138,7 @@ export async function processInventoryProduct(opts: {
       results[urls[i]] = await processOneImageUrl(ctx, urls[i])
     } catch (e) {
       if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
+      raiseIfFatalDependency(e)
       results[urls[i]] = {
         original_url: urls[i],
         final_url: urls[i],
@@ -126,13 +154,13 @@ export async function processInventoryProduct(opts: {
   const changed = Object.values(results).filter((r) => r.final_url && r.final_url !== r.original_url)
   if (failed.length && !changed.length) {
     const failMsg = failed[0].message.slice(0, 2000)
-    await applyImageLocProductResultFromPg({
+    await withDbRetry(() => applyImageLocProductResultFromPg({
       partnerId: opts.partnerId,
       inventoryId: opts.inventoryId,
       language: opts.ctx.language,
       status: 'failed',
       error: failMsg,
-    })
+    }), 'Lưu lỗi sản phẩm sau retry DB')
     return { status: 'failed', processed_images: 0, message: failMsg }
   }
 
@@ -161,7 +189,7 @@ export async function processInventoryProduct(opts: {
   )
   info.image_localization = loc
 
-  await applyImageLocProductResultFromPg({
+  await withDbRetry(() => applyImageLocProductResultFromPg({
     partnerId: opts.partnerId,
     inventoryId: opts.inventoryId,
     language: opts.ctx.language,
@@ -173,7 +201,7 @@ export async function processInventoryProduct(opts: {
     detailImageUrls: patched.detail_image_urls,
     materialDetailImageUrl: patched.material_detail_image_url,
     productInfoJson: info,
-  })
+  }), 'Lưu ảnh bản địa hóa sau retry DB')
 
   return {
     status: 'localized',

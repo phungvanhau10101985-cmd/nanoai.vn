@@ -1,10 +1,12 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import sharp from 'sharp'
 import {
   adjustOcrBlocksForPart,
   findSafeSplitYs,
   shouldSplitTallImage,
   splitYRanges,
+  vstackImageParts,
 } from './split-tall-image'
 
 describe('split tall image (188 parity)', () => {
@@ -58,5 +60,20 @@ describe('split tall image (188 parity)', () => {
     assert.equal(lower.length, 1)
     assert.equal(lower[0].text, '下')
     assert.deepEqual(lower[0].bbox, [4, 200, 20, 230])
+  })
+
+  it('restores each edited part to its original crop shape before stitching', async () => {
+    const first = await sharp({ create: { width: 20, height: 10, channels: 3, background: '#fff' } }).png().toBuffer()
+    const second = await sharp({ create: { width: 40, height: 30, channels: 3, background: '#fff' } }).png().toBuffer()
+    const merged = await vstackImageParts(
+      [first, second],
+      [
+        { width: 32, height: 24 },
+        { width: 32, height: 16 },
+      ]
+    )
+    const meta = await sharp(merged).metadata()
+    assert.equal(meta.width, 32)
+    assert.equal(meta.height, 40)
   })
 })

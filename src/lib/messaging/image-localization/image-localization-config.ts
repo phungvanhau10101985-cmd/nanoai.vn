@@ -75,6 +75,21 @@ export function imageLocMaxAutoResumeCount(): number {
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 6
 }
 
+export function imageLocStallMinutes(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_STALL_MINUTES || '20')
+  return Number.isFinite(n) && n >= 5 ? Math.floor(n) : 20
+}
+
+export function imageLocRetryMaxSlowWaits(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_OCR_MAX_SLOW_WAITS || '1')
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 1
+}
+
+export function imageLocRetrySlowWaitMs(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_RETRY_SLOW_WAIT_SEC || '180')
+  return Math.max(5, Number.isFinite(n) ? n : 180) * 1000
+}
+
 export function sanitizeModelId(raw: string | null | undefined, fallback: string): string {
   const s = String(raw || '').trim()
   if (!s || s.length > 120) return fallback
@@ -154,7 +169,7 @@ export function isOwnCdnUrl(url: string): boolean {
         /* ignore */
       }
     }
-    return host.endsWith('.b-cdn.net') || host.includes('nanoai.')
+    return false
   } catch {
     return false
   }

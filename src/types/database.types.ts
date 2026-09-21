@@ -1388,16 +1388,19 @@ export interface Database {
         Row: {
           partner_id: string
           deepseek_off_peak_only: boolean
+          logo_url: string | null
           updated_at: string | null
         }
         Insert: {
           partner_id: string
           deepseek_off_peak_only?: boolean
+          logo_url?: string | null
           updated_at?: string | null
         }
         Update: {
           partner_id?: string
           deepseek_off_peak_only?: boolean
+          logo_url?: string | null
           updated_at?: string | null
         }
         Relationships: []

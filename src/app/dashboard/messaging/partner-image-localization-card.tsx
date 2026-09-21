@@ -10,6 +10,7 @@ import {
   imageLocalizationJobProgress,
   isTerminalImageLocalizationJobStatus,
   type ImageLocAuthStatus,
+  type ImageLocCandidate,
   type ImageLocGeminiMode,
   type ImageLocJob,
   type ImageLocLanguage,
@@ -61,8 +62,7 @@ export function PartnerImageLocalizationCard({
   t: Dictionary['partnerMessagingAi']
   selectedInventoryIds?: Set<string>
 }) {
-  const selectedIds = selectedInventoryIds ?? new Set<string>()
-  const selectedCount = selectedIds.size
+  const externalSelectedIds = selectedInventoryIds ?? new Set<string>()
   const [language, setLanguage] = useState<ImageLocLanguage>('vi')
   const [geminiMode, setGeminiMode] = useState<ImageLocGeminiMode>('local_only')
   const [geminiModel, setGeminiModel] = useState('')
@@ -72,6 +72,10 @@ export function PartnerImageLocalizationCard({
   const [openaiSize, setOpenaiSize] = useState('auto')
   const [force, setForce] = useState(false)
   const [selectedOnly, setSelectedOnly] = useState(false)
+  const [testProductId, setTestProductId] = useState('')
+  const [candidates, setCandidates] = useState<ImageLocCandidate[]>([])
+  const [logoUrl, setLogoUrl] = useState('')
+  const [logoSaving, setLogoSaving] = useState(false)
   const [auth, setAuth] = useState<ImageLocAuthStatus | null>(null)
   const [summary, setSummary] = useState<ImageLocSummary | null>(null)
   const [jobs, setJobs] = useState<ImageLocJob[]>([])
@@ -80,6 +84,8 @@ export function PartnerImageLocalizationCard({
   const [offPeakSaving, setOffPeakSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null)
+  const selectedIds = externalSelectedIds.size > 0 ? externalSelectedIds : testProductId ? new Set([testProductId]) : new Set<string>()
+  const selectedCount = selectedIds.size
 
   const aiModesSelectable = selectedCount > 0 && auth?.ai_image_jobs_allowed !== false
   const geminiReady =
@@ -94,12 +100,15 @@ export function PartnerImageLocalizationCard({
 
   const loadAuthAndSummary = useCallback(async () => {
     try {
-      const [a, s] = await Promise.all([
+      const [a, s, c] = await Promise.all([
         imageLocalizationClient.geminiAuth(partnerId, language),
         imageLocalizationClient.summary(partnerId),
+        imageLocalizationClient.candidates(partnerId),
       ])
       setAuth(a)
       setSummary(s)
+      setCandidates(c.items)
+      setLogoUrl(a.logo_url || '')
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -192,6 +201,20 @@ export function PartnerImageLocalizationCard({
       showToast('err', e instanceof Error ? e.message : String(e))
     } finally {
       setOffPeakSaving(false)
+    }
+  }
+
+  const saveLogo = async () => {
+    setLogoSaving(true)
+    try {
+      const out = await imageLocalizationClient.setLogoUrl(partnerId, logoUrl.trim())
+      setLogoUrl(out.logo_url || '')
+      setAuth((prev) => (prev ? { ...prev, logo_url: out.logo_url } : prev))
+      showToast('ok', t.imageLocLogoSaved)
+    } catch (e) {
+      showToast('err', e instanceof Error ? e.message : String(e))
+    } finally {
+      setLogoSaving(false)
     }
   }
 
@@ -417,6 +440,26 @@ export function PartnerImageLocalizationCard({
                 <option value="id">{t.imageLocLangId}</option>
               </select>
             </label>
+            <label className="block text-sm">
+              <span className="mb-1 block font-medium">{t.imageLocTestProduct}</span>
+              <select
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                value={testProductId}
+                disabled={startBusy || externalSelectedIds.size > 0}
+                onChange={(e) => {
+                  const id = e.target.value
+                  setTestProductId(id)
+                  setSelectedOnly(Boolean(id))
+                }}
+              >
+                <option value="">{t.imageLocAllPending}</option>
+                {candidates.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {[item.sku, item.name, item.status].filter(Boolean).join(' · ')}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
               <input
                 type="checkbox"
@@ -430,6 +473,58 @@ export function PartnerImageLocalizationCard({
               <input type="checkbox" checked={force} disabled={startBusy} onChange={(e) => setForce(e.target.checked)} />
               {t.imageLocForce}
             </label>
+            <div className="space-y-2 rounded-lg border border-border px-3 py-3 sm:col-span-2">
+              <label className="block text-sm">
+                <span className="mb-1 block font-medium">{t.imageLocLogoLabel}</span>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="url"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                    value={logoUrl}
+                    disabled={logoSaving}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    placeholder="https://cdn.nanoai.vn/logo.png"
+                  />
+                  <label className="cursor-pointer rounded-lg border border-border bg-background px-3 py-2 text-center text-sm font-medium hover:bg-muted">
+                    {t.imageLocLogoUpload}
+                    <input
+                      type="file"
+                      className="sr-only"
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={logoSaving}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        e.currentTarget.value = ''
+                        if (!file) return
+                        setLogoSaving(true)
+                        void imageLocalizationClient
+                          .uploadLogo(partnerId, file)
+                          .then((out) => {
+                            setLogoUrl(out.logo_url || '')
+                            setAuth((prev) => (prev ? { ...prev, logo_url: out.logo_url } : prev))
+                            showToast('ok', t.imageLocLogoSaved)
+                          })
+                          .catch((err) => showToast('err', err instanceof Error ? err.message : String(err)))
+                          .finally(() => setLogoSaving(false))
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-60"
+                    disabled={logoSaving}
+                    onClick={() => void saveLogo()}
+                  >
+                    {t.imageLocLogoSave}
+                  </button>
+                </div>
+                <span className="mt-1 block text-xs text-muted-foreground">{t.imageLocLogoHint}</span>
+              </label>
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" className="h-12 max-w-40 rounded border border-border object-contain p-1" />
+              ) : null}
+            </div>
             <div className="rounded-lg border border-border px-3 py-2 text-xs text-muted-foreground sm:col-span-2">
               <div>
                 {t.imageLocStatPending}: {summary?.pending ?? '—'}
@@ -511,6 +606,9 @@ export function PartnerImageLocalizationCard({
               {jobs.map((job) => {
                 const pct = imageLocalizationJobProgress(job)
                 const terminal = isTerminalImageLocalizationJobStatus(job.status)
+                const recentErrors = (job.recent_results || [])
+                  .filter((item) => item.status === 'error' || item.status === 'failed')
+                  .slice(-3)
                 return (
                   <div
                     key={job.job_id}
@@ -569,10 +667,21 @@ export function PartnerImageLocalizationCard({
                       <div className="h-full rounded-full bg-violet-600 transition-[width] duration-300" style={{ width: `${Math.min(100, pct)}%` }} />
                     </div>
                     <p className="mt-1.5 text-[11px] text-muted-foreground">
-                      {pct}% · {job.done ?? 0}/{job.total ?? '—'} · {t.imageLocStatError} {job.failed ?? 0} · {t.imageLocStatSkip}{' '}
+                      {pct}% · {(job.done ?? 0) + (job.failed ?? 0) + (job.skipped ?? 0)}/{job.total ?? '—'} ·{' '}
+                      {t.imageLocStatDone} {job.done ?? 0} · {t.imageLocStatError} {job.failed ?? 0} · {t.imageLocStatSkip}{' '}
                       {job.skipped ?? 0}
                     </p>
                     {job.message ? <p className="mt-1 text-[11px] leading-snug">{job.message}</p> : null}
+                    {recentErrors.length ? (
+                      <div className="mt-2 rounded-md border border-red-100 bg-red-50 p-2 text-[11px] text-red-800">
+                        <p className="font-semibold">{t.imageLocErrorDetails}</p>
+                        {recentErrors.map((item) => (
+                          <p key={`${item.product_id}:${item.message}`} className="mt-1 break-words">
+                            {item.product_id}: {item.message}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 )
               })}

@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import {
-  bindLiveProductToPdpHtml,
-  deferOffDevicePdpGalleryMedia,
-  restoreDeferredPdpGalleryMediaInHtml,
-} from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
+import { bindLiveProductToPdpHtml, deferOffDevicePdpGalleryMedia, restoreDeferredPdpGalleryMediaInHtml } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { DEMO_PDP_BIND_PRODUCT } from '@/lib/partner-website/shop/demo-pdp-bind-product'
+import { stripPartnerSizeGuideFromHtml } from '@/lib/partner-website/shop/partner-site-size-guide-html'
 
 const SHELL = `<!DOCTYPE html><html><body data-pw-page="product">
 <section data-pw-region="gallery">
@@ -465,6 +462,33 @@ test('bind does not keep leftover size-guide on a bag even if sizes exist', () =
   assert.doesNotMatch(next, /data-pw-pdp-slot="size-guide"/)
   assert.doesNotMatch(next, /data-pw-size-guide-open/)
   assert.doesNotMatch(next, /data-pw-size-guide-modal/)
+})
+
+test('bind does not put leftover demo material photo into the size-guide modal', () => {
+  const leftoverImg =
+    'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg'
+  const remnant = `<!DOCTYPE html><html><body data-pw-page="product">
+<section data-pw-region="pdp-info"><h1 class="pw-pdp-title" data-pw-el="title">Old</h1></section>
+<div class="pw-size-guide-dialog-body">
+  <div class="pw-size-guide" data-pw-size-guide="thoi-trang-nu"><p>Gợi ý cỡ theo chiều cao &amp; cân nặng (nữ)</p></div>
+  <img src="${leftoverImg}" alt="Đầm voan" />
+</div>
+</body></html>`
+  const fromDemo = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), DEMO_PDP_BIND_PRODUCT)
+  assert.match(fromDemo, /data-pw-size-guide-modal/)
+  assert.match(fromDemo, /data-pw-pdp-slot="material"/)
+  const modalBody = fromDemo.match(/class="pw-size-guide-dialog-body"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)?.[0] || ''
+  assert.doesNotMatch(modalBody, /material-1-a3-1786251749/)
+  const fromRemnant = bindLiveProductToPdpHtml(remnant, {
+    ...PRODUCT_B,
+    name: 'Áo sơ mi nam',
+    categoryL1: 'Thời trang Nam',
+    sizes: ['M', 'L'] as string[],
+  })
+  assert.match(fromRemnant, /<div[^>]*data-pw-size-guide-modal[^>]*\bhidden\b/)
+  assert.equal((fromRemnant.match(/<div[^>]*data-pw-size-guide-modal/g) || []).length, 1)
+  assert.doesNotMatch(fromRemnant, /material-1-a3-1786251749/)
+  assert.doesNotMatch(stripPartnerSizeGuideFromHtml(fromRemnant), /Gợi ý cỡ theo chiều cao/)
 })
 
 test('bind writes this product material and real-use photos instead of shell leftovers', () => {

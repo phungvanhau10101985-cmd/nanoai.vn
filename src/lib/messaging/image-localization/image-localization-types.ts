@@ -125,6 +125,14 @@ export type ImageLocSummary = {
   skipped: number
 }
 
+export type ImageLocCandidate = {
+  id: string
+  sku: string | null
+  name: string
+  image_url: string | null
+  status: string
+}
+
 export type ImageLocAuthStatus = {
   ai_image_jobs_allowed: boolean
   default_gemini_mode: 'api' | 'openai'
@@ -139,6 +147,7 @@ export type ImageLocAuthStatus = {
   api: { ready: boolean; key_configured: boolean; model: string }
   openai: { ready: boolean; key_configured: boolean; model: string }
   deepseek_pricing: ImageLocDeepseekPricing
+  logo_url?: string | null
 }
 
 export type ImageLocDeepseekPricing = {

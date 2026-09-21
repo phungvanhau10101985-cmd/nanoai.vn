@@ -45,6 +45,27 @@ describe('image localization classifier', () => {
     const local = localBlocksNeedDraw(blocks, { deleteSizeAndLaundry: true })
     assert.equal(local.action, 'deleted')
   })
+
+  it('ignores isolated one-Hanzi OCR blocks like 188 translator', () => {
+    const local = localBlocksNeedDraw(
+      [
+        { text: '新款女装', bbox: [0, 0, 80, 20] },
+        { text: '荐', bbox: [90, 0, 100, 20] },
+      ],
+      { deleteSizeAndLaundry: false }
+    )
+    assert.equal(local.action, 'deleted', 'urgent keywords must still win before one-Hanzi filtering')
+
+    const draw = localBlocksNeedDraw(
+      [
+        { text: '新款女装', bbox: [0, 0, 80, 20] },
+        { text: '春', bbox: [90, 0, 100, 20] },
+      ],
+      { deleteSizeAndLaundry: false }
+    )
+    assert.equal(draw.action, 'draw')
+    assert.deepEqual(draw.blocks.map((block) => block.text), ['新款女装'])
+  })
 })
 
 describe('collect inventory image refs', () => {

@@ -3,9 +3,7 @@
  * Dùng cho face detection (thử đồ) và document OCR (dịch ảnh tài liệu).
  */
 
-import fs from 'fs'
-import path from 'path'
-import { getGoogleAccessToken } from '@/lib/google-sa-token'
+import { getGoogleAccessToken, hasGoogleSaCredentialsFile } from '@/lib/google-sa-token'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 
 const VISION_API_URL = 'https://vision.googleapis.com/v1/images:annotate'
@@ -13,11 +11,7 @@ const VISION_SCOPE = 'https://www.googleapis.com/auth/cloud-vision'
 
 /** Kiểm tra đã cấu hình Vision API chưa – chỉ service account (OAuth2), API key không hỗ trợ. */
 export function hasVisionConfig(): boolean {
-  return !!(
-    process.env.VISION_CREDENTIALS_PATH ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-    fs.existsSync(path.join(process.cwd(), 'gcp-credentials.json'))
-  )
+  return hasGoogleSaCredentialsFile()
 }
 
 /** Lấy access token qua JWT – dùng chung cho mọi Vision API call */

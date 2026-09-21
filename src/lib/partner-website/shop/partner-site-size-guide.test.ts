@@ -15,6 +15,7 @@ import {
   parsePartnerSizeGuideKind,
   partnerHasProductSizes,
   resolvePartnerSizeGuideKind,
+  sanitizePartnerSizeGuideImageUrl,
 } from '@/lib/partner-website/shop/partner-site-size-guide'
 import {
   buildPartnerSizeGuideHostHtml,
@@ -256,6 +257,57 @@ test('PDP modal is only injected when the product has sizes', () => {
     title: 'Size',
   })
   assert.match(kidsModal, /15,5/)
+})
+
+test('PDP modal strip is nested-aware so leftover demo size chart does not stay visible', () => {
+  const leftoverImg =
+    'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg'
+  const html = `<!DOCTYPE html><html><head></head><body data-pw-page="product">
+<main><p>PDP</p></main>
+<div class="pw-size-guide-dialog-body">
+  <div class="pw-size-guide" data-pw-size-guide="thoi-trang-nu"><h2>Gợi ý cỡ theo chiều cao &amp; cân nặng (nữ)</h2></div>
+  <img src="${leftoverImg}" alt="Đầm voan" />
+</div>
+</div>
+</div>
+</body></html>`
+  const next = ensurePartnerPdpSizeGuideModalInHtml(html, {
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    hasSizes: true,
+    kind: 'thoi-trang-nu',
+    closeLabel: 'Đóng',
+    title: 'Bảng size',
+    imageUrl: leftoverImg,
+    leftoverPhotoUrls: [leftoverImg],
+  })
+  assert.equal((next.match(/<div[^>]*data-pw-size-guide-modal/g) || []).length, 1)
+  assert.equal((next.match(/data-pw-size-guide="thoi-trang-nu"/g) || []).length, 1)
+  assert.match(next, /data-pw-size-guide-modal[^>]*\bhidden\b/)
+  assert.doesNotMatch(next, /material-1-a3-1786251749/)
+  const stripped = stripPartnerSizeGuideFromHtml(next)
+  assert.doesNotMatch(stripped, /Gợi ý cỡ theo chiều cao/)
+  assert.doesNotMatch(stripped, /material-1-a3-1786251749/)
+  const twice = ensurePartnerPdpSizeGuideModalInHtml(next, {
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    hasSizes: true,
+    kind: 'thoi-trang-nu',
+    closeLabel: 'Đóng',
+    title: 'Bảng size',
+  })
+  assert.equal((twice.match(/<div[^>]*data-pw-size-guide-modal/g) || []).length, 1)
+  assert.equal((twice.match(/Gợi ý cỡ theo chiều cao/g) || []).length, 1)
+})
+
+test('sanitizePartnerSizeGuideImageUrl drops leftover product photos', () => {
+  const material =
+    'https://cdn.188.com.vn/site/manual-products/M260809034359C724D5/20260809/material-1-a3-1786251749-b5707ab23f.jpg'
+  assert.equal(sanitizePartnerSizeGuideImageUrl(material, [material]), null)
+  assert.equal(
+    sanitizePartnerSizeGuideImageUrl('https://cdn.example/size-chart.jpg', [material]),
+    'https://cdn.example/size-chart.jpg'
+  )
 })
 
 test('bags with leftover sizes still do not get a clothing/shoe chart', () => {

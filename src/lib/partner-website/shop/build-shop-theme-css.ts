@@ -824,10 +824,9 @@ html[data-pw-edit-device="laptop"] .pw-shop-product-detail,html[data-pw-scene-lo
 .pw-shop-pdp-info .pw-pdp-qty button{width:28px;height:28px;border-radius:7px;font-size:14px}
 .pw-shop-pdp-info .pw-pdp-qty span{min-width:34px;font-size:13px}
 @media(min-width:768px){
-  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:7px!important;margin-top:12px!important}
-  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline>.pw-shop-btn{width:100%;min-width:0;white-space:normal}
-  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline>.pw-shop-btn:nth-child(-n+2){grid-column:span 3!important;min-height:40px!important;padding:8px 10px!important;font-size:12px!important}
-  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline>.pw-shop-btn:nth-child(n+3){grid-column:span 2!important;min-height:34px!important;padding:6px 8px!important;font-size:11px!important}
+  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline{display:grid!important;grid-template-columns:minmax(0,1.25fr) minmax(0,1.25fr) repeat(3,minmax(0,1fr))!important;gap:6px!important;margin-top:12px!important}
+  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline>.pw-shop-btn{grid-column:auto!important;width:100%;min-width:0;min-height:36px!important;padding:6px 5px!important;font-size:10px!important;line-height:1.15;white-space:normal}
+  html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]) .pw-pdp-actions-inline>.pw-shop-btn:nth-child(-n+2){min-height:36px!important;padding:6px 7px!important;font-size:11px!important}
 }
 html[data-pw-edit-device="mobile"] .pw-pdp-actions-inline,html[data-pw-scene-lock="mobile"] .pw-pdp-actions-inline{display:none!important}
 .pw-pdp,.pw-shop-product-layout,.pw-shop-main{max-width:100%;box-sizing:border-box}

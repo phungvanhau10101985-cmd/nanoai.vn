@@ -2,7 +2,10 @@
 
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSizeGuideKind } from '@/lib/partner-website/shop/partner-site-size-guide'
-import { partnerSizeGuideCopy } from '@/lib/partner-website/shop/partner-site-size-guide'
+import {
+  partnerSizeGuideCopy,
+  sanitizePartnerSizeGuideImageUrl,
+} from '@/lib/partner-website/shop/partner-site-size-guide'
 import {
   buildPartnerSizeGuideHostHtml,
   PARTNER_SIZE_GUIDE_CSS,
@@ -42,7 +45,7 @@ export function PartnerSiteSizeGuideModal({
     customDomain,
     includeLead: !kind,
   })
-  const img = String(imageUrl || '').trim()
+  const img = sanitizePartnerSizeGuideImageUrl(imageUrl)
   const imgSrc = img ? shopPdpPageSrc(img) || img : ''
 
   return (

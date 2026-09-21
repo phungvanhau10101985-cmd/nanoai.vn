@@ -139,7 +139,6 @@ function shopDemoToPdpProduct(
       source_shop_name: catalog.source_shop_name,
       source_shop_name_chinese: catalog.source_shop_name_chinese,
       catalog_slug: catalog.catalog_slug,
-      sizeGuideImageUrl: product.materialDetailImageUrl,
     }),
     { pdp: true }
   )

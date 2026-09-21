@@ -240,6 +240,9 @@ export function localBlocksNeedDraw(
       draw.push({ text: '', bbox: b.bbox })
       continue
     }
+    // 188 TextTranslator bỏ qua block chỉ có đúng một Hán tự để tránh
+    // tô đè nhầm icon/nhãn nhỏ khi ảnh còn các block dài khác.
+    if (!hasJin && countHanzi(text).count === 1) continue
     if (hasJin || hasChineseText(text) || /^\d+(?:[.,]\d+)?\s*cm$/i.test(text)) {
       draw.push(b)
     }

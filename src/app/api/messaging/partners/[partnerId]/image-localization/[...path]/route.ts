@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -8,7 +9,9 @@ import {
   fetchImageLocProductReportFromPg,
   fetchImageLocSettingsFromPg,
   imageLocSummaryFromPg,
+  listImageLocCandidatesFromPg,
   listImageLocJobsFromPg,
+  upsertImageLocLogoUrlFromPg,
   upsertImageLocSettingsFromPg,
 } from '@/lib/db/messaging-partner-image-localization-pg'
 import { buildImageLocAuthStatus } from '@/lib/messaging/image-localization/image-localization-auth'
@@ -23,7 +26,9 @@ import {
   type ImageLocStartPayload,
 } from '@/lib/messaging/image-localization/image-localization-types'
 import { ImageLocalizationError } from '@/lib/messaging/image-localization/gemini-adapter'
+import { isOwnCdnUrl } from '@/lib/messaging/image-localization/image-localization-config'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
+import { removeTryOnStorageFromPublicUrls, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const maxDuration = 300
 export const runtime = 'nodejs'
@@ -61,11 +66,19 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
   if (p === 'settings/gemini-auth') {
     const settings = await fetchImageLocSettingsFromPg(partnerId)
-    return NextResponse.json(buildImageLocAuthStatus(settings.deepseek_off_peak_only))
+    return NextResponse.json({
+      ...buildImageLocAuthStatus(settings.deepseek_off_peak_only),
+      logo_url: settings.logo_url,
+    })
   }
 
   if (p === 'summary') {
     return NextResponse.json(await imageLocSummaryFromPg(partnerId))
+  }
+
+  if (p === 'candidates') {
+    const limit = Number(url.searchParams.get('limit') || '100')
+    return NextResponse.json({ items: await listImageLocCandidatesFromPg(partnerId, limit) })
   }
 
   if (p === 'jobs') {
@@ -96,6 +109,36 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const auth = await authorize(partnerId)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   const p = joinPath(path)
+
+  if (p === 'settings/logo-upload') {
+    let form: FormData
+    try {
+      form = await req.formData()
+    } catch {
+      return jsonError('Form upload không hợp lệ.')
+    }
+    const file = form.get('file')
+    if (!(file instanceof File) || file.size <= 0) return jsonError('Chưa chọn file logo.')
+    if (file.size > 5 * 1024 * 1024) return jsonError('Logo vượt quá 5 MB.')
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type)) return jsonError('Logo phải là PNG, JPG hoặc WebP.')
+    try {
+      const png = await sharp(Buffer.from(await file.arrayBuffer()))
+        .rotate()
+        .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer()
+      const path = `localized-images/${partnerId}/brand/logo-${Date.now()}.png`
+      const { publicUrl } = await uploadTryOnImagePublic(path, png, { contentType: 'image/png' })
+      const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
+      await upsertImageLocLogoUrlFromPg(partnerId, publicUrl)
+      if (previousLogoUrl && previousLogoUrl !== publicUrl && isOwnCdnUrl(previousLogoUrl)) {
+        await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
+      }
+      return NextResponse.json({ logo_url: publicUrl })
+    } catch (e) {
+      return jsonError(e instanceof Error ? e.message : String(e), 500)
+    }
+  }
 
   if (p === 'jobs') {
     let body: ImageLocStartPayload
@@ -155,16 +198,32 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   const auth = await authorize(partnerId)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   const p = joinPath(path)
-  if (p !== 'settings/deepseek-off-peak') return jsonError('Not found', 404)
-  let body: { enabled?: unknown }
+  let body: { enabled?: unknown; logo_url?: unknown }
   try {
-    body = (await req.json()) as { enabled?: unknown }
+    body = (await req.json()) as { enabled?: unknown; logo_url?: unknown }
   } catch {
     return jsonError('JSON không hợp lệ')
   }
-  await upsertImageLocSettingsFromPg(partnerId, Boolean(body.enabled))
-  const settings = await fetchImageLocSettingsFromPg(partnerId)
-  return NextResponse.json({ deepseek_pricing: buildImageLocAuthStatus(settings.deepseek_off_peak_only).deepseek_pricing })
+  if (p === 'settings/deepseek-off-peak') {
+    await upsertImageLocSettingsFromPg(partnerId, Boolean(body.enabled))
+    const settings = await fetchImageLocSettingsFromPg(partnerId)
+    return NextResponse.json({
+      deepseek_pricing: buildImageLocAuthStatus(settings.deepseek_off_peak_only).deepseek_pricing,
+    })
+  }
+  if (p === 'settings/logo') {
+    const raw = String(body.logo_url || '').trim()
+    if (raw && !/^https:\/\/[^\s]+$/i.test(raw)) {
+      return jsonError('Logo phải là URL HTTPS hợp lệ.')
+    }
+    const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
+    await upsertImageLocLogoUrlFromPg(partnerId, raw || null)
+    if (previousLogoUrl && previousLogoUrl !== raw && isOwnCdnUrl(previousLogoUrl)) {
+      await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
+    }
+    return NextResponse.json({ logo_url: raw || null })
+  }
+  return jsonError('Not found', 404)
 }
 
 export async function DELETE(req: NextRequest, ctx: Ctx) {

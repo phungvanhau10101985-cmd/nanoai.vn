@@ -10,8 +10,6 @@ import {
   resetStaleImageLocProcessingFromPg,
   updateImageLocJobFromPg,
 } from '@/lib/db/messaging-partner-image-localization-pg'
-import { pgQueryOne } from '@/lib/db/pg-query'
-import { isPgConfigured } from '@/lib/db/pool'
 import {
   imageLocAiExplicitOnly,
   imageLocAiJobsAllowed,
@@ -20,6 +18,7 @@ import {
   imageLocJobQueueIdsMax,
   imageLocMaxAutoResumeCount,
   imageLocMaxConsecutiveProductFailures,
+  imageLocStallMinutes,
 } from './image-localization-config'
 import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } from './deepseek-pricing'
 import { processInventoryProduct } from './process-product'
@@ -33,7 +32,9 @@ import {
   type ImageLocStartPayload,
 } from './image-localization-types'
 
-const workerRegistry = new Map<string, Promise<void>>()
+type WorkerHandle = { promise: Promise<void>; epoch: number }
+const workerRegistry = new Map<string, WorkerHandle>()
+const workerEpoch = new Map<string, number>()
 const abortFlags = new Map<string, 'graceful' | 'force'>()
 
 function workerKey(partnerId: string, jobId: string): string {
@@ -42,6 +43,21 @@ function workerKey(partnerId: string, jobId: string): string {
 
 function isForceAborted(partnerId: string, jobId: string): boolean {
   return abortFlags.get(workerKey(partnerId, jobId)) === 'force'
+}
+
+function workerSuperseded(partnerId: string, jobId: string, epoch: number): boolean {
+  return workerEpoch.get(workerKey(partnerId, jobId)) !== epoch
+}
+
+function shouldStopWorker(partnerId: string, jobId: string, epoch: number): boolean {
+  return isForceAborted(partnerId, jobId) || workerSuperseded(partnerId, jobId, epoch)
+}
+
+export function imageLocJobIsStalled(job: Pick<ImageLocJob, 'status' | 'phase' | 'updated_at'>, now = Date.now()): boolean {
+  if (String(job.status || '').toLowerCase() !== 'running') return false
+  if (String(job.phase || '').toLowerCase() === 'waiting_off_peak') return false
+  const updated = Date.parse(String(job.updated_at || ''))
+  return Number.isFinite(updated) && now - updated >= imageLocStallMinutes() * 60_000
 }
 
 function clip(v: unknown, max = 600): string {
@@ -83,11 +99,11 @@ async function jobCancelled(partnerId: string, jobId: string): Promise<boolean> 
   return st === 'cancelled' || Boolean(row.cancel_requested)
 }
 
-async function waitOffPeak(partnerId: string, job: ImageLocJob): Promise<boolean> {
+async function waitOffPeak(partnerId: string, job: ImageLocJob, epoch: number): Promise<boolean> {
   const settings = await fetchImageLocSettingsFromPg(partnerId)
   if (!settings.deepseek_off_peak_only) return true
   while (isDeepseekPeakUtc()) {
-    if (isForceAborted(partnerId, job.job_id) || (await jobCancelled(partnerId, job.job_id))) return false
+    if (shouldStopWorker(partnerId, job.job_id, epoch) || (await jobCancelled(partnerId, job.job_id))) return false
     const sec = secondsUntilDeepseekOffPeak()
     const { current, percent } = progress(job.done, job.failed, job.skipped, job.total || 0)
     await updateImageLocJobFromPg(partnerId, job.job_id, {
@@ -103,7 +119,7 @@ async function waitOffPeak(partnerId: string, job: ImageLocJob): Promise<boolean
   return true
 }
 
-async function runJob(partnerId: string, jobId: string, resume: boolean): Promise<void> {
+async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: number): Promise<void> {
   const job = await fetchImageLocJobFromPg(partnerId, jobId)
   if (!job) return
   const payload = (job.payload || {}) as ImageLocStartPayload
@@ -162,19 +178,22 @@ async function runJob(partnerId: string, jobId: string, resume: boolean): Promis
     resume_count: resume ? job.resume_count + 1 : job.resume_count,
   })
 
-  const logoUrl = await fetchPartnerLogoUrl(partnerId)
+  const localizationSettings = await fetchImageLocSettingsFromPg(partnerId)
+  const logoUrl = localizationSettings.logo_url
 
   const allowsAi = payload.allow_ai_image_models === true ? true : payload.allow_ai_image_models === false ? false : !imageLocAiExplicitOnly()
   const geminiMode = payload.gemini_mode === 'openai' ? 'openai' : 'api'
   let consecutiveFails = 0
 
-  if (!(await waitOffPeak(partnerId, { ...job, done, failed, skipped, total }))) {
+  if (!(await waitOffPeak(partnerId, { ...job, done, failed, skipped, total }, epoch))) {
+    if (workerSuperseded(partnerId, jobId, epoch)) return
     await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
     return
   }
 
   for (const inventoryId of queue) {
     if (processedSet.has(inventoryId)) continue
+    if (workerSuperseded(partnerId, jobId, epoch)) return
     if (isForceAborted(partnerId, jobId) || (await jobCancelled(partnerId, jobId))) {
       await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
       return
@@ -218,7 +237,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean): Promis
           openaiImageQuality: payload.openai_image_quality,
           openaiImageSize: payload.openai_image_size,
           logoUrl,
-          shouldCancel: () => isForceAborted(partnerId, jobId),
+          shouldCancel: () => shouldStopWorker(partnerId, jobId, epoch),
         },
         progressCb,
       })
@@ -279,6 +298,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean): Promis
         return
       }
       if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') {
+        if (workerSuperseded(partnerId, jobId, epoch)) return
         await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
         return
       }
@@ -306,6 +326,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean): Promis
     }
   }
 
+  if (workerSuperseded(partnerId, jobId, epoch)) return
   if (isForceAborted(partnerId, jobId) || (await jobCancelled(partnerId, jobId))) {
     await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
     return
@@ -362,11 +383,14 @@ async function finalizeCancelled(
   })
 }
 
-function spawn(partnerId: string, jobId: string, resume: boolean) {
+function spawn(partnerId: string, jobId: string, resume: boolean, replaceStalled = false) {
   const key = workerKey(partnerId, jobId)
-  if (workerRegistry.has(key)) return
-  const p = runJob(partnerId, jobId, resume)
+  if (workerRegistry.has(key) && !replaceStalled) return
+  const epoch = (workerEpoch.get(key) || 0) + 1
+  workerEpoch.set(key, epoch)
+  const p = runJob(partnerId, jobId, resume, epoch)
     .catch((e) => {
+      if (workerSuperseded(partnerId, jobId, epoch)) return
       console.error('[image-localization] job failed', jobId, e)
       return updateImageLocJobFromPg(partnerId, jobId, {
         status: 'error',
@@ -376,20 +400,13 @@ function spawn(partnerId: string, jobId: string, resume: boolean) {
       })
     })
     .finally(() => {
-      workerRegistry.delete(key)
-      abortFlags.delete(key)
+      if (workerEpoch.get(key) === epoch) {
+        workerRegistry.delete(key)
+        workerEpoch.delete(key)
+        abortFlags.delete(key)
+      }
     })
-  workerRegistry.set(key, p)
-}
-
-async function fetchPartnerLogoUrl(partnerId: string): Promise<string | null> {
-  if (!isPgConfigured()) return null
-  const row = await pgQueryOne<{ logo_url: string | null }>(
-    `select logo_url from public.messaging_partners where id = $1::uuid limit 1`,
-    [partnerId]
-  )
-  const u = String(row?.logo_url || '').trim()
-  return /^https?:\/\//i.test(u) ? u : null
+  workerRegistry.set(key, { promise: p, epoch })
 }
 
 export async function startImageLocalizationJob(
@@ -504,7 +521,12 @@ export async function resumeImageLocalizationAfterRestart(): Promise<{ resumed: 
       skipped += 1
       continue
     }
-    if (imageLocWorkerAlive(job.partner_id, job.job_id)) continue
+    if (imageLocWorkerAlive(job.partner_id, job.job_id)) {
+      if (!imageLocJobIsStalled(job)) continue
+      spawn(job.partner_id, job.job_id, true, true)
+      resumed += 1
+      continue
+    }
     spawn(job.partner_id, job.job_id, true)
     resumed += 1
   }

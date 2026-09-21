@@ -10,6 +10,8 @@ import { geminiProcessImage, ImageLocalizationError, raiseIfFatalDependency } fr
 import { openaiProcessImage } from './openai-adapter'
 import { splitTallImageIfNeeded, vstackImageParts } from './split-tall-image'
 
+const LARGE_IMAGE_INPUT = { limitInputPixels: false, sequentialRead: true } as const
+
 export async function downloadLocalizationImage(url: string): Promise<{ bytes: Buffer; filename: string }> {
   const normalized = normalizeImageUrl(url)
   const bytes = await fetchImageWith1688Bypass(normalized, { timeoutMs: 45_000, maxBytes: 12 * 1024 * 1024 })
@@ -44,7 +46,7 @@ async function overlayBrandLogo(imageBytes: Buffer, logoUrl?: string | null): Pr
   if (!logoSrc || !/^https?:\/\//i.test(logoSrc)) return imageBytes
   try {
     const logoBuf = await fetchImageWith1688Bypass(logoSrc, { timeoutMs: 15_000, maxBytes: 2 * 1024 * 1024 })
-    const base = sharp(imageBytes)
+    const base = sharp(imageBytes, LARGE_IMAGE_INPUT)
     const meta = await base.metadata()
     const w = meta.width || 0
     const h = meta.height || 0
@@ -233,8 +235,18 @@ export async function processOneImageUrl(
   }
 
   const stitch: Buffer[] = []
+  const originalShapes: Array<{ width: number; height: number }> = []
   const notes: string[] = []
   if (parts.length > 1) notes.push(`cắt ${parts.length} phần`)
+  if (parts.length > 1 && outcomes.some((outcome) => outcome.kind === 'deleted')) {
+    const deletedIndex = outcomes.findIndex((outcome) => outcome.kind === 'deleted')
+    return {
+      original_url: normalized,
+      final_url: null,
+      status: 'deleted',
+      message: `Phần ${deletedIndex + 1}/${parts.length}: ${outcomes[deletedIndex]?.message || 'yêu cầu xóa ảnh'}`,
+    }
+  }
   for (let i = 0; i < outcomes.length; i++) {
     const o = outcomes[i]
     if (o.kind === 'deleted') {
@@ -242,6 +254,10 @@ export async function processOneImageUrl(
       continue
     }
     stitch.push(o.bytes)
+    originalShapes.push({
+      width: parts[i].width,
+      height: Math.max(1, parts[i].y1 - parts[i].y0),
+    })
     notes.push(o.message)
   }
   const anyProcessed = outcomes.some((o) => o.kind === 'processed')
@@ -262,6 +278,6 @@ export async function processOneImageUrl(
       message: notes.filter(Boolean).join(' · ') || 'Xóa ảnh',
     }
   }
-  const merged = await vstackImageParts(stitch)
+  const merged = await vstackImageParts(stitch, originalShapes)
   return finishProcessed(merged, notes.filter(Boolean).join(' · '))
 }

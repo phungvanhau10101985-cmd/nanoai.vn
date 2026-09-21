@@ -34,6 +34,21 @@ const FATAL_MARKERS = [
   'billing not enabled',
   'billing_disabled',
   'deepseek_missing_key',
+  'chưa cấu hình google cloud vision',
+  'không tìm thấy file credentials',
+  'gcp auth failed',
+  'cloud vision api chưa bật',
+  'invalid api key',
+  'unauthorized',
+  'permission_denied',
+  'authentication failed',
+  'rate limit exceeded',
+  'insufficient_quota',
+  'invalid_grant',
+  'credentials are invalid',
+  'could not locate credentials',
+  'default credentials were not found',
+  'service_disabled',
 ]
 
 export function isImageLocalizationFatalDependencyError(exc: unknown): boolean {
