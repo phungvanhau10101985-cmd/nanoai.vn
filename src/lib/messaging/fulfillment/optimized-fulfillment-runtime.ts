@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto'
-import { isDeepStrictEqual } from 'node:util'
 import {
   optimizedFulfillmentDecision,
   type OptimizedFulfillmentDecision,
@@ -28,6 +26,26 @@ export type OptimizedFulfillmentRuntimeSelection<T> = {
   decision: OptimizedFulfillmentDecision
 }
 
+/**
+ * Browser-safe digest for shadow logs. Dashboard clients import this module
+ * through order lifecycle / shipment helpers, so Node `node:crypto`/`node:util`
+ * cannot be used here.
+ */
+function fnv1a32(input: string, seed: number): number {
+  let hash = seed >>> 0
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return hash >>> 0
+}
+
+function hexHash(input: string, length: number): string {
+  const left = fnv1a32(input, 0x811c9dc5).toString(16).padStart(8, '0')
+  const right = fnv1a32(input, 0xcbf29ce4).toString(16).padStart(8, '0')
+  return `${left}${right}`.slice(0, length)
+}
+
 function safeHash(value: unknown): string {
   let serialized = ''
   try {
@@ -35,11 +53,40 @@ function safeHash(value: unknown): string {
   } catch {
     serialized = Object.prototype.toString.call(value)
   }
-  return createHash('sha256').update(serialized).digest('hex').slice(0, 16)
+  return hexHash(serialized, 16)
 }
 
 function tenantHash(tenantId: string): string {
-  return createHash('sha256').update(tenantId.trim()).digest('hex').slice(0, 12)
+  return hexHash(tenantId.trim(), 12)
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null
+}
+
+function isDeepEqual(left: unknown, right: unknown, seen = new WeakMap<object, object>()): boolean {
+  if (Object.is(left, right)) return true
+  if (typeof left !== typeof right) return false
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false
+  if (seen.get(left) === right) return true
+  seen.set(left, right)
+
+  if (left instanceof Date && right instanceof Date) {
+    return left.getTime() === right.getTime()
+  }
+  if (Array.isArray(left) || Array.isArray(right)) {
+    if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) return false
+    return left.every((item, index) => isDeepEqual(item, right[index], seen))
+  }
+  if (!isPlainObject(left) || !isPlainObject(right)) return false
+  const leftKeys = Object.keys(left)
+  const rightKeys = Object.keys(right)
+  if (leftKeys.length !== rightKeys.length) return false
+  return leftKeys.every(
+    (key) => Object.prototype.hasOwnProperty.call(right, key) && isDeepEqual(left[key], right[key], seen)
+  )
 }
 
 /**
@@ -66,7 +113,7 @@ export function selectOptimizedFulfillmentOutcome<T>(input: {
 
   try {
     const optimized = input.optimized()
-    if (!isDeepStrictEqual(legacy, optimized)) {
+    if (!isDeepEqual(legacy, optimized)) {
       ;(input.log ?? ((entry) => console.warn('[optimized-fulfillment]', entry)))({
         event: 'optimized_fulfillment_shadow_mismatch',
         operation: input.operation,

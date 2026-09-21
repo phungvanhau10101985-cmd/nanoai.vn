@@ -1,8 +1,14 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { selectOptimizedFulfillmentOutcome } from './optimized-fulfillment-runtime'
 
 describe('optimized fulfillment runtime selector', () => {
+  it('stays isomorphic so dashboard client webpack can bundle it', () => {
+    const source = readFileSync(new URL('./optimized-fulfillment-runtime.ts', import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /from ['"]node:/)
+  })
+
   it('off runs only the legacy path', () => {
     let optimizedCalls = 0
     const selected = selectOptimizedFulfillmentOutcome({
@@ -35,6 +41,24 @@ describe('optimized fulfillment runtime selector', () => {
     const serialized = JSON.stringify(entries[0])
     assert.match(serialized, /optimized_fulfillment_shadow_mismatch/)
     assert.doesNotMatch(serialized, /private-tenant-id|legacy-secret|optimized-secret/)
+  })
+
+  it('shadow skips logging when nested outcomes match', () => {
+    const entries: unknown[] = []
+    const payload = { allowed: true, steps: [{ key: 'packing', at: '2026-09-21T00:00:00.000Z' }] }
+    const selected = selectOptimizedFulfillmentOutcome({
+      tenantId: 'tenant-a',
+      operation: 'shipping',
+      env: { ORDER_FULFILLMENT_OPTIMIZED_MODE: 'shadow' },
+      legacy: () => payload,
+      optimized: () => ({
+        allowed: true,
+        steps: [{ key: 'packing', at: '2026-09-21T00:00:00.000Z' }],
+      }),
+      log: (entry) => entries.push(entry),
+    })
+    assert.deepEqual(selected.value, payload)
+    assert.equal(entries.length, 0)
   })
 
   it('enforce stays legacy until gated, then selects optimized', () => {
