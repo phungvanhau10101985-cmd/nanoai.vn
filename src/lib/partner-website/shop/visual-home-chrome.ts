@@ -1,19 +1,15 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
-import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import {
   extractVisualDocumentStyles,
   preferredVisualHomeStyleSource,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import {
-  injectMarketplaceLookIntoHtml,
   resolvePartnerWebsiteLook,
   type PartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
-import { injectShopLookIntoHtml } from '@/lib/partner-website/shop/shop-look-css'
-import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { bindPartnerShopSloganInHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import {
@@ -51,7 +47,7 @@ export type VisualHomeChromeByDevice = {
 /** Same four-device split as composed visual HTML — visible wrappers are `display:contents`. */
 export const VISUAL_HOME_CHROME_SPLIT_CSS = VISUAL_FOUR_DEVICE_SPLIT_CSS
 
-/** Same look inject as Sửa nhanh / live home so React cart/wishlist chrome is not raw HTML. */
+/** Chrome Redis stores header/footer HTML + merchant CSS only. Engine look/theme CSS is `/shop-theme.css`. */
 function prepareHomeChromeSourceHtml(
   html: string,
   website: VisualHomeChromeWebsite,
@@ -70,13 +66,7 @@ function prepareHomeChromeSourceHtml(
     logoUrl: website.theme?.logoUrl,
     chatIconLogoUrl: website.theme?.chatIconLogoUrl,
   })
-  const withSlogan = bindPartnerShopSloganInHtml(withKit, website.theme, website.locale ?? 'vi')
-  const withTheme = injectPartnerShopThemeCss(withSlogan, website.theme)
-  const withChrome = injectPartnerShopChromeLayoutCss(withTheme)
-  return injectShopLookIntoHtml(
-    injectMarketplaceLookIntoHtml(withChrome, website.theme),
-    website.theme
-  )
+  return bindPartnerShopSloganInHtml(withKit, website.theme, website.locale ?? 'vi')
 }
 
 function homeHtmlParts(

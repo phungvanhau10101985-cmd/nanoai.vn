@@ -36,6 +36,8 @@ export const VISITOR_MERGE_CLAIM_TTL_SEC = 86400
 const MEM_CACHE_MAX = 800
 /** Skip L0 when Redis already holds a fat id-list (~5000 UUID ≈ 180KB). */
 const MEM_CACHE_MAX_BYTES = 24 * 1024
+/** Skip Redis SET for chrome/html blobs that would stall GET (TTFB 10s+). Id-lists stay allowed. */
+export const SHOP_REDIS_BLOB_MAX_BYTES = 200 * 1024
 const memStore = new Map<string, { exp: number; raw: string }>()
 const pendingLoads = new Map<string, Promise<unknown>>()
 const pendingVersions = new Map<string, Promise<number>>()
@@ -225,9 +227,14 @@ export async function shopCacheGetJson<T>(key: string, memTtlSec = SHOP_LIST_TTL
   }
 }
 
+function isHtmlOrChromeCacheKey(key: string): boolean {
+  return /:(?:html|chrome2|chrome3):/.test(key)
+}
+
 export async function shopCacheSetJson(key: string, ttlSec: number, value: unknown): Promise<void> {
   try {
     const raw = JSON.stringify(value)
+    if (isHtmlOrChromeCacheKey(key) && raw.length > SHOP_REDIS_BLOB_MAX_BYTES) return
     writeMem(key, ttlSec, raw)
     await redisSetEx(key, ttlSec, raw)
   } catch (e) {
@@ -370,7 +377,7 @@ export async function withSiteChromeCache<T>(input: {
   const device = input.device.trim().toLowerCase()
   if (!slug || !device) return input.load()
   const ver = await siteVer(slug)
-  const key = `pw:site:${slug}:v${ver}:chrome2:${device}`
+  const key = `pw:site:${slug}:v${ver}:chrome3:${device}`
   return loadOnce(key, async () => {
     const hit = await shopCacheGetJson<T>(key, SITE_CHROME_TTL_SEC)
     if (hit !== null) return hit

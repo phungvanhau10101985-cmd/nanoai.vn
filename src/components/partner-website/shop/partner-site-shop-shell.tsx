@@ -67,37 +67,21 @@ import { footerLinkKitKind, PW_FOOTER_KIT_MOIT, PW_FOOTER_MOIT_HREF } from '@/li
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-shop-actions-bootstrap-script'
-import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import {
-  buildMarketplaceLookCss,
-  PARTNER_MARKETPLACE_LOOK_STYLE_ID,
   PARTNER_WEBSITE_LOOK_MARKETPLACE,
   resolvePartnerWebsiteLook,
   type PartnerWebsiteLook,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import {
-  buildShopLookCss,
-  PARTNER_SHOP_LOOK_STYLE_ID,
-} from '@/lib/partner-website/shop/shop-look-css'
-import {
-  PW_SHOP_CART_PAGE_CSS,
-  PW_SHOP_CART_PAGE_STYLE_ID,
-} from '@/lib/partner-website/shop/partner-site-cart-page-css'
-import {
-  PW_SHOP_FOOTER_FIT_CSS,
-  PW_SHOP_FOOTER_FIT_STYLE_ID,
-} from '@/lib/partner-website/shop/partner-site-footer-fit-css'
-import {
-  PW_SHOP_ORDER_STATUS_TABS_CSS,
-  PW_SHOP_ORDER_STATUS_TABS_STYLE_ID,
-} from '@/lib/partner-website/shop/partner-site-order-status-tabs-css'
+  partnerShopLiveCssHref,
+  PARTNER_SHOP_LIVE_CSS_LINK_ID,
+} from '@/lib/partner-website/shop/partner-shop-live-css'
+import { buildThemeCssVarBlock, PW_THEME_ROOT_STYLE_ID } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,
   PW_CHROME_FLOAT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/chrome-float-widgets'
 import {
-  PARTNER_SHOP_CHROME_LAYOUT_CSS,
-  PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID,
   PARTNER_SHOP_LOGO_HOST_SCRIPT,
   PARTNER_SHOP_LOGO_HOST_SCRIPT_ID,
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
@@ -836,7 +820,11 @@ function PartnerSiteShopShellInner({
           )}
         </>
       )}
-      <style dangerouslySetInnerHTML={{ __html: buildPartnerSiteShopThemeCss(theme) }} />
+      <link id={PARTNER_SHOP_LIVE_CSS_LINK_ID} rel="stylesheet" href={partnerShopLiveCssHref(siteSlug, theme)} />
+      <style
+        id={PW_THEME_ROOT_STYLE_ID}
+        dangerouslySetInnerHTML={{ __html: `:root,html,body,#pw-theme-root{${buildThemeCssVarBlock(theme)}}` }}
+      />
       {hideChrome ? (
         <main className="pw-shop-main pw-shop-main-compose">{children}</main>
       ) : (
@@ -845,21 +833,6 @@ function PartnerSiteShopShellInner({
         <>
           <VisualHomeChromeRuntime siteSlug={siteSlug} locale={locale} />
           <VisualHomeDocumentStyles html={visualChromeStyles} />
-          <style
-            id={PARTNER_SHOP_CHROME_LAYOUT_STYLE_ID}
-            dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_CHROME_LAYOUT_CSS }}
-          />
-          {shopLook === PARTNER_WEBSITE_LOOK_MARKETPLACE ? (
-            <style
-              id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
-              dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
-            />
-          ) : (
-            <style
-              id={PARTNER_SHOP_LOOK_STYLE_ID}
-              dangerouslySetInnerHTML={{ __html: buildShopLookCss() }}
-            />
-          )}
           <style
             id="pw-visual-home-chrome-split"
             dangerouslySetInnerHTML={{ __html: VISUAL_HOME_CHROME_SPLIT_CSS }}
@@ -873,17 +846,6 @@ function PartnerSiteShopShellInner({
         </>
       ) : (
       <>
-      {shopLook === PARTNER_WEBSITE_LOOK_MARKETPLACE ? (
-        <style
-          id={PARTNER_MARKETPLACE_LOOK_STYLE_ID}
-          dangerouslySetInnerHTML={{ __html: buildMarketplaceLookCss() }}
-        />
-      ) : (
-        <style
-          id={PARTNER_SHOP_LOOK_STYLE_ID}
-          dangerouslySetInnerHTML={{ __html: buildShopLookCss() }}
-        />
-      )}
       <div className="pw-shop-topbar" data-pw-region={PW_REGION.topbar}>
         <div className="pw-shop-topbar-inner">
           {slogan ? (
@@ -1298,20 +1260,6 @@ function PartnerSiteShopShellInner({
         copy={CART_ADDED_MODAL_COPY[locale]}
         onClose={() => setPendingCartAdded(null)}
       />
-      <style
-        id={PW_SHOP_ORDER_STATUS_TABS_STYLE_ID}
-        dangerouslySetInnerHTML={{ __html: PW_SHOP_ORDER_STATUS_TABS_CSS }}
-      />
-      <style
-        id={PW_SHOP_FOOTER_FIT_STYLE_ID}
-        dangerouslySetInnerHTML={{ __html: PW_SHOP_FOOTER_FIT_CSS }}
-      />
-      {pageKind === PW_PAGE.cart ? (
-        <style
-          id={PW_SHOP_CART_PAGE_STYLE_ID}
-          dangerouslySetInnerHTML={{ __html: PW_SHOP_CART_PAGE_CSS }}
-        />
-      ) : null}
     </div>
   )
 }

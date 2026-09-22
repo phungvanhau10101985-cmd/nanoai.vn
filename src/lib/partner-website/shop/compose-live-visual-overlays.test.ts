@@ -116,6 +116,8 @@ test('applyLiveVisualOverlays binds listing title onto the shared category shell
   assert.match(out, /áo blouse nữ/)
   assert.match(out, /data-category-id="11111111-1111-4111-8111-111111111111"/)
   assert.match(out, /data-pw-listing-category="1"/)
+  assert.match(out, /<html[^>]*data-pw-listing-category="1"/)
+  assert.match(out, /<body[^>]*data-pw-listing-category="1"/)
   assert.doesNotMatch(out, /<h1 data-pw-el="heading">Bộ sưu tập<\/h1>/)
   assert.doesNotMatch(out, /data-pw-featured-categories/)
   assert.doesNotMatch(out, /Áo sơ mi/)

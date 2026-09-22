@@ -45,6 +45,7 @@ test('bindLiveProductToPdpHtml rewrites locked PDP fields and keeps catalog card
   assert.match(next, /data-pw-pdp-server-bound="1"/)
   assert.match(next, /fetchpriority="high"/)
   assert.match(next, /data-inventory-id="cccccccc-cccc-cccc-cccc-cccccccccccc"/)
+  assert.match(next, /data-pw-el="thumb"[^>]*>[\s\S]*?loading="lazy"/)
   assert.doesNotMatch(next, /Review for A/)
 })
 

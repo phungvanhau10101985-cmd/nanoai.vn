@@ -1,7 +1,7 @@
+/** Engine sheets belong on `/api/site/{slug}/shop-theme.css`, not inside chrome Redis / RSC. */
 const SKIP_HOME_STYLE_ID =
-  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split)$/i
-const SKIP_INLINE_STYLE_ID =
-  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split)$/i
+  /^(nanoai-visual-editor-styles|nanoai-visual-editor-script|pw-visual-device-split|pw-shop-theme-css|pw-shop-chrome-layout|pw-shop-look-css|pw-marketplace-look-css|pw-shop-footer-fit-css|pw-shop-fonts)$/i
+const SKIP_INLINE_STYLE_ID = SKIP_HOME_STYLE_ID
 
 const HOME_STYLE_ATTR = 'data-pw-home-chrome-css'
 

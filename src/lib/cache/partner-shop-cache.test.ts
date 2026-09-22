@@ -6,6 +6,7 @@ import {
   LIVE_CATEGORY_BIND_TTL_SEC,
   MARKETING_BANNER_PUBLIC_TTL_SEC,
   SITE_CHROME_TTL_SEC,
+  SHOP_REDIS_BLOB_MAX_BYTES,
   VISITOR_MERGE_CLAIM_TTL_SEC,
   categoryProductCountsFromCacheRecord,
   categoryProductCountsToCacheRecord,
@@ -77,6 +78,21 @@ test('shopCacheGetJson uses the TTL passed to set, not a 60s clamp', async () =>
   await shopCacheSetJson(key, 900, { ttl: 900 })
   const hit = await shopCacheGetJson<{ ttl: number }>(key, 900)
   assert.deepEqual(hit, { ttl: 900 })
+})
+
+test('shopCacheSetJson skips html/chrome blobs over 200KB', async () => {
+  const stamp = Date.now()
+  const fat = 'x'.repeat(SHOP_REDIS_BLOB_MAX_BYTES + 50)
+  const htmlKey = `pw:site:demo:v1:html:home:desktop:${stamp}`
+  const chromeKey = `pw:site:demo:v1:chrome3:desktop:${stamp}`
+  const slimKey = `pw:site:demo:v1:chrome3:mobile:${stamp}`
+  await shopCacheSetJson(htmlKey, 60, fat)
+  await shopCacheSetJson(chromeKey, 60, fat)
+  await shopCacheSetJson(slimKey, 60, { ok: 1 })
+  assert.equal(await shopCacheGetJson<string>(htmlKey), null)
+  assert.equal(await shopCacheGetJson<string>(chromeKey), null)
+  assert.deepEqual(await shopCacheGetJson<{ ok: number }>(slimKey), { ok: 1 })
+  assert.equal(SHOP_REDIS_BLOB_MAX_BYTES, 200 * 1024)
 })
 
 test('concurrent cold cache requests share one backend load', async () => {

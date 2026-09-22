@@ -12,7 +12,7 @@ import {
   partnerSiteHomePath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_EL, PW_LISTING_CATEGORY_ATTR, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type LiveCategoryListingCrumb = {
   path: string

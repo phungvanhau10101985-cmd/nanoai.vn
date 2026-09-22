@@ -14,10 +14,14 @@ import {
   injectPartnerShopRuntimeScriptsIntoHtml,
 } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { injectPartnerShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
-import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+import {
+  injectPartnerShopChromeLayoutCss,
+  injectPartnerShopChromeLayoutRuntime,
+} from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectShopLookIntoHtml } from '@/lib/partner-website/shop/shop-look-css'
 import { injectPartnerShopFooterFitCss } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import { injectPartnerShopLiveCssHref } from '@/lib/partner-website/shop/partner-shop-live-css'
 import { injectPartnerShopLiveTrackingHtml } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
@@ -157,7 +161,10 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     siteSlug: input.siteSlug,
   })
   const withSlogan = bindPartnerShopSloganInHtml(withLogoSlot, input.theme, locale)
-  const withShopCss = injectPartnerShopThemeCss(withSlogan, input.theme)
+  const liveCssHref = input.runtime === 'live' && Boolean(siteSlug)
+  const withShopCss = liveCssHref
+    ? injectPartnerShopLiveCssHref(withSlogan, { siteSlug, theme: input.theme })
+    : injectPartnerShopThemeCss(withSlogan, input.theme)
   const logosReady =
     input.runtime === 'authoring' ? withShopCss : stripEmptyLogoPlaceholdersFromHtml(withShopCss)
   const withFavicon = injectPartnerShopFaviconIntoHtml(stampPwPageOnDocumentHtml(logosReady, input.pageKey), {
@@ -166,12 +173,13 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     faviconUrl: input.theme?.faviconUrl,
     logoUrl: input.theme?.logoUrl,
   })
-  const withChrome = injectPartnerShopChromeLayoutCss(withFavicon)
-  const withLook = injectShopLookIntoHtml(
-    injectMarketplaceLookIntoHtml(withChrome, input.theme),
-    input.theme
-  )
-  const withFooterFit = injectPartnerShopFooterFitCss(withLook)
+  const withChrome = liveCssHref
+    ? injectPartnerShopChromeLayoutRuntime(withFavicon)
+    : injectPartnerShopChromeLayoutCss(withFavicon)
+  const withLook = liveCssHref
+    ? withChrome
+    : injectShopLookIntoHtml(injectMarketplaceLookIntoHtml(withChrome, input.theme), input.theme)
+  const withFooterFit = liveCssHref ? withLook : injectPartnerShopFooterFitCss(withLook)
   const withRuntime =
     input.runtime === 'authoring'
       ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withFooterFit, { siteSlug, locale })

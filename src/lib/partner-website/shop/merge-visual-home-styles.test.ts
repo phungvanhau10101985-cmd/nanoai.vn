@@ -13,6 +13,8 @@ const home = `<!DOCTYPE html><html>
 <style id="shop">.pw-shop-topbar{background:#c2410c;color:#fff}</style>
 <style id="nanoai-visual-editor-styles">.nanoai-ve-selected{outline:2px solid red}</style>
 <style id="pw-visual-device-split">.pw-visual-mobile{display:none}</style>
+<style id="pw-shop-theme-css">.pw-header{background:#f97316}</style>
+<style id="pw-shop-chrome-layout">.pw-bottom-nav{position:fixed}</style>
 </head>
 <body>
 <header class="pw-shop-header">Head</header>
@@ -26,11 +28,16 @@ test('extractVisualDocumentStyles keeps shop CSS and fonts, skips editor split',
   assert.match(css, /data-pw-home-chrome-css="1"/)
   assert.equal(css.includes('nanoai-ve-selected'), false)
   assert.equal(css.includes('pw-visual-device-split'), false)
+  assert.equal(css.includes('pw-shop-theme-css'), false)
+  assert.equal(css.includes('background:#f97316'), false)
+  assert.equal(css.includes('pw-bottom-nav{position:fixed}'), false)
   const inlineCss = extractVisualDocumentCssText(home)
   assert.match(inlineCss, /pw-shop-topbar/)
   assert.equal(inlineCss.includes('pw-visual-mobile'), false)
   assert.equal(inlineCss.includes('<style'), false)
   assert.equal(inlineCss.includes('nanoai-ve-selected'), false)
+  assert.equal(inlineCss.includes('background:#f97316'), false)
+  assert.equal(inlineCss.includes('pw-bottom-nav{position:fixed}'), false)
 })
 
 test('extractVisualDocumentCssText rewrites visual wrapper display:block to contents', () => {

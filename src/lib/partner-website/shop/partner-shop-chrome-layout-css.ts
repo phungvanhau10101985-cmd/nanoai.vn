@@ -1205,8 +1205,9 @@ export function injectPartnerShopChromeLayoutStyles(html: string): string {
   return injectPartnerShopFontsIntoHtml(out)
 }
 
-export function injectPartnerShopChromeLayoutCss(html: string): string {
-  let out = injectPartnerShopChromeLayoutStyles(html)
+/** Fonts + chrome scripts. Live pages skip the layout `<style>` — that sheet is `/shop-theme.css`. */
+export function injectPartnerShopChromeLayoutRuntime(html: string): string {
+  let out = injectPartnerShopFontsIntoHtml(html)
   if (!out.trim()) return out
   out = injectNamedScript(out, PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID, PARTNER_SHOP_SCENE_CENTER_SCRIPT, true)
   if (!out.includes(PARTNER_SHOP_CHROME_BADGE_PIN_SCRIPT_ID)) {
@@ -1225,6 +1226,10 @@ export function injectPartnerShopChromeLayoutCss(html: string): string {
   out = injectNamedScript(out, PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID, PARTNER_SHOP_LISTING_HEAD_SCRIPT)
   out = injectNamedScript(out, PARTNER_SHOP_DOCK_NAV_SCRIPT_ID, PARTNER_SHOP_DOCK_NAV_SCRIPT)
   return out
+}
+
+export function injectPartnerShopChromeLayoutCss(html: string): string {
+  return injectPartnerShopChromeLayoutRuntime(injectPartnerShopChromeLayoutStyles(html))
 }
 
 function injectNamedScript(html: string, id: string, body: string, inHead = false): string {

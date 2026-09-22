@@ -156,7 +156,7 @@ test('visual home chrome strips leftover AliCDN product photos and keeps logo', 
   assert.equal(chrome.header.includes('O1CN01product'), false)
 })
 
-test('visual home chrome copies marketplace look CSS onto React pages of that machine', () => {
+test('visual home chrome keeps marketplace look without inlining engine look CSS', () => {
   const home = `<!DOCTYPE html><html data-pw-look="marketplace"><head></head><body>
 <header class="pw-header" data-pw-region="header">DeskHead</header>
 <footer class="pw-footer" data-pw-region="footer">DeskFoot</footer>
@@ -171,17 +171,14 @@ test('visual home chrome copies marketplace look CSS onto React pages of that ma
   }
   const byDevice = visualHomeChromeByDeviceFor(website, 'desktop')
   assert.equal(visualHomeChromeLookFor(website, 'desktop'), 'marketplace')
-  assert.match(byDevice.desktopStyles, /pw-marketplace-look-css|pw-look/)
-  assert.match(
-    byDevice.desktopStyles,
-    /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\]/
-  )
-  assert.match(byDevice.desktopStyles, /background:var\(--pw-primary\)!important/)
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-shop-theme-css/)
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-marketplace-look-css/)
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-shop-chrome-layout/)
   assert.ok(byDevice.desktop)
   assert.match(byDevice.desktop.header, /DeskHead/)
 })
 
-test('visual home chrome copies shop look CSS onto React pages of that machine', () => {
+test('visual home chrome keeps shop look without inlining engine look CSS', () => {
   const home = `<!DOCTYPE html><html data-pw-look="shop"><head></head><body>
 <header class="pw-header" data-pw-region="header">DeskHead</header>
 <footer class="pw-footer" data-pw-region="footer">DeskFoot</footer>
@@ -196,11 +193,8 @@ test('visual home chrome copies shop look CSS onto React pages of that machine',
   }
   const byDevice = visualHomeChromeByDeviceFor(website, 'desktop')
   assert.equal(visualHomeChromeLookFor(website, 'desktop'), 'shop')
-  assert.match(byDevice.desktopStyles, /height:42px!important/)
-  assert.match(
-    byDevice.desktopStyles,
-    /:is\(html\[data-pw-look="shop"\],\.pw-shop\[data-pw-look="shop"\]/
-  )
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-shop-theme-css/)
+  assert.doesNotMatch(byDevice.desktopStyles, /pw-shop-look-css/)
   assert.doesNotMatch(byDevice.desktopStyles, /pw-marketplace-look-css/)
   assert.ok(byDevice.desktop)
   assert.match(byDevice.desktop.header, /DeskHead/)

@@ -18,6 +18,7 @@ import type { LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-pr
 import type { LiveCategoryListingBind } from '@/lib/partner-website/shop/bind-live-category-listing-to-html'
 import { stripPersonalizeBannerHostsInHtml } from '@/lib/partner-website/shop/bind-live-marketing-banner'
 import { applyLiveVisualOverlays } from '@/lib/partner-website/shop/compose-live-visual-overlays'
+import { PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA } from '@/lib/partner-website/shop/partner-shop-live-css'
 import {
   preparePartnerVisualHtmlForPublic,
   resolvePartnerVisualHtmlForDevice,
@@ -194,6 +195,7 @@ export async function PartnerSiteVisualHtmlScreen({
         infoSeo?.followWhenNoIndex ? 'f1' : 'f0',
         'promo-home-1',
         'live-chrome-stamp-3',
+        PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA,
         `sale-icon-${liveBrand.cacheToken}`,
         trackingCacheToken,
       ].join(':'),
