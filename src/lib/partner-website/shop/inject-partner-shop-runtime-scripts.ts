@@ -9,6 +9,7 @@ import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-we
 import { buildPartnerSiteOutfitBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-outfit-bootstrap-script'
 import { buildPartnerSiteSliderBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-slider-bootstrap-script'
 import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/shop/stamp-partner-site-chrome-widget-hooks'
+import { stampPartnerListingFilterAttrsInHtml } from '@/lib/partner-website/shop/stamp-partner-listing-filters'
 import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/visual-editor/pw-bg-stack'
 import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
@@ -20,12 +21,19 @@ const PW_RUNTIME_SCRIPT_RE =
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
+/**
+ * Card media img / card face CSS sets `visibility:visible`, so hiding only the grid
+ * still paints the frozen seed photos. Hide every descendant with `!important`.
+ */
 const PW_CATALOG_FIRST_PAINT_CSS =
-  '<style data-pw-catalog-first-paint-css>[data-pw-live-products="loading"] [data-pw-grid]{visibility:hidden}</style>'
+  '<style data-pw-catalog-first-paint-css>' +
+  '[data-pw-live-products="loading"] [data-pw-grid]{visibility:hidden!important}' +
+  '[data-pw-live-products="loading"] [data-pw-grid] *{visibility:hidden!important}' +
+  '</style>'
 
 function prepareProductGridFirstPaint(html: string): string {
   const stamped = html.replace(
-    /<(section|div)\b([^>]*\bdata-pw-(?:catalog|personalize)\b[^>]*)>/gi,
+    /<(section|div)\b([^>]*\bdata-pw-(?:catalog|personalize)(?![\w-])[^>]*)>/gi,
     (full, tag: string, attrs: string) => {
       if (
         /\bdata-pw-(?:outfit|featured-categories)\b/i.test(attrs) ||
@@ -96,6 +104,7 @@ export function stampPartnerShopEditorHooksInHtml(
   if (!out.trim()) return html
   const siteSlug = input.siteSlug?.trim() ?? ''
   if (siteSlug) out = stampPartnerSiteChromeWidgetHooksInHtml(out, { siteSlug })
+  out = stampPartnerListingFilterAttrsInHtml(out)
   return stripPartnerShopRuntimeAssets(out)
 }
 
@@ -154,6 +163,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   const locale = input.locale ?? 'vi'
   const siteSlug = input.siteSlug?.trim() ?? ''
   out = stampPartnerSiteChromeWidgetHooksInHtml(out, { siteSlug })
+  out = stampPartnerListingFilterAttrsInHtml(out)
   out = stripPartnerShopRuntimeAssets(out)
   const hookMarkup = runtimeHookMarkup(out)
   const hooks = {

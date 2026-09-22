@@ -14,10 +14,12 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
   computePartnerCategoryFacetSnapshotFromPg,
+  computePartnerDependentFacetsFromPg,
   computePartnerTextSearchFacetSnapshotFromPg,
   emptyFacetCounts,
   loadPartnerFacetSnapshotCachedLayerFromPg,
   type PartnerCategoryFacetCounts,
+  type PartnerListingFacetScope,
 } from '@/lib/db/messaging-partner-facet-snapshot-pg'
 import { loadPartnerIdListCachedLayerFromPg } from '@/lib/db/messaging-partner-id-list-cache-pg'
 import {
@@ -31,14 +33,20 @@ import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-util
 import type { InventoryCatalog188Fields } from '@/lib/messaging/partner-inventory-catalog-188'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import {
+  appendPartnerListingPriceFilter,
+  appendPartnerListingSizeColorFilters,
+  appendPartnerListingStyleTagFilter,
   appendPartnerSizeOrColorJsonFilter,
+  partnerListingFacetFiltersActive,
   partnerListingIdListCachePayload,
   PARTNER_CATEGORY_DIRECT_IN_SQL,
   PARTNER_CATEGORY_SUBTREE_IN_SQL,
+  PARTNER_SHOP_WAREHOUSE_SQL,
   SEARCH_ID_LIST_MAX,
   SITEMAP_PRODUCT_PAGE_SIZE,
   slicePartnerInventoryIdListPage,
   type PartnerInventoryIdList,
+  type PartnerListingFacetFilters,
 } from '@/lib/partner-website/shop/partner-catalog-scale'
 import {
   escapeIlikeToken,
@@ -1284,7 +1292,13 @@ export type PartnerInventoryShopListQuery = {
   warehouse?: boolean
   /** Explicit inventory UUID list (collection curated). */
   ids?: string[]
-  sort?: 'default' | 'newest' | 'name'
+  sort?: 'default' | 'newest' | 'name' | 'oldest' | 'views_desc' | 'random' | 'price_asc' | 'price_desc'
+  randomSeed?: string
+  minPrice?: number
+  maxPrice?: number
+  size?: string
+  color?: string
+  styleTag?: string
 }
 
 export type PartnerCategoryInventoryQuery = {
@@ -1334,6 +1348,47 @@ async function selectPartnerInventoryIdsWithCountFromPg(
 
 function asIdOnlyRows(ids: string[]): MessagingPartnerInventoryRow[] {
   return ids.map((id) => ({ id }) as MessagingPartnerInventoryRow)
+}
+
+function listingFacetFromQuery(query: {
+  minPrice?: number
+  maxPrice?: number
+  size?: string
+  color?: string
+  styleTag?: string
+}): PartnerListingFacetFilters {
+  return {
+    minPrice: typeof query.minPrice === 'number' && Number.isFinite(query.minPrice) ? query.minPrice : null,
+    maxPrice: typeof query.maxPrice === 'number' && Number.isFinite(query.maxPrice) ? query.maxPrice : null,
+    size: String(query.size ?? '').trim(),
+    color: String(query.color ?? '').trim(),
+    styleTag: String(query.styleTag ?? '').trim(),
+  }
+}
+
+function appendListingFacetFilters(
+  params: unknown[],
+  conditions: string[],
+  query: { minPrice?: number; maxPrice?: number; size?: string; color?: string; styleTag?: string }
+): void {
+  const f = listingFacetFromQuery(query)
+  appendPartnerListingPriceFilter({
+    params,
+    conditions,
+    minPrice: f.minPrice,
+    maxPrice: f.maxPrice,
+  })
+  appendPartnerListingSizeColorFilters({
+    params,
+    conditions,
+    size: f.size,
+    color: f.color,
+  })
+  appendPartnerListingStyleTagFilter({
+    params,
+    conditions,
+    styleTag: f.styleTag,
+  })
 }
 
 /**
@@ -1649,13 +1704,22 @@ async function fetchPartnerCategoryL1NameFromPg(partnerId: string, categoryId: s
 /** Facet gốc danh mục — SQL aggregate toàn bộ nhánh, Redis L1 + PG L2. Không LIMIT 500. */
 export async function fetchPartnerCategoryFacetCountsFromPg(
   partnerId: string,
-  categoryId: string
+  categoryId: string,
+  filters?: PartnerListingFacetFilters | null
 ): Promise<PartnerCategoryFacetCounts | null> {
   if (!isPgConfigured()) return null
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
     return emptyFacetCounts()
   }
   try {
+    if (partnerListingFacetFiltersActive(filters)) {
+      const listingL1 = await fetchPartnerCategoryL1NameFromPg(partnerId, categoryId)
+      return computePartnerDependentFacetsFromPg(
+        partnerId,
+        { kind: 'category', categoryId, listingL1 },
+        filters || {}
+      )
+    }
     return await withInventoryShopCache({
       partnerId,
       kind: 'facet',
@@ -1813,6 +1877,11 @@ export async function fetchPartnerInventoryShopPageFromPg(
         warehouse: Boolean(query.warehouse),
         ids: query.ids ?? [],
         sort: query.sort ?? 'default',
+        minPrice: query.minPrice ?? null,
+        maxPrice: query.maxPrice ?? null,
+        size: query.size ?? '',
+        color: query.color ?? '',
+        styleTag: query.styleTag ?? '',
       }),
       ttlSec: SHOP_LIST_TTL_SEC,
       load: () => fetchPartnerInventoryShopPageFromPgUncached(partnerId, query),
@@ -1845,6 +1914,11 @@ export async function fetchPartnerInventoryShopCardPageFromPg(
         warehouse: Boolean(query.warehouse),
         ids: query.ids ?? [],
         sort: query.sort ?? 'default',
+        minPrice: query.minPrice ?? null,
+        maxPrice: query.maxPrice ?? null,
+        size: query.size ?? '',
+        color: query.color ?? '',
+        styleTag: query.styleTag ?? '',
       })}`,
       ttlSec: SHOP_LIST_TTL_SEC,
       load: () => fetchPartnerInventoryShopCardPageFromPgUncached(partnerId, query),
@@ -1868,6 +1942,11 @@ async function fetchPartnerInventoryShopPageViaIdList(
       sort: query.sort ?? 'default',
       sale: Boolean(query.sale),
       warehouse: Boolean(query.warehouse),
+      minPrice: query.minPrice ?? null,
+      maxPrice: query.maxPrice ?? null,
+      size: query.size ?? '',
+      color: query.color ?? '',
+      styleTag: query.styleTag ?? '',
     })
   )}`
   const list = await withInventoryShopCache({
@@ -1931,7 +2010,16 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
     .map((id) => id.trim())
     .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
     .slice(0, 48)
-  const sort = query.sort === 'newest' || query.sort === 'name' ? query.sort : 'default'
+  const sort =
+    query.sort === 'newest' ||
+    query.sort === 'name' ||
+    query.sort === 'oldest' ||
+    query.sort === 'views_desc' ||
+    query.sort === 'random' ||
+    query.sort === 'price_asc' ||
+    query.sort === 'price_desc'
+      ? query.sort
+      : 'default'
 
   const conditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
   const filterParams: unknown[] = [partnerId]
@@ -1962,8 +2050,10 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
   }
 
   if (query.warehouse) {
-    conditions.push(`position('/' in coalesce(mpi.remarketing_id, '')) > 0`)
+    conditions.push(PARTNER_SHOP_WAREHOUSE_SQL)
   }
+
+  appendListingFacetFilters(filterParams, conditions, query)
 
   const where = conditions.join(' and ')
   let orderBy = 'mpi.sort_order asc'
@@ -1972,6 +2062,17 @@ async function fetchPartnerInventoryShopPageFromPgUncached(
     orderBy = 'mpi.created_at desc nulls last, mpi.sort_order asc'
   } else if (sort === 'name') {
     orderBy = 'lower(mpi.name) asc, mpi.sort_order asc'
+  } else if (sort === 'oldest') {
+    orderBy = 'mpi.created_at asc nulls last, mpi.sort_order asc'
+  } else if (sort === 'views_desc') {
+    orderBy = 'coalesce(mpi.reviews_count, 0) desc, mpi.created_at desc nulls last'
+  } else if (sort === 'price_asc') {
+    orderBy = 'mpi.price_amount asc nulls last, mpi.sort_order asc'
+  } else if (sort === 'price_desc') {
+    orderBy = 'mpi.price_amount desc nulls last, mpi.sort_order asc'
+  } else if (sort === 'random') {
+    selectParams.push(String(query.randomSeed || '0'))
+    orderBy = `md5(mpi.id::text || $${selectParams.length})`
   } else if (ids.length) {
     selectParams.push(ids)
     orderBy = `array_position($${selectParams.length}::uuid[], mpi.id) nulls last, mpi.sort_order asc`
@@ -2285,13 +2386,17 @@ async function fetchPartnerInventoryPageByTextSearchFromPgUncached(
  */
 export async function fetchPartnerTextSearchFacetCountsFromPg(
   partnerId: string,
-  q: string
+  q: string,
+  filters?: PartnerListingFacetFilters | null
 ): Promise<PartnerCategoryFacetCounts | null> {
   if (!isPgConfigured()) return null
   const words = tokenizePartnerTextSearch(q)
   if (!words.length) return emptyFacetCounts()
   const scopeKey = words.join(' ').toLowerCase()
   try {
+    if (partnerListingFacetFiltersActive(filters)) {
+      return computePartnerDependentFacetsFromPg(partnerId, { kind: 'search_q', q }, filters || {})
+    }
     return await withInventoryShopCache({
       partnerId,
       kind: 'facet',
@@ -2305,6 +2410,40 @@ export async function fetchPartnerTextSearchFacetCountsFromPg(
   } catch (e) {
     if (isMissingInventoryTableError(e)) return emptyFacetCounts()
     console.warn('[fetchPartnerTextSearchFacetCountsFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerShopListFacetCountsFromPg(
+  partnerId: string,
+  query: Pick<PartnerInventoryShopListQuery, 'warehouse' | 'sale' | 'collection' | 'q' | 'minPrice' | 'maxPrice' | 'size' | 'color' | 'styleTag'>
+): Promise<PartnerCategoryFacetCounts | null> {
+  if (!isPgConfigured()) return null
+  const scope: PartnerListingFacetScope = {
+    kind: 'shop',
+    warehouse: Boolean(query.warehouse),
+    sale: Boolean(query.sale),
+    collection: String(query.collection || query.q || '').trim(),
+  }
+  const filters = listingFacetFromQuery(query)
+  try {
+    if (partnerListingFacetFiltersActive(filters)) {
+      return computePartnerDependentFacetsFromPg(partnerId, scope, filters)
+    }
+    return await withInventoryShopCache({
+      partnerId,
+      kind: 'facet',
+      suffix: `shop:${hashShopCachePayload({
+        warehouse: Boolean(query.warehouse),
+        sale: Boolean(query.sale),
+        collection: String(query.collection || query.q || '').trim(),
+      })}`,
+      ttlSec: SHOP_FACET_TTL_SEC,
+      load: () => computePartnerDependentFacetsFromPg(partnerId, scope, {}),
+    })
+  } catch (e) {
+    if (isMissingInventoryTableError(e)) return emptyFacetCounts()
+    console.warn('[fetchPartnerShopListFacetCountsFromPg]', e)
     return null
   }
 }

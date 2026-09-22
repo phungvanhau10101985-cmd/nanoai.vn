@@ -62,6 +62,17 @@ test('catalog cards clamp names to two lines and hide listing add-to-cart', () =
   assert.equal(PW_PRODUCT_GRID_RULER_CSS.includes(PW_PRODUCT_CATALOG_CARD_FACE_CSS), true)
 })
 
+test('cards without a hit overlay keep their media / name links clickable', () => {
+  const killers = PW_PRODUCT_CATALOG_CARD_FACE_CSS.split('\n').filter(
+    (line) => /a\.pw-product-card-media|\[data-pw-el="card-name"\] a|\[data-pw-el="card-media"\]\{/.test(line) &&
+      /pointer-events:none/.test(line)
+  )
+  assert.notEqual(killers.length, 0)
+  for (const line of killers) {
+    assert.match(line, /:has\(> a\.pw-product-card-hit\)/)
+  }
+})
+
 test('card media ruler keeps a square slot and does not indent the photo away', () => {
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /aspect-ratio:1\/1!important/)
   assert.match(PW_PRODUCT_CARD_MEDIA_RULER_CSS, /position:absolute!important/)

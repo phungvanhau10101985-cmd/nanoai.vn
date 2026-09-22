@@ -744,3 +744,18 @@ test('bind moves gallery color leftover into the buy box and drops the demo line
   assert.doesNotMatch(next, /pw-pdp-policy/)
   assert.doesNotMatch(next, /Tổng số/)
 })
+
+test('bind never injects attributes into inline runtime scripts', () => {
+  const runtime = `<script data-pw-shop-actions-bootstrap>(function(){
+  var region='data-pw-region="gallery"';
+  var head=0;var fromVar=12;
+  if(fromVar >0)head=fromVar;
+  if(String(region).indexOf('?') >=0)head=0;
+})();</script>`
+  const next = bindLiveProductToPdpHtml(`${SHELL}${runtime}`, PRODUCT_B)
+  const script = next.match(/<script\b[^>]*data-pw-shop-actions-bootstrap[\s\S]*?<\/script>/i)?.[0] || ''
+  assert.ok(script, 'runtime script survives bind')
+  assert.equal(script, runtime)
+  assert.doesNotMatch(script, /data-nanoai-cover-image/)
+  assert.match(next, /data-nanoai-cover-image="https:\/\/new\.example\/shirt\.jpg"/)
+})

@@ -264,19 +264,19 @@ function buildListingMain(
   </header>
   <div class="pw-shop-filters pw-page-filters" ${pwRegionAttr(PW_REGION.filters)} aria-label="${escapeAttr(shop.categoryFiltersAria)}">
     <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterSize)}</span>
-      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterSize)}"><option>${escapeHtml(shop.categoryFilterAllSizes)}</option></select>
+      <select ${pwElAttr(PW_EL.facet)} data-pw-facet="size" aria-label="${escapeAttr(shop.categoryFilterSize)}"><option value="">${escapeHtml(shop.categoryFilterAllSizes)}</option></select>
     </label>
     <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterStyle)}</span>
-      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterStyle)}"><option>${escapeHtml(shop.categoryFilterAllStyles)}</option></select>
+      <select ${pwElAttr(PW_EL.facet)} data-pw-facet="style" aria-label="${escapeAttr(shop.categoryFilterStyle)}"><option value="">${escapeHtml(shop.categoryFilterAllStyles)}</option></select>
     </label>
     <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterColor)}</span>
-      <select ${pwElAttr(PW_EL.facet)} aria-label="${escapeAttr(shop.categoryFilterColor)}"><option>${escapeHtml(shop.categoryFilterAllColors)}</option></select>
+      <select ${pwElAttr(PW_EL.facet)} data-pw-facet="color" aria-label="${escapeAttr(shop.categoryFilterColor)}"><option value="">${escapeHtml(shop.categoryFilterAllColors)}</option></select>
     </label>
     <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterMinPrice)}</span>
-      <input type="number" min="0" step="1000" placeholder="${escapeAttr(shop.categoryFilterPriceMinPh)}" aria-label="${escapeAttr(shop.categoryFilterMinPrice)}"/>
+      <input type="number" min="0" step="1000" data-pw-facet="min_price" placeholder="${escapeAttr(shop.categoryFilterPriceMinPh)}" aria-label="${escapeAttr(shop.categoryFilterMinPrice)}"/>
     </label>
     <label><span class="pw-shop-filter-label">${escapeHtml(shop.categoryFilterMaxPrice)}</span>
-      <input type="number" min="0" step="1000" placeholder="${escapeAttr(shop.categoryFilterPriceMaxPh)}" aria-label="${escapeAttr(shop.categoryFilterMaxPrice)}"/>
+      <input type="number" min="0" step="1000" data-pw-facet="max_price" placeholder="${escapeAttr(shop.categoryFilterPriceMaxPh)}" aria-label="${escapeAttr(shop.categoryFilterMaxPrice)}"/>
     </label>
     <label ${pwRegionAttr(PW_REGION.toolbar)}><span class="pw-shop-filter-label">${escapeHtml(shop.categorySortLabel)}</span>
       <select ${pwElAttr(PW_EL.sort)} aria-label="${escapeAttr(shop.categorySortLabel)}">
@@ -286,6 +286,7 @@ function buildListingMain(
         <option value="views_desc">${escapeHtml(shop.categorySortViews)}</option>
       </select>
     </label>
+    <button type="button" class="pw-shop-filter-clear" data-pw-filter-clear hidden>${escapeHtml(shop.categoryFilterClear)}</button>
   </div>
   <div class="pw-page-toolbar" ${pwRegionAttr(PW_REGION.toolbar)}>
     <p ${pwElAttr(PW_EL.count)}>${escapeHtml(shop.catalogTitle)}</p>

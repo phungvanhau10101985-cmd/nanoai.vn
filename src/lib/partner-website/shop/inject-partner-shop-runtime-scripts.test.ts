@@ -8,6 +8,24 @@ import {
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
 
+test('runtime scripts stamp data-pw-facet on listing filter selects', () => {
+  const html =
+    '<html><body data-pw-page="listing"><div data-pw-region="filters">' +
+    '<select><option value="">Size</option></select>' +
+    '<select><option value="">Style</option></select>' +
+    '<select><option value="">Color</option></select>' +
+    '<input type="number"/>' +
+    '<input type="number"/>' +
+    '</div><section data-pw-catalog></section></body></html>'
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(html, { siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(out, /data-pw-facet="size"/)
+  assert.match(out, /data-pw-facet="style"/)
+  assert.match(out, /data-pw-facet="color"/)
+  assert.match(out, /data-pw-facet="min_price"/)
+  assert.match(out, /listingParamsFromUrl/)
+  assert.match(out, /facets=1/)
+})
+
 test('runtime scripts wire search, camera, cart badges, chat, and category APIs onto visual HTML', () => {
   const html =
     '<!DOCTYPE html><html data-pw-paper="white"><body data-pw-page="product"><header></header>' +
@@ -172,10 +190,24 @@ test('live catalog hides saved demo cards before first paint and clears them bef
   })
   assert.match(out, /data-pw-live-products="loading"/)
   assert.match(out, /data-pw-catalog-first-paint-css/)
-  assert.match(out, /\[data-pw-live-products="loading"\] \[data-pw-grid\]\{visibility:hidden\}/)
+  assert.match(out, /\[data-pw-live-products="loading"\] \[data-pw-grid\]\{visibility:hidden!important\}/)
+  assert.match(out, /\[data-pw-live-products="loading"\] \[data-pw-grid\] \*\{visibility:hidden!important\}/)
   assert.match(out, /grid\.innerHTML=''/)
   assert.match(out, /setAttribute\('data-pw-live-products','ready'\)/)
   assert.doesNotMatch(out, /else if\(grid\.children\.length\)/)
+})
+
+test('only product grid hosts get the loading stamp, not banner or catalog-lock attributes', () => {
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(
+    '<!DOCTYPE html><html><head></head><body><main>' +
+      '<section data-pw-personalize-banner="promo"><div data-pw-slide="0"></div></section>' +
+      '<section data-pw-catalog><div data-pw-grid data-pw-catalog-lock="1"><article>demo</article></div></section>' +
+      '</main></body></html>',
+    { siteSlug: 'demo-shop', locale: 'vi' }
+  )
+  assert.doesNotMatch(out, /data-pw-personalize-banner="promo" data-pw-live-products/)
+  assert.equal((out.match(/<section[^>]*data-pw-live-products="loading"/g) || []).length, 1)
+  assert.equal((out.match(/<div[^>]*data-pw-live-products="loading"/g) || []).length, 0)
 })
 
 test('home personalization grids also hide and clear stale demo products before live data', () => {

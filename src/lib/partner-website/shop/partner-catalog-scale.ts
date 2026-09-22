@@ -3,6 +3,8 @@
  * Một engine mọi shop. Không cache JSON card béo; chỉ UUID rồi hydrate.
  */
 
+import { styleTagFilterAliases } from '@/lib/partner-website/shop/partner-shop-style-tags'
+
 export const SEARCH_ID_LIST_MAX = 5000
 /** Sitemap sản phẩm giống 188 (5k/file); 20 trang = 100k URL. */
 export const SITEMAP_PRODUCT_PAGE_SIZE = 5000
@@ -90,6 +92,96 @@ export function partnerListingIdListCachePayload(input: {
 /**
  * Lọc size/màu trên sizes_json / colors_json; hàng cũ chưa có cột thì LIKE description/stock_note.
  */
+
+export type PartnerListingFacetFilters = {
+  minPrice?: number | null
+  maxPrice?: number | null
+  size?: string
+  color?: string
+  styleTag?: string
+}
+
+export function partnerListingFacetFiltersActive(
+  f?: PartnerListingFacetFilters | null
+): boolean {
+  if (!f) return false
+  return (
+    (typeof f.minPrice === 'number' && Number.isFinite(f.minPrice)) ||
+    (typeof f.maxPrice === 'number' && Number.isFinite(f.maxPrice)) ||
+    Boolean(String(f.size || '').trim()) ||
+    Boolean(String(f.color || '').trim()) ||
+    Boolean(String(f.styleTag || '').trim())
+  )
+}
+
+export function appendPartnerListingPriceFilter(input: {
+  params: unknown[]
+  conditions: string[]
+  minPrice?: number | null
+  maxPrice?: number | null
+}): void {
+  const minPrice =
+    typeof input.minPrice === 'number' && Number.isFinite(input.minPrice) ? Math.max(0, input.minPrice) : null
+  const maxPrice =
+    typeof input.maxPrice === 'number' && Number.isFinite(input.maxPrice) ? Math.max(0, input.maxPrice) : null
+  if (minPrice !== null) {
+    input.params.push(minPrice)
+    input.conditions.push(`mpi.price_amount >= $${input.params.length}::numeric`)
+  }
+  if (maxPrice !== null) {
+    input.params.push(maxPrice)
+    input.conditions.push(`mpi.price_amount <= $${input.params.length}::numeric`)
+  }
+}
+
+export function appendPartnerListingSizeColorFilters(input: {
+  params: unknown[]
+  conditions: string[]
+  size?: string
+  color?: string
+}): void {
+  appendPartnerSizeOrColorJsonFilter({
+    params: input.params,
+    conditions: input.conditions,
+    column: 'sizes_json',
+    value: String(input.size ?? ''),
+    legacyColumn: 'description',
+  })
+  appendPartnerSizeOrColorJsonFilter({
+    params: input.params,
+    conditions: input.conditions,
+    column: 'colors_json',
+    value: String(input.color ?? ''),
+    legacyColumn: 'stock_note',
+  })
+}
+
+export function appendPartnerListingStyleTagFilter(input: {
+  params: unknown[]
+  conditions: string[]
+  styleTag?: string
+}): void {
+  const aliases = styleTagFilterAliases(String(input.styleTag ?? ''))
+    .map((a) => `%${a.toLowerCase()}%`)
+    .filter(Boolean)
+  if (!aliases.length) return
+  input.params.push(aliases)
+  input.conditions.push(`lower(
+          coalesce(mpi.name, '') || ' ' ||
+          coalesce(mpi.description, '') || ' ' ||
+          coalesce(mpi.material_note, '') || ' ' ||
+          coalesce(mpi.style, '') || ' ' ||
+          coalesce(mpi.catalog_json::text, '') || ' ' ||
+          coalesce(mpi.product_info_json::text, '') || ' ' ||
+          coalesce(mpi.features_json::text, '') || ' ' ||
+          coalesce(mpi.category_l1, '') || ' ' ||
+          coalesce(mpi.category_l2, '') || ' ' ||
+          coalesce(mpi.category_l3, '')
+        ) like any($${input.params.length}::text[])`)
+}
+
+export const PARTNER_SHOP_WAREHOUSE_SQL = `position('/' in coalesce(mpi.remarketing_id, '')) > 0`
+
 export function appendPartnerSizeOrColorJsonFilter(input: {
   params: unknown[]
   conditions: string[]

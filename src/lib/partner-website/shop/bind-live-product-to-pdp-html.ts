@@ -288,6 +288,35 @@ function replaceRegionBlocks(html: string, region: string, rewrite: (inner: stri
   return out + html.slice(cursor)
 }
 
+const PW_BIND_MASK_OPEN = '\u0000pw-bind-mask-'
+const PW_BIND_MASK_CLOSE = '\u0000'
+
+/**
+ * Inline `<script>` / `<style>` bodies contain `<` comparisons and attribute
+ * strings such as `data-pw-region="gallery"`. Tag regexes below use `[^>]*`,
+ * so they can match from a `<` inside JS up to the next `>` and inject an
+ * attribute into the middle of the code. Mask those bodies while binding.
+ */
+function maskInlineCodeBlocks(html: string): { masked: string; blocks: string[] } {
+  const blocks: string[] = []
+  const masked = html.replace(
+    /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
+    (full) => {
+      const index = blocks.push(full) - 1
+      return `${PW_BIND_MASK_OPEN}${index}${PW_BIND_MASK_CLOSE}`
+    }
+  )
+  return { masked, blocks }
+}
+
+function unmaskInlineCodeBlocks(html: string, blocks: string[]): string {
+  if (!blocks.length) return html
+  return html.replace(
+    new RegExp(`${PW_BIND_MASK_OPEN}(\\d+)${PW_BIND_MASK_CLOSE}`, 'g'),
+    (full, raw: string) => blocks[Number(raw)] ?? full
+  )
+}
+
 function setAttr(attrs: string, name: string, value: string): string {
   const re = new RegExp(`\\s${name}\\s*=\\s*(["'])[\\s\\S]*?\\1`, 'i')
   if (re.test(attrs)) return attrs.replace(re, ` ${name}="${escAttr(value)}"`)
@@ -1625,7 +1654,8 @@ export function bindLiveProductToPdpHtml(
   if (!source || !id || !product) return html
   const locale = opts?.locale || 'vi'
   const siteSlug = opts?.siteSlug
-  let out = ensurePartnerSitePdpBottomNavInHtml(restoreDeferredPdpGalleryMediaInHtml(source), {
+  const { masked, blocks } = maskInlineCodeBlocks(source)
+  let out = ensurePartnerSitePdpBottomNavInHtml(restoreDeferredPdpGalleryMediaInHtml(masked), {
     locale,
     siteSlug,
     pageKey: 'product_detail',
@@ -1691,10 +1721,13 @@ export function bindLiveProductToPdpHtml(
   out = stampTryOnContextInHtml(out, product)
   const device = pdpHtmlDeviceOf(out, opts?.device)
   if (device) out = deferOffDevicePdpGalleryMedia(out, device)
-  return applyPdpFavoriteLikeCounts(
-    out,
-    Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
-    locale
+  return unmaskInlineCodeBlocks(
+    applyPdpFavoriteLikeCounts(
+      out,
+      Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
+      locale
+    ),
+    blocks
   )
 }
 

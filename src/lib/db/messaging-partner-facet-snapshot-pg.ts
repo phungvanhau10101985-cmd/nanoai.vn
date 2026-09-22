@@ -6,7 +6,14 @@
 import { partnerInventoryCacheVersion } from '@/lib/cache/partner-shop-cache'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
-import { PARTNER_CATEGORY_SUBTREE_IN_SQL } from '@/lib/partner-website/shop/partner-catalog-scale'
+import {
+  appendPartnerListingPriceFilter,
+  appendPartnerListingSizeColorFilters,
+  appendPartnerListingStyleTagFilter,
+  PARTNER_CATEGORY_SUBTREE_IN_SQL,
+  PARTNER_SHOP_WAREHOUSE_SQL,
+  type PartnerListingFacetFilters,
+} from '@/lib/partner-website/shop/partner-catalog-scale'
 import {
   allowedStyleTagsForListingL1,
   foldStyleTagText,
@@ -280,4 +287,138 @@ export async function loadPartnerFacetSnapshotCachedLayerFromPg(
 
 export function emptyFacetCounts(): PartnerCategoryFacetCounts {
   return { sizes: [], colors: [], styleTags: [], productCount: 0 }
+}
+
+export type PartnerListingFacetScope =
+  | { kind: 'category'; categoryId: string; listingL1?: string }
+  | { kind: 'search_q'; q: string }
+  | { kind: 'shop'; warehouse?: boolean; sale?: boolean; collection?: string }
+
+function shopSaleSql(): string {
+  return `(coalesce(mpi.price_hint, '') ~* '(%|sale|giảm|giam|-\\s*\\d)'
+        or coalesce(mpi.name, '') ~* '(sale|giảm|giam|flash)')`
+}
+
+function buildFacetScopeWhere(
+  partnerId: string,
+  scope: PartnerListingFacetScope
+): { whereSql: string; params: unknown[]; listingL1: string } | null {
+  const conditions = ['mpi.partner_id = $1::uuid', 'coalesce(mpi.is_active, true) = true']
+  const params: unknown[] = [partnerId]
+  let listingL1 = ''
+  if (scope.kind === 'category') {
+    const categoryId = String(scope.categoryId || '').trim()
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId)) {
+      return null
+    }
+    params.push(categoryId)
+    conditions.push(PARTNER_CATEGORY_SUBTREE_IN_SQL)
+    listingL1 = String(scope.listingL1 || '').trim()
+  } else if (scope.kind === 'search_q') {
+    const words = tokenizePartnerTextSearch(scope.q)
+    if (!words.length) return null
+    for (const w of words) {
+      params.push(`%${escapeIlikeToken(w.toLowerCase())}%`)
+      conditions.push(`${PARTNER_SEARCH_DOCUMENT_HAYSTACK_SQL} ilike $${params.length} escape chr(92)`)
+    }
+  } else {
+    if (scope.warehouse) conditions.push(PARTNER_SHOP_WAREHOUSE_SQL)
+    if (scope.sale) conditions.push(shopSaleSql())
+    const collection = String(scope.collection || '').trim().slice(0, 80).replace(/[%_]/g, '')
+    if (collection) {
+      params.push(`%${collection}%`)
+      const p = `$${params.length}`
+      conditions.push(
+        `(coalesce(mpi.sku, '') ilike ${p}
+        or coalesce(mpi.name, '') ilike ${p}
+        or coalesce(mpi.description, '') ilike ${p}
+        or coalesce(mpi.price_hint, '') ilike ${p}
+        or coalesce(mpi.consult_note, '') ilike ${p})`
+      )
+    }
+  }
+  return { whereSql: conditions.join(' and '), params, listingL1 }
+}
+
+function cloneFacetBind(params: unknown[]): unknown[] {
+  return params.map((p) => (Array.isArray(p) ? [...p] : p))
+}
+
+function applyFacetSlice(
+  baseWhere: string,
+  baseParams: unknown[],
+  slice: PartnerListingFacetFilters
+): { whereSql: string; params: unknown[] } {
+  const params = cloneFacetBind(baseParams)
+  const extra: string[] = []
+  appendPartnerListingPriceFilter({
+    params,
+    conditions: extra,
+    minPrice: slice.minPrice,
+    maxPrice: slice.maxPrice,
+  })
+  appendPartnerListingSizeColorFilters({
+    params,
+    conditions: extra,
+    size: slice.size,
+    color: slice.color,
+  })
+  appendPartnerListingStyleTagFilter({
+    params,
+    conditions: extra,
+    styleTag: slice.styleTag,
+  })
+  const whereSql = extra.length ? `${baseWhere} and ${extra.join(' and ')}` : baseWhere
+  return { whereSql, params }
+}
+
+/**
+ * Facet phụ thuộc lẫn nhau giống 188 `build_dependent_product_facets`.
+ * Size theo màu + giá + kiểu; màu theo size + …; kiểu không khóa theo `style_tag` đang chọn.
+ */
+export async function computePartnerDependentFacetsFromPg(
+  partnerId: string,
+  scope: PartnerListingFacetScope,
+  filters: PartnerListingFacetFilters
+): Promise<PartnerCategoryFacetCounts> {
+  const built = buildFacetScopeWhere(partnerId, scope)
+  if (!built) return emptyFacetCounts()
+  const { whereSql, params, listingL1 } = built
+  const sizeSlice = applyFacetSlice(whereSql, params, {
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    color: filters.color,
+    styleTag: filters.styleTag,
+  })
+  const colorSlice = applyFacetSlice(whereSql, params, {
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    size: filters.size,
+    styleTag: filters.styleTag,
+  })
+  const styleSlice = applyFacetSlice(whereSql, params, {
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    size: filters.size,
+    color: filters.color,
+  })
+  const priceSlice = applyFacetSlice(whereSql, params, {
+    size: filters.size,
+    color: filters.color,
+    styleTag: filters.styleTag,
+  })
+  const [sizesBlock, colorsBlock, styleTags, priceBlock] = await Promise.all([
+    loadSizeColorPrice(sizeSlice.whereSql, sizeSlice.params),
+    loadSizeColorPrice(colorSlice.whereSql, colorSlice.params),
+    loadStyleTagCounts(styleSlice.whereSql, styleSlice.params, listingL1),
+    loadSizeColorPrice(priceSlice.whereSql, priceSlice.params),
+  ])
+  return {
+    sizes: sizesBlock.sizes,
+    colors: colorsBlock.colors,
+    styleTags,
+    priceMin: priceBlock.priceMin,
+    priceMax: priceBlock.priceMax,
+    productCount: priceBlock.productCount,
+  }
 }

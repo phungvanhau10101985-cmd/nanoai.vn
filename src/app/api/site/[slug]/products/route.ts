@@ -8,8 +8,10 @@ import {
   fetchPartnerInventoryCardPageByCategoryFromPg,
   fetchPartnerInventoryCardPageByTextSearchFromPg,
   fetchPartnerInventoryShopCardPageFromPg,
+  fetchPartnerShopListFacetCountsFromPg,
   fetchPartnerTextSearchFacetCountsFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { partnerListingFacetFiltersActive } from '@/lib/partner-website/shop/partner-catalog-scale'
 import { partnerShopFacetDefsForIndustry } from '@/lib/partner-website/shop/partner-shop-industry-facets'
 import { findPartnerSearchAliasByKeywordFromPg } from '@/lib/db/messaging-partner-search-aliases-pg'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -45,8 +47,16 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const warehouseRaw = String(sp.get('warehouse') ?? '').trim().toLowerCase()
   const warehouse = warehouseRaw === '1' || warehouseRaw === 'true' || warehouseRaw === 'kho-sale'
   const sortRaw = String(sp.get('sort') ?? '').trim().toLowerCase()
-  const sort =
-    sortRaw === 'newest' || sortRaw === 'name' ? (sortRaw as 'newest' | 'name') : 'default'
+  const shopSort =
+    sortRaw === 'newest' ||
+    sortRaw === 'name' ||
+    sortRaw === 'oldest' ||
+    sortRaw === 'views_desc' ||
+    sortRaw === 'random' ||
+    sortRaw === 'price_asc' ||
+    sortRaw === 'price_desc'
+      ? sortRaw
+      : 'default'
   const categorySortRaw = String(sp.get('sort') ?? '').trim().toLowerCase()
   const categorySort =
     categorySortRaw === 'newest' ||
@@ -162,7 +172,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
           sale: sale || undefined,
           warehouse: warehouse || undefined,
           ids: preferIds.length ? preferIds : undefined,
-          sort,
+          sort: shopSort,
+          randomSeed: shopSort === 'random' ? randomSeed || undefined : undefined,
+          minPrice: Number.isFinite(minPrice) ? minPrice : undefined,
+          maxPrice: Number.isFinite(maxPrice) ? maxPrice : undefined,
+          size: size || undefined,
+          color: color || undefined,
+          styleTag: styleTag || undefined,
         })
   if (!page) return NextResponse.json({ error: 'Could not load products' }, { status: 500 })
 
@@ -205,13 +221,37 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     categoryPath = flat?.find((c) => c.id === categoryId)?.path?.trim() || null
   }
 
+  const listingFacets = {
+    minPrice: Number.isFinite(minPrice) ? minPrice : null,
+    maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
+    size: size || '',
+    color: color || '',
+    styleTag: styleTag || '',
+  }
+  const wantFacets =
+    !related &&
+    (sp.get('facets') === '1' ||
+      sp.get('facets') === 'true' ||
+      partnerListingFacetFiltersActive(listingFacets))
   const facetDefs = partnerShopFacetDefsForIndustry(shop.industryKey)
   const facets =
-    use188TextSearch && facetDefs.length > 0
-      ? await fetchPartnerTextSearchFacetCountsFromPg(shop.partnerId, q)
-      : categoryId && UUID_RE.test(categoryId) && facetDefs.length > 0 && !related
-        ? await fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, categoryId)
-        : null
+    !wantFacets || facetDefs.length === 0
+      ? null
+      : use188TextSearch
+        ? await fetchPartnerTextSearchFacetCountsFromPg(shop.partnerId, q, listingFacets)
+        : categoryId && UUID_RE.test(categoryId) && !related
+          ? await fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, categoryId, listingFacets)
+          : await fetchPartnerShopListFacetCountsFromPg(shop.partnerId, {
+              warehouse,
+              sale,
+              collection,
+              q: preferIds.length ? undefined : q || undefined,
+              minPrice: listingFacets.minPrice ?? undefined,
+              maxPrice: listingFacets.maxPrice ?? undefined,
+              size: listingFacets.size || undefined,
+              color: listingFacets.color || undefined,
+              styleTag: listingFacets.styleTag || undefined,
+            })
 
   // Prefer mapped count when filters drop invalid rows; keep DB total for pagination UI.
   return NextResponse.json({
@@ -237,7 +277,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
         ? textSearchSort
         : categoryId && UUID_RE.test(categoryId)
           ? categorySort
-          : sort,
+          : shopSort,
       ids: ids.length ? ids : null,
       categoryId: categoryId && UUID_RE.test(categoryId) ? categoryId : null,
       categoryPath,

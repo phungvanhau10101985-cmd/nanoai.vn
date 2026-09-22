@@ -4,7 +4,10 @@ import {
   buildPartnerCategoryCanonicalQuery,
   buildPartnerCategoryListingSearch,
   parsePartnerCategoryListingFromRecord,
+  parsePartnerCategoryListingFromSearchParams,
   parsePartnerCategoryListingSort,
+  partnerCategoryListingImplicitSort,
+  partnerCategoryListingMergeQuery,
   partnerCategoryListingOffset,
   PARTNER_CATEGORY_PAGE_SIZE,
 } from '@/lib/partner-website/shop/partner-site-category-listing'
@@ -65,6 +68,52 @@ test('canonical query uses 188 whitelist order and drops page=1', () => {
   })
   assert.equal(buildPartnerCategoryCanonicalQuery(q), 'color=den&min_price=100000&size=M&sort=oldest&style_tag=V%C3%A1y')
   assert.doesNotMatch(buildPartnerCategoryCanonicalQuery(q), /[?&]r=/)
+})
+
+test('unfiltered category defaults to random; filters without sort default to newest', () => {
+  assert.equal(parsePartnerCategoryListingFromRecord({}).sort, 'random')
+  assert.equal(parsePartnerCategoryListingFromRecord({ size: 'M' }).sort, 'newest')
+  assert.equal(parsePartnerCategoryListingFromRecord({ size: 'M', sort: 'oldest' }).sort, 'oldest')
+})
+
+test('search defaultSort random wins over filter-implied newest', () => {
+  const u = new URLSearchParams('size=M')
+  const q = parsePartnerCategoryListingFromSearchParams(u, { defaultSort: 'random' })
+  assert.equal(q.sort, 'random')
+  assert.equal(q.size, 'M')
+})
+
+test('implicit sort is newest only when facet filters are on', () => {
+  assert.equal(
+    partnerCategoryListingImplicitSort({ minPrice: null, maxPrice: null, size: '', color: '', styleTag: '' }),
+    'random'
+  )
+  assert.equal(
+    partnerCategoryListingImplicitSort({ minPrice: null, maxPrice: null, size: 'L', color: '', styleTag: '' }),
+    'newest'
+  )
+  assert.equal(
+    partnerCategoryListingImplicitSort(
+      { minPrice: null, maxPrice: null, size: 'L', color: '', styleTag: '' },
+      { search: true }
+    ),
+    'random'
+  )
+})
+
+test('merge query switches implicit random to newest when a facet turns on', () => {
+  const empty = parsePartnerCategoryListingFromRecord({})
+  assert.equal(empty.sort, 'random')
+  const withSize = partnerCategoryListingMergeQuery(empty, { size: 'L' })
+  assert.equal(withSize.sort, 'newest')
+  assert.equal(withSize.size, 'L')
+  const keepViews = partnerCategoryListingMergeQuery(
+    { ...empty, sort: 'views_desc' },
+    { size: 'L' }
+  )
+  assert.equal(keepViews.sort, 'views_desc')
+  const searchKeepsRandom = partnerCategoryListingMergeQuery(empty, { size: 'M' }, { search: true })
+  assert.equal(searchKeepsRandom.sort, 'random')
 })
 
 test('listing search keeps snake_case like 188', () => {

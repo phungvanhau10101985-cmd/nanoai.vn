@@ -60,19 +60,30 @@ export function parsePartnerCategoryListingFromRecord(
   const pageRaw = Number(get('page') || '1')
   const minRaw = get('min_price') || get('minPrice')
   const maxRaw = get('max_price') || get('maxPrice')
+  const size = get('size').slice(0, 40)
+  const color = get('color').slice(0, 40)
+  const styleTag = (get('style_tag') || get('styleTag')).slice(0, 40)
+  const minPrice = parsePrice(minRaw)
+  const maxPrice = parsePrice(maxRaw)
+  const hasFacetFilters =
+    minPrice !== null || maxPrice !== null || Boolean(size) || Boolean(color) || Boolean(styleTag)
   return {
-    sort: parsePartnerCategoryListingSort(sortRaw === '' && !get('page') ? 'newest' : sortRaw || 'newest'),
+    sort: sortRaw
+      ? parsePartnerCategoryListingSort(sortRaw)
+      : hasFacetFilters
+        ? 'newest'
+        : 'random',
     page: Number.isFinite(pageRaw) && pageRaw > 1 ? Math.floor(pageRaw) : 1,
-    minPrice: parsePrice(minRaw),
-    maxPrice: parsePrice(maxRaw),
-    size: get('size').slice(0, 40),
-    color: get('color').slice(0, 40),
-    styleTag: (get('style_tag') || get('styleTag')).slice(0, 40),
+    minPrice,
+    maxPrice,
+    size,
+    color,
+    styleTag,
     randomSeed: get('r').slice(0, 32),
   }
 }
 
-/** `sort=` trống trên URL 188 = Ngẫu nhiên. NanoAI mặc định newest khi không có query. */
+/** `sort=` trống: danh mục chưa lọc = ngẫu nhiên; đang lọc = newest. Tìm `q` luôn random. */
 export function parsePartnerCategoryListingFromSearchParams(
   searchParams: URLSearchParams,
   opts?: { defaultSort?: PartnerCategoryListingSort }
@@ -82,6 +93,41 @@ export function parsePartnerCategoryListingFromSearchParams(
     parsed.sort = opts.defaultSort
   }
   return parsed
+}
+
+export function partnerCategoryListingHasFacetFilters(
+  q: Pick<PartnerCategoryListingQuery, 'minPrice' | 'maxPrice' | 'size' | 'color' | 'styleTag'>
+): boolean {
+  return (
+    q.minPrice != null ||
+    q.maxPrice != null ||
+    Boolean(q.size) ||
+    Boolean(q.color) ||
+    Boolean(q.styleTag)
+  )
+}
+
+/** 188: tìm `q` luôn random; danh mục/kho chưa lọc = random; đang lọc + sort trống = newest. */
+export function partnerCategoryListingImplicitSort(
+  q: Pick<PartnerCategoryListingQuery, 'minPrice' | 'maxPrice' | 'size' | 'color' | 'styleTag'>,
+  opts?: { search?: boolean }
+): PartnerCategoryListingSort {
+  if (opts?.search) return 'random'
+  return partnerCategoryListingHasFacetFilters(q) ? 'newest' : 'random'
+}
+
+/** Đổi size/kiểu/màu/giá: nếu sort đang là mặc định cũ thì chuyển sang mặc định mới. Sort user chọn thì giữ. */
+export function partnerCategoryListingMergeQuery(
+  current: PartnerCategoryListingQuery,
+  next: Partial<PartnerCategoryListingQuery>,
+  opts?: { search?: boolean }
+): PartnerCategoryListingQuery {
+  const prevImplicit = partnerCategoryListingImplicitSort(current, opts)
+  const merged: PartnerCategoryListingQuery = { ...current, page: 1, ...next }
+  if (next.sort == null && current.sort === prevImplicit) {
+    merged.sort = partnerCategoryListingImplicitSort(merged, opts)
+  }
+  return merged
 }
 
 export function partnerCategoryListingHasFilters(
@@ -128,7 +174,7 @@ export function buildPartnerCategoryCanonicalQuery(q: PartnerCategoryListingQuer
     min_price: q.minPrice != null ? String(q.minPrice) : null,
     page: q.page > 1 ? String(q.page) : null,
     size: q.size || null,
-    sort: q.sort && q.sort !== 'newest' ? q.sort : null,
+    sort: q.sort && q.sort !== 'newest' && q.sort !== 'random' ? q.sort : null,
     style_tag: q.styleTag || null,
   }
   const params = new URLSearchParams()

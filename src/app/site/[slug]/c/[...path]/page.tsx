@@ -166,6 +166,13 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   const t = getPartnerSiteShopCopy(locale)
 
   const listing = parsePartnerCategoryListingFromRecord((searchParams ? await searchParams : {}) ?? {})
+  const listingFacets = {
+    minPrice: listing.minPrice,
+    maxPrice: listing.maxPrice,
+    size: listing.size,
+    color: listing.color,
+    styleTag: listing.styleTag,
+  }
   const [page, priceRange, facets] = await Promise.all([
     fetchPartnerInventoryCardPageByCategoryFromPg(shop.partnerId, {
       offset: partnerCategoryListingOffset(listing),
@@ -180,7 +187,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       styleTag: listing.styleTag || undefined,
     }),
     fetchPartnerCategoryPriceRangeFromPg(shop.partnerId, category.id),
-    fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, category.id),
+    fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, category.id, listingFacets),
   ])
 
   const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)

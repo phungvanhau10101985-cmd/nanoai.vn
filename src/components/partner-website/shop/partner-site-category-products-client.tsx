@@ -10,6 +10,8 @@ import {
   buildPartnerCategoryListingSearch,
   parsePartnerCategoryListingFromSearchParams,
   partnerCategoryListingHasFilters,
+  partnerCategoryListingImplicitSort,
+  partnerCategoryListingMergeQuery,
   partnerCategoryListingPageCount,
   PARTNER_CATEGORY_PAGE_SIZE,
   type PartnerCategoryListingQuery,
@@ -32,6 +34,10 @@ type Props = {
   categoryId?: string
   /** 188 `/?q=` listing — omit categoryId. */
   searchQuery?: string
+  /** `/kho-sale` — warehouse=1 shop list. */
+  warehouse?: boolean
+  /** React fallback `/products` (no category). */
+  shopList?: boolean
   locale: WebLocale
   initialProducts: PartnerSiteShopProduct[]
   initialTotal: number
@@ -67,6 +73,8 @@ export function PartnerSiteCategoryProductsClient({
   siteSlug,
   categoryId,
   searchQuery,
+  warehouse = false,
+  shopList = false,
   locale,
   initialProducts,
   initialTotal,
@@ -79,15 +87,16 @@ export function PartnerSiteCategoryProductsClient({
   const router = useRouter()
   const pathname = usePathname()
   const isTextSearch = Boolean(searchQuery?.trim())
-  const defaultSort: PartnerCategoryListingSort = isTextSearch ? 'random' : 'newest'
-  const listingExtras = useMemo(
-    () => ({ searchQ: searchQuery?.trim() || undefined, defaultSort }),
-    [defaultSort, searchQuery]
-  )
+  const parseOpts = isTextSearch ? { defaultSort: 'random' as const } : undefined
   const [listing, setListing] = useState<PartnerCategoryListingQuery>(
     () =>
       initialListing ??
-      parsePartnerCategoryListingFromSearchParams(new URLSearchParams(), { defaultSort })
+      parsePartnerCategoryListingFromSearchParams(new URLSearchParams(), parseOpts)
+  )
+  const implicitSort = partnerCategoryListingImplicitSort(listing, { search: isTextSearch })
+  const listingExtras = useMemo(
+    () => ({ searchQ: searchQuery?.trim() || undefined, defaultSort: implicitSort }),
+    [implicitSort, searchQuery]
   )
 
   const [products, setProducts] = useState(initialProducts)
@@ -98,14 +107,17 @@ export function PartnerSiteCategoryProductsClient({
   const [facetSizes, setFacetSizes] = useState(initialFacets?.sizes ?? [])
   const [facetColors, setFacetColors] = useState(initialFacets?.colors ?? [])
   const [facetStyleTags, setFacetStyleTags] = useState(initialFacets?.styleTags ?? [])
+  const [showFashionFacets, setShowFashionFacets] = useState(
+    () =>
+      Boolean(initialFacets?.sizes?.length || initialFacets?.colors?.length || initialFacets?.styleTags?.length) ||
+      initialFacets === undefined
+  )
   const hasInitialFacets = initialFacets !== undefined
 
   useLayoutEffect(() => {
     const applySearch = (search: string) => {
       setListing((prev) => {
-        const next = parsePartnerCategoryListingFromSearchParams(new URLSearchParams(search), {
-          defaultSort,
-        })
+        const next = parsePartnerCategoryListingFromSearchParams(new URLSearchParams(search), parseOpts)
         if (
           prev.page === next.page &&
           prev.sort === next.sort &&
@@ -139,7 +151,7 @@ export function PartnerSiteCategoryProductsClient({
       window.removeEventListener('popstate', onPop)
       window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onSoftNav)
     }
-  }, [defaultSort])
+  }, [isTextSearch])
 
   useLayoutEffect(() => {
     setMinLocal(listing.minPrice != null ? String(listing.minPrice) : '')
@@ -156,24 +168,28 @@ export function PartnerSiteCategoryProductsClient({
 
   const pushListing = useCallback(
     (next: Partial<PartnerCategoryListingQuery>) => {
-      const dest = listingHref(pathname, { ...listing, page: 1, ...next }, listingExtras)
+      const merged = partnerCategoryListingMergeQuery(listing, next, { search: isTextSearch })
+      const dest = listingHref(pathname, merged, {
+        searchQ: searchQuery?.trim() || undefined,
+        defaultSort: partnerCategoryListingImplicitSort(merged, { search: isTextSearch }),
+      })
       const qs = dest.includes('?') ? dest.slice(dest.indexOf('?') + 1) : ''
-      setListing(parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), { defaultSort }))
+      setListing(parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), parseOpts))
       router.push(dest, { scroll: false })
     },
-    [defaultSort, listing, listingExtras, pathname, router]
+    [isTextSearch, listing, pathname, router, searchQuery]
   )
 
   const skipInitialFetch = useMemo(
     () =>
       listing.page === 1 &&
-      listing.sort === defaultSort &&
+      listing.sort === implicitSort &&
       !listing.size &&
       !listing.color &&
       !listing.styleTag &&
       listing.minPrice == null &&
       listing.maxPrice == null,
-    [defaultSort, listing]
+    [implicitSort, listing]
   )
   const skippedRef = useRef(skipInitialFetch)
 
@@ -181,9 +197,11 @@ export function PartnerSiteCategoryProductsClient({
     const params = new URLSearchParams()
     if (isTextSearch && searchQuery) params.set('q', searchQuery)
     else if (categoryId) params.set('categoryId', categoryId)
+    if (warehouse) params.set('warehouse', '1')
     params.set('offset', String((listing.page - 1) * PARTNER_CATEGORY_PAGE_SIZE))
     params.set('limit', String(PARTNER_CATEGORY_PAGE_SIZE))
     params.set('sort', listing.sort)
+    params.set('facets', '1')
     if (listing.minPrice != null) params.set('min_price', String(listing.minPrice))
     if (listing.maxPrice != null) params.set('max_price', String(listing.maxPrice))
     if (listing.size) params.set('size', listing.size)
@@ -196,12 +214,16 @@ export function PartnerSiteCategoryProductsClient({
       if (hasInitialFacets) return
       void fetch(`${partnerSiteProductsApiPath(siteSlug)}?${params.toString()}`, { cache: 'no-store' })
         .then((res) => res.json())
-        .then((json: { facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> } }) => {
+        .then((json: {
+          facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> }
+          facetDefs?: unknown[]
+        }) => {
           if (!cancelled && json.facets) {
             setFacetSizes(json.facets.sizes ?? [])
             setFacetColors(json.facets.colors ?? [])
             setFacetStyleTags(json.facets.styleTags ?? [])
           }
+          if (!cancelled && Array.isArray(json.facetDefs)) setShowFashionFacets(json.facetDefs.length > 0)
         })
         .catch(() => {})
       return () => {
@@ -215,6 +237,7 @@ export function PartnerSiteCategoryProductsClient({
         products?: PartnerSiteShopProduct[]
         total?: number
         facets?: { sizes?: Array<{ value: string; count: number }>; colors?: Array<{ value: string; count: number }>; styleTags?: Array<{ value: string; count: number }> }
+        facetDefs?: unknown[]
       }) => {
         if (cancelled) return
         setProducts(json.products ?? [])
@@ -224,6 +247,7 @@ export function PartnerSiteCategoryProductsClient({
           setFacetColors(json.facets.colors ?? [])
           setFacetStyleTags(json.facets.styleTags ?? [])
         }
+        if (Array.isArray(json.facetDefs)) setShowFashionFacets(json.facetDefs.length > 0)
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -231,7 +255,7 @@ export function PartnerSiteCategoryProductsClient({
     return () => {
       cancelled = true
     }
-  }, [categoryId, hasInitialFacets, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug])
+  }, [categoryId, hasInitialFacets, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug, warehouse, shopList])
 
   const applyPrice = useCallback(() => {
     const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
@@ -245,14 +269,8 @@ export function PartnerSiteCategoryProductsClient({
     })
   }, [listing.maxPrice, listing.minPrice, maxLocal, minLocal, pushListing])
 
-  const hasActive = partnerCategoryListingHasFilters(listing, { defaultSort })
-  const showBar =
-    hasActive ||
-    products.length > 0 ||
-    Boolean(priceRange && priceRange.max > priceRange.min) ||
-    facetSizes.length > 0 ||
-    facetColors.length > 0 ||
-    facetStyleTags.length > 0
+  const hasActive = partnerCategoryListingHasFilters(listing, { defaultSort: implicitSort })
+  const showBar = true
   const pageCount = partnerCategoryListingPageCount(total)
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null)
   useLayoutEffect(() => {
@@ -278,62 +296,69 @@ export function PartnerSiteCategoryProductsClient({
           aria-label={t.categoryFiltersAria}
           aria-busy={loading || undefined}
         >
-          {facetSizes.length > 0 ? (
-            <label>
-              <span className="pw-shop-filter-label">{t.categoryFilterSize}</span>
-              <select
-                value={listing.size}
-                data-pw-el={PW_EL.facet}
-                aria-label={t.categoryFilterSize}
-                onChange={(e) => pushListing({ size: e.target.value })}
-              >
-                <option value="">{t.categoryFilterAllSizes}</option>
-                {facetSizes.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.value} ({f.count})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {facetStyleTags.length > 0 || listing.styleTag ? (
-            <label>
-              <span className="pw-shop-filter-label">{t.categoryFilterStyle}</span>
-              <select
-                value={listing.styleTag}
-                data-pw-el={PW_EL.facet}
-                aria-label={t.categoryFilterStyle}
-                onChange={(e) => pushListing({ styleTag: e.target.value })}
-              >
-                <option value="">{t.categoryFilterAllStyles}</option>
-                {listing.styleTag && !facetStyleTags.some((f) => f.value === listing.styleTag) ? (
-                  <option value={listing.styleTag}>{listing.styleTag}</option>
-                ) : null}
-                {facetStyleTags.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.value}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {facetColors.length > 0 ? (
-            <label>
-              <span className="pw-shop-filter-label">{t.categoryFilterColor}</span>
-              <select
-                value={listing.color}
-                data-pw-el={PW_EL.facet}
-                aria-label={t.categoryFilterColor}
-                onChange={(e) => pushListing({ color: e.target.value })}
-              >
-                <option value="">{t.categoryFilterAllColors}</option>
-                {facetColors.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.value} ({f.count})
-                  </option>
-                ))}
-              </select>
-            </label>
+          {showFashionFacets ? (
+            <>
+              <label>
+                <span className="pw-shop-filter-label">{t.categoryFilterSize}</span>
+                <select
+                  value={listing.size}
+                  data-pw-el={PW_EL.facet}
+                  data-pw-facet="size"
+                  aria-label={t.categoryFilterSize}
+                  onChange={(e) => pushListing({ size: e.target.value })}
+                >
+                  <option value="">{t.categoryFilterAllSizes}</option>
+                  {listing.size && !facetSizes.some((f) => f.value === listing.size) ? (
+                    <option value={listing.size}>{listing.size}</option>
+                  ) : null}
+                  {facetSizes.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.value} ({f.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="pw-shop-filter-label">{t.categoryFilterStyle}</span>
+                <select
+                  value={listing.styleTag}
+                  data-pw-el={PW_EL.facet}
+                  data-pw-facet="style"
+                  aria-label={t.categoryFilterStyle}
+                  onChange={(e) => pushListing({ styleTag: e.target.value })}
+                >
+                  <option value="">{t.categoryFilterAllStyles}</option>
+                  {listing.styleTag && !facetStyleTags.some((f) => f.value === listing.styleTag) ? (
+                    <option value={listing.styleTag}>{listing.styleTag}</option>
+                  ) : null}
+                  {facetStyleTags.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="pw-shop-filter-label">{t.categoryFilterColor}</span>
+                <select
+                  value={listing.color}
+                  data-pw-el={PW_EL.facet}
+                  data-pw-facet="color"
+                  aria-label={t.categoryFilterColor}
+                  onChange={(e) => pushListing({ color: e.target.value })}
+                >
+                  <option value="">{t.categoryFilterAllColors}</option>
+                  {listing.color && !facetColors.some((f) => f.value === listing.color) ? (
+                    <option value={listing.color}>{listing.color}</option>
+                  ) : null}
+                  {facetColors.map((f) => (
+                    <option key={f.value} value={f.value}>
+                      {f.value} ({f.count})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           ) : null}
           <label>
             <span className="pw-shop-filter-label">{t.categoryFilterMinPrice}</span>
@@ -341,6 +366,7 @@ export function PartnerSiteCategoryProductsClient({
               type="number"
               min={0}
               step={1000}
+              data-pw-facet="min_price"
               placeholder={priceRange ? formatFilterPriceHint(priceRange.min, locale) : t.categoryFilterPriceMinPh}
               aria-label={t.categoryFilterMinPrice}
               value={minLocal}
@@ -357,6 +383,7 @@ export function PartnerSiteCategoryProductsClient({
               type="number"
               min={0}
               step={1000}
+              data-pw-facet="max_price"
               placeholder={priceRange ? formatFilterPriceHint(priceRange.max, locale) : t.categoryFilterPriceMaxPh}
               aria-label={t.categoryFilterMaxPrice}
               value={maxLocal}
@@ -379,20 +406,24 @@ export function PartnerSiteCategoryProductsClient({
               <option value="newest">{t.categorySortNewest}</option>
               <option value="oldest">{t.categorySortOldest}</option>
               <option value="views_desc">{t.categorySortViews}</option>
-              <option value="price_asc">{t.categorySortPriceAsc}</option>
-              <option value="price_desc">{t.categorySortPriceDesc}</option>
             </select>
           </label>
           {hasActive ? (
             <button
               type="button"
               className="pw-shop-filter-clear"
+              data-pw-filter-clear="1"
               onClick={() => {
-                const dest = listingHref(pathname, { page: 1, sort: defaultSort }, listingExtras)
-                const qs = dest.includes('?') ? dest.slice(dest.indexOf('?') + 1) : ''
-                setListing(
-                  parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), { defaultSort })
+                const dest = listingHref(
+                  pathname,
+                  { page: 1, sort: 'random' },
+                  {
+                    searchQ: searchQuery?.trim() || undefined,
+                    defaultSort: 'random',
+                  }
                 )
+                const qs = dest.includes('?') ? dest.slice(dest.indexOf('?') + 1) : ''
+                setListing(parsePartnerCategoryListingFromSearchParams(new URLSearchParams(qs), parseOpts))
                 router.push(dest, { scroll: false })
               }}
             >

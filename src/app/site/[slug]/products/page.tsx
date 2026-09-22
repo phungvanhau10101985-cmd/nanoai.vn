@@ -7,10 +7,18 @@ import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/l
 import { resolvePartnerStorefrontSaleIdentity } from '@/lib/partner-website/shop/partner-site-personalization'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
-import { PartnerSiteShopCatalogClient } from '@/components/partner-website/shop/partner-site-shop-catalog-client'
+import { PartnerSiteCategoryProductsClient } from '@/components/partner-website/shop/partner-site-category-products-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
-import { fetchPartnerInventoryActiveCardPageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryShopCardPageFromPg,
+  fetchPartnerShopListFacetCountsFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  parsePartnerCategoryListingFromRecord,
+  partnerCategoryListingOffset,
+  PARTNER_CATEGORY_PAGE_SIZE,
+} from '@/lib/partner-website/shop/partner-site-category-listing'
 import {
   maybePartnerSiteVisualPage,
   readVisualPreviewDevice,
@@ -51,7 +59,25 @@ export default async function PartnerSiteProductsPage({ params, searchParams }: 
   )
   if (visual) return visual
 
-  const page = await fetchPartnerInventoryActiveCardPageWithCountFromPg(shop.partnerId, 0, 24)
+  const rec = (searchParams ? await searchParams : {}) ?? {}
+  const listing = parsePartnerCategoryListingFromRecord(rec)
+  const listQuery = {
+    minPrice: listing.minPrice ?? undefined,
+    maxPrice: listing.maxPrice ?? undefined,
+    size: listing.size || undefined,
+    color: listing.color || undefined,
+    styleTag: listing.styleTag || undefined,
+  }
+  const [page, facets] = await Promise.all([
+    fetchPartnerInventoryShopCardPageFromPg(shop.partnerId, {
+      offset: partnerCategoryListingOffset(listing),
+      limit: PARTNER_CATEGORY_PAGE_SIZE,
+      sort: listing.sort,
+      randomSeed: listing.sort === 'random' ? listing.randomSeed || undefined : undefined,
+      ...listQuery,
+    }),
+    fetchPartnerShopListFacetCountsFromPg(shop.partnerId, listQuery),
+  ])
   const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
   const identity = await resolvePartnerStorefrontSaleIdentity(shop.partnerId)
   const mapped = (page?.rows ?? [])
@@ -79,12 +105,15 @@ export default async function PartnerSiteProductsPage({ params, searchParams }: 
       pageKind={PW_PAGE.listing}
       {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
-      <PartnerSiteShopCatalogClient
+      <PartnerSiteCategoryProductsClient
         siteSlug={shop.site.siteSlug}
-        partnerSlug={shop.partnerSlug}
+        shopList
         locale={shop.site.locale}
         initialProducts={initialProducts}
         initialTotal={page?.count ?? initialProducts.length}
+        priceRange={null}
+        initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
+        initialListing={listing}
       />
     </PartnerSiteShopShell>
   )

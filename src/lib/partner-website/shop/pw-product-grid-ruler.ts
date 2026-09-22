@@ -214,10 +214,10 @@ ${PW_CATALOG_GRID_SEL}{align-items:stretch}
 ${PW_CATALOG_CARD_SEL}{position:relative;display:flex!important;flex-direction:column!important;height:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 html .pw-product-card > a.pw-product-card-hit,html .pw-shop-card > a.pw-product-card-hit{position:absolute;inset:0;z-index:4;display:block;pointer-events:auto}
 html body.nanoai-ve-active .pw-product-card > a.pw-product-card-hit,html body.nanoai-ve-active .pw-shop-card > a.pw-product-card-hit{pointer-events:none!important}
-html body:not(.nanoai-ve-active) .pw-product-card .pw-product-card-media,html body:not(.nanoai-ve-active) .pw-shop-card [data-pw-el="card-media"],html body:not(.nanoai-ve-active) .pw-product-card [data-pw-el="card-media"]{z-index:3!important;pointer-events:none}
+html body:not(.nanoai-ve-active) .pw-product-card:has(> a.pw-product-card-hit) .pw-product-card-media,html body:not(.nanoai-ve-active) .pw-shop-card:has(> a.pw-product-card-hit) [data-pw-el="card-media"],html body:not(.nanoai-ve-active) .pw-product-card:has(> a.pw-product-card-hit) [data-pw-el="card-media"]{z-index:3!important;pointer-events:none}
 html body:not(.nanoai-ve-active) .pw-product-card .pw-product-card-media img,html body:not(.nanoai-ve-active) .pw-product-card [data-pw-el="card-media"] img,html body:not(.nanoai-ve-active) .pw-shop-card [data-pw-el="card-media"] img{pointer-events:none!important}
 html .pw-product-card .pw-rec-fav,html .pw-shop-card .pw-rec-fav,html .pw-product-card [data-pw-favorite],html .pw-shop-card [data-pw-favorite]{z-index:8!important;pointer-events:auto!important}
-html .pw-product-card a.pw-product-card-media,html .pw-shop-card a.pw-product-card-media,html .pw-product-card [data-pw-el="card-name"] a,html .pw-shop-card [data-pw-el="card-name"] a{pointer-events:none}
+html .pw-product-card:has(> a.pw-product-card-hit) a.pw-product-card-media,html .pw-shop-card:has(> a.pw-product-card-hit) a.pw-product-card-media,html .pw-product-card:has(> a.pw-product-card-hit) [data-pw-el="card-name"] a,html .pw-shop-card:has(> a.pw-product-card-hit) [data-pw-el="card-name"] a{pointer-events:none}
 @media not all and (hover:hover) and (pointer:fine){
 ${PW_CATALOG_CARD_SEL}:hover,${PW_CATALOG_CARD_SEL}:hover .pw-product-card-media img,${PW_CATALOG_CARD_SEL}:hover [data-pw-el="card-media"] img{transform:none!important}
 }

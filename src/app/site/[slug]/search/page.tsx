@@ -157,7 +157,15 @@ export default async function PartnerSiteTextSearchPage({ params, searchParams }
     }
   }
 
-  const facets = q ? await fetchPartnerTextSearchFacetCountsFromPg(shop.partnerId, q) : null
+  const facets = q
+    ? await fetchPartnerTextSearchFacetCountsFromPg(shop.partnerId, q, {
+        minPrice: listing.minPrice,
+        maxPrice: listing.maxPrice,
+        size: listing.size,
+        color: listing.color,
+        styleTag: listing.styleTag,
+      })
+    : null
   const heading = q ? t.searchForQuery.replace('{q}', q) : t.searchResults
 
   return (

@@ -158,7 +158,7 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     if(!node||typeof node.closest!=='function')return null;
     var card=node.closest('.pw-product-card,.pw-shop-card,[data-pw-el="card"]');
     if(!card||typeof card.querySelector!=='function')return null;
-    var hit=card.querySelector('a.pw-product-card-hit[href]');
+    var hit=card.querySelector('a.pw-product-card-hit[href]')||card.querySelector('a[href]:not([data-pw-favorite]):not(.pw-rec-fav)');
     if(!hit||typeof hit.getAttribute!=='function')return null;
     var raw=String(hit.getAttribute('href')||'').trim();
     return raw?hit:null;
