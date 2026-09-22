@@ -33,6 +33,8 @@ test('public storefront does not use a Suspense fallback that can consume the fi
   assert.match(source, /id="pw-visual-native-navigation"/)
   assert.match(source, /PARTNER_SHOP_LISTING_HEAD_SCRIPT/)
   assert.match(source, /PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early/)
+  assert.match(source, /PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT/)
+  assert.match(source, /PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID}-early/)
   assert.match(source, /PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT/)
 })
 

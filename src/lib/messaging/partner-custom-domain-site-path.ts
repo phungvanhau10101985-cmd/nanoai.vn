@@ -38,6 +38,8 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'pages',
   'order-tracking',
   'thanh-vien',
+  'vi-dien-tu',
+  'tai-khoan-ngan-hang',
   'sitemap.xml',
   'sitemap-pages.xml',
   'sitemap-products',
@@ -46,6 +48,13 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'pw-shop-sw.js',
   'pwa-icon',
   'favicon.ico',
+])
+
+/** Host files that must not be rewritten into `/site/{slug}` (SSL, robots, OAuth bridge). */
+export const SHOP_CUSTOM_DOMAIN_PASSTHROUGH_ROOTS = new Set([
+  '.well-known',
+  'robots.txt',
+  'auth',
 ])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {
@@ -78,7 +87,7 @@ export function mapPartnerCustomDomainPathToInternal(
 
   const segments = path.split('/').filter(Boolean)
   const root = segments[0]?.toLowerCase() ?? ''
-  if (!root || !SHOP_PUBLIC_ROOT_SEGMENTS.has(root)) {
+  if (!root || SHOP_CUSTOM_DOMAIN_PASSTHROUGH_ROOTS.has(root)) {
     return null
   }
 
@@ -87,6 +96,8 @@ export function mapPartnerCustomDomainPathToInternal(
     return `${prefix}/sw.js`
   }
 
+  // Known shop routes and unknown URLs both enter `/site/{slug}/…`.
+  // Unknown paths then redirect home with shop chrome — not the Next.js default 404.
   return `${prefix}${path}`
 }
 

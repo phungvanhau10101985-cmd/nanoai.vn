@@ -22,6 +22,10 @@ import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
 } from '@/lib/partner-website/shop/listing-head'
 import {
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT,
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
+} from '@/lib/partner-website/shop/mobile-header-logo-collapse'
+import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
@@ -132,6 +136,10 @@ function PartnerSiteLiveVisualHead({
       <script
         id={`${PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early`}
         dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_LISTING_HEAD_SCRIPT }}
+      />
+      <script
+        id={`${PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID}-early`}
+        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT }}
       />
       <script
         id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID}

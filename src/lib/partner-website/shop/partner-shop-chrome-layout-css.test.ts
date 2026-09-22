@@ -468,7 +468,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] header [data-pw-chrome-btn="favorite-product"]'), true)
   assert.equal(once.includes('html[data-pw-edit-device="mobile"] main > .pw-shop-btn[data-pw-chrome-btn="try-on"]'), true)
   assert.equal(once.includes('data-pw-head-logo-collapsed'), true)
-  assert.equal(once.includes('order:-1!important'), true)
+  assert.equal(once.includes('left:50%!important'), true)
   assert.equal(once.includes('max-width:46%!important'), true)
   assert.equal(once.includes('background:var(--pw-primary)!important'), true)
   assert.equal(once.includes('html[data-pw-scene-lock="mobile"] [data-pw-chrome-added]'), true)

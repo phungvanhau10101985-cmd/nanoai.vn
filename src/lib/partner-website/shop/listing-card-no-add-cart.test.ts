@@ -82,6 +82,11 @@ test('outfit live cards use listing heart and sold stats, not Chi tiết', () =>
   assert.match(js, /<div class="pw-product-card-media"/)
   assert.doesNotMatch(js, /<a class="pw-product-card-media"/)
   assert.doesNotMatch(js, /Chi tiết sản phẩm/)
+  assert.doesNotMatch(js, /limit=48/)
+  assert.match(js, /FETCH_LIMIT=12/)
+  assert.match(js, /pwGridPageSize\(el\)/)
+  assert.match(js, /function outfitQuery/)
+  assert.doesNotMatch(js, /offset=/)
 })
 
 test('ruler CSS hides leftover listing cart and Chi tiết buttons and keeps PDP add-cart', () => {

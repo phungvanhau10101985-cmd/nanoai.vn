@@ -41,6 +41,10 @@ import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
 } from '@/lib/partner-website/shop/listing-head'
+import {
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT,
+  PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID,
+} from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import {
@@ -217,6 +221,10 @@ function PartnerSiteInlineVisualHead({
       <script
         id={`${PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early`}
         dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_LISTING_HEAD_SCRIPT }}
+      />
+      <script
+        id={`${PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID}-early`}
+        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT }}
       />
       <script
         id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID}

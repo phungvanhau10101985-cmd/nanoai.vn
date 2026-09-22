@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
 
   const locale = normalizeWebLocale(sp.get('locale')) ?? 'vi'
   const offset = Math.max(0, Number(sp.get('offset') ?? 0) || 0)
-  const limit = Math.min(48, Math.max(1, Number(sp.get('limit') ?? 12) || 12))
+  const limit = Math.min(12, Math.max(1, Number(sp.get('limit') ?? 12) || 12))
   const slot = parseOutfitSlotParam(sp.get('slot'))
 
   const data = await fetchPartnerOutfitSuggestions({
@@ -37,7 +37,6 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     siteSlug: shop.site.siteSlug,
     inventoryId,
     locale,
-    limit: Math.min(48, offset + limit + 1),
     slot,
   })
   const slots = data.slots.map((s) => {

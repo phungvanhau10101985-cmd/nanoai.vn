@@ -1,46 +1,16 @@
 import { NextResponse } from 'next/server'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
+import { SHOP_PUBLIC_ROOT_SEGMENTS } from '@/lib/messaging/partner-custom-domain-site-path'
 import { PARTNER_WEBSITE_PAGE_CATALOG } from '@/lib/partner-website/partner-website-page-catalog'
 import { composeStandaloneHtml } from '@/lib/partner-website/partner-website-project'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
-import {
-  getPartnerWebsite404HtmlFromProject,
-  PARTNER_WEBSITE_SYSTEM_404_PATH,
-} from '@/lib/partner-website/partner-website-system-pages'
+import { PARTNER_WEBSITE_SYSTEM_404_PATH } from '@/lib/partner-website/partner-website-system-pages'
+import { redirectPartnerShopMissingPageToHome } from '@/lib/partner-website/shop/partner-site-not-found'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 
 export const dynamic = 'force-dynamic'
 
-const RESERVED_FIRST_SEGMENTS = new Set([
-  'products',
-  'cart',
-  'orders',
-  'account',
-  'addresses',
-  'lp',
-  'wishlist',
-  'recently-viewed',
-  'about',
-  'contact',
-  'faq',
-  'sale',
-  'shipping',
-  'returns',
-  'privacy',
-  'terms',
-  'payment',
-  'how-to-buy',
-  'brand-origin',
-  'reviews-policy',
-  'trust',
-  'company',
-  'thank-you',
-  'stores',
-  'lookbook',
-  'size-guide',
-  'blog',
-  'goi-y-tuoi-gioi',
-])
+const RESERVED_FIRST_SEGMENTS = new Set(SHOP_PUBLIC_ROOT_SEGMENTS)
 
 function resolveProjectHtmlPath(segments: string[]): string | null {
   if (!segments.length) return null
@@ -72,13 +42,13 @@ function htmlFromProjectFile(project: PartnerWebsiteProject, htmlPath: string): 
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ slug: string; path: string[] }> }
 ) {
   const { slug, path: pathSegments } = await ctx.params
   const segments = (pathSegments ?? []).filter(Boolean)
   if (!segments.length) {
-    return new NextResponse('Not found', { status: 404 })
+    return redirectPartnerShopMissingPageToHome(req, slug)
   }
 
   const htmlPath = resolveProjectHtmlPath(segments)
@@ -86,7 +56,7 @@ export async function GET(
     projectFiles: htmlPath ? { paths: [htmlPath], includeAssetFiles: true } : 'none',
   }).catch(() => null)
   if (!site) {
-    return new NextResponse('Not found', { status: 404 })
+    return redirectPartnerShopMissingPageToHome(req, slug)
   }
 
   const pageHtml =
@@ -115,35 +85,5 @@ export async function GET(
     })
   }
 
-  const homeHref = `/site/${encodeURIComponent(site.siteSlug)}`
-  const notFoundHtml = getPartnerWebsite404HtmlFromProject(site.project, {
-    shopTitle: site.title,
-    locale: site.locale,
-    homeHref,
-  })
-  const html = renderPartnerWebsiteHtml({
-    project: {
-      entryPath: PARTNER_WEBSITE_SYSTEM_404_PATH,
-      files: [
-        {
-          path: PARTNER_WEBSITE_SYSTEM_404_PATH,
-          kind: 'html',
-          content: notFoundHtml,
-        },
-      ],
-    },
-    htmlSource: notFoundHtml,
-    chatPath: site.chatPath,
-    siteSlug: site.siteSlug,
-    locale: site.locale,
-    enablePersonalization: false,
-  })
-
-  return new NextResponse(html, {
-    status: 404,
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-    },
-  })
+  return redirectPartnerShopMissingPageToHome(req, site.siteSlug)
 }

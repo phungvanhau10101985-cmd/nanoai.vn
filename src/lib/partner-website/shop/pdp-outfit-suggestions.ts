@@ -1,32 +1,44 @@
 import {
-  fetchCategoryIdsForInventoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import {
-  fetchPartnerInventoryCardPageByCategoryFromPg,
-  fetchPartnerInventoryRowByIdForPartnerFromPg,
-  fetchPartnerInventoryRowsByCategoryL1FromPg,
-  fetchPartnerInventoryRowsByTokensIlikeAnyFromPg,
+  fetchPartnerInventoryCardsByIdsInOrderFromPg,
+  fetchPartnerInventoryCardsForOutfitSlotFromPg,
+  fetchPartnerInventoryOutfitMatchByIdsFromPg,
+  type PartnerOutfitMatchRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  filterStoredOutfitPayload,
+  loadPartnerOutfitPicksFromPg,
+  savePartnerOutfitPicksFromPg,
+  OUTFIT_STORED_LIMIT,
+  type PartnerOutfitPickPayload,
+  type PartnerOutfitPickSlot,
+} from '@/lib/db/messaging-partner-outfit-picks-pg'
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   inventoryCardRowToShopProduct,
-  inventoryRowToShopProduct,
   type PartnerSiteShopProduct,
 } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import {
+  inferOutfitPairFamilyFromSubject,
+  localizeOutfitReasons,
+  scoreOutfitCandidate188,
+  type OutfitScoreSubject,
+} from '@/lib/partner-website/shop/pdp-outfit-score'
+import {
+  listingQueriesForOutfitFamily,
+  outfitPairFamilyCompatible,
+} from '@/lib/partner-website/shop/pdp-outfit-pair-families'
+import {
   classifyOutfitAnchor,
-  inferOutfitGender,
   inferOutfitRole,
   isOutfitSlotId,
-  outfitMatchReasons,
-  outfitNameOverlap,
   outfitSectionTitle,
   outfitSlotLabel,
-  outfitSlotSearchTokens,
+  outfitSlotSearchPatterns,
   rowMatchesOutfitSlot,
-  scoreOutfitCandidate,
   slotsForOutfitAnchor,
   targetOutfitCat1Names,
   type OutfitGender,
@@ -61,6 +73,10 @@ export type PartnerOutfitSuggestions = {
   slots: PartnerOutfitSlot[]
 }
 
+/** 188 FETCH_LIMIT — first paint slices locally (2 mobile / 5 desktop). */
+export const OUTFIT_FETCH_LIMIT = 12
+const SLOT_POOL = 40
+
 function categoryAncestorNames(cat: PartnerCategoryRow, byId: Map<string, PartnerCategoryRow>): string[] {
   const names: string[] = []
   let cur: PartnerCategoryRow | undefined = cat
@@ -73,17 +89,34 @@ function categoryAncestorNames(cat: PartnerCategoryRow, byId: Map<string, Partne
   return names
 }
 
-function effectivePrice(p: PartnerSiteShopProduct): number | null {
-  const sale = p.salePriceAmount
-  const base = p.priceAmount
-  if (sale != null && sale > 0) return sale
-  if (base != null && base > 0) return base
-  return null
+function matchRowToSubject(row: PartnerOutfitMatchRow): OutfitScoreSubject {
+  return {
+    name: row.name,
+    categoryL1: row.category_l1,
+    categoryL2: row.category_l2,
+    categoryL3: row.category_l3,
+    style: row.style,
+    occasion: row.occasion,
+    colorSummary: row.color_summary,
+    material: row.material_note,
+    priceAmount: row.price_amount,
+    salePriceAmount: row.sale_price_amount,
+    purchasesCount: row.purchases_count,
+  }
 }
 
-function samePriceBand(a: number | null, b: number | null): boolean {
-  if (a == null || b == null || a <= 0 || b <= 0) return false
-  return Math.abs(a - b) <= Math.max(300_000, a * 0.35)
+function listingHrefForSlot(
+  siteSlug: string,
+  listingCat: PartnerCategoryRow | null,
+  listingPath: string | null
+): string {
+  if (listingPath) return partnerSiteCategoryPath(siteSlug, listingPath)
+  if (listingCat?.path) return partnerSiteCategoryPath(siteSlug, listingCat.path)
+  return partnerSiteProductsPath(siteSlug)
+}
+
+function emptySuggestions(): PartnerOutfitSuggestions {
+  return { applicable: false, reason: 'no_slots', anchor: null, slots: [] }
 }
 
 export async function fetchPartnerOutfitSuggestions(input: {
@@ -94,230 +127,235 @@ export async function fetchPartnerOutfitSuggestions(input: {
   limit?: number
   slot?: OutfitSlotId | null
 }): Promise<PartnerOutfitSuggestions> {
-  const empty: PartnerOutfitSuggestions = {
-    applicable: false,
-    reason: 'no_slots',
-    anchor: null,
-    slots: [],
-  }
   const inventoryId = String(input.inventoryId || '').trim()
-  const limit = Math.min(48, Math.max(1, Math.floor(input.limit ?? 12)))
-  if (!inventoryId) return empty
+  if (!inventoryId) return emptySuggestions()
+  const limit = Math.min(OUTFIT_FETCH_LIMIT, Math.max(1, Math.floor(input.limit || OUTFIT_FETCH_LIMIT)))
+  let stored = await loadPartnerOutfitPicksFromPg(input.partnerId, inventoryId)
+  if (!stored) {
+    stored = await computeOutfitSlotPicks({
+      partnerId: input.partnerId,
+      inventoryId,
+    })
+    await savePartnerOutfitPicksFromPg(input.partnerId, inventoryId, stored)
+  }
+  const trimmed = filterStoredOutfitPayload(stored, { onlySlot: input.slot ?? null, limit })
+  return assembleOutfitSuggestions(trimmed, {
+    partnerId: input.partnerId,
+    siteSlug: input.siteSlug,
+    locale: input.locale,
+  })
+}
 
-  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(input.partnerId, inventoryId)
-  if (!row) return empty
-  const product = inventoryRowToShopProduct(input.siteSlug, row)
-  if (!product) return empty
-
-  const [links, cats] = await Promise.all([
-    fetchCategoryIdsForInventoryFromPg(inventoryId),
+async function computeOutfitSlotPicks(input: {
+  partnerId: string
+  inventoryId: string
+}): Promise<PartnerOutfitPickPayload> {
+  const empty: PartnerOutfitPickPayload = { applicable: false, reason: 'no_slots', anchor: null, slots: [] }
+  const [matchRows, cats] = await Promise.all([
+    fetchPartnerInventoryOutfitMatchByIdsFromPg(input.partnerId, [input.inventoryId]),
     fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: true }),
   ])
-  const byId = new Map((cats ?? []).map((c) => [c.id, c]))
-  const primary = (links ?? []).find((l) => l.isPrimary) ?? (links ?? [])[0]
-  const primaryCat = primary ? byId.get(primary.categoryId) : null
-  const catNames = primaryCat ? categoryAncestorNames(primaryCat, byId) : []
-  const classified = classifyOutfitAnchor([
-    product.categoryL1,
-    product.categoryL2,
-    product.categoryL3,
-    ...catNames,
-    product.name,
-  ])
+  const row = (matchRows ?? []).find((item) => item.id === input.inventoryId)
+  if (!row) return empty
+  const classified = classifyOutfitAnchor([row.category_l1, row.category_l2, row.category_l3, row.name])
   if (!classified.role) {
     return {
-      ...empty,
-      anchor: {
-        id: product.id,
-        role: null,
-        roleLabel: '',
-        gender: classified.gender,
-        title: outfitSectionTitle(null, input.locale),
-      },
+      applicable: false,
+      reason: 'no_slots',
+      anchor: { id: row.id, role: null, gender: classified.gender },
+      slots: [],
     }
   }
-
-  const slotIds = slotsForOutfitAnchor(classified.role, classified.gender).filter(
-    (slot) => !input.slot || slot === input.slot
-  )
+  const slotIds = slotsForOutfitAnchor(classified.role, classified.gender)
   if (!slotIds.length) {
     return {
       applicable: false,
       reason: 'no_slots',
-      anchor: {
-        id: product.id,
-        role: classified.role,
-        roleLabel: outfitSlotLabel(classified.role, input.locale),
-        gender: classified.gender,
-        title: outfitSectionTitle(classified.role, input.locale),
-      },
+      anchor: { id: row.id, role: classified.role, gender: classified.gender },
       slots: [],
     }
   }
 
-  const categoriesBySlot = new Map<OutfitSlotId, PartnerCategoryRow[]>()
+  const byId = new Map((cats ?? []).map((c) => [c.id, c]))
+  const listingCatBySlot = new Map<OutfitSlotId, PartnerCategoryRow>()
   for (const cat of cats ?? []) {
     const names = categoryAncestorNames(cat, byId)
     const role = inferOutfitRole(...names)
-    if (!role || !slotIds.includes(role)) continue
-    const list = categoriesBySlot.get(role) ?? []
-    list.push(cat)
-    categoriesBySlot.set(role, list)
+    if (!role || !slotIds.includes(role) || listingCatBySlot.has(role)) continue
+    listingCatBySlot.set(role, cat)
   }
 
+  const anchorSubject = matchRowToSubject(row)
   const slots = await Promise.all(
     slotIds.map((slot) =>
-      buildOutfitSlot({
+      computeOutfitSlotPicksForRole({
         partnerId: input.partnerId,
-        siteSlug: input.siteSlug,
-        locale: input.locale,
         slot,
-        excludeId: product.id,
-        anchor: product,
-        anchorRole: classified.role!,
+        excludeId: row.id,
+        anchor: anchorSubject,
         anchorGender: classified.gender,
-        categories: (categoriesBySlot.get(slot) ?? []).slice(0, 4),
-        categoryById: byId,
-        limit,
+        listingCat: listingCatBySlot.get(slot) ?? null,
       })
     )
   )
-  const filled = slots.filter((s) => s.items.length > 0)
+  const filled = slots.filter((s): s is PartnerOutfitPickSlot => Boolean(s && s.items.length))
+  if (!filled.length) {
+    return {
+      applicable: false,
+      reason: 'no_slots',
+      anchor: { id: row.id, role: classified.role, gender: classified.gender },
+      slots: [],
+    }
+  }
   return {
-    applicable: filled.length > 0,
-    reason: filled.length ? null : 'no_slots',
-    anchor: {
-      id: product.id,
-      role: classified.role,
-      roleLabel: outfitSlotLabel(classified.role, input.locale),
-      gender: classified.gender,
-      title: outfitSectionTitle(classified.role, input.locale),
-    },
+    applicable: true,
+    reason: null,
+    anchor: { id: row.id, role: classified.role, gender: classified.gender },
     slots: filled,
   }
 }
 
-async function buildOutfitSlot(input: {
+function outfitSlotQueryPatterns(anchor: OutfitScoreSubject, slot: OutfitSlotId): string[] {
+  const family = inferOutfitPairFamilyFromSubject(anchor)
+  const queries = listingQueriesForOutfitFamily(family, slot)
+  const extras = slot === 'dress' ? ['đầm', 'váy liền', 'chân váy'] : []
+  const tokens = queries.length ? [...queries, ...extras] : outfitSlotSearchPatterns(slot).map((p) => p.replace(/%/g, ''))
+  return [...new Set(tokens.map((token) => token.trim().toLowerCase()).filter((token) => token.length >= 2))].map(
+    (token) => `%${token.replace(/[%_]/g, '')}%`
+  )
+}
+
+function candidatePassesSlot(slot: OutfitSlotId, row: PartnerOutfitMatchRow, anchor: OutfitScoreSubject): boolean {
+  if (!rowMatchesOutfitSlot(slot, row.category_l1, row.category_l2, row.category_l3, row.name)) return false
+  return outfitPairFamilyCompatible(
+    inferOutfitPairFamilyFromSubject(anchor),
+    inferOutfitPairFamilyFromSubject(matchRowToSubject(row)),
+    slot
+  )
+}
+
+async function computeOutfitSlotPicksForRole(input: {
   partnerId: string
-  siteSlug: string
-  locale: WebLocale
   slot: OutfitSlotId
   excludeId: string
-  anchor: PartnerSiteShopProduct
-  anchorRole: OutfitSlotId
+  anchor: OutfitScoreSubject
   anchorGender: OutfitGender
-  categories: PartnerCategoryRow[]
-  categoryById: Map<string, PartnerCategoryRow>
-  limit: number
-}): Promise<PartnerOutfitSlot> {
-  const seen = new Set<string>([input.excludeId])
-  const pool: Array<{ product: PartnerSiteShopProduct; gender: OutfitGender }> = []
-
-  const cat1Rows = await fetchPartnerInventoryRowsByCategoryL1FromPg(
-    input.partnerId,
-    targetOutfitCat1Names(input.slot, input.anchorGender),
-    60
-  )
-  for (const row of cat1Rows ?? []) {
-    if (seen.has(row.id)) continue
-    const product = inventoryRowToShopProduct(input.siteSlug, row)
-    if (!product) continue
-    if (
-      !rowMatchesOutfitSlot(
-        input.slot,
-        product.categoryL1,
-        product.categoryL2,
-        product.categoryL3,
-        product.name
-      )
-    ) {
-      continue
-    }
-    seen.add(row.id)
-    pool.push({
-      product,
-      gender: inferOutfitGender(product.categoryL1, product.categoryL2, product.name),
-    })
-  }
-
-  for (const cat of input.categories) {
-    const page = await fetchPartnerInventoryCardPageByCategoryFromPg(input.partnerId, {
-      offset: 0,
-      limit: Math.min(24, input.limit + 4),
-      categoryId: cat.id,
-      sort: 'newest',
-    })
-    const gender = inferOutfitGender(...categoryAncestorNames(cat, input.categoryById), cat.name)
-    for (const row of page?.rows ?? []) {
-      if (seen.has(row.id)) continue
-      const product = inventoryCardRowToShopProduct(input.siteSlug, row)
-      const role = inferOutfitRole(cat.name, product.name)
-      if (role && role !== input.slot) continue
+  listingCat: PartnerCategoryRow | null
+}): Promise<PartnerOutfitPickSlot | null> {
+  const l1Names = targetOutfitCat1Names(input.slot, input.anchorGender)
+  const patterns = outfitSlotQueryPatterns(input.anchor, input.slot)
+  let rows =
+    (await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
+      categoryL1Names: l1Names,
+      namePatterns: patterns,
+      excludeId: input.excludeId,
+      limit: SLOT_POOL,
+    })) ?? []
+  let collected = rows.filter((row) => candidatePassesSlot(input.slot, row, input.anchor))
+  if (collected.length < 8) {
+    const extra =
+      (await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
+        categoryL1Names: l1Names,
+        namePatterns: input.slot === 'dress' ? ['%váy%', '%đầm%', '%vay%'] : [],
+        excludeId: input.excludeId,
+        limit: SLOT_POOL,
+      })) ?? []
+    const seen = new Set(collected.map((row) => row.id))
+    for (const row of extra) {
+      if (seen.has(row.id) || !candidatePassesSlot(input.slot, row, input.anchor)) continue
       seen.add(row.id)
-      pool.push({ product, gender })
-    }
-    if (pool.length >= input.limit * 2) break
-  }
-
-  if (pool.length < input.limit) {
-    const extra = await fetchPartnerInventoryRowsByTokensIlikeAnyFromPg(
-      input.partnerId,
-      outfitSlotSearchTokens(input.slot),
-      80
-    )
-    for (const row of extra ?? []) {
-      if (seen.has(row.id)) continue
-      const product = inventoryRowToShopProduct(input.siteSlug, row)
-      if (!product) continue
-      if (
-        !rowMatchesOutfitSlot(input.slot, product.categoryL1, product.categoryL2, product.categoryL3, product.name)
-      ) {
-        if (!outfitSlotSearchTokens(input.slot).some((tok) => product.name.toLowerCase().includes(tok))) {
-          continue
-        }
-      }
-      seen.add(row.id)
-      pool.push({ product, gender: inferOutfitGender(product.name) })
+      collected.push(row)
     }
   }
 
-  const anchorPrice = effectivePrice(input.anchor)
-  const scored = pool
-    .map(({ product, gender }) => {
-      const candPrice = effectivePrice(product)
-      const score = scoreOutfitCandidate({
-        anchorPrice,
-        candidatePrice: candPrice,
-        anchorGender: input.anchorGender,
-        candidateGender: gender,
-        nameOverlap: outfitNameOverlap(input.anchor.name, product.name),
-      })
-      return {
-        product,
-        matchScore: score,
-        reasons: outfitMatchReasons({
-          locale: input.locale,
-          samePriceBand: samePriceBand(anchorPrice, candPrice),
-          sameGender: gender === input.anchorGender && gender !== 'unisex',
-          destSlot: input.slot,
-          srcRole: input.anchorRole,
-        }),
-      }
+  const ranked = collected
+    .map((row) => {
+      const scored = scoreOutfitCandidate188(input.anchor, matchRowToSubject(row), input.slot)
+      return { row, ...scored }
     })
-    .sort((a, b) => b.matchScore - a.matchScore)
-  const ranked = (scored.some((item) => item.matchScore > 0) ? scored.filter((item) => item.matchScore > 0) : scored).slice(
-    0,
-    input.limit
-  )
-
-  const listingCat = input.categories[0]
+    .sort((a, b) => b.score - a.score || b.purchases - a.purchases)
+  const scored = ranked.filter((item) => item.score > 0)
+  const pool = scored.length >= Math.min(3, OUTFIT_STORED_LIMIT) ? scored : ranked
+  const items = pool.slice(0, OUTFIT_STORED_LIMIT).map((item) => ({
+    id: item.row.id,
+    matchScore: item.score,
+    reasons: item.reasons,
+  }))
+  if (!items.length) return null
   return {
     id: input.slot,
-    label: outfitSlotLabel(input.slot, input.locale),
-    listingHref: listingCat?.path
-      ? partnerSiteCategoryPath(input.siteSlug, listingCat.path)
-      : partnerSiteProductsPath(input.siteSlug),
-    items: ranked,
+    listingPath: input.listingCat?.path || null,
+    items,
+  }
+}
+
+async function assembleOutfitSuggestions(
+  payload: PartnerOutfitPickPayload,
+  input: { partnerId: string; siteSlug: string; locale: WebLocale }
+): Promise<PartnerOutfitSuggestions> {
+  if (!payload.applicable) {
+    const role = payload.anchor?.role ?? null
+    return {
+      applicable: false,
+      reason: (payload.reason as OutfitNotApplicableReason) || 'no_slots',
+      anchor: payload.anchor
+        ? {
+            id: payload.anchor.id,
+            role,
+            roleLabel: role ? outfitSlotLabel(role, input.locale) : '',
+            gender: payload.anchor.gender,
+            title: outfitSectionTitle(role, input.locale),
+          }
+        : null,
+      slots: [],
+    }
+  }
+  const ids: string[] = []
+  for (const slot of payload.slots) {
+    for (const item of slot.items) {
+      if (item.id) ids.push(item.id)
+    }
+  }
+  const cardRows = ids.length ? await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, ids) : []
+  const byId = new Map((cardRows ?? []).map((row) => [row.id, row]))
+  const slots: PartnerOutfitSlot[] = []
+  for (const slot of payload.slots) {
+    if (!isOutfitSlotId(slot.id)) continue
+    const items: PartnerOutfitItem[] = []
+    for (const item of slot.items) {
+      const row = byId.get(item.id)
+      if (!row) continue
+      const product = inventoryCardRowToShopProduct(input.siteSlug, row)
+      if (!product) continue
+      items.push({
+        product,
+        matchScore: item.matchScore || 0,
+        reasons: localizeOutfitReasons(item.reasons || [], input.locale),
+      })
+    }
+    if (!items.length) continue
+    slots.push({
+      id: slot.id,
+      label: outfitSlotLabel(slot.id, input.locale),
+      listingHref: listingHrefForSlot(input.siteSlug, null, slot.listingPath),
+      items,
+    })
+  }
+  const role = payload.anchor?.role ?? null
+  if (!slots.length) return emptySuggestions()
+  return {
+    applicable: true,
+    reason: null,
+    anchor: payload.anchor
+      ? {
+          id: payload.anchor.id,
+          role,
+          roleLabel: role ? outfitSlotLabel(role, input.locale) : '',
+          gender: payload.anchor.gender,
+          title: outfitSectionTitle(role, input.locale),
+        }
+      : null,
+    slots,
   }
 }
 

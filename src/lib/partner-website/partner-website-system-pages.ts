@@ -12,7 +12,7 @@ type Copy = {
   codeLabel: string
 }
 
-function copyForLocale(locale: WebLocale): Copy {
+export function partnerWebsite404Copy(locale: WebLocale): Copy {
   if (locale === 'en') {
     return {
       title: 'Page not found',
@@ -71,7 +71,7 @@ export function buildDefaultPartnerWebsite404Html(input: {
   locale: WebLocale
   homeHref?: string
 }): string {
-  const c = copyForLocale(input.locale)
+  const c = partnerWebsite404Copy(input.locale)
   const shop = escapeHtml(input.shopTitle.trim() || 'Shop')
   const homeHref = escapeHtml(input.homeHref?.trim() || '/')
   return `<!DOCTYPE html>

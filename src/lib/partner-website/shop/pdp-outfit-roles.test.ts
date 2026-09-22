@@ -5,6 +5,8 @@ import {
   inferOutfitGender,
   inferOutfitRole,
   outfitSectionTitle,
+  outfitSlotNeedsNameTokens,
+  outfitSlotSearchPatterns,
   rowMatchesOutfitSlot,
   slotsForOutfitAnchor,
   targetOutfitCat1Names,
@@ -38,6 +40,19 @@ test('targetOutfitCat1Names matches 188 complementary L1 names', () => {
   assert.deepEqual(targetOutfitCat1Names('bag', 'female'), ['Túi xách Nữ'])
   assert.ok(rowMatchesOutfitSlot('shoes', 'Giày dép Nữ', 'Sneaker nữ'))
   assert.equal(rowMatchesOutfitSlot('dress', 'Thời trang Nữ', 'Áo thun'), false)
+})
+
+test('outfit L1 slots skip name tokens; clothing slots keep ILIKE patterns off description', () => {
+  assert.equal(outfitSlotNeedsNameTokens('shoes'), false)
+  assert.equal(outfitSlotNeedsNameTokens('bag'), false)
+  assert.equal(outfitSlotNeedsNameTokens('accessory'), false)
+  assert.deepEqual(outfitSlotSearchPatterns('shoes'), [])
+  assert.ok(outfitSlotNeedsNameTokens('top'))
+  assert.ok(outfitSlotSearchPatterns('top').some((p) => p.includes('áo')))
+  assert.equal(
+    outfitSlotSearchPatterns('top').some((p) => p.includes('%')),
+    true
+  )
 })
 
 test('classifies title copy', () => {

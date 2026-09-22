@@ -1,6 +1,8 @@
 /**
  * Mobile header logo — hàng riêng giữa, ẩn khi vuốt xuống (hysteresis 72 / 28).
  * UX 188 MobileHeader; engine dùng chung mọi shop. Không hex cam, không slug 188.
+ * Logo `position:absolute` giữa mép trên — không phụ thuộc flex-wrap / display:contents
+ * (CSS desktop `flex:0 0 auto` + cluster flex sẽ kéo logo vào trái hàng toolbar).
  */
 
 export const PW_HEAD_LOGO_COLLAPSED_ATTR = 'data-pw-head-logo-collapsed'
@@ -10,20 +12,40 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID = 'pw-shop-mobile-header-
 
 const HEADER_SEL = 'header.pw-header,header.pw-shop-header,[data-pw-region="header"]'
 
+/** Cùng host `PW_WIDE_HEADER_MAIN_HOST` — thắng nowrap/inset desktop trên html chưa stamp. */
+const PW_WIDE_HEADER_MAIN_HOST =
+  'html:not([data-pw-edit-device="mobile"]):not([data-pw-scene-lock="mobile"]):not([data-pw-edit-device="tablet"]):not([data-pw-scene-lock="tablet"])'
+
+const LOGO_ABS_CENTER_DECLS =
+  'position:absolute!important;left:50%!important;right:auto!important;top:6px!important;bottom:auto!important;transform:translate(-50%,0) translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important;z-index:121!important;flex:0 0 auto!important;width:auto!important;max-width:min(200px,72vw)!important;justify-content:center!important;align-items:center!important;display:flex!important;margin:0!important;min-height:0!important;max-height:44px!important;overflow:visible!important'
+
+const HEADER_MAIN_LOGO_PAD_DECLS =
+  'display:flex!important;flex-wrap:nowrap!important;align-items:center!important;position:relative!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:52px 10px 8px 8px!important;column-gap:6px!important;row-gap:0!important;overflow:visible!important'
+
+const CLUSTER_STATIC_DECLS =
+  'display:contents!important;position:static!important;max-width:none!important;width:auto!important;pointer-events:auto!important'
+
+const SEARCH_INFLOW_DECLS =
+  'flex:1 1 0%!important;width:auto!important;min-width:96px!important;max-width:100%!important;margin:0!important;transform:none!important;position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;z-index:170!important;display:flex!important'
+
+const ACTIONS_INFLOW_DECLS =
+  'flex:0 0 auto!important;position:relative!important;left:auto!important;top:auto!important;transform:none!important;margin-left:0!important;max-width:none!important'
+
 /** Hàng logo giữa + thu khi `data-pw-head-logo-collapsed`. Chỉ máy mobile. */
 export const PW_MOBILE_HEADER_STACK_RULES = `
-.pw-header-main,.pw-shop-header-inner{display:flex!important;flex-wrap:wrap!important;align-items:center!important;row-gap:4px!important;column-gap:6px!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:8px 10px!important;padding-left:8px!important;padding-right:10px!important}
-.pw-brand-cluster,.pw-shop-brand-cluster{display:contents!important;max-width:none!important;width:auto!important;pointer-events:auto!important}
+.pw-header-main,.pw-shop-header-inner{${HEADER_MAIN_LOGO_PAD_DECLS}}
+.pw-brand-cluster,.pw-shop-brand-cluster{${CLUSTER_STATIC_DECLS}}
 .pw-chrome-cat-wrap{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 auto!important;width:auto!important;max-width:none!important;order:1!important;position:relative!important;z-index:200!important;pointer-events:auto!important}
-.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:-1!important;flex:1 1 100%!important;width:100%!important;max-width:100%!important;justify-content:center!important;align-items:center!important;position:relative!important;z-index:1!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important;display:flex!important;min-height:0!important;max-height:44px!important;overflow:visible!important;margin:0!important;transition:max-height .2s ease-out,opacity .2s ease-out,min-height .2s ease-out,margin .2s ease-out!important}
+.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){${LOGO_ABS_CENTER_DECLS}}
 .pw-header a.pw-brand:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:has(img:not([data-pw-logo-empty])):not([data-pw-logo-float]){min-height:40px!important}
 .pw-header a.pw-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-shop-header a.pw-shop-brand:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark,.pw-header a[data-pw-logo-home]:not(:has(img:not([data-pw-logo-empty]))) .pw-wordmark{display:inline-block!important;color:#fff!important;font-weight:800!important;font-size:18px!important;line-height:40px!important;min-height:40px!important}
 body.nanoai-ve-active .pw-header a.pw-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-shop-header a.pw-shop-brand:has([data-pw-logo-empty]) .pw-wordmark,body.nanoai-ve-active .pw-header a[data-pw-logo-home]:has([data-pw-logo-empty]) .pw-wordmark{display:none!important}
 .pw-logo,.pw-shop-logo,.pw-brand .pw-logo-frame img,.pw-shop-brand .pw-logo-frame img,.pw-brand [data-pw-logo-frame="1"] img,.pw-shop-brand [data-pw-logo-frame="1"] img{height:40px!important;width:auto!important;max-height:40px!important;max-width:min(200px,72vw)!important;object-fit:contain!important}
 .pw-cat-btn:not([data-pw-chrome-added]),.pw-shop-cat-btn:not([data-pw-chrome-added]),.pw-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-shop-brand-cluster [data-pw-chrome-btn="categories"]:not([data-pw-chrome-added]),.pw-chrome-cat-wrap,.pw-brand-cluster [data-pw-chrome-btn="back"],.pw-shop-brand-cluster [data-pw-chrome-btn="back"],.pw-head-back{order:1!important;position:relative!important;z-index:200!important;pointer-events:auto!important}
-.pw-header-search,.pw-shop-search-wrap{order:2!important;flex:1 1 0%!important;min-width:96px!important}
-.pw-header-actions,.pw-shop-header-actions{order:3!important;max-width:none!important;overflow:visible!important;margin-left:0!important}
+.pw-header-search,.pw-shop-search-wrap{order:2!important;${SEARCH_INFLOW_DECLS}}
+.pw-header-actions,.pw-shop-header-actions{order:3!important;${ACTIONS_INFLOW_DECLS};overflow:visible!important}
 .pw-brand-cluster,.pw-shop-brand-cluster{pointer-events:auto!important}
+.pw-cat-panel,.pw-shop-cat-panel,[data-pw-cat-panel]{position:absolute!important}
 `.trim()
 
 /** Ẩn chữ head trên mobile — thắng leftover `icon-label-below` (`display:block!important`). Dock vẫn có chữ. */
@@ -43,11 +65,10 @@ const LOGO_ROW_SEL = [
 const LOGO_ROW_IS = `:is(${LOGO_ROW_SEL})`
 
 /** Thắng `html .pw-header-main{flex-wrap:nowrap}` và CSS kéo từ HTML visual / Sửa nhanh. */
-const PW_MOBILE_HEADER_STACK_WIN_PROPS =
-  'display:flex!important;flex-wrap:wrap!important;width:100%!important;max-width:none!important;margin-left:0!important;margin-right:0!important;padding:8px 10px!important;padding-left:8px!important;padding-right:10px!important'
+const PW_MOBILE_HEADER_STACK_WIN_PROPS = HEADER_MAIN_LOGO_PAD_DECLS
 
 const PW_MOBILE_HEADER_STACK_WIN_HOSTS =
-  'html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"],html[data-pw-edit-device="mobile"].nanoai-ve-active,html[data-pw-edit-device="mobile"] body.nanoai-ve-active,html[data-pw-scene-lock="mobile"] body.nanoai-ve-active'
+  'html[data-pw-edit-device="mobile"],html[data-pw-scene-lock="mobile"],html[data-pw-edit-device="mobile"].nanoai-ve-active,html[data-pw-edit-device="mobile"] body.nanoai-ve-active,html[data-pw-scene-lock="mobile"] body.nanoai-ve-active,[data-pw-inline-visual-root][data-pw-edit-device="mobile"],[data-pw-inline-visual-root][data-pw-scene-lock="mobile"]'
 
 function pwMobileHeaderStackWinBlock(sel: string, decls: string): string {
   const parts = sel.split(',').map((part) => part.trim()).filter(Boolean)
@@ -56,11 +77,20 @@ function pwMobileHeaderStackWinBlock(sel: string, decls: string): string {
     .join(',') + `{${decls}}`
 }
 
+function pwUnlockedPhoneAndWideHost(sel: string, decls: string): string {
+  const parts = sel.split(',').map((part) => part.trim()).filter(Boolean)
+  const unlocked = parts.map((part) => `html:not([data-pw-edit-device]):not([data-pw-scene-lock]) ${part}`)
+  const wide = parts.map((part) => `${PW_WIDE_HEADER_MAIN_HOST} ${part}`)
+  return `${unlocked.concat(wide).join(',')}{${decls}}`
+}
+
 export const PW_MOBILE_HEADER_STACK_WIN_CSS = `
 ${pwMobileHeaderStackWinBlock('.pw-header-main,.pw-container.pw-header-main,.pw-shop-header-inner', PW_MOBILE_HEADER_STACK_WIN_PROPS)}
-${pwMobileHeaderStackWinBlock('.pw-brand-cluster,.pw-shop-brand-cluster', 'display:contents!important;max-width:none!important;width:auto!important;pointer-events:auto!important')}
-${pwMobileHeaderStackWinBlock('.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float])', 'order:-1!important;flex:1 1 100%!important;width:100%!important;max-width:100%!important;justify-content:center!important;position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important;margin:0!important')}
-@media (max-width:767px){html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-container.pw-header-main,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header-inner{${PW_MOBILE_HEADER_STACK_WIN_PROPS}}html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-brand-cluster,html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-brand-cluster{display:contents!important;max-width:none!important}html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header a.pw-brand:not([data-pw-logo-float]),html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:-1!important;flex:1 1 100%!important;width:100%!important;position:relative!important;left:auto!important;top:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important}}
+${pwMobileHeaderStackWinBlock('.pw-brand-cluster,.pw-shop-brand-cluster', CLUSTER_STATIC_DECLS)}
+${pwMobileHeaderStackWinBlock('.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float])', LOGO_ABS_CENTER_DECLS)}
+${pwMobileHeaderStackWinBlock('.pw-header-search,.pw-shop-search-wrap,.pw-header-search:not([data-pw-stay-scroll]),.pw-shop-search-wrap:not([data-pw-stay-scroll])', SEARCH_INFLOW_DECLS)}
+${pwMobileHeaderStackWinBlock('.pw-header-actions,.pw-shop-header-actions', ACTIONS_INFLOW_DECLS)}
+@media (max-width:767px){${pwUnlockedPhoneAndWideHost('.pw-header-main,.pw-container.pw-header-main,.pw-shop-header-inner', PW_MOBILE_HEADER_STACK_WIN_PROPS)}${pwUnlockedPhoneAndWideHost('.pw-brand-cluster,.pw-shop-brand-cluster', CLUSTER_STATIC_DECLS)}${pwUnlockedPhoneAndWideHost('.pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float])', LOGO_ABS_CENTER_DECLS)}${pwUnlockedPhoneAndWideHost('.pw-header-search,.pw-shop-search-wrap,.pw-header-search:not([data-pw-stay-scroll]),.pw-shop-search-wrap:not([data-pw-stay-scroll])', SEARCH_INFLOW_DECLS)}${pwUnlockedPhoneAndWideHost('.pw-header-actions,.pw-shop-header-actions', ACTIONS_INFLOW_DECLS)}}
 `.trim()
 
 /** Ẩn thanh trên (topbar) trên mobile — thắng `display:block;min-height:36px` ở chrome layout / Sửa nhanh. */
@@ -141,16 +171,24 @@ html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW
 html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] ${LOGO_ROW_IS}{${COLLAPSED_LOGO_BOX}}
 html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .nanoai-ve-logo-btn,html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] img[data-pw-logo-empty="1"],html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-logo-frame:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] [data-pw-logo-frame="1"]:has([data-pw-logo-empty="1"]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] header .pw-logo-frame:not([data-pw-logo-float]),html[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] header [data-pw-logo-frame="1"]:not([data-pw-logo-float]){display:none!important;min-height:0!important;min-width:0!important;height:0!important;width:0!important;pointer-events:none!important}
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
+html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-container.pw-header-main,
 html[data-pw-edit-device="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
+html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-container.pw-header-main,
 html[data-pw-scene-lock="mobile"][${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
 html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
-html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner{padding-top:4px!important;padding-bottom:6px!important;row-gap:0!important}
+html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-container.pw-header-main,
+html:not([data-pw-edit-device]):not([data-pw-scene-lock])[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner,
+${PW_WIDE_HEADER_MAIN_HOST}[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-header-main,
+${PW_WIDE_HEADER_MAIN_HOST}[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-container.pw-header-main,
+${PW_WIDE_HEADER_MAIN_HOST}[${PW_HEAD_LOGO_COLLAPSED_ATTR}="1"] .pw-shop-header-inner{padding-top:4px!important;padding-bottom:6px!important;row-gap:0!important}
 ${PW_MOBILE_HEADER_TOPBAR_HIDE_CSS}
 ${PW_MOBILE_HEADER_PDP_LEFTOVER_HIDE_CSS}
 `.trim()
 
 export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
+  if(window.__pwMobileHeadLogoBoot)return;
+  window.__pwMobileHeadLogoBoot=1;
   var ATTR='${PW_HEAD_LOGO_COLLAPSED_ATTR}';
   var COLLAPSE=${PW_MOBILE_LOGO_SCROLL_COLLAPSE_Y};
   var EXPAND=${PW_MOBILE_LOGO_SCROLL_EXPAND_Y};
@@ -161,8 +199,11 @@ export const PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT = `(function(){
     var el=html();
     var d=(el.getAttribute('data-pw-edit-device')||el.getAttribute('data-pw-scene-lock')||'');
     if(d==='mobile')return true;
-    if(d==='desktop'||d==='laptop'||d==='tablet')return false;
-    return (window.innerWidth||el.clientWidth||0)<768;
+    if(d==='tablet')return false;
+    var w=window.innerWidth||el.clientWidth||0;
+    if(w>0&&w<768)return true;
+    if(d==='desktop'||d==='laptop')return false;
+    return w<768;
   }
   function addScroll(y,n){
     if(!n)return y;

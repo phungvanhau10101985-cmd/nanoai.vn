@@ -27,6 +27,7 @@ import {
   type InventoryBunnyDeleteSnapshot,
 } from '@/lib/messaging/inventory-bunny-delete'
 import { removePartnerVisitorInventoryIdsFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
+import { deletePartnerOutfitPicksFromPg } from '@/lib/db/messaging-partner-outfit-picks-pg'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
@@ -509,6 +510,86 @@ function mapPgInventoryCardRow(r: PgInventoryCardRaw): PartnerInventoryShopCardR
     rating_score: num(r.rating_score, 0),
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
+  }
+}
+
+/** CARD + style/occasion/color/material — chỉ PDP phối đồ, không listing. */
+export type PartnerOutfitMatchRow = PartnerInventoryShopCardRow & {
+  style: string | null
+  occasion: string | null
+  color_summary: string | null
+  material_note: string | null
+}
+
+type PgOutfitMatchRaw = PgInventoryCardRaw & {
+  style?: string | null
+  occasion?: string | null
+  color_summary?: string | null
+  material_note?: string | null
+}
+
+function mapPgOutfitMatchRow(r: PgOutfitMatchRaw): PartnerOutfitMatchRow {
+  return {
+    ...mapPgInventoryCardRow(r),
+    style: r.style != null ? String(r.style) : null,
+    occasion: r.occasion != null ? String(r.occasion) : null,
+    color_summary: r.color_summary != null ? String(r.color_summary) : null,
+    material_note: r.material_note != null ? String(r.material_note) : null,
+  }
+}
+
+const INVENTORY_OUTFIT_MATCH_SELECT = `select
+  mpi.id::text as id,
+  mpi.partner_id::text as partner_id,
+  mpi.sort_order,
+  mpi.sku,
+  coalesce(mpi.name, '') as name,
+  coalesce(mpi.stock_qty, 0) as stock_qty,
+  coalesce(mpi.price_hint, '') as price_hint,
+  coalesce(mpi.image_url, '') as image_url,
+  coalesce(mpi.product_url, '') as product_url,
+  coalesce(mpi.remarketing_id, '') as remarketing_id,
+  coalesce(mpi.is_active, true) as is_active,
+  coalesce(mpi.is_clearance, false) as is_clearance,
+  mpi.price_amount,
+  coalesce(mpi.price_currency, 'VND') as price_currency,
+  mpi.sale_price_amount,
+  mpi.sale_starts_at,
+  mpi.sale_ends_at,
+  mpi.category_l1,
+  mpi.category_l2,
+  mpi.category_l3,
+  coalesce(mpi.likes_count, 0) as likes_count,
+  coalesce(mpi.purchases_count, 0) as purchases_count,
+  coalesce(mpi.reviews_count, 0) as reviews_count,
+  coalesce(mpi.questions_count, 0) as questions_count,
+  coalesce(mpi.rating_score, 0) as rating_score,
+  mpi.created_at,
+  mpi.updated_at,
+  mpi.style,
+  mpi.color_summary,
+  mpi.occasion,
+  coalesce(mpi.material_note, '') as material_note
+from public.messaging_partner_inventory mpi`
+
+async function runOutfitMatchSelectWithFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PartnerOutfitMatchRow[]> {
+  try {
+    const rows = await pgQuery<PgOutfitMatchRaw>(`${INVENTORY_OUTFIT_MATCH_SELECT}\n${sqlFromSelect}`, params)
+    return rows.map(mapPgOutfitMatchRow)
+  } catch (e) {
+    const code = e && typeof e === 'object' ? String((e as { code?: string }).code ?? '') : ''
+    if (code !== '42703') throw e
+    const rows = await runInventoryCardSelectWithFallback(sqlFromSelect, params)
+    return rows.map((row) => ({
+      ...row,
+      style: null,
+      occasion: null,
+      color_summary: null,
+      material_note: null,
+    }))
   }
 }
 
@@ -2675,6 +2756,96 @@ export async function fetchPartnerInventoryRowsByTokensIlikeAnyFromPg(
   }
 }
 
+function isMissingSearchDocumentColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  return String(err.message ?? '').toLowerCase().includes('search_document')
+}
+
+/**
+ * PDP «Phối đồ» — thẻ + cột style/occasion/color/material theo `category_l1`.
+ * Không kéo mô tả / gallery / catalog_json. Sort lượt mua như 188.
+ */
+export async function fetchPartnerInventoryCardsForOutfitSlotFromPg(
+  partnerId: string,
+  input: {
+    categoryL1Names: string[]
+    namePatterns?: string[]
+    excludeId?: string | null
+    limit: number
+  }
+): Promise<PartnerOutfitMatchRow[] | null> {
+  if (!isPgConfigured()) return null
+  const names = [...new Set(input.categoryL1Names.map((name) => String(name || '').trim()).filter(Boolean))]
+  if (!names.length) return []
+  const lowered = names.map((name) => name.toLowerCase())
+  const prefixes = lowered.map((name) => `${name}%`)
+  const patterns = [...new Set((input.namePatterns ?? []).map((p) => String(p || '').trim()).filter((p) => p.length >= 3))]
+  const excludeId = String(input.excludeId || '').trim()
+  const excludeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(excludeId)
+    ? excludeId
+    : null
+  const lim = Math.min(40, Math.max(8, Math.floor(input.limit)))
+  const sqlFrom = (useSearchDocument: boolean) =>
+    `where mpi.partner_id = $1::uuid
+       and coalesce(mpi.is_active, true) = true
+       and ($5::uuid is null or mpi.id <> $5::uuid)
+       and (
+         lower(trim(coalesce(mpi.category_l1, ''))) = any($2::text[])
+         or lower(trim(coalesce(mpi.category_l1, ''))) like any($3::text[])
+       )
+       and (
+         cardinality($4::text[]) = 0
+         or exists (
+           select 1
+           from unnest($4::text[]) as q(pattern)
+           where ${useSearchDocument ? 'mpi.search_document ilike q.pattern or ' : ''}
+                 coalesce(mpi.name, '') ilike q.pattern
+              or coalesce(mpi.category_l2, '') ilike q.pattern
+              or coalesce(mpi.category_l3, '') ilike q.pattern
+         )
+       )
+     order by coalesce(mpi.purchases_count, 0) desc, mpi.updated_at desc nulls last
+     limit $6`
+  const params = [partnerId, lowered, prefixes, patterns, excludeUuid, lim]
+  try {
+    return await runOutfitMatchSelectWithFallback(sqlFrom(true), params)
+  } catch (e) {
+    if (isMissingSearchDocumentColumnError(e)) {
+      try {
+        return await runOutfitMatchSelectWithFallback(sqlFrom(false), params)
+      } catch (e2) {
+        if (isMissingCatalog188ColumnError(e2)) return []
+        console.warn('[fetchPartnerInventoryCardsForOutfitSlotFromPg]', e2)
+        return null
+      }
+    }
+    if (isMissingCatalog188ColumnError(e)) return []
+    console.warn('[fetchPartnerInventoryCardsForOutfitSlotFromPg]', e)
+    return null
+  }
+}
+
+export async function fetchPartnerInventoryOutfitMatchByIdsFromPg(
+  partnerId: string,
+  ids: string[]
+): Promise<PartnerOutfitMatchRow[] | null> {
+  if (!isPgConfigured() || !ids.length) return null
+  const clean = ids.map((x) => x.trim()).filter(Boolean)
+  if (!clean.length) return null
+  try {
+    return await runOutfitMatchSelectWithFallback(
+      `where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])
+       order by array_position($2::uuid[], mpi.id)`,
+      [partnerId, clean]
+    )
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryOutfitMatchByIdsFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerInventoryRowByProductUrlFromPg(
   partnerId: string,
   productUrl: string
@@ -3701,6 +3872,7 @@ export async function deletePartnerInventoryByIdsForPartnerFromPg(
         )
       }
       snapshots.push(...deletedSnapshots)
+      await deletePartnerOutfitPicksFromPg(partnerId, chunk)
       const personalizationCleaned = await removePartnerVisitorInventoryIdsFromPg({
         partnerId,
         inventoryIds: chunk,

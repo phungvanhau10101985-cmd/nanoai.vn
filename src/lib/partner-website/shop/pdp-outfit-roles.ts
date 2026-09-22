@@ -360,6 +360,19 @@ export function outfitSlotSearchTokens(slot: OutfitSlotId): string[] {
   return ['phụ kiện', 'thắt lưng', 'mũ', 'đồng hồ', 'kính']
 }
 
+/** L1 shoes/bag/accessory đã đủ; áo/quần/váy mới cần token trên name/L2/L3. */
+export function outfitSlotNeedsNameTokens(slot: OutfitSlotId): boolean {
+  return slot === 'top' || slot === 'bottom' || slot === 'dress'
+}
+
+export function outfitSlotSearchPatterns(slot: OutfitSlotId): string[] {
+  if (!outfitSlotNeedsNameTokens(slot)) return []
+  return outfitSlotSearchTokens(slot)
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) => token.length >= 2)
+    .map((token) => `%${token.replace(/[%_]/g, '')}%`)
+}
+
 export function scoreOutfitCandidate(input: {
   anchorPrice: number | null
   candidatePrice: number | null
