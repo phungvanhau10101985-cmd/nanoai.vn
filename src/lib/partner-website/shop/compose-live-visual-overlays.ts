@@ -1,4 +1,7 @@
-import { bindLiveCategorySurfacesInHtml } from '@/lib/partner-website/shop/bind-live-nav-pills'
+import {
+  bindLiveCategorySurfacesInHtml,
+  stripFeaturedCategoryHostsInHtml,
+} from '@/lib/partner-website/shop/bind-live-nav-pills'
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { bindLiveMarketingBannersToHtml } from '@/lib/partner-website/shop/bind-live-marketing-banner'
 import {
@@ -42,6 +45,7 @@ export function applyLiveVisualOverlays(
         siteSlug: input.siteSlug,
       })
     : withProduct
-  const withCategories = bindLiveCategorySurfacesInHtml(withListing, input.liveCategoryBind ?? null)
+  const withoutHub = input.liveListing ? stripFeaturedCategoryHostsInHtml(withListing) : withListing
+  const withCategories = bindLiveCategorySurfacesInHtml(withoutHub, input.liveCategoryBind ?? null)
   return bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)
 }

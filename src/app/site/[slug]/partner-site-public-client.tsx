@@ -475,6 +475,7 @@ function PartnerSitePublicFrame({
           data-pw-page={visualPageKind || undefined}
           data-pw-look={visualLook || undefined}
           data-pw-coordinate-version={visualDocumentCodes['data-pw-coordinate-version'] || undefined}
+          data-pw-listing-category={visualDocumentCodes['data-pw-listing-category'] || undefined}
           data-pw-active-device={activeDevice}
           data-pw-edit-device={activeDevice}
           data-pw-runtime-revision={revision}

@@ -154,7 +154,7 @@ import {
   usePartnerSiteShop,
 } from '@/lib/partner-website/shop/partner-site-shop-context'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
-import { PW_EL, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_EL, PW_LISTING_CATEGORY_ATTR, PW_PAGE, PW_REGION, type PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { partnerShopSloganFromTheme } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { rewritePartnerSiteCustomDomainHtmlPaths } from '@/lib/partner-website/shop/rewrite-partner-site-custom-domain-html'
 import {
@@ -203,6 +203,8 @@ export type PartnerSiteShopShellProps = {
   hideChrome?: boolean
   /** Server pathname — account sidebar active item without `usePathname`. */
   pathname?: string
+  /** Live `/c/{path}` — hide leftover featured/hub tiles; keep the product grid. */
+  listingCategory?: boolean
   children: React.ReactNode
 }
 
@@ -413,6 +415,7 @@ function PartnerSiteShopShellInner({
   initialNavRow = [],
   initialShowNavAll = false,
   pathname: pathnameProp = '',
+  listingCategory = false,
   children,
 }: PartnerSiteShopShellProps) {
   const t = getPartnerSiteShopCopy(locale)
@@ -559,6 +562,17 @@ function PartnerSiteShopShellInner({
     }
   }, [pageKind])
 
+  useLayoutEffect(() => {
+    const html = document.documentElement
+    if (listingCategory) html.setAttribute(PW_LISTING_CATEGORY_ATTR, '1')
+    else html.removeAttribute(PW_LISTING_CATEGORY_ATTR)
+    return () => {
+      if (html.getAttribute(PW_LISTING_CATEGORY_ATTR) === '1') {
+        html.removeAttribute(PW_LISTING_CATEGORY_ATTR)
+      }
+    }
+  }, [listingCategory])
+
   useEffect(() => {
     if (!categoriesOpen) return
     const header = categoriesRef.current?.closest('header, .pw-shop-header, .pw-header')
@@ -582,11 +596,14 @@ function PartnerSiteShopShellInner({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setCategoriesOpen(false)
     }
+    const onNavClose = () => setCategoriesOpen(false)
     document.addEventListener('mousedown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('pw-shop-close-cat-panels', onNavClose)
     return () => {
       document.removeEventListener('mousedown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('pw-shop-close-cat-panels', onNavClose)
     }
   }, [categoriesOpen])
 
@@ -763,12 +780,13 @@ function PartnerSiteShopShellInner({
   )
   useLayoutEffect(() => {
     if (pageKind) document.documentElement.setAttribute('data-pw-page', pageKind)
+    if (listingCategory) document.documentElement.setAttribute(PW_LISTING_CATEGORY_ATTR, '1')
     if (document.getElementById(PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID)) return
     const s = document.createElement('script')
     s.id = PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID
     s.textContent = PARTNER_SHOP_LISTING_HEAD_SCRIPT
     document.body.appendChild(s)
-  }, [pageKind])
+  }, [listingCategory, pageKind])
   useLayoutEffect(() => {
     document.documentElement.setAttribute('data-pw-look', shopLook)
     applyShopBrowserThemeColorToDocument(document, theme)
@@ -794,7 +812,12 @@ function PartnerSiteShopShellInner({
     }
   }, [previewDevice, useVisualChrome, visualBeforeHtml])
   return (
-    <div className="pw-shop" data-pw-look={shopLook} {...(pageKind ? { 'data-pw-page': pageKind } : {})}>
+    <div
+      className="pw-shop"
+      data-pw-look={shopLook}
+      {...(pageKind ? { 'data-pw-page': pageKind } : {})}
+      {...(listingCategory ? { [PW_LISTING_CATEGORY_ATTR]: '1' } : {})}
+    >
       <script
         id="pw-react-scene-lock"
         dangerouslySetInnerHTML={{

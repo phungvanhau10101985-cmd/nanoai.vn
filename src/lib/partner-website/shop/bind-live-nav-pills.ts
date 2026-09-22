@@ -233,6 +233,63 @@ function collectCardRanges(inner: string): Array<{ start: number; end: number; h
   return out
 }
 
+function stripMatchingOpens(html: string, openRe: RegExp): string {
+  const masked = maskHtmlForTagScan(html)
+  const ranges: Array<{ start: number; end: number }> = []
+  let match: RegExpExecArray | null
+  openRe.lastIndex = 0
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))
+    const end = close + (closeTok?.[0].length ?? `</${tag}>`.length)
+    openRe.lastIndex = end
+    ranges.push({ start, end })
+  }
+  if (!ranges.length) return html
+  let out = html
+  for (let i = ranges.length - 1; i >= 0; i -= 1) {
+    out = `${out.slice(0, ranges[i].start)}${out.slice(ranges[i].end)}`
+  }
+  return out
+}
+
+/**
+ * Live `/c/{path}` must show products, not leftover featured/hub tiles
+ * copied from home or `collection.html`.
+ */
+export function stripFeaturedCategoryHostsInHtml(html: string): string {
+  if (!html) return html
+  let out = stripMatchingOpens(
+    html,
+    /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-featured-categories=["']1["'])[^>]*>/gi
+  )
+  out = stripMatchingOpens(
+    out,
+    /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-grid-kind=["']featured-categories["'])[^>]*>/gi
+  )
+  out = stripMatchingOpens(
+    out,
+    /<(section)\b(?=[^>]*\bclass=["'][^"']*\bpw-featured-cat\b)[^>]*>/gi
+  )
+  out = stripMatchingOpens(
+    out,
+    /<(section)\b(?=[^>]*\b(?:class=["'][^"']*\bpw-categories\b|id=["']categories["']))[^>]*>/gi
+  )
+  out = stripMatchingOpens(
+    out,
+    /<([a-z0-9]+)\b(?=[^>]*\bclass=["'][^"']*\bpw-shop-category-hub\b)[^>]*>/gi
+  )
+  out = stripMatchingOpens(
+    out,
+    /<([a-z0-9]+)\b(?=[^>]*\bdata-pw-region=["']categories["'])[^>]*>/gi
+  )
+  return out
+}
+
 export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCategoryBind): string {
   if (!html || !bind.tiles.length) return html
   const hub = bind.hubHref || partnerSiteCategoryHubPath(bind.siteSlug)
@@ -271,5 +328,7 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
 
 export function bindLiveCategorySurfacesInHtml(html: string, bind: LiveCategoryBind | null | undefined): string {
   if (!html || !bind) return html
-  return bindLiveFeaturedCategoryTilesToHtml(bindLiveNavPillsToHtml(html, bind), bind)
+  const pills = bindLiveNavPillsToHtml(html, bind)
+  if (/\bdata-pw-listing-category=["']1["']/.test(pills)) return pills
+  return bindLiveFeaturedCategoryTilesToHtml(pills, bind)
 }

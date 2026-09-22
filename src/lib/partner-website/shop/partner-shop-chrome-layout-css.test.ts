@@ -77,6 +77,7 @@ test('chrome layout css is injected once before </head>', () => {
   assert.equal(once.includes('pw-shop-stay-scroll'), true)
   assert.equal(once.includes('[data-pw-hidden="1"]'), true)
   assert.equal(once.includes('[data-pw-featured-categories]'), true)
+  assert.equal(once.includes('html[data-pw-listing-category="1"] [data-pw-featured-categories]'), true)
   assert.equal(once.includes('.pw-featured-cat-card'), true)
   assert.equal(once.includes('pw-featured-cat-marquee-vertical'), true)
   assert.equal(once.includes('translate3d(0,-50%,0)'), true)

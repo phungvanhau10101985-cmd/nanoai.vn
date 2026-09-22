@@ -6,6 +6,7 @@ import {
   buildLiveNavRowInnerHtml,
   PW_FEATURED_LIVE_ATTR,
   PW_NAV_LIVE_ATTR,
+  stripFeaturedCategoryHostsInHtml,
 } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 
@@ -89,4 +90,33 @@ test('bindLiveCategorySurfacesInHtml sizes AliCDN featured tile images', () => {
   assert.match(out, /img\.alicdn\.com\/img\/ibank\/O1CN01dam\.jpg_600x600q90\.jpg/)
   assert.match(out, /loading="lazy"/)
   assert.match(out, /decoding="async"/)
+})
+
+test('stripFeaturedCategoryHostsInHtml removes leftover hub tiles', () => {
+  const source = `<main>
+<section class="pw-featured-cat" data-pw-featured-categories="1"><div data-pw-grid>tiles</div></section>
+<section data-pw-region="categories"><a href="/c/ao">Áo</a></section>
+<section data-pw-catalog><div data-pw-grid></div></section>
+<div class="pw-shop-category-hub"><a href="/c/ao">Áo</a></div>
+</main>`
+  const out = stripFeaturedCategoryHostsInHtml(source)
+  assert.doesNotMatch(out, /data-pw-featured-categories/)
+  assert.doesNotMatch(out, /pw-featured-cat/)
+  assert.doesNotMatch(out, /pw-shop-category-hub/)
+  assert.doesNotMatch(out, /data-pw-region="categories"/)
+  assert.match(out, /data-pw-catalog/)
+})
+
+test('bindLiveCategorySurfacesInHtml skips featured tiles on category listing', () => {
+  const source = `<html data-pw-listing-category="1"><body data-pw-listing-category="1">
+<nav class="pw-nav-main" data-pw-personalize-nav="recent-categories"><a href="/products">Thời trang</a></nav>
+<section class="pw-featured-cat" data-pw-featured-categories="1">
+  <div data-pw-grid><a data-pw-el="card" href="#"><span data-pw-el="card-name">Áo sơ mi</span></a></div>
+</section>
+</body></html>`
+  const out = bindLiveCategorySurfacesInHtml(source, bind)
+  assert.match(out, /Đầm/)
+  assert.doesNotMatch(out, /Thời trang/)
+  assert.doesNotMatch(out, /Đầm maxi/)
+  assert.match(out, /Áo sơ mi/)
 })

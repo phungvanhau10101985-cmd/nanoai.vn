@@ -250,6 +250,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
       navJson={shop.site.navJson}
       activeNav="products"
       pageKind={PW_PAGE.listing}
+      listingCategory
       {...(await liveVisualHomeChromeShellProps(shop.site, device))}
     >
       <JsonLd data={breadcrumbJsonLd} />

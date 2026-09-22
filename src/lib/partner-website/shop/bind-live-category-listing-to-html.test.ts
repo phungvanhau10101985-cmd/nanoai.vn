@@ -37,6 +37,9 @@ test('bindLiveCategoryListingToHtml paints title breadcrumb and categoryId', () 
   assert.match(next, /Áo blouse công sở/)
   assert.match(next, /data-pw-listing-seo="1"/)
   assert.match(next, /Đoạn SEO danh mục/)
+  assert.match(next, /data-pw-listing-category="1"/)
+  assert.match(next, /<html[^>]*data-pw-listing-category="1"/)
+  assert.match(next, /<body[^>]*data-pw-listing-category="1"/)
 })
 
 test('bindLiveCategoryListingToHtml is a no-op without listing id', () => {

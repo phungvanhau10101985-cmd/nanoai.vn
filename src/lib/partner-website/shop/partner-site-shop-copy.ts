@@ -23,6 +23,7 @@ export type PartnerSiteShopCopy = {
   categoryFilterPriceMaxPh: string
   categoryFilterApply: string
   categoryFilterClear: string
+  categoryFilterClose: string
   categorySortLabel: string
   categorySortNewest: string
   categorySortRandom: string
@@ -730,6 +731,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterPriceMaxPh: 'Tối đa',
     categoryFilterApply: 'Áp dụng',
     categoryFilterClear: 'Xóa bộ lọc',
+    categoryFilterClose: 'Đóng',
     categorySortLabel: 'Sắp xếp',
     categorySortNewest: 'Mới nhất',
     categorySortRandom: 'Ngẫu nhiên',
@@ -1421,6 +1423,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterPriceMaxPh: 'Maximum',
     categoryFilterApply: 'Apply',
     categoryFilterClear: 'Clear filters',
+    categoryFilterClose: 'Close',
     categorySortLabel: 'Sort',
     categorySortNewest: 'Newest',
     categorySortRandom: 'Random',
@@ -2112,6 +2115,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterPriceMaxPh: '最高',
     categoryFilterApply: '应用',
     categoryFilterClear: '清除筛选',
+    categoryFilterClose: '关闭',
     categorySortLabel: '排序',
     categorySortNewest: '最新',
     categorySortRandom: '随机',
@@ -2796,6 +2800,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterPriceMaxPh: '上限',
     categoryFilterApply: '適用',
     categoryFilterClear: 'フィルターを解除',
+    categoryFilterClose: '閉じる',
     categorySortLabel: '並び替え',
     categorySortNewest: '新着順',
     categorySortRandom: 'ランダム',
@@ -3484,6 +3489,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     categoryFilterPriceMaxPh: '최대',
     categoryFilterApply: '적용',
     categoryFilterClear: '필터 지우기',
+    categoryFilterClose: '닫기',
     categorySortLabel: '정렬',
     categorySortNewest: '최신순',
     categorySortRandom: '무작위',

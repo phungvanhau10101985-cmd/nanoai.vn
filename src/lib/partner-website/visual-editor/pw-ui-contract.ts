@@ -188,12 +188,19 @@ export const PW_REGION_ATTR = 'data-pw-region'
 export const PW_EL_ATTR = 'data-pw-el'
 export const PW_TOKEN_ATTR = 'data-pw-token'
 export const PW_EDIT_ATTR = 'data-pw-edit'
+/** Live `/c/{path}` — hide leftover featured/hub tiles; keep product catalog. */
+export const PW_LISTING_CATEGORY_ATTR = 'data-pw-listing-category'
 
 /**
  * Live inlines `<body>` into Next.js — copy these from visual `<html>` onto the document.
  * Do not copy `data-pw-edit-device` / `data-pw-scene-lock` (live stamps the active machine).
  */
-export const PW_LIVE_DOCUMENT_ATTRS = [PW_PAGE_ATTR, PW_LOOK_ATTR, 'data-pw-coordinate-version'] as const
+export const PW_LIVE_DOCUMENT_ATTRS = [
+  PW_PAGE_ATTR,
+  PW_LOOK_ATTR,
+  'data-pw-coordinate-version',
+  PW_LISTING_CATEGORY_ATTR,
+] as const
 
 export const PW_PAGE_VALUES = Object.values(PW_PAGE)
 export const PW_LOOK_VALUES = Object.values(PW_LOOK)

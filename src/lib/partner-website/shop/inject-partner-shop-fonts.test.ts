@@ -61,21 +61,23 @@ test('extractVisualHtmlLook reads html then body', () => {
 
 test('extractVisualHtmlDocumentCodes copies live document codes from html tags only', () => {
   const codes = extractVisualHtmlDocumentCodes(
-    '<html data-pw-page="home" data-pw-look="shop" data-pw-coordinate-version="4" data-pw-edit-device="desktop"><head><style>html[data-pw-look="marketplace"]{}</style></head><body></body></html>'
+    '<html data-pw-page="listing" data-pw-look="shop" data-pw-coordinate-version="4" data-pw-listing-category="1" data-pw-edit-device="desktop"><head><style>html[data-pw-look="marketplace"]{}</style></head><body></body></html>'
   )
-  assert.equal(codes['data-pw-page'], 'home')
+  assert.equal(codes['data-pw-page'], 'listing')
   assert.equal(codes['data-pw-look'], 'shop')
   assert.equal(codes['data-pw-coordinate-version'], '4')
+  assert.equal(codes['data-pw-listing-category'], '1')
   assert.equal(codes['data-pw-edit-device'], undefined)
 })
 
 test('buildPartnerLiveDocumentStampScript copies look and device onto html', () => {
   const script = buildPartnerLiveDocumentStampScript(
-    '<html data-pw-page="home" data-pw-look="marketplace"><body></body></html>',
+    '<html data-pw-page="listing" data-pw-look="marketplace" data-pw-listing-category="1"><body></body></html>',
     'desktop'
   )
   assert.match(script, /data-pw-look","marketplace"/)
-  assert.match(script, /data-pw-page","home"/)
+  assert.match(script, /data-pw-page","listing"/)
+  assert.match(script, /data-pw-listing-category","1"/)
   assert.match(script, /data-pw-edit-device","desktop"/)
   assert.match(script, /data-pw-scene-lock","desktop"/)
 })

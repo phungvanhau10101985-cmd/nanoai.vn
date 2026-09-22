@@ -89,6 +89,7 @@ describe('pw ui contract', () => {
     expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-page')
     expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-look')
     expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-coordinate-version')
+    expect(PW_LIVE_DOCUMENT_ATTRS).toContain('data-pw-listing-category')
   })
 
   it('rejects unknown codes', () => {

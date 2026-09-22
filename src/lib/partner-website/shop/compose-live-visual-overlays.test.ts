@@ -95,6 +95,11 @@ test('applyLiveVisualOverlays binds listing title onto the shared category shell
 <body data-pw-page="listing">
 <main>
 <header class="pw-page-head"><h1 data-pw-el="heading">Bộ sưu tập</h1></header>
+<section class="pw-featured-cat" data-pw-featured-categories="1">
+  <div data-pw-grid>
+    <a data-pw-el="card" href="#"><span data-pw-el="card-name">Áo sơ mi</span></a>
+  </div>
+</section>
 <section data-pw-catalog data-sort="default"><div data-pw-grid></div></section>
 </main></body></html>`
   const out = applyLiveVisualOverlays(listing, {
@@ -110,7 +115,11 @@ test('applyLiveVisualOverlays binds listing title onto the shared category shell
   })
   assert.match(out, /áo blouse nữ/)
   assert.match(out, /data-category-id="11111111-1111-4111-8111-111111111111"/)
+  assert.match(out, /data-pw-listing-category="1"/)
   assert.doesNotMatch(out, /<h1 data-pw-el="heading">Bộ sưu tập<\/h1>/)
+  assert.doesNotMatch(out, /data-pw-featured-categories/)
+  assert.doesNotMatch(out, /Áo sơ mi/)
+  assert.doesNotMatch(out, /Đầm maxi/)
 })
 
 test('applyLiveVisualOverlays paints the 21:9 promo slider on home', () => {

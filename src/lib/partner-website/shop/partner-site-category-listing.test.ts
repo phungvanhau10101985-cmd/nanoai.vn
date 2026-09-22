@@ -199,6 +199,9 @@ test('mega menu html is 2-column L1 | L2/L3', () => {
   assert.match(css, /overflow-x:hidden/)
   assert.match(css, /\.pw-shop-category-tiles\{display:none!important\}/)
   assert.match(css, /\.pw-shop-category-hub\{display:grid/)
+  assert.match(css, /html\[data-pw-listing-category="1"\] \[data-pw-featured-categories\]/)
+  assert.match(css, /html\[data-pw-listing-category="1"\] \[data-pw-region="categories"\]/)
+  assert.match(css, /html\[data-pw-listing-category="1"\] \.pw-shop-category-hub/)
 })
 
 test('category listing copy exists for all locales', () => {
@@ -217,5 +220,6 @@ test('category listing copy exists for all locales', () => {
     assert.ok(t.categoryHubTitle)
     assert.ok(t.categoryFilterStyle)
     assert.ok(t.categoryFilterAllStyles)
+    assert.ok(t.categoryFilterClose)
   }
 })

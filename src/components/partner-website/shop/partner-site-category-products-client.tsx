@@ -26,6 +26,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { PartnerSiteListingProductCard } from '@/components/partner-website/shop/partner-site-listing-product-card'
+import { PartnerSiteListingFacetPicker } from '@/components/partner-website/shop/partner-site-listing-facet-picker'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { PW_LISTING_FILTER_SLOT_ATTR } from '@/lib/partner-website/shop/listing-head'
 
@@ -300,63 +301,54 @@ export function PartnerSiteCategoryProductsClient({
             <>
               <label>
                 <span className="pw-shop-filter-label">{t.categoryFilterSize}</span>
-                <select
+                <PartnerSiteListingFacetPicker
+                  label={t.categoryFilterSize}
                   value={listing.size}
-                  data-pw-el={PW_EL.facet}
-                  data-pw-facet="size"
-                  aria-label={t.categoryFilterSize}
-                  onChange={(e) => pushListing({ size: e.target.value })}
-                >
-                  <option value="">{t.categoryFilterAllSizes}</option>
-                  {listing.size && !facetSizes.some((f) => f.value === listing.size) ? (
-                    <option value={listing.size}>{listing.size}</option>
-                  ) : null}
-                  {facetSizes.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.value} ({f.count})
-                    </option>
-                  ))}
-                </select>
+                  emptyLabel={t.categoryFilterAllSizes}
+                  closeLabel={t.categoryFilterClose}
+                  facet="size"
+                  onChange={(size) => pushListing({ size })}
+                  options={[
+                    ...(listing.size && !facetSizes.some((f) => f.value === listing.size)
+                      ? [{ value: listing.size, label: listing.size }]
+                      : []),
+                    ...facetSizes.map((f) => ({ value: f.value, label: `${f.value} (${f.count})` })),
+                  ]}
+                />
               </label>
               <label>
                 <span className="pw-shop-filter-label">{t.categoryFilterStyle}</span>
-                <select
+                <PartnerSiteListingFacetPicker
+                  label={t.categoryFilterStyle}
                   value={listing.styleTag}
-                  data-pw-el={PW_EL.facet}
-                  data-pw-facet="style"
-                  aria-label={t.categoryFilterStyle}
-                  onChange={(e) => pushListing({ styleTag: e.target.value })}
-                >
-                  <option value="">{t.categoryFilterAllStyles}</option>
-                  {listing.styleTag && !facetStyleTags.some((f) => f.value === listing.styleTag) ? (
-                    <option value={listing.styleTag}>{listing.styleTag}</option>
-                  ) : null}
-                  {facetStyleTags.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.value}
-                    </option>
-                  ))}
-                </select>
+                  emptyLabel={t.categoryFilterAllStyles}
+                  closeLabel={t.categoryFilterClose}
+                  facet="style"
+                  onChange={(styleTag) => pushListing({ styleTag })}
+                  options={[
+                    ...(listing.styleTag && !facetStyleTags.some((f) => f.value === listing.styleTag)
+                      ? [{ value: listing.styleTag, label: listing.styleTag }]
+                      : []),
+                    ...facetStyleTags.map((f) => ({ value: f.value, label: f.value })),
+                  ]}
+                />
               </label>
               <label>
                 <span className="pw-shop-filter-label">{t.categoryFilterColor}</span>
-                <select
+                <PartnerSiteListingFacetPicker
+                  label={t.categoryFilterColor}
                   value={listing.color}
-                  data-pw-el={PW_EL.facet}
-                  data-pw-facet="color"
-                  aria-label={t.categoryFilterColor}
-                  onChange={(e) => pushListing({ color: e.target.value })}
-                >
-                  <option value="">{t.categoryFilterAllColors}</option>
-                  {listing.color && !facetColors.some((f) => f.value === listing.color) ? (
-                    <option value={listing.color}>{listing.color}</option>
-                  ) : null}
-                  {facetColors.map((f) => (
-                    <option key={f.value} value={f.value}>
-                      {f.value} ({f.count})
-                    </option>
-                  ))}
-                </select>
+                  emptyLabel={t.categoryFilterAllColors}
+                  closeLabel={t.categoryFilterClose}
+                  facet="color"
+                  onChange={(color) => pushListing({ color })}
+                  options={[
+                    ...(listing.color && !facetColors.some((f) => f.value === listing.color)
+                      ? [{ value: listing.color, label: listing.color }]
+                      : []),
+                    ...facetColors.map((f) => ({ value: f.value, label: `${f.value} (${f.count})` })),
+                  ]}
+                />
               </label>
             </>
           ) : null}
@@ -396,17 +388,20 @@ export function PartnerSiteCategoryProductsClient({
           </label>
           <label data-pw-region={PW_REGION.toolbar}>
             <span className="pw-shop-filter-label">{t.categorySortLabel}</span>
-            <select
+            <PartnerSiteListingFacetPicker
+              label={t.categorySortLabel}
               value={listing.sort}
-              data-pw-el={PW_EL.sort}
-              aria-label={t.categorySortLabel}
-              onChange={(e) => pushListing({ sort: e.target.value as PartnerCategoryListingSort })}
-            >
-              <option value="random">{t.categorySortRandom}</option>
-              <option value="newest">{t.categorySortNewest}</option>
-              <option value="oldest">{t.categorySortOldest}</option>
-              <option value="views_desc">{t.categorySortViews}</option>
-            </select>
+              closeLabel={t.categoryFilterClose}
+              el={PW_EL.sort}
+              includeEmpty={false}
+              onChange={(sort) => pushListing({ sort: sort as PartnerCategoryListingSort })}
+              options={[
+                { value: 'random', label: t.categorySortRandom },
+                { value: 'newest', label: t.categorySortNewest },
+                { value: 'oldest', label: t.categorySortOldest },
+                { value: 'views_desc', label: t.categorySortViews },
+              ]}
+            />
           </label>
           {hasActive ? (
             <button

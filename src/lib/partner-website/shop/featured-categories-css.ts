@@ -271,6 +271,24 @@ html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card-cart"],
 html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card-buy"],
 html .pw-featured-cat[data-pw-featured-categories] [data-pw-el="card-price"],
 html .pw-featured-cat[data-pw-featured-categories] [data-pw-grid-more]{display:none!important}
+html[data-pw-listing-category="1"] [data-pw-featured-categories],
+html[data-pw-listing-category="1"] [data-pw-grid-kind="featured-categories"],
+html[data-pw-listing-category="1"] .pw-featured-cat,
+html[data-pw-listing-category="1"] section.pw-categories,
+html[data-pw-listing-category="1"] [data-pw-region="categories"],
+html[data-pw-listing-category="1"] .pw-shop-category-hub,
+body[data-pw-listing-category="1"] [data-pw-featured-categories],
+body[data-pw-listing-category="1"] .pw-featured-cat,
+body[data-pw-listing-category="1"] section.pw-categories,
+body[data-pw-listing-category="1"] [data-pw-region="categories"],
+body[data-pw-listing-category="1"] .pw-shop-category-hub,
+[data-pw-inline-visual-root][data-pw-listing-category="1"] [data-pw-featured-categories],
+[data-pw-inline-visual-root][data-pw-listing-category="1"] .pw-featured-cat,
+[data-pw-inline-visual-root][data-pw-listing-category="1"] section.pw-categories,
+[data-pw-inline-visual-root][data-pw-listing-category="1"] [data-pw-region="categories"],
+[data-pw-inline-visual-root][data-pw-listing-category="1"] .pw-shop-category-hub{
+  display:none!important;height:0!important;min-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important
+}
 html.nanoai-ve-active .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone],
 body.nanoai-ve-active .pw-featured-cat[data-pw-featured-categories] [data-pw-featured-clone]{pointer-events:none}
 `.trim()

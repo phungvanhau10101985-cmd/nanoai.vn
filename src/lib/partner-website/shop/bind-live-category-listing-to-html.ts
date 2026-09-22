@@ -11,7 +11,7 @@ import {
   partnerSiteCategoryPath,
   partnerSiteHomePath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import { PW_EL, PW_LISTING_CATEGORY_ATTR, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type LiveCategoryListingCrumb = {
   path: string
@@ -81,6 +81,10 @@ function replaceLead(html: string, description: string): string {
   )
 }
 
+function stampDocumentListingCategory(html: string): string {
+  return html.replace(/<(html|body)\b[^>]*>/gi, (open) => stampOpenAttr(open, PW_LISTING_CATEGORY_ATTR, '1'))
+}
+
 function stampListingCatalog(html: string, listing: LiveCategoryListingBind, siteSlug: string): string {
   const href = partnerSiteCategoryPath(siteSlug, listing.path)
   return html.replace(/<(section|div)\b[^>]*\bdata-pw-catalog\b[^>]*>/gi, (open) => {
@@ -129,6 +133,7 @@ export function bindLiveCategoryListingToHtml(
     `$1${breadcrumbInnerHtml({ ...listing, id, path, name }, locale, siteSlug)}$3`
   )
   out = stampListingCatalog(out, { ...listing, id, path, name }, siteSlug)
+  out = stampDocumentListingCategory(out)
   out = out.replace(/<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(name)}</title>`)
   out = ensureSeoBody(out, String(listing?.seoBody || ''))
   return out
