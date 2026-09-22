@@ -154,10 +154,20 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   function pointLink(x,y){
     return liveLink(pointNode(x,y));
   }
+  function cardHitLink(node){
+    if(!node||typeof node.closest!=='function')return null;
+    var card=node.closest('.pw-product-card,.pw-shop-card,[data-pw-el="card"]');
+    if(!card||typeof card.querySelector!=='function')return null;
+    var hit=card.querySelector('a.pw-product-card-hit[href]');
+    if(!hit||typeof hit.getAttribute!=='function')return null;
+    var raw=String(hit.getAttribute('href')||'').trim();
+    return raw?hit:null;
+  }
   function resolveLink(event,saved){
     var origin=eventOrigin(event);
     var link=liveLink(origin);
     if(!link&&event)link=pointLink(event.clientX,event.clientY);
+    if(!link)link=cardHitLink(origin)||(event?cardHitLink(event.target):null);
     if(!link)link=saved||null;
     return link;
   }
@@ -269,7 +279,7 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
     var dup=false;
     try{if(typeof window.__pwShopTapAckPress==='function')dup=!!window.__pwShopTapAckPress(event);}catch(_){}
     var origin=eventOrigin(event);
-    var link=liveLink(origin)||liveLink(event.target);
+    var link=liveLink(origin)||liveLink(event.target)||cardHitLink(origin);
     tap={id:event.pointerId,x:event.clientX||0,y:event.clientY||0,link:link,skip:!!(favAtEvent(event)||isJsOnly(origin)),dup:dup};
     if(tap.skip||!link||link.closest(SKIP)||link.hasAttribute('download'))return;
     var raw=String(link.getAttribute('href')||'').trim();

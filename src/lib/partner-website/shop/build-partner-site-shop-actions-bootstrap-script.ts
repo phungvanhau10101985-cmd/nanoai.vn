@@ -784,7 +784,9 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-bound')!=='1'){
     }
     if(!favBtn){
       try{
-        var stack=document.elementsFromPoint(ev.clientX||0,ev.clientY||0)||[];
+        var topHit=document.elementFromPoint(ev.clientX||0,ev.clientY||0);
+        var cardHit=topHit&&topHit.closest&&topHit.closest('a.pw-product-card-hit')&&!topHit.closest('[data-pw-favorite],[data-pw-pdp-favorite],[data-pw-chrome-btn="favorite-product"],.pw-rec-fav');
+        var stack=cardHit?[]:(document.elementsFromPoint(ev.clientX||0,ev.clientY||0)||[]);
         for(var fi=0;fi<stack.length;fi++){
           var node=stack[fi];
           if(!node||!node.closest)continue;

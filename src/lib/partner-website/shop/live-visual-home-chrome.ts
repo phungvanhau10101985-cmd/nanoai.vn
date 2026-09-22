@@ -99,7 +99,7 @@ async function liveVisualHomeChromeShellPropsUncached(
           load: () => extractHomeChromeForDevice(website, device),
         }).then((hit) => (isCachedHomeChrome(hit) ? hit : extractHomeChromeForDevice(website, device)))
       : extractHomeChromeForDevice(website, device),
-    website.siteSlug ? loadSiteLiveCategoryBind(website.siteSlug) : Promise.resolve(null),
+    website.siteSlug ? loadSiteLiveCategoryBind(website.siteSlug, true) : Promise.resolve(null),
   ])
   if (!bind) {
     return { ...extracted, previewDevice: device, initialNavRow: [], initialShowNavAll: false }

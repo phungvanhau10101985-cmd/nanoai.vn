@@ -43,6 +43,10 @@ import {
 } from '@/lib/partner-website/shop/listing-head'
 import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
+import {
+  rememberViewedProductPage,
+  viewedProductPathname,
+} from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -412,6 +416,17 @@ function PartnerSitePublicFrame({
     const themeColor = browserThemeColor || extractShopBrowserThemeColorFromHtml(previewHtml)
     if (themeColor) applyShopBrowserThemeColorToDocument(document, themeColor)
   }, [browserThemeColor, previewHtml])
+  useLayoutEffect(() => {
+    if (!inlineHtml || devicePreview) return
+    const path = window.location.pathname
+    if (!viewedProductPathname(path)) return
+    if (visualPageKind && visualPageKind !== 'product') return
+    const html = previewHtml
+    const timer = window.setTimeout(() => {
+      rememberViewedProductPage(path, html)
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [devicePreview, inlineHtml, previewHtml, visualPageKind])
   useLayoutEffect(() => {
     if (!inlineHtml) return
     const root = document.documentElement

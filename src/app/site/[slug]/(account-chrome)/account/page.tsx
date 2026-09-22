@@ -35,8 +35,10 @@ export default async function PartnerSiteAccountPage({ params }: Props) {
   if (!shop) notFound()
   const partnerSlug = shop.partnerSlug
   if (!partnerSlug.trim()) notFound()
-  const initialProfile = await loadSiteVisitorProfileForRequest(shop.partnerId)
-  const initialLoyalty = await loadSiteLoyaltyForRequest(shop.partnerId)
+  const [initialProfile, initialLoyalty] = await Promise.all([
+    loadSiteVisitorProfileForRequest(shop.partnerId),
+    loadSiteLoyaltyForRequest(shop.partnerId),
+  ])
 
   return (
     <PartnerSiteShopAccountClient

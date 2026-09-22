@@ -464,12 +464,12 @@ async function resolveVisitorGender(input: {
     const profile = await fetchNanoaiChatProfileFromPg(input.linkedUserId)
     const gender = profile?.gender === 'male' || profile?.gender === 'female' ? profile.gender : null
     if (gender) {
-      await upsertVisitorProfileHintFromPg({
+      void upsertVisitorProfileHintFromPg({
         partnerId: input.partnerId,
         accountKey: input.accountKey,
         gender,
         birthYear: birthYearFromIso(profile?.birthDate),
-      })
+      }).catch(() => {})
       return { gender, source: 'profile_gender' }
     }
   }
@@ -489,17 +489,17 @@ async function getSiteFeaturedCategoryBlockUncached(input: {
   linkedUserId?: string | null
   locale?: WebLocale
   limit?: number
+  /** Header pills. Skip viewed-product tile images. */
+  skipTileImages?: boolean
 }): Promise<FeaturedCategoryBlock> {
   const locale = input.locale && ['vi', 'en', 'zh', 'ja', 'ko'].includes(input.locale) ? input.locale : 'vi'
   const limit = clampFeaturedCategoryLimit(input.limit)
   const empty = (): FeaturedCategoryBlock => emptyFeaturedCategoryBlock(input.siteSlug)
   if (!isPgConfigured()) return empty()
 
-  const [flat, counts] = await Promise.all([
+  const [flat, counts, demo, state] = await Promise.all([
     fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: true }),
     fetchDirectProductCountsByCategoryFromPg(input.partnerId),
-  ])
-  const [demo, state] = await Promise.all([
     resolveVisitorGender({
       partnerId: input.partnerId,
       accountKey: input.accountKey,
@@ -572,14 +572,18 @@ async function getSiteFeaturedCategoryBlockUncached(input: {
     }
   }
 
-  const withImages = await resolveCategoryHubTileImages({
-    partnerId: input.partnerId,
-    accountKey: input.accountKey,
-    tree,
-    tiles: picked.map((c) => ({ id: c.id, imageUrl: c.imageUrl })),
-  })
-  const imageById = new Map(withImages.map((t) => [t.id, t.imageUrl]))
-  const tiles: FeaturedCategoryTile[] = tilesFromCandidates(input.siteSlug, picked, imageById)
+  const tiles: FeaturedCategoryTile[] = input.skipTileImages
+    ? tilesFromCandidates(input.siteSlug, picked)
+    : await (async () => {
+        const withImages = await resolveCategoryHubTileImages({
+          partnerId: input.partnerId,
+          accountKey: input.accountKey,
+          tree,
+          tiles: picked.map((c) => ({ id: c.id, imageUrl: c.imageUrl })),
+        })
+        const imageById = new Map(withImages.map((t) => [t.id, t.imageUrl]))
+        return tilesFromCandidates(input.siteSlug, picked, imageById)
+      })()
   const withImg = tiles.filter((t) => t.image_url)
   const withoutImg = tiles.filter((t) => !t.image_url)
   return {
@@ -602,9 +606,12 @@ export async function getSiteFeaturedCategoryBlock(input: {
   linkedUserId?: string | null
   locale?: WebLocale
   limit?: number
+  /** Header pills only — separate cache so home tiles keep their images. */
+  skipTileImages?: boolean
 }): Promise<FeaturedCategoryBlock> {
   const locale = input.locale && ['vi', 'en', 'zh', 'ja', 'ko'].includes(input.locale) ? input.locale : 'vi'
   const requestedLimit = clampFeaturedCategoryLimit(input.limit)
+  const skipTileImages = Boolean(input.skipTileImages)
   try {
     const full = await withLiveCategoryBindCache({
       partnerId: input.partnerId,
@@ -612,12 +619,14 @@ export async function getSiteFeaturedCategoryBlock(input: {
       accountKey: input.accountKey,
       linkedUserId: input.linkedUserId,
       locale,
+      navOnly: skipTileImages,
       load: async () => {
         try {
           return await getSiteFeaturedCategoryBlockUncached({
             ...input,
             locale,
             limit: FEATURED_CATEGORY_TILE_MAX,
+            skipTileImages,
           })
         } catch (error) {
           if (isPgTransientError(error)) return emptyFeaturedCategoryBlock(input.siteSlug)

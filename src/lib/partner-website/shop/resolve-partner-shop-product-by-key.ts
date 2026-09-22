@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryRowByIdPrefixForPartnerFromPg,
@@ -5,8 +6,7 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import { parsePartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
 
-/** Load inventory row from public product URL key (UUID or name-slug-uuid8). */
-export async function resolvePartnerShopProductByKey(
+async function resolvePartnerShopProductByKeyUncached(
   partnerId: string,
   productKey: string
 ): Promise<MessagingPartnerInventoryRow | null> {
@@ -17,3 +17,6 @@ export async function resolvePartnerShopProductByKey(
   }
   return fetchPartnerInventoryRowByIdPrefixForPartnerFromPg(partnerId, parsed.idPrefix)
 }
+
+/** Load inventory row from public product URL key (UUID or name-slug-uuid8). Deduped per request. */
+export const resolvePartnerShopProductByKey = cache(resolvePartnerShopProductByKeyUncached)

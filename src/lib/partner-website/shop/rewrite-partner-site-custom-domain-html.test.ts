@@ -640,3 +640,88 @@ test('native nav does not open PDP when the card-hit overlay covers the heart', 
   assert.equal(prevented, 1)
   assert.equal(stopped, 0)
 })
+
+test('native nav opens the product hit link when the tap lands on the photo', () => {
+  const assigned: string[] = []
+  const clickFns: Array<(event: object) => void> = []
+  const pointerUpFns: Array<(event: object) => void> = []
+  const pointerDownFns: Array<(event: object) => void> = []
+  const hit = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'a[href]') return this
+      return null
+    },
+    getAttribute(name: string) {
+      if (name === 'href') return '/products/ao-bbbbbbbb'
+      if (name === 'target') return ''
+      return null
+    },
+    hasAttribute(name: string) {
+      return name === 'href'
+    },
+  }
+  const card = {
+    querySelector(sel: string) {
+      return sel === 'a.pw-product-card-hit[href]' ? hit : null
+    },
+  }
+  const photo = {
+    isConnected: true,
+    closest(sel: string) {
+      if (sel === 'input,textarea,select,option,[contenteditable="true"]') return null
+      if (sel === 'a[href]') return null
+      if (typeof sel === 'string' && sel.includes('.pw-product-card')) return card
+      return null
+    },
+  }
+  const windowMock = {
+    location: {
+      href: 'https://shop.test/',
+      origin: 'https://shop.test',
+      pathname: '/',
+      search: '',
+      assign(href: string) {
+        assigned.push(href)
+      },
+    },
+    document: {
+      elementsFromPoint() {
+        return [photo]
+      },
+      elementFromPoint() {
+        return photo
+      },
+    },
+    addEventListener(type: string, fn: (event: object) => void) {
+      if (type === 'click') clickFns.push(fn)
+      if (type === 'pointerup') pointerUpFns.push(fn)
+      if (type === 'pointerdown') pointerDownFns.push(fn)
+    },
+    setTimeout() {
+      return 0
+    },
+  }
+  const run = new Function('window', buildPartnerSiteVisualNativeNavigationScript('demo-shop'))
+  run(windowMock)
+  const down = { button: 0, pointerId: 3, clientX: 80, clientY: 90, target: photo }
+  for (const fn of pointerDownFns) fn(down)
+  const up = {
+    type: 'pointerup',
+    button: 0,
+    pointerId: 3,
+    clientX: 80,
+    clientY: 90,
+    metaKey: false,
+    ctrlKey: false,
+    shiftKey: false,
+    altKey: false,
+    target: photo,
+    preventDefault() {},
+    stopPropagation() {},
+    stopImmediatePropagation() {},
+  }
+  for (const fn of pointerUpFns) fn(up)
+  assert.equal(assigned.length, 1)
+  assert.match(assigned[0], /\/products\/ao-bbbbbbbb/)
+})

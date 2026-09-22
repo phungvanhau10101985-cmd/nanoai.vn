@@ -242,12 +242,15 @@ export function liveCategoryBindCacheSuffix(input: {
   locale: string
   /** Ignored — chrome pills and featured tiles share one visitor bind. */
   limit?: number
+  /** Header pills only. Must not reuse the tile-image cache entry. */
+  navOnly?: boolean
 }): string {
   return `bind:${hashShopCachePayload({
     slug: input.slug.trim().toLowerCase(),
     accountKey: input.accountKey.trim() || 'anonymous',
     linkedUserId: String(input.linkedUserId || '').trim(),
     locale: input.locale,
+    ...(input.navOnly ? { navOnly: 1 } : {}),
   })}`
 }
 
@@ -258,6 +261,7 @@ export async function withLiveCategoryBindCache<T>(input: {
   linkedUserId?: string | null
   locale: string
   limit?: number
+  navOnly?: boolean
   load: () => Promise<T>
 }): Promise<T> {
   return withInventoryShopCache({

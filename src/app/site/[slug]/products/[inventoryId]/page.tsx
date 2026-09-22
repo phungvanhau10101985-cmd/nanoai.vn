@@ -34,7 +34,8 @@ import {
   resolvePartnerCategoryDisplayName,
 } from '@/lib/partner-website/category/partner-category-types'
 import {
-  maybePartnerSiteVisualProductPage,
+  loadPartnerSiteVisualProductDocument,
+  PartnerSiteVisualHtmlScreen,
   readVisualPreviewDevice,
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
@@ -78,31 +79,14 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) notFound()
 
-  const row = await resolvePartnerShopProductByKey(shop.partnerId, inventoryId)
-  const overlay = await loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null)
-  const mapped = row ? inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true }) : null
-  const accountKey = await peekSiteVisitorAccountKey()
-  const sessionUser = await getEmailSessionUser()
-  const guestEmail = sessionUser?.email?.trim()
-    ? sessionUser.email.trim().toLowerCase()
-    : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountKey)
-      ? (await fetchGuestAccountEmailByIdPg(shop.partnerId, accountKey).catch(() => null))?.emailNormalized
-      : null
-  const product = mapped
-    ? (
-        await applyPartnerStorefrontSaleFaces(
-          [{ ...mapped, isClearance: row?.is_clearance === true }],
-          {
-            partnerId: shop.partnerId,
-            accountKey,
-            linkedUserId: sessionUser?.id ?? null,
-            emailNormalized: guestEmail,
-            overlay,
-          }
-        )
-      )[0]
-    : null
-  if (!row || !product) notFound()
+  const [row, device, overlay, accountKey, sessionUser] = await Promise.all([
+    resolvePartnerShopProductByKey(shop.partnerId, inventoryId),
+    readVisualPreviewDevice(searchParams),
+    loadPartnerSiteSaleOverlay(shop.partnerId).catch(() => null),
+    peekSiteVisitorAccountKey(),
+    getEmailSessionUser(),
+  ])
+  if (!row) notFound()
 
   const canonicalKey = buildPartnerSiteProductKey(row.name, row.id)
   if (decodeURIComponent(inventoryId.trim()).toLowerCase() !== canonicalKey.toLowerCase()) {
@@ -118,22 +102,50 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     )
   }
 
-  const device = await readVisualPreviewDevice(searchParams)
-  const relatedCtx = await resolveRelatedProductContext(shop.partnerId, row.id)
+  const visualDocPromise = loadPartnerSiteVisualProductDocument(shop.site, row.id, device)
+  const guestEmailPromise = sessionUser?.email?.trim()
+    ? Promise.resolve(sessionUser.email.trim().toLowerCase())
+    : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountKey)
+      ? fetchGuestAccountEmailByIdPg(shop.partnerId, accountKey)
+          .then((guest) => guest?.emailNormalized ?? null)
+          .catch(() => null)
+      : Promise.resolve(null)
+  const mapped = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
+  let guestEmail: string | null = null
+  const [relatedCtx, faced, visualDoc] = await Promise.all([
+    resolveRelatedProductContext(shop.partnerId, row.id),
+    guestEmailPromise.then((email) => {
+      guestEmail = email
+      return applyPartnerStorefrontSaleFaces([{ ...mapped, isClearance: row.is_clearance === true }], {
+        partnerId: shop.partnerId,
+        accountKey,
+        linkedUserId: sessionUser?.id ?? null,
+        emailNormalized: email,
+        overlay,
+      })
+    }),
+    visualDocPromise,
+  ])
+  const product = faced[0]
+  if (!product) notFound()
 
-  const visual = await maybePartnerSiteVisualProductPage(
-    shop.site,
-    row.id,
-    device,
-    {
-      ...product,
-      categoryId: relatedCtx.categoryId,
-      categoryPath: relatedCtx.categoryPath,
-      relatedProducts: [],
-      outfitSlots: [],
-    }
-  )
-  if (visual) return visual
+  if (visualDoc) {
+    return (
+      <PartnerSiteVisualHtmlScreen
+        site={shop.site}
+        html={visualDoc.html}
+        device={visualDoc.sourceDevice}
+        infoSeo={{ pageKey: 'product_detail' }}
+        liveProduct={{
+          ...product,
+          categoryId: relatedCtx.categoryId,
+          categoryPath: relatedCtx.categoryPath,
+          relatedProducts: [],
+          outfitSlots: [],
+        }}
+      />
+    )
+  }
 
   const relatedProducts = await fetchRelatedShopProducts({
     partnerId: shop.partnerId,

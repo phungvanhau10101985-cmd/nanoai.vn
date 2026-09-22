@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cookies } from 'next/headers'
 import type { NextRequest } from 'next/server'
 import { readGuestAccountIdFromRequest } from '@/lib/messaging/guest-account-session'
@@ -309,13 +310,16 @@ export function mapInventoryRowToPersonalizationProduct(
   }
 }
 
-export async function resolvePartnerStorefrontSaleIdentity(partnerId: string): Promise<{
+async function resolvePartnerStorefrontSaleIdentityUncached(partnerId: string): Promise<{
   accountKey: string | null
   linkedUserId: string | null
   emailNormalized: string | null
 }> {
-  const accountKey = (await peekSiteVisitorAccountKey()).trim() || null
-  const sessionUser = await getEmailSessionUser()
+  const [accountKeyRaw, sessionUser] = await Promise.all([
+    peekSiteVisitorAccountKey(),
+    getEmailSessionUser(),
+  ])
+  const accountKey = accountKeyRaw.trim() || null
   const sessionEmail = sessionUser?.email?.trim().toLowerCase() || null
   const guestEmail =
     !sessionEmail && accountKey && UUID_RE.test(accountKey)
@@ -327,6 +331,8 @@ export async function resolvePartnerStorefrontSaleIdentity(partnerId: string): P
     emailNormalized: sessionEmail || guestEmail,
   }
 }
+
+export const resolvePartnerStorefrontSaleIdentity = cache(resolvePartnerStorefrontSaleIdentityUncached)
 
 /** RSC first paint for account overview — use existing cookies only, never finalize auth. */
 export async function loadSiteVisitorProfileForRequest(
@@ -364,8 +370,10 @@ async function loadProductsByIds(
 ): Promise<PartnerSitePersonalizationProduct[]> {
   const clean = ids.filter((id) => UUID_RE.test(id))
   if (!clean.length) return []
-  const rows = (await fetchPartnerInventoryCardsByIdsInOrderFromPg(partnerId, clean)) ?? []
-  const overlay = await loadPartnerSiteSaleOverlay(partnerId).catch(() => null)
+  const [rows, overlay] = await Promise.all([
+    fetchPartnerInventoryCardsByIdsInOrderFromPg(partnerId, clean).then((found) => found ?? []),
+    loadPartnerSiteSaleOverlay(partnerId).catch(() => null),
+  ])
   const byId = new Map(rows.map((row) => [row.id, row]))
   const out: PartnerSitePersonalizationProduct[] = []
   for (const id of clean) {

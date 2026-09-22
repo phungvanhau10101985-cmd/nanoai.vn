@@ -56,6 +56,13 @@ test('liveCategoryBindCacheSuffix ignores tile limit so chrome and marquee share
     limit: 20,
   })
   assert.equal(eight, twenty)
+  const navOnly = liveCategoryBindCacheSuffix({
+    slug: '188-com-vn-rl56',
+    accountKey: 'guest-1',
+    locale: 'vi',
+    navOnly: true,
+  })
+  assert.notEqual(eight, navOnly)
 })
 
 test('shopCacheGetJson hits in-process memory when Redis is absent', async () => {

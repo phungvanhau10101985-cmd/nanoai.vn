@@ -55,6 +55,8 @@ test('native navigation prepends tap-ack and swallows extra presses while pendin
   assert.match(script, /window\.__pwShopTapAckPress/)
   assert.match(script, /function ackNav\(/)
   assert.match(script, /function ackBusy\(/)
+  assert.match(script, /function cardHitLink\(/)
+  assert.match(script, /a\.pw-product-card-hit\[href\]/)
   assert.match(script, /ackBusy\(\)\|\|\(lastHref===href/)
   assert.match(script, /jsGateAt/)
   assert.match(script, /window\.location\.assign\(href\)/)

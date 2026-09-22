@@ -15,6 +15,7 @@ import { isInfoVisualHtml, visualInfoPageCmsSlug } from '@/lib/partner-website/p
 import { isPartnerTextArticlePage } from '@/lib/partner-website/pages/partner-text-article-page'
 import type { LivePdpBindProduct } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
 import type { LiveCategoryListingBind } from '@/lib/partner-website/shop/bind-live-category-listing-to-html'
+import { stripPersonalizeBannerHostsInHtml } from '@/lib/partner-website/shop/bind-live-marketing-banner'
 import { applyLiveVisualOverlays } from '@/lib/partner-website/shop/compose-live-visual-overlays'
 import {
   preparePartnerVisualHtmlForPublic,
@@ -141,10 +142,14 @@ export async function PartnerSiteVisualHtmlScreen({
   const headerStore = headers()
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const pageKey = String(infoSeo?.pageKey || infoSeo?.cmsSlug || 'page')
+  const wantsHomeBanners = pageKey === 'home'
+  const hasFeaturedHost =
+    /data-pw-featured-categories\s*=|\bpw-categories\b|data-pw-region=["']categories["']/i.test(html)
+  const navOnly = !wantsHomeBanners && !hasFeaturedHost
   const shopCtx = await loadPartnerSiteShopContext(site.siteSlug).catch(() => null)
   const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([
-    loadSiteLiveCategoryBind(site.siteSlug),
-    loadSiteLiveMarketingBanners(site.siteSlug),
+    loadSiteLiveCategoryBind(site.siteSlug, navOnly),
+    wantsHomeBanners ? loadSiteLiveMarketingBanners(site.siteSlug) : Promise.resolve(null),
     shopCtx
       ? loadPartnerShopLiveBrandTheme({ partnerId: shopCtx.partnerId, theme: site.theme })
       : Promise.resolve({ theme: site.theme, saleIconUrl: null, cacheToken: 'off' }),
@@ -180,8 +185,8 @@ export async function PartnerSiteVisualHtmlScreen({
     })
   }
 
-  const finish = (shell: string, overlayDevice?: VisualDeviceVariant | null) =>
-    applyLiveVisualOverlays(shell, {
+  const finish = (shell: string, overlayDevice?: VisualDeviceVariant | null) => {
+    const overlaid = applyLiveVisualOverlays(shell, {
       liveProduct,
       liveListing,
       liveCategoryBind,
@@ -190,6 +195,8 @@ export async function PartnerSiteVisualHtmlScreen({
       siteSlug: site.siteSlug,
       device: overlayDevice,
     })
+    return wantsHomeBanners ? overlaid : stripPersonalizeBannerHostsInHtml(overlaid)
+  }
 
   const inferredRequestDevice = inferLiveVisualRequestDevice()
 
@@ -374,6 +381,15 @@ export async function maybePartnerSiteVisualCategoryPage(
       liveListing={liveListing || null}
     />
   )
+}
+
+/** Start the product shell fetch before sale/email work so PDP TTFB overlaps those queries. */
+export function loadPartnerSiteVisualProductDocument(
+  site: PartnerVisualSite,
+  productId: string,
+  device?: VisualDeviceVariant | null
+) {
+  return loadVisualTargetForScreen(site, { kind: 'product', productId }, device)
 }
 
 export async function maybePartnerSiteVisualProductPage(

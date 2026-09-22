@@ -2,6 +2,10 @@
 
 import { useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import {
+  clearViewedProductSnapshot,
+  showViewedProductSnapshot,
+} from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 
 export const PW_SHOP_SOFT_NAV_EVENT = 'pw-shop-soft-nav'
 
@@ -49,11 +53,27 @@ export function PartnerSiteSoftNavRelay() {
         return
       }
       const here = `${window.location.pathname}${window.location.search}${window.location.hash}`
-      if (path === here) return
+      if (path === here) {
+        try {
+          win.__pwShopTapAckNavEnd?.()
+        } catch {
+          /* visual ack is best-effort */
+        }
+        return
+      }
       try {
         win.__pwShopTapAckNav?.(path)
       } catch {
         /* visual ack is best-effort */
+      }
+      if (showViewedProductSnapshot(path)) {
+        try {
+          win.__pwShopTapAckNavEnd?.()
+        } catch {
+          /* visual ack is best-effort */
+        }
+      } else {
+        clearViewedProductSnapshot()
       }
       window.dispatchEvent(new CustomEvent(PW_SHOP_SOFT_NAV_EVENT, { detail: { href: path } }))
       router.push(path)
@@ -75,6 +95,7 @@ export function PartnerSiteSoftNavRelay() {
   useLayoutEffect(() => {
     if (pathRef.current === pathname) return
     pathRef.current = pathname
+    clearViewedProductSnapshot()
     try {
       ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
     } catch {

@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { findReadyPartnerSaleIconFromPg } from '@/lib/db/messaging-partner-sale-icon-pg'
 import { resolvePartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
@@ -18,14 +19,9 @@ export function partnerShopLiveIconBust(
   return partnerShopFaviconCacheToken(theme.faviconUrl || theme.pwaIconUrl, logoUrl || theme.logoUrl)
 }
 
-export async function loadPartnerShopLiveBrandTheme(input: {
-  partnerId: string
-  theme: PartnerWebsiteTheme
-}): Promise<{ theme: PartnerWebsiteTheme; saleIconUrl: string | null; cacheToken: string }> {
-  const config = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null)
-  if (!config) {
-    return { theme: input.theme, saleIconUrl: null, cacheToken: 'off' }
-  }
+const loadPartnerSaleIconLive = cache(async (partnerId: string): Promise<{ saleIconUrl: string | null; cacheToken: string }> => {
+  const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId).catch(() => null)
+  if (!config) return { saleIconUrl: null, cacheToken: 'off' }
   const state = resolvePartnerSaleCalendarState({ settings: config })
   if (
     !shouldUsePartnerSaleIcon({
@@ -34,21 +30,32 @@ export async function loadPartnerShopLiveBrandTheme(input: {
       saleDate: state.saleDate,
     })
   ) {
-    return { theme: input.theme, saleIconUrl: null, cacheToken: 'off' }
+    return { saleIconUrl: null, cacheToken: 'off' }
   }
   const ymd = parsePartnerSaleIconYmd(state.saleDate)
-  if (!ymd) return { theme: input.theme, saleIconUrl: null, cacheToken: 'off' }
+  if (!ymd) return { saleIconUrl: null, cacheToken: 'off' }
   const asset = await findReadyPartnerSaleIconFromPg({
-    partnerId: input.partnerId,
+    partnerId,
     day: ymd.day,
     month: ymd.month,
   }).catch(() => null)
   const url = asset?.imageUrl || null
-  if (!url) return { theme: input.theme, saleIconUrl: null, cacheToken: 'off' }
+  if (!url) return { saleIconUrl: null, cacheToken: 'off' }
+  return { saleIconUrl: url, cacheToken: partnerSaleIconCacheToken(url) }
+})
+
+export async function loadPartnerShopLiveBrandTheme(input: {
+  partnerId: string
+  theme: PartnerWebsiteTheme
+}): Promise<{ theme: PartnerWebsiteTheme; saleIconUrl: string | null; cacheToken: string }> {
+  const live = await loadPartnerSaleIconLive(input.partnerId)
+  if (!live.saleIconUrl) {
+    return { theme: input.theme, saleIconUrl: null, cacheToken: live.cacheToken }
+  }
   return {
-    theme: applyPartnerSaleIconToTheme(input.theme, url),
-    saleIconUrl: url,
-    cacheToken: partnerSaleIconCacheToken(url),
+    theme: applyPartnerSaleIconToTheme(input.theme, live.saleIconUrl),
+    saleIconUrl: live.saleIconUrl,
+    cacheToken: live.cacheToken,
   }
 }
 

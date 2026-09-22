@@ -5,21 +5,28 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 
-async function loadSiteLiveCategoryBindUncached(siteSlug: string): Promise<LiveCategoryBind | null> {
+async function loadSiteLiveCategoryBindUncached(
+  siteSlug: string,
+  navOnly = false
+): Promise<LiveCategoryBind | null> {
   const slug = siteSlug.trim().toLowerCase()
   if (!slug) return null
   try {
     const shop = await loadPartnerSiteShopContext(slug)
     if (!shop) return null
-    const accountKey = (await peekSiteVisitorAccountKey()) || 'anonymous'
-    const user = await getEmailSessionUser()
+    const [accountKeyRaw, user] = await Promise.all([
+      peekSiteVisitorAccountKey(),
+      getEmailSessionUser(),
+    ])
+    const accountKey = accountKeyRaw || 'anonymous'
     const block = await getSiteFeaturedCategoryBlock({
       partnerId: shop.partnerId,
       siteSlug: shop.site.siteSlug,
       accountKey,
       linkedUserId: user?.id,
       locale: shop.site.locale,
-      limit: FEATURED_CATEGORY_TILE_DEFAULT,
+      limit: navOnly ? 1 : FEATURED_CATEGORY_TILE_DEFAULT,
+      skipTileImages: navOnly,
     })
     return {
       siteSlug: shop.site.siteSlug,
@@ -34,5 +41,5 @@ async function loadSiteLiveCategoryBindUncached(siteSlug: string): Promise<LiveC
   }
 }
 
-/** Một lần / request — visual HTML + chrome React dùng chung. */
+/** Một lần / request cho cùng slug + navOnly. Chrome header truyền navOnly. */
 export const loadSiteLiveCategoryBind = cache(loadSiteLiveCategoryBindUncached)
