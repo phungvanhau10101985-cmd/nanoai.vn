@@ -283,3 +283,40 @@ test('custom-domain Google login has a native href before hydration', async () =
   assert.match(handoffBoot, /useLayoutEffect/)
   assert.match(handoffBoot, /window\.location\.replace\(window\.location\.href\)/)
 })
+
+test('live visual HTML is a Server Component without html= client prop; preview keeps inert', async () => {
+  const live = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-live-visual-document.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.doesNotMatch(live, /'use client'/)
+  assert.match(live, /dangerouslySetInnerHTML/)
+  assert.match(live, /splitVisualHtmlBodyScripts/)
+  assert.doesNotMatch(live, /inertPartnerInlineVisualScripts/)
+
+  const screen = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-visual-html-screen.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(screen, /PartnerSiteLiveVisualDocument/)
+  assert.match(screen, /loadSiteLiveCatalogGrids/)
+  assert.doesNotMatch(screen, /htmlByDevice\s*=\s*\{/)
+
+  const client = await readFile(
+    new URL('../../../app/site/[slug]/partner-site-public-client.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(client, /inertPartnerInlineVisualScripts/)
+
+  const nav = await readFile(
+    new URL('../../../components/partner-website/shop/partner-site-soft-nav-relay.tsx', import.meta.url),
+    'utf8'
+  )
+  assert.match(nav, /isPartnerShopVisualHtmlPath/)
+  assert.match(nav, /window\.location\.assign\(path\)/)
+  assert.match(nav, /router\.push\(path\)/)
+
+  const layout = await readFile(new URL('../../../app/layout.tsx', import.meta.url), 'utf8')
+  assert.match(layout, /isPartnerWebsitePage \? \(\{\} as AdminIntegrationsSettings\)/)
+  assert.match(layout, /img\.alicdn\.com/)
+})

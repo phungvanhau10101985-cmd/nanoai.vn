@@ -1,5 +1,6 @@
 import { headers } from 'next/headers'
 import { PartnerSitePublicClient } from '@/app/site/[slug]/partner-site-public-client'
+import { PartnerSiteLiveVisualDocument } from '@/components/partner-website/shop/partner-site-live-visual-document'
 import { buildPartnerLiveDocumentStampScript } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { withSiteHtmlCache } from '@/lib/cache/partner-shop-cache'
 import {
@@ -28,6 +29,7 @@ import { ensureLiveVisualWebsite } from '@/lib/partner-website/shop/load-live-vi
 import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { loadSiteLiveMarketingBanners } from '@/lib/partner-website/shop/load-site-live-marketing-banners'
+import { loadSiteLiveCatalogGrids } from '@/lib/partner-website/shop/load-site-live-catalog-grids'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
@@ -199,27 +201,40 @@ export async function PartnerSiteVisualHtmlScreen({
     })
   }
 
-  const finish = (shell: string, overlayDevice?: VisualDeviceVariant | null) => {
-    const overlaid = applyLiveVisualOverlays(shell, {
-      liveProduct,
-      liveListing,
-      liveCategoryBind,
-      liveMarketingBanners,
-      locale: site.locale,
-      siteSlug: site.siteSlug,
-      device: overlayDevice,
-    })
-    return wantsHomeBanners ? overlaid : stripPersonalizeBannerHostsInHtml(overlaid)
-  }
-
   const inferredRequestDevice = inferLiveVisualRequestDevice()
+  const requested = device || inferredRequestDevice
+  const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
+  const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
+  const sourceHtml = selected?.html || html
+  const shellPromise = prepareShell(sourceHtml, sourceDevice)
+  const gridsPromise = shopCtx
+    ? loadSiteLiveCatalogGrids({
+        html: sourceHtml,
+        partnerId: shopCtx.partnerId,
+        siteSlug: site.siteSlug,
+        locale: site.locale,
+        device: sourceDevice,
+        liveListing,
+      }).catch(() => null)
+    : Promise.resolve(null)
+  const [shell, liveCatalogGrids] = await Promise.all([shellPromise, gridsPromise])
+  const overlaid = applyLiveVisualOverlays(shell, {
+    liveProduct,
+    liveListing,
+    liveCategoryBind,
+    liveMarketingBanners,
+    liveCatalogGrids,
+    locale: site.locale,
+    siteSlug: site.siteSlug,
+    device: sourceDevice,
+  })
+  const publicHtml = wantsHomeBanners ? overlaid : stripPersonalizeBannerHostsInHtml(overlaid)
+  const liveDevice = device || sourceDevice
+  const previewLock = Boolean(
+    parseVisualDeviceQuery(readPartnerVisualDeviceFromHeaders((name) => headerStore.get(name)))
+  )
 
-  if (liveProduct || liveListing) {
-    const requested = device || inferredRequestDevice
-    const selected = htmlByDevice ? selectPartnerVisualHtmlDevice(htmlByDevice, requested) : null
-    const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
-    const publicHtml = finish(await prepareShell(selected?.html || html, sourceDevice), sourceDevice)
-    const liveDevice = device || sourceDevice
+  if (previewLock) {
     return (
       <>
         <LiveVisualDocumentStamp html={publicHtml} device={liveDevice} />
@@ -242,42 +257,19 @@ export async function PartnerSiteVisualHtmlScreen({
     )
   }
 
-  const preparedByDevice: PartnerVisualHtmlByDevice = {}
-  if (htmlByDevice) {
-    await Promise.all(
-      (Object.keys(htmlByDevice) as VisualDeviceVariant[]).map(async (sourceDevice) => {
-        const source = htmlByDevice[sourceDevice]
-        if (!source) return
-        preparedByDevice[sourceDevice] = finish(await prepareShell(source, sourceDevice), sourceDevice)
-      })
-    )
-  }
-  const initialSelection = htmlByDevice
-    ? selectPartnerVisualHtmlDevice(preparedByDevice, inferredRequestDevice)
-    : null
-  const publicHtml = initialSelection?.html || finish(await prepareShell(html, device), device)
-  const liveDevice = device || initialSelection?.sourceDevice || inferredRequestDevice
-
   return (
-    <>
-      <LiveVisualDocumentStamp html={publicHtml} device={liveDevice} />
-      <PartnerSitePublicClient
-        html={publicHtml}
-        htmlByDevice={Object.keys(preparedByDevice).length ? preparedByDevice : undefined}
-        allowScripts
-        chatPath={site.chatPath}
-        shopName={site.title}
-        logoUrl={site.logoUrl}
-        locale={site.locale}
-        inlineHtml
-        initialDevice={liveDevice}
-        deviceHtmlAlreadyIsolated={Boolean(device)}
-        hideChatLauncher={site.theme?.hideChatLauncher}
-        browserThemeColor={shopBrowserChromeColor(site.theme)}
-        siteSlug={site.siteSlug}
-        tracking={tracking}
-      />
-    </>
+    <PartnerSiteLiveVisualDocument
+      html={publicHtml}
+      device={liveDevice}
+      siteSlug={site.siteSlug}
+      locale={site.locale}
+      chatPath={site.chatPath}
+      shopName={site.title}
+      logoUrl={site.logoUrl}
+      hideChatLauncher={site.theme?.hideChatLauncher}
+      tracking={tracking}
+      browserThemeColor={shopBrowserChromeColor(site.theme)}
+    />
   )
 }
 

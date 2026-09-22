@@ -179,6 +179,7 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
           siteSlug,
           locale,
           shopTitle: wordmark,
+          hashedRuntimes: true,
         })
   const themed = input.theme ? rewriteThemeCssVarsInHtml(withRuntime, input.theme) : withRuntime
   const withLogoHome =

@@ -11,7 +11,8 @@ import {
   partnerSiteCategoryPath,
   partnerSiteHomePath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
-import { PW_EL, PW_LISTING_CATEGORY_ATTR, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export type LiveCategoryListingCrumb = {
   path: string
@@ -25,6 +26,8 @@ export type LiveCategoryListingBind = {
   description?: string | null
   seoBody?: string | null
   ancestors?: LiveCategoryListingCrumb[] | null
+  /** First-paint cards for visual listing. Not written into Sửa nhanh. */
+  products?: PartnerSiteShopProduct[] | null
 }
 
 function stampOpenAttr(open: string, name: string, value: string): string {

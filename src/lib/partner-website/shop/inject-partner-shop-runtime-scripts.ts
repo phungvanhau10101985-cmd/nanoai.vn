@@ -16,6 +16,9 @@ import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/s
 import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-newsletter-bootstrap-script'
 import { buildPartnerSiteShopTrackingBridgeScript } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
+import { replaceInlineShopRuntimesWithHashedFiles } from '@/lib/partner-website/shop/pw-shop-hashed-runtime'
+import { injectPartnerShopCdnPreconnect } from '@/lib/partner-website/shop/preload-partner-shop-lcp'
+import { getBunnyPublicBase } from '@/lib/bunny-cdn-url'
 
 const PW_RUNTIME_SCRIPT_RE =
   /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
@@ -157,7 +160,7 @@ export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
  */
 export function injectPartnerShopRuntimeScriptsIntoHtml(
   html: string,
-  input: { siteSlug?: string; locale?: WebLocale; shopTitle?: string | null }
+  input: { siteSlug?: string; locale?: WebLocale; shopTitle?: string | null; hashedRuntimes?: boolean }
 ): string {
   let out = html
   if (!out.trim()) return html
@@ -214,6 +217,10 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   if (hooks.paper) out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
   if (hooks.newsletter) {
     out = appendBeforeBody(out, buildPartnerSiteNewsletterBootstrapScript({ siteSlug, locale }))
+  }
+  if (input.hashedRuntimes) {
+    out = injectPartnerShopCdnPreconnect(out, getBunnyPublicBase())
+    out = replaceInlineShopRuntimesWithHashedFiles(out, { siteSlug, locale })
   }
   return out
 }

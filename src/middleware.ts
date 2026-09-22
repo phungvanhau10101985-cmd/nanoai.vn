@@ -21,6 +21,13 @@ import {
   mapPartnerInternalPathToPublic,
 } from '@/lib/messaging/partner-custom-domain-site-path'
 import { getInternalBaseUrl } from '@/lib/internal-url'
+import {
+  PARTNER_CUSTOM_DOMAIN_SLUG_COOKIE,
+  PARTNER_CUSTOM_DOMAIN_SLUG_MAX_AGE_SEC,
+  readSignedPartnerCustomDomainSlug,
+  signPartnerCustomDomainSlugCookie,
+  trustedPartnerSiteSlugFromEdgeHeaders,
+} from '@/lib/messaging/partner-custom-domain-slug-cookie'
 
 const LOCALE_COOKIE_OPTS = { path: '/', maxAge: 60 * 60 * 24 * 365, sameSite: 'lax' as const }
 
@@ -102,14 +109,42 @@ function partnerCustomDomainRewrite(
     request: { headers: requestHeaders },
   })
   rewriteResponse.headers.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
-  applyCommonResponseHeaders(rewriteResponse, request)
+  applyCommonResponseHeaders(rewriteResponse, request, host)
   const cookieLocale = localeFromRequestCookies(request)
   mirrorLocaleCookies(rewriteResponse, cookieLocale || DEFAULT_WEB_LOCALE)
   return rewriteResponse
 }
 
-function applyCommonResponseHeaders(response: NextResponse, request: NextRequest) {
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0')
+async function attachCustomDomainSlugCookie(
+  response: NextResponse,
+  host: string,
+  siteSlug: string
+) {
+  const value = await signPartnerCustomDomainSlugCookie(host, siteSlug)
+  if (!value) return
+  response.cookies.set(PARTNER_CUSTOM_DOMAIN_SLUG_COOKIE, value, {
+    path: '/',
+    maxAge: PARTNER_CUSTOM_DOMAIN_SLUG_MAX_AGE_SEC,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+  })
+}
+
+function applyCommonResponseHeaders(response: NextResponse, request: NextRequest, host?: string) {
+  const hostname =
+    host ||
+    request.headers.get('x-forwarded-host')?.split(',')[0]?.trim().split(':')[0]?.toLowerCase() ||
+    ''
+  const path = request.nextUrl.pathname
+  const shopDocument =
+    path.startsWith('/site/') || Boolean(hostname && !isPlatformAppHostname(hostname))
+  response.headers.set(
+    'Cache-Control',
+    shopDocument
+      ? 'private, no-store'
+      : 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0'
+  )
   const existingVary = response.headers.get('Vary') || ''
   const varyTokens = new Set(
     existingVary
@@ -131,6 +166,25 @@ function applyCommonResponseHeaders(response: NextResponse, request: NextRequest
   }
 }
 
+function rewritePublishedCustomDomain(
+  request: NextRequest,
+  host: string,
+  siteSlug: string
+): NextResponse | null {
+  const path = request.nextUrl.pathname
+  const publicPath = mapPartnerInternalPathToPublic(siteSlug, path) ?? path
+  if (publicPath !== path) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = publicPath
+    return NextResponse.redirect(redirectUrl, 308)
+  }
+  const internalPath = mapPartnerCustomDomainPathToInternal(siteSlug, path)
+  if (!internalPath) return null
+  const rewriteUrl = request.nextUrl.clone()
+  rewriteUrl.pathname = internalPath
+  return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath, siteSlug)
+}
+
 export async function middleware(request: NextRequest) {
   const hostHeader =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
@@ -140,6 +194,25 @@ export async function middleware(request: NextRequest) {
 
   if (host && !isPlatformAppHostname(host)) {
     try {
+      const headerSlug = trustedPartnerSiteSlugFromEdgeHeaders({
+        getHeader: (name) => request.headers.get(name),
+        host,
+      })
+      const cookieSlug = headerSlug
+        ? ''
+        : await readSignedPartnerCustomDomainSlug(
+            host,
+            request.cookies.get(PARTNER_CUSTOM_DOMAIN_SLUG_COOKIE)?.value
+          )
+      const fastSlug = headerSlug || cookieSlug
+      if (fastSlug) {
+        const fast = rewritePublishedCustomDomain(request, host, fastSlug)
+        if (fast) {
+          await attachCustomDomainSlugCookie(fast, host, fastSlug)
+          return fast
+        }
+      }
+
       const resolveUrl = new URL('/api/messaging/resolve-host', `${getInternalBaseUrl()}/`)
       resolveUrl.searchParams.set('host', host)
       const res = await fetch(resolveUrl.toString(), {
@@ -174,28 +247,23 @@ export async function middleware(request: NextRequest) {
           }
 
           if (sitePublished) {
-            if (publicPath !== path) {
-              const redirectUrl = request.nextUrl.clone()
-              redirectUrl.pathname = publicPath
-              return NextResponse.redirect(redirectUrl, 308)
-            }
-
-            const internalPath = mapPartnerCustomDomainPathToInternal(siteSlug, path)
-            if (internalPath) {
-              const rewriteUrl = request.nextUrl.clone()
-              rewriteUrl.pathname = internalPath
-              return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath, siteSlug)
+            const published = rewritePublishedCustomDomain(request, host, siteSlug)
+            if (published) {
+              await attachCustomDomainSlugCookie(published, host, siteSlug)
+              return published
             }
           } else if ((path === '/' || path === '') && data.rewriteRootPath) {
             const rewriteUrl = request.nextUrl.clone()
             rewriteUrl.pathname = data.rewriteRootPath
-            return partnerCustomDomainRewrite(
+            const rewrite = partnerCustomDomainRewrite(
               request,
               rewriteUrl,
               host,
               data.rewriteRootPath,
               siteSlug
             )
+            if (siteSlug) await attachCustomDomainSlugCookie(rewrite, host, siteSlug)
+            return rewrite
           }
         }
       }
@@ -222,7 +290,7 @@ export async function middleware(request: NextRequest) {
     mirrorLocaleCookies(response, locale)
     refreshEmailSessionCookies(response, request)
     response.cookies.set(FORCE_REAL_LOGIN_COOKIE, '', { path: '/', maxAge: 0 })
-    applyCommonResponseHeaders(response, request)
+    applyCommonResponseHeaders(response, request, host)
     return response
   }
 
@@ -232,13 +300,13 @@ export async function middleware(request: NextRequest) {
   const cookieLocale = localeFromRequestCookies(request)
   const locale = cookieLocale || DEFAULT_WEB_LOCALE
   mirrorLocaleCookies(response, locale)
-  applyCommonResponseHeaders(response, request)
+  applyCommonResponseHeaders(response, request, host)
 
   return response
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|pw-shop-runtime/|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

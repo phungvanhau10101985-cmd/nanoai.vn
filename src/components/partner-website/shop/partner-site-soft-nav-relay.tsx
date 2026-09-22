@@ -6,6 +6,7 @@ import {
   clearViewedProductSnapshot,
   showViewedProductSnapshot,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
+import { isPartnerShopVisualHtmlPath } from '@/lib/partner-website/shop/partner-shop-react-island-path'
 
 export const PW_SHOP_SOFT_NAV_EVENT = 'pw-shop-soft-nav'
 
@@ -27,8 +28,9 @@ function pathFromHref(href: string): string | null {
 }
 
 /**
- * After hydration, chrome taps use App Router `router.push` so the shared
- * account shell (header / sidebar) stays mounted. Parser-blocking native nav
+ * After hydration, chrome taps use App Router `router.push` for React islands
+ * (giỏ / tài khoản / cọc). Visual HTML pages `location.assign` once the
+ * destination HTML already has product cards. Parser-blocking native nav
  * still `location.assign` if this relay is not ready yet.
  *
  * Do not wrap `router.push` in an extra `startTransition`. Next.js already
@@ -76,6 +78,10 @@ export function PartnerSiteSoftNavRelay() {
         clearViewedProductSnapshot()
       }
       window.dispatchEvent(new CustomEvent(PW_SHOP_SOFT_NAV_EVENT, { detail: { href: path } }))
+      if (isPartnerShopVisualHtmlPath(path)) {
+        window.location.assign(path)
+        return
+      }
       router.push(path)
     }
     win.__pwShopPrefetch = (href: string) => {

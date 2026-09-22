@@ -1,6 +1,6 @@
 # Include trong server {} shop / nanoai.vn / catch-all.
 # Copy → /etc/nginx/snippets/nanoai-shop-locations.inc
-# Cần /etc/nginx/conf.d/nanoai.conf (upstream nanoai_next + cache_path).
+# Cần /etc/nginx/conf.d/nanoai.conf (upstream nanoai_next + cache_path + map $pw_partner_site_slug).
 
 gzip on;
 gzip_comp_level 5;
@@ -17,6 +17,19 @@ location /_next/static/ {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+}
+
+location /pw-shop-runtime/ {
+    proxy_pass http://nanoai_next;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Connection "";
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-NanoAI-Edge 1;
     expires 1y;
     add_header Cache-Control "public, immutable";
 }
@@ -45,6 +58,8 @@ location / {
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-NanoAI-Edge 1;
+    proxy_set_header X-Partner-Site-Slug $pw_partner_site_slug;
 
     proxy_connect_timeout 300;
     proxy_send_timeout 300;

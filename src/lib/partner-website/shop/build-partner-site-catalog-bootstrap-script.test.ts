@@ -18,5 +18,7 @@ test('catalog bootstrap listing filters read URL, request facets, skip Sửa nha
   assert.match(s, /kho-sale/)
   assert.match(s, /if\(page==='home'\|\|page==='product'\|\|page==='cart'\|\|page==='account'\)return false/)
   assert.match(s, /pwShopTrack\('view_item_list'/)
+  assert.match(s, /function catalogAlreadySeeded/)
+  assert.match(s, /function refreshSeededCatalog/)
   assert.doesNotMatch(s, /price_asc/)
 })

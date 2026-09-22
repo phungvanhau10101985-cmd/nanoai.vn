@@ -947,6 +947,13 @@ function run(){
       }
       var grid=el.querySelector('[data-pw-grid]');
       if(grid&&el.getAttribute('data-pw-live-products')==='loading')grid.innerHTML='';
+      if(el.getAttribute('data-pw-live-products')==='ready'&&grid&&grid.querySelector('[data-inventory-id]')){
+        var n=grid.querySelectorAll('[data-inventory-id]').length;
+        el._pwGrid={offset:n,pageSize:pwGridPageSize(el),hasMore:true,loading:false};
+        el.hidden=false;
+        hydrateBlock(el);
+        return;
+      }
       if(!(grid&&grid.children.length)) el.hidden=true;
       hydrateBlock(el);
     });

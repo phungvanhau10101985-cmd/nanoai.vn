@@ -738,6 +738,42 @@ function loadGridPage(el,append){
     st.hasMore=false;paintMore(el);revealLiveCatalog(el);el.hidden=false;
   });
 }
+function catalogSeedIds(el){
+  var grid=el.querySelector('[data-pw-grid]');
+  if(!grid)return '';
+  return Array.prototype.map.call(grid.querySelectorAll('[data-inventory-id]'),function(n){
+    return String(n.getAttribute('data-inventory-id')||'');
+  }).join(',');
+}
+function catalogAlreadySeeded(el){
+  if(el.getAttribute('data-pw-live-products')!=='ready')return false;
+  var grid=el.querySelector('[data-pw-grid]');
+  return !!(grid&&grid.querySelector('[data-inventory-id]'));
+}
+function refreshSeededCatalog(el){
+  var st=el._pwGrid;if(!st||st.loading)return;
+  var before=catalogSeedIds(el);
+  st.loading=true;
+  fetchJsonOnce(API+queryFor(el,0,st.pageSize)).then(function(res){
+    st.loading=false;
+    var products=(res.j&&res.j.products)||[];
+    if(isRelated(el)){
+      var exclude=currentProductId(el);
+      if(exclude)products=products.filter(function(p){return String(p.id||'')!==exclude;});
+    }
+    var after=products.map(function(p){return String(p.id||'');}).join(',');
+    if(!res.ok){st.hasMore=false;paintMore(el);return;}
+    if(after===before){
+      st.hasMore=res.j&&res.j.hasMore===true;
+      paintMore(el);
+      if(listingCatalogEl(el))paintListingFacets(res.j);
+      return;
+    }
+    st.offset=0;
+    st.hasMore=true;
+    loadGridPage(el,false);
+  }).catch(function(){st.loading=false;});
+}
 function hydrate(el){
   el._pwGrid={offset:0,pageSize:pwGridPageSize(el),hasMore:true,loading:false};
   loadGridPage(el,false);
@@ -767,6 +803,15 @@ function run(){
   document.querySelectorAll('[data-pw-catalog],[data-pw-related]').forEach(function(el){
     var grid=el.querySelector('[data-pw-grid]');
     if(grid&&el.getAttribute('data-pw-live-products')==='loading')grid.innerHTML='';
+    if(catalogAlreadySeeded(el)){
+      var n=grid?grid.querySelectorAll('[data-inventory-id]').length:0;
+      el._pwGrid={offset:n,pageSize:pwGridPageSize(el),hasMore:true,loading:false};
+      el.hidden=false;
+      revealLiveCatalog(el);
+      paintMore(el);
+      refreshSeededCatalog(el);
+      return;
+    }
     if(!(grid&&grid.children.length)) el.hidden=true;
     hydrate(el);
   });

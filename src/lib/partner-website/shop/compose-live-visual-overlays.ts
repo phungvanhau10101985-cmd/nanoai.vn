@@ -4,6 +4,8 @@ import {
 } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import type { LiveCategoryBind } from '@/lib/partner-website/shop/bind-live-nav-pills'
 import { bindLiveMarketingBannersToHtml } from '@/lib/partner-website/shop/bind-live-marketing-banner'
+import { bindLiveCatalogGridsToHtml, type LiveCatalogGridBind } from '@/lib/partner-website/shop/bind-live-catalog-grids-to-html'
+import { injectPartnerShopLcpPreloadLinks } from '@/lib/partner-website/shop/preload-partner-shop-lcp'
 import {
   bindLiveCategoryListingToHtml,
   type LiveCategoryListingBind,
@@ -27,6 +29,7 @@ export function applyLiveVisualOverlays(
     liveListing?: LiveCategoryListingBind | null
     liveCategoryBind?: LiveCategoryBind | null
     liveMarketingBanners?: PartnerMarketingBannerPublicItem[] | null
+    liveCatalogGrids?: LiveCatalogGridBind | null
     locale: WebLocale
     siteSlug: string
     device?: VisualDeviceVariant | null
@@ -47,5 +50,10 @@ export function applyLiveVisualOverlays(
     : withProduct
   const withoutHub = input.liveListing ? stripFeaturedCategoryHostsInHtml(withListing) : withListing
   const withCategories = bindLiveCategorySurfacesInHtml(withoutHub, input.liveCategoryBind ?? null)
-  return bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)
+  const withBanners = bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)
+  const withCatalog = bindLiveCatalogGridsToHtml(withBanners, input.liveCatalogGrids, {
+    locale: input.locale,
+    device: input.device,
+  })
+  return injectPartnerShopLcpPreloadLinks(withCatalog)
 }

@@ -252,7 +252,7 @@ export default async function RootLayout({
   const useMinimalEmbedLayout =
     isMessagingGuestPage || isWeddingPublicPage || isPartnerWebsitePage;
 
-  const settings = await loadAdminIntegrationsSettings();
+  const settings = isPartnerWebsitePage ? ({} as AdminIntegrationsSettings) : await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()
   const { t } = getServerDictionary()
   const webAppLd = buildJsonLdWebApplication(
@@ -297,7 +297,7 @@ export default async function RootLayout({
   // trên site chính của NanoAI — workspace khách sạn có trải nghiệm/nhúng riêng, và site chính
   // không phải là website của khách chủ khách sạn.
   let globalEmbedIsHotelPartner = false;
-  if (hostedChatUrl && isPgConfigured()) {
+  if (hostedChatUrl && isPgConfigured() && !isPartnerWebsitePage) {
     const slug = extractMessagingPartnerSlugFromChatUrl(hostedChatUrl);
     if (slug && !isReservedMessagingGuestSlug(slug)) {
       const row = await fetchMessagingPartnerBySlugFromPg(slug);
@@ -390,6 +390,12 @@ export default async function RootLayout({
     <html lang={locale} suppressHydrationWarning>
       <head>
         {bunnyCdnOrigin ? <link rel="preconnect" href={bunnyCdnOrigin} crossOrigin="anonymous" /> : null}
+        {isPartnerWebsitePage ? (
+          <>
+            <link rel="preconnect" href="https://img.alicdn.com" crossOrigin="anonymous" />
+            <link rel="preconnect" href="https://gw.alicdn.com" crossOrigin="anonymous" />
+          </>
+        ) : null}
         {isPartnerWebsitePage && partnerSiteSlug ? (
           <>
             <script
@@ -417,7 +423,11 @@ export default async function RootLayout({
           : null}
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`}
+        className={
+          isPartnerWebsitePage
+            ? 'antialiased min-h-screen safe-area-pb'
+            : `${geistSans.variable} ${geistMono.variable} antialiased min-h-screen safe-area-pb`
+        }
         suppressHydrationWarning
       >
         {shouldRenderGlobalGoogleTags && gtmContainerId ? (

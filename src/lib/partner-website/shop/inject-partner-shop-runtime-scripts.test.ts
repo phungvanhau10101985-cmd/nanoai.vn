@@ -7,6 +7,7 @@ import {
 } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
 import { buildPartnerSiteSearchBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-search-bootstrap-script'
 import { buildPartnerSiteChromeToggleBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-chrome-toggle-bootstrap-script'
+import { expandPartnerShopHashedRuntimesForTest } from '@/lib/partner-website/shop/pw-shop-hashed-runtime'
 
 test('runtime scripts stamp data-pw-facet on listing filter selects', () => {
   const html =
@@ -553,4 +554,21 @@ test('live runtime injects shop tracking bridge; Sửa nhanh strips it', () => {
   assert.doesNotMatch(editor, /data-pw-shop-track-bridge/)
   const readOnly = injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(html, { siteSlug: 'demo-shop', locale: 'vi' })
   assert.doesNotMatch(readOnly, /data-pw-shop-track-bridge/)
+})
+
+test('live hashed runtimes use defer src; expand restores bootstrap JS for tests', () => {
+  const html =
+    '<!DOCTYPE html><html><head></head><body data-pw-page="home"><main>' +
+    '<section data-pw-catalog><div data-pw-grid></div></section>' +
+    '</main></body></html>'
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(html, {
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    hashedRuntimes: true,
+  })
+  assert.match(out, /src="\/pw-shop-runtime\/catalog\.demo-shop\.vi\.[a-f0-9]{12}\.js"/)
+  assert.match(out, /data-pw-cdn-preconnect="1"/)
+  assert.doesNotMatch(out, /<script[^>]*data-pw-catalog-bootstrap[^>]*>\s*function /)
+  const expanded = expandPartnerShopHashedRuntimesForTest(out)
+  assert.match(expanded, /function catalogAlreadySeeded/)
 })

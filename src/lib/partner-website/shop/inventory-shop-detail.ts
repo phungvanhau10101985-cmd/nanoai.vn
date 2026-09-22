@@ -159,6 +159,27 @@ export function shopCardDisplaySrc(raw: string | null | undefined): string {
   return display
 }
 
+/** Above-fold card/banner — never `/api/fetch-image` (LCP must be a CDN URL). */
+export function shopAboveFoldDisplaySrc(raw: string | null | undefined): string {
+  const card = shopCardDisplaySrc(raw)
+  if (!card) return ''
+  if (!card.startsWith('/api/fetch-image')) return card
+  const { inner } = unwrapShopFetchImageUrl(card)
+  if (!/^https?:\/\//i.test(inner)) return ''
+  const sized = applyShopAlicdnCardSize(inner)
+  return /^https?:\/\//i.test(sized) ? sized : inner
+}
+
+export function shopAboveFoldBannerSrc(raw: string | null | undefined): string {
+  const banner = shopBannerDisplaySrc(raw)
+  if (!banner) return ''
+  if (!banner.startsWith('/api/fetch-image')) return banner
+  const { inner } = unwrapShopFetchImageUrl(banner)
+  if (!/^https?:\/\//i.test(inner)) return ''
+  const sized = applyShopAlicdnPageSize(inner)
+  return /^https?:\/\//i.test(sized) ? sized : inner
+}
+
 /** PDP / lightbox / Thử đồ — URL gốc, không ép `_600x600q90` (suffix đó hay 404 trên AliCDN). */
 export function shopPdpDisplaySrc(raw: string | null | undefined): string {
   const url = normalizeShopImageUrl(raw).replace(ALICDN_SIZE_SUFFIX_RE, '')
