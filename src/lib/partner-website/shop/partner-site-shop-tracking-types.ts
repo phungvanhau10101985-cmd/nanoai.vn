@@ -1,3 +1,10 @@
+export type PartnerSiteShopAdsConversionKey =
+  | 'pdp'
+  | 'add_to_cart'
+  | 'begin_checkout'
+  | 'deposit_page'
+  | 'purchase'
+
 export type PartnerSiteShopTrackingConfig = {
   ga4MeasurementId: string | null
   facebookPixelId: string | null
@@ -9,6 +16,19 @@ export type PartnerSiteShopTrackingConfig = {
   gtmContainerId?: string | null
   /** S0.10 — ISO-like currency for ecommerce events (default VND). */
   currency?: string | null
+  /** Google Customer Reviews merchant id — CwCD `aw_merchant_id` trên Purchase. */
+  googleMerchantId?: number | null
+  adsConversionPdp?: string | null
+  adsConversionAddToCart?: string | null
+  adsConversionBeginCheckout?: string | null
+  adsConversionDepositPage?: string | null
+  adsConversionPurchase?: string | null
+  googleSearchConsoleVerify?: string | null
+  googleMerchantCenterVerify?: string | null
+  facebookDomainVerification?: string | null
+  customEmbedHeadHtml?: string | null
+  customEmbedBodyOpenHtml?: string | null
+  customEmbedBodyCloseHtml?: string | null
 }
 
 export type PartnerSiteShopTrackingProduct = {
@@ -22,4 +42,28 @@ export type PartnerSiteShopTrackingProduct = {
 
 export type PartnerSiteShopTrackingLine = PartnerSiteShopTrackingProduct & {
   quantity: number
+}
+
+export type PartnerSiteNativeTrackKind =
+  | 'page_view'
+  | 'view_item'
+  | 'view_item_list'
+  | 'add_to_cart'
+  | 'begin_checkout'
+  | 'purchase'
+  | 'place_order'
+  | 'deposit_page'
+
+export type PartnerSiteNativeTrackPayload = {
+  itemId?: string
+  itemName?: string
+  value?: number
+  quantity?: number
+  sku?: string
+  remarketingId?: string
+  products?: PartnerSiteShopTrackingProduct[]
+  lines?: PartnerSiteShopTrackingLine[]
+  transactionId?: string
+  customerEmail?: string
+  customerPhone?: string
 }

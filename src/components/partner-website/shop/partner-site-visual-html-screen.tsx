@@ -38,6 +38,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-info-pages'
 import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/seed-shop-template-visual-website'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import {
   parseVisualDeviceQuery,
   shouldServeVisualPageHtml,
@@ -147,6 +148,17 @@ export async function PartnerSiteVisualHtmlScreen({
     /data-pw-featured-categories\s*=|\bpw-categories\b|data-pw-region=["']categories["']/i.test(html)
   const navOnly = !wantsHomeBanners && !hasFeaturedHost
   const shopCtx = await loadPartnerSiteShopContext(site.siteSlug).catch(() => null)
+  const tracking = partnerSiteTrackingFromPublicRow(site)
+  const trackingCacheToken = [
+    'track-188-1',
+    site.gtmContainerId || '',
+    site.googleSearchConsoleVerify || '',
+    site.googleMerchantCenterVerify || '',
+    site.facebookDomainVerification || '',
+    String(site.customEmbedHeadHtml?.length || 0),
+    String(site.customEmbedBodyOpenHtml?.length || 0),
+    String(site.customEmbedBodyCloseHtml?.length || 0),
+  ].join('|')
   const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([
     loadSiteLiveCategoryBind(site.siteSlug, navOnly),
     wantsHomeBanners ? loadSiteLiveMarketingBanners(site.siteSlug) : Promise.resolve(null),
@@ -165,6 +177,7 @@ export async function PartnerSiteVisualHtmlScreen({
         cmsSlug: infoSeo?.cmsSlug,
         theme: liveBrand.theme,
         variant: sourceDevice || undefined,
+        tracking,
       })
     }
     return withSiteHtmlCache({
@@ -180,6 +193,7 @@ export async function PartnerSiteVisualHtmlScreen({
         'promo-home-1',
         'live-chrome-stamp-3',
         `sale-icon-${liveBrand.cacheToken}`,
+        trackingCacheToken,
       ].join(':'),
       load: async () => prepare(),
     })
@@ -222,6 +236,7 @@ export async function PartnerSiteVisualHtmlScreen({
           hideChatLauncher={site.theme?.hideChatLauncher}
           browserThemeColor={shopBrowserChromeColor(site.theme)}
           siteSlug={site.siteSlug}
+          tracking={tracking}
         />
       </>
     )
@@ -260,6 +275,7 @@ export async function PartnerSiteVisualHtmlScreen({
         hideChatLauncher={site.theme?.hideChatLauncher}
         browserThemeColor={shopBrowserChromeColor(site.theme)}
         siteSlug={site.siteSlug}
+        tracking={tracking}
       />
     </>
   )

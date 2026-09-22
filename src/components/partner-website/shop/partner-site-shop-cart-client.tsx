@@ -46,6 +46,7 @@ import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import {
   trackPartnerSiteBeginCheckout,
+  trackPartnerSitePlaceOrder,
   trackPartnerSitePurchase,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import {
@@ -1204,6 +1205,11 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       if (created?.id) {
         markGoogleCustomerReviewsForOrder(created.id)
         if (goDeposit) {
+          trackPartnerSitePlaceOrder(tracking, {
+            transactionId: created.id,
+            value: partnerOrderPayableTotal(created),
+            lines: checkoutLines,
+          })
           stashPartnerSiteCheckoutHandoff(siteSlug, {
             orderId: created.id,
             order: {

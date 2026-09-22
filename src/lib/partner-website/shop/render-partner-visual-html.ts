@@ -18,6 +18,8 @@ import { injectPartnerShopChromeLayoutCss } from '@/lib/partner-website/shop/par
 import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectShopLookIntoHtml } from '@/lib/partner-website/shop/shop-look-css'
 import { injectPartnerShopFooterFitCss } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import { injectPartnerShopLiveTrackingHtml } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
+import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { injectPartnerShopFaviconIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { stripPartnerInfoPageSeoCoachFromHtml } from '@/lib/partner-website/pages/partner-info-page-advanced-seo'
 import { ensureAdsPlatformPolicyInHtml } from '@/lib/partner-website/pages/partner-info-page-visual'
@@ -79,6 +81,7 @@ type PartnerVisualRenderInput = {
   cmsSlug?: string | null
   onCustomDomain?: boolean
   runtime: 'authoring' | 'live'
+  tracking?: PartnerSiteShopTrackingConfig | null
 }
 
 function stampPwPageOnDocumentHtml(html: string, pageKey?: string | null): string {
@@ -186,7 +189,9 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     input.runtime === 'live' && input.onCustomDomain && siteSlug
       ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, siteSlug)
       : withLogoHome
-  return pinPaintedFooterThemeVarsInHtml(served)
+  const withTracking =
+    input.runtime === 'live' ? injectPartnerShopLiveTrackingHtml(served, input.tracking) : served
+  return pinPaintedFooterThemeVarsInHtml(withTracking)
 }
 
 export function preparePartnerVisualHtmlForEditor(
@@ -223,6 +228,7 @@ export function preparePartnerVisualHtmlForPublic(
     cmsSlug?: string | null
     theme?: PartnerWebsiteTheme | null
     variant?: VisualDeviceVariant | null
+    tracking?: PartnerSiteShopTrackingConfig | null
   }
 ): string {
   return renderPartnerVisualDocument(html, {
@@ -234,6 +240,7 @@ export function preparePartnerVisualHtmlForPublic(
     pageKey: input.pageKey,
     cmsSlug: input.cmsSlug,
     variant: input.variant || undefined,
+    tracking: input.tracking,
   })
 }
 

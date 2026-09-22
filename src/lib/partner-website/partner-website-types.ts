@@ -110,6 +110,18 @@ export type PartnerWebsitePublicRow = {
   gtmContainerId: string | null
   /** S0.10 */
   defaultCurrency?: string | null
+  googleCustomerReviewsMerchantId?: number | null
+  adsConversionPdp?: string | null
+  adsConversionAddToCart?: string | null
+  adsConversionBeginCheckout?: string | null
+  adsConversionDepositPage?: string | null
+  adsConversionPurchase?: string | null
+  googleSearchConsoleVerify?: string | null
+  googleMerchantCenterVerify?: string | null
+  facebookDomainVerification?: string | null
+  customEmbedHeadHtml?: string | null
+  customEmbedBodyOpenHtml?: string | null
+  customEmbedBodyCloseHtml?: string | null
   isPublished?: boolean
 }
 

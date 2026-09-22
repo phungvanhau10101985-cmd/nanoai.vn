@@ -15,9 +15,10 @@ import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/s
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
 import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-newsletter-bootstrap-script'
+import { buildPartnerSiteShopTrackingBridgeScript } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -181,6 +182,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   if (chatBridge) out = appendBeforeBody(out, chatBridge)
   if (!siteSlug) return out
 
+  out = appendBeforeBody(out, buildPartnerSiteShopTrackingBridgeScript())
   out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
   if (hooks.catalog || hooks.personalization) {
     out = prepareProductGridFirstPaint(out)

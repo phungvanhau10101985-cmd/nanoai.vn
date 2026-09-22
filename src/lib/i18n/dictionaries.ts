@@ -623,6 +623,34 @@ export type Dictionary = {
     shopGtmContainerPlaceholder: string
     shopGtmContainerInvalidIdToast: string
     shopGtmContainerSaveButton: string
+    shopAdsConversionLabelsTitle: string
+    shopAdsConversionLabelsHint: string
+    shopAdsConversionPdpLabel: string
+    shopAdsConversionAddToCartLabel: string
+    shopAdsConversionBeginCheckoutLabel: string
+    shopAdsConversionDepositPageLabel: string
+    shopAdsConversionPurchaseLabel: string
+    shopAdsConversionPlaceholder: string
+    shopAdsConversionInvalidToast: string
+    shopAdsConversionSaveButton: string
+    shopVerifyTagsTitle: string
+    shopVerifyTagsHint: string
+    shopSearchConsoleVerifyLabel: string
+    shopMerchantCenterVerifyLabel: string
+    shopFacebookDomainVerifyLabel: string
+    shopVerifyPlaceholder: string
+    shopVerifyInvalidToast: string
+    shopCustomHtmlTitle: string
+    shopCustomHtmlHint: string
+    shopCustomHtmlHeadLabel: string
+    shopCustomHtmlBodyOpenLabel: string
+    shopCustomHtmlBodyCloseLabel: string
+    shopTrackingExtrasSaveButton: string
+    shopTiktokEventsTokenLabel: string
+    shopTiktokEventsTokenHint: string
+    shopTiktokEventsTokenPlaceholder: string
+    shopTiktokEventsTokenConfiguredBadge: string
+    shopTiktokEventsTokenSavedHint: string
     /** S0.10 */
     shopDefaultCurrencyLabel: string
     shopDefaultCurrencyHint: string
@@ -4263,6 +4291,36 @@ const VI_DICTIONARY: Dictionary = {
     shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
     shopGtmContainerInvalidIdToast: 'GTM Container ID không hợp lệ (phải dạng GTM-XXXXXXX).',
     shopGtmContainerSaveButton: 'Lưu GTM Container',
+    shopAdsConversionLabelsTitle: 'Nhãn chuyển đổi Google Ads (AW-/label)',
+    shopAdsConversionLabelsHint:
+      'Dán send_to từng bước như 188: xem sản phẩm, thêm giỏ, giỏ hàng, trang cọc, mua. Để trống nếu chưa có nhãn.',
+    shopAdsConversionPdpLabel: 'Xem sản phẩm (PDP)',
+    shopAdsConversionAddToCartLabel: 'Thêm giỏ',
+    shopAdsConversionBeginCheckoutLabel: 'Bắt đầu thanh toán (giỏ)',
+    shopAdsConversionDepositPageLabel: 'Trang đặt cọc',
+    shopAdsConversionPurchaseLabel: 'Mua hàng',
+    shopAdsConversionPlaceholder: 'AW-123456789/AbCdEfGh',
+    shopAdsConversionInvalidToast: 'Nhãn chuyển đổi không hợp lệ. Định dạng: AW-123456789/label',
+    shopAdsConversionSaveButton: 'Lưu nhãn Ads',
+    shopVerifyTagsTitle: 'Thẻ xác minh tên miền',
+    shopVerifyTagsHint: 'Chỉ dán chuỗi content của meta — hệ thống tự gắn thẻ. Không dán cả đoạn HTML.',
+    shopSearchConsoleVerifyLabel: 'Google Search Console',
+    shopMerchantCenterVerifyLabel: 'Google Merchant Center',
+    shopFacebookDomainVerifyLabel: 'Facebook domain verification',
+    shopVerifyPlaceholder: 'Chuỗi xác minh',
+    shopVerifyInvalidToast: 'Chuỗi xác minh không hợp lệ (chỉ chữ, số, gạch).',
+    shopCustomHtmlTitle: 'HTML tùy chỉnh',
+    shopCustomHtmlHint:
+      'Tối đa script/meta/link/noscript từ Google / Meta / TikTok. Sửa nhanh không nhúng mã này. Script ads chờ khách đồng ý cookie.',
+    shopCustomHtmlHeadLabel: 'Head',
+    shopCustomHtmlBodyOpenLabel: 'Đầu body',
+    shopCustomHtmlBodyCloseLabel: 'Cuối body',
+    shopTrackingExtrasSaveButton: 'Lưu thẻ Ads / xác minh / HTML',
+    shopTiktokEventsTokenLabel: 'TikTok Events API token',
+    shopTiktokEventsTokenHint: 'Chỉ lưu — chưa gửi server (giống 188). Pixel TikTok phía trên vẫn bắn trên web.',
+    shopTiktokEventsTokenPlaceholder: 'Dán token Events API',
+    shopTiktokEventsTokenConfiguredBadge: 'Đã lưu token',
+    shopTiktokEventsTokenSavedHint: 'Ô trống = giữ token đã lưu. Dán token mới khi muốn đổi.',
     shopDefaultCurrencyLabel: "Tiền tệ cửa hàng",
     shopDefaultCurrencyHint: "Dùng cho hiển thị và sự kiện theo dõi (GA4/Meta/TikTok). Không quy đổi tỷ giá.",
     shopDefaultCurrencySaveButton: "Lưu tiền tệ",
@@ -7910,6 +7968,36 @@ const EN_DICTIONARY: Dictionary = {
     shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
     shopGtmContainerInvalidIdToast: 'Invalid GTM Container ID (must be in GTM-XXXXXXX format).',
     shopGtmContainerSaveButton: 'Save GTM Container',
+    shopAdsConversionLabelsTitle: 'Google Ads conversion labels (AW-/label)',
+    shopAdsConversionLabelsHint:
+      'Paste send_to for each step like 188: PDP, add to cart, cart, deposit page, purchase. Leave blank if unused.',
+    shopAdsConversionPdpLabel: 'View product (PDP)',
+    shopAdsConversionAddToCartLabel: 'Add to cart',
+    shopAdsConversionBeginCheckoutLabel: 'Begin checkout (cart)',
+    shopAdsConversionDepositPageLabel: 'Deposit page',
+    shopAdsConversionPurchaseLabel: 'Purchase',
+    shopAdsConversionPlaceholder: 'AW-123456789/AbCdEfGh',
+    shopAdsConversionInvalidToast: 'Invalid conversion label. Format: AW-123456789/label',
+    shopAdsConversionSaveButton: 'Save Ads labels',
+    shopVerifyTagsTitle: 'Domain verification tags',
+    shopVerifyTagsHint: 'Paste only the meta content string — the shop injects the tag. Do not paste a full HTML snippet.',
+    shopSearchConsoleVerifyLabel: 'Google Search Console',
+    shopMerchantCenterVerifyLabel: 'Google Merchant Center',
+    shopFacebookDomainVerifyLabel: 'Facebook domain verification',
+    shopVerifyPlaceholder: 'Verification string',
+    shopVerifyInvalidToast: 'Invalid verification string (letters, numbers, dashes only).',
+    shopCustomHtmlTitle: 'Custom HTML',
+    shopCustomHtmlHint:
+      'Allowlisted script/meta/link/noscript from Google / Meta / TikTok. Quick edit does not inject this. Ad scripts wait for cookie consent.',
+    shopCustomHtmlHeadLabel: 'Head',
+    shopCustomHtmlBodyOpenLabel: 'Body open',
+    shopCustomHtmlBodyCloseLabel: 'Body close',
+    shopTrackingExtrasSaveButton: 'Save Ads labels / verify / HTML',
+    shopTiktokEventsTokenLabel: 'TikTok Events API token',
+    shopTiktokEventsTokenHint: 'Stored only — not sent server-side yet (same as 188). The TikTok Pixel above still fires on the shop.',
+    shopTiktokEventsTokenPlaceholder: 'Paste Events API token',
+    shopTiktokEventsTokenConfiguredBadge: 'Token saved',
+    shopTiktokEventsTokenSavedHint: 'Leave blank to keep the saved token. Paste a new token to replace it.',
     shopDefaultCurrencyLabel: "Shop currency",
     shopDefaultCurrencyHint: "Used for display and tracking events (GA4/Meta/TikTok). No FX conversion.",
     shopDefaultCurrencySaveButton: "Save currency",
@@ -11552,6 +11640,34 @@ const ZH_DICTIONARY: Dictionary = {
     shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
     shopGtmContainerInvalidIdToast: 'GTM 容器 ID 无效（格式应为 GTM-XXXXXXX）。',
     shopGtmContainerSaveButton: '保存 GTM 容器',
+    shopAdsConversionLabelsTitle: 'Google Ads 转化标签（AW-/label）',
+    shopAdsConversionLabelsHint: '按步骤粘贴 send_to：商品页、加购、购物车、定金页、购买。未使用可留空。',
+    shopAdsConversionPdpLabel: '查看商品（PDP）',
+    shopAdsConversionAddToCartLabel: '加入购物车',
+    shopAdsConversionBeginCheckoutLabel: '开始结账（购物车）',
+    shopAdsConversionDepositPageLabel: '定金页',
+    shopAdsConversionPurchaseLabel: '购买',
+    shopAdsConversionPlaceholder: 'AW-123456789/AbCdEfGh',
+    shopAdsConversionInvalidToast: '转化标签无效。格式：AW-123456789/label',
+    shopAdsConversionSaveButton: '保存 Ads 标签',
+    shopVerifyTagsTitle: '域名验证标签',
+    shopVerifyTagsHint: '只粘贴 meta 的 content 字符串，系统会自动插入标签。不要粘贴整段 HTML。',
+    shopSearchConsoleVerifyLabel: 'Google Search Console',
+    shopMerchantCenterVerifyLabel: 'Google Merchant Center',
+    shopFacebookDomainVerifyLabel: 'Facebook 域名验证',
+    shopVerifyPlaceholder: '验证字符串',
+    shopVerifyInvalidToast: '验证字符串无效（仅限字母、数字、连字符）。',
+    shopCustomHtmlTitle: '自定义 HTML',
+    shopCustomHtmlHint: '仅允许来自 Google / Meta / TikTok 的 script/meta/link/noscript。快速编辑不会注入。广告脚本需等待 Cookie 同意。',
+    shopCustomHtmlHeadLabel: 'Head',
+    shopCustomHtmlBodyOpenLabel: 'Body 开头',
+    shopCustomHtmlBodyCloseLabel: 'Body 结尾',
+    shopTrackingExtrasSaveButton: '保存 Ads 标签 / 验证 / HTML',
+    shopTiktokEventsTokenLabel: 'TikTok Events API token',
+    shopTiktokEventsTokenHint: '仅保存，暂不服务端发送（与 188 相同）。上方 TikTok Pixel 仍会在店铺页面触发。',
+    shopTiktokEventsTokenPlaceholder: '粘贴 Events API token',
+    shopTiktokEventsTokenConfiguredBadge: '已保存令牌',
+    shopTiktokEventsTokenSavedHint: '留空则保留已保存令牌。粘贴新令牌以替换。',
     shopDefaultCurrencyLabel: "店铺货币",
     shopDefaultCurrencyHint: "用于展示与追踪事件（GA4/Meta/TikTok）。不进行汇率换算。",
     shopDefaultCurrencySaveButton: "保存货币",
@@ -15095,6 +15211,36 @@ const JA_DICTIONARY: Dictionary = {
     shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
     shopGtmContainerInvalidIdToast: 'GTM コンテナ ID が無効です（GTM-XXXXXXX の形式である必要があります）。',
     shopGtmContainerSaveButton: 'GTM コンテナを保存',
+    shopAdsConversionLabelsTitle: 'Google Ads コンバージョンラベル（AW-/label）',
+    shopAdsConversionLabelsHint:
+      '188 と同様にステップごとに send_to を貼り付けます（商品、カート追加、カート、デポジット、購入）。未使用は空欄。',
+    shopAdsConversionPdpLabel: '商品閲覧（PDP）',
+    shopAdsConversionAddToCartLabel: 'カート追加',
+    shopAdsConversionBeginCheckoutLabel: 'チェックアウト開始（カート）',
+    shopAdsConversionDepositPageLabel: 'デポジットページ',
+    shopAdsConversionPurchaseLabel: '購入',
+    shopAdsConversionPlaceholder: 'AW-123456789/AbCdEfGh',
+    shopAdsConversionInvalidToast: 'コンバージョンラベルが無効です。形式: AW-123456789/label',
+    shopAdsConversionSaveButton: 'Ads ラベルを保存',
+    shopVerifyTagsTitle: 'ドメイン確認タグ',
+    shopVerifyTagsHint: 'meta の content 文字列だけを貼り付けます。HTML 全体は貼らないでください。',
+    shopSearchConsoleVerifyLabel: 'Google Search Console',
+    shopMerchantCenterVerifyLabel: 'Google Merchant Center',
+    shopFacebookDomainVerifyLabel: 'Facebook ドメイン確認',
+    shopVerifyPlaceholder: '確認文字列',
+    shopVerifyInvalidToast: '確認文字列が無効です（英数字とハイフンのみ）。',
+    shopCustomHtmlTitle: 'カスタム HTML',
+    shopCustomHtmlHint:
+      'Google / Meta / TikTok の script/meta/link/noscript のみ許可。クイック編集では挿入しません。広告スクリプトは Cookie 同意後です。',
+    shopCustomHtmlHeadLabel: 'Head',
+    shopCustomHtmlBodyOpenLabel: 'Body 先頭',
+    shopCustomHtmlBodyCloseLabel: 'Body 末尾',
+    shopTrackingExtrasSaveButton: 'Ads ラベル / 確認 / HTML を保存',
+    shopTiktokEventsTokenLabel: 'TikTok Events API token',
+    shopTiktokEventsTokenHint: '保存のみでサーバー送信はまだしません（188 と同じ）。上の TikTok Pixel は店舗で発火します。',
+    shopTiktokEventsTokenPlaceholder: 'Events API token を貼り付け',
+    shopTiktokEventsTokenConfiguredBadge: 'トークン保存済み',
+    shopTiktokEventsTokenSavedHint: '空欄のままなら保存済みトークンを維持。差し替えるときだけ貼り付けます。',
     shopDefaultCurrencyLabel: "ショップ通貨",
     shopDefaultCurrencyHint: "表示とトラッキングイベント（GA4/Meta/TikTok）に使用。為替換算はありません。",
     shopDefaultCurrencySaveButton: "通貨を保存",
@@ -18711,6 +18857,36 @@ const KO_DICTIONARY: Dictionary = {
     shopGtmContainerPlaceholder: 'GTM-XXXXXXX',
     shopGtmContainerInvalidIdToast: 'GTM 컨테이너 ID가 올바르지 않습니다(GTM-XXXXXXX 형식이어야 함).',
     shopGtmContainerSaveButton: 'GTM 컨테이너 저장',
+    shopAdsConversionLabelsTitle: 'Google Ads 전환 라벨 (AW-/label)',
+    shopAdsConversionLabelsHint:
+      '188처럼 단계별 send_to를 붙여 넣으세요: PDP, 장바구니 담기, 장바구니, 보증금 페이지, 구매. 없으면 비워 두세요.',
+    shopAdsConversionPdpLabel: '상품 보기 (PDP)',
+    shopAdsConversionAddToCartLabel: '장바구니 담기',
+    shopAdsConversionBeginCheckoutLabel: '결제 시작 (장바구니)',
+    shopAdsConversionDepositPageLabel: '보증금 페이지',
+    shopAdsConversionPurchaseLabel: '구매',
+    shopAdsConversionPlaceholder: 'AW-123456789/AbCdEfGh',
+    shopAdsConversionInvalidToast: '전환 라벨이 올바르지 않습니다. 형식: AW-123456789/label',
+    shopAdsConversionSaveButton: 'Ads 라벨 저장',
+    shopVerifyTagsTitle: '도메인 인증 태그',
+    shopVerifyTagsHint: 'meta content 문자열만 붙여 넣으세요. HTML 전체를 넣지 마세요.',
+    shopSearchConsoleVerifyLabel: 'Google Search Console',
+    shopMerchantCenterVerifyLabel: 'Google Merchant Center',
+    shopFacebookDomainVerifyLabel: 'Facebook 도메인 인증',
+    shopVerifyPlaceholder: '인증 문자열',
+    shopVerifyInvalidToast: '인증 문자열이 올바르지 않습니다(영문, 숫자, 하이픈만).',
+    shopCustomHtmlTitle: '사용자 HTML',
+    shopCustomHtmlHint:
+      'Google / Meta / TikTok의 script/meta/link/noscript만 허용합니다. 빠른 수정에는 삽입되지 않습니다. 광고 스크립트는 쿠키 동의 후입니다.',
+    shopCustomHtmlHeadLabel: 'Head',
+    shopCustomHtmlBodyOpenLabel: 'Body 시작',
+    shopCustomHtmlBodyCloseLabel: 'Body 끝',
+    shopTrackingExtrasSaveButton: 'Ads 라벨 / 인증 / HTML 저장',
+    shopTiktokEventsTokenLabel: 'TikTok Events API 토큰',
+    shopTiktokEventsTokenHint: '저장만 하며 서버 전송은 아직 없습니다(188과 동일). 위의 TikTok Pixel은 상점에서 발사됩니다.',
+    shopTiktokEventsTokenPlaceholder: 'Events API 토큰 붙여넣기',
+    shopTiktokEventsTokenConfiguredBadge: '토큰 저장됨',
+    shopTiktokEventsTokenSavedHint: '비워 두면 저장된 토큰을 유지합니다. 바꿀 때만 새 토큰을 붙여 넣으세요.',
     shopDefaultCurrencyLabel: "상점 통화",
     shopDefaultCurrencyHint: "표시 및 추적 이벤트(GA4/Meta/TikTok)에 사용합니다. 환율 변환은 없습니다.",
     shopDefaultCurrencySaveButton: "통화 저장",

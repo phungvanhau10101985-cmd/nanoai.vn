@@ -48,6 +48,8 @@ import {
   savePartnerMessagingTiktokPixel,
   savePartnerMessagingGtmContainer,
   savePartnerMessagingDefaultCurrency,
+  getPartnerMessagingShopTrackingExtras,
+  savePartnerMessagingShopTrackingExtras,
 } from '@/app/dashboard/messaging/actions'
 import { PARTNER_SHOP_CURRENCIES } from '@/lib/partner-website/shop/partner-shop-currency'
 import {
@@ -537,6 +539,19 @@ export function PartnerMessagingSettingsClient({
   const [gcrMerchantId, setGcrMerchantId] = useState('')
   const [tiktokPixelId, setTiktokPixelId] = useState('')
   const [gtmContainerId, setGtmContainerId] = useState('')
+  const [adsConversionPdp, setAdsConversionPdp] = useState('')
+  const [adsConversionAddToCart, setAdsConversionAddToCart] = useState('')
+  const [adsConversionBeginCheckout, setAdsConversionBeginCheckout] = useState('')
+  const [adsConversionDepositPage, setAdsConversionDepositPage] = useState('')
+  const [adsConversionPurchase, setAdsConversionPurchase] = useState('')
+  const [searchConsoleVerify, setSearchConsoleVerify] = useState('')
+  const [merchantCenterVerify, setMerchantCenterVerify] = useState('')
+  const [facebookDomainVerify, setFacebookDomainVerify] = useState('')
+  const [customEmbedHeadHtml, setCustomEmbedHeadHtml] = useState('')
+  const [customEmbedBodyOpenHtml, setCustomEmbedBodyOpenHtml] = useState('')
+  const [customEmbedBodyCloseHtml, setCustomEmbedBodyCloseHtml] = useState('')
+  const [tiktokEventsApiToken, setTiktokEventsApiToken] = useState('')
+  const [tiktokEventsApiConfigured, setTiktokEventsApiConfigured] = useState(false)
   const [defaultCurrency, setDefaultCurrency] = useState('VND')
   const [paymentShippingCarrierLabel, setPaymentShippingCarrierLabel] = useState('')
   const [gsEnabled, setGsEnabled] = useState(false)
@@ -1187,6 +1202,35 @@ export function PartnerMessagingSettingsClient({
     })()
   }, [selectedPartnerId, partners])
 
+  useEffect(() => {
+    if (!selectedPartnerId) {
+      setTiktokEventsApiConfigured(false)
+      return
+    }
+    const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
+    if (!partnerAllowsPerm(cur, 'integrations_analytics')) {
+      setTiktokEventsApiConfigured(false)
+      return
+    }
+    void (async () => {
+      const res = await getPartnerMessagingShopTrackingExtras(selectedPartnerId)
+      if ('error' in res && res.error) return
+      setAdsConversionPdp((res.adsConversionPdp ?? '').trim())
+      setAdsConversionAddToCart((res.adsConversionAddToCart ?? '').trim())
+      setAdsConversionBeginCheckout((res.adsConversionBeginCheckout ?? '').trim())
+      setAdsConversionDepositPage((res.adsConversionDepositPage ?? '').trim())
+      setAdsConversionPurchase((res.adsConversionPurchase ?? '').trim())
+      setSearchConsoleVerify((res.googleSearchConsoleVerify ?? '').trim())
+      setMerchantCenterVerify((res.googleMerchantCenterVerify ?? '').trim())
+      setFacebookDomainVerify((res.facebookDomainVerification ?? '').trim())
+      setCustomEmbedHeadHtml(res.customEmbedHeadHtml ?? '')
+      setCustomEmbedBodyOpenHtml(res.customEmbedBodyOpenHtml ?? '')
+      setCustomEmbedBodyCloseHtml(res.customEmbedBodyCloseHtml ?? '')
+      setTiktokEventsApiConfigured(Boolean(res.tiktokEventsApiConfigured))
+      setTiktokEventsApiToken('')
+    })()
+  }, [selectedPartnerId, partners])
+
   const loadPaymentSettings = useCallback(() => {
     if (!selectedPartnerId) return
     paymentHydratingRef.current = true
@@ -1823,6 +1867,45 @@ export function PartnerMessagingSettingsClient({
       setPartners((prev) =>
         prev.map((p) => (p.id === selectedPartnerId ? { ...p, gtm_container_id: nextId } : p))
       )
+      toast({ title: t.saveOk })
+      router.refresh()
+    })
+  }
+
+  const saveShopTrackingExtras = () => {
+    if (!selectedPartnerId) return
+    startTransition(async () => {
+      const run = () =>
+        savePartnerMessagingShopTrackingExtras(selectedPartnerId, {
+          adsConversionPdp,
+          adsConversionAddToCart,
+          adsConversionBeginCheckout,
+          adsConversionDepositPage,
+          adsConversionPurchase,
+          googleSearchConsoleVerify: searchConsoleVerify,
+          googleMerchantCenterVerify: merchantCenterVerify,
+          facebookDomainVerification: facebookDomainVerify,
+          customEmbedHeadHtml,
+          customEmbedBodyOpenHtml,
+          customEmbedBodyCloseHtml,
+          tiktokEventsApiToken,
+        })
+      const res = tiktokEventsApiToken.trim() ? await runWithStepUp(run) : await run()
+      if ('error' in res && res.error) {
+        if (isStepUpRequiredError(res)) return
+        if (res.error === 'INVALID_ADS_CONVERSION_LABEL') {
+          toast({ title: t.shopAdsConversionInvalidToast, variant: 'destructive' })
+          return
+        }
+        if (res.error === 'INVALID_VERIFY_TOKEN') {
+          toast({ title: t.shopVerifyInvalidToast, variant: 'destructive' })
+          return
+        }
+        toast({ title: res.error, variant: 'destructive' })
+        return
+      }
+      setTiktokEventsApiToken('')
+      if (tiktokEventsApiToken.trim()) setTiktokEventsApiConfigured(true)
       toast({ title: t.saveOk })
       router.refresh()
     })
@@ -3337,6 +3420,22 @@ export function PartnerMessagingSettingsClient({
                   />
                   <p className="text-[11px] text-muted-foreground">{t.shopTiktokPixelHint}</p>
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.shopTiktokEventsTokenLabel}</Label>
+                  {tiktokEventsApiConfigured ? (
+                    <p className="text-[11px] text-emerald-700">{t.shopTiktokEventsTokenConfiguredBadge}</p>
+                  ) : null}
+                  <Input
+                    className="h-9 text-sm"
+                    value={tiktokEventsApiToken}
+                    onChange={(e) => setTiktokEventsApiToken(e.target.value)}
+                    placeholder={t.shopTiktokEventsTokenPlaceholder}
+                    autoComplete="off"
+                    type="password"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopTiktokEventsTokenHint}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.shopTiktokEventsTokenSavedHint}</p>
+                </div>
                 </SettingsDataRoleBox>
                 {!isOwnerSelected ? (
                   <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
@@ -3369,6 +3468,127 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
                 <Button type="button" size="sm" onClick={saveGtmContainer} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
                   {t.shopGtmContainerSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopAdsConversionLabelsTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopAdsConversionLabelsHint}</p>
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {(
+                      [
+                        [t.shopAdsConversionPdpLabel, adsConversionPdp, setAdsConversionPdp],
+                        [t.shopAdsConversionAddToCartLabel, adsConversionAddToCart, setAdsConversionAddToCart],
+                        [t.shopAdsConversionBeginCheckoutLabel, adsConversionBeginCheckout, setAdsConversionBeginCheckout],
+                        [t.shopAdsConversionDepositPageLabel, adsConversionDepositPage, setAdsConversionDepositPage],
+                        [t.shopAdsConversionPurchaseLabel, adsConversionPurchase, setAdsConversionPurchase],
+                      ] as const
+                    ).map(([label, value, setter]) => (
+                      <div key={label} className="space-y-2">
+                        <Label className="text-xs font-medium">{label}</Label>
+                        <Input
+                          className="h-9 text-sm font-mono"
+                          value={value}
+                          onChange={(e) => setter(e.target.value)}
+                          placeholder={t.shopAdsConversionPlaceholder}
+                          autoComplete="off"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </SettingsDataRoleBox>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopVerifyTagsTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopVerifyTagsHint}</p>
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopSearchConsoleVerifyLabel}</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={searchConsoleVerify}
+                        onChange={(e) => setSearchConsoleVerify(e.target.value)}
+                        placeholder={t.shopVerifyPlaceholder}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopMerchantCenterVerifyLabel}</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={merchantCenterVerify}
+                        onChange={(e) => setMerchantCenterVerify(e.target.value)}
+                        placeholder={t.shopVerifyPlaceholder}
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopFacebookDomainVerifyLabel}</Label>
+                      <Input
+                        className="h-9 text-sm font-mono"
+                        value={facebookDomainVerify}
+                        onChange={(e) => setFacebookDomainVerify(e.target.value)}
+                        placeholder={t.shopVerifyPlaceholder}
+                        autoComplete="off"
+                      />
+                    </div>
+                  </div>
+                </SettingsDataRoleBox>
+              </CardContent>
+            </Card>
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopCustomHtmlTitle}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopCustomHtmlHint}</p>
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopCustomHtmlHeadLabel}</Label>
+                      <Textarea
+                        className="min-h-[88px] font-mono text-[11px]"
+                        value={customEmbedHeadHtml}
+                        onChange={(e) => setCustomEmbedHeadHtml(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopCustomHtmlBodyOpenLabel}</Label>
+                      <Textarea
+                        className="min-h-[88px] font-mono text-[11px]"
+                        value={customEmbedBodyOpenHtml}
+                        onChange={(e) => setCustomEmbedBodyOpenHtml(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-medium">{t.shopCustomHtmlBodyCloseLabel}</Label>
+                      <Textarea
+                        className="min-h-[88px] font-mono text-[11px]"
+                        value={customEmbedBodyCloseHtml}
+                        onChange={(e) => setCustomEmbedBodyCloseHtml(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </SettingsDataRoleBox>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={saveShopTrackingExtras}
+                  disabled={pending || !selectedPartnerId || !isOwnerSelected}
+                >
+                  {t.shopTrackingExtrasSaveButton}
                 </Button>
               </CardContent>
             </Card>

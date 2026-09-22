@@ -1,5 +1,6 @@
 import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
 import { bumpPartnerCustomDomainResolveCacheForPartnerLater } from '@/lib/db/messaging-partner-custom-domains-pg'
+import { fetchMessagingPartnerShopTrackingExtrasFromPg } from '@/lib/db/messaging-partners-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
@@ -426,6 +427,21 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       defaultCurrency: String(row.default_currency ?? 'VND').trim().toUpperCase() || 'VND',
       isPublished: Boolean(row.is_published),
     }
+    const extras = await fetchMessagingPartnerShopTrackingExtrasFromPg(row.partner_id)
+    Object.assign(publicMeta, {
+      googleCustomerReviewsMerchantId: extras.google_customer_reviews_merchant_id,
+      adsConversionPdp: extras.ads_conversion_pdp,
+      adsConversionAddToCart: extras.ads_conversion_add_to_cart,
+      adsConversionBeginCheckout: extras.ads_conversion_begin_checkout,
+      adsConversionDepositPage: extras.ads_conversion_deposit_page,
+      adsConversionPurchase: extras.ads_conversion_purchase,
+      googleSearchConsoleVerify: extras.google_search_console_verify,
+      googleMerchantCenterVerify: extras.google_merchant_center_verify,
+      facebookDomainVerification: extras.facebook_domain_verification,
+      customEmbedHeadHtml: extras.custom_embed_head_html,
+      customEmbedBodyOpenHtml: extras.custom_embed_body_open_html,
+      customEmbedBodyCloseHtml: extras.custom_embed_body_close_html,
+    })
 
     if (filesLoad.mode !== 'full') {
       return { ...publicMeta, htmlSource: row.html_source?.trim() || '' }

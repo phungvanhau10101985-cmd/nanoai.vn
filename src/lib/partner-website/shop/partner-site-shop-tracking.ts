@@ -1,10 +1,19 @@
 'use client'
 
 import type {
+  PartnerSiteNativeTrackKind,
+  PartnerSiteNativeTrackPayload,
   PartnerSiteShopTrackingConfig,
   PartnerSiteShopTrackingLine,
   PartnerSiteShopTrackingProduct,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import {
+  firePartnerSiteGoogleAdsConversion,
+  firePartnerSiteGoogleAdsRetailPageView,
+  googleAdsRetailItem,
+  partnerSiteAdsConversionLines,
+  retailItemId,
+} from '@/lib/partner-website/shop/partner-site-shop-google-ads'
 import {
   trackShopGa4AddToCart,
   trackShopGa4BeginCheckout,
@@ -30,6 +39,9 @@ declare global {
     __nanoShopGoogleAdsId?: string
     __nanoShopTiktokPixelId?: string
     __nanoShopCurrency?: string
+    __pwShopTrack?: (kind: PartnerSiteNativeTrackKind, payload?: PartnerSiteNativeTrackPayload) => void
+    __pwShopTrackEvent?: (kind: PartnerSiteNativeTrackKind, payload?: PartnerSiteNativeTrackPayload) => void
+    __pwShopTrackQueue?: Array<{ kind: PartnerSiteNativeTrackKind; payload?: PartnerSiteNativeTrackPayload }>
   }
 }
 
@@ -62,10 +74,8 @@ function hasTrackingConsent(config: { siteSlug?: string | null }): boolean {
 }
 
 function contentIds(product: PartnerSiteShopTrackingProduct): string[] {
-  const ids = [product.sku, product.remarketingId, product.itemId]
-    .map((x) => (x ?? '').trim())
-    .filter(Boolean)
-  return [...new Set(ids)]
+  const id = retailItemId(product)
+  return id ? [id] : []
 }
 
 function metaCustom(
@@ -86,14 +96,8 @@ function metaCustom(
   return custom
 }
 
-function googleAdsItem(product: PartnerSiteShopTrackingProduct) {
-  const id = (product.sku || product.remarketingId || product.itemId).trim()
-  return {
-    id,
-    google_business_vertical: 'retail' as const,
-    name: product.itemName.slice(0, 200),
-    ...(product.value > 0 ? { price: product.value } : {}),
-  }
+function googleAdsItem(product: PartnerSiteShopTrackingProduct, quantity = 1) {
+  return googleAdsRetailItem(product, quantity)
 }
 
 function trackGoogleAdsEvent(
@@ -184,6 +188,16 @@ function trackMetaEvent(
   })
 }
 
+function trackMetaCustom(
+  config: { facebookPixelId?: string | null },
+  eventName: string,
+  custom: Record<string, unknown>
+): void {
+  const pid = (config.facebookPixelId ?? '').trim()
+  if (!pid || !ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
+  window.fbq('trackCustom', eventName, custom)
+}
+
 export function shopProductToTrackingProduct(
   product: PartnerSiteShopProduct,
   priceHint?: string
@@ -194,6 +208,7 @@ export function shopProductToTrackingProduct(
     itemName: product.name,
     value: parseVndFromPriceHint(hint),
     sku: product.sku || undefined,
+    remarketingId: product.remarketingId || undefined,
   }
 }
 
@@ -231,14 +246,23 @@ export function trackPartnerSiteViewItem(
     },
     currency
   )
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'product',
+    products: [product],
+    value: product.value,
+  })
+  firePartnerSiteGoogleAdsConversion(config, 'pdp', {
+    value: product.value,
+    items: [googleAdsItem(product)],
+  })
   pushEcommerceDataLayer('view_item', {
     currency,
     value: product.value,
-    items: [{ item_id: product.itemId, item_name: product.itemName, price: product.value, quantity: 1 }],
+    items: [{ item_id: retailItemId(product), item_name: product.itemName, price: product.value, quantity: 1 }],
   })
   trackMetaEvent(config, 'ViewContent', metaCustom(product, 1, currency), { skip: options?.skipMeta })
   trackTiktokEvent(config.tiktokPixelId, 'ViewContent', {
-    content_id: product.itemId,
+    content_id: retailItemId(product),
     content_type: 'product',
     content_name: product.itemName,
     value: product.value,
@@ -259,12 +283,16 @@ export function trackPartnerSiteViewItemList(
       send_to: ga4.toUpperCase(),
       currency,
       items: products.map((p) => ({
-        item_id: p.itemId,
+        item_id: retailItemId(p),
         item_name: p.itemName,
         ...(p.value > 0 ? { price: p.value } : {}),
       })),
     })
   }
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'category',
+    products,
+  })
 }
 
 export function trackPartnerSiteAddToCart(
@@ -293,11 +321,15 @@ export function trackPartnerSiteAddToCart(
   pushEcommerceDataLayer('add_to_cart', {
     currency,
     value: product.value * qty,
-    items: [{ item_id: product.itemId, item_name: product.itemName, price: product.value, quantity: qty }],
+    items: [{ item_id: retailItemId(product), item_name: product.itemName, price: product.value, quantity: qty }],
+  })
+  firePartnerSiteGoogleAdsConversion(config, 'add_to_cart', {
+    value: product.value * qty,
+    items: [googleAdsItem(product, qty)],
   })
   trackMetaEvent(config, 'AddToCart', metaCustom(product, qty, currency), { skip: options?.skipMeta })
   trackTiktokEvent(config.tiktokPixelId, 'AddToCart', {
-    content_id: product.itemId,
+    content_id: retailItemId(product),
     content_type: 'product',
     content_name: product.itemName,
     value: product.value * qty,
@@ -336,11 +368,20 @@ export function trackPartnerSiteBeginCheckout(
     currency,
     value,
     items: lines.map((line) => ({
-      item_id: line.itemId,
+      item_id: retailItemId(line),
       item_name: line.itemName,
       price: line.value,
       quantity: line.quantity,
     })),
+  })
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'cart',
+    products: lines,
+    value,
+  })
+  firePartnerSiteGoogleAdsConversion(config, 'begin_checkout', {
+    value,
+    items: partnerSiteAdsConversionLines(lines),
   })
   const ids = [...new Set(lines.flatMap((line) => contentIds(line)))]
   trackMetaEvent(config, 'InitiateCheckout', {
@@ -404,11 +445,21 @@ export function trackPartnerSitePurchase(
     currency,
     value: params.value,
     items: params.lines.map((line) => ({
-      item_id: line.itemId,
+      item_id: retailItemId(line),
       item_name: line.itemName,
       price: line.value,
       quantity: line.quantity,
     })),
+  })
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'purchase',
+    products: params.lines,
+    value: params.value,
+  })
+  firePartnerSiteGoogleAdsConversion(config, 'purchase', {
+    value: params.value,
+    items: partnerSiteAdsConversionLines(params.lines),
+    transactionId,
   })
   const ids = [...new Set(params.lines.flatMap((line) => contentIds(line)))]
   trackMetaEvent(config, 'Purchase', {
@@ -434,13 +485,151 @@ export function trackPartnerSitePurchase(
   })
   trackTiktokEvent(config.tiktokPixelId, 'CompletePayment', {
     contents: params.lines.map((line) => ({
-      content_id: line.itemId,
+      content_id: retailItemId(line),
       content_name: line.itemName,
       quantity: line.quantity,
       price: line.value,
     })),
     value: params.value,
     currency,
+  })
+}
+
+/** Checkout needs deposit — Meta custom + TikTok PlaceAnOrder, no Purchase. */
+export function trackPartnerSitePlaceOrder(
+  config: PartnerSiteShopTrackingConfig,
+  params: { value: number; lines: PartnerSiteShopTrackingLine[]; transactionId?: string }
+): void {
+  if (!hasTrackingConsent(config)) return
+  const currency = trackingCurrency(config)
+  const ids = [...new Set(params.lines.flatMap((line) => contentIds(line)))]
+  trackMetaCustom(config, 'OrderAwaitingDeposit', {
+    content_ids: ids,
+    content_type: 'product',
+    currency,
+    value: params.value,
+    num_items: params.lines.reduce((n, line) => n + line.quantity, 0),
+    order_id: params.transactionId || '',
+  })
+  trackTiktokEvent(config.tiktokPixelId, 'PlaceAnOrder', {
+    contents: params.lines.map((line) => ({
+      content_id: retailItemId(line),
+      content_name: line.itemName,
+      quantity: line.quantity,
+      price: line.value,
+    })),
+    value: params.value,
+    currency,
+  })
+}
+
+export function trackPartnerSiteDepositPage(
+  config: PartnerSiteShopTrackingConfig,
+  params: { value: number; lines?: PartnerSiteShopTrackingLine[]; transactionId?: string }
+): void {
+  if (!hasTrackingConsent(config)) return
+  const lines = params.lines?.length
+    ? params.lines
+    : [
+        {
+          itemId: params.transactionId || 'deposit',
+          itemName: 'Deposit',
+          value: params.value,
+          quantity: 1,
+        },
+      ]
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'cart',
+    products: lines,
+    value: params.value,
+  })
+  firePartnerSiteGoogleAdsConversion(config, 'deposit_page', {
+    value: params.value,
+    items: partnerSiteAdsConversionLines(lines),
+    transactionId: params.transactionId,
+  })
+  trackMetaCustom(config, 'ViewDepositPayment', {
+    currency: trackingCurrency(config),
+    value: params.value,
+    order_id: params.transactionId || '',
+  })
+}
+
+function nativeProduct(payload: PartnerSiteNativeTrackPayload | undefined): PartnerSiteShopTrackingProduct {
+  return {
+    itemId: String(payload?.itemId || payload?.sku || payload?.remarketingId || '').trim(),
+    itemName: String(payload?.itemName || payload?.itemId || '').trim(),
+    value: Math.max(0, Math.round(Number(payload?.value) || 0)),
+    quantity: Math.max(1, Math.floor(Number(payload?.quantity) || 1)),
+    sku: payload?.sku,
+    remarketingId: payload?.remarketingId,
+  }
+}
+
+export function dispatchPartnerSiteNativeTrack(
+  config: PartnerSiteShopTrackingConfig,
+  kind: PartnerSiteNativeTrackKind,
+  payload?: PartnerSiteNativeTrackPayload
+): void {
+  if (kind === 'page_view') {
+    trackPartnerSitePageView(config)
+    return
+  }
+  if (kind === 'view_item') {
+    trackPartnerSiteViewItem(config, nativeProduct(payload))
+    return
+  }
+  if (kind === 'view_item_list') {
+    const products = Array.isArray(payload?.products) ? payload.products : []
+    trackPartnerSiteViewItemList(config, products.length ? products : [nativeProduct(payload)])
+    return
+  }
+  if (kind === 'add_to_cart') {
+    trackPartnerSiteAddToCart(config, nativeProduct(payload), payload?.quantity)
+    return
+  }
+  if (kind === 'begin_checkout' && payload?.lines?.length) {
+    trackPartnerSiteBeginCheckout(config, payload.lines)
+    return
+  }
+  if (kind === 'purchase' && payload?.transactionId && payload.lines?.length) {
+    trackPartnerSitePurchase(config, {
+      transactionId: payload.transactionId,
+      value: Number(payload.value) || 0,
+      lines: payload.lines,
+      customerEmail: payload.customerEmail,
+      customerPhone: payload.customerPhone,
+    })
+    return
+  }
+  if (kind === 'place_order' && payload?.lines?.length) {
+    trackPartnerSitePlaceOrder(config, {
+      value: Number(payload.value) || 0,
+      lines: payload.lines,
+      transactionId: payload.transactionId,
+    })
+    return
+  }
+  if (kind === 'deposit_page') {
+    trackPartnerSiteDepositPage(config, {
+      value: Number(payload?.value) || 0,
+      lines: payload?.lines,
+      transactionId: payload?.transactionId,
+    })
+  }
+}
+
+export function bindPartnerSiteNativeTracking(config: PartnerSiteShopTrackingConfig): void {
+  if (typeof window === 'undefined') return
+  window.__pwShopTrack = (kind, payload) => dispatchPartnerSiteNativeTrack(config, kind, payload)
+  const queued = window.__pwShopTrackQueue || []
+  window.__pwShopTrackQueue = []
+  queued.forEach((item) => {
+    try {
+      dispatchPartnerSiteNativeTrack(config, item.kind, item.payload)
+    } catch {
+      /* ignore */
+    }
   })
 }
 

@@ -47,6 +47,9 @@ import {
   rememberViewedProductPage,
   viewedProductPathname,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
+import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
+import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
+import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -237,6 +240,7 @@ export function PartnerSitePublicClient({
   hideChatLauncher: _hideChatLauncher,
   browserThemeColor,
   siteSlug,
+  tracking,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -256,6 +260,7 @@ export function PartnerSitePublicClient({
   /** Canonical shop theme color; saved visual HTML may still contain stale preset metadata. */
   browserThemeColor?: string
   siteSlug?: string
+  tracking?: PartnerSiteShopTrackingConfig | null
 }) {
   const [forceDevice, setForceDevice] = useState<VisualDeviceVariant | null>(null)
   useLayoutEffect(() => {
@@ -279,6 +284,7 @@ export function PartnerSitePublicClient({
       hideChatLauncher={_hideChatLauncher}
       browserThemeColor={browserThemeColor}
       siteSlug={siteSlug}
+      tracking={tracking}
     />
   )
 }
@@ -298,6 +304,7 @@ function PartnerSitePublicFrame({
   hideChatLauncher: _hideChatLauncher,
   browserThemeColor,
   siteSlug,
+  tracking,
 }: {
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
@@ -313,6 +320,7 @@ function PartnerSitePublicFrame({
   hideChatLauncher?: boolean
   browserThemeColor?: string
   siteSlug?: string
+  tracking?: PartnerSiteShopTrackingConfig | null
 }) {
   void _hideChatLauncher
   const availableDevices = useMemo(
@@ -488,6 +496,8 @@ function PartnerSitePublicFrame({
           id={PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID}
           dangerouslySetInnerHTML={{ __html: PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT }}
         />
+        {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
+        {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
       </PartnerSiteChatWidgetProvider>
     )
   }
@@ -533,6 +543,8 @@ function PartnerSitePublicFrame({
           onLoad={centerPreviewWrap}
         />
       </div>
+      {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
+      {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
     </PartnerSiteChatWidgetProvider>
   )
 }

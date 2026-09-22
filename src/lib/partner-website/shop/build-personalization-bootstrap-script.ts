@@ -3,6 +3,7 @@ import { FEATURED_CATEGORY_TILE_DEFAULT, FEATURED_CATEGORY_TILE_MAX } from '@/li
 import { PW_FEATURED_MARQUEE_JS } from '@/lib/partner-website/shop/featured-category-marquee-js'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import { PW_SHOP_INFLIGHT_FETCH_JS } from '@/lib/partner-website/shop/pw-shop-inflight-fetch-js'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
@@ -283,6 +284,7 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
 
   return `<script data-pw-personalization-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_NATIVE_TRACK_JS};
 ${PW_SHOP_INFLIGHT_FETCH_JS};
 var API=${JSON.stringify(apiBase)};
 var SITE_SLUG=${JSON.stringify(slug)};
@@ -822,6 +824,7 @@ function loadPersonalizePage(el,append){
       if(grid)grid.innerHTML=flashHtml;
       if(empty)empty.hidden=true;
       st.hasMore=false;paintMore(el);revealLiveProducts(el);el.hidden=false;
+      pwShopTrack('view_item_list',{products:pwShopTrackProducts(products)});
       scheduleFlashReload(el,countdown);
       return;
     }
@@ -854,6 +857,7 @@ function loadPersonalizePage(el,append){
     }
     if(empty)empty.hidden=true;
     st.offset+=products.length;
+    if(!append)pwShopTrack('view_item_list',{products:pwShopTrackProducts(products)});
     if(recommended){
       if(res.j&&res.j.same_shop_seed!=null)st.seed=res.j.same_shop_seed;
       var used=Number(res.j&&res.j.same_shop_used);

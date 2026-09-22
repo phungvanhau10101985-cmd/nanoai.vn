@@ -126,7 +126,18 @@ import {
   updatePartnerCapabilitiesForOwnerFromPg,
   fetchPartnerExternalShopSsoPg,
   updatePartnerExternalShopSsoPg,
+  fetchMessagingPartnerShopTrackingExtrasFromPg,
+  updateMessagingPartnerShopTrackingExtrasForOwnerFromPg,
 } from '@/lib/db/messaging-partners-pg'
+import { fetchPartnerWebsitePublishMetaFromPg } from '@/lib/db/messaging-partner-websites-pg'
+import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
+import {
+  normalizeFacebookDomainVerification,
+  normalizeGoogleAdsConversionLabel,
+  normalizeGoogleMerchantCenterVerify,
+  normalizeGoogleSearchConsoleVerify,
+} from '@/lib/partner-website/shop/normalize-ads-conversion-label'
+import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import {
   deleteMessagingPartnerMemberForOwnerFromPg,
@@ -374,6 +385,11 @@ function revalidateMessagingDashboard() {
   revalidatePath('/dashboard/api-integration')
 }
 
+async function bumpPartnerShopSiteCacheAfterTrackingSave(partnerId: string) {
+  const meta = await fetchPartnerWebsitePublishMetaFromPg(partnerId)
+  if (meta?.siteSlug) bumpSiteCacheLater(meta.siteSlug)
+}
+
 function slugify(name: string) {
   const s = name
     .toLowerCase()
@@ -596,6 +612,7 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
     facebook_capi_access_token: updateCapi ? capiTok : null,
   })
   if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc Pixel / Conversions API.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -617,6 +634,7 @@ export async function savePartnerMessagingGa4(partnerId: string, measurementId: 
     ga4_measurement_id: raw || null,
   })
   if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú GA4.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -638,6 +656,7 @@ export async function savePartnerMessagingGoogleAds(partnerId: string, googleAds
     google_ads_id: raw || null,
   })
   if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú Google Ads.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -664,6 +683,7 @@ export async function savePartnerMessagingGoogleCustomerReviews(partnerId: strin
     merchant_id: merchantId,
   })
   if (!ok) return { error: 'Không lưu được Merchant ID Google Customer Reviews.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -685,6 +705,7 @@ export async function savePartnerMessagingTiktokPixel(partnerId: string, tiktokP
     tiktok_pixel_id: raw || null,
   })
   if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc TikTok Pixel.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }
@@ -706,6 +727,127 @@ export async function savePartnerMessagingGtmContainer(partnerId: string, gtmCon
     gtm_container_id: raw || null,
   })
   if (!ok) return { error: 'Khong luu duoc GTM container.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function getPartnerMessagingShopTrackingExtras(partnerId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'integrations_analytics')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const extras = await fetchMessagingPartnerShopTrackingExtrasFromPg(partnerId)
+  return {
+    adsConversionPdp: extras.ads_conversion_pdp,
+    adsConversionAddToCart: extras.ads_conversion_add_to_cart,
+    adsConversionBeginCheckout: extras.ads_conversion_begin_checkout,
+    adsConversionDepositPage: extras.ads_conversion_deposit_page,
+    adsConversionPurchase: extras.ads_conversion_purchase,
+    googleSearchConsoleVerify: extras.google_search_console_verify,
+    googleMerchantCenterVerify: extras.google_merchant_center_verify,
+    facebookDomainVerification: extras.facebook_domain_verification,
+    customEmbedHeadHtml: extras.custom_embed_head_html,
+    customEmbedBodyOpenHtml: extras.custom_embed_body_open_html,
+    customEmbedBodyCloseHtml: extras.custom_embed_body_close_html,
+    tiktokEventsApiConfigured: Boolean(extras.tiktok_events_api_token),
+  }
+}
+
+function parseAdsConversionLabelInput(raw: string): string | null | 'INVALID_ADS_CONVERSION_LABEL' {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const normalized = normalizeGoogleAdsConversionLabel(trimmed)
+  return normalized || 'INVALID_ADS_CONVERSION_LABEL'
+}
+
+function parseVerifyToken(
+  raw: string,
+  kind: 'gsc' | 'gmc' | 'fb'
+): string | null | 'INVALID_VERIFY_TOKEN' {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const normalized =
+    kind === 'fb' ? normalizeFacebookDomainVerification(trimmed) : kind === 'gmc'
+      ? normalizeGoogleMerchantCenterVerify(trimmed)
+      : normalizeGoogleSearchConsoleVerify(trimmed)
+  return normalized || 'INVALID_VERIFY_TOKEN'
+}
+
+export async function savePartnerMessagingShopTrackingExtras(
+  partnerId: string,
+  input: {
+    adsConversionPdp: string
+    adsConversionAddToCart: string
+    adsConversionBeginCheckout: string
+    adsConversionDepositPage: string
+    adsConversionPurchase: string
+    googleSearchConsoleVerify: string
+    googleMerchantCenterVerify: string
+    facebookDomainVerification: string
+    customEmbedHeadHtml: string
+    customEmbedBodyOpenHtml: string
+    customEmbedBodyCloseHtml: string
+    tiktokEventsApiToken?: string
+  }
+) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+
+  const labels = {
+    ads_conversion_pdp: parseAdsConversionLabelInput(input.adsConversionPdp),
+    ads_conversion_add_to_cart: parseAdsConversionLabelInput(input.adsConversionAddToCart),
+    ads_conversion_begin_checkout: parseAdsConversionLabelInput(input.adsConversionBeginCheckout),
+    ads_conversion_deposit_page: parseAdsConversionLabelInput(input.adsConversionDepositPage),
+    ads_conversion_purchase: parseAdsConversionLabelInput(input.adsConversionPurchase),
+  }
+  if (Object.values(labels).some((v) => v === 'INVALID_ADS_CONVERSION_LABEL')) {
+    return { error: 'INVALID_ADS_CONVERSION_LABEL' as const }
+  }
+  const verifies = {
+    google_search_console_verify: parseVerifyToken(input.googleSearchConsoleVerify, 'gsc'),
+    google_merchant_center_verify: parseVerifyToken(input.googleMerchantCenterVerify, 'gmc'),
+    facebook_domain_verification: parseVerifyToken(input.facebookDomainVerification, 'fb'),
+  }
+  if (Object.values(verifies).some((v) => v === 'INVALID_VERIFY_TOKEN')) {
+    return { error: 'INVALID_VERIFY_TOKEN' as const }
+  }
+
+  const tiktokTok = String(input.tiktokEventsApiToken ?? '').trim()
+  const updateTiktok = tiktokTok.length > 0
+  if (updateTiktok) {
+    const step = await requireAccountStepUp(user.id)
+    if ('error' in step) return { error: step.error }
+    if (tiktokTok.length > 512) return { error: 'INVALID_TIKTOK_EVENTS_TOKEN' as const }
+  }
+
+  const ok = await updateMessagingPartnerShopTrackingExtrasForOwnerFromPg({
+    partner_id: partnerId,
+    owner_user_id: user.id,
+    patch: {
+      ads_conversion_pdp: labels.ads_conversion_pdp as string | null,
+      ads_conversion_add_to_cart: labels.ads_conversion_add_to_cart as string | null,
+      ads_conversion_begin_checkout: labels.ads_conversion_begin_checkout as string | null,
+      ads_conversion_deposit_page: labels.ads_conversion_deposit_page as string | null,
+      ads_conversion_purchase: labels.ads_conversion_purchase as string | null,
+      google_search_console_verify: verifies.google_search_console_verify as string | null,
+      google_merchant_center_verify: verifies.google_merchant_center_verify as string | null,
+      facebook_domain_verification: verifies.facebook_domain_verification as string | null,
+      custom_embed_head_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedHeadHtml) || null,
+      custom_embed_body_open_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedBodyOpenHtml) || null,
+      custom_embed_body_close_html: sanitizePartnerShopCustomEmbedHtml(input.customEmbedBodyCloseHtml) || null,
+      update_tiktok_events_api_token: updateTiktok,
+      tiktok_events_api_token: updateTiktok ? tiktokTok : null,
+    },
+  })
+  if (!ok) return { error: 'Không lưu được thẻ theo dõi shop.' }
+  await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
   return { ok: true as const }
 }

@@ -42,6 +42,7 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /\/site\/188-com-vn-rl56\/tim-theo-anh/)
   assert.match(out, /\/api\/site\/188-com-vn-rl56\/search\/history/)
   assert.match(out, /data-pw-shop-actions-bootstrap/)
+  assert.match(out, /pwShopTrack\('add_to_cart'/)
   assert.match(out, /\/personalization\/favorites\?idsOnly=1/)
   assert.match(out, /\/personalization\/recently-viewed\?idsOnly=1/)
   assert.match(out, /countOnly=1/)
@@ -541,4 +542,15 @@ test('live runtime injects newsletter subscribe bootstrap when footer form is pr
   assert.match(out, /\/api\/site\/demo-shop\/newsletter/)
   const editor = stampPartnerShopEditorHooksInHtml(out, { siteSlug: 'demo-shop' })
   assert.doesNotMatch(editor, /data-pw-newsletter-bootstrap/)
+})
+
+test('live runtime injects shop tracking bridge; Sửa nhanh strips it', () => {
+  const html = '<!DOCTYPE html><html><body data-pw-page="home"><main></main></body></html>'
+  const out = injectPartnerShopRuntimeScriptsIntoHtml(html, { siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(out, /data-pw-shop-track-bridge/)
+  assert.match(out, /__pwShopTrackEvent/)
+  const editor = stampPartnerShopEditorHooksInHtml(out, { siteSlug: 'demo-shop' })
+  assert.doesNotMatch(editor, /data-pw-shop-track-bridge/)
+  const readOnly = injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(html, { siteSlug: 'demo-shop', locale: 'vi' })
+  assert.doesNotMatch(readOnly, /data-pw-shop-track-bridge/)
 })

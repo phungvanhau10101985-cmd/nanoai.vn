@@ -1,6 +1,7 @@
 import type { PartnerWebsitePublicRow } from '@/lib/partner-website/partner-website-types'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import { normalizeGoogleAdsConversionLabel } from '@/lib/partner-website/shop/normalize-ads-conversion-label'
 
 export function partnerSiteTrackingFromPublicRow(site: PartnerWebsitePublicRow): PartnerSiteShopTrackingConfig {
   return {
@@ -11,6 +12,18 @@ export function partnerSiteTrackingFromPublicRow(site: PartnerWebsitePublicRow):
     siteSlug: site.siteSlug?.trim() || null,
     gtmContainerId: site.gtmContainerId?.trim() || null,
     currency: normalizePartnerShopCurrency(site.defaultCurrency),
+    googleMerchantId: site.googleCustomerReviewsMerchantId ?? null,
+    adsConversionPdp: normalizeGoogleAdsConversionLabel(site.adsConversionPdp),
+    adsConversionAddToCart: normalizeGoogleAdsConversionLabel(site.adsConversionAddToCart),
+    adsConversionBeginCheckout: normalizeGoogleAdsConversionLabel(site.adsConversionBeginCheckout),
+    adsConversionDepositPage: normalizeGoogleAdsConversionLabel(site.adsConversionDepositPage),
+    adsConversionPurchase: normalizeGoogleAdsConversionLabel(site.adsConversionPurchase),
+    googleSearchConsoleVerify: site.googleSearchConsoleVerify?.trim() || null,
+    googleMerchantCenterVerify: site.googleMerchantCenterVerify?.trim() || null,
+    facebookDomainVerification: site.facebookDomainVerification?.trim() || null,
+    customEmbedHeadHtml: site.customEmbedHeadHtml || null,
+    customEmbedBodyOpenHtml: site.customEmbedBodyOpenHtml || null,
+    customEmbedBodyCloseHtml: site.customEmbedBodyCloseHtml || null,
   }
 }
 

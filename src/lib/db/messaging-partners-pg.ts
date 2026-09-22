@@ -69,7 +69,13 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('contact_instagram_url') ||
     msg.includes('partner_capabilities') ||
     msg.includes('external_shop_origin') ||
-    msg.includes('external_shop_login_path')
+    msg.includes('external_shop_login_path') ||
+    msg.includes('ads_conversion_') ||
+    msg.includes('google_search_console_verify') ||
+    msg.includes('google_merchant_center_verify') ||
+    msg.includes('facebook_domain_verification') ||
+    msg.includes('custom_embed_') ||
+    msg.includes('tiktok_events_api_token')
   )
 }
 
@@ -384,6 +390,157 @@ export async function updateMessagingPartnerGtmContainerForOwnerFromPg(params: {
     return Boolean(row?.id)
   } catch (e) {
     console.warn('[updateMessagingPartnerGtmContainerForOwnerFromPg]', e)
+    return false
+  }
+}
+
+export type MessagingPartnerShopTrackingExtras = {
+  ads_conversion_pdp: string | null
+  ads_conversion_add_to_cart: string | null
+  ads_conversion_begin_checkout: string | null
+  ads_conversion_deposit_page: string | null
+  ads_conversion_purchase: string | null
+  google_search_console_verify: string | null
+  google_merchant_center_verify: string | null
+  facebook_domain_verification: string | null
+  custom_embed_head_html: string | null
+  custom_embed_body_open_html: string | null
+  custom_embed_body_close_html: string | null
+  tiktok_events_api_token: string | null
+  google_customer_reviews_merchant_id: number | null
+}
+
+const EMPTY_SHOP_TRACKING_EXTRAS: MessagingPartnerShopTrackingExtras = {
+  ads_conversion_pdp: null,
+  ads_conversion_add_to_cart: null,
+  ads_conversion_begin_checkout: null,
+  ads_conversion_deposit_page: null,
+  ads_conversion_purchase: null,
+  google_search_console_verify: null,
+  google_merchant_center_verify: null,
+  facebook_domain_verification: null,
+  custom_embed_head_html: null,
+  custom_embed_body_open_html: null,
+  custom_embed_body_close_html: null,
+  tiktok_events_api_token: null,
+  google_customer_reviews_merchant_id: null,
+}
+
+export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
+  partnerId: string
+): Promise<MessagingPartnerShopTrackingExtras> {
+  if (!isPgConfigured()) return EMPTY_SHOP_TRACKING_EXTRAS
+  const pid = safeUuid(partnerId)
+  if (!pid) return EMPTY_SHOP_TRACKING_EXTRAS
+  try {
+    const row = await pgQueryOne<{
+      ads_conversion_pdp: string | null
+      ads_conversion_add_to_cart: string | null
+      ads_conversion_begin_checkout: string | null
+      ads_conversion_deposit_page: string | null
+      ads_conversion_purchase: string | null
+      google_search_console_verify: string | null
+      google_merchant_center_verify: string | null
+      facebook_domain_verification: string | null
+      custom_embed_head_html: string | null
+      custom_embed_body_open_html: string | null
+      custom_embed_body_close_html: string | null
+      tiktok_events_api_token: string | null
+      google_customer_reviews_merchant_id: number | string | null
+    }>(
+      `select nullif(trim(coalesce(ads_conversion_pdp, '')), '') as ads_conversion_pdp,
+              nullif(trim(coalesce(ads_conversion_add_to_cart, '')), '') as ads_conversion_add_to_cart,
+              nullif(trim(coalesce(ads_conversion_begin_checkout, '')), '') as ads_conversion_begin_checkout,
+              nullif(trim(coalesce(ads_conversion_deposit_page, '')), '') as ads_conversion_deposit_page,
+              nullif(trim(coalesce(ads_conversion_purchase, '')), '') as ads_conversion_purchase,
+              nullif(trim(coalesce(google_search_console_verify, '')), '') as google_search_console_verify,
+              nullif(trim(coalesce(google_merchant_center_verify, '')), '') as google_merchant_center_verify,
+              nullif(trim(coalesce(facebook_domain_verification, '')), '') as facebook_domain_verification,
+              nullif(custom_embed_head_html, '') as custom_embed_head_html,
+              nullif(custom_embed_body_open_html, '') as custom_embed_body_open_html,
+              nullif(custom_embed_body_close_html, '') as custom_embed_body_close_html,
+              nullif(trim(coalesce(tiktok_events_api_token, '')), '') as tiktok_events_api_token,
+              google_customer_reviews_merchant_id
+       from public.messaging_partners where id = $1::uuid limit 1`,
+      [pid]
+    )
+    if (!row) return EMPTY_SHOP_TRACKING_EXTRAS
+    const n = Number(row.google_customer_reviews_merchant_id ?? 0)
+    return {
+      ads_conversion_pdp: row.ads_conversion_pdp,
+      ads_conversion_add_to_cart: row.ads_conversion_add_to_cart,
+      ads_conversion_begin_checkout: row.ads_conversion_begin_checkout,
+      ads_conversion_deposit_page: row.ads_conversion_deposit_page,
+      ads_conversion_purchase: row.ads_conversion_purchase,
+      google_search_console_verify: row.google_search_console_verify,
+      google_merchant_center_verify: row.google_merchant_center_verify,
+      facebook_domain_verification: row.facebook_domain_verification,
+      custom_embed_head_html: row.custom_embed_head_html,
+      custom_embed_body_open_html: row.custom_embed_body_open_html,
+      custom_embed_body_close_html: row.custom_embed_body_close_html,
+      tiktok_events_api_token: row.tiktok_events_api_token,
+      google_customer_reviews_merchant_id: Number.isFinite(n) && Number.isInteger(n) && n > 0 ? n : null,
+    }
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) return EMPTY_SHOP_TRACKING_EXTRAS
+    console.warn('[fetchMessagingPartnerShopTrackingExtrasFromPg]', e)
+    return EMPTY_SHOP_TRACKING_EXTRAS
+  }
+}
+
+export async function updateMessagingPartnerShopTrackingExtrasForOwnerFromPg(params: {
+  partner_id: string
+  owner_user_id: string
+  patch: Partial<Omit<MessagingPartnerShopTrackingExtras, 'tiktok_events_api_token' | 'google_customer_reviews_merchant_id'>> & {
+    tiktok_events_api_token?: string | null
+    update_tiktok_events_api_token?: boolean
+  }
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const pid = safeUuid(params.partner_id)
+  const uid = safeOwnerUuid(params.owner_user_id)
+  if (!pid || !uid) return false
+  const sets: string[] = []
+  const values: unknown[] = [pid, uid]
+  const add = (col: string, val: string | null) => {
+    values.push(val)
+    sets.push(`${col} = $${values.length}`)
+  }
+  const p = params.patch
+  if ('ads_conversion_pdp' in p) add('ads_conversion_pdp', p.ads_conversion_pdp ?? null)
+  if ('ads_conversion_add_to_cart' in p) add('ads_conversion_add_to_cart', p.ads_conversion_add_to_cart ?? null)
+  if ('ads_conversion_begin_checkout' in p)
+    add('ads_conversion_begin_checkout', p.ads_conversion_begin_checkout ?? null)
+  if ('ads_conversion_deposit_page' in p) add('ads_conversion_deposit_page', p.ads_conversion_deposit_page ?? null)
+  if ('ads_conversion_purchase' in p) add('ads_conversion_purchase', p.ads_conversion_purchase ?? null)
+  if ('google_search_console_verify' in p)
+    add('google_search_console_verify', p.google_search_console_verify ?? null)
+  if ('google_merchant_center_verify' in p)
+    add('google_merchant_center_verify', p.google_merchant_center_verify ?? null)
+  if ('facebook_domain_verification' in p)
+    add('facebook_domain_verification', p.facebook_domain_verification ?? null)
+  if ('custom_embed_head_html' in p) add('custom_embed_head_html', p.custom_embed_head_html ?? null)
+  if ('custom_embed_body_open_html' in p)
+    add('custom_embed_body_open_html', p.custom_embed_body_open_html ?? null)
+  if ('custom_embed_body_close_html' in p)
+    add('custom_embed_body_close_html', p.custom_embed_body_close_html ?? null)
+  if (p.update_tiktok_events_api_token) add('tiktok_events_api_token', p.tiktok_events_api_token ?? null)
+  if (!sets.length) return true
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partners
+       set ${sets.join(', ')}, updated_at = now()
+       where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
+       returning id::text`,
+      values
+    )
+    return Boolean(row?.id)
+  } catch (e) {
+    if (isMissingPartnerProfileColumnError(e)) {
+      console.warn('[updateMessagingPartnerShopTrackingExtrasForOwnerFromPg] columns missing — run migration')
+      return false
+    }
+    console.warn('[updateMessagingPartnerShopTrackingExtrasForOwnerFromPg]', e)
     return false
   }
 }

@@ -16,6 +16,7 @@ import {
   rewriteThemeCssVarsInHtml,
   shopBrowserChromeColor,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 
 type Props = {
   params: Promise<{ slug: string; landingSlug: string }>
@@ -109,6 +110,8 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
       locale={landing.locale}
       hideChatLauncher={website?.theme?.hideChatLauncher}
       browserThemeColor={website?.theme ? shopBrowserChromeColor(website.theme) : undefined}
+      siteSlug={landing.siteSlug}
+      tracking={website ? partnerSiteTrackingFromPublicRow(website) : undefined}
     />
   )
 }

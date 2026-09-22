@@ -16,6 +16,7 @@ import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/pa
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import {
   CART_ADDED_MODAL_COPY,
   PW_CART_ADDED_MODAL_RUNTIME_JS,
@@ -201,6 +202,7 @@ export function buildPartnerSiteShopActionsBootstrapScript(input: {
 
   return `<script data-pw-shop-actions-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_NATIVE_TRACK_JS};
 ${PW_SITE_SALE_MO_SKIP_JS};
 var CART_API=${JSON.stringify(cartApi)};
 var EVENTS_API=${JSON.stringify(eventsApi)};
@@ -522,6 +524,19 @@ function addToCart(product, opts){
       imageUrl:addedCard&&addedCard.image_url||product.image_url,
       inventory_id:(addedCard&&addedCard.inventory_id)||product.inventory_id||''
     });
+    try{
+      var trackSrc=Object.assign({},product,{
+        id:product.id||(addedCard&&addedCard.inventory_id)||product.inventory_id||'',
+        name:product.name||(addedCard&&addedCard.name)||'',
+        sku:product.sku||(addedCard&&addedCard.sku)||'',
+        remarketingId:product.remarketingId||product.remarketing_id||(addedCard&&(addedCard.remarketing_id||addedCard.remarketingId))||'',
+        priceAmount:product.priceAmount||(addedCard&&addedCard.price_amount)||0,
+        priceHint:product.priceHint||(addedCard&&addedCard.price_hint)||'',
+        salePriceAmount:product.salePriceAmount||(addedCard&&addedCard.sale_price_amount)||0,
+        siteSalePhase:product.siteSalePhase||(addedCard&&addedCard.site_sale_phase)||''
+      });
+      pwShopTrack('add_to_cart',pwShopTrackProduct(trackSrc));
+    }catch(e){}
     try{document.dispatchEvent(new CustomEvent('pw-cart-updated'));}catch(e){}
     hydrateChromeBadges(true);
     return true;

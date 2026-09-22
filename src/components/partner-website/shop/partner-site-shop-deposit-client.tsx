@@ -44,7 +44,7 @@ import {
   partnerSiteOrdersPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteStorefrontProductHits } from '@/components/partner-website/shop/partner-site-product-hit-link'
-import { trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { trackPartnerSiteDepositPage, trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import {
   PartnerOrderDiscountBreakdown,
@@ -153,6 +153,7 @@ export function PartnerSiteShopDepositClient({
   const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>(initialSiblings)
   const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>(initialShipmentEvents)
   const prevStatusRef = useRef<string | null>(null)
+  const depositPageTrackedRef = useRef('')
   const qrBlobRef = useRef<Blob | null>(null)
   const [qrBlobReady, setQrBlobReady] = useState(false)
   const [qrDownloading, setQrDownloading] = useState(false)
@@ -339,6 +340,28 @@ export function PartnerSiteShopDepositClient({
   }, [order?.payment_qr_url, paymentDisplay])
   const waitingDeposit = Boolean(order && isPartnerShopDepositWaiting(order))
   const depositOrderId = order?.id ?? ''
+
+  useEffect(() => {
+    if (!waitingDeposit || !order?.id) return
+    if (depositPageTrackedRef.current === order.id) return
+    depositPageTrackedRef.current = order.id
+    const value = partnerOrderPayableTotal({
+      amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
+      shipping_fee_amount: order.shipping_fee_amount,
+    })
+    trackPartnerSiteDepositPage(tracking, {
+      transactionId: order.id,
+      value,
+      lines: [
+        {
+          itemId: order.product_inventory_id || order.id,
+          itemName: order.product_name || shopTitle,
+          value,
+          quantity: 1,
+        },
+      ],
+    })
+  }, [waitingDeposit, order, shopTitle, tracking])
 
   useEffect(() => {
     qrBlobRef.current = null

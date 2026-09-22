@@ -9,6 +9,7 @@ import {
 import { PW_REVEAL_PDP_GALLERY_MAIN_JS } from '@/lib/partner-website/shop/reveal-pdp-gallery-main'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import { PW_SITE_SALE_CARD_CSS, PW_SITE_SALE_VIEW_JS, partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import {
   PW_PDP_HELPFUL_THUMB_ICON,
@@ -132,6 +133,7 @@ export function buildPartnerSitePdpBootstrapScript(input: { siteSlug: string; lo
 if(!document.getElementById('pw-site-sale-css')){var st=document.createElement('style');st.id='pw-site-sale-css';st.textContent=${JSON.stringify(PW_SITE_SALE_CARD_CSS)};document.head.appendChild(st);}
 ${PW_SHOP_LIVE_UI_OFF_FN};
 if(pwShopLiveUiOff())return;
+${PW_SHOP_NATIVE_TRACK_JS};
 if(!document.querySelector('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp'))return;
 ${PW_SHOP_CARD_IMG_JS};
 ${PW_SHOP_PDP_PAGE_SRC_JS};
@@ -318,6 +320,7 @@ function apply(p){
   var id=String(p.id||'').trim();
   if(!id)return;
   trackView(id);
+  try{pwShopTrack('view_item',pwShopTrackProduct(p));}catch(e){}
   stampId(document.body,id);
   document.querySelectorAll('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp,.pw-pdp-sticky,[data-pw-pdp-favorite],[data-pw-pdp-add-cart],[data-pw-pdp-buy-now]').forEach(function(el){stampId(el,id);});
   var name=String(p.name||'Product');

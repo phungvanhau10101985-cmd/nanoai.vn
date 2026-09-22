@@ -20,6 +20,7 @@ import {
   PW_SITE_SALE_VIEW_JS,
   partnerSiteSaleCopy,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 
 const COPY: Record<
   WebLocale,
@@ -139,6 +140,7 @@ export function buildPartnerSiteCatalogBootstrapScript(input: {
 
   return `<script data-pw-catalog-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_NATIVE_TRACK_JS};
 var API=${JSON.stringify(api)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
@@ -725,6 +727,7 @@ function loadGridPage(el,append){
     paintMore(el);
     revealLiveCatalog(el);
     el.hidden=false;
+    if(!append)pwShopTrack('view_item_list',{products:pwShopTrackProducts(products)});
     if(listingCatalogEl(el)&&!append)paintListingFacets(res.j);
   }).catch(function(){
     st.loading=false;
