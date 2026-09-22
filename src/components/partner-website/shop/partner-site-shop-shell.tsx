@@ -75,7 +75,7 @@ import {
 import {
   partnerShopLiveCssHref,
   PARTNER_SHOP_LIVE_CSS_LINK_ID,
-} from '@/lib/partner-website/shop/partner-shop-live-css'
+} from '@/lib/partner-website/shop/partner-shop-live-css-href'
 import { buildThemeCssVarBlock, PW_THEME_ROOT_STYLE_ID } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
   PARTNER_SHOP_CHROME_FLOAT_SCRIPT,

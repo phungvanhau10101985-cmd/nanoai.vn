@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import test from 'node:test'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import { PARTNER_SHOP_THEME_STYLE_ID } from '@/lib/partner-website/shop/build-shop-theme-css'
@@ -11,6 +13,7 @@ import {
   partnerShopLiveCssHref,
   partnerShopLiveCssVersion,
 } from '@/lib/partner-website/shop/partner-shop-live-css'
+import { partnerShopLiveCssHref as hrefFromClientModule } from '@/lib/partner-website/shop/partner-shop-live-css-href'
 
 const SHELL = `<!DOCTYPE html><html><head></head><body><header class="pw-header">Head</header></body></html>`
 
@@ -23,6 +26,7 @@ test('live CSS href is per slug and theme tokens', () => {
     ...DEFAULT_PARTNER_WEBSITE_THEME,
     look: 'marketplace',
   }))
+  assert.equal(hrefFromClientModule('demo-shop', DEFAULT_PARTNER_WEBSITE_THEME), a)
 })
 
 test('live CSS pack has theme tokens, layout, look, and footer fit', () => {
@@ -65,4 +69,17 @@ test('live visual HTML uses the stylesheet link; Sửa nhanh stays inline', () =
   assert.doesNotMatch(live, new RegExp(`<style id="${PARTNER_SHOP_THEME_STYLE_ID}"`))
   assert.match(editor, new RegExp(`id="${PARTNER_SHOP_THEME_STYLE_ID}"`))
   assert.doesNotMatch(editor, new RegExp(`id="${PARTNER_SHOP_LIVE_CSS_LINK_ID}"`))
+})
+
+test('live CSS href stays out of Redis so the shop shell can import it', () => {
+  const hrefSrc = readFileSync(join(process.cwd(), 'src/lib/partner-website/shop/partner-shop-live-css-href.ts'), 'utf8')
+  const shellSrc = readFileSync(
+    join(process.cwd(), 'src/components/partner-website/shop/partner-site-shop-shell.tsx'),
+    'utf8'
+  )
+  assert.doesNotMatch(hrefSrc, /from ['"]@\/lib\/cache\/partner-shop-cache['"]/)
+  assert.doesNotMatch(hrefSrc, /from ['"]ioredis['"]/)
+  assert.doesNotMatch(hrefSrc, /from ['"]node:crypto['"]/)
+  assert.match(shellSrc, /partner-shop-live-css-href/)
+  assert.equal(shellSrc.includes("from '@/lib/partner-website/shop/partner-shop-live-css'"), false)
 })

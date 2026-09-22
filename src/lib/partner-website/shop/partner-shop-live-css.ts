@@ -1,4 +1,3 @@
-import { hashShopCachePayload } from '@/lib/cache/partner-shop-cache'
 import {
   buildPartnerSiteShopThemeCss,
   PARTNER_SHOP_THEME_STYLE_ID,
@@ -9,12 +8,9 @@ import {
 } from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
 import {
   buildMarketplaceLookCss,
-  htmlHasMarketplaceLook,
-  isMarketplaceLook,
   MARKETPLACE_GOOGLE_FONTS_HREF,
   PARTNER_MARKETPLACE_LOOK_STYLE_ID,
   PARTNER_WEBSITE_LOOK_MARKETPLACE,
-  resolvePartnerWebsiteLook,
   stampPartnerWebsiteLookInHtml,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { buildShopLookCss, PARTNER_SHOP_LOOK_STYLE_ID } from '@/lib/partner-website/shop/shop-look-css'
@@ -22,16 +18,22 @@ import {
   PW_SHOP_FOOTER_FIT_CSS,
   PW_SHOP_FOOTER_FIT_STYLE_ID,
 } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
-import {
-  DEFAULT_PARTNER_WEBSITE_THEME,
-  type PartnerWebsiteTheme,
-} from '@/lib/partner-website/template/partner-website-template-types'
+import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { upsertShopBrowserThemeColorInHtml } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  PARTNER_SHOP_LIVE_CSS_LINK_ID,
+  partnerShopLiveCssHref,
+  resolvedLiveTheme,
+} from '@/lib/partner-website/shop/partner-shop-live-css-href'
 
-/** Bump when the live CSS pack contents change so HTML cache + `?v=` cannot reuse a stale sheet. */
-export const PARTNER_SHOP_LIVE_CSS_PACK_VERSION = '1'
-export const PARTNER_SHOP_LIVE_CSS_LINK_ID = 'pw-shop-live-css'
-export const PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA = 'css-href-1'
+export {
+  PARTNER_SHOP_LIVE_CSS_LINK_ID,
+  PARTNER_SHOP_LIVE_CSS_PACK_VERSION,
+  PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA,
+  partnerShopLiveCssHref,
+  partnerShopLiveCssVersion,
+  resolvedLiveTheme,
+} from '@/lib/partner-website/shop/partner-shop-live-css-href'
 
 const ENGINE_STYLE_ID_RE = new RegExp(
   `<style\\b[^>]*\\bid=["'](?:${[
@@ -43,42 +45,6 @@ const ENGINE_STYLE_ID_RE = new RegExp(
   ].join('|')})["'][^>]*>[\\s\\S]*?<\\/style>`,
   'gi'
 )
-
-function resolvedLiveTheme(
-  theme?: PartnerWebsiteTheme | null,
-  html?: string
-): PartnerWebsiteTheme {
-  const look = resolvePartnerWebsiteLook(theme, html)
-  const marketplace = look === PARTNER_WEBSITE_LOOK_MARKETPLACE || isMarketplaceLook(theme) || htmlHasMarketplaceLook(html || '')
-  return marketplace && !isMarketplaceLook(theme)
-    ? { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look: PARTNER_WEBSITE_LOOK_MARKETPLACE }
-    : { ...(theme || DEFAULT_PARTNER_WEBSITE_THEME), look }
-}
-
-export function partnerShopLiveCssVersion(theme?: PartnerWebsiteTheme | null): string {
-  const resolved = resolvedLiveTheme(theme)
-  return hashShopCachePayload({
-    v: PARTNER_SHOP_LIVE_CSS_PACK_VERSION,
-    look: resolved.look || 'shop',
-    primaryColor: resolved.primaryColor,
-    accentColor: resolved.accentColor,
-    backgroundColor: resolved.backgroundColor,
-    textColor: resolved.textColor,
-    mutedColor: resolved.mutedColor,
-    buyButtonColor: resolved.buyButtonColor || '',
-    cartButtonColor: resolved.cartButtonColor || '',
-    surfaceColor: resolved.surfaceColor || '',
-    footerColor: resolved.footerColor || '',
-    borderColor: resolved.borderColor || '',
-    fontFamily: resolved.fontFamily,
-  })
-}
-
-export function partnerShopLiveCssHref(siteSlug: string, theme?: PartnerWebsiteTheme | null): string {
-  const slug = siteSlug.trim()
-  const v = partnerShopLiveCssVersion(theme)
-  return `/api/site/${encodeURIComponent(slug)}/shop-theme.css?v=${v}`
-}
 
 /** One engine sheet: theme tokens + look + chrome layout + footer fit. Color picker still drives `--pw-*`. */
 export function buildPartnerShopLiveCssPack(theme?: PartnerWebsiteTheme | null): string {
