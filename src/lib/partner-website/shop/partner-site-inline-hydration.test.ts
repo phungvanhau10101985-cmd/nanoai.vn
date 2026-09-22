@@ -293,6 +293,12 @@ test('live visual HTML is a Server Component without html= client prop; preview 
   assert.match(live, /dangerouslySetInnerHTML/)
   assert.match(live, /splitVisualHtmlBodyScripts/)
   assert.doesNotMatch(live, /inertPartnerInlineVisualScripts/)
+  assert.match(live, /<PartnerSiteLiveVisualHead html=\{previewHtml\}/)
+  assert.match(live, /<PartnerSiteLiveVisualIslands/)
+  assert.doesNotMatch(
+    live,
+    /<PartnerSiteLiveVisualIslands[\s\S]*<PartnerSiteLiveVisualHead/
+  )
 
   const screen = await readFile(
     new URL('../../../components/partner-website/shop/partner-site-visual-html-screen.tsx', import.meta.url),

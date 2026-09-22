@@ -13,7 +13,10 @@ import {
   extractVisualDocumentStyleLinks,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
-import { splitVisualHtmlBodyScripts } from '@/lib/partner-website/shop/split-visual-html-scripts'
+import {
+  splitVisualHtmlBodyScripts,
+  type VisualHtmlHoistedScript,
+} from '@/lib/partner-website/shop/split-visual-html-scripts'
 import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
@@ -22,7 +25,6 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
-import { htmlHasVisibleChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
@@ -33,6 +35,49 @@ function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   return `${style}${html}`
 }
 
+function htmlHasVisibleChromeChatMua(html: string): boolean {
+  if (!html) return false
+  const re = /<(?:a|button)\b[^>]*\bdata-pw-chrome-btn=["']chat["'][^>]*>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html))) {
+    if (!/\bdata-pw-hidden=["']1["']/i.test(m[0])) return true
+  }
+  return false
+}
+
+function hoistedScriptDataProps(script: VisualHtmlHoistedScript): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [name, value] of script.dataAttrs) {
+    if (!/^data-[a-z0-9-]+$/i.test(name)) continue
+    out[name] = value === '' ? 'true' : String(value)
+  }
+  return out
+}
+
+function PartnerSiteLiveHoistedScript({ script }: { script: VisualHtmlHoistedScript }) {
+  const data = hoistedScriptDataProps(script)
+  if (script.src) {
+    return (
+      <script
+        src={script.src}
+        defer={script.defer || !script.async}
+        async={script.async || undefined}
+        id={script.id || undefined}
+        type={script.type || undefined}
+        {...data}
+      />
+    )
+  }
+  return (
+    <script
+      id={script.id || undefined}
+      type={script.type || undefined}
+      {...data}
+      dangerouslySetInnerHTML={{ __html: script.body }}
+    />
+  )
+}
+
 function PartnerSiteLiveVisualHead({
   html,
   device,
@@ -40,7 +85,7 @@ function PartnerSiteLiveVisualHead({
   html: string
   device?: VisualDeviceVariant | null
 }) {
-  const links = extractVisualDocumentStyleLinks(html)
+  const links = extractVisualDocumentStyleLinks(html).filter((link) => Boolean(link.href))
   const css = extractVisualDocumentCssText(html)
   const hasGoogleFont = links.some((link) => /fonts\.googleapis\.com/i.test(link.href))
   const stampScript = buildPartnerLiveDocumentStampScript(html, device)
@@ -48,7 +93,8 @@ function PartnerSiteLiveVisualHead({
   const preloadHref = preload.match(/\bhref=["']([^"']+)["']/i)?.[1] || ''
   const preconnects = Array.from(
     html.matchAll(/<link\b[^>]*\bdata-pw-cdn-preconnect=["']1["'][^>]*>/gi)
-  ).map((m) => m[0].match(/\bhref=["']([^"']+)["']/i)?.[1] || '')
+  )
+    .map((m) => m[0].match(/\bhref=["']([^"']+)["']/i)?.[1] || '')
     .filter(Boolean)
   return (
     <>
@@ -95,6 +141,10 @@ function PartnerSiteLiveVisualHead({
   )
 }
 
+/**
+ * Server Component. Do not wrap shop HTML / `<script>` / `<style>` in a Client
+ * Component — Next RSC omits the real error in production and only shows a digest.
+ */
 export function PartnerSiteLiveVisualDocument({
   html,
   device = null,
@@ -123,18 +173,7 @@ export function PartnerSiteLiveVisualDocument({
   const { markup, scripts } = splitVisualHtmlBodyScripts(extractVisualHtmlBodyMarkup(previewHtml))
   const hideEmbedFab = htmlHasVisibleChromeChatMua(previewHtml)
   return (
-    <PartnerSiteLiveVisualIslands
-      siteSlug={siteSlug}
-      locale={locale}
-      chatPath={chatPath}
-      shopName={shopName}
-      logoUrl={logoUrl}
-      hideChatLauncher={hideChatLauncher !== false && hideEmbedFab}
-      tracking={tracking}
-      browserThemeColor={browserThemeColor}
-      device={device}
-      pageKind={codes['data-pw-page'] || ''}
-    >
+    <>
       <PartnerSiteLiveVisualHead html={previewHtml} device={device} />
       <div
         data-pw-inline-visual-root="1"
@@ -147,33 +186,21 @@ export function PartnerSiteLiveVisualDocument({
         className="bg-white"
         dangerouslySetInnerHTML={{ __html: markup }}
       />
-      {scripts.map((script, i) => {
-        const data = Object.fromEntries(
-          script.dataAttrs.map(([name, value]) => [name, value === '' ? true : value])
-        )
-        if (script.src) {
-          return (
-            <script
-              key={`${script.src}:${i}`}
-              src={script.src}
-              defer={script.defer || !script.async}
-              async={script.async}
-              id={script.id || undefined}
-              type={script.type || undefined}
-              {...data}
-            />
-          )
-        }
-        return (
-          <script
-            key={script.id || `pw-inline-${i}`}
-            id={script.id || undefined}
-            type={script.type || undefined}
-            {...data}
-            dangerouslySetInnerHTML={{ __html: script.body }}
-          />
-        )
-      })}
-    </PartnerSiteLiveVisualIslands>
+      {scripts.map((script, i) => (
+        <PartnerSiteLiveHoistedScript key={script.id || script.src || `pw-inline-${i}`} script={script} />
+      ))}
+      <PartnerSiteLiveVisualIslands
+        siteSlug={siteSlug}
+        locale={locale}
+        chatPath={chatPath}
+        shopName={shopName}
+        logoUrl={logoUrl || null}
+        hideChatLauncher={hideChatLauncher !== false && hideEmbedFab}
+        tracking={tracking || null}
+        browserThemeColor={browserThemeColor || ''}
+        device={device}
+        pageKind={codes['data-pw-page'] || ''}
+      />
+    </>
   )
 }

@@ -74,9 +74,9 @@ function saleBadgeHtml(product: PartnerSiteShopProduct, locale: WebLocale): stri
           )
     const chip =
       sale.countdownTo && sale.promoKind !== 'clearance'
-        ? `<span class="pw-sale-chip pw-sale-chip-${chipKind}" data-pw-sale-countdown="${escapeAttr(sale.countdownTo)}" data-pw-sale-phase="${escapeAttr(sale.kind)}" data-pw-sale-kind="${escapeAttr(sale.promoKind || '')}" data-pw-sale-label="${escapeAttr(sale.eventLabel || '')}">${escapeHtml(chipLabel)} <span data-pw-sale-hms></span></span>`
+        ? `<span class="pw-sale-chip pw-sale-chip-${chipKind}" data-pw-sale-countdown="${escapeAttr(sale.countdownTo)}" data-pw-sale-phase="${escapeAttr(sale.kind)}" data-pw-sale-kind="${escapeAttr(sale.promoKind || '')}" data-pw-sale-label="${escapeAttr(sale.eventLabel || '')}">${escapeHtml(String(chipLabel || ''))} <span data-pw-sale-hms></span></span>`
         : ''
-    out = `<span class="pw-badge-sale pw-badge-sale-${sale.kind}${sale.promoKind ? ` pw-badge-sale-${sale.promoKind}` : ''}">${escapeHtml(sale.badge)}</span>${chip}`
+    out = `<span class="pw-badge-sale pw-badge-sale-${sale.kind}${sale.promoKind ? ` pw-badge-sale-${sale.promoKind}` : ''}">${escapeHtml(String(sale.badge || ''))}</span>${chip}`
   }
   return out + birthdayBits(product, locale).badgeHtml
 }

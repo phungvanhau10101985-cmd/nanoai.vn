@@ -218,16 +218,21 @@ export async function PartnerSiteVisualHtmlScreen({
       }).catch(() => null)
     : Promise.resolve(null)
   const [shell, liveCatalogGrids] = await Promise.all([shellPromise, gridsPromise])
-  const overlaid = applyLiveVisualOverlays(shell, {
-    liveProduct,
-    liveListing,
-    liveCategoryBind,
-    liveMarketingBanners,
-    liveCatalogGrids,
-    locale: site.locale,
-    siteSlug: site.siteSlug,
-    device: sourceDevice,
-  })
+  let overlaid = shell
+  try {
+    overlaid = applyLiveVisualOverlays(shell, {
+      liveProduct,
+      liveListing,
+      liveCategoryBind,
+      liveMarketingBanners,
+      liveCatalogGrids,
+      locale: site.locale,
+      siteSlug: site.siteSlug,
+      device: sourceDevice,
+    })
+  } catch (error) {
+    console.error('[partner-site-visual] overlay failed', site.siteSlug, error)
+  }
   const publicHtml = wantsHomeBanners ? overlaid : stripPersonalizeBannerHostsInHtml(overlaid)
   const liveDevice = device || sourceDevice
   const previewLock = Boolean(

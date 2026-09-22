@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, type ReactNode } from 'react'
+import { useLayoutEffect } from 'react'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
@@ -28,7 +28,6 @@ export function PartnerSiteLiveVisualIslands({
   browserThemeColor,
   device,
   pageKind,
-  children,
 }: {
   siteSlug: string
   locale: WebLocale
@@ -40,7 +39,6 @@ export function PartnerSiteLiveVisualIslands({
   browserThemeColor?: string
   device?: VisualDeviceVariant | null
   pageKind?: string
-  children?: ReactNode
 }) {
   useLayoutEffect(() => {
     if (browserThemeColor) applyShopBrowserThemeColorToDocument(document, browserThemeColor)
@@ -70,7 +68,6 @@ export function PartnerSiteLiveVisualIslands({
       listenLandingPostMessage
       hideLauncher={hideChatLauncher}
     >
-      {children}
       {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
       {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
     </PartnerSiteChatWidgetProvider>
