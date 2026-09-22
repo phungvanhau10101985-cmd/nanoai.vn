@@ -809,7 +809,15 @@ function run(){
       el.hidden=false;
       revealLiveCatalog(el);
       paintMore(el);
-      refreshSeededCatalog(el);
+      /*
+       * The live document has just loaded these cards from the server after the
+       * site/inventory cache. Re-fetching the same page here competes with PDP
+       * navigation and chrome hydration for no first-paint benefit. Listings
+       * still refresh because their response also carries dependent facets;
+       * home/catalog grids keep the server-bound cards and fetch only when the
+       * customer explicitly asks for another page.
+       */
+      if(listingCatalogEl(el))refreshSeededCatalog(el);
       return;
     }
     if(!(grid&&grid.children.length)) el.hidden=true;

@@ -42,7 +42,7 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /function paintPdpBirthday/)
   assert.match(s, /birthdaySave/)
   assert.match(s, /birthdayEndsAfter/)
-  assert.match(s, /\?view=buy/)
+  assert.doesNotMatch(s, /\?view=buy/)
   assert.match(s, /data-pw-like-count/)
   assert.match(s, /data-pw-stat="likes"/)
   assert.match(s, /hideBrokenPdpImgs/)

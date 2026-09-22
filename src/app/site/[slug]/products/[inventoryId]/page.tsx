@@ -111,9 +111,9 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
           .catch(() => null)
       : Promise.resolve(null)
   const mapped = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
+  if (!mapped) notFound()
   let guestEmail: string | null = null
-  const [relatedCtx, faced, visualDoc] = await Promise.all([
-    resolveRelatedProductContext(shop.partnerId, row.id),
+  const [faced, visualDoc] = await Promise.all([
     guestEmailPromise.then((email) => {
       guestEmail = email
       return applyPartnerStorefrontSaleFaces([{ ...mapped, isClearance: row.is_clearance === true }], {
@@ -138,8 +138,6 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
         infoSeo={{ pageKey: 'product_detail' }}
         liveProduct={{
           ...product,
-          categoryId: relatedCtx.categoryId,
-          categoryPath: relatedCtx.categoryPath,
           relatedProducts: [],
           outfitSlots: [],
         }}
@@ -147,6 +145,10 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     )
   }
 
+  // React fallback needs the category context to render its initial related
+  // products. The visual PDP loads related/outfit grids independently, so do
+  // not hold its above-the-fold response on this extra category query.
+  const relatedCtx = await resolveRelatedProductContext(shop.partnerId, row.id)
   const relatedProducts = await fetchRelatedShopProducts({
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,

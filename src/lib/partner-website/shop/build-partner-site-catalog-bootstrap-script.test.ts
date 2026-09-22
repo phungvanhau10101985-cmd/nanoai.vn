@@ -20,5 +20,6 @@ test('catalog bootstrap listing filters read URL, request facets, skip Sửa nha
   assert.match(s, /pwShopTrack\('view_item_list'/)
   assert.match(s, /function catalogAlreadySeeded/)
   assert.match(s, /function refreshSeededCatalog/)
+  assert.match(s, /if\(listingCatalogEl\(el\)\)refreshSeededCatalog\(el\)/)
   assert.doesNotMatch(s, /price_asc/)
 })

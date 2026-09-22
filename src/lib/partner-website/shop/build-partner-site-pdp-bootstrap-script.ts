@@ -1331,13 +1331,6 @@ if(!document.querySelector('[data-pw-pdp-server-bound="1"]')){
       apply(j.product);
     }
   }).catch(function(){});
-} else {
-  fetch(API_PREFIX+encodeURIComponent(id)+'?view=buy',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
-    if(!j)return;
-    var p=j.product||{};
-    if(j.birthdayOffer)p.birthdayOffer=j.birthdayOffer;
-    paintPdpBirthday(p);
-  }).catch(function(){});
 }
 })();</script>`
 }

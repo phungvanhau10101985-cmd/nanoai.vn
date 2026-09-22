@@ -840,9 +840,14 @@ var loginIdentityLoading=false;
 var loginIdentityFetched=false;
 var loginIdentityForAccount='';
 var loginIdentityFailUntil=0;
+var featuredNavCache=null;
+var featuredNavCacheAt=0;
 function fetchFeaturedNavJson(){
+  if(featuredNavCache&&Date.now()-featuredNavCacheAt<30000)return Promise.resolve(featuredNavCache);
   return pwShopInflightFetch(FEATURED_NAV_API,authReqHeaders()).then(function(pack){
-    return pack&&pack.j?pack.j:null;
+    var next=pack&&pack.j?pack.j:null;
+    if(next){featuredNavCache=next;featuredNavCacheAt=Date.now();}
+    return next;
   }).catch(function(){return null;});
 }
 function fetchProfileJson(){
@@ -1605,6 +1610,7 @@ function hydrateCats(){
     fillSeoRow(seo);
     if(featured)applyFeaturedNav(tree,featured);
     else hydratePersonalizedNav(tree);
+    hydrateCatsCoolUntil=Date.now()+30000;
   }).catch(function(){
     hydrateCatsCoolUntil=Date.now()+8000;
     for(i=0;i<panels.length;i++){

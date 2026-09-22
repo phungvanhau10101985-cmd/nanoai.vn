@@ -28,3 +28,13 @@ test('mobile category tap toggles even when the pointer can hover', () => {
   assert.match(html, /function adoptCatPanel\(wrap\)/)
   assert.match(html, /var wrapHit=t\.closest\('\.pw-chrome-cat-wrap'\)/)
 })
+
+test('category hydration reuses featured navigation and cools mutation retries', () => {
+  const html = buildPartnerSiteChromeToggleBootstrapScript({
+    siteSlug: 'category-fetch-budget',
+    locale: 'vi',
+  })
+  assert.match(html, /featuredNavCache&&Date\.now\(\)-featuredNavCacheAt<30000/)
+  assert.match(html, /hydrateCatsCoolUntil=Date\.now\(\)\+30000/)
+  assert.match(html, /hydrateCatsInFlight/)
+})

@@ -207,7 +207,11 @@ export async function PartnerSiteVisualHtmlScreen({
   const sourceDevice = selected?.sourceDevice || device || inferredRequestDevice
   const sourceHtml = selected?.html || html
   const shellPromise = prepareShell(sourceHtml, sourceDevice)
-  const gridsPromise = shopCtx
+  // A PDP already receives its full live product above the fold. Product-grid
+  // widgets (related/outfit/personalization) have their own on-demand APIs, so
+  // scanning and querying generic catalog cards here only delays PDP TTFB.
+  const bindCatalogFirstPaint = pageKey !== 'product_detail'
+  const gridsPromise = shopCtx && bindCatalogFirstPaint
     ? loadSiteLiveCatalogGrids({
         html: sourceHtml,
         partnerId: shopCtx.partnerId,
