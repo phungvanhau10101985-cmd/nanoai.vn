@@ -8,6 +8,13 @@ import {
   replaceInlineShopRuntimesWithHashedFiles,
 } from '@/lib/partner-website/shop/pw-shop-hashed-runtime'
 
+test('runtime body hash is 12 hex chars without node:crypto', () => {
+  const hash = hashPartnerShopRuntimeBody('function catalogAlreadySeeded(){}')
+  assert.match(hash, /^[a-f0-9]{12}$/)
+  assert.equal(hash, hashPartnerShopRuntimeBody('function catalogAlreadySeeded(){}'))
+  assert.notEqual(hash, hashPartnerShopRuntimeBody('function other(){}'))
+})
+
 test('hashed runtime filename round-trips slug locale and hash', () => {
   const parsed = parsePartnerShopRuntimeFileName(
     'catalog.demo-shop.vi.abcdef123456.js'

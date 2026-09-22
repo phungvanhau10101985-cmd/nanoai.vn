@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import type { WebLocale } from '@/lib/i18n/config'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { buildPartnerSiteCatalogBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-catalog-bootstrap-script'
@@ -50,8 +49,25 @@ export type PartnerShopRuntimeFile = {
 
 const FILE_RE = /^([a-z0-9-]+)\.([a-z0-9-]+)\.([a-z]{2})\.([a-f0-9]{12})\.js$/i
 
+/**
+ * Cache-busting fingerprint (not cryptographic).
+ * Must not import `node:crypto` — webpack traces this file into the Sửa nhanh
+ * dashboard client via inject → render visual HTML.
+ */
 export function hashPartnerShopRuntimeBody(body: string): string {
-  return createHash('sha1').update(body).digest('hex').slice(0, 12)
+  const text = String(body || '')
+  let h1 = 2166136261
+  let h2 = 0x811c9dc5
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text.charCodeAt(i)
+    h1 ^= c
+    h1 = Math.imul(h1, 16777619)
+    h2 = Math.imul(h2 ^ c, 16777619)
+  }
+  return ((h1 >>> 0).toString(16).padStart(8, '0') + (h2 >>> 0).toString(16).padStart(8, '0')).slice(
+    0,
+    12
+  )
 }
 
 export function parsePartnerShopRuntimeFileName(file: string): PartnerShopRuntimeFile | null {
