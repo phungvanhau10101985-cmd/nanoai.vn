@@ -1390,6 +1390,7 @@ export async function fetchPartnerOrdersForConversationFromPg(
     const rows = await pgQuery<Record<string, unknown>>(
       `${ORDER_ROW_SELECT}
        where partner_id = $1::uuid and conversation_id = $2::uuid
+         and nullif(trim(payment_reference), '') is not null
        order by created_at desc
        limit $3`,
       [pid, cid, lim]
@@ -1545,6 +1546,7 @@ export async function fetchWidgetOrdersForLinkedUserFromPg(
        where c.channel = 'widget'
          and c.linked_user_id = $1::uuid
          and coalesce(mp.is_active, true) = true
+         and nullif(trim(o.payment_reference), '') is not null
        order by o.created_at desc
        limit $2`,
       [uid, lim]
@@ -1570,6 +1572,7 @@ export async function fetchLatestAwaitingPaymentOrderForPartnerThreadFromPg(
        where partner_id = $1::uuid
          and external_thread_id = $2
          and status = 'awaiting_payment'
+         and nullif(trim(payment_reference), '') is not null
          and required_amount > 0
          and locked_at is null
        order by updated_at desc
@@ -1785,6 +1788,7 @@ export async function fetchPartnerOrderStatsForOwnerFromPg(input: {
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ($3 = '' or o.status = $3)
          and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
          and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)`,
@@ -1908,6 +1912,7 @@ export async function fetchPartnerOrdersForOwnerFromPg(input: {
          limit 1
        ) lp on true
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ($3 = '' or o.status = $3)
          and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
          and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)
@@ -1987,7 +1992,8 @@ export async function fetchPartnerOrderAdminKpiFromPg(input: {
             and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as shipping
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
-       where ($2::uuid is null or o.partner_id = $2::uuid)`,
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null`,
       [input.ownerUserId, partnerId || null]
     )
     const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
@@ -2037,6 +2043,7 @@ export async function fetchPartnerOrderAdminTabCountsFromPg(input: {
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ${paySql}
          ${searchSql}`,
       q ? [input.ownerUserId, partnerId || null, like] : [input.ownerUserId, partnerId || null]
@@ -2080,6 +2087,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
          and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $4::date`,
       [input.ownerUserId, partnerId || null, from, to]
@@ -2214,6 +2222,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
        from public.messaging_partner_orders o
        join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ${lifeSql}
          and ${paySql}
          and ${sourceSql}
@@ -2225,6 +2234,7 @@ export async function fetchPartnerOrdersAdminPageFromPg(input: {
       `select ${ORDER_ADMIN_LIST_SELECT}
        ${ORDER_ADMIN_LIST_JOINS}
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ${lifeSql}
          and ${paySql}
          and ${sourceSql}
@@ -2312,6 +2322,7 @@ export async function fetchPartnerOrdersForOwnerExportFromPg(input: {
          limit 1
        ) lp on true
        where ($2::uuid is null or o.partner_id = $2::uuid)
+         and nullif(trim(o.payment_reference), '') is not null
          and ($3 = '' or o.status = $3)
          and ($4::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $4::date)
          and ($5::date is null or (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $5::date)

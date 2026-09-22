@@ -1739,7 +1739,6 @@ export function PartnerGuestChatClient({
   const [topUpPayment, setTopUpPayment] = useState<TopUpPayment | null>(null)
   const [topUpSuccessCountdown, setTopUpSuccessCountdown] = useState<number | null>(null)
   const [portalMounted, setPortalMounted] = useState(false)
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null)
   const [orderFormOpen, setOrderFormOpen] = useState(false)
   const [orderFormBusy, setOrderFormBusy] = useState(false)
   const [buyOptionsOpen, setBuyOptionsOpen] = useState(false)
@@ -3306,7 +3305,7 @@ export function PartnerGuestChatClient({
       }
       return false
     },
-    [guestPurchaseFlow, resolveActiveGuestCartUrlTemplate, resolveSkuForGuestPurchase, t]
+    [guestPurchaseFlow, resolveActiveGuestCartUrlTemplate, resolveSkuForGuestPurchase, t, toast]
   )
 
   const openOrderFormByOption = useCallback(
@@ -3319,31 +3318,6 @@ export function PartnerGuestChatClient({
       void fireMetaBuyNowFromProductCard(card)
       setOrderFormBusy(true)
       try {
-        const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
-          method: 'POST',
-          credentials: 'same-origin',
-          headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({ productCard: card }),
-        })
-        captureGuestSessionFromResponse(res)
-        captureGuestAccountFromResponse(res)
-        const data = (await res.json().catch(() => null)) as
-          | { ok?: boolean; error?: string; order?: { id?: string } }
-          | null
-        if (res.status === 401 || data?.error?.startsWith('AUTH_REQUIRED_')) {
-          setUserId(null)
-          promptLoginForPurchase()
-          return
-        }
-        if (!res.ok) {
-          toast({ title: data?.error || `Không tạo được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
-          return
-        }
-        const oid = String(data?.order?.id ?? '').trim()
-        if (!oid) {
-          toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
-          return
-        }
         const detailRes = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/order`, {
           method: 'POST',
           credentials: 'same-origin',
@@ -3355,10 +3329,20 @@ export function PartnerGuestChatClient({
         const detail = (await detailRes.json().catch(() => null)) as
           | {
               ok?: boolean
+              error?: string
               options?: PurchaseOptionsPayload | null
               profile?: { customerName?: string; customerPhone?: string; shippingAddress?: string } | null
             }
           | null
+        if (detailRes.status === 401 || detail?.error?.startsWith('AUTH_REQUIRED_')) {
+          setUserId(null)
+          promptLoginForPurchase()
+          return
+        }
+        if (!detailRes.ok || !detail?.ok) {
+          toast({ title: detail?.error || 'Không tạo được đơn hàng.', variant: 'destructive' })
+          return
+        }
         const localProfile = readLocalOrderProfile()
         const profileName = String(detail?.profile?.customerName ?? '').trim() || localProfile?.customerName || ''
         const profilePhone = String(detail?.profile?.customerPhone ?? '').trim() || localProfile?.customerPhone || ''
@@ -3375,11 +3359,11 @@ export function PartnerGuestChatClient({
         setOrderSize('')
         setOrderQuantity('1')
         setOrderNote('')
-        setActiveOrderId(oid)
+        // Opening the picker must not persist an order. The single final order is
+        // created by the shared cart checkout only after the customer confirms.
         setOrderFormOpen(true)
         setBuyOptionsOpen(false)
         forceGuestChatScrollToBottomRef.current = true
-        await load()
       } catch {
         toast({ title: 'Không tạo được đơn hàng.', variant: 'destructive' })
       } finally {
@@ -3390,7 +3374,6 @@ export function PartnerGuestChatClient({
       authHeaders,
       captureGuestAccountFromResponse,
       captureGuestSessionFromResponse,
-      load,
       promptLoginForPurchase,
       readLocalOrderProfile,
       slug,
@@ -3399,7 +3382,6 @@ export function PartnerGuestChatClient({
       toast,
       guestPurchaseFlow,
       openGuestPurchaseExternalFromOption,
-      t,
     ]
   )
 
@@ -4226,8 +4208,7 @@ export function PartnerGuestChatClient({
   }
 
   const submitOrderCheckout = async () => {
-    const oid = activeOrderId
-    if (!oid) return
+    if (!activeOrderCard) return
     const missing: string[] = []
     if (!orderName.trim()) missing.push('họ tên')
     if (!orderPhone.trim()) missing.push('số điện thoại')
@@ -4256,17 +4237,21 @@ export function PartnerGuestChatClient({
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
-          orderId: oid,
+          action: 'cart_checkout',
           form: {
             customerName: orderName,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
-            color: picked.colorPayload,
-            size: picked.sizePayload,
-            quantity: picked.totalQty,
             note: orderNote,
-            ...(picked.variantLineImages ? { variantLineImages: picked.variantLineImages } : {}),
           },
+          items: picked.cartLines.map((line) => ({
+            card: activeOrderCard,
+            color: line.color,
+            size: line.size,
+            quantity: line.quantity,
+            note: orderNote,
+            ...(line.variantLineImages ? { variantLineImages: line.variantLineImages } : {}),
+          })),
         }),
       })
       captureGuestSessionFromResponse(res)
@@ -4298,7 +4283,7 @@ export function PartnerGuestChatClient({
         return
       }
       if (!res.ok) {
-        toast({ title: data.error || `Không cập nhật được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
+        toast({ title: data.error || `Không tạo được đơn hàng (mã lỗi ${res.status}).`, variant: 'destructive' })
         return
       }
       const mp = data.metaPurchase
@@ -4360,7 +4345,7 @@ export function PartnerGuestChatClient({
       })
       if (requiredAmount > 0) {
         setProofOrderIsSepay(checkoutSepay)
-        setProofOrderId(String(data.order?.id ?? oid))
+        setProofOrderId(String(data.order?.id ?? ''))
       } else {
         setProofOrderId(null)
         setProofOrderIsSepay(false)
