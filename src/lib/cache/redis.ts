@@ -78,3 +78,28 @@ export async function redisGetInt(key: string): Promise<number> {
   const n = raw ? Number(raw) : 0
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : 0
 }
+
+export async function redisDel(key: string): Promise<void> {
+  const redis = getRedis()
+  if (!redis) return
+  try {
+    if (redis.status === 'wait') await redis.connect()
+    await redis.del(key)
+  } catch (e) {
+    console.warn('[redis] del failed', key, e instanceof Error ? e.message : e)
+  }
+}
+
+/** SET key NX EX — true if this caller won the slot. */
+export async function redisSetNxEx(key: string, ttlSec: number, value: string): Promise<boolean | null> {
+  const redis = getRedis()
+  if (!redis) return null
+  try {
+    if (redis.status === 'wait') await redis.connect()
+    const ok = await redis.set(key, value, 'EX', Math.max(1, Math.floor(ttlSec)), 'NX')
+    return ok === 'OK'
+  } catch (e) {
+    console.warn('[redis] setnx failed', key, e instanceof Error ? e.message : e)
+    return null
+  }
+}

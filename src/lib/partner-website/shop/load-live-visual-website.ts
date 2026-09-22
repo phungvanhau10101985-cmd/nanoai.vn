@@ -1,4 +1,5 @@
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
+import { withSiteMetaCache } from '@/lib/cache/partner-shop-cache'
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import type { PartnerVisualHtmlTarget } from '@/lib/partner-website/shop/render-partner-visual-html'
@@ -24,9 +25,21 @@ export async function ensureLiveVisualWebsite<T extends LiveVisualWebsitePick>(
 ): Promise<T> {
   const paths = missingLiveVisualHtmlPaths(site.project, liveVisualHtmlPathsForTarget(target, device))
   if (!paths.length) return site
-  const slim = await fetchPublishedPartnerWebsiteBySlugPg(site.siteSlug, {
-    allowDraft: options?.allowDraft !== false,
-    projectFiles: { paths },
+  const slim = await withSiteMetaCache({
+    slug: site.siteSlug,
+    suffix: `proj:${paths.slice().sort().join('|')}`,
+    load: async () => {
+      const row = await fetchPublishedPartnerWebsiteBySlugPg(site.siteSlug, {
+        allowDraft: options?.allowDraft !== false,
+        projectFiles: { paths },
+      })
+      if (!row) return null
+      return {
+        project: row.project,
+        htmlSource: row.htmlSource,
+        theme: row.theme,
+      }
+    },
   })
   if (!slim) return site
   return {

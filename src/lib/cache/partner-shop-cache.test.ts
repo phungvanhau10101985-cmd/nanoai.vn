@@ -1,11 +1,20 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  HOST_RESOLVE_MISS_TTL_SEC,
+  HOST_RESOLVE_TTL_SEC,
   LIVE_CATEGORY_BIND_TTL_SEC,
+  MARKETING_BANNER_PUBLIC_TTL_SEC,
   SITE_CHROME_TTL_SEC,
+  VISITOR_MERGE_CLAIM_TTL_SEC,
+  categoryProductCountsFromCacheRecord,
+  categoryProductCountsToCacheRecord,
+  claimShopCacheOnce,
   liveCategoryBindCacheSuffix,
+  releaseShopCacheOnce,
   shopCacheGetJson,
   shopCacheSetJson,
+  visitorMergeClaimCacheKey,
   withInventoryShopCache,
 } from '@/lib/cache/partner-shop-cache'
 
@@ -33,20 +42,20 @@ test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
   assert.equal(SITE_CHROME_TTL_SEC, 1800)
 })
 
-test('liveCategoryBindCacheSuffix includes tile limit', () => {
+test('liveCategoryBindCacheSuffix ignores tile limit so chrome and marquee share one load', () => {
   const eight = liveCategoryBindCacheSuffix({
     slug: '188-com-vn-rl56',
     accountKey: 'guest-1',
     locale: 'vi',
     limit: 8,
   })
-  const ten = liveCategoryBindCacheSuffix({
+  const twenty = liveCategoryBindCacheSuffix({
     slug: '188-com-vn-rl56',
     accountKey: 'guest-1',
     locale: 'vi',
-    limit: 10,
+    limit: 20,
   })
-  assert.notEqual(eight, ten)
+  assert.equal(eight, twenty)
 })
 
 test('shopCacheGetJson hits in-process memory when Redis is absent', async () => {
@@ -103,5 +112,48 @@ test('failed shared load is cleared so a later request can retry', async () => {
   await assert.rejects(() => Promise.all([run(), run()]), /temporary/)
   assert.deepEqual(await run(), { ok: true })
   assert.equal(loads, 2)
+})
+
+test('category product counts serialize without Map', () => {
+  const m = new Map<string, number>([
+    ['a', 3],
+    ['b', 0],
+    ['c', 12],
+  ])
+  const rec = categoryProductCountsToCacheRecord(m)
+  assert.deepEqual(rec, { a: 3, c: 12 })
+  const back = categoryProductCountsFromCacheRecord(rec)
+  assert.ok(back)
+  assert.equal(back.get('a'), 3)
+  assert.equal(back.get('c'), 12)
+  assert.equal(back.has('b'), false)
+  assert.equal(categoryProductCountsFromCacheRecord(null), null)
+})
+
+test('claimShopCacheOnce is sticky in-process until released', async () => {
+  const key = `pw:test:claim:${Date.now()}-${Math.random()}`
+  assert.equal(await claimShopCacheOnce(key, 60), true)
+  assert.equal(await claimShopCacheOnce(key, 60), false)
+  await releaseShopCacheOnce(key)
+  assert.equal(await claimShopCacheOnce(key, 60), true)
+})
+
+test('visitor merge claim key is per partner and pair', () => {
+  const a = visitorMergeClaimCacheKey({
+    partnerId: 'p1',
+    fromAccountKey: 'sess',
+    toAccountKey: 'acct',
+  })
+  const b = visitorMergeClaimCacheKey({
+    partnerId: 'p1',
+    fromAccountKey: 'sess',
+    toAccountKey: 'other',
+  })
+  assert.match(a, /^pw:merge:p1:sess:acct$/)
+  assert.notEqual(a, b)
+  assert.equal(HOST_RESOLVE_TTL_SEC, 300)
+  assert.equal(HOST_RESOLVE_MISS_TTL_SEC, 15)
+  assert.equal(MARKETING_BANNER_PUBLIC_TTL_SEC, 60)
+  assert.equal(VISITOR_MERGE_CLAIM_TTL_SEC, 86400)
 })
 

@@ -26,23 +26,30 @@ export async function GET(request: NextRequest) {
 
   const host = hostRaw.split(':')[0]
   if (!host || isPlatformAppHostname(host)) {
-    return NextResponse.json({ found: false })
+    return NextResponse.json({ found: false }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
   const row = await resolveActivePartnerCustomDomainByHostPg(host)
   if (!row) {
-    return NextResponse.json({ found: false })
+    return NextResponse.json({ found: false }, { headers: { 'Cache-Control': 'no-store' } })
   }
 
-  return NextResponse.json({
-    found: true,
-    hostname: host,
-    canonicalHostname: partnerCustomDomainSeoHostname(host),
-    partnerId: row.partner_id,
-    partnerSlug: row.partner_slug,
-    siteSlug: row.site_slug,
-    useForSite: row.use_for_site,
-    sitePublished: row.site_published,
-    rewriteRootPath: buildRewriteRootPath(row),
-  })
+  return NextResponse.json(
+    {
+      found: true,
+      hostname: host,
+      canonicalHostname: partnerCustomDomainSeoHostname(host),
+      partnerId: row.partner_id,
+      partnerSlug: row.partner_slug,
+      siteSlug: row.site_slug,
+      useForSite: row.use_for_site,
+      sitePublished: row.site_published,
+      rewriteRootPath: buildRewriteRootPath(row),
+    },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    }
+  )
 }

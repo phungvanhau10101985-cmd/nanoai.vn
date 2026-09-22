@@ -1,4 +1,5 @@
 # Template vhost HTTPS cho tên miền shop — deploy/provision-partner-domain-ssl.sh thay __HOSTNAME__
+# Cần /etc/nginx/conf.d/nanoai.conf + /etc/nginx/snippets/nanoai-shop-locations.inc
 server {
     listen 80;
     listen [::]:80;
@@ -24,24 +25,5 @@ server {
     include /etc/letsencrypt/options-ssl-nginx.conf;
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
 
-    location / {
-        proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_connect_timeout 300;
-        proxy_send_timeout 300;
-        proxy_read_timeout 300;
-        client_max_body_size 50M;
-        proxy_buffer_size 128k;
-        proxy_buffers 4 256k;
-        proxy_busy_buffers_size 256k;
-        proxy_temp_file_write_size 256k;
-    }
+    include /etc/nginx/snippets/nanoai-shop-locations.inc;
 }

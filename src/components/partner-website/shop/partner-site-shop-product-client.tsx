@@ -239,6 +239,18 @@ export function PartnerSiteShopProductClient({
       productToConsultContext({
         id: product.id,
         sku: options?.sku || product.sku,
+        imageUrl: product.imageUrl,
+        productUrl: product.productUrl,
+        galleryImages: product.galleryImages,
+      }),
+    [options?.sku, product.galleryImages, product.id, product.imageUrl, product.productUrl, product.sku]
+  )
+
+  const tryOnCtx = useMemo(
+    () =>
+      productToConsultContext({
+        id: product.id,
+        sku: options?.sku || product.sku,
         imageUrl: fullDisplayImage,
         productUrl: product.productUrl,
         galleryImages: product.galleryImages,
@@ -687,7 +699,7 @@ export function PartnerSiteShopProductClient({
             {t.pdpStickyHomeL2 ? <span>{t.pdpStickyHomeL2}</span> : null}
           </span>
         </Link>
-        <button type="button" className="is-try" onClick={() => openTryOn(consultCtx)}>
+        <button type="button" className="is-try" onClick={() => openTryOn(tryOnCtx)}>
           <IconTryOn />
           <span className="pw-pdp-sticky-copy">
             <span>{t.pdpStickyTryOnL1}</span>
@@ -746,7 +758,7 @@ export function PartnerSiteShopProductClient({
           <span data-pw-el={PW_EL.crumb}>{productName}</span>
         </nav>
       ) : null}
-      <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery}>
+      <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
         {renderMedia(currentMedia, { hero: true })}
         {mediaItems.length > 1 ? (
           <>
@@ -788,7 +800,7 @@ export function PartnerSiteShopProductClient({
       </div>
 
       <div className="pw-shop-product-layout">
-        <div className="pw-shop-product-gallery pw-pdp-gallery-desktop" data-pw-region={PW_REGION.gallery}>
+        <div className="pw-shop-product-gallery pw-pdp-gallery-desktop" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
           {renderMedia(currentMedia?.kind === 'photo' ? currentMedia : { kind: 'photo', url: activeImage })}
           {mediaItems.length > 1 ? (
             <p className="pw-shop-muted" style={{ fontSize: 12, margin: '4px 0 0' }}>
@@ -820,7 +832,7 @@ export function PartnerSiteShopProductClient({
           ) : null}
         </div>
 
-        <div className="pw-shop-pdp-info pw-pdp-info-pad" data-pw-region={PW_REGION.pdpInfo}>
+        <div className="pw-shop-pdp-info pw-pdp-info-pad" data-pw-region={PW_REGION.pdpInfo} data-nanoai-cover-image={product.imageUrl || undefined}>
           <h1 className="pw-pdp-title" data-pw-el={PW_EL.title}>{productName}</h1>
           <PartnerSiteAffiliateShareBar siteSlug={siteSlug} locale={locale} shareTitle={productName} />
           {brandText ? (
@@ -1028,7 +1040,7 @@ export function PartnerSiteShopProductClient({
             <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openConsult(consultCtx)} data-pw-el={PW_EL.cta}>
               {t.consultChat}
             </button>
-            <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openTryOn(consultCtx)} data-pw-el={PW_EL.cta}>
+            <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => openTryOn(tryOnCtx)} data-pw-el={PW_EL.cta}>
               {t.tryOnLink}
             </button>
             <button

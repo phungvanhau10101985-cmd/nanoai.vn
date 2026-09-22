@@ -205,7 +205,14 @@ function imgUrlFromEl(img: Element, baseHref: string): string {
   return ''
 }
 
-function collectPdpImageUrls(doc: Document, baseHref: string): string[] {
+function isSameSystemChatGatewayEl(el: Element): boolean {
+  const btn = el.getAttribute('data-pw-chrome-btn') || ''
+  if (btn === 'try-on' || el.hasAttribute('data-nanoai-try-on')) return false
+  if (/^chat-(zalo|facebook|instagram|whatsapp)$/.test(btn)) return false
+  return btn === 'chat' || el.hasAttribute('data-nanoai-open-chat') || el.hasAttribute('data-nanoai-consult')
+}
+
+function collectPdpLiveViewingImageUrls(doc: Document, baseHref: string): string[] {
   const urls: string[] = []
   const seen = new Set<string>()
   const push = (url: string) => {
@@ -224,6 +231,54 @@ function collectPdpImageUrls(doc: Document, baseHref: string): string[] {
     push(imgUrlFromEl(img, baseHref))
   })
   return urls
+}
+
+/** Ảnh đại diện SP (`main_image`) — chip «Gửi mã SP đang xem», không pill màu đang chọn. */
+function collectPdpCoverImageUrls(doc: Document, baseHref: string): string[] {
+  const urls: string[] = []
+  const seen = new Set<string>()
+  const push = (url: string) => {
+    if (!url || seen.has(url)) return
+    seen.add(url)
+    urls.push(url)
+  }
+  const coverHosts = [
+    doc.querySelector('[data-pw-region="pdp-info"]'),
+    doc.querySelector('[data-pw-region="gallery"]'),
+    doc.body,
+    doc.documentElement,
+  ]
+  for (const host of coverHosts) {
+    if (!host?.getAttribute) continue
+    push(resolvePartnerTryOnImageUrl(host.getAttribute('data-nanoai-cover-image') || '', baseHref))
+  }
+  doc.querySelectorAll('[data-nanoai-open-chat],[data-pw-chrome-btn="chat"],[data-nanoai-consult]').forEach((el) => {
+    if (!isSameSystemChatGatewayEl(el)) return
+    push(
+      resolvePartnerTryOnImageUrl(
+        el.getAttribute('data-nanoai-cover-image') || el.getAttribute('data-nanoai-image') || '',
+        baseHref
+      )
+    )
+  })
+  doc.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach((img) => {
+    if (isChromeOrLogoImg(img)) return
+    if (img.closest('[data-pw-pdp-option="color"]')) return
+    push(imgUrlFromEl(img, baseHref))
+  })
+  if (!urls.length) {
+    doc.querySelectorAll(PDP_MAIN_IMG_SEL).forEach((img) => {
+      if (isChromeOrLogoImg(img)) return
+      push(imgUrlFromEl(img, baseHref))
+    })
+  }
+  return urls
+}
+
+function collectPdpImageUrls(doc: Document, baseHref: string, liveViewingImage: boolean): string[] {
+  return liveViewingImage
+    ? collectPdpLiveViewingImageUrls(doc, baseHref)
+    : collectPdpCoverImageUrls(doc, baseHref)
 }
 
 function skuFromPdpDocument(doc: Document): string {
@@ -249,15 +304,21 @@ function inventoryIdFromPdpDocument(doc: Document, clickEl?: Element | null): st
   return ''
 }
 
-/** PDP đang xem — ảnh gallery / màu đang chọn, không lấy logo header. */
+export type ConsultContextFromPdpOptions = {
+  /** true = ảnh gallery / màu đang xem (Thử đồ). false = ảnh đại diện SP (chip tư vấn). */
+  liveViewingImage?: boolean
+}
+
+/** PDP — consult = ảnh đại diện; Thử đồ = ảnh gallery/màu đang xem. Không lấy logo header. */
 export function consultContextFromPdpDocument(
   doc: Document | null | undefined,
-  clickEl?: Element | null
+  clickEl?: Element | null,
+  opts?: ConsultContextFromPdpOptions
 ): PartnerSiteConsultContext {
   if (!doc) return {}
   const win = doc.defaultView
   const baseHref = win?.location?.href || ''
-  const images = collectPdpImageUrls(doc, baseHref)
+  const images = collectPdpImageUrls(doc, baseHref, Boolean(opts?.liveViewingImage))
   const isProduct =
     doc.documentElement.getAttribute('data-pw-page') === 'product' ||
     doc.body?.getAttribute('data-pw-page') === 'product' ||
@@ -326,8 +387,8 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   target: EventTarget | null
 ): PartnerSiteChatOpenRequest | null {
   let node: Element | null = null
-  if (target instanceof Element) node = target
-  else if (target instanceof Node) node = target.parentElement
+  if (target && typeof (target as Element).closest === 'function') node = target as Element
+  else if (target && 'parentElement' in target) node = (target as Node).parentElement
   if (!node?.closest) return null
   const el = node.closest(PARTNER_SITE_CHAT_OPEN_SELECTOR)
   if (!el) return null
@@ -337,7 +398,9 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   const doc = el.ownerDocument
   const onPdp = isPartnerPdpDocument(doc)
   const fromPage =
-    mode === 'try_on' || mode === 'consult' || onPdp ? consultContextFromPdpDocument(doc, el) : {}
+    mode === 'try_on' || mode === 'consult' || onPdp
+      ? consultContextFromPdpDocument(doc, el, { liveViewingImage: mode === 'try_on' })
+      : {}
   const ctx = withAbsolutePartnerTryOnContext(mergeConsultContext(fromPage, fromBtn))
   const resolvedMode: PartnerSiteChatOpenRequest['mode'] =
     mode === 'try_on'
@@ -421,17 +484,39 @@ function isPdpPage(){
   if(page==='product')return true;
   return !!(document.querySelector('[data-pw-region="gallery"]')&&document.querySelector('[data-pw-region="pdp-info"]'));
 }
-function ctxFromPdp(){
+function ctxFromPdp(liveViewing){
   var urls=[],seen={};
   function push(u){if(!u||seen[u])return;seen[u]=1;urls.push(u);}
-  var color=document.querySelector('[data-pw-pdp-option="color"] .pw-pdp-pill.is-active img');
-  if(color&&!isChromeImg(color))push(imgUrl(color));
-  document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img,[data-pw-el="main-image"]').forEach(function(img){
-    if(!isChromeImg(img))push(imgUrl(img));
-  });
-  document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach(function(img){
-    if(!isChromeImg(img))push(imgUrl(img));
-  });
+  if(liveViewing){
+    var color=document.querySelector('[data-pw-pdp-option="color"] .pw-pdp-pill.is-active img');
+    if(color&&!isChromeImg(color))push(imgUrl(color));
+    document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-region="gallery"] .pw-shop-product-img,[data-pw-el="main-image"]').forEach(function(img){
+      if(!isChromeImg(img))push(imgUrl(img));
+    });
+    document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach(function(img){
+      if(!isChromeImg(img))push(imgUrl(img));
+    });
+  }else{
+    var hosts=document.querySelectorAll('[data-pw-region="pdp-info"],[data-pw-region="gallery"],body,html');
+    for(var hi=0;hi<hosts.length;hi++){
+      push(toHttpUrl(hosts[hi].getAttribute('data-nanoai-cover-image')||''));
+    }
+    document.querySelectorAll('[data-nanoai-open-chat],[data-pw-chrome-btn="chat"],[data-nanoai-consult]').forEach(function(el){
+      if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
+      if(el.getAttribute('data-pw-chrome-btn')==='try-on'||el.hasAttribute('data-nanoai-try-on'))return;
+      push(toHttpUrl(el.getAttribute('data-nanoai-cover-image')||el.getAttribute('data-nanoai-image')||''));
+    });
+    document.querySelectorAll('[data-pw-region="gallery"] [data-pw-el="thumb"] img').forEach(function(img){
+      if(isChromeImg(img))return;
+      if(img.closest&&img.closest('[data-pw-pdp-option="color"]'))return;
+      push(imgUrl(img));
+    });
+    if(!urls[0]){
+      document.querySelectorAll('[data-pw-region="gallery"] img[data-pw-el="main-image"],[data-pw-region="gallery"] .pw-pdp-hero-img,[data-pw-el="main-image"]').forEach(function(img){
+        if(!isChromeImg(img))push(imgUrl(img));
+      });
+    }
+  }
   var inv='';
   var hosts=document.querySelectorAll('[data-pw-region="gallery"],[data-pw-region="pdp-info"],body,html');
   for(var i=0;i<hosts.length;i++){
@@ -473,7 +558,7 @@ document.addEventListener('click',function(ev){
   var ctx=ctxFromEl(el);
   var onPdp=isPdpPage();
   if(mode==='try_on'||mode==='consult'||onPdp){
-    ctx=mergeCtx(ctxFromPdp(),ctx);
+    ctx=mergeCtx(ctxFromPdp(mode==='try_on'),ctx);
   }
   if(mode!=='try_on'&&onPdp&&hasCtx(ctx))mode='consult';
   postOpen({mode:mode,inventoryId:ctx.inventoryId,sku:ctx.sku,imageUrl:ctx.imageUrl,imageUrl2:ctx.imageUrl2,productUrl:ctx.productUrl});

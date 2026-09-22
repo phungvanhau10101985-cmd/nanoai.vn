@@ -13,6 +13,7 @@ echo "[2/5] Dọn file .bak trong sites-enabled (nginx đọc cả thư mục)"
 find /etc/nginx/sites-enabled -maxdepth 1 \( -name '*.bak' -o -name '*.bak.*' -o -name '*~' \) -print -delete 2>/dev/null || true
 
 echo "[3/5] Nginx catch-all (domain shop → app NanoAI, không redirect 188)"
+APP_DIR="${APP_DIR}" bash "${APP_DIR}/deploy/install-nginx-shop-snippets.sh"
 cp "${APP_DIR}/deploy/nginx-partner-catchall.conf" /etc/nginx/sites-available/nanoai-partner-catchall
 ln -sf /etc/nginx/sites-available/nanoai-partner-catchall /etc/nginx/sites-enabled/nanoai-partner-catchall
 

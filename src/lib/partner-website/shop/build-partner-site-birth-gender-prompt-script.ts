@@ -1,4 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { PW_SHOP_INFLIGHT_FETCH_JS } from '@/lib/partner-website/shop/pw-shop-inflight-fetch-js'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import {
   BIRTH_GENDER_PROMPT_COPY,
@@ -23,6 +24,7 @@ export function buildPartnerSiteBirthGenderPromptScript(input: {
 
   return `<script data-pw-birth-gender-prompt-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_INFLIGHT_FETCH_JS};
 var SLUG=${JSON.stringify(siteSlug)};
 var PROFILE_API=${JSON.stringify(profileApi)};
 var COPY=${JSON.stringify({ ...copy, lead })};
@@ -162,8 +164,8 @@ function tryOpen(){
   if(!accountId())return;
   if(!isFresh())return;
   if(ssGet(DISMISS_KEY)==='1'){clearFresh();return;}
-  fetch(PROFILE_API,{credentials:'same-origin',headers:authHeaders()})
-    .then(function(r){capture(r);return r.json();})
+  pwShopInflightFetch(PROFILE_API,authHeaders())
+    .then(function(pack){if(pack&&pack.res)capture(pack.res);return pack&&pack.j?pack.j:null;})
     .then(function(j){
       var p=j&&j.profile?j.profile:null;
       if(!p||!p.email){clearFresh();return;}

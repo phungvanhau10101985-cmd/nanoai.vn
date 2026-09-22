@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { resolveRelatedProductContext } from '@/lib/partner-website/shop/related-products-pg'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerInventoryBuyRowByIdForPartnerFromPg, fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
@@ -38,21 +38,25 @@ export async function GET(
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, id)
+  const isBuyView = request.nextUrl.searchParams.get('view') === 'buy'
+  const row = isBuyView
+    ? await fetchPartnerInventoryBuyRowByIdForPartnerFromPg(shop.partnerId, id)
+    : await fetchPartnerInventoryRowByIdForPartnerFromPg(shop.partnerId, id)
   if (!row || row.is_active === false) {
     return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   }
 
-  const isBuyView = request.nextUrl.searchParams.get('view') === 'buy'
   const product = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: !isBuyView })
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 })
   const [saleConfig, clearanceRow] = await Promise.all([
     fetchPartnerSaleCalendarConfigFromPg(shop.partnerId),
-    pgQueryOne<{ is_clearance: boolean }>(
-      `select is_clearance from public.messaging_partner_inventory
-       where partner_id = $1::uuid and id = $2::uuid`,
-      [shop.partnerId, id]
-    ).catch(() => null),
+    isBuyView
+      ? Promise.resolve(row.is_clearance === true ? { is_clearance: true } : { is_clearance: false })
+      : pgQueryOne<{ is_clearance: boolean }>(
+          `select is_clearance from public.messaging_partner_inventory
+           where partner_id = $1::uuid and id = $2::uuid`,
+          [shop.partnerId, id]
+        ).catch(() => null),
   ])
   product.isClearance = clearanceRow?.is_clearance === true
   const saleCalendar = await resolvePartnerStorefrontSaleCalendarForRequest({

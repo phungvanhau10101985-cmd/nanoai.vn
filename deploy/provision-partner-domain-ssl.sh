@@ -40,6 +40,7 @@ TEMPLATE="${APP_DIR}/deploy/nginx-partner-domain.conf.template"
 
 mkdir -p "${CERTBOT_WEBROOT}"
 mkdir -p "${NGINX_SITES_AVAILABLE}" "${NGINX_SITES_ENABLED}"
+APP_DIR="${APP_DIR}" bash "${APP_DIR}/deploy/install-nginx-shop-snippets.sh"
 
 if [[ -f "/etc/letsencrypt/live/${HOST}/fullchain.pem" ]]; then
   echo "Cert đã tồn tại: ${HOST}"

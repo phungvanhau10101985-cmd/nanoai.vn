@@ -265,6 +265,21 @@ function imagesOf(p){
   return out;
 }
 function isTryOnVideo(u){return /\\.(mp4|webm|mov)(\\?|#|$)/i.test(String(u||''));}
+function coverImageOf(p){
+  var u=String((p&&p.imageUrl)||'').trim();
+  if(u&&!isTryOnVideo(u))return shopPdpOrigSrc(u)||u;
+  var imgs=imagesOf(p);
+  for(var i=0;i<imgs.length;i++){
+    if(!isTryOnVideo(imgs[i]))return shopPdpOrigSrc(imgs[i])||imgs[i];
+  }
+  return '';
+}
+function stampCoverHosts(cover){
+  if(!cover)return;
+  document.querySelectorAll('[data-pw-region="pdp-info"],[data-pw-region="gallery"]').forEach(function(el){
+    el.setAttribute('data-nanoai-cover-image',cover);
+  });
+}
 function stampProductGatewayEl(el,main,second,sku,id,tryOn){
   if(main)el.setAttribute('data-nanoai-image',main);
   if(second)el.setAttribute('data-nanoai-image-2',second);
@@ -289,12 +304,14 @@ function stampTryOnButtons(p){
   if(liveSrc&&!isTryOnVideo(liveSrc))main=shopPdpOrigSrc(liveSrc);
   var sku=String(p.sku||'').trim();
   var id=String(p.id||'').trim();
+  var cover=coverImageOf(p);
+  stampCoverHosts(cover);
   document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
     stampProductGatewayEl(el,main,second,sku,id,true);
   });
   document.querySelectorAll('[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
     if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
-    stampProductGatewayEl(el,main,second,sku,id,false);
+    stampProductGatewayEl(el,cover||main,second,sku,id,false);
   });
 }
 function apply(p){
@@ -1049,8 +1066,7 @@ function bindLive(id){
           if(!galleryFaceVisible(main))return;
           showPdpImage(main,colorPage||colorSrc,colorFull,pill.getAttribute('data-pw-pdp-option-value')||'');
         });
-        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
-          if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
           el.setAttribute('data-nanoai-image',colorFull||colorSrc);
         });
         revealPdpGalleryMainImage();
@@ -1079,8 +1095,7 @@ function bindLive(id){
           if(!galleryFaceVisible(main))return;
           showPdpImage(main,page||src,full,thumbImg&&thumbImg.getAttribute('alt')||'');
         });
-        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"],[data-nanoai-open-chat],[data-pw-chrome-btn="chat"]').forEach(function(el){
-          if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
+        document.querySelectorAll('[data-nanoai-try-on],[data-pw-chrome-btn="try-on"]').forEach(function(el){
           el.setAttribute('data-nanoai-image',full||src);
         });
       }

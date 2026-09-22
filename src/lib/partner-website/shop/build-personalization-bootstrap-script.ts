@@ -1,8 +1,9 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { FEATURED_CATEGORY_TILE_DEFAULT } from '@/lib/partner-website/shop/featured-categories-constants'
+import { FEATURED_CATEGORY_TILE_DEFAULT, FEATURED_CATEGORY_TILE_MAX } from '@/lib/partner-website/shop/featured-categories-constants'
 import { PW_FEATURED_MARQUEE_JS } from '@/lib/partner-website/shop/featured-category-marquee-js'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_INFLIGHT_FETCH_JS } from '@/lib/partner-website/shop/pw-shop-inflight-fetch-js'
 import { PW_SHOP_CARD_IMG_JS } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_PRODUCT_GRID_PAGE_JS } from '@/lib/partner-website/shop/pw-product-grid-page'
 import {
@@ -282,6 +283,7 @@ export function buildPartnerSitePersonalizationBootstrapScript(input: {
 
   return `<script data-pw-personalization-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_INFLIGHT_FETCH_JS};
 var API=${JSON.stringify(apiBase)};
 var SITE_SLUG=${JSON.stringify(slug)};
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
@@ -292,6 +294,7 @@ var HELP_PATH=${JSON.stringify(helpPath)};
 var HUB_PATH=${JSON.stringify(hubPath)};
 var COPY=${JSON.stringify(copy)};
 var FEATURED_LIMIT=${FEATURED_CATEGORY_TILE_DEFAULT};
+var FEATURED_FETCH_LIMIT=${FEATURED_CATEGORY_TILE_MAX};
 ${PW_FEATURED_MARQUEE_JS}
 var SESSION_KEY='app_guest_session_id';
 var SESSION_KEY_LEGACY='nanoai_guest_session_id';
@@ -311,7 +314,15 @@ function captureSession(res){
 function apiFetch(path,opts){
   opts=opts||{};opts.credentials='same-origin';
   opts.headers=Object.assign({},authHeaders(),opts.headers||{});
-  return fetch(API+path,opts).then(function(r){captureSession(r);return r.json().then(function(j){return {ok:r.ok,j:j};});});
+  var method=String(opts.method||'GET').toUpperCase();
+  var url=API+path;
+  if(method==='GET'&&(path.indexOf('/featured-categories')===0||path==='/profile'||path.indexOf('/profile?')===0)){
+    return pwShopInflightFetch(url,opts.headers).then(function(pack){
+      if(pack&&pack.res)captureSession(pack.res);
+      return {ok:!!(pack&&pack.ok),j:pack&&pack.j};
+    });
+  }
+  return fetch(url,opts).then(function(r){captureSession(r);return r.json().then(function(j){return {ok:r.ok,j:j};});});
 }
 function parseUtm(){
   var q=new URLSearchParams(location.search);
@@ -556,8 +567,8 @@ function hydrateFeatured(el){
   }
   if(limit<4)limit=4;
   if(featuredCat)ensureFeaturedMarquee(el);
-  apiFetch('/featured-categories?limit='+limit).then(function(res){
-    var tiles=(res.j&&res.j.tiles)||[];
+  apiFetch('/featured-categories?limit='+FEATURED_FETCH_LIMIT).then(function(res){
+    var tiles=((res.j&&res.j.tiles)||[]).slice(0,limit);
     if(res.j&&res.j.hub_href&&see)see.setAttribute('href',res.j.hub_href);
     if(see&&!see.textContent)see.textContent=COPY.featuredSeeAll;
     if(!tiles.length){
@@ -679,7 +690,7 @@ function paintGuestPicker(el,show){
   }
   picker.hidden=false;
   picker.innerHTML='<p class="pw-rec-picker-lead">'+COPY.recPickerLead+'</p><div class="pw-rec-picker-chips" data-pw-rec-picker-chips="1"></div>';
-  apiFetch('/featured-categories?limit=80').then(function(res){
+  apiFetch('/featured-categories?limit='+FEATURED_FETCH_LIMIT).then(function(res){
     var tiles=(res.j&&res.j.tiles)||[];
     var hub=(res.j&&res.j.hub_href)||HUB_PATH;
     var level2=[];

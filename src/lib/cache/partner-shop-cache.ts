@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto'
-import { isRedisConfigured, redisGet, redisGetInt, redisIncr, redisSetEx } from '@/lib/cache/redis'
+import {
+  isRedisConfigured,
+  redisDel,
+  redisGet,
+  redisGetInt,
+  redisIncr,
+  redisSetEx,
+  redisSetNxEx,
+} from '@/lib/cache/redis'
 
 export const SHOP_LIST_TTL_SEC = 60
 export const SHOP_ITEM_TTL_SEC = 120
@@ -15,6 +23,14 @@ export const SHOP_ID_LIST_TTL_SEC = 600
 export const SHOP_TREE_TTL_SEC = 600
 /** Product sitemap pages — busted by inventory version. */
 export const SHOP_SITEMAP_TTL_SEC = 3600
+/** Custom-domain host → slug. Busted on domain save / SSL / publish. */
+export const HOST_RESOLVE_TTL_SEC = 300
+/** Negative host lookup — short so a newly saved domain is not stuck. */
+export const HOST_RESOLVE_MISS_TTL_SEC = 15
+/** Public marketing slides (sale/warehouse/regular) — not birthday. */
+export const MARKETING_BANNER_PUBLIC_TTL_SEC = 60
+/** Personalization merge claim — skip repeat PG writes for the same pair. */
+export const VISITOR_MERGE_CLAIM_TTL_SEC = 86400
 
 /** Process L0 when Redis is off — same TTL as the Redis entry; cleared on bump. */
 const MEM_CACHE_MAX = 800
@@ -93,6 +109,75 @@ export function bumpSiteCacheLater(slug: string | null | undefined): void {
   bumpLater(bumpSiteCache(slug))
 }
 
+function hostResolveKey(host: string): string {
+  return `pw:host:${host.trim().toLowerCase()}`
+}
+
+export async function bumpHostResolveCache(host: string | null | undefined): Promise<void> {
+  const key = String(host ?? '').trim().toLowerCase()
+  if (!key) return
+  const cacheKey = hostResolveKey(key)
+  forgetMem(cacheKey)
+  await redisDel(cacheKey)
+}
+
+export function bumpHostResolveCacheLater(host: string | null | undefined): void {
+  bumpLater(bumpHostResolveCache(host))
+}
+
+/**
+ * Cache custom-domain host lookup. `null` (unknown host) uses a short TTL so a
+ * newly saved domain is not stuck; positive hits last `HOST_RESOLVE_TTL_SEC`.
+ */
+export async function withHostResolveCache<T>(input: {
+  host: string
+  load: () => Promise<T | null>
+}): Promise<T | null> {
+  const host = input.host.trim().toLowerCase()
+  if (!host) return input.load()
+  const key = hostResolveKey(host)
+  return loadOnce(key, async () => {
+    const hit = await shopCacheGetJson<{ found: false } | { found: true; row: T }>(key, HOST_RESOLVE_TTL_SEC)
+    if (hit) return hit.found ? hit.row : null
+    const value = await input.load()
+    if (value == null) {
+      await shopCacheSetJson(key, HOST_RESOLVE_MISS_TTL_SEC, { found: false })
+      return null
+    }
+    await shopCacheSetJson(key, HOST_RESOLVE_TTL_SEC, { found: true, row: value })
+    return value
+  })
+}
+
+/** True if this caller should run the one-shot work (merge, etc.). */
+export async function claimShopCacheOnce(key: string, ttlSec: number): Promise<boolean> {
+  const id = key.trim()
+  if (!id) return true
+  if (readMem(id)) return false
+  const nx = await redisSetNxEx(id, ttlSec, '1')
+  if (nx === false) {
+    writeMem(id, ttlSec, '1')
+    return false
+  }
+  writeMem(id, ttlSec, '1')
+  return true
+}
+
+export async function releaseShopCacheOnce(key: string): Promise<void> {
+  const id = key.trim()
+  if (!id) return
+  memStore.delete(id)
+  await redisDel(id)
+}
+
+export function visitorMergeClaimCacheKey(input: {
+  partnerId: string
+  fromAccountKey: string
+  toAccountKey: string
+}): string {
+  return `pw:merge:${input.partnerId.trim()}:${input.fromAccountKey.trim()}:${input.toAccountKey.trim()}`
+}
+
 async function readVersionOnce(key: string): Promise<number> {
   const existing = pendingVersions.get(key)
   if (existing) return existing
@@ -155,6 +240,7 @@ export function liveCategoryBindCacheSuffix(input: {
   accountKey: string
   linkedUserId?: string | null
   locale: string
+  /** Ignored — chrome pills and featured tiles share one visitor bind. */
   limit?: number
 }): string {
   return `bind:${hashShopCachePayload({
@@ -162,7 +248,6 @@ export function liveCategoryBindCacheSuffix(input: {
     accountKey: input.accountKey.trim() || 'anonymous',
     linkedUserId: String(input.linkedUserId || '').trim(),
     locale: input.locale,
-    limit: Number(input.limit) || 0,
   })}`
 }
 
@@ -248,6 +333,27 @@ export async function withSiteMetaCache<T>(input: {
     if (value != null) await shopCacheSetJson(key, SITE_META_TTL_SEC, value)
     return value
   })
+}
+
+export function categoryProductCountsFromCacheRecord(
+  rec: Record<string, number> | null | undefined
+): Map<string, number> | null {
+  if (!rec) return null
+  const m = new Map<string, number>()
+  for (const [id, n] of Object.entries(rec)) {
+    const c = Number(n)
+    if (id && Number.isFinite(c) && c > 0) m.set(id, Math.floor(c))
+  }
+  return m
+}
+
+export function categoryProductCountsToCacheRecord(counts: Map<string, number>): Record<string, number> {
+  const rec: Record<string, number> = {}
+  for (const [id, n] of counts) {
+    const c = Number(n)
+    if (id && Number.isFinite(c) && c > 0) rec[id] = Math.floor(c)
+  }
+  return rec
 }
 
 /** Extracted home header/footer for React cart/account — not personalized pills. Bust via `bumpSiteCache`. */

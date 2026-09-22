@@ -56,6 +56,7 @@ test('bind writes PDP gallery as page-sized AliCDN URL, original kept for try-on
   assert.match(next, /21712754886_2079049757\.jpg_1200x1200\.jpg/)
   assert.match(next, new RegExp(`data-pw-full-src="${raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`))
   assert.match(next, /data-nanoai-image="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
+  assert.match(next, /data-nanoai-cover-image="https:\/\/img\.alicdn\.com\/img\/ibank\/2020\/688\/457\/21712754886_2079049757\.jpg"/)
   assert.doesNotMatch(next, /21712754886_2079049757\.jpg_600x600q90\.jpg/)
 })
 
@@ -662,6 +663,8 @@ test('bind upgrades a legacy sticky favorite into 188 like-copy without wiping t
 
 test('bind stamps Chat mua on PDP with the same product image/sku as try-on', () => {
   const html = `<body data-pw-page="product">
+    <section data-pw-region="gallery"></section>
+    <div data-pw-region="pdp-info"></div>
     <button type="button" data-pw-chrome-btn="chat" data-nanoai-open-chat>Chat mua</button>
     <button type="button" data-pw-chrome-btn="chat-zalo">Zalo</button>
     <button type="button" class="is-try" data-pw-chrome-btn="try-on">Thử đồ</button>
@@ -671,6 +674,8 @@ test('bind stamps Chat mua on PDP with the same product image/sku as try-on', ()
   assert.match(next, /data-pw-chrome-btn="chat"[^>]*data-nanoai-sku="SHIRT-9"/)
   assert.match(next, /data-pw-chrome-btn="chat"[^>]*data-nanoai-consult/)
   assert.match(next, /data-pw-chrome-btn="try-on"[^>]*data-nanoai-image="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.match(next, /data-pw-region="gallery"[^>]*data-nanoai-cover-image="https:\/\/new\.example\/shirt\.jpg"/)
+  assert.match(next, /data-pw-region="pdp-info"[^>]*data-nanoai-cover-image="https:\/\/new\.example\/shirt\.jpg"/)
   assert.doesNotMatch(next, /data-pw-chrome-btn="chat-zalo"[^>]*data-nanoai-image/)
 })
 

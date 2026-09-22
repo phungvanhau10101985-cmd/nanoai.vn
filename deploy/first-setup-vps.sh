@@ -67,6 +67,7 @@ pm2 startup systemd -u root --hp /root || true
 
 echo "[9/10] Enable Nginx site (manual server_name check still needed)"
 if [ -f "${APP_DIR}/deploy/nginx-nanoai.conf" ]; then
+  APP_DIR="${APP_DIR}" bash "${APP_DIR}/deploy/install-nginx-shop-snippets.sh"
   cp "${APP_DIR}/deploy/nginx-nanoai.conf" /etc/nginx/sites-available/nanoai
   ln -sf /etc/nginx/sites-available/nanoai /etc/nginx/sites-enabled/nanoai
   nginx -t && systemctl reload nginx

@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { bumpInventoryCacheLater, SITE_META_TTL_SEC, withInventoryShopCache } from '@/lib/cache/partner-shop-cache'
 import {
   defaultPartnerSaleCalendarSettings,
   type PartnerSaleCalendarSettings,
@@ -61,6 +62,19 @@ export async function fetchPartnerSaleCalendarConfigFromPg(
       saleIconAuto: true,
     }
   }
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'shop',
+    suffix: 'sale-cal',
+    ttlSec: SITE_META_TTL_SEC,
+    load: () => fetchPartnerSaleCalendarConfigUncached(partnerId),
+  })
+}
+
+async function fetchPartnerSaleCalendarConfigUncached(
+  partnerId: string
+): Promise<PartnerSaleCalendarConfig> {
+  const defaults = defaultPartnerSaleCalendarSettings()
   const [row, monthRows] = await Promise.all([
     pgQueryOne<SettingsDbRow>(
       `select partner_id::text, enabled, timezone, teaser_days,
@@ -246,5 +260,6 @@ export async function upsertPartnerSaleCalendarConfigFromPg(input: {
       [input.partnerId, month, rule.enabled, rule.discountPercent]
     )
   }
+  bumpInventoryCacheLater(input.partnerId)
   return true
 }

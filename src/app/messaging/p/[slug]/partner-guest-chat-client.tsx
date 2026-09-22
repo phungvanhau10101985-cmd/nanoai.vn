@@ -75,6 +75,12 @@ import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-ke
 import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
 import {
+  guestChatHttpStatusShouldRetry,
+  guestChatLoadShouldToast,
+  isGuestChatLoadAbortError,
+  nextGuestChatLoadRetryDelayMs,
+} from '@/lib/messaging/guest-chat-load'
+import {
   useVisualViewportBottomInset,
   useVisualViewportShellHeightPx,
 } from '@/hooks/use-visual-viewport-bottom-inset'
@@ -1591,7 +1597,7 @@ export function PartnerGuestChatClient({
   /** Dữ liệu view_item lấy trực tiếp từ kho khi không có Meta Pixel. */
   ga4InitialViewItem?: ShopGa4ProductInput | null
 }) {
-  const { toast } = useToast()
+  const { toast, dismiss } = useToast()
   const guestChatKeyboardInset = useVisualViewportBottomInset()
   const guestChatShellHeightPx = useVisualViewportShellHeightPx()
   const guestChatNarrowLayout = useGuestChatNarrowLayout()
@@ -1853,6 +1859,8 @@ export function PartnerGuestChatClient({
   const skipNextAutoScrollRef = useRef(false)
   const loadingOlderRef = useRef(false)
   const loadingCurrentRef = useRef(false)
+  const hasLoadedOnceRef = useRef(false)
+  const loadErrorToastIdRef = useRef<string | null>(null)
   const lastAuthRefreshAtRef = useRef(0)
   const didInitialAutoScrollRef = useRef(false)
   const guestSessionIdRef = useRef<string | null>(null)
@@ -1880,8 +1888,14 @@ export function PartnerGuestChatClient({
   const mergeGuestMessages = useCallback((base: GuestMsg[], incoming: GuestMsg[]): GuestMsg[] => {
     if (!incoming.length) return base
     const byId = new Map<string, GuestMsg>()
-    for (const m of base) byId.set(m.id, m)
-    for (const m of incoming) byId.set(m.id, m)
+    for (const m of base) {
+      if (!m?.id) continue
+      byId.set(m.id, m)
+    }
+    for (const m of incoming) {
+      if (!m?.id) continue
+      byId.set(m.id, m)
+    }
     return Array.from(byId.values()).sort((a, b) => {
       const ta = Date.parse(a.created_at)
       const tb = Date.parse(b.created_at)
@@ -2474,19 +2488,29 @@ export function PartnerGuestChatClient({
       loadingCurrentRef.current = true
       if (!silent) setLoading(true)
     }
+    const shouldToastLoadError = guestChatLoadShouldToast({
+      appendOlder,
+      silent,
+      hasLoadedOnce: hasLoadedOnceRef.current,
+    })
+    const showLoadErrorToast = () => {
+      if (!shouldToastLoadError) return
+      if (loadErrorToastIdRef.current) return
+      loadErrorToastIdRef.current = toast({ title: t.loadError, variant: 'destructive' }).id
+    }
+    const clearLoadErrorToast = () => {
+      const id = loadErrorToastIdRef.current
+      if (!id) return
+      loadErrorToastIdRef.current = null
+      dismiss(id)
+    }
     try {
       const qs = new URLSearchParams()
       if (options?.beforeId) qs.set('before_id', options.beforeId)
       if (!options?.beforeId) qs.set('limit', '50')
       const q = qs.toString()
       const endpoint = `/api/messaging/guest/${encodeURIComponent(slug)}${q ? `?${q}` : ''}`
-      const res = await fetch(endpoint, {
-        credentials: 'same-origin',
-        headers: { ...authHeaders() },
-      })
-      captureGuestSessionFromResponse(res)
-      captureGuestAccountFromResponse(res)
-      const data = (await res.json()) as {
+      type GuestLoadPayload = {
         messages?: GuestMsg[]
         hasMoreOlder?: boolean
         error?: string
@@ -2495,14 +2519,37 @@ export function PartnerGuestChatClient({
         guestProfile?: { birthDate?: string | null; gender?: string | null } | null
         loyaltyStatus?: GuestLoyaltyStatus | null
       }
-      if (res.status === 401) {
-        setUserId(null)
-        setAuthGateRequired(true)
-        setAuthMode('anonymous')
-        return
-      }
-      if (!res.ok) {
-        if (data.error?.startsWith('AUTH_REQUIRED_')) {
+      let attempt = 0
+      let res: Response | null = null
+      let data: GuestLoadPayload | null = null
+      while (true) {
+        try {
+          res = await fetch(endpoint, {
+            credentials: 'same-origin',
+            headers: { ...authHeaders() },
+          })
+          captureGuestSessionFromResponse(res)
+          captureGuestAccountFromResponse(res)
+          data = (await res.json().catch(() => null)) as GuestLoadPayload | null
+        } catch (error) {
+          if (isGuestChatLoadAbortError(error)) return
+          const delay = nextGuestChatLoadRetryDelayMs(attempt)
+          if (delay == null) {
+            showLoadErrorToast()
+            return
+          }
+          attempt += 1
+          await new Promise<void>((resolve) => setTimeout(resolve, delay))
+          continue
+        }
+        if (!res) continue
+        if (res.status === 401) {
+          setUserId(null)
+          setAuthGateRequired(true)
+          setAuthMode('anonymous')
+          return
+        }
+        if (data?.error?.startsWith('AUTH_REQUIRED_')) {
           setAuthGateRequired(true)
           setAuthMode('anonymous')
           toast({
@@ -2511,12 +2558,28 @@ export function PartnerGuestChatClient({
           })
           return
         }
-        toast({ title: data.error || t.loadError, variant: 'destructive' })
+        if (res.ok && data) break
+        if (!guestChatHttpStatusShouldRetry(res.status)) {
+          showLoadErrorToast()
+          return
+        }
+        const delay = nextGuestChatLoadRetryDelayMs(attempt)
+        if (delay == null) {
+          showLoadErrorToast()
+          return
+        }
+        attempt += 1
+        await new Promise<void>((resolve) => setTimeout(resolve, delay))
+      }
+      if (!res || !data) {
+        showLoadErrorToast()
         return
       }
+      clearLoadErrorToast()
       const next = Array.isArray(data.messages) ? data.messages : []
       const normalizedMessages = next
         .filter((m) => {
+          if (!m?.id) return false
           if (m.direction !== 'outbound') return true
           return !/^AUTH_REQUIRED_\d+$/i.test(String(m.body ?? '').trim())
         })
@@ -2577,9 +2640,15 @@ export function PartnerGuestChatClient({
         const g = gp.gender
         setGuestProfileGender((prev) => prev || g)
       }
+      hasLoadedOnceRef.current = true
       setHasLoadedOnce(true)
-    } catch {
-      toast({ title: t.loadError, variant: 'destructive' })
+    } catch (error) {
+      if (isGuestChatLoadAbortError(error)) return
+      if (shouldToastLoadError) {
+        if (!loadErrorToastIdRef.current) {
+          loadErrorToastIdRef.current = toast({ title: t.loadError, variant: 'destructive' }).id
+        }
+      }
     } finally {
       if (appendOlder) {
         loadingOlderRef.current = false
@@ -2592,6 +2661,7 @@ export function PartnerGuestChatClient({
   }, [
     slug,
     toast,
+    dismiss,
     t.guestAuthRequiredAfterLimit,
     t.loadError,
     authHeaders,

@@ -1,4 +1,5 @@
 import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
+import { bumpPartnerCustomDomainResolveCacheForPartnerLater } from '@/lib/db/messaging-partner-custom-domains-pg'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
@@ -625,6 +626,7 @@ export async function upsertPartnerWebsitePg(input: {
     )
     const mapped = row ? mapRow(row) : null
     if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    if (mapped?.partnerId) bumpPartnerCustomDomainResolveCacheForPartnerLater(mapped.partnerId)
     return mapped
   } catch (e) {
     const err = e as { code?: string } | null
@@ -741,6 +743,7 @@ export async function updatePartnerWebsiteDraftPg(input: {
     )
     const mapped = row ? mapRow(row) : null
     if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    if (mapped?.partnerId) bumpPartnerCustomDomainResolveCacheForPartnerLater(mapped.partnerId)
     return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] updatePartnerWebsiteDraftPg', e)
@@ -778,6 +781,7 @@ export async function updatePartnerWebsiteNavFooterPg(input: {
     )
     const mapped = row ? mapRow(row) : null
     if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    if (mapped?.partnerId) bumpPartnerCustomDomainResolveCacheForPartnerLater(mapped.partnerId)
     return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] updatePartnerWebsiteNavFooterPg', e)
@@ -808,6 +812,7 @@ export async function setPartnerWebsitePublishedPg(input: {
     )
     const mapped = row ? mapRow(row) : null
     if (mapped?.siteSlug) bumpSiteCacheLater(mapped.siteSlug)
+    if (mapped?.partnerId) bumpPartnerCustomDomainResolveCacheForPartnerLater(mapped.partnerId)
     return mapped
   } catch (e) {
     console.error('[messaging-partner-websites-pg] setPartnerWebsitePublishedPg', e)

@@ -12,6 +12,8 @@ import {
   resolveGuestAccountLabelFromPg,
 } from '@/lib/messaging/guest-customer-display-name'
 
+const PG_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 /** Chỉ trả về id khi có hàng trong `auth.users` — tránh FK 23503 (session/JWT lệch DB local). */
 export async function resolveLinkedUserIdForCustomerCarePg(
   linkedUserId?: string | null
@@ -742,10 +744,9 @@ export async function fetchGuestWidgetMessagesWindowFromPg(
   | null
 > {
   if (!isPgConfigured()) return null
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   const lim = Math.max(20, Math.min(120, Math.floor(Number(opts?.limit ?? 80)) || 80))
   const beforeIdRaw = typeof opts?.beforeMessageId === 'string' ? opts.beforeMessageId.trim() : ''
-  const beforeId = beforeIdRaw && UUID_RE.test(beforeIdRaw) ? beforeIdRaw : null
+  const beforeId = beforeIdRaw && PG_UUID_RE.test(beforeIdRaw) ? beforeIdRaw : null
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `with anchor as (
@@ -909,7 +910,7 @@ export async function customerCareMessageBelongsToConversationFromPg(
 ): Promise<boolean | null> {
   if (!isPgConfigured()) return null
   const mid = messageId.trim()
-  if (!mid) return false
+  if (!mid || !PG_UUID_RE.test(mid)) return false
   try {
     const row = await pgQueryOne<{ ok: number }>(
       `select 1 as ok from public.customer_care_messages

@@ -52,6 +52,67 @@ function parseFavoriteIds(raw: unknown): string[] {
   return parseInventoryIdList(raw, MAX_FAVORITES)
 }
 
+/**
+ * Gỡ sản phẩm không còn tồn tại khỏi lịch sử/yêu thích.
+ * Không xóa cả hồ sơ cá nhân hóa; chỉ lọc hai mảng ID và luôn khóa theo partner.
+ */
+export async function removePartnerVisitorInventoryIdsFromPg(input: {
+  partnerId: string
+  inventoryIds: string[]
+  accountKey?: string | null
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const partnerId = input.partnerId.trim()
+  const accountKey = input.accountKey?.trim() || null
+  const inventoryIds = [
+    ...new Set(
+      input.inventoryIds
+        .map((id) => id.trim().toLowerCase())
+        .filter((id) => UUID_RE.test(id))
+    ),
+  ]
+  if (!partnerId || inventoryIds.length === 0) return true
+  const arrayOrEmpty = (column: string) =>
+    `case when jsonb_typeof(${column}) = 'array' then ${column} else '[]'::jsonb end`
+  try {
+    await getPgPool().query(
+      `update public.messaging_partner_visitor_personalization v
+       set recently_viewed_ids = (
+             select coalesce(jsonb_agg(to_jsonb(rv.item) order by rv.ord), '[]'::jsonb)
+             from jsonb_array_elements_text(${arrayOrEmpty('v.recently_viewed_ids')})
+               with ordinality as rv(item, ord)
+             where not (lower(trim(rv.item)) = any($2::text[]))
+           ),
+           favorite_ids = (
+             select coalesce(jsonb_agg(to_jsonb(fv.item) order by fv.ord), '[]'::jsonb)
+             from jsonb_array_elements_text(${arrayOrEmpty('v.favorite_ids')})
+               with ordinality as fv(item, ord)
+             where not (lower(trim(fv.item)) = any($2::text[]))
+           ),
+           updated_at = now()
+       where v.partner_id = $1::uuid
+         and ($3::text is null or v.account_key = $3)
+         and (
+           exists (
+             select 1
+             from jsonb_array_elements_text(${arrayOrEmpty('v.recently_viewed_ids')}) as rv(item)
+             where lower(trim(rv.item)) = any($2::text[])
+           )
+           or exists (
+             select 1
+             from jsonb_array_elements_text(${arrayOrEmpty('v.favorite_ids')}) as fv(item)
+             where lower(trim(fv.item)) = any($2::text[])
+           )
+         )`,
+      [partnerId, inventoryIds, accountKey]
+    )
+    return true
+  } catch (e) {
+    console.warn('[removePartnerVisitorInventoryIdsFromPg]', e)
+    return false
+  }
+}
+
 function parseUtmContext(raw: unknown): PartnerVisitorUtmContext {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   const o = raw as Record<string, unknown>

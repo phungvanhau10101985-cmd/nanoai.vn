@@ -25,6 +25,8 @@ import {
   partnerSiteAuthSyncApiPath,
   partnerSiteSessionApiPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { FEATURED_CATEGORY_TILE_MAX } from '@/lib/partner-website/shop/featured-categories-constants'
+import { PW_SHOP_INFLIGHT_FETCH_JS } from '@/lib/partner-website/shop/pw-shop-inflight-fetch-js'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
 import { PW_ACCOUNT_BROWSER_CACHE_KEY_PREFIX } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
@@ -48,7 +50,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
   const shop = getPartnerSiteShopCopy(locale)
   const nav = getPartnerSiteCategoryNavLabels(locale)
   const catApi = partnerSiteCategoriesApiPath(slug)
-  const featuredNavApi = `${partnerSitePersonalizationApiPath(slug, 'featured-categories')}?limit=8`
+  const featuredNavApi = `${partnerSitePersonalizationApiPath(slug, 'featured-categories')}?limit=${FEATURED_CATEGORY_TILE_MAX}`
   const profileApi = partnerSitePersonalizationApiPath(slug, 'profile')
   const productsPath = partnerSiteProductsPath(slug)
   const salePath = partnerSiteInfoPath(slug, 'sale')
@@ -72,6 +74,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
 
   return `<script data-pw-chrome-toggle-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_INFLIGHT_FETCH_JS};
 ${PW_SITE_SALE_MO_SKIP_JS};
 window.__pwChromeToggleBoot=1;
 var SITE_SLUG=${JSON.stringify(slug)};
@@ -753,7 +756,7 @@ function hydratePersonalizedNav(tree){
   if(pwShopLiveUiOff())return;
   var bound=document.querySelectorAll('.pw-nav-main[data-pw-nav-live="1"],.pw-shop-nav-row[data-pw-nav-live="1"]');
   if(bound.length){for(var i=0;i<bound.length;i++)bindNavPills(bound[i],tree);return;}
-  fetch(FEATURED_NAV_API,{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(j){
+  fetchFeaturedNavJson().then(function(j){
     applyFeaturedNav(tree,j);
   }).catch(function(){fillNavRows(tree,[],null,false);});
 }
@@ -834,6 +837,17 @@ function normalizeLoginLinks(){
 }
 var loginIdentityCache=null;
 var loginIdentityLoading=false;
+var loginIdentityFetched=false;
+var loginIdentityForAccount='';
+var loginIdentityFailUntil=0;
+function fetchFeaturedNavJson(){
+  return pwShopInflightFetch(FEATURED_NAV_API,authReqHeaders()).then(function(pack){
+    return pack&&pack.j?pack.j:null;
+  }).catch(function(){return null;});
+}
+function fetchProfileJson(){
+  return pwShopInflightFetch(PROFILE_API,authReqHeaders());
+}
 function loginInitials(name){
   var parts=String(name||'').trim().split(/\\s+/).filter(Boolean);
   if(!parts.length)return '?';
@@ -941,7 +955,15 @@ function stripLoginTextNodes(el){
 }
 function hydrateLoginIdentity(){
   if(pwShopLiveUiOff()){restoreLoginIdentity();return;}
-  if(!isLoggedIn){loginIdentityCache=null;restoreLoginIdentity();return;}
+  if(!isLoggedIn){loginIdentityCache=null;loginIdentityFetched=false;loginIdentityForAccount='';restoreLoginIdentity();return;}
+  if(loginIdentityFetched&&loginIdentityForAccount===accountId&&loginIdentityCache){
+    paintLoginIdentity(loginIdentityCache);
+    return;
+  }
+  if(Date.now()<loginIdentityFailUntil){
+    if(loginIdentityCache)paintLoginIdentity(loginIdentityCache);
+    return;
+  }
   if(!loginIdentityCache){
     var cached=readAccountCache();
     var cachedProfile=cached&&cached.profile;
@@ -958,10 +980,17 @@ function hydrateLoginIdentity(){
   if(loginIdentityCache)paintLoginIdentity(loginIdentityCache);
   if(loginIdentityLoading)return;
   loginIdentityLoading=true;
-  fetch(PROFILE_API,{credentials:'same-origin',headers:authReqHeaders()}).then(function(res){
-    return res.json().catch(function(){return {};});
-  }).then(function(json){
+  fetchProfileJson().then(function(pack){
     loginIdentityLoading=false;
+    if(!pack||!pack.ok){
+      loginIdentityFailUntil=Date.now()+12000;
+      if(!isLoggedIn){restoreLoginIdentity();return;}
+      if(loginIdentityCache)paintLoginIdentity(loginIdentityCache);
+      return;
+    }
+    loginIdentityFetched=true;
+    loginIdentityForAccount=accountId||'';
+    var json=pack.j||{};
     var p=json&&json.profile||{};
     var name=String(p.customer_name||p.greeting_name||'').trim();
     if(!name&&p.email){
@@ -980,6 +1009,7 @@ function hydrateLoginIdentity(){
     paintLoginIdentity(loginIdentityCache);
   }).catch(function(){
     loginIdentityLoading=false;
+    loginIdentityFailUntil=Date.now()+12000;
     if(!isLoggedIn){restoreLoginIdentity();return;}
     if(!loginIdentityCache){
       loginIdentityCache={name:'',avatarUrl:''};
@@ -1539,8 +1569,12 @@ function splitNavTree(tree){
   }
   return {menu:menu,seo:seo};
 }
+var hydrateCatsInFlight=false;
+var hydrateCatsCoolUntil=0;
 function hydrateCats(){
   if(pwShopLiveUiOff())return;
+  if(hydrateCatsInFlight)return;
+  if(Date.now()<hydrateCatsCoolUntil)return;
   var btns=document.querySelectorAll(catSel());
   var panels=[];
   var i;
@@ -1554,8 +1588,9 @@ function hydrateCats(){
   }
   var hasNav=!!document.querySelector('.pw-nav-main,.pw-shop-nav-row');
   if(!panels.length&&!hasNav)return;
-  var catP=fetch(CAT_API,{credentials:'same-origin'}).then(function(r){return r.json()});
-  var navP=hasNav?fetch(FEATURED_NAV_API,{credentials:'same-origin'}).then(function(r){return r.json()}).catch(function(){return null;}):Promise.resolve(null);
+  hydrateCatsInFlight=true;
+  var catP=pwShopInflightFetch(CAT_API,{}).then(function(pack){return pack&&pack.j?pack.j:null;});
+  var navP=hasNav?fetchFeaturedNavJson():Promise.resolve(null);
   Promise.all([catP,navP]).then(function(pair){
     var j=pair[0];
     var featured=pair[1];
@@ -1571,10 +1606,13 @@ function hydrateCats(){
     if(featured)applyFeaturedNav(tree,featured);
     else hydratePersonalizedNav(tree);
   }).catch(function(){
+    hydrateCatsCoolUntil=Date.now()+8000;
     for(i=0;i<panels.length;i++){
       if(!panels[i].querySelector('a'))fillCatPanel(panels[i],[]);
     }
     hydratePersonalizedNav([]);
+  }).finally(function(){
+    hydrateCatsInFlight=false;
   });
 }
 function boot(){

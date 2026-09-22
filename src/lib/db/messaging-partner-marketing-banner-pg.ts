@@ -1,3 +1,4 @@
+import { bumpInventoryCacheLater } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type {
@@ -263,6 +264,7 @@ export async function insertPartnerMarketingBannerAssetFromPg(input: {
       input.source ?? 'ai',
     ]
   )
+  if (row) bumpInventoryCacheLater(input.partnerId)
   return row ? mapRow(row) : null
 }
 
@@ -296,6 +298,7 @@ export async function completePartnerMarketingBannerAssetFromPg(input: {
     )
     await client.query('commit')
     const row = done.rows[0]
+    if (row) bumpInventoryCacheLater(input.partnerId)
     return row ? mapRow(row) : null
   } catch (e) {
     await client.query('rollback')
@@ -351,6 +354,7 @@ export async function activatePartnerMarketingBannerAssetFromPg(input: {
       [row.id]
     )
     await client.query('commit')
+    if (done.rows[0]) bumpInventoryCacheLater(input.partnerId)
     return done.rows[0] ? mapRow(done.rows[0]) : null
   } catch (e) {
     await client.query('rollback')
@@ -398,6 +402,7 @@ export async function deletePartnerMarketingBannerAssetFromPg(input: {
       )
     }
   }
+  bumpInventoryCacheLater(input.partnerId)
   return row
 }
 

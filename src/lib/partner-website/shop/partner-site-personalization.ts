@@ -7,6 +7,7 @@ import {
   MESSAGING_GUEST_ACCOUNT_SYNC_COOKIE,
 } from '@/lib/messaging/guest-account-session'
 import {
+  fetchExistingPartnerInventoryIdsInOrderFromPg,
   fetchPartnerInventoryCardsByIdsInOrderFromPg,
   incrementPartnerInventoryLikesCountFromPg,
   type MessagingPartnerInventoryRow,
@@ -17,6 +18,7 @@ import {
   clearPartnerVisitorRecentlyViewedFromPg,
   fetchPartnerVisitorPersonalizationFromPg,
   mutatePartnerVisitorFavoriteFromPg,
+  removePartnerVisitorInventoryIdsFromPg,
   upsertPartnerVisitorRecentlyViewedFromPg,
   upsertPartnerVisitorUtmContextFromPg,
   type PartnerVisitorUtmContext,
@@ -55,6 +57,12 @@ import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/sho
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
+import {
+  claimShopCacheOnce,
+  releaseShopCacheOnce,
+  VISITOR_MERGE_CLAIM_TTL_SEC,
+  visitorMergeClaimCacheKey,
+} from '@/lib/cache/partner-shop-cache'
 import { getSiteHomeRecommendationBlock } from '@/lib/partner-website/shop/partner-site-home-recommendation'
 import { partnerStorefrontSaleAccountKey } from '@/lib/partner-website/promotions/partner-flash-sale'
 import {
@@ -143,11 +151,19 @@ export async function resolveSiteVisitorContext(
 
   const accountKey = visitorAccountKeyFromThread(thread)!
   if (sessionId && sessionId !== accountKey) {
-    await mergePartnerVisitorPersonalizationFromPg({
+    const claimKey = visitorMergeClaimCacheKey({
       partnerId,
       fromAccountKey: sessionId,
       toAccountKey: accountKey,
     })
+    if (await claimShopCacheOnce(claimKey, VISITOR_MERGE_CLAIM_TTL_SEC)) {
+      const merged = await mergePartnerVisitorPersonalizationFromPg({
+        partnerId,
+        fromAccountKey: sessionId,
+        toAccountKey: accountKey,
+      })
+      if (!merged) await releaseShopCacheOnce(claimKey)
+    }
   }
   return { accountKey, thread, sessionId }
 }
@@ -382,7 +398,21 @@ export async function getSitePersonalizationInventoryIds(input: {
     partnerId: input.partnerId,
     accountKey: input.accountKey,
   })
-  return input.kind === 'favorites' ? (state?.favorite_ids ?? []) : (state?.recently_viewed_ids ?? [])
+  const storedIds =
+    input.kind === 'favorites' ? (state?.favorite_ids ?? []) : (state?.recently_viewed_ids ?? [])
+  if (!storedIds.length) return []
+  const existingIds = await fetchExistingPartnerInventoryIdsInOrderFromPg(input.partnerId, storedIds)
+  if (!existingIds) return storedIds
+  const existing = new Set(existingIds.map((id) => id.toLowerCase()))
+  const staleIds = storedIds.filter((id) => !existing.has(id.toLowerCase()))
+  if (staleIds.length) {
+    await removePartnerVisitorInventoryIdsFromPg({
+      partnerId: input.partnerId,
+      accountKey: input.accountKey,
+      inventoryIds: staleIds,
+    })
+  }
+  return existingIds
 }
 
 export async function getSiteRecentlyViewedProducts(input: {

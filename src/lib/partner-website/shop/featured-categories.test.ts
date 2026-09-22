@@ -3,12 +3,14 @@ import test from 'node:test'
 import type { PartnerCategoryTreeNode } from '@/lib/partner-website/category/partner-category-types'
 import {
   collectViewedFeaturedL3Ids,
+  emptyFeaturedCategoryBlock,
   featuredCategoryGenderLabel,
   flattenFeaturedCategoryCandidates,
   inferApparelGenderFromCandidates,
   pickFeaturedCategoryTiles,
   pickRecentViewNavPills,
   shortFeaturedCategoryName,
+  sliceFeaturedCategoryBlock,
   tokenOverlapScore,
   type FeaturedCategoryCandidate,
 } from '@/lib/partner-website/shop/featured-categories'
@@ -232,4 +234,25 @@ test('featured tiles put recently viewed L3 first then fill popular L3', () => {
     3
   )
   assert.equal(picked.some((c) => c.id === 'nam'), false)
+})
+
+test('sliceFeaturedCategoryBlock keeps nav pills and trims tiles only', () => {
+  const block = {
+    ...emptyFeaturedCategoryBlock('demo-shop'),
+    tiles: [
+      { id: 'a', name: 'A', short_name: 'A', path: 'a', href: '/c/a', image_url: '', product_count: 1, level: 3 as const },
+      { id: 'b', name: 'B', short_name: 'B', path: 'b', href: '/c/b', image_url: '', product_count: 1, level: 3 as const },
+      { id: 'c', name: 'C', short_name: 'C', path: 'c', href: '/c/c', image_url: '', product_count: 1, level: 3 as const },
+      { id: 'd', name: 'D', short_name: 'D', path: 'd', href: '/c/d', image_url: '', product_count: 1, level: 3 as const },
+      { id: 'e', name: 'E', short_name: 'E', path: 'e', href: '/c/e', image_url: '', product_count: 1, level: 3 as const },
+    ],
+    nav_pills: [
+      { id: 'p', name: 'P', short_name: 'P', path: 'p', href: '/c/p', image_url: '', product_count: 2, level: 2 as const },
+    ],
+  }
+  const sliced = sliceFeaturedCategoryBlock(block, 4)
+  assert.equal(sliced.tiles.length, 4)
+  assert.equal(sliced.tiles[0]?.id, 'a')
+  assert.equal(sliced.nav_pills.length, 1)
+  assert.equal(block.tiles.length, 5)
 })

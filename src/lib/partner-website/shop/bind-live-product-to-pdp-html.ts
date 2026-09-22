@@ -1726,7 +1726,14 @@ function stampTryOnContextInHtml(html: string, product: LivePdpBindProduct): str
   const id = String(product.id || '').trim()
   if (!primary && !id) return html
   const ctx = { primary, secondary, sku, id }
-  const out = html.replace(
+  let out = html
+  if (primary) {
+    out = out.replace(
+      /<([a-z0-9]+)\b([^>]*\bdata-pw-region=["'](?:pdp-info|gallery)["'][^>]*)>/gi,
+      (_full, tag: string, attrs: string) => `<${tag}${setAttr(attrs, 'data-nanoai-cover-image', primary)}>`
+    )
+  }
+  out = out.replace(
     /<(button|a)\b([^>]*\b(?:data-nanoai-try-on|data-pw-chrome-btn=["']try-on["'])[^>]*)>/gi,
     (_full, tag: string, attrs: string) => `<${tag}${stampProductGatewayAttrs(attrs, { ...ctx, tryOn: true })}>`
   )

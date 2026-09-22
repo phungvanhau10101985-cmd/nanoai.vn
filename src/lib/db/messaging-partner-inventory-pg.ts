@@ -24,6 +24,7 @@ import {
   scheduleBunnyCleanupForDeletedInventory,
   type InventoryBunnyDeleteSnapshot,
 } from '@/lib/messaging/inventory-bunny-delete'
+import { removePartnerVisitorInventoryIdsFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
@@ -1121,6 +1122,34 @@ const INVENTORY_SHOP_SELECT_PRE_CATALOG = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STU
   /\n  mpi\.catalog_json,[\s\S]*mpi\.question_group_id,/,
   ''
 )
+
+/** Add-to-cart / variant modal — sizes/colors/price, not description/gallery/catalog blob. */
+const INVENTORY_BUY_SELECT = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO.replace(
+  "  coalesce(mpi.description, '') as description,\n",
+  "  ''::text as description,\n"
+)
+  .replace("  coalesce(mpi.consult_note, '') as consult_note,\n", "  ''::text as consult_note,\n")
+  .replace("  coalesce(mpi.material_note, '') as material_note,\n", "  ''::text as material_note,\n")
+  .replace(
+    "  coalesce(mpi.material_detail_image_url, '') as material_detail_image_url,\n",
+    "  ''::text as material_detail_image_url,\n"
+  )
+  .replace("  coalesce(mpi.real_use_image_url, '') as real_use_image_url,\n", "  ''::text as real_use_image_url,\n")
+  .replace(
+    "  coalesce(mpi.real_use_image_url_2, '') as real_use_image_url_2,\n",
+    "  ''::text as real_use_image_url_2,\n"
+  )
+  .replace("  coalesce(mpi.product_video_url, '') as product_video_url,\n", "  ''::text as product_video_url,\n")
+  .replace(
+    "  coalesce(mpi.is_active, true) as is_active,\n",
+    "  coalesce(mpi.is_active, true) as is_active,\n  coalesce(mpi.is_clearance, false) as is_clearance,\n"
+  )
+  .replace('  mpi.gallery_urls,\n', '  null::jsonb as gallery_urls,\n')
+  .replace('  mpi.detail_image_urls,\n', '  null::jsonb as detail_image_urls,\n')
+  .replace('  mpi.product_studio_meta,\n', '  null::jsonb as product_studio_meta,\n')
+  .replace('  mpi.catalog_json,\n', '  null::jsonb as catalog_json,\n')
+  .replace('  mpi.product_info_json,\n', '  null::jsonb as product_info_json,\n')
+  .replace('  mpi.features_json,\n', '  null::jsonb as features_json,\n')
 
 async function runInventoryShopSelectWithFallback(
   sqlFromSelect: string,
@@ -2721,6 +2750,47 @@ export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   })
 }
 
+async function runInventoryBuySelectWithFallback(
+  sqlFromSelect: string,
+  params: unknown[]
+): Promise<PgInventoryRaw[]> {
+  try {
+    return await pgQuery<PgInventoryRaw>(`${INVENTORY_BUY_SELECT}\n${sqlFromSelect}`, params)
+  } catch (e) {
+    const code = e && typeof e === 'object' ? String((e as { code?: string }).code ?? '') : ''
+    if (code !== '42703') throw e
+    return runInventoryShopSelectWithFallback(sqlFromSelect, params)
+  }
+}
+
+/** Variant modal / add-to-cart — same mapper as PDP, without description/gallery/catalog blobs. */
+export async function fetchPartnerInventoryBuyRowByIdForPartnerFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<MessagingPartnerInventoryRow | null> {
+  if (!isPgConfigured()) return null
+  return withInventoryShopCache({
+    partnerId,
+    kind: 'item',
+    suffix: `buy:${inventoryId.trim()}`,
+    ttlSec: SHOP_ITEM_TTL_SEC,
+    load: async () => {
+      try {
+        const rows = await runInventoryBuySelectWithFallback(
+          `where mpi.partner_id = $1::uuid and mpi.id = $2::uuid
+           limit 1`,
+          [partnerId, inventoryId]
+        )
+        const row = rows[0] ?? null
+        return row ? mapPgInventoryRow(row) : null
+      } catch (e) {
+        console.warn('[fetchPartnerInventoryBuyRowByIdForPartnerFromPg]', e)
+        return null
+      }
+    },
+  })
+}
+
 export type PartnerInventoryReviewQuestionLookup = {
   ratingGroupId: number | null
   questionGroupId: number | null
@@ -3194,6 +3264,35 @@ export async function updatePartnerInventoryTextEmbeddingFieldsFromPg(
 /**
  * Lấy đủ dòng inventory theo thứ tự `ids` (giữ thứ tự để merge với điểm ANN).
  */
+export async function fetchExistingPartnerInventoryIdsInOrderFromPg(
+  partnerId: string,
+  ids: string[]
+): Promise<string[] | null> {
+  if (!isPgConfigured()) return null
+  const clean = [
+    ...new Set(
+      ids
+        .map((id) => id.trim())
+        .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    ),
+  ]
+  if (!clean.length) return []
+  try {
+    const rows = await pgQuery<{ id: string }>(
+      `select mpi.id::text as id
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and mpi.id = any($2::uuid[])
+       order by array_position($2::uuid[], mpi.id)`,
+      [partnerId, clean]
+    )
+    return rows.map((row) => row.id)
+  } catch (e) {
+    console.warn('[fetchExistingPartnerInventoryIdsInOrderFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerInventoryCardsByIdsInOrderFromPg(
   partnerId: string,
   ids: string[]
@@ -3446,20 +3545,32 @@ export async function deletePartnerInventoryByIdsForPartnerFromPg(
   try {
     for (let i = 0; i < ids.length; i += INVENTORY_DELETE_CHUNK) {
       const chunk = ids.slice(i, i + INVENTORY_DELETE_CHUNK)
+      let deletedSnapshots: InventoryBunnyDeleteSnapshot[]
       try {
-        snapshots.push(
-          ...(await deleteInventoryChunkReturningSnapshots(partnerId, chunk, INVENTORY_BUNNY_DELETE_RETURNING))
+        deletedSnapshots = await deleteInventoryChunkReturningSnapshots(
+          partnerId,
+          chunk,
+          INVENTORY_BUNNY_DELETE_RETURNING
         )
       } catch (e) {
         const err = e as { code?: string }
         if (err.code !== '42703') throw e
-        snapshots.push(
-          ...(await deleteInventoryChunkReturningSnapshots(
-            partnerId,
-            chunk,
-            INVENTORY_BUNNY_DELETE_RETURNING_SLIM
-          ))
+        deletedSnapshots = await deleteInventoryChunkReturningSnapshots(
+          partnerId,
+          chunk,
+          INVENTORY_BUNNY_DELETE_RETURNING_SLIM
         )
+      }
+      snapshots.push(...deletedSnapshots)
+      const personalizationCleaned = await removePartnerVisitorInventoryIdsFromPg({
+        partnerId,
+        inventoryIds: chunk,
+      })
+      if (!personalizationCleaned) {
+        console.warn('[deletePartnerInventoryByIdsForPartnerFromPg] visitor personalization cleanup failed', {
+          partnerId,
+          inventoryIds: chunk,
+        })
       }
     }
     bumpInventoryCacheLater(partnerId)

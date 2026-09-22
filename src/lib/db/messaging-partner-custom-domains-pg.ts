@@ -1,6 +1,10 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
+  bumpHostResolveCacheLater,
+  withHostResolveCache,
+} from '@/lib/cache/partner-shop-cache'
+import {
   partnerCustomDomainHostLookupNames,
   partnerCustomDomainPublicOrigin,
 } from '@/lib/messaging/partner-custom-domain-hostname'
@@ -36,6 +40,37 @@ export type UpsertPartnerCustomDomainResult =
 const DOMAIN_RETURNING = `id, partner_id, hostname, verification_token,
             dns_verified_at, ssl_status, ssl_provisioned_at, ssl_last_error,
             use_for_chat, use_for_site, created_at, updated_at`
+
+function bumpCustomDomainResolveHostsLater(...hosts: Array<string | null | undefined>): void {
+  const seen = new Set<string>()
+  for (const raw of hosts) {
+    const host = String(raw ?? '').trim().toLowerCase()
+    if (!host) continue
+    for (const name of partnerCustomDomainHostLookupNames(host)) {
+      if (seen.has(name)) continue
+      seen.add(name)
+      bumpHostResolveCacheLater(name)
+    }
+  }
+}
+
+export function bumpPartnerCustomDomainResolveCacheLater(
+  ...hosts: Array<string | null | undefined>
+): void {
+  bumpCustomDomainResolveHostsLater(...hosts)
+}
+
+export function bumpPartnerCustomDomainResolveCacheForPartnerLater(partnerId: string): void {
+  const id = partnerId.trim()
+  if (!id) return
+  void fetchPartnerCustomDomainByPartnerIdPg(id)
+    .then((row) => {
+      bumpCustomDomainResolveHostsLater(row?.hostname)
+    })
+    .catch(() => {
+      /* fail-open */
+    })
+}
 
 function pgErrCode(e: unknown): string | null {
   if (!e || typeof e !== 'object') return null
@@ -122,8 +157,12 @@ export async function upsertPartnerCustomDomainPg(input: {
 }): Promise<UpsertPartnerCustomDomainResult> {
   if (!isPgConfigured()) return { ok: false, error: 'save_failed' }
   try {
+    const previous = await fetchPartnerCustomDomainByPartnerIdPg(input.partnerId)
     const updated = await updatePartnerCustomDomainRowPg(input)
-    if (updated) return { ok: true, row: updated }
+    if (updated) {
+      bumpCustomDomainResolveHostsLater(previous?.hostname, updated.hostname)
+      return { ok: true, row: updated }
+    }
 
     const inserted = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_custom_domains
@@ -132,7 +171,11 @@ export async function upsertPartnerCustomDomainPg(input: {
        returning ${DOMAIN_RETURNING}`,
       [input.partnerId, input.hostname, input.verificationToken, input.useForChat, input.useForSite]
     )
-    if (inserted) return { ok: true, row: mapRow(inserted) }
+    if (inserted) {
+      const row = mapRow(inserted)
+      bumpCustomDomainResolveHostsLater(previous?.hostname, row.hostname)
+      return { ok: true, row }
+    }
     return { ok: false, error: 'save_failed' }
   } catch (e) {
     if (isHostnameUniqueViolation(e)) {
@@ -141,7 +184,10 @@ export async function upsertPartnerCustomDomainPg(input: {
     if (pgErrCode(e) === '23505') {
       try {
         const raced = await updatePartnerCustomDomainRowPg(input)
-        if (raced) return { ok: true, row: raced }
+        if (raced) {
+          bumpCustomDomainResolveHostsLater(raced.hostname)
+          return { ok: true, row: raced }
+        }
       } catch (retryErr) {
         if (isHostnameUniqueViolation(retryErr)) return { ok: false, error: 'hostname_taken' }
         console.error('[upsertPartnerCustomDomainPg] retry', retryErr)
@@ -169,6 +215,7 @@ export async function updatePartnerCustomDomainVerificationPg(input: {
      where partner_id = $1::uuid`,
     [input.partnerId, input.dnsVerified, input.sslStatus, input.sslLastError ?? null]
   )
+  bumpPartnerCustomDomainResolveCacheForPartnerLater(input.partnerId)
   return true
 }
 
@@ -186,12 +233,15 @@ export async function updatePartnerCustomDomainFlagsPg(input: {
      where partner_id = $1::uuid`,
     [input.partnerId, input.useForChat, input.useForSite]
   )
+  bumpPartnerCustomDomainResolveCacheForPartnerLater(input.partnerId)
   return true
 }
 
 export async function deletePartnerCustomDomainPg(partnerId: string): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const previous = await fetchPartnerCustomDomainByPartnerIdPg(partnerId)
   await pgQuery(`delete from public.messaging_partner_custom_domains where partner_id = $1::uuid`, [partnerId])
+  bumpCustomDomainResolveHostsLater(previous?.hostname)
   return true
 }
 
@@ -202,6 +252,16 @@ export async function resolveActivePartnerCustomDomainByHostPg(
   const host = hostname.trim().toLowerCase()
   const lookup = partnerCustomDomainHostLookupNames(host)
   if (lookup.length === 0) return null
+  return withHostResolveCache({
+    host,
+    load: () => resolveActivePartnerCustomDomainByHostUncached(host, lookup),
+  })
+}
+
+async function resolveActivePartnerCustomDomainByHostUncached(
+  host: string,
+  lookup: string[]
+): Promise<PartnerCustomDomainResolveRow | null> {
   const row = await pgQueryOne<Record<string, unknown>>(
     `select d.partner_id, p.slug as partner_slug,
             w.site_slug, coalesce(w.is_published, false) as site_published,

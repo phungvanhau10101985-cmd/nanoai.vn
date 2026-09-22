@@ -4,6 +4,10 @@ import { fetchPartnerCustomerProfileByEmailFromPg } from '@/lib/db/messaging-par
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import {
+  MARKETING_BANNER_PUBLIC_TTL_SEC,
+  withInventoryShopCache,
+} from '@/lib/cache/partner-shop-cache'
+import {
   findActivePartnerMarketingBannerByKindFromPg,
   findActivePartnerMarketingBannerFromPg,
   findTestPartnerBirthdayBannerFromPg,
@@ -158,8 +162,6 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
   guestAccountId?: string | null
 }): Promise<PartnerMarketingBannerPublicItem[]> {
   let birthdayItem: PartnerMarketingBannerPublicItem | null = null
-  let saleItem: PartnerMarketingBannerPublicItem | null = null
-  let warehouseItem: PartnerMarketingBannerPublicItem | null = null
   const locale = input.locale ?? 'vi'
   const visitorEmail = await resolveVisitorEmailForBanners({
     partnerId: input.partnerId,
@@ -218,9 +220,82 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
     }
   }
 
+  const publicSlides = await resolvePublicPartnerMarketingBannerSlides({
+    partnerId: input.partnerId,
+    siteSlug: input.siteSlug,
+  })
+  let saleItem = publicSlides.sale
   const sale = await resolvePartnerStorefrontSaleCalendarFromPg({
     partnerId: input.partnerId,
     visitorEmail,
+  })
+  if (sale.isTest) {
+    const saleLookup = partnerSaleBannerLookupDate(sale)
+    if (saleLookup) {
+      let asset = await findActivePartnerMarketingBannerFromPg({
+        partnerId: input.partnerId,
+        kind: 'sale',
+        day: saleLookup.day,
+        month: saleLookup.month,
+        discountPercent: sale.discountPercent,
+      })
+      if (!asset) {
+        asset = await findActivePartnerMarketingBannerByKindFromPg({
+          partnerId: input.partnerId,
+          kind: 'sale',
+        })
+      }
+      saleItem = asset
+        ? toPublicItem(asset, {
+            siteSlug: input.siteSlug,
+            eventDate: sale.saleDate,
+            greeting: null,
+            isTest: true,
+            eventLabel: sale.eventLabel,
+          })
+        : null
+    } else {
+      saleItem = null
+    }
+  }
+
+  return composePartnerMarketingBannerSlides({
+    birthday: birthdayItem,
+    sale: saleItem,
+    warehouse: publicSlides.warehouse,
+    regulars: publicSlides.regulars,
+  })
+}
+
+type PublicMarketingBannerSlides = {
+  sale: PartnerMarketingBannerPublicItem | null
+  warehouse: PartnerMarketingBannerPublicItem | null
+  regulars: PartnerMarketingBannerPublicItem[]
+}
+
+async function resolvePublicPartnerMarketingBannerSlides(input: {
+  partnerId: string
+  siteSlug: string
+}): Promise<PublicMarketingBannerSlides> {
+  const dayKey = new Date().toISOString().slice(0, 10)
+  return withInventoryShopCache({
+    partnerId: input.partnerId,
+    kind: 'shop',
+    suffix: `mkt-banners:${dayKey}:${input.siteSlug.trim().toLowerCase()}`,
+    ttlSec: MARKETING_BANNER_PUBLIC_TTL_SEC,
+    load: () => loadPublicPartnerMarketingBannerSlides(input),
+  })
+}
+
+async function loadPublicPartnerMarketingBannerSlides(input: {
+  partnerId: string
+  siteSlug: string
+}): Promise<PublicMarketingBannerSlides> {
+  let saleItem: PartnerMarketingBannerPublicItem | null = null
+  let warehouseItem: PartnerMarketingBannerPublicItem | null = null
+  const sale = await resolvePartnerStorefrontSaleCalendarFromPg({
+    partnerId: input.partnerId,
+    visitorEmail: null,
   })
   const saleLookup = partnerSaleBannerLookupDate(sale)
   if (saleLookup) {
@@ -267,10 +342,5 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
     .map((row) => toPublicItem(row, { siteSlug: input.siteSlug }))
     .filter((item): item is PartnerMarketingBannerPublicItem => Boolean(item))
 
-  return composePartnerMarketingBannerSlides({
-    birthday: birthdayItem,
-    sale: saleItem,
-    warehouse: warehouseItem,
-    regulars,
-  })
+  return { sale: saleItem, warehouse: warehouseItem, regulars }
 }

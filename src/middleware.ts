@@ -148,7 +148,7 @@ export async function middleware(request: NextRequest) {
           host: hostHeader,
           'x-forwarded-proto': request.headers.get('x-forwarded-proto') ?? 'https',
         },
-        cache: 'no-store',
+        next: { revalidate: 60 },
       })
       if (res.ok) {
         const data = (await res.json()) as {

@@ -72,6 +72,7 @@ test('prompt script skips login path and validates calendar like 188', () => {
   assert.match(script, /Get your birthday offer/)
   assert.match(script, /isLoginPath/)
   assert.match(script, /needGender/)
+  assert.match(script, /pwShopInflightFetch/)
   assert.doesNotMatch(script, /#ea580c|#f97316/)
   assert.equal(isPartnerSiteShopLoginPath('/site/hotel-shop/login'), true)
   assert.equal(isPartnerSiteShopLoginPath('/login'), true)

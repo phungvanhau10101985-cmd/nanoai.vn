@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 import {
   PARTNER_SITE_CHAT_OPEN_SELECTOR,
   buildPartnerSiteConsultEmbedPath,
   buildPartnerSiteLandingChatBridgeScript,
+  consultContextFromPdpDocument,
   hasPartnerSiteConsultContext,
   isPartnerPdpDocument,
   partnerSiteChatOpenModeFromEl,
+  resolvePartnerSiteChatOpenFromEventTarget,
   resolvePartnerTryOnImageUrl,
   stampPartnerSiteChatOpenAttrsInHtml,
 } from '@/lib/partner-website/shop/partner-site-chat-embed'
@@ -85,6 +88,8 @@ test('try-on embed path puts the product image into ctx_image like 188', () => {
 test('chat bridge try-on reads PDP gallery, not the header logo', () => {
   const s = buildPartnerSiteLandingChatBridgeScript()
   assert.match(s, /function ctxFromPdp/)
+  assert.match(s, /ctxFromPdp\(mode==='try_on'\)/)
+  assert.match(s, /data-nanoai-cover-image/)
   assert.match(s, /data-pw-el="main-image"/)
   assert.match(s, /pw-pdp-hero-img/)
   assert.match(s, /function isChromeImg/)
@@ -121,4 +126,39 @@ test('stampPartnerSiteChatOpenAttrsInHtml keeps existing open-chat attrs', () =>
   const next = stampPartnerSiteChatOpenAttrsInHtml(html)
   assert.equal(next.split('data-nanoai-open-chat').length, 2)
   assert.equal(next.split('pw-chat-open').length, 2)
+})
+
+test('same-system consult chip uses cover image, not the active color pill', () => {
+  const { document } = parseHTML(`<!DOCTYPE html>
+<html data-pw-page="product">
+<body data-pw-page="product">
+  <section data-pw-region="gallery" data-nanoai-cover-image="https://cdn.shop/cover.jpg">
+    <img data-pw-el="main-image" class="pw-pdp-hero-img" src="https://cdn.shop/color-black.jpg" data-pw-full-src="https://cdn.shop/color-black.jpg" alt="" />
+    <button data-pw-el="thumb"><img src="https://cdn.shop/cover.jpg" alt="" /></button>
+    <div data-pw-el="variant" data-pw-pdp-option="color">
+      <button type="button" class="pw-pdp-pill is-active">
+        <img src="https://cdn.shop/color-black.jpg" alt="Đen" />
+      </button>
+    </div>
+  </section>
+  <div data-pw-region="pdp-info" data-inventory-id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb">
+    <strong data-pw-el="sku">BAG-1</strong>
+  </div>
+  <button type="button" data-pw-chrome-btn="chat" data-nanoai-open-chat data-nanoai-image="https://cdn.shop/cover.jpg" data-nanoai-sku="BAG-1">Chat mua</button>
+  <button type="button" data-pw-chrome-btn="try-on" data-nanoai-try-on data-nanoai-image="https://cdn.shop/color-black.jpg">Thử đồ</button>
+</body>
+</html>`)
+  const consult = consultContextFromPdpDocument(document)
+  assert.equal(consult.imageUrl, 'https://cdn.shop/cover.jpg')
+  assert.equal(consult.sku, 'BAG-1')
+  const tryOn = consultContextFromPdpDocument(document, null, { liveViewingImage: true })
+  assert.equal(tryOn.imageUrl, 'https://cdn.shop/color-black.jpg')
+  const chatBtn = document.querySelector('[data-pw-chrome-btn="chat"]')
+  const opened = resolvePartnerSiteChatOpenFromEventTarget(chatBtn)
+  assert.equal(opened?.mode, 'consult')
+  assert.equal(opened?.ctx.imageUrl, 'https://cdn.shop/cover.jpg')
+  const tryBtn = document.querySelector('[data-pw-chrome-btn="try-on"]')
+  const tryOpened = resolvePartnerSiteChatOpenFromEventTarget(tryBtn)
+  assert.equal(tryOpened?.mode, 'try_on')
+  assert.equal(tryOpened?.ctx.imageUrl, 'https://cdn.shop/color-black.jpg')
 })

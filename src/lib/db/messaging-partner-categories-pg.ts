@@ -1,4 +1,10 @@
-import { bumpInventoryCacheLater, SHOP_TREE_TTL_SEC, withInventoryShopCache } from '@/lib/cache/partner-shop-cache'
+import {
+  bumpInventoryCacheLater,
+  categoryProductCountsFromCacheRecord,
+  categoryProductCountsToCacheRecord,
+  SHOP_TREE_TTL_SEC,
+  withInventoryShopCache,
+} from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
@@ -457,6 +463,19 @@ export async function fetchDirectProductCountsByCategoryFromPg(
   partnerId: string
 ): Promise<Map<string, number> | null> {
   if (!isPgConfigured()) return null
+  const rec = await withInventoryShopCache({
+    partnerId,
+    kind: 'tree',
+    suffix: 'counts',
+    ttlSec: SHOP_TREE_TTL_SEC,
+    load: () => fetchDirectProductCountsByCategoryUncached(partnerId),
+  })
+  return categoryProductCountsFromCacheRecord(rec)
+}
+
+async function fetchDirectProductCountsByCategoryUncached(
+  partnerId: string
+): Promise<Record<string, number> | null> {
   try {
     const rows = await pgQuery<{ category_id: string; c: number }>(
       `select pic.category_id::text, count(*)::int as c
@@ -470,9 +489,9 @@ export async function fetchDirectProductCountsByCategoryFromPg(
     )
     const m = new Map<string, number>()
     for (const r of rows) m.set(r.category_id, r.c)
-    return m
+    return categoryProductCountsToCacheRecord(m)
   } catch (e) {
-    if (isMissingCategoriesTableError(e)) return new Map()
+    if (isMissingCategoriesTableError(e)) return null
     console.warn('[fetchDirectProductCountsByCategoryFromPg]', e)
     return null
   }

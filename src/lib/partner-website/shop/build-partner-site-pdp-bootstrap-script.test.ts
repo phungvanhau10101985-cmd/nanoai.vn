@@ -35,6 +35,8 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /function pdpBuyBox/)
   assert.doesNotMatch(s, /\[data-pw-region="reviews"\] \[data-pw-el="card"\]'\)\.forEach\(function\(card\)\{card\.innerHTML=''/)
   assert.match(s, /function stampTryOnButtons/)
+  assert.match(s, /function coverImageOf/)
+  assert.match(s, /data-nanoai-cover-image/)
   assert.match(s, /data-nanoai-image/)
   assert.match(s, /function paintPdpBirthday/)
   assert.match(s, /birthdaySave/)
@@ -120,6 +122,14 @@ test('PDP bootstrap paints helpful count outside the button and opens a write mo
   assert.match(s, /photoThumb\.classList\.add\('is-active'\);\s*revealPdpGalleryMainImage\(\)/)
   assert.match(s, /videoThumb\.classList\.add\('is-active'\);\s*revealPdpGalleryMainImage\(\)/)
   assert.match(s, /el\.setAttribute\('data-nanoai-image',colorFull\|\|colorSrc\);\s*\}\);\s*revealPdpGalleryMainImage\(\)/)
+  assert.match(
+    s,
+    /querySelectorAll\('\[data-nanoai-try-on\],\[data-pw-chrome-btn="try-on"\]'\)\.forEach\(function\(el\)\{\s*el\.setAttribute\('data-nanoai-image',colorFull\|\|colorSrc\)/
+  )
+  assert.doesNotMatch(
+    s,
+    /\[data-nanoai-try-on\],\[data-pw-chrome-btn="try-on"\],\[data-nanoai-open-chat\],\[data-pw-chrome-btn="chat"\]/
+  )
   assert.match(s, /if\(el\.parentElement!==document\.body\)document\.body\.appendChild\(el\)/)
   assert.doesNotMatch(s, /getAttribute\('data-pw-pdp-live'\)==='1'\)return/)
 })

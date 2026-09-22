@@ -1,6 +1,7 @@
 import { withLiveCategoryBindCache } from '@/lib/cache/partner-shop-cache'
 import { fetchNanoaiChatProfileFromPg } from '@/lib/db/profiles-repo'
 import { isPgConfigured } from '@/lib/db/pool'
+import { isPgTransientError } from '@/lib/db/pg-transient'
 import {
   fetchDirectProductCountsByCategoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
@@ -100,6 +101,36 @@ function clampLevel(depth: number): 1 | 2 | 3 {
   if (n <= 1) return 1
   if (n >= 3) return 3
   return 2
+}
+
+export function clampFeaturedCategoryLimit(limit?: number): number {
+  return Math.max(
+    4,
+    Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(limit) || FEATURED_CATEGORY_TILE_DEFAULT))
+  )
+}
+
+export function emptyFeaturedCategoryBlock(siteSlug: string): FeaturedCategoryBlock {
+  return {
+    tiles: [],
+    nav_pills: [],
+    nav_row: [],
+    show_nav_all: false,
+    gender: null,
+    gender_label: null,
+    source: 'popular_fallback',
+    hub_href: partnerSiteCategoryHubPath(siteSlug),
+  }
+}
+
+/** Chrome pills (`limit=8`) and marquee (`limit=16`) share one cached block; slice tiles after. */
+export function sliceFeaturedCategoryBlock(
+  block: FeaturedCategoryBlock,
+  limit?: number
+): FeaturedCategoryBlock {
+  const n = clampFeaturedCategoryLimit(limit)
+  if (block.tiles.length <= n) return block
+  return { ...block, tiles: block.tiles.slice(0, n) }
 }
 
 export function shortFeaturedCategoryName(name: string, maxLen = 22): string {
@@ -460,23 +491,15 @@ async function getSiteFeaturedCategoryBlockUncached(input: {
   limit?: number
 }): Promise<FeaturedCategoryBlock> {
   const locale = input.locale && ['vi', 'en', 'zh', 'ja', 'ko'].includes(input.locale) ? input.locale : 'vi'
-  const limit = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(input.limit) || FEATURED_CATEGORY_TILE_DEFAULT)))
-  const hub = partnerSiteCategoryHubPath(input.siteSlug)
-  const empty = (): FeaturedCategoryBlock => ({
-    tiles: [],
-    nav_pills: [],
-    nav_row: [],
-    show_nav_all: false,
-    gender: null,
-    gender_label: null,
-    source: 'popular_fallback',
-    hub_href: hub,
-  })
+  const limit = clampFeaturedCategoryLimit(input.limit)
+  const empty = (): FeaturedCategoryBlock => emptyFeaturedCategoryBlock(input.siteSlug)
   if (!isPgConfigured()) return empty()
 
-  const [flat, counts, demo, state] = await Promise.all([
+  const [flat, counts] = await Promise.all([
     fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: true }),
     fetchDirectProductCountsByCategoryFromPg(input.partnerId),
+  ])
+  const [demo, state] = await Promise.all([
     resolveVisitorGender({
       partnerId: input.partnerId,
       accountKey: input.accountKey,
@@ -567,7 +590,7 @@ async function getSiteFeaturedCategoryBlockUncached(input: {
     gender,
     gender_label: featuredCategoryGenderLabel(gender),
     source,
-    hub_href: hub,
+    hub_href: empty().hub_href,
   }
 }
 
@@ -581,14 +604,30 @@ export async function getSiteFeaturedCategoryBlock(input: {
   limit?: number
 }): Promise<FeaturedCategoryBlock> {
   const locale = input.locale && ['vi', 'en', 'zh', 'ja', 'ko'].includes(input.locale) ? input.locale : 'vi'
-  const limit = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, Math.floor(Number(input.limit) || FEATURED_CATEGORY_TILE_DEFAULT)))
-  return withLiveCategoryBindCache({
-    partnerId: input.partnerId,
-    slug: input.siteSlug,
-    accountKey: input.accountKey,
-    linkedUserId: input.linkedUserId,
-    locale,
-    limit,
-    load: () => getSiteFeaturedCategoryBlockUncached({ ...input, locale, limit }),
-  })
+  const requestedLimit = clampFeaturedCategoryLimit(input.limit)
+  try {
+    const full = await withLiveCategoryBindCache({
+      partnerId: input.partnerId,
+      slug: input.siteSlug,
+      accountKey: input.accountKey,
+      linkedUserId: input.linkedUserId,
+      locale,
+      load: async () => {
+        try {
+          return await getSiteFeaturedCategoryBlockUncached({
+            ...input,
+            locale,
+            limit: FEATURED_CATEGORY_TILE_MAX,
+          })
+        } catch (error) {
+          if (isPgTransientError(error)) return emptyFeaturedCategoryBlock(input.siteSlug)
+          throw error
+        }
+      },
+    })
+    return sliceFeaturedCategoryBlock(full, requestedLimit)
+  } catch (error) {
+    if (isPgTransientError(error)) return emptyFeaturedCategoryBlock(input.siteSlug)
+    throw error
+  }
 }
