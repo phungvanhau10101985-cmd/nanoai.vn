@@ -50,11 +50,17 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'favicon.ico',
 ])
 
-/** Host files that must not be rewritten into `/site/{slug}` (SSL, robots, OAuth bridge). */
+/**
+ * Host files that must not be rewritten into `/site/{slug}`.
+ * `messaging` is the guest chat page (`/messaging/p/{slug}`). Rewriting it into the shop
+ * catch-all 307s the iframe home — and `req.url` inside Next is localhost, so Chrome shows
+ * «localhost đã từ chối kết nối» instead of the conversation.
+ */
 export const SHOP_CUSTOM_DOMAIN_PASSTHROUGH_ROOTS = new Set([
   '.well-known',
   'robots.txt',
   'auth',
+  'messaging',
 ])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {

@@ -27,10 +27,11 @@ test('custom domain unknown URLs enter the shop so 404 can send home', () => {
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/foo/bar'), '/site/188-shop/foo/bar')
 })
 
-test('custom domain SSL and robots stay on the host', () => {
+test('custom domain SSL, robots, and guest chat stay on the host', () => {
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/.well-known/acme-challenge/x'), null)
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/robots.txt'), null)
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/auth/shop-google'), null)
+  assert.equal(mapPartnerCustomDomainPathToInternal('gudo-vn-3f93', '/messaging/p/gudo-vn-3f93'), null)
 })
 
 test('shop not-found screen uses storefront chrome and home redirect', async () => {
@@ -58,7 +59,18 @@ test('missing shop page redirects to home on custom domain and platform', () => 
     '188-shop'
   )
   assert.equal(custom.status, 307)
-  assert.equal(new URL(custom.headers.get('location') || '', 'https://gudo.vn').pathname, '/')
+  assert.equal(custom.headers.get('location'), 'https://gudo.vn/')
+
+  const behindNginx = redirectPartnerShopMissingPageToHome(
+    new Request('http://localhost:3000/site/188-shop/missing', {
+      headers: {
+        [PARTNER_CUSTOM_DOMAIN_HEADER]: 'gudo.vn',
+        'x-forwarded-proto': 'https',
+      },
+    }),
+    '188-shop'
+  )
+  assert.equal(behindNginx.headers.get('location'), 'https://gudo.vn/')
 
   const platform = redirectPartnerShopMissingPageToHome(
     new Request('https://nanoai.vn/site/188-shop/missing'),
