@@ -2774,9 +2774,12 @@ export function PartnerGuestChatClient({
     }
   }, [authHeaders, load])
 
+  const loadRef = useRef(load)
+  loadRef.current = load
   useEffect(() => {
-    if (authReady) void load()
-  }, [authReady, load])
+    if (!authReady) return
+    void loadRef.current()
+  }, [authReady, slug])
 
   useEffect(() => {
     didInitialAutoScrollRef.current = false

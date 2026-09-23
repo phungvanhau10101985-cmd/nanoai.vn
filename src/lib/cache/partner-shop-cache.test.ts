@@ -82,24 +82,29 @@ test('shopCacheGetJson uses the TTL passed to set, not a 60s clamp', async () =>
   assert.deepEqual(hit, { ttl: 900 })
 })
 
-test('shopCacheSetJson keeps a shell under 512KB in process memory and skips Redis for blobs over 200KB', async () => {
+test('shopCacheSetJson keeps a device shell in process memory and skips Redis for blobs over 200KB', async () => {
   const stamp = Date.now()
   const fat = 'x'.repeat(SHOP_REDIS_BLOB_MAX_BYTES + 50)
   const htmlKey = `pw:site:demo:v1:html:home:desktop:${stamp}`
   const chromeKey = `pw:site:demo:v1:chrome3:desktop:${stamp}`
   const slimKey = `pw:site:demo:v1:chrome3:mobile:${stamp}`
+  const shellKey = `pw:site:demo:v1:html:product_detail:desktop:${stamp}`
   const hugeKey = `pw:site:demo:v1:html:home:laptop:${stamp}`
+  const shell = 'z'.repeat(600 * 1024)
   await shopCacheSetJson(htmlKey, 60, fat)
   await shopCacheSetJson(chromeKey, 60, fat)
   await shopCacheSetJson(slimKey, 60, { ok: 1 })
+  await shopCacheSetJson(shellKey, 60, shell)
   await shopCacheSetJson(hugeKey, 60, 'y'.repeat(MEM_CACHE_SHELL_MAX_BYTES + 8))
   assert.equal(await shopCacheGetJson<string>(htmlKey), fat)
   assert.equal(await shopCacheGetJson<string>(chromeKey), fat)
+  assert.equal(await shopCacheGetJson<string>(shellKey), shell)
   assert.equal(await shopCacheGetJson<string>(hugeKey), null)
   assert.deepEqual(await shopCacheGetJson<{ ok: number }>(slimKey), { ok: 1 })
   assert.equal(SHOP_REDIS_BLOB_MAX_BYTES, 200 * 1024)
+  assert.equal(MEM_CACHE_SHELL_MAX_BYTES, 1536 * 1024)
   assert.equal(shopCacheRetainsProcessCopy('pw:inv:p:v1:ids:shop:abc', 180 * 1024, true), false)
-  assert.equal(shopCacheRetainsProcessCopy('pw:site:demo:v1:html:home:desktop', 180 * 1024, true), true)
+  assert.equal(shopCacheRetainsProcessCopy('pw:site:demo:v1:html:home:desktop', 600 * 1024, true), true)
   assert.equal(shopCacheRetainsProcessCopy('pw:inv:p:v1:ids:shop:abc', 180 * 1024, false), true)
 })
 

@@ -171,7 +171,7 @@ export async function fetchDueAutoAdvanceShipmentOrderIdsFromPg(limit = 80): Pro
   if (!isPgConfigured()) return []
   try {
     const rows = await pgQuery<{ order_id: string }>(
-      `select distinct e.order_id::text as order_id
+      `select e.order_id::text as order_id
        from public.messaging_partner_order_shipment_events e
        join public.messaging_partner_orders o on o.id = e.order_id
        where e.status = 'active'
@@ -180,7 +180,8 @@ export async function fetchDueAutoAdvanceShipmentOrderIdsFromPg(limit = 80): Pro
          and e.scheduled_at <= now()
          and o.status <> 'cancelled'
          and coalesce(o.shipping_status, 'pending') <> 'cancelled'
-       order by e.order_id
+       group by e.order_id
+       order by order_id
        limit $1`,
       [Math.max(1, Math.min(200, Math.floor(limit)))]
     )

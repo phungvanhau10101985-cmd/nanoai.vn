@@ -14,6 +14,7 @@ import {
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
+  dropScriptsAlreadyEmittedByLiveHead,
   splitVisualHtmlBodyScripts,
   type VisualHtmlHoistedScript,
 } from '@/lib/partner-website/shop/split-visual-html-scripts'
@@ -178,7 +179,8 @@ export function PartnerSiteLiveVisualDocument({
 }) {
   const previewHtml = hideChatLaunchersInHtml(html, Boolean(hideChatLauncher))
   const codes = extractVisualHtmlDocumentCodes(previewHtml)
-  const { markup, scripts } = splitVisualHtmlBodyScripts(extractVisualHtmlBodyMarkup(previewHtml))
+  const { markup, scripts: hoisted } = splitVisualHtmlBodyScripts(extractVisualHtmlBodyMarkup(previewHtml))
+  const scripts = dropScriptsAlreadyEmittedByLiveHead(hoisted)
   const hideEmbedFab = htmlHasVisibleChromeChatMua(previewHtml)
   return (
     <>

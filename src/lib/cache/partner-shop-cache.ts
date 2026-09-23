@@ -38,10 +38,10 @@ const MEM_CACHE_MAX = 800
 const MEM_CACHE_MAX_BYTES = 24 * 1024
 /**
  * Home/PDP shell and chrome stay in this process after a Redis timeout so the
- * next click does not rebuild HTML from Postgres. Capped so a fat blob cannot
- * pin the event loop the way a Redis GET of the same blob does.
+ * next click does not rebuild HTML from Postgres. One device shell is about
+ * 0.5–1MB once JSON-encoded; id lists stay out via `shopCacheRetainsProcessCopy`.
  */
-export const MEM_CACHE_SHELL_MAX_BYTES = 512 * 1024
+export const MEM_CACHE_SHELL_MAX_BYTES = 1536 * 1024
 const MEM_CACHE_LARGE_BUDGET_BYTES = 12 * 1024 * 1024
 /** Skip Redis SET for chrome/html blobs that would stall GET (TTFB 10s+). Id-lists stay allowed. */
 export const SHOP_REDIS_BLOB_MAX_BYTES = 200 * 1024
