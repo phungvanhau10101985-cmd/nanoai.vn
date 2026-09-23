@@ -187,7 +187,7 @@ ${buildPartnerSiteTapAckScript()}
     var p=String(path||'');
     if(PREFIX&&(p===PREFIX||p.indexOf(PREFIX+'/')===0))return p.slice(PREFIX.length)||'/';
     if(PREFIX_ENC&&PREFIX_ENC!==PREFIX&&(p===PREFIX_ENC||p.indexOf(PREFIX_ENC+'/')===0))return p.slice(PREFIX_ENC.length)||'/';
-    var m=p.match(/^\\/site\\/[^/]+/);
+    var m=p.match(new RegExp('^/site/[^/]+'));
     if(m)return p.slice(m[0].length)||'/';
     return p;
   }

@@ -65,4 +65,6 @@ test('native navigation prepends tap-ack and swallows extra presses while pendin
   assert.match(script, /pw-shop-close-cat-panels/)
   assert.match(script, /data-pw-review-vote/)
   assert.match(script, /data-pw-rq-open-write/)
+  assert.match(script, /new RegExp\('\^\/site\/\[\^\/\]\+'\)/)
+  assert.doesNotThrow(() => new Function(script))
 })
