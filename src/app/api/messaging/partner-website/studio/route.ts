@@ -146,6 +146,30 @@ export async function POST(req: NextRequest) {
         pickOnly,
       })
       if (!draft.ok) {
+        if (draft.reason === 'reset_trash_pending') {
+          const pages = listPartnerWebsiteStudioPickerPages().map((def) => {
+            const mode = getPartnerWebsitePageStudioMode(def)
+            return {
+              key: def.key,
+              htmlPath: def.htmlPath,
+              routePath: def.routePath,
+              title: labels[def.key].title,
+              hint: labels[def.key].hint,
+              status: 'not_started' as const,
+              phase: null,
+              studioMode: mode,
+            }
+          })
+          return NextResponse.json({
+            success: true,
+            website: null,
+            journal: null,
+            pages,
+            homeBuilt: false,
+            creationInProgress: false,
+            resetTrashPending: true,
+          })
+        }
         return NextResponse.json({ error: draft.reason }, { status: 422 })
       }
 

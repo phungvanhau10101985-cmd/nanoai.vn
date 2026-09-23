@@ -346,6 +346,21 @@ const PW_TABLET_HEADER_LOGO_ROW_RULES = `
 .pw-header a.pw-brand:not([data-pw-logo-float]),.pw-shop-header a.pw-shop-brand:not([data-pw-logo-float]),.pw-header a[data-pw-logo-home]:not([data-pw-logo-float]),.pw-shop-header a[data-pw-logo-home]:not([data-pw-logo-float]){order:0!important;flex:0 0 auto!important;width:auto!important;max-width:min(180px,30vw)!important;justify-content:flex-start!important;position:relative!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;transform:translate(var(--pw-logo-x, 0px), var(--pw-logo-y, 0px))!important}
 `.trim()
 
+/**
+ * Desktop/Laptop header trắng chỉ khi look shop.
+ * GD03 (`marketplace`) không nhận `#fff!important` — rule đó cùng specificity với
+ * `--pw-primary` và trình duyệt giữ sheet cũ sẽ hiện head boutique.
+ */
+function wideShopHeaderSurfaceCss(): string {
+  const decl =
+    'background:#fff!important;border-bottom:1px solid #f3f4f6!important;box-shadow:none!important'
+  const sels = PW_SCENE_WIDE_HOSTS.flatMap((host) => [
+    `${host}[data-pw-look="shop"] .pw-header`,
+    `${host}[data-pw-look="shop"] .pw-shop-header`,
+  ])
+  return `${sels.join(',')}{${decl}}`
+}
+
 export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   pwHostPrefixCss(PW_SCENE_COMPACT_HOSTS, PW_COMPACT_HEADER_RULES),
   pwHostPrefixCss(PW_SCENE_PHONE_HOSTS, PW_PHONE_HEADER_FACE_RULES),
@@ -355,8 +370,9 @@ export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   pwHostPrefixCss(PW_SCENE_TABLET_HOSTS, PW_TABLET_HEADER_LOGO_ROW_RULES),
   pwHostPrefixCss(
     PW_SCENE_WIDE_HOSTS,
-    '.pw-nav-main,.pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important}.pw-header,.pw-shop-header{background:#fff!important;border-bottom:1px solid #f3f4f6!important;box-shadow:none!important}'
+    '.pw-nav-main,.pw-shop-nav-row{display:flex!important;flex-wrap:nowrap!important;justify-content:center!important;align-items:center!important}'
   ),
+  wideShopHeaderSurfaceCss(),
   scopeMarketplaceLookCss(
     'html[data-pw-look="marketplace"] [data-pw-region="header"],html[data-pw-look="marketplace"] .pw-header,html[data-pw-look="marketplace"] .pw-shop-header{background:var(--pw-primary)!important;border-bottom:none!important;box-shadow:0 2px 10px color-mix(in srgb,var(--pw-primary) 35%,transparent)!important}'
   ),

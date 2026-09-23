@@ -27,6 +27,7 @@ import {
   studioStepQuestionText,
   type PartnerWebsiteStudioStepKey,
 } from '@/lib/partner-website/partner-website-studio-flow'
+import { fetchPartnerWebsiteResetTrashInfoFromPg } from '@/lib/db/partner-website-reset-pg'
 import { buildDefaultLandingV1Site } from '@/lib/partner-website/template/default-landing-v1'
 import { syncTemplateToProject } from '@/lib/partner-website/template/sync-template-project'
 
@@ -83,6 +84,10 @@ export async function ensurePartnerWebsiteStudioDraftPg(input: {
 
   const created = await withPartnerWebsiteWriteLock(input.partnerId, async () => {
     let website = await fetchPartnerWebsiteByPartnerIdPg(input.partnerId)
+    if (!website && input.pickOnly) {
+      const pendingTrash = await fetchPartnerWebsiteResetTrashInfoFromPg(input.partnerId)
+      if (pendingTrash) return { ok: false as const, reason: 'reset_trash_pending' }
+    }
     const slugResolved = await resolveStudioSiteSlug({
       partnerId: input.partnerId,
       partnerSlug: partner.slug,

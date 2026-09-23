@@ -569,4 +569,9 @@ test('chrome layout paints marketplace desktop header with the primary token', (
     out,
     /:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \[data-pw-region="header"\],:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \.pw-header,:is\(html\[data-pw-look="marketplace"\],\.pw-shop\[data-pw-look="marketplace"\],\[data-pw-inline-visual-root\]\[data-pw-look="marketplace"\]\) \.pw-shop-header\{background:var\(--pw-primary\)!important/
   )
+  assert.match(out, /\[data-pw-inline-visual-root\]\[data-pw-active-device="desktop"\]\[data-pw-look="shop"\] \.pw-header/)
+  assert.equal(
+    /\[data-pw-inline-visual-root\]\[data-pw-active-device="desktop"\] \.pw-header\{background:#fff!important/.test(out),
+    false
+  )
 })

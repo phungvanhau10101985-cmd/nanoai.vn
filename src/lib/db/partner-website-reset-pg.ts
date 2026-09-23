@@ -1,6 +1,6 @@
 import { createHash, randomInt } from 'node:crypto'
 import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
-import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { insertPartnerWebsitePresetLooksFromTrashPg } from '@/lib/db/messaging-partner-website-preset-looks-pg'
@@ -308,6 +308,16 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
       return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
     }
 
+    const pendingTrash = await fetchPartnerWebsiteResetTrashInfoFromPg(pid)
+    if (pendingTrash) {
+      return {
+        ok: false,
+        reason: 'db',
+        message:
+          'Bản web trước lần reset vẫn còn. Bấm «Khôi phục web đã reset» trên thanh xem trước. Reset lại không được ghi đè bản đó.',
+      }
+    }
+
     await clearPartnerWebsiteResetTrashRow(pid)
 
     let row: { deleted: boolean; site_slug?: string | null } | null = null
@@ -341,7 +351,7 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
 
 /**
  * Restore soft-reset snapshot within retention window.
- * Fails if a live website already exists for the partner.
+ * A draft created after reset is replaced by the saved site.
  */
 export async function restorePartnerWebsiteFromResetTrashPg(params: {
   partnerId: string
@@ -359,18 +369,6 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
       [pid, uid]
     )
     if (!owned) return { ok: false, error: 'Forbidden' }
-
-    const live = await pgQueryOne<{ id: string }>(
-      `select id::text from public.messaging_partner_websites where partner_id = $1::uuid limit 1`,
-      [pid]
-    )
-    if (live) {
-      return {
-        ok: false,
-        error:
-          'Đã có website mới — xóa/reset web hiện tại trước khi khôi phục bản cũ, hoặc giữ bản mới.',
-      }
-    }
 
     const trash = await pgQueryOne<{ payload: unknown; expires_at: string }>(
       `select payload, expires_at::text
@@ -396,7 +394,15 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
       return { ok: false, error: 'Bản lưu không hợp lệ.' }
     }
 
-    await pgQuery(
+    const pool = getPgPool()
+    const client = await pool.connect()
+    try {
+      await client.query('begin')
+      await client.query(
+        `delete from public.messaging_partner_websites where partner_id = $1::uuid`,
+        [pid]
+      )
+      await client.query(
       `insert into public.messaging_partner_websites (
          id, partner_id, site_slug, title, brief_text, logo_url,
          reference_image_urls, project_files_json, html_source, locale,
@@ -441,7 +447,14 @@ export async function restorePartnerWebsiteFromResetTrashPg(params: {
         w.creation_journal_json != null ? JSON.stringify(w.creation_journal_json) : null,
         w.created_at ?? null,
       ]
-    )
+      )
+      await client.query('commit')
+    } catch (e) {
+      await client.query('rollback').catch(() => undefined)
+      throw e
+    } finally {
+      client.release()
+    }
 
     const websiteId = String(w.id)
     const revisions = Array.isArray(payload.revisions) ? payload.revisions : []

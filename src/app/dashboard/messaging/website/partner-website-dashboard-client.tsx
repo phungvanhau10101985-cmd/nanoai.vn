@@ -679,7 +679,7 @@ export function PartnerWebsiteDashboardClient({
             </Card>
           ) : null}
 
-          {resetTrash && !website && (!isEmbedded || !sectionWrapClass('partner-website-editor')) ? (
+          {resetTrash && (!isEmbedded || !sectionWrapClass('partner-website-editor')) ? (
             <div className="space-y-2 rounded-md border border-dashed border-amber-300 bg-amber-50/60 p-3 dark:border-amber-800 dark:bg-amber-950/30">
               <p className="text-xs text-muted-foreground">
                 {t.restoreResetTrashHint.replace('{days}', String(resetTrash.daysLeft || 1))}
@@ -903,12 +903,29 @@ export function PartnerWebsiteDashboardClient({
                         onError={(message) => toast({ title: message, variant: 'destructive' })}
                       />
                     ) : null}
+                    {resetTrash ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        className="h-7 px-2 text-xs"
+                        disabled={restoringTrash || !partnerId}
+                        onClick={() => void handleRestoreResetTrash()}
+                      >
+                        {restoringTrash ? (
+                          <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Undo2 className="mr-1 h-3.5 w-3.5" />
+                        )}
+                        {restoringTrash ? t.restoreResetTrashBusy : t.restoreResetTrashButton}
+                      </Button>
+                    ) : null}
                     {website ? (
                       <PartnerWebsiteResetDialog
                         partnerId={partnerId}
                         partnerTitle={partnerTitle}
                         t={t}
-                        disabled={!partnerId || publishing || chatBusy}
+                        disabled={!partnerId || publishing || chatBusy || Boolean(resetTrash)}
                         onResetComplete={handleWebsiteResetComplete}
                       />
                     ) : null}
@@ -932,7 +949,25 @@ export function PartnerWebsiteDashboardClient({
                     {t.provisioning}
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">{t.emptyState}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm text-muted-foreground">{t.emptyState}</p>
+                    {resetTrash ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={restoringTrash || !partnerId}
+                        onClick={() => void handleRestoreResetTrash()}
+                      >
+                        {restoringTrash ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        {restoringTrash ? t.restoreResetTrashBusy : t.restoreResetTrashButton}
+                      </Button>
+                    ) : null}
+                  </div>
                 )}
               </CardHeader>
 
