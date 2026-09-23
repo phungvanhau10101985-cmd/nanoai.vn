@@ -229,6 +229,7 @@ export type PartnerSiteShopCopy = {
   pdpAddToCartShort: string
   pdpBuyNowShort: string
   pdpShareCopy: string
+  pdpShare: string
   pdpShareCopied: string
   pdpJumpReviews: string
   pdpJumpQa: string
@@ -928,6 +929,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpAddToCartShort: 'Thêm giỏ',
     pdpBuyNowShort: 'Mua hàng',
     pdpShareCopy: 'Sao chép link',
+    pdpShare: 'Chia sẻ',
     pdpShareCopied: 'Đã sao chép',
     pdpJumpReviews: 'Xem đánh giá',
     pdpJumpQa: 'Hỏi đáp',
@@ -1620,6 +1622,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpAddToCartShort: 'Add to cart',
     pdpBuyNowShort: 'Buy now',
     pdpShareCopy: 'Copy link',
+    pdpShare: 'Share',
     pdpShareCopied: 'Copied',
     pdpJumpReviews: 'See reviews',
     pdpJumpQa: 'Q&A',
@@ -2310,6 +2313,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpAddToCartShort: '加入购物车',
     pdpBuyNowShort: '立即购买',
     pdpShareCopy: '复制链接',
+    pdpShare: '分享',
     pdpShareCopied: '已复制',
     pdpJumpReviews: '查看评价',
     pdpJumpQa: '问答',
@@ -2997,6 +3001,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpAddToCartShort: 'カートへ',
     pdpBuyNowShort: '購入する',
     pdpShareCopy: 'リンクをコピー',
+    pdpShare: '共有',
     pdpShareCopied: 'コピーしました',
     pdpJumpReviews: 'レビューを見る',
     pdpJumpQa: 'Q&A',
@@ -3686,6 +3691,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpAddToCartShort: '장바구니',
     pdpBuyNowShort: '구매하기',
     pdpShareCopy: '링크 복사',
+    pdpShare: '공유',
     pdpShareCopied: '복사됨',
     pdpJumpReviews: '리뷰 보기',
     pdpJumpQa: 'QnA',

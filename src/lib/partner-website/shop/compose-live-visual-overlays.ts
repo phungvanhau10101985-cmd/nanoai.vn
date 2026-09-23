@@ -18,6 +18,7 @@ import type { PartnerMarketingBannerPublicItem } from '@/lib/partner-website/pro
 import type { WebLocale } from '@/lib/i18n/config'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { bindPdpLadipageToHtml, type PdpLadipageOverlay } from '@/lib/partner-website/shop/pdp-ladipage-sections'
+import { bindPdpShareControlsToHtml } from '@/lib/partner-website/shop/pdp-share-controls'
 
 /**
  * Overlays on a cached visual shell. Order is fixed:
@@ -48,12 +49,13 @@ export function applyLiveVisualOverlays(
     locale: input.locale,
     device: input.device,
   })
+  const withShare = input.liveProduct ? bindPdpShareControlsToHtml(withLadipage, input.locale) : withLadipage
   const withListing = input.liveListing
-    ? bindLiveCategoryListingToHtml(withLadipage, input.liveListing, {
+    ? bindLiveCategoryListingToHtml(withShare, input.liveListing, {
         locale: input.locale,
         siteSlug: input.siteSlug,
       })
-    : withLadipage
+    : withShare
   const withoutHub = input.liveListing ? stripFeaturedCategoryHostsInHtml(withListing) : withListing
   const withCategories = bindLiveCategorySurfacesInHtml(withoutHub, input.liveCategoryBind ?? null)
   const withBanners = bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)

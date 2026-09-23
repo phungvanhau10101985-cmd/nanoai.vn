@@ -63,7 +63,9 @@ export async function bootstrapSingleProductLandingForStudio(
     return null
   }
 
-  const sections = await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan())
+  const sections = await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan(), {
+    material: { imageSource: 'product' },
+  })
   for (const section of sections) {
     if (section.sectionType === 'products_grid') continue
     const result = await runLandingSectionGenerate(partnerId, landing.id, section.id, { target: 'all' })

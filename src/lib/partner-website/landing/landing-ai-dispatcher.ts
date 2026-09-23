@@ -6,6 +6,10 @@ import {
   generateLandingTrustCtaText,
 } from '@/lib/partner-website/landing/landing-ai-content-generator'
 import { generateLandingMaterialImage } from '@/lib/partner-website/landing/landing-ai-material-image'
+import {
+  pickMaterialProductImageUrl,
+  resolveLandingMaterialImageSource,
+} from '@/lib/partner-website/landing/landing-material-image'
 import type {
   LandingAiContext,
   LandingAiSectionRow,
@@ -66,26 +70,48 @@ export async function generateOrRegenerateLandingSection(
       current.material = material
     }
     if (target === 'all' || target === 'image') {
-      const sourceImage = context.products[0]?.imageUrl?.trim()
-      if (sourceImage) {
-        const img = await generateLandingMaterialImage({
-          partnerId: opts.partnerId,
-          landingId: context.landingId,
-          productImageUrl: sourceImage,
-          material,
-          callouts: (current.callouts as string[] | undefined) ?? [],
-          productName: context.products[0]?.name,
-          locale: context.locale,
-          description: context.products[0]?.description,
-        })
-        if (img) {
-          current.imageUrl = img.imageUrl
-          current.imageSource = 'ai'
+      const imageSource = resolveLandingMaterialImageSource({
+        sourceType: context.sourceType,
+        productCount: context.products.length,
+        stored: typeof current.imageSource === 'string' ? current.imageSource : null,
+      })
+      if (imageSource === 'product') {
+        const existing = typeof current.imageUrl === 'string' ? current.imageUrl.trim() : ''
+        const picked = existing || pickMaterialProductImageUrl(context.products[0])
+        if (picked) {
+          current.imageUrl = picked
+          current.imageSource = 'product'
         } else if (target === 'image') {
-          throw new Error('Không tạo được ảnh chất liệu (kiểm tra GOOGLE_API_KEY / ảnh sản phẩm nguồn).')
+          throw new Error('Không có ảnh gallery để làm ảnh chất liệu.')
         }
-      } else if (target === 'image') {
-        throw new Error('Không có ảnh sản phẩm nguồn để tạo ảnh chất liệu.')
+      } else {
+        const sourceImage = context.products[0]?.imageUrl?.trim()
+        if (sourceImage) {
+          const img = await generateLandingMaterialImage({
+            partnerId: opts.partnerId,
+            landingId: context.landingId,
+            productImageUrl: sourceImage,
+            material,
+            callouts: (current.callouts as string[] | undefined) ?? [],
+            productName: context.products[0]?.name,
+            locale: context.locale,
+            description: context.products[0]?.description,
+          })
+          if (img) {
+            current.imageUrl = img.imageUrl
+            current.imageSource = 'ai'
+          } else if (target === 'image') {
+            throw new Error('Không tạo được ảnh chất liệu (kiểm tra GOOGLE_API_KEY / ảnh sản phẩm nguồn).')
+          } else {
+            const fallback = pickMaterialProductImageUrl(context.products[0])
+            if (fallback) {
+              current.imageUrl = fallback
+              current.imageSource = 'product'
+            }
+          }
+        } else if (target === 'image') {
+          throw new Error('Không có ảnh sản phẩm nguồn để tạo ảnh chất liệu.')
+        }
       }
     }
     return current as LandingMaterialData as LandingSectionData

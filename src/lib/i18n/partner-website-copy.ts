@@ -751,6 +751,9 @@ export type PartnerWebsiteCopy = {
   lpMaterialFilterLabel: string
   lpMaterialFilterRequired: string
   lpIncludeMaterial: string
+  lpMaterialImageAi: string
+  lpMaterialImageProduct: string
+  lpMaterialImageHint: string
   lpIncludeFaq: string
   lpBriefOptional: string
   lpEdit: string
@@ -2039,6 +2042,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpMaterialFilterLabel: 'Lọc chất liệu (bắt buộc)',
     lpMaterialFilterRequired: 'Vui lòng chọn chất liệu.',
     lpIncludeMaterial: 'Bao gồm phần Chất liệu',
+    lpMaterialImageAi: 'AI tạo ảnh minh họa chất liệu',
+    lpMaterialImageProduct: 'Chọn ảnh từ gallery sản phẩm',
+    lpMaterialImageHint: 'Tắt tạo ảnh: lấy một ảnh gallery làm ảnh chất liệu, không gọi AI sinh ảnh.',
     lpIncludeFaq: 'Bao gồm FAQ',
     lpBriefOptional: 'Ý tưởng / định hướng nội dung (tuỳ chọn)',
     lpEdit: 'Sửa',
@@ -3349,6 +3355,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpMaterialFilterLabel: 'Material filter (required)',
     lpMaterialFilterRequired: 'Please choose a material.',
     lpIncludeMaterial: 'Include Material section',
+    lpMaterialImageAi: 'AI material illustration',
+    lpMaterialImageProduct: 'Use a product gallery photo',
+    lpMaterialImageHint: 'When image generation is off, one gallery photo is the material image.',
     lpIncludeFaq: 'Include FAQ',
     lpBriefOptional: 'Content direction (optional)',
     lpEdit: 'Edit',
@@ -4638,6 +4647,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpMaterialFilterLabel: '材质筛选（必填）',
     lpMaterialFilterRequired: '请选择材质。',
     lpIncludeMaterial: '包含材质区块',
+    lpMaterialImageAi: 'AI 生成材质图',
+    lpMaterialImageProduct: '从产品相册选一张',
+    lpMaterialImageHint: '不生成图片时，用相册里的一张图作为材质图。',
     lpIncludeFaq: '包含 FAQ',
     lpBriefOptional: '内容方向（可选）',
     lpEdit: '编辑',
@@ -5925,6 +5937,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpMaterialFilterLabel: '素材フィルター（必須）',
     lpMaterialFilterRequired: '素材を選択してください。',
     lpIncludeMaterial: '素材セクションを含める',
+    lpMaterialImageAi: 'AIで素材画像を作成',
+    lpMaterialImageProduct: '商品ギャラリーから選ぶ',
+    lpMaterialImageHint: '画像生成をオフにすると、ギャラリーの1枚を素材画像にします。',
     lpIncludeFaq: 'FAQを含める',
     lpBriefOptional: '内容の方向性（任意）',
     lpEdit: '編集',
@@ -7220,6 +7235,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     lpMaterialFilterLabel: '소재 필터 (필수)',
     lpMaterialFilterRequired: '소재를 선택하세요.',
     lpIncludeMaterial: '소재 섹션 포함',
+    lpMaterialImageAi: 'AI 소재 이미지',
+    lpMaterialImageProduct: '상품 갤러리에서 선택',
+    lpMaterialImageHint: '이미지 생성을 끄면 갤러리 사진 한 장을 소재 이미지로 씁니다.',
     lpIncludeFaq: 'FAQ 포함',
     lpBriefOptional: '콘텐츠 방향 (선택)',
     lpEdit: '수정',

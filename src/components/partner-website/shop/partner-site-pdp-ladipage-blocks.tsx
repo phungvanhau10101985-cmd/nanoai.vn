@@ -8,6 +8,7 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { pdpLadipageTrustPoints } from '@/lib/partner-website/shop/pdp-ladipage-copy'
 import {
+  PDP_LADIPAGE_FACE_CSS,
   pdpLadipageHeroCopyVisible,
   type PdpLadipageStory,
 } from '@/lib/partner-website/shop/pdp-ladipage-sections'
@@ -54,12 +55,13 @@ export function PartnerSitePdpLadipageBlocks({
   if (part === 'story') {
     return (
       <div data-pw-pdp-ladipage="story">
+        <style>{PDP_LADIPAGE_FACE_CSS}</style>
         {story.highlights.length ? (
           <section data-pw-region="content">
             <h2 data-pw-el="heading">{shop.lpHighlightsHeading}</h2>
-            <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))' }}>
+            <div data-pw-pdp-ladipage-highlights>
               {story.highlights.map((item, index) => (
-                <article key={`${item.title}-${index}`} style={{ border: '1px solid var(--pw-border,#e5e7eb)', borderRadius: 12, padding: 12 }}>
+                <article key={`${item.title}-${index}`} data-pw-pdp-ladipage-card>
                   <h3 data-pw-el="title">{item.title}</h3>
                   <p data-pw-el="body">{item.desc}</p>
                 </article>
@@ -68,10 +70,19 @@ export function PartnerSitePdpLadipageBlocks({
           </section>
         ) : null}
         {story.material && (story.material.body || story.material.imageUrl || story.material.material) ? (
-          <section data-pw-region="content">
+          <section data-pw-region="content" data-pw-pdp-ladipage-material="1">
             {story.material.imageUrl ? <img data-pw-el="image" src={story.material.imageUrl} alt={story.material.material || ''} /> : null}
-            {story.material.material ? <p data-pw-el="title">{story.material.material}</p> : null}
-            {story.material.body ? <p data-pw-el="body">{story.material.body}</p> : null}
+            <div>
+              {story.material.material ? <p data-pw-el="title">{story.material.material}</p> : null}
+              {story.material.body ? <p data-pw-el="body">{story.material.body}</p> : null}
+              {story.material.callouts?.length ? (
+                <ul data-pw-pdp-ladipage-callouts>
+                  {story.material.callouts.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </section>
         ) : null}
         {story.trust?.body ? (
@@ -124,6 +135,7 @@ export function PartnerSitePdpLadipageBlocks({
         [data-pw-pdp-ladipage="trust"]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}
         [data-pw-pdp-ladipage="trust"] strong{display:block}
         [data-pw-pdp-ladipage="trust"] span{display:block;color:var(--pw-muted,#6b7280);font-size:13px}
+        ${PDP_LADIPAGE_FACE_CSS}
       `}</style>
       <section data-pw-pdp-ladipage="hero" data-pw-region="banner">
         {heroImage ? <img data-pw-el="media" src={heroImage} alt={productName} style={{ width: '100%', objectFit: 'contain' }} /> : null}

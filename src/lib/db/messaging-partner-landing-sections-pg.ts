@@ -60,16 +60,18 @@ export async function listLandingSectionsPg(landingId: string): Promise<LandingA
 /** Idempotent — chèn các section còn thiếu theo plan cố định (không đụng section đã có data). */
 export async function ensureDefaultLandingSectionsPg(
   landingId: string,
-  plan: LandingAiSectionType[]
+  plan: LandingAiSectionType[],
+  seeds?: Partial<Record<LandingAiSectionType, LandingSectionData>>
 ): Promise<LandingAiSectionRow[]> {
   if (!isPgConfigured()) return []
   try {
     for (let i = 0; i < plan.length; i++) {
+      const seed = seeds?.[plan[i]] ?? {}
       await pgQuery(
         `insert into public.messaging_partner_landing_sections (landing_id, section_type, order_index, status, data)
-         values ($1::uuid, $2, $3, $4, '{}'::jsonb)
+         values ($1::uuid, $2, $3, $4, $5::jsonb)
          on conflict (landing_id, section_type) do nothing`,
-        [landingId, plan[i], i, plan[i] === 'products_grid' ? 'ready' : 'pending']
+        [landingId, plan[i], i, plan[i] === 'products_grid' ? 'ready' : 'pending', JSON.stringify(seed)]
       )
     }
     return await listLandingSectionsPg(landingId)

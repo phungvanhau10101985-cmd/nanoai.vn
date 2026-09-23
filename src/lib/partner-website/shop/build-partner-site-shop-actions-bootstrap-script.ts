@@ -953,22 +953,44 @@ function bindSizeGuideModal(){
     modal.removeAttribute('hidden');
   });
 }
+function sharePageUrl(cb){
+  var base=location.href.split('#')[0];
+  function withRef(code){
+    if(!code)return base;
+    try{var parsed=new URL(base);parsed.searchParams.set('ref',code);return parsed.toString();}
+    catch(e){return base+(base.indexOf('?')>=0?'&':'?')+'ref='+encodeURIComponent(code);}
+  }
+  if(window.__pwShareRef!=null){cb(withRef(window.__pwShareRef));return;}
+  if(!accountId()){window.__pwShareRef='';cb(base);return;}
+  apiFetch(AFFILIATE_API).then(function(res){
+    var me=res.j&&res.j.me;
+    var code=me&&me.affiliate_status==='approved'?String(me.referral_code||'').trim().toUpperCase():'';
+    window.__pwShareRef=code;
+    cb(withRef(code));
+  }).catch(function(){window.__pwShareRef='';cb(base);});
+}
+function copyShareUrl(url){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+    return;
+  }
+  toast(COPY.shareFailed);
+}
 function bindShareLeadCoupon(){
   document.querySelectorAll('[data-pw-share],[data-pw-chrome-btn="share"]').forEach(function(el){
     if(el.getAttribute('data-pw-share-bound'))return;
     el.setAttribute('data-pw-share-bound','1');
     el.addEventListener('click',function(e){
       e.preventDefault();
-      var url=location.href;
-      if(navigator.share){
-        navigator.share({url:url,title:document.title}).catch(function(){});
-        return;
-      }
-      if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
-        return;
-      }
-      toast(COPY.shareFailed);
+      var mode=el.getAttribute('data-pw-share')||'native';
+      sharePageUrl(function(url){
+        if(mode==='copy'){copyShareUrl(url);return;}
+        if(navigator.share){
+          navigator.share({url:url,title:document.title}).catch(function(){});
+          return;
+        }
+        copyShareUrl(url);
+      });
     });
   });
   document.querySelectorAll('form[data-pw-lead-form-el],form[data-pw-lead-form],#pw-lead-form').forEach(function(f){

@@ -39,6 +39,7 @@ import {
   trackPartnerSiteViewItem,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteAffiliateShareBar } from '@/components/partner-website/shop/partner-site-affiliate-share-bar'
+import { PartnerSitePdpShare } from '@/components/partner-website/shop/partner-site-pdp-share'
 import { PartnerSiteRelatedProducts } from '@/components/partner-website/shop/partner-site-related-products'
 import { PartnerSitePdpLadipageBlocks } from '@/components/partner-website/shop/partner-site-pdp-ladipage-blocks'
 import type { PdpLadipageStory } from '@/lib/partner-website/shop/pdp-ladipage-sections'
@@ -775,7 +776,10 @@ export function PartnerSiteShopProductClient({
         />
       ) : null}
       <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
-        {renderMedia(currentMedia, { hero: true })}
+        <span className="pw-pdp-share-frame">
+          {renderMedia(currentMedia, { hero: true })}
+          <PartnerSitePdpShare siteSlug={siteSlug} locale={locale} shareTitle={productName} variant="icon" />
+        </span>
         {mediaItems.length > 1 ? (
           <>
             <span className="pw-pdp-hero-count">
@@ -866,11 +870,16 @@ export function PartnerSiteShopProductClient({
               {t.pdpBrandLabel}: {brandText}
             </p>
           ) : null}
-          {sku ? (
-            <p className="pw-pdp-sku">
-              {t.skuLabel}: <strong>{sku}</strong>
-            </p>
-          ) : null}
+          <div className="pw-pdp-share-line">
+            {sku ? (
+              <p className="pw-pdp-sku">
+                {t.skuLabel}: <strong>{sku}</strong>
+              </p>
+            ) : (
+              <span />
+            )}
+            <PartnerSitePdpShare siteSlug={siteSlug} locale={locale} shareTitle={productName} variant="actions" />
+          </div>
           <div className="pw-pdp-stats" data-pw-pdp-slot="stats">
             <span>
               <span className="pw-pdp-star">★</span>{' '}

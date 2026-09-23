@@ -626,6 +626,12 @@ ${PW_CHROME_ICON_ONLY_HIDE_LABEL_CSS}
 .pw-shop-info ul{margin:0 0 16px;padding-left:1.2rem;color:var(--pw-muted)}
 .pw-shop-info details{border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin-bottom:10px;background:#fff}
 .pw-shop-info summary{font-weight:700;cursor:pointer}
+.pw-pdp-share-frame{position:relative;display:block}
+.pw-pdp-share-icon{position:absolute;left:12px;bottom:12px;z-index:3;width:32px;height:32px;padding:0;border:0;border-radius:999px;background:rgba(255,255,255,.88);color:#374151;display:grid;place-items:center;box-shadow:0 1px 4px rgba(15,23,42,.16);cursor:pointer}
+.pw-pdp-share-row{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:6px;margin:8px 0}
+.pw-pdp-share-btn{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--pw-border,#e5e7eb);background:#fff;color:#374151;border-radius:999px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer}
+.pw-pdp-share-btn.is-share{border-color:color-mix(in srgb,var(--pw-primary) 35%,#fff);background:color-mix(in srgb,var(--pw-primary) 10%,#fff);color:var(--pw-primary)}
+.pw-pdp-share-line{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .pw-shop-breadcrumb{font-size:13px;color:#6b7280;margin-bottom:14px}
 .pw-shop-breadcrumb a{color:#6b7280;text-decoration:none}
 .pw-shop-breadcrumb a:hover{color:var(--pw-primary);text-decoration:underline}

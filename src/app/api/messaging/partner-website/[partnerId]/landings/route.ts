@@ -136,6 +136,8 @@ export async function POST(
     materialFilter?: string
     includeMaterial?: boolean
     includeFaq?: boolean
+    /** Ladipage 1 SP: product = ảnh gallery; ai = Gemini. Mặc định product. */
+    materialImageSource?: string
   }
 
   const title = String(body.title ?? '').trim()
@@ -198,7 +200,13 @@ export async function POST(
   }
 
   // L3.1/L3.6 — landing mới luôn dùng engine Ladipage AI (section cố định) từ đầu.
-  await ensureDefaultLandingSectionsPg(landing.id, defaultLandingSectionPlan({ includeMaterial, includeFaq }))
+  const isSingleProduct = sourceType === 'products' && inventoryIds.length === 1
+  const materialImageSource = body.materialImageSource === 'ai' ? 'ai' : 'product'
+  await ensureDefaultLandingSectionsPg(
+    landing.id,
+    defaultLandingSectionPlan({ includeMaterial, includeFaq }),
+    isSingleProduct && includeMaterial ? { material: { imageSource: materialImageSource } } : undefined
+  )
 
   return NextResponse.json({ success: true, landing })
 }

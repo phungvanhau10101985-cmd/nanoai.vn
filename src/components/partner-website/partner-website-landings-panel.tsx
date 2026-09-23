@@ -84,6 +84,7 @@ export function PartnerWebsiteLandingsPanel({
   const [materialOptions, setMaterialOptions] = useState<{ material: string; count: number }[]>([])
   const [materialFilter, setMaterialFilter] = useState('')
   const [includeMaterial, setIncludeMaterial] = useState(true)
+  const [materialImageSource, setMaterialImageSource] = useState<'ai' | 'product'>('product')
   const [includeFaq, setIncludeFaq] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
@@ -192,6 +193,7 @@ export function PartnerWebsiteLandingsPanel({
     setCategoryId('')
     setMaterialFilter('')
     setIncludeMaterial(true)
+    setMaterialImageSource('product')
     setIncludeFaq(true)
     setView('new')
     onChatStarted?.()
@@ -234,6 +236,7 @@ export function PartnerWebsiteLandingsPanel({
           materialFilter: sourceType === 'category' ? materialFilter : undefined,
           includeMaterial,
           includeFaq,
+          materialImageSource: sourceMode === 'product_single' ? materialImageSource : 'ai',
           locale,
         }),
       })
@@ -551,6 +554,35 @@ export function PartnerWebsiteLandingsPanel({
               <input type="checkbox" checked={includeMaterial} onChange={(e) => setIncludeMaterial(e.target.checked)} />
               {t.lpIncludeMaterial}
             </label>
+            {sourceMode === 'product_single' && includeMaterial ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      materialImageSource === 'ai'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-input text-muted-foreground'
+                    }`}
+                    onClick={() => setMaterialImageSource('ai')}
+                  >
+                    {t.lpMaterialImageAi}
+                  </button>
+                  <button
+                    type="button"
+                    className={`rounded-lg border px-3 py-2 text-sm ${
+                      materialImageSource === 'product'
+                        ? 'border-primary bg-primary/10 text-primary'
+                        : 'border-input text-muted-foreground'
+                    }`}
+                    onClick={() => setMaterialImageSource('product')}
+                  >
+                    {t.lpMaterialImageProduct}
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">{t.lpMaterialImageHint}</p>
+              </div>
+            ) : null}
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" checked={includeFaq} onChange={(e) => setIncludeFaq(e.target.checked)} />
               {t.lpIncludeFaq}
