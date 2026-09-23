@@ -929,7 +929,21 @@ function bindLive(id){
   var qaSec=ensureSection('#pw-pdp-qa,[data-pw-pdp-slot="qa"]','pw-pdp-qa','reviews',COPY.qaTitle,true);
   var reviewUi=ensureReviewUi(reviewSec);
   var qaUi=ensureQaUi(qaSec);
+  function nodeLive(el){return !!(el&&el.isConnected);}
+  function liveReviewUi(){
+    if(nodeLive(reviewUi.sample)&&nodeLive(reviewUi.list)&&nodeLive(reviewUi.summary))return reviewUi;
+    reviewSec=ensureSection('#pw-pdp-reviews,[data-pw-region="reviews"]:not([data-pw-pdp-slot="qa"])','pw-pdp-reviews','reviews',COPY.reviewsTitle,false);
+    reviewUi=ensureReviewUi(reviewSec);
+    return reviewUi;
+  }
+  function liveQaUi(){
+    if(nodeLive(qaUi.sample)&&nodeLive(qaUi.list)&&nodeLive(qaUi.count))return qaUi;
+    qaSec=ensureSection('#pw-pdp-qa,[data-pw-pdp-slot="qa"]','pw-pdp-qa','reviews',COPY.qaTitle,true);
+    qaUi=ensureQaUi(qaSec);
+    return qaUi;
+  }
   function paintReviews(rows,append){
+    reviewUi=liveReviewUi();
     if(!reviewUi.list)return;
     if(!append)reviewUi.list.innerHTML='';
     if(!rows.length&&!append)reviewUi.list.innerHTML='<p class="pw-shop-muted">'+esc(COPY.reviewsEmpty)+'</p>';
@@ -959,6 +973,7 @@ function bindLive(id){
     reviewUi.more.hidden=reviewUi.list.querySelectorAll('.pw-pdp-rq-item').length>=reviewsTotal;
   }
   function paintQuestions(rows,append){
+    qaUi=liveQaUi();
     if(!qaUi.list)return;
     if(!append)qaUi.list.innerHTML='';
     if(!rows.length&&!append)qaUi.list.innerHTML='<p class="pw-shop-muted">'+esc(COPY.qaEmptyHint)+'</p>';
@@ -977,6 +992,7 @@ function bindLive(id){
   }
   function loadReviews(page,append,pageSize){
     return apiFetch(API_PREFIX+encodeURIComponent(id)+'/reviews?page='+page+'&pageSize='+(pageSize||REVIEW_PAGE_SIZE)).then(function(res){
+      reviewUi=liveReviewUi();
       var j=res.j||{};
       reviewsTotal=Number(j.total||0);
       canReviewLive=j.canReview===true;
@@ -1007,6 +1023,7 @@ function bindLive(id){
     var hid=highlightQuestionId();
     var qs='?page='+page+'&pageSize='+(pageSize||REVIEW_PAGE_SIZE)+(hid?'&highlight='+encodeURIComponent(hid):'');
     return apiFetch(API_PREFIX+encodeURIComponent(id)+'/questions'+qs).then(function(res){
+      qaUi=liveQaUi();
       var j=res.j||{};
       questionsTotal=Number(j.total||0);
       var qaDisplay=catalogQaTotal>0?catalogQaTotal:questionsTotal;
@@ -1053,6 +1070,8 @@ function bindLive(id){
   if(oldPdpClick)document.removeEventListener('click',oldPdpClick,true);
   var onPdpClick=function(ev){
     var t=ev.target;if(!t||!t.closest)return;
+    if(!nodeLive(reviewSec)||!nodeLive(reviewUi.sample))reviewUi=liveReviewUi();
+    if(!nodeLive(qaSec)||!nodeLive(qaUi.sample))qaUi=liveQaUi();
     var pill=t.closest('[data-pw-pdp-option] .pw-pdp-pill');
     if(pill){
       ev.preventDefault();
