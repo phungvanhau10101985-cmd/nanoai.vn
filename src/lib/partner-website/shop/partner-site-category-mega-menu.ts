@@ -241,6 +241,7 @@ html .pw-cat-panel.is-open.pw-cat-mega .pw-cat-mega-l3,html .pw-shop-cat-panel.i
 html .pw-shop-cat-panel.is-open.pw-cat-mega .pw-cat-mega-l3{
   white-space:normal!important
 }
+.pw-cat-panel:not([data-pw-cat-filled])>a,.pw-shop-cat-panel:not([data-pw-cat-filled])>a,[data-pw-cat-panel]:not([data-pw-cat-filled])>a{display:none!important}
 .pw-cat-acc{display:none}
 html[data-pw-edit-device="desktop"] .pw-cat-acc,html[data-pw-edit-device="laptop"] .pw-cat-acc,html[data-pw-edit-device="tablet"] .pw-cat-acc,
 html[data-pw-scene-lock="desktop"] .pw-cat-acc,html[data-pw-scene-lock="laptop"] .pw-cat-acc,html[data-pw-scene-lock="tablet"] .pw-cat-acc,

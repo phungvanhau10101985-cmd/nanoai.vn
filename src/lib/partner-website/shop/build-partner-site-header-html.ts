@@ -78,6 +78,18 @@ function searchLabels(locale: WebLocale, shopTitle: string) {
   }
 }
 
+/** Live panel must not keep the sample row (Hàng mới / Thời trang / Túi xách…). The shop tree is filled from the categories API. */
+export function stripSeedCategoryPanelLinksInHtml(html: string): string {
+  if (!html || !/data-pw-cat-panel|\bpw-cat-panel\b|\bpw-shop-cat-panel\b/.test(html)) return html
+  return html.replace(
+    /(<(?:nav|div)\b[^>]*(?:data-pw-cat-panel|\bpw-cat-panel\b|\bpw-shop-cat-panel\b)[^>]*>)([\s\S]*?)(<\/(?:nav|div)>)/gi,
+    (full, open: string, inner: string, close: string) => {
+      if (/data-pw-cat-mega|data-pw-cat-acc|data-pw-cat-filled/.test(`${open}${inner}`)) return full
+      return `${open}${inner.replace(/<a\b[^>]*>[\s\S]*?<\/a>/gi, '')}${close}`
+    },
+  )
+}
+
 function buildCategoryLinks(productsHref: string, saleHref: string, locale: WebLocale): string {
   const n = getPartnerSiteCategoryNavLabels(locale)
   return `<a href="${productsHref}" ${pwElAttr(PW_EL.navLink)}>${escapeHtml(n.newArrivals)}</a>
@@ -100,6 +112,8 @@ function buildHeaderInteractionScripts(): string {
   if(catBtn&&catPanel){
     catBtn.addEventListener('click',function(e){
       if(document.body&&document.body.classList.contains('nanoai-ve-active'))return;
+      if(document.documentElement.getAttribute('data-pw-chrome-toggle-doc'))return;
+      if(catPanel.getAttribute('data-pw-cat-filled')!=='1')return;
       e.stopPropagation();
       var open=catPanel.classList.toggle('is-open');
       catBtn.setAttribute('aria-expanded',open?'true':'false');
@@ -211,9 +225,7 @@ export function buildPartnerSiteHeaderHtml(input: PartnerSiteHeaderHtmlInput): P
       ${input.device === 'mobile' || input.device === 'tablet' ? `${buildMobileHeadBackHtml({ locale: input.locale })}` : ''}
       <button type="button" class="pw-cat-btn" ${pwElAttr(PW_EL.catToggle)} data-pw-chrome-btn="categories" data-pw-cat-toggle ${PW_CHROME_KIT_ATTR}="1" aria-expanded="false" aria-controls="pw-cat-panel" aria-label="${escapeAttr(shop.navCategories)}">${svgIcon('menu')}<span>${escapeHtml(shop.navCategories)}</span></button>
       ${brandBlock}
-      <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}">
-        ${categoryLinks}
-      </nav>
+      <nav id="pw-cat-panel" class="pw-cat-panel" data-pw-cat-panel aria-label="${escapeAttr(shop.navCategories)}"></nav>
     </div>
     ${searchBar}
     <div class="pw-header-actions" ${chromeKitHeadActionsHostAttrs(input.device)}>

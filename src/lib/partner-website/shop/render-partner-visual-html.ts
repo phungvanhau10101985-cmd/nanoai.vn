@@ -35,6 +35,7 @@ import {
 import {
   ensurePartnerSiteHeaderLogoSlotInHtml,
   ensurePartnerSitePdpBottomNavInHtml,
+  stripSeedCategoryPanelLinksInHtml,
 } from '@/lib/partner-website/shop/build-partner-site-header-html'
 import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/partner-site-chrome-kit'
 import { bindPartnerShopSloganInHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
@@ -139,7 +140,8 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     chatIconLogoUrl: input.theme?.chatIconLogoUrl,
     targetTop: input.runtime !== 'authoring',
   })
-  const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withChromeKit)
+  const withCatTree = stripSeedCategoryPanelLinksInHtml(withChromeKit)
+  const noSeoCoach = stripPartnerInfoPageSeoCoachFromHtml(withCatTree)
   const restored = restoreDeferredPdpGalleryMediaInHtml(noSeoCoach)
   const mediaReady = input.variant ? deferOffDevicePdpGalleryMedia(restored, input.variant) : restored
   const bodyAttrs = mediaReady.match(/<body\b([^>]*)>/i)?.[1] || ''
