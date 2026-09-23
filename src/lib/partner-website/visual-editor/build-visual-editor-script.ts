@@ -8532,6 +8532,24 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (!(viewH > 8)) viewH = 640
     return { w: viewW, h: viewH }
   }
+  function topbarInnerBleedCompPx() {
+    var d = pwStampDevice()
+    if (d === 'laptop') return 40
+    if (d === 'desktop') return 120
+    return 0
+  }
+  function releaseTopbarInnerKitX(bar) {
+    var comp = topbarInnerBleedCompPx()
+    if (!(comp > 0) || !bar) return
+    var raw = parseInt(String(bar.getAttribute ? bar.getAttribute('data-pw-kit-x') || '' : ''), 10)
+    if (!isFinite(raw) && bar.style) raw = parseInt(String(bar.style.getPropertyValue('--pw-kit-x') || ''), 10)
+    if (!isFinite(raw) || !(raw < 0)) return
+    var n = raw + comp
+    if (n < ${PW_KIT_X_MIN}) n = ${PW_KIT_X_MIN}
+    if (n > ${PW_KIT_X_MAX}) n = ${PW_KIT_X_MAX}
+    bar.setAttribute('data-pw-kit-x', String(n))
+    if (bar.style) bar.style.setProperty('--pw-kit-x', n + 'px')
+  }
   function resetFullBleedChromePos() {
     var nodes = document.querySelectorAll(
       '.pw-topbar,.pw-shop-topbar,[data-pw-region="topbar"],header,.pw-header,.pw-shop-header,.pw-header-main,.pw-shop-header-inner,.pw-topbar-inner,.pw-shop-topbar-inner,.pw-bottom-nav,.pw-shop-bottom-nav,.pw-pdp-sticky,[data-pw-pdp-bottom]'
@@ -8542,7 +8560,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       if (!bar || !bar.style) continue
       var cls = clsOf(bar)
       var region = bar.getAttribute ? String(bar.getAttribute('data-pw-region') || '') : ''
-      var isTopbar = region === 'topbar' || cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0
+      var isTopbarInner = cls.indexOf('pw-topbar-inner') >= 0 || cls.indexOf('pw-shop-topbar-inner') >= 0
+      var isTopbar = !isTopbarInner && (region === 'topbar' || cls.indexOf('pw-topbar') >= 0 || cls.indexOf('pw-shop-topbar') >= 0)
+      var wasFullBleed = false
+      if (isTopbarInner) {
+        var bleedW = String(bar.style.getPropertyValue('width') || '')
+        var bleedMin = String(bar.style.getPropertyValue('min-width') || '')
+        wasFullBleed = bleedW.indexOf('100%') >= 0 || bleedMin.indexOf('100%') >= 0
+      }
       var isDock = region === 'nav' || cls.indexOf('pw-bottom-nav') >= 0 || cls.indexOf('pw-shop-bottom-nav') >= 0 || cls.indexOf('pw-pdp-sticky') >= 0 || (bar.getAttribute && bar.getAttribute('data-pw-pdp-bottom') === '1')
       if (!isTopbar && !isDock && !isFullBleedChrome(bar) && !isShopRegionHost(bar)) continue
       bar.style.removeProperty('position')
@@ -8559,6 +8584,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       bar.style.removeProperty('clip-path')
       bar.style.removeProperty('margin')
       bar.style.removeProperty('z-index')
+      if (isTopbarInner && wasFullBleed) releaseTopbarInnerKitX(bar)
       if (isTopbar) {
         bar.style.setProperty('position', 'relative', 'important')
         bar.style.setProperty('left', 'auto', 'important')

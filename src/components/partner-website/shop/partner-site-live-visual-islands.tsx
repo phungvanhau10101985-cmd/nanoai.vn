@@ -38,6 +38,8 @@ export function PartnerSiteLiveVisualIslands({
   useLayoutEffect(() => {
     if (browserThemeColor) applyShopBrowserThemeColorToDocument(document, browserThemeColor)
     persistPartnerLiveVisualDeviceCookie(device || 'desktop', navigator.userAgent || '')
+    document.documentElement.setAttribute('data-pw-visual-ready', '1')
+    document.dispatchEvent(new Event('pw-shop-visual-ready'))
     return () => {
       stripPartnerLiveHoistHosts()
     }

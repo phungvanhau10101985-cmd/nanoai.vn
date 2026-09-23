@@ -801,6 +801,33 @@ describe('partner-site-chrome-kit', () => {
     expect(laptopInner).not.toContain(`${PW_KIT_GAP_ATTR}="33"`)
   })
 
+  it('releases full-bleed topbar inner onto the icon column and keeps a negative Cách lề', () => {
+    const html = `<header class="pw-header"><div class="pw-topbar" data-pw-region="topbar" data-pw-kit-x="-115"><div class="pw-container pw-topbar-inner" style="position: relative !important; width: 100% !important; min-width: 100% !important; max-width: none !important;--pw-kit-x:-115px;--pw-kit-gap:36px" data-pw-kit-x="-115" data-pw-kit-gap="36">
+      <a data-pw-chrome-btn="contact" href="/contact">Liên hệ</a>
+    </div></div></header>`
+    const next = ensurePartnerSiteChromeKitInHtml(html, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const inner = next.match(/<div[^>]*pw-topbar-inner[^>]*>/)?.[0] || ''
+    expect(inner).not.toMatch(/width:\s*100%/i)
+    expect(inner).not.toMatch(/min-width:\s*100%/i)
+    expect(inner).not.toMatch(/max-width:\s*none/i)
+    expect(inner).toContain('data-pw-kit-x="5"')
+    expect(inner).toContain('--pw-kit-x:5px')
+    expect(inner).toContain('data-pw-kit-gap="36"')
+    const again = ensurePartnerSiteChromeKitInHtml(next, { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' })
+    const innerAgain = again.match(/<div[^>]*pw-topbar-inner[^>]*>/)?.[0] || ''
+    expect(innerAgain).toContain('data-pw-kit-x="5"')
+    expect(innerAgain).not.toContain('data-pw-kit-x="125"')
+    const zero = ensurePartnerSiteChromeKitInHtml(
+      `<header class="pw-header"><div class="pw-topbar" data-pw-region="topbar"><div class="pw-container pw-topbar-inner" style="width: 100% !important; min-width: 100% !important; max-width: none !important">
+        <a data-pw-chrome-btn="contact" href="/contact">Liên hệ</a>
+      </div></div></header>`,
+      { locale: 'vi', siteSlug: 'demo-shop', device: 'desktop' }
+    )
+    const zeroInner = zero.match(/<div[^>]*pw-topbar-inner[^>]*>/)?.[0] || ''
+    expect(zeroInner).not.toMatch(/width:\s*100%/i)
+    expect(zeroInner).not.toContain('data-pw-kit-x=')
+  })
+
   it('bumps leftover desktop head icon size 26 and 20 to 22 without touching custom or other devices', () => {
     const desktop = ensurePartnerSiteChromeKitInHtml(
       `<header class="pw-header"><div class="pw-header-actions">

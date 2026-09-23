@@ -21,6 +21,8 @@ export type PartnerOutfitPickSlot = {
 export type PartnerOutfitPickPayload = {
   applicable: boolean
   reason: string | null
+  /** True only after a compute whose queries succeeded. Missing on older rows. */
+  computeOk?: boolean
   anchor: {
     id: string
     role: OutfitSlotId | null
@@ -34,6 +36,16 @@ function isMissingOutfitPicksTableError(e: unknown): boolean {
   const err = e as { code?: string; message?: string }
   if (err.code !== '42P01') return false
   return /messaging_partner_outfit_picks/i.test(String(err.message ?? ''))
+}
+
+/** A saved row can be served. Query failures must not stick as `applicable: false`. */
+export function storedOutfitPayloadIsServable(payload: PartnerOutfitPickPayload | null | undefined): boolean {
+  if (!payload || typeof payload.applicable !== 'boolean') return false
+  if (payload.computeOk === true) return true
+  return (
+    payload.applicable === true &&
+    (payload.slots || []).some((slot) => (slot.items || []).length > 0)
+  )
 }
 
 export function persistedOutfitIsFresh(algoVersion: string | null | undefined, computedAt: Date | string | null | undefined): boolean {
@@ -109,6 +121,53 @@ export async function savePartnerOutfitPicksFromPg(
   } catch (e) {
     if (isMissingOutfitPicksTableError(e)) return
     console.warn('[savePartnerOutfitPicksFromPg]', e)
+  }
+}
+
+const OUTFIT_BACKFILL_SERVABLE_SQL = `(
+  coalesce(p.payload->>'computeOk', '') = 'true'
+  or (
+    coalesce((p.payload->>'applicable')::boolean, false) = true
+    and case
+      when jsonb_typeof(p.payload->'slots') = 'array' then jsonb_array_length(p.payload->'slots')
+      else 0
+    end > 0
+  )
+)`
+
+/** Published shops: products whose saved outfit is missing, stale, or not servable. */
+export async function listPublishedOutfitPickBackfillFromPg(limit: number): Promise<
+  Array<{ partnerId: string; inventoryId: string }>
+> {
+  if (!isPgConfigured()) return []
+  const lim = Math.min(24, Math.max(1, Math.floor(limit) || 1))
+  try {
+    const rows = await pgQuery<{ partner_id: string; inventory_id: string }>(
+      `select i.partner_id::text as partner_id, i.id::text as inventory_id
+         from public.messaging_partner_inventory i
+         inner join public.messaging_partner_websites w
+           on w.partner_id = i.partner_id
+          and w.is_published = true
+         left join public.messaging_partner_outfit_picks p
+           on p.partner_id = i.partner_id
+          and p.inventory_id = i.id
+        where coalesce(i.is_active, true) = true
+          and (
+            p.inventory_id is null
+            or p.algo_version is distinct from $2
+            or p.computed_at is null
+            or p.computed_at < now() - interval '7 days'
+            or not ${OUTFIT_BACKFILL_SERVABLE_SQL}
+          )
+        order by p.computed_at asc nulls first, i.updated_at desc nulls last
+        limit $1`,
+      [lim, OUTFIT_PICKS_ALGO_VERSION]
+    )
+    return rows.map((row) => ({ partnerId: row.partner_id, inventoryId: row.inventory_id }))
+  } catch (e) {
+    if (isMissingOutfitPicksTableError(e)) return []
+    console.warn('[listPublishedOutfitPickBackfillFromPg]', e)
+    return []
   }
 }
 

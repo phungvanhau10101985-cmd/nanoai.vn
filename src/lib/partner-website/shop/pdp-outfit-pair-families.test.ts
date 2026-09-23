@@ -9,6 +9,7 @@ import { scoreOutfitCandidate188 } from '@/lib/partner-website/shop/pdp-outfit-s
 import {
   filterStoredOutfitPayload,
   persistedOutfitIsFresh,
+  storedOutfitPayloadIsServable,
   OUTFIT_PICKS_ALGO_VERSION,
 } from '@/lib/db/messaging-partner-outfit-picks-pg'
 
@@ -110,4 +111,36 @@ test('persisted outfit freshness and filter', () => {
   const onlyTop = filterStoredOutfitPayload(payload, { onlySlot: 'top', limit: 2 })
   assert.deepEqual(onlyTop.slots.map((s) => s.id), ['top'])
   assert.deepEqual(onlyTop.slots[0].items.map((i) => i.id), ['11', '12'])
+})
+
+test('empty outfit without computeOk is not served; a finished compute is', () => {
+  assert.equal(
+    storedOutfitPayloadIsServable({
+      applicable: false,
+      reason: 'no_slots',
+      anchor: null,
+      slots: [],
+    }),
+    false
+  )
+  assert.equal(
+    storedOutfitPayloadIsServable({
+      applicable: false,
+      reason: 'no_slots',
+      computeOk: true,
+      anchor: { id: '1', role: 'shoes', gender: 'female' },
+      slots: [],
+    }),
+    true
+  )
+  assert.equal(
+    storedOutfitPayloadIsServable({
+      applicable: true,
+      reason: null,
+      anchor: { id: '1', role: 'shoes', gender: 'female' },
+      slots: [{ id: 'top', listingPath: null, items: [{ id: '11', matchScore: 3, reasons: [] }] }],
+    }),
+    true
+  )
+  assert.equal(persistedOutfitIsFresh(OUTFIT_PICKS_ALGO_VERSION, new Date()), true)
 })

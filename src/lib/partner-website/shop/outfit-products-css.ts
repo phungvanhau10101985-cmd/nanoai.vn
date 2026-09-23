@@ -3,6 +3,7 @@ import { PW_PRODUCT_GRID_RULER_CSS } from '@/lib/partner-website/shop/pw-product
 import { pwUnlockedBelowLaptopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PW_OUTFIT_CHROME_CSS = `
+[data-pw-outfit][hidden],[data-pw-grid-kind="outfit"][hidden]{display:none!important}
 .pw-outfit{margin-top:24px;padding-top:20px;border-top:1px solid var(--pw-border,#e5e7eb);box-sizing:border-box}
 .pw-outfit-title{margin:0 0 2px;font-size:1rem;line-height:1.4;font-weight:700;color:var(--pw-text,#111827)}
 .pw-outfit-subtitle{margin:0 0 12px;font-size:12px;line-height:1.4;color:var(--pw-muted,#6b7280)}

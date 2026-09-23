@@ -1825,10 +1825,64 @@ function replaceBalancedTopbarInner(
   return out
 }
 
-function stampTopbarInnerKitStyle(html: string): string {
+/**
+ * Inner Thanh trên từng bị `width:100%` (full header). Trong Sửa nhanh header = khổ máy
+ * (Desktop 1440) nên lệch «Cách lề» âm bù được hàng icon. Live hoist header ra full viewport
+ * thì hàng chữ trượt khỏi cột `--pw-block-w` của Tài khoản / Vừa xem / Giỏ.
+ * Bù chỉ khi kit-x âm (đã kéo trái để khớp icon). kit-x 0 giữ nguyên — cùng inset với hàng icon.
+ */
+export function topbarInnerFullBleedCompPx(device?: VisualDeviceVariant | null): number {
+  if (device === 'laptop') return 40
+  if (device === 'desktop' || device == null) return 120
+  return 0
+}
+
+function cssDeclValue(css: string, prop: string): string | null {
+  const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = css.match(new RegExp(`(?:^|;)\\s*${escaped}\\s*:\\s*([^;]+)`, 'i'))
+  return match ? match[1].trim() : null
+}
+
+function stripCssDecls(css: string, props: string[]): string {
+  let next = css
+  for (const prop of props) {
+    const escaped = prop.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    next = next.replace(new RegExp(`(?:^|;)\\s*${escaped}\\s*:[^;]*`, 'gi'), '')
+  }
+  return next.replace(/;{2,}/g, ';').replace(/^;+|;+$/g, '').trim()
+}
+
+function releaseTopbarInnerFullBleed(openAttrs: string, device?: VisualDeviceVariant | null): string {
+  const styleMatch = openAttrs.match(/\sstyle=(["'])([\s\S]*?)\1/i)
+  if (!styleMatch) return openAttrs
+  const quote = styleMatch[1]
+  const css = styleMatch[2]
+  const width = cssDeclValue(css, 'width')
+  const minWidth = cssDeclValue(css, 'min-width')
+  const fullBleed = (width != null && /100%/.test(width)) || (minWidth != null && /100%/.test(minWidth))
+  if (!fullBleed) return openAttrs
+  let cleaned = stripCssDecls(css, ['width', 'min-width', 'max-width'])
+  const comp = topbarInnerFullBleedCompPx(device)
+  const fromAttr = openAttrs.match(new RegExp(`\\b${PW_KIT_X_ATTR}=(["'])([^"']*)\\1`, 'i'))?.[2]
+  const fromCss = css.match(/--pw-kit-x\s*:\s*(-?\d+(?:\.\d+)?)px/i)?.[1]
+  const raw = Number(fromAttr ?? fromCss ?? '')
+  const shift = Number.isFinite(raw) && raw < 0 && comp > 0 ? clampChromeKitShift(raw + comp) : null
+  if (shift != null) cleaned = stripCssDecls(cleaned, ['--pw-kit-x'])
+  let next = openAttrs.replace(
+    /\sstyle=(["'])([\s\S]*?)\1/i,
+    cleaned ? ` style=${quote}${cleaned}${quote}` : ''
+  )
+  if (shift == null) return next
+  next = next.replace(new RegExp(`\\s${PW_KIT_X_ATTR}=(["'])[^"']*\\1`, 'i'), '')
+  if (shift !== 0) next += ` ${PW_KIT_X_ATTR}="${shift}"`
+  return next
+}
+
+function stampTopbarInnerKitStyle(html: string, device?: VisualDeviceVariant | null): string {
   return replaceBalancedTopbarInner(
     html,
-    (attrs, inner) => `<div${withTopbarKitGapStyle(withHostKitShiftStyle(attrs))}>${inner}</div>`
+    (attrs, inner) =>
+      `<div${withTopbarKitGapStyle(withHostKitShiftStyle(releaseTopbarInnerFullBleed(attrs, device)))}>${inner}</div>`
   )
 }
 
@@ -2183,7 +2237,7 @@ export function ensurePartnerSiteChromeKitInHtml(
     hideKinds: hideTopbarFromHead,
   })
   if (hideTopbarFromHead.length) out = applyTopbarHiddenKinds(out, hideTopbarFromHead)
-  out = stampTopbarInnerKitStyle(out)
+  out = stampTopbarInnerKitStyle(out, input.device)
 
   out = ensureChromeKitFloatHost(out, {
     locale,

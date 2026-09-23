@@ -23,14 +23,6 @@ import {
 } from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import {
-  buildPartnerSiteNativeNavigationScript,
-  PARTNER_SITE_NATIVE_NAV_SCRIPT_ID,
-} from '@/lib/partner-website/shop/partner-site-account-native-navigation'
-import {
-  buildPartnerSiteImageSearchPageBootScript,
-  PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
-} from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
-import {
   shopBrowserChromeColor,
   shopBrowserThemeColorViewportItems,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
@@ -137,8 +129,6 @@ export default async function PartnerSiteSlugLayout({
         bust: live ? partnerShopLiveIconBust(live.theme, site.logoUrl) : null,
       })
     : ''
-  const nativeNavSlug = site?.siteSlug || slug
-
   return (
     <>
       <head>
@@ -148,22 +138,6 @@ export default async function PartnerSiteSlugLayout({
               'window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__nanoaiShopPwaPrompt=e;});',
           }}
         />
-        {nativeNavSlug ? (
-          <>
-            <script
-              id={PARTNER_SITE_NATIVE_NAV_SCRIPT_ID}
-              dangerouslySetInnerHTML={{
-                __html: buildPartnerSiteNativeNavigationScript(nativeNavSlug),
-              }}
-            />
-            <script
-              id={PW_IMAGE_SEARCH_BOOT_SCRIPT_ID}
-              dangerouslySetInnerHTML={{
-                __html: buildPartnerSiteImageSearchPageBootScript(nativeNavSlug),
-              }}
-            />
-          </>
-        ) : null}
         {name ? <meta name="apple-mobile-web-app-title" content={name} /> : null}
         {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
       </head>

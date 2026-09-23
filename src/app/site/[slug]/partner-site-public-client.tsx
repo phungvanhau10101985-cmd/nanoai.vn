@@ -123,6 +123,8 @@ function PartnerSiteInlineVisualScripts({ revision }: { revision: string }) {
     })
     const timer = window.setTimeout(() => {
       if (!document.querySelector('[data-pw-inline-visual-root]')) return
+      document.documentElement.setAttribute('data-pw-visual-ready', '1')
+      document.dispatchEvent(new Event('pw-shop-visual-ready'))
       document.dispatchEvent(new Event('pw-cart-updated'))
       document.dispatchEvent(new Event('pw-shop-notifications-refresh'))
       const apply = (window as Window & { __pwSceneCenterApply?: () => void }).__pwSceneCenterApply

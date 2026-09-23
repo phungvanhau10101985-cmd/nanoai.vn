@@ -67,7 +67,7 @@ test('account chrome resolves navigation on the server without a usePathname cli
   assert.doesNotMatch(source, /usePathname/)
   assert.match(source, /reactAccountShellNavFromPathname/)
   assert.match(source, /<PartnerSiteShopShell/)
-  assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.doesNotMatch(source, /buildPartnerSiteNativeNavigationScript/)
   const nativeNavigation = await readFile(
     new URL('./partner-site-account-native-navigation.ts', import.meta.url),
     'utf8'
@@ -97,10 +97,10 @@ test('root layout injects parser-blocking native navigation for custom-domain sh
   assert.doesNotMatch(source, /strategy="beforeInteractive"/)
 })
 
-test('shop layout binds native navigation in head before React hydrates', async () => {
+test('shop layout does not duplicate the root native-navigation scripts', async () => {
   const source = await readFile(new URL('../../../app/site/[slug]/layout.tsx', import.meta.url), 'utf8')
-  assert.match(source, /PARTNER_SITE_NATIVE_NAV_SCRIPT_ID/)
-  assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.doesNotMatch(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.doesNotMatch(source, /buildPartnerSiteImageSearchPageBootScript/)
   assert.match(source, /PartnerSiteSoftNavRelay/)
   assert.match(source, /<head>/)
   const relay = await readFile(
@@ -141,7 +141,7 @@ test('image search and compose pages boot without Suspense or nested startTransi
   assert.match(imagePage, /buildPartnerSiteImageSearchPageBootScript/)
   assert.doesNotMatch(imagePage, /PW_IMAGE_SEARCH_EAGER_ID/)
   assert.match(imageClient, /PW_IMAGE_SEARCH_EAGER_ID/)
-  assert.match(shopLayout, /buildPartnerSiteImageSearchPageBootScript/)
+  assert.doesNotMatch(shopLayout, /buildPartnerSiteImageSearchPageBootScript/)
   assert.match(rootLayout, /buildPartnerSiteImageSearchPageBootScript/)
   assert.match(imageClient, /usePartnerSitePageReadyEffect/)
   assert.match(imageClient, /subscribePartnerSiteImageSearchBoot/)

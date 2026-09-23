@@ -246,19 +246,24 @@ function hydrate(el){
     if(!id)el.hidden=true;
     return;
   }
-  fetch(outfitQuery(el),{credentials:'same-origin',cache:'default'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});}).then(function(res){
-    if(!res.ok){
-      grid.innerHTML='';
-      if(empty){empty.hidden=false;empty.textContent=COPY.error;}
-      el.hidden=true;
+  function fail(attempt){
+    if(attempt<1){
+      setTimeout(function(){load(attempt+1);},450);
       return;
     }
-    paintOutfitResult(el,res.j,false);
-  }).catch(function(){
+    var hasLive=grid.querySelector('[data-inventory-id]:not([data-pw-grid-placeholder])');
+    if(hasLive){el.hidden=false;return;}
     grid.innerHTML='';
     if(empty){empty.hidden=false;empty.textContent=COPY.error;}
     el.hidden=true;
-  });
+  }
+  function load(attempt){
+    fetch(outfitQuery(el),{credentials:'same-origin',cache:'default'}).then(function(r){return r.json().then(function(j){return {ok:r.ok,status:r.status,j:j};});}).then(function(res){
+      if(!res.ok){fail(attempt);return;}
+      paintOutfitResult(el,res.j,false);
+    }).catch(function(){fail(attempt);});
+  }
+  load(0);
 }
 function ensureStyles(){
   if(document.getElementById('pw-outfit-css'))return;
@@ -309,5 +314,6 @@ function run(){
   }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
+document.addEventListener('pw-shop-visual-ready',run);
 })();</script>`
 }

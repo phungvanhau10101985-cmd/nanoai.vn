@@ -34,8 +34,15 @@ export const VISITOR_MERGE_CLAIM_TTL_SEC = 86400
 
 /** Process L0 when Redis is off — same TTL as the Redis entry; cleared on bump. */
 const MEM_CACHE_MAX = 800
-/** Skip L0 when Redis already holds a fat id-list (~5000 UUID ≈ 180KB). */
+/** Id lists above this stay in Redis only (~5000 UUID ≈ 180KB). */
 const MEM_CACHE_MAX_BYTES = 24 * 1024
+/**
+ * Home/PDP shell and chrome stay in this process after a Redis timeout so the
+ * next click does not rebuild HTML from Postgres. Capped so a fat blob cannot
+ * pin the event loop the way a Redis GET of the same blob does.
+ */
+export const MEM_CACHE_SHELL_MAX_BYTES = 512 * 1024
+const MEM_CACHE_LARGE_BUDGET_BYTES = 12 * 1024 * 1024
 /** Skip Redis SET for chrome/html blobs that would stall GET (TTFB 10s+). Id-lists stay allowed. */
 export const SHOP_REDIS_BLOB_MAX_BYTES = 200 * 1024
 const memStore = new Map<string, { exp: number; raw: string }>()
@@ -62,8 +69,35 @@ function readMem(key: string): string | null {
   return row.raw
 }
 
+function isIdListCacheKey(key: string): boolean {
+  return /:ids:/.test(key)
+}
+
+/** Process copy rules. Fat id lists stay out of L0 while Redis is on. */
+export function shopCacheRetainsProcessCopy(key: string, byteLength: number, redisOn: boolean): boolean {
+  if (byteLength <= MEM_CACHE_MAX_BYTES) return true
+  if (redisOn && isIdListCacheKey(key)) return false
+  return byteLength <= MEM_CACHE_SHELL_MAX_BYTES
+}
+
+function evictLargeMem(extraBytes: number): void {
+  let used = 0
+  for (const row of memStore.values()) {
+    if (row.raw.length > MEM_CACHE_MAX_BYTES) used += row.raw.length
+  }
+  if (used + extraBytes <= MEM_CACHE_LARGE_BUDGET_BYTES) return
+  for (const key of [...memStore.keys()]) {
+    const row = memStore.get(key)
+    if (!row || row.raw.length <= MEM_CACHE_MAX_BYTES) continue
+    memStore.delete(key)
+    used -= row.raw.length
+    if (used + extraBytes <= MEM_CACHE_LARGE_BUDGET_BYTES) return
+  }
+}
+
 function writeMem(key: string, ttlSec: number, raw: string): void {
-  if (raw.length > MEM_CACHE_MAX_BYTES && isRedisConfigured()) return
+  if (!shopCacheRetainsProcessCopy(key, raw.length, isRedisConfigured())) return
+  if (raw.length > MEM_CACHE_MAX_BYTES) evictLargeMem(raw.length)
   if (memStore.size >= MEM_CACHE_MAX) {
     const oldest = memStore.keys().next().value
     if (typeof oldest === 'string') memStore.delete(oldest)
@@ -183,7 +217,17 @@ export function visitorMergeClaimCacheKey(input: {
 async function readVersionOnce(key: string): Promise<number> {
   const existing = pendingVersions.get(key)
   if (existing) return existing
-  const pending = redisGetInt(key).finally(() => {
+  const pending = (async () => {
+    const remembered = Number(readMem(key) || 0)
+    const n = await redisGetInt(key)
+    if (n > 0) {
+      writeMem(key, 3600, String(n))
+      return n
+    }
+    // Redis timeout returns 0. Reuse the last version so L0 keys stay stable
+    // instead of falling through to a cold Postgres rebuild on every click.
+    return Number.isFinite(remembered) && remembered > 0 ? Math.floor(remembered) : 0
+  })().finally(() => {
     if (pendingVersions.get(key) === pending) pendingVersions.delete(key)
   })
   pendingVersions.set(key, pending)
@@ -234,8 +278,8 @@ function isHtmlOrChromeCacheKey(key: string): boolean {
 export async function shopCacheSetJson(key: string, ttlSec: number, value: unknown): Promise<void> {
   try {
     const raw = JSON.stringify(value)
-    if (isHtmlOrChromeCacheKey(key) && raw.length > SHOP_REDIS_BLOB_MAX_BYTES) return
     writeMem(key, ttlSec, raw)
+    if (isHtmlOrChromeCacheKey(key) && raw.length > SHOP_REDIS_BLOB_MAX_BYTES) return
     await redisSetEx(key, ttlSec, raw)
   } catch (e) {
     console.warn('[partner-shop-cache] set failed', e instanceof Error ? e.message : e)

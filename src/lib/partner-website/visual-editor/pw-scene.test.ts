@@ -253,6 +253,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT).toContain('/scale(?:Y)?\\(\\s*([\\d.]+)/')
     expect(() => new Function(PARTNER_SHOP_IMAGE_ZOOM_SCRIPT)).not.toThrow()
     expect(() => new Function(PARTNER_SHOP_SCENE_CENTER_SCRIPT)).not.toThrow()
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function releaseTopbarInnerColumn()')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('data-pw-scene-lock')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('C.resolveDevice')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('devicePixelRatio:window.devicePixelRatio||0')

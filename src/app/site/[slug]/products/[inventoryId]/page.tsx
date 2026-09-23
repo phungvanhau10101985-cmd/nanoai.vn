@@ -14,6 +14,8 @@ import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-part
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
+import { outfitSuggestionsToBind } from '@/lib/partner-website/shop/outfit-products'
+import { readSavedPartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
 import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { resolvePartnerShopProductByKey } from '@/lib/partner-website/shop/resolve-partner-shop-product-by-key'
@@ -103,6 +105,12 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   }
 
   const visualDocPromise = loadPartnerSiteVisualProductDocument(shop.site, row.id, device)
+  const savedOutfitPromise = readSavedPartnerOutfitSuggestions({
+    partnerId: shop.partnerId,
+    siteSlug: shop.site.siteSlug,
+    inventoryId: row.id,
+    locale: shop.site.locale,
+  }).catch(() => null)
   const guestEmailPromise = sessionUser?.email?.trim()
     ? Promise.resolve(sessionUser.email.trim().toLowerCase())
     : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(accountKey)
@@ -113,7 +121,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const mapped = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
   if (!mapped) notFound()
   let guestEmail: string | null = null
-  const [faced, visualDoc] = await Promise.all([
+  const [faced, visualDoc, savedOutfit] = await Promise.all([
     guestEmailPromise.then((email) => {
       guestEmail = email
       return applyPartnerStorefrontSaleFaces([{ ...mapped, isClearance: row.is_clearance === true }], {
@@ -125,9 +133,11 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
       })
     }),
     visualDocPromise,
+    savedOutfitPromise,
   ])
   const product = faced[0]
   if (!product) notFound()
+  const outfitBind = outfitSuggestionsToBind(savedOutfit)
 
   if (visualDoc) {
     return (
@@ -139,7 +149,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
         liveProduct={{
           ...product,
           relatedProducts: [],
-          outfitSlots: [],
+          outfitTitle: outfitBind.title,
+          outfitSlots: outfitBind.slots,
         }}
       />
     )

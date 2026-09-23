@@ -9,8 +9,10 @@ import {
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
   filterStoredOutfitPayload,
+  listPublishedOutfitPickBackfillFromPg,
   loadPartnerOutfitPicksFromPg,
   savePartnerOutfitPicksFromPg,
+  storedOutfitPayloadIsServable,
   OUTFIT_STORED_LIMIT,
   type PartnerOutfitPickPayload,
   type PartnerOutfitPickSlot,
@@ -62,6 +64,8 @@ export type PartnerOutfitSlot = {
 
 export type PartnerOutfitSuggestions = {
   applicable: boolean
+  /** Query failed. Do not persist. Caller should retry. */
+  unavailable?: boolean
   reason: OutfitNotApplicableReason | null
   anchor: {
     id: string
@@ -119,6 +123,57 @@ function emptySuggestions(): PartnerOutfitSuggestions {
   return { applicable: false, reason: 'no_slots', anchor: null, slots: [] }
 }
 
+type OutfitComputeResult = { ok: boolean; payload: PartnerOutfitPickPayload }
+
+const outfitEnsureInflight = new Map<string, Promise<{ unavailable: boolean; payload: PartnerOutfitPickPayload | null }>>()
+
+function markComputeOk(payload: PartnerOutfitPickPayload): PartnerOutfitPickPayload {
+  return { ...payload, computeOk: true }
+}
+
+/**
+ * One compute per product at a time. A failed query is not written, so the next
+ * open retries instead of serving a stuck empty row for 7 days.
+ */
+function ensurePartnerOutfitPicks(partnerId: string, inventoryId: string) {
+  const key = `${partnerId}:${inventoryId}`
+  const pending = outfitEnsureInflight.get(key)
+  if (pending) return pending
+  const job = (async () => {
+    const stored = await loadPartnerOutfitPicksFromPg(partnerId, inventoryId)
+    if (stored && storedOutfitPayloadIsServable(stored)) {
+      return { unavailable: false, payload: stored }
+    }
+    const computed = await computeOutfitSlotPicks({ partnerId, inventoryId })
+    if (!computed.ok) {
+      console.warn('[outfit-picks] compute failed', partnerId, inventoryId)
+      return { unavailable: true, payload: null }
+    }
+    await savePartnerOutfitPicksFromPg(partnerId, inventoryId, computed.payload)
+    return { unavailable: false, payload: computed.payload }
+  })().finally(() => {
+    outfitEnsureInflight.delete(key)
+  })
+  outfitEnsureInflight.set(key, job)
+  return job
+}
+
+/** Saved row only. PDP HTML uses this so the first paint does not recompute. */
+export async function readSavedPartnerOutfitSuggestions(input: {
+  partnerId: string
+  siteSlug: string
+  inventoryId: string
+  locale: WebLocale
+}): Promise<PartnerOutfitSuggestions | null> {
+  const inventoryId = String(input.inventoryId || '').trim()
+  if (!inventoryId) return null
+  const stored = await loadPartnerOutfitPicksFromPg(input.partnerId, inventoryId)
+  if (!stored || !storedOutfitPayloadIsServable(stored) || !stored.applicable) return null
+  const trimmed = filterStoredOutfitPayload(stored, { limit: OUTFIT_FETCH_LIMIT })
+  const view = await assembleOutfitSuggestions(trimmed, input)
+  return view.applicable ? view : null
+}
+
 export async function fetchPartnerOutfitSuggestions(input: {
   partnerId: string
   siteSlug: string
@@ -130,15 +185,11 @@ export async function fetchPartnerOutfitSuggestions(input: {
   const inventoryId = String(input.inventoryId || '').trim()
   if (!inventoryId) return emptySuggestions()
   const limit = Math.min(OUTFIT_FETCH_LIMIT, Math.max(1, Math.floor(input.limit || OUTFIT_FETCH_LIMIT)))
-  let stored = await loadPartnerOutfitPicksFromPg(input.partnerId, inventoryId)
-  if (!stored) {
-    stored = await computeOutfitSlotPicks({
-      partnerId: input.partnerId,
-      inventoryId,
-    })
-    await savePartnerOutfitPicksFromPg(input.partnerId, inventoryId, stored)
+  const ensured = await ensurePartnerOutfitPicks(input.partnerId, inventoryId)
+  if (ensured.unavailable || !ensured.payload) {
+    return { ...emptySuggestions(), unavailable: true }
   }
-  const trimmed = filterStoredOutfitPayload(stored, { onlySlot: input.slot ?? null, limit })
+  const trimmed = filterStoredOutfitPayload(ensured.payload, { onlySlot: input.slot ?? null, limit })
   return assembleOutfitSuggestions(trimmed, {
     partnerId: input.partnerId,
     siteSlug: input.siteSlug,
@@ -146,33 +197,78 @@ export async function fetchPartnerOutfitSuggestions(input: {
   })
 }
 
+/** Fill saved outfits for published shops before a customer opens the PDP. */
+export async function warmPublishedShopOutfitPicks(limit = 6): Promise<{
+  scanned: number
+  saved: number
+  failed: number
+  skipped: number
+}> {
+  const targets = await listPublishedOutfitPickBackfillFromPg(limit)
+  let saved = 0
+  let failed = 0
+  let skipped = 0
+  for (const target of targets) {
+    const ensured = await ensurePartnerOutfitPicks(target.partnerId, target.inventoryId)
+    if (ensured.unavailable) {
+      failed += 1
+      continue
+    }
+    if (ensured.payload?.computeOk === true) saved += 1
+    else skipped += 1
+  }
+  if (targets.length) {
+    console.info('[outfit-picks] warm', { scanned: targets.length, saved, failed, skipped })
+  }
+  return { scanned: targets.length, saved, failed, skipped }
+}
+
 async function computeOutfitSlotPicks(input: {
   partnerId: string
   inventoryId: string
-}): Promise<PartnerOutfitPickPayload> {
+}): Promise<OutfitComputeResult> {
   const empty: PartnerOutfitPickPayload = { applicable: false, reason: 'no_slots', anchor: null, slots: [] }
+  try {
+    return await computeOutfitSlotPicksInner(input, empty)
+  } catch (e) {
+    console.warn('[outfit-picks] compute threw', input.partnerId, input.inventoryId, e)
+    return { ok: false, payload: empty }
+  }
+}
+
+async function computeOutfitSlotPicksInner(
+  input: { partnerId: string; inventoryId: string },
+  empty: PartnerOutfitPickPayload
+): Promise<OutfitComputeResult> {
   const [matchRows, cats] = await Promise.all([
     fetchPartnerInventoryOutfitMatchByIdsFromPg(input.partnerId, [input.inventoryId]),
     fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: true }),
   ])
-  const row = (matchRows ?? []).find((item) => item.id === input.inventoryId)
-  if (!row) return empty
+  if (matchRows == null) return { ok: false, payload: empty }
+  const row = matchRows.find((item) => item.id === input.inventoryId)
+  if (!row) return { ok: true, payload: markComputeOk(empty) }
   const classified = classifyOutfitAnchor([row.category_l1, row.category_l2, row.category_l3, row.name])
   if (!classified.role) {
     return {
-      applicable: false,
-      reason: 'no_slots',
-      anchor: { id: row.id, role: null, gender: classified.gender },
-      slots: [],
+      ok: true,
+      payload: markComputeOk({
+        applicable: false,
+        reason: 'no_slots',
+        anchor: { id: row.id, role: null, gender: classified.gender },
+        slots: [],
+      }),
     }
   }
   const slotIds = slotsForOutfitAnchor(classified.role, classified.gender)
   if (!slotIds.length) {
     return {
-      applicable: false,
-      reason: 'no_slots',
-      anchor: { id: row.id, role: classified.role, gender: classified.gender },
-      slots: [],
+      ok: true,
+      payload: markComputeOk({
+        applicable: false,
+        reason: 'no_slots',
+        anchor: { id: row.id, role: classified.role, gender: classified.gender },
+        slots: [],
+      }),
     }
   }
 
@@ -186,32 +282,38 @@ async function computeOutfitSlotPicks(input: {
   }
 
   const anchorSubject = matchRowToSubject(row)
-  const slots = await Promise.all(
-    slotIds.map((slot) =>
-      computeOutfitSlotPicksForRole({
-        partnerId: input.partnerId,
-        slot,
-        excludeId: row.id,
-        anchor: anchorSubject,
-        anchorGender: classified.gender,
-        listingCat: listingCatBySlot.get(slot) ?? null,
-      })
-    )
-  )
-  const filled = slots.filter((s): s is PartnerOutfitPickSlot => Boolean(s && s.items.length))
-  if (!filled.length) {
+  const slots: PartnerOutfitPickSlot[] = []
+  for (const slot of slotIds) {
+    const picked = await computeOutfitSlotPicksForRole({
+      partnerId: input.partnerId,
+      slot,
+      excludeId: row.id,
+      anchor: anchorSubject,
+      anchorGender: classified.gender,
+      listingCat: listingCatBySlot.get(slot) ?? null,
+    })
+    if (picked === 'error') return { ok: false, payload: empty }
+    if (picked && picked.items.length) slots.push(picked)
+  }
+  if (!slots.length) {
     return {
-      applicable: false,
-      reason: 'no_slots',
-      anchor: { id: row.id, role: classified.role, gender: classified.gender },
-      slots: [],
+      ok: true,
+      payload: markComputeOk({
+        applicable: false,
+        reason: 'no_slots',
+        anchor: { id: row.id, role: classified.role, gender: classified.gender },
+        slots: [],
+      }),
     }
   }
   return {
-    applicable: true,
-    reason: null,
-    anchor: { id: row.id, role: classified.role, gender: classified.gender },
-    slots: filled,
+    ok: true,
+    payload: markComputeOk({
+      applicable: true,
+      reason: null,
+      anchor: { id: row.id, role: classified.role, gender: classified.gender },
+      slots,
+    }),
   }
 }
 
@@ -241,30 +343,33 @@ async function computeOutfitSlotPicksForRole(input: {
   anchor: OutfitScoreSubject
   anchorGender: OutfitGender
   listingCat: PartnerCategoryRow | null
-}): Promise<PartnerOutfitPickSlot | null> {
+}): Promise<PartnerOutfitPickSlot | null | 'error'> {
   const l1Names = targetOutfitCat1Names(input.slot, input.anchorGender)
   const patterns = outfitSlotQueryPatterns(input.anchor, input.slot)
-  let rows =
-    (await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
-      categoryL1Names: l1Names,
-      namePatterns: patterns,
-      excludeId: input.excludeId,
-      limit: SLOT_POOL,
-    })) ?? []
+  const rows = await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
+    categoryL1Names: l1Names,
+    namePatterns: patterns,
+    excludeId: input.excludeId,
+    limit: SLOT_POOL,
+  })
+  if (rows == null) return 'error'
   let collected = rows.filter((row) => candidatePassesSlot(input.slot, row, input.anchor))
   if (collected.length < 8) {
-    const extra =
-      (await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
-        categoryL1Names: l1Names,
-        namePatterns: input.slot === 'dress' ? ['%váy%', '%đầm%', '%vay%'] : [],
-        excludeId: input.excludeId,
-        limit: SLOT_POOL,
-      })) ?? []
-    const seen = new Set(collected.map((row) => row.id))
-    for (const row of extra) {
-      if (seen.has(row.id) || !candidatePassesSlot(input.slot, row, input.anchor)) continue
-      seen.add(row.id)
-      collected.push(row)
+    const extra = await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
+      categoryL1Names: l1Names,
+      namePatterns: input.slot === 'dress' ? ['%váy%', '%đầm%', '%vay%'] : [],
+      excludeId: input.excludeId,
+      limit: SLOT_POOL,
+    })
+    if (extra == null) {
+      if (!collected.length) return 'error'
+    } else {
+      const seen = new Set(collected.map((row) => row.id))
+      for (const row of extra) {
+        if (seen.has(row.id) || !candidatePassesSlot(input.slot, row, input.anchor)) continue
+        seen.add(row.id)
+        collected.push(row)
+      }
     }
   }
 

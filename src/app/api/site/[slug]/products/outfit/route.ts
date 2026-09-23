@@ -39,6 +39,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     locale,
     slot,
   })
+  if (data.unavailable) {
+    console.warn('[outfit-picks] unavailable', shop.partnerId, inventoryId)
+    return NextResponse.json({ ok: false, error: 'outfit_unavailable' }, { status: 503 })
+  }
   const slots = data.slots.map((s) => {
     const items = s.items.slice(offset, offset + limit).map((item) => ({
       ...item,
