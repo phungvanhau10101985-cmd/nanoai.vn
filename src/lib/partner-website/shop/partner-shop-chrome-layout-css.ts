@@ -379,6 +379,11 @@ export const PARTNER_SHOP_MOBILE_HEADER_SEARCH_LOCK_CSS = [
   scopeMarketplaceLookCss(
     'html[data-pw-look="marketplace"] .pw-nav-main a,html[data-pw-look="marketplace"] .pw-nav-main button,html[data-pw-look="marketplace"] .pw-shop-nav-row a,html[data-pw-look="marketplace"] .pw-shop-nav-row button{color:#fff!important}'
   ),
+  /* Header live bị hoist ra khỏi visual root. Look trên host hoist phải thắng rule shop. */
+  'html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-header,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-shop-header,html [data-pw-live-chrome][data-pw-look="marketplace"] [data-pw-region="header"]{background:var(--pw-primary)!important;color:#fff!important;border-bottom:none!important;box-shadow:0 2px 10px color-mix(in srgb,var(--pw-primary) 35%,transparent)!important}',
+  'html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-wordmark,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-brand,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-header-actions,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-header-actions [data-pw-chrome-btn],html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-nav-main a,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-nav-main button{color:#fff!important}',
+  'html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-cat-btn:not([data-pw-chrome-added]){background:rgba(255,255,255,.16)!important;border:1.5px solid rgba(255,255,255,.55)!important;color:#fff!important}',
+  'html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-search-form,html [data-pw-live-chrome][data-pw-look="marketplace"] .pw-shop-search-form{background:#fff!important;border:none!important;box-shadow:0 2px 8px rgba(15,23,42,.1)!important}',
   `@media (max-width:899px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_COMPACT_HEADER_RULES)}}`,
   `@media (min-width:768px) and (max-width:899px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_TABLET_HEADER_FACE_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_TABLET_HEADER_LOGO_ROW_RULES)}}`,
   `@media (max-width:767px){${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_PHONE_HEADER_FACE_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_STACK_RULES)}${pwHostPrefixCss([PW_SCENE_UNLOCKED_HTML], PW_MOBILE_HEADER_ICON_ONLY_RULES)}}`,

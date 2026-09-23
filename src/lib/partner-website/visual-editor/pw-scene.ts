@@ -1107,6 +1107,24 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     if(revision)node.setAttribute('data-pw-runtime-revision',revision);
     return node;
   }
+  function stampLiveLook(root,chrome){
+    if(!root||!root.getAttribute)return;
+    var html=document.documentElement;
+    var names=['data-pw-look','data-pw-page','data-pw-coordinate-version'];
+    var i,name,value;
+    for(i=0;i<names.length;i++){
+      name=names[i];
+      value=String(root.getAttribute(name)||'');
+      if(!value)continue;
+      if(html)html.setAttribute(name,value);
+      if(chrome&&chrome.setAttribute)chrome.setAttribute(name,value);
+    }
+    var device=root.getAttribute('data-pw-active-device')||root.getAttribute('data-pw-edit-device')||'';
+    if(chrome&&device){
+      chrome.setAttribute('data-pw-active-device',device);
+      chrome.setAttribute('data-pw-edit-device',device);
+    }
+  }
   function hoistLiveChrome(root,scale){
     if(!root||isEditor())return;
     if(window.__pwReactShopChrome||isReactShopShell())return;
@@ -1136,6 +1154,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       if(chromeRevision)chrome.setAttribute('data-pw-runtime-revision',chromeRevision);
       host.insertBefore(chrome,root);
     }
+    stampLiveLook(root,chrome);
     var inner=chrome.querySelector('[data-pw-live-chrome-scale]');
     if(!inner){
       inner=document.createElement('div');
@@ -1568,6 +1587,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     else html.removeAttribute('data-pw-scene-zoomed');
     var root=liveRoot();
     if(root){
+      stampLiveLook(root,null);
       watchLiveRoot(root);
       if(!isEditor()){
         hoistLiveFloat(root);

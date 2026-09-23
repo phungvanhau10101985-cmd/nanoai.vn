@@ -9,6 +9,7 @@ import {
 import {
   buildMarketplaceLookCss,
   MARKETPLACE_GOOGLE_FONTS_HREF,
+  scopeMarketplaceLookCss,
   PARTNER_MARKETPLACE_LOOK_STYLE_ID,
   PARTNER_WEBSITE_LOOK_MARKETPLACE,
   stampPartnerWebsiteLookInHtml,
@@ -46,12 +47,41 @@ const ENGINE_STYLE_ID_RE = new RegExp(
   'gi'
 )
 
+/** Cuối file CSS live — thắng mọi rule header trắng Desktop/Laptop phía trước. */
+function marketplaceHeaderBeatsWideWhiteCss(): string {
+  return scopeMarketplaceLookCss(`
+html[data-pw-look="marketplace"] .pw-header,
+html[data-pw-look="marketplace"] .pw-shop-header,
+html[data-pw-look="marketplace"] [data-pw-region="header"],
+html[data-pw-look="marketplace"][data-pw-edit-device] .pw-header,
+html[data-pw-look="marketplace"][data-pw-edit-device] .pw-shop-header,
+html[data-pw-look="marketplace"][data-pw-scene-lock] .pw-header,
+html[data-pw-look="marketplace"][data-pw-scene-lock] .pw-shop-header{
+  background:var(--pw-primary)!important;
+  color:#fff!important;
+  border-bottom:none!important;
+}
+html[data-pw-look="marketplace"] .pw-wordmark,
+html[data-pw-look="marketplace"][data-pw-edit-device] .pw-wordmark,
+html[data-pw-look="marketplace"][data-pw-scene-lock] .pw-wordmark{
+  color:#fff!important;
+}
+`.trim())
+}
+
 /** One engine sheet: theme tokens + look + chrome layout + footer fit. Color picker still drives `--pw-*`. */
+
 export function buildPartnerShopLiveCssPack(theme?: PartnerWebsiteTheme | null): string {
   const resolved = resolvedLiveTheme(theme)
-  const lookCss =
-    resolved.look === PARTNER_WEBSITE_LOOK_MARKETPLACE ? buildMarketplaceLookCss() : buildShopLookCss()
-  return [buildPartnerSiteShopThemeCss(resolved), PARTNER_SHOP_CHROME_LAYOUT_CSS, lookCss, PW_SHOP_FOOTER_FIT_CSS]
+  const marketplace = resolved.look === PARTNER_WEBSITE_LOOK_MARKETPLACE
+  const lookCss = marketplace ? buildMarketplaceLookCss() : buildShopLookCss()
+  return [
+    buildPartnerSiteShopThemeCss(resolved),
+    PARTNER_SHOP_CHROME_LAYOUT_CSS,
+    lookCss,
+    PW_SHOP_FOOTER_FIT_CSS,
+    marketplace ? marketplaceHeaderBeatsWideWhiteCss() : '',
+  ]
     .filter((chunk) => String(chunk || '').trim())
     .join('\n')
 }

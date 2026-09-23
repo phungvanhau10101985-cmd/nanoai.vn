@@ -277,6 +277,8 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('var mobileish=key===\'mobile\'')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return 1;')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveChrome(root,scale){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function stampLiveLook(root,chrome){')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("html.setAttribute(name,value)")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function isReactShopShell(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('window.__pwReactShopChrome')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('return outside||inside;')

@@ -38,6 +38,15 @@ test('live CSS pack has theme tokens, layout, look, and footer fit', () => {
   assert.doesNotMatch(css, /nanoai-visual-editor-styles/)
 })
 
+test('GD03 live pack paints the header primary after the desktop white rule', () => {
+  const css = buildPartnerShopLiveCssPack({ ...DEFAULT_PARTNER_WEBSITE_THEME, look: 'marketplace' })
+  const lock = css.lastIndexOf('[data-pw-inline-visual-root][data-pw-look="marketplace"])[data-pw-edit-device] .pw-header')
+  const white = css.lastIndexOf('[data-pw-look="shop"] .pw-header')
+  assert.ok(lock > 0)
+  assert.ok(lock > white)
+  assert.match(css.slice(lock, lock + 1800), /background:var\(--pw-primary\)!important/)
+})
+
 test('injectPartnerShopLiveCssHref stamps a stylesheet link and strips engine style tags', () => {
   const withEngine = `<!DOCTYPE html><html><head>
 <style id="${PARTNER_SHOP_THEME_STYLE_ID}">.dead{color:red}</style>

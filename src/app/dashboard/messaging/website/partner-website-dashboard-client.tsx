@@ -925,7 +925,7 @@ export function PartnerWebsiteDashboardClient({
                         partnerId={partnerId}
                         partnerTitle={partnerTitle}
                         t={t}
-                        disabled={!partnerId || publishing || chatBusy || Boolean(resetTrash)}
+                        disabled={!partnerId || publishing || chatBusy}
                         onResetComplete={handleWebsiteResetComplete}
                       />
                     ) : null}

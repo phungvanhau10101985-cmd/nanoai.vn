@@ -772,10 +772,15 @@ function PartnerSiteShopShellInner({
     document.body.appendChild(s)
   }, [listingCategory, pageKind])
   useLayoutEffect(() => {
-    document.documentElement.setAttribute('data-pw-look', shopLook)
+    const rootLook =
+      document.querySelector('[data-pw-inline-visual-root]')?.getAttribute('data-pw-look') ||
+      document.querySelector('[data-pw-live-chrome]')?.getAttribute('data-pw-look') ||
+      ''
+    const look = rootLook === 'marketplace' || rootLook === 'shop' ? rootLook : shopLook
+    document.documentElement.setAttribute('data-pw-look', look)
     applyShopBrowserThemeColorToDocument(document, theme)
     return () => {
-      if (document.documentElement.getAttribute('data-pw-look') === shopLook) {
+      if (document.documentElement.getAttribute('data-pw-look') === look) {
         document.documentElement.removeAttribute('data-pw-look')
       }
     }

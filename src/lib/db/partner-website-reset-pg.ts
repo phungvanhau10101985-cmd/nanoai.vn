@@ -308,16 +308,6 @@ export async function verifyPartnerWebsiteResetOtpAndDeleteFromPg(params: {
       return { ok: false, reason: 'otp', message: 'Mã OTP không đúng hoặc đã hết hạn.' }
     }
 
-    const pendingTrash = await fetchPartnerWebsiteResetTrashInfoFromPg(pid)
-    if (pendingTrash) {
-      return {
-        ok: false,
-        reason: 'db',
-        message:
-          'Bản web trước lần reset vẫn còn. Bấm «Khôi phục web đã reset» trên thanh xem trước. Reset lại không được ghi đè bản đó.',
-      }
-    }
-
     await clearPartnerWebsiteResetTrashRow(pid)
 
     let row: { deleted: boolean; site_slug?: string | null } | null = null
