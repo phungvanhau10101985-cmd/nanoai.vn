@@ -2,12 +2,7 @@
 
 import { useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  clearViewedProductSnapshot,
-  persistViewedProductSnapshotScroll,
-  releaseViewedProductSnapshot,
-  showViewedProductSnapshot,
-} from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
+import { discardViewedProductSnapshots } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { isPartnerShopVisualHtmlPath } from '@/lib/partner-website/shop/partner-shop-react-island-path'
 
 export const PW_SHOP_SOFT_NAV_EVENT = 'pw-shop-soft-nav'
@@ -70,16 +65,6 @@ export function PartnerSiteSoftNavRelay() {
       } catch {
         /* visual ack is best-effort */
       }
-      if (showViewedProductSnapshot(path)) {
-        persistViewedProductSnapshotScroll()
-        try {
-          win.__pwShopTapAckNavEnd?.()
-        } catch {
-          /* visual ack is best-effort */
-        }
-      } else {
-        clearViewedProductSnapshot()
-      }
       window.dispatchEvent(new CustomEvent(PW_SHOP_SOFT_NAV_EVENT, { detail: { href: path } }))
       if (isPartnerShopVisualHtmlPath(path)) {
         window.location.assign(path)
@@ -102,9 +87,11 @@ export function PartnerSiteSoftNavRelay() {
     }
   }, [router])
   useLayoutEffect(() => {
+    discardViewedProductSnapshots()
+  }, [])
+  useLayoutEffect(() => {
     if (pathRef.current === pathname) return
     pathRef.current = pathname
-    if (!releaseViewedProductSnapshot()) clearViewedProductSnapshot()
     try {
       ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
     } catch {

@@ -6,12 +6,6 @@ import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/sho
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import type { WebLocale } from '@/lib/i18n/config'
 import { persistPartnerLiveVisualDeviceCookie } from '@/lib/partner-website/shop/infer-live-visual-request-device'
-import {
-  captureLiveViewedProductDocument,
-  rememberViewedProductPage,
-  scheduleViewedProductSnapshotRelease,
-  viewedProductPathname,
-} from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
@@ -29,7 +23,6 @@ export function PartnerSiteLiveVisualIslands({
   tracking,
   browserThemeColor,
   device,
-  pageKind,
 }: {
   siteSlug: string
   locale: WebLocale
@@ -45,25 +38,10 @@ export function PartnerSiteLiveVisualIslands({
   useLayoutEffect(() => {
     if (browserThemeColor) applyShopBrowserThemeColorToDocument(document, browserThemeColor)
     persistPartnerLiveVisualDeviceCookie(device || 'desktop', navigator.userAgent || '')
-    const path = window.location.pathname
-    if (viewedProductPathname(path) && (!pageKind || pageKind === 'product')) {
-      const cancelRelease = scheduleViewedProductSnapshotRelease()
-      const timer = window.setTimeout(() => {
-        const live = captureLiveViewedProductDocument()
-        const root = document.querySelector('[data-pw-inline-visual-root]')
-        const html = live || (root ? root.innerHTML : '')
-        if (html) rememberViewedProductPage(path, html)
-      }, 0)
-      return () => {
-        cancelRelease()
-        window.clearTimeout(timer)
-        stripPartnerLiveHoistHosts()
-      }
-    }
     return () => {
       stripPartnerLiveHoistHosts()
     }
-  }, [browserThemeColor, device, pageKind])
+  }, [browserThemeColor, device])
 
   return (
     <PartnerSiteChatWidgetProvider

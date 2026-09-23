@@ -47,12 +47,6 @@ import {
 } from '@/lib/partner-website/shop/mobile-header-logo-collapse'
 import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
-import {
-  captureLiveViewedProductDocument,
-  rememberViewedProductPage,
-  scheduleViewedProductSnapshotRelease,
-  viewedProductPathname,
-} from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -434,21 +428,6 @@ function PartnerSitePublicFrame({
     const themeColor = browserThemeColor || extractShopBrowserThemeColorFromHtml(previewHtml)
     if (themeColor) applyShopBrowserThemeColorToDocument(document, themeColor)
   }, [browserThemeColor, previewHtml])
-  useLayoutEffect(() => {
-    if (!inlineHtml || devicePreview) return
-    const path = window.location.pathname
-    if (!viewedProductPathname(path)) return
-    if (visualPageKind && visualPageKind !== 'product') return
-    const html = previewHtml
-    const cancelRelease = scheduleViewedProductSnapshotRelease()
-    const timer = window.setTimeout(() => {
-      rememberViewedProductPage(path, captureLiveViewedProductDocument() || html)
-    }, 0)
-    return () => {
-      cancelRelease()
-      window.clearTimeout(timer)
-    }
-  }, [devicePreview, inlineHtml, previewHtml, visualPageKind])
   useLayoutEffect(() => {
     if (!inlineHtml) return
     const root = document.documentElement

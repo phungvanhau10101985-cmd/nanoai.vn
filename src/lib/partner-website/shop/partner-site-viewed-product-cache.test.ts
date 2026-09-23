@@ -1,20 +1,19 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
-  PW_VIEWED_PDP_MAX_ENTRIES,
-  PW_VIEWED_PDP_TTL_MS,
   buildViewedProductSnapshotBootScript,
-  readViewedProductPage,
-  rememberViewedProductPage,
-  snapshotIsFaithful,
-  viewedProductPathname,
+  discardViewedProductSnapshots,
   type ViewedProductStorage,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 
-function memoryStorage(): ViewedProductStorage & { data: Map<string, string> } {
-  const data = new Map<string, string>()
+function memoryStorage(seed: Record<string, string> = {}): ViewedProductStorage & { data: Map<string, string> } {
+  const data = new Map(Object.entries(seed))
   return {
     data,
+    get length() {
+      return data.size
+    },
+    key: (index) => Array.from(data.keys())[index] ?? null,
     getItem: (key) => data.get(key) ?? null,
     setItem: (key, value) => {
       data.set(key, value)
@@ -25,90 +24,25 @@ function memoryStorage(): ViewedProductStorage & { data: Map<string, string> } {
   }
 }
 
-const productHtml = `<html data-pw-page="product"><head><style>.pw-price{color:red}</style></head><body>
-<section data-pw-region="pdp-info"><h1>Áo</h1><a href="/products/ao-aaaa1111">Áo</a>
-<script>window.__shouldNotRun=1</script></section>
-</body></html>`
-
-test('viewedProductPathname accepts product urls only', () => {
-  assert.equal(viewedProductPathname('/products/ao-aaaa1111'), '/products/ao-aaaa1111')
-  assert.equal(
-    viewedProductPathname('/site/shop/products/ao-aaaa1111?pw-device=mobile'),
-    '/site/shop/products/ao-aaaa1111'
-  )
-  assert.equal(viewedProductPathname('/products'), null)
-  assert.equal(viewedProductPathname('/products/outfit'), null)
-  assert.equal(viewedProductPathname('/cart'), null)
+test('discardViewedProductSnapshots removes saved product html and leaves other keys', () => {
+  const storage = memoryStorage({
+    'pw-viewed-pdp-index-v1': '["pw-viewed-pdp-v1:gudo.vn/products/ao"]',
+    'pw-viewed-pdp-v1:gudo.vn/products/ao': '{"doc":"<html></html>"}',
+    'pw-viewed-pdp-v2:gudo.vn/products/ao': '{"doc":"<html></html>"}',
+    'pw-account-cache-v1:gudo': '{"name":"A"}',
+  })
+  discardViewedProductSnapshots(storage)
+  assert.equal(storage.data.has('pw-viewed-pdp-v1:gudo.vn/products/ao'), false)
+  assert.equal(storage.data.has('pw-viewed-pdp-v2:gudo.vn/products/ao'), false)
+  assert.equal(storage.data.has('pw-viewed-pdp-index-v1'), false)
+  assert.equal(storage.data.get('pw-account-cache-v1:gudo'), '{"name":"A"}')
 })
 
-test('rememberViewedProductPage stores a script-free preview and reads it back', () => {
-  const storage = memoryStorage()
-  assert.equal(
-    rememberViewedProductPage('/products/ao-aaaa1111', productHtml, storage, 'shop.test'),
-    true
-  )
-  const snap = readViewedProductPage('/products/ao-aaaa1111', storage, 'shop.test', Date.now())
-  assert.ok(snap)
-  assert.match(snap.css, /\.pw-price/)
-  assert.match(snap.body, /Áo/)
-  assert.doesNotMatch(snap.body, /<script/i)
-  assert.doesNotMatch(snap.body, /\shref=/)
-  assert.match(snap.body, /data-pw-snap-href=/)
-  assert.equal(readViewedProductPage('/products/ao-aaaa1111', storage, 'other.test'), null)
-})
-
-test('rememberViewedProductPage keeps the newest 24 pages and drops the oldest', () => {
-  const storage = memoryStorage()
-  for (let i = 0; i < PW_VIEWED_PDP_MAX_ENTRIES + 1; i += 1) {
-    assert.equal(
-      rememberViewedProductPage(`/products/ao-${i}`, productHtml, storage, 'shop.test'),
-      true
-    )
-  }
-  assert.equal(readViewedProductPage('/products/ao-0', storage, 'shop.test'), null)
-  assert.ok(readViewedProductPage(`/products/ao-${PW_VIEWED_PDP_MAX_ENTRIES}`, storage, 'shop.test'))
-})
-
-test('readViewedProductPage drops a preview older than the keep window', () => {
-  const storage = memoryStorage()
-  assert.equal(rememberViewedProductPage('/products/ao-aaaa1111', productHtml, storage, 'shop.test'), true)
-  const snap = readViewedProductPage(
-    '/products/ao-aaaa1111',
-    storage,
-    'shop.test',
-    Date.now() + PW_VIEWED_PDP_TTL_MS + 5
-  )
-  assert.equal(snap, null)
-})
-
-test('rememberViewedProductPage keeps stylesheet links and a click-safe document', () => {
-  const storage = memoryStorage()
-  const html = `<!doctype html><html data-pw-page="product"><head><link rel="stylesheet" href="/api/site/shop/shop-theme.css"></head><body>
-<header class="pw-header" data-pw-region="header">Head</header>
-<section data-pw-region="pdp-info"><a href="/cart">Giỏ</a></section>
-</body></html>`
-  assert.equal(rememberViewedProductPage('/products/ao-aaaa1111', html, storage, 'shop.test'), true)
-  const snap = readViewedProductPage('/products/ao-aaaa1111', storage, 'shop.test')
-  assert.ok(snap)
-  assert.match(snap.doc, /shop-theme\.css/)
-  assert.match(snap.doc, /data-pw-snap-guard/)
-  assert.match(snap.doc, /pw-header/)
-  assert.doesNotMatch(snap.doc, /<a[^>]*\shref=/)
-  assert.equal(snapshotIsFaithful(snap.doc), true)
-  assert.equal(snapshotIsFaithful('<section data-pw-region="pdp-info"><style>.a{}</style>Áo dài hơn bốn mươi ký tự cho đủ</section>'), false)
-})
-
-test('snapshot boot script is valid and skips a headless preview', () => {
+test('snapshot boot script only deletes saved pages and does not paint one', () => {
   const script = buildViewedProductSnapshotBootScript()
   assert.doesNotThrow(() => new Function(script))
-  assert.match(script, /pw-viewed-pdp-snap/)
-  assert.match(script, /pw-header/)
-})
-
-test('rememberViewedProductPage ignores pages that are not a product shell', () => {
-  const storage = memoryStorage()
-  assert.equal(
-    rememberViewedProductPage('/products/ao-aaaa1111', '<html><body><h1>Listing</h1></body></html>', storage, 'shop.test'),
-    false
-  )
+  assert.match(script, /localStorage\.removeItem/)
+  assert.match(script, /pw-viewed-pdp-/)
+  assert.doesNotMatch(script, /srcdoc/)
+  assert.doesNotMatch(script, /createElement\('iframe'\)/)
 })
