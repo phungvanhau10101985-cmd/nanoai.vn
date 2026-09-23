@@ -401,11 +401,32 @@
       }
     }
 
+    /** URL iframe đã lưu phải cùng origin với `data-chat-url`. Bản localhost cũ không được đè chat production. */
+    function sameChatOrigin(href) {
+      try {
+        return new URL(String(href || '').trim(), window.location.href).origin === new URL(chatUrl, window.location.href).origin
+      } catch (_) {
+        return false
+      }
+    }
+
+    function clearReturnChatHref() {
+      try {
+        sessionStorage.removeItem(RETURN_CHAT_SESSION_KEY)
+        localStorage.removeItem(PERSIST_CHAT_SESSION_KEY)
+      } catch (_) {}
+    }
+
     function readReturnChatHref() {
       try {
         var s = localStorage.getItem(PERSIST_CHAT_SESSION_KEY) || sessionStorage.getItem(RETURN_CHAT_SESSION_KEY)
         s = s ? String(s).trim() : ''
-        return s && isAllowedHttpUrl(s) ? s : ''
+        if (!s || !isAllowedHttpUrl(s)) return ''
+        if (!sameChatOrigin(s)) {
+          clearReturnChatHref()
+          return ''
+        }
+        return s
       } catch (_) {
         return ''
       }
@@ -413,7 +434,7 @@
 
     function writeReturnChatHref(href) {
       try {
-        if (href && isAllowedHttpUrl(href)) {
+        if (href && isAllowedHttpUrl(href) && sameChatOrigin(href)) {
           var next = String(href).trim()
           sessionStorage.setItem(RETURN_CHAT_SESSION_KEY, next)
           localStorage.setItem(PERSIST_CHAT_SESSION_KEY, next)
@@ -731,7 +752,7 @@
       pageContext = nextCtx
       var useFreshBase = Boolean(opts.replaceContext)
       var baseForBuild = chatUrl
-      if (!useFreshBase && iframe && iframe.src) baseForBuild = iframe.src
+      if (!useFreshBase && iframe && iframe.src && sameChatOrigin(iframe.src)) baseForBuild = iframe.src
       else if (!iframe && !useFreshBase) {
         var resumeForOpen = readReturnChatHref()
         if (resumeForOpen) baseForBuild = resumeForOpen

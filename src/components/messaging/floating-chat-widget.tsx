@@ -149,7 +149,7 @@ export function FloatingChatWidget({
   const [closed, setClosed] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
-  const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref() ?? chatUrl))
+  const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref(chatUrl) ?? chatUrl))
   const [loyaltyTierLabel, setLoyaltyTierLabel] = useState('')
   const [cartCount, setCartCount] = useState(0)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
@@ -175,9 +175,9 @@ export function FloatingChatWidget({
 
   useEffect(() => {
     if (!externalOpenRequest?.seq) return
-    const next = appendStoredGuestIdentity(externalOpenRequest.iframeSrc ?? readReturnChatIframeHref() ?? chatUrl)
+    const next = appendStoredGuestIdentity(externalOpenRequest.iframeSrc ?? readReturnChatIframeHref(chatUrl) ?? chatUrl)
     setIframeSrc(next)
-    writeReturnChatIframeHref(next)
+    writeReturnChatIframeHref(next, chatUrl)
     setClosed(false)
   }, [chatUrl, externalOpenRequest?.iframeSrc, externalOpenRequest?.seq])
 
@@ -186,7 +186,7 @@ export function FloatingChatWidget({
   }, [chatUrl])
 
   useEffect(() => {
-    const stored = readReturnChatIframeHref()
+    const stored = readReturnChatIframeHref(chatUrl)
     if (stored) setIframeSrc(appendStoredGuestIdentity(stored))
     else setIframeSrc(appendStoredGuestIdentity(chatUrl))
   }, [chatUrl])
@@ -259,13 +259,13 @@ export function FloatingChatWidget({
       if (!isAllowedHttpNavigationUrl(raw)) return
       const ret = typeof e.data.returnChatUrl === 'string' ? e.data.returnChatUrl.trim() : ''
       if (ret && isAllowedHttpNavigationUrl(ret)) {
-        writeReturnChatIframeHref(ret)
+        writeReturnChatIframeHref(ret, chatUrl)
       }
       window.location.assign(raw)
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [])
+  }, [chatUrl])
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -276,7 +276,7 @@ export function FloatingChatWidget({
       const type = (data as { type?: unknown }).type
       if (type === 'GUEST_IDENTITY') {
         storeGuestIdentity(data)
-        if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src)
+        if (iframeRef.current?.src) writeReturnChatIframeHref(iframeRef.current.src, chatUrl)
       } else if (isOrderUpdatedFromIframe(data)) {
         window.dispatchEvent(
           new CustomEvent(PARTNER_SITE_ORDERS_UPDATED_EVENT, {
@@ -298,7 +298,7 @@ export function FloatingChatWidget({
     }
     window.addEventListener('message', onMsg)
     return () => window.removeEventListener('message', onMsg)
-  }, [])
+  }, [chatUrl])
 
   const postToIframe = useCallback((type: 'OPEN_MY_ORDERS' | 'OPEN_CART') => {
     const win = iframeRef.current?.contentWindow
@@ -312,9 +312,9 @@ export function FloatingChatWidget({
 
   const openPanelWithSavedChat = useCallback(() => {
     const resolved = resolveOpenUrl?.()?.trim()
-    const next = appendStoredGuestIdentity(resolved || readReturnChatIframeHref() || chatUrl)
+    const next = appendStoredGuestIdentity(resolved || readReturnChatIframeHref(chatUrl) || chatUrl)
     setIframeSrc(next)
-    writeReturnChatIframeHref(next)
+    writeReturnChatIframeHref(next, chatUrl)
     setClosed(false)
   }, [chatUrl, resolveOpenUrl])
 

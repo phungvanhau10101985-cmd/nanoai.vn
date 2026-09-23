@@ -11,7 +11,20 @@ function isPersistableChatIframeHref(href: string): boolean {
   return isHostedChatIframeSrc(next)
 }
 
-export function readReturnChatIframeHref(): string | null {
+/** URL iframe đã lưu chỉ được mở lại khi cùng origin với chat đang cấu hình. */
+export function chatIframeHrefMatchesConfiguredUrl(storedHref: string, configuredChatUrl: string): boolean {
+  const storedRaw = storedHref.trim()
+  const configuredRaw = configuredChatUrl.trim()
+  if (!storedRaw || !configuredRaw) return false
+  try {
+    const base = typeof window !== 'undefined' ? window.location.href : 'https://nanoai.invalid/'
+    return new URL(storedRaw, base).origin === new URL(configuredRaw, base).origin
+  } catch {
+    return false
+  }
+}
+
+export function readReturnChatIframeHref(configuredChatUrl?: string): string | null {
   if (typeof window === 'undefined') return null
   try {
     const raw =
@@ -23,17 +36,28 @@ export function readReturnChatIframeHref(): string | null {
       clearReturnChatIframeHref()
       return null
     }
+    if (configuredChatUrl && !chatIframeHrefMatchesConfiguredUrl(raw, configuredChatUrl)) {
+      clearReturnChatIframeHref()
+      return null
+    }
     return raw
   } catch {
     return null
   }
 }
 
-export function writeReturnChatIframeHref(href: string): void {
+export function writeReturnChatIframeHref(href: string, configuredChatUrl?: string): void {
   if (typeof window === 'undefined') return
   try {
     const next = href.trim()
     if (!isPersistableChatIframeHref(next)) return
+    if (
+      configuredChatUrl
+      && /^https?:\/\//i.test(next)
+      && !chatIframeHrefMatchesConfiguredUrl(next, configuredChatUrl)
+    ) {
+      return
+    }
     window.sessionStorage.setItem(NANOAI_SESSION_RETURN_CHAT_IFRAME_HREF, next)
     window.localStorage.setItem(NANOAI_PERSIST_RETURN_CHAT_IFRAME_HREF, next)
   } catch {
