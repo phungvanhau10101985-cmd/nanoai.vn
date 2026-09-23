@@ -10,6 +10,7 @@ import {
   rowMatchesOutfitSlot,
   slotsForOutfitAnchor,
   targetOutfitCat1Names,
+  pickOutfitListingCategory,
 } from '@/lib/partner-website/shop/pdp-outfit-roles'
 
 test('infers fashion roles from category and name', () => {
@@ -60,4 +61,32 @@ test('classifies title copy', () => {
   assert.equal(shoes.role, 'shoes')
   assert.equal(outfitSectionTitle(shoes.role, 'vi'), 'Phối với giày này')
   assert.equal(classifyOutfitAnchor(['Khách sạn', 'Phòng đôi']).reason, 'no_slots')
+})
+
+test('thể thao is not an áo group', () => {
+  assert.equal(inferOutfitRole('Thể thao dã ngoại'), null)
+  assert.equal(inferOutfitRole('Áo thể thao'), 'top')
+  assert.equal(inferOutfitRole('Giày thể thao'), 'shoes')
+  assert.equal(inferOutfitRole('ao thun nam'), 'top')
+})
+
+test('see-all listing follows the active outfit group', () => {
+  const cats = [
+    { id: 'sport', parentId: null, name: 'Thể thao dã ngoại', path: 'the-thao-da-ngoai', depth: 1 },
+    { id: 'sport-ao', parentId: 'sport', name: 'Áo khoác thể thao', path: 'the-thao-da-ngoai/ao-khoac', depth: 2 },
+    { id: 'nu', parentId: null, name: 'Thời trang Nữ', path: 'thoi-trang-nu', depth: 1 },
+    { id: 'ao', parentId: 'nu', name: 'Áo', path: 'thoi-trang-nu/ao', depth: 2 },
+    { id: 'vay', parentId: 'nu', name: 'Váy', path: 'thoi-trang-nu/vay', depth: 2 },
+    { id: 'quan', parentId: 'nu', name: 'Quần', path: 'thoi-trang-nu/quan', depth: 2 },
+    { id: 'nam', parentId: null, name: 'Thời trang Nam', path: 'thoi-trang-nam', depth: 1 },
+    { id: 'ao-nam', parentId: 'nam', name: 'Áo nam', path: 'thoi-trang-nam/ao-nam', depth: 2 },
+    { id: 'tui', parentId: null, name: 'Túi xách Nữ', path: 'tui-xach-nu', depth: 1 },
+    { id: 'pk', parentId: null, name: 'Phụ kiện Nữ', path: 'phu-kien-nu', depth: 1 },
+  ]
+  assert.equal(pickOutfitListingCategory(cats, 'top', 'female')?.path, 'thoi-trang-nu/ao')
+  assert.equal(pickOutfitListingCategory(cats, 'dress', 'female')?.path, 'thoi-trang-nu/vay')
+  assert.equal(pickOutfitListingCategory(cats, 'bottom', 'female')?.path, 'thoi-trang-nu/quan')
+  assert.equal(pickOutfitListingCategory(cats, 'bag', 'female')?.path, 'tui-xach-nu')
+  assert.equal(pickOutfitListingCategory(cats, 'accessory', 'female')?.path, 'phu-kien-nu')
+  assert.equal(pickOutfitListingCategory(cats, 'top', 'male')?.path, 'thoi-trang-nam/ao-nam')
 })

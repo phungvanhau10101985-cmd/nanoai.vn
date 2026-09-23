@@ -30,6 +30,9 @@ import {
   fetchSizeGuideImageUrlForInventoryFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
 import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { loadPublishedPdpLadipageStory } from '@/lib/partner-website/shop/load-pdp-ladipage'
+import { formatPdpOfferLine } from '@/lib/partner-website/shop/pdp-ladipage-copy'
+import { buildPdpLadipageFaqJsonLd } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import {
   resolvePartnerCategoryAncestors,
@@ -184,8 +187,11 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   // `aggregateRating` TÍNH THẬT từ bảng review (W1.5) — chỉ đưa vào khi có ít nhất 1 review thật,
   // khác 188 (hiển thị field ảo không liên quan review thật, xem docs/188_BEHAVIOR_SPEC.md mục C.1).
   const productUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, `/products/${canonicalKey}`)
-  const ratingSummary = await fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id)
-  const paymentSettings = await fetchPartnerPaymentSettingsFromPg(shop.partnerId)
+  const [ratingSummary, paymentSettings, pdpStory] = await Promise.all([
+    fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id),
+    fetchPartnerPaymentSettingsFromPg(shop.partnerId),
+    loadPublishedPdpLadipageStory(shop.partnerId, row.id).catch(() => null),
+  ])
   const effectivePrice = resolvePartnerEffectiveUnitPrice({
     priceAmount: product.priceAmount ?? row.price_amount,
     salePriceAmount: product.salePriceAmount ?? row.sale_price_amount ?? null,
@@ -297,6 +303,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     }
   }
 
+  const faqJsonLd = pdpStory ? buildPdpLadipageFaqJsonLd(pdpStory.faq) : null
+
   return (
     <PartnerSiteShopShell
       siteSlug={shop.site.siteSlug}
@@ -314,6 +322,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     >
       <JsonLd data={productJsonLd} />
       {breadcrumbJsonLd ? <JsonLd data={breadcrumbJsonLd} /> : null}
+      {faqJsonLd ? <JsonLd data={faqJsonLd} /> : null}
       <PartnerSiteShopProductClient
         siteSlug={shop.site.siteSlug}
         partnerSlug={shop.partnerSlug}
@@ -322,6 +331,18 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
         relatedProducts={relatedProducts}
         ratingSummary={ratingSummary}
         shippingFreeThreshold={paymentSettings?.shipping_free_threshold_amount ?? null}
+        pdpStory={pdpStory}
+        offerLine={
+          paymentSettings
+            ? formatPdpOfferLine({
+                locale: shop.site.locale,
+                depositMode: paymentSettings.default_deposit_mode,
+                depositPercent: paymentSettings.default_deposit_percent,
+                depositAmount: paymentSettings.default_deposit_amount,
+                shippingFeeAmount: paymentSettings.shipping_fee_amount,
+              })
+            : null
+        }
       />
     </PartnerSiteShopShell>
   )

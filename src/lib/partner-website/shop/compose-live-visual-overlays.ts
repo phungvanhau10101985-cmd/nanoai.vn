@@ -17,6 +17,7 @@ import {
 import type { PartnerMarketingBannerPublicItem } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { bindPdpLadipageToHtml, type PdpLadipageOverlay } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 
 /**
  * Overlays on a cached visual shell. Order is fixed:
@@ -30,6 +31,7 @@ export function applyLiveVisualOverlays(
     liveCategoryBind?: LiveCategoryBind | null
     liveMarketingBanners?: PartnerMarketingBannerPublicItem[] | null
     liveCatalogGrids?: LiveCatalogGridBind | null
+    pdpLadipage?: PdpLadipageOverlay | null
     locale: WebLocale
     siteSlug: string
     device?: VisualDeviceVariant | null
@@ -42,12 +44,16 @@ export function applyLiveVisualOverlays(
         device: input.device,
       })
     : preparedShell
+  const withLadipage = bindPdpLadipageToHtml(withProduct, input.pdpLadipage, {
+    locale: input.locale,
+    device: input.device,
+  })
   const withListing = input.liveListing
-    ? bindLiveCategoryListingToHtml(withProduct, input.liveListing, {
+    ? bindLiveCategoryListingToHtml(withLadipage, input.liveListing, {
         locale: input.locale,
         siteSlug: input.siteSlug,
       })
-    : withProduct
+    : withLadipage
   const withoutHub = input.liveListing ? stripFeaturedCategoryHostsInHtml(withListing) : withListing
   const withCategories = bindLiveCategorySurfacesInHtml(withoutHub, input.liveCategoryBind ?? null)
   const withBanners = bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)

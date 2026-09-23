@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { LandingSingleProductCta } from '@/components/partner-website/landing/landing-single-product-cta'
+import { pdpLadipageTrustPoints } from '@/lib/partner-website/shop/pdp-ladipage-copy'
 import type {
   LandingAiContext,
   LandingAiSectionRow,
@@ -24,9 +26,11 @@ function sectionData<T>(section: LandingAiSectionRow | undefined): T {
 export function LandingAiSectionsView({
   sections,
   context,
+  offerLine = null,
 }: {
   sections: LandingAiSectionRow[]
   context: LandingAiContext
+  offerLine?: string | null
 }) {
   const locale = normalizeWebLocale(context.locale) ?? 'vi'
   const shop = getPartnerSiteShopCopy(locale)
@@ -38,10 +42,12 @@ export function LandingAiSectionsView({
   const faq = sectionData<LandingFaqData>(byType.get('faq'))
   const hasMaterial = Boolean(material.body || material.imageUrl)
   const isSingle = context.sourceType === 'products' && context.products.length === 1
+  const singleProduct = isSingle ? context.products[0] : null
   const heroCta = isSingle
     ? shop.buyNow
     : trustCta.ctaLabel || shop.lpExploreProducts
-  const heroHref = isSingle ? context.products[0]?.detailPath || '#lp-products' : '#lp-products'
+  const heroHref = isSingle ? singleProduct?.detailPath || '#lp-products' : '#lp-products'
+  const trustPoints = pdpLadipageTrustPoints(locale)
   const categoryHref = context.categoryPath
     ? partnerSiteCategoryPath(context.siteSlug, context.categoryPath)
     : null
@@ -85,13 +91,27 @@ export function LandingAiSectionsView({
               <p className="text-lg text-[var(--pw-muted,#64748b)]" data-pw-el={PW_EL.subtitle}>{hero.subheadline}</p>
             ) : null}
             <div className="pt-2">
-              <a
-                href={heroHref}
-                className="inline-flex items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] px-8 py-3 text-sm font-semibold text-white shadow transition hover:opacity-90"
-                data-pw-el={PW_EL.cta}
-              >
-                {heroCta}
-              </a>
+              {singleProduct ? (
+                <LandingSingleProductCta
+                  siteSlug={context.siteSlug}
+                  locale={locale}
+                  inventoryId={singleProduct.id}
+                  productName={singleProduct.name}
+                  imageUrl={singleProduct.imageUrl}
+                  priceHint={singleProduct.priceHint}
+                  detailPath={singleProduct.detailPath}
+                  label={heroCta}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] px-8 py-3 text-sm font-semibold text-white shadow transition hover:opacity-90"
+                />
+              ) : (
+                <a
+                  href={heroHref}
+                  className="inline-flex items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] px-8 py-3 text-sm font-semibold text-white shadow transition hover:opacity-90"
+                  data-pw-el={PW_EL.cta}
+                >
+                  {heroCta}
+                </a>
+              )}
             </div>
           </div>
           {hero.imageUrl ? (
@@ -108,12 +128,18 @@ export function LandingAiSectionsView({
 
       <section className="border-b border-[var(--pw-border,#e2e8f0)] bg-white" data-pw-region={PW_REGION.promo}>
         <div className="mx-auto grid max-w-5xl gap-4 px-6 py-5 sm:grid-cols-3">
-          {[shop.lpTrust1, shop.lpTrust2, shop.lpTrust3].map((label) => (
-            <p key={label} className="text-center text-sm font-medium text-[var(--pw-text)]" data-pw-el={PW_EL.subtitle}>
-              {label}
+          {trustPoints.map((point) => (
+            <p key={point.title} className="text-center text-sm text-[var(--pw-text)]" data-pw-el={PW_EL.subtitle}>
+              <span className="block font-medium">{point.title}</span>
+              <span className="mt-1 block text-xs text-[var(--pw-muted,#64748b)]">{point.body}</span>
             </p>
           ))}
         </div>
+        {offerLine ? (
+          <p className="mx-auto max-w-5xl px-6 pb-4 text-center text-sm text-[var(--pw-muted,#64748b)]" data-pw-pdp-offer="1">
+            {offerLine}
+          </p>
+        ) : null}
       </section>
 
       {highlights.items?.length ? (
@@ -208,13 +234,27 @@ export function LandingAiSectionsView({
               </p>
             ) : null}
             <p className="leading-relaxed text-white/90" data-pw-el={PW_EL.subtitle}>{trustCta.body}</p>
-            <a
-              href={heroHref}
-              className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-semibold text-[var(--pw-primary,#0f172a)] shadow"
-              data-pw-el={PW_EL.cta}
-            >
-              {trustCta.ctaLabel || heroCta}
-            </a>
+            {singleProduct ? (
+              <LandingSingleProductCta
+                siteSlug={context.siteSlug}
+                locale={locale}
+                inventoryId={singleProduct.id}
+                productName={singleProduct.name}
+                imageUrl={singleProduct.imageUrl}
+                priceHint={singleProduct.priceHint}
+                detailPath={singleProduct.detailPath}
+                label={trustCta.ctaLabel || heroCta}
+                className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-semibold text-[var(--pw-primary,#0f172a)] shadow"
+              />
+            ) : (
+              <a
+                href={heroHref}
+                className="mt-6 inline-flex items-center justify-center rounded-full bg-white px-8 py-3 text-sm font-semibold text-[var(--pw-primary,#0f172a)] shadow"
+                data-pw-el={PW_EL.cta}
+              >
+                {trustCta.ctaLabel || heroCta}
+              </a>
+            )}
           </div>
         </section>
       ) : null}
@@ -234,13 +274,27 @@ export function LandingAiSectionsView({
       ) : null}
 
       <div className="sticky bottom-0 z-20 border-t border-[var(--pw-border,#e2e8f0)] bg-white/95 p-3 backdrop-blur sm:hidden" data-pw-region={PW_REGION.promo}>
-        <a
-          href={heroHref}
-          className="flex w-full items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] py-3 text-sm font-semibold text-white"
-          data-pw-el={PW_EL.cta}
-        >
-          {isSingle ? shop.buyNow : shop.lpViewProducts}
-        </a>
+        {singleProduct ? (
+          <LandingSingleProductCta
+            siteSlug={context.siteSlug}
+            locale={locale}
+            inventoryId={singleProduct.id}
+            productName={singleProduct.name}
+            imageUrl={singleProduct.imageUrl}
+            priceHint={singleProduct.priceHint}
+            detailPath={singleProduct.detailPath}
+            label={shop.buyNow}
+            className="flex w-full items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] py-3 text-sm font-semibold text-white"
+          />
+        ) : (
+          <a
+            href={heroHref}
+            className="flex w-full items-center justify-center rounded-full bg-[var(--pw-buy,var(--pw-primary,#0f172a))] py-3 text-sm font-semibold text-white"
+            data-pw-el={PW_EL.cta}
+          >
+            {shop.lpViewProducts}
+          </a>
+        )}
       </div>
     </div>
   )

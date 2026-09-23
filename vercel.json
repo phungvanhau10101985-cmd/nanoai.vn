@@ -40,6 +40,10 @@
     {
       "path": "/api/cron/partner-outfit-picks?limit=4",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/partner-ladipage-on-view?limit=1",
+      "schedule": "* * * * *"
     }
   ]
 }

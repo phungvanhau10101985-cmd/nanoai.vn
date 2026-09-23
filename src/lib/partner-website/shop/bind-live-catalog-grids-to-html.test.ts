@@ -46,6 +46,33 @@ test('listing host uses listing cards; outfit and related stay seed', () => {
   assert.match(out, />related</)
 })
 
+test('listing host paints one batch of 20 even when the shell is one row', () => {
+  const listing = Array.from({ length: 25 }, (_, i) => card(`l${i + 1}`, `SP ${i + 1}`))
+  const html =
+    '<section data-pw-catalog data-category-id="cat-1" data-pw-grid-rows="1" data-pw-grid-cols="5"><div data-pw-grid></div></section>'
+  const out = bindLiveCatalogGridsToHtml(
+    html,
+    { generic: [], listing, personalize: [] },
+    { locale: 'vi', device: 'desktop' }
+  )
+  assert.match(out, /data-inventory-id="l1"/)
+  assert.match(out, /data-inventory-id="l20"/)
+  assert.doesNotMatch(out, /data-inventory-id="l21"/)
+})
+
+test('home catalog stays one row', () => {
+  const generic = Array.from({ length: 8 }, (_, i) => card(`g${i + 1}`, `Home ${i + 1}`))
+  const html =
+    '<section data-pw-catalog data-pw-grid-rows="1" data-pw-grid-cols="5"><div data-pw-grid></div></section>'
+  const out = bindLiveCatalogGridsToHtml(
+    html,
+    { generic, listing: [], personalize: [] },
+    { locale: 'vi', device: 'desktop' }
+  )
+  assert.match(out, /data-inventory-id="g5"/)
+  assert.doesNotMatch(out, /data-inventory-id="g6"/)
+})
+
 test('personalize hosts use popular fallback cards', () => {
   const html =
     '<section data-pw-personalize="flash-sale" data-limit="12"><div data-pw-grid></div></section>'

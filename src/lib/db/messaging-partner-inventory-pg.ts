@@ -28,6 +28,7 @@ import {
 } from '@/lib/messaging/inventory-bunny-delete'
 import { removePartnerVisitorInventoryIdsFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import { deletePartnerOutfitPicksFromPg } from '@/lib/db/messaging-partner-outfit-picks-pg'
+import { deleteSingleProductLandingsForInventoryFromPg } from '@/lib/db/messaging-partner-ladipage-on-view-pg'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { PARTNER_PUBLIC_INVENTORY_SEARCH_MAX } from '@/lib/messaging/partner-public-search-limits'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
@@ -3873,6 +3874,9 @@ export async function deletePartnerInventoryByIdsForPartnerFromPg(
       }
       snapshots.push(...deletedSnapshots)
       await deletePartnerOutfitPicksFromPg(partnerId, chunk)
+      await deleteSingleProductLandingsForInventoryFromPg(partnerId, chunk).catch((error) => {
+        console.warn('[deletePartnerInventoryByIdsForPartnerFromPg] ladipage cleanup failed', error)
+      })
       const personalizationCleaned = await removePartnerVisitorInventoryIdsFromPg({
         partnerId,
         inventoryIds: chunk,

@@ -40,6 +40,8 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteAffiliateShareBar } from '@/components/partner-website/shop/partner-site-affiliate-share-bar'
 import { PartnerSiteRelatedProducts } from '@/components/partner-website/shop/partner-site-related-products'
+import { PartnerSitePdpLadipageBlocks } from '@/components/partner-website/shop/partner-site-pdp-ladipage-blocks'
+import type { PdpLadipageStory } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import {
   formatPartnerShopMoneyVnd,
   isPartnerFlashSaleActive,
@@ -85,6 +87,8 @@ type Props = {
   relatedProducts?: PartnerSiteShopProduct[]
   ratingSummary?: RatingSummary | null
   shippingFreeThreshold?: number | null
+  pdpStory?: PdpLadipageStory | null
+  offerLine?: string | null
 }
 
 /** W1.6 — chỉ hiện cảnh báo "sắp hết hàng" khi tồn kho THẤP nhưng > 0, không hiện khi = 0. */
@@ -168,6 +172,8 @@ export function PartnerSiteShopProductClient({
   product,
   relatedProducts = [],
   ratingSummary = null,
+  pdpStory = null,
+  offerLine = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const router = useRouter()
@@ -758,6 +764,16 @@ export function PartnerSiteShopProductClient({
           <span data-pw-el={PW_EL.crumb}>{productName}</span>
         </nav>
       ) : null}
+      {pdpStory ? (
+        <PartnerSitePdpLadipageBlocks
+          part="hero"
+          story={pdpStory}
+          productName={productName}
+          imageUrl={product.imageUrl || ''}
+          locale={locale}
+          onBuy={() => setVariantModalOpen(true)}
+        />
+      ) : null}
       <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
         {renderMedia(currentMedia, { hero: true })}
         {mediaItems.length > 1 ? (
@@ -799,6 +815,16 @@ export function PartnerSiteShopProductClient({
         ) : null}
       </div>
 
+      {pdpStory ? (
+        <PartnerSitePdpLadipageBlocks
+          part="blurb"
+          story={pdpStory}
+          productName={productName}
+          imageUrl={product.imageUrl || ''}
+          locale={locale}
+          onBuy={() => setVariantModalOpen(true)}
+        />
+      ) : null}
       <div className="pw-shop-product-layout">
         <div className="pw-shop-product-gallery pw-pdp-gallery-desktop" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
           {renderMedia(currentMedia?.kind === 'photo' ? currentMedia : { kind: 'photo', url: activeImage })}
@@ -938,6 +964,12 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
 
+          {offerLine ? (
+            <p className="pw-shop-muted" data-pw-pdp-slot="deposit" data-pw-pdp-offer="1" style={{ marginTop: 8, fontSize: 13 }}>
+              {offerLine}
+            </p>
+          ) : null}
+
           {product.stockQty > 0 && product.stockQty <= LOW_STOCK_URGENCY_THRESHOLD ? (
             <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>
               {t.lowStockUrgency.replace('{n}', String(product.stockQty))}
@@ -1024,7 +1056,7 @@ export function PartnerSiteShopProductClient({
             {qtyStepper}
           </div>
 
-          {options?.deposit_policy ? (
+          {options?.deposit_policy && !offerLine ? (
             <p className="pw-shop-muted" style={{ marginTop: 12, fontSize: 13 }}>
               {t.depositPolicyNote}
             </p>
@@ -1073,6 +1105,16 @@ export function PartnerSiteShopProductClient({
         </div>
       </div>
 
+      {pdpStory ? (
+        <PartnerSitePdpLadipageBlocks
+          part="story"
+          story={pdpStory}
+          productName={productName}
+          imageUrl={product.imageUrl || ''}
+          locale={locale}
+          onBuy={() => setVariantModalOpen(true)}
+        />
+      ) : null}
       <section className="pw-shop-product-detail" data-pw-region={PW_REGION.pdpInfo}>
         <div className="pw-pdp-tabs" data-pw-pdp-slot="tabs">
           <div className="pw-pdp-tablist" role="tablist">

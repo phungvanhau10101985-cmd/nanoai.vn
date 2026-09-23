@@ -31,6 +31,7 @@ import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-l
 import { loadSiteLiveCategoryBind } from '@/lib/partner-website/shop/load-site-live-category-bind'
 import { loadSiteLiveMarketingBanners } from '@/lib/partner-website/shop/load-site-live-marketing-banners'
 import { loadSiteLiveCatalogGrids } from '@/lib/partner-website/shop/load-site-live-catalog-grids'
+import { loadPdpLadipageOverlay } from '@/lib/partner-website/shop/load-pdp-ladipage'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
@@ -223,7 +224,18 @@ export async function PartnerSiteVisualHtmlScreen({
         liveListing,
       }).catch(() => null)
     : Promise.resolve(null)
-  const [shell, liveCatalogGrids] = await Promise.all([shellPromise, gridsPromise])
+  const ladipageProduct = pageKey === 'product_detail' && liveProduct?.id ? liveProduct : null
+  const ladipagePromise =
+    shopCtx && ladipageProduct
+      ? loadPdpLadipageOverlay({
+          partnerId: shopCtx.partnerId,
+          inventoryId: ladipageProduct.id,
+          productName: ladipageProduct.name,
+          imageUrl: ladipageProduct.imageUrl || '',
+          locale: site.locale,
+        }).catch(() => null)
+      : Promise.resolve(null)
+  const [shell, liveCatalogGrids, pdpLadipage] = await Promise.all([shellPromise, gridsPromise, ladipagePromise])
   let overlaid = shell
   try {
     overlaid = applyLiveVisualOverlays(shell, {
@@ -232,6 +244,7 @@ export async function PartnerSiteVisualHtmlScreen({
       liveCategoryBind,
       liveMarketingBanners,
       liveCatalogGrids,
+      pdpLadipage,
       locale: site.locale,
       siteSlug: site.siteSlug,
       device: sourceDevice,

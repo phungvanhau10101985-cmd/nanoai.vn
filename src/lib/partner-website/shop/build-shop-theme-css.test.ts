@@ -321,6 +321,19 @@ test('shop theme CSS keeps mobile cart totals on a full-width row, not the 22px 
   assert.doesNotMatch(css, /\.pw-shop-cart-line-total\{grid-column:3;justify-self:end\}/)
 })
 
+test('shop theme CSS hides the product category path on mobile', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\] \[data-pw-pdp-slot="breadcrumb"\]/)
+  assert.match(css, /html\[data-pw-scene-lock="mobile"\] \[data-pw-pdp-slot="breadcrumb"\]/)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\]\[data-pw-page="product"\] \[data-pw-region="breadcrumb"\]/)
+  assert.match(
+    css,
+    /@media \(max-width:767px\)\{html:not\(\[data-pw-edit-device="tablet"\]\):not\(\[data-pw-edit-device="laptop"\]\):not\(\[data-pw-edit-device="desktop"\]\)[\s\S]*\[data-pw-pdp-slot="breadcrumb"\][\s\S]*display:none!important/,
+  )
+  assert.doesNotMatch(css, /html\[data-pw-edit-device="desktop"\] \[data-pw-pdp-slot="breadcrumb"\]\{display:none/)
+  assert.doesNotMatch(css, /html\[data-pw-edit-device="tablet"\] \[data-pw-pdp-slot="breadcrumb"\]\{display:none/)
+})
+
 test('shop theme CSS keeps cart summary money and buttons inside the viewport', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\.pw-shop-cart-kv\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,max-content\)/)

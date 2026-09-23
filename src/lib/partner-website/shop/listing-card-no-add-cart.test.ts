@@ -14,6 +14,10 @@ import { PW_PRODUCT_CATALOG_CARD_FACE_CSS } from '@/lib/partner-website/shop/pw-
 test('catalog live cards do not render listing add-to-cart', () => {
   const js = buildPartnerSiteCatalogBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
   assert.match(js, /function renderCard/)
+  assert.match(js, /var LISTING_BATCH=20/)
+  assert.match(js, /function categoryListingEl/)
+  assert.match(js, /function catalogPageSize/)
+  assert.match(js, /pageSize:catalogPageSize\(el\)/)
   assert.doesNotMatch(js, /class="pw-btn pw-btn-cart"/)
   assert.doesNotMatch(js, /pw-shop-action-bar">/)
   assert.doesNotMatch(js, /COPY\.addToCart/)

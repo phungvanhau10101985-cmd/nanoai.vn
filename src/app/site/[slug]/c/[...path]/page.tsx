@@ -27,8 +27,8 @@ import {
   buildPartnerCategoryCanonicalQuery,
   parsePartnerCategoryListingFromRecord,
   partnerCategoryListingOffset,
-  PARTNER_CATEGORY_PAGE_SIZE,
 } from '@/lib/partner-website/shop/partner-site-category-listing'
+import { PW_LISTING_BATCH_SIZE } from '@/lib/partner-website/shop/pw-product-grid-page'
 import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import { PartnerSiteCategoryProductsClient } from '@/components/partner-website/shop/partner-site-category-products-client'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -175,8 +175,8 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
   }
   const [page, priceRange, facets] = await Promise.all([
     fetchPartnerInventoryCardPageByCategoryFromPg(shop.partnerId, {
-      offset: partnerCategoryListingOffset(listing),
-      limit: PARTNER_CATEGORY_PAGE_SIZE,
+      offset: partnerCategoryListingOffset(listing, PW_LISTING_BATCH_SIZE),
+      limit: PW_LISTING_BATCH_SIZE,
       categoryId: category.id,
       sort: listing.sort,
       randomSeed: listing.randomSeed || undefined,
@@ -288,6 +288,7 @@ export default async function PartnerSiteCategoryPage({ params, searchParams }: 
           priceRange={priceRange}
           initialFacets={facets ?? { sizes: [], colors: [], styleTags: [] }}
           initialListing={listing}
+          pageSize={PW_LISTING_BATCH_SIZE}
         />
       </section>
 

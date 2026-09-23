@@ -50,6 +50,8 @@ type Props = {
   }
   /** SSR listing so this client does not need `useSearchParams` (Suspense stall). */
   initialListing?: PartnerCategoryListingQuery
+  /** Category `/c` uses 20 per page. Search / products / kho-sale stay 48. */
+  pageSize?: number
 }
 
 function listingHref(
@@ -82,6 +84,7 @@ export function PartnerSiteCategoryProductsClient({
   priceRange,
   initialFacets,
   initialListing,
+  pageSize = PARTNER_CATEGORY_PAGE_SIZE,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const { tracking } = usePartnerSiteShop()
@@ -199,8 +202,8 @@ export function PartnerSiteCategoryProductsClient({
     if (isTextSearch && searchQuery) params.set('q', searchQuery)
     else if (categoryId) params.set('categoryId', categoryId)
     if (warehouse) params.set('warehouse', '1')
-    params.set('offset', String((listing.page - 1) * PARTNER_CATEGORY_PAGE_SIZE))
-    params.set('limit', String(PARTNER_CATEGORY_PAGE_SIZE))
+    params.set('offset', String((listing.page - 1) * pageSize))
+    params.set('limit', String(pageSize))
     params.set('sort', listing.sort)
     params.set('facets', '1')
     if (listing.minPrice != null) params.set('min_price', String(listing.minPrice))
@@ -256,7 +259,7 @@ export function PartnerSiteCategoryProductsClient({
     return () => {
       cancelled = true
     }
-  }, [categoryId, hasInitialFacets, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, searchQuery, siteSlug, warehouse, shopList])
+  }, [categoryId, hasInitialFacets, isTextSearch, listing.color, listing.maxPrice, listing.minPrice, listing.page, listing.randomSeed, listing.size, listing.sort, listing.styleTag, pageSize, searchQuery, siteSlug, warehouse, shopList])
 
   const applyPrice = useCallback(() => {
     const min = minLocal.trim() ? Math.max(0, Number(minLocal)) : null
@@ -272,7 +275,7 @@ export function PartnerSiteCategoryProductsClient({
 
   const hasActive = partnerCategoryListingHasFilters(listing, { defaultSort: implicitSort })
   const showBar = true
-  const pageCount = partnerCategoryListingPageCount(total)
+  const pageCount = partnerCategoryListingPageCount(total, pageSize)
   const [filterSlot, setFilterSlot] = useState<HTMLElement | null>(null)
   useLayoutEffect(() => {
     const find = () => document.querySelector<HTMLElement>(`[${PW_LISTING_FILTER_SLOT_ATTR}]`)

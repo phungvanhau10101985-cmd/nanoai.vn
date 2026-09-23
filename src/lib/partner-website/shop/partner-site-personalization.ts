@@ -637,6 +637,13 @@ export async function trackSitePersonalizationEventDetailed(input: {
       accountKey: input.accountKey,
       inventoryId: input.inventoryId,
     })
+    if (ok) {
+      const { enqueueLadipageOnView } = await import('@/lib/partner-website/landing/ladipage-on-view')
+      void enqueueLadipageOnView({
+        partnerId: input.partnerId,
+        inventoryId: input.inventoryId,
+      })
+    }
     return { ok }
   }
   if (event === 'view_products' && input.inventoryIds?.length) {

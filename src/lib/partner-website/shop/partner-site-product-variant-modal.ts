@@ -813,6 +813,7 @@ function isPdpStickyCartTrigger(el){
 }
 function isPdpCartTrigger(el){
   if(!el||!el.closest)return false;
+  if(el.closest('[data-pw-ladipage-buy]'))return true;
   if(isPdpStickyCartTrigger(el))return true;
   if(el.closest('.pw-product-card,.pw-shop-card,[data-pw-region="catalog"],[data-pw-catalog]')&&!isPdpBuyBoxHost(el))return false;
   if(isPdpWideStickyViewport())return false;
@@ -910,7 +911,9 @@ export function isPdpCartTriggerForTest(input: {
   inSticky?: boolean
   pageProduct?: boolean
   wideViewport?: boolean
+  ladipageBuy?: boolean
 }): boolean {
+  if (input.ladipageBuy) return true
   if (input.inSticky) return true
   if (input.inCatalog && !input.inPdp) return false
   if (input.wideViewport) return false

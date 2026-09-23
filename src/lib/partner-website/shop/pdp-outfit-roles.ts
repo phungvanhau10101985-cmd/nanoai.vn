@@ -184,8 +184,30 @@ function joinParts(...parts: unknown[]): string {
   return parts.map(cell).filter(Boolean).join(' | ')
 }
 
+function isOutfitTokenEdge(ch: string | undefined): boolean {
+  if (!ch) return true
+  return !/[\p{L}\p{N}]/u.test(ch)
+}
+
+/** Khớp từ, không khớp đuôi từ khác («thao » không phải «ao »). */
+function containsOutfitKey(blob: string, key: string): boolean {
+  const needle = key.toLowerCase()
+  if (!needle) return false
+  const needleEndsInsideWord = /[\p{L}\p{N}]/u.test(needle[needle.length - 1] || '')
+  let from = 0
+  while (from < blob.length) {
+    const at = blob.indexOf(needle, from)
+    if (at < 0) return false
+    const before = at === 0 ? '' : blob[at - 1]
+    const after = blob[at + needle.length] ?? ''
+    if (isOutfitTokenEdge(before) && (!needleEndsInsideWord || isOutfitTokenEdge(after))) return true
+    from = at + 1
+  }
+  return false
+}
+
 function containsAny(blob: string, keys: readonly string[]): boolean {
-  return keys.some((k) => blob.includes(k))
+  return keys.some((k) => containsOutfitKey(blob, k))
 }
 
 export function isOutfitSlotId(value: string): value is OutfitSlotId {
@@ -312,6 +334,50 @@ export function classifyOutfitAnchor(labels: unknown[]): {
   const role = inferOutfitRole(...labels)
   if (!role) return { role: null, gender, reason: 'no_slots' }
   return { role, gender, reason: null }
+}
+
+export type OutfitListingCategory = {
+  id: string
+  parentId: string | null
+  name: string
+  path: string
+  depth: number
+}
+
+/**
+ * Danh mục «Xem tất cả» của một nhóm phối (Áo / Váy / Quần / Túi / …).
+ * Ưu tiên nhóm nông đúng giới tính, nằm dưới L1 chuẩn — không lấy L1 khác
+ * chỉ vì tên chứa một mảnh từ (vd. «thể thao»).
+ */
+export function pickOutfitListingCategory<T extends OutfitListingCategory>(
+  cats: readonly T[],
+  slot: OutfitSlotId,
+  gender: OutfitGender
+): T | null {
+  const byId = new Map(cats.map((cat) => [cat.id, cat]))
+  const canonical = new Set(targetOutfitCat1Names(slot, gender).map((name) => name.trim().toLowerCase()))
+  let best: { cat: T; score: number } | null = null
+  for (const cat of cats) {
+    if (inferOutfitRole(cat.name) !== slot) continue
+    const names: string[] = []
+    let cur: T | undefined = cat
+    const seen = new Set<string>()
+    while (cur && !seen.has(cur.id)) {
+      seen.add(cur.id)
+      names.unshift(cur.name)
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined
+    }
+    const catGender = inferOutfitGender(...names)
+    if (gender === 'female' && catGender === 'male') continue
+    if (gender === 'male' && catGender === 'female') continue
+    const l1 = (names[0] || cat.name).trim().toLowerCase()
+    let score = (12 - Math.max(0, cat.depth)) * 1000
+    if (canonical.has(l1)) score += 500
+    if (gender !== 'unisex' && catGender === gender) score += 40
+    score -= cat.name.trim().length
+    if (!best || score > best.score) best = { cat, score }
+  }
+  return best?.cat ?? null
 }
 
 /** 188 `target_cat1_names` — lọc kho theo cột catalog L1, không đoán từ cây menu. */

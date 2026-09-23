@@ -17,6 +17,7 @@ import {
   productGridColsForDevice,
   productGridPageSize,
   PW_GRID_PAGE_MAX,
+  PW_LISTING_BATCH_SIZE,
 } from '@/lib/partner-website/shop/pw-product-grid-page'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -131,7 +132,7 @@ export async function loadSiteLiveCatalogGrids(input: {
       (async () => {
         const page = await fetchPartnerInventoryCardPageByCategoryFromPg(input.partnerId, {
           offset: 0,
-          limit: needs.maxLimit,
+          limit: PW_LISTING_BATCH_SIZE,
           categoryId: input.liveListing!.id,
           sort: 'newest',
           includeDescendants: true,

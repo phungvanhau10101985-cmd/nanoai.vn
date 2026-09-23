@@ -14,6 +14,8 @@ export const PW_GRID_COLS_MOBILE = 2
 export const PW_GRID_COLS_WIDE = PW_GRID_COLS_DESKTOP
 export const PW_GRID_COLS_NARROW = 2
 export const PW_GRID_PAGE_MAX = 48
+/** Category listing opened from outfit «Xem tất cả» — one batch, not a single row and not the 48-card search page. */
+export const PW_LISTING_BATCH_SIZE = 20
 
 export type PartnerProductGridDevice = 'desktop' | 'laptop' | 'tablet' | 'mobile'
 

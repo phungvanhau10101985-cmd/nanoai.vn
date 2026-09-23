@@ -11,6 +11,7 @@ import {
   productGridColsForDevice,
   productGridPageSize,
   PW_GRID_PAGE_MAX,
+  PW_LISTING_BATCH_SIZE,
 } from '@/lib/partner-website/shop/pw-product-grid-page'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 
@@ -54,6 +55,7 @@ function attr(open: string, name: string): string {
 }
 
 function hostPageSize(open: string, device?: VisualDeviceVariant | null): number {
+  if (isListingCatalogHost(open)) return PW_LISTING_BATCH_SIZE
   const rows = clampProductGridRows(attr(open, 'data-pw-grid-rows') || 1)
   const cols = productGridColsForDevice(device)
   const limitAttr = Math.floor(Number(attr(open, 'data-limit') || 0))

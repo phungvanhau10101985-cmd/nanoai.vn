@@ -35,11 +35,11 @@ import {
 } from '@/lib/partner-website/shop/pdp-outfit-pair-families'
 import {
   classifyOutfitAnchor,
-  inferOutfitRole,
   isOutfitSlotId,
   outfitSectionTitle,
   outfitSlotLabel,
   outfitSlotSearchPatterns,
+  pickOutfitListingCategory,
   rowMatchesOutfitSlot,
   slotsForOutfitAnchor,
   targetOutfitCat1Names,
@@ -80,18 +80,6 @@ export type PartnerOutfitSuggestions = {
 /** 188 FETCH_LIMIT — first paint slices locally (2 mobile / 5 desktop). */
 export const OUTFIT_FETCH_LIMIT = 12
 const SLOT_POOL = 40
-
-function categoryAncestorNames(cat: PartnerCategoryRow, byId: Map<string, PartnerCategoryRow>): string[] {
-  const names: string[] = []
-  let cur: PartnerCategoryRow | undefined = cat
-  const seen = new Set<string>()
-  while (cur && !seen.has(cur.id)) {
-    seen.add(cur.id)
-    names.unshift(cur.name)
-    cur = cur.parentId ? byId.get(cur.parentId) : undefined
-  }
-  return names
-}
 
 function matchRowToSubject(row: PartnerOutfitMatchRow): OutfitScoreSubject {
   return {
@@ -272,15 +260,6 @@ async function computeOutfitSlotPicksInner(
     }
   }
 
-  const byId = new Map((cats ?? []).map((c) => [c.id, c]))
-  const listingCatBySlot = new Map<OutfitSlotId, PartnerCategoryRow>()
-  for (const cat of cats ?? []) {
-    const names = categoryAncestorNames(cat, byId)
-    const role = inferOutfitRole(...names)
-    if (!role || !slotIds.includes(role) || listingCatBySlot.has(role)) continue
-    listingCatBySlot.set(role, cat)
-  }
-
   const anchorSubject = matchRowToSubject(row)
   const slots: PartnerOutfitPickSlot[] = []
   for (const slot of slotIds) {
@@ -290,7 +269,7 @@ async function computeOutfitSlotPicksInner(
       excludeId: row.id,
       anchor: anchorSubject,
       anchorGender: classified.gender,
-      listingCat: listingCatBySlot.get(slot) ?? null,
+      listingCat: pickOutfitListingCategory(cats ?? [], slot, classified.gender),
     })
     if (picked === 'error') return { ok: false, payload: empty }
     if (picked && picked.items.length) slots.push(picked)
@@ -421,7 +400,10 @@ async function assembleOutfitSuggestions(
       if (item.id) ids.push(item.id)
     }
   }
-  const cardRows = ids.length ? await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, ids) : []
+  const [cardRows, cats] = await Promise.all([
+    ids.length ? fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, ids) : Promise.resolve([]),
+    fetchPartnerCategoriesFlatFromPg(input.partnerId, { activeOnly: true }),
+  ])
   const byId = new Map((cardRows ?? []).map((row) => [row.id, row]))
   const slots: PartnerOutfitSlot[] = []
   for (const slot of payload.slots) {
@@ -439,10 +421,12 @@ async function assembleOutfitSuggestions(
       })
     }
     if (!items.length) continue
+    const gender = payload.anchor?.gender ?? 'unisex'
+    const listingCat = cats ? pickOutfitListingCategory(cats, slot.id, gender) : null
     slots.push({
       id: slot.id,
       label: outfitSlotLabel(slot.id, input.locale),
-      listingHref: listingHrefForSlot(input.siteSlug, null, slot.listingPath),
+      listingHref: listingHrefForSlot(input.siteSlug, listingCat, cats ? null : slot.listingPath),
       items,
     })
   }

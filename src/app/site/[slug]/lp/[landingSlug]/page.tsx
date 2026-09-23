@@ -11,6 +11,8 @@ import { PartnerSitePublicClient } from '../../partner-site-public-client'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
 import { LandingAiSectionsView } from '@/components/partner-website/landing/landing-ai-sections-view'
 import { fetchPublishedPartnerWebsiteBySlugPg } from '@/lib/db/messaging-partner-websites-pg'
+import { fetchPartnerPaymentSettingsFromPg } from '@/lib/db/messaging-partner-orders-pg'
+import { formatPdpOfferLine } from '@/lib/partner-website/shop/pdp-ladipage-copy'
 import {
   buildThemeCssVarBlock,
   rewriteThemeCssVarsInHtml,
@@ -68,6 +70,16 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
       if (landing.sourceType === 'products' && context.products.length === 1 && context.products[0]?.detailPath) {
         redirect(context.products[0].detailPath)
       }
+      const payment = await fetchPartnerPaymentSettingsFromPg(landing.partnerId).catch(() => null)
+      const offerLine = payment
+        ? formatPdpOfferLine({
+            locale: landing.locale,
+            depositMode: payment.default_deposit_mode,
+            depositPercent: payment.default_deposit_percent,
+            depositAmount: payment.default_deposit_amount,
+            shippingFeeAmount: payment.shipping_fee_amount,
+          })
+        : null
       const themeCss = website?.theme ? `:root{${buildThemeCssVarBlock(website.theme)}}` : ''
       return (
         <PartnerSiteChatWidgetProvider
@@ -78,7 +90,7 @@ export default async function PartnerLandingPublicPage({ params }: Props) {
           hideLauncher={website?.theme?.hideChatLauncher !== false}
         >
           {themeCss ? <style dangerouslySetInnerHTML={{ __html: themeCss }} /> : null}
-          <LandingAiSectionsView sections={sections} context={context} />
+          <LandingAiSectionsView sections={sections} context={context} offerLine={offerLine} />
         </PartnerSiteChatWidgetProvider>
       )
     }
