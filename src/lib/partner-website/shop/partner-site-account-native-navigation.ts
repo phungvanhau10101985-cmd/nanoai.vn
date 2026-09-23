@@ -29,6 +29,7 @@
  * hydration; extra taps while a navigation is in flight are swallowed.
  */
 import { buildPartnerSiteTapAckScript } from '@/lib/partner-website/shop/partner-site-tap-ack'
+import { buildViewedProductSnapshotBootScript } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 
 export const PARTNER_SITE_NATIVE_NAV_SCRIPT_ID = 'pw-native-navigation'
 
@@ -78,7 +79,8 @@ export function buildPartnerSiteNativeNavigationScript(siteSlug: string): string
   const slug = siteSlug.trim()
   const prefix = slug ? `/site/${slug}` : ''
   const prefixEnc = slug ? `/site/${encodeURIComponent(slug)}` : ''
-  return `${buildPartnerSiteTapAckScript()}
+  return `${buildViewedProductSnapshotBootScript()}
+${buildPartnerSiteTapAckScript()}
 (function(){
   if(window.__pwNativeNavBound||window.__pwAccountNativeNavBound||window.__pwVisualNativeNavBound){
     window.__pwNativeNavBound=1;

@@ -48,7 +48,9 @@ import {
 import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import {
+  captureLiveViewedProductDocument,
   rememberViewedProductPage,
+  scheduleViewedProductSnapshotRelease,
   viewedProductPathname,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
@@ -438,10 +440,14 @@ function PartnerSitePublicFrame({
     if (!viewedProductPathname(path)) return
     if (visualPageKind && visualPageKind !== 'product') return
     const html = previewHtml
+    const cancelRelease = scheduleViewedProductSnapshotRelease()
     const timer = window.setTimeout(() => {
-      rememberViewedProductPage(path, html)
+      rememberViewedProductPage(path, captureLiveViewedProductDocument() || html)
     }, 0)
-    return () => window.clearTimeout(timer)
+    return () => {
+      cancelRelease()
+      window.clearTimeout(timer)
+    }
   }, [devicePreview, inlineHtml, previewHtml, visualPageKind])
   useLayoutEffect(() => {
     if (!inlineHtml) return

@@ -4,6 +4,8 @@ import { useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   clearViewedProductSnapshot,
+  persistViewedProductSnapshotScroll,
+  releaseViewedProductSnapshot,
   showViewedProductSnapshot,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { isPartnerShopVisualHtmlPath } from '@/lib/partner-website/shop/partner-shop-react-island-path'
@@ -69,6 +71,7 @@ export function PartnerSiteSoftNavRelay() {
         /* visual ack is best-effort */
       }
       if (showViewedProductSnapshot(path)) {
+        persistViewedProductSnapshotScroll()
         try {
           win.__pwShopTapAckNavEnd?.()
         } catch {
@@ -101,7 +104,7 @@ export function PartnerSiteSoftNavRelay() {
   useLayoutEffect(() => {
     if (pathRef.current === pathname) return
     pathRef.current = pathname
-    clearViewedProductSnapshot()
+    if (!releaseViewedProductSnapshot()) clearViewedProductSnapshot()
     try {
       ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
     } catch {

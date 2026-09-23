@@ -3,8 +3,10 @@ import test from 'node:test'
 import {
   PW_VIEWED_PDP_MAX_ENTRIES,
   PW_VIEWED_PDP_TTL_MS,
+  buildViewedProductSnapshotBootScript,
   readViewedProductPage,
   rememberViewedProductPage,
+  snapshotIsFaithful,
   viewedProductPathname,
   type ViewedProductStorage,
 } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
@@ -77,6 +79,30 @@ test('readViewedProductPage drops a preview older than the keep window', () => {
     Date.now() + PW_VIEWED_PDP_TTL_MS + 5
   )
   assert.equal(snap, null)
+})
+
+test('rememberViewedProductPage keeps stylesheet links and a click-safe document', () => {
+  const storage = memoryStorage()
+  const html = `<!doctype html><html data-pw-page="product"><head><link rel="stylesheet" href="/api/site/shop/shop-theme.css"></head><body>
+<header class="pw-header" data-pw-region="header">Head</header>
+<section data-pw-region="pdp-info"><a href="/cart">Giỏ</a></section>
+</body></html>`
+  assert.equal(rememberViewedProductPage('/products/ao-aaaa1111', html, storage, 'shop.test'), true)
+  const snap = readViewedProductPage('/products/ao-aaaa1111', storage, 'shop.test')
+  assert.ok(snap)
+  assert.match(snap.doc, /shop-theme\.css/)
+  assert.match(snap.doc, /data-pw-snap-guard/)
+  assert.match(snap.doc, /pw-header/)
+  assert.doesNotMatch(snap.doc, /<a[^>]*\shref=/)
+  assert.equal(snapshotIsFaithful(snap.doc), true)
+  assert.equal(snapshotIsFaithful('<section data-pw-region="pdp-info"><style>.a{}</style>Áo dài hơn bốn mươi ký tự cho đủ</section>'), false)
+})
+
+test('snapshot boot script is valid and skips a headless preview', () => {
+  const script = buildViewedProductSnapshotBootScript()
+  assert.doesNotThrow(() => new Function(script))
+  assert.match(script, /pw-viewed-pdp-snap/)
+  assert.match(script, /pw-header/)
 })
 
 test('rememberViewedProductPage ignores pages that are not a product shell', () => {
