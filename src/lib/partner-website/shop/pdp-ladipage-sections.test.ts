@@ -80,6 +80,8 @@ test('offer line uses shop deposit mode and shipping, never a fixed 30 percent',
 test('mobile injects blurb and story, desktop injects hero, offer replaces deposit', () => {
   const mobile = bindPdpLadipageToHtml(SHELL, overlay, { locale: 'vi', device: 'mobile' })
   assert.match(mobile, /<!--pw-pdp-ladipage-blurb-->/)
+  assert.match(mobile, /Vải cotton mặc mát/)
+  assert.match(mobile, /data-pw-ladipage-buy/)
   assert.match(mobile, /<!--pw-pdp-ladipage-story-->/)
   assert.doesNotMatch(mobile, /<!--pw-pdp-ladipage-hero-->/)
   assert.match(mobile, /Đặt cọc 20%/)

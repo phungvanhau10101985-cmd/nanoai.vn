@@ -121,11 +121,6 @@ export function PartnerSitePdpLadipageBlocks({
     story.hero.headline || '',
     story.hero.subheadline || ''
   )
-  const sentence = visible.showSub
-    ? story.hero.subheadline || ''
-    : visible.showHeadline
-      ? story.hero.headline || ''
-      : ''
   const heroImage = imageUrl || story.hero.imageUrl || ''
   const points = pdpLadipageTrustPoints(locale)
   const showRating = story.averageRating != null && story.totalReviews > 0
@@ -141,11 +136,13 @@ export function PartnerSitePdpLadipageBlocks({
           <span className="pw-lp-dot" aria-hidden="true" />
           {shop.lpSuggestedForYou}
         </p>
-        {sentence ? (
+        {visible.showHeadline ? <h2 data-pw-el="title">{story.hero.headline}</h2> : null}
+        {visible.showSub ? (
           <p data-pw-el="subtitle">
-            <EmText text={sentence} />
+            <EmText text={story.hero.subheadline || ''} />
           </p>
         ) : null}
+        <BuyButton label={shop.buyNow} onBuy={onBuy} />
       </div>
     )
   }

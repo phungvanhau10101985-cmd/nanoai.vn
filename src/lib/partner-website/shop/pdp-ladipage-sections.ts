@@ -164,8 +164,10 @@ ${PDP_LADIPAGE_OFFER_CSS}
 [data-pw-pdp-ladipage="trust"] .pw-lp-trust-item+.pw-lp-trust-item{border-left:1px solid var(--pw-border,#e5e7eb)}
 [data-pw-pdp-ladipage="trust"] strong{display:block;color:#111827;font-size:14px;font-weight:800}
 [data-pw-pdp-ladipage="trust"] .pw-lp-trust-body{display:block;margin-top:3px;color:var(--pw-muted,#6b7280);font-size:12px;font-weight:500;line-height:1.45}
-[data-pw-pdp-ladipage="blurb"]{margin:12px 0 8px;padding:12px 14px;border-radius:16px;background:color-mix(in srgb,var(--pw-primary) 8%,#fff);border:1px solid color-mix(in srgb,var(--pw-primary) 18%,#fff)}
-[data-pw-pdp-ladipage="blurb"] [data-pw-el="subtitle"]{margin:8px 0 0;font-size:1.05rem;font-weight:800;line-height:1.4;color:#111827}
+[data-pw-pdp-ladipage="blurb"]{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:12px 0 4px;padding:16px 14px 14px;border-radius:20px;border:1px solid color-mix(in srgb,var(--pw-primary) 16%,#fff);background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--pw-primary) 6%,#fff))}
+[data-pw-pdp-ladipage="blurb"] [data-pw-el="title"]{margin:0;font-size:1.35rem;font-weight:800;letter-spacing:-.03em;line-height:1.2;color:#111827}
+[data-pw-pdp-ladipage="blurb"] [data-pw-el="subtitle"]{margin:0;font-size:1rem;font-weight:500;line-height:1.55;color:#374151}
+[data-pw-pdp-ladipage="blurb"] .pw-shop-btn-buy{border-radius:999px;font-weight:800;padding:12px 22px}
 [data-pw-pdp-ladipage="story"]{display:grid;gap:36px;margin:28px auto 12px;max-width:var(--pw-content,1200px)}
 [data-pw-pdp-ladipage="story"] h2{margin:0 0 16px;font-size:clamp(1.4rem,2vw,1.9rem);font-weight:800;letter-spacing:-.02em;line-height:1.15;color:#111827}
 [data-pw-pdp-ladipage-highlights]{display:grid;gap:12px;grid-template-columns:1fr}
@@ -202,7 +204,7 @@ ${PDP_LADIPAGE_OFFER_CSS}
 `
 const CSS = `<style data-pw-pdp-ladipage-css>${PDP_LADIPAGE_FACE_CSS}</style>`
 
-function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
+function heroCopyHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
   const story = input.story
   if (!story) return ''
   const shop = getPartnerSiteShopCopy(locale)
@@ -211,6 +213,15 @@ function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
     story.hero.headline || '',
     story.hero.subheadline || ''
   )
+  return `<p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>
+        ${visible.showHeadline ? `<h2 data-pw-el="title">${esc(story.hero.headline || '')}</h2>` : ''}
+        ${visible.showSub ? `<p data-pw-el="subtitle">${emphasize(story.hero.subheadline || '')}</p>` : ''}
+        <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-el="cta" data-pw-buy data-pw-pdp-buy-now="1" data-pw-ladipage-buy="1">${esc(shop.buyNow)}<span class="pw-lp-arrow" aria-hidden="true">→</span></button>`
+}
+
+function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
+  const story = input.story
+  if (!story) return ''
   const image = (input.imageUrl || story.hero.imageUrl || '').trim()
   const points = pdpLadipageTrustPoints(locale)
   const trust = points
@@ -223,10 +234,7 @@ function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
     'hero',
     `<section data-pw-pdp-ladipage="hero">
       <div data-pw-el="copy">
-        <p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>
-        ${visible.showHeadline ? `<h2 data-pw-el="title">${esc(story.hero.headline || '')}</h2>` : ''}
-        ${visible.showSub ? `<p data-pw-el="subtitle">${emphasize(story.hero.subheadline || '')}</p>` : ''}
-        <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-el="cta" data-pw-buy data-pw-pdp-buy-now="1" data-pw-ladipage-buy="1">${esc(shop.buyNow)}<span class="pw-lp-arrow" aria-hidden="true">→</span></button>
+        ${heroCopyHtml(input, locale)}
       </div>
       ${image ? `<div class="pw-lp-hero-media"><img data-pw-el="media" src="${esc(image)}" alt="${esc(input.productName)}"/></div>` : ''}
     </section>
@@ -235,24 +243,11 @@ function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
 }
 
 function blurbHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
-  const story = input.story
-  if (!story) return ''
-  const shop = getPartnerSiteShopCopy(locale)
-  const visible = pdpLadipageHeroCopyVisible(
-    input.productName,
-    story.hero.headline || '',
-    story.hero.subheadline || ''
-  )
-  const sentence = visible.showSub
-    ? story.hero.subheadline || ''
-    : visible.showHeadline
-      ? story.hero.headline || ''
-      : ''
+  if (!input.story) return ''
   return wrap(
     'blurb',
     `<div data-pw-pdp-ladipage="blurb">
-      <p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>
-      ${sentence ? `<p data-pw-el="subtitle">${emphasize(sentence)}</p>` : ''}
+      ${heroCopyHtml(input, locale)}
     </div>`
   )
 }
