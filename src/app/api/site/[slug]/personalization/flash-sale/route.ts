@@ -34,6 +34,16 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     accountKey: visitor.accountKey,
     timezone: overlay?.state.timezone,
   })
+  if (block.unavailable) {
+    const res = jsonSitePersonalization(
+      request,
+      { ok: false, retry: true, products: [], enabled: block.enabled, count: 0 },
+      503,
+      { sessionId: visitor.sessionId, thread: visitor.thread }
+    )
+    res.headers.set('Cache-Control', 'private, no-store')
+    return res
+  }
   const products = (block.rows ?? [])
     .map((row) => {
       const mapped = mapInventoryRowToPersonalizationProduct(shop.site.siteSlug, row, overlay)

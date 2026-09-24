@@ -47,6 +47,11 @@ type CachedAssignment = {
 }
 
 const assignmentCache = new Map<string, CachedAssignment>()
+const assignmentInflight = new Map<string, Promise<BuiltAssignment>>()
+
+type CandidateCacheEntry = { expiresAt: number; rows: FlashCandidate[] }
+const candidateCache = new Map<string, CandidateCacheEntry>()
+const candidateInflight = new Map<string, Promise<{ rows: FlashCandidate[]; failed: boolean }>>()
 
 function cacheKey(partnerId: string, identity: string, slotKey: string): string {
   return `flash-sale:${partnerId}:${identity}:${slotKey}`
@@ -68,10 +73,70 @@ function asUuidList(ids: string[]): string[] {
 
 type FlashCandidate = { id: string; groupKey: string }
 
+type BuiltAssignment = {
+  assignment: PartnerFlashSaleAssignment
+  eligibleIds: string[]
+  /** Query failed — not the same as “fewer than 4 deals”. */
+  failed: boolean
+}
+
+function candidateCacheKey(partnerId: string, shops: string[], l3s: string[]): string {
+  const pairs = shops.map((shop, index) => `${shop}\t${l3s[index]}`).sort()
+  return `${partnerId}|${pairs.join('|')}`
+}
+
+async function queryFlashSaleCandidatesOnce(input: {
+  partnerId: string
+  shops: string[]
+  l3s: string[]
+}): Promise<FlashCandidate[]> {
+  const rows = await pgQuery<{ id: string; shop: string; l3: string }>(
+    `with pairs(shop, l3) as (
+       select * from unnest($2::text[], $3::text[]) as t(shop, l3)
+     ),
+     base as materialized (
+       select mpi.id,
+              ${SAME_SHOP_SQL_KEY} as shop,
+              ${SAME_SHOP_SQL_L3} as l3_text,
+              coalesce(mpi.purchases_count, 0) as purchases
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid
+         and coalesce(mpi.is_active, true) = true
+         and coalesce(mpi.is_clearance, false) = false
+         and ${SAME_SHOP_SQL_KEY} in (select distinct shop from pairs)
+     )
+     select b.id::text as id, p.shop, p.l3
+     from base b
+     join pairs p
+       on p.shop = b.shop
+      and (
+        b.l3_text = p.l3
+        or exists (
+          select 1
+          from public.messaging_partner_inventory_categories pic
+          join public.messaging_partner_categories c on c.id = pic.category_id
+          where pic.inventory_id = b.id
+            and c.partner_id = $1::uuid
+            and c.depth >= 3
+            and lower(trim(c.name)) = p.l3
+        )
+      )
+     order by b.purchases desc, b.id desc
+     limit $4`,
+    [input.partnerId, input.shops, input.l3s, FLASH_SALE_CANDIDATE_LIMIT]
+  )
+  return rows.map((row) => ({
+    id: row.id,
+    groupKey: shopL3PairKey(row.shop, row.l3) || `${row.shop}\t${row.l3}`,
+  }))
+}
+
+/** One scan per shop+L3 set. Concurrent visitors share it; a DB error is not “no deals”. */
 async function fetchFlashSaleCandidatesFromPg(input: {
   partnerId: string
   pairs: Array<{ shop: string; l3: string }>
-}): Promise<FlashCandidate[]> {
+  cacheUntilMs: number
+}): Promise<{ rows: FlashCandidate[]; failed: boolean }> {
   const shops: string[] = []
   const l3s: string[] = []
   const seen = new Set<string>()
@@ -84,43 +149,33 @@ async function fetchFlashSaleCandidatesFromPg(input: {
     shops.push(shop)
     l3s.push(l3)
   }
-  if (!isPgConfigured() || !shops.length) return []
-  try {
-    const rows = await pgQuery<{ id: string; shop: string; l3: string }>(
-      `with pairs(shop, l3) as (
-         select * from unnest($2::text[], $3::text[]) as t(shop, l3)
-       )
-       select mpi.id::text as id, p.shop, p.l3
-       from public.messaging_partner_inventory mpi
-       join pairs p
-         on ${SAME_SHOP_SQL_KEY} = p.shop
-        and (
-          ${SAME_SHOP_SQL_L3} = p.l3
-          or exists (
-            select 1
-            from public.messaging_partner_inventory_categories pic
-            join public.messaging_partner_categories c on c.id = pic.category_id
-            where pic.inventory_id = mpi.id
-              and c.partner_id = $1::uuid
-              and c.depth >= 3
-              and lower(trim(c.name)) = p.l3
-          )
-        )
-       where mpi.partner_id = $1::uuid
-         and coalesce(mpi.is_active, true) = true
-         and coalesce(mpi.is_clearance, false) = false
-       order by coalesce(mpi.purchases_count, 0) desc, mpi.id desc
-       limit $4`,
-      [input.partnerId, shops, l3s, FLASH_SALE_CANDIDATE_LIMIT]
-    )
-    return rows.map((row) => ({
-      id: row.id,
-      groupKey: shopL3PairKey(row.shop, row.l3) || `${row.shop}\t${row.l3}`,
-    }))
-  } catch (error) {
-    console.warn('[fetchFlashSaleCandidatesFromPg]', error)
-    return []
-  }
+  if (!isPgConfigured() || !shops.length) return { rows: [], failed: false }
+  const key = candidateCacheKey(input.partnerId, shops, l3s)
+  const cached = candidateCache.get(key)
+  if (cached && cached.expiresAt > Date.now()) return { rows: cached.rows, failed: false }
+  const pending = candidateInflight.get(key)
+  if (pending) return pending
+  const job = (async () => {
+    try {
+      let rows: FlashCandidate[]
+      try {
+        rows = await queryFlashSaleCandidatesOnce({ partnerId: input.partnerId, shops, l3s })
+      } catch (error) {
+        console.warn('[fetchFlashSaleCandidatesFromPg] retry', error)
+        rows = await queryFlashSaleCandidatesOnce({ partnerId: input.partnerId, shops, l3s })
+      }
+      const ttlMs = Math.max(5_000, input.cacheUntilMs - Date.now())
+      candidateCache.set(key, { expiresAt: Date.now() + ttlMs, rows })
+      return { rows, failed: false }
+    } catch (error) {
+      console.warn('[fetchFlashSaleCandidatesFromPg]', error)
+      return { rows: [], failed: true }
+    }
+  })().finally(() => {
+    if (candidateInflight.get(key) === job) candidateInflight.delete(key)
+  })
+  candidateInflight.set(key, job)
+  return job
 }
 
 async function buildAssignment(input: {
@@ -128,7 +183,7 @@ async function buildAssignment(input: {
   accountKey: string
   slot: PartnerFlashSaleAssignment['slot']
   pinInventoryIds?: string[]
-}): Promise<{ assignment: PartnerFlashSaleAssignment; eligibleIds: string[] }> {
+}): Promise<BuiltAssignment> {
   const empty = emptyPartnerFlashSaleAssignment(input.slot)
   const pinIds = asUuidList(input.pinInventoryIds ?? [])
   const state = await fetchPartnerVisitorPersonalizationFromPg({
@@ -138,7 +193,7 @@ async function buildAssignment(input: {
   const recentIds = asUuidList(state?.recently_viewed_ids ?? []).slice(0, FLASH_SALE_RECENT_VIEWS)
   // Cart/checkout: if login merged views too late, still seed from SKUs in the basket.
   const viewedIds = recentIds.length ? recentIds : pinIds.slice(0, FLASH_SALE_RECENT_VIEWS)
-  if (!viewedIds.length) return { assignment: empty, eligibleIds: [] }
+  if (!viewedIds.length) return { assignment: empty, eligibleIds: [], failed: false }
 
   const signalIds = asUuidList([...viewedIds, ...pinIds])
   const signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, signalIds)
@@ -153,12 +208,15 @@ async function buildAssignment(input: {
     if (!shop || !l3) continue
     pairs.push({ shop, l3, key })
   }
-  if (!pairs.length) return { assignment: empty, eligibleIds: [] }
+  if (!pairs.length) return { assignment: empty, eligibleIds: [], failed: false }
 
-  const candidates = await fetchFlashSaleCandidatesFromPg({
+  const loaded = await fetchFlashSaleCandidatesFromPg({
     partnerId: input.partnerId,
     pairs,
+    cacheUntilMs: input.slot.endAt.getTime(),
   })
+  if (loaded.failed) return { assignment: empty, eligibleIds: [], failed: true }
+  const candidates = loaded.rows
   const groupOrder = pairs.map((pair) => pair.key)
   const groupQueues: Record<string, FlashCandidate[]> = Object.fromEntries(
     groupOrder.map((key) => [key, [] as FlashCandidate[]])
@@ -191,6 +249,7 @@ async function buildAssignment(input: {
   return {
     assignment: { productIds, percentById, slot: input.slot },
     eligibleIds: [...eligibleIds],
+    failed: false,
   }
 }
 
@@ -214,40 +273,66 @@ export async function getPartnerFlashSaleAssignmentFromPg(input: {
     return emptyPartnerFlashSaleAssignment(slot)
   }
 
-  const key = cacheKey(input.partnerId, identity, slot.key)
+  const loaded = await loadFlashSaleAssignment({
+    partnerId: input.partnerId,
+    identity,
+    slot,
+    now,
+    pinInventoryIds: pinIds,
+  })
+  if (!pinIds.length || loaded.failed) return loaded.assignment
+  return pinPartnerFlashSaleProducts(loaded.assignment, pinIds, [
+    ...loaded.eligibleIds,
+    ...loaded.assignment.productIds,
+  ])
+}
+
+async function loadFlashSaleAssignment(input: {
+  partnerId: string
+  identity: string
+  slot: PartnerFlashSaleAssignment['slot']
+  now: Date
+  pinInventoryIds: string[]
+}): Promise<BuiltAssignment> {
+  const key = cacheKey(input.partnerId, input.identity, input.slot.key)
   const cached = assignmentCache.get(key)
-  let base: PartnerFlashSaleAssignment
-  let eligibleIds: string[] = []
   if (cached && cached.expiresAt > Date.now() && cached.productIds.length) {
-    base = {
-      productIds: cached.productIds,
-      percentById: cached.percentById,
-      slot,
+    return {
+      assignment: {
+        productIds: cached.productIds,
+        percentById: cached.percentById,
+        slot: input.slot,
+      },
+      eligibleIds: cached.eligibleIds ?? [],
+      failed: false,
     }
-    eligibleIds = cached.eligibleIds ?? []
-  } else {
+  }
+  const pending = assignmentInflight.get(key)
+  if (pending) return pending
+  const job = (async (): Promise<BuiltAssignment> => {
     const built = await buildAssignment({
       partnerId: input.partnerId,
-      accountKey: identity,
-      slot,
-      pinInventoryIds: pinIds,
+      accountKey: input.identity,
+      slot: input.slot,
+      pinInventoryIds: input.pinInventoryIds,
     })
-    if (!built.assignment.productIds.length) {
+    if (built.failed || !built.assignment.productIds.length) {
       assignmentCache.delete(key)
-      return built.assignment
+      return built
     }
-    const ttlMs = Math.max(5_000, built.assignment.slot.endAt.getTime() - now.getTime())
+    const ttlMs = Math.max(5_000, built.assignment.slot.endAt.getTime() - input.now.getTime())
     assignmentCache.set(key, {
       expiresAt: Date.now() + ttlMs,
       productIds: built.assignment.productIds,
       percentById: built.assignment.percentById,
       eligibleIds: built.eligibleIds,
     })
-    base = built.assignment
-    eligibleIds = built.eligibleIds
-  }
-  if (!pinIds.length) return base
-  return pinPartnerFlashSaleProducts(base, pinIds, [...eligibleIds, ...base.productIds])
+    return built
+  })().finally(() => {
+    if (assignmentInflight.get(key) === job) assignmentInflight.delete(key)
+  })
+  assignmentInflight.set(key, job)
+  return job
 }
 
 export async function listPartnerFlashSaleBlockFromPg(input: {
@@ -259,26 +344,44 @@ export async function listPartnerFlashSaleBlockFromPg(input: {
   assignment: PartnerFlashSaleAssignment
   rows: NonNullable<Awaited<ReturnType<typeof fetchPartnerInventoryCardsByIdsInOrderFromPg>>>
   enabled: boolean
+  /** Database error. Caller must not hide the block as if there were no deals. */
+  unavailable: boolean
 }> {
   const config = await fetchPartnerSaleCalendarConfigFromPg(input.partnerId).catch(() => null)
   const enabled = config?.flashSaleEnabled !== false
-  const assignment = await getPartnerFlashSaleAssignmentFromPg({
+  const now = input.now ?? new Date()
+  const timezone = input.timezone?.trim() || config?.timezone || PARTNER_SALE_DEFAULT_TIMEZONE
+  const slot = resolvePartnerFlashSaleSlot(now, timezone)
+  const identity = partnerFlashSaleIdentityKey(input.accountKey)
+  if (!enabled || !identity || !isPgConfigured()) {
+    return {
+      assignment: emptyPartnerFlashSaleAssignment(slot),
+      rows: [],
+      enabled,
+      unavailable: false,
+    }
+  }
+  const loaded = await loadFlashSaleAssignment({
     partnerId: input.partnerId,
-    accountKey: input.accountKey,
-    timezone: input.timezone || config?.timezone,
-    now: input.now,
-    enabled,
+    identity,
+    slot,
+    now,
+    pinInventoryIds: [],
   })
-  if (!enabled || assignment.productIds.length < FLASH_SALE_MIN_SHOW) {
-    return { assignment, rows: [], enabled }
+  if (loaded.failed) {
+    return { assignment: loaded.assignment, rows: [], enabled, unavailable: true }
+  }
+  const assignment = loaded.assignment
+  if (assignment.productIds.length < FLASH_SALE_MIN_SHOW) {
+    return { assignment, rows: [], enabled, unavailable: false }
   }
   const rows =
     (await fetchPartnerInventoryCardsByIdsInOrderFromPg(input.partnerId, assignment.productIds)) ?? []
   const sellable = rows.filter((row) => row && row.is_clearance !== true)
   if (sellable.length < FLASH_SALE_MIN_SHOW) {
-    return { assignment, rows: [], enabled }
+    return { assignment, rows: [], enabled, unavailable: false }
   }
-  return { assignment, rows: sellable, enabled }
+  return { assignment, rows: sellable, enabled, unavailable: false }
 }
 
 export async function overlayPartnerFlashSaleOnProducts<

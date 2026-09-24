@@ -6,6 +6,7 @@ import {
   resolvePartnerEffectiveUnitPrice,
 } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-website/shop/build-personalization-bootstrap-script'
 
 test('normalizePartnerSalePriceAmount treats null and 0 as no sale', () => {
   assert.equal(normalizePartnerSalePriceAmount(null), null)
@@ -46,4 +47,14 @@ test('inventory mapper drops leftover sale_price_amount 0', () => {
   })
   assert.equal(product?.salePriceAmount, null)
   assert.equal(product?.priceAmount, 1_570_000)
+})
+
+test('flash sale hides only after a real empty list, and retries when the API fails', () => {
+  const js = buildPartnerSitePersonalizationBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(js, /function loadFlashSale\(el\)/)
+  assert.match(js, /path==='\/flash-sale'/)
+  assert.match(js, /res\.ok===false/)
+  assert.match(js, /el\._pwFlashGen!==gen/)
+  assert.match(js, /if\(!products\.length\)\{[\s\S]*el\.hidden=true/)
+  assert.match(js, /el\._pwFlashFails/)
 })
