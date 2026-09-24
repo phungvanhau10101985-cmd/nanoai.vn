@@ -340,6 +340,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
                 depositPercent: paymentSettings.default_deposit_percent,
                 depositAmount: paymentSettings.default_deposit_amount,
                 shippingFeeAmount: paymentSettings.shipping_fee_amount,
+                includeDeposit: false,
               })
             : null
         }

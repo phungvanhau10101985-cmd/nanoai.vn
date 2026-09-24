@@ -77,6 +77,7 @@ export async function loadPdpLadipageOverlay(input: {
         depositPercent: payment.default_deposit_percent,
         depositAmount: payment.default_deposit_amount,
         shippingFeeAmount: payment.shipping_fee_amount,
+        includeDeposit: false,
       })
     : ''
   if (!story && !offerLine) return null

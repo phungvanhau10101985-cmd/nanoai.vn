@@ -113,19 +113,26 @@ export function formatPdpOfferLine(input: {
   depositPercent: number
   depositAmount: number
   shippingFeeAmount: number
+  /** Trang chi tiết: bỏ chip tiền cọc. Landing vẫn hiện. */
+  includeDeposit?: boolean
 }): string {
   const offer = copyOf(input.locale).offer
   const percent = Math.max(0, Math.round(Number(input.depositPercent) || 0))
   const depositAmount = Math.max(0, Math.round(Number(input.depositAmount) || 0))
   const shipping = Math.max(0, Math.round(Number(input.shippingFeeAmount) || 0))
-  let deposit = offer.depositNone
-  if (input.depositMode === 'percent' && percent > 0) {
-    deposit = offer.depositPercent.replace('{percent}', String(percent))
-  } else if (input.depositMode === 'fixed_amount' && depositAmount > 0) {
-    deposit = offer.depositFixed.replace('{amount}', formatPartnerShopMoneyVnd(depositAmount))
-  }
   const ship = shipping > 0
     ? offer.shipFee.replace('{amount}', formatPartnerShopMoneyVnd(shipping))
     : offer.shipFree
+  const showDeposit = input.includeDeposit !== false
+  if (!showDeposit) {
+    if (input.depositMode === 'percent' && percent > 0) return ship
+    if (input.depositMode === 'fixed_amount' && depositAmount > 0) return ship
+  }
+  let deposit = offer.depositNone
+  if (showDeposit && input.depositMode === 'percent' && percent > 0) {
+    deposit = offer.depositPercent.replace('{percent}', String(percent))
+  } else if (showDeposit && input.depositMode === 'fixed_amount' && depositAmount > 0) {
+    deposit = offer.depositFixed.replace('{amount}', formatPartnerShopMoneyVnd(depositAmount))
+  }
   return `${deposit} · ${ship}`
 }

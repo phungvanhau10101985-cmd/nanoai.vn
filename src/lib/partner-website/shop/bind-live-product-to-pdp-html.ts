@@ -1525,14 +1525,9 @@ function ensureMissingPdpSlots(
     )
   }
   // Buy-box «Gợi ý tư vấn» ẩn — consult_note chỉ dùng tab Thông tin + chat.
+  // Trang chi tiết không hiện chữ tiền cọc. Trang chính sách giữ nguyên.
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'consult')
   out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'deposit')
-  if (product.depositPolicy) {
-    const note = `<p class="pw-shop-muted" data-pw-pdp-slot="deposit" style="margin-top:12px;font-size:13px">${escText(t.depositPolicyNote)}</p>`
-    if (/class=["'][^"']*\bpw-pdp-actions\b/.test(out)) {
-      out = out.replace(/(<[^>]*\bpw-pdp-actions\b[^>]*>)/i, `${note}$1`)
-    }
-  }
   const videoUrl = String(product.productVideoUrl || '').trim()
   if (videoUrl && looksLikeVideoUrl(videoUrl) && /data-pw-pdp-video-thumb|data-pw-pdp-hero-video/.test(out)) {
     if (hasSlot(out, 'video')) {

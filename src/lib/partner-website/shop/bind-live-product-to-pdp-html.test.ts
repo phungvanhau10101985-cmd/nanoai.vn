@@ -440,6 +440,12 @@ test('bind fills live 188 fields only — empty sizes/colors/consult do not keep
   assert.doesNotMatch(next, /data-pw-pdp-slot="low-stock"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="savings"/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="deposit"/)
+  const withDeposit = bindLiveProductToPdpHtml(buildDefaultDemoPdpShellHtml({ locale: 'vi' }), {
+    ...bag,
+    depositPolicy: true,
+  })
+  assert.doesNotMatch(withDeposit, /data-pw-pdp-slot="deposit"/)
+  assert.doesNotMatch(withDeposit, /Cọc theo cài đặt/)
   assert.doesNotMatch(next, /data-pw-pdp-slot="size-guide"/)
   assert.doesNotMatch(next, /data-pw-size-guide-modal/)
   assert.doesNotMatch(next, /Form đẹp/)

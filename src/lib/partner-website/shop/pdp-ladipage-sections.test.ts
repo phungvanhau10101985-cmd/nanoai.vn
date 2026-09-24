@@ -77,6 +77,41 @@ test('offer line uses shop deposit mode and shipping, never a fixed 30 percent',
   )
 })
 
+test('product page offer line omits deposit money and keeps shipping', () => {
+  const percent = formatPdpOfferLine({
+    locale: 'vi',
+    depositMode: 'percent',
+    depositPercent: 20,
+    depositAmount: 0,
+    shippingFeeAmount: 15000,
+    includeDeposit: false,
+  })
+  assert.match(percent, /^Phí giao /)
+  assert.doesNotMatch(percent, /Đặt cọc|20%/)
+  assert.equal(
+    formatPdpOfferLine({
+      locale: 'vi',
+      depositMode: 'none',
+      depositPercent: 30,
+      depositAmount: 0,
+      shippingFeeAmount: 0,
+      includeDeposit: false,
+    }),
+    'Thanh toán khi nhận hàng · Giao hàng miễn phí'
+  )
+  assert.equal(
+    formatPdpOfferLine({
+      locale: 'en',
+      depositMode: 'fixed_amount',
+      depositPercent: 0,
+      depositAmount: 50000,
+      shippingFeeAmount: 0,
+      includeDeposit: false,
+    }),
+    'Free delivery'
+  )
+})
+
 test('mobile injects blurb and story, desktop injects hero, offer replaces deposit', () => {
   const mobile = bindPdpLadipageToHtml(SHELL, overlay, { locale: 'vi', device: 'mobile' })
   assert.match(mobile, /<!--pw-pdp-ladipage-blurb-->/)

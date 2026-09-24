@@ -1064,12 +1064,6 @@ export function PartnerSiteShopProductClient({
             {qtyStepper}
           </div>
 
-          {options?.deposit_policy && !offerLine ? (
-            <p className="pw-shop-muted" style={{ marginTop: 12, fontSize: 13 }}>
-              {t.depositPolicyNote}
-            </p>
-          ) : null}
-
           <div ref={buyActionsRef} className="pw-pdp-actions pw-pdp-actions-inline">
             <button type="button" className="pw-shop-btn pw-shop-btn-cart" disabled={busy} onClick={() => onInlinePdpCart(false)} data-pw-el={PW_EL.cardCart} data-pw-add-cart data-pw-pdp-add-cart="1">
               {t.addToCart}

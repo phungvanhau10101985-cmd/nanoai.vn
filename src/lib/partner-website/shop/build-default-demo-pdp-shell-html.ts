@@ -204,7 +204,6 @@ ${chrome.header}
           <p style="font-weight:700;margin:0 0 8px;font-size:14px">${escapeHtml(t.pdpQtyBuy)}</p>
           <div class="pw-pdp-qty" ${pwElAttr(PW_EL.qty)}><button type="button">−</button><span>1</span><button type="button">+</button></div>
         </div>
-        <p class="pw-shop-muted" data-pw-pdp-slot="deposit" style="margin-top:12px;font-size:13px">${escapeHtml(t.depositPolicyNote)}</p>
         <div class="pw-pdp-actions pw-pdp-actions-inline">
           <button type="button" class="pw-shop-btn pw-shop-btn-cart" data-pw-chrome-btn="add-cart" ${pwElAttr(PW_EL.cardCart)} data-pw-add-cart data-pw-pdp-add-cart="1">${escapeHtml(t.addToCart)}</button>
           <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-chrome-btn="buy-now" ${pwElAttr(PW_EL.buy)} data-pw-buy data-pw-pdp-buy-now="1">${escapeHtml(t.buyNow)}</button>
