@@ -151,17 +151,16 @@ ${PDP_LADIPAGE_OFFER_CSS}
 .pw-lp-ico-sm svg{width:18px;height:18px}
 .pw-lp-dot{width:7px;height:7px;border-radius:999px;background:var(--pw-primary);flex:none}
 .pw-lp-arrow{margin-left:6px}
-[data-pw-pdp-ladipage="hero"]{position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:28px;align-items:center;margin:0 auto 8px;max-width:var(--pw-content,1200px);padding:28px 24px;border-radius:28px;border:1px solid color-mix(in srgb,var(--pw-primary) 18%,#fff);background:radial-gradient(circle at 0% 100%,color-mix(in srgb,var(--pw-primary) 16%,transparent),transparent 42%),radial-gradient(circle at 100% 0%,color-mix(in srgb,var(--pw-accent,var(--pw-primary)) 22%,transparent),transparent 40%),linear-gradient(135deg,color-mix(in srgb,var(--pw-primary) 8%,#fff),#fff 58%)}
-[data-pw-pdp-ladipage="hero"] [data-pw-el="copy"]{display:flex;flex-direction:column;align-items:flex-start;gap:12px;position:relative;z-index:1}
-[data-pw-pdp-ladipage="hero"] .pw-lp-hero-media{position:relative;z-index:1}
-[data-pw-pdp-ladipage="hero"] .pw-lp-hero-media::before{content:"";position:absolute;inset:-10px;border-radius:28px;background:color-mix(in srgb,var(--pw-primary) 18%,transparent);filter:blur(16px);z-index:0}
-[data-pw-pdp-ladipage="hero"] img{position:relative;z-index:1;display:block;width:100%;max-height:calc(70vh / var(--pw-scene-zoom,1));object-fit:contain;background:#fff;border-radius:22px;border:4px solid #fff;box-shadow:0 18px 40px color-mix(in srgb,var(--pw-primary) 16%,transparent)}
+[data-pw-pdp-ladipage="hero"]{position:relative!important;overflow:visible!important;aspect-ratio:auto!important;height:auto!important;min-height:0!important;display:grid!important;grid-template-columns:minmax(0,1.08fr) minmax(280px,.92fr)!important;gap:40px;align-items:center;margin:4px auto 0;max-width:var(--pw-content,1200px);padding:36px 40px;border-radius:28px;border:1px solid color-mix(in srgb,var(--pw-primary) 16%,#fff);background:radial-gradient(420px 220px at 0% 100%,color-mix(in srgb,var(--pw-primary) 14%,transparent),transparent 70%),radial-gradient(380px 220px at 100% 0%,color-mix(in srgb,var(--pw-accent,var(--pw-primary)) 18%,transparent),transparent 72%),linear-gradient(180deg,#fff,color-mix(in srgb,var(--pw-primary) 5%,#fff));box-shadow:0 18px 50px rgba(15,23,42,.06)}
+[data-pw-pdp-ladipage="hero"] [data-pw-el="copy"]{display:flex!important;flex-direction:column;align-items:flex-start;gap:14px;position:relative!important;inset:auto!important;z-index:1;width:auto!important;height:auto!important;min-width:0}
+[data-pw-pdp-ladipage="hero"] .pw-lp-hero-media{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;min-height:280px;padding:16px;border-radius:24px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.06)}
+[data-pw-pdp-ladipage="hero"] img,[data-pw-pdp-ladipage="hero"] img[data-pw-el="media"]{position:relative!important;inset:auto!important;left:auto!important;top:auto!important;right:auto!important;bottom:auto!important;z-index:1;display:block;width:100%!important;height:auto!important;max-height:360px!important;max-width:100%!important;object-fit:contain!important;background:transparent;border:0;border-radius:16px;box-shadow:none}
 [data-pw-pdp-ladipage="hero"] [data-pw-el="badge"],[data-pw-pdp-ladipage="blurb"] [data-pw-el="badge"]{display:inline-flex;align-items:center;gap:8px;margin:0;padding:5px 12px;border-radius:999px;border:1px solid color-mix(in srgb,var(--pw-primary) 28%,#fff);background:color-mix(in srgb,var(--pw-primary) 10%,#fff);color:var(--pw-primary);font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 [data-pw-pdp-ladipage="hero"] [data-pw-el="title"]{margin:0;font-size:clamp(1.7rem,2.6vw,2.55rem);font-weight:800;letter-spacing:-.03em;line-height:1.12;color:#111827}
 [data-pw-pdp-ladipage="hero"] [data-pw-el="subtitle"]{margin:0;max-width:36rem;font-size:1.05rem;font-weight:500;line-height:1.55;color:var(--pw-muted,#4b5563)}
 [data-pw-pdp-ladipage="hero"] .pw-shop-btn-buy{border-radius:999px;font-weight:800;padding:12px 22px;margin-top:4px}
-[data-pw-pdp-ladipage="trust"]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:14px auto 22px;max-width:var(--pw-content,1200px);padding:8px;border-radius:20px;background:#fff;border:1px solid var(--pw-border,#e5e7eb);box-shadow:0 8px 24px rgba(15,23,42,.05)}
-[data-pw-pdp-ladipage="trust"] .pw-lp-trust-item{display:flex;align-items:flex-start;gap:12px;margin:0;padding:12px 16px;text-align:left}
+[data-pw-pdp-ladipage="trust"]{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;margin:14px auto 8px;max-width:var(--pw-content,1200px);padding:6px 8px;border-radius:20px;background:#fff;border:1px solid var(--pw-border,#e5e7eb);box-shadow:0 8px 24px rgba(15,23,42,.04)}
+[data-pw-pdp-ladipage="trust"] .pw-lp-trust-item{display:flex;align-items:flex-start;gap:12px;margin:0;padding:14px 18px;text-align:left;background:transparent;border:0;border-radius:0;box-shadow:none}
 [data-pw-pdp-ladipage="trust"] .pw-lp-trust-item+.pw-lp-trust-item{border-left:1px solid var(--pw-border,#e5e7eb)}
 [data-pw-pdp-ladipage="trust"] strong{display:block;color:#111827;font-size:14px;font-weight:800}
 [data-pw-pdp-ladipage="trust"] .pw-lp-trust-body{display:block;margin-top:3px;color:var(--pw-muted,#6b7280);font-size:12px;font-weight:500;line-height:1.45}
@@ -222,7 +221,7 @@ function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
     .join('')
   return wrap(
     'hero',
-    `<section data-pw-pdp-ladipage="hero" data-pw-region="banner">
+    `<section data-pw-pdp-ladipage="hero">
       <div data-pw-el="copy">
         <p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>
         ${visible.showHeadline ? `<h2 data-pw-el="title">${esc(story.hero.headline || '')}</h2>` : ''}
@@ -231,7 +230,7 @@ function heroHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
       </div>
       ${image ? `<div class="pw-lp-hero-media"><img data-pw-el="media" src="${esc(image)}" alt="${esc(input.productName)}"/></div>` : ''}
     </section>
-    <div data-pw-pdp-ladipage="trust" data-pw-region="promo">${trust}</div>`
+    <div data-pw-pdp-ladipage="trust">${trust}</div>`
   )
 }
 

@@ -248,7 +248,7 @@ export function PartnerSitePdpLadipageBlocks({
   return (
     <div data-pw-ladipage-desktop className="pw-pdp-ladipage-desktop-only">
       {face}
-      <section data-pw-pdp-ladipage="hero" data-pw-region="banner">
+      <section data-pw-pdp-ladipage="hero">
         <div data-pw-el="copy">
           <p data-pw-el="badge">
             <span className="pw-lp-dot" aria-hidden="true" />
@@ -268,7 +268,7 @@ export function PartnerSitePdpLadipageBlocks({
           </div>
         ) : null}
       </section>
-      <div data-pw-pdp-ladipage="trust" data-pw-region="promo">
+      <div data-pw-pdp-ladipage="trust">
         {points.map((point, index) => (
           <div key={point.title} className="pw-lp-trust-item" data-pw-el="subtitle">
             <LpIcon svg={PDP_LP_TRUST_ICONS[index % PDP_LP_TRUST_ICONS.length] || ''} small />

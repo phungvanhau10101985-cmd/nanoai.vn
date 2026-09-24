@@ -89,6 +89,7 @@ test('mobile injects blurb and story, desktop injects hero, offer replaces depos
 
   const desktop = bindPdpLadipageToHtml(SHELL, overlay, { locale: 'vi', device: 'desktop' })
   assert.match(desktop, /<!--pw-pdp-ladipage-hero-->/)
+  assert.doesNotMatch(desktop, /data-pw-pdp-ladipage="hero"[^>]*data-pw-region="banner"/)
   assert.match(desktop, /data-pw-ladipage-buy/)
   assert.match(desktop, /Chọn lựa kỹ lưỡng/)
   assert.match(desktop, /pw-lp-ico/)
