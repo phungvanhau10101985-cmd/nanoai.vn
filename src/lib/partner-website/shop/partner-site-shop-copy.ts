@@ -706,6 +706,12 @@ export type PartnerSiteShopCopy = {
   lpTrust1: string
   lpTrust2: string
   lpTrust3: string
+  lpWhyKicker: string
+  lpMaterialKicker: string
+  lpMaterialHeading: string
+  lpFaqKicker: string
+  lpReadyKicker: string
+  lpTrustFoot: string
 }
 
 const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
@@ -1401,6 +1407,12 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpTrust1: 'Chọn lựa kỹ lưỡng',
     lpTrust2: 'Đặt hàng thuận tiện',
     lpTrust3: 'Hỗ trợ khi cần',
+    lpWhyKicker: 'Lý do nên chọn',
+    lpMaterialKicker: 'Chất liệu và trải nghiệm',
+    lpMaterialHeading: 'Chất liệu',
+    lpFaqKicker: 'Giải đáp nhanh',
+    lpReadyKicker: 'Sẵn sàng chọn sản phẩm phù hợp?',
+    lpTrustFoot: 'Xem chi tiết sản phẩm trước khi quyết định.',
   },
   en: {
     navHome: 'Home',
@@ -2094,6 +2106,12 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpTrust1: 'Carefully selected',
     lpTrust2: 'Easy ordering',
     lpTrust3: 'Support when you need it',
+    lpWhyKicker: 'Why choose this',
+    lpMaterialKicker: 'Material and feel',
+    lpMaterialHeading: 'Material',
+    lpFaqKicker: 'Quick answers',
+    lpReadyKicker: 'Ready to choose the right one?',
+    lpTrustFoot: 'Review the details before you decide.',
   },
   zh: {
     navHome: '首页',
@@ -2780,6 +2798,12 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpTrust1: '精选好物',
     lpTrust2: '下单便捷',
     lpTrust3: '随时支持',
+    lpWhyKicker: '选择理由',
+    lpMaterialKicker: '材质与体验',
+    lpMaterialHeading: '材质',
+    lpFaqKicker: '快速解答',
+    lpReadyKicker: '准备好选对商品了吗？',
+    lpTrustFoot: '下单前先看清细节。',
   },
   ja: {
     navHome: 'ホーム',
@@ -3470,6 +3494,12 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpTrust1: '厳選した商品',
     lpTrust2: 'かんたん注文',
     lpTrust3: '必要なときにサポート',
+    lpWhyKicker: '選ぶ理由',
+    lpMaterialKicker: '素材と着心地',
+    lpMaterialHeading: '素材',
+    lpFaqKicker: 'すぐ分かる答え',
+    lpReadyKicker: 'ぴったりの商品を選びますか？',
+    lpTrustFoot: '決める前に詳細をご確認ください。',
   },
   ko: {
     navHome: '홈',
@@ -4160,6 +4190,12 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     lpTrust1: '신중하게 고른 상품',
     lpTrust2: '간편한 주문',
     lpTrust3: '필요할 때 지원',
+    lpWhyKicker: '선택하는 이유',
+    lpMaterialKicker: '소재와 착용감',
+    lpMaterialHeading: '소재',
+    lpFaqKicker: '빠른 답변',
+    lpReadyKicker: '맞는 상품을 고를 준비가 되셨나요?',
+    lpTrustFoot: '결정하기 전에 상세 내용을 확인하세요.',
   },
 }
 

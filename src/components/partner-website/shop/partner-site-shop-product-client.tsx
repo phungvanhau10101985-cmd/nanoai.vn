@@ -41,7 +41,10 @@ import {
 import { PartnerSiteAffiliateShareBar } from '@/components/partner-website/shop/partner-site-affiliate-share-bar'
 import { PartnerSitePdpShare } from '@/components/partner-website/shop/partner-site-pdp-share'
 import { PartnerSiteRelatedProducts } from '@/components/partner-website/shop/partner-site-related-products'
-import { PartnerSitePdpLadipageBlocks } from '@/components/partner-website/shop/partner-site-pdp-ladipage-blocks'
+import {
+  PartnerSitePdpLadipageBlocks,
+  PartnerSitePdpOfferLine,
+} from '@/components/partner-website/shop/partner-site-pdp-ladipage-blocks'
 import type { PdpLadipageStory } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import {
   formatPartnerShopMoneyVnd,
@@ -973,11 +976,7 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : null}
 
-          {offerLine ? (
-            <p className="pw-shop-muted" data-pw-pdp-slot="deposit" data-pw-pdp-offer="1" style={{ marginTop: 8, fontSize: 13 }}>
-              {offerLine}
-            </p>
-          ) : null}
+          {offerLine ? <PartnerSitePdpOfferLine line={offerLine} /> : null}
 
           {product.stockQty > 0 && product.stockQty <= LOW_STOCK_URGENCY_THRESHOLD ? (
             <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>
