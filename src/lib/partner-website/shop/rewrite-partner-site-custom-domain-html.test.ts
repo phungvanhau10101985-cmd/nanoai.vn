@@ -42,6 +42,12 @@ test('inline visual native navigation strips the internal site prefix before nav
   assert.match(script, /function eventOrigin\(/)
   assert.match(script, /function isJsOnly\(/)
   assert.match(script, /function isCatToggle\(/)
+  assert.match(script, /function armCatTap\(/)
+  assert.match(script, /__pwShopToggleCat/)
+  assert.match(script, /__pwShopPendingCatTap/)
+  assert.match(script, /data-pw-cat-gesture/)
+  assert.match(script, /ptr!=='mouse'/)
+  assert.match(script, /__pwCatIgnoreClickUntil/)
   assert.match(script, /function favAtEvent\(/)
   assert.match(script, /elementsFromPoint/)
   assert.match(script, /\.pw-rec-fav/)
@@ -458,6 +464,9 @@ test('native nav does not swallow mobile category taps so the sheet can open', (
   assert.equal(prevented, 1)
   assert.equal(stopped, 0)
   assert.equal(immediate, 0)
+  const pending = (windowMock as { __pwShopPendingCatTap?: { x: number; y: number } }).__pwShopPendingCatTap
+  assert.equal(pending?.x, 24)
+  assert.equal(pending?.y, 88)
 })
 
 test('native nav does not swallow favorite taps so shop-actions can toggle', () => {

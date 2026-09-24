@@ -396,6 +396,15 @@ export default async function RootLayout({
             <link rel="preconnect" href="https://gw.alicdn.com" crossOrigin="anonymous" />
           </>
         ) : null}
+        {isPartnerWebsitePage ? (
+          <script
+            id="pw-shop-pwa-prompt"
+            dangerouslySetInnerHTML={{
+              __html:
+                'window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__nanoaiShopPwaPrompt=e;});',
+            }}
+          />
+        ) : null}
         {isPartnerWebsitePage && partnerSiteSlug ? (
           <>
             <script

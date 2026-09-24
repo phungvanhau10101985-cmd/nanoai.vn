@@ -1141,6 +1141,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       if(!chrome)return;
       var inner0=chrome.querySelector('[data-pw-live-chrome-scale]')||chrome;
       if(inner0.style)inner0.style.removeProperty('margin-bottom');
+      try{ if(typeof window.__pwListingHeadSync==='function') window.__pwListingHeadSync(); }catch(eHead0){}
       return;
     }
     var nodes=[];
@@ -1172,6 +1173,7 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
       }
     }
     if(inner.style)inner.style.removeProperty('margin-bottom');
+    try{ if(typeof window.__pwListingHeadSync==='function') window.__pwListingHeadSync(); }catch(eHead){}
   }
   function findLiveDockNavs(root){
     var seen=[];

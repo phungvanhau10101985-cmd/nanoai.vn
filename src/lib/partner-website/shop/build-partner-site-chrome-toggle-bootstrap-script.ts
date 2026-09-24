@@ -1151,7 +1151,13 @@ function ensureCatBackdrop(){
     el.setAttribute('aria-label',COPY.close||'');
     el.hidden=true;
     document.body.appendChild(el);
-    el.addEventListener('click',function(){
+    el.addEventListener('click',function(e){
+      if(window.__pwCatIgnoreClickUntil&&Date.now()<window.__pwCatIgnoreClickUntil){
+        window.__pwCatIgnoreClickUntil=0;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       var open=document.querySelector('.pw-cat-panel.is-open,.pw-shop-cat-panel.is-open,[data-pw-cat-panel].is-open');
       if(open)closeEl(open.__pwOwnerBtn,open);
     });
@@ -1443,11 +1449,29 @@ function bindToggles(){
     if(btn.getAttribute('data-pw-toggle-bound'))continue;
     btn.setAttribute('data-pw-toggle-bound','1');
     bindCatHover(btn);
+    btn.addEventListener('pointerdown',function(e){
+      if(e.button!=null&&e.button!==0)return;
+      e.currentTarget.__pwCatPtr={id:e.pointerId,x:e.clientX||0,y:e.clientY||0};
+    });
+    btn.addEventListener('pointerup',function(e){
+      if(pwShopLiveUiOff())return;
+      if(e.button!=null&&e.button!==0)return;
+      if(String(e.pointerType||'')==='mouse')return;
+      var cur=e.currentTarget;
+      var start=cur.__pwCatPtr;
+      cur.__pwCatPtr=null;
+      if(start&&start.id!=null&&e.pointerId!=null&&start.id!==e.pointerId)return;
+      var dx=(e.clientX||0)-(start?start.x:(e.clientX||0));
+      var dy=(e.clientY||0)-(start?start.y:(e.clientY||0));
+      if(dx*dx+dy*dy>144)return;
+      toggleCatFromTap(cur,e.clientX||0,e.clientY||0);
+    });
     btn.addEventListener('click',function(e){
       if(pwShopLiveUiOff())return;
       e.preventDefault();
       e.stopPropagation();
       var cur=e.currentTarget;
+      if(catGestureFresh(cur))return;
       var livePanel=ensureCatPanel(cur);
       if(livePanel&&livePanel.id)cur.setAttribute('aria-controls',livePanel.id);
       var root=deviceRoot(cur);
@@ -1470,6 +1494,12 @@ function bindToggles(){
     window.addEventListener('resize',repositionOpenPanels);
     document.addEventListener('click',function(e){
       if(pwShopLiveUiOff())return;
+      if(window.__pwCatIgnoreClickUntil&&Date.now()<window.__pwCatIgnoreClickUntil){
+        window.__pwCatIgnoreClickUntil=0;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       var t=e.target;
       if(!t||!t.closest)return;
       var hit=t.closest(catSel());
@@ -1480,6 +1510,7 @@ function bindToggles(){
       if(hit&&!isInsidePanel(hit,panelSel())&&!isInsidePanel(hit,accPanelSel())){
         e.preventDefault();
         e.stopPropagation();
+        if(catGestureFresh(hit))return;
         var livePanel=ensureCatPanel(hit);
         var root=deviceRoot(hit);
         var liveAccBtn=qs(root,accBtnSel());
@@ -1599,7 +1630,18 @@ function flushPendingCatOpen(){
   pendingCatOpenBtn=null;
   if(!btn)return;
   var panel=ensureCatPanel(btn);
-  if(!panel||!catPanelReady(panel)||panel.classList.contains('is-open'))return;
+  if(!panel)return;
+  if(panel.classList.contains('is-open')&&catPanelReady(panel))return;
+  if(!catPanelReady(panel)){
+    var tries=btn.__pwCatHydrateTries||0;
+    if(tries>=1)return;
+    btn.__pwCatHydrateTries=tries+1;
+    pendingCatOpenBtn=btn;
+    btn.__pwCatPendingAt=Date.now();
+    hydrateCats(true);
+    return;
+  }
+  btn.__pwCatHydrateTries=0;
   var root=deviceRoot(btn);
   var liveAccBtn=qs(root,accBtnSel());
   var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
@@ -1614,11 +1656,12 @@ function requestCatOpen(btn,panel,otherBtn,otherPanel){
       pendingCatOpenBtn=null;
       return;
     }
-    if(pendingCatOpenBtn===btn){
-      pendingCatOpenBtn=null;
+    if(pendingCatOpenBtn===btn&&btn.__pwCatPendingAt&&Date.now()-btn.__pwCatPendingAt<500){
       return;
     }
     pendingCatOpenBtn=btn;
+    btn.__pwCatPendingAt=Date.now();
+    toggleCatPair(btn,panel,otherBtn,otherPanel);
     hydrateCats(true);
     return;
   }
@@ -1663,21 +1706,61 @@ function hydrateCats(force){
     if(featured)applyFeaturedNav(tree,featured);
     else hydratePersonalizedNav(tree);
     hydrateCatsCoolUntil=Date.now()+30000;
-    flushPendingCatOpen();
   }).catch(function(){
     hydrateCatsCoolUntil=Date.now()+8000;
     pendingCatOpenBtn=null;
     hydratePersonalizedNav([]);
   }).finally(function(){
     hydrateCatsInFlight=false;
+    flushPendingCatOpen();
   });
 }
+function catGestureAt(btn){
+  var raw=btn&&btn.getAttribute?btn.getAttribute('data-pw-cat-gesture'):'';
+  var n=parseInt(raw||'0',10);
+  return n>0?n:0;
+}
+function catGestureFresh(btn){
+  var at=catGestureAt(btn);
+  return !!(at&&Date.now()-at<500);
+}
+function stampCatGesture(btn){
+  if(!btn||!btn.setAttribute)return;
+  try{btn.setAttribute('data-pw-cat-gesture',String(Date.now()));}catch(errStamp){}
+}
+function toggleCatFromTap(btn,x,y,fromGesture){
+  if(pwShopLiveUiOff())return;
+  if(!btn||btn.isConnected===false){
+    var pt=null;
+    try{pt=document.elementFromPoint(x||0,y||0);}catch(errPt){}
+    var live=pt&&pt.closest?pt.closest(catSel()):null;
+    if(live)btn=live;
+  }
+  if(!btn||btn.isConnected===false)return;
+  if(isInsidePanel(btn,panelSel())||isInsidePanel(btn,accPanelSel()))return;
+  stampCatGesture(btn);
+  if(fromGesture!==false)window.__pwCatIgnoreClickUntil=Date.now()+450;
+  var livePanel=ensureCatPanel(btn);
+  if(livePanel&&livePanel.id)btn.setAttribute('aria-controls',livePanel.id);
+  var root=deviceRoot(btn);
+  var liveAccBtn=qs(root,accBtnSel());
+  var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
+  requestCatOpen(btn,livePanel,liveAccBtn,liveAcc);
+}
+function flushPendingCatTap(){
+  var pendingTap=window.__pwShopPendingCatTap;
+  if(!pendingTap||Date.now()-(pendingTap.at||0)>=800)return;
+  window.__pwShopPendingCatTap=null;
+  toggleCatFromTap(null,pendingTap.x,pendingTap.y,false);
+}
+window.__pwShopToggleCat=toggleCatFromTap;
 function boot(){
   applyLocalAuth();
   syncCatFace();
   stripAllSeedCatLinks();
   bindToggles();
   hydrateCats(false);
+  flushPendingCatTap();
   hydrateAuth(function(){bindToggles();});
 }
 applyLocalAuth();

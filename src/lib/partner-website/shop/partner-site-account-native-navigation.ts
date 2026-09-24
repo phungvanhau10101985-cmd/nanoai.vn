@@ -24,6 +24,9 @@
  * (`[data-pw-favorite]` / `.pw-rec-fav` / dock `favorite-product`) are JS-only:
  * `preventDefault` on click so Next.js does not hijack, but never
  * `stopPropagation` — shop-actions / React `onClick` must still receive the tap.
+ * Touch on Danh mục opens on `pointerup` via `window.__pwShopToggleCat`
+ * (hydration often drops the later click). Stamp `data-pw-cat-gesture` so
+ * that click does not toggle the menu shut. Mouse still uses click.
  *
  * Tap-ack (ripple + pending bar) is prepended so a press is visible before
  * hydration; extra taps while a navigation is in flight are swallowed.
@@ -131,8 +134,30 @@ ${buildPartnerSiteTapAckScript()}
   function isJsOnly(node){
     return !!(node&&typeof node.closest==='function'&&node.closest(SKIP));
   }
+  function isListingFilter(node){
+    return !!(node&&typeof node.closest==='function'&&node.closest('[data-pw-listing-facet-trigger],[data-pw-listing-facet-option],[data-pw-listing-facet-modal],[data-pw-filter-clear],[data-pw-region="filters"],[data-pw-facet]'));
+  }
   function isCatToggle(node){
     return !!(node&&typeof node.closest==='function'&&node.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"]'));
+  }
+  function catBtnFrom(node){
+    if(!node||typeof node.closest!=='function')return null;
+    return node.closest('[data-pw-chrome-btn="categories"],[data-pw-cat-toggle],[data-pw-el="cat-toggle"],.pw-cat-btn,.pw-shop-cat-btn');
+  }
+  function armCatTap(event){
+    var origin=eventOrigin(event);
+    var btn=catBtnFrom(origin)||catBtnFrom(pointNode(event.clientX||0,event.clientY||0));
+    var at=Date.now();
+    if(btn&&btn.setAttribute){
+      try{btn.setAttribute('data-pw-cat-gesture',String(at));}catch(_){}
+    }
+    window.__pwCatIgnoreClickUntil=at+450;
+    var fn=window.__pwShopToggleCat;
+    if(typeof fn==='function'){
+      try{fn(btn||null,event.clientX||0,event.clientY||0);}catch(_){}
+      return;
+    }
+    window.__pwShopPendingCatTap={x:event.clientX||0,y:event.clientY||0,at:at};
   }
   function favNodeFrom(node){
     if(!node||typeof node.closest!=='function')return null;
@@ -247,6 +272,7 @@ ${buildPartnerSiteTapAckScript()}
     if(event.button!=null&&event.button!==0)return;
     if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
     var origin=eventOrigin(event);
+    if(isListingFilter(origin)||isListingFilter(event.target))return;
     var fav=favAtEvent(event);
     if(fav||isJsOnly(origin)){
       var cat=isCatToggle(origin);
@@ -316,7 +342,15 @@ ${buildPartnerSiteTapAckScript()}
     var skip=tap.skip;
     tap=null;
     if(dx*dx+dy*dy>144)return;
-    if(skip)return;
+    if(isListingFilter(eventOrigin(event))||isListingFilter(event.target))return;
+    if(skip){
+      var ptr=String(event.pointerType||'');
+      if(ptr!=='mouse'){
+        var catHit=catBtnFrom(eventOrigin(event))||catBtnFrom(pointNode(event.clientX||0,event.clientY||0));
+        if(catHit)armCatTap(event);
+      }
+      return;
+    }
     go(event,saved);
   }
   window.addEventListener('pointerdown',onPointerDown,true);

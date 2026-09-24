@@ -520,6 +520,7 @@ function PartnerSiteShopShellInner({
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const categoriesRef = useRef<HTMLDivElement | null>(null)
   const categoriesLeaveTimer = useRef<number | null>(null)
+  const catGestureAt = useRef(0)
   const fineHover = usePartnerCategoryFineHover()
   const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
   const headBackFace = usePartnerShopHeadBackFace(previewDevice)
@@ -556,6 +557,37 @@ function PartnerSiteShopShellInner({
       }
     }
   }, [listingCategory])
+
+  useLayoutEffect(() => {
+    const btn = categoriesRef.current?.querySelector<HTMLElement>('[data-pw-chrome-btn="categories"]')
+    if (!btn) return
+    const win = window as Window & {
+      __pwShopToggleCat?: (target: Element | null, x?: number, y?: number) => void
+      __pwShopPendingCatTap?: { x: number; y: number; at: number } | null
+    }
+    const prev = win.__pwShopToggleCat
+    const owned = (target: Element | null) => !target || target === btn || btn.contains(target)
+    win.__pwShopToggleCat = (target) => {
+      if (!owned(target)) {
+        prev?.(target)
+        return
+      }
+      catGestureAt.current = Date.now()
+      setCategoriesOpen((open) => !open)
+    }
+    const pending = win.__pwShopPendingCatTap
+    if (pending && Date.now() - pending.at < 800) {
+      const hit = document.elementFromPoint(pending.x, pending.y)
+      if (!hit || owned(hit)) {
+        win.__pwShopPendingCatTap = null
+        catGestureAt.current = Date.now()
+        setCategoriesOpen(true)
+      }
+    }
+    return () => {
+      if (win.__pwShopToggleCat) win.__pwShopToggleCat = prev
+    }
+  }, [])
 
   useEffect(() => {
     if (!categoriesOpen) return
@@ -916,6 +948,10 @@ function PartnerSiteShopShellInner({
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
                 onClick={() => {
+                  if (catGestureAt.current && Date.now() - catGestureAt.current < 500) {
+                    catGestureAt.current = 0
+                    return
+                  }
                   if (fineHover && !mobileCatFace && categoriesOpen) return
                   setCategoriesOpen((open) => !open)
                 }}
@@ -928,7 +964,14 @@ function PartnerSiteShopShellInner({
                 type="button"
                 className="pw-cat-acc-backdrop"
                 aria-label={t.cartAddedClose}
-                onClick={() => setCategoriesOpen(false)}
+                onClick={() => {
+                  const win = window as Window & { __pwCatIgnoreClickUntil?: number }
+                  if (win.__pwCatIgnoreClickUntil && Date.now() < win.__pwCatIgnoreClickUntil) {
+                    win.__pwCatIgnoreClickUntil = 0
+                    return
+                  }
+                  setCategoriesOpen(false)
+                }}
               />
             ) : null}
             {categoriesOpen ? (

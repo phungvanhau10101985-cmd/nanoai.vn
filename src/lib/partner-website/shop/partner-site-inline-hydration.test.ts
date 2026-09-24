@@ -94,6 +94,7 @@ test('root layout injects parser-blocking native navigation for custom-domain sh
   const source = await readFile(new URL('../../../app/layout.tsx', import.meta.url), 'utf8')
   assert.match(source, /PARTNER_SITE_NATIVE_NAV_SCRIPT_ID/)
   assert.match(source, /buildPartnerSiteNativeNavigationScript/)
+  assert.match(source, /beforeinstallprompt/)
   assert.doesNotMatch(source, /strategy="beforeInteractive"/)
 })
 
@@ -102,7 +103,7 @@ test('shop layout does not duplicate the root native-navigation scripts', async 
   assert.doesNotMatch(source, /buildPartnerSiteNativeNavigationScript/)
   assert.doesNotMatch(source, /buildPartnerSiteImageSearchPageBootScript/)
   assert.match(source, /PartnerSiteSoftNavRelay/)
-  assert.match(source, /<head>/)
+  assert.doesNotMatch(source, /<head>/)
   const relay = await readFile(
     new URL('../../../components/partner-website/shop/partner-site-soft-nav-relay.tsx', import.meta.url),
     'utf8'

@@ -17,10 +17,7 @@ import {
   extractSloganFromHtml,
   partnerShopSloganFromTheme,
 } from '@/lib/partner-website/shop/partner-site-shop-slogan'
-import {
-  partnerSitePwaIconPath,
-  partnerSitePwaManifestPath,
-} from '@/lib/partner-website/shop/partner-site-pwa'
+import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import {
   shopBrowserChromeColor,
@@ -120,33 +117,12 @@ export default async function PartnerSiteSlugLayout({
   const onCustomDomain = Boolean(readPartnerCustomDomainFromHeaders((name) => headerStore.get(name)))
   const shop = await loadPartnerSiteShopContext(slug).catch(() => null)
   const site = shop?.site ?? null
-  const name = site?.title.trim() || site?.partnerDisplayName || ''
-  const live = shop
-    ? await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: shop.site.theme })
-    : null
-  const icon180 = site
-    ? partnerSitePwaIconPath(site.siteSlug, 180, onCustomDomain, {
-        bust: live ? partnerShopLiveIconBust(live.theme, site.logoUrl) : null,
-      })
-    : ''
   return (
-    <>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              'window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__nanoaiShopPwaPrompt=e;});',
-          }}
-        />
-        {name ? <meta name="apple-mobile-web-app-title" content={name} /> : null}
-        {icon180 ? <link rel="apple-touch-icon" href={icon180} /> : null}
-      </head>
-      <PartnerSiteCustomDomainProvider active={onCustomDomain}>
-        <PartnerSiteSoftNavRelay />
-        <PartnerSiteGoogleAuthHandoffBoot siteSlug={site?.siteSlug || slug} />
-        <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
-        <div style={shopFontVars}>{children}</div>
-      </PartnerSiteCustomDomainProvider>
-    </>
+    <PartnerSiteCustomDomainProvider active={onCustomDomain}>
+      <PartnerSiteSoftNavRelay />
+      <PartnerSiteGoogleAuthHandoffBoot siteSlug={site?.siteSlug || slug} />
+      <PartnerSiteShopPushBoot siteSlug={site?.siteSlug || slug} />
+      <div style={shopFontVars}>{children}</div>
+    </PartnerSiteCustomDomainProvider>
   )
 }
