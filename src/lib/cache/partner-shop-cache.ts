@@ -271,15 +271,16 @@ export async function shopCacheGetJson<T>(key: string, memTtlSec = SHOP_LIST_TTL
   }
 }
 
-function isHtmlOrChromeCacheKey(key: string): boolean {
-  return /:(?:html|chrome2|chrome3):/.test(key)
+/** Fat HTML / chrome / project files block single-threaded Redis. Id lists stay. */
+export function shopCacheSkipsRedisSet(key: string, byteLength: number): boolean {
+  return byteLength > SHOP_REDIS_BLOB_MAX_BYTES && !isIdListCacheKey(key)
 }
 
 export async function shopCacheSetJson(key: string, ttlSec: number, value: unknown): Promise<void> {
   try {
     const raw = JSON.stringify(value)
     writeMem(key, ttlSec, raw)
-    if (isHtmlOrChromeCacheKey(key) && raw.length > SHOP_REDIS_BLOB_MAX_BYTES) return
+    if (shopCacheSkipsRedisSet(key, raw.length)) return
     await redisSetEx(key, ttlSec, raw)
   } catch (e) {
     console.warn('[partner-shop-cache] set failed', e instanceof Error ? e.message : e)

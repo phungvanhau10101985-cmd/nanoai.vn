@@ -5,6 +5,7 @@ import {
   extractVisualDocumentStyles,
   mergeVisualHomeStylesIntoHtml,
   preferredVisualHomeStyleSource,
+  stripExtractedVisualStyleTags,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 
 const home = `<!DOCTYPE html><html>
@@ -97,4 +98,21 @@ test('extractVisualDocumentCssText strips leftover order-status grid so engine s
   assert.doesNotMatch(css, /pw-shop-order-filter/)
   assert.doesNotMatch(css, /display:grid/)
   assert.doesNotMatch(css, /#dc2626/)
+})
+
+test('extractVisualDocumentCssText keeps one copy of identical chrome CSS', () => {
+  const block = '.pw-header{color:#111}'
+  const css = extractVisualDocumentCssText(
+    `<style data-pw-home-chrome-css="1">${block}</style><style>${block}</style><style>.only{color:blue}</style>`
+  )
+  assert.equal(css.split(block).length - 1, 1)
+  assert.match(css, /\.only\{color:blue\}/)
+})
+
+test('stripExtractedVisualStyleTags drops copied styles and keeps engine sheets', () => {
+  const html = `<style id="shop">.a{color:red}</style><style id="pw-shop-chrome-layout">.b{color:blue}</style><p>Hi</p>`
+  const out = stripExtractedVisualStyleTags(html)
+  assert.equal(out.includes('id="shop"'), false)
+  assert.match(out, /pw-shop-chrome-layout/)
+  assert.match(out, /<p>Hi<\/p>/)
 })

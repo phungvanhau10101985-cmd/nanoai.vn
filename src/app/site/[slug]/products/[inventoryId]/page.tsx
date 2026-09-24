@@ -11,8 +11,6 @@ import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-si
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { fetchGuestAccountEmailByIdPg } from '@/lib/db/messaging-guest-pg'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
-import { PartnerSiteShopProductClient } from '@/components/partner-website/shop/partner-site-shop-product-client'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import { outfitSuggestionsToBind } from '@/lib/partner-website/shop/outfit-products'
 import { readSavedPartnerOutfitSuggestions } from '@/lib/partner-website/shop/pdp-outfit-suggestions'
@@ -305,6 +303,12 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
 
   const faqJsonLd = pdpStory ? buildPdpLadipageFaqJsonLd(pdpStory.faq) : null
 
+  const { PartnerSiteShopShell } = await import(
+    '@/components/partner-website/shop/partner-site-shop-shell'
+  )
+  const { PartnerSiteShopProductClient } = await import(
+    '@/components/partner-website/shop/partner-site-shop-product-client'
+  )
   return (
     <PartnerSiteShopShell
       siteSlug={shop.site.siteSlug}

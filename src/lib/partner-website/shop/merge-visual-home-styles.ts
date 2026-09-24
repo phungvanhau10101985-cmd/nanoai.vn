@@ -85,13 +85,28 @@ export function extractVisualDocumentCssText(html: string): string {
   if (!html.trim()) return ''
   if (!/<style\b/i.test(html) && !/<link\b/i.test(html)) return rewriteVisualWrapperStickyCss(html)
   const parts: string[] = []
+  const seen = new Set<string>()
   html.replace(/<style\b([^>]*)>([\s\S]*?)<\/style>/gi, (full, attrs: string, css: string) => {
     const id = styleIdFromAttrs(attrs)
     if (id && SKIP_INLINE_STYLE_ID.test(id)) return full
-    if (css.trim()) parts.push(rewriteVisualWrapperStickyCss(css))
+    const text = rewriteVisualWrapperStickyCss(css).trim()
+    if (text && !seen.has(text)) {
+      seen.add(text)
+      parts.push(text)
+    }
     return full
   })
   return parts.join('\n')
+}
+
+/** Body markup must not repeat styles already copied into the live `<head>`. */
+export function stripExtractedVisualStyleTags(html: string): string {
+  if (!html || !/<style\b/i.test(html)) return html
+  return html.replace(/<style\b([^>]*)>[\s\S]*?<\/style>/gi, (full, attrs: string) => {
+    const id = styleIdFromAttrs(attrs)
+    if (id && SKIP_INLINE_STYLE_ID.test(id)) return full
+    return ''
+  })
 }
 
 export type VisualHomeStyleLink = {

@@ -7,9 +7,7 @@ import { fetchPartnerInventoryActiveCardPageWithCountFromPg } from '@/lib/db/mes
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
 import { renderPartnerWebsiteHtml } from '@/lib/partner-website/partner-website-render'
-import { PartnerSitePublicClient } from './partner-site-public-client'
 import { maybePartnerSiteVisualPage, readVisualPreviewDevice } from '@/components/partner-website/shop/partner-site-visual-html-screen'
-import { PartnerSiteFashionHome } from '@/components/partner-website/shop/partner-site-fashion-home'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
@@ -134,6 +132,9 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
       ? `/hospitality/p/${encodeURIComponent(shop.partnerSlug)}`
       : undefined
 
+    const { PartnerSiteFashionHome } = await import(
+      '@/components/partner-website/shop/partner-site-fashion-home'
+    )
     return (
       <PartnerSiteFashionHome
         siteSlug={shop.site.siteSlug}
@@ -189,6 +190,7 @@ export default async function PartnerSitePublicPage({ params, searchParams }: Pr
     ? injectPartnerCustomDomainLinkRewriteScript(withLogoHome, site.siteSlug)
     : withLogoHome
 
+  const { PartnerSitePublicClient } = await import('./partner-site-public-client')
   return (
     <PartnerSitePublicClient
       html={publicHtml}

@@ -11,7 +11,7 @@ import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/p
 import {
   applyShopBrowserThemeColorToDocument,
 } from '@/lib/partner-website/template/partner-website-theme-tokens'
-import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-device-query'
 
 export function PartnerSiteLiveVisualIslands({
   siteSlug,

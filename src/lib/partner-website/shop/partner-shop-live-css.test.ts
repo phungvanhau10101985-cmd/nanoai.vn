@@ -91,4 +91,17 @@ test('live CSS href stays out of Redis so the shop shell can import it', () => {
   assert.doesNotMatch(hrefSrc, /from ['"]node:crypto['"]/)
   assert.match(shellSrc, /partner-shop-live-css-href/)
   assert.equal(shellSrc.includes("from '@/lib/partner-website/shop/partner-shop-live-css'"), false)
+  assert.equal(shellSrc.includes("from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'"), false)
+  assert.match(shellSrc, /partner-shop-logo-host-script/)
+  const inferSrc = readFileSync(
+    join(process.cwd(), 'src/lib/partner-website/shop/infer-live-visual-request-device.ts'),
+    'utf8'
+  )
+  const islandsSrc = readFileSync(
+    join(process.cwd(), 'src/components/partner-website/shop/partner-site-live-visual-islands.tsx'),
+    'utf8'
+  )
+  assert.equal(inferSrc.includes('visual-editor-pages'), false)
+  assert.equal(islandsSrc.includes('visual-editor-pages'), false)
+  assert.match(inferSrc, /visual-device-query/)
 })

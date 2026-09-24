@@ -84,7 +84,7 @@ import {
 import {
   PARTNER_SHOP_LOGO_HOST_SCRIPT,
   PARTNER_SHOP_LOGO_HOST_SCRIPT_ID,
-} from '@/lib/partner-website/shop/partner-shop-chrome-layout-css'
+} from '@/lib/partner-website/shop/partner-shop-logo-host-script'
 import {
   PARTNER_SHOP_STICK_HEADER_SCRIPT,
   PARTNER_SHOP_STICK_HEADER_SCRIPT_ID,
@@ -122,7 +122,7 @@ import {
 import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { applyShopBrowserThemeColorToDocument } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { htmlHasVisibleChromeChatMua } from '@/lib/partner-website/visual-editor/chrome-widgets'
-import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-device-query'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { capturePartnerAffiliateReferralOnClient } from '@/lib/partner-website/shop/partner-site-affiliate'

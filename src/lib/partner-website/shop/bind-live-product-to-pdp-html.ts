@@ -756,7 +756,7 @@ function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string 
   const yt = toYoutubeEmbedSrc(videoUrl)
   const videoInner = yt
     ? `<iframe class="pw-pdp-hero-video-el" src="${escAttr(yt)}" title="${escAttr(name)}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe>`
-    : `<video class="pw-pdp-hero-video-el" src="${escAttr(videoUrl)}" controls playsinline preload="metadata"></video>`
+    : `<video class="pw-pdp-hero-video-el" src="${escAttr(videoUrl)}" controls playsinline preload="none"></video>`
   if (!/data-pw-pdp-hero-video/.test(out)) {
     out = out.replace(
       /(<img\b[^>]*(?:\bdata-pw-el=["']main-image["']|\b(?:pw-pdp-hero-img|pw-shop-product-img)\b)[^>]*>)/i,
@@ -1540,7 +1540,7 @@ function ensureMissingPdpSlots(
     const yt = toYoutubeEmbedSrc(videoUrl)
     const video = yt
       ? `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><iframe class="pw-shop-product-video" src="${escAttr(yt)}" title="${escAttr(name)}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowfullscreen></iframe></div>`
-      : `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><video class="pw-shop-product-video" src="${escAttr(videoUrl)}" controls preload="metadata"></video></div>`
+      : `<div data-pw-pdp-slot="video"><h2>${escText(t.productVideoTitle)}</h2><video class="pw-shop-product-video" src="${escAttr(videoUrl)}" controls preload="none"></video></div>`
     if (hasSlot(out, 'video')) {
       out = out.replace(/<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*>[\s\S]*?<\/div>/i, video)
     } else if (/class=["'][^"']*\bpw-shop-product-detail\b/.test(out)) {

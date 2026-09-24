@@ -2,7 +2,8 @@ import Redis from 'ioredis'
 
 let client: Redis | null | undefined
 let redisSkipUntil = 0
-const REDIS_DOWN_COOLDOWN_MS = 3000
+/** After a timeout, skip Redis long enough that the next page does not pay another 200ms miss. */
+const REDIS_DOWN_COOLDOWN_MS = 20_000
 
 function redisCoolingDown(): boolean {
   return Date.now() < redisSkipUntil

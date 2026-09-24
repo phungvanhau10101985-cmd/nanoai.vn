@@ -2,7 +2,7 @@ import { PARTNER_LIVE_DEVICE_COOKIE } from '@/lib/auth/app-request-headers'
 import {
   parseVisualDeviceQuery,
   type VisualDeviceVariant,
-} from '@/lib/partner-website/visual-editor/visual-editor-pages'
+} from '@/lib/partner-website/visual-editor/visual-device-query'
 import {
   PW_SCALED_FHD_CSS_MIN,
   pwResolveCoordinateDevice,

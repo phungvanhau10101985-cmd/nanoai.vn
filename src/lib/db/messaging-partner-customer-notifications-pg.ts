@@ -1,4 +1,5 @@
 import { isPgConfigured } from '@/lib/db/pool'
+import { toPgTimestamptz } from '@/lib/db/pg-timestamptz'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import {
   partnerSiteAccountTabPath,
@@ -70,10 +71,10 @@ function mapRow(r: Record<string, unknown>): PartnerCustomerNotificationRow {
     title: String(r.title ?? ''),
     body: String(r.body ?? ''),
     href: String(r.href ?? ''),
-    readAt: r.read_at ? String(r.read_at) : null,
-    createdAt: String(r.created_at ?? ''),
-    scheduledAt: String(r.scheduled_at ?? r.created_at ?? ''),
-    expiresAt: r.expires_at ? String(r.expires_at) : null,
+    readAt: toPgTimestamptz(r.read_at),
+    createdAt: toPgTimestamptz(r.created_at) ?? '',
+    scheduledAt: toPgTimestamptz(r.scheduled_at ?? r.created_at) ?? '',
+    expiresAt: toPgTimestamptz(r.expires_at),
     emailStatus: mapDeliveryStatus(r.email_status),
     emailError: String(r.email_error ?? ''),
     pushStatus: mapDeliveryStatus(r.push_status),
@@ -89,12 +90,12 @@ function mapBroadcast(r: Record<string, unknown>): PartnerNotificationBroadcastR
     title: String(r.title ?? ''),
     body: String(r.body ?? ''),
     type: String(r.type ?? 'system'),
-    scheduledAt: String(r.scheduled_at ?? ''),
-    expiresAt: r.expires_at ? String(r.expires_at) : null,
+    scheduledAt: toPgTimestamptz(r.scheduled_at) ?? '',
+    expiresAt: toPgTimestamptz(r.expires_at),
     sendEmail: Boolean(r.send_email),
     audience: String(r.audience ?? 'import'),
     source: String(r.source ?? 'compose'),
-    createdAt: String(r.created_at ?? ''),
+    createdAt: toPgTimestamptz(r.created_at) ?? '',
     totalProcessed: Number(r.total_processed ?? 0) || 0,
     successCount: Number(r.success_count ?? 0) || 0,
     errorCount: Number(r.error_count ?? 0) || 0,
@@ -244,14 +245,8 @@ export async function insertPartnerCustomerNotificationFromPg(input: {
   if (!isPgConfigured()) return null
   const guestAccountId = input.guestAccountId.trim()
   if (!guestAccountId) return null
-  const scheduledAt =
-    input.scheduledAt instanceof Date
-      ? input.scheduledAt.toISOString()
-      : input.scheduledAt?.trim() || new Date().toISOString()
-  const expiresAt =
-    input.expiresAt instanceof Date
-      ? input.expiresAt.toISOString()
-      : input.expiresAt?.trim() || null
+  const scheduledAt = toPgTimestamptz(input.scheduledAt) || new Date().toISOString()
+  const expiresAt = toPgTimestamptz(input.expiresAt)
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_customer_notifications (
@@ -403,12 +398,8 @@ export async function insertPartnerNotificationBroadcastFromPg(input: {
   createdBy?: string | null
 }): Promise<PartnerNotificationBroadcastRow | null> {
   if (!isPgConfigured()) return null
-  const scheduledAt =
-    input.scheduledAt instanceof Date ? input.scheduledAt.toISOString() : input.scheduledAt
-  const expiresAt =
-    input.expiresAt instanceof Date
-      ? input.expiresAt.toISOString()
-      : input.expiresAt?.trim() || null
+  const scheduledAt = toPgTimestamptz(input.scheduledAt) || new Date().toISOString()
+  const expiresAt = toPgTimestamptz(input.expiresAt)
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `insert into public.messaging_partner_notification_broadcasts (

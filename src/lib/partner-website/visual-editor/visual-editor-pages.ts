@@ -38,12 +38,14 @@ import {
   unwrapPersistedLiveChromeHtml,
 } from '@/lib/partner-website/shop/sync-shared-chrome'
 import {
-  PW_SCENE_WIDTH,
   pwScaledFhdDesktopMediaQuery,
   pwUnlockedBelowLaptopMediaQuery,
   pwUnlockedTabletMediaQuery,
-  pwSceneWidth,
 } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
+import {
+  VISUAL_DEVICE_VARIANTS,
+  type VisualDeviceVariant,
+} from '@/lib/partner-website/visual-editor/visual-device-query'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import {
@@ -56,6 +58,21 @@ import {
   visualHtmlLooksCompleteForEditor,
   visualHtmlLooksEmptyEditorShell,
 } from '@/lib/partner-website/visual-editor/visual-html-detect'
+
+export {
+  VISUAL_DESKTOP_MIN_PX,
+  VISUAL_DEVICE_VARIANTS,
+  VISUAL_LAPTOP_PREVIEW_PX,
+  VISUAL_MOBILE_PREVIEW_PX,
+  VISUAL_TABLET_PREVIEW_PX,
+  VISUAL_WIDE_DESKTOP_MIN_PX,
+  isDesktopBrowserWindow,
+  parseVisualDeviceQuery,
+  parseVisualDeviceVariant,
+  visualDeviceCanvasWidth,
+  visualDevicePreviewFrameStyle,
+  type VisualDeviceVariant,
+} from '@/lib/partner-website/visual-editor/visual-device-query'
 
 /** Pages shown in the dashboard preview picker (real `/site/{slug}/…` routes). */
 export const VISUAL_EDITOR_PAGE_KEYS: PartnerWebsitePageKey[] = [
@@ -97,67 +114,6 @@ const VISUAL_HTML_SERVE_EXCLUDED = new Set<PartnerWebsitePageKey>(['product_deta
 
 export function isVisualEditorPageKey(value: string | null | undefined): value is PartnerWebsitePageKey {
   return Boolean(value && VISUAL_EDITOR_PAGE_KEY_SET.has(value))
-}
-
-export type VisualDeviceVariant = 'desktop' | 'laptop' | 'tablet' | 'mobile'
-
-export const VISUAL_DEVICE_VARIANTS: VisualDeviceVariant[] = ['desktop', 'laptop', 'tablet', 'mobile']
-
-/** Same width as Sửa nhanh Mobile iframe — public ?pw-device=mobile must match. */
-export const VISUAL_MOBILE_PREVIEW_PX = PW_SCENE_WIDTH.mobile
-/** Same width as Sửa nhanh Tablet iframe — public ?pw-device=tablet must match. */
-export const VISUAL_TABLET_PREVIEW_PX = PW_SCENE_WIDTH.tablet
-/** Same width as Sửa nhanh Laptop iframe — public ?pw-device=laptop must match. */
-export const VISUAL_LAPTOP_PREVIEW_PX = PW_SCENE_WIDTH.laptop
-/** Public tablet band ends just below. Wide desktop starts here when a laptop HTML exists. */
-export const VISUAL_DESKTOP_MIN_PX = PW_SCENE_WIDTH.laptop
-/** Wide desktop canvas (Sửa nhanh Desktop / composed split when laptop HTML exists). */
-export const VISUAL_WIDE_DESKTOP_MIN_PX = PW_SCENE_WIDTH.desktop
-
-/**
- * Iframe viewport for `?pw-device=` / Sửa nhanh canvas.
- * Docked DevTools shrinks the browser chrome — keep this width so desktop CSS does not collapse.
- */
-/** Canvas width for Sửa nhanh / `?pw-device=` — centered on the screen midpoint. */
-export function visualDeviceCanvasWidth(device: VisualDeviceVariant): number {
-  return pwSceneWidth(device)
-}
-
-export function visualDevicePreviewFrameStyle(
-  device: VisualDeviceVariant | null
-): { width?: number; minWidth?: number } {
-  if (!device) return {}
-  const width = visualDeviceCanvasWidth(device)
-  return { width, minWidth: width }
-}
-
-/**
- * Docked DevTools shrinks `innerWidth` (CSS viewport) but not `outerWidth` (browser window).
- * Use this so F12 does not switch the composed shop from desktop to tablet.
- * Device-mode F12 spoofs a phone UA — do not lock that to desktop.
- * Real phones/tablets keep outerWidth below 1280.
- */
-export function isDesktopBrowserWindow(
-  win?: { outerWidth?: number; navigator?: { userAgent?: string } } | null
-): boolean {
-  const ua =
-    win?.navigator?.userAgent ??
-    (typeof navigator !== 'undefined' ? navigator.userAgent : '')
-  if (/ipad|tablet|kindle|silk/i.test(ua)) return false
-  if (/mobile|iphone|ipod|android/i.test(ua)) return false
-  const outer =
-    win?.outerWidth ?? (typeof window !== 'undefined' ? window.outerWidth : 0)
-  return (outer || 0) >= VISUAL_DESKTOP_MIN_PX
-}
-
-export function parseVisualDeviceVariant(raw: unknown): VisualDeviceVariant {
-  return raw === 'mobile' || raw === 'tablet' || raw === 'laptop' ? raw : 'desktop'
-}
-
-/** Query `?pw-device=` from Sửa nhanh → Xem. Null = responsive composed page. */
-export function parseVisualDeviceQuery(raw: unknown): VisualDeviceVariant | null {
-  const v = Array.isArray(raw) ? raw[0] : raw
-  return v === 'mobile' || v === 'tablet' || v === 'laptop' || v === 'desktop' ? v : null
 }
 
 export function visualDeviceVariantFromHtmlPath(path: string): VisualDeviceVariant {

@@ -17,6 +17,7 @@ import {
   shopCacheGetJson,
   shopCacheRetainsProcessCopy,
   shopCacheSetJson,
+  shopCacheSkipsRedisSet,
   visitorMergeClaimCacheKey,
   withInventoryShopCache,
 } from '@/lib/cache/partner-shop-cache'
@@ -106,6 +107,13 @@ test('shopCacheSetJson keeps a device shell in process memory and skips Redis fo
   assert.equal(shopCacheRetainsProcessCopy('pw:inv:p:v1:ids:shop:abc', 180 * 1024, true), false)
   assert.equal(shopCacheRetainsProcessCopy('pw:site:demo:v1:html:home:desktop', 600 * 1024, true), true)
   assert.equal(shopCacheRetainsProcessCopy('pw:inv:p:v1:ids:shop:abc', 180 * 1024, false), true)
+  assert.equal(
+    shopCacheSkipsRedisSet('pw:site:demo:v1:meta:proj:index.html', SHOP_REDIS_BLOB_MAX_BYTES + 1),
+    true
+  )
+  assert.equal(shopCacheSkipsRedisSet('pw:site:demo:v1:html:home:desktop', SHOP_REDIS_BLOB_MAX_BYTES + 1), true)
+  assert.equal(shopCacheSkipsRedisSet('pw:inv:p:v1:ids:shop:abc', SHOP_REDIS_BLOB_MAX_BYTES + 1), false)
+  assert.equal(shopCacheSkipsRedisSet('pw:site:demo:v1:ver', 32), false)
 })
 
 test('concurrent cold cache requests share one backend load', async () => {

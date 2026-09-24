@@ -11,6 +11,7 @@ import {
 import {
   extractVisualDocumentCssText,
   extractVisualDocumentStyleLinks,
+  stripExtractedVisualStyleTags,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
@@ -30,7 +31,7 @@ import {
   PARTNER_SHOP_SCENE_CENTER_SCRIPT,
   PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID,
 } from '@/lib/partner-website/visual-editor/pw-scene'
-import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-device-query'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
   if (!hide || !html.trim() || html.includes('data-pw-hide-chat-launcher')) return html
@@ -179,7 +180,9 @@ export function PartnerSiteLiveVisualDocument({
 }) {
   const previewHtml = hideChatLaunchersInHtml(html, Boolean(hideChatLauncher))
   const codes = extractVisualHtmlDocumentCodes(previewHtml)
-  const { markup, scripts: hoisted } = splitVisualHtmlBodyScripts(extractVisualHtmlBodyMarkup(previewHtml))
+  const { markup, scripts: hoisted } = splitVisualHtmlBodyScripts(
+    stripExtractedVisualStyleTags(extractVisualHtmlBodyMarkup(previewHtml))
+  )
   const scripts = dropScriptsAlreadyEmittedByLiveHead(hoisted)
   const hideEmbedFab = htmlHasVisibleChromeChatMua(previewHtml)
   return (

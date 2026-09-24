@@ -1,5 +1,4 @@
 import { headers } from 'next/headers'
-import { PartnerSitePublicClient } from '@/app/site/[slug]/partner-site-public-client'
 import { PartnerSiteLiveVisualDocument } from '@/components/partner-website/shop/partner-site-live-visual-document'
 import { buildPartnerLiveDocumentStampScript } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
 import { withSiteHtmlCache } from '@/lib/cache/partner-shop-cache'
@@ -259,6 +258,7 @@ export async function PartnerSiteVisualHtmlScreen({
   )
 
   if (previewLock) {
+    const { PartnerSitePublicClient } = await import('@/app/site/[slug]/partner-site-public-client')
     return (
       <>
         <LiveVisualDocumentStamp html={publicHtml} device={liveDevice} />

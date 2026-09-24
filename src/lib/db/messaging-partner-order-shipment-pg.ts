@@ -1,4 +1,5 @@
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
+import { toPgTimestamptz } from '@/lib/db/pg-timestamptz'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import type { PartnerFulfillmentSource, PartnerSourcePlatform } from '@/lib/messaging/fulfillment/fulfillment-routing'
@@ -24,8 +25,8 @@ function mapEvent(r: Record<string, unknown>): PartnerOrderShipmentEventRow {
     title: String(r.title ?? ''),
     sortOrder: Number(r.sort_order) || 0,
     status: String(r.status) as ShipmentEventStatus,
-    scheduledAt: r.scheduled_at ? String(r.scheduled_at) : null,
-    completedAt: r.completed_at ? String(r.completed_at) : null,
+    scheduledAt: toPgTimestamptz(r.scheduled_at),
+    completedAt: toPgTimestamptz(r.completed_at),
     note: String(r.note ?? ''),
     updatedBy: String(r.updated_by ?? ''),
   }
@@ -101,8 +102,8 @@ export async function replacePartnerOrderShipmentEventsFromPg(
           event.title,
           event.sortOrder,
           event.status,
-          event.scheduledAt,
-          event.completedAt,
+          toPgTimestamptz(event.scheduledAt),
+          toPgTimestamptz(event.completedAt),
           event.note,
           event.updatedBy,
         ]

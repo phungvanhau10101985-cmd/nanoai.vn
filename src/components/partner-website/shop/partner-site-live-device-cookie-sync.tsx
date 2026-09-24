@@ -1,7 +1,7 @@
 'use client'
 
 import { useLayoutEffect } from 'react'
-import { parseVisualDeviceQuery } from '@/lib/partner-website/visual-editor/visual-editor-pages'
+import { parseVisualDeviceQuery } from '@/lib/partner-website/visual-editor/visual-device-query'
 import {
   persistPartnerLiveVisualDeviceCookie,
   resolveLiveVisualDeviceFromViewport,
