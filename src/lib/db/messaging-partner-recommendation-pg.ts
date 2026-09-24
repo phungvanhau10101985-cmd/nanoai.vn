@@ -137,7 +137,8 @@ const SAME_SHOP_SQL_L3 = `lower(trim(coalesce(
 
 export async function fetchInventorySameShopSignalsFromPg(
   partnerId: string,
-  inventoryIds: string[]
+  inventoryIds: string[],
+  options?: { strict?: boolean }
 ): Promise<Map<string, InventorySameShopSignal>> {
   const out = new Map<string, InventorySameShopSignal>()
   const ids = asUuidList(inventoryIds)
@@ -214,6 +215,7 @@ export async function fetchInventorySameShopSignalsFromPg(
     }
   } catch (e) {
     console.warn('[fetchInventorySameShopSignalsFromPg]', e)
+    if (options?.strict) throw e
   }
   return out
 }

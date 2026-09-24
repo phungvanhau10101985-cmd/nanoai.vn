@@ -1461,6 +1461,7 @@ function bindToggles(){
       var dx=(e.clientX||0)-(start?start.x:(e.clientX||0));
       var dy=(e.clientY||0)-(start?start.y:(e.clientY||0));
       if(dx*dx+dy*dy>144)return;
+      if(cur.__pwCatTapLock&&Date.now()-cur.__pwCatTapLock<400)return;
       toggleCatFromTap(cur,e.clientX||0,e.clientY||0);
     });
     btn.addEventListener('click',function(e){
@@ -1649,6 +1650,7 @@ function requestCatOpen(btn,panel,otherBtn,otherPanel){
   if(!catPanelReady(panel)){
     stripSeedCatLinks(panel);
     if(panel.classList.contains('is-open')){
+      if(btn.__pwCatTapLock&&Date.now()-btn.__pwCatTapLock<400)return;
       closeEl(btn,panel);
       pendingCatOpenBtn=null;
       return;
@@ -1735,6 +1737,8 @@ function toggleCatFromTap(btn,x,y,fromGesture){
   }
   if(!btn||btn.isConnected===false)return;
   if(isInsidePanel(btn,panelSel())||isInsidePanel(btn,accPanelSel()))return;
+  if(btn.__pwCatTapLock&&Date.now()-btn.__pwCatTapLock<400)return;
+  btn.__pwCatTapLock=Date.now();
   stampCatGesture(btn);
   if(fromGesture!==false)window.__pwCatIgnoreClickUntil=Date.now()+450;
   var livePanel=ensureCatPanel(btn);

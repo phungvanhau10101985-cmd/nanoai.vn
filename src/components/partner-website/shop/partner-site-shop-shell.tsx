@@ -572,7 +572,9 @@ function PartnerSiteShopShellInner({
         prev?.(target)
         return
       }
-      catGestureAt.current = Date.now()
+      const now = Date.now()
+      if (catGestureAt.current && now - catGestureAt.current < 400) return
+      catGestureAt.current = now
       setCategoriesOpen((open) => !open)
     }
     const pending = win.__pwShopPendingCatTap

@@ -15,7 +15,9 @@ function pwShopInflight(key,factory){
   return started;
 }
 function pwShopInflightFetch(url,headers){
-  return pwShopInflight(String(url||''),function(){
+  var hdr=headers||{};
+  var auth=String(hdr['x-guest-account-id']||'')+'|'+String(hdr['x-guest-session-id']||'');
+  return pwShopInflight(String(url||'')+'|'+auth,function(){
     return fetch(url,{credentials:'same-origin',headers:headers||{}}).then(function(r){
       return r.json().then(function(j){
         return {ok:r.ok,status:r.status,j:j,res:r};

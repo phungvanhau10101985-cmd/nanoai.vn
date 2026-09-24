@@ -164,7 +164,9 @@ async function fetchFlashSaleCandidatesFromPg(input: {
         console.warn('[fetchFlashSaleCandidatesFromPg] retry', error)
         rows = await queryFlashSaleCandidatesOnce({ partnerId: input.partnerId, shops, l3s })
       }
-      const ttlMs = Math.max(5_000, input.cacheUntilMs - Date.now())
+      const ttlMs = rows.length
+        ? Math.max(5_000, input.cacheUntilMs - Date.now())
+        : 15_000
       candidateCache.set(key, { expiresAt: Date.now() + ttlMs, rows })
       return { rows, failed: false }
     } catch (error) {
@@ -190,13 +192,20 @@ async function buildAssignment(input: {
     partnerId: input.partnerId,
     accountKey: input.accountKey,
   })
-  const recentIds = asUuidList(state?.recently_viewed_ids ?? []).slice(0, FLASH_SALE_RECENT_VIEWS)
+  // null = query error (pool/timeout). An empty row is { recently_viewed_ids: [] }.
+  if (state == null) return { assignment: empty, eligibleIds: [], failed: true }
+  const recentIds = asUuidList(state.recently_viewed_ids ?? []).slice(0, FLASH_SALE_RECENT_VIEWS)
   // Cart/checkout: if login merged views too late, still seed from SKUs in the basket.
   const viewedIds = recentIds.length ? recentIds : pinIds.slice(0, FLASH_SALE_RECENT_VIEWS)
   if (!viewedIds.length) return { assignment: empty, eligibleIds: [], failed: false }
 
   const signalIds = asUuidList([...viewedIds, ...pinIds])
-  const signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, signalIds)
+  let signals: Awaited<ReturnType<typeof fetchInventorySameShopSignalsFromPg>>
+  try {
+    signals = await fetchInventorySameShopSignalsFromPg(input.partnerId, signalIds, { strict: true })
+  } catch {
+    return { assignment: empty, eligibleIds: [], failed: true }
+  }
   const pairs: Array<{ shop: string; l3: string; key: string }> = []
   const seenPairs = new Set<string>()
   for (const id of viewedIds) {

@@ -57,4 +57,6 @@ test('flash sale hides only after a real empty list, and retries when the API fa
   assert.match(js, /el\._pwFlashGen!==gen/)
   assert.match(js, /if\(!products\.length\)\{[\s\S]*el\.hidden=true/)
   assert.match(js, /el\._pwFlashFails/)
+  assert.match(js, /el\._pwFlashEmpty/)
+  assert.match(js, /flashGrid\.querySelector\('\[data-inventory-id\]'\)\)revealLiveProducts/)
 })

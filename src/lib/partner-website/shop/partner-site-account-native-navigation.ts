@@ -25,8 +25,10 @@
  * `preventDefault` on click so Next.js does not hijack, but never
  * `stopPropagation` — shop-actions / React `onClick` must still receive the tap.
  * Touch on Danh mục opens on `pointerup` via `window.__pwShopToggleCat`
- * (hydration often drops the later click). Stamp `data-pw-cat-gesture` so
- * that click does not toggle the menu shut. Mouse still uses click.
+ * (hydration often drops the later click). The button's own pointerup also
+ * runs in the same press — `toggleCatFromTap` ignores that second call for
+ * 400ms so the sheet stays open. Stamp `data-pw-cat-gesture` so the later
+ * click does not toggle the menu shut. Mouse still uses click.
  *
  * Tap-ack (ripple + pending bar) is prepended so a press is visible before
  * hydration; extra taps while a navigation is in flight are swallowed.
