@@ -798,6 +798,8 @@ export type Dictionary = {
     settingsNavWorkspace: string
     settingsNavGoLive: string
     settingsNavGoLiveDesc: string
+    settingsNavIsolation: string
+    settingsNavIsolationDesc: string
     /** Chú giải màu trường: nội bộ / cấp ra / nhận vào */
     settingsDataRoleLegendTitle: string
     settingsDataRoleLegendInternal: string
@@ -4466,6 +4468,8 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'Shop & nhân viên',
     settingsNavGoLive: 'Checklist mở bán',
     settingsNavGoLiveDesc: 'Các mục bắt buộc trước khi nhận đơn trên web shop.',
+    settingsNavIsolation: 'Tách bạch shop',
+    settingsNavIsolationDesc: 'Khi cài shop mới: tên miền, pháp lý, quảng cáo và ảnh không trùng workspace khác.',
     settingsDataRoleLegendTitle: 'Màu trường thông tin',
     settingsDataRoleLegendInternal: 'Đen — thông tin dùng nội bộ trên nền tảng.',
     settingsDataRoleLegendIssued: 'Xanh dương — khóa / dữ liệu nền tảng cấp sang hệ thống khác (dán bên kia).',
@@ -8140,6 +8144,8 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'Shop & staff',
     settingsNavGoLive: 'Go-live checklist',
     settingsNavGoLiveDesc: 'Required items before taking orders on the shop website.',
+    settingsNavIsolation: 'Shop separation',
+    settingsNavIsolationDesc: 'For a new shop: domain, legal identity, ads, and images must not match another workspace.',
     settingsDataRoleLegendTitle: 'Field colors',
     settingsDataRoleLegendInternal: 'Black — information used inside this platform.',
     settingsDataRoleLegendIssued: 'Blue — keys or data this platform issues to another system (paste them there).',
@@ -11806,6 +11812,8 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavWorkspace: '店铺与员工',
     settingsNavGoLive: '开售清单',
     settingsNavGoLiveDesc: '在网站接单前需完成的必填项。',
+    settingsNavIsolation: '店铺隔离',
+    settingsNavIsolationDesc: '新店设置：域名、主体、广告和图片不得与其他工作区重复。',
     settingsDataRoleLegendTitle: '字段颜色',
     settingsDataRoleLegendInternal: '黑色 — 平台内部使用的信息。',
     settingsDataRoleLegendIssued: '蓝色 — 本平台发给其他系统的密钥/数据（粘贴到对方）。',
@@ -15385,6 +15393,8 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavWorkspace: 'ショップとスタッフ',
     settingsNavGoLive: '公開前チェック',
     settingsNavGoLiveDesc: '店舗サイトで受注する前に必須の項目です。',
+    settingsNavIsolation: 'ショップ分離',
+    settingsNavIsolationDesc: '新しいショップの設定：ドメイン、法的情報、広告、画像が他ワークスペースと重ならないこと。',
     settingsDataRoleLegendTitle: '項目の色',
     settingsDataRoleLegendInternal: '黒 — このプラットフォーム内だけで使う情報。',
     settingsDataRoleLegendIssued: '青 — 本プラットフォームが他システムへ渡すキー／データ（先方に貼る）。',
@@ -19030,6 +19040,8 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavWorkspace: '매장과 직원',
     settingsNavGoLive: '판매 시작 체크리스트',
     settingsNavGoLiveDesc: '웹샵에서 주문을 받기 전에 필요한 항목입니다.',
+    settingsNavIsolation: '샵 분리',
+    settingsNavIsolationDesc: '새 샵 설정: 도메인, 법적 주체, 광고, 이미지가 다른 워크스페이스와 겹치지 않아야 합니다.',
     settingsDataRoleLegendTitle: '필드 색',
     settingsDataRoleLegendInternal: '검정 — 이 플랫폼 내부에서 쓰는 정보.',
     settingsDataRoleLegendIssued: '파랑 — 이 플랫폼이 다른 시스템에 넘겨 주는 키/데이터(그쪽에 붙여 넣기).',

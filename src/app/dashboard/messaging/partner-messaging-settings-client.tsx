@@ -63,6 +63,7 @@ import {
 import { PartnerAiSettingsPanel } from '@/app/dashboard/messaging/partner-ai-settings-panel'
 import { PartnerShopShippingOpsPanel } from '@/app/dashboard/messaging/partner-shop-shipping-ops-panel'
 import { PartnerShopGoLivePanel } from '@/app/dashboard/messaging/partner-shop-go-live-panel'
+import { PartnerShopIsolationPanel } from '@/app/dashboard/messaging/partner-shop-isolation-panel'
 import { PartnerShopProvinceFeesPanel } from '@/app/dashboard/messaging/partner-shop-province-fees-panel'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
@@ -258,6 +259,7 @@ function SettingsBlock({
 
 const MESSAGING_SETTINGS_SECTION_IDS = [
   'go-live',
+  'isolation',
   'workspace',
   'brand',
   'inventory',
@@ -643,6 +645,13 @@ export function PartnerMessagingSettingsClient({
         group: 'shop',
         label: t.settingsNavGoLive,
         icon: ListChecks,
+        visible: Boolean(selectedPartnerId),
+      },
+      {
+        id: 'isolation' as const,
+        group: 'shop',
+        label: t.settingsNavIsolation,
+        icon: ShieldCheck,
         visible: Boolean(selectedPartnerId),
       },
       { id: 'workspace', group: 'shop', label: t.settingsNavWorkspace, icon: Building2, visible: true },
@@ -2612,6 +2621,23 @@ export function PartnerMessagingSettingsClient({
             description={t.settingsNavGoLiveDesc}
           >
             <PartnerShopGoLivePanel
+              partnerId={selectedPartnerId}
+              locale={locale}
+              onOpenSection={(sectionId) => {
+                if (isKnownSettingsPageSectionId(sectionId)) selectSettingsSection(sectionId)
+              }}
+            />
+          </SettingsBlock>
+          ) : null}
+
+          {activeSection === 'isolation' && selectedPartnerId ? (
+          <SettingsBlock
+            id="messaging-isolation"
+            icon={ShieldCheck}
+            title={t.settingsNavIsolation}
+            description={t.settingsNavIsolationDesc}
+          >
+            <PartnerShopIsolationPanel
               partnerId={selectedPartnerId}
               locale={locale}
               onOpenSection={(sectionId) => {

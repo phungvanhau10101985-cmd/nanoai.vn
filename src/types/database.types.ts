@@ -227,6 +227,7 @@ export interface Database {
           external_shop_login_path: string
           shop_order_seq: number
           allow_auto_create_categories: boolean
+          isolation_ack_json: unknown
           created_at: string
           updated_at: string
         }
@@ -257,6 +258,7 @@ export interface Database {
           partner_capabilities?: unknown
           shop_order_seq?: number
           allow_auto_create_categories?: boolean
+          isolation_ack_json?: unknown
           created_at?: string
           updated_at?: string
         }
@@ -287,6 +289,7 @@ export interface Database {
           partner_capabilities?: unknown
           shop_order_seq?: number
           allow_auto_create_categories?: boolean
+          isolation_ack_json?: unknown
           created_at?: string
           updated_at?: string
         }
