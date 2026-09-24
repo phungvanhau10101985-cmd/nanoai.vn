@@ -2,6 +2,10 @@
 
 import { useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import {
+  partnerShopPathIsCartPage,
+  scrollPartnerShopViewportToTop,
+} from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { discardViewedProductSnapshots } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { isPartnerShopVisualHtmlPath } from '@/lib/partner-website/shop/partner-shop-react-island-path'
 
@@ -91,7 +95,11 @@ export function PartnerSiteSoftNavRelay() {
   }, [])
   useLayoutEffect(() => {
     if (pathRef.current === pathname) return
+    const prev = pathRef.current
     pathRef.current = pathname
+    if (partnerShopPathIsCartPage(pathname) && !partnerShopPathIsCartPage(prev || '')) {
+      scrollPartnerShopViewportToTop()
+    }
     try {
       ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
     } catch {

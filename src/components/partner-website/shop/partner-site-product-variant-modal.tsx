@@ -305,7 +305,11 @@ export function PartnerSiteProductVariantModal({
   const sku = String(product.sku || '').trim()
   const name = product.name.trim() || '—'
 
+  const confirmLock = useRef(0)
   function confirm(buyNow: boolean) {
+    const now = Date.now()
+    if (now - confirmLock.current < 700) return
+    confirmLock.current = now
     const pick = {
       color: selectedColor?.name || '',
       size,
@@ -314,6 +318,10 @@ export function PartnerSiteProductVariantModal({
     }
     if (buyNow) onBuyNow(pick)
     else onAddToCart(pick)
+  }
+  function confirmFromPointer(buyNow: boolean, event: React.PointerEvent<HTMLButtonElement>) {
+    if (event.pointerType === 'mouse') return
+    confirm(buyNow)
   }
 
   if (!open) return null
@@ -501,6 +509,7 @@ export function PartnerSiteProductVariantModal({
             </svg>
           </button>
         </div>
+        <div data-pw-variant-scroll>
         <div data-pw-variant-body>
           <h2 id="pw-variant-title" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0,0,0,0)' }}>
             {copy.title}
@@ -552,11 +561,24 @@ export function PartnerSiteProductVariantModal({
             </div>
           </div>
         </div>
+        </div>
         <div data-pw-variant-foot>
-          <button type="button" data-pw-variant-add disabled={busy} onClick={() => confirm(false)}>
+          <button
+            type="button"
+            data-pw-variant-add
+            disabled={busy}
+            onPointerUp={(event) => confirmFromPointer(false, event)}
+            onClick={() => confirm(false)}
+          >
             {copy.add}
           </button>
-          <button type="button" data-pw-variant-buy disabled={busy} onClick={() => confirm(true)}>
+          <button
+            type="button"
+            data-pw-variant-buy
+            disabled={busy}
+            onPointerUp={(event) => confirmFromPointer(true, event)}
+            onClick={() => confirm(true)}
+          >
             {copy.buy}
           </button>
         </div>

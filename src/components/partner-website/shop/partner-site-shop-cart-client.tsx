@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import { hasPendingPartnerSiteGoogleAuthHandoff } from '@/lib/partner-website/shop/partner-site-google-auth-handoff-client'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
@@ -69,6 +69,7 @@ import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/part
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PW_SHOP_CART_PAGE_CSS } from '@/lib/partner-website/shop/partner-site-cart-page-css'
+import { scrollPartnerShopViewportToTop } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import {
   PartnerSiteShopEmptyState,
   PartnerSiteShopSkeleton,
@@ -478,6 +479,20 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
   const { ready, authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const { refreshCartCount, setCartCount, tracking } = usePartnerSiteShop()
   const router = useRouter()
+  useLayoutEffect(() => {
+    const scroll = () => scrollPartnerShopViewportToTop()
+    scroll()
+    window.addEventListener('pageshow', scroll)
+    const raf = window.requestAnimationFrame(scroll)
+    const soon = window.setTimeout(scroll, 0)
+    const later = window.setTimeout(scroll, 120)
+    return () => {
+      window.removeEventListener('pageshow', scroll)
+      window.cancelAnimationFrame(raf)
+      window.clearTimeout(soon)
+      window.clearTimeout(later)
+    }
+  }, [])
   const [items, setItems] = useState<SiteCartLine[]>(() => initialItems ?? [])
   const [loading, setLoading] = useState(initialItems == null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)

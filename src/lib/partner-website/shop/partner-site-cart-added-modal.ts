@@ -103,6 +103,30 @@ export function releasePartnerShopBodyScroll(doc: Document | null | undefined = 
   doc.body.style.overflow = ''
 }
 
+/** Cart page (`/cart`), not the variant route `/cart/add/…`. */
+export function partnerShopPathIsCartPage(path: string): boolean {
+  const pathname = String(path || '').split('?')[0].split('#')[0]
+  return /\/cart\/?$/.test(pathname)
+}
+
+/** Drop modal scroll-lock and show the destination from the top of the page. */
+export function scrollPartnerShopViewportToTop(doc: Document | null | undefined = typeof document === 'undefined' ? null : document) {
+  if (!doc) return
+  releasePartnerShopBodyScroll(doc)
+  const root = doc.documentElement
+  if (root) root.scrollTop = 0
+  if (doc.body) doc.body.scrollTop = 0
+  const scrolling = doc.scrollingElement
+  if (scrolling) scrolling.scrollTop = 0
+  const view = doc.defaultView
+  if (!view) return
+  try {
+    view.scrollTo(0, 0)
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Runtime HTML shop — gọi `showCartAddedModal({name,imageUrl,inventory_id})` sau khi thêm giỏ. */
 export const PW_CART_ADDED_MODAL_RUNTIME_JS = `
 function cartAddedImg(url){

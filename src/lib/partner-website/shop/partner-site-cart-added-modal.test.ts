@@ -7,9 +7,11 @@ import { buildPartnerSiteShopActionsBootstrapScript } from '@/lib/partner-websit
 import {
   CART_ADDED_MODAL_COPY,
   hideLeftoverPartnerCartAddedHtmlPopup,
+  partnerShopPathIsCartPage,
   PW_CART_ADDED_MODAL_CSS,
   PW_CART_ADDED_MODAL_RUNTIME_JS,
   releasePartnerShopBodyScroll,
+  scrollPartnerShopViewportToTop,
 } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 
@@ -123,4 +125,30 @@ test('cart added modal unlocks body scroll after nested variant overlay', () => 
     PW_CART_ADDED_MODAL_RUNTIME_JS,
     /document\.body\.style\.overflow=root\.getAttribute\('data-pw-prev-overflow'\)\|\|''/
   )
+})
+
+test('opening the cart page scrolls the viewport to the top', () => {
+  assert.equal(partnerShopPathIsCartPage('/cart'), true)
+  assert.equal(partnerShopPathIsCartPage('/site/demo/cart'), true)
+  assert.equal(partnerShopPathIsCartPage('/site/demo/cart/'), true)
+  assert.equal(partnerShopPathIsCartPage('/cart/add/sku'), false)
+  assert.equal(partnerShopPathIsCartPage('/site/demo/products/ao'), false)
+  const scrolled = { scrollTop: 840, called: 0 }
+  const doc = {
+    getElementById: () => null,
+    body: { style: { overflow: 'hidden' }, scrollTop: 840 },
+    documentElement: { scrollTop: 840 },
+    scrollingElement: scrolled,
+    defaultView: {
+      scrollTo: () => {
+        scrolled.called += 1
+      },
+    },
+  } as unknown as Document
+  scrollPartnerShopViewportToTop(doc)
+  assert.equal(doc.body.style.overflow, '')
+  assert.equal(doc.documentElement.scrollTop, 0)
+  assert.equal(doc.body.scrollTop, 0)
+  assert.equal(scrolled.scrollTop, 0)
+  assert.equal(scrolled.called, 1)
 })
