@@ -14,13 +14,30 @@ function firstSearchParam(
  * `?embed=1` trong **tab trình duyệt** (không phải trong iframe shop) → thêm khung bo tròn giống popup.
  * Trong iframe (Sec-Fetch-Dest: iframe) → false để vẫn full khung như FloatingChatWidget / nanoai-chat-widget.
  */
+function embedQueryOn(sp: Record<string, string | string[] | undefined>): boolean {
+  const ev = firstSearchParam(sp, 'embed').toLowerCase()
+  return ev === '1' || ev === 'true' || ev === 'yes'
+}
+
 export function guestChatEmbedPopupChrome(
   sp: Record<string, string | string[] | undefined>
 ): boolean {
-  const ev = firstSearchParam(sp, 'embed').toLowerCase()
-  if (ev !== '1' && ev !== 'true' && ev !== 'yes') return false
+  if (!embedQueryOn(sp)) return false
   const dest = (headers().get('sec-fetch-dest') || '').toLowerCase()
   return dest === 'document'
+}
+
+/** Paint khung chat ngay từ HTML — không chờ useEffect mới biết đang nhúng. */
+export function guestChatEmbedFlags(sp: Record<string, string | string[] | undefined>): {
+  initialEmbedUi: boolean
+  initialGuestInIframe: boolean
+} {
+  const dest = (headers().get('sec-fetch-dest') || '').toLowerCase()
+  const initialGuestInIframe = dest === 'iframe'
+  return {
+    initialEmbedUi: embedQueryOn(sp) || initialGuestInIframe,
+    initialGuestInIframe,
+  }
 }
 
 export function EmbedGuestChatViewport({

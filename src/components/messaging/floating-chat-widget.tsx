@@ -9,12 +9,18 @@ import {
   NANOAI_WIDGET_MSG_SOURCE,
   PARTNER_SITE_ORDERS_UPDATED_EVENT,
   isAllowedHttpNavigationUrl,
+  isDashboardNavigationUrl,
   isNavigateTopFromIframe,
   isOrderUpdatedFromIframe,
   parseWidgetPageContextFromChatUrl,
 } from '@/lib/messaging/widget-parent-bridge'
+import { isHostedChatIframeSrc } from '@/lib/messaging/parse-site-chat-embed'
 import { stampGuestChatEmbedPageParam } from '@/lib/messaging/guest-purchase-flow'
-import { readReturnChatIframeHref, writeReturnChatIframeHref } from '@/lib/messaging/widget-embed-session'
+import {
+  clearReturnChatIframeHref,
+  readReturnChatIframeHref,
+  writeReturnChatIframeHref,
+} from '@/lib/messaging/widget-embed-session'
 
 const LOCALE_SHORT: Record<WebLocale, string> = {
   vi: 'VI',
@@ -148,6 +154,7 @@ export function FloatingChatWidget({
   // Mặc định đóng; chỉ mở khi người dùng chủ động bấm nút chat.
   const [closed, setClosed] = useState(true)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const snappedOffAdminRef = useRef(false)
   const [uiLocale, setUiLocale] = useState<WebLocale>(() => parseUiLocaleFromChatUrl(chatUrl))
   const [iframeSrc, setIframeSrc] = useState(() => appendStoredGuestIdentity(readReturnChatIframeHref(chatUrl) ?? chatUrl))
   const [loyaltyTierLabel, setLoyaltyTierLabel] = useState('')
@@ -256,7 +263,7 @@ export function FloatingChatWidget({
       if (!isNavigateTopFromIframe(e.data)) return
       if (e.source !== iframeRef.current?.contentWindow) return
       const raw = e.data.url.trim()
-      if (!isAllowedHttpNavigationUrl(raw)) return
+      if (!isAllowedHttpNavigationUrl(raw) || isDashboardNavigationUrl(raw)) return
       const ret = typeof e.data.returnChatUrl === 'string' ? e.data.returnChatUrl.trim() : ''
       if (ret && isAllowedHttpNavigationUrl(ret)) {
         writeReturnChatIframeHref(ret, chatUrl)
@@ -459,7 +466,20 @@ export function FloatingChatWidget({
           loading={loading}
           referrerPolicy={referrerPolicy}
           className="h-full w-full border-0"
-          onLoad={postPageContextToIframe}
+          onLoad={() => {
+            const src = iframeRef.current?.src || ''
+            const leftChat = Boolean(src) && (isDashboardNavigationUrl(src) || !isHostedChatIframeSrc(src))
+            if (leftChat) {
+              if (!snappedOffAdminRef.current) {
+                snappedOffAdminRef.current = true
+                clearReturnChatIframeHref()
+                setIframeSrc(appendStoredGuestIdentity(chatUrl))
+              }
+            } else {
+              snappedOffAdminRef.current = false
+            }
+            postPageContextToIframe()
+          }}
         />
       </div>
     </div>

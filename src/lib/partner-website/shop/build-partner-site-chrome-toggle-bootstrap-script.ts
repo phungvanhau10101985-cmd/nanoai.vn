@@ -28,6 +28,7 @@ import {
 import { FEATURED_CATEGORY_TILE_MAX } from '@/lib/partner-website/shop/featured-categories-constants'
 import { PW_SHOP_INFLIGHT_FETCH_JS } from '@/lib/partner-website/shop/pw-shop-inflight-fetch-js'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_FRAME_NAV_JS } from '@/lib/partner-website/shop/shop-frame-nav'
 import { PW_LOGIN_IDENTITY_CSS } from '@/lib/partner-website/shop/partner-site-login-identity'
 import { PW_ACCOUNT_BROWSER_CACHE_KEY_PREFIX } from '@/lib/partner-website/shop/partner-site-account-browser-cache'
 import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
@@ -74,6 +75,7 @@ export function buildPartnerSiteChromeToggleBootstrapScript(input: {
 
   return `<script data-pw-chrome-toggle-bootstrap>(function(){
 ${PW_SHOP_LIVE_UI_OFF_FN};
+${PW_SHOP_FRAME_NAV_JS};
 ${PW_SHOP_INFLIGHT_FETCH_JS};
 ${PW_SITE_SALE_MO_SKIP_JS};
 window.__pwChromeToggleBoot=1;
@@ -286,12 +288,7 @@ function guestOrAccountHref(){
 function navigateAccountLogin(btn){
   var dest=isLoggedIn?accountLoginHref(btn):shopLoginHref();
   if(!dest)return;
-  try{
-    if(window.top&&window.top!==window){
-      window.top.location.href=dest;
-      return;
-    }
-  }catch(errTop){}
+  try{pwShopNavWindow().location.href=dest;return;}catch(errTop){}
   window.location.href=dest;
 }
 function clearShopSession(){
@@ -1406,7 +1403,7 @@ function handleAccountClick(e){
   if(isLoggedIn){
     var dest=accountLoginHref(cur);
     try{
-      if(window.top&&window.top!==window){
+      if(window.top&&window.top!==window&&!pwTopIsAdmin()){
         e.preventDefault();
         e.stopPropagation();
         if(dest)window.top.location.href=dest;

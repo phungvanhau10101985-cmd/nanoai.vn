@@ -1564,6 +1564,8 @@ export function PartnerGuestChatClient({
   metaViewContent,
   adsTracking,
   ga4InitialViewItem,
+  initialEmbedUi = false,
+  initialGuestInIframe = false,
 }: {
   slug: string
   shopDisplayName: string
@@ -1596,6 +1598,9 @@ export function PartnerGuestChatClient({
   adsTracking: PartnerSiteShopTrackingConfig
   /** Dữ liệu view_item lấy trực tiếp từ kho khi không có Meta Pixel. */
   ga4InitialViewItem?: ShopGa4ProductInput | null
+  /** `?embed=1` hoặc request iframe — paint khung chat, không flash chrome NanoAI. */
+  initialEmbedUi?: boolean
+  initialGuestInIframe?: boolean
 }) {
   const { toast, dismiss } = useToast()
   const guestChatKeyboardInset = useVisualViewportBottomInset()
@@ -1780,9 +1785,9 @@ export function PartnerGuestChatClient({
   /** Tăng sau gửi biên lai thành công — tải lại dialog đơn / danh sách. */
   const [embedWidgetDataNonce, setEmbedWidgetDataNonce] = useState(0)
   /** Chat nhúng iframe trên site shop (`?embed=1`) — không có header FloatingChatWidget của nanoai.vn. */
-  const [isEmbedUi, setIsEmbedUi] = useState(false)
+  const [isEmbedUi, setIsEmbedUi] = useState(initialEmbedUi || initialGuestInIframe)
   /** `true` khi trang chat chạy trong iframe (FloatingChatWidget / script nhúng); locale/mở rộng ở frame cha. */
-  const [guestInIframe, setGuestInIframe] = useState(false)
+  const [guestInIframe, setGuestInIframe] = useState(initialGuestInIframe)
   /** Trang hosted trên nanoai.vn (không nhúng) — hiện điều hướng về trang chủ & công cụ NanoAI. */
   const showNanoSiteNav = !isEmbedUi && !guestInIframe
 

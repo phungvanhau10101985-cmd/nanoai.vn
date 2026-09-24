@@ -14,7 +14,7 @@ import { resolveGuestExternalThreadIdFromCookies } from '@/lib/messaging/resolve
 import { Toaster } from '@/components/ui/toaster'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { partnerGuestTrackingFromPartner } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { EmbedGuestChatViewport, guestChatEmbedPopupChrome } from '../../embed-guest-chat-viewport'
+import { EmbedGuestChatViewport, guestChatEmbedFlags, guestChatEmbedPopupChrome } from '../../embed-guest-chat-viewport'
 import { PartnerGuestChatClient } from '../../partner-guest-chat-client'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
@@ -200,6 +200,7 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
   const adsTracking = partnerGuestTrackingFromPartner(partner)
 
   const popupChrome = guestChatEmbedPopupChrome(sp)
+  const embedFlags = guestChatEmbedFlags(sp)
 
   return (
     <>
@@ -228,6 +229,8 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
           metaViewContent={metaViewContent}
           adsTracking={adsTracking}
           ga4InitialViewItem={ga4InitialViewItem}
+          initialEmbedUi={embedFlags.initialEmbedUi}
+          initialGuestInIframe={embedFlags.initialGuestInIframe}
         />
       </EmbedGuestChatViewport>
     </>

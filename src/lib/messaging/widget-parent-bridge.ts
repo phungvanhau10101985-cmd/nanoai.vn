@@ -117,3 +117,13 @@ export function isAllowedHttpNavigationUrl(url: string): boolean {
     return false
   }
 }
+
+/** Chat không được kéo cả tab shop sang trang quản trị. */
+export function isDashboardNavigationUrl(url: string): boolean {
+  try {
+    const path = new URL(url.trim()).pathname.replace(/\/+$/, '') || '/'
+    return path === '/dashboard' || path.startsWith('/dashboard/')
+  } catch {
+    return false
+  }
+}

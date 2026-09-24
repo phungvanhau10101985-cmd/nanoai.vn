@@ -1,5 +1,6 @@
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import { partnerSiteInternalPrefix } from '@/lib/messaging/partner-custom-domain-site-path'
+import { PW_SHOP_FRAME_NAV_JS } from '@/lib/partner-website/shop/shop-frame-nav'
 
 const DEFAULT_PLATFORM_HOSTS = ['nanoai.vn', 'www.nanoai.vn'] as const
 
@@ -104,6 +105,7 @@ export function injectPartnerCustomDomainLinkRewriteScript(html: string, siteSlu
   const prepared = rewritePartnerCustomDomainHtml(html, slug, platformHosts)
   const prefix = partnerSiteInternalPrefix(slug)
   const script = `<script data-pw-custom-domain-links>(function(){
+${PW_SHOP_FRAME_NAV_JS}
 var PREFIX=${JSON.stringify(prefix)};
 var HOSTS=${JSON.stringify(platformHosts)};
 function stripPrefix(path){
@@ -144,9 +146,11 @@ document.addEventListener('click',function(e){
   rewrite(a);
   var dest=(a.getAttribute('href')||'').trim();
   if(!dest||dest.charAt(0)==='#'||/^(mailto|tel|javascript|data):/i.test(dest))return;
+  if(a.closest&&a.closest('[data-pw-chrome-btn="chat"],[data-nanoai-open-chat],[data-nanoai-consult],[data-nanoai-try-on],.pw-chat-open,.pw-fab-chat'))return;
   var tgt=(a.getAttribute('target')||'').trim();
   if(tgt&&tgt!=='_self')return;
   try{
+    if(pwTopIsAdmin())return;
     if(window.top&&window.top!==window){
       window.top.location.href=a.href;
       e.preventDefault();

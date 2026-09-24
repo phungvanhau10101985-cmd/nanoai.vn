@@ -1,6 +1,7 @@
 import {
   NANOAI_WIDGET_MSG_SOURCE,
   isAllowedHttpNavigationUrl,
+  isDashboardNavigationUrl,
 } from '@/lib/messaging/widget-parent-bridge'
 
 /** Safari / WebKit trên iPhone, iPod; iPad (kể cả báo desktop). */
@@ -46,14 +47,39 @@ function resolveNavigationUrl(raw: string): string | null {
 export function openGuestProductDetailUrl(url: string): void {
   if (typeof window === 'undefined') return
   const resolved = resolveNavigationUrl(typeof url === 'string' ? url : '')
-  if (!resolved || !isAllowedHttpNavigationUrl(resolved)) return
+  if (!resolved || !isAllowedHttpNavigationUrl(resolved) || isDashboardNavigationUrl(resolved)) return
 
   if (isEmbeddedInFrame()) {
+    let sameOriginTop = false
+    let topIsDashboard = false
     try {
-      window.top!.location.assign(resolved)
-      return
+      const path = window.top?.location?.pathname || ''
+      sameOriginTop = true
+      topIsDashboard = path === '/dashboard' || path.startsWith('/dashboard/')
     } catch {
-      /* cross-origin: không đọc được top */
+      sameOriginTop = false
+    }
+    // Preview trong trang quản trị: top là dashboard. Gán top sẽ thay cả tab quản trị.
+    if (sameOriginTop && topIsDashboard) {
+      const parent = window.parent
+      if (parent && parent !== window) {
+        try {
+          parent.location.assign(resolved)
+          return
+        } catch {
+          /* parent cross-origin */
+        }
+      }
+      window.location.assign(resolved)
+      return
+    }
+    if (sameOriginTop) {
+      try {
+        window.top!.location.assign(resolved)
+        return
+      } catch {
+        /* ignore */
+      }
     }
     try {
       window.parent.postMessage(

@@ -9,6 +9,7 @@ import {
   hasPartnerSiteConsultContext,
   isPartnerPdpDocument,
   partnerSiteChatOpenModeFromEl,
+  isPartnerSiteDashboardHref,
   resolvePartnerSiteChatOpenFromEventTarget,
   resolvePartnerTryOnImageUrl,
   stampPartnerSiteChatOpenAttrsInHtml,
@@ -29,6 +30,20 @@ test('chat bridge listens for Chat mua chrome buttons and posts in the same wind
   assert.equal(s.includes("getAttribute('data-pw-chrome-btn')==='chat'"), true)
   assert.match(s, /window\.postMessage\(msg,'\*'\)/)
   assert.equal(s.includes(JSON.stringify(PARTNER_SITE_CHAT_OPEN_SELECTOR)), true)
+  assert.match(s, /hrefIsDashboard/)
+  assert.match(s, /stopImmediatePropagation/)
+})
+
+test('admin website URL is not a Chat mua click', () => {
+  assert.equal(isPartnerSiteDashboardHref('/dashboard/messaging/p/shop/website'), true)
+  assert.equal(isPartnerSiteDashboardHref('/messaging/p/shop'), false)
+  const { document } = parseHTML(
+    `<a href="/dashboard/messaging/p/shop/website">Quản trị web</a><a data-pw-chrome-btn="chat" data-nanoai-open-chat href="/dashboard/messaging/p/shop/website">Chat</a>`
+  )
+  const admin = document.querySelector('a[href="/dashboard/messaging/p/shop/website"]')
+  assert.equal(resolvePartnerSiteChatOpenFromEventTarget(admin), null)
+  const chat = document.querySelector('[data-pw-chrome-btn="chat"]')
+  assert.equal(resolvePartnerSiteChatOpenFromEventTarget(chat)?.mode, 'default')
 })
 
 test('chrome Chat mua without extra attrs still opens default shop chat', () => {

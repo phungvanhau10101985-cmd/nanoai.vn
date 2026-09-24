@@ -12,6 +12,7 @@ import {
   PW_PENDING_IMAGE_KEY,
 } from '@/lib/partner-website/shop/partner-site-pending-image'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_FRAME_NAV_JS } from '@/lib/partner-website/shop/shop-frame-nav'
 import { PW_SITE_SALE_MO_SKIP_JS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { searchGlyphSvg } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 
@@ -329,9 +330,11 @@ function loadHistory(){
     })
     .catch(function(){setHistoryList(readLocalHistory());});
 }
+${PW_SHOP_FRAME_NAV_JS}
 function publicPathname(){
   try{
-    if(window.top&&window.top!==window&&window.top.location)return String(window.top.location.pathname||'');
+    var w=pwShopNavWindow();
+    if(w&&w.location)return String(w.location.pathname||'');
   }catch(e){}
   return String(location.pathname||'');
 }
@@ -344,7 +347,7 @@ function goShopLocation(dest){
   if(pwShopLiveUiOff())return;
   dest=String(dest||'');
   var nested=false;
-  try{nested=!!(window.top&&window.top!==window);}catch(eN){nested=true;}
+  try{nested=!!(window.top&&window.top!==window)&&!pwTopIsAdmin();}catch(eN){nested=!pwTopIsAdmin();}
   if(nested){
     try{if(window.top){window.top.location.assign(dest);return;}}catch(eT){}
     try{

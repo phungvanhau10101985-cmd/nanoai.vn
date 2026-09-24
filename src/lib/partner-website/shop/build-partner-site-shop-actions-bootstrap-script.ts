@@ -16,6 +16,7 @@ import { partnerSiteAppliedPromoStorageKey } from '@/lib/partner-website/shop/pa
 import { PW_CHROME_COUNT_BADGE_RUNTIME_JS } from '@/lib/partner-website/shop/chrome-count-badges'
 import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/partner-site-guest-browser-session'
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
+import { PW_SHOP_FRAME_NAV_JS } from '@/lib/partner-website/shop/shop-frame-nav'
 import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import {
   CART_ADDED_MODAL_COPY,
@@ -237,9 +238,10 @@ ${PW_ENSURE_GUEST_BROWSER_SESSION_JS}
 function sessionId(){return pwEnsureGuestSessionId();}
 function accountId(){try{var ls=localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';if(ls)return ls;}catch(e){}return readCookie('app_guest_account_sync')||readCookie(ACCOUNT_KEY);}
 function authHeaders(){var h={};var s=sessionId(),a=accountId();if(s)h[SESSION_HDR]=s;if(a)h[ACCOUNT_HDR]=a;return h;}
-function pageLocation(){try{if(window.top&&window.top.location&&window.top.location.href)return window.top.location;}catch(e){}return location;}
+${PW_SHOP_FRAME_NAV_JS}
+function pageLocation(){try{var w=pwShopNavWindow();if(w&&w.location&&w.location.href)return w.location;}catch(e){}return location;}
 function purchaseLoginHref(){var loc=pageLocation();var base=loc.pathname.indexOf('/site/')===0?LOGIN_PATH:'/login';return base+'?redirect='+encodeURIComponent(loc.pathname+(loc.search||'')+(loc.hash||''));}
-function navigateShop(url){try{if(window.top&&window.top!==window){window.top.location.assign(url);return;}}catch(e){}location.assign(url);}
+function navigateShop(url){try{pwShopNavWindow().location.assign(url);return;}catch(e){}location.assign(url);}
 function requirePurchaseLogin(){if(accountId())return false;navigateShop(purchaseLoginHref());return true;}
 function readPendingCart(){
   try{

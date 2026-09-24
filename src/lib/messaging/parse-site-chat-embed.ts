@@ -34,13 +34,18 @@ export function isChatWidgetScriptSrc(url: string): boolean {
   return path.endsWith('.js') || path.includes('nanoai-chat-widget.js')
 }
 
-/** Trang chat khách — URL iframe hợp lệ. */
+/**
+ * Trang chat khách — URL iframe hợp lệ.
+ * Path phải là `/messaging/p/{slug}`. `/dashboard/messaging/p/…` cũng chứa chuỗi đó
+ * nhưng là trang quản trị — không được mở làm iframe chat.
+ */
 export function isHostedChatIframeSrc(url: string): boolean {
   const raw = String(url || '').trim()
   if (!raw || isChatWidgetScriptSrc(raw)) return false
   const parsed = parseUrlish(raw)
-  const path = parsed?.pathname || raw
-  return /\/messaging\/p\//i.test(path)
+  const path = (parsed?.pathname || raw).replace(/\/+$/, '') || '/'
+  if (/^\/dashboard(?:\/|$)/i.test(path)) return false
+  return /^\/messaging\/p\/[^/]+$/i.test(path)
 }
 
 /**

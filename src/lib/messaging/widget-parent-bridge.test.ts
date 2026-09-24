@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   NANOAI_WIDGET_MSG_SOURCE,
+  isDashboardNavigationUrl,
   isOrderUpdatedFromIframe,
   isSetPageContextMessage,
   parseWidgetPageContextFromChatUrl,
@@ -22,6 +23,12 @@ test('parseWidgetPageContextFromChatUrl reads embed_page for dual cart hosts', (
     '/messaging/p/demo?embed=1&embed_page=https%3A%2F%2Fgudo.vn%2Fproducts%2Fbag'
   )
   assert.equal(ctx.embedPage, 'https://gudo.vn/products/bag')
+})
+
+test('isDashboardNavigationUrl rejects shop admin paths', () => {
+  assert.equal(isDashboardNavigationUrl('https://nanoai.vn/dashboard/messaging/p/188-shop/website'), true)
+  assert.equal(isDashboardNavigationUrl('https://gudo.vn/products/bag'), false)
+  assert.equal(isDashboardNavigationUrl('https://nanoai.vn/messaging/p/demo?embed=1'), false)
 })
 
 test('parseWidgetPageContextFromChatUrl ignores empty query', () => {

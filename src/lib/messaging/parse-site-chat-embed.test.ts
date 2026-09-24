@@ -39,4 +39,9 @@ test('parseSiteChatEmbed rejects widget JS as iframe src', () => {
   assert.equal(isChatWidgetScriptSrc('https://nanoai.vn/embed/nanoai-chat-widget.js'), true)
   assert.equal(isHostedChatIframeSrc('https://nanoai.vn/embed/nanoai-chat-widget.js'), false)
   assert.equal(isHostedChatIframeSrc('https://nanoai.vn/messaging/p/nanoai-ws-un9v?embed=1'), true)
+  assert.equal(
+    isHostedChatIframeSrc('https://nanoai.vn/dashboard/messaging/p/188-shop/website'),
+    false
+  )
+  assert.equal(isHostedChatIframeSrc('/dashboard/messaging/p/188-shop/website'), false)
 })

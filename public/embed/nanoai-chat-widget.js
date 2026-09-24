@@ -417,11 +417,25 @@
       } catch (_) {}
     }
 
+    /** Chỉ `/messaging/p/{slug}`. `/dashboard/messaging/p/…` là trang quản trị. */
+    function isGuestChatPath(href) {
+      try {
+        var path = new URL(String(href || '').trim(), window.location.href).pathname.replace(/\/+$/, '') || '/'
+        if (path === '/dashboard' || path.indexOf('/dashboard/') === 0) return false
+        return /^\/messaging\/p\/[^/]+$/i.test(path)
+      } catch (_) {
+        return false
+      }
+    }
+
     function readReturnChatHref() {
       try {
         var s = localStorage.getItem(PERSIST_CHAT_SESSION_KEY) || sessionStorage.getItem(RETURN_CHAT_SESSION_KEY)
         s = s ? String(s).trim() : ''
-        if (!s || !isAllowedHttpUrl(s)) return ''
+        if (!s || !isAllowedHttpUrl(s) || !isGuestChatPath(s)) {
+          if (s) clearReturnChatHref()
+          return ''
+        }
         if (!sameChatOrigin(s)) {
           clearReturnChatHref()
           return ''
@@ -434,7 +448,7 @@
 
     function writeReturnChatHref(href) {
       try {
-        if (href && isAllowedHttpUrl(href) && sameChatOrigin(href)) {
+        if (href && isAllowedHttpUrl(href) && isGuestChatPath(href) && sameChatOrigin(href)) {
           var next = String(href).trim()
           sessionStorage.setItem(RETURN_CHAT_SESSION_KEY, next)
           localStorage.setItem(PERSIST_CHAT_SESSION_KEY, next)
@@ -515,6 +529,12 @@
           if (!iframe || !iframe.contentWindow || e.source !== iframe.contentWindow) return
           var nextUrl = String(d.url || '').trim()
           if (!isAllowedHttpUrl(nextUrl)) return
+          try {
+            var nextPath = new URL(nextUrl, window.location.href).pathname
+            if (nextPath === '/dashboard' || nextPath.indexOf('/dashboard/') === 0) return
+          } catch (_) {
+            return
+          }
           var ret = typeof d.returnChatUrl === 'string' ? d.returnChatUrl.trim() : ''
           if (ret && isAllowedHttpUrl(ret)) writeReturnChatHref(ret)
           window.location.assign(nextUrl)
@@ -975,7 +995,14 @@
           )
           if (!trigger) return
           var href = trigger.getAttribute && String(trigger.getAttribute('href') || '').trim()
-          var isMessagingLink = href && href.indexOf('/messaging/p/') >= 0
+          var hrefPath = ''
+          try {
+            hrefPath = href ? new URL(href, location.href).pathname.replace(/\/+$/, '') || '/' : ''
+          } catch (ePath) {
+            hrefPath = ''
+          }
+          var isDashboardHref = hrefPath === '/dashboard' || hrefPath.indexOf('/dashboard/') === 0
+          var isMessagingLink = href && href.indexOf('/messaging/p/') >= 0 && !isDashboardHref
           var isTryOnTrigger = trigger.hasAttribute('data-nanoai-try-on')
           var isConsultTrigger =
             trigger.hasAttribute('data-nanoai-consult') ||

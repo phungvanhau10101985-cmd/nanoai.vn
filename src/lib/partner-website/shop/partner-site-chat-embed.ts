@@ -383,6 +383,31 @@ export function isPartnerPdpDocument(doc: Document | null | undefined): boolean 
   }
 }
 
+/** `/dashboard/messaging/p/{slug}/website` contains `/messaging/p/` but is the admin page. */
+export function isPartnerSiteDashboardHref(href: string | null | undefined): boolean {
+  const raw = String(href || '').trim()
+  if (!raw || raw.startsWith('#') || /^javascript:/i.test(raw)) return false
+  try {
+    const path = new URL(raw, 'https://shop.local').pathname.replace(/\/+$/, '') || '/'
+    return path === '/dashboard' || path.startsWith('/dashboard/')
+  } catch {
+    return false
+  }
+}
+
+function elIsMarkedShopChatOpen(el: Element): boolean {
+  const kind = el.getAttribute('data-pw-chrome-btn')
+  return (
+    el.hasAttribute('data-nanoai-open-chat') ||
+    el.hasAttribute('data-nanoai-consult') ||
+    el.hasAttribute('data-nanoai-try-on') ||
+    kind === 'chat' ||
+    kind === 'try-on' ||
+    el.classList.contains('pw-chat-open') ||
+    el.classList.contains('pw-fab-chat')
+  )
+}
+
 export function resolvePartnerSiteChatOpenFromEventTarget(
   target: EventTarget | null
 ): PartnerSiteChatOpenRequest | null {
@@ -393,6 +418,7 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   const el = node.closest(PARTNER_SITE_CHAT_OPEN_SELECTOR)
   if (!el) return null
   if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
+  if (isPartnerSiteDashboardHref(el.getAttribute('href')) && !elIsMarkedShopChatOpen(el)) return null
   const mode = partnerSiteChatOpenModeFromEl(el)
   const fromBtn = consultContextFromChatOpenEl(el)
   const doc = el.ownerDocument
@@ -540,6 +566,16 @@ function mergeCtx(page,btn){
     productUrl:page.productUrl||btn.productUrl||'',
   };
 }
+function hrefIsDashboard(href){
+  try{
+    var path=new URL(String(href||''),location.href).pathname.replace(/\\/+$/,'')||'/';
+    return path==='/dashboard'||path.indexOf('/dashboard/')===0;
+  }catch(e){return false;}
+}
+function markedChatOpen(el){
+  var kind=el.getAttribute('data-pw-chrome-btn');
+  return el.hasAttribute('data-nanoai-open-chat')||el.hasAttribute('data-nanoai-consult')||el.hasAttribute('data-nanoai-try-on')||kind==='chat'||kind==='try-on'||el.classList.contains('pw-chat-open')||el.classList.contains('pw-fab-chat');
+}
 document.addEventListener('click',function(ev){
   if(pwShopLiveUiOff())return;
   var t=ev.target;
@@ -547,7 +583,9 @@ document.addEventListener('click',function(ev){
   var el=t.closest(SEL);
   if(!el)return;
   if(el.closest&&el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]'))return;
+  if(hrefIsDashboard(el.getAttribute('href'))&&!markedChatOpen(el))return;
   ev.preventDefault();
+  ev.stopImmediatePropagation();
   ev.stopPropagation();
   var mode='default';
   if(el.hasAttribute('data-nanoai-try-on')||el.getAttribute('data-pw-chrome-btn')==='try-on')mode='try_on';
