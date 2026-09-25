@@ -52,9 +52,11 @@ export async function publishListingImportDraft(input: {
   if (!inventoryId) {
     throw Object.assign(new Error('Đã ghi kho nhưng không đọc lại được id tồn kho.'), { status: 500 })
   }
+  if (row.sku && String(pd.code || '').trim() !== row.sku) pd.code = row.sku
   await updateListingImportDraftFromPg(input.partnerId, draft.id, {
     status: 'published',
     publishedInventoryId: inventoryId,
+    productData: pd,
     message: 'Đã đăng lên kho.',
     finished: true,
   })

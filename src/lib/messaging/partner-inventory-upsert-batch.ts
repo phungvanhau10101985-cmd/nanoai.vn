@@ -25,6 +25,15 @@ import {
 } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import { syncPartnerInventoryTextEmbeddings } from '@/lib/messaging/partner-inventory-text-embedding'
+import {
+  catalogWithInternalSku,
+  resolvePartnerImportSku,
+  skuBlockKey,
+} from '@/lib/messaging/partner-inventory-internal-sku'
+import {
+  ensurePartnerInventorySkuPrefix,
+  listOtherShopInternalSkusForPrefix,
+} from '@/lib/messaging/partner-inventory-sku-prefix-pg'
 
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type InventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -669,6 +678,27 @@ export async function upsertPartnerInventoryBatch(
   const skuResolvedId = new Map<string, string>()
   const nameNoSkuResolvedId = new Map<string, string>()
   const remarketingResolvedId = new Map<string, string>()
+  const blockedSkus = new Set<string>()
+  for (const row of resolvedExistingRows) {
+    const key = skuBlockKey(row.sku)
+    if (key) blockedSkus.add(key)
+  }
+  let shopSkuPrefix = ''
+  if (rows.some((row) => row.catalogFormat === '188' && !row.removeFromInventory)) {
+    try {
+      shopSkuPrefix = await ensurePartnerInventorySkuPrefix(partnerId)
+      const foreignSkus = await listOtherShopInternalSkusForPrefix(partnerId, shopSkuPrefix)
+      for (const sku of foreignSkus) {
+        const key = skuBlockKey(sku)
+        if (key) blockedSkus.add(key)
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Không cấp được chữ cái đầu SKU.',
+      }
+    }
+  }
   const byRemarketing = indexExistingByRemarketing(resolvedExistingRows)
   const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
 
@@ -757,9 +787,29 @@ export async function upsertPartnerInventoryBatch(
       continue
     }
 
+    const currentForSku = targetId ? existingById.get(targetId) : undefined
+    let resolvedSku: string | null
+    try {
+      resolvedSku = resolvePartnerImportSku({
+        proposed: r.sku,
+        existingSku: currentForSku?.sku,
+        assignIfEmpty: r.catalogFormat === '188',
+        shopPrefix: shopSkuPrefix,
+        blocked: blockedSkus,
+      })
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : 'Không cấp được mã SKU.',
+      }
+    }
+    r.sku = resolvedSku
+    if (r.catalog) r.catalog = catalogWithInternalSku(r.catalog, resolvedSku) ?? r.catalog
+    const resolvedSkuKey = inventorySkuMatchKey(resolvedSku)
+
     const base: InventoryUpsertBase = {
       name: r.name,
-      sku: r.sku,
+      sku: resolvedSku,
       description: r.description,
       stock_note: r.stock_note,
       stock_qty: r.stock_qty,
@@ -779,13 +829,14 @@ export async function upsertPartnerInventoryBatch(
       if (current && sameInventoryData(current, base) && !r.catalog) {
         // Dòng không đổi dữ liệu => không update DB, tránh trigger đồng bộ Vision không cần thiết.
         if (rk) remarketingResolvedId.set(rk, targetId)
-        if (skuKey) skuResolvedId.set(skuKey, targetId)
+        if (resolvedSkuKey) skuResolvedId.set(resolvedSkuKey, targetId)
         else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
         if (r.catalog) {
           catalogPatches.set(targetId, { id: targetId, partnerId, catalog: r.catalog })
         }
         continue
       }
+      if (current && resolvedSku) current.sku = resolvedSku
       if (plannedInserts.has(targetId)) {
         const prev = plannedInserts.get(targetId)
         if (prev) plannedInserts.set(targetId, { ...prev, ...base })
@@ -808,7 +859,7 @@ export async function upsertPartnerInventoryBatch(
         ...base,
       })
       if (rk) remarketingResolvedId.set(rk, targetId)
-      if (skuKey) skuResolvedId.set(skuKey, targetId)
+      if (resolvedSkuKey) skuResolvedId.set(resolvedSkuKey, targetId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), targetId)
       if (r.catalog) {
         catalogPatches.set(targetId, { id: targetId, partnerId, catalog: r.catalog })
@@ -825,7 +876,7 @@ export async function upsertPartnerInventoryBatch(
       changedIds.add(newId)
       existingById.set(newId, toInventoryRow(newId, partnerId, base, now))
       if (rk) remarketingResolvedId.set(rk, newId)
-      if (skuKey) skuResolvedId.set(skuKey, newId)
+      if (resolvedSkuKey) skuResolvedId.set(resolvedSkuKey, newId)
       else nameNoSkuResolvedId.set(inventoryNameMatchKey(r.name), newId)
       if (r.catalog) {
         catalogPatches.set(newId, { id: newId, partnerId, catalog: r.catalog })
