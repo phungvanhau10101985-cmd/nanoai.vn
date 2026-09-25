@@ -247,6 +247,9 @@ test('sale countdown tick updates text nodes and skips banner hosts', () => {
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /birthdayEndsAfter/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /nodeValue/)
   assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pwSaleInView/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /pwSaleTickFlashHeads\(\)/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /data-pw-flash-countdown/)
+  assert.match(PW_SITE_SALE_TICK_CHIPS_JS, /data-pw-flash-hms/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-sale-hms\]/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-flash-hms\]/)
   assert.match(PW_SITE_SALE_MO_SKIP_JS, /\[data-pw-promo-carousel\]/)
@@ -257,6 +260,41 @@ test('sale countdown tick updates text nodes and skips banner hosts', () => {
   const el = { firstChild: text, textContent: '01:00:00' }
   writePartnerSaleCountdownNode(el as unknown as Element, '00:59:59')
   assert.equal(text.nodeValue, '00:59:59')
+
+  const end = new Date(Date.now() + (8 * 60 + 47) * 1000).toISOString()
+  const hms = { nodeType: 3, nodeValue: '00:00', nextSibling: null }
+  const span = { firstChild: hms, textContent: '00:00' }
+  const timer = {
+    hidden: false,
+    querySelector(sel: string) {
+      return sel === '[data-pw-flash-hms]' ? span : null
+    },
+  }
+  const section = {
+    hidden: false,
+    getAttribute(name: string) {
+      return name === 'data-pw-flash-countdown' ? end : null
+    },
+    querySelector(sel: string) {
+      return sel === '[data-pw-flash-timer]' ? timer : null
+    },
+  }
+  const fakeDocument = {
+    querySelectorAll(sel: string) {
+      return sel.includes('flash-sale') ? [section] : []
+    },
+  }
+  const tick = new Function(
+    'document',
+    `${PW_SITE_SALE_TICK_CHIPS_JS}\nreturn pwSaleTickFlashHeads;`
+  )(fakeDocument) as () => void
+  tick()
+  const left = Math.max(0, Math.floor((Date.parse(end) - Date.now()) / 1000))
+  const mm = String(Math.floor((left % 3600) / 60)).padStart(2, '0')
+  const ss = String(left % 60).padStart(2, '0')
+  const prev = Math.max(0, left - 1)
+  const prevLabel = `${String(Math.floor((prev % 3600) / 60)).padStart(2, '0')}:${String(prev % 60).padStart(2, '0')}`
+  assert.ok([`${mm}:${ss}`, prevLabel].includes(String(hms.nodeValue)))
 })
 
 test('expired inventory sale window returns the list price on storefront and cart overlay', () => {

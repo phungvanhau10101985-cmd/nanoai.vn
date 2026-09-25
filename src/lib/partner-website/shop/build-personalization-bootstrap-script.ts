@@ -726,15 +726,6 @@ function paintGuestPicker(el,show){
     if(chips)chips.innerHTML='<span>'+COPY.recPickerError+'</span> <a class="pw-rec-picker-all" href="'+HUB_PATH+'">'+COPY.featuredSeeAll+'</a>';
   });
 }
-function formatFlashHms(iso){
-  if(!iso)return '';
-  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
-  var d=t-Date.now();if(d<=0)return '';
-  var s=Math.floor(d/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
-  var mm=('0'+m).slice(-2),ss=('0'+sec).slice(-2);
-  if(h<=0)return mm+':'+ss;
-  return ('0'+h).slice(-2)+':'+mm+':'+ss;
-}
 function paintFlashHead(el,countdownTo){
   var host=el.querySelector('.pw-container')||el;
   host.querySelectorAll('[data-pw-flash-sub], .pw-flash-sub').forEach(function(n){
@@ -763,7 +754,7 @@ function paintFlashHead(el,countdownTo){
     timer.setAttribute('role','timer');
     head.appendChild(timer);
   }
-  var left=formatFlashHms(countdownTo||'');
+  var left=pwSaleFmtFlash(countdownTo||'');
   if(!left){timer.hidden=true;timer.textContent='';return;}
   timer.hidden=false;
   var hms=timer.querySelector('[data-pw-flash-hms]');
@@ -967,18 +958,6 @@ function hideFeaturedOnCategoryListing(){
 ${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
   pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining,COPY.countdownStarts,COPY.countdownLeft);
-  document.querySelectorAll('[data-pw-personalize="flash-sale"]').forEach(function(el){
-    if(el.hidden)return;
-    var timer=el.querySelector('[data-pw-flash-timer]');
-    if(!timer)return;
-    var iso=el.getAttribute('data-pw-flash-countdown')||'';
-    var left=formatFlashHms(iso);
-    if(!left){timer.hidden=true;return;}
-    timer.hidden=false;
-    var hms=timer.querySelector('[data-pw-flash-hms]');
-    if(hms&&hms.firstChild&&hms.firstChild.nodeType===3)hms.firstChild.nodeValue=left;
-    else if(hms)hms.textContent=left;
-  });
 }
 function run(){
   if(!document.getElementById('pw-site-sale-css')){var st=document.createElement('style');st.id='pw-site-sale-css';st.textContent=${JSON.stringify(PW_SITE_SALE_CARD_CSS)};document.head.appendChild(st);}

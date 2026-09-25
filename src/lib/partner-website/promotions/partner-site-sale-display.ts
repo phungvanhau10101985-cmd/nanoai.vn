@@ -1075,6 +1075,32 @@ function pwSaleTickChips(remaining,startsAfter,flashRemaining,countdownStarts,co
     }
     pwSaleSetText(hms,left);
   });
+  pwSaleTickFlashHeads();
+}
+function pwSaleFmtFlash(iso){
+  if(!iso)return '';
+  var t=Date.parse(iso);if(!Number.isFinite(t))return '';
+  var d=t-Date.now();if(d<=0)return '';
+  var s=Math.floor(d/1000),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+  var mm=('0'+m).slice(-2),ss=('0'+sec).slice(-2);
+  if(h<=0)return mm+':'+ss;
+  return ('0'+h).slice(-2)+':'+mm+':'+ss;
+}
+function pwSaleTickFlashHeads(){
+  document.querySelectorAll('[data-pw-personalize="flash-sale"]').forEach(function(el){
+    if(el.hidden)return;
+    var timer=el.querySelector('[data-pw-flash-timer]');
+    if(!timer)return;
+    var iso=el.getAttribute('data-pw-flash-countdown')||'';
+    var left=pwSaleFmtFlash(iso);
+    if(!left){
+      if(!timer.hidden)timer.hidden=true;
+      return;
+    }
+    if(timer.hidden)timer.hidden=false;
+    var hms=timer.querySelector('[data-pw-flash-hms]');
+    if(hms)pwSaleSetText(hms,left);
+  });
 }`
 
 export const PW_SITE_SALE_MO_SKIP_JS = `function pwSaleMoSkip(recs){
