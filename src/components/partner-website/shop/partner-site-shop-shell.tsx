@@ -567,10 +567,12 @@ function PartnerSiteShopShellInner({
       __pwShopPendingCatTap?: { x: number; y: number; at: number } | null
     }
     const prev = win.__pwShopToggleCat
-    const owned = (target: Element | null) => !target || target === btn || btn.contains(target)
-    win.__pwShopToggleCat = (target) => {
-      if (!owned(target)) {
-        prev?.(target)
+    const owned = (target: Element | null) => !!target && (target === btn || btn.contains(target))
+    win.__pwShopToggleCat = (target, x, y) => {
+      const hit =
+        target ?? (typeof x === 'number' && typeof y === 'number' ? document.elementFromPoint(x, y) : null)
+      if (!owned(hit)) {
+        prev?.(target, x, y)
         return
       }
       const now = Date.now()
@@ -582,7 +584,7 @@ function PartnerSiteShopShellInner({
     const pending = win.__pwShopPendingCatTap
     if (pending && Date.now() - pending.at < 800) {
       const hit = document.elementFromPoint(pending.x, pending.y)
-      if (!hit || owned(hit)) {
+      if (owned(hit)) {
         win.__pwShopPendingCatTap = null
         catGestureAt.current = Date.now()
         catGestureRender.current = true
@@ -960,7 +962,13 @@ function PartnerSiteShopShellInner({
               data-pw-cat-toggle="1"
               aria-expanded={categoriesOpen}
               aria-controls="pw-shop-cat-panel"
-                onClick={() => {
+                onClick={(event) => {
+                  const win = window as Window & { __pwCatSwallowClick?: number }
+                  if (win.__pwCatSwallowClick && event.detail !== 0) {
+                    win.__pwCatSwallowClick = 0
+                    catGestureAt.current = 0
+                    return
+                  }
                   if (catGestureAt.current && Date.now() - catGestureAt.current < 500) {
                     catGestureAt.current = 0
                     return
@@ -977,8 +985,12 @@ function PartnerSiteShopShellInner({
                 type="button"
                 className="pw-cat-acc-backdrop"
                 aria-label={t.cartAddedClose}
-                onClick={() => {
-                  const win = window as Window & { __pwCatIgnoreClickUntil?: number }
+                onClick={(event) => {
+                  const win = window as Window & { __pwCatIgnoreClickUntil?: number; __pwCatSwallowClick?: number }
+                  if (win.__pwCatSwallowClick && event.detail !== 0) {
+                    win.__pwCatSwallowClick = 0
+                    return
+                  }
                   if (win.__pwCatIgnoreClickUntil && Date.now() < win.__pwCatIgnoreClickUntil) {
                     win.__pwCatIgnoreClickUntil = 0
                     return

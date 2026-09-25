@@ -154,6 +154,7 @@ ${buildPartnerSiteTapAckScript()}
       try{btn.setAttribute('data-pw-cat-gesture',String(at));}catch(_){}
     }
     window.__pwCatIgnoreClickUntil=at+450;
+    window.__pwCatSwallowClick=1;
     var fn=window.__pwShopToggleCat;
     if(typeof fn==='function'){
       try{fn(btn||null,event.clientX||0,event.clientY||0);}catch(_){}
@@ -330,6 +331,7 @@ ${buildPartnerSiteTapAckScript()}
     openHref(href);
   }
   function onPointerDown(event){
+    window.__pwCatSwallowClick=0;
     if(event.button!=null&&event.button!==0)return;
     var dup=false;
     try{if(typeof window.__pwShopTapAckPress==='function')dup=!!window.__pwShopTapAckPress(event);}catch(_){}

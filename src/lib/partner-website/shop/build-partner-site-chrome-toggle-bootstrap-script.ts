@@ -1149,6 +1149,7 @@ function ensureCatBackdrop(){
     el.hidden=true;
     document.body.appendChild(el);
     el.addEventListener('click',function(e){
+      if(catSwallowClick(e))return;
       if(window.__pwCatIgnoreClickUntil&&Date.now()<window.__pwCatIgnoreClickUntil){
         window.__pwCatIgnoreClickUntil=0;
         e.preventDefault();
@@ -1468,6 +1469,7 @@ function bindToggles(){
       if(pwShopLiveUiOff())return;
       e.preventDefault();
       e.stopPropagation();
+      if(catSwallowClick(e))return;
       var cur=e.currentTarget;
       if(catGestureFresh(cur))return;
       var livePanel=ensureCatPanel(cur);
@@ -1490,8 +1492,10 @@ function bindToggles(){
     document.documentElement.setAttribute('data-pw-chrome-toggle-doc','1');
     window.addEventListener('scroll',repositionOpenPanels,true);
     window.addEventListener('resize',repositionOpenPanels);
+    window.addEventListener('pointerdown',function(){window.__pwCatSwallowClick=0;},true);
     document.addEventListener('click',function(e){
       if(pwShopLiveUiOff())return;
+      if(catSwallowClick(e))return;
       if(window.__pwCatIgnoreClickUntil&&Date.now()<window.__pwCatIgnoreClickUntil){
         window.__pwCatIgnoreClickUntil=0;
         e.preventDefault();
@@ -1723,6 +1727,14 @@ function catGestureFresh(btn){
   var at=catGestureAt(btn);
   return !!(at&&Date.now()-at<500);
 }
+function catSwallowClick(e){
+  if(!window.__pwCatSwallowClick)return false;
+  if(e&&e.detail===0)return false;
+  window.__pwCatSwallowClick=0;
+  window.__pwCatIgnoreClickUntil=0;
+  if(e){e.preventDefault();e.stopPropagation();}
+  return true;
+}
 function stampCatGesture(btn){
   if(!btn||!btn.setAttribute)return;
   try{btn.setAttribute('data-pw-cat-gesture',String(Date.now()));}catch(errStamp){}
@@ -1751,6 +1763,7 @@ function toggleCatFromTap(btn,x,y,fromGesture){
     btn.__pwCatTapLock=Date.now();
     stampCatGesture(btn);
     window.__pwCatIgnoreClickUntil=Date.now()+450;
+    window.__pwCatSwallowClick=1;
   }
 }
 function flushPendingCatTap(){
