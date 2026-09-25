@@ -44,6 +44,9 @@ test('listing host uses listing cards; outfit and related stay seed', () => {
   assert.doesNotMatch(out, /data-inventory-id="g1"/)
   assert.match(out, />outfit</)
   assert.match(out, />related</)
+  assert.match(out, /data-pw-grid-more[^>]*hidden/)
+  assert.match(out, /Xem thêm/)
+  assert.doesNotMatch(out, /data-pw-el="section-more"/)
 })
 
 test('listing host paints one batch of 20 even when the shell is one row', () => {
@@ -58,6 +61,9 @@ test('listing host paints one batch of 20 even when the shell is one row', () =>
   assert.match(out, /data-inventory-id="l1"/)
   assert.match(out, /data-inventory-id="l20"/)
   assert.doesNotMatch(out, /data-inventory-id="l21"/)
+  assert.match(out, /data-pw-grid-more/)
+  assert.match(out, /Xem thêm/)
+  assert.doesNotMatch(out, /data-pw-grid-more[^>]*hidden/)
 })
 
 test('home catalog stays one row', () => {
@@ -71,6 +77,25 @@ test('home catalog stays one row', () => {
   )
   assert.match(out, /data-inventory-id="g5"/)
   assert.doesNotMatch(out, /data-inventory-id="g6"/)
+  assert.doesNotMatch(out, /data-pw-grid-more/)
+})
+
+test('category listing drops see-all and hides load-more when the batch is short', () => {
+  const html =
+    '<section data-pw-catalog data-category-id="cat-1" data-pw-grid-rows="1">' +
+    '<div data-pw-grid></div>' +
+    '<a class="pw-grid-all" data-pw-el="section-more" href="/products">Xem tất cả các nhóm</a>' +
+    '</section>'
+  const out = bindLiveCatalogGridsToHtml(
+    html,
+    { generic: [], listing: [card('only', 'Một SP')], personalize: [] },
+    { locale: 'vi', device: 'desktop' }
+  )
+  assert.match(out, /data-inventory-id="only"/)
+  assert.match(out, /data-pw-grid-more[^>]*hidden/)
+  assert.match(out, /Xem thêm/)
+  assert.doesNotMatch(out, /Xem tất cả các nhóm/)
+  assert.doesNotMatch(out, /data-pw-el="section-more"/)
 })
 
 test('personalize hosts use popular fallback cards', () => {
@@ -83,6 +108,25 @@ test('personalize hosts use popular fallback cards', () => {
   })
   assert.match(out, /data-pw-live-products="ready"/)
   assert.match(out, /data-inventory-id="p1"/)
+})
+
+test('category listing drops see-all and keeps load-more on a full batch', () => {
+  const listing = Array.from({ length: 20 }, (_, i) => card(`l${i + 1}`, `SP ${i + 1}`))
+  const html =
+    '<section data-pw-catalog data-category-id="cat-1" data-pw-grid-rows="1">' +
+    '<div data-pw-grid></div>' +
+    '<a class="pw-grid-all" data-pw-el="section-more" href="/products">Xem tất cả các nhóm</a>' +
+    '</section>'
+  const out = bindLiveCatalogGridsToHtml(
+    html,
+    { generic: [], listing, personalize: [] },
+    { locale: 'vi', device: 'desktop' }
+  )
+  assert.match(out, /data-pw-grid-more/)
+  assert.match(out, /Xem thêm/)
+  assert.doesNotMatch(out, /Xem tất cả/)
+  assert.doesNotMatch(out, /data-pw-el="section-more"/)
+  assert.doesNotMatch(out, /data-pw-grid-more[^>]*hidden/)
 })
 
 test('flash sale host never receives generic cards', () => {

@@ -58,9 +58,10 @@ function scanCatalogNeeds(html: string, device?: VisualDeviceVariant | null): {
   while ((match = re.exec(html))) {
     const open = match[0]
     if (!hostNeedsBind(open)) continue
-    const rows = clampProductGridRows(attr(open, 'data-pw-grid-rows') || 1)
+    const kind = attr(open, 'data-pw-grid-kind') || attr(open, 'data-pw-personalize')
+    const rows = clampProductGridRows(attr(open, 'data-pw-grid-rows') || 1, kind)
     const limitAttr = Math.floor(Number(attr(open, 'data-limit') || 0))
-    const page = productGridPageSize(rows, cols)
+    const page = productGridPageSize(rows, cols, kind)
     const limit = Math.max(1, Math.min(PW_GRID_PAGE_MAX, limitAttr > 0 ? Math.min(limitAttr, page) : page))
     maxLimit = Math.max(maxLimit, limit)
     if (/\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended)["']/i.test(open)) {

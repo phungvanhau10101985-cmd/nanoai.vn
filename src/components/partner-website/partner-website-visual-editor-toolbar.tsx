@@ -201,7 +201,7 @@ import {
   VISUAL_EDITOR_PRODUCT_GRID_KINDS,
   type VisualEditorProductGridKind,
 } from '@/lib/partner-website/visual-editor/product-grid-widgets'
-import { clampProductGridRows } from '@/lib/partner-website/shop/pw-product-grid-page'
+import { clampProductGridRows, productGridRowsMax } from '@/lib/partner-website/shop/pw-product-grid-page'
 import {
   canPickChromeGlyph,
   chromeGlyphsForKind,
@@ -630,7 +630,7 @@ function selectionFromMessage(data: {
     isPromoBanner: Boolean(data.isPromoBanner),
     isProductGrid: Boolean(data.isProductGrid),
     gridKind: String(data.gridKind ?? '').replace(/[^a-z0-9-]/g, ''),
-    gridRows: clampProductGridRows(data.gridRows),
+    gridRows: clampProductGridRows(data.gridRows, data.gridKind),
     slideWait: clampPwSliderWait(data.slideWait ?? PW_SLIDER_WAIT_DEFAULT),
     slideArrows: data.slideArrows !== false,
     slideCount: Math.max(0, Math.round(Number(data.slideCount) || 0)),
@@ -1853,6 +1853,20 @@ function ChromeKitRow({
 }
 
 const contactChannelsBySlug = new Map<string, PartnerSiteContactChannels>()
+
+function visualGridRowLabel(copy: PartnerWebsiteCopy, rows: number): string {
+  const labels = [
+    copy.visualEditGridRow1,
+    copy.visualEditGridRow2,
+    copy.visualEditGridRow3,
+    copy.visualEditGridRow4,
+    copy.visualEditGridRow5,
+    copy.visualEditGridRow6,
+    copy.visualEditGridRow7,
+    copy.visualEditGridRow8,
+  ]
+  return labels[rows - 1] || String(rows)
+}
 
 export function PartnerWebsiteVisualEditorToolbar({
   locale,
@@ -3661,7 +3675,7 @@ export function PartnerWebsiteVisualEditorToolbar({
       kind,
       siteSlug: slug,
       locale,
-      rows: clampProductGridRows(rows),
+      rows: clampProductGridRows(rows, kind),
       device: visualDeviceVariantFromHtmlPath(htmlPath),
     })
     if (!html) return
@@ -4843,12 +4857,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                                 : kind === 'outfit'
                                   ? 'visualEditAddOutfitGrid'
                                   : 'visualEditAddRecommendedGrid'
-                      const rowLabels = [
-                        t.visualEditGridRow1,
-                        t.visualEditGridRow2,
-                        t.visualEditGridRow3,
-                        t.visualEditGridRow4,
-                      ]
+                      const rowChoices = Array.from({ length: productGridRowsMax(kind) }, (_, index) => index + 1)
                       return (
                         <div key={kind} className="flex flex-col">
                           <button
@@ -4880,15 +4889,15 @@ export function PartnerWebsiteVisualEditorToolbar({
                                 {t.visualEditGridRowsHint}
                               </p>
                               <div className="flex flex-wrap gap-1 pt-0.5">
-                                {rowLabels.map((label, index) => (
+                                {rowChoices.map((rows) => (
                                   <button
-                                    key={label}
+                                    key={rows}
                                     type="button"
                                     className="rounded border border-border px-2 py-1 text-[10px] font-medium hover:bg-muted"
                                     disabled={busy}
-                                    onClick={() => insertProductGridWidget(kind, index + 1)}
+                                    onClick={() => insertProductGridWidget(kind, rows)}
                                   >
-                                    {label}
+                                    {visualGridRowLabel(t, rows)}
                                   </button>
                                 ))}
                               </div>
@@ -5546,7 +5555,7 @@ export function PartnerWebsiteVisualEditorToolbar({
                 {t.visualEditGridRowsLabel || t.visualEditGridRowsAsk}
               </p>
               <div className="grid grid-cols-4 gap-1">
-                {([1, 2, 3, 4] as const).map((rows) => (
+                {Array.from({ length: productGridRowsMax(selection.gridKind) }, (_, index) => index + 1).map((rows) => (
                   <button
                     key={rows}
                     type="button"
@@ -5559,18 +5568,12 @@ export function PartnerWebsiteVisualEditorToolbar({
                     disabled={busy}
                     onClick={() => {
                       postToIframe(iframeRef.current, 'setGridRows', {
-                        rows: clampProductGridRows(rows),
+                        rows: clampProductGridRows(rows, selection.gridKind),
                       })
                       setDirty(true)
                     }}
                   >
-                    {rows === 1
-                      ? t.visualEditGridRow1
-                      : rows === 2
-                        ? t.visualEditGridRow2
-                        : rows === 3
-                          ? t.visualEditGridRow3
-                          : t.visualEditGridRow4}
+                    {visualGridRowLabel(t, rows)}
                   </button>
                 ))}
               </div>

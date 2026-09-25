@@ -280,10 +280,11 @@ export function buildVisualEditorProductGridHtml(input: {
   const locale = input.locale && input.locale in TITLE.catalog ? input.locale : 'vi'
   const kind = input.kind
   const rows = clampProductGridRows(
-    kind === 'featured-categories' ? input.rows ?? 2 : kind === 'flash-sale' ? input.rows ?? 3 : input.rows
+    kind === 'featured-categories' ? input.rows ?? 2 : kind === 'flash-sale' ? input.rows ?? 3 : input.rows,
+    kind
   )
   const cols = productGridColsForDevice(input.device)
-  const pageSize = productGridPageSize(rows, cols)
+  const pageSize = productGridPageSize(rows, cols, kind)
   const limit =
     kind === 'flash-sale'
       ? FLASH_SALE_MAX_COUNT

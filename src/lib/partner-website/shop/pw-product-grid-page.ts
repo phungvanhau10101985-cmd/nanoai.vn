@@ -5,6 +5,8 @@
 
 export const PW_GRID_ROWS_MIN = 1
 export const PW_GRID_ROWS_MAX = 4
+/** Lưới đã xem + lưới đề xuất — cùng 1–8 hàng trên mọi máy. */
+export const PW_GRID_ROWS_MAX_PERSONAL = 8
 export const PW_GRID_ROWS_DEFAULT = 1
 export const PW_GRID_COLS_DESKTOP = 5
 export const PW_GRID_COLS_LAPTOP = 4
@@ -32,10 +34,17 @@ export function productGridColsForDevice(device?: string | null): number {
   return PW_GRID_COLS_DESKTOP
 }
 
-export function clampProductGridRows(value: unknown): number {
+export function productGridRowsMax(kind?: string | null): number {
+  const k = String(kind || '').trim().toLowerCase()
+  if (k === 'recently-viewed' || k === 'recommended') return PW_GRID_ROWS_MAX_PERSONAL
+  return PW_GRID_ROWS_MAX
+}
+
+export function clampProductGridRows(value: unknown, kind?: string | null): number {
   const n = Math.floor(Number(value))
+  const max = productGridRowsMax(kind)
   if (!Number.isFinite(n)) return PW_GRID_ROWS_DEFAULT
-  return Math.max(PW_GRID_ROWS_MIN, Math.min(PW_GRID_ROWS_MAX, n))
+  return Math.max(PW_GRID_ROWS_MIN, Math.min(max, n))
 }
 
 export function clampProductGridCols(value: unknown, fallback = PW_GRID_COLS_WIDE): number {
@@ -44,21 +53,22 @@ export function clampProductGridCols(value: unknown, fallback = PW_GRID_COLS_WID
   return Math.max(1, Math.min(8, n))
 }
 
-export function productGridPageSize(rows: number, cols: number): number {
-  return Math.max(1, Math.min(PW_GRID_PAGE_MAX, clampProductGridRows(rows) * clampProductGridCols(cols)))
+export function productGridPageSize(rows: number, cols: number, kind?: string | null): number {
+  return Math.max(1, Math.min(PW_GRID_PAGE_MAX, clampProductGridRows(rows, kind) * clampProductGridCols(cols)))
 }
 
 export function inferProductGridRows(input: {
   rows?: unknown
   limit?: unknown
   cols: number
+  kind?: string | null
 }): number {
   const raw = Math.floor(Number(input.rows))
-  if (Number.isFinite(raw) && raw >= PW_GRID_ROWS_MIN) return clampProductGridRows(raw)
+  if (Number.isFinite(raw) && raw >= PW_GRID_ROWS_MIN) return clampProductGridRows(raw, input.kind)
   const limit = Math.floor(Number(input.limit))
   const cols = clampProductGridCols(input.cols)
   if (Number.isFinite(limit) && limit >= 1) {
-    return clampProductGridRows(Math.ceil(limit / cols))
+    return clampProductGridRows(Math.ceil(limit / cols), input.kind)
   }
   return PW_GRID_ROWS_DEFAULT
 }
@@ -122,18 +132,25 @@ function pwGridCols(el){
   if(device==='laptop')return laptop;
   return desktop;
 }
+function pwGridRowsMax(el){
+  var kind=((el.getAttribute('data-pw-grid-kind')||'')+' '+(el.getAttribute('data-pw-personalize')||'')).toLowerCase();
+  if(kind.indexOf('recently-viewed')>=0||kind.indexOf('recommended')>=0)return 8;
+  return 4;
+}
 function pwGridRows(el){
+  var max=pwGridRowsMax(el);
   var raw=parseInt(el.getAttribute('data-pw-grid-rows')||'',10);
-  if(raw>=1&&raw<=4)return raw;
+  if(raw>=1&&raw<=max)return raw;
   var cols=pwGridCols(el);
   var lim=parseInt(el.getAttribute('data-limit')||'',10);
-  if(lim>=1)return Math.max(1,Math.min(4,Math.ceil(lim/Math.max(1,cols))));
+  if(lim>=1)return Math.max(1,Math.min(max,Math.ceil(lim/Math.max(1,cols))));
   return 1;
 }
 function pwGridPageSize(el){
   var cols=pwGridCols(el);
+  var max=pwGridRowsMax(el);
   var raw=parseInt(el.getAttribute('data-pw-grid-rows')||'',10);
-  if(raw>=1&&raw<=4)return Math.max(1,Math.min(48,raw*cols));
+  if(raw>=1&&raw<=max)return Math.max(1,Math.min(48,raw*cols));
   var lim=parseInt(el.getAttribute('data-limit')||'',10);
   if(lim>=1)return Math.max(1,Math.min(48,lim));
   return Math.max(1,Math.min(48,1*cols));

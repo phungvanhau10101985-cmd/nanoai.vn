@@ -2,10 +2,7 @@
 
 import { useLayoutEffect, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
-import {
-  partnerShopPathIsCartPage,
-  scrollPartnerShopViewportToTop,
-} from '@/lib/partner-website/shop/partner-site-cart-added-modal'
+import { scrollPartnerShopViewportToTop } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { discardViewedProductSnapshots } from '@/lib/partner-website/shop/partner-site-viewed-product-cache'
 import { isPartnerShopVisualHtmlPath } from '@/lib/partner-website/shop/partner-shop-react-island-path'
 
@@ -34,6 +31,11 @@ function pathFromHref(href: string): string | null {
  * destination HTML already has product cards. Parser-blocking native nav
  * still `location.assign` if this relay is not ready yet.
  *
+ * A tap that opens another page (Tài khoản, Giỏ, Yêu thích, Đơn, nút chức năng)
+ * must show that page from the top. The shared shop shell otherwise keeps the
+ * scroll offset of the page you left — a long category listing lands Account
+ * at the bottom. Browser Back keeps the previous scroll position.
+ *
  * Do not wrap `router.push` in an extra `startTransition`. Next.js already
  * transitions internally; a nested transition leaves the destination page
  * committed but its passive effects frozen until the next tap.
@@ -42,6 +44,14 @@ export function PartnerSiteSoftNavRelay() {
   const router = useRouter()
   const pathname = usePathname()
   const pathRef = useRef(pathname)
+  const historyPopRef = useRef<string | false>(false)
+  useLayoutEffect(() => {
+    const onPop = () => {
+      historyPopRef.current = window.location.pathname
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
   useLayoutEffect(() => {
     const win = window as ShopSoftNavWindow
     win.__pwShopSoftNav = (href: string) => {
@@ -94,16 +104,30 @@ export function PartnerSiteSoftNavRelay() {
     discardViewedProductSnapshots()
   }, [])
   useLayoutEffect(() => {
+    const poppedPath = historyPopRef.current
+    historyPopRef.current = false
     if (pathRef.current === pathname) return
-    const prev = pathRef.current
     pathRef.current = pathname
-    if (partnerShopPathIsCartPage(pathname) && !partnerShopPathIsCartPage(prev || '')) {
-      scrollPartnerShopViewportToTop()
+    const fromHistory = poppedPath === pathname
+    let raf = 0
+    let soon = 0
+    let later = 0
+    if (!fromHistory) {
+      const scroll = () => scrollPartnerShopViewportToTop()
+      scroll()
+      raf = window.requestAnimationFrame(scroll)
+      soon = window.setTimeout(scroll, 0)
+      later = window.setTimeout(scroll, 120)
     }
     try {
       ;(window as ShopSoftNavWindow).__pwShopTapAckNavEnd?.()
     } catch {
       /* visual ack is best-effort */
+    }
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+      if (soon) window.clearTimeout(soon)
+      if (later) window.clearTimeout(later)
     }
   }, [pathname])
   return null

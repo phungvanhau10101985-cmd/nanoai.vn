@@ -476,6 +476,10 @@ export type PartnerWebsiteCopy = {
   visualEditGridRow2: string
   visualEditGridRow3: string
   visualEditGridRow4: string
+  visualEditGridRow5: string
+  visualEditGridRow6: string
+  visualEditGridRow7: string
+  visualEditGridRow8: string
   visualEditAddButtonText: string
   visualEditAddButtonColor: string
   visualEditAddButtonBorder: string
@@ -1766,6 +1770,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditGridRow2: '2 hàng',
     visualEditGridRow3: '3 hàng',
     visualEditGridRow4: '4 hàng',
+    visualEditGridRow5: '5 hàng',
+    visualEditGridRow6: '6 hàng',
+    visualEditGridRow7: '7 hàng',
+    visualEditGridRow8: '8 hàng',
     visualEditAddButtonText: 'Chữ trên nút',
     visualEditAddButtonColor: 'Màu nút',
     visualEditAddButtonBorder: 'Màu viền',
@@ -3079,6 +3087,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditGridRow2: '2 rows',
     visualEditGridRow3: '3 rows',
     visualEditGridRow4: '4 rows',
+    visualEditGridRow5: '5 rows',
+    visualEditGridRow6: '6 rows',
+    visualEditGridRow7: '7 rows',
+    visualEditGridRow8: '8 rows',
     visualEditAddButtonText: 'Button text',
     visualEditAddButtonColor: 'Button color',
     visualEditAddButtonBorder: 'Border color',
@@ -4372,6 +4384,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditGridRow2: '2 行',
     visualEditGridRow3: '3 行',
     visualEditGridRow4: '4 行',
+    visualEditGridRow5: '5 行',
+    visualEditGridRow6: '6 行',
+    visualEditGridRow7: '7 行',
+    visualEditGridRow8: '8 行',
     visualEditAddButtonText: '按钮文字',
     visualEditAddButtonColor: '按钮颜色',
     visualEditAddButtonBorder: '边框颜色',
@@ -5662,6 +5678,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditGridRow2: '2行',
     visualEditGridRow3: '3行',
     visualEditGridRow4: '4行',
+    visualEditGridRow5: '5行',
+    visualEditGridRow6: '6行',
+    visualEditGridRow7: '7行',
+    visualEditGridRow8: '8行',
     visualEditAddButtonText: 'ボタンの文字',
     visualEditAddButtonColor: 'ボタンの色',
     visualEditAddButtonBorder: '枠線の色',
@@ -6960,6 +6980,10 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditGridRow2: '2줄',
     visualEditGridRow3: '3줄',
     visualEditGridRow4: '4줄',
+    visualEditGridRow5: '5줄',
+    visualEditGridRow6: '6줄',
+    visualEditGridRow7: '7줄',
+    visualEditGridRow8: '8줄',
     visualEditAddButtonText: '버튼 텍스트',
     visualEditAddButtonColor: '버튼 색',
     visualEditAddButtonBorder: '테두리 색',

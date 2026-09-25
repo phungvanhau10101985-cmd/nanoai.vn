@@ -4,7 +4,9 @@
  */
 
 import type { WebLocale } from '@/lib/i18n/config'
+import { escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { renderPartnerShopListingCardsHtml } from '@/lib/partner-website/shop/render-partner-shop-listing-card-html'
 import {
   clampProductGridRows,
@@ -54,12 +56,17 @@ function attr(open: string, name: string): string {
   return open.match(new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`, 'i'))?.[1]?.trim() || ''
 }
 
+function hostGridKind(open: string): string {
+  return attr(open, 'data-pw-grid-kind') || attr(open, 'data-pw-personalize')
+}
+
 function hostPageSize(open: string, device?: VisualDeviceVariant | null): number {
   if (isListingCatalogHost(open)) return PW_LISTING_BATCH_SIZE
-  const rows = clampProductGridRows(attr(open, 'data-pw-grid-rows') || 1)
+  const kind = hostGridKind(open)
+  const rows = clampProductGridRows(attr(open, 'data-pw-grid-rows') || 1, kind)
   const cols = productGridColsForDevice(device)
   const limitAttr = Math.floor(Number(attr(open, 'data-limit') || 0))
-  const page = productGridPageSize(rows, cols)
+  const page = productGridPageSize(rows, cols, kind)
   return Math.max(1, Math.min(PW_GRID_PAGE_MAX, limitAttr > 0 ? Math.min(limitAttr, page) : page))
 }
 
@@ -82,6 +89,34 @@ function isPersonalizeHost(open: string): boolean {
 function isListingCatalogHost(open: string): boolean {
   if (isPersonalizeHost(open) || skipHost(open)) return false
   return /\bdata-category-id\s*=/i.test(open) || /\bdata-pw-listing-href\s*=/i.test(open)
+}
+
+function stripCategoryListingSeeAll(inner: string): string {
+  return inner
+    .replace(/<a\b[^>]*\bdata-pw-el=["']section-more["'][^>]*>[\s\S]*?<\/a>/gi, '')
+    .replace(/<a\b[^>]*\bpw-grid-all\b[^>]*>[\s\S]*?<\/a>/gi, '')
+}
+
+/** Category `/c` grid: «Xem thêm» only. Full first batch stays visible before JS. */
+function withCategoryListingLoadMore(inner: string, label: string, show: boolean): string {
+  const next = stripCategoryListingSeeAll(inner)
+  if (/\bdata-pw-grid-more\b/i.test(next)) {
+    if (show) {
+      return next.replace(
+        /(<button\b[^>]*\bdata-pw-grid-more\b[^>]*?)\s+hidden(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/i,
+        '$1'
+      )
+    }
+    if (/\bdata-pw-grid-more\b[^>]*\bhidden\b/i.test(next)) return next
+    return next.replace(/(<button\b[^>]*\bdata-pw-grid-more\b[^>]*)(>)/i, '$1 hidden$2')
+  }
+  const actions =
+    `<div class="pw-grid-actions" data-pw-grid-actions>` +
+    `<button type="button" class="pw-grid-more" data-pw-grid-more${show ? '' : ' hidden'}>` +
+    `<span class="pw-grid-more-icon" aria-hidden="true">↻</span> ${escapeHtml(label)}</button></div>`
+  const emptyAt = next.search(/<p\b[^>]*\bpw-catalog-empty\b/i)
+  if (emptyAt >= 0) return `${next.slice(0, emptyAt)}${actions}${next.slice(emptyAt)}`
+  return `${next}${actions}`
 }
 
 function replaceGridInner(inner: string, cards: string): string {
@@ -137,7 +172,10 @@ export function bindLiveCatalogGridsToHtml(
     } else if (/\bdata-pw-catalog\b/i.test(open)) {
       products = generic.length ? generic : listing
     }
-    products = products.slice(0, hostPageSize(open, opts?.device))
+    const listingHost = isListingCatalogHost(open)
+    const pageSize = hostPageSize(open, opts?.device)
+    const sourceCount = products.length
+    products = products.slice(0, pageSize)
     if (!products.length) {
       chunks.push(html.slice(start, end))
       cursor = end
@@ -150,7 +188,11 @@ export function bindLiveCatalogGridsToHtml(
     })
     firstPriority = false
     const nextOpen = stampOpenAttr(open, 'data-pw-live-products', 'ready')
-    const inner = replaceGridInner(html.slice(openEnd, close), cards)
+    let inner = replaceGridInner(html.slice(openEnd, close), cards)
+    if (listingHost) {
+      const showMore = sourceCount >= pageSize
+      inner = withCategoryListingLoadMore(inner, getPartnerSiteShopCopy(locale).loadMore, showMore)
+    }
     chunks.push(`${nextOpen}${inner}${html.slice(close, end)}`)
     cursor = end
     re.lastIndex = end

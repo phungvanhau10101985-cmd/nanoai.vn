@@ -101,6 +101,35 @@ test('chosen rows set page size for the device', () => {
   assert.match(mobile, /data-limit="6"/)
 })
 
+test('viewed and recommended grids accept 8 rows on every device', () => {
+  const desktop = buildVisualEditorProductGridHtml({
+    kind: 'recently-viewed',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 8,
+    device: 'desktop',
+  })
+  const mobile = buildVisualEditorProductGridHtml({
+    kind: 'recommended',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 8,
+    device: 'mobile',
+  })
+  const related = buildVisualEditorProductGridHtml({
+    kind: 'related',
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    rows: 8,
+    device: 'desktop',
+  })
+  assert.match(desktop, /data-pw-grid-rows="8"/)
+  assert.match(desktop, /data-limit="40"/)
+  assert.match(mobile, /data-pw-grid-rows="8"/)
+  assert.match(mobile, /data-limit="16"/)
+  assert.match(related, /data-pw-grid-rows="4"/)
+})
+
 test('stamps featured category tiles for personalization', () => {
   const html = buildVisualEditorProductGridHtml({
     kind: 'featured-categories',

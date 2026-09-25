@@ -6393,9 +6393,15 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     if (d === 'laptop') return laptop
     return desktop
   }
+  function editorGridRowsMax(host) {
+    var kind = editorGridKind(host)
+    if (kind === 'recently-viewed' || kind === 'recommended') return 8
+    return 4
+  }
   function editorGridRows(host) {
+    var max = editorGridRowsMax(host)
     var raw = parseInt((host && host.getAttribute('data-pw-grid-rows')) || '', 10)
-    if (raw >= 1 && raw <= 4) return raw
+    if (raw >= 1 && raw <= max) return raw
     if (host && host.getAttribute && host.getAttribute('data-pw-featured-categories') === '1') return 2
     return 1
   }
@@ -6454,7 +6460,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
   function setProductGridRows(rows) {
     var host = productGridHostOf(selected)
     if (!host) return
-    var n = Math.max(1, Math.min(4, Math.floor(Number(rows) || 1)))
+    var n = Math.max(1, Math.min(editorGridRowsMax(host), Math.floor(Number(rows) || 1)))
     host.setAttribute('data-pw-grid-rows', String(n))
     host.setAttribute('data-limit', String(Math.max(1, Math.min(48, n * editorGridCols(host)))))
     applyProductGridRowsPreview(host)

@@ -113,6 +113,9 @@ test('shop layout does not duplicate the root native-navigation scripts', async 
   assert.match(relay, /__pwShopTapAckNav/)
   assert.match(relay, /__pwShopTapAckNavEnd/)
   assert.match(relay, /usePathname/)
+  assert.match(relay, /scrollPartnerShopViewportToTop/)
+  assert.match(relay, /historyPopRef/)
+  assert.doesNotMatch(relay, /partnerShopPathIsCartPage/)
 })
 
 test('image search and compose pages boot without Suspense or nested startTransition', async () => {

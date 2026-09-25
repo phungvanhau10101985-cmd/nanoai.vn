@@ -22,6 +22,17 @@ test('strip grid ruler locks 5 desktop / 2 mobile by data-pw attr, not auto-fit'
   assert.doesNotMatch(PW_PRODUCT_STRIP_GRID_CSS, /auto-fit|auto-fill/)
 })
 
+test('mobile recommendation header keeps age/gender edit on the title row', () => {
+  assert.match(
+    PW_RECOMMENDED_GRID_FACE_CSS,
+    /html\[data-pw-edit-device="mobile"\] \[data-pw-personalize="recommended"\] \.pw-rec-head-row,\s*html\[data-pw-scene-lock="mobile"\] \[data-pw-personalize="recommended"\] \.pw-rec-head-row\{flex-wrap:nowrap;justify-content:space-between/
+  )
+  assert.match(
+    PW_RECOMMENDED_GRID_FACE_CSS,
+    /@media \(max-width:767px\)\{\s*html:not\(\[data-pw-edit-device\]\):not\(\[data-pw-scene-lock\]\) \[data-pw-personalize="recommended"\] \.pw-rec-head-row\{flex-wrap:nowrap;justify-content:space-between/
+  )
+})
+
 test('rec and flash-sale cards are the containing block for the favorite overlay', () => {
   assert.match(PW_PRODUCT_CATALOG_CARD_FACE_CSS, /\{position:relative;display:flex!important/)
   assert.match(PW_FLASH_SALE_GRID_FACE_CSS, /\[data-pw-personalize="flash-sale"\] \.pw-product-card,[\s\S]*?\{[\s\S]*?position:relative/)
@@ -112,6 +123,7 @@ test('catalog titles are sized per device and show see-more plus see-all', () =>
   assert.match(PW_PRODUCT_GRID_MORE_CSS, /background:var\(--pw-buy\)/)
   assert.match(PW_PRODUCT_GRID_MORE_CSS, /html \[data-pw-el="section-more"\]\[hidden\]/)
   assert.doesNotMatch(PW_PRODUCT_GRID_MORE_CSS, /html \[data-pw-catalog\] \[data-pw-el="section-more"\],html \[data-pw-personalize\] \[data-pw-el="section-more"\][\s\S]{0,80}\{display:none!important\}/)
+  assert.match(PW_PRODUCT_GRID_MORE_CSS, /html\[data-pw-listing-category="1"\] \[data-pw-catalog\]:not\(\[data-pw-personalize\]\):not\(\[data-pw-related\]\):not\(\[data-pw-outfit\]\) \[data-pw-el="section-more"\]/)
 })
 
 test('related and outfit CSS both ship the shared ruler', () => {
