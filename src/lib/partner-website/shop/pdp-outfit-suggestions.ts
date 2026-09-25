@@ -332,7 +332,7 @@ async function computeOutfitSlotPicksForRole(input: {
     limit: SLOT_POOL,
   })
   if (rows == null) return 'error'
-  let collected = rows.filter((row) => candidatePassesSlot(input.slot, row, input.anchor))
+  const collected = rows.filter((row) => candidatePassesSlot(input.slot, row, input.anchor))
   if (collected.length < 8) {
     const extra = await fetchPartnerInventoryCardsForOutfitSlotFromPg(input.partnerId, {
       categoryL1Names: l1Names,

@@ -43,6 +43,8 @@ export type PlaceProductCategoryResult = {
   error?: string
 }
 
+import { CATEGORY_AUTO_CREATE_DISABLED } from '@/lib/partner-website/category/partner-category-auto-create-copy'
+
 export {
   CATEGORY_AUTO_CREATE_DISABLED,
   CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,

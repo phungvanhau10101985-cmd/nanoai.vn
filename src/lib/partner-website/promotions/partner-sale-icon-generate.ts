@@ -87,7 +87,7 @@ async function generateSaleIconBytes(input: {
     GEMINI_3_PRO_IMAGE.model,
     'partner-sale-icon',
     input.userId,
-    '1K'
+    '2K'
   )
   const imagePart = result.response.candidates?.[0]?.content?.parts?.find((part) => 'inlineData' in part)
   if (!imagePart || !('inlineData' in imagePart) || !imagePart.inlineData?.data) {

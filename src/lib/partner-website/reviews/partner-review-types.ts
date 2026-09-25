@@ -89,7 +89,13 @@ export type QaReplySlots = {
 }
 
 /** 188: một admin + tối đa 2 khách (user 1 / user 2). Ưu tiên `reply_slot`, fallback thứ tự cũ. */
-export function splitQaReplySlots(answers: PartnerQuestionAnswerRow[]): QaReplySlots {
+type QaReplySlotInput = Pick<PartnerQuestionAnswerRow, 'id' | 'answerType' | 'isActive'> & {
+  replySlot?: QaReplySlot | null
+}
+
+export function splitQaReplySlots<T extends QaReplySlotInput = PartnerQuestionAnswerRow>(
+  answers: T[]
+): { admin: T | null; userOne: T | null; userTwo: T | null } {
   const active = answers.filter((a) => a.isActive !== false)
   const bySlot = (slot: QaReplySlot) => active.find((a) => a.replySlot === slot) ?? null
   let admin = bySlot('admin')
@@ -102,7 +108,10 @@ export function splitQaReplySlots(answers: PartnerQuestionAnswerRow[]): QaReplyS
   return { admin, userOne, userTwo }
 }
 
-export function qaPublicBuyerReplyCount(slots: QaReplySlots): number {
+export function qaPublicBuyerReplyCount(slots: {
+  userOne: Pick<PartnerQuestionAnswerRow, 'content'> | null
+  userTwo: Pick<PartnerQuestionAnswerRow, 'content'> | null
+}): number {
   return [slots.userOne, slots.userTwo].filter((row) => Boolean(row?.content?.trim())).length
 }
 

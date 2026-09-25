@@ -76,6 +76,7 @@ export function parsePartnerShopRuntimeFileName(file: string): PartnerShopRuntim
   const name = match[1].toLowerCase()
   if (!ATTR_BY_NAME[name]) return null
   const locale = normalizeWebLocale(match[3])
+  if (!locale) return null
   return {
     name,
     siteSlug: match[2].toLowerCase(),

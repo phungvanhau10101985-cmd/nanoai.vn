@@ -47,7 +47,7 @@ function stripImageCacheQuery(base: string, query: string): string {
 
 /** Chuẩn hoá một URL ảnh trước khi lưu DB — khớp `normalize_product_image_url`. */
 export function normalizeListingProductImageUrl(url: string): string {
-  let u = schemeNormalize(url)
+  const u = schemeNormalize(url)
   if (!u) return ''
 
   const qIdx = u.indexOf('?')

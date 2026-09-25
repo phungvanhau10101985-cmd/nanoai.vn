@@ -585,7 +585,7 @@ async function runOutfitMatchSelectWithFallback(
     if (code !== '42703') throw e
     const rows = await runInventoryCardSelectWithFallback(sqlFromSelect, params)
     return rows.map((row) => ({
-      ...row,
+      ...mapPgInventoryCardRow(row),
       style: null,
       occasion: null,
       color_summary: null,
@@ -1491,7 +1491,7 @@ export async function fetchPartnerInventoryCardPageByCategoryFromPg(
   query: PartnerCategoryInventoryQuery
 ): Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null> {
   if (!isPgConfigured()) return null
-  return fetchPartnerInventoryCategoryPageViaIdList(partnerId, query, true)
+  return fetchPartnerInventoryCategoryPageViaIdList(partnerId, query, true) as Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null>
 }
 
 async function fetchPartnerInventoryCategoryPageViaIdList(
@@ -2006,7 +2006,7 @@ export async function fetchPartnerInventoryShopCardPageFromPg(
       load: () => fetchPartnerInventoryShopCardPageFromPgUncached(partnerId, query),
     })
   }
-  return fetchPartnerInventoryShopPageViaIdList(partnerId, query, true)
+  return fetchPartnerInventoryShopPageViaIdList(partnerId, query, true) as Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null>
 }
 
 async function fetchPartnerInventoryShopPageViaIdList(
@@ -2239,7 +2239,7 @@ export async function fetchPartnerInventoryCardPageByTextSearchFromPg(
   if (!isPgConfigured()) return null
   const words = tokenizePartnerTextSearch(query.q)
   if (!words.length) return { rows: [], count: 0 }
-  return fetchPartnerInventoryTextSearchPageViaIdList(partnerId, query, words, true)
+  return fetchPartnerInventoryTextSearchPageViaIdList(partnerId, query, words, true) as Promise<{ rows: PartnerInventoryShopCardRow[]; count: number } | null>
 }
 
 async function fetchPartnerInventoryTextSearchPageViaIdList(

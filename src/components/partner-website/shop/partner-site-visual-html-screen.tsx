@@ -126,7 +126,7 @@ export async function PartnerSiteVisualHtmlScreen({
   liveProduct = null,
   liveListing = null,
 }: {
-  site: Pick<PartnerWebsitePublicRow, 'siteSlug' | 'title' | 'logoUrl' | 'locale' | 'chatPath' | 'theme'>
+  site: PartnerWebsitePublicRow
   html: string
   htmlByDevice?: PartnerVisualHtmlByDevice
   device?: VisualDeviceVariant | null
@@ -306,20 +306,7 @@ function pageKeysForVisualTarget(target: PartnerVisualHtmlTarget): PartnerWebsit
   return ['home']
 }
 
-type PartnerVisualSite = Pick<
-  PartnerWebsitePublicRow,
-  | 'theme'
-  | 'project'
-  | 'htmlSource'
-  | 'pages'
-  | 'locale'
-  | 'siteSlug'
-  | 'title'
-  | 'logoUrl'
-  | 'templateId'
-  | 'chatPath'
-  | 'renderMode'
->
+type PartnerVisualSite = PartnerWebsitePublicRow
 
 function withFilledVisualDevices(
   site: PartnerVisualSite,

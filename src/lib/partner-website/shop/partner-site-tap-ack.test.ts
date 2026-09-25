@@ -39,7 +39,7 @@ test('tap-ack runtime is parser-safe without a document and exposes hooks', () =
   run(win)
   assert.equal(typeof (win as { __pwShopTapAckPress?: unknown }).__pwShopTapAckPress, 'function')
   assert.equal(
-    (win as { __pwShopTapAckPress: (event: object) => boolean }).__pwShopTapAckPress({
+    (win as unknown as { __pwShopTapAckPress: (event: object) => boolean }).__pwShopTapAckPress({
       button: 0,
       clientX: 12,
       clientY: 8,

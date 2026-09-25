@@ -67,6 +67,7 @@ test('mobile category touch opens on pointerup and the follow-up click leaves th
     innerWidth: number
     fetch: (url: string) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>
     __pwShopToggleCat?: (btn: Element | null, x?: number, y?: number) => void
+    Event: typeof Event
   }
   view.localStorage = storage
   view.sessionStorage = storage
