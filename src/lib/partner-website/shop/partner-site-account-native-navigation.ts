@@ -157,6 +157,11 @@ ${buildPartnerSiteTapAckScript()}
     var fn=window.__pwShopToggleCat;
     if(typeof fn==='function'){
       try{fn(btn||null,event.clientX||0,event.clientY||0);}catch(_){}
+      var done=Date.now();
+      if(btn&&btn.setAttribute){
+        try{btn.setAttribute('data-pw-cat-gesture',String(done));}catch(_){}
+      }
+      window.__pwCatIgnoreClickUntil=done+450;
       return;
     }
     window.__pwShopPendingCatTap={x:event.clientX||0,y:event.clientY||0,at:at};

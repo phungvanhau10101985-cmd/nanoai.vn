@@ -33,6 +33,7 @@ const PW_CATALOG_FIRST_PAINT_CSS =
   '<style data-pw-catalog-first-paint-css>' +
   '[data-pw-live-products="loading"] [data-pw-grid]{visibility:hidden!important}' +
   '[data-pw-live-products="loading"] [data-pw-grid] *{visibility:hidden!important}' +
+  'body:not(.nanoai-ve-active) [data-pw-personalize="flash-sale"][data-pw-live-products="loading"]{display:none!important}' +
   '</style>'
 
 function prepareProductGridFirstPaint(html: string): string {

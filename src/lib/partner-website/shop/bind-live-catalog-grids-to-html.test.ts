@@ -75,7 +75,7 @@ test('home catalog stays one row', () => {
 
 test('personalize hosts use popular fallback cards', () => {
   const html =
-    '<section data-pw-personalize="flash-sale" data-limit="12"><div data-pw-grid></div></section>'
+    '<section data-pw-personalize="recommended" data-limit="12"><div data-pw-grid></div></section>'
   const out = bindLiveCatalogGridsToHtml(html, {
     generic: [],
     listing: [],
@@ -83,4 +83,16 @@ test('personalize hosts use popular fallback cards', () => {
   })
   assert.match(out, /data-pw-live-products="ready"/)
   assert.match(out, /data-inventory-id="p1"/)
+})
+
+test('flash sale host never receives generic cards', () => {
+  const html =
+    '<section data-pw-personalize="flash-sale" data-pw-live-products="loading" data-limit="12"><div data-pw-grid></div></section>'
+  const out = bindLiveCatalogGridsToHtml(html, {
+    generic: [card('g1', 'Home')],
+    listing: [],
+    personalize: [card('p1', 'Phổ biến')],
+  })
+  assert.match(out, /data-pw-live-products="loading"/)
+  assert.doesNotMatch(out, /data-inventory-id=/)
 })

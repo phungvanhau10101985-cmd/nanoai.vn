@@ -69,12 +69,14 @@ function skipHost(open: string): boolean {
     /\bdata-pw-personalize\s*=\s*["']featured-categories["']/i.test(open) ||
     /\bdata-pw-grid-kind\s*=\s*["'](?:outfit|featured-categories)["']/i.test(open) ||
     /\bdata-pw-related\s*=/i.test(open) ||
-    /\bdata-pw-grid-kind\s*=\s*["']related["']/i.test(open)
+    /\bdata-pw-grid-kind\s*=\s*["']related["']/i.test(open) ||
+    /\bdata-pw-personalize\s*=\s*["']flash-sale["']/i.test(open) ||
+    /\bdata-pw-grid-kind\s*=\s*["']flash-sale["']/i.test(open)
   )
 }
 
 function isPersonalizeHost(open: string): boolean {
-  return /\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended|flash-sale)["']/i.test(open)
+  return /\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended)["']/i.test(open)
 }
 
 function isListingCatalogHost(open: string): boolean {

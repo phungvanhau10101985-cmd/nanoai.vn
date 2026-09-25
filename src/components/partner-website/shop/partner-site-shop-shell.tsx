@@ -521,6 +521,7 @@ function PartnerSiteShopShellInner({
   const categoriesRef = useRef<HTMLDivElement | null>(null)
   const categoriesLeaveTimer = useRef<number | null>(null)
   const catGestureAt = useRef(0)
+  const catGestureRender = useRef(false)
   const fineHover = usePartnerCategoryFineHover()
   const mobileCatFace = usePartnerShopMobileCategoryFace(previewDevice)
   const headBackFace = usePartnerShopHeadBackFace(previewDevice)
@@ -575,6 +576,7 @@ function PartnerSiteShopShellInner({
       const now = Date.now()
       if (catGestureAt.current && now - catGestureAt.current < 400) return
       catGestureAt.current = now
+      catGestureRender.current = true
       setCategoriesOpen((open) => !open)
     }
     const pending = win.__pwShopPendingCatTap
@@ -583,6 +585,7 @@ function PartnerSiteShopShellInner({
       if (!hit || owned(hit)) {
         win.__pwShopPendingCatTap = null
         catGestureAt.current = Date.now()
+        catGestureRender.current = true
         setCategoriesOpen(true)
       }
     }
@@ -590,6 +593,14 @@ function PartnerSiteShopShellInner({
       if (win.__pwShopToggleCat) win.__pwShopToggleCat = prev
     }
   }, [])
+
+  useLayoutEffect(() => {
+    if (!catGestureRender.current) return
+    catGestureRender.current = false
+    const now = Date.now()
+    catGestureAt.current = now
+    ;(window as Window & { __pwCatIgnoreClickUntil?: number }).__pwCatIgnoreClickUntil = now + 450
+  }, [categoriesOpen])
 
   useEffect(() => {
     if (!categoriesOpen) return

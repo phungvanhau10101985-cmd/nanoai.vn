@@ -1747,6 +1747,11 @@ function toggleCatFromTap(btn,x,y,fromGesture){
   var liveAccBtn=qs(root,accBtnSel());
   var liveAcc=liveAccBtn?qs(root,accPanelSel()):qs(root,accPanelSel());
   requestCatOpen(btn,livePanel,liveAccBtn,liveAcc);
+  if(fromGesture!==false){
+    btn.__pwCatTapLock=Date.now();
+    stampCatGesture(btn);
+    window.__pwCatIgnoreClickUntil=Date.now()+450;
+  }
 }
 function flushPendingCatTap(){
   var pendingTap=window.__pwShopPendingCatTap;

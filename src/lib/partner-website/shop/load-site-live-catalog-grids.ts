@@ -30,14 +30,15 @@ function hostNeedsBind(open: string): boolean {
   if (
     /\bdata-pw-(?:outfit|featured-categories)\b/i.test(open) ||
     /\bdata-pw-personalize\s*=\s*["']featured-categories["']/i.test(open) ||
-    /\bdata-pw-grid-kind\s*=\s*["'](?:outfit|featured-categories|related)["']/i.test(open) ||
+    /\bdata-pw-grid-kind\s*=\s*["'](?:outfit|featured-categories|related|flash-sale)["']/i.test(open) ||
+    /\bdata-pw-personalize\s*=\s*["']flash-sale["']/i.test(open) ||
     /\bdata-pw-related\s*=/i.test(open)
   ) {
     return false
   }
   return (
     /\bdata-pw-catalog\b/i.test(open) ||
-    /\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended|flash-sale)["']/i.test(open)
+    /\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended)["']/i.test(open)
   )
 }
 
@@ -62,7 +63,7 @@ function scanCatalogNeeds(html: string, device?: VisualDeviceVariant | null): {
     const page = productGridPageSize(rows, cols)
     const limit = Math.max(1, Math.min(PW_GRID_PAGE_MAX, limitAttr > 0 ? Math.min(limitAttr, page) : page))
     maxLimit = Math.max(maxLimit, limit)
-    if (/\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended|flash-sale)["']/i.test(open)) {
+    if (/\bdata-pw-personalize\s*=\s*["'](?:recently-viewed|recommended)["']/i.test(open)) {
       personalize = true
       continue
     }

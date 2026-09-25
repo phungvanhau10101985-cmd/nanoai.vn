@@ -58,5 +58,12 @@ test('flash sale hides only after a real empty list, and retries when the API fa
   assert.match(js, /if\(!products\.length\)\{[\s\S]*el\.hidden=true/)
   assert.match(js, /el\._pwFlashFails/)
   assert.match(js, /el\._pwFlashEmpty/)
-  assert.match(js, /flashGrid\.querySelector\('\[data-inventory-id\]'\)\)revealLiveProducts/)
+  assert.match(js, /if\(flashGrid&&!el\._pwFlashPainted\)\{\s*flashGrid\.innerHTML='';/)
+  assert.doesNotMatch(js, /flashGrid\.querySelector\('\[data-inventory-id\]'\)\)revealLiveProducts/)
+})
+
+test('personalize hosts re-hydrate after React replaces the visual root', () => {
+  const js = buildPartnerSitePersonalizationBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(js, /function hydratePersonalizeHosts\(\)\{[\s\S]*if\(el\._pwGrid\)return;/)
+  assert.match(js, /addEventListener\('pw-shop-visual-ready',function\(\)\{[\s\S]*hydratePersonalizeHosts\(\);/)
 })
