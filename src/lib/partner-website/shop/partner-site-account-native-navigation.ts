@@ -331,7 +331,8 @@ ${buildPartnerSiteTapAckScript()}
     openHref(href);
   }
   function onPointerDown(event){
-    window.__pwCatSwallowClick=0;
+    var ptr=String((event&&event.pointerType)||'');
+    if(ptr!=='touch'&&ptr!=='pen')window.__pwCatSwallowClick=0;
     if(event.button!=null&&event.button!==0)return;
     var dup=false;
     try{if(typeof window.__pwShopTapAckPress==='function')dup=!!window.__pwShopTapAckPress(event);}catch(_){}

@@ -120,6 +120,7 @@ function buildHeaderInteractionScripts(): string {
     });
   }
   document.addEventListener('click',function(e){
+    if(document.documentElement.getAttribute('data-pw-chrome-toggle-doc'))return;
     if(catPanel&&(catPanel.contains(e.target)||(catBtn&&catBtn.contains(e.target))))return;
     closeCat();
   });

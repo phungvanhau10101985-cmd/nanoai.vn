@@ -966,11 +966,9 @@ function PartnerSiteShopShellInner({
                   const win = window as Window & { __pwCatSwallowClick?: number }
                   if (win.__pwCatSwallowClick && event.detail !== 0) {
                     win.__pwCatSwallowClick = 0
-                    catGestureAt.current = 0
                     return
                   }
-                  if (catGestureAt.current && Date.now() - catGestureAt.current < 500) {
-                    catGestureAt.current = 0
+                  if (catGestureAt.current && Date.now() - catGestureAt.current < 800) {
                     return
                   }
                   if (fineHover && !mobileCatFace && categoriesOpen) return
@@ -992,7 +990,6 @@ function PartnerSiteShopShellInner({
                     return
                   }
                   if (win.__pwCatIgnoreClickUntil && Date.now() < win.__pwCatIgnoreClickUntil) {
-                    win.__pwCatIgnoreClickUntil = 0
                     return
                   }
                   setCategoriesOpen(false)

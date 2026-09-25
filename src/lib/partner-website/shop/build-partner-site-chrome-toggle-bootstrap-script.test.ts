@@ -164,10 +164,84 @@ test('late synthetic click after a touch tap on a busy page does not close the c
   window.dispatchEvent(new view.Event('pointerdown', { bubbles: true }))
   const backdrop = document.querySelector('[data-pw-cat-acc-backdrop]')
   assert.ok(backdrop)
+  backdrop.dispatchEvent(new view.Event('pointerdown', { bubbles: true }))
   const closeClick = new view.Event('click', { bubbles: true, cancelable: true }) as Event & { detail?: number }
   Object.defineProperty(closeClick, 'detail', { value: 1 })
   backdrop.dispatchEvent(closeClick)
   assert.equal(document.querySelector('[data-pw-cat-panel].is-open'), null)
+})
+
+test('second category open does not flash shut when the follow-up click lands on the backdrop', async () => {
+  const { window, document } = parseHTML(`<!doctype html><html data-pw-edit-device="mobile"><body>
+    <header class="pw-header"><button type="button" class="pw-cat-btn" data-pw-chrome-btn="categories" data-pw-el="cat-toggle">Danh mục</button></header>
+  </body></html>`)
+  const mem = new Map<string, string>()
+  const storage = {
+    getItem: (key: string) => mem.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      mem.set(key, String(value))
+    },
+    removeItem: (key: string) => {
+      mem.delete(key)
+    },
+  }
+  const view = window as unknown as {
+    localStorage: typeof storage
+    sessionStorage: typeof storage
+    matchMedia: (query: string) => { matches: boolean }
+    innerWidth: number
+    fetch: (url: string) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>
+    __pwShopToggleCat?: (btn: Element | null, x?: number, y?: number) => void
+    __pwCatIgnoreClickUntil?: number
+    __pwCatSwallowClick?: number
+    Event: typeof Event
+  }
+  view.localStorage = storage
+  view.sessionStorage = storage
+  view.matchMedia = () => ({ matches: false })
+  view.innerWidth = 390
+  view.fetch = async (url: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      String(url).includes('/categories')
+        ? { tree: [{ id: 'ao', name: 'Áo', slug: 'ao', path: 'ao', children: [] }] }
+        : { nav_pills: [], tiles: [] },
+  })
+  const raw = buildPartnerSiteChromeToggleBootstrapScript({ siteSlug: 'pdp-cat', locale: 'vi' })
+  const js = raw.slice(raw.indexOf('>') + 1, raw.lastIndexOf('</script>'))
+  new Function('window', 'document', 'fetch', js)(view, document, view.fetch)
+  const btn = document.querySelector('[data-pw-chrome-btn="categories"]') as (Element & {
+    __pwCatTapLock?: number
+    __pwCatToggleAt?: number
+  }) | null
+  assert.ok(btn)
+  view.__pwShopToggleCat?.(btn, 24, 40)
+  for (let i = 0; i < 30 && !document.querySelector('[data-pw-cat-filled="1"]'); i += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.equal(Boolean(document.querySelector('[data-pw-cat-panel].is-open')), true)
+  btn.__pwCatTapLock = Date.now() - 5000
+  btn.__pwCatToggleAt = Date.now() - 5000
+  view.__pwShopToggleCat?.(btn, 24, 40)
+  assert.equal(Boolean(document.querySelector('[data-pw-cat-panel].is-open')), false)
+
+  btn.__pwCatTapLock = Date.now() - 5000
+  btn.__pwCatToggleAt = Date.now() - 5000
+  view.__pwCatSwallowClick = 0
+  view.__pwCatIgnoreClickUntil = 0
+  view.__pwShopToggleCat?.(btn, 24, 40)
+  assert.equal(Boolean(document.querySelector('[data-pw-cat-panel].is-open')), true)
+  view.__pwCatSwallowClick = 0
+  view.__pwCatIgnoreClickUntil = 0
+  const backdrop = document.querySelector('[data-pw-cat-acc-backdrop]')
+  assert.ok(backdrop)
+  const stray = new view.Event('click', { bubbles: true, cancelable: true }) as Event & { detail?: number }
+  Object.defineProperty(stray, 'detail', { value: 1 })
+  backdrop.dispatchEvent(stray)
+  document.dispatchEvent(new view.Event('click', { bubbles: true, cancelable: true }))
+  assert.equal(btn.getAttribute('aria-expanded'), 'true')
+  assert.equal(Boolean(document.querySelector('[data-pw-cat-panel].is-open')), true)
 })
 
 test('category hydration reuses featured navigation and cools mutation retries', () => {
