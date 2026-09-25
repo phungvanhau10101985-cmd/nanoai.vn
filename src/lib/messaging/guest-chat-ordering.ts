@@ -68,10 +68,13 @@ import {
   sepayTransferContentFromOrderCode,
 } from '@/lib/messaging/shop-payment-reference'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { listPartnerCustomerAddressesFromPg } from '@/lib/db/messaging-partner-customer-addresses-pg'
 import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
 } from '@/lib/db/messaging-partner-customer-profiles-pg'
+import { formatPartnerSiteAddressLine } from '@/lib/partner-website/shop/partner-site-customer-address'
+import { matchVietnamProvince } from '@/lib/partner-website/shop/vietnam-provinces'
 import {
   resolvePartnerCustomerLoyaltyStatusFromPg,
   type PartnerStackedDiscountSnapshot,
@@ -1745,17 +1748,37 @@ export async function getCustomerDeliveryProfile(input: {
   customerName: string
   customerPhone: string
   shippingAddress: string
+  shippingProvince: string
+  addressId: string | null
   gender: 'male' | 'female' | null
   dateOfBirth: string | null
 } | null> {
-  const row = await fetchPartnerCustomerProfileByEmailFromPg(input)
-  if (!row) return null
+  const [book, row] = await Promise.all([
+    listPartnerCustomerAddressesFromPg(input),
+    fetchPartnerCustomerProfileByEmailFromPg(input),
+  ])
+  const def = book.find((addr) => addr.is_default) ?? book[0] ?? null
+  if (!def && !row) return null
+  if (def) {
+    const shippingAddress = formatPartnerSiteAddressLine(def)
+    return {
+      customerName: def.full_name || row?.customer_name || '',
+      customerPhone: def.phone || row?.customer_phone || '',
+      shippingAddress,
+      shippingProvince: matchVietnamProvince(def.province) || matchVietnamProvince(shippingAddress) || '',
+      addressId: def.id,
+      gender: row?.gender ?? null,
+      dateOfBirth: row?.date_of_birth ?? null,
+    }
+  }
   return {
-    customerName: row.customer_name,
-    customerPhone: row.customer_phone,
-    shippingAddress: row.shipping_address,
-    gender: row.gender,
-    dateOfBirth: row.date_of_birth,
+    customerName: row?.customer_name || '',
+    customerPhone: row?.customer_phone || '',
+    shippingAddress: row?.shipping_address || '',
+    shippingProvince: matchVietnamProvince(row?.shipping_address) || '',
+    addressId: null,
+    gender: row?.gender ?? null,
+    dateOfBirth: row?.date_of_birth ?? null,
   }
 }
 

@@ -1,6 +1,9 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { formatPartnerSiteAddressLine } from '@/lib/partner-website/shop/partner-site-customer-address'
+import {
+  checkoutAddressBookInputFromOrder,
+  formatPartnerSiteAddressLine,
+} from '@/lib/partner-website/shop/partner-site-customer-address'
 import {
   fetchPartnerCustomerProfileByEmailFromPg,
   upsertPartnerCustomerProfileByEmailFromPg,
@@ -45,6 +48,72 @@ async function syncDefaultToProfile(input: {
     shippingAddress: def
       ? formatPartnerSiteAddressLine(mapRow({ ...def, id: '', is_default: true }))
       : '',
+  })
+}
+
+/** Sau đơn chat: ghi dòng khách vừa gửi thành địa chỉ mặc định. Không email / thiếu trường thì bỏ qua. */
+export async function upsertDefaultPartnerCustomerAddressFromCheckoutPg(input: {
+  partnerId: string
+  emailNormalized: string
+  emailRaw?: string
+  customerName: string
+  customerPhone: string
+  shippingAddress: string
+  shippingProvince?: string | null
+}): Promise<PartnerSiteCustomerAddress | null> {
+  const email = input.emailNormalized.trim().toLowerCase()
+  if (!email) return null
+  const next = checkoutAddressBookInputFromOrder({
+    customerName: input.customerName,
+    customerPhone: input.customerPhone,
+    shippingAddress: input.shippingAddress,
+    shippingProvince: input.shippingProvince,
+  })
+  if (!next) return null
+  const rows = await listPartnerCustomerAddressesFromPg({
+    partnerId: input.partnerId,
+    emailNormalized: email,
+  })
+  const current = rows.find((row) => row.is_default) ?? null
+  const submittedLine = input.shippingAddress.trim()
+  if (current) {
+    const sameLine = formatPartnerSiteAddressLine(current) === submittedLine
+    const sameProvince = !next.province || current.province === next.province
+    const samePerson = current.full_name === next.full_name && current.phone === next.phone
+    if (sameLine && samePerson && sameProvince) return current
+    if (sameLine && sameProvince) {
+      return updatePartnerCustomerAddressFromPg({
+        partnerId: input.partnerId,
+        emailNormalized: email,
+        emailRaw: input.emailRaw,
+        addressId: current.id,
+        body: {
+          full_name: next.full_name,
+          phone: next.phone,
+          province: current.province,
+          district: current.district,
+          ward: current.ward,
+          street_address: current.street_address,
+          is_default: true,
+        },
+      })
+    }
+    return updatePartnerCustomerAddressFromPg({
+      partnerId: input.partnerId,
+      emailNormalized: email,
+      emailRaw: input.emailRaw,
+      addressId: current.id,
+      body: {
+        ...next,
+        province: next.province || current.province,
+      },
+    })
+  }
+  return insertPartnerCustomerAddressFromPg({
+    partnerId: input.partnerId,
+    emailNormalized: email,
+    emailRaw: input.emailRaw,
+    body: next,
   })
 }
 

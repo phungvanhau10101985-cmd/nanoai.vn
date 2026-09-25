@@ -65,7 +65,6 @@ import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-js
 import { isNavigationAbortError } from '@/lib/messaging/is-navigation-abort-error'
 import {
   guestPurchaseFlowChoices,
-  guestPurchaseUsesSaasAutoCart,
   normalizeGuestPurchaseFlow,
   parseGuestExternalCartUrlTemplate,
 } from '@/lib/messaging/guest-purchase-flow'
@@ -894,12 +893,7 @@ export function PartnerAiSettingsPanel({
                   ) : parseGuestExternalCartUrlTemplate(form.guest_external_cart_url_template) ? null : (
                     <p className="text-xs text-muted-foreground">{t.guestPurchaseFlowNeedWebsite}</p>
                   )}
-                  {guestPurchaseUsesSaasAutoCart({
-                    saasLinked: saasShopCart.linked,
-                    storedTemplate: form.guest_external_cart_url_template,
-                  }) ? null : (
-                    <>
-                      <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                  <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                       <Label htmlFor="ai-guest-cart-url-template">{t.guestExternalCartUrlTemplateLabel}</Label>
                       <p className="text-xs text-muted-foreground">{t.guestExternalCartUrlTemplateHint}</p>
                       <Input
@@ -928,9 +922,7 @@ export function PartnerAiSettingsPanel({
                         }}
                       />
                       <p className="text-[11px] text-muted-foreground">{t.guestExternalCartUrlTemplateSaveHint}</p>
-                      </SettingsDataRoleBox>
-                    </>
-                  )}
+                  </SettingsDataRoleBox>
                 </div>
               ) : null}
             </div>

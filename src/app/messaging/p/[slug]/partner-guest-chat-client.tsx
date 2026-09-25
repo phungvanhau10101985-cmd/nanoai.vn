@@ -69,6 +69,12 @@ import {
   NANOAI_WIDGET_MSG_SOURCE,
 } from '@/lib/messaging/widget-parent-bridge'
 import { resolvePartnerTryOnImageUrl } from '@/lib/partner-website/shop/partner-site-chat-embed'
+import { formatPartnerChatCheckoutQuoteLine } from '@/lib/partner-website/shop/partner-site-chat-checkout-quote'
+import {
+  formatPartnerSiteAddressLine,
+  resolveCheckoutShippingProvince,
+} from '@/lib/partner-website/shop/partner-site-customer-address'
+import { partnerSiteAddressesApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
@@ -1007,7 +1013,10 @@ type OrderProfileDraft = {
   customerName: string
   customerPhone: string
   shippingAddress: string
+  shippingProvince?: string
 }
+
+const CHECKOUT_INVENTORY_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 type TopUpPaymentConfig = {
   id: string
@@ -1765,6 +1774,8 @@ export function PartnerGuestChatClient({
   const [orderName, setOrderName] = useState('')
   const [orderPhone, setOrderPhone] = useState('')
   const [orderAddress, setOrderAddress] = useState('')
+  const [orderProvince, setOrderProvince] = useState('')
+  const [checkoutQuoteLine, setCheckoutQuoteLine] = useState('')
   const [orderColor, setOrderColor] = useState('')
   /** URL ảnh màu đã chọn — có thể nhiều; mỗi ảnh một loại, tránh trùng `name`. */
   const [orderSelectedColorImgs, setOrderSelectedColorImgs] = useState<string[]>([])
@@ -2382,6 +2393,7 @@ export function PartnerGuestChatClient({
         customerName: String(obj.customerName ?? '').trim(),
         customerPhone: String(obj.customerPhone ?? '').trim(),
         shippingAddress: String(obj.shippingAddress ?? '').trim(),
+        shippingProvince: String(obj.shippingProvince ?? '').trim(),
       }
     } catch {
       return null
@@ -2397,6 +2409,7 @@ export function PartnerGuestChatClient({
           customerName: draft.customerName.trim(),
           customerPhone: draft.customerPhone.trim(),
           shippingAddress: draft.shippingAddress.trim(),
+          shippingProvince: String(draft.shippingProvince ?? '').trim(),
         } satisfies OrderProfileDraft)
       )
     } catch {
@@ -3409,7 +3422,12 @@ export function PartnerGuestChatClient({
               ok?: boolean
               error?: string
               options?: PurchaseOptionsPayload | null
-              profile?: { customerName?: string; customerPhone?: string; shippingAddress?: string } | null
+              profile?: {
+                customerName?: string
+                customerPhone?: string
+                shippingAddress?: string
+                shippingProvince?: string
+              } | null
             }
           | null
         if (detailRes.status === 401 || detail?.error?.startsWith('AUTH_REQUIRED_')) {
@@ -3425,9 +3443,12 @@ export function PartnerGuestChatClient({
         const profileName = String(detail?.profile?.customerName ?? '').trim() || localProfile?.customerName || ''
         const profilePhone = String(detail?.profile?.customerPhone ?? '').trim() || localProfile?.customerPhone || ''
         const profileAddress = String(detail?.profile?.shippingAddress ?? '').trim() || localProfile?.shippingAddress || ''
+        const profileProvince =
+          String(detail?.profile?.shippingProvince ?? '').trim() || localProfile?.shippingProvince || ''
         setOrderName(profileName)
         setOrderPhone(profilePhone)
         setOrderAddress(profileAddress)
+        setOrderProvince(profileProvince)
         setActiveOrderCard(card)
         setActivePurchaseOptions(detail?.options ?? null)
         setOrderColor('')
@@ -3842,6 +3863,10 @@ export function PartnerGuestChatClient({
             customerName: orderName,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
+            shippingProvince: resolveCheckoutShippingProvince({
+              bookProvince: orderProvince,
+              shippingAddress: orderAddress,
+            }) || undefined,
             note: orderNote,
           },
           items: cartItems.map((item) => ({
@@ -3923,6 +3948,15 @@ export function PartnerGuestChatClient({
       } else if (!mp) {
         trackGuestPurchaseFromOrderSnapshot(adsTracking, data.order)
       }
+      saveLocalOrderProfile({
+        customerName: orderName,
+        customerPhone: orderPhone,
+        shippingAddress: orderAddress,
+        shippingProvince: resolveCheckoutShippingProvince({
+          bookProvince: orderProvince,
+          shippingAddress: orderAddress,
+        }),
+      })
       setCartItems([])
       setCartOpen(false)
       toast({ title: 'Đã tạo đơn hàng từ giỏ.' })
@@ -3945,6 +3979,8 @@ export function PartnerGuestChatClient({
     orderName,
     orderNote,
     orderPhone,
+    orderProvince,
+    saveLocalOrderProfile,
     slug,
     toast,
   ])
@@ -4320,6 +4356,10 @@ export function PartnerGuestChatClient({
             customerName: orderName,
             customerPhone: orderPhone,
             shippingAddress: orderAddress,
+            shippingProvince: resolveCheckoutShippingProvince({
+              bookProvince: orderProvince,
+              shippingAddress: orderAddress,
+            }) || undefined,
             note: orderNote,
           },
           items: picked.cartLines.map((line) => ({
@@ -4414,6 +4454,10 @@ export function PartnerGuestChatClient({
         customerName: orderName,
         customerPhone: orderPhone,
         shippingAddress: orderAddress,
+        shippingProvince: resolveCheckoutShippingProvince({
+          bookProvince: orderProvince,
+          shippingAddress: orderAddress,
+        }),
       })
       setOrderFormOpen(false)
       const requiredAmount = Math.max(0, Math.round(Number(data.order?.required_amount) || 0))
@@ -5590,6 +5634,141 @@ export function PartnerGuestChatClient({
     orderQtyByColorImg,
     orderSelectedColorImgs,
   ])
+
+  const checkoutQuoteLines = useMemo(() => {
+    if (orderFormOpen && activeOrderCard?.inventory_id && CHECKOUT_INVENTORY_ID_RE.test(activeOrderCard.inventory_id)) {
+      return [{ inventoryId: activeOrderCard.inventory_id, quantity: Math.max(1, orderPreview.qty || 1) }]
+    }
+    if (!cartOpen) return []
+    return cartItems
+      .map((item) => ({
+        inventoryId: (item.card.inventory_id ?? '').trim(),
+        quantity: Math.max(1, Math.floor(item.quantity || 1)),
+      }))
+      .filter((line) => CHECKOUT_INVENTORY_ID_RE.test(line.inventoryId))
+  }, [activeOrderCard?.inventory_id, cartItems, cartOpen, orderFormOpen, orderPreview.qty])
+
+  const orderAddressRef = useRef(orderAddress)
+  orderAddressRef.current = orderAddress
+
+  useEffect(() => {
+    if (!cartOpen) return
+    let cancelled = false
+    const addressAtOpen = orderAddressRef.current
+    void (async () => {
+      try {
+        const res = await fetch(partnerSiteAddressesApiPath(slug), {
+          credentials: 'same-origin',
+          headers: authHeaders(),
+        })
+        if (cancelled || orderAddressRef.current !== addressAtOpen) return
+        if (!res.ok) {
+          const local = readLocalOrderProfile()
+          if (!local) return
+          setOrderName((cur) => cur || local.customerName)
+          setOrderPhone((cur) => cur || local.customerPhone)
+          setOrderAddress((cur) => cur || local.shippingAddress)
+          setOrderProvince((cur) => cur || local.shippingProvince || '')
+          return
+        }
+        const data = (await res.json().catch(() => null)) as {
+          addresses?: Array<{
+            full_name?: string
+            phone?: string
+            province?: string
+            district?: string
+            ward?: string
+            street_address?: string
+            is_default?: boolean
+          }>
+        } | null
+        const rows = Array.isArray(data?.addresses) ? data.addresses : []
+        const def = rows.find((row) => row.is_default) ?? rows[0]
+        if (!def || cancelled || orderAddressRef.current !== addressAtOpen) return
+        const line = formatPartnerSiteAddressLine(def)
+        if (!line) return
+        setOrderName(String(def.full_name ?? '').trim())
+        setOrderPhone(String(def.phone ?? '').trim())
+        setOrderAddress(line)
+        setOrderProvince(String(def.province ?? '').trim())
+      } catch {
+        // Giữ ô đang gõ khi sổ không tải được.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [authHeaders, cartOpen, readLocalOrderProfile, slug])
+
+  useEffect(() => {
+    if ((!orderFormOpen && !cartOpen) || checkoutQuoteLines.length === 0) {
+      setCheckoutQuoteLine('')
+      return
+    }
+    const province = resolveCheckoutShippingProvince({
+      bookProvince: orderProvince,
+      shippingAddress: orderAddress,
+    })
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await fetch(`/api/site/${encodeURIComponent(slug)}/cart/quote`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              lines: checkoutQuoteLines.map((line, index) => ({
+                lineId: String(index),
+                inventoryId: line.inventoryId,
+                quantity: line.quantity,
+                selected: true,
+              })),
+              province,
+              shippingAddress: orderAddress.trim(),
+            }),
+          })
+          const data = (await res.json().catch(() => null)) as {
+            ok?: boolean
+            breakdown?: {
+              listSubtotal?: number
+              effectiveSubtotal?: number
+              flashSaleDiscountAmount?: number
+              calendarSaleDiscountAmount?: number
+              birthdayDiscountAmount?: number
+              loyaltyDiscountAmount?: number
+            }
+            lines?: Array<{ programName?: string | null; priceKind?: string | null }>
+            loyalty?: { tierName?: string }
+            shipping?: { feeAmount?: number }
+            orderTotal?: number
+          } | null
+          if (cancelled) return
+          if (!res.ok || !data?.ok) {
+            setCheckoutQuoteLine('')
+            return
+          }
+          const saleProgramName =
+            data.lines?.find((line) => line.priceKind === 'calendar' && line.programName)?.programName ?? ''
+          setCheckoutQuoteLine(
+            formatPartnerChatCheckoutQuoteLine({
+              breakdown: data.breakdown,
+              saleProgramName,
+              loyaltyTierName: data.loyalty?.tierName,
+              shippingFee: data.shipping?.feeAmount,
+              orderTotal: data.orderTotal,
+            })
+          )
+        } catch {
+          if (!cancelled) setCheckoutQuoteLine('')
+        }
+      })()
+    }, 280)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [authHeaders, cartOpen, checkoutQuoteLines, orderAddress, orderFormOpen, orderProvince, slug])
 
   const guestMessagesForDisplay = useMemo(() => {
     if (
@@ -6909,6 +7088,9 @@ export function PartnerGuestChatClient({
                       </>
                     ) : null}
                   </p>
+                  {checkoutQuoteLine ? (
+                    <p className="text-[11px] leading-snug text-foreground">{checkoutQuoteLine}</p>
+                  ) : null}
                   <div className="space-y-0.5 rounded-md border border-violet-200 bg-violet-50/70 px-2 py-1.5 text-[11px] leading-snug text-violet-900">
                     <p className="tabular-nums">
                       Tổng đơn: {new Intl.NumberFormat('vi-VN').format(orderPreview.subtotal)}đ
@@ -7912,6 +8094,9 @@ export function PartnerGuestChatClient({
                   <Input className="h-9 text-sm" placeholder="Địa chỉ" value={orderAddress} onChange={(e) => setOrderAddress(e.target.value)} />
                 </div>
                 <Textarea className="min-h-[64px] text-sm" placeholder="Ghi chú đơn hàng" value={orderNote} onChange={(e) => setOrderNote(e.target.value)} />
+                {checkoutQuoteLine ? (
+                  <p className="text-[12px] leading-snug text-foreground">{checkoutQuoteLine}</p>
+                ) : null}
                 <div className="rounded-lg border border-violet-200 bg-violet-50/70 p-2 text-sm text-violet-950">
                   Tạm tính: {new Intl.NumberFormat('vi-VN').format(cartSubtotal)}đ. Tiền cọc sẽ tính theo cài đặt shop khi tạo đơn.
                 </div>

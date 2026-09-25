@@ -224,7 +224,7 @@ export function pickGuestCartUrlTemplateByHost(input: {
   return stored || saas
 }
 
-/** Ẩn ô dán URL khi shop đã có web trên hệ thống và chưa có mẫu web khách. */
+/** Shop đã có web trên hệ thống thì giỏ SaaS chạy khi ô web khách còn trống. Ô dán vẫn hiện để thêm web ngoài. */
 export function guestPurchaseUsesSaasAutoCart(input: {
   saasLinked: boolean
   storedTemplate?: string | null

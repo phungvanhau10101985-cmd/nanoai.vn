@@ -19,6 +19,10 @@ import { stripInternalOrderSource } from '@/lib/messaging/partner-order-notify-u
 import { runMetaPurchaseAfterOrderComplete } from '@/lib/tracking/meta-purchase-after-order'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
+  ensurePartnerCustomerAddressesSeededFromPg,
+  upsertDefaultPartnerCustomerAddressFromCheckoutPg,
+} from '@/lib/db/messaging-partner-customer-addresses-pg'
+import {
   fetchShopCheckoutLoginRequiredForPartnerFromPg,
   isPartnerSiteCheckoutRequest,
 } from '@/lib/partner-website/shop/shop-checkout-auth'
@@ -39,6 +43,33 @@ async function resolveCheckoutLoginRequired(partnerId: string, request: NextRequ
 function asPaymentMethod(raw: unknown): 'cod' | 'bank_transfer' | 'ewallet' | undefined {
   const v = String(raw ?? '').trim()
   return v === 'cod' || v === 'bank_transfer' || v === 'ewallet' ? v : undefined
+}
+
+async function rememberChatCheckoutAddress(input: {
+  request: NextRequest
+  partnerId: string
+  email: string
+  customerName: string
+  customerPhone: string
+  shippingAddress: string
+  shippingProvince?: string
+}) {
+  if (isPartnerSiteCheckoutRequest(input.request)) return
+  const email = input.email.trim().toLowerCase()
+  if (!email) return
+  try {
+    await upsertDefaultPartnerCustomerAddressFromCheckoutPg({
+      partnerId: input.partnerId,
+      emailNormalized: email,
+      emailRaw: email,
+      customerName: input.customerName,
+      customerPhone: input.customerPhone,
+      shippingAddress: input.shippingAddress,
+      shippingProvince: input.shippingProvince,
+    })
+  } catch (e) {
+    console.warn('[order PATCH] address book', e)
+  }
 }
 
 function guestName(userEmail: string | null): string {
@@ -124,6 +155,13 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
       productUrl,
       linkedUserId: thread.linkedUserId,
     })
+    if (sessionEmailNormalized) {
+      await ensurePartnerCustomerAddressesSeededFromPg({
+        partnerId: partner.partnerId,
+        emailNormalized: sessionEmailNormalized,
+        emailRaw: sessionEmailNormalized,
+      })
+    }
     const profile = sessionEmailNormalized
       ? await getCustomerDeliveryProfile({
           partnerId: partner.partnerId,
@@ -278,6 +316,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       },
     })
     if ('error' in done) return NextResponse.json({ error: done.error }, { status: 400 })
+    await rememberChatCheckoutAddress({
+      request,
+      partnerId: partner.partnerId,
+      email: sessionEmail || formEmail,
+      customerName,
+      customerPhone,
+      shippingAddress,
+      shippingProvince: String(f.shippingProvince ?? '').trim() || undefined,
+    })
     const shopCheckout = isPartnerSiteCheckoutRequest(request)
     let metaPurchase = null as Awaited<ReturnType<typeof runMetaPurchaseAfterOrderComplete>>
     if (isPgConfigured()) {
@@ -343,6 +390,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       { status }
     )
   }
+  await rememberChatCheckoutAddress({
+    request,
+    partnerId: partner.partnerId,
+    email: sessionEmail || formEmail,
+    customerName,
+    customerPhone,
+    shippingAddress,
+    shippingProvince: String(f.shippingProvince ?? '').trim() || undefined,
+  })
 
   let metaPurchase = null as Awaited<ReturnType<typeof runMetaPurchaseAfterOrderComplete>>
   if (isPgConfigured()) {

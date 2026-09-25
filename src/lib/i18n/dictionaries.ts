@@ -5978,12 +5978,12 @@ const VI_DICTIONARY: Dictionary = {
     guestPurchaseFlowExternalCart: 'Mở modal giỏ trên web shop',
     guestExternalCartUrlTemplateLabel: 'URL giỏ web khách (ngoài hệ thống)',
     guestExternalCartUrlTemplateHint:
-      'Chỉ khi web không phải shop SaaS cùng hệ thống. Bắt buộc {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai — chỉ nút Mua / Thêm giỏ trên chat nhúng web khách dùng link này; Chat mua trên tên miền cùng nền tảng mở giỏ tên miền đó.',
+      'Dán vào đây khi shop thêm web nằm ngoài NanoAI. Bắt buộc {sku}. Ví dụ: https://188.com.vn/cart/add/{sku}?from=nanoai. Để trống nếu chỉ có web trên hệ thống — đường dẫn xanh dương phía trên đã đủ. Chat trên web ngoài dùng link đã dán; chat trên tên miền cùng hệ thống vẫn mở giỏ tên miền đó.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.vn/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Điền link thật của shop → click ra ngoài ô (hoặc bấm «Lưu cài đặt») để lưu chế độ mở giỏ web.',
     guestPurchaseFlowSaasLinkedHint:
-      'Đã liên kết web shop trên hệ thống. Chỉ khi khách bấm Mua hoặc Thêm giỏ trên chat mới mở modal chọn màu/size trên web — không cần API key. Nút Chat mua vẫn mở chat.',
+      'Đã liên kết web shop trên hệ thống. Mua / Thêm giỏ trên tên miền này dùng đường dẫn xanh dương, không cần dán. Muốn thêm web khách ngoài: dán URL giỏ của web đó vào ô xanh lá bên dưới. Nút Chat mua vẫn mở chat.',
     guestPurchaseFlowDualHint:
       'Shop có cả web khách ngoài hệ thống và web cùng nền tảng. Chat nhúng trên web khách giữ URL giỏ web khách. Chat mua trên tên miền cùng hệ thống thì Mua / Thêm giỏ mở giỏ trên tên miền đó — hai nhánh độc lập.',
     guestPurchaseFlowNeedWebsite:
@@ -9657,12 +9657,12 @@ const EN_DICTIONARY: Dictionary = {
     guestPurchaseFlowExternalCart: 'Open shop cart modal on the website',
     guestExternalCartUrlTemplateLabel: 'External shop cart URL template',
     guestExternalCartUrlTemplateHint:
-      'Only for websites outside this platform. Must include {sku}. Example: https://188.com.vn/cart/add/{sku}?from=nanoai — Buy and Add to cart use this link; Chat mua and Consult stay in chat.',
+      'Paste here when this shop also has a site outside NanoAI. Must include {sku}. Example: https://188.com.vn/cart/add/{sku}?from=nanoai. Leave empty if the shop only has the platform site — the blue link above is enough. Chat on the external site uses the pasted link; chat on the platform domain still opens that domain’s cart.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'Enter the shop URL → click outside the field (or Save settings) to apply web-cart mode.',
     guestPurchaseFlowSaasLinkedHint:
-      'This shop website is already linked. Only Buy or Add to cart in chat opens the color/size modal on the web — no API key. Chat mua still opens chat.',
+      'This shop website is already linked. Buy / Add to cart on this domain uses the blue link — nothing to paste. To add an external site, paste that site’s cart URL in the green box below. Chat mua still opens chat.',
     guestPurchaseFlowDualHint:
       'This shop has both an external site and a same-platform storefront. Chat embedded on the external site keeps that cart URL. Chat mua on the same-platform domain opens that domain’s cart — two independent branches.',
     guestPurchaseFlowNeedWebsite:
@@ -13280,11 +13280,11 @@ const ZH_DICTIONARY: Dictionary = {
     guestPurchaseFlowExternalCart: '在网店打开加购弹窗',
     guestExternalCartUrlTemplateLabel: '站外网店加购链接模板',
     guestExternalCartUrlTemplateHint:
-      '仅用于非本平台网站。必须含 {sku}。例：https://188.com.vn/cart/add/{sku}?from=nanoai — 仅购买/加入购物车用此链接；Chat mua 与咨询仍在聊天内。',
+      '店铺另有站外网站时贴在这里。必须含 {sku}。例：https://188.com.vn/cart/add/{sku}?from=nanoai。只有本平台网站可留空 — 上方蓝色链接已够。站外聊天用已贴链接；本平台域名上的聊天仍打开该域名购物车。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint: '填写店铺链接 → 点击输入框外（或保存设置）以应用网店加购。',
     guestPurchaseFlowSaasLinkedHint:
-      '已关联本平台网店。仅当客户在聊天中点击购买或加入购物车时打开颜色/尺码弹窗 — 无需 API 密钥。Chat mua 仍打开聊天。',
+      '已关联本平台网店。在此域名上购买/加购使用上方蓝色链接，不必粘贴。要再加站外网站：把该站购物车 URL 贴到下方绿色框。Chat mua 仍打开聊天。',
     guestPurchaseFlowDualHint:
       '店铺同时有站外网店和本平台网站。站外嵌入聊天仍用站外加购链接。在本平台域名上 Chat mua 时，购买/加购打开该域名购物车 — 两条独立分支。',
     guestPurchaseFlowNeedWebsite:
@@ -16892,12 +16892,12 @@ const JA_DICTIONARY: Dictionary = {
     guestPurchaseFlowExternalCart: 'ショップサイトでカートモーダルを開く',
     guestExternalCartUrlTemplateLabel: '外部ショップのカートURLテンプレート',
     guestExternalCartUrlTemplateHint:
-      'このプラットフォーム外のサイトのみ。{sku} 必須。例：https://188.com.vn/cart/add/{sku}?from=nanoai — 購入とカート追加だけこのURL。Chat mua と相談はチャットのまま。',
+      'NanoAI外のサイトを追加するときはここに貼る。{sku} 必須。例：https://188.com.vn/cart/add/{sku}?from=nanoai。プラットフォームのサイトだけなら空でよい — 上の青リンクで足りる。外部サイトのチャットは貼ったURL、同一ドメインのチャットはそのドメインのカート。',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       'ショップのURLを入力 → 欄の外をクリック（または設定を保存）でウェブカートを保存。',
     guestPurchaseFlowSaasLinkedHint:
-      'ショップサイトは連携済み。チャットの購入またはカート追加でのみ色・サイズモーダルが開きます（APIキー不要）。Chat mua はチャットのままです。',
+      'ショップサイトは連携済み。このドメインの購入／カート追加は青リンクを使うので貼らなくてよい。外部サイトを足すときは、そのカートURLを下の緑の欄に貼る。Chat mua はチャットのままです。',
     guestPurchaseFlowDualHint:
       '外部サイトと本プラットフォーム店の両方がある場合、外部埋め込みチャットは外部カートURLを使います。同一基盤ドメインの Chat mua ではそのドメインのカートを開きます。2系統は独立です。',
     guestPurchaseFlowNeedWebsite:
@@ -20535,12 +20535,12 @@ const KO_DICTIONARY: Dictionary = {
     guestPurchaseFlowExternalCart: '쇼핑몰 웹에서 장바구니 모달 열기',
     guestExternalCartUrlTemplateLabel: '외부 쇼핑몰 장바구니 URL 템플릿',
     guestExternalCartUrlTemplateHint:
-      '이 플랫폼 밖 사이트만. {sku} 필수. 예: https://188.com.vn/cart/add/{sku}?from=nanoai — 구매와 장바구니 담기만 이 링크. Chat mua와 상담은 채팅 유지.',
+      'NanoAI 밖 사이트를 추가할 때 여기에 붙여 넣습니다. {sku} 필수. 예: https://188.com.vn/cart/add/{sku}?from=nanoai. 플랫폼 사이트만 있으면 비워 두세요 — 위 파란 링크로 충분합니다. 외부 사이트 채팅은 붙여 넣은 링크, 같은 도메인 채팅은 그 도메인 장바구니.',
     guestExternalCartUrlTemplatePlaceholder: 'https://shop.com/cart/add/{sku}?from=nanoai',
     guestExternalCartUrlTemplateSaveHint:
       '쇼핑몰 URL 입력 → 입력란 밖 클릭(또는 설정 저장)으로 웹 장바구니 적용.',
     guestPurchaseFlowSaasLinkedHint:
-      '이 플랫폼 쇼핑몰이 이미 연결됨. 채팅에서 구매 또는 장바구니 담기를 눌렀을 때만 색상/사이즈 모달이 열립니다(API 키 없음). Chat mua는 채팅을 엽니다.',
+      '이 플랫폼 쇼핑몰이 이미 연결됨. 이 도메인의 구매/담기는 파란 링크를 쓰므로 붙여 넣을 필요 없음. 외부 사이트를 더하려면 그 장바구니 URL을 아래 초록 칸에 붙여 넣으세요. Chat mua는 채팅을 엽니다.',
     guestPurchaseFlowDualHint:
       '외부 사이트와 같은 플랫폼 스토어가 함께 있으면, 외부 사이트에 삽입된 채팅은 외부 장바구니 URL을 씁니다. 같은 플랫폼 도메인의 Chat mua는 그 도메인 장바구니를 엽니다. 두 분기는 독립입니다.',
     guestPurchaseFlowNeedWebsite:

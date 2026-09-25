@@ -5,9 +5,13 @@ import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/pa
 import { buildPartnerSiteShopThemeCss } from '@/lib/partner-website/shop/build-shop-theme-css'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { partnerSiteAddressesApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { formatPartnerChatCheckoutQuoteLine } from '@/lib/partner-website/shop/partner-site-chat-checkout-quote'
 import {
+  checkoutAddressBookInputFromOrder,
   formatPartnerSiteAddressLine,
   parsePartnerSiteAddressInput,
+  resolveCheckoutShippingProvince,
+  splitCheckoutAddressForBook,
 } from '@/lib/partner-website/shop/partner-site-customer-address'
 import { VIETNAM_PROVINCES } from '@/lib/partner-website/shop/vietnam-provinces'
 
@@ -56,6 +60,79 @@ test('format and parse customer address like 188', () => {
     street_address: '12 Lê Lợi',
     is_default: true,
   })
+})
+
+test('checkout address keeps book province and writes a new province back', () => {
+  assert.deepEqual(
+    splitCheckoutAddressForBook({
+      shippingAddress: '12 Lê Lợi, Hà Nội',
+      shippingProvince: 'Hà Nội',
+    }),
+    { street_address: '12 Lê Lợi', province: 'Hà Nội' }
+  )
+  assert.deepEqual(
+    splitCheckoutAddressForBook({ shippingAddress: 'Số nhà 9 Trần Phú, Đà Nẵng' }),
+    { street_address: 'Số nhà 9 Trần Phú', province: 'Đà Nẵng' }
+  )
+  assert.equal(
+    resolveCheckoutShippingProvince({
+      bookProvince: 'Hà Nội',
+      shippingAddress: '12 Lê Lợi, Hà Nội',
+    }),
+    'Hà Nội'
+  )
+  assert.equal(
+    resolveCheckoutShippingProvince({
+      bookProvince: 'Hà Nội',
+      shippingAddress: 'Số nhà 9 Trần Phú, Đà Nẵng',
+    }),
+    'Đà Nẵng'
+  )
+  const saved = checkoutAddressBookInputFromOrder({
+    customerName: 'Nguyễn Văn A',
+    customerPhone: '0912 345 678',
+    shippingAddress: 'Số nhà 9 Trần Phú, Đà Nẵng',
+  })
+  assert.equal(saved?.province, 'Đà Nẵng')
+  assert.equal(saved?.street_address, 'Số nhà 9 Trần Phú')
+  assert.equal(saved?.is_default, true)
+  assert.equal(
+    checkoutAddressBookInputFromOrder({
+      customerName: 'A',
+      customerPhone: '091',
+      shippingAddress: 'Đà Nẵng',
+    }),
+    null
+  )
+})
+
+test('chat checkout quote is one line without a voucher field', () => {
+  const line = formatPartnerChatCheckoutQuoteLine({
+    breakdown: {
+      listSubtotal: 1_200_000,
+      effectiveSubtotal: 1_140_000,
+      flashSaleDiscountAmount: 60_000,
+      calendarSaleDiscountAmount: 0,
+      birthdayDiscountAmount: 50_000,
+      loyaltyDiscountAmount: 0,
+    },
+    shippingFee: 30_000,
+    orderTotal: 1_120_000,
+  })
+  assert.match(line, /Hàng 1\.200\.000đ/)
+  assert.match(line, /Flash sale −60\.000đ/)
+  assert.match(line, /CMSN −50\.000đ/)
+  assert.match(line, /Ship 30\.000đ/)
+  assert.match(line, /Tổng 1\.120\.000đ/)
+  assert.doesNotMatch(line, /voucher|mã giảm|ví affiliate/i)
+  assert.equal(
+    formatPartnerChatCheckoutQuoteLine({
+      breakdown: { listSubtotal: 200_000, effectiveSubtotal: 200_000 },
+      shippingFee: 0,
+      orderTotal: 200_000,
+    }),
+    'Hàng 200.000đ · Ship 0đ · Tổng 200.000đ'
+  )
 })
 
 test('address book API path and theme tokens', () => {
