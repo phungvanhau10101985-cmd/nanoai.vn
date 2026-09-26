@@ -99,7 +99,34 @@ export function isInBirthdayOfferWindow(
   return daysUntil >= lo && daysUntil <= hi
 }
 
-/** Một lần gửi / mỗi (partner, user, năm sinh nhật sắp tới) — mail T-7. */
+/**
+ * Mail ưu đãi: một lần / năm SN khi khách đang trong cửa sổ shop cấu hình
+ * (mặc định 7 ngày, shop có thể đặt 14). Không khóa cứng đúng ngày thứ 7 —
+ * cron lỡ một ngày vẫn gửi ở lần sau, slot `bday_{ymd}` chặn trùng.
+ * Mail chúc mừng chỉ đúng ngày sinh nhật.
+ */
+export function birthdayEmailActions(input: {
+  daysUntil: number
+  offerDaysBeforeMax: number
+  offerDaysBeforeMin: number
+  force?: boolean
+}): { promo: boolean; congrats: boolean } {
+  if (input.force) return { promo: true, congrats: false }
+  return {
+    promo:
+      input.daysUntil > 0 &&
+      isInBirthdayOfferWindow(input.daysUntil, input.offerDaysBeforeMax, input.offerDaysBeforeMin),
+    congrats: input.daysUntil === 0,
+  }
+}
+
+/** Số ngày cron banner phải nhìn trước: hôm nay → mép xa cửa sổ CMSN. Mặc định 7 → 8 ngày như cũ. */
+export function birthdayBannerLookaheadDays(offerDaysBeforeMax: number): number {
+  const max = Math.max(1, Math.min(120, Math.floor(Number(offerDaysBeforeMax) || 7)))
+  return max + 1
+}
+
+/** Một lần gửi / mỗi (partner, user, năm sinh nhật sắp tới) — mail mở cửa sổ CMSN. */
 export function birthdayCampaignKey(nextBirthdayYmd: string): string {
   return `bday_${nextBirthdayYmd.replace(/-/g, '')}`
 }

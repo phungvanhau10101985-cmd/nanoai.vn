@@ -446,10 +446,13 @@ export async function findTestBirthdayPartnerMarketingBannerFromPg(input: {
 export async function listBirthdayDatesWithCustomersFromPg(input: {
   partnerId: string
   today: Date
+  /** Hôm nay cộng số ngày nhìn trước. Mặc định 8 (cửa sổ CMSN 7 ngày). */
+  horizonDays?: number
 }): Promise<Array<{ day: number; month: number }>> {
   if (!isPgConfigured()) return []
   const today = vnYmd(input.today)
-  const targets = Array.from({ length: 8 }, (_, offset) => addYmd(today, offset))
+  const horizon = Math.max(1, Math.min(121, Math.floor(Number(input.horizonDays) || 8)))
+  const targets = Array.from({ length: horizon }, (_, offset) => addYmd(today, offset))
   const pairs = new Set<string>()
   try {
     const profileRows = await pgQuery<{ month: number; day: number }>(

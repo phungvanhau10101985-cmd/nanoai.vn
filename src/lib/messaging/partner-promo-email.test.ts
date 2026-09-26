@@ -3,7 +3,7 @@ import test from 'node:test'
 import { isValidPartnerEmail, normalizeImportedEmail } from '@/lib/messaging/partner-email-normalize'
 import { cartItemSummaryLines } from '@/lib/messaging/partner-promo-email'
 import { formatPromoCopy, partnerPromoEmailCopy } from '@/lib/messaging/partner-promo-email-i18n'
-import { birthdayCampaignKey, birthdayDayCampaignKey } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
+import { birthdayBannerLookaheadDays, birthdayCampaignKey, birthdayDayCampaignKey, birthdayEmailActions } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import {
   EMAIL_WARMUP_UNLIMITED,
   partnerEmailWarmupDailyLimit,
@@ -36,6 +36,35 @@ test('promo copy fills shop name and keeps CTA structure', () => {
   assert.ok(copy.regards.length > 0)
   assert.match(formatPromoCopy(copy.birthdayDay.subject, { shop: 'Demo', name: 'An' }), /chúc mừng sinh nhật/)
   assert.match(formatPromoCopy(copy.birthdayDay.offerLine, { percent: 10 }), /10%/)
+})
+
+test('birthday promo mail follows the shop window, congrats only on the day', () => {
+  assert.deepEqual(birthdayEmailActions({ daysUntil: 14, offerDaysBeforeMax: 14, offerDaysBeforeMin: 1 }), {
+    promo: true,
+    congrats: false,
+  })
+  assert.deepEqual(birthdayEmailActions({ daysUntil: 7, offerDaysBeforeMax: 7, offerDaysBeforeMin: 1 }), {
+    promo: true,
+    congrats: false,
+  })
+  assert.deepEqual(birthdayEmailActions({ daysUntil: 14, offerDaysBeforeMax: 7, offerDaysBeforeMin: 1 }), {
+    promo: false,
+    congrats: false,
+  })
+  assert.deepEqual(birthdayEmailActions({ daysUntil: 3, offerDaysBeforeMax: 14, offerDaysBeforeMin: 1 }), {
+    promo: true,
+    congrats: false,
+  })
+  assert.deepEqual(birthdayEmailActions({ daysUntil: 0, offerDaysBeforeMax: 14, offerDaysBeforeMin: 1 }), {
+    promo: false,
+    congrats: true,
+  })
+  assert.deepEqual(
+    birthdayEmailActions({ daysUntil: 0, offerDaysBeforeMax: 14, offerDaysBeforeMin: 1, force: true }),
+    { promo: true, congrats: false }
+  )
+  assert.equal(birthdayBannerLookaheadDays(7), 8)
+  assert.equal(birthdayBannerLookaheadDays(14), 15)
 })
 
 test('birthday T-7 and T0 campaign keys are distinct', () => {

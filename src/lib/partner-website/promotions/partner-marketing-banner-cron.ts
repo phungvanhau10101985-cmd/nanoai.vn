@@ -1,4 +1,5 @@
 import { fetchBirthdayPromoForPartnerFromPg } from '@/lib/db/messaging-partner-birthday-promo-pg'
+import { birthdayBannerLookaheadDays } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import { fetchMessagingPartnerOwnerUserIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   findActivePartnerMarketingBannerFromPg,
@@ -91,7 +92,11 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     if (promo?.enabled) {
       const percent = Math.max(0, Math.min(100, Math.floor(Number(promo.discount_percent) || 0)))
       if (percent > 0) {
-        const dates = await listBirthdayDatesWithCustomersFromPg({ partnerId, today })
+        const dates = await listBirthdayDatesWithCustomersFromPg({
+          partnerId,
+          today,
+          horizonDays: birthdayBannerLookaheadDays(promo.offer_days_before_max),
+        })
         for (const target of dates) {
           await tryCreate({
             partnerId,

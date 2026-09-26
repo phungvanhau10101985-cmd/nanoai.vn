@@ -9,8 +9,8 @@ import { fetchPartnerEmailSendSettingsFromPg } from '@/lib/db/messaging-partner-
 import {
   birthdayCampaignKey,
   birthdayDayCampaignKey,
+  birthdayEmailActions,
   daysUntilNextBirthday,
-  isInBirthdayOfferWindow,
   nextBirthdayIsoFromProfileYmd,
 } from '@/lib/messaging/birthday-promo-interest-inventory-ids'
 import {
@@ -58,16 +58,20 @@ export async function runPartnerBirthdayPromoBatchForPartner(
       skipped += 1
       continue
     }
-    const sendT7 = Boolean(
-      opts?.force || (isInBirthdayOfferWindow(daysUntil, dMax, dMin) && daysUntil === 7)
-    )
-    const sendT0 = !opts?.force && daysUntil === 0
-    if (!sendT7 && !sendT0) {
+    const actions = birthdayEmailActions({
+      daysUntil,
+      offerDaysBeforeMax: dMax,
+      offerDaysBeforeMin: dMin,
+      force: opts?.force,
+    })
+    const sendPromo = actions.promo
+    const sendT0 = actions.congrats
+    if (!sendPromo && !sendT0) {
       skipped += 1
       continue
     }
 
-    if (sendT7) {
+    if (sendPromo) {
       const campaignKey = birthdayCampaignKey(nextYmd)
       const claimed = await tryClaimBirthdayEmailSlotFromPg({
         partnerId,
