@@ -247,6 +247,7 @@ export async function PartnerSiteVisualHtmlScreen({
       locale: site.locale,
       siteSlug: site.siteSlug,
       device: sourceDevice,
+      customDomain: onCustomDomain,
     })
   } catch (error) {
     console.error('[partner-site-visual] overlay failed', site.siteSlug, error)

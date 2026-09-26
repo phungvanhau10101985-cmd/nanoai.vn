@@ -214,6 +214,12 @@ export type PartnerSiteShopCopy = {
   pdpShippingFreeFrom: string
   pdpShippingPolicyLink: string
   pdpReturnsPolicyLink: string
+  pdpInStock: string
+  pdpOutOfStock: string
+  /** Trailing space so it sits inside pdpShippingNote `{free}`. */
+  pdpShipFreePhrase: string
+  pdpShipFeePhrase: string
+  pdpShipTiming: string
   pdpServiceLabel: string
   pdpServiceNote: string
   pdpNotesTitle: string
@@ -921,6 +927,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShippingFreeFrom: 'Miễn phí đơn từ {amount}. ',
     pdpShippingPolicyLink: 'Chính sách giao hàng',
     pdpReturnsPolicyLink: 'Chính sách đổi trả',
+    pdpInStock: 'Còn hàng',
+    pdpOutOfStock: 'Hết hàng',
+    pdpShipFreePhrase: 'Phí giao: miễn phí. ',
+    pdpShipFeePhrase: 'Phí giao: {amount}. ',
+    pdpShipTiming: 'Thời gian xử lý và vận chuyển:',
     pdpServiceLabel: 'Dịch vụ',
     pdpServiceNote: 'Thanh toán khi nhận hàng, đổi size nếu không vừa, xem hàng trước khi nhận.',
     pdpNotesTitle: 'Lưu ý',
@@ -1620,6 +1631,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShippingFreeFrom: 'Free shipping from {amount}. ',
     pdpShippingPolicyLink: 'Shipping policy',
     pdpReturnsPolicyLink: 'Returns policy',
+    pdpInStock: 'In stock',
+    pdpOutOfStock: 'Out of stock',
+    pdpShipFreePhrase: 'Delivery fee: free. ',
+    pdpShipFeePhrase: 'Delivery fee: {amount}. ',
+    pdpShipTiming: 'Handling and delivery time:',
     pdpServiceLabel: 'Service',
     pdpServiceNote: 'Pay on delivery, exchange size if it does not fit, inspect before accepting.',
     pdpNotesTitle: 'Notes',
@@ -2317,6 +2333,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShippingFreeFrom: '满 {amount} 包邮。 ',
     pdpShippingPolicyLink: '配送政策',
     pdpReturnsPolicyLink: '退换政策',
+    pdpInStock: '有货',
+    pdpOutOfStock: '缺货',
+    pdpShipFreePhrase: '运费：免运费。',
+    pdpShipFeePhrase: '运费：{amount}。',
+    pdpShipTiming: '处理与配送时间：',
     pdpServiceLabel: '服务',
     pdpServiceNote: '货到付款，尺码不合适可换，收货前可验货。',
     pdpNotesTitle: '提示',
@@ -3011,6 +3032,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShippingFreeFrom: '{amount}以上で送料無料。 ',
     pdpShippingPolicyLink: '配送ポリシー',
     pdpReturnsPolicyLink: '返品ポリシー',
+    pdpInStock: '在庫あり',
+    pdpOutOfStock: '在庫なし',
+    pdpShipFreePhrase: '送料：無料。',
+    pdpShipFeePhrase: '送料：{amount}。',
+    pdpShipTiming: '処理・配送時間：',
     pdpServiceLabel: 'サービス',
     pdpServiceNote: '代金引換、サイズ交換、受取前の確認が可能です。',
     pdpNotesTitle: 'ご注意',
@@ -3707,6 +3733,11 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     pdpShippingFreeFrom: '{amount} 이상 무료 배송. ',
     pdpShippingPolicyLink: '배송 정책',
     pdpReturnsPolicyLink: '반품 정책',
+    pdpInStock: '재고 있음',
+    pdpOutOfStock: '품절',
+    pdpShipFreePhrase: '배송비: 무료. ',
+    pdpShipFeePhrase: '배송비: {amount}. ',
+    pdpShipTiming: '처리 및 배송 시간:',
     pdpServiceLabel: '서비스',
     pdpServiceNote: '착불 결제, 사이즈 교환, 수령 전 확인 가능.',
     pdpNotesTitle: '안내',

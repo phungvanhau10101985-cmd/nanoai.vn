@@ -1,11 +1,8 @@
 import type { WebLocale } from '@/lib/i18n/config'
 import {
-  partnerSiteKhoSalePath,
-  partnerSiteProductsPath,
-} from '@/lib/partner-website/shop/partner-site-shop-paths'
-import {
   PARTNER_MARKETING_BANNER_CAROUSEL_MS,
   PARTNER_MARKETING_BANNER_SLIDE_ORDER,
+  partnerMarketingBannerPublicHref,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import {
   PW_SLIDER_ARROW_NEXT_HTML,
@@ -443,7 +440,7 @@ function bannerCopyHtml(copy: PromoSlotCopy, href: string): string {
 }
 
 function promoSlotHref(slot: (typeof PARTNER_MARKETING_BANNER_SLIDE_ORDER)[number], siteSlug: string): string {
-  return slot === 'warehouse' ? partnerSiteKhoSalePath(siteSlug) : partnerSiteProductsPath(siteSlug)
+  return partnerMarketingBannerPublicHref(slot, siteSlug)
 }
 
 function buildUnifiedPromoSlidesHtml(siteSlug: string, locale: WebLocale): string {

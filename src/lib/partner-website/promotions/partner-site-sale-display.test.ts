@@ -190,6 +190,9 @@ test('sale copy names the program, savings, and countdown prefix', () => {
   assert.match(PW_SITE_SALE_CARD_CSS, /pw-badge-sale-flash/)
   assert.match(PW_SITE_SALE_CARD_CSS, /#e11d48/)
   assert.match(PW_SITE_SALE_CARD_CSS, /#db2777/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /\.pw-card-promo-badges\{[^}]*left:8px/)
+  assert.match(PW_SITE_SALE_CARD_CSS, /\.pw-badge-birthday\{[^}]*left:8px/)
+  assert.doesNotMatch(PW_SITE_SALE_CARD_CSS, /\.pw-badge-birthday\{[^}]*right:8px/)
 })
 
 test('birthday offer is a checkout hint and does not change unit price', () => {

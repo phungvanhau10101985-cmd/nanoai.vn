@@ -18,6 +18,10 @@ import {
 import { productToConsultContext } from '@/lib/partner-website/shop/partner-site-chat-embed'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  buildPartnerPdpMerchantFacts,
+  type PartnerPdpMerchantFacts,
+} from '@/lib/partner-website/shop/partner-site-pdp-merchant-facts'
+import {
   partnerSiteCartPath,
   partnerSiteCategoryPath,
   partnerSiteHomePath,
@@ -93,6 +97,10 @@ type Props = {
   shippingFreeThreshold?: number | null
   pdpStory?: PdpLadipageStory | null
   offerLine?: string | null
+  /** Feed rule from the raw row. Null stock stays in stock. */
+  inStock?: boolean
+  /** null = fee unknown. 0 = free delivery. */
+  shippingFeeAmount?: number | null
 }
 
 /** W1.6 — chỉ hiện cảnh báo "sắp hết hàng" khi tồn kho THẤP nhưng > 0, không hiện khi = 0. */
@@ -161,6 +169,21 @@ function hideBrokenPdpImage(ev: { currentTarget: HTMLImageElement }) {
   }
 }
 
+function PartnerSitePdpMerchantFacts({ facts }: { facts: PartnerPdpMerchantFacts }) {
+  return (
+    <div className="pw-pdp-merchant-facts" data-pw-pdp-slot="merchant-facts">
+      <p data-pw-merchant-availability={facts.availability}>{facts.availabilityLabel}</p>
+      <p>{facts.note}</p>
+      <p>
+        {facts.timingLabel} <a href={facts.shippingHref}>{facts.shippingLabel}</a>
+      </p>
+      <p>
+        <a href={facts.returnsHref}>{facts.returnsLabel}</a>
+      </p>
+    </div>
+  )
+}
+
 function IconHeart({ filled }: { filled: boolean }) {
   return (
     <svg width={17} height={17} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" aria-hidden>
@@ -178,6 +201,8 @@ export function PartnerSiteShopProductClient({
   ratingSummary = null,
   pdpStory = null,
   offerLine = null,
+  inStock,
+  shippingFeeAmount = null,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const router = useRouter()
@@ -389,6 +414,14 @@ export function PartnerSiteShopProductClient({
   const sizeOptions = options?.sizes?.length ? options.sizes : product.sizes
   const colorOptions = options?.colors?.length ? options.colors : product.colors
   const custom = Boolean(customDomain)
+  const merchantFacts = buildPartnerPdpMerchantFacts({
+    locale,
+    siteSlug,
+    customDomain: custom,
+    stockQty: product.stockQty,
+    inStock,
+    shippingFeeAmount,
+  })
   const sizeGuideKind = resolvePartnerSizeGuideKind({
     categoryPath: product.categoryPath,
     categoryL1: product.categoryL1,
@@ -977,6 +1010,7 @@ export function PartnerSiteShopProductClient({
           ) : null}
 
           {offerLine ? <PartnerSitePdpOfferLine line={offerLine} /> : null}
+          <PartnerSitePdpMerchantFacts facts={merchantFacts} />
 
           {product.stockQty > 0 && product.stockQty <= LOW_STOCK_URGENCY_THRESHOLD ? (
             <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>

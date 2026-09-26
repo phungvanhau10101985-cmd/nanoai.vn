@@ -31,6 +31,11 @@ import {
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import {
+  buildPartnerPdpMerchantFacts,
+  renderPartnerPdpMerchantFactsHtml,
+} from '@/lib/partner-website/shop/partner-site-pdp-merchant-facts'
+import { partnerSiteProductMetaDescription } from '@/lib/partner-website/shop/partner-site-product-jsonld'
+import {
   buildOutfitProductsSectionHtml,
   isOutfitCatalogOpenTag,
   outfitCardHtml,
@@ -132,6 +137,10 @@ export type LivePdpBindProduct = {
   sizeGuideImageUrl?: string | null
   depositPolicy?: boolean | null
   stockQty?: number | null
+  /** Raw feed rule. Wins over stockQty so null stock stays in stock. */
+  inStock?: boolean | null
+  /** null/undefined = fee unknown, omit the fee phrase. 0 = free. */
+  shippingFeeAmount?: number | null
   sizes?: string[] | null
   colors?: LivePdpBindColor[] | null
   brandName?: string | null
@@ -1384,11 +1393,71 @@ function insertAfterOpen(html: string, tagRe: RegExp, chunk: string): string {
   return html.slice(0, at) + chunk + html.slice(at)
 }
 
+function insertPdpMerchantFacts(
+  html: string,
+  product: LivePdpBindProduct,
+  locale: WebLocale,
+  siteSlug?: string | null,
+  customDomain?: boolean
+): string {
+  const block = renderPartnerPdpMerchantFactsHtml(
+    buildPartnerPdpMerchantFacts({
+      locale,
+      siteSlug,
+      customDomain,
+      stockQty: product.stockQty,
+      inStock: product.inStock,
+      shippingFeeAmount: product.shippingFeeAmount,
+    })
+  )
+  const dropped = dropAttrBlocks(html, 'data-pw-pdp-slot', 'merchant-facts')
+  const afterPriceCard = dropped.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${block}`)
+  if (afterPriceCard !== dropped) return afterPriceCard
+  const afterPrice = dropped.replace(
+    /(<[^>]*\bdata-pw-el=["']price["'][^>]*>[\s\S]*?<\/[a-z0-9]+>)/i,
+    `$1${block}`
+  )
+  if (afterPrice !== dropped) return afterPrice
+  if (/data-pw-region=["']pdp-info["']/i.test(dropped)) {
+    return dropped.replace(/(<[^>]*\bdata-pw-region=["']pdp-info["'][^>]*>)/i, `$1${block}`)
+  }
+  return `${dropped}${block}`
+}
+
+function stampNamedMeta(html: string, attr: 'name' | 'property', key: string, content: string): string {
+  const safe = escAttr(content)
+  const re = new RegExp(`<meta\\b[^>]*\\b${attr}=["']${key}["'][^>]*>`, 'i')
+  const tag = html.match(re)?.[0]
+  if (!tag) return html
+  const next = /\bcontent\s*=/i.test(tag)
+    ? tag.replace(/\bcontent\s*=\s*(["'])[\s\S]*?\1/i, `content="${safe}"`)
+    : tag.replace(/\/?>$/, ` content="${safe}">`)
+  return html.replace(tag, next)
+}
+
+function stampPdpMetaDescription(html: string, product: LivePdpBindProduct): string {
+  const description = partnerSiteProductMetaDescription({
+    name: product.name,
+    description: product.description,
+  })
+  if (!description) return html
+  let out = stampNamedMeta(html, 'name', 'description', description)
+  out = stampNamedMeta(out, 'property', 'og:description', description)
+  out = stampNamedMeta(out, 'name', 'twitter:description', description)
+  if (out !== html) return out
+  if (/<meta\b[^>]*\bname=["']description["']/i.test(html)) return out
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `<meta name="description" content="${escAttr(description)}"></head>`)
+  }
+  return html
+}
+
 function ensureMissingPdpSlots(
   html: string,
   product: LivePdpBindProduct,
   locale: WebLocale,
-  siteSlug?: string | null
+  siteSlug?: string | null,
+  customDomain?: boolean
 ): string {
   const t = getPartnerSiteShopCopy(locale)
   const name = product.name || 'Product'
@@ -1492,6 +1561,7 @@ function ensureMissingPdpSlots(
     const badge = `<span class="pw-shop-urgency-badge" data-pw-el="${PW_EL.badge}" data-pw-pdp-slot="low-stock">${escText(t.lowStockUrgency.replace('{n}', String(stock)))}</span>`
     out = out.replace(/(<[^>]*\bpw-pdp-price-card\b[^>]*>[\s\S]*?<\/div>)/i, `$1${badge}`)
   }
+  out = insertPdpMerchantFacts(out, product, locale, siteSlug, customDomain)
   if (!/\bpw-pdp-stats\b/.test(out) && /\bpw-pdp-title\b/.test(out)) {
     const stats = `<div class="pw-pdp-stats" data-pw-pdp-slot="stats">${pdpStatsInnerHtml(product, locale)}</div>`
     if (/\bpw-pdp-sku\b/.test(out)) {
@@ -1642,7 +1712,12 @@ function ensureMissingPdpSlots(
 export function bindLiveProductToPdpHtml(
   html: string,
   product: LivePdpBindProduct | null | undefined,
-  opts?: { locale?: WebLocale; siteSlug?: string | null; device?: VisualDeviceVariant | null }
+  opts?: {
+    locale?: WebLocale
+    siteSlug?: string | null
+    device?: VisualDeviceVariant | null
+    customDomain?: boolean
+  }
 ): string {
   const source = html.trim()
   const id = String(product?.id || '').trim()
@@ -1690,7 +1765,8 @@ export function bindLiveProductToPdpHtml(
     if (!isRelatedCatalogOpenTag(open)) return `${open}${inner}`
     return `${stampRelatedOpenTag(open, product, siteSlug)}${rewriteCatalogRelatedInner(inner, product, locale, siteSlug)}`
   })
-  out = ensureMissingPdpSlots(out, product, locale, siteSlug)
+  out = ensureMissingPdpSlots(out, product, locale, siteSlug, Boolean(opts?.customDomain))
+  out = stampPdpMetaDescription(out, product)
   const sizeGuideKind = partnerHasProductSizes(product.sizes) ? pdpSizeGuideKindOf(product) : null
   const leftoverSizeGuidePhotos = [
     product.materialImageUrl,

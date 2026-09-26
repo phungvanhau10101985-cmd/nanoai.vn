@@ -5,7 +5,7 @@ import { fetchRelatedShopProducts, resolveRelatedProductContext } from '@/lib/pa
 import { readPartnerCustomDomainFromHeaders } from '@/lib/auth/app-request-headers'
 import { buildMetadata } from '@/lib/seo'
 import { buildPartnerSiteMetadata } from '@/lib/partner-website/shop/partner-site-seo-metadata'
-import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryRowToShopProduct, inventoryShopDisplayDescription } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 import { peekSiteVisitorAccountKey } from '@/lib/partner-website/shop/partner-site-personalization'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
@@ -32,6 +32,11 @@ import { loadPublishedPdpLadipageStory } from '@/lib/partner-website/shop/load-p
 import { formatPdpOfferLine } from '@/lib/partner-website/shop/pdp-ladipage-copy'
 import { buildPdpLadipageFaqJsonLd } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
+import { catalogFeedIsInStock } from '@/lib/messaging/catalog-feed-shared'
+import {
+  buildPartnerSiteProductJsonLd,
+  partnerSiteProductMetaDescription,
+} from '@/lib/partner-website/shop/partner-site-product-jsonld'
 import {
   resolvePartnerCategoryAncestors,
   resolvePartnerCategoryDisplayName,
@@ -65,11 +70,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const canonicalKey = row
     ? buildPartnerSiteProductKey(row.name, row.id)
     : inventoryId
+  const description = partnerSiteProductMetaDescription({
+    name: product?.name,
+    description: row ? inventoryShopDisplayDescription(row) : '',
+    siteName: shop.site.title,
+  })
   return buildPartnerSiteMetadata({
     siteSlug: shop.site.siteSlug,
     siteName: shop.site.title,
     title: product ? `${product.name} — ${shop.site.title}` : shop.site.title,
-    description: product?.description || shop.site.partnerDisplayName,
+    description: description || shop.site.title,
     path: `/products/${canonicalKey}`,
     image: product?.imageUrl,
   })
@@ -122,7 +132,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const mapped = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
   if (!mapped) notFound()
   let guestEmail: string | null = null
-  const [faced, visualDoc, savedOutfit] = await Promise.all([
+  const [faced, visualDoc, savedOutfit, ratingSummary, paymentSettings] = await Promise.all([
     guestEmailPromise.then((email) => {
       guestEmail = email
       return applyPartnerStorefrontSaleFaces([{ ...mapped, isClearance: row.is_clearance === true }], {
@@ -135,25 +145,57 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     }),
     visualDocPromise,
     savedOutfitPromise,
+    fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id),
+    fetchPartnerPaymentSettingsFromPg(shop.partnerId),
   ])
   const product = faced[0]
   if (!product) notFound()
   const outfitBind = outfitSuggestionsToBind(savedOutfit)
+  const inStock = catalogFeedIsInStock({ stock_qty: row.stock_qty ?? null })
+  const shippingFeeAmount = paymentSettings ? paymentSettings.shipping_fee_amount : null
+  const productUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, `/products/${canonicalKey}`)
+  const effectivePrice = resolvePartnerEffectiveUnitPrice({
+    priceAmount: product.priceAmount ?? row.price_amount,
+    salePriceAmount: product.salePriceAmount ?? row.sale_price_amount ?? null,
+    saleStartsAt: product.saleStartsAt ?? row.sale_starts_at ?? null,
+    saleEndsAt: product.saleEndsAt ?? row.sale_ends_at ?? null,
+  })
+  const productJsonLd = buildPartnerSiteProductJsonLd({
+    name: product.name,
+    description: product.description || inventoryShopDisplayDescription(row),
+    images: [product.imageUrl, ...product.galleryImages],
+    url: productUrl,
+    sku: product.sku,
+    brandName: (product.brandName || row.brand_name || '').trim(),
+    sellerName: shop.site.partnerDisplayName || shop.site.title,
+    price: effectivePrice,
+    priceCurrency: row.price_currency || 'VND',
+    inStock,
+    shippingFeeAmount,
+    returnPolicyUrl: resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/returns'),
+    rating: ratingSummary,
+  })
+  const liveProduct = {
+    ...product,
+    inStock,
+    shippingFeeAmount,
+    relatedProducts: [],
+    outfitTitle: outfitBind.title,
+    outfitSlots: outfitBind.slots,
+  }
 
   if (visualDoc) {
     return (
-      <PartnerSiteVisualHtmlScreen
-        site={shop.site}
-        html={visualDoc.html}
-        device={visualDoc.sourceDevice}
-        infoSeo={{ pageKey: 'product_detail' }}
-        liveProduct={{
-          ...product,
-          relatedProducts: [],
-          outfitTitle: outfitBind.title,
-          outfitSlots: outfitBind.slots,
-        }}
-      />
+      <>
+        <JsonLd data={productJsonLd} />
+        <PartnerSiteVisualHtmlScreen
+          site={shop.site}
+          html={visualDoc.html}
+          device={visualDoc.sourceDevice}
+          infoSeo={{ pageKey: 'product_detail' }}
+          liveProduct={liveProduct}
+        />
+      </>
     )
   }
 
@@ -180,93 +222,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     categoryPath: relatedCtx.categoryPath,
   }
 
-  // S0.6 — Product JSON-LD. Chỉ đưa `offers` khi có giá số thật (price_amount, W4.10) —
-  // không suy đoán giá từ price_hint text để tránh dữ liệu structured data sai lệch.
-  // `aggregateRating` TÍNH THẬT từ bảng review (W1.5) — chỉ đưa vào khi có ít nhất 1 review thật,
-  // khác 188 (hiển thị field ảo không liên quan review thật, xem docs/188_BEHAVIOR_SPEC.md mục C.1).
-  const productUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, `/products/${canonicalKey}`)
-  const [ratingSummary, paymentSettings, pdpStory] = await Promise.all([
-    fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id),
-    fetchPartnerPaymentSettingsFromPg(shop.partnerId),
-    loadPublishedPdpLadipageStory(shop.partnerId, row.id).catch(() => null),
-  ])
-  const effectivePrice = resolvePartnerEffectiveUnitPrice({
-    priceAmount: product.priceAmount ?? row.price_amount,
-    salePriceAmount: product.salePriceAmount ?? row.sale_price_amount ?? null,
-    saleStartsAt: product.saleStartsAt ?? row.sale_starts_at ?? null,
-    saleEndsAt: product.saleEndsAt ?? row.sale_ends_at ?? null,
-  })
-  const shippingFee = Math.max(0, Math.round(paymentSettings?.shipping_fee_amount ?? 0))
-  const returnPolicyUrl = resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/pages/return-policy')
-  const productJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.name,
-    description: product.description || undefined,
-    image: [product.imageUrl, ...product.galleryImages].filter(Boolean),
-    url: productUrl,
-    sku: product.sku || undefined,
-    brand: { '@type': 'Brand', name: (product.brandName || row.brand_name || '').trim() || shop.site.title },
-    ...(effectivePrice != null
-      ? {
-          offers: {
-            '@type': 'Offer',
-            url: productUrl,
-            priceCurrency: row.price_currency || 'VND',
-            price: effectivePrice,
-            availability: product.stockQty > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
-            seller: { '@type': 'Organization', name: shop.site.partnerDisplayName || shop.site.title },
-            shippingDetails: {
-              '@type': 'OfferShippingDetails',
-              shippingRate: {
-                '@type': 'MonetaryAmount',
-                value: shippingFee,
-                currency: row.price_currency || 'VND',
-              },
-              shippingDestination: {
-                '@type': 'DefinedRegion',
-                addressCountry: 'VN',
-              },
-              deliveryTime: {
-                '@type': 'ShippingDeliveryTime',
-                handlingTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 1,
-                  maxValue: 3,
-                  unitCode: 'DAY',
-                },
-                transitTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 2,
-                  maxValue: 7,
-                  unitCode: 'DAY',
-                },
-              },
-            },
-            hasMerchantReturnPolicy: {
-              '@type': 'MerchantReturnPolicy',
-              applicableCountry: 'VN',
-              returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-              merchantReturnDays: 7,
-              returnMethod: 'https://schema.org/ReturnByMail',
-              returnFees: 'https://schema.org/ReturnFeesCustomerResponsibility',
-              url: returnPolicyUrl,
-            },
-          },
-        }
-      : {}),
-    ...(ratingSummary.total > 0
-      ? {
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: ratingSummary.average,
-            reviewCount: ratingSummary.total,
-            bestRating: 5,
-            worstRating: 1,
-          },
-        }
-      : {}),
-  }
+  const pdpStory = await loadPublishedPdpLadipageStory(shop.partnerId, row.id).catch(() => null)
 
   // S0.6 (bổ sung) — BreadcrumbList JSON-LD trên PDP, đối chiếu 188 phát hiện đang thiếu.
   // Dùng danh mục CHÍNH (is_primary) gán cho sản phẩm (W4.2) — nếu SP chưa gán danh mục nào
@@ -336,6 +292,8 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
         ratingSummary={ratingSummary}
         shippingFreeThreshold={paymentSettings?.shipping_free_threshold_amount ?? null}
         pdpStory={pdpStory}
+        inStock={inStock}
+        shippingFeeAmount={shippingFeeAmount}
         offerLine={
           paymentSettings
             ? formatPdpOfferLine({

@@ -171,21 +171,22 @@ function priceHtml(p){
   return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
 }
 function saleBadgeHtml(sale, opts, p){
-  var out='';
+  var badges='';
+  var chip='';
   if(sale&&sale.badge){
     var chipKind=sale.promoKind==='flash'?'flash':sale.kind;
     var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:String((sale.kind==='active'?COPY.countdownLeft:COPY.countdownStarts)||'').replace('{label}',sale.program||'');
-    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+esc(sale.program||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
-    out='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+esc(sale.badge)+'</span>'+chip;
+    chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+esc(sale.countdown)+'" data-pw-sale-phase="'+esc(sale.kind)+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+esc(sale.program||'')+'">'+esc(chipLabel)+' <span data-pw-sale-hms></span></span>':'';
+    badges='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+esc(sale.badge)+'</span>';
   }else if(opts&&opts.newBadge){
-    out='<span class="pw-badge-new">NEW</span>';
+    badges='<span class="pw-badge-new">NEW</span>';
   }
   var bdayPct=Math.max(0,Math.round(Number((p&&p.birthdayOfferPercent)||(p&&p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
   if(bdayPct>0&&!(p&&p.isClearance===true)){
     var bdayBadge=String(COPY.birthdayBadge||'').replace('{pct}',String(bdayPct));
-    if(bdayBadge)out+='<span class="pw-badge-birthday">'+esc(bdayBadge)+'</span>';
+    if(bdayBadge)badges+='<span class="pw-badge-birthday">'+esc(bdayBadge)+'</span>';
   }
-  return out;
+  return (badges?'<div class="pw-card-promo-badges">'+badges+'</div>':'')+chip;
 }
 ${PW_PRODUCT_GRID_PAGE_JS}
 ${PW_SHOP_CARD_IMG_JS}

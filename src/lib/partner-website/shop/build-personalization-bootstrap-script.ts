@@ -367,21 +367,22 @@ function priceHtml(p){
   return '<span class="pw-price-sale">'+sale.price+'</span> <del class="pw-price-compare">'+sale.compare+'</del>'+(sale.savings?'<small class="pw-price-save">'+(COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings)+'</small>':'');
 }
 function saleBadgeHtml(sale,badge,p){
-  var out='';
+  var badges='';
+  var chip='';
   if(sale&&sale.badge){
     var chipKind=sale.promoKind==='flash'?'flash':sale.kind;
     var chipLabel=sale.promoKind==='flash'?COPY.flashRemaining:String((sale.kind==='active'?COPY.countdownLeft:COPY.countdownStarts)||'').replace('{label}',sale.program||'');
-    var chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+(sale.program||'').replace(/"/g,'')+'">'+chipLabel+' <span data-pw-sale-hms></span></span>':'';
-    out='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+sale.badge+'</span>'+chip;
+    chip=sale.countdown&&sale.promoKind!=='clearance'?'<span class="pw-sale-chip pw-sale-chip-'+chipKind+'" data-pw-sale-countdown="'+String(sale.countdown).replace(/"/g,'')+'" data-pw-sale-phase="'+sale.kind+'" data-pw-sale-kind="'+(sale.promoKind||'')+'" data-pw-sale-label="'+(sale.program||'').replace(/"/g,'')+'">'+chipLabel+' <span data-pw-sale-hms></span></span>':'';
+    badges='<span class="pw-badge-sale pw-badge-sale-'+sale.kind+(sale.promoKind?' pw-badge-sale-'+sale.promoKind:'')+'">'+sale.badge+'</span>';
   } else if(badge){
-    out='<span class="pw-for-you-badge">'+COPY.forYou+'</span>';
+    badges='<span class="pw-for-you-badge">'+COPY.forYou+'</span>';
   }
   var bdayPct=Math.max(0,Math.round(Number((p&&p.birthdayOfferPercent)||(p&&p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
   if(bdayPct>0&&!(p&&p.isClearance===true)){
     var bdayBadge=String(COPY.birthdayBadge||'').replace('{pct}',String(bdayPct));
-    if(bdayBadge)out+='<span class="pw-badge-birthday">'+bdayBadge+'</span>';
+    if(bdayBadge)badges+='<span class="pw-badge-birthday">'+bdayBadge+'</span>';
   }
-  return out;
+  return (badges?'<div class="pw-card-promo-badges">'+badges+'</div>':'')+chip;
 }
 function recHeartSvg(){
   return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
@@ -403,7 +404,11 @@ function renderRecommendedCard(p,badge){
   var img=shopImg(p).replace(/"/g,'&quot;');
   var sale=saleView(p);
   var mark=saleBadgeHtml(sale,false,p);
-  if(badge)mark='<span class="pw-rec-badge">'+COPY.recBadge+'</span>'+mark;
+  if(badge){
+    var rec='<span class="pw-rec-badge">'+COPY.recBadge+'</span>';
+    if(mark.indexOf('pw-card-promo-badges')>=0)mark=mark.replace('<div class="pw-card-promo-badges">','<div class="pw-card-promo-badges">'+rec);
+    else mark='<div class="pw-card-promo-badges">'+rec+'</div>'+mark;
+  }
   var price=priceHtml(p);
   var fav=listingFavHtml(id);
   return '<article class="pw-product-card pw-rec-card" data-pw-el="card" data-inventory-id="'+id+'" data-pw-actions-ready="1"><div class="pw-product-card-media" data-pw-el="card-media">'+mark+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></div><div class="pw-product-card-body"><h3 data-pw-el="card-name"><a href="'+href+'">'+name+'</a></h3>'+(price?'<p class="pw-price" data-pw-el="card-price">'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+href+'" aria-label="'+name+'" tabindex="-1"></a>'+fav+'</article>';

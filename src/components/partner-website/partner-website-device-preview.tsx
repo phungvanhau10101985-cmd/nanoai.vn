@@ -532,9 +532,9 @@ export const PartnerWebsiteDevicePreview = forwardRef<
     const cmsSlug = pick?.cmsSlug === undefined ? previewCmsSlug : pick.cmsSlug
     const bound =
       pageKey === 'product_detail'
-        ? bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT, { locale })
+        ? bindLiveProductToPdpHtml(html, DEMO_PDP_BIND_PRODUCT, { locale, siteSlug })
         : productId && previewProduct?.id === productId
-          ? bindLiveProductToPdpHtml(html, previewProduct, { locale })
+          ? bindLiveProductToPdpHtml(html, previewProduct, { locale, siteSlug })
           : html
     return preparePartnerVisualHtmlForEditor(bound, {
       variant: editVariant,

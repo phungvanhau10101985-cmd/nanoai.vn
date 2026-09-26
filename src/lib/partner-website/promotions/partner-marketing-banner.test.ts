@@ -12,6 +12,7 @@ import {
   partnerMarketingBannerDateKey,
   partnerMarketingBannerDateKeyForKind,
   partnerMarketingBannerGreeting,
+  ensureRecommendedGridAnchorInHtml,
   partnerMarketingBannerPublicHref,
   partnerMarketingBannerVisitorCanSeeBirthday,
   partnerSaleBannerLookupDate,
@@ -37,8 +38,17 @@ test('campaign key is stable per kind/date/percent', () => {
   assert.equal(partnerMarketingBannerDateKeyForKind('regular', 9, 9), PARTNER_MARKETING_BANNER_REGULAR_DATE_KEY)
   assert.match(newPartnerMarketingBannerRegularCampaignKey(), /^regular-[0-9a-f-]{36}$/i)
   assert.equal(partnerMarketingBannerPublicHref('warehouse', 'demo-shop'), '/site/demo-shop/kho-sale')
+  assert.equal(partnerMarketingBannerPublicHref('birthday', 'demo-shop'), '/site/demo-shop#pw-grid-recommended')
   assert.equal(partnerMarketingBannerPublicHref('sale', 'demo-shop'), '/site/demo-shop/products')
   assert.equal(partnerMarketingBannerPublicHref('regular', 'demo-shop'), '/site/demo-shop/products')
+  const stamped = ensureRecommendedGridAnchorInHtml(
+    '<section data-pw-personalize="recommended" id="recommended-for-you"></section>'
+  )
+  assert.match(stamped, /id="pw-grid-recommended"/)
+  assert.equal(
+    ensureRecommendedGridAnchorInHtml('<section id="pw-grid-recommended" data-pw-personalize="recommended"></section>'),
+    '<section id="pw-grid-recommended" data-pw-personalize="recommended"></section>'
+  )
   assert.deepEqual(parsePartnerMarketingBannerDateKey('09-05'), { day: 5, month: 9 })
   assert.deepEqual(parsePartnerMarketingBannerDateKey('02-29'), { day: 29, month: 2 })
   assert.equal(parsePartnerMarketingBannerDateKey('9/5'), null)
@@ -196,6 +206,7 @@ test('resolveCurrent appends slides in 188 order then regular last', () => {
     items.map((item) => item.kind),
     ['birthday', 'sale', 'warehouse', 'regular', 'regular']
   )
+  assert.equal(items[0]?.href, '/site/demo-shop#pw-grid-recommended')
   assert.equal(items[2]?.href, '/site/demo-shop/kho-sale')
   assert.equal(items[3]?.href, '/site/demo-shop/products')
   assert.deepEqual(

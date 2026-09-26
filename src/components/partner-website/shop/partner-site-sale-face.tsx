@@ -213,10 +213,16 @@ export function PartnerSiteSaleMediaMarks({
       ? null
       : partnerSiteBirthdayBadgeText(product.birthdayOfferPercent, locale)
   if (!face.kind && !birthdayBadge) return null
+  const cornerBadges =
+    (face.kind && face.badge) || birthdayBadge ? (
+      <div className="pw-card-promo-badges">
+        {face.kind && face.badge ? <PartnerSiteSaleBadge face={face} /> : null}
+        {birthdayBadge ? <span className="pw-badge-birthday">{birthdayBadge}</span> : null}
+      </div>
+    ) : null
   return (
     <>
-      {face.kind && face.badge ? <PartnerSiteSaleBadge face={face} /> : null}
-      {birthdayBadge ? <span className="pw-badge-birthday">{birthdayBadge}</span> : null}
+      {cornerBadges}
       {face.kind && face.countdownTo && face.promoKind !== 'clearance' ? (
         <PartnerSiteSaleCountdown
           countdownTo={face.countdownTo}

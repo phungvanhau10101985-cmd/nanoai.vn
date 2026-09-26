@@ -166,6 +166,18 @@ function applyCommonResponseHeaders(response: NextResponse, request: NextRequest
   }
 }
 
+/** `/robots.txt` stays on the host file, but still needs the shop host for Host/Sitemap. */
+function nextOnCustomDomain(request: NextRequest, host: string, siteSlug: string): NextResponse {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set(PARTNER_CUSTOM_DOMAIN_HEADER, host)
+  applyPartnerSiteSlugHeader(requestHeaders, request.nextUrl.pathname, siteSlug)
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
+  applyCommonResponseHeaders(response, request, host)
+  const cookieLocale = localeFromRequestCookies(request)
+  mirrorLocaleCookies(response, cookieLocale || DEFAULT_WEB_LOCALE)
+  return response
+}
+
 function rewritePublishedCustomDomain(
   request: NextRequest,
   host: string,
@@ -179,7 +191,10 @@ function rewritePublishedCustomDomain(
     return NextResponse.redirect(redirectUrl, 308)
   }
   const internalPath = mapPartnerCustomDomainPathToInternal(siteSlug, path)
-  if (!internalPath) return null
+  if (!internalPath) {
+    if (path === '/robots.txt') return nextOnCustomDomain(request, host, siteSlug)
+    return null
+  }
   const rewriteUrl = request.nextUrl.clone()
   rewriteUrl.pathname = internalPath
   return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath, siteSlug)

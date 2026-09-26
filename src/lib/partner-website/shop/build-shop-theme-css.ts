@@ -795,6 +795,9 @@ html[data-pw-listing-category="1"] .pw-shop-category-hub,
 .pw-pdp-star{color:#f59e0b}
 .pw-pdp-price-card{margin-top:14px;padding:14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--pw-primary) 18%,var(--pw-border));background:color-mix(in srgb,var(--pw-primary) 8%,#fff)}
 .pw-pdp-price-card .pw-shop-price{margin:0;font-size:1.45rem;line-height:1.2}
+.pw-pdp-merchant-facts{margin:10px 0 0;font-size:13px;line-height:1.45;color:var(--pw-muted)}
+.pw-pdp-merchant-facts p{margin:0 0 6px}
+.pw-pdp-merchant-facts a{color:var(--pw-primary);font-weight:600}
 .pw-pdp-compare{margin-left:8px;text-decoration:line-through;font-size:1rem;font-weight:600;color:var(--pw-muted)}
 .pw-pdp-save{margin:6px 0 0;font-size:12px;font-weight:700;color:#059669}
 .pw-pdp-policy{margin-top:14px;padding-top:14px;border-top:1px solid var(--pw-border);font-size:12px;line-height:1.6;color:var(--pw-text)}

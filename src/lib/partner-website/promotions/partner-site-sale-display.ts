@@ -905,7 +905,9 @@ export function formatPartnerSaleMoney(amount: number, locale: WebLocale) {
 }
 
 export const PW_SITE_SALE_CARD_CSS = [
-  '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;max-width:calc(100% - 52px);white-space:normal}',
+  '.pw-card-promo-badges{position:absolute;top:8px;left:8px;z-index:3;display:flex;flex-direction:column;align-items:flex-start;gap:4px;max-width:calc(100% - 56px);pointer-events:none}',
+  '.pw-card-promo-badges .pw-badge-sale,.pw-card-promo-badges .pw-badge-birthday,.pw-card-promo-badges .pw-rec-badge,.pw-card-promo-badges .pw-badge-new,.pw-card-promo-badges .pw-for-you-badge{position:static;top:auto;left:auto;right:auto;max-width:100%}',
+  '.pw-badge-sale{position:absolute;top:8px;left:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;max-width:calc(100% - 56px);white-space:normal}',
   '.pw-badge-sale-teaser{background:#d97706}',
   '.pw-badge-sale-active{background:#dc2626}',
   '.pw-badge-sale-flash,.pw-pdp-sale-pill-flash{background:#e11d48}',
@@ -929,7 +931,8 @@ export const PW_SITE_SALE_CARD_CSS = [
   '.pw-pdp-sale-timer-flash{border:1px solid #fecdd3;background:#fff1f2;color:#9f1239}',
   '.pw-pdp-price-kicker{margin:0 0 4px;font:700 11px/1.2 system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#6b7280}',
   '.pw-pdp-cap-note{margin:0 0 8px;font:500 11px/1.4 system-ui,sans-serif;color:#92400e}',
-  '.pw-badge-birthday{position:absolute;top:8px;right:8px;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;background:#db2777}',
+  '.pw-badge-birthday{position:absolute;top:8px;left:8px;right:auto;z-index:2;color:#fff;font-size:10px;font-weight:800;padding:3px 8px;border-radius:4px;letter-spacing:.02em;line-height:1.2;max-width:calc(100% - 56px);background:#db2777}',
+  '.pw-badge-sale ~ .pw-badge-birthday,.pw-rec-badge ~ .pw-badge-birthday,.pw-badge-new ~ .pw-badge-birthday,.pw-for-you-badge ~ .pw-badge-birthday{top:36px}',
   '.pw-price-birthday{display:block;margin-top:2px;font-size:11px;font-weight:600;color:#db2777}',
   '.pw-pdp-birthday-hint{display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:0 0 8px;padding:8px 10px;border-radius:10px;background:#fdf2f8;color:#be185d;border:1px solid #fbcfe8;font:700 12px/1.35 system-ui,sans-serif}',
   '.pw-pdp-birthday-count,[data-pw-variant-birthday-count]{display:inline-flex;align-items:center;gap:4px;font:600 12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;color:#9d174d}',

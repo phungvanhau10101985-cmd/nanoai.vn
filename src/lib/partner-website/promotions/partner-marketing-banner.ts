@@ -1,4 +1,5 @@
 import {
+  partnerSiteHomePath,
   partnerSiteKhoSalePath,
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -62,8 +63,25 @@ export function partnerMarketingBannerDateKeyForKind(
   return partnerMarketingBannerDateKey(day, month)
 }
 
+/** Homepage anchor of the recommended product grid (188 `#san-pham-cung-shop`). */
+export const PARTNER_RECOMMENDED_GRID_ANCHOR = 'pw-grid-recommended'
+
 export function partnerMarketingBannerPublicHref(kind: PartnerMarketingBannerKind, siteSlug: string): string {
-  return kind === 'warehouse' ? partnerSiteKhoSalePath(siteSlug) : partnerSiteProductsPath(siteSlug)
+  if (kind === 'warehouse') return partnerSiteKhoSalePath(siteSlug)
+  if (kind === 'birthday') return `${partnerSiteHomePath(siteSlug)}#${PARTNER_RECOMMENDED_GRID_ANCHOR}`
+  return partnerSiteProductsPath(siteSlug)
+}
+
+/** First recommended grid keeps a stable id so the CMSN banner can scroll to it. */
+export function ensureRecommendedGridAnchorInHtml(html: string): string {
+  const match = /<(section|div)\b(?=[^>]*\bdata-pw-personalize=["']recommended["'])[^>]*>/i.exec(html)
+  if (!match) return html
+  const open = match[0]
+  if (new RegExp(`\\bid=["']${PARTNER_RECOMMENDED_GRID_ANCHOR}["']`, 'i').test(open)) return html
+  const next = /\bid\s*=\s*["'][^"']*["']/i.test(open)
+    ? open.replace(/\bid\s*=\s*["'][^"']*["']/i, `id="${PARTNER_RECOMMENDED_GRID_ANCHOR}"`)
+    : open.replace(/>$/, ` id="${PARTNER_RECOMMENDED_GRID_ANCHOR}">`)
+  return html.slice(0, match.index) + next + html.slice(match.index + open.length)
 }
 
 /** CMSN slide is only for logged-in shop accounts (guest account or linked user). */

@@ -36,6 +36,7 @@ export function applyLiveVisualOverlays(
     locale: WebLocale
     siteSlug: string
     device?: VisualDeviceVariant | null
+    customDomain?: boolean
   }
 ): string {
   const withProduct = input.liveProduct
@@ -43,6 +44,7 @@ export function applyLiveVisualOverlays(
         locale: input.locale,
         siteSlug: input.siteSlug,
         device: input.device,
+        customDomain: input.customDomain,
       })
     : preparedShell
   const withLadipage = bindPdpLadipageToHtml(withProduct, input.pdpLadipage, {

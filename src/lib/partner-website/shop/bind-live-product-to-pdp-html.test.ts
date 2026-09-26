@@ -766,3 +766,31 @@ test('bind never injects attributes into inline runtime scripts', () => {
   assert.doesNotMatch(script, /data-nanoai-cover-image/)
   assert.match(next, /data-nanoai-cover-image="https:\/\/new\.example\/shirt\.jpg"/)
 })
+
+test('bind shows stock, shipping fee, and returns links without duplicating the block', () => {
+  const withHead = `<!DOCTYPE html><html><head><meta name="description" content="gudo.vn"><meta property="og:description" content="gudo.vn"></head><body>${SHELL.replace(/^<!DOCTYPE html><html>/, '')}`
+  const product = { ...PRODUCT_B, stockQty: 0, shippingFeeAmount: 25000 }
+  const once = bindLiveProductToPdpHtml(withHead, product, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.match(once, /data-pw-merchant-availability="out_of_stock"/)
+  assert.match(once, /Hết hàng/)
+  assert.match(once, /Phí giao:/)
+  assert.match(once, /href="\/site\/demo-shop\/shipping"/)
+  assert.match(once, /href="\/site\/demo-shop\/returns"/)
+  assert.match(once, /Đổi trả trong 7 ngày/)
+  assert.match(once, /Thời gian xử lý và vận chuyển/)
+  assert.doesNotMatch(once, /name="description" content="gudo\.vn"/)
+  assert.match(once, /name="description" content="Cotton shirt"/)
+  const twice = bindLiveProductToPdpHtml(once, product, { locale: 'vi', siteSlug: 'demo-shop' })
+  assert.equal(twice.match(/data-pw-pdp-slot="merchant-facts"/g)?.length, 1)
+
+  const inStock = bindLiveProductToPdpHtml(SHELL, { ...PRODUCT_B, stockQty: 8, shippingFeeAmount: 0 }, {
+    locale: 'vi',
+    siteSlug: 'demo-shop',
+    customDomain: true,
+  })
+  assert.match(inStock, /data-pw-merchant-availability="in_stock"/)
+  assert.match(inStock, /Phí giao: miễn phí/)
+  assert.match(inStock, /href="\/shipping"/)
+  assert.match(inStock, /href="\/returns"/)
+  assert.doesNotMatch(inStock, /\/site\/demo-shop\/shipping/)
+})

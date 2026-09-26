@@ -48,6 +48,7 @@ test('factory always stamps one unified swipe banner', () => {
   assert.match(html, /Sale cùng ngày cùng tháng/)
   assert.match(html, /Sale kho/)
   assert.match(html, /Banner thường/)
+  assert.match(html, /\/site\/demo-shop#pw-grid-recommended/)
   assert.match(html, /\/site\/demo-shop\/kho-sale/)
   assert.match(html, /\/site\/demo-shop\/products/)
   assert.match(html, /var\(--pw-primary\)/)

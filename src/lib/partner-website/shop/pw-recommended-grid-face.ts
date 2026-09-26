@@ -4,6 +4,7 @@
  */
 
 export const PW_RECOMMENDED_GRID_FACE_CSS = `
+html [data-pw-personalize="recommended"]{scroll-margin-top:calc(var(--pw-sticky-head, 72px) + 8px)}
 html [data-pw-personalize="recommended"] [data-pw-el="section-title"],
 html [data-pw-personalize="recommended"] .pw-rec-title{
 font-size:16px!important;line-height:1.3!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important;color:var(--pw-text,#111827);border-bottom:2px solid var(--pw-primary);padding-bottom:4px;width:fit-content;margin:0!important
@@ -77,8 +78,9 @@ html [data-pw-personalize="recommended"] .pw-product-card-body > [data-pw-el="ca
 html [data-pw-personalize="recommended"] .pw-product-card-body > [data-pw-el="card-buy"]{display:none!important}
 html [data-pw-personalize="recommended"] .pw-rec-stats{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12px;color:#6b7280;margin-top:2px}
 html [data-pw-personalize="recommended"] .pw-rec-badge{
-position:absolute;left:8px;top:8px;z-index:2;max-width:calc(100% - 3rem);border-radius:6px;background:var(--pw-primary);color:#fff;padding:2px 6px;font-size:9px;font-weight:700;line-height:1.2;box-shadow:0 1px 4px rgba(15,23,42,.12)
+position:absolute;left:8px;top:8px;z-index:2;max-width:calc(100% - 56px);border-radius:6px;background:var(--pw-primary);color:#fff;padding:2px 6px;font-size:9px;font-weight:700;line-height:1.2;box-shadow:0 1px 4px rgba(15,23,42,.12)
 }
+html [data-pw-personalize="recommended"] .pw-card-promo-badges .pw-rec-badge{position:static;left:auto;top:auto;max-width:100%}
 html [data-pw-personalize="recommended"] .pw-product-card-media .pw-rec-fav,
 html [data-pw-personalize="recommended"] [data-pw-el="card-media"] .pw-rec-fav,
 html [data-pw-personalize="recommended"] .pw-rec-fav{
