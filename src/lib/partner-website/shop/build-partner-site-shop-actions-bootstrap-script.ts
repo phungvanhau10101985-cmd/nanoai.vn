@@ -309,7 +309,13 @@ function consumeGoogleHandoff(){
 function captureSession(res){var sid=res.headers.get(SESSION_HDR);if(sid){try{localStorage.setItem(SESSION_KEY,sid);localStorage.setItem(SESSION_KEY_LEGACY,sid);}catch(e){}}}
 function persistAccount(aid){
   if(!aid)return;
+  var prev='';
+  try{prev=localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';}catch(e){}
+  if(prev===aid)return;
   try{localStorage.setItem(ACCOUNT_KEY,aid);localStorage.setItem(ACCOUNT_KEY_LEGACY,aid);}catch(e){}
+  window.__pwAffiliateMeAid='';
+  window.__pwAffiliateMe=null;
+  window.__pwAffiliateMeInflight='';
   try{window.dispatchEvent(new CustomEvent('pw-partner-site-guest-session-change',{detail:{siteSlug:SITE_SLUG}}));}catch(e2){}
 }
 function apiFetch(url,opts){
@@ -382,49 +388,65 @@ function captureAffiliate(){
     try{sessionStorage.setItem(doneKey,'1');}catch(e3){}
   }).catch(function(){});
 }
+function mountAffiliateShareBar(me){
+  if(!me||me.affiliate_status!=='approved'||!me.referral_code)return;
+  if(document.querySelector('[data-pw-affiliate-share]'))return;
+  var host=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="title"],.pw-pdp-title,[data-pw-el="title"]');
+  if(!host||!host.parentNode)return;
+  var code=String(me.referral_code||'').trim().toUpperCase();
+  var url=location.href.split('#')[0];
+  try{var parsed=new URL(url);parsed.searchParams.set('ref',code);url=parsed.toString();}
+  catch(e){url+=(url.indexOf('?')>=0?'&':'?')+'ref='+encodeURIComponent(code);}
+  var bar=document.createElement('div');
+  bar.setAttribute('data-pw-affiliate-share','1');
+  bar.className='pw-shop-affiliate-share-bar';
+  bar.innerHTML='<span>'+COPY.affiliateShareThisPage+'</span>'
+    +'<button type="button" data-pw-aff-copy="1">'+COPY.affiliateCopy+'</button>'
+    +'<button type="button" data-pw-aff-share="1">'+COPY.affiliateShare+'</button>'
+    +'<a href="https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Facebook</a>'
+    +'<a href="https://zalo.me/share?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Zalo</a>'
+    +'<a href="https://t.me/share/url?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Telegram</a>';
+  host.parentNode.insertBefore(bar, host.nextSibling);
+  var copyBtn=bar.querySelector('[data-pw-aff-copy]');
+  if(copyBtn)copyBtn.addEventListener('click',function(){
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+    } else toast(COPY.shareFailed);
+  });
+  var shareBtn=bar.querySelector('[data-pw-aff-share]');
+  if(shareBtn)shareBtn.addEventListener('click',function(){
+    if(navigator.share){
+      navigator.share({title:COPY.affiliateShare,url:url}).catch(function(){});
+      return;
+    }
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
+    } else toast(COPY.shareFailed);
+  });
+}
 function paintAffiliateShareBar(){
   if(pwShopLiveUiOff())return;
   var page=document.documentElement.getAttribute('data-pw-page')||'';
   if(page!=='product')return;
-  if(!accountId())return;
+  var aid=accountId();
+  if(!aid)return;
   if(document.querySelector('[data-pw-affiliate-share]'))return;
+  if(window.__pwAffiliateMeAid===aid){
+    if(window.__pwAffiliateMe)mountAffiliateShareBar(window.__pwAffiliateMe);
+    return;
+  }
+  if(window.__pwAffiliateMeInflight===aid)return;
+  window.__pwAffiliateMeInflight=aid;
   apiFetch(AFFILIATE_API).then(function(res){
+    if(window.__pwAffiliateMeInflight===aid)window.__pwAffiliateMeInflight='';
     var me=res.j&&res.j.me;
-    if(!me||me.affiliate_status!=='approved'||!me.referral_code)return;
-    if(document.querySelector('[data-pw-affiliate-share]'))return;
-    var host=document.querySelector('[data-pw-region="pdp-info"] [data-pw-el="title"],.pw-pdp-title,[data-pw-el="title"]');
-    if(!host||!host.parentNode)return;
-    var code=String(me.referral_code||'').trim().toUpperCase();
-    var url=location.href.split('#')[0];
-    try{var parsed=new URL(url);parsed.searchParams.set('ref',code);url=parsed.toString();}
-    catch(e){url+=(url.indexOf('?')>=0?'&':'?')+'ref='+encodeURIComponent(code);}
-    var bar=document.createElement('div');
-    bar.setAttribute('data-pw-affiliate-share','1');
-    bar.className='pw-shop-affiliate-share-bar';
-    bar.innerHTML='<span>'+COPY.affiliateShareThisPage+'</span>'
-      +'<button type="button" data-pw-aff-copy="1">'+COPY.affiliateCopy+'</button>'
-      +'<button type="button" data-pw-aff-share="1">'+COPY.affiliateShare+'</button>'
-      +'<a href="https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Facebook</a>'
-      +'<a href="https://zalo.me/share?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Zalo</a>'
-      +'<a href="https://t.me/share/url?url='+encodeURIComponent(url)+'" target="_blank" rel="noreferrer">Telegram</a>';
-    host.parentNode.insertBefore(bar, host.nextSibling);
-    var copyBtn=bar.querySelector('[data-pw-aff-copy]');
-    if(copyBtn)copyBtn.addEventListener('click',function(){
-      if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
-      } else toast(COPY.shareFailed);
-    });
-    var shareBtn=bar.querySelector('[data-pw-aff-share]');
-    if(shareBtn)shareBtn.addEventListener('click',function(){
-      if(navigator.share){
-        navigator.share({title:COPY.affiliateShare,url:url}).catch(function(){});
-        return;
-      }
-      if(navigator.clipboard&&navigator.clipboard.writeText){
-        navigator.clipboard.writeText(url).then(function(){toast(COPY.shareCopied);}).catch(function(){toast(COPY.shareFailed);});
-      } else toast(COPY.shareFailed);
-    });
-  }).catch(function(){});
+    var approved=!!(me&&me.affiliate_status==='approved'&&me.referral_code);
+    window.__pwAffiliateMeAid=aid;
+    window.__pwAffiliateMe=approved?me:null;
+    if(approved)mountAffiliateShareBar(me);
+  }).catch(function(){
+    if(window.__pwAffiliateMeInflight===aid)window.__pwAffiliateMeInflight='';
+  });
 }
 function readProductFromEl(el){
   var id=(el.getAttribute('data-inventory-id')||el.getAttribute('data-pw-inventory-id')||'').trim();
@@ -966,6 +988,14 @@ function sharePageUrl(cb){
   }
   if(window.__pwShareRef!=null){cb(withRef(window.__pwShareRef));return;}
   if(!accountId()){window.__pwShareRef='';cb(base);return;}
+  var aid=accountId();
+  if(window.__pwAffiliateMeAid===aid){
+    var cached=window.__pwAffiliateMe;
+    var cachedCode=cached&&cached.affiliate_status==='approved'?String(cached.referral_code||'').trim().toUpperCase():'';
+    window.__pwShareRef=cachedCode;
+    cb(withRef(cachedCode));
+    return;
+  }
   apiFetch(AFFILIATE_API).then(function(res){
     var me=res.j&&res.j.me;
     var code=me&&me.affiliate_status==='approved'?String(me.referral_code||'').trim().toUpperCase():'';
@@ -1122,6 +1152,8 @@ if(document.documentElement.getAttribute('data-pw-shop-actions-events')!=='1'){
   document.addEventListener('pw-cart-updated', function(){hydrateChromeBadges(true);});
   document.addEventListener('pw-shop-notifications-refresh', function(){hydrateChromeBadges(true);});
   document.addEventListener('pw-recently-viewed-updated', function(){hydrateChromeBadges(true);});
+  document.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
+  window.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
 }
 function runHydrate(forceNetwork){
   if(window.__pwShopHydrating)return;
@@ -1132,14 +1164,13 @@ function runHydrate(forceNetwork){
     hydrateContactChatLinks(!!forceNetwork);
     hydrateFavoriteButtons(!!forceNetwork);
     bindShareLeadCoupon();
+    paintAffiliateShareBar();
   }finally{
     window.__pwShopHydrating=false;
   }
 }
 function run(){captureGoogleDiscount();captureAffiliate();paintAffiliateShareBar();bindSizeGuideModal();runHydrate(true);
   consumeGoogleHandoff().then(function(){captureAffiliate();paintAffiliateShareBar();flushPendingCart();});
-  document.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
-  window.addEventListener('pw-partner-site-guest-session-change',function(){captureAffiliate();paintAffiliateShareBar();});
   if(document.documentElement.getAttribute('data-pw-shop-actions-mo')==='1')return;
   document.documentElement.setAttribute('data-pw-shop-actions-mo','1');
   var moTimer=null;

@@ -159,11 +159,12 @@ export function usePartnerSiteGuestSession(siteSlug: string) {
       if (!aid) return
       // After explicit shop logout, ignore any account header so platform session cannot re-bind.
       if (shouldPartnerSiteShopSkipAuthSync(siteSlug)) return
+      const prevAccountId = accountRef.current
       accountRef.current = aid
       setIsAuthenticated(true)
       persistAccountId(aid)
       clearPartnerSiteShopSkipAuthSync(siteSlug)
-      notifyGuestSessionChange(siteSlug)
+      if (prevAccountId !== aid) notifyGuestSessionChange(siteSlug)
     },
     [siteSlug]
   )
