@@ -243,6 +243,12 @@ test('shop theme CSS shows the mobile PDP hero full-bleed at the image natural s
   assert.match(css, /\.pw-pdp-hero-track\{[^}]*touch-action:pan-x pan-y/)
   assert.match(css, /\.pw-pdp-hero-slide-img,\.pw-pdp-hero-slide img\{[^}]*height:auto!important/)
   assert.match(css, /\.pw-pdp-hero-slide-img,\.pw-pdp-hero-slide img\{[^}]*object-fit:contain!important/)
+  assert.match(css, /\.pw-pdp-hero-slide\[data-pw-hero-kind="video"\]\{[^}]*align-self:stretch/)
+  assert.match(
+    css,
+    /\.pw-pdp-hero-slide\[data-pw-hero-kind="video"\] iframe,[\s\S]*?\{position:absolute;inset:0;[^}]*aspect-ratio:auto!important/
+  )
+  assert.doesNotMatch(css, /\.pw-pdp-hero-slide iframe,\.pw-pdp-hero-slide video\{[^}]*aspect-ratio:3\/4/)
   assert.match(css, /margin-inline:calc\(-1 \* var\(--pw-page-gutter,4px\)\)/)
   assert.match(css, /scroll-margin-top:calc\(var\(--pw-sticky-head,56px\) \+ 4px\)/)
 })

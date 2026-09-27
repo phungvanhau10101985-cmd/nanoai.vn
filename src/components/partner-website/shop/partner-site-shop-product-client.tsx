@@ -853,7 +853,7 @@ export function PartnerSiteShopProductClient({
             onScroll={onHeroTrackScroll}
           >
             {mediaItems.map((item, i) => (
-              <div className="pw-pdp-hero-slide" data-pw-pdp-hero-slide={String(i)} key={item.kind === 'photo' ? item.url : `video-${i}`}>
+              <div className="pw-pdp-hero-slide" data-pw-pdp-hero-slide={String(i)} data-pw-hero-kind={item.kind === 'video' ? 'video' : undefined} key={item.kind === 'photo' ? item.url : `video-${i}`}>
                 {renderMedia(item, { hero: true, inTrack: true, lazy: i > 0 })}
               </div>
             ))}

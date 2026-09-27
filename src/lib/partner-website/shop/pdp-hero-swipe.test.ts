@@ -91,3 +91,40 @@ test('mobile PDP hero swipes between gallery photos', async () => {
     await browser.close()
   }
 })
+
+test('video slide does not stretch the mobile hero taller than the photo', async () => {
+  const { buildPartnerSiteShopThemeCss } = await import('@/lib/partner-website/shop/build-shop-theme-css')
+  const { DEFAULT_PARTNER_WEBSITE_THEME } = await import('@/lib/partner-website/template/partner-website-template-types')
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  const svg =
+    'data:image/svg+xml,' +
+    encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="390" height="200"><rect width="390" height="200" fill="#ddd"/></svg>')
+  const html = `<!DOCTYPE html><html data-pw-edit-device="mobile"><head><style>${css}</style></head><body>
+<div class="pw-pdp-hero">
+  <div class="pw-pdp-hero-track" data-pw-pdp-hero-track="1">
+    <div class="pw-pdp-hero-slide" data-pw-pdp-hero-slide="0"><img class="pw-pdp-hero-slide-img" src="${svg}" alt=""></div>
+    <div class="pw-pdp-hero-slide" data-pw-pdp-hero-slide="1" data-pw-hero-kind="video"><div class="pw-pdp-hero-video"><video></video></div></div>
+  </div>
+</div>
+</body></html>`
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 390, height: 844 } })
+    await page.setContent(html, { waitUntil: 'load' })
+    const box = await page.evaluate(() => {
+      const track = document.querySelector('.pw-pdp-hero-track') as HTMLElement
+      const photo = document.querySelector('.pw-pdp-hero-slide-img') as HTMLElement
+      const videoSlide = document.querySelector('[data-pw-hero-kind="video"]') as HTMLElement
+      return {
+        track: track.getBoundingClientRect().height,
+        photo: photo.getBoundingClientRect().height,
+        video: videoSlide.getBoundingClientRect().height,
+      }
+    })
+    assert.ok(box.photo > 160 && box.photo < 240, `photo height ${box.photo}`)
+    assert.ok(Math.abs(box.track - box.photo) < 4, `track ${box.track} vs photo ${box.photo}`)
+    assert.ok(Math.abs(box.video - box.track) < 4, `video slide ${box.video} vs track ${box.track}`)
+  } finally {
+    await browser.close()
+  }
+})

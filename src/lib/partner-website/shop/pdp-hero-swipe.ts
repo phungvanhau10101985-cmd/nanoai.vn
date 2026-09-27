@@ -150,6 +150,7 @@ function mountPdpHeroSwipe(hero){
     var slide=document.createElement('div');
     slide.className='pw-pdp-hero-slide';
     slide.setAttribute('data-pw-pdp-hero-slide',String(i));
+    if(it.kind==='video')slide.setAttribute('data-pw-hero-kind','video');
     if(it.kind==='video'&&video){
       video.hidden=false;
       video.removeAttribute('hidden');
