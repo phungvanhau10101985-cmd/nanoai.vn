@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent, type UIEvent } from 'react'
 import type { ProductPurchaseOptions } from '@/lib/messaging/guest-chat-ordering'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -237,6 +237,9 @@ export function PartnerSiteShopProductClient({
   const [shareCopied, setShareCopied] = useState(false)
   const [pdpTab, setPdpTab] = useState<'description' | 'specs'>('description')
   const touchStartXRef = useRef<number | null>(null)
+  const heroTrackRef = useRef<HTMLDivElement | null>(null)
+  const heroScrollFromUser = useRef(false)
+  const heroScrollProg = useRef(false)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
   const saleFace = resolvePartnerProductSaleFace(product, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
@@ -361,6 +364,32 @@ export function PartnerSiteShopProductClient({
   function goToMedia(delta: number) {
     if (mediaItems.length < 2) return
     setMediaIndex((idx) => (idx + delta + mediaItems.length) % mediaItems.length)
+  }
+  useLayoutEffect(() => {
+    const el = heroTrackRef.current
+    if (!el || mediaItems.length < 2) return
+    if (heroScrollFromUser.current) {
+      heroScrollFromUser.current = false
+      return
+    }
+    const width = el.clientWidth
+    if (width <= 0) return
+    const left = mediaIndex * width
+    if (Math.abs(el.scrollLeft - left) < 2) return
+    heroScrollProg.current = true
+    el.scrollTo({ left, behavior: 'smooth' })
+    window.setTimeout(() => {
+      heroScrollProg.current = false
+    }, 450)
+  }, [mediaIndex, mediaItems.length])
+  function onHeroTrackScroll(event: UIEvent<HTMLDivElement>) {
+    if (heroScrollProg.current) return
+    const el = event.currentTarget
+    const width = el.clientWidth || 1
+    const idx = Math.min(mediaItems.length - 1, Math.max(0, Math.round(el.scrollLeft / width)))
+    if (idx === mediaIndex) return
+    heroScrollFromUser.current = true
+    setMediaIndex(idx)
   }
   function handleGalleryTouchStart(e: ReactTouchEvent) {
     touchStartXRef.current = e.touches[0]?.clientX ?? null
@@ -685,36 +714,40 @@ export function PartnerSiteShopProductClient({
     }
   }
 
-  function renderMedia(media: MediaItem | null, opts?: { hero?: boolean }) {
+  function renderMedia(media: MediaItem | null, opts?: { hero?: boolean; inTrack?: boolean; lazy?: boolean }) {
     if (!media) return null
+    const heroClass = opts?.inTrack ? 'pw-pdp-hero-slide-img' : 'pw-pdp-hero-img'
     if (media.kind === 'video') {
       return isYoutubeEmbed(media.rawUrl) ? (
         <iframe
-          className={opts?.hero ? 'pw-pdp-hero-img' : 'pw-shop-product-video'}
+          className={opts?.hero ? heroClass : 'pw-shop-product-video'}
           src={media.embedUrl}
           title={productName}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
         />
       ) : (
-        <video className={opts?.hero ? 'pw-pdp-hero-img' : 'pw-shop-product-video'} src={media.embedUrl} controls preload="metadata" />
+        <video className={opts?.hero ? heroClass : 'pw-shop-product-video'} src={media.embedUrl} controls preload="metadata" />
       )
     }
+    const full = opts?.hero ? galleryFullImages[galleryImages.indexOf(media.url)] : ''
     return (
       <img
-        className={opts?.hero ? 'pw-pdp-hero-img' : 'pw-shop-product-img'}
+        className={opts?.hero ? heroClass : 'pw-shop-product-img'}
         src={media.url}
         alt={productName}
         decoding="async"
-        fetchPriority="high"
-        data-pw-el={PW_EL.mainImage}
+        fetchPriority={opts?.lazy ? undefined : 'high'}
+        loading={opts?.lazy ? 'lazy' : undefined}
+        data-pw-el={opts?.inTrack ? undefined : PW_EL.mainImage}
+        data-pw-full-src={full || undefined}
         onClick={() => {
           setActiveImage(media.url)
           setLightboxZoomed(false)
           setLightboxOpen(true)
         }}
-        onTouchStart={handleGalleryTouchStart}
-        onTouchEnd={handleGalleryTouchEnd}
+        onTouchStart={opts?.inTrack ? undefined : handleGalleryTouchStart}
+        onTouchEnd={opts?.inTrack ? undefined : handleGalleryTouchEnd}
         onError={hideBrokenPdpImage}
       />
     )
@@ -812,8 +845,22 @@ export function PartnerSiteShopProductClient({
         />
       ) : null}
       <div className="pw-pdp-hero" data-pw-region={PW_REGION.gallery} data-nanoai-cover-image={product.imageUrl || undefined}>
+        {mediaItems.length > 1 ? (
+          <div
+            className="pw-pdp-hero-track"
+            data-pw-pdp-hero-track="1"
+            ref={heroTrackRef}
+            onScroll={onHeroTrackScroll}
+          >
+            {mediaItems.map((item, i) => (
+              <div className="pw-pdp-hero-slide" data-pw-pdp-hero-slide={String(i)} key={item.kind === 'photo' ? item.url : `video-${i}`}>
+                {renderMedia(item, { hero: true, inTrack: true, lazy: i > 0 })}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <span className="pw-pdp-share-frame">
-          {renderMedia(currentMedia, { hero: true })}
+          {mediaItems.length > 1 ? null : renderMedia(currentMedia, { hero: true })}
           <PartnerSitePdpShare siteSlug={siteSlug} locale={locale} shareTitle={productName} variant="icon" />
         </span>
         {mediaItems.length > 1 ? (
@@ -1029,6 +1076,9 @@ export function PartnerSiteShopProductClient({
                     className={`pw-pdp-pill pw-pdp-color${color === c.name ? ' is-active' : ''}`}
                     onClick={() => {
                       setColor(c.name)
+                      const page = shopPdpPageSrc(c.img) || c.img || ''
+                      const idx = mediaItems.findIndex((item) => item.kind === 'photo' && (item.url === page || item.url === c.img))
+                      if (idx >= 0) setMediaIndex(idx)
                       revealPdpGalleryMainImage()
                     }}
                   >

@@ -784,6 +784,15 @@ html[data-pw-listing-category="1"] .pw-shop-category-hub,
 .pw-pdp-hero-dots span.is-active{width:16px;background:#fff}
 .pw-pdp-hero-thumbs{grid-column:1;grid-row:2;display:flex;gap:8px;overflow-x:auto;padding:8px 16px 4px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .pw-pdp-hero-thumbs::-webkit-scrollbar{display:none}
+.pw-pdp-hero-track{display:flex;grid-column:1;grid-row:1;width:100%;min-width:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y;align-items:flex-start}
+.pw-pdp-hero-track::-webkit-scrollbar{display:none}
+.pw-pdp-hero-slide{flex:0 0 100%;width:100%;min-width:100%;max-width:100%;scroll-snap-align:start;scroll-snap-stop:always}
+.pw-pdp-hero-slide-img,.pw-pdp-hero-slide img{width:100%!important;max-width:100%!important;height:auto!important;max-height:none!important;display:block;aspect-ratio:auto!important;object-fit:contain!important;object-position:center;background:var(--pw-surface);touch-action:pan-x pan-y}
+.pw-pdp-hero-slide iframe,.pw-pdp-hero-slide video,.pw-pdp-hero-slide .pw-pdp-hero-video{width:100%;aspect-ratio:3/4;height:auto;display:block;border:0;background:#111;object-fit:contain;touch-action:pan-x pan-y}
+.pw-pdp-hero-track .pw-pdp-hero-img{touch-action:pan-x pan-y;height:auto!important;aspect-ratio:auto!important;object-fit:contain!important}
+.pw-pdp-hero:has([data-pw-pdp-hero-track])>img.pw-pdp-hero-img,.pw-pdp-hero:has([data-pw-pdp-hero-track])>[data-pw-el="main-image"],.pw-pdp-hero:has([data-pw-pdp-hero-track])>.pw-pdp-share-frame>img,.pw-pdp-hero:has([data-pw-pdp-hero-track])>[data-pw-pdp-hero-video]{display:none!important}
+.pw-pdp-hero:has([data-pw-pdp-hero-track])>.pw-pdp-share-frame{grid-column:1;grid-row:1;position:relative;z-index:2;height:0;align-self:end;pointer-events:none}
+.pw-pdp-hero:has([data-pw-pdp-hero-track]) .pw-pdp-share-icon{pointer-events:auto}
 .pw-pdp-title{margin:0;font-size:1.05rem;font-weight:800;letter-spacing:.01em;line-height:1.35;color:var(--pw-text);text-transform:none}
 @media(min-width:768px){.pw-pdp-title{font-size:1.25rem}}
 .pw-pdp-brand{margin:6px 0 0;font-size:14px;color:var(--pw-muted)}

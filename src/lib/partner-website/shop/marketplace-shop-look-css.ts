@@ -366,10 +366,12 @@ html[data-pw-look="marketplace"] .pw-marketplace-block-title{
   margin:0 0 12px;font-size:1.05rem;font-weight:800;color:var(--pw-text);
 }
 html[data-pw-look="marketplace"] .pw-catalog .pw-container>h2[data-pw-el="section-title"],
-html[data-pw-look="marketplace"] .pw-catalog .pw-rec-title,
 html[data-pw-look="marketplace"] .pw-catalog .pw-flash-title{
   font-size:1.2rem;font-weight:800;letter-spacing:.02em;margin:0 0 14px;padding:0 0 8px;
   border-bottom:2px solid var(--pw-primary);display:block;width:100%;box-sizing:border-box
+}
+html[data-pw-look="marketplace"] .pw-catalog .pw-rec-title{
+  font-size:1.2rem;font-weight:800;letter-spacing:.02em
 }
 html[data-pw-look="marketplace"] .pw-catalog .pw-flash-head .pw-flash-title{margin:0;padding:0;border-bottom:none}
 html[data-pw-look="marketplace"] .pw-catalog .pw-flash-head{

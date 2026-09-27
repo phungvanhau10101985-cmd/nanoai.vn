@@ -22,7 +22,12 @@ test('strip grid ruler locks 5 desktop / 2 mobile by data-pw attr, not auto-fit'
   assert.doesNotMatch(PW_PRODUCT_STRIP_GRID_CSS, /auto-fit|auto-fill/)
 })
 
-test('mobile recommendation header keeps age/gender edit on the title row', () => {
+test('recommendation header keeps age/gender edit on the title row', () => {
+  assert.match(
+    PW_RECOMMENDED_GRID_FACE_CSS,
+    /html \[data-pw-personalize="recommended"\] \.pw-rec-head-row\{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between/
+  )
+  assert.match(PW_RECOMMENDED_GRID_FACE_CSS, /width:fit-content!important/)
   assert.match(
     PW_RECOMMENDED_GRID_FACE_CSS,
     /html\[data-pw-edit-device="mobile"\] \[data-pw-personalize="recommended"\] \.pw-rec-head-row,\s*html\[data-pw-scene-lock="mobile"\] \[data-pw-personalize="recommended"\] \.pw-rec-head-row\{flex-wrap:nowrap;justify-content:space-between/

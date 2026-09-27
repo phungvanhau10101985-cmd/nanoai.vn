@@ -7,7 +7,7 @@ export const PW_RECOMMENDED_GRID_FACE_CSS = `
 html [data-pw-personalize="recommended"]{scroll-margin-top:calc(var(--pw-sticky-head, 72px) + 8px)}
 html [data-pw-personalize="recommended"] [data-pw-el="section-title"],
 html [data-pw-personalize="recommended"] .pw-rec-title{
-font-size:16px!important;line-height:1.3!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important;color:var(--pw-text,#111827);border-bottom:2px solid var(--pw-primary);padding-bottom:4px;width:fit-content;margin:0!important
+font-size:16px!important;line-height:1.3!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important;color:var(--pw-text,#111827);border-bottom:2px solid var(--pw-primary);padding-bottom:4px;width:fit-content!important;max-width:100%;flex:0 1 auto;min-width:0;margin:0!important;display:block
 }
 html [data-pw-personalize="recommended"] [data-pw-grid],
 html [data-pw-personalize="recommended"] .pw-product-grid{gap:16px!important}
@@ -15,8 +15,8 @@ html[data-pw-edit-device="mobile"] [data-pw-personalize="recommended"] [data-pw-
 html[data-pw-edit-device="tablet"] [data-pw-personalize="recommended"] [data-pw-grid],
 html[data-pw-scene-lock="mobile"] [data-pw-personalize="recommended"] [data-pw-grid],
 html[data-pw-scene-lock="tablet"] [data-pw-personalize="recommended"] [data-pw-grid]{gap:12px!important}
-html [data-pw-personalize="recommended"] .pw-rec-head{margin:0 0 4px}
-html [data-pw-personalize="recommended"] .pw-rec-head-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+html [data-pw-personalize="recommended"] .pw-rec-head{margin:0 0 4px;width:100%}
+html [data-pw-personalize="recommended"] .pw-rec-head-row{display:flex;flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:6px 8px;width:100%}
 html[data-pw-edit-device="mobile"] [data-pw-personalize="recommended"] .pw-rec-head-row,
 html[data-pw-scene-lock="mobile"] [data-pw-personalize="recommended"] .pw-rec-head-row{flex-wrap:nowrap;justify-content:space-between;gap:6px}
 html[data-pw-edit-device="mobile"] [data-pw-personalize="recommended"] .pw-rec-actions,
@@ -28,7 +28,7 @@ html[data-pw-scene-lock="mobile"] [data-pw-personalize="recommended"] .pw-rec-pe
 html[data-pw-edit-device="mobile"] [data-pw-personalize="recommended"] .pw-rec-help,
 html[data-pw-scene-lock="mobile"] [data-pw-personalize="recommended"] .pw-rec-help{width:24px;height:24px}
 html [data-pw-personalize="recommended"] .pw-rec-actions{
-display:inline-flex;max-width:100%;flex-shrink:0;align-items:center;gap:2px;border-radius:999px;border:1px solid color-mix(in srgb,var(--pw-primary) 22%,#e5e7eb);background:color-mix(in srgb,var(--pw-primary) 8%,#fff);padding:2px 4px
+display:inline-flex;max-width:100%;flex-shrink:0;align-items:center;gap:2px;margin-left:auto;border-radius:999px;border:1px solid color-mix(in srgb,var(--pw-primary) 22%,#e5e7eb);background:color-mix(in srgb,var(--pw-primary) 8%,#fff);padding:2px 4px
 }
 html [data-pw-personalize="recommended"] .pw-rec-actions[hidden]{display:none!important}
 html [data-pw-personalize="recommended"] .pw-rec-edit,
