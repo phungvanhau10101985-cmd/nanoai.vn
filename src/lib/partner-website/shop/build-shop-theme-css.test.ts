@@ -215,6 +215,20 @@ test('shop theme CSS keeps all PDP actions compact on one horizontal row', () =>
   assert.match(css, /data-pw-edit-device="mobile"\] \.pw-pdp-actions-inline[^}]*display:none!important/)
 })
 
+test('shop theme CSS hides mobile PDP color, size, and quantity pickers', () => {
+  const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\] \[data-pw-pdp-option="color"\]/)
+  assert.match(css, /html\[data-pw-scene-lock="mobile"\] \[data-pw-pdp-option="size"\]/)
+  assert.match(css, /\[data-pw-visual-device="mobile"\] \[data-pw-pdp-option="color"\]/)
+  assert.match(css, /html\[data-pw-edit-device="mobile"\] \.pw-shop-pdp-info>div:has\(>\.pw-pdp-qty\)/)
+  assert.match(
+    css,
+    /@media\(max-width:767px\)\{html:not\(\[data-pw-edit-device="tablet"\]\):not\(\[data-pw-edit-device="laptop"\]\):not\(\[data-pw-edit-device="desktop"\]\)[\s\S]*\[data-pw-pdp-option="color"\]/
+  )
+  assert.doesNotMatch(css, /html\[data-pw-edit-device="desktop"\] \[data-pw-pdp-option="color"\][^{]*\{display:none/)
+  assert.doesNotMatch(css, /html\[data-pw-edit-device="tablet"\] \[data-pw-pdp-option="size"\][^{]*\{display:none/)
+})
+
 test('shop theme CSS hides broken PDP images after retry', () => {
   const css = buildPartnerSiteShopThemeCss(DEFAULT_PARTNER_WEBSITE_THEME)
   assert.match(css, /\[data-pw-pdp-img-broken="1"\]\{display:none!important\}/)

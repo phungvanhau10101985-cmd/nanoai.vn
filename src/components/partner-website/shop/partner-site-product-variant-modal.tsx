@@ -173,6 +173,7 @@ export function PartnerSiteProductVariantModal({
   const [colorIndex, setColorIndex] = useState(0)
   const [size, setSize] = useState('')
   const [qty, setQty] = useState(1)
+  const [zoomOpen, setZoomOpen] = useState(false)
   const [hasSaleCount, setHasSaleCount] = useState(false)
   const saleHmsRef = useRef<HTMLElement>(null)
 
@@ -218,14 +219,23 @@ export function PartnerSiteProductVariantModal({
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === 'Escape') onClose()
+      if (ev.key !== 'Escape') return
+      if (zoomOpen) {
+        setZoomOpen(false)
+        return
+      }
+      onClose()
     }
     document.addEventListener('keydown', onKey)
     return () => {
       document.body.style.overflow = prev
       document.removeEventListener('keydown', onKey)
     }
-  }, [open, onClose])
+  }, [open, onClose, zoomOpen])
+
+  useEffect(() => {
+    if (!open) setZoomOpen(false)
+  }, [open])
 
   const maxQty = variantModalMaxQty(product.stockQty)
   const effectiveQty = Math.min(maxQty, Math.max(1, qty))
@@ -302,6 +312,7 @@ export function PartnerSiteProductVariantModal({
   )
   const selectedColor = colorIndex >= 0 ? colors[colorIndex] : null
   const displayImage = shopPdpPageSrc(selectedColor?.img || product.imageUrl)
+  const zoomSrc = shopPdpDisplaySrc(selectedColor?.img || product.imageUrl) || displayImage
   const sku = String(product.sku || '').trim()
   const name = product.name.trim() || '—'
 
@@ -537,9 +548,18 @@ export function PartnerSiteProductVariantModal({
           </div>
           <div data-pw-variant-compact>
             <div data-pw-variant-compact-top>
-              <div data-pw-variant-thumb>
-                {displayImage ? <img src={displayImage} alt={name} onError={hideBrokenVariantImage} /> : null}
-              </div>
+                <div data-pw-variant-thumb>
+                  {displayImage ? (
+                    <button
+                      type="button"
+                      data-pw-variant-zoom-open
+                      aria-label={copy.viewImage}
+                      onClick={() => setZoomOpen(true)}
+                    >
+                      <img src={displayImage} alt="" onError={hideBrokenVariantImage} />
+                    </button>
+                  ) : null}
+                </div>
               <div data-pw-variant-info>
                 {sku ? <p data-pw-variant-sku>{copy.skuShort.replace('{sku}', sku)}</p> : null}
                 <p data-pw-variant-name>{name}</p>
@@ -583,6 +603,28 @@ export function PartnerSiteProductVariantModal({
           </button>
         </div>
       </div>
+      {face === 'compact' && zoomOpen && zoomSrc ? (
+        <div
+          data-pw-variant-zoom
+          role="presentation"
+          onClick={(ev) => {
+            if (ev.target === ev.currentTarget) setZoomOpen(false)
+          }}
+        >
+          <button
+            type="button"
+            data-pw-variant-zoom-close
+            aria-label={copy.close}
+            onClick={() => setZoomOpen(false)}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span>{copy.close}</span>
+          </button>
+          <img src={zoomSrc} alt={name} />
+        </div>
+      ) : null}
     </div>
   )
 

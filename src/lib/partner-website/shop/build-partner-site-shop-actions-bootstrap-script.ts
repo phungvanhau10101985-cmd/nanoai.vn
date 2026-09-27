@@ -52,6 +52,7 @@ function variantModalCopyKeys(c: ProductVariantModalCopy) {
     variantBuy: c.buy,
     variantClose: c.close,
     variantSizeGuide: c.sizeGuide,
+    variantViewImage: c.viewImage,
   }
 }
 
@@ -88,6 +89,7 @@ const COPY: Record<
     variantBuy: string
     variantClose: string
     variantSizeGuide: string
+    variantViewImage: string
   }
 > = {
   vi: {

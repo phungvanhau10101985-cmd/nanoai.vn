@@ -135,6 +135,24 @@ test('variant modal applies empty API size/color arrays instead of leftover DOM 
   assert.doesNotMatch(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /Array\.isArray\(opt\.sizes\)&&opt\.sizes\.length/)
 })
 
+test('mobile variant modal thumb opens a full-size viewer that returns to the modal', () => {
+  assert.match(PW_PRODUCT_VARIANT_MODAL_CSS, /data-pw-variant-zoom/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_CSS, /data-pw-variant-zoom-close/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function variantZoomSrc/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-variant-zoom-open/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function hideVariantZoom/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function openVariantZoom/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(zoom&&!zoom\.hasAttribute\('hidden'\)\)\{hideVariantZoom\(\);return;\}/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /hideVariantZoom\(\);\s*root\.setAttribute\('hidden'/)
+  for (const locale of WEB_LOCALES) {
+    assert.ok(PRODUCT_VARIANT_MODAL_COPY[locale].viewImage)
+    assert.ok(PRODUCT_VARIANT_MODAL_COPY[locale].close)
+  }
+  const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  assert.match(script, /"variantViewImage":/)
+  assert.doesNotThrow(() => new Function(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS))
+})
+
 test('variant modal size guide requires a kind href, not leftover sizes alone', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(st\.sizes\.length && st\.sizeGuideHref\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /base\.charAt\(base\.length-1\)==='\/'\?base\.slice\(0,-1\):base/)

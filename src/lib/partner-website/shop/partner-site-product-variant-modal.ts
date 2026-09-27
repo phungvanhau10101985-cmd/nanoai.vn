@@ -17,6 +17,7 @@ export type ProductVariantModalCopy = {
   buy: string
   close: string
   sizeGuide: string
+  viewImage: string
 }
 
 export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCopy> = {
@@ -35,6 +36,7 @@ export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCo
     buy: 'Mua hàng',
     close: 'Đóng',
     sizeGuide: 'Hướng dẫn chọn kích cỡ >',
+    viewImage: 'Xem ảnh lớn',
   },
   en: {
     title: 'Choose product options',
@@ -51,6 +53,7 @@ export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCo
     buy: 'Buy now',
     close: 'Close',
     sizeGuide: 'Size guide >',
+    viewImage: 'View full image',
   },
   zh: {
     title: '选择商品规格',
@@ -67,6 +70,7 @@ export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCo
     buy: '立即购买',
     close: '关闭',
     sizeGuide: '尺码指南 >',
+    viewImage: '查看大图',
   },
   ja: {
     title: 'バリエーションを選ぶ',
@@ -83,6 +87,7 @@ export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCo
     buy: '購入する',
     close: '閉じる',
     sizeGuide: 'サイズガイド >',
+    viewImage: '画像を拡大',
   },
   ko: {
     title: '옵션 선택',
@@ -99,6 +104,7 @@ export const PRODUCT_VARIANT_MODAL_COPY: Record<WebLocale, ProductVariantModalCo
     buy: '구매하기',
     close: '닫기',
     sizeGuide: '사이즈 가이드 >',
+    viewImage: '크게 보기',
   },
 }
 
@@ -239,7 +245,13 @@ export const PW_PRODUCT_VARIANT_MODAL_CSS = `
 [data-pw-variant-add]:disabled,[data-pw-variant-buy]:disabled{opacity:.55;cursor:not-allowed;filter:none}
 [data-pw-variant-compact-top]{display:flex;gap:12px;margin-bottom:12px}
 [data-pw-variant-thumb]{width:96px;height:96px;flex-shrink:0;border-radius:8px;overflow:hidden;background:#f3f4f6;border:1px solid #e5e7eb}
-[data-pw-variant-thumb] img{width:100%;height:100%;object-fit:cover;display:block}
+[data-pw-variant-thumb] img,[data-pw-variant-zoom-open] img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
+[data-pw-variant-zoom-open]{display:block;width:100%;height:100%;margin:0;padding:0;border:0;background:transparent;cursor:pointer}
+[data-pw-variant-zoom]{position:fixed;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;box-sizing:border-box;padding:16px;background:rgba(0,0,0,.92);pointer-events:auto}
+[data-pw-variant-zoom][hidden]{display:none!important}
+[data-pw-variant-zoom] img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
+[data-pw-variant-zoom-close]{position:absolute;top:max(12px,env(safe-area-inset-top,0px));right:12px;z-index:2;display:inline-flex;align-items:center;gap:6px;height:40px;padding:0 14px 0 10px;border:0;border-radius:999px;background:#fff;color:#111827;font:600 14px/1 system-ui,sans-serif;cursor:pointer}
+[data-pw-variant-zoom-close] svg{width:18px;height:18px}
 [data-pw-variant-compact] [data-pw-variant-sku]{font-size:10px;margin-bottom:2px}
 [data-pw-variant-compact] [data-pw-variant-name]{margin-bottom:4px}
 [data-pw-variant-compact] [data-pw-variant-price]{font-size:20px}
@@ -448,9 +460,52 @@ function variantImg(url, page){
   }catch(e){}
   return url;
 }
+function variantZoomSrc(url){
+  url=String(url||'').trim();
+  if(!url)return '';
+  if(url.indexOf('//')===0)url='https:'+url;
+  try{
+    var u=new URL(url,location.origin);
+    var host=u.hostname.toLowerCase();
+    if(host!=='img.alicdn.com'&&host!=='gw.alicdn.com'&&/\\.alicdn\\.com$/.test(host)){u.hostname='img.alicdn.com';host='img.alicdn.com';url=u.toString();}
+    if(/alicdn\\.com$|alicdn\\.net$|tbcdn\\.cn$/.test(host)&&url.indexOf('gw.alicdn.com/mt/')<0){
+      var m=/\\.jpg/i.exec(url);
+      if(m) url=url.slice(0,m.index+4);
+      url=url.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'');
+    }
+    if(host==='img.alicdn.com'||host==='gw.alicdn.com')return url;
+    if(/alicdn\\.com$|1688\\.com$|alibaba\\.com$/.test(host)){
+      return '/api/fetch-image?url='+encodeURIComponent(url);
+    }
+  }catch(e){}
+  return url;
+}
+function hideVariantZoom(){
+  var root=document.getElementById('pw-variant-modal');
+  var zoom=root&&root.querySelector('[data-pw-variant-zoom]');
+  if(zoom)zoom.setAttribute('hidden','');
+}
+function openVariantZoom(src, alt){
+  src=String(src||'').trim();
+  if(!src)return;
+  var root=document.getElementById('pw-variant-modal');
+  if(!root)return;
+  ensureVariantZoom(root);
+  var zoom=root.querySelector('[data-pw-variant-zoom]');
+  if(!zoom)return;
+  var img=zoom.querySelector('[data-pw-variant-zoom-img]');
+  var btn=zoom.querySelector('[data-pw-variant-zoom-close]');
+  var label=zoom.querySelector('[data-pw-variant-zoom-label]');
+  if(img){img.alt=alt||'';img.src=src;}
+  var closeLabel=COPY.variantClose||COPY.cartAddedClose||'Close';
+  if(btn)btn.setAttribute('aria-label',closeLabel);
+  if(label)label.textContent=closeLabel;
+  zoom.removeAttribute('hidden');
+}
 function hideVariantModal(){
   var root=document.getElementById('pw-variant-modal');
   if(!root)return;
+  hideVariantZoom();
   root.setAttribute('hidden','');
   window.__pwVariantState=null;
   var added=document.getElementById('pw-cart-added-popup');
@@ -496,10 +551,18 @@ function ensureVariantScrollHost(root){
   body.parentNode.insertBefore(scroll, body);
   scroll.appendChild(body);
 }
+function ensureVariantZoom(root){
+  if(!root||root.querySelector('[data-pw-variant-zoom]'))return;
+  var zoom=document.createElement('div');
+  zoom.setAttribute('data-pw-variant-zoom','1');
+  zoom.setAttribute('hidden','');
+  zoom.innerHTML='<button type="button" data-pw-variant-zoom-close><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg><span data-pw-variant-zoom-label></span></button><img alt="" data-pw-variant-zoom-img />';
+  root.appendChild(zoom);
+}
 function ensureVariantModal(){
   bindVariantModalNavHide();
   var root=document.getElementById('pw-variant-modal');
-  if(root){ensureVariantScrollHost(root);return root;}
+  if(root){ensureVariantScrollHost(root);ensureVariantZoom(root);return root;}
   root=document.createElement('div');
   root.id='pw-variant-modal';
   root.setAttribute('data-pw-variant-modal','1');
@@ -521,16 +584,30 @@ function ensureVariantModal(){
     +'<button type="button" data-pw-variant-buy></button>'
     +'</div></div>';
   document.body.appendChild(root);
+  ensureVariantZoom(root);
   var backdrop=root.querySelector('[data-pw-variant-backdrop]');
   var closeBtn=root.querySelector('[data-pw-variant-close]');
   if(backdrop)backdrop.addEventListener('click',hideVariantModal);
   if(closeBtn)closeBtn.addEventListener('click',hideVariantModal);
   document.addEventListener('keydown',function(ev){
-    if(ev.key==='Escape'&&root&&!root.hasAttribute('hidden'))hideVariantModal();
+    if(ev.key!=='Escape'||!root||root.hasAttribute('hidden'))return;
+    var zoom=root.querySelector('[data-pw-variant-zoom]');
+    if(zoom&&!zoom.hasAttribute('hidden')){hideVariantZoom();return;}
+    hideVariantModal();
   });
   root.addEventListener('click',function(ev){
     var t=ev.target;if(!t||!t.closest)return;
+    var zoomLayer=t.closest('[data-pw-variant-zoom]');
+    if(zoomLayer){
+      if(t.closest('[data-pw-variant-zoom-close]')||t===zoomLayer)hideVariantZoom();
+      return;
+    }
     var st=window.__pwVariantState;if(!st)return;
+    var zoomOpen=t.closest('[data-pw-variant-zoom-open]');
+    if(zoomOpen){
+      openVariantZoom(zoomOpen.getAttribute('data-pw-zoom-src')||'',st.name);
+      return;
+    }
     var colorBtn=t.closest('[data-pw-variant-color]');
     if(colorBtn){
       st.colorIndex=Number(colorBtn.getAttribute('data-index')||0);
@@ -679,8 +756,12 @@ function paintVariantModal(){
       +'</div>';
   }
   if(compact){
+    var zoomSrc=variantZoomSrc((color&&color.img)||st.imageUrl)||img;
+    var thumb=img
+      ?'<button type="button" data-pw-variant-zoom-open data-pw-zoom-src="'+variantEsc(zoomSrc)+'" aria-label="'+variantEsc(COPY.variantViewImage||COPY.variantClose||'Close')+'"><img alt="" src="'+variantEsc(img)+'"/></button>'
+      :'';
     compact.innerHTML='<div data-pw-variant-compact-top>'
-      +'<div data-pw-variant-thumb>'+(img?'<img alt="'+variantEsc(st.name)+'" src="'+variantEsc(img)+'"/>':'')+'</div>'
+      +'<div data-pw-variant-thumb>'+thumb+'</div>'
       +'<div data-pw-variant-info>'
       +(skuShort?'<p data-pw-variant-sku>'+variantEsc(skuShort)+'</p>':'')
       +'<p data-pw-variant-name>'+variantEsc(st.name)+'</p>'
