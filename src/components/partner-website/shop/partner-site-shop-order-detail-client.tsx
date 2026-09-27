@@ -10,6 +10,7 @@ import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/go
 import {
   isPartnerShopDepositWaiting,
   partnerOrderPayableTotal,
+  partnerOrderRemainingAfterDeposit,
 } from '@/lib/partner-website/shop/order-deposit'
 import { readPartnerSiteCheckoutHandoff } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
 import {
@@ -71,6 +72,7 @@ type Props = {
   initialShipmentEvents?: ShopShipmentEventView[]
   initialSiblings?: ShopSiblingOrderView[]
   initialCanConfirm?: boolean
+  shopName?: string
 }
 
 export function PartnerSiteShopOrderDetailClient({
@@ -83,6 +85,7 @@ export function PartnerSiteShopOrderDetailClient({
   initialShipmentEvents = [],
   initialSiblings = [],
   initialCanConfirm = false,
+  shopName = '',
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -95,6 +98,7 @@ export function PartnerSiteShopOrderDetailClient({
   const [canConfirm, setCanConfirm] = useState(initialCanConfirm)
   const [confirmBusy, setConfirmBusy] = useState(false)
   const [confirmStatus, setConfirmStatus] = useState('')
+  const [brandName, setBrandName] = useState(shopName)
 
   const orderApi = `/api/messaging/guest/${encodeURIComponent(partnerSlug)}/order/${encodeURIComponent(orderId)}`
 
@@ -104,9 +108,11 @@ export function PartnerSiteShopOrderDetailClient({
     shipment_events?: ShopShipmentEventView[]
     sibling_orders?: ShopSiblingOrderView[]
     can_confirm_received?: boolean
+    partner_display_name?: string
   }) => {
     if (!json.order) return false
     setOrder(json.order)
+    if (json.partner_display_name?.trim()) setBrandName(json.partner_display_name.trim())
     setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
     setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
     setCanConfirm(json.can_confirm_received === true)
@@ -222,7 +228,10 @@ export function PartnerSiteShopOrderDetailClient({
     shipping_fee_amount: order.shipping_fee_amount,
   })
   const ship = Math.max(0, Math.round(Number(order.shipping_fee_amount ?? 0)))
+  const paid = Math.max(0, Math.round(Number(order.paid_amount ?? 0)))
+  const remaining = partnerOrderRemainingAfterDeposit(order)
   const isCod = Number(order.required_amount ?? 0) <= 0
+  const showDepositSplit = paid > 0 || (!isCod && !waitingPay)
   const validActions = new Set(
     buyerOrderActions({
       status: order.status,
@@ -298,6 +307,16 @@ export function PartnerSiteShopOrderDetailClient({
             <p>
               {t.cartTotalLabel}: <strong>{formatVnd(payable)}</strong>
             </p>
+            {showDepositSplit ? (
+              <>
+                <p>
+                  {t.orderDepositPaidLine}: <strong>{formatVnd(paid)}</strong>
+                </p>
+                <p>
+                  {t.orderDueOnDeliveryLine}: <strong>{formatVnd(remaining)}</strong>
+                </p>
+              </>
+            ) : null}
             {order.shipping_address ? (
               <p>
                 {t.orderAddressLabel}: {order.shipping_address}
@@ -307,6 +326,9 @@ export function PartnerSiteShopOrderDetailClient({
             <div style={{ marginTop: 16 }}>
               <PartnerSiteOrderShipmentSteps
                 t={t}
+                locale={locale}
+                shopName={brandName}
+                depositFlow={paid > 0 || !isCod}
                 events={shipmentEvents}
                 fallback={genericShippingTimelineSteps(order.shipping_status, t)}
               />

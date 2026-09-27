@@ -370,6 +370,8 @@ export type PartnerSiteShopCopy = {
   depositPaidLabel: string
   /** Token `{amount}` */
   depositRemainingHint: string
+  orderDepositPaidLine: string
+  orderDueOnDeliveryLine: string
   depositStatusPaid: string
   depositToastTitle: string
   depositToastBody: string
@@ -1076,6 +1078,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositSuccessThanks: 'Đội ngũ shop sẽ xử lý đơn và liên hệ khi cần. Quý khách có thể theo dõi tiến độ trong mục chi tiết đơn hàng.',
     depositPaidLabel: 'Số tiền cọc đã nhận',
     depositRemainingHint: 'Số còn lại khi nhận hàng: {amount}',
+    orderDepositPaidLine: 'Số tiền đã thanh toán đặt cọc trước',
+    orderDueOnDeliveryLine: 'Số tiền thanh toán khi nhận hàng',
     depositStatusPaid: 'Đã đặt cọc',
     depositToastTitle: 'Đã xác nhận thanh toán cọc',
     depositToastBody: 'Cảm ơn quý khách. Email xác nhận đã được gửi tới hộp thư của bạn (nếu có).',
@@ -1780,6 +1784,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositSuccessThanks: 'The shop will process the order and contact you if needed. Track progress in order details.',
     depositPaidLabel: 'Deposit received',
     depositRemainingHint: 'Balance on delivery: {amount}',
+    orderDepositPaidLine: 'Deposit already paid',
+    orderDueOnDeliveryLine: 'Amount due on delivery',
     depositStatusPaid: 'Deposit paid',
     depositToastTitle: 'Deposit payment confirmed',
     depositToastBody: 'Thank you. A confirmation email was sent if we have your address.',
@@ -2481,6 +2487,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositSuccessThanks: '店铺将处理订单，必要时与您联系。可在订单详情中跟踪进度。',
     depositPaidLabel: '已收定金',
     depositRemainingHint: '收货时余款：{amount}',
+    orderDepositPaidLine: '已付定金',
+    orderDueOnDeliveryLine: '收货时应付金额',
     depositStatusPaid: '已付定金',
     depositToastTitle: '已确认定金付款',
     depositToastBody: '谢谢。如有邮箱，确认邮件已发送。',
@@ -3180,6 +3188,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositSuccessThanks: 'ショップが注文を処理し、必要に応じてご連絡します。進捗は注文詳細で確認できます。',
     depositPaidLabel: '受領したデポジット',
     depositRemainingHint: '受け取り時の残金: {amount}',
+    orderDepositPaidLine: '支払い済みのデポジット',
+    orderDueOnDeliveryLine: '受け取り時の支払額',
     depositStatusPaid: 'デポジット済',
     depositToastTitle: 'デポジット入金を確認しました',
     depositToastBody: 'ありがとうございます。メールアドレスがあれば確認メールを送信しました。',
@@ -3881,6 +3891,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     depositSuccessThanks: '샵이 주문을 처리하고 필요 시 연락드립니다. 진행 상황은 주문 상세에서 확인할 수 있습니다.',
     depositPaidLabel: '받은 보증금',
     depositRemainingHint: '수령 시 잔액: {amount}',
+    orderDepositPaidLine: '이미 낸 보증금',
+    orderDueOnDeliveryLine: '수령 시 결제할 금액',
     depositStatusPaid: '보증금 완료',
     depositToastTitle: '보증금 입금이 확인되었습니다',
     depositToastBody: '감사합니다. 이메일이 있으면 확인 메일을 보냈습니다.',

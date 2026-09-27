@@ -57,6 +57,7 @@ export default async function PartnerSiteOrderDepositPage({ params }: Props) {
         locale={shop.site.locale}
         orderId={id}
         shopTitle={shop.site.title}
+        shopName={initial?.partner_display_name || shop.site.partnerDisplayName || shop.site.title}
         initialOrder={initial?.order ?? null}
         initialPaymentDisplay={initial?.payment_display ?? null}
         initialShopPercent={initial?.default_deposit_percent}

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { parseHTML } from 'linkedom'
 import {
   PW_SHOP_TAP_ACK_CSS,
   PW_SHOP_TAP_ACK_STORAGE_KEY,
@@ -56,6 +57,7 @@ test('native navigation prepends tap-ack and swallows extra presses while pendin
   assert.match(script, /function ackNav\(/)
   assert.match(script, /function ackBusy\(/)
   assert.match(script, /function cardHitLink\(/)
+  assert.match(script, /button,\.pw-shop-order-card/)
   assert.match(script, /a\.pw-product-card-hit\[href\]/)
   assert.match(script, /ackBusy\(\)\|\|\(lastHref===href/)
   assert.match(script, /jsGateAt/)
@@ -67,4 +69,61 @@ test('native navigation prepends tap-ack and swallows extra presses while pendin
   assert.match(script, /data-pw-rq-open-write/)
   assert.match(script, /new RegExp\('\^\/site\/\[\^\/\]\+'\)/)
   assert.doesNotThrow(() => new Function(script))
+})
+
+test('order list buttons do not follow the product link inside the card', () => {
+  const { window, document } = parseHTML(`<!doctype html><html><body>
+    <li class="pw-shop-order-card" data-pw-el="card">
+      <a class="pw-shop-product-hit-name" href="/products/giay-sneaker">Giày sneaker</a>
+      <button type="button" class="detail" data-pw-native-nav="off">Chi tiết đơn</button>
+      <button type="button" class="track">Theo dõi đơn</button>
+    </li>
+  </body></html>`)
+  const navigated: string[] = []
+  const location = {
+    href: 'http://localhost:3000/site/demo-shop/orders',
+    origin: 'http://localhost:3000',
+    pathname: '/site/demo-shop/orders',
+    search: '',
+    assign(href: string) {
+      navigated.push(String(href))
+    },
+  }
+  Object.defineProperty(window, 'location', { value: location, configurable: true })
+  const script = buildPartnerSiteNativeNavigationScript('demo-shop')
+  new Function('window', 'document', script)(window, document)
+
+  const detail = document.querySelector('button.detail') as HTMLButtonElement
+  const track = document.querySelector('button.track') as HTMLButtonElement
+  const name = document.querySelector('.pw-shop-product-hit-name') as HTMLAnchorElement
+  let detailClicks = 0
+  detail.addEventListener('click', () => {
+    detailClicks += 1
+  })
+
+  const press = (el: Element, type: string) => {
+    const event = new window.Event(type, { bubbles: true, cancelable: true })
+    Object.defineProperties(event, {
+      clientX: { value: 12 },
+      clientY: { value: 8 },
+      button: { value: 0 },
+      pointerId: { value: 1 },
+      pointerType: { value: 'mouse' },
+    })
+    el.dispatchEvent(event)
+  }
+  const tap = (el: Element) => {
+    press(el, 'pointerdown')
+    press(el, 'pointerup')
+    press(el, 'click')
+  }
+
+  tap(detail)
+  tap(track)
+  assert.equal(navigated.length, 0)
+  assert.equal(detailClicks, 1)
+
+  tap(name)
+  assert.equal(navigated.length, 1)
+  assert.match(navigated[0] || '', /\/products\/giay-sneaker/)
 })

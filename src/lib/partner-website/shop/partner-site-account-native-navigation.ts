@@ -20,6 +20,10 @@
  * Skip navigation when the tap origin is the heart, even if a parent media
  * `<a>` or `.pw-product-card-hit` would otherwise open the product page.
  *
+ * Order list rows also stamp `data-pw-el="card"` and contain a product `<a>`.
+ * Buttons on that row (Chi tiết đơn / Theo dõi đơn) must not fall through to
+ * that product link. Only the image and the product name open the PDP.
+ *
  * Category (`data-pw-chrome-btn="categories"`) and favorite
  * (`[data-pw-favorite]` / `.pw-rec-fav` / dock `favorite-product`) are JS-only:
  * `preventDefault` on click so Next.js does not hijack, but never
@@ -191,8 +195,10 @@ ${buildPartnerSiteTapAckScript()}
   }
   function cardHitLink(node){
     if(!node||typeof node.closest!=='function')return null;
+    if(node.closest('button,.pw-shop-order-card'))return null;
     var card=node.closest('.pw-product-card,.pw-shop-card,[data-pw-el="card"]');
     if(!card||typeof card.querySelector!=='function')return null;
+    if(card.closest&&card.closest('.pw-shop-order-card'))return null;
     var hit=card.querySelector('a.pw-product-card-hit[href]')||card.querySelector('a[href]:not([data-pw-favorite]):not(.pw-rec-fav)');
     if(!hit||typeof hit.getAttribute!=='function')return null;
     var raw=String(hit.getAttribute('href')||'').trim();

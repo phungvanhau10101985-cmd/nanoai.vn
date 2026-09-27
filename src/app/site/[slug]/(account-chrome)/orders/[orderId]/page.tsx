@@ -61,6 +61,7 @@ export default async function PartnerSiteOrderDetailPage({ params }: Props) {
         initialShipmentEvents={initial?.shipment_events ?? []}
         initialSiblings={initial?.sibling_orders ?? []}
         initialCanConfirm={initial?.can_confirm_received === true}
+        shopName={initial?.partner_display_name || shop.site.partnerDisplayName || shop.site.title}
       />
     </>
   )

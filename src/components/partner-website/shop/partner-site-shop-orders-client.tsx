@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
+import { partnerOrderRemainingAfterDeposit } from '@/lib/partner-website/shop/order-deposit'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import {
@@ -50,6 +51,7 @@ type Props = {
   chatPath: string
   initialFilter?: string | null
   initialOrders?: SiteOrderRow[] | null
+  shopName?: string
 }
 
 type Panel = 'none' | 'detail' | 'payment' | 'track' | 'cancel' | 'confirm'
@@ -100,6 +102,7 @@ export function PartnerSiteShopOrdersClient({
   chatPath,
   initialFilter,
   initialOrders = null,
+  shopName = '',
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -369,7 +372,7 @@ export function PartnerSiteShopOrdersClient({
                 >
                   {t.depositViewOrder}
                 </a>
-                <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'detail')}>
+                <button type="button" className="pw-shop-btn pw-shop-btn-outline" data-pw-native-nav="off" onClick={() => togglePanel(o.id, 'detail')}>
                   {open && panel === 'detail' ? t.orderHideDetail : t.orderDetail}
                 </button>
                 {showPayment && waitingPay && buyerActions.has('pay_deposit') ? (
@@ -382,12 +385,12 @@ export function PartnerSiteShopOrdersClient({
                   </a>
                 ) : null}
                 {canTrack ? (
-                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'track')}>
+                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" data-pw-native-nav="off" onClick={() => togglePanel(o.id, 'track')}>
                     {open && panel === 'track' ? t.orderHideTrack : t.orderTrack}
                   </button>
                 ) : null}
                 {buyerActions.has('confirm_received') ? (
-                  <button type="button" className="pw-shop-btn" onClick={() => togglePanel(o.id, 'confirm')}>
+                  <button type="button" className="pw-shop-btn" data-pw-native-nav="off" onClick={() => togglePanel(o.id, 'confirm')}>
                     {t.orderConfirmReceived}
                   </button>
                 ) : null}
@@ -397,7 +400,7 @@ export function PartnerSiteShopOrdersClient({
                   </a>
                 ) : null}
                 {buyerActions.has('cancel') ? (
-                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" onClick={() => togglePanel(o.id, 'cancel')}>
+                  <button type="button" className="pw-shop-btn pw-shop-btn-outline" data-pw-native-nav="off" onClick={() => togglePanel(o.id, 'cancel')}>
                     {t.orderCancel}
                   </button>
                 ) : null}
@@ -415,10 +418,24 @@ export function PartnerSiteShopOrdersClient({
                       {t.cartSubtotal}: {formatVnd(Number(o.subtotal_amount))}
                     </p>
                   ) : null}
-                  {o.paid_amount != null && o.paid_amount > 0 ? (
-                    <p className="pw-shop-muted">
-                      {t.depositAmount}: {formatVnd(Number(o.paid_amount))}
-                    </p>
+                  {o.paid_amount != null && Number(o.paid_amount) > 0 ? (
+                    <>
+                      <p>
+                        {t.orderDepositPaidLine}: <strong>{formatVnd(Number(o.paid_amount))}</strong>
+                      </p>
+                      <p>
+                        {t.orderDueOnDeliveryLine}:{' '}
+                        <strong>
+                          {formatVnd(
+                            partnerOrderRemainingAfterDeposit({
+                              amount_after_discount: o.amount_after_discount ?? o.subtotal_amount,
+                              shipping_fee_amount: o.shipping_fee_amount,
+                              paid_amount: o.paid_amount,
+                            })
+                          )}
+                        </strong>
+                      </p>
+                    </>
                   ) : null}
                   {ref ? (
                     <p className="pw-shop-muted">
@@ -453,6 +470,9 @@ export function PartnerSiteShopOrdersClient({
                 <div className="pw-shop-order-payment">
                   <PartnerSiteOrderShipmentSteps
                     t={t}
+                    locale={locale}
+                    shopName={shopName}
+                    depositFlow={Number(o.paid_amount || 0) > 0 || Number(o.required_amount || 0) > 0}
                     events={o.shipment_events}
                     fallback={steps}
                   />
@@ -467,6 +487,7 @@ export function PartnerSiteShopOrdersClient({
                     <button
                       type="button"
                       className="pw-shop-btn"
+                      data-pw-native-nav="off"
                       disabled={busyId === o.id}
                       onClick={() => void patchOrder(o.id, 'confirm_received')}
                     >
@@ -475,6 +496,7 @@ export function PartnerSiteShopOrdersClient({
                     <button
                       type="button"
                       className="pw-shop-btn pw-shop-btn-outline"
+                      data-pw-native-nav="off"
                       onClick={() => {
                         setOpenId(null)
                         setPanel('none')
@@ -501,6 +523,7 @@ export function PartnerSiteShopOrdersClient({
                     <button
                       type="button"
                       className="pw-shop-btn pw-shop-btn-outline"
+                      data-pw-native-nav="off"
                       disabled={busyId === o.id}
                       onClick={() => void patchOrder(o.id, 'cancel', cancelReason)}
                     >
@@ -509,6 +532,7 @@ export function PartnerSiteShopOrdersClient({
                     <button
                       type="button"
                       className="pw-shop-btn"
+                      data-pw-native-nav="off"
                       onClick={() => {
                         setOpenId(null)
                         setPanel('none')

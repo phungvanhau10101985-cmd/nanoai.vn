@@ -541,6 +541,9 @@ ${PW_SHOP_ORDER_STATUS_TABS_CSS}
 .pw-shop-order-timeline li.is-done::before{background:var(--pw-primary)}
 .pw-shop-order-timeline li.is-active{color:var(--pw-primary);font-weight:700}
 .pw-shop-order-timeline li.is-active::before{background:var(--pw-primary);box-shadow:0 0 0 3px color-mix(in srgb, var(--pw-primary) 25%, transparent)}
+.pw-shop-order-timeline-title{display:block}
+.pw-shop-order-timeline-when,.pw-shop-order-timeline-note{display:block;margin-top:2px;font-weight:400;font-size:12px;line-height:1.45;color:var(--pw-muted)}
+.pw-shop-order-timeline-foot{margin:10px 0 0;font-size:12px;line-height:1.45;color:var(--pw-muted)}
 .pw-shop-order-qr{max-width:280px;width:100%;border-radius:8px}
 .pw-shop-push-card{margin:0 0 16px;padding:16px 18px;border:1px solid var(--pw-border);border-radius:12px;background:var(--pw-surface)}
 .pw-shop-push-card h3{margin:0 0 6px;color:var(--pw-text);font-size:16px}

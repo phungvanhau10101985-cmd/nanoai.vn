@@ -46,6 +46,7 @@ export default async function PartnerSiteOrdersPage({ params, searchParams }: Pr
       chatPath={shop.site.chatPath}
       initialFilter={ordersFilter}
       initialOrders={initialOrders}
+      shopName={shop.site.partnerDisplayName || shop.site.title}
     />
   )
 }

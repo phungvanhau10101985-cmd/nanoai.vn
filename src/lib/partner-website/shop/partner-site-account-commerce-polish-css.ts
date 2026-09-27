@@ -73,6 +73,9 @@ export const PW_SHOP_ACCOUNT_COMMERCE_POLISH_CSS = `
 .pw-shop-order-timeline li:not(:last-child)::after{content:'';position:absolute;left:4.5px;top:22px;bottom:0;width:2px;background:var(--pw-border,#e5e7eb)}
 .pw-shop-order-timeline li.is-done:not(:last-child)::after,.pw-shop-order-timeline li.is-active:not(:last-child)::after{background:color-mix(in srgb,var(--pw-primary) 55%,var(--pw-border,#e5e7eb))}
 .pw-shop-order-timeline li.is-done::before,.pw-shop-order-timeline li.is-active::before{box-shadow:0 0 0 3px color-mix(in srgb,var(--pw-primary) 22%,transparent);border-color:#fff}
+.pw-shop-order-timeline-title{display:block}
+.pw-shop-order-timeline-when,.pw-shop-order-timeline-note{display:block;margin-top:2px;font-weight:400;font-size:12px;line-height:1.45;color:var(--pw-muted)}
+.pw-shop-order-timeline-foot{margin:10px 0 0;font-size:12px;line-height:1.45;color:var(--pw-muted)}
 .pw-shop-order-payment{margin:0 16px 16px;padding:14px;border:1px solid var(--pw-border,#e5e7eb);border-radius:12px;background:var(--pw-surface,#f8fafc)}
 .pw-shop-order-payment .pw-shop-order-actions{padding:0;border:none;background:transparent}
 

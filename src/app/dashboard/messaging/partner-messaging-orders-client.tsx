@@ -33,6 +33,10 @@ import {
 import type { Database } from '@/types/database.types'
 import { orderWaitingState } from '@/lib/messaging/partner-order-notify-ui'
 import {
+  publicShipmentStepHint,
+  publicShipmentStepTitle,
+} from '@/lib/messaging/fulfillment/customer-shipment-timeline-copy'
+import {
   canCancelPartnerOrder,
   canTransitionPartnerOrderShipping,
   partnerOrderCancellationAxis,
@@ -128,17 +132,25 @@ function fulfillmentSourceLabel(t: OrdersT, source?: string | null): string {
   return source === 'china' ? t.badgeChina : t.badgeVietnam
 }
 
-function shipmentStepLabel(t: OrdersT, step?: string | null): string {
-  if (step === 'confirmed') return t.shipmentStepConfirmed
-  if (step === 'tq_preparing') return t.shipmentStepChinaPreparing
-  if (step === 'tq_warehouse') return t.shipmentStepChinaWarehouse
-  if (step === 'international_shipping') return t.shipmentStepInternational
-  if (step === 'at_customs') return t.shipmentStepCustoms
-  if (step === 'domestic_shipping') return t.shipmentStepDomestic
-  if (step === 'vn_picking') return t.shipmentStepVietnamPicking
-  if (step === 'vn_packed') return t.shipmentStepVietnamPacked
-  if (step === 'awaiting_confirm') return t.shipmentStepAwaitingBuyer
-  return t.timelineHeading
+function shipmentStepLabel(
+  t: OrdersT,
+  locale: WebLocale,
+  order: {
+    partner_display_name?: string | null
+    fulfillment_source?: string | null
+    paid_amount?: number | null
+    required_amount?: number | null
+  },
+  step?: string | null
+): string {
+  const title = publicShipmentStepTitle({
+    locale,
+    shopName: order.partner_display_name || 'Shop',
+    stepKey: String(step || ''),
+    variant: order.fulfillment_source === 'china' ? 'china_import' : 'vn_domestic',
+    depositFlow: Number(order.paid_amount || 0) > 0 || Number(order.required_amount || 0) > 0,
+  })
+  return title || t.timelineHeading
 }
 
 type OrderEventRow = {
@@ -1680,7 +1692,7 @@ export function PartnerMessagingOrdersClient({
                           : waiting.actor === 'seller'
                             ? t.shipmentActorSeller
                             : t.shipmentActorSystem
-                    const step = shipmentStepLabel(t, waiting.step)
+                    const step = shipmentStepLabel(t, locale, selectedOrder, waiting.step)
                     return (
                       <p className="mb-3 rounded-md bg-blue-100 px-3 py-2 text-sm font-medium text-blue-900">
                         {t.shipmentWaitingLabel.replace('{step}', step).replace('{actor}', actor)}
@@ -1699,8 +1711,21 @@ export function PartnerMessagingOrdersClient({
                                 : 'text-gray-500'
                           }
                         >
-                          {shipmentStepLabel(t, ev.stepKey)}
+                          {shipmentStepLabel(t, locale, selectedOrder, ev.stepKey)}
                         </span>
+                        {publicShipmentStepHint({
+                          locale,
+                          shopName: selectedOrder.partner_display_name || 'Shop',
+                          stepKey: ev.stepKey,
+                        }) ? (
+                          <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                            {publicShipmentStepHint({
+                              locale,
+                              shopName: selectedOrder.partner_display_name || 'Shop',
+                              stepKey: ev.stepKey,
+                            })}
+                          </span>
+                        ) : null}
                         {ev.completedAt ? (
                           <span className="ml-2 text-xs text-gray-500">{formatDate(ev.completedAt, locale)}</span>
                         ) : ev.scheduledAt ? (

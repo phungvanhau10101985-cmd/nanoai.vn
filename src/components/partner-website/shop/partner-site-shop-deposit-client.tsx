@@ -91,6 +91,7 @@ type Props = {
   locale: WebLocale
   orderId: string
   shopTitle: string
+  shopName?: string
   initialOrder?: DepositOrder | null
   initialPaymentDisplay?: PaymentDisplay
   initialShopPercent?: number
@@ -127,6 +128,7 @@ export function PartnerSiteShopDepositClient({
   locale,
   orderId,
   shopTitle,
+  shopName = '',
   initialOrder = null,
   initialPaymentDisplay = null,
   initialShopPercent,
@@ -619,14 +621,17 @@ export function PartnerSiteShopDepositClient({
                 {t.orderStatusLabel}: <strong>{t.depositStatusPaid}</strong>
               </p>
               <p>
-                {t.depositPaidLabel}: <strong>{formatVnd(paid)}</strong>
+                {t.orderDepositPaidLine}: <strong>{formatVnd(paid)}</strong>
               </p>
-              {remaining > 0 ? (
-                <p className="pw-shop-muted">{t.depositRemainingHint.replace('{amount}', formatVnd(remaining))}</p>
-              ) : null}
+              <p>
+                {t.orderDueOnDeliveryLine}: <strong>{formatVnd(remaining)}</strong>
+              </p>
               <div style={{ marginTop: 16 }}>
                 <PartnerSiteOrderShipmentSteps
                   t={t}
+                  locale={locale}
+                  shopName={shopName || shopTitle}
+                  depositFlow
                   events={shipmentEvents}
                   fallback={genericShippingTimelineSteps(order.shipping_status, t)}
                 />
@@ -841,7 +846,14 @@ export function PartnerSiteShopDepositClient({
         />
         <PartnerSiteOrderEmsTracking t={t} trackingNumber={order.tracking_number} />
         {shipmentEvents.length > 0 ? (
-          <PartnerSiteOrderShipmentSteps t={t} events={shipmentEvents} fallback={[]} />
+          <PartnerSiteOrderShipmentSteps
+            t={t}
+            locale={locale}
+            shopName={shopName || shopTitle}
+            depositFlow={Number(order.required_amount || 0) > 0 || Number(order.paid_amount || 0) > 0}
+            events={shipmentEvents}
+            fallback={[]}
+          />
         ) : null}
       </div>
     </div>
