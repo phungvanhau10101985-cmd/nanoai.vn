@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { finalizeDueMessagingPartnerPurgesFromPg } from '@/lib/db/messaging-partner-purge-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { destroyPartnerBunnyCdn, retryPendingPartnerBunnyCdnDeletes } from '@/lib/storage/partner-bunny-cdn'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -27,7 +28,25 @@ export async function POST(req: NextRequest) {
   if (!isPgConfigured()) return NextResponse.json({ error: 'DATABASE_URL not configured.' }, { status: 503 })
 
   const ids = await finalizeDueMessagingPartnerPurgesFromPg()
-  return NextResponse.json({ ok: true, deactivatedPartnerIds: ids, count: ids.length })
+  let bunnyDeleted = 0
+  for (const id of ids) {
+    try {
+      if (await destroyPartnerBunnyCdn(id)) bunnyDeleted += 1
+    } catch (e) {
+      console.warn('[cron/messaging-partner-purge] bunny', id, e)
+    }
+  }
+  const bunnyRetried = await retryPendingPartnerBunnyCdnDeletes().catch((e) => {
+    console.warn('[cron/messaging-partner-purge] bunny retry', e)
+    return 0
+  })
+  return NextResponse.json({
+    ok: true,
+    deactivatedPartnerIds: ids,
+    count: ids.length,
+    bunnyDeleted,
+    bunnyRetried,
+  })
 }
 
 export async function GET(req: NextRequest) {

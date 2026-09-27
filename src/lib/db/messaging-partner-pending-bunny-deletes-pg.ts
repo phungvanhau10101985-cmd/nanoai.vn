@@ -1,6 +1,7 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { bunnyStorageConfigured, deleteBunnyStorageObject } from '@/lib/storage/try-on-public-upload'
+import { bunnyStorageConfigured } from '@/lib/storage/try-on-public-upload'
+import { deleteBunnyObjectForSource } from '@/lib/storage/partner-bunny-cdn'
 
 export type PendingBunnyDeleteEnqueueItem = {
   storagePath: string
@@ -76,7 +77,13 @@ export async function enqueuePendingBunnyDeletesFromPg(
   return result.rowCount ?? 0
 }
 
-type ClaimedRow = { id: string; storage_path: string; attempts: number }
+type ClaimedRow = {
+  id: string
+  storage_path: string
+  attempts: number
+  source_url: string | null
+  partner_id: string | null
+}
 
 export async function processPendingBunnyDeletesFromPg(
   limit?: number
@@ -113,7 +120,7 @@ export async function processPendingBunnyDeletesFromPg(
             updated_at = now()
        from due
       where t.id = due.id
-      returning t.id::text as id, t.storage_path, t.attempts`,
+      returning t.id::text as id, t.storage_path, t.attempts, t.source_url, t.partner_id::text as partner_id`,
     [batch, maxAttempts]
   )
 
@@ -127,7 +134,7 @@ export async function processPendingBunnyDeletesFromPg(
       continue
     }
     try {
-      const ok = await deleteBunnyStorageObject(path)
+      const ok = await deleteBunnyObjectForSource(path, String(row.source_url || ''), row.partner_id)
       if (ok) {
         await pgQuery(`delete from public.messaging_partner_pending_bunny_deletes where id = $1::uuid`, [row.id])
         deleted += 1

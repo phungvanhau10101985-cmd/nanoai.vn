@@ -1,7 +1,8 @@
 import type { Json } from '@/types/database.types'
 import { fetchImageWith1688Bypass, is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
 import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
-import { tryOnObjectExistsByPath, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 
 export const GUEST_CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
@@ -73,7 +74,7 @@ export async function uploadGuestChatImageBuffer(
   }
   const path = buildGuestMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadTryOnImagePublic(path, buffer, { contentType: mime })
+    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, buffer, mime)
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }
@@ -228,7 +229,7 @@ export async function uploadPartnerChatImageBuffer(
   }
   const path = buildPartnerMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadTryOnImagePublic(path, buffer, { contentType: mime })
+    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, buffer, mime)
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }

@@ -11,7 +11,7 @@ import {
   isGuestMessagingStoragePathForPartner,
   mimeFromGuestImagePath,
 } from '@/lib/messaging/guest-chat-image'
-import { downloadTryOnObject, getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
+import { partnerOrPlatformPublicUrl, partnerStorageObjectExists } from '@/lib/storage/partner-bunny-cdn'
 import { WIDGET_PRODUCT_VECTOR_PICK_MAX } from '@/lib/messaging/partner-vision-constants'
 import {
   customerMessageWantsSimilarCatalogVersusLastConsulted,
@@ -513,7 +513,9 @@ async function processGuestImageFollowUp(
       !ctx.isProductCardConsult &&
       !ctx.trustedEmbedProductAnchor
     ) {
-      const buf = await downloadTryOnObject(ctx.imagePath)
+      const src = ctx.imagePublicUrl || (await partnerOrPlatformPublicUrl(ctx.partnerId, ctx.imagePath))
+      const imgRes = await fetch(src)
+      const buf = imgRes.ok ? Buffer.from(await imgRes.arrayBuffer()) : null
       if (buf) {
         const imageSignal = await analyzeProductSignalFromImage(buf, ctx.mime)
         if (imageSignal?.gender) {
@@ -1020,10 +1022,10 @@ export async function postWidgetGuestMessage(params: {
     if (!isGuestMessagingStoragePathForPartner(imagePath, params.partnerId)) {
       return { error: 'Invalid image path.' }
     }
-    const exists = await tryOnObjectExistsByPath(imagePath)
+    const exists = await partnerStorageObjectExists(params.partnerId, imagePath)
     if (!exists) return { error: 'Image not found.' }
     imageMime = mimeFromGuestImagePath(imagePath)
-    imagePublicUrl = getTryOnPublicUrlFromPath(imagePath)
+    imagePublicUrl = await partnerOrPlatformPublicUrl(params.partnerId, imagePath)
     const basePayload = guestMediaPayloadToJson(buildGuestMediaPayload(imagePublicUrl, imagePath, imageMime))
     const imageCaption = text.trim()
     const pageContextSource =

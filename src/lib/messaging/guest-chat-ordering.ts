@@ -54,8 +54,7 @@ import {
   notifyPartnerOwnerPaymentNeedsReview,
   notifyPartnerOwnerPaymentVerified,
 } from '@/lib/messaging/partner-admin-notifications'
-import { guestImageObjectExists } from '@/lib/messaging/guest-chat-image'
-import { getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
+import { partnerOrPlatformPublicUrl, partnerStorageObjectExists } from '@/lib/storage/partner-bunny-cdn'
 import {
   emailCustomerOrderCheckoutSubmitted,
   emailCustomerOrderPaymentManualReview,
@@ -1881,7 +1880,7 @@ export async function verifyOrderPaymentProof(input: {
   /** Đã OCR ở bước nhận diện ảnh trong chat — tránh gọi Gemini hai lần. */
   preReadOcr?: TransferReceiptOcrResult | null
 }): Promise<{ ok: true; order: PartnerOrderRow; verification: 'verified' | 'manual_review' | 'failed' } | { error: string }> {
-  const exists = await guestImageObjectExists(input.proofImageStoragePath)
+  const exists = await partnerStorageObjectExists(input.partnerId, input.proofImageStoragePath)
   if (!exists) return { error: 'Không tìm thấy ảnh chứng từ.' }
 
   const order = await fetchPartnerOrderByIdForPartnerFromPg(input.partnerId, input.orderId)
@@ -1896,7 +1895,7 @@ export async function verifyOrderPaymentProof(input: {
   if (!allowed) return { error: 'Không tìm thấy đơn cần đối chiếu.' }
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cấu hình thanh toán.' }
-  const imageUrl = getTryOnPublicUrlFromPath(input.proofImageStoragePath)
+  const imageUrl = await partnerOrPlatformPublicUrl(input.partnerId, input.proofImageStoragePath)
   const ocr = input.preReadOcr ?? (await runGeminiTransferOcr(imageUrl))
   if (!ocr) return { error: 'Không đọc được ảnh chuyển khoản.' }
 

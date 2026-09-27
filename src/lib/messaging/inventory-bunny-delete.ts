@@ -10,7 +10,9 @@ import {
   type PendingBunnyDeleteEnqueueItem,
 } from '@/lib/db/messaging-partner-pending-bunny-deletes-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { bunnyStorageConfigured, deleteBunnyStorageObject } from '@/lib/storage/try-on-public-upload'
+import { partnerBunnyHostByPartnerIdsFromPg } from '@/lib/db/messaging-partner-bunny-cdn-pg'
+import { bunnyStorageConfigured } from '@/lib/storage/try-on-public-upload'
+import { deleteBunnyObjectForSource } from '@/lib/storage/partner-bunny-cdn'
 
 const IMAGE_WALK_KEYS = new Set([
   'img',
@@ -191,8 +193,17 @@ export function inventoryImageUrlToBunnyStoragePath(
   }
 }
 
-export function resolveBunnyDeletePathsFromUrls(urls: Iterable<string>): PendingBunnyDeleteEnqueueItem[] {
+export function resolveBunnyDeletePathsFromUrls(
+  urls: Iterable<string>,
+  extraHosts?: Iterable<string>
+): PendingBunnyDeleteEnqueueItem[] {
   const hosts = bunnyImageHostsForDelete()
+  if (extraHosts) {
+    for (const host of extraHosts) {
+      const h = String(host || '').trim().toLowerCase()
+      if (h) hosts.add(h)
+    }
+  }
   if (!hosts.size) return []
   const out: PendingBunnyDeleteEnqueueItem[] = []
   const seen = new Set<string>()
@@ -207,14 +218,14 @@ export function resolveBunnyDeletePathsFromUrls(urls: Iterable<string>): Pending
   return out
 }
 
-async function deleteBunnyPathsNow(paths: string[]): Promise<number> {
-  if (!paths.length || !bunnyStorageConfigured()) return 0
+async function deleteBunnyPathsNow(items: PendingBunnyDeleteEnqueueItem[]): Promise<number> {
+  if (!items.length || !bunnyStorageConfigured()) return 0
   let n = 0
-  for (const path of paths) {
+  for (const item of items) {
     try {
-      if (await deleteBunnyStorageObject(path)) n += 1
+      if (await deleteBunnyObjectForSource(item.storagePath, item.sourceUrl, item.partnerId)) n += 1
     } catch (e) {
-      console.warn('[inventory-bunny-delete] immediate Bunny DELETE', path, e)
+      console.warn('[inventory-bunny-delete] immediate Bunny DELETE', item.storagePath, e)
     }
   }
   return n
@@ -228,10 +239,14 @@ export async function enqueueAndScheduleBunnyDeletesForInventoryRows(
   rows: InventoryBunnyDeleteSnapshot[]
 ): Promise<number> {
   if (!bunnyDeleteOnProductDeleteEnabled() || rows.length === 0) return 0
+  const partnerIds = rows.map((row) => (row.partner_id ? String(row.partner_id) : '')).filter(Boolean)
+  const hostByPartner = await partnerBunnyHostByPartnerIdsFromPg(partnerIds)
   const items: PendingBunnyDeleteEnqueueItem[] = []
   const seen = new Set<string>()
   for (const row of rows) {
-    for (const item of resolveBunnyDeletePathsFromUrls(collectPartnerInventoryImageUrls(row))) {
+    const partnerId = row.partner_id ? String(row.partner_id) : ''
+    const extra = partnerId && hostByPartner.get(partnerId) ? [hostByPartner.get(partnerId)!] : undefined
+    for (const item of resolveBunnyDeletePathsFromUrls(collectPartnerInventoryImageUrls(row), extra)) {
       if (seen.has(item.storagePath)) continue
       seen.add(item.storagePath)
       items.push({
@@ -259,7 +274,7 @@ export async function enqueueAndScheduleBunnyDeletesForInventoryRows(
   }
 
   try {
-    return await deleteBunnyPathsNow(items.map((i) => i.storagePath))
+    return await deleteBunnyPathsNow(items)
   } catch (e) {
     console.warn('[inventory-bunny-delete] immediate Bunny DELETE', e)
     return 0

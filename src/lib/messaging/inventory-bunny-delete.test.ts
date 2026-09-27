@@ -89,5 +89,13 @@ test('resolveBunnyDeletePathsFromUrls dedupes by storage path', () => {
     ])
     assert.equal(items.length, 1)
     assert.equal(items[0]?.storagePath, 'messaging-partner/p1/a.jpg')
+    const shop = resolveBunnyDeletePathsFromUrls(
+      ['https://gudo-ab12.b-cdn.net/localized-images/p/a.jpg'],
+      ['gudo-ab12.b-cdn.net']
+    )
+    assert.equal(shop.length, 1)
+    assert.equal(shop[0]?.storagePath, 'localized-images/p/a.jpg')
+    const foreign = resolveBunnyDeletePathsFromUrls(['https://gudo-ab12.b-cdn.net/localized-images/p/a.jpg'])
+    assert.equal(foreign.length, 0)
   })
 })

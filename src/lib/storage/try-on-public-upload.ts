@@ -45,24 +45,41 @@ export function tryOnPublicUrlToStoragePath(url: string | null | undefined): str
   return null
 }
 
-function requireTryOnBunnyStorage(): void {
-  if (!bunnyStorageConfigured()) {
+export type BunnyStorageAuth = {
+  zone: string
+  accessKey: string
+  publicBase: string
+}
+
+export function platformBunnyStorageAuth(): BunnyStorageAuth | null {
+  if (!bunnyStorageConfigured()) return null
+  return {
+    zone: process.env.BUNNY_STORAGE_ZONE!.trim(),
+    accessKey: process.env.BUNNY_STORAGE_API_KEY!.trim(),
+    publicBase: process.env.BUNNY_STORAGE_PUBLIC_BASE_URL!.trim().replace(/\/$/, ''),
+  }
+}
+
+function requireTryOnBunnyStorage(): BunnyStorageAuth {
+  const auth = platformBunnyStorageAuth()
+  if (!auth) {
     throw new Error(
       'Thiếu Bunny Storage (BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).'
     )
   }
+  return auth
 }
 
 /**
  * DELETE một object Bunny. 200/204/404 = thành công (giống 188 `delete_file_from_zone`).
  * HTTP khác hoặc lỗi mạng → `false` / throw để hàng đợi retry.
  */
-export async function deleteBunnyStorageObject(path: string): Promise<boolean> {
-  requireTryOnBunnyStorage()
+export async function deleteBunnyStorageObject(path: string, auth?: BunnyStorageAuth): Promise<boolean> {
+  const creds = auth ?? requireTryOnBunnyStorage()
   const trimmed = path.trim()
   if (!trimmed || trimmed.includes('..')) return false
-  const zone = process.env.BUNNY_STORAGE_ZONE!.trim()
-  const accessKey = process.env.BUNNY_STORAGE_API_KEY!.trim()
+  const zone = creds.zone
+  const accessKey = creds.accessKey
   const remotePath = buildTryOnEncodedPath(trimmed)
   if (!remotePath) return false
   const delUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
@@ -145,11 +162,13 @@ async function bodyToBuffer(body: File | Blob | Buffer): Promise<Buffer> {
 async function uploadToBunny(
   path: string,
   buffer: Buffer,
-  contentType: string
+  contentType: string,
+  auth?: BunnyStorageAuth
 ): Promise<{ publicUrl: string }> {
-  const zone = process.env.BUNNY_STORAGE_ZONE!.trim()
-  const accessKey = process.env.BUNNY_STORAGE_API_KEY!.trim()
-  const publicBase = process.env.BUNNY_STORAGE_PUBLIC_BASE_URL!.trim().replace(/\/$/, '')
+  const creds = auth ?? requireTryOnBunnyStorage()
+  const zone = creds.zone
+  const accessKey = creds.accessKey
+  const publicBase = creds.publicBase.replace(/\/$/, '')
   const remotePath = buildTryOnEncodedPath(path)
   const putUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
   const res = await fetch(putUrl, {
@@ -205,4 +224,16 @@ export async function uploadTryOnImagePublic(
   const contentType = options?.contentType || 'application/octet-stream'
   const buffer = await bodyToBuffer(body)
   return uploadToBunny(path, buffer, contentType)
+}
+
+/** Upload vào một zone đã biết (ổ shop hoặc zone chung). */
+export async function uploadBunnyStorageObject(
+  path: string,
+  body: File | Blob | Buffer,
+  options: UploadOptions | undefined,
+  auth: BunnyStorageAuth
+): Promise<{ publicUrl: string }> {
+  const contentType = options?.contentType || 'application/octet-stream'
+  const buffer = await bodyToBuffer(body)
+  return uploadToBunny(path, buffer, contentType, auth)
 }

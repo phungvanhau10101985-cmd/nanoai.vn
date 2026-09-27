@@ -29,7 +29,8 @@ import { isOwnCdnUrl } from '@/lib/messaging/image-localization/image-localizati
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { normalizeBrandLogoTemplate } from '@/lib/messaging/image-localization/overlay-brand-logo'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
-import { removeTryOnStorageFromPublicUrls, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { tryOnPublicUrlToStoragePath } from '@/lib/storage/try-on-public-upload'
+import { deleteBunnyObjectForSource, partnerBunnyHostname, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 
 export const maxDuration = 300
 export const runtime = 'nodejs'
@@ -58,15 +59,22 @@ function boolParam(v: string | null, fallback = false): boolean {
   return !['0', 'false', 'no', 'off'].includes(v.trim().toLowerCase())
 }
 
+async function retirePreviousImageLocLogo(partnerId: string, previousLogoUrl: string | null, nextUrl?: string) {
+  if (!previousLogoUrl || (nextUrl && previousLogoUrl === nextUrl)) return
+  const host = await partnerBunnyHostname(partnerId)
+  if (!isOwnCdnUrl(previousLogoUrl, host ? [host] : undefined)) return
+  const storagePath = tryOnPublicUrlToStoragePath(previousLogoUrl)
+  if (!storagePath) return
+  await deleteBunnyObjectForSource(storagePath, previousLogoUrl, partnerId).catch(() => undefined)
+}
+
 async function persistNormalizedImageLocLogo(partnerId: string, logoBytes: Buffer): Promise<string> {
   const png = await normalizeBrandLogoTemplate(logoBytes)
   const path = `localized-images/${partnerId}/brand/logo-${Date.now()}.png`
-  const { publicUrl } = await uploadTryOnImagePublic(path, png, { contentType: 'image/png' })
+  const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, png, 'image/png')
   const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
   await upsertImageLocLogoUrlFromPg(partnerId, publicUrl)
-  if (previousLogoUrl && previousLogoUrl !== publicUrl && isOwnCdnUrl(previousLogoUrl)) {
-    await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
-  }
+  await retirePreviousImageLocLogo(partnerId, previousLogoUrl, publicUrl)
   return publicUrl
 }
 
@@ -218,9 +226,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     if (!raw) {
       const previousLogoUrl = (await fetchImageLocSettingsFromPg(partnerId)).logo_url
       await upsertImageLocLogoUrlFromPg(partnerId, null)
-      if (previousLogoUrl && isOwnCdnUrl(previousLogoUrl)) {
-        await removeTryOnStorageFromPublicUrls([previousLogoUrl]).catch(() => undefined)
-      }
+      await retirePreviousImageLocLogo(partnerId, previousLogoUrl)
       return NextResponse.json({ logo_url: null })
     }
     if (!/^https:\/\/[^\s]+$/i.test(raw)) {

@@ -9,6 +9,7 @@ import type { ImageProcessResult } from './image-localization-types'
 import { prepareImageLocBatchOcr } from './batch-ocr'
 import { processPreparedImage, type ProcessImageContext } from './process-one'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
+import { partnerBunnyHostname } from '@/lib/storage/partner-bunny-cdn'
 
 export function isTransientImageLocDbError(error: unknown): boolean {
   const code = String((error as { code?: unknown })?.code || '').toUpperCase()
@@ -137,13 +138,20 @@ export async function processInventoryProduct(opts: {
   }
 
   const skuOrId = String(row.sku || row.remarketing_id || row.id)
-  const ctx: ProcessImageContext = { ...opts.ctx, partnerId: opts.partnerId, skuOrId }
+  const partnerHost = await partnerBunnyHostname(opts.partnerId)
+  const ctx: ProcessImageContext = {
+    ...opts.ctx,
+    partnerId: opts.partnerId,
+    skuOrId,
+    cdnHosts: partnerHost ? [partnerHost] : undefined,
+  }
   const results: Record<string, ImageProcessResult> = {}
   opts.progressCb?.(`tải/ghép ${urls.length} ảnh`)
   const batchOcr = await prepareImageLocBatchOcr({
     urls,
     force: ctx.force,
     userId: ctx.userId,
+    cdnHosts: ctx.cdnHosts,
     shouldCancel: ctx.shouldCancel,
     progressCb: opts.progressCb,
   })

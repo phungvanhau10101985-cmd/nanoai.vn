@@ -26,7 +26,7 @@ import {
   type PartnerMarketingBannerCopy,
   type PartnerMarketingBannerKind,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const SAFETY = [
@@ -242,10 +242,7 @@ export async function generatePartnerMarketingBanner(input: {
     })
     const digest = bytes.subarray(0, 12).toString('hex')
     const path = `partners/${input.partnerId}/marketing-banners/${input.kind}/${key}/v${version}-${Date.now()}-${digest}.png`
-    const { publicUrl } = await uploadTryOnImagePublic(path, bytes, {
-      contentType: 'image/png',
-      upsert: true,
-    })
+    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
     if (input.chargeCredits && input.actorUserId) {
       const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST, 'partner-marketing-banner')
       if (!deducted.ok) {
@@ -313,10 +310,7 @@ export async function uploadPartnerMarketingBannerImage(input: {
   if (!row) return { ok: false, error: 'Không tạo được bản ghi banner.', status: 500 }
   try {
     const path = `partners/${input.partnerId}/marketing-banners/${input.kind}/${key}/v${version}-${Date.now()}-upload.${ext}`
-    const { publicUrl } = await uploadTryOnImagePublic(path, input.file, {
-      contentType: input.contentType,
-      upsert: true,
-    })
+    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, input.file, input.contentType)
     const ready = await completePartnerMarketingBannerAssetFromPg({
       id: row.id,
       partnerId: input.partnerId,

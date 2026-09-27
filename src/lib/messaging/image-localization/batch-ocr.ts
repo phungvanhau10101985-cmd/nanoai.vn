@@ -159,6 +159,7 @@ export async function prepareImageLocBatchOcr(opts: {
   urls: string[]
   force: boolean
   userId?: string | null
+  cdnHosts?: readonly string[]
   shouldCancel?: () => boolean
   progressCb?: (phase: string) => void
 }): Promise<{
@@ -172,7 +173,7 @@ export async function prepareImageLocBatchOcr(opts: {
   for (const rawUrl of opts.urls) {
     if (opts.shouldCancel?.()) throw new ImageLocalizationError('Job đã bị hủy')
     const url = normalizeImageUrl(rawUrl)
-    if (!opts.force && isOwnCdnUrl(url)) {
+    if (!opts.force && isOwnCdnUrl(url, opts.cdnHosts)) {
       earlyResults.set(url, {
         original_url: url,
         final_url: url,

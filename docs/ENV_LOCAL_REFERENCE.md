@@ -35,7 +35,7 @@ Sau khi clone repo lần đầu: **bắt buộc** có `.env.local` thì `npm run
 | Postgres | `DATABASE_URL` | ✓ | ✓ |
 | Redis shop cache | `REDIS_URL` | Tuỳ (fail-open nếu trống) | Nên có `redis://127.0.0.1:6379` |
 | Auth + URL public | `NEXT_PUBLIC_LEGACY_HTTP_ORIGIN`, `LEGACY_HTTP_SERVICE_ROLE_KEY` (+ alias trong `.env.example`) | ✓ nếu session qua host đó | ✓ production nếu còn dùng |
-| Bunny Storage | `BUNNY_STORAGE_*`, `BUNNY_STORAGE_PUBLIC_BASE_URL` | ✓ cho upload media mới | ✓ |
+| Bunny Storage | `BUNNY_STORAGE_*`, `BUNNY_STORAGE_PUBLIC_BASE_URL`, `BUNNY_ACCOUNT_API_KEY` (ổ CDN riêng; cron cấp cho shop đã tạo) | ✓ cho upload media mới | ✓ |
 | Storage REST legacy (tùy) | `NEXT_PUBLIC_STORAGE_LEGACY_*`, `STORAGE_LEGACY_*` | Nếu backfill / URL cũ | Tuỳ |
 | Self-host / PM2 | `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | Tuỳ | **Nên có** khi `next start` + PM2 (tạo: `openssl rand -base64 32`) |
 | DeepSeek / OpenAI | `DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, … | Nếu dùng tính năng AI | ✓ |

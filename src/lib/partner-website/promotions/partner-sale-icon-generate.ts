@@ -20,7 +20,7 @@ import {
   PARTNER_SALE_ICON_CREDIT_COST,
   partnerShopSaleIconSourceUrls,
 } from '@/lib/partner-website/promotions/partner-sale-icon'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const SAFETY = [
@@ -203,10 +203,7 @@ export async function generatePartnerSaleIcon(input: {
     })
     const digest = bytes.subarray(0, 12).toString('hex')
     const path = `partners/${input.partnerId}/sale-icons/${input.month}-${input.day}-${Date.now()}-${digest}.png`
-    const { publicUrl } = await uploadTryOnImagePublic(path, bytes, {
-      contentType: 'image/png',
-      upsert: true,
-    })
+    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
     if (!isHttpUrl(publicUrl)) throw new Error('Không tải được icon sale lên kho.')
     if (input.chargeCredits && actorUserId) {
       const deducted = await deductUserCredits(

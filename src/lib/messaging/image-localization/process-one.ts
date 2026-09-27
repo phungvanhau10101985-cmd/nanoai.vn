@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { isOwnCdnUrl, normalizeImageUrl } from './image-localization-config'
 import type { ImageLocOcrBlock, ImageProcessResult } from './image-localization-types'
 import { classifyImage, hasChineseText, hasSizeOrLaundryContext } from './image-localization-classifier'
@@ -35,7 +35,7 @@ export async function uploadLocalizedImage(opts: {
   const safe = (opts.skuOrId || 'product').replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'product'
   const filename = `${safe}-${opts.language}-${Date.now()}-${digest}.jpg`
   const path = `localized-images/${opts.partnerId}/${safe}/${filename}`
-  const { publicUrl } = await uploadTryOnImagePublic(path, jpeg, { contentType: 'image/jpeg' })
+  const { publicUrl } = await uploadPartnerBunnyObject(opts.partnerId, path, jpeg, 'image/jpeg')
   return publicUrl
 }
 
@@ -55,6 +55,8 @@ export type ProcessImageContext = {
   logoUrl?: string | null
   logoBytes?: Buffer | null
   userId?: string | null
+  /** Hostname Pull Zone của shop — ảnh trên host này coi là CDN shop. */
+  cdnHosts?: readonly string[]
   shouldCancel?: () => boolean
 }
 
@@ -163,7 +165,7 @@ export async function processOneImageUrl(
 ): Promise<ImageProcessResult> {
   throwIfCancelled(ctx)
   const normalized = normalizeImageUrl(url)
-  if (!ctx.force && isOwnCdnUrl(normalized)) {
+  if (!ctx.force && isOwnCdnUrl(normalized, ctx.cdnHosts)) {
     return { original_url: normalized, final_url: normalized, status: 'kept', message: 'Ảnh đã ở CDN shop' }
   }
   const { bytes, filename } = await downloadLocalizationImage(normalized)

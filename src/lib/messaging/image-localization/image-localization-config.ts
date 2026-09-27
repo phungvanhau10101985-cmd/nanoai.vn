@@ -173,10 +173,11 @@ export function normalizeImageUrl(url: string): string {
   return s
 }
 
-export function isOwnCdnUrl(url: string): boolean {
+export function isOwnCdnUrl(url: string, extraHosts?: readonly string[]): boolean {
   const n = normalizeImageUrl(url)
   try {
     const host = new URL(n).hostname.toLowerCase()
+    if (extraHosts?.some((item) => item.trim().toLowerCase() === host)) return true
     const publicBase = (process.env.BUNNY_STORAGE_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_BUNNY_STORAGE_PUBLIC_BASE_URL || '').trim()
     if (publicBase) {
       try {

@@ -1,4 +1,4 @@
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 
 export const HOSPITALITY_IMAGE_MAX_BYTES = 10 * 1024 * 1024
 
@@ -40,7 +40,7 @@ export async function uploadHospitalityRoomImageBuffer(
   }
   const path = buildHospitalityRoomImageStoragePath(partnerId, roomId, ext)
   try {
-    const { publicUrl } = await uploadTryOnImagePublic(path, buffer, { contentType: mime })
+    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, buffer, mime)
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }

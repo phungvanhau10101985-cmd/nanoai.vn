@@ -207,7 +207,7 @@ import {
   mimeFromGuestImagePath,
   partnerMediaPayloadToJson,
 } from '@/lib/messaging/guest-chat-image'
-import { getTryOnPublicUrlFromPath, tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
+import { partnerOrPlatformPublicUrl, partnerStorageObjectExists, provisionPartnerBunnyCdn } from '@/lib/storage/partner-bunny-cdn'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 import { syncPartnerInventoryEmbeddings } from '@/lib/messaging/partner-inventory-embedding'
 import {
@@ -444,6 +444,11 @@ export async function createMessagingWorkspace(displayName: string) {
   if (!inserted) {
     return { error: 'Không tạo được workspace.' }
   }
+  try {
+    await provisionPartnerBunnyCdn({ partnerId: inserted.id, slug: inserted.slug })
+  } catch (e) {
+    console.warn('[provisionPartnerBunnyCdn]', inserted.id, e)
+  }
   await maybeSeedShopDemoInventoryOnCreate(inserted.id, inserted.industry_key)
   revalidateMessagingDashboard()
   return { partner: inserted }
@@ -527,6 +532,11 @@ export async function createMessagingWorkspaceProfile(input: {
     owner_user_id: user.id,
   })
   if (!inserted) return { error: 'Không tạo được workspace.' }
+  try {
+    await provisionPartnerBunnyCdn({ partnerId: inserted.id, slug: inserted.slug })
+  } catch (e) {
+    console.warn('[provisionPartnerBunnyCdn]', inserted.id, e)
+  }
   await maybeSeedShopDemoInventoryOnCreate(inserted.id, inserted.industry_key)
   revalidateMessagingDashboard()
   return { partner: inserted }
@@ -2191,13 +2201,13 @@ export async function sendPartnerReply(
     }
     let exists: boolean
     try {
-      exists = await tryOnObjectExistsByPath(imgPath)
+      exists = await partnerStorageObjectExists(partnerId, imgPath)
     } catch {
       return { error: 'Server configuration error.' }
     }
     if (!exists) return { error: 'Image not found.' }
     const mime = mimeFromGuestImagePath(imgPath)
-    imagePublicUrl = getTryOnPublicUrlFromPath(imgPath)
+    imagePublicUrl = await partnerOrPlatformPublicUrl(partnerId, imgPath)
     rawPayload = partnerMediaPayloadToJson(buildPartnerMediaPayload(imagePublicUrl, imgPath, mime))
     body = trimmed ? `≡ƒô╖ ${trimmed}` : '≡ƒô╖'
   } else {

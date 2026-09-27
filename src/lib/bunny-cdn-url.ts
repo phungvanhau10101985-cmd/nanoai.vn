@@ -1,8 +1,6 @@
 /** Host Bunny mặc định (pull zone cũ) — dùng để nhận diện URL legacy, không dùng làm CDN public. */
 export const LEGACY_BUNNY_PULL_ZONE_HOST = 'nanoai.b-cdn.net'
 
-const LEGACY_BUNNY_HOST_SUFFIX = '.b-cdn.net'
-
 /** Base URL CDN public — ưu tiên NEXT_PUBLIC (client + build), rồi BUNNY_STORAGE (server). */
 export function getBunnyPublicBase(): string {
   const raw =
@@ -23,8 +21,8 @@ export function bunnyCdnUrl(path: string): string {
 }
 
 /**
- * Đổi host `*.b-cdn.net` sang CDN custom (NEXT_PUBLIC_BUNNY_STORAGE_PUBLIC_BASE_URL).
- * URL cũ trong DB / JSON không cần migrate hàng loạt khi gọi hàm này lúc render.
+ * Đổi host legacy `nanoai.b-cdn.net` sang CDN custom (NEXT_PUBLIC_BUNNY_STORAGE_PUBLIC_BASE_URL).
+ * Pull zone shop `{slug}.b-cdn.net` giữ nguyên — không gộp về CDN nền tảng.
  */
 export function rewriteLegacyBunnyCdnUrl(url: string | null | undefined): string {
   const t = String(url ?? '').trim()
@@ -33,9 +31,14 @@ export function rewriteLegacyBunnyCdnUrl(url: string | null | undefined): string
 
   try {
     const u = new URL(t)
-    if (!u.hostname.endsWith(LEGACY_BUNNY_HOST_SUFFIX)) return t
+    if (u.hostname.toLowerCase() !== LEGACY_BUNNY_PULL_ZONE_HOST) return t
     const base = getBunnyPublicBase()
     if (!base) return t
+    try {
+      if (new URL(base).hostname.toLowerCase() === LEGACY_BUNNY_PULL_ZONE_HOST) return t
+    } catch {
+      return t
+    }
     return `${base}${u.pathname}${u.search}${u.hash}`
   } catch {
     return t
