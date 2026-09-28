@@ -11,7 +11,7 @@ import {
   getPartnerInventoryExternalSyncSettings,
   savePartnerInventoryExternalSyncSettings,
 } from '@/app/dashboard/messaging/actions'
-import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { useRegisterStepUpShop, useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -137,6 +137,7 @@ export function PartnerInventoryExternalSyncCard({
   toast: (opts: { title: string; description?: string; variant?: 'destructive' }) => void
 }) {
   const { runWithStepUp } = useStepUpOtp()
+  useRegisterStepUpShop(partnerId)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [listUrl, setListUrl] = useState('')

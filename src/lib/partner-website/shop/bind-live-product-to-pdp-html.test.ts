@@ -168,6 +168,46 @@ test('bind puts product video as second gallery thumb like 188', () => {
   assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
 })
 
+const BAKED_SAMPLE_VIDEO = 'https://cdn.188.com.vn/G1571_1765961958_1.mp4'
+
+const SHELL_WITH_SAMPLE_VIDEO = `<!DOCTYPE html><html><body data-pw-page="product">
+<section class="pw-pdp-hero" data-pw-region="gallery">
+  <img class="pw-pdp-hero-img" data-pw-el="main-image" src="https://old.example/a.jpg" alt="Old" />
+  <div class="pw-pdp-hero-slide" data-pw-hero-kind="video"><div class="pw-pdp-hero-video" data-pw-pdp-hero-video><video class="pw-pdp-hero-video-el" src="${BAKED_SAMPLE_VIDEO}" controls></video></div></div>
+  <nav class="pw-pdp-hero-thumbs">
+    <button data-pw-el="thumb"><img src="https://old.example/a.jpg" alt="" /></button>
+    <button type="button" class="pw-pdp-video-thumb" data-pw-pdp-video-thumb="1"><span class="pw-pdp-video-thumb-play">▶</span></button>
+  </nav>
+  <span class="pw-pdp-hero-count">1/2</span>
+</section>
+<div data-pw-region="pdp-info">
+  <h1 class="pw-pdp-title" data-pw-el="title">Old bag</h1>
+  <p class="pw-shop-price" data-pw-el="price">10.000₫</p>
+</div>
+<div data-pw-pdp-slot="video"><video class="pw-shop-product-video" src="${BAKED_SAMPLE_VIDEO}" controls></video></div>
+</body></html>`
+
+test('bind drops the editor sample video when the product has none', () => {
+  const next = bindLiveProductToPdpHtml(SHELL_WITH_SAMPLE_VIDEO, PRODUCT_B)
+  assert.doesNotMatch(next, /G1571_/)
+  assert.doesNotMatch(next, /data-pw-pdp-video-thumb/)
+  assert.doesNotMatch(next, /data-pw-pdp-hero-video/)
+  assert.doesNotMatch(next, /data-pw-hero-kind="video"/)
+  assert.doesNotMatch(next, /data-pw-pdp-slot="video"/)
+  assert.match(next, /new\.example\/shirt\.jpg/)
+})
+
+test('bind replaces the editor sample video with the product video', () => {
+  const next = bindLiveProductToPdpHtml(SHELL_WITH_SAMPLE_VIDEO, {
+    ...PRODUCT_B,
+    productVideoUrl: 'https://cdn.example/this-dress.mp4',
+  })
+  assert.doesNotMatch(next, /G1571_/)
+  assert.match(next, /this-dress\.mp4/)
+  assert.match(next, /data-pw-pdp-video-thumb/)
+  assert.match(next, /data-pw-pdp-hero-video/)
+})
+
 test('bind injects missing editor layout slots onto a sparse shell', () => {
   const next = bindLiveProductToPdpHtml(SHELL, DEMO_PDP_BIND_PRODUCT)
   assert.match(next, /id="pw-pdp-qa"/)

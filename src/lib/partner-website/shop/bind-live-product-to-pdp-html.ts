@@ -757,10 +757,17 @@ function ensureGalleryHasVisibleMainImage(inner: string, product: LivePdpBindPro
   return `<img class="${cls}" data-pw-el="${PW_EL.mainImage}" src="${escAttr(main.page)}"${fullAttr} alt="${escAttr(name)}" fetchpriority="high" decoding="async" />${inner}`
 }
 
+/** Vỏ Sửa nhanh giữ video mẫu. Live phải bỏ hết rồi chỉ gắn video của đúng sản phẩm. */
+function stripBakedGalleryVideo(inner: string): string {
+  let out = dropAttrBlocks(inner, 'data-pw-hero-kind', 'video')
+  out = dropTaggedAttrBlocks(out, 'data-pw-pdp-hero-video')
+  return dropTaggedAttrBlocks(out, 'data-pw-pdp-video-thumb')
+}
+
 function insertGalleryVideo(inner: string, product: LivePdpBindProduct): string {
   const videoUrl = String(product.productVideoUrl || '').trim()
-  if (!videoUrl || !looksLikeVideoUrl(videoUrl)) return inner
-  let out = inner
+  let out = stripBakedGalleryVideo(inner)
+  if (!videoUrl || !looksLikeVideoUrl(videoUrl)) return out
   const name = product.name || 'Product'
   const yt = toYoutubeEmbedSrc(videoUrl)
   const videoInner = yt
@@ -962,6 +969,35 @@ function replaceAttrBlocks(
 /** Drop leftover live-media slots from the shared PDP shell so the next product cannot inherit demo photos. */
 function dropAttrBlocks(html: string, attr: string, value: string): string {
   return mutateAttrBlocks(html, attr, value, () => '')
+}
+
+/** Drop elements that carry `attr` with or without a value (`data-pw-pdp-hero-video`). */
+function dropTaggedAttrBlocks(html: string, attr: string): string {
+  const masked = maskHtmlForTagScan(html)
+  const attrRe = attr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const openRe = new RegExp(`<([a-z0-9]+)\\b(?=[^>]*\\b${attrRe}\\b)[^>]*>`, 'gi')
+  const chunks: Array<{ start: number; end: number }> = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(masked))) {
+    const tag = (match[1] || 'div').toLowerCase()
+    const start = match.index
+    const openEnd = start + match[0].length
+    const close = closingTagIndex(masked, openEnd, tag)
+    if (close < 0) continue
+    const closeTok = html.slice(close).match(new RegExp(`^</${tag}\\s*>`, 'i'))?.[0] ?? `</${tag}>`
+    const end = close + closeTok.length
+    openRe.lastIndex = end
+    chunks.push({ start, end })
+  }
+  if (!chunks.length) return html
+  let out = ''
+  let cursor = 0
+  for (const chunk of chunks) {
+    if (chunk.start < cursor) continue
+    out += html.slice(cursor, chunk.start)
+    cursor = chunk.end
+  }
+  return out + html.slice(cursor)
 }
 
 function mutateAttrBlocks(
@@ -1601,10 +1637,11 @@ function ensureMissingPdpSlots(
   const videoUrl = String(product.productVideoUrl || '').trim()
   if (videoUrl && looksLikeVideoUrl(videoUrl) && /data-pw-pdp-video-thumb|data-pw-pdp-hero-video/.test(out)) {
     if (hasSlot(out, 'video')) {
-      out = out.replace(
-        /(<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*)>/i,
-        '$1 hidden style="display:none">'
-      )
+      out = replaceAttrBlocks(out, 'data-pw-pdp-slot', 'video', (inner, open) => {
+        const cleared = inner.replace(/\s(?:src|poster)=(["'])[^"']*\1/gi, '')
+        const hiddenOpen = /\bhidden\b/.test(open) ? open : open.replace(/>$/, ' hidden style="display:none">')
+        return `${hiddenOpen}${cleared}`
+      })
     }
   } else if (videoUrl && looksLikeVideoUrl(videoUrl)) {
     const yt = toYoutubeEmbedSrc(videoUrl)
@@ -1622,10 +1659,7 @@ function ensureMissingPdpSlots(
       out = insertBeforeMainClose(out, `<section class="pw-shop-product-detail" data-pw-region="${PW_REGION.pdpInfo}">${video}</section>`)
     }
   } else if (hasSlot(out, 'video')) {
-    out = out.replace(
-      /(<div\b[^>]*data-pw-pdp-slot=["']video["'][^>]*)>/i,
-      '$1 hidden style="display:none">'
-    )
+    out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'video')
   }
   const material = shopPdpPageSrc(product.materialImageUrl)
   const materialFull = shopPdpDisplaySrc(product.materialImageUrl)

@@ -19,10 +19,7 @@ import {
   PARTNER_SITE_CONSENT_CHANGED_EVENT,
 } from '@/lib/partner-website/shop/partner-site-consent'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
-import {
-  partnerShopVerifyMetaTags,
-  sanitizePartnerShopCustomEmbedHtml,
-} from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
+import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 
 declare global {
   interface Window {
@@ -83,22 +80,24 @@ function ensureTiktokPixel(pixelId: string): void {
 }
 
 function applyVerifyMetas(tracking: PartnerSiteShopTrackingConfig): void {
-  const html = partnerShopVerifyMetaTags({
-    googleSearchConsoleVerify: tracking.googleSearchConsoleVerify,
-    googleMerchantCenterVerify: tracking.googleMerchantCenterVerify,
-    facebookDomainVerification: tracking.facebookDomainVerification,
-  })
-  if (!html || typeof document === 'undefined') return
-  const wrap = document.createElement('div')
-  wrap.innerHTML = html
-  wrap.querySelectorAll('meta').forEach((meta) => {
-    const name = meta.getAttribute('name')
-    const content = meta.getAttribute('content')
-    if (!name || !content) return
-    const sel = `meta[name="${name}"]${meta.getAttribute('data-pw-merchant-verify') ? '[data-pw-merchant-verify]' : ''}`
-    if (document.head.querySelector(sel)) return
+  if (typeof document === 'undefined') return
+  const rows: Array<[string | null | undefined, string]> = [
+    [tracking.googleSearchConsoleVerify, 'google-site-verification'],
+    [tracking.googleMerchantCenterVerify, 'google-site-verification'],
+    [tracking.facebookDomainVerification, 'facebook-domain-verification'],
+  ]
+  for (const [raw, name] of rows) {
+    const content = String(raw ?? '').trim()
+    if (!content || !/^[A-Za-z0-9_-]+$/.test(content)) continue
+    const exists = Array.from(document.head.querySelectorAll(`meta[name="${name}"]`)).some(
+      (el) => el.getAttribute('content') === content
+    )
+    if (exists) continue
+    const meta = document.createElement('meta')
+    meta.setAttribute('name', name)
+    meta.setAttribute('content', content)
     document.head.appendChild(meta)
-  })
+  }
 }
 
 function applyCustomHtml(html: string, where: 'head' | 'body-start' | 'body-end'): void {

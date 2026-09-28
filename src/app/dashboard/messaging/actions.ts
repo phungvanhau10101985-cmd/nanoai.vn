@@ -163,6 +163,8 @@ import {
   verifyDeletionOtpAndSchedulePartnerPurgeFromPg,
 } from '@/lib/db/messaging-partner-purge-pg'
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
+import { resolvePartnerShopEmailContext } from '@/lib/messaging/partner-shop-email-context'
 import { sendPartnerStaffInviteEmail } from '@/lib/messaging/partner-staff-invite-email'
 import { resolveCanonicalUserIdByEmail } from '@/lib/auth/resolve-canonical-email-user'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
@@ -1973,6 +1975,16 @@ function formatVnScheduleDate(iso: string): string {
 }
 
 /** Gß╗¡i m├ú OTP 6 sß╗æ tß╗¢i email ─æ─âng nhß║¡p ΓÇö b╞░ß╗¢c tr╞░ß╗¢c khi l├¬n lß╗ïch x├│a workspace. */
+async function shopEmailBrandForPartner(partnerId: string): Promise<string> {
+  try {
+    const ctx = await resolvePartnerShopEmailContext(partnerId)
+    return ctx.shopDisplayName
+  } catch (e) {
+    console.warn('[shopEmailBrandForPartner]', e)
+    return 'Shop'
+  }
+}
+
 export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2007,11 +2019,22 @@ export async function requestMessagingWorkspaceDeletionOtp(partnerId: string) {
   })
   if (!saved) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc m├ú x├íc nhß║¡n.' }
 
+  const shopName = await shopEmailBrandForPartner(partnerId)
+  const shopHtml = shopName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const sent = await sendSmtpMail({
     to: email,
-    subject: 'M├ú OTP x├│a workspace nhß║»n tin',
-    text: `M├ú OTP cß╗ºa bß║ín: ${otp}\n\nM├ú c├│ hiß╗çu lß╗▒c 10 ph├║t. Nß║┐u kh├┤ng phß║úi bß║ín y├¬u cß║ºu, h├úy bß╗Å qua email n├áy.`,
-    html: `<p>M├ú OTP cß╗ºa bß║ín: <b>${otp}</b></p><p>M├ú c├│ hiß╗çu lß╗▒c 10 ph├║t. Nß║┐u kh├┤ng phß║úi bß║ín y├¬u cß║ºu, h├úy bß╗Å qua email n├áy.</p>`,
+    fromName: shopName,
+    subject: shopEmailSubject(shopName, 'Mã OTP xóa workspace'),
+    text: [
+      `Bạn vừa yêu cầu mã OTP để xóa workspace ${shopName}.`,
+      '',
+      `Mã OTP của bạn: ${otp}`,
+      '',
+      'Mã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.',
+      '',
+      `— ${shopName}`,
+    ].join('\n'),
+    html: `<p>Bạn vừa yêu cầu mã OTP để xóa workspace <b>${shopHtml}</b>.</p><p>Mã OTP của bạn: <b>${otp}</b></p><p>Mã có hiệu lực 10 phút. Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p><p>— ${shopHtml}</p>`,
   })
 
   if (!sent.ok) {
@@ -2052,21 +2075,27 @@ export async function confirmMessagingWorkspaceDeletionWithOtp(partnerId: string
   const when = formatVnScheduleDate(scheduled.purge_at)
 
   if (email && isSmtpConfigured()) {
+    const shopName = await shopEmailBrandForPartner(partnerId)
+    const shopHtml = shopName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     const sent = await sendSmtpMail({
       to: email,
-      subject: `─É├ú l├¬n lß╗ïch x├│a workspace ΓÇö hß╗ºy trong ${graceDays} ng├áy`,
+      fromName: shopName,
+      subject: shopEmailSubject(shopName, `Đã lên lịch xóa workspace — hủy trong ${graceDays} ngày`),
       text: [
-        `─É├ú l├¬n lß╗ïch x├│a workspace nhß║»n tin cß╗ºa bß║ín.`,
-        `Thß╗¥i ─æiß╗âm dß╗▒ kiß║┐n x├│a ho├án to├án: ${when} (giß╗¥ Viß╗çt Nam), sau ${graceDays} ng├áy.`,
-        `Trong thß╗¥i gian chß╗¥, shop sß║╜ kh├┤ng nhß║¡n tin tß╗½ kh├ích (widget / Facebook / Zalo).`,
-        `Bß║ín c├│ thß╗â hß╗ºy lß╗ïch x├│a trong dashboard: ${baseUrl}/dashboard/messaging/settings`,
-        ``,
-        `Nß║┐u kh├┤ng phß║úi bß║ín thao t├íc, h├úy ─æ─âng nhß║¡p v├á hß╗ºy ngay.`,
+        `Đã lên lịch xóa workspace ${shopName}.`,
+        `Thời điểm dự kiến xóa hoàn toàn: ${when} (giờ Việt Nam), sau ${graceDays} ngày.`,
+        'Trong thời gian chờ, shop sẽ không nhận tin từ khách (widget / Facebook / Zalo).',
+        `Bạn có thể hủy lịch xóa trong dashboard: ${baseUrl}/dashboard/messaging/settings?partner=${encodeURIComponent(partnerId)}`,
+        '',
+        'Nếu không phải bạn thao tác, hãy đăng nhập và hủy ngay.',
+        '',
+        `— ${shopName}`,
       ].join('\n'),
-      html: `<p>─É├ú <b>l├¬n lß╗ïch x├│a</b> workspace nhß║»n tin cß╗ºa bß║ín.</p>
-<p>Thß╗¥i ─æiß╗âm dß╗▒ kiß║┐n x├│a ho├án to├án: <b>${when}</b> (giß╗¥ Viß╗çt Nam), sau <b>${graceDays} ng├áy</b>.</p>
-<p>Trong thß╗¥i gian chß╗¥, shop <b>kh├┤ng nhß║¡n tin</b> tß╗½ kh├ích (widget / Facebook / Zalo).</p>
-<p><a href="${baseUrl}/dashboard/messaging/settings">Hß╗ºy lß╗ïch x├│a</a> trong dashboard nß║┐u ─æß╗òi ├╜.</p>`,
+      html: `<p>Đã <b>lên lịch xóa</b> workspace <b>${shopHtml}</b>.</p>
+<p>Thời điểm dự kiến xóa hoàn toàn: <b>${when}</b> (giờ Việt Nam), sau <b>${graceDays} ngày</b>.</p>
+<p>Trong thời gian chờ, shop <b>không nhận tin</b> từ khách (widget / Facebook / Zalo).</p>
+<p><a href="${baseUrl}/dashboard/messaging/settings?partner=${encodeURIComponent(partnerId)}">Hủy lịch xóa</a> trong dashboard nếu đổi ý.</p>
+<p>— ${shopHtml}</p>`,
     })
     if (!sent.ok) {
       console.warn('[confirmMessagingWorkspaceDeletionWithOtp] schedule notice email failed', sent.error)

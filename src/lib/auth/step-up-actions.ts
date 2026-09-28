@@ -16,6 +16,8 @@ import {
   type StepUpScope,
 } from '@/lib/auth/step-up-otp'
 import { sendSmtpMail, isSmtpConfigured } from '@/lib/email/smtp'
+import { formatShopSensitiveOtpMail } from '@/lib/messaging/partner-shop-email-brand'
+import { resolveShopEmailBrandForActor } from '@/lib/messaging/resolve-shop-email-brand-for-actor'
 
 async function resolveUserForScope(scope: StepUpScope) {
   const auth = await getUserForAction()
@@ -60,7 +62,8 @@ export async function checkStepUpSessionAction(
 }
 
 export async function requestStepUpOtpAction(
-  scope: StepUpScope
+  scope: StepUpScope,
+  partnerHint?: string | null
 ): Promise<{ ok: true; debugOtp?: string } | { error: string }> {
   try {
     const gate = await resolveUserForScope(scope)
@@ -95,12 +98,24 @@ export async function requestStepUpOtpAction(
       return { ok: true, debugOtp: otp }
     }
 
-    const mail = otpEmailBody(otp, scope)
+    let subject = otpEmailSubject(scope)
+    let mail = otpEmailBody(otp, scope)
+    let fromName: string | undefined
+    if (scope === 'account') {
+      const shopName = await resolveShopEmailBrandForActor(gate.user.id, partnerHint)
+      if (shopName) {
+        const branded = formatShopSensitiveOtpMail(shopName, otp)
+        subject = branded.subject
+        mail = branded
+        fromName = branded.fromName
+      }
+    }
     const sent = await sendSmtpMail({
       to: email,
-      subject: otpEmailSubject(scope),
+      subject,
       text: mail.text,
       html: mail.html,
+      fromName,
     })
 
     if (!sent.ok) {

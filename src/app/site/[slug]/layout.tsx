@@ -19,6 +19,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
 import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
+import { partnerShopDocumentVerification } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 import {
   shopBrowserChromeColor,
   shopBrowserThemeColorViewportItems,
@@ -59,6 +60,11 @@ export async function generateMetadata({
     faviconUrl: live.theme.faviconUrl,
     logoUrl: site.logoUrl,
   })
+  const verification = partnerShopDocumentVerification({
+    googleSearchConsoleVerify: site.googleSearchConsoleVerify,
+    googleMerchantCenterVerify: site.googleMerchantCenterVerify,
+    facebookDomainVerification: site.facebookDomainVerification,
+  })
 
   return {
     title: {
@@ -78,6 +84,7 @@ export async function generateMetadata({
       title: name,
     },
     icons,
+    ...(verification ? { verification } : {}),
     other: {
       'mobile-web-app-capable': 'yes',
       'apple-mobile-web-app-capable': 'yes',

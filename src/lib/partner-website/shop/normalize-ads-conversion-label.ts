@@ -16,20 +16,45 @@ export function normalizeGoogleAdsConversionLabel(raw: string | null | undefined
   return `${t.slice(0, slash).toUpperCase()}/${t.slice(slash + 1)}`
 }
 
-export function normalizeGoogleSearchConsoleVerify(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
+function verifyTokenCharset(raw: string): string | null {
+  const v = raw.trim()
   if (!v || v.length > 200) return null
   if (!/^[A-Za-z0-9_-]+$/.test(v)) return null
   return v
+}
+
+/** Bare token, or content= pulled from the named verification meta Google/Facebook copy. */
+function extractNamedVerifyToken(raw: string | null | undefined, metaName: string): string | null {
+  const trimmed = String(raw ?? '').trim()
+  if (!trimmed) return null
+  const bare = verifyTokenCharset(trimmed)
+  if (bare) return bare
+  const name = metaName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const patterns = [
+    new RegExp(
+      `<meta\\b[^>]*\\bname\\s*=\\s*["']${name}["'][^>]*\\bcontent\\s*=\\s*["']([^"']+)["']`,
+      'i'
+    ),
+    new RegExp(
+      `<meta\\b[^>]*\\bcontent\\s*=\\s*["']([^"']+)["'][^>]*\\bname\\s*=\\s*["']${name}["']`,
+      'i'
+    ),
+  ]
+  for (const re of patterns) {
+    const token = verifyTokenCharset(String(trimmed.match(re)?.[1] ?? ''))
+    if (token) return token
+  }
+  return null
+}
+
+export function normalizeGoogleSearchConsoleVerify(raw: string | null | undefined): string | null {
+  return extractNamedVerifyToken(raw, 'google-site-verification')
 }
 
 export function normalizeGoogleMerchantCenterVerify(raw: string | null | undefined): string | null {
-  return normalizeGoogleSearchConsoleVerify(raw)
+  return extractNamedVerifyToken(raw, 'google-site-verification')
 }
 
 export function normalizeFacebookDomainVerification(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  if (!v || v.length > 200) return null
-  if (!/^[A-Za-z0-9_-]+$/.test(v)) return null
-  return v
+  return extractNamedVerifyToken(raw, 'facebook-domain-verification')
 }

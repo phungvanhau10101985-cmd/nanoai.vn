@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
+import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-pg'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import {
   createGuestSessionId,
@@ -52,9 +53,13 @@ function normalizeEmail(v: string): string {
 async function resolvePartner(slug: string) {
   const active = await resolveFashionMessagingPartnerBySlug(slug)
   if (!active) return { error: 'not_found' as const }
+  const rows = await fetchMessagingPartnersByIdsFromPg([active.id])
   return {
     partnerId: active.id,
-    displayName: partnerShopEmailBrandName({ display_name: active.display_name }),
+    displayName: partnerShopEmailBrandName({
+      brand_name: rows?.[0]?.brand_name,
+      display_name: rows?.[0]?.display_name || active.display_name,
+    }),
     slug,
   }
 }
@@ -207,19 +212,21 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   const subject = shopEmailSubject(displayName, 'Xác thực chat')
+  const shopHtml = displayName.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const text = [
-    `Xin chao,`,
+    `Xin chào,`,
     ``,
-    `Ma OTP cua ban: ${otp}`,
-    `Vui long nhap ma nay ngay trong khung chat de tiep tuc.`,
-    `Ma het han sau ${OTP_TTL_MINUTES} phut.`,
+    `Mã OTP của bạn tại ${displayName}: ${otp}`,
+    `Nhập mã này trong khung chat của ${displayName} để tiếp tục.`,
+    `Mã hết hạn sau ${OTP_TTL_MINUTES} phút.`,
+    `Nếu không phải bạn yêu cầu, hãy bỏ qua email này.`,
   ].join('\n')
   if (isSmtpConfigured()) {
     await sendSmtpMail({
       to: email,
       subject,
       text,
-      html: `<p>Xin chao,</p><p>Ma OTP cua ban: <b>${otp}</b></p><p>Vui long nhap ma nay ngay trong khung chat de tiep tuc.</p><p>Ma het han sau ${OTP_TTL_MINUTES} phut.</p>`,
+      html: `<p>Xin chào,</p><p>Mã OTP của bạn tại <b>${shopHtml}</b>: <b>${otp}</b></p><p>Nhập mã này trong khung chat của ${shopHtml} để tiếp tục.</p><p>Mã hết hạn sau ${OTP_TTL_MINUTES} phút.</p><p>Nếu không phải bạn yêu cầu, hãy bỏ qua email này.</p>`,
       fromName: displayName,
     })
   }

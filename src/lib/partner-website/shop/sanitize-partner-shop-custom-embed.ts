@@ -107,17 +107,54 @@ export function partnerShopVerifyMetaTags(input: {
   facebookDomainVerification?: string | null
 }): string {
   const tags: string[] = []
+  const seen = new Set<string>()
+  const push = (name: string, content: string) => {
+    const key = `${name}\0${content}`
+    if (seen.has(key)) return
+    seen.add(key)
+    tags.push(`<meta name="${name}" content="${content}">`)
+  }
   const gsc = String(input.googleSearchConsoleVerify ?? '').trim()
-  if (gsc && /^[A-Za-z0-9_-]+$/.test(gsc)) {
-    tags.push(`<meta name="google-site-verification" content="${gsc}">`)
-  }
+  if (gsc && /^[A-Za-z0-9_-]+$/.test(gsc)) push('google-site-verification', gsc)
   const gmc = String(input.googleMerchantCenterVerify ?? '').trim()
-  if (gmc && /^[A-Za-z0-9_-]+$/.test(gmc)) {
-    tags.push(`<meta name="google-site-verification" content="${gmc}" data-pw-merchant-verify="1">`)
-  }
+  if (gmc && /^[A-Za-z0-9_-]+$/.test(gmc)) push('google-site-verification', gmc)
   const fb = String(input.facebookDomainVerification ?? '').trim()
-  if (fb && /^[A-Za-z0-9_-]+$/.test(fb)) {
-    tags.push(`<meta name="facebook-domain-verification" content="${fb}">`)
-  }
+  if (fb && /^[A-Za-z0-9_-]+$/.test(fb)) push('facebook-domain-verification', fb)
   return tags.join('\n')
+}
+
+/** Live inlines the visual body into Next.js. A verify meta left in that markup sits under `<body>`. */
+export function stripPartnerShopVerifyMetasFromHtml(html: string): string {
+  if (!html || !/google-site-verification|facebook-domain-verification/i.test(html)) return html
+  return html.replace(/<meta\b[^>]*>/gi, (tag) => {
+    const name = tag.match(/\bname\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase() || ''
+    if (name === 'google-site-verification' || name === 'facebook-domain-verification') return ''
+    return tag
+  })
+}
+
+export type PartnerShopDocumentVerification = {
+  google?: string | string[]
+  other?: Record<string, string>
+}
+
+/** Tokens for Next.js `metadata.verification` — rendered in the document `<head>`, before `<body>`. */
+export function partnerShopDocumentVerification(input: {
+  googleSearchConsoleVerify?: string | null
+  googleMerchantCenterVerify?: string | null
+  facebookDomainVerification?: string | null
+}): PartnerShopDocumentVerification | null {
+  const google: string[] = []
+  for (const raw of [input.googleSearchConsoleVerify, input.googleMerchantCenterVerify]) {
+    const token = String(raw ?? '').trim()
+    if (!token || !/^[A-Za-z0-9_-]+$/.test(token) || google.includes(token)) continue
+    google.push(token)
+  }
+  const facebook = String(input.facebookDomainVerification ?? '').trim()
+  const fbOk = Boolean(facebook && /^[A-Za-z0-9_-]+$/.test(facebook))
+  if (!google.length && !fbOk) return null
+  return {
+    ...(google.length ? { google: google.length === 1 ? google[0] : google } : {}),
+    ...(fbOk ? { other: { 'facebook-domain-verification': facebook } } : {}),
+  }
 }

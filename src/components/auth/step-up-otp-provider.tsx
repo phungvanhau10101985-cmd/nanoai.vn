@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -38,6 +39,22 @@ type StepUpOtpContextValue = {
   refreshSession: () => Promise<void>
   ensureStepUp: () => Promise<boolean>
   runWithStepUp: <T>(fn: () => Promise<T>) => Promise<T>
+  registerStepUpShop: (token: string, partnerId: string | null) => void
+}
+
+/** Shop đang mở trên dashboard — `?partner=` hoặc `/dashboard/messaging/p/{slug}`. */
+export function readDashboardShopPartnerHint(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const url = new URL(window.location.href)
+    const query = url.searchParams.get('partner')?.trim()
+    if (query) return query.slice(0, 80)
+    const slug = url.pathname.match(/\/dashboard\/messaging\/p\/([^/?#]+)/)
+    if (slug?.[1]) return decodeURIComponent(slug[1]).slice(0, 80)
+  } catch {
+    return null
+  }
+  return null
 }
 
 const StepUpOtpContext = createContext<StepUpOtpContextValue | null>(null)
@@ -60,6 +77,20 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
   const [otpInput, setOtpInput] = useState('')
   const [busy, setBusy] = useState(false)
   const pendingResolveRef = useRef<((ok: boolean) => void) | null>(null)
+  const shopPartnersRef = useRef<Map<string, string>>(new Map())
+
+  const registerStepUpShop = useCallback((token: string, partnerId: string | null) => {
+    const map = shopPartnersRef.current
+    map.delete(token)
+    const id = partnerId?.trim() || ''
+    if (id) map.set(token, id)
+  }, [])
+
+  const activeShopPartnerHint = useCallback(() => {
+    let last: string | null = null
+    for (const id of shopPartnersRef.current.values()) last = id
+    return last || readDashboardShopPartnerHint()
+  }, [])
 
   useEffect(() => {
     const sync = () => setUiLocale(readWebLocaleFromDocumentCookie())
@@ -131,7 +162,10 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
   const sendOtp = async () => {
     setBusy(true)
     try {
-      const res = await requestStepUpOtpAction(scope)
+      const res = await requestStepUpOtpAction(
+        scope,
+        scope === 'account' ? activeShopPartnerHint() : null
+      )
       if ('error' in res) {
         toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: res.error, variant: 'destructive' })
         return
@@ -231,8 +265,8 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
   }
 
   const value = useMemo(
-    () => ({ scope, isActive, expiresAt, refreshSession, ensureStepUp, runWithStepUp }),
-    [scope, isActive, expiresAt, refreshSession, ensureStepUp, runWithStepUp]
+    () => ({ scope, isActive, expiresAt, refreshSession, ensureStepUp, runWithStepUp, registerStepUpShop }),
+    [scope, isActive, expiresAt, refreshSession, ensureStepUp, runWithStepUp, registerStepUpShop]
   )
 
   const title =
@@ -314,6 +348,16 @@ export function useStepUpOtp() {
     throw new Error('useStepUpOtp must be used within StepUpOtpProvider')
   }
   return ctx
+}
+
+/** Gắn shop đang sửa để mail OTP nhạy cảm hiện tên shop, không tên nền tảng. */
+export function useRegisterStepUpShop(partnerId: string | null | undefined) {
+  const { registerStepUpShop } = useStepUpOtp()
+  const token = useId()
+  useEffect(() => {
+    registerStepUpShop(token, partnerId?.trim() || null)
+    return () => registerStepUpShop(token, null)
+  }, [partnerId, registerStepUpShop, token])
 }
 
 export function StepUpStatusBanner() {

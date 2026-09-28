@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  formatShopSensitiveOtpMail,
   partnerShopEmailBrandName,
   shopBrandFromNotificationMeta,
   shopEmailSubject,
@@ -19,6 +20,17 @@ test('shopEmailSubject leads with shop name and stays idempotent', () => {
   assert.equal(shopEmailSubject('gudo.vn', 'Đơn hàng mới'), 'gudo.vn — Đơn hàng mới')
   assert.equal(shopEmailSubject('gudo.vn', 'gudo.vn — Đơn GUDOVN05'), 'gudo.vn — Đơn GUDOVN05')
   assert.equal(shopEmailSubject('gudo.vn', ''), 'gudo.vn')
+})
+
+test('sensitive shop OTP mail uses shop name and hides NanoAI', () => {
+  const mail = formatShopSensitiveOtpMail('gudo.vn', '382270')
+  assert.equal(mail.fromName, 'gudo.vn')
+  assert.equal(mail.subject, 'gudo.vn — Mã OTP xác minh tài khoản')
+  assert.match(mail.text, /382270/)
+  assert.match(mail.text, /gudo\.vn/)
+  assert.doesNotMatch(mail.subject, /NanoAI/i)
+  assert.doesNotMatch(mail.text, /NanoAI/i)
+  assert.doesNotMatch(mail.html, /NanoAI/i)
 })
 
 test('shopBrandFromNotificationMeta reads shop_display_name', () => {

@@ -23,7 +23,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
-import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { useRegisterStepUpShop, useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { PartnerApiKeysManagerStrings } from '@/lib/integration/api-keys-hub-copy'
 import {
@@ -108,6 +108,7 @@ export function PartnerApiKeysManager({
   const [internalPartnerId, setInternalPartnerId] = useState(partners[0]?.id ?? '')
   const isControlled = typeof onPartnerIdChange === 'function'
   const partnerId = isControlled ? (partnerIdProp ?? '') : internalPartnerId
+  useRegisterStepUpShop(partnerId || null)
   const setPartnerId = isControlled ? onPartnerIdChange! : setInternalPartnerId
   const [bundle, setBundle] = useState<BundleOk | null>(null)
   const [imageVisible, setImageVisible] = useState(false)

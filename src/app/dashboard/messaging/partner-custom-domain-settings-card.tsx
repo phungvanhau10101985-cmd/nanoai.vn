@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
-import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { useRegisterStepUpShop, useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { PartnerCustomDomainRow } from '@/lib/db/messaging-partner-custom-domains-pg'
 import {
@@ -82,6 +82,7 @@ export function PartnerCustomDomainSettingsCard({
 }) {
   const { toast } = useToast()
   const { runWithStepUp } = useStepUpOtp()
+  useRegisterStepUpShop(partnerId)
   const [pending, startTransition] = useTransition()
   const [loading, setLoading] = useState(true)
   const [hostname, setHostname] = useState('')

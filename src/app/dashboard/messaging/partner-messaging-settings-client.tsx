@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
+import { useRegisterStepUpShop, useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { MessagingPartnerDashboardRow } from '@/lib/db/messaging-partners-pg'
 import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
@@ -52,6 +52,11 @@ import {
   savePartnerMessagingShopTrackingExtras,
 } from '@/app/dashboard/messaging/actions'
 import { PARTNER_SHOP_CURRENCIES } from '@/lib/partner-website/shop/partner-shop-currency'
+import {
+  normalizeFacebookDomainVerification,
+  normalizeGoogleMerchantCenterVerify,
+  normalizeGoogleSearchConsoleVerify,
+} from '@/lib/partner-website/shop/normalize-ads-conversion-label'
 import {
   Dialog,
   DialogContent,
@@ -491,6 +496,7 @@ export function PartnerMessagingSettingsClient({
     if (queryPartnerId && initialPartners.some((p) => p.id === queryPartnerId)) return queryPartnerId
     return initialPartners[0]?.id ?? null
   })
+  useRegisterStepUpShop(selectedPartnerId)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceBrandName, setWorkspaceBrandName] = useState('')
   const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'other'>('fashion')
@@ -1915,6 +1921,9 @@ export function PartnerMessagingSettingsClient({
       }
       setTiktokEventsApiToken('')
       if (tiktokEventsApiToken.trim()) setTiktokEventsApiConfigured(true)
+      setSearchConsoleVerify(normalizeGoogleSearchConsoleVerify(searchConsoleVerify) ?? '')
+      setMerchantCenterVerify(normalizeGoogleMerchantCenterVerify(merchantCenterVerify) ?? '')
+      setFacebookDomainVerify(normalizeFacebookDomainVerification(facebookDomainVerify) ?? '')
       toast({ title: t.saveOk })
       router.refresh()
     })
