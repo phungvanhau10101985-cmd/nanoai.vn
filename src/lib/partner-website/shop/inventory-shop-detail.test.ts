@@ -16,6 +16,7 @@ import {
   shopAboveFoldBannerSrc,
   rewritePdpHtmlImagesForPage,
   nextShopImageRetrySrc,
+  PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 
@@ -58,6 +59,11 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
   assert.match(rewritten, /_1200x1200\.jpg/)
   assert.match(rewritten, /data-pw-full-src="/)
   assert.match(rewritten, /loading="lazy"/)
+})
+
+test('lazy PDP detail images are not marked broken before the browser fetches them', () => {
+  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /loading'\)==='lazy'&&!imgEl\.currentSrc/)
+  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /if\(!lazyNotStarted&&imgEl\.complete/)
 })
 
 test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn + 600q90)', () => {

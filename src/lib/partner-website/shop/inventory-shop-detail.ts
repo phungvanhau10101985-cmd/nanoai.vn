@@ -374,7 +374,8 @@ function hideBrokenPdpImgs(root){
         hide();
       }
       imgEl.addEventListener('error',retryOrHide);
-      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
+      var lazyNotStarted=imgEl.getAttribute('loading')==='lazy'&&!imgEl.currentSrc;
+      if(!lazyNotStarted&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
     })(imgs[i]);
   }
 }`
