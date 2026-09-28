@@ -54,6 +54,8 @@ const FATAL_MARKERS = [
 export function isImageLocalizationFatalDependencyError(exc: unknown): boolean {
   const msg = exc instanceof Error ? `${exc.name}: ${exc.message}` : String(exc || '')
   const lower = msg.toLowerCase()
+  // Bunny Storage 401 cũng ghi "Unauthorized" — đó là sai host/mật khẩu zone, không phải API Gemini/Vision.
+  if (lower.includes('bunny storage')) return false
   return FATAL_MARKERS.some((m) => lower.includes(m.toLowerCase()))
 }
 

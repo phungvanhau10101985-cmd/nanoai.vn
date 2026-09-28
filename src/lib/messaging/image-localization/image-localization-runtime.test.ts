@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import sharp from 'sharp'
 import { isOwnCdnUrl } from './image-localization-config'
+import { isImageLocalizationFatalDependencyError } from './gemini-adapter'
 import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vision-ocr'
 import { overlayTranslatedText } from '@/lib/translate-overlay'
 import { mergeDenseImageLocOverlayItems } from './local-pipeline'
@@ -108,6 +109,12 @@ describe('image localization runtime parity', () => {
     assert.equal(merged[0].translatedText, 'Tôn dáng, tăng chiều cao 8.5cm')
     assert.ok(merged[0].bbox.x < 150)
     assert.ok(merged[0].bbox.width > 330)
+  })
+
+  it('does not treat a Bunny Storage 401 as a fatal Gemini dependency', () => {
+    const bunny = new Error('Bunny Storage upload failed (401): {"HttpCode":401,"Message":"Unauthorized"}')
+    assert.equal(isImageLocalizationFatalDependencyError(bunny), false)
+    assert.equal(isImageLocalizationFatalDependencyError(new Error('GCP auth failed: Unauthorized')), true)
   })
 
   it('retries only transient database failures', () => {

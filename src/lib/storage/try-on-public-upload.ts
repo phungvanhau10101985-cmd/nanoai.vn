@@ -1,3 +1,11 @@
+import {
+  bunnyStorageHostCandidates,
+  bunnyStorageHostForRegion,
+  bunnyStorageObjectUrl,
+  normalizeBunnyStorageHost,
+  platformBunnyStorageRegionCode,
+} from '@/lib/storage/bunny-storage-endpoint'
+
 /** Path segment trong URL public kiểu legacy (`/storage/v1/object/public/.../`) — không gắn nhà cung cấp cụ thể. */
 const LEGACY_TRY_ON_PUBLIC_PATH_MARKER = '/storage/v1/object/public/try-on-images/'
 
@@ -49,7 +57,12 @@ export type BunnyStorageAuth = {
   zone: string
   accessKey: string
   publicBase: string
+  /** Hostname API Storage, không scheme. Ổ shop SG → sg.storage.bunnycdn.com. */
+  storageHost?: string
 }
+
+/** Zone đã dò đúng vùng sau 401 — giữ trong process để PUT/DELETE sau không thử lại. */
+const resolvedHostByZone = new Map<string, string>()
 
 export function platformBunnyStorageAuth(): BunnyStorageAuth | null {
   if (!bunnyStorageConfigured()) return null
@@ -57,6 +70,7 @@ export function platformBunnyStorageAuth(): BunnyStorageAuth | null {
     zone: process.env.BUNNY_STORAGE_ZONE!.trim(),
     accessKey: process.env.BUNNY_STORAGE_API_KEY!.trim(),
     publicBase: process.env.BUNNY_STORAGE_PUBLIC_BASE_URL!.trim().replace(/\/$/, ''),
+    storageHost: bunnyStorageHostForRegion(platformBunnyStorageRegionCode()),
   }
 }
 
@@ -78,19 +92,11 @@ export async function deleteBunnyStorageObject(path: string, auth?: BunnyStorage
   const creds = auth ?? requireTryOnBunnyStorage()
   const trimmed = path.trim()
   if (!trimmed || trimmed.includes('..')) return false
-  const zone = creds.zone
-  const accessKey = creds.accessKey
   const remotePath = buildTryOnEncodedPath(trimmed)
   if (!remotePath) return false
-  const delUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
-  const res = await fetch(delUrl, {
-    method: 'DELETE',
-    headers: { AccessKey: accessKey },
-    signal: AbortSignal.timeout(60_000),
-  })
+  const res = await bunnyStorageRequest(creds, 'DELETE', remotePath)
   if (res.status === 200 || res.status === 204 || res.status === 404) return true
-  const hint = await res.text().catch(() => '')
-  console.warn('[deleteBunnyStorageObject] Bunny DELETE', trimmed, res.status, hint.slice(0, 300))
+  console.warn('[deleteBunnyStorageObject] Bunny DELETE', trimmed, res.status, res.hint.slice(0, 300))
   return false
 }
 
@@ -159,6 +165,77 @@ async function bodyToBuffer(body: File | Blob | Buffer): Promise<Buffer> {
   return Buffer.from(await body.arrayBuffer())
 }
 
+function preferredStorageHost(auth: BunnyStorageAuth): string {
+  return resolvedHostByZone.get(auth.zone) || normalizeBunnyStorageHost(auth.storageHost)
+}
+
+type BunnyStorageResult = { status: number; hint: string; ok: boolean }
+
+async function bunnyStorageRequest(
+  auth: BunnyStorageAuth,
+  method: 'PUT' | 'DELETE',
+  remotePath: string,
+  body?: Uint8Array,
+  contentType?: string
+): Promise<BunnyStorageResult> {
+  const accessKey = auth.accessKey.trim()
+  const send = async (host: string): Promise<BunnyStorageResult> => {
+    const res = await fetch(bunnyStorageObjectUrl(host, auth.zone, remotePath), {
+      method,
+      headers: {
+        AccessKey: accessKey,
+        ...(contentType ? { 'Content-Type': contentType } : {}),
+      },
+      body,
+      signal: AbortSignal.timeout(60_000),
+    })
+    const hint = res.ok || res.status === 404 ? '' : (await res.text().catch(() => '')).slice(0, 300)
+    return { status: res.status, hint, ok: res.ok }
+  }
+
+  const firstHost = preferredStorageHost(auth)
+  const first = await send(firstHost)
+  if (first.status !== 401) {
+    if (first.ok || first.status === 404) resolvedHostByZone.set(auth.zone, firstHost)
+    return first
+  }
+
+  const found = await probeBunnyStorageHost(auth, accessKey, firstHost)
+  if (!found) return first
+  resolvedHostByZone.set(auth.zone, found)
+  return send(found)
+}
+
+/** 401 trên host đầu: thử vùng khác bằng file vài byte, rồi mới PUT ảnh thật. */
+async function probeBunnyStorageHost(auth: BunnyStorageAuth, accessKey: string, skipHost: string): Promise<string | null> {
+  const probePath = `_bunny-region-probe/${Date.now()}.bin`
+  const probeBody = new Uint8Array([0xff, 0xd8, 0xff])
+  for (const host of bunnyStorageHostCandidates(skipHost)) {
+    if (host === skipHost) continue
+    const url = bunnyStorageObjectUrl(host, auth.zone, probePath)
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: { AccessKey: accessKey, 'Content-Type': 'application/octet-stream' },
+      body: probeBody,
+      signal: AbortSignal.timeout(20_000),
+    }).catch(() => null)
+    if (!res) continue
+    if (res.status === 401) {
+      await res.text().catch(() => '')
+      continue
+    }
+    await res.text().catch(() => '')
+    if (!res.ok) continue
+    await fetch(url, {
+      method: 'DELETE',
+      headers: { AccessKey: accessKey },
+      signal: AbortSignal.timeout(20_000),
+    }).catch(() => undefined)
+    return host
+  }
+  return null
+}
+
 async function uploadToBunny(
   path: string,
   buffer: Buffer,
@@ -166,22 +243,17 @@ async function uploadToBunny(
   auth?: BunnyStorageAuth
 ): Promise<{ publicUrl: string }> {
   const creds = auth ?? requireTryOnBunnyStorage()
-  const zone = creds.zone
-  const accessKey = creds.accessKey
   const publicBase = creds.publicBase.replace(/\/$/, '')
   const remotePath = buildTryOnEncodedPath(path)
-  const putUrl = `https://storage.bunnycdn.com/${encodeURIComponent(zone)}/${remotePath}`
-  const res = await fetch(putUrl, {
-    method: 'PUT',
-    headers: {
-      AccessKey: accessKey,
-      'Content-Type': contentType || 'application/octet-stream',
-    },
-    body: new Uint8Array(buffer),
-  })
+  const res = await bunnyStorageRequest(
+    creds,
+    'PUT',
+    remotePath,
+    new Uint8Array(buffer),
+    contentType || 'application/octet-stream'
+  )
   if (!res.ok) {
-    const hint = await res.text().catch(() => '')
-    throw new Error(`Bunny Storage upload failed (${res.status}): ${hint.slice(0, 240)}`)
+    throw new Error(`Bunny Storage upload failed (${res.status}): ${res.hint.slice(0, 240)}`)
   }
   const publicUrl = `${publicBase}/${remotePath}`
   return { publicUrl }

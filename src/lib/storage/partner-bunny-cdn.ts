@@ -14,6 +14,7 @@ import {
 } from '@/lib/db/messaging-partner-bunny-cdn-pg'
 import { LEGACY_BUNNY_PULL_ZONE_HOST } from '@/lib/bunny-cdn-url'
 import { partnerBunnyZoneName } from '@/lib/storage/partner-bunny-zone-name'
+import { bunnyStorageHostForRegion, partnerBunnyStorageRegionCode } from '@/lib/storage/bunny-storage-endpoint'
 import {
   buildTryOnEncodedPath,
   deleteBunnyStorageObject,
@@ -33,8 +34,7 @@ export function partnerBunnyAccountConfigured(): boolean {
 }
 
 function storageRegion(): string {
-  const region = (process.env.BUNNY_STORAGE_REGION || 'SG').trim().toUpperCase()
-  return region || 'SG'
+  return partnerBunnyStorageRegionCode()
 }
 
 function platformZoneName(): string {
@@ -85,8 +85,9 @@ function strField(json: unknown, key: string): string {
 function authFromRow(row: PartnerBunnyCdnRow): BunnyStorageAuth {
   return {
     zone: row.storageZoneName,
-    accessKey: row.storagePassword,
+    accessKey: row.storagePassword.trim(),
     publicBase: `https://${row.hostname}`,
+    storageHost: bunnyStorageHostForRegion(storageRegion()),
   }
 }
 
