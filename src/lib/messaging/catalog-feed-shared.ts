@@ -93,7 +93,7 @@ export function catalogFeedAdditionalImages(
   return out
 }
 
-export function catalogFeedIsInStock(row: Pick<CatalogFeedInventoryRow, 'stock_qty'>): boolean {
+export function catalogFeedIsInStock(row: { stock_qty?: number | null }): boolean {
   const qty = row.stock_qty
   return !(qty != null && qty <= 0)
 }
