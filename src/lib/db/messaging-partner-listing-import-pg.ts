@@ -367,12 +367,14 @@ export async function listingParserIdsExistingInInventoryFromPg(input: {
   const needPrefix = cands.filter((c) => /^[AT]\d+$/.test(c) && !out.has(c))
   if (!needPrefix.length) return out
   const likePatterns = needPrefix.map((c) => `${c}a188%`)
+  const likeSql = likePatterns.map((_, i) => `mpi.remarketing_id like $${i + 2}`).join(' or ')
+  // OR phải nằm trong ngoặc. Thiếu ngoặc thì `partner_id` chỉ gắn mẫu đầu, các mẫu sau quét mọi shop.
   const likes = await pgQuery<{ remarketing_id: string }>(
     `select distinct remarketing_id
      from public.messaging_partner_inventory mpi
      where mpi.partner_id = $1::uuid
        ${activeSql}
-       and ${likePatterns.map((_, i) => `mpi.remarketing_id like $${i + 2}`).join(' or ')}`,
+       and (${likeSql})`,
     [input.partnerId, ...likePatterns]
   )
   for (const c of needPrefix) {
