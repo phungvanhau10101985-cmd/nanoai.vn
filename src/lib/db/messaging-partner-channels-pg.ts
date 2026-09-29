@@ -190,12 +190,32 @@ export async function upsertZaloOaChannelPg(params: {
   return { ok: true as const }
 }
 
+export async function deleteFacebookMessengerChannelForPartnerFromPg(
+  partnerId: string,
+  facebookPageId: string
+): Promise<{ ok: true; pageAccessToken: string | null } | { error: string }> {
+  if (!isPgConfigured()) return { error: 'Postgres not configured.' }
+  const pageId = facebookPageId.trim()
+  if (!pageId) return { error: 'Page ID is required.' }
+  const deleted = await getPgPool().query<{ page_access_token: string | null }>(
+    `delete from public.messaging_partner_channels
+     where provider = 'facebook_messenger' and partner_id = $1::uuid and external_page_id = $2
+     returning page_access_token`,
+    [partnerId, pageId]
+  )
+  if ((deleted.rowCount ?? 0) < 1) return { error: 'Facebook Page is not linked to this workspace.' }
+  return { ok: true, pageAccessToken: deleted.rows[0]?.page_access_token ?? null }
+}
+
 /** Đọc kênh FB/Zalo cho dashboard (embed API integration). */
 export async function fetchPartnerChannelStatusRowsFromPg(partnerId: string): Promise<{
   facebook: Pick<
     MessagingPartnerChannelRow,
     'external_page_id' | 'page_access_token' | 'webhook_verify_token'
   > | null
+  facebookPages: Array<
+    Pick<MessagingPartnerChannelRow, 'external_page_id' | 'page_access_token' | 'webhook_verify_token'>
+  >
   zalo: Pick<MessagingPartnerChannelRow, 'zalo_access_token' | 'zalo_webhook_secret'> | null
 } | null> {
   if (!isPgConfigured()) return null
@@ -207,20 +227,20 @@ export async function fetchPartnerChannelStatusRowsFromPg(partnerId: string): Pr
        where partner_id = $1::uuid`,
       [partnerId]
     )
-    let facebook: {
+    const facebookPages: Array<{
       external_page_id: string
       page_access_token: string | null
       webhook_verify_token: string | null
-    } | null = null
+    }> = []
     let zalo: { zalo_access_token: string | null; zalo_webhook_secret: string | null } | null = null
     for (const r of rows) {
       const p = String(r.provider ?? '')
       if (p === 'facebook_messenger') {
-        facebook = {
+        facebookPages.push({
           external_page_id: String(r.external_page_id ?? ''),
           page_access_token: r.page_access_token != null ? String(r.page_access_token) : null,
           webhook_verify_token: r.webhook_verify_token != null ? String(r.webhook_verify_token) : null,
-        }
+        })
       }
       if (p === 'zalo_oa') {
         zalo = {
@@ -229,7 +249,7 @@ export async function fetchPartnerChannelStatusRowsFromPg(partnerId: string): Pr
         }
       }
     }
-    return { facebook, zalo }
+    return { facebook: facebookPages[0] ?? null, facebookPages, zalo }
   } catch (e) {
     console.error('[messaging-partner-channels-pg] fetchPartnerChannelStatusRowsFromPg', e)
     return null

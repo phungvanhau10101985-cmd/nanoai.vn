@@ -768,6 +768,20 @@ export type Dictionary = {
     integrationsAnalyticsOwnerOnly: string
     teamRemoveMemberConfirm: string
     fbLinkedLine: string
+    fbLoginWithFacebook: string
+    fbLoginHint: string
+    fbPickPagesTitle: string
+    fbPickPagesDesc: string
+    fbPickPagesSearch: string
+    fbPickPagesSelectAll: string
+    fbPickPagesConnect: string
+    fbPickPagesConnecting: string
+    fbPickPagesEmpty: string
+    fbPickPagesLater: string
+    fbConnectedHeading: string
+    fbUnlinkPage: string
+    fbManualTokenToggle: string
+    fbConnectPartial: string
     zaloLinkedLine: string
     credentialsKeepHint: string
     /** Bố cục trang: cột cấu hình */
@@ -4473,6 +4487,20 @@ const VI_DICTIONARY: Dictionary = {
     integrationsAnalyticsOwnerOnly: 'Chỉ chủ workspace mới có thể lưu Pixel, CAPI và GA4.',
     teamRemoveMemberConfirm: 'Gỡ nhân viên này khỏi workspace?',
     fbLinkedLine: 'Facebook Page đã liên kết: {pageId}',
+    fbLoginWithFacebook: 'Đăng nhập bằng Facebook',
+    fbLoginHint: 'Đăng nhập Facebook, rồi chọn Page để nhận tin và trả lời ngay trên Messenger.',
+    fbPickPagesTitle: 'Chọn Facebook Page',
+    fbPickPagesDesc: 'Chọn một hoặc nhiều Page. Tin nhắn vào hộp thư shop và câu trả lời gửi lại Messenger.',
+    fbPickPagesSearch: 'Tìm Page',
+    fbPickPagesSelectAll: 'Chọn tất cả',
+    fbPickPagesConnect: 'Kết nối',
+    fbPickPagesConnecting: 'Đang kết nối…',
+    fbPickPagesEmpty: 'Tài khoản Facebook này chưa quản trị Page nào.',
+    fbPickPagesLater: 'Để sau',
+    fbConnectedHeading: 'Page đã kết nối',
+    fbUnlinkPage: 'Gỡ',
+    fbManualTokenToggle: 'Nhập Page token thủ công',
+    fbConnectPartial: 'Đã kết nối {ok} Page. {fail} Page không lưu được.',
     zaloLinkedLine: 'Zalo OA đã cấu hình webhook & token.',
     credentialsKeepHint:
       'Để trống ô token hoặc secret nếu không đổi — hệ thống giữ giá trị đã lưu.',
@@ -8180,6 +8208,20 @@ const EN_DICTIONARY: Dictionary = {
       'Only the workspace owner can save Pixel / Conversions API and Google Analytics.',
     teamRemoveMemberConfirm: 'Remove this person from this workspace?',
     fbLinkedLine: 'Facebook Page linked: {pageId}',
+    fbLoginWithFacebook: 'Log in with Facebook',
+    fbLoginHint: 'Log in with Facebook, then pick the Pages whose Messenger chats should land in this inbox.',
+    fbPickPagesTitle: 'Choose Facebook Pages',
+    fbPickPagesDesc: 'Select one or more Pages. Messages come into the shop inbox and replies go back to Messenger.',
+    fbPickPagesSearch: 'Search Pages',
+    fbPickPagesSelectAll: 'Select all',
+    fbPickPagesConnect: 'Connect',
+    fbPickPagesConnecting: 'Connecting…',
+    fbPickPagesEmpty: 'This Facebook account does not manage any Page.',
+    fbPickPagesLater: 'Later',
+    fbConnectedHeading: 'Connected Pages',
+    fbUnlinkPage: 'Remove',
+    fbManualTokenToggle: 'Enter a Page token manually',
+    fbConnectPartial: 'Connected {ok} Page(s). {fail} could not be saved.',
     zaloLinkedLine: 'Zalo OA webhook & token are saved.',
     credentialsKeepHint: 'Leave token or secret blank to keep the saved values.',
     setupColumnTitle: 'Channels & AI assistant',
@@ -11874,6 +11916,20 @@ const ZH_DICTIONARY: Dictionary = {
     integrationsAnalyticsOwnerOnly: '只有店主可保存 Pixel、CAPI 与 GA4。',
     teamRemoveMemberConfirm: '从本工作区移除此成员？',
     fbLinkedLine: '已关联 Facebook Page：{pageId}',
+    fbLoginWithFacebook: '使用 Facebook 登录',
+    fbLoginHint: '登录 Facebook 后选择主页，Messenger 消息进入收件箱，回复会发回 Messenger。',
+    fbPickPagesTitle: '选择 Facebook 主页',
+    fbPickPagesDesc: '可选择一个或多个主页。顾客消息进入店铺收件箱，回复发回 Messenger。',
+    fbPickPagesSearch: '搜索主页',
+    fbPickPagesSelectAll: '全选',
+    fbPickPagesConnect: '连接',
+    fbPickPagesConnecting: '正在连接…',
+    fbPickPagesEmpty: '此 Facebook 账号没有可管理的主页。',
+    fbPickPagesLater: '稍后',
+    fbConnectedHeading: '已连接的主页',
+    fbUnlinkPage: '移除',
+    fbManualTokenToggle: '手动填写主页 token',
+    fbConnectPartial: '已连接 {ok} 个主页。{fail} 个未能保存。',
     zaloLinkedLine: '已保存 Zalo OA webhook 与 token。',
     credentialsKeepHint: '不修改时请留空 token 或 secret — 将保留已保存的值。',
     setupColumnTitle: '渠道与 AI 助手',
@@ -15480,6 +15536,20 @@ const JA_DICTIONARY: Dictionary = {
       'Pixel、Conversions API、GA4 の保存はワークスペースの店主のみできます。',
     teamRemoveMemberConfirm: 'このメンバーをワークスペースから外しますか？',
     fbLinkedLine: 'Facebook Page を連携済み: {pageId}',
+    fbLoginWithFacebook: 'Facebook でログイン',
+    fbLoginHint: 'Facebook にログインし、Messenger を受信するページを選びます。返信は Messenger に戻ります。',
+    fbPickPagesTitle: 'Facebook ページを選択',
+    fbPickPagesDesc: '1 つ以上のページを選べます。メッセージは受信箱に入り、返信は Messenger に送られます。',
+    fbPickPagesSearch: 'ページを検索',
+    fbPickPagesSelectAll: 'すべて選択',
+    fbPickPagesConnect: '接続',
+    fbPickPagesConnecting: '接続中…',
+    fbPickPagesEmpty: 'この Facebook アカウントが管理するページはありません。',
+    fbPickPagesLater: 'あとで',
+    fbConnectedHeading: '接続済みのページ',
+    fbUnlinkPage: '解除',
+    fbManualTokenToggle: 'ページトークンを手入力',
+    fbConnectPartial: '{ok} 件を接続しました。{fail} 件は保存できませんでした。',
     zaloLinkedLine: 'Zalo OA の webhook とトークンを保存済みです。',
     credentialsKeepHint:
       '変更しないトークンやシークレットは空欄のままにしてください。保存済みの値が使われます。',
@@ -19155,6 +19225,20 @@ const KO_DICTIONARY: Dictionary = {
       'Pixel·Conversions API·GA4 저장은 워크스페이스 소유자만 할 수 있습니다.',
     teamRemoveMemberConfirm: '이 구성원을 워크스페이스에서 제거할까요?',
     fbLinkedLine: 'Facebook Page 연결됨: {pageId}',
+    fbLoginWithFacebook: 'Facebook으로 로그인',
+    fbLoginHint: 'Facebook으로 로그인한 뒤 페이지를 고르면 Messenger 대화가 받은편지함으로 들어오고, 답장은 Messenger로 돌아갑니다.',
+    fbPickPagesTitle: 'Facebook 페이지 선택',
+    fbPickPagesDesc: '페이지를 하나 이상 선택하세요. 메시지는 매장 받은편지함으로 들어오고 답장은 Messenger로 전송됩니다.',
+    fbPickPagesSearch: '페이지 검색',
+    fbPickPagesSelectAll: '모두 선택',
+    fbPickPagesConnect: '연결',
+    fbPickPagesConnecting: '연결 중…',
+    fbPickPagesEmpty: '이 Facebook 계정이 관리하는 페이지가 없습니다.',
+    fbPickPagesLater: '나중에',
+    fbConnectedHeading: '연결된 페이지',
+    fbUnlinkPage: '해제',
+    fbManualTokenToggle: '페이지 토큰 직접 입력',
+    fbConnectPartial: '{ok}개 페이지를 연결했습니다. {fail}개는 저장하지 못했습니다.',
     zaloLinkedLine: 'Zalo OA webhook 및 토큰이 저장되었습니다.',
     credentialsKeepHint: '바꾸지 않을 토큰이나 시크릿은 비워 두면 저장된 값이 유지됩니다.',
     setupColumnTitle: '채널 및 AI 어시스턴트',

@@ -99,11 +99,13 @@ import {
 } from '@/lib/db/customer-care-pg'
 import {
   fetchPartnerChannelStatusRowsFromPg,
+  deleteFacebookMessengerChannelForPartnerFromPg,
   getFacebookSendTokenFromPg,
   getZaloSendTokenFromPg,
   upsertFacebookMessengerChannelPg,
   upsertZaloOaChannelPg,
 } from '@/lib/db/messaging-partner-channels-pg'
+import { unsubscribeFacebookPageFromApp } from '@/lib/integration/facebook-messenger-connect'
 import {
   fetchBirthdayPromoForPartnerFromPg,
   upsertBirthdayPromoForPartnerFromPg,
@@ -1927,9 +1929,13 @@ export async function getPartnerChannelStatus(partnerId: string) {
       return { error: 'Failed to load channel status.' }
     }
     const fb = fromPg.facebook
+    const facebookPages = (fromPg.facebookPages ?? [])
+      .map((row) => row.external_page_id.trim())
+      .filter(Boolean)
     const zalo = fromPg.zalo
     return {
       facebookPageId: fb?.external_page_id ?? null,
+      facebookPages,
       facebookHasToken: Boolean(fb?.page_access_token),
       facebookHasVerify: Boolean(fb?.webhook_verify_token),
       zaloConfigured: Boolean(zalo?.zalo_access_token && zalo?.zalo_webhook_secret),
@@ -2334,6 +2340,32 @@ export async function savePartnerFacebookChannel(
       webhookVerifyToken: verifyTok || null,
     })
     if ('error' in r) return { error: r.error }
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : 'Server error.' }
+  }
+  revalidateMessagingDashboard()
+  return { ok: true as const }
+}
+
+export async function unlinkPartnerFacebookPage(partnerId: string, facebookPageId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerOwner(user.id, partnerId)
+  if ('error' in gate) return { error: gate.error }
+  const step = await requireAccountStepUp(user.id)
+  if ('error' in step) return { error: step.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const pageId = facebookPageId.trim()
+  if (!pageId) return { error: 'Page ID is required.' }
+  try {
+    const removed = await deleteFacebookMessengerChannelForPartnerFromPg(partnerId, pageId)
+    if ('error' in removed) return { error: removed.error }
+    if (removed.pageAccessToken) {
+      await unsubscribeFacebookPageFromApp(pageId, removed.pageAccessToken)
+    }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Server error.' }
   }

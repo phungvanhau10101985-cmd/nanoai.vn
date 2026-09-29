@@ -1,25 +1,15 @@
-import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { isValidUuidString } from '@/lib/validate-uuid'
+import { getOAuthBrowserOrigin, oauthBrowserLocation } from '@/lib/auth/public-app-url'
+import { exchangeFacebookLongLivedUserToken } from '@/lib/integration/facebook-managed-pages'
 import {
-  createFacebookPendingPagesToken,
+  createFacebookOAuthSession,
+  FACEBOOK_OAUTH_SESSION_COOKIE,
   verifyFacebookOAuthState,
 } from '@/lib/integration/facebook-messenger-oauth'
-import {
-  fetchPartnerChannelStatusRowsFromPg,
-  upsertFacebookMessengerChannelPg,
-} from '@/lib/db/messaging-partner-channels-pg'
-
-type FacebookPageAccount = {
-  id?: string
-  name?: string
-  access_token?: string
-}
-const FACEBOOK_PENDING_PAGES_COOKIE = 'fb_messenger_pending_pages'
 
 function oauthStateSecret(): string {
   return (
@@ -31,13 +21,16 @@ function oauthStateSecret(): string {
   ).trim()
 }
 
-function buildSettingsRedirect(request: NextRequest, partnerId: string, status: string): string {
-  const url = new URL('/dashboard/messaging/settings', request.nextUrl.origin)
-  if (partnerId && isValidUuidString(partnerId)) {
-    url.searchParams.set('partner', partnerId)
-  }
-  url.searchParams.set('fb_oauth', status)
-  return url.toString()
+function buildSettingsRedirect(request: NextRequest, partnerId: string, status: string): NextResponse {
+  const params = new URLSearchParams()
+  if (partnerId && isValidUuidString(partnerId)) params.set('partner', partnerId)
+  params.set('fb_oauth', status)
+  params.set('section', 'channels')
+  const location = oauthBrowserLocation(request, `/dashboard/messaging/settings?${params.toString()}`)
+  const res = NextResponse.redirect(location.startsWith('/') ? `http://127.0.0.1${location}` : location, 307)
+  res.headers.set('Location', location)
+  res.headers.set('Cache-Control', 'no-store')
+  return res
 }
 
 async function assertPartnerOwner(userId: string, partnerId: string): Promise<boolean> {
@@ -74,56 +67,10 @@ async function fetchUserAccessToken(params: {
   return String(json.access_token).trim() || null
 }
 
-async function fetchManagedPages(userAccessToken: string): Promise<FacebookPageAccount[]> {
-  const url = new URL('https://graph.facebook.com/v21.0/me/accounts')
-  url.searchParams.set('fields', 'id,name,access_token')
-  url.searchParams.set('limit', '200')
-  url.searchParams.set('access_token', userAccessToken)
-  const res = await fetch(url.toString(), { method: 'GET', cache: 'no-store' })
-  const json = (await res.json().catch(() => null)) as { data?: FacebookPageAccount[] } | null
-  if (!res.ok || !Array.isArray(json?.data)) return []
-  return json.data
-}
-
-async function subscribePageToApp(pageId: string, pageAccessToken: string): Promise<boolean> {
-  const url = new URL(`https://graph.facebook.com/v21.0/${encodeURIComponent(pageId)}/subscribed_apps`)
-  url.searchParams.set('subscribed_fields', 'messages,messaging_postbacks,message_reads,message_deliveries')
-  url.searchParams.set('access_token', pageAccessToken)
-  const res = await fetch(url.toString(), { method: 'POST', cache: 'no-store' })
-  return res.ok
-}
-
-function revalidateMessagingDashboard() {
-  revalidatePath('/dashboard/messaging')
-  revalidatePath('/dashboard/messaging/settings')
-  revalidatePath('/dashboard/messaging/orders')
-  revalidatePath('/dashboard/api-integration')
-}
-
-async function saveFacebookChannel(params: {
-  partnerId: string
-  pageId: string
-  pageAccessToken: string
-}): Promise<'ok' | 'subscribed-warn' | 'save-failed'> {
-  const existing = await fetchPartnerChannelStatusRowsFromPg(params.partnerId)
-  const existingVerifyToken = existing?.facebook?.webhook_verify_token?.trim() || ''
-  const verifyToken = existingVerifyToken || `fbv_${randomBytes(12).toString('hex')}`
-  const upsert = await upsertFacebookMessengerChannelPg({
-    partnerId: params.partnerId,
-    facebookPageId: params.pageId,
-    pageAccessToken: params.pageAccessToken,
-    webhookVerifyToken: verifyToken,
-  })
-  if ('error' in upsert) return 'save-failed'
-  const subscribed = await subscribePageToApp(params.pageId, params.pageAccessToken)
-  revalidateMessagingDashboard()
-  return subscribed ? 'ok' : 'subscribed-warn'
-}
-
 export async function GET(request: NextRequest) {
   const auth = await getUserForAction('Vui long dang nhap.')
   if ('error' in auth) {
-    return NextResponse.redirect(buildSettingsRedirect(request, '', 'unauthorized'))
+    return buildSettingsRedirect(request, '', 'unauthorized')
   }
   const { user } = auth
 
@@ -131,13 +78,13 @@ export async function GET(request: NextRequest) {
   const appSecret = (process.env.FACEBOOK_MESSENGER_APP_SECRET || process.env.FACEBOOK_APP_SECRET || '').trim()
   const stateSecret = oauthStateSecret()
   if (!appId || !appSecret || !stateSecret) {
-    return NextResponse.redirect(buildSettingsRedirect(request, '', 'missing-config'))
+    return buildSettingsRedirect(request, '', 'missing-config')
   }
 
   const code = String(request.nextUrl.searchParams.get('code') || '').trim()
   const state = String(request.nextUrl.searchParams.get('state') || '').trim()
   if (!code || !state) {
-    return NextResponse.redirect(buildSettingsRedirect(request, '', 'missing-code'))
+    return buildSettingsRedirect(request, '', 'missing-code')
   }
 
   const verified = verifyFacebookOAuthState({
@@ -146,70 +93,47 @@ export async function GET(request: NextRequest) {
     secret: stateSecret,
   })
   if (!verified.ok) {
-    return NextResponse.redirect(buildSettingsRedirect(request, '', 'invalid-state'))
+    return buildSettingsRedirect(request, '', 'invalid-state')
   }
   const partnerId = verified.partnerId
   if (!isValidUuidString(partnerId)) {
-    return NextResponse.redirect(buildSettingsRedirect(request, '', 'invalid-partner'))
+    return buildSettingsRedirect(request, '', 'invalid-partner')
   }
 
   const isOwner = await assertPartnerOwner(user.id, partnerId)
   if (!isOwner) {
-    return NextResponse.redirect(buildSettingsRedirect(request, partnerId, 'forbidden'))
+    return buildSettingsRedirect(request, partnerId, 'forbidden')
   }
 
-  const callbackUrl = new URL('/api/integrations/facebook/messenger/callback', request.nextUrl.origin).toString()
-  const userAccessToken = await fetchUserAccessToken({
+  const callbackUrl = new URL('/api/integrations/facebook/messenger/callback', getOAuthBrowserOrigin(request)).toString()
+  const shortLived = await fetchUserAccessToken({
     appId,
     appSecret,
     callbackUrl,
     code,
   })
-  if (!userAccessToken) {
-    return NextResponse.redirect(buildSettingsRedirect(request, partnerId, 'exchange-failed'))
+  if (!shortLived) {
+    return buildSettingsRedirect(request, partnerId, 'exchange-failed')
   }
 
-  const pages = await fetchManagedPages(userAccessToken)
-  if (pages.length < 1) {
-    return NextResponse.redirect(buildSettingsRedirect(request, partnerId, 'no-page-access'))
-  }
-
-  const availablePages = pages
-    .map((it) => ({
-      id: String(it.id || '').trim(),
-      name: String(it.name || '').trim(),
-      accessToken: String(it.access_token || '').trim(),
-    }))
-    .filter((it) => it.id && it.accessToken)
-
-  if (availablePages.length < 1) {
-    return NextResponse.redirect(buildSettingsRedirect(request, partnerId, 'no-page-access'))
-  }
-
-  if (availablePages.length > 1) {
-    const pendingToken = createFacebookPendingPagesToken({
-      partnerId,
-      userId: user.id,
-      pages: availablePages,
-      secret: stateSecret,
-    })
-    const res = NextResponse.redirect(buildSettingsRedirect(request, partnerId, 'pick-page'))
-    res.cookies.set(FACEBOOK_PENDING_PAGES_COOKIE, pendingToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 10 * 60,
-      path: '/',
-    })
-    return res
-  }
-
-  const onlyPage = availablePages[0]
-  const status = await saveFacebookChannel({
-    partnerId,
-    pageId: onlyPage.id,
-    pageAccessToken: onlyPage.accessToken,
+  const userAccessToken = await exchangeFacebookLongLivedUserToken({
+    appId,
+    appSecret,
+    shortLivedToken: shortLived,
   })
-  return NextResponse.redirect(buildSettingsRedirect(request, partnerId, status))
+  const session = createFacebookOAuthSession({
+    partnerId,
+    userId: user.id,
+    userAccessToken,
+    secret: stateSecret,
+  })
+  const res = buildSettingsRedirect(request, partnerId, 'pick-page')
+  res.cookies.set(FACEBOOK_OAUTH_SESSION_COOKIE, session, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 15 * 60,
+    path: '/',
+  })
+  return res
 }
-

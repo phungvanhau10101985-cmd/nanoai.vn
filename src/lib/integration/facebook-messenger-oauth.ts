@@ -1,7 +1,9 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 const FACEBOOK_OAUTH_STATE_MAX_AGE_MS = 10 * 60 * 1000
-const FACEBOOK_PENDING_PAGES_MAX_AGE_MS = 10 * 60 * 1000
+const FACEBOOK_OAUTH_SESSION_MAX_AGE_MS = 15 * 60 * 1000
+
+export const FACEBOOK_OAUTH_SESSION_COOKIE = 'fb_messenger_oauth_session'
 
 type FacebookOAuthStatePayload = {
   partnerId: string
@@ -10,17 +12,11 @@ type FacebookOAuthStatePayload = {
   issuedAt: number
 }
 
-type FacebookPendingPage = {
-  id: string
-  name: string
-  accessToken: string
-}
-
-type FacebookPendingPagesPayload = {
+type FacebookOAuthSessionPayload = {
   partnerId: string
   userId: string
   issuedAt: number
-  pages: FacebookPendingPage[]
+  userAccessToken: string
 }
 
 function base64UrlEncode(input: string): string {
@@ -99,21 +95,17 @@ export function verifyFacebookOAuthState(input: {
   return { ok: true, partnerId: payload.partnerId }
 }
 
-export function createFacebookPendingPagesToken(input: {
+export function createFacebookOAuthSession(input: {
   partnerId: string
   userId: string
-  pages: FacebookPendingPage[]
+  userAccessToken: string
   secret: string
 }): string {
-  const payload: FacebookPendingPagesPayload = {
+  const payload: FacebookOAuthSessionPayload = {
     partnerId: input.partnerId,
     userId: input.userId,
     issuedAt: Date.now(),
-    pages: input.pages.map((p) => ({
-      id: p.id.trim(),
-      name: p.name.trim(),
-      accessToken: p.accessToken.trim(),
-    })),
+    userAccessToken: input.userAccessToken.trim(),
   }
   const rawPayload = JSON.stringify(payload)
   const encodedPayload = base64UrlEncode(rawPayload)
@@ -121,12 +113,12 @@ export function createFacebookPendingPagesToken(input: {
   return `${encodedPayload}.${signature}`
 }
 
-export function verifyFacebookPendingPagesToken(input: {
+export function verifyFacebookOAuthSession(input: {
   token: string
   expectedUserId: string
   expectedPartnerId: string
   secret: string
-}): { ok: true; pages: FacebookPendingPage[] } | { ok: false } {
+}): { ok: true; userAccessToken: string } | { ok: false } {
   const [encodedPayload, signature] = input.token.split('.')
   if (!encodedPayload || !signature) return { ok: false }
 
@@ -143,26 +135,16 @@ export function verifyFacebookPendingPagesToken(input: {
     return { ok: false }
   }
 
-  let payload: FacebookPendingPagesPayload | null = null
+  let payload: FacebookOAuthSessionPayload | null = null
   try {
-    payload = JSON.parse(rawPayload) as FacebookPendingPagesPayload
+    payload = JSON.parse(rawPayload) as FacebookOAuthSessionPayload
   } catch {
     return { ok: false }
   }
-  if (!payload) return { ok: false }
+  if (!payload?.partnerId || !payload.userId || !payload.userAccessToken) return { ok: false }
   if (payload.userId !== input.expectedUserId || payload.partnerId !== input.expectedPartnerId) return { ok: false }
   if (!Number.isFinite(payload.issuedAt)) return { ok: false }
-  if (Date.now() - payload.issuedAt > FACEBOOK_PENDING_PAGES_MAX_AGE_MS) return { ok: false }
-  if (!Array.isArray(payload.pages) || payload.pages.length < 1) return { ok: false }
-
-  const pages = payload.pages
-    .map((p) => ({
-      id: String(p.id || '').trim(),
-      name: String(p.name || '').trim(),
-      accessToken: String(p.accessToken || '').trim(),
-    }))
-    .filter((p) => p.id && p.accessToken)
-  if (pages.length < 1) return { ok: false }
-  return { ok: true, pages }
+  if (Date.now() - payload.issuedAt > FACEBOOK_OAUTH_SESSION_MAX_AGE_MS) return { ok: false }
+  return { ok: true, userAccessToken: payload.userAccessToken }
 }
 

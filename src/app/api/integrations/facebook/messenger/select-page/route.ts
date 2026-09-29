@@ -1,17 +1,16 @@
-import { randomBytes } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
 import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { isValidUuidString } from '@/lib/validate-uuid'
-import { verifyFacebookPendingPagesToken } from '@/lib/integration/facebook-messenger-oauth'
+import { listFacebookManagedPages } from '@/lib/integration/facebook-managed-pages'
+import { connectFacebookPagesForPartner } from '@/lib/integration/facebook-messenger-connect'
 import {
-  fetchPartnerChannelStatusRowsFromPg,
-  upsertFacebookMessengerChannelPg,
-} from '@/lib/db/messaging-partner-channels-pg'
+  FACEBOOK_OAUTH_SESSION_COOKIE,
+  verifyFacebookOAuthSession,
+} from '@/lib/integration/facebook-messenger-oauth'
 
-const FACEBOOK_PENDING_PAGES_COOKIE = 'fb_messenger_pending_pages'
+export const maxDuration = 60
 
 function oauthStateSecret(): string {
   return (
@@ -40,19 +39,14 @@ async function assertPartnerOwner(userId: string, partnerId: string): Promise<bo
   }
 }
 
-async function subscribePageToApp(pageId: string, pageAccessToken: string): Promise<boolean> {
-  const url = new URL(`https://graph.facebook.com/v21.0/${encodeURIComponent(pageId)}/subscribed_apps`)
-  url.searchParams.set('subscribed_fields', 'messages,messaging_postbacks,message_reads,message_deliveries')
-  url.searchParams.set('access_token', pageAccessToken)
-  const res = await fetch(url.toString(), { method: 'POST', cache: 'no-store' })
-  return res.ok
-}
-
-function revalidateMessagingDashboard() {
-  revalidatePath('/dashboard/messaging')
-  revalidatePath('/dashboard/messaging/settings')
-  revalidatePath('/dashboard/messaging/orders')
-  revalidatePath('/dashboard/api-integration')
+function clearSession(res: NextResponse) {
+  res.cookies.set(FACEBOOK_OAUTH_SESSION_COOKIE, '', {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: 0,
+    path: '/',
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -67,10 +61,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing config.' }, { status: 500 })
   }
 
-  const body = (await request.json().catch(() => null)) as { partnerId?: string; pageId?: string } | null
+  const body = (await request.json().catch(() => null)) as { partnerId?: string; pageId?: string; pageIds?: string[] } | null
   const partnerId = String(body?.partnerId || '').trim()
-  const pageId = String(body?.pageId || '').trim()
-  if (!isValidUuidString(partnerId) || !pageId) {
+  const requested = [
+    ...(Array.isArray(body?.pageIds) ? body.pageIds : []),
+    ...(body?.pageId ? [body.pageId] : []),
+  ]
+    .map((id) => String(id || '').trim())
+    .filter(Boolean)
+  const pageIds = [...new Set(requested)].slice(0, 30)
+  if (!isValidUuidString(partnerId) || pageIds.length < 1) {
     return NextResponse.json({ error: 'Invalid input.' }, { status: 400 })
   }
 
@@ -79,12 +79,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden.' }, { status: 403 })
   }
 
-  const token = request.cookies.get(FACEBOOK_PENDING_PAGES_COOKIE)?.value || ''
+  const token = request.cookies.get(FACEBOOK_OAUTH_SESSION_COOKIE)?.value || ''
   if (!token) {
     return NextResponse.json({ error: 'Pending pages expired.' }, { status: 410 })
   }
 
-  const verified = verifyFacebookPendingPagesToken({
+  const verified = verifyFacebookOAuthSession({
     token,
     expectedUserId: user.id,
     expectedPartnerId: partnerId,
@@ -94,34 +94,28 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Pending pages invalid.' }, { status: 410 })
   }
 
-  const selected = verified.pages.find((p) => p.id === pageId) || null
-  if (!selected || !selected.accessToken) {
+  const available = await listFacebookManagedPages(verified.userAccessToken)
+  const selected = available.filter((page) => pageIds.includes(page.id))
+  if (selected.length < 1) {
     return NextResponse.json({ error: 'Page not found in pending list.' }, { status: 404 })
   }
 
-  const existing = await fetchPartnerChannelStatusRowsFromPg(partnerId)
-  const existingVerifyToken = existing?.facebook?.webhook_verify_token?.trim() || ''
-  const verifyToken = existingVerifyToken || `fbv_${randomBytes(12).toString('hex')}`
-  const upsert = await upsertFacebookMessengerChannelPg({
+  const saved = await connectFacebookPagesForPartner({
     partnerId,
-    facebookPageId: selected.id,
-    pageAccessToken: selected.accessToken,
-    webhookVerifyToken: verifyToken,
+    pages: selected.map((page) => ({ id: page.id, accessToken: page.accessToken })),
   })
-  if ('error' in upsert) {
-    return NextResponse.json({ error: upsert.error }, { status: 500 })
+  const linked = saved.connected.length + saved.warned.length
+  if (linked < 1) {
+    return NextResponse.json({ error: saved.failed[0]?.error || 'Could not save Facebook Page.' }, { status: 500 })
   }
-  const subscribed = await subscribePageToApp(selected.id, selected.accessToken)
-  revalidateMessagingDashboard()
 
-  const res = NextResponse.json({ ok: true, status: subscribed ? 'ok' : 'subscribed-warn' })
-  res.cookies.set(FACEBOOK_PENDING_PAGES_COOKIE, '', {
-    httpOnly: true,
-    sameSite: 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 0,
-    path: '/',
+  const res = NextResponse.json({
+    ok: true,
+    status: saved.warned.length > 0 && saved.connected.length === 0 ? 'subscribed-warn' : 'ok',
+    connected: saved.connected.length,
+    warned: saved.warned.length,
+    failed: saved.failed.length,
   })
+  if (saved.failed.length === 0) clearSession(res)
   return res
 }
-

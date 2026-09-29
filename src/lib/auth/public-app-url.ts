@@ -69,6 +69,51 @@ export function getAuthFlowOrigin(req: Request): string {
   return getPublicAppUrlForServer(req)
 }
 
+function requestHost(req: Request): string {
+  return (
+    req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
+    req.headers.get('host')?.split(',')[0]?.trim() ||
+    ''
+  )
+}
+
+/** APP_URL / NEXT_PUBLIC_* khi đó là tên miền thật, không phải localhost nội bộ. */
+function publicAppOriginFromEnv(): string | null {
+  for (const c of [process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL, process.env.NEXT_PUBLIC_BASE_URL]) {
+    const t = c?.trim()
+    if (!t) continue
+    try {
+      const u = new URL(t)
+      if (!isLocalHostLike(u.host)) return stripBase(t)
+    } catch {
+      /* ignore */
+    }
+  }
+  return null
+}
+
+/**
+ * Origin tuyệt đối cho Facebook `redirect_uri`.
+ * Nginx gọi Node qua localhost — không được trả `https://localhost:3000` cho trình duyệt.
+ * Host nội bộ thì dùng APP_URL công khai. Dev thuần (APP_URL cũng là localhost) giữ http.
+ */
+export function getOAuthBrowserOrigin(req: Request): string {
+  const host = requestHost(req)
+  if (host && !isLocalHostLike(host)) return getAuthFlowOrigin(req)
+  const pub = publicAppOriginFromEnv()
+  if (pub) return pub
+  if (host && isLocalHostLike(host)) return `http://${host}`
+  return getAuthFlowOrigin(req)
+}
+
+/**
+ * Quay lại trang cài đặt: Location tương đối.
+ * Trình duyệt ở lại đúng host đang mở (nanoai.vn hoặc localhost), không bị đẩy sang máy nội bộ.
+ */
+export function oauthBrowserLocation(_req: Request, pathWithQuery: string): string {
+  return pathWithQuery.startsWith('/') ? pathWithQuery : `/${pathWithQuery}`
+}
+
 /**
  * Public origin in App Router RSC / route handlers from `headers()` (`next/headers`).
  * Keeps server HTML aligned with the client for absolute URLs built during SSR.
