@@ -37,9 +37,9 @@ import {
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import {
   buildPartnerShopGoogleTagInstall,
-  loadPartnerShopGoogleTagIdsBySlug,
   type PartnerShopGoogleTagInstall,
 } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
+import { loadPartnerShopGoogleTagIdsBySlug } from '@/lib/partner-website/shop/load-partner-shop-google-tag-ids'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),

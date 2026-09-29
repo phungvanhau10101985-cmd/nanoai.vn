@@ -1,5 +1,7 @@
-import { isPgConfigured } from '@/lib/db/pool'
-import { pgQueryOne } from '@/lib/db/pg-query'
+/**
+ * Snippet HTML tracking. File này bị preview Sửa nhanh import trên trình duyệt —
+ * cấm import `pg` / `pool` ở đây. Đọc DB nằm ở `load-partner-shop-google-tag-ids.ts`.
+ */
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
   partnerShopVerifyMetaTags,
@@ -129,32 +131,6 @@ export function buildPartnerShopGoogleTagInstall(input: {
     scriptId: `shop-gtag-js-${primary}`,
     src: `https://www.googletagmanager.com/gtag/js?id=${primary}`,
     inlineJs: lines.join('\n'),
-  }
-}
-
-export async function loadPartnerShopGoogleTagIdsBySlug(slug: string): Promise<{
-  ga4MeasurementId: string | null
-  googleAdsId: string | null
-} | null> {
-  const key = slug.trim()
-  if (!key || !/^[a-z0-9][a-z0-9-]{0,80}$/i.test(key) || !isPgConfigured()) return null
-  try {
-    const row = await pgQueryOne<{ ga4_measurement_id: string | null; google_ads_id: string | null }>(
-      `select nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
-              nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id
-         from public.messaging_partners
-        where slug = $1
-        limit 1`,
-      [key]
-    )
-    if (!row) return null
-    return {
-      ga4MeasurementId: row.ga4_measurement_id ? String(row.ga4_measurement_id).trim() : null,
-      googleAdsId: row.google_ads_id ? String(row.google_ads_id).trim() : null,
-    }
-  } catch (e) {
-    console.warn('[loadPartnerShopGoogleTagIdsBySlug]', e)
-    return null
   }
 }
 
