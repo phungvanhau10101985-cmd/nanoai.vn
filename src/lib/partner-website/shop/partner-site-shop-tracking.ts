@@ -23,7 +23,6 @@ import {
 import { ensureFbqPixelInitialized } from '@/app/messaging/p/[slug]/meta-pixel-session'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
-import { getPartnerSiteConsent } from '@/lib/partner-website/shop/partner-site-consent'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 
 declare global {
@@ -61,16 +60,6 @@ function pushEcommerceDataLayer(eventName: string, ecommerce: Record<string, unk
   window.dataLayer = window.dataLayer || []
   window.dataLayer.push({ ecommerce: null })
   window.dataLayer.push({ event: eventName, ecommerce })
-}
-
-/**
- * Đo ngay khi vào trang. Banner cookie không chặn. Chỉ dừng khi khách bấm «Từ chối».
- * Không có `siteSlug` = luôn đo.
- */
-function hasTrackingConsent(config: { siteSlug?: string | null }): boolean {
-  const slug = (config.siteSlug ?? '').trim()
-  if (!slug) return true
-  return getPartnerSiteConsent(slug) !== 'rejected'
 }
 
 function contentIds(product: PartnerSiteShopTrackingProduct): string[] {
@@ -213,7 +202,6 @@ export function shopProductToTrackingProduct(
 }
 
 export function trackPartnerSitePageView(config: PartnerSiteShopTrackingConfig): void {
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   const ga4 = (config.ga4MeasurementId ?? '').trim()
   if (ga4 && typeof window.gtag === 'function') {
@@ -234,7 +222,6 @@ export function trackPartnerSiteViewItem(
   product: PartnerSiteShopTrackingProduct,
   options?: { skipMeta?: boolean }
 ): void {
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   trackShopGa4ProductEvent('view_item', config.ga4MeasurementId, product)
   trackGoogleAdsEvent(
@@ -275,7 +262,6 @@ export function trackPartnerSiteViewItemList(
   products: PartnerSiteShopTrackingProduct[]
 ): void {
   if (products.length === 0) return
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   const ga4 = (config.ga4MeasurementId ?? '').trim()
   if (ga4 && typeof window.gtag === 'function') {
@@ -301,7 +287,6 @@ export function trackPartnerSiteAddToCart(
   quantity = 1,
   options?: { skipMeta?: boolean }
 ): void {
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   const qty = Math.max(1, Math.min(99, Math.floor(quantity) || 1))
   trackShopGa4AddToCart(config.ga4MeasurementId, {
@@ -342,7 +327,6 @@ export function trackPartnerSiteBeginCheckout(
   config: PartnerSiteShopTrackingConfig,
   lines: PartnerSiteShopTrackingLine[]
 ): void {
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   const value = lines.reduce((sum, line) => sum + line.value * line.quantity, 0)
   trackShopGa4BeginCheckout(
@@ -417,7 +401,6 @@ export function trackPartnerSitePurchase(
 ): void {
   const transactionId = params.transactionId.trim()
   if (!transactionId) return
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   trackShopGa4PurchaseEvent({
     measurementId: config.ga4MeasurementId,
@@ -500,7 +483,6 @@ export function trackPartnerSitePlaceOrder(
   config: PartnerSiteShopTrackingConfig,
   params: { value: number; lines: PartnerSiteShopTrackingLine[]; transactionId?: string }
 ): void {
-  if (!hasTrackingConsent(config)) return
   const currency = trackingCurrency(config)
   const ids = [...new Set(params.lines.flatMap((line) => contentIds(line)))]
   trackMetaCustom(config, 'OrderAwaitingDeposit', {
@@ -527,7 +509,6 @@ export function trackPartnerSiteDepositPage(
   config: PartnerSiteShopTrackingConfig,
   params: { value: number; lines?: PartnerSiteShopTrackingLine[]; transactionId?: string }
 ): void {
-  if (!hasTrackingConsent(config)) return
   const lines = params.lines?.length
     ? params.lines
     : [

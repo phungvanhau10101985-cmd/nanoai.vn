@@ -410,8 +410,6 @@ export default async function RootLayout({
       shopGoogleTag = buildPartnerShopGoogleTagInstall({
         ga4MeasurementId: ids.ga4MeasurementId,
         googleAdsId: ids.googleAdsId,
-        siteSlug: shopGoogleTagSlug,
-        consent: isPartnerWebsitePage ? 'banner' : 'granted',
       })
     }
   }

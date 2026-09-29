@@ -48,7 +48,6 @@ import {
 import { PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT, PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID } from '@/lib/partner-website/shop/arm-inline-visual-runtime'
 import { stripPartnerLiveHoistHosts } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
-import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 
 function hideChatLaunchersInHtml(html: string, hide: boolean): string {
@@ -491,7 +490,6 @@ function PartnerSitePublicFrame({
           id={PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT_ID}
           dangerouslySetInnerHTML={{ __html: PARTNER_SITE_ARM_INLINE_RUNTIME_SCRIPT }}
         />
-        {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
         {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
       </PartnerSiteChatWidgetProvider>
     )
@@ -538,7 +536,6 @@ function PartnerSitePublicFrame({
           onLoad={centerPreviewWrap}
         />
       </div>
-      {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
       {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
     </PartnerSiteChatWidgetProvider>
   )

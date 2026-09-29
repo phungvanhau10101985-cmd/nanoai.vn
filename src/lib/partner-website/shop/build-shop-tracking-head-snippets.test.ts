@@ -38,41 +38,21 @@ test('injectPartnerShopLiveTrackingHtml no-ops without config', () => {
   assert.equal(injectPartnerShopLiveTrackingHtml(baseHtml, null), baseHtml)
 })
 
-test('Google tag install tracks without a cookie click and stops only after reject', () => {
+test('Google tag install measures on arrival with consent granted', () => {
   const install = buildPartnerShopGoogleTagInstall({
     ga4MeasurementId: 'g-ptgcs6yczf',
-    googleAdsId: 'not-an-id',
-    siteSlug: 'gudo-vn-3f93',
-    consent: 'banner',
+    googleAdsId: 'AW-999',
   })
   assert.ok(install)
   assert.equal(install.scriptId, 'shop-gtag-js-G-PTGCS6YCZF')
   assert.equal(install.src, 'https://www.googletagmanager.com/gtag/js?id=G-PTGCS6YCZF')
   assert.match(install.inlineJs, /analytics_storage:'granted'/)
-  assert.match(install.inlineJs, /pw_shop_cookie_consent:gudo-vn-3f93/)
-  assert.match(install.inlineJs, /c==='rejected'/)
-  assert.match(install.inlineJs, /analytics_storage:'denied'/)
   assert.match(install.inlineJs, /gtag\('config','G-PTGCS6YCZF',\{send_page_view:false\}\)/)
-  assert.doesNotMatch(install.inlineJs, /gtag\('config','NOT-AN-ID'/)
-})
-
-test('consult page Google tag grants without a cookie banner', () => {
-  const install = buildPartnerShopGoogleTagInstall({
-    ga4MeasurementId: 'G-ABC123',
-    googleAdsId: 'AW-999',
-    siteSlug: 'shop-a',
-    consent: 'granted',
-  })
-  assert.ok(install)
-  assert.equal(install.src, 'https://www.googletagmanager.com/gtag/js?id=G-ABC123')
-  assert.match(install.inlineJs, /analytics_storage:'granted'/)
   assert.match(install.inlineJs, /gtag\('config','AW-999'\)/)
   assert.doesNotMatch(install.inlineJs, /localStorage/)
+  assert.doesNotMatch(install.inlineJs, /denied/)
 })
 
 test('Google tag install ignores empty ids', () => {
-  assert.equal(
-    buildPartnerShopGoogleTagInstall({ ga4MeasurementId: 'UA-1', googleAdsId: '', siteSlug: 'a', consent: 'banner' }),
-    null
-  )
+  assert.equal(buildPartnerShopGoogleTagInstall({ ga4MeasurementId: 'UA-1', googleAdsId: '' }), null)
 })

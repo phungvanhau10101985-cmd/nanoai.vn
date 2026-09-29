@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { ensureFbqPixelInitialized } from '@/app/messaging/p/[slug]/meta-pixel-session'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -14,10 +14,6 @@ import {
   persistPartnerSiteMetaClickIds,
   partnerSiteMetaMatchingParams,
 } from '@/lib/partner-website/shop/partner-site-meta-attribution'
-import {
-  getPartnerSiteConsent,
-  PARTNER_SITE_CONSENT_CHANGED_EVENT,
-} from '@/lib/partner-website/shop/partner-site-consent'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 
@@ -52,28 +48,6 @@ function ensureGtagLoaded(tagId: string): void {
   script.async = true
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(tagId)}`
   document.head.appendChild(script)
-}
-
-function applyShopGoogleConsent(granted: boolean): void {
-  window.dataLayer = window.dataLayer || []
-  if (typeof window.gtag !== 'function') {
-    window.gtag = function gtag(...args: unknown[]) {
-      window.dataLayer?.push(args)
-    }
-  }
-  const state = granted ? 'granted' : 'denied'
-  window.gtag('consent', 'update', {
-    ad_storage: state,
-    ad_user_data: state,
-    ad_personalization: state,
-    analytics_storage: state,
-  })
-}
-
-function shopTrackingAllowed(siteSlug: string | null | undefined): boolean {
-  const slug = (siteSlug ?? '').trim()
-  if (!slug) return true
-  return getPartnerSiteConsent(slug) !== 'rejected'
 }
 
 function ensureGtmLoaded(containerId: string): void {
@@ -164,22 +138,6 @@ type Props = {
   tracking: PartnerSiteShopTrackingConfig
 }
 
-function useTrackingConsentGranted(siteSlug: string | null | undefined): boolean {
-  const [granted, setGranted] = useState(true)
-  useEffect(() => {
-    const slug = (siteSlug ?? '').trim()
-    const read = () => !slug || getPartnerSiteConsent(slug) !== 'rejected'
-    setGranted(read())
-    const onChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ siteSlug: string; choice: string }>).detail
-      if (detail?.siteSlug === slug) setGranted(detail.choice !== 'rejected')
-    }
-    window.addEventListener(PARTNER_SITE_CONSENT_CHANGED_EVENT, onChange)
-    return () => window.removeEventListener(PARTNER_SITE_CONSENT_CHANGED_EVENT, onChange)
-  }, [siteSlug])
-  return granted
-}
-
 async function applyAdvancedMatching(siteSlug: string, pixelId: string): Promise<void> {
   try {
     const res = await fetch(`/api/site/${encodeURIComponent(siteSlug)}/personalization/profile`, {
@@ -207,7 +165,6 @@ async function applyAdvancedMatching(siteSlug: string, pixelId: string): Promise
 }
 
 export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
-  const consentGranted = useTrackingConsentGranted(tracking.siteSlug)
   const pageViewedRef = useRef(false)
 
   useLayoutEffect(() => {
@@ -224,12 +181,6 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
     if (currency) {
       window.__nanoShopCurrency = currency
     }
-    if (!shopTrackingAllowed(tracking.siteSlug)) {
-      applyShopGoogleConsent(false)
-      return
-    }
-    applyShopGoogleConsent(true)
-
     applyCustomHtml(tracking.customEmbedHeadHtml || '', 'head')
     applyCustomHtml(tracking.customEmbedBodyOpenHtml || '', 'body-start')
     applyCustomHtml(tracking.customEmbedBodyCloseHtml || '', 'body-end')
@@ -270,14 +221,13 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
       pageViewedRef.current = true
       trackPartnerSitePageView(tracking)
     }
-  }, [tracking, consentGranted])
+  }, [tracking])
 
   useEffect(() => {
-    if (!shopTrackingAllowed(tracking.siteSlug)) return
     const onNav = () => trackPartnerSitePageView(tracking)
     window.addEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)
     return () => window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)
-  }, [tracking, consentGranted])
+  }, [tracking])
 
   return null
 }

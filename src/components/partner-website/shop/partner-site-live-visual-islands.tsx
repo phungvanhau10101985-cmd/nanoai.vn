@@ -2,7 +2,6 @@
 
 import { useLayoutEffect } from 'react'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
-import { PartnerSiteCookieConsentBanner } from '@/components/partner-website/shop/partner-site-cookie-consent-banner'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import type { WebLocale } from '@/lib/i18n/config'
 import { persistPartnerLiveVisualDeviceCookie } from '@/lib/partner-website/shop/infer-live-visual-request-device'
@@ -14,7 +13,6 @@ import {
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-device-query'
 
 export function PartnerSiteLiveVisualIslands({
-  siteSlug,
   locale,
   chatPath,
   shopName,
@@ -54,7 +52,6 @@ export function PartnerSiteLiveVisualIslands({
       listenLandingPostMessage
       hideLauncher={hideChatLauncher}
     >
-      {siteSlug ? <PartnerSiteCookieConsentBanner siteSlug={siteSlug} locale={locale} /> : null}
       {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
     </PartnerSiteChatWidgetProvider>
   )

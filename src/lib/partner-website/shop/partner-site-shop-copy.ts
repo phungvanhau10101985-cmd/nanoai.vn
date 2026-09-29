@@ -401,9 +401,6 @@ export type PartnerSiteShopCopy = {
   chatLanguageLabel: string
   chatOrdersLabel: string
   chatCartLabel: string
-  consentMessage: string
-  consentAccept: string
-  consentReject: string
   navAccount: string
   navLogout: string
   navRegister: string
@@ -1111,9 +1108,6 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatLanguageLabel: 'Ngôn ngữ',
     chatOrdersLabel: 'Đơn hàng',
     chatCartLabel: 'Giỏ hàng',
-    consentMessage: 'Trang web này dùng cookie để cải thiện trải nghiệm mua sắm và đo lường hiệu quả quảng cáo.',
-    consentAccept: 'Đồng ý',
-    consentReject: 'Từ chối',
     navAccount: 'Tài khoản',
     navLogout: 'Đăng xuất',
     navRegister: 'Đăng ký',
@@ -1817,9 +1811,6 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatLanguageLabel: 'Language',
     chatOrdersLabel: 'Orders',
     chatCartLabel: 'Cart',
-    consentMessage: 'This site uses cookies to improve your shopping experience and measure ad performance.',
-    consentAccept: 'Accept',
-    consentReject: 'Decline',
     navAccount: 'Account',
     navLogout: 'Log out',
     navRegister: 'Sign up',
@@ -2519,9 +2510,6 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatLanguageLabel: '语言',
     chatOrdersLabel: '订单',
     chatCartLabel: '购物车',
-    consentMessage: '本网站使用 Cookie 以改善您的购物体验并评估广告效果。',
-    consentAccept: '同意',
-    consentReject: '拒绝',
     navAccount: '账户',
     navLogout: '退出登录',
     navRegister: '注册',
@@ -3220,9 +3208,6 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatLanguageLabel: '言語',
     chatOrdersLabel: '注文',
     chatCartLabel: 'カート',
-    consentMessage: '当サイトは、ショッピング体験の向上と広告効果測定のためにCookieを使用しています。',
-    consentAccept: '同意する',
-    consentReject: '拒否する',
     navAccount: 'アカウント',
     navLogout: 'ログアウト',
     navRegister: '登録',
@@ -3923,9 +3908,6 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     chatLanguageLabel: '언어',
     chatOrdersLabel: '주문',
     chatCartLabel: '장바구니',
-    consentMessage: '이 사이트는 쇼핑 경험 개선과 광고 효과 측정을 위해 쿠키를 사용합니다.',
-    consentAccept: '동의',
-    consentReject: '거부',
     navAccount: '계정',
     navLogout: '로그아웃',
     navRegister: '가입',

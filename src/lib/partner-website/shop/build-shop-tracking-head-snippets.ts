@@ -1,6 +1,5 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import { partnerSiteConsentStorageKey } from '@/lib/partner-website/shop/partner-site-consent-key'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
   partnerShopVerifyMetaTags,
@@ -104,23 +103,14 @@ export type PartnerShopGoogleTagInstall = {
   /** Same id `ensureGtagLoaded` uses, so React does not inject a second copy. */
   scriptId: string
   src: string
-  /** Parser-blocking snippet: consent default, then gtag('config'). */
+  /** Parser-blocking snippet: consent granted, then gtag('config'). */
   inlineJs: string
 }
 
-function escapeJsSingleQuoted(raw: string): string {
-  return raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-}
-
-/**
- * Google tag trong HTML đầu, đo ngay. `banner` = shop: chỉ tắt khi localStorage là «Từ chối».
- * `granted` = trang tư vấn, không đọc banner.
- */
+/** Google tag trong HTML đầu. Consent Mode mặc định granted — vào trang là đo, không hỏi. */
 export function buildPartnerShopGoogleTagInstall(input: {
   ga4MeasurementId?: string | null
   googleAdsId?: string | null
-  siteSlug?: string | null
-  consent: 'banner' | 'granted'
 }): PartnerShopGoogleTagInstall | null {
   const ga4 = (input.ga4MeasurementId ?? '').trim().toUpperCase()
   const ads = (input.googleAdsId ?? '').trim().toUpperCase()
@@ -131,17 +121,8 @@ export function buildPartnerShopGoogleTagInstall(input: {
   const lines = [
     'window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}',
     "gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});",
+    "gtag('js',new Date());",
   ]
-  if (input.consent === 'banner') {
-    const slug = (input.siteSlug ?? '').trim()
-    if (slug) {
-      const key = escapeJsSingleQuoted(partnerSiteConsentStorageKey(slug))
-      lines.push(
-        `try{var c=localStorage.getItem('${key}');if(c==='rejected'){gtag('consent','update',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied'});}}catch(e){}`
-      )
-    }
-  }
-  lines.push("gtag('js',new Date());")
   if (ga4Ok) lines.push(`gtag('config','${ga4}',{send_page_view:false});`)
   if (adsOk) lines.push(`gtag('config','${ads}');`)
   return {
@@ -177,7 +158,7 @@ export async function loadPartnerShopGoogleTagIdsBySlug(slug: string): Promise<{
   }
 }
 
-/** Live visual HTML: verification metas + sanitized custom HTML. Pixels stay in React bootstrap (consent). */
+/** Live visual HTML: verification metas + sanitized custom HTML. Pixels stay in React bootstrap. */
 export function injectPartnerShopLiveTrackingHtml(
   html: string,
   config: PartnerSiteShopTrackingConfig | null | undefined
