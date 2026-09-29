@@ -4,6 +4,7 @@ import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
 import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import {
+  partnerAdminDepositedOrderSql,
   partnerAdminFulfillmentFilterSql,
   partnerAdminLifecycleSql,
   partnerAdminPaymentFilterSql,
@@ -1942,13 +1943,6 @@ function adminOrderSearchNeedle(q: string): string {
   return t
 }
 
-export type PartnerOrderAdminKpi = {
-  totalOrders: number
-  todayRevenue: number
-  waitingDepositOrders: number
-  shippingOrders: number
-}
-
 export type PartnerOrderAdminTabCounts = {
   totalOrders: number
   waitingDepositOrders: number
@@ -1966,6 +1960,11 @@ export type PartnerOrderAdminRevenueReport = {
   dateTo: string | null
   totalRevenue: number
   totalOrders: number
+  waitingDepositOrders: number
+  shippingOrders: number
+  depositedOrders: number
+  depositedRevenue: number
+  depositedAmount: number
   cancelledOrders: number
   returnedOrders: number
 }
@@ -1973,40 +1972,6 @@ export type PartnerOrderAdminRevenueReport = {
 export type PartnerOrderAdminPage = {
   rows: PartnerOrderAdminRow[]
   filteredTotal: number
-}
-
-export async function fetchPartnerOrderAdminKpiFromPg(input: {
-  ownerUserId: string
-  partnerId?: string | null
-}): Promise<PartnerOrderAdminKpi | null> {
-  if (!isPgConfigured()) return null
-  const partnerId = String(input.partnerId ?? '').trim()
-  try {
-    const row = await pgQueryOne<Record<string, unknown>>(
-      `select
-          count(*) filter (where (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as today_orders,
-          coalesce(sum(${ORDER_TOTAL_EXPR}) filter (where (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date), 0)::double precision as today_revenue,
-          count(*) filter (where ${partnerAdminLifecycleSql('waiting_deposit')}
-            and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as waiting_deposit,
-          count(*) filter (where ${partnerAdminLifecycleSql('shipping')}
-            and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date = (now() at time zone 'Asia/Ho_Chi_Minh')::date)::int as shipping
-       from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
-       where ($2::uuid is null or o.partner_id = $2::uuid)
-         and nullif(trim(o.payment_reference), '') is not null`,
-      [input.ownerUserId, partnerId || null]
-    )
-    const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
-    return {
-      totalOrders: n('today_orders'),
-      todayRevenue: Math.round(Number(row?.today_revenue) || 0),
-      waitingDepositOrders: n('waiting_deposit'),
-      shippingOrders: n('shipping'),
-    }
-  } catch (e) {
-    console.error('[fetchPartnerOrderAdminKpiFromPg]', e)
-    return null
-  }
 }
 
 export async function fetchPartnerOrderAdminTabCountsFromPg(input: {
@@ -2082,6 +2047,11 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
       `select
           count(*)::int as total_orders,
           coalesce(sum(${ORDER_TOTAL_EXPR}), 0)::double precision as total_revenue,
+          count(*) filter (where ${partnerAdminLifecycleSql('waiting_deposit')})::int as waiting_deposit,
+          count(*) filter (where ${partnerAdminLifecycleSql('shipping')})::int as shipping,
+          count(*) filter (where ${partnerAdminDepositedOrderSql()})::int as deposited_orders,
+          coalesce(sum(${ORDER_TOTAL_EXPR}) filter (where ${partnerAdminDepositedOrderSql()}), 0)::double precision as deposited_revenue,
+          coalesce(sum(coalesce(o.paid_amount, 0)) filter (where ${partnerAdminDepositedOrderSql()}), 0)::double precision as deposited_amount,
           count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled,
           count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned
        from public.messaging_partner_orders o
@@ -2099,6 +2069,11 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
       dateTo: to,
       totalRevenue: Math.round(Number(row?.total_revenue) || 0),
       totalOrders: n('total_orders'),
+      waitingDepositOrders: n('waiting_deposit'),
+      shippingOrders: n('shipping'),
+      depositedOrders: n('deposited_orders'),
+      depositedRevenue: Math.round(Number(row?.deposited_revenue) || 0),
+      depositedAmount: Math.round(Number(row?.deposited_amount) || 0),
       cancelledOrders: n('cancelled'),
       returnedOrders: n('returned'),
     }

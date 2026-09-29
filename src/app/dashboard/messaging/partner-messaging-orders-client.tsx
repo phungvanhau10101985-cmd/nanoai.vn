@@ -54,7 +54,6 @@ import {
   updateMyMessagingOrderRefund,
   updateMyMessagingOrderShipping,
   updateMyMessagingOrderStatus,
-  type PartnerOrderAdminKpi,
   type PartnerOrderAdminRevenueReport,
   type PartnerOrderAdminTabCounts,
   type PartnerOrderLineRow,
@@ -187,6 +186,14 @@ function intlLocaleTag(locale: WebLocale): string {
   if (locale === 'ja') return 'ja-JP'
   if (locale === 'ko') return 'ko-KR'
   return 'vi-VN'
+}
+
+function formatIsoDay(iso: string, locale: WebLocale): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim())
+  if (!match) return iso
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleDateString(intlLocaleTag(locale))
 }
 
 function formatVnd(v: number, locale: WebLocale): string {
@@ -567,7 +574,6 @@ export function PartnerMessagingOrdersClient({
   const [selectedPartnerId, setSelectedPartnerId] = useState<string>(lockedPartnerId?.trim() || 'all')
   const [rows, setRows] = useState<OrderRow[]>([])
   const [filteredTotal, setFilteredTotal] = useState(0)
-  const [kpi, setKpi] = useState<PartnerOrderAdminKpi | null>(null)
   const [tabCounts, setTabCounts] = useState<PartnerOrderAdminTabCounts | null>(null)
   const [listPage, setListPage] = useState(1)
   const [listPageSize, setListPageSize] = useState(PARTNER_ADMIN_ORDERS_DEFAULT_PAGE_SIZE)
@@ -601,7 +607,6 @@ export function PartnerMessagingOrdersClient({
   const [revenueReport, setRevenueReport] = useState<PartnerOrderAdminRevenueReport | null>(null)
   const [revenueLoading, setRevenueLoading] = useState(false)
   const [revenueError, setRevenueError] = useState<string | null>(null)
-  const [revenueExpanded, setRevenueExpanded] = useState(false)
 
   const partnerIdArg = selectedPartnerId === 'all' ? '' : selectedPartnerId
   const lifecycleForQuery: PartnerAdminLifecycleTab = statusFilter || activeTab
@@ -662,7 +667,6 @@ export function PartnerMessagingOrdersClient({
         }
         setRows(res.rows as unknown as OrderRow[])
         setFilteredTotal(res.filteredTotal)
-        setKpi(res.kpi)
         setTabCounts(res.tabCounts)
         setConsultedMap((prev) => {
           const next = { ...prev }
@@ -693,7 +697,8 @@ export function PartnerMessagingOrdersClient({
           return
         }
         from = to = filter.date
-        label = filter.preset === 'today' ? t.revenueToday : filter.date
+        const viewingToday = filter.preset === 'today' || filter.date === todayIsoVn()
+        label = viewingToday ? t.revenueToday : formatIsoDay(filter.date, locale)
       } else if (mode === 'week') {
         if (filter.preset !== 'this_week' && filter.preset !== 'last_week') {
           setRevenueError(t.revenueNeedWeek)
@@ -770,7 +775,7 @@ export function PartnerMessagingOrdersClient({
       }
       setRevenueLoading(false)
     },
-    [partnerIdArg, t]
+    [locale, partnerIdArg, t]
   )
 
   useEffect(() => {
@@ -1045,43 +1050,11 @@ export function PartnerMessagingOrdersClient({
         </div>
       </div>
 
-      {kpi ? (
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:mb-6 lg:grid-cols-4 lg:gap-4">
-          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
-            <p className="text-xs text-gray-500 lg:text-sm">{t.statOrders}</p>
-            <p className="text-xl font-bold lg:text-2xl">{kpi.totalOrders}</p>
-          </div>
-          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
-            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiTodayRevenue}</p>
-            <p className="text-xl font-bold text-green-600 lg:text-2xl">{formatVnd(kpi.todayRevenue, locale)}</p>
-          </div>
-          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
-            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiWaitingDeposit}</p>
-            <p className="text-xl font-bold text-orange-600 lg:text-2xl">{kpi.waitingDepositOrders}</p>
-          </div>
-          <div className="rounded-lg bg-white p-3 shadow lg:p-4 dark:bg-zinc-800">
-            <p className="text-xs text-gray-500 lg:text-sm">{t.kpiShippingNow}</p>
-            <p className="text-xl font-bold lg:text-2xl">{kpi.shippingOrders}</p>
-          </div>
-        </div>
-      ) : null}
-
       <section className="mb-4 overflow-hidden rounded-lg bg-white shadow lg:mb-6 dark:bg-zinc-800" aria-label={t.revenueReportTitle}>
-        <div className="flex items-start justify-between gap-2 border-b px-4 py-3 dark:border-zinc-700">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
-            <p className="mt-0.5 hidden text-sm text-gray-500 lg:block">{t.revenueReportDesc}</p>
-          </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-lg border px-3 py-1.5 text-sm lg:hidden dark:border-zinc-600"
-            aria-expanded={revenueExpanded}
-            onClick={() => setRevenueExpanded((open) => !open)}
-          >
-            {revenueExpanded ? t.collapseRow : t.expandRow}
-          </button>
+        <div className="border-b px-4 py-3 dark:border-zinc-700">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
+          <p className="mt-0.5 text-sm text-gray-500">{t.revenueReportDesc}</p>
         </div>
-        <div className={revenueExpanded ? 'block' : 'hidden lg:block'}>
         <div className="flex flex-wrap gap-2 border-b px-4 py-3 dark:border-zinc-700">
           {(
             [
@@ -1126,9 +1099,14 @@ export function PartnerMessagingOrdersClient({
                   type="date"
                   value={revenueFilter.date}
                   onChange={(e) => {
-                    const next = { ...EMPTY_REVENUE_FILTER, date: e.target.value, preset: null }
+                    const value = e.target.value
+                    const next = {
+                      ...EMPTY_REVENUE_FILTER,
+                      date: value,
+                      preset: value && value === todayIsoVn() ? 'today' : null,
+                    }
                     setRevenueFilter(next)
-                    if (e.target.value) void loadRevenue('day', next)
+                    if (value) void loadRevenue('day', next)
                   }}
                   className="mt-1 block rounded-lg border border-gray-200 px-3 py-1.5 text-sm dark:border-zinc-600 dark:bg-zinc-800"
                 />
@@ -1266,39 +1244,66 @@ export function PartnerMessagingOrdersClient({
           ) : null}
           {revenueLoading ? <p className="text-sm text-gray-500">{t.revenueLoading}</p> : null}
           {!revenueLoading && revenueReport ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-4 sm:col-span-3 dark:border-zinc-700 dark:bg-zinc-900/40">
-                <p className="text-sm text-gray-500">{t.revenuePeriod}</p>
-                <p className="text-base font-semibold text-gray-900 dark:text-zinc-50">
-                  {revenueReport.periodLabel || '—'}
-                  {revenueReport.dateFrom && revenueReport.dateTo && revenueReport.dateFrom !== revenueReport.dateTo ? (
-                    <span className="ml-2 text-sm font-normal text-gray-500">
-                      ({revenueReport.dateFrom} → {revenueReport.dateTo})
-                    </span>
+            <>
+              <p className="mb-3 text-sm text-gray-600 dark:text-zinc-300">
+                {t.revenuePeriod}:{' '}
+                <span className="font-semibold text-gray-900 dark:text-zinc-50">{revenueReport.periodLabel || '—'}</span>
+                {revenueReport.dateFrom && revenueReport.dateTo && revenueReport.dateFrom !== revenueReport.dateTo ? (
+                  <span className="ml-2 font-normal text-gray-500">
+                    ({formatIsoDay(revenueReport.dateFrom, locale)} → {formatIsoDay(revenueReport.dateTo, locale)})
+                  </span>
+                ) : null}
+              </p>
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-lg border border-gray-100 p-3 dark:border-zinc-700">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.statOrders}</p>
+                  <p className="text-xl font-bold text-gray-900 lg:text-2xl dark:text-zinc-50">{revenueReport.totalOrders}</p>
+                </div>
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3 dark:border-emerald-900/40">
+                  <p className="text-xs text-gray-500 lg:text-sm">
+                    {revenueMode === 'day' && (revenueFilter.preset === 'today' || revenueFilter.date === todayIsoVn())
+                      ? t.kpiTodayRevenue
+                      : t.revenueAmount}
+                  </p>
+                  <p className="text-xl font-bold text-green-600 lg:text-2xl">{formatVnd(revenueReport.totalRevenue, locale)}</p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3 dark:border-zinc-700">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.kpiWaitingDeposit}</p>
+                  <p className="text-xl font-bold text-orange-600 lg:text-2xl">{revenueReport.waitingDepositOrders}</p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3 dark:border-zinc-700">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.kpiShippingNow}</p>
+                  <p className="text-xl font-bold text-gray-900 lg:text-2xl dark:text-zinc-50">{revenueReport.shippingOrders}</p>
+                </div>
+                <div className="rounded-lg border border-blue-100 bg-blue-50/40 p-3 dark:border-blue-900/40">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.kpiDepositedOrders}</p>
+                  <p className="text-xl font-bold text-blue-600 lg:text-2xl">{revenueReport.depositedOrders}</p>
+                </div>
+                <div className="rounded-lg border border-teal-100 bg-teal-50/40 p-3 dark:border-teal-900/40">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.kpiDepositedRevenue}</p>
+                  <p className="text-xl font-bold text-emerald-600 lg:text-2xl">{formatVnd(revenueReport.depositedRevenue, locale)}</p>
+                  {revenueReport.depositedAmount > 0 ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      {t.kpiDepositCollected}:{' '}
+                      <span className="font-medium text-gray-700 dark:text-zinc-200">
+                        {formatVnd(revenueReport.depositedAmount, locale)}
+                      </span>
+                    </p>
                   ) : null}
-                </p>
+                </div>
+                <div className="rounded-lg border border-gray-100 p-3 dark:border-zinc-700">
+                  <p className="text-xs text-gray-500 lg:text-sm">{t.statusCancelled}</p>
+                  <p className="text-lg font-semibold text-gray-800 lg:text-xl dark:text-zinc-200">
+                    {t.revenueCancelledReturned
+                      .replace('{cancelled}', String(revenueReport.cancelledOrders))
+                      .replace('{returned}', String(revenueReport.returnedOrders))}
+                  </p>
+                </div>
               </div>
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-4 dark:border-emerald-900/40">
-                <p className="text-sm text-gray-600">{t.revenueAmount}</p>
-                <p className="text-2xl font-bold text-emerald-700">{formatVnd(revenueReport.totalRevenue, locale)}</p>
-              </div>
-              <div className="rounded-lg border border-gray-100 p-4 dark:border-zinc-700">
-                <p className="text-sm text-gray-600">{t.revenueOrderCount}</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{revenueReport.totalOrders}</p>
-              </div>
-              <div className="rounded-lg border border-gray-100 p-4 dark:border-zinc-700">
-                <p className="text-sm text-gray-600">{t.statusCancelled}</p>
-                <p className="text-lg font-semibold text-gray-800 dark:text-zinc-200">
-                  {t.revenueCancelledReturned
-                    .replace('{cancelled}', String(revenueReport.cancelledOrders))
-                    .replace('{returned}', String(revenueReport.returnedOrders))}
-                </p>
-              </div>
-            </div>
+            </>
           ) : !revenueError && !revenueLoading ? (
             <p className="text-sm text-gray-500">{t.revenuePickPeriod}</p>
           ) : null}
-        </div>
         </div>
       </section>
 

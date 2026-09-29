@@ -1247,6 +1247,8 @@ export type PartnerWebsiteCopy = {
   resetWebsiteDescription: string
   resetWebsiteSendOtp: string
   resetWebsiteOtpHint: string
+  resetWebsiteCheckSpamTrashHint: string
+  resetWebsiteOpenGmail: string
   resetWebsiteOtpPlaceholder: string
   resetWebsiteResendOtp: string
   resetWebsiteConfirm: string
@@ -2566,6 +2568,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Reset lưu bản web «{name}» trong 7 ngày. Trong 7 ngày bấm «Khôi phục web đã reset» để lấy lại bản đó.',
     resetWebsiteSendOtp: 'Gửi OTP reset',
     resetWebsiteOtpHint: 'Nhập mã 6 số đã gửi tới email đăng nhập của bạn.',
+    resetWebsiteCheckSpamTrashHint:
+      'Vui lòng kiểm tra mã OTP trong Hộp thư đến, Thư rác (Spam) hoặc Thùng rác (Trash). Nếu không thấy, hãy tìm mã cả ở Thùng rác.',
+    resetWebsiteOpenGmail: 'Mở Gmail kiểm tra mã',
     resetWebsiteOtpPlaceholder: '6 số OTP',
     resetWebsiteResendOtp: 'Gửi lại OTP',
     resetWebsiteConfirm: 'Xác nhận reset',
@@ -3884,6 +3889,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Reset keeps «{name}» for 7 days. Within 7 days, use “Restore reset website” to bring that version back.',
     resetWebsiteSendOtp: 'Send reset OTP',
     resetWebsiteOtpHint: 'Enter the 6-digit code sent to your login email.',
+    resetWebsiteCheckSpamTrashHint:
+      'Please check your OTP in Inbox, Spam/Junk, or Trash folder. If not found, please check Trash as well.',
+    resetWebsiteOpenGmail: 'Open Gmail to check code',
     resetWebsiteOtpPlaceholder: '6-digit OTP',
     resetWebsiteResendOtp: 'Resend OTP',
     resetWebsiteConfirm: 'Confirm reset',
@@ -5163,6 +5171,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     resetWebsiteDescription: '重置会把「{name}」保存 7 天。7 天内点「恢复已重置的网站」即可取回该版本。',
     resetWebsiteSendOtp: '发送重置 OTP',
     resetWebsiteOtpHint: '输入发送到登录邮箱的 6 位验证码。',
+    resetWebsiteCheckSpamTrashHint:
+      '请在收件箱、垃圾邮件或已删除邮件（废纸篓/垃圾箱）中查看 OTP 验证码，邮件可能被分类至垃圾箱，请务必在废纸篓中查找。',
+    resetWebsiteOpenGmail: '打开 Gmail 查看验证码',
     resetWebsiteOtpPlaceholder: '6 位 OTP',
     resetWebsiteResendOtp: '重新发送',
     resetWebsiteConfirm: '确认重置',
@@ -6465,6 +6476,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'リセットすると「{name}」を7日間保存します。7日以内なら「リセットしたWebを復元」でその版に戻せます。',
     resetWebsiteSendOtp: 'リセットOTP送信',
     resetWebsiteOtpHint: 'ログインメールに送られた6桁のコードを入力。',
+    resetWebsiteCheckSpamTrashHint:
+      '受信トレイ、迷惑メール、またはゴミ箱フォルダでOTPコードをご確認ください。メールがゴミ箱に入っている可能性があるため、ゴミ箱内もご確認ください。',
+    resetWebsiteOpenGmail: 'Gmailを開いて確認',
     resetWebsiteOtpPlaceholder: '6桁OTP',
     resetWebsiteResendOtp: '再送信',
     resetWebsiteConfirm: 'リセット確認',
@@ -7767,6 +7781,9 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '리셋하면 「{name}」를 7일간 저장합니다. 7일 안에 「리셋한 웹 복구하기」로 그 버전을 되돌릴 수 있습니다.',
     resetWebsiteSendOtp: '리셋 OTP 보내기',
     resetWebsiteOtpHint: '로그인 이메일로 받은 6자리 코드를 입력하세요.',
+    resetWebsiteCheckSpamTrashHint:
+      '받은편지함, 스팸함 또는 휴지통에서 OTP 코드를 확인해 주세요. 이메일이 휴지통으로 분류되었을 수 있으니 휴지통에서도 확인해 주세요.',
+    resetWebsiteOpenGmail: 'Gmail 열어 확인하기',
     resetWebsiteOtpPlaceholder: '6자리 OTP',
     resetWebsiteResendOtp: 'OTP 재전송',
     resetWebsiteConfirm: '리셋 확인',

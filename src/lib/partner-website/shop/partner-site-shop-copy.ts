@@ -302,6 +302,9 @@ export type PartnerSiteShopCopy = {
   authSuccess: string
   authFailed: string
   authOtpSent: string
+  authCheckEmailSpamTrashHint: string
+  authOpenGmail: string
+  authOpenMailbox: string
   authEmailLogin: string
   authChangeEmail: string
   authEmailRequired: string
@@ -1010,6 +1013,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'Đã xác minh email — có thể thanh toán.',
     authFailed: 'Không xác minh được. Thử lại.',
     authOtpSent: 'Đã gửi mã OTP tới email.',
+    authCheckEmailSpamTrashHint:
+      'Vui lòng kiểm tra mã OTP trong Hộp thư đến, Thư rác (Spam) hoặc Thùng rác (Trash). Email có thể bị chuyển vào Thư rác hoặc Thùng rác, hãy tìm mã cả ở Thùng rác.',
+    authOpenGmail: 'Mở Gmail kiểm tra mã',
+    authOpenMailbox: 'Mở hộp thư kiểm tra mã',
     authEmailLogin: 'Đăng nhập bằng Gmail',
     authChangeEmail: 'Đổi email khác',
     authEmailRequired: 'Vui lòng nhập email.',
@@ -1713,6 +1720,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'Email verified — you can checkout.',
     authFailed: 'Verification failed. Try again.',
     authOtpSent: 'OTP sent to your email.',
+    authCheckEmailSpamTrashHint:
+      'Please check your OTP in Inbox, Spam/Junk, or Trash folder. The email might be filtered into Spam or Trash, please check Trash as well.',
+    authOpenGmail: 'Open Gmail to check code',
+    authOpenMailbox: 'Open mailbox to check code',
     authEmailLogin: 'Sign in with Gmail',
     authChangeEmail: 'Use a different email',
     authEmailRequired: 'Please enter your email.',
@@ -2414,6 +2425,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: '邮箱已验证 — 可以结账。',
     authFailed: '验证失败，请重试。',
     authOtpSent: '验证码已发送到邮箱。',
+    authCheckEmailSpamTrashHint:
+      '请在收件箱、垃圾邮件或已删除邮件（废纸篓/垃圾箱）中查看 OTP 验证码。邮件可能被分类至垃圾箱，请一并在废纸篓中查找。',
+    authOpenGmail: '打开 Gmail 查看验证码',
+    authOpenMailbox: '打开邮箱查看验证码',
     authEmailLogin: '使用 Gmail 登录',
     authChangeEmail: '更换邮箱',
     authEmailRequired: '请输入邮箱。',
@@ -3112,6 +3127,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: 'メール確認済み — 決済できます。',
     authFailed: '確認に失敗しました。',
     authOtpSent: 'OTPをメールに送信しました。',
+    authCheckEmailSpamTrashHint:
+      '受信トレイ、迷惑メール、またはゴミ箱フォルダでOTPコードをご確認ください。メールがゴミ箱に振り分けられている可能性もあるため、ゴミ箱もご確認ください。',
+    authOpenGmail: 'Gmailを開いて確認',
+    authOpenMailbox: 'メールボックスを開いて確認',
     authEmailLogin: 'Gmailでログイン',
     authChangeEmail: '別のメールを使う',
     authEmailRequired: 'メールアドレスを入力してください。',
@@ -3812,6 +3831,10 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
     authFailed: '인증 실패. 다시 시도하세요.',
     authOtpSent: 'OTP가 이메일로 전송되었습니다.',
+    authCheckEmailSpamTrashHint:
+      '받은편지함, 스팸함 또는 휴지통에서 OTP 코드를 확인해 주세요. 이메일이 휴지통으로 이동되었을 수 있으니 휴지통에서도 코드를 확인해 보세요.',
+    authOpenGmail: 'Gmail 열어 확인하기',
+    authOpenMailbox: '메일함 열어 확인하기',
     authEmailLogin: 'Gmail로 로그인',
     authChangeEmail: '다른 이메일 사용',
     authEmailRequired: '이메일을 입력해 주세요.',

@@ -113,6 +113,19 @@ export function PartnerSiteAccountNavLayout({
     <div className="pw-shop-account-layout">
       <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
         <nav className="pw-shop-account-nav" aria-label={t.accountQuickLinks}>
+          {shopAdminHref ? (
+            <a
+              href={shopAdminHref}
+              className="pw-shop-account-nav-item is-accent"
+              data-pw-el={PW_EL.menuItem}
+              rel="noopener noreferrer"
+            >
+              <span className="pw-shop-account-nav-emoji" aria-hidden="true">
+                {partnerSiteAccountMenuEmoji('admin')}
+              </span>
+              <span>{t.accountOpenShopAdmin}</span>
+            </a>
+          ) : null}
           {items.map((item) => {
             const active = item.id === activeId
             return (
@@ -134,19 +147,6 @@ export function PartnerSiteAccountNavLayout({
               </a>
             )
           })}
-          {shopAdminHref ? (
-            <a
-              href={shopAdminHref}
-              className="pw-shop-account-nav-item is-accent"
-              data-pw-el={PW_EL.menuItem}
-              rel="noopener noreferrer"
-            >
-              <span className="pw-shop-account-nav-emoji" aria-hidden="true">
-                {partnerSiteAccountMenuEmoji('admin')}
-              </span>
-              <span>{t.accountOpenShopAdmin}</span>
-            </a>
-          ) : null}
         </nav>
       </aside>
       <div className="pw-shop-account-content" data-pw-region={PW_REGION.accountMain}>

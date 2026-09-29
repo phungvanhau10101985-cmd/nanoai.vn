@@ -6,6 +6,7 @@ import {
   parsePartnerAdminVndDigits,
   partnerAdminAmountDueOnDelivery,
   partnerAdminAmountDueOnDeliverySql,
+  partnerAdminDepositedOrderSql,
   partnerAdminLifecycleSql,
   partnerAdminMatchesLifecycleTab,
   partnerAdminMatchesPaymentFilter,
@@ -186,6 +187,14 @@ test('payment SQL treats remaining COD as deposit_paid, not fully paid', () => {
   assert.match(paidSql, /amount_after_discount/)
   assert.match(depositSql, /paid_amount/)
   assert.equal(partnerAdminAmountDueOnDeliverySql().includes('amount_after_discount'), true)
+})
+
+test('deposited order SQL counts received deposit and skips cancel or refund', () => {
+  const sql = partnerAdminDepositedOrderSql()
+  assert.match(sql, /paid_amount/)
+  assert.match(sql, /refund_status/)
+  assert.match(sql, /cancelled/)
+  assert.doesNotMatch(sql, /\$\{|`/)
 })
 
 test('month range and lifecycle SQL are safe fragments', () => {

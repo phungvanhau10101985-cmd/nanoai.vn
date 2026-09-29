@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Loader2, RotateCcw } from 'lucide-react'
+import { Loader2, RotateCcw, ExternalLink, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -110,6 +110,23 @@ export function PartnerWebsiteResetDialog({
         ) : (
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground">{t.resetWebsiteOtpHint}</p>
+            <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-200">
+              <p className="font-semibold text-red-600 dark:text-red-400">
+                {t.resetWebsiteCheckSpamTrashHint}
+              </p>
+              <div className="mt-2.5">
+                <a
+                  href="https://mail.google.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-xs transition-colors hover:bg-accent"
+                >
+                  <Mail className="h-3.5 w-3.5 text-red-500" />
+                  <span>{t.resetWebsiteOpenGmail}</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              </div>
+            </div>
             <Input
               inputMode="numeric"
               autoComplete="one-time-code"

@@ -10,7 +10,8 @@ import {
   writeGuestAuthRememberDevicePreference,
 } from '@/lib/auth/guest-auth-remember-device-client'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
-import { Mail } from 'lucide-react'
+import { ExternalLink, Mail } from 'lucide-react'
+import { getWebmailInfo } from '@/lib/auth/email-webmail-helper'
 
 const OTP_STEP_STORAGE_KEY = 'nanoai_login_otp_pending'
 const OTP_STEP_MAX_AGE_MS = 20 * 60 * 1000
@@ -256,21 +257,50 @@ export function EmailAuthPanel({ nextPath, tr }: Props) {
     )
   }
 
+  const webmail = getWebmailInfo(email)
+
   return (
     <form onSubmit={verifyOtp} className="space-y-3">
       {err && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{err}</div>}
       <p className="text-sm text-muted-foreground">
         {tr('Nhập mã 6 số trong email (hoặc bấm link trong email).', 'Enter the 6-digit code from your email.', '请输入邮件中的 6 位验证码。', 'メールの6桁コードを入力。', '이메일의 6자리 코드를 입력하세요.')}
       </p>
-      <p className="text-sm font-bold text-red-600">
-        {tr(
-          'Vui lòng kiểm tra mã OTP trong Hộp thư đến hoặc Thư rác (Spam).',
-          'Please check your OTP in Inbox or Spam/Junk folder.',
-          '请在收件箱或垃圾邮件中查看 OTP 验证码。',
-          '受信トレイまたは迷惑メールフォルダでOTPコードをご確認ください。',
-          '받은편지함 또는 스팸함에서 OTP 코드를 확인해 주세요.'
-        )}
-      </p>
+      <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-3 text-xs leading-relaxed text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/30 dark:text-amber-200">
+        <p className="font-semibold text-red-600 dark:text-red-400">
+          {tr(
+            'Vui lòng kiểm tra mã OTP trong Hộp thư đến, Thư rác (Spam) hoặc Thùng rác (Trash).',
+            'Please check your OTP in Inbox, Spam/Junk, or Trash folder.',
+            '请在收件箱、垃圾邮件或已删除邮件（废纸篓/垃圾箱）中查看 OTP 验证码。',
+            '受信トレイ、迷惑メール、またはゴミ箱フォルダでOTPコードをご確認ください。',
+            '받은편지함, 스팸함 또는 휴지통에서 OTP 코드를 확인해 주세요.'
+          )}
+        </p>
+        <p className="mt-1 text-muted-foreground">
+          {tr(
+            'Email có thể bị bộ lọc chuyển vào Thư rác hoặc Thùng rác, hãy tìm mã cả ở Thùng rác.',
+            'The email might be filtered into Spam or Trash, please check Trash as well.',
+            '邮件可能被分类至垃圾箱或废纸篓中，请务必一并在废纸篓中查找验证码。',
+            'メールが迷惑メールやゴミ箱に入っている可能性があるため、ゴミ箱内もご確認ください。',
+            '이메일이 스팸함이나 휴지통으로 분류되었을 수 있으니 휴지통에서도 코드를 확인해 주세요.'
+          )}
+        </p>
+        <div className="mt-2.5">
+          <a
+            href={webmail.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+          >
+            <Mail className="h-3.5 w-3.5 text-red-500" />
+            <span>
+              {webmail.isGmail
+                ? tr('Mở Gmail kiểm tra mã', 'Open Gmail to check code', '打开 Gmail 查看验证码', 'Gmailを開いて確認', 'Gmail 열어 확인하기')
+                : tr('Mở hộp thư kiểm tra mã', 'Open mailbox to check code', '打开邮箱查看验证码', 'メールボックスを開いて確認', '메일함 열어 확인하기')}
+            </span>
+            <ExternalLink className="h-3 w-3 opacity-60" />
+          </a>
+        </div>
+      </div>
       <Input
         type="text"
         inputMode="numeric"

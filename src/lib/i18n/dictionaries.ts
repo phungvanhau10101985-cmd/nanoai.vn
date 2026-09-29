@@ -1084,6 +1084,9 @@ export type Dictionary = {
     modalContactSectionTitle: string
     kpiTodayRevenue: string
     kpiWaitingDeposit: string
+    kpiDepositedOrders: string
+    kpiDepositedRevenue: string
+    kpiDepositCollected: string
     kpiShippingNow: string
     revenueReportTitle: string
     revenueReportDesc: string
@@ -2401,6 +2404,9 @@ export type Dictionary = {
     guestAuthVerifyOtp: string
     guestAuthRequiredAfterLimit: string
     guestAuthEmailSent: string
+    guestAuthCheckEmailSpamTrashHint: string
+    guestAuthOpenGmail: string
+    guestAuthOpenMailbox: string
     guestAuthOtpInvalid: string
     guestAuthRateLimited: string
     /** Checkbox «tin cậy thiết bị» (OTP guest). */
@@ -4774,6 +4780,9 @@ const VI_DICTIONARY: Dictionary = {
     modalContactSectionTitle: 'Khách hàng & xử lý đơn',
     kpiTodayRevenue: 'Doanh thu hôm nay',
     kpiWaitingDeposit: 'Chờ đặt cọc',
+    kpiDepositedOrders: 'Số đơn đã cọc',
+    kpiDepositedRevenue: 'Doanh thu đơn đã cọc',
+    kpiDepositCollected: 'Cọc đã thu',
     kpiShippingNow: 'Đang giao hàng',
     revenueReportTitle: 'Báo cáo doanh thu',
     revenueReportDesc: 'Tổng doanh thu và số đơn theo ngày, tuần, tháng, năm hoặc khoảng ngày tùy chọn.',
@@ -6120,6 +6129,10 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthVerifyOtp: 'Đăng nhập',
     guestAuthRequiredAfterLimit: 'Bạn đã nhắn {count} tin. Vui lòng xác thực email để tiếp tục chat.',
     guestAuthEmailSent: 'Đã gửi email xác thực. Vui lòng kiểm tra hộp thư.',
+    guestAuthCheckEmailSpamTrashHint:
+      'Vui lòng kiểm tra mã OTP trong Hộp thư đến, Thư rác (Spam) hoặc Thùng rác (Trash). Nếu không thấy, hãy tìm mã cả ở Thùng rác.',
+    guestAuthOpenGmail: 'Mở Gmail kiểm tra mã',
+    guestAuthOpenMailbox: 'Mở hộp thư kiểm tra mã',
     guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
     guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
     guestAuthRememberDeviceHint:
@@ -8471,6 +8484,9 @@ const EN_DICTIONARY: Dictionary = {
     modalContactSectionTitle: 'Customer & order handling',
     kpiTodayRevenue: "Today's revenue",
     kpiWaitingDeposit: 'Awaiting deposit',
+    kpiDepositedOrders: 'Deposited orders',
+    kpiDepositedRevenue: 'Deposited order revenue',
+    kpiDepositCollected: 'Deposit collected',
     kpiShippingNow: 'Out for delivery',
     revenueReportTitle: 'Revenue report',
     revenueReportDesc: 'Revenue and order counts by day, week, month, year, or a custom date range.',
@@ -9819,6 +9835,10 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthVerifyOtp: 'Sign in',
     guestAuthRequiredAfterLimit: 'You have sent {count} messages. Please verify your email to continue chatting.',
     guestAuthEmailSent: 'Verification email sent. Please check your inbox.',
+    guestAuthCheckEmailSpamTrashHint:
+      'Please check your OTP in Inbox, Spam/Junk, or Trash folder. If not found, please check Trash as well.',
+    guestAuthOpenGmail: 'Open Gmail to check code',
+    guestAuthOpenMailbox: 'Open mailbox to check code',
     guestAuthOtpInvalid: 'OTP is invalid or expired.',
     guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
     guestAuthRememberDeviceHint:
@@ -12144,6 +12164,9 @@ const ZH_DICTIONARY: Dictionary = {
     modalContactSectionTitle: '客户与订单处理',
     kpiTodayRevenue: '今日营收',
     kpiWaitingDeposit: '待付定金',
+    kpiDepositedOrders: '已付定金订单',
+    kpiDepositedRevenue: '已付定金订单营收',
+    kpiDepositCollected: '已收定金',
     kpiShippingNow: '配送中',
     revenueReportTitle: '营收报表',
     revenueReportDesc: '按日、周、月、年或自定义日期查看营收与订单数。',
@@ -13458,6 +13481,10 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthVerifyOtp: '登录',
     guestAuthRequiredAfterLimit: '您已发送 {count} 条消息。请先验证邮箱再继续聊天。',
     guestAuthEmailSent: '验证邮件已发送，请检查收件箱。',
+    guestAuthCheckEmailSpamTrashHint:
+      '请在收件箱、垃圾邮件或已删除邮件（废纸篓/垃圾箱）中查看 OTP 验证码，邮件可能被分类至垃圾箱，请务必在废纸篓中查找。',
+    guestAuthOpenGmail: '打开 Gmail 查看验证码',
+    guestAuthOpenMailbox: '打开邮箱查看验证码',
     guestAuthOtpInvalid: 'OTP 无效或已过期。',
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
     guestAuthRememberDeviceHint: '长期信任此设备/浏览器（同一邮箱再次登录可能免去 OTP）。',
@@ -15750,6 +15777,9 @@ const JA_DICTIONARY: Dictionary = {
     modalContactSectionTitle: 'お客様・注文の対応',
     kpiTodayRevenue: '本日の売上',
     kpiWaitingDeposit: 'デポジット待ち',
+    kpiDepositedOrders: '手付済の注文',
+    kpiDepositedRevenue: '手付済注文の売上',
+    kpiDepositCollected: '受領手付',
     kpiShippingNow: '配送中',
     revenueReportTitle: '売上レポート',
     revenueReportDesc: '日・週・月・年または期間で売上と注文件数を表示します。',
@@ -17093,6 +17123,10 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthVerifyOtp: 'ログイン',
     guestAuthRequiredAfterLimit: '{count}件送信しました。続けるにはメール認証が必要です。',
     guestAuthEmailSent: '認証メールを送信しました。受信箱をご確認ください。',
+    guestAuthCheckEmailSpamTrashHint:
+      '受信トレイ、迷惑メール、またはゴミ箱フォルダでOTPコードをご確認ください。メールがゴミ箱に入っている可能性があるため、ゴミ箱内もご確認ください。',
+    guestAuthOpenGmail: 'Gmailを開いて確認',
+    guestAuthOpenMailbox: 'メールボックスを開いて確認',
     guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
     guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
     guestAuthRememberDeviceHint:
@@ -19416,6 +19450,9 @@ const KO_DICTIONARY: Dictionary = {
     modalContactSectionTitle: '고객·주문 처리',
     kpiTodayRevenue: '오늘 매출',
     kpiWaitingDeposit: '계약금 대기',
+    kpiDepositedOrders: '계약금 완료 주문',
+    kpiDepositedRevenue: '계약금 완료 주문 매출',
+    kpiDepositCollected: '수령 계약금',
     kpiShippingNow: '배송 중',
     revenueReportTitle: '매출 보고서',
     revenueReportDesc: '일·주·월·년 또는 기간으로 매출과 주문 수를 봅니다.',
@@ -20756,6 +20793,10 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthVerifyOtp: '로그인',
     guestAuthRequiredAfterLimit: '메시지 {count}개를 보냈습니다. 계속하려면 이메일 인증이 필요합니다.',
     guestAuthEmailSent: '인증 메일을 보냈습니다. 받은편지함을 확인하세요.',
+    guestAuthCheckEmailSpamTrashHint:
+      '받은편지함, 스팸함 또는 휴지통에서 OTP 코드를 확인해 주세요. 이메일이 휴지통으로 분류되었을 수 있으니 휴지통에서도 확인해 주세요.',
+    guestAuthOpenGmail: 'Gmail 열어 확인하기',
+    guestAuthOpenMailbox: '메일함 열어 확인하기',
     guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
     guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
     guestAuthRememberDeviceHint:

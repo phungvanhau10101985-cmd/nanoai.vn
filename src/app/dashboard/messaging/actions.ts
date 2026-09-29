@@ -238,7 +238,6 @@ import {
   fetchPartnerOrdersForOwnerFromPg,
   fetchPartnerOrdersForOwnerExportFromPg,
   fetchPartnerOrderStatsForOwnerFromPg,
-  fetchPartnerOrderAdminKpiFromPg,
   fetchPartnerOrderAdminTabCountsFromPg,
   fetchPartnerOrderAdminRevenueFromPg,
   fetchPartnerOrdersAdminPageFromPg,
@@ -246,7 +245,6 @@ import {
   insertPartnerOrderEventFromPg,
   type PartnerOrderAdminRow,
   type PartnerOrderOwnerStats,
-  type PartnerOrderAdminKpi,
   type PartnerOrderAdminTabCounts,
   type PartnerOrderAdminRevenueReport,
   type PartnerOrderLineRow,
@@ -1236,7 +1234,7 @@ export async function listMyMessagingOrders(input?: {
   return { rows, stats }
 }
 
-export type { PartnerOrderOwnerStats, PartnerOrderAdminKpi, PartnerOrderAdminTabCounts, PartnerOrderAdminRevenueReport, PartnerOrderLineRow }
+export type { PartnerOrderOwnerStats, PartnerOrderAdminTabCounts, PartnerOrderAdminRevenueReport, PartnerOrderLineRow }
 
 const ADMIN_LIFECYCLE_TABS: PartnerAdminLifecycleTab[] = [
   'all',
@@ -1272,7 +1270,6 @@ export async function listMyMessagingOrdersAdminPage(input?: {
   | {
       rows: PartnerOrderAdminRow[]
       filteredTotal: number
-      kpi: PartnerOrderAdminKpi
       tabCounts: PartnerOrderAdminTabCounts
     }
   | { error: string }
@@ -1287,7 +1284,7 @@ export async function listMyMessagingOrdersAdminPage(input?: {
   const paymentFilter = normalizeAdminPaymentFilter(input?.paymentFilter)
   const skip = Math.max(0, Math.floor(Number(input?.skip) || 0))
   const limit = Math.max(25, Math.min(100, Math.floor(Number(input?.limit) || 100)))
-  const [page, kpi, tabCounts] = await Promise.all([
+  const [page, tabCounts] = await Promise.all([
     fetchPartnerOrdersAdminPageFromPg({
       ownerUserId: user.id,
       partnerId,
@@ -1298,14 +1295,13 @@ export async function listMyMessagingOrdersAdminPage(input?: {
       skip,
       limit,
     }),
-    fetchPartnerOrderAdminKpiFromPg({ ownerUserId: user.id, partnerId }),
     fetchPartnerOrderAdminTabCountsFromPg({
       ownerUserId: user.id,
       partnerId,
     }),
   ])
-  if (page === null || kpi === null || tabCounts === null) return { error: 'Khong tai duoc don hang.' }
-  return { rows: page.rows, filteredTotal: page.filteredTotal, kpi, tabCounts }
+  if (page === null || tabCounts === null) return { error: 'Khong tai duoc don hang.' }
+  return { rows: page.rows, filteredTotal: page.filteredTotal, tabCounts }
 }
 
 export async function fetchMyMessagingOrderRevenueReport(input: {

@@ -298,3 +298,13 @@ export function partnerAdminPaymentFilterSql(filter: PartnerAdminPaymentFilter):
   }
   return `(${notCancelled} and coalesce(o.paid_amount, 0) <= 0)`
 }
+
+/** Đơn đã nhận cọc: `paid_amount` > 0, bỏ đơn hủy và đơn đã hoàn tiền. */
+export function partnerAdminDepositedOrderSql(): string {
+  return `(
+    o.status <> 'cancelled'
+    and coalesce(o.shipping_status, 'pending') <> 'cancelled'
+    and coalesce(o.refund_status, 'none') <> 'refunded'
+    and coalesce(o.paid_amount, 0) > 0
+  )`
+}

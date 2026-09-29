@@ -196,46 +196,39 @@ export function PartnerSiteAccountHub({
         </div>
 
         <div className="pw-shop-account-hub-list">
-          {hubItems.flatMap((item) => {
-            const row = (
-              <a key={item.id} href={item.href} className="pw-shop-account-hub-row" data-pw-el={PW_EL.menuItem}>
-                <span>
-                  {item.emoji} {item.label}
+          {shopAdminHref ? (
+            <a
+              href={shopAdminHref}
+              className="pw-shop-account-hub-row is-admin"
+              data-pw-el={PW_EL.menuItem}
+              rel="noopener noreferrer"
+            >
+              <span>
+                {partnerSiteAccountMenuEmoji('admin')} {t.accountOpenShopAdmin}
+              </span>
+              <span className="pw-shop-account-hub-chevron" aria-hidden>
+                ›
+              </span>
+            </a>
+          ) : null}
+          {hubItems.map((item) => (
+            <a key={item.id} href={item.href} className="pw-shop-account-hub-row" data-pw-el={PW_EL.menuItem}>
+              <span>
+                {item.emoji} {item.label}
+              </span>
+              {item.id === 'wallet' && walletCount > 0 ? (
+                <span className="pw-shop-account-hub-wallet-badge">{walletCount}</span>
+              ) : item.id === 'notifications' && unreadNotifications > 0 ? (
+                <span className="pw-shop-account-hub-wallet-badge">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </span>
-                {item.id === 'wallet' && walletCount > 0 ? (
-                  <span className="pw-shop-account-hub-wallet-badge">{walletCount}</span>
-                ) : item.id === 'notifications' && unreadNotifications > 0 ? (
-                  <span className="pw-shop-account-hub-wallet-badge">
-                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
-                  </span>
-                ) : (
-                  <span className="pw-shop-account-hub-chevron" aria-hidden>
-                    ›
-                  </span>
-                )}
-              </a>
-            )
-            if (item.id === 'addresses' && shopAdminHref) {
-              return [
-                row,
-                <a
-                  key="admin"
-                  href={shopAdminHref}
-                  className="pw-shop-account-hub-row is-admin"
-                  data-pw-el={PW_EL.menuItem}
-                  rel="noopener noreferrer"
-                >
-                  <span>
-                    {partnerSiteAccountMenuEmoji('admin')} {t.accountOpenShopAdmin}
-                  </span>
-                  <span className="pw-shop-account-hub-chevron" aria-hidden>
-                    ›
-                  </span>
-                </a>,
-              ]
-            }
-            return [row]
-          })}
+              ) : (
+                <span className="pw-shop-account-hub-chevron" aria-hidden>
+                  ›
+                </span>
+              )}
+            </a>
+          ))}
         </div>
 
         <div className="pw-shop-account-hub-session">

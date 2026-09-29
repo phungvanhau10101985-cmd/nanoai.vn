@@ -116,7 +116,10 @@ import {
   Sparkles,
   Store,
   X,
+  ExternalLink,
+  Mail,
 } from 'lucide-react'
+import { getWebmailInfo } from '@/lib/auth/email-webmail-helper'
 import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-cards'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
@@ -7387,6 +7390,28 @@ export function PartnerGuestChatClient({
                       />
                       <span>{t.guestAuthRememberDeviceHint}</span>
                     </label>
+                    {guestAuthEmail.trim() ? (() => {
+                      const webmail = getWebmailInfo(guestAuthEmail)
+                      return (
+                        <div className="rounded-md border border-amber-300 bg-amber-50/90 p-2 text-[11px] leading-relaxed text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200">
+                          <p className="font-semibold text-red-600 dark:text-red-400">
+                            {t.guestAuthCheckEmailSpamTrashHint}
+                          </p>
+                          <div className="mt-1.5">
+                            <a
+                              href={webmail.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded border border-amber-300/80 bg-background px-2 py-1 text-[11px] font-semibold text-foreground shadow-xs transition-colors hover:bg-accent"
+                            >
+                              <Mail className="h-3 w-3 text-red-500" />
+                              <span>{webmail.isGmail ? t.guestAuthOpenGmail : t.guestAuthOpenMailbox}</span>
+                              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+                            </a>
+                          </div>
+                        </div>
+                      )
+                    })() : null}
                     <div className="flex flex-wrap gap-1.5">
                       <input
                         type="text"
@@ -7713,6 +7738,28 @@ export function PartnerGuestChatClient({
               />
               <span>{t.guestAuthRememberDeviceHint}</span>
             </label>
+            {guestAuthEmail.trim() ? (() => {
+              const webmail = getWebmailInfo(guestAuthEmail)
+              return (
+                <div className="rounded-md border border-amber-300 bg-amber-50/90 p-2.5 text-xs leading-relaxed text-amber-900 dark:border-amber-700/50 dark:bg-amber-950/40 dark:text-amber-200">
+                  <p className="font-semibold text-red-600 dark:text-red-400">
+                    {t.guestAuthCheckEmailSpamTrashHint}
+                  </p>
+                  <div className="mt-2">
+                    <a
+                      href={webmail.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-semibold text-foreground shadow-xs transition-colors hover:bg-accent"
+                    >
+                      <Mail className="h-3.5 w-3.5 text-red-500" />
+                      <span>{webmail.isGmail ? t.guestAuthOpenGmail : t.guestAuthOpenMailbox}</span>
+                      <ExternalLink className="h-3 w-3 opacity-60" />
+                    </a>
+                  </div>
+                </div>
+              )
+            })() : null}
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="text"

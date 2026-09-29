@@ -34,6 +34,7 @@ import {
 } from '@/lib/auth/guest-auth-remember-device-client'
 import { getStableEmailTrustedBrowserId } from '@/lib/auth/email-trusted-browser-client'
 import { markPartnerSiteFreshLoginSession } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
+import { getWebmailInfo } from '@/lib/auth/email-webmail-helper'
 
 type Props = {
   partnerSlug: string
@@ -69,6 +70,15 @@ function GoogleIcon() {
         fill="#EA4335"
         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
       />
+    </svg>
+  )
+}
+
+function GoogleMailIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path fill="#EA4335" d="M12 13L2 6.5V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6.5L12 13z" />
+      <path fill="#4285F4" d="M22 6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v.5L12 13l10-6.5V6z" />
     </svg>
   )
 }
@@ -306,6 +316,7 @@ export function PartnerSiteShopAuthPanel({
   }
 
   if (step === 'otp') {
+    const webmail = getWebmailInfo(email)
     return (
       <div className="pw-shop-auth-panel pw-shop-form">
         {pageMode ? null : <p className="pw-shop-auth-panel-intro">{t.checkoutAuthRequired}</p>}
@@ -316,8 +327,54 @@ export function PartnerSiteShopAuthPanel({
           }}
         >
           <p className="pw-shop-muted">
-            {t.accountEmailLabel}: {email}
+            {t.accountEmailLabel}: <strong>{email}</strong>
           </p>
+
+          <div
+            style={{
+              margin: '12px 0 16px',
+              padding: '12px',
+              borderRadius: '8px',
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#991b1b',
+              fontSize: '13px',
+              lineHeight: 1.45,
+            }}
+          >
+            <p style={{ margin: '0 0 10px 0', fontWeight: 600 }}>
+              {t.authCheckEmailSpamTrashHint}
+            </p>
+            <a
+              href={webmail.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="pw-shop-btn pw-shop-btn-outline"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                textDecoration: 'none',
+                padding: '8px 12px',
+                fontSize: '13px',
+                fontWeight: 600,
+                background: '#ffffff',
+                borderColor: '#fca5a5',
+                color: '#dc2626',
+              }}
+            >
+              <GoogleMailIcon />
+              <span>{webmail.isGmail ? t.authOpenGmail : t.authOpenMailbox}</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0 }}>
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                <polyline points="15 3 21 3 21 9" />
+                <line x1="10" y1="14" x2="21" y2="3" />
+              </svg>
+            </a>
+          </div>
+
           <label>
             OTP
             <input
