@@ -84,12 +84,20 @@ export function PartnerWebsiteTenantAdminBar({
           ))}
         </div>
         {publicUrl ? (
-          <Button asChild variant="outline" size="sm" className="h-7 text-xs">
-            <a href={publicUrl} target="_blank" rel="noopener noreferrer">
-              {sections.publicSite}
-              <ExternalLink className="ml-1.5 h-3 w-3" />
-            </a>
-          </Button>
+          <>
+            <Button asChild variant="outline" size="sm" className="h-7 text-xs">
+              <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                {sections.publicSite}
+                <ExternalLink className="ml-1.5 h-3 w-3" />
+              </a>
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground">
+              <a href={`${publicUrl.replace(/\/$/, '')}/sitemap.xml`} target="_blank" rel="noopener noreferrer" title="Sitemap XML">
+                Sitemap
+                <ExternalLink className="ml-1 h-3 w-3" />
+              </a>
+            </Button>
+          </>
         ) : null}
       </div>
     </div>

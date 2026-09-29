@@ -640,6 +640,25 @@ export type Dictionary = {
     shopFacebookDomainVerifyLabel: string
     shopVerifyPlaceholder: string
     shopVerifyInvalidToast: string
+    shopSitemapTitle: string
+    shopSitemapHint: string
+    shopSitemapIndexUrlLabel: string
+    shopSitemapPathToSubmitLabel: string
+    shopSitemapCopyFullUrl: string
+    shopSitemapCopyPath: string
+    shopSitemapOpenGsc: string
+    shopSitemapViewXml: string
+    shopSitemapCopiedToast: string
+    shopSitemapDraftWarning: string
+    shopSitemapReadyBadge: string
+    shopSitemapDraftBadge: string
+    shopSitemapSubfilesLabel: string
+    shopSitemapPagesLabel: string
+    shopSitemapProductsLabel: string
+    shopSitemapInstructionsTitle: string
+    shopSitemapStep1: string
+    shopSitemapStep2: string
+    shopSitemapStep3: string
     shopCustomHtmlTitle: string
     shopCustomHtmlHint: string
     shopCustomHtmlHeadLabel: string
@@ -4311,6 +4330,26 @@ const VI_DICTIONARY: Dictionary = {
     shopFacebookDomainVerifyLabel: 'Facebook domain verification',
     shopVerifyPlaceholder: 'Chuỗi xác minh',
     shopVerifyInvalidToast: 'Chuỗi xác minh không hợp lệ (chỉ chữ, số, gạch).',
+    shopSitemapTitle: 'Sơ đồ trang web (Sitemap XML) cho Google Search Console',
+    shopSitemapHint:
+      'Sitemap tự động cập nhật danh mục, trang tĩnh và toàn bộ sản phẩm đang bán. Nộp link này vào Google Search Console để Google lập chỉ mục nhanh.',
+    shopSitemapIndexUrlLabel: 'URL sơ đồ trang web chính (Sitemap Index)',
+    shopSitemapPathToSubmitLabel: 'Đường dẫn nộp vào ô Search Console',
+    shopSitemapCopyFullUrl: 'Sao chép toàn bộ URL',
+    shopSitemapCopyPath: 'Sao chép sitemap.xml',
+    shopSitemapOpenGsc: 'Mở Google Search Console Sitemaps',
+    shopSitemapViewXml: 'Xem tệp XML',
+    shopSitemapCopiedToast: 'Đã sao chép vào bộ nhớ tạm',
+    shopSitemapDraftWarning: 'Website của shop đang ở trạng thái Bản nháp. Hãy xuất bản website để Google có thể truy cập sitemap.xml.',
+    shopSitemapReadyBadge: 'Sẵn sàng nộp',
+    shopSitemapDraftBadge: 'Bản nháp',
+    shopSitemapSubfilesLabel: 'Các sơ đồ trang thành phần tự động:',
+    shopSitemapPagesLabel: 'Trang tĩnh & Danh mục sản phẩm',
+    shopSitemapProductsLabel: 'Danh sách sản phẩm (tự động phân trang 5.000 sản phẩm/tệp)',
+    shopSitemapInstructionsTitle: 'Hướng dẫn nộp lên Google Search Console:',
+    shopSitemapStep1: 'Bấm nút "Mở Google Search Console Sitemaps" ở trên hoặc truy cập Search Console của tên miền shop.',
+    shopSitemapStep2: 'Tại mục "Thêm sơ đồ trang web mới", dán "sitemap.xml" vào ô nhập liệu.',
+    shopSitemapStep3: 'Bấm "Gửi" (Submit). Google sẽ tự động đọc sơ đồ trang chính và lập chỉ mục các trang thành phần.',
     shopCustomHtmlTitle: 'HTML tùy chỉnh',
     shopCustomHtmlHint:
       'Tối đa script/meta/link/noscript từ Google / Meta / TikTok. Sửa nhanh không nhúng mã này. Script ads chờ khách đồng ý cookie.',
@@ -7990,6 +8029,26 @@ const EN_DICTIONARY: Dictionary = {
     shopFacebookDomainVerifyLabel: 'Facebook domain verification',
     shopVerifyPlaceholder: 'Verification string',
     shopVerifyInvalidToast: 'Invalid verification string (letters, numbers, dashes only).',
+    shopSitemapTitle: 'Sitemap XML for Google Search Console',
+    shopSitemapHint:
+      'Sitemap automatically indexes categories, static pages, and all active products. Submit this link to Google Search Console for fast indexing.',
+    shopSitemapIndexUrlLabel: 'Main Sitemap URL (Sitemap Index)',
+    shopSitemapPathToSubmitLabel: 'Path to enter into Search Console',
+    shopSitemapCopyFullUrl: 'Copy full URL',
+    shopSitemapCopyPath: 'Copy sitemap.xml',
+    shopSitemapOpenGsc: 'Open Google Search Console Sitemaps',
+    shopSitemapViewXml: 'View XML file',
+    shopSitemapCopiedToast: 'Copied to clipboard',
+    shopSitemapDraftWarning: 'Your shop website is currently in Draft mode. Please publish the website so Google can access sitemap.xml.',
+    shopSitemapReadyBadge: 'Ready to submit',
+    shopSitemapDraftBadge: 'Draft',
+    shopSitemapSubfilesLabel: 'Automatic sub-sitemaps:',
+    shopSitemapPagesLabel: 'Static pages & Category index',
+    shopSitemapProductsLabel: 'Product catalog (automatically paginated at 5,000 products/file)',
+    shopSitemapInstructionsTitle: 'How to submit to Google Search Console:',
+    shopSitemapStep1: 'Click "Open Google Search Console Sitemaps" above or navigate to Search Console for your shop domain.',
+    shopSitemapStep2: 'Under "Add a new sitemap", enter "sitemap.xml" into the text field.',
+    shopSitemapStep3: 'Click "Submit". Google will automatically fetch the sitemap index and discover all pages and products.',
     shopCustomHtmlTitle: 'Custom HTML',
     shopCustomHtmlHint:
       'Allowlisted script/meta/link/noscript from Google / Meta / TikTok. Quick edit does not inject this. Ad scripts wait for cookie consent.',
@@ -11663,6 +11722,26 @@ const ZH_DICTIONARY: Dictionary = {
     shopFacebookDomainVerifyLabel: 'Facebook 域名验证',
     shopVerifyPlaceholder: '验证字符串',
     shopVerifyInvalidToast: '验证字符串无效（仅限字母、数字、连字符）。',
+    shopSitemapTitle: 'Google Search Console 站点地图 (Sitemap XML)',
+    shopSitemapHint:
+      '站点地图会自动更新分类、静态页面及在售商品。将此链接提交到 Google Search Console 以加快谷歌收录。',
+    shopSitemapIndexUrlLabel: '主站点地图 URL (Sitemap Index)',
+    shopSitemapPathToSubmitLabel: '在 Search Console 输入框中填写的路径',
+    shopSitemapCopyFullUrl: '复制完整 URL',
+    shopSitemapCopyPath: '复制 sitemap.xml',
+    shopSitemapOpenGsc: '打开 Google Search Console 站点地图',
+    shopSitemapViewXml: '查看 XML 文件',
+    shopSitemapCopiedToast: '已复制到剪贴板',
+    shopSitemapDraftWarning: '店铺网站当前处于草稿状态。请先发布网站，以便谷歌可以抓取 sitemap.xml。',
+    shopSitemapReadyBadge: '准备提交',
+    shopSitemapDraftBadge: '草稿',
+    shopSitemapSubfilesLabel: '自动子站点地图：',
+    shopSitemapPagesLabel: '静态页面与分类',
+    shopSitemapProductsLabel: '商品列表（自动按 5,000 件/文件分页）',
+    shopSitemapInstructionsTitle: '提交至 Google Search Console 步骤：',
+    shopSitemapStep1: '点击上方的“打开 Google Search Console 站点地图”或前往店铺域名的 Search Console。',
+    shopSitemapStep2: '在“添加新的站点地图”中，于输入框内填写“sitemap.xml”。',
+    shopSitemapStep3: '点击“提交”。谷歌将自动读取主地图并索引所有子页面和商品。',
     shopCustomHtmlTitle: '自定义 HTML',
     shopCustomHtmlHint: '仅允许来自 Google / Meta / TikTok 的 script/meta/link/noscript。快速编辑不会注入。广告脚本需等待 Cookie 同意。',
     shopCustomHtmlHeadLabel: 'Head',
@@ -15237,6 +15316,26 @@ const JA_DICTIONARY: Dictionary = {
     shopFacebookDomainVerifyLabel: 'Facebook ドメイン確認',
     shopVerifyPlaceholder: '確認文字列',
     shopVerifyInvalidToast: '確認文字列が無効です（英数字とハイフンのみ）。',
+    shopSitemapTitle: 'Google Search Console 用 サイトマップ (Sitemap XML)',
+    shopSitemapHint:
+      'サイトマップはカテゴリ、固定ページ、販売中の全商品を自動的にインデックスします。Google Search Console に送信して検索インデックスを促進します。',
+    shopSitemapIndexUrlLabel: 'メインサイトマップ URL (Sitemap Index)',
+    shopSitemapPathToSubmitLabel: 'Search Console の入力欄に入力するパス',
+    shopSitemapCopyFullUrl: 'URL 全体をコピー',
+    shopSitemapCopyPath: 'sitemap.xml をコピー',
+    shopSitemapOpenGsc: 'Google Search Console サイトマップを開く',
+    shopSitemapViewXml: 'XML ファイルを表示',
+    shopSitemapCopiedToast: 'クリップボードにコピーしました',
+    shopSitemapDraftWarning: 'ショップサイトは現在下書き状態です。Google が sitemap.xml を取得できるようにサイトを公開してください。',
+    shopSitemapReadyBadge: '送信準備完了',
+    shopSitemapDraftBadge: '下書き',
+    shopSitemapSubfilesLabel: '自動生成サブサイトマップ:',
+    shopSitemapPagesLabel: '固定ページ & 商品カテゴリ',
+    shopSitemapProductsLabel: '商品一覧（5,000件/ファイルで自動分割）',
+    shopSitemapInstructionsTitle: 'Google Search Console への送信手順:',
+    shopSitemapStep1: '上の「Google Search Console サイトマップを開く」をクリックするか、ショップドメインの Search Console に移動します。',
+    shopSitemapStep2: '「新しいサイトマップの追加」の入力欄に「sitemap.xml」と入力します。',
+    shopSitemapStep3: '「送信」をクリックします。Google が自動的にメインサイトマップを読み込み、ページや商品をインデックスします。',
     shopCustomHtmlTitle: 'カスタム HTML',
     shopCustomHtmlHint:
       'Google / Meta / TikTok の script/meta/link/noscript のみ許可。クイック編集では挿入しません。広告スクリプトは Cookie 同意後です。',
@@ -18885,6 +18984,26 @@ const KO_DICTIONARY: Dictionary = {
     shopFacebookDomainVerifyLabel: 'Facebook 도메인 인증',
     shopVerifyPlaceholder: '인증 문자열',
     shopVerifyInvalidToast: '인증 문자열이 올바르지 않습니다(영문, 숫자, 하이픈만).',
+    shopSitemapTitle: 'Google Search Console용 사이트맵 (Sitemap XML)',
+    shopSitemapHint:
+      '사이트맵은 카테고리, 고정 페이지 및 판매 중인 모든 제품을 자동으로 수집합니다. 빠른 검색 색인을 위해 Google Search Console에 제출하세요.',
+    shopSitemapIndexUrlLabel: '메인 사이트맵 URL (Sitemap Index)',
+    shopSitemapPathToSubmitLabel: 'Search Console 입력란에 제출할 경로',
+    shopSitemapCopyFullUrl: '전체 URL 복사',
+    shopSitemapCopyPath: 'sitemap.xml 복사',
+    shopSitemapOpenGsc: 'Google Search Console 사이트맵 열기',
+    shopSitemapViewXml: 'XML 파일 보기',
+    shopSitemapCopiedToast: '클립보드에 복사되었습니다',
+    shopSitemapDraftWarning: '쇼핑몰 웹사이트가 현재 초안 상태입니다. Google이 sitemap.xml에 접근할 수 있도록 웹사이트를 게시해주세요.',
+    shopSitemapReadyBadge: '제출 준비 완료',
+    shopSitemapDraftBadge: '초안',
+    shopSitemapSubfilesLabel: '자동 하위 사이트맵 구성:',
+    shopSitemapPagesLabel: '고정 페이지 & 카테고리',
+    shopSitemapProductsLabel: '상품 목록 (파일당 5,000개 자동 분할)',
+    shopSitemapInstructionsTitle: 'Google Search Console 제출 방법:',
+    shopSitemapStep1: '위의 "Google Search Console 사이트맵 열기"를 클릭하거나 상점 도메인의 Search Console로 이동합니다.',
+    shopSitemapStep2: '"새 사이트맵 추가" 입력란에 "sitemap.xml"을 입력합니다.',
+    shopSitemapStep3: '"제출"을 클릭합니다. Google이 메인 사이트맵을 읽고 모든 하위 페이지와 상품을 자동으로 색인합니다.',
     shopCustomHtmlTitle: '사용자 HTML',
     shopCustomHtmlHint:
       'Google / Meta / TikTok의 script/meta/link/noscript만 허용합니다. 빠른 수정에는 삽입되지 않습니다. 광고 스크립트는 쿠키 동의 후입니다.',

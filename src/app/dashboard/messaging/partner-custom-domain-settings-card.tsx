@@ -17,6 +17,8 @@ import {
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   buildPartnerChatPublicUrl,
+  buildPartnerSiteSitemapUrl,
+  buildGoogleSearchConsoleSitemapsUrl,
 } from '@/lib/messaging/partner-public-url'
 import {
   getMessagingPartnerCustomDomainSettings,
@@ -26,7 +28,7 @@ import {
   updateMessagingPartnerCustomDomainUsage,
   verifyMessagingPartnerCustomDomain,
 } from '@/app/dashboard/messaging/actions'
-import { CheckCircle2, Copy, Globe, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Copy, ExternalLink, Globe, Loader2, RefreshCw, ShieldCheck } from 'lucide-react'
 import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
 import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
@@ -454,6 +456,43 @@ export function PartnerCustomDomainSettingsCard({
                   <code className="text-[11px]">{`${previewOrigin.replace(/\/$/, '')}/`}</code>
                   <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => void copyText(`${previewOrigin.replace(/\/$/, '')}/`)}>
                     <Copy className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : null}
+              {useForSite && siteSlug && sitePublished ? (
+                <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/40">
+                  <span className="text-[11px] text-muted-foreground">{t.shopSitemapTitle}:</span>
+                  <code className="text-[11px]">{buildPartnerSiteSitemapUrl(previewOrigin)}</code>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7"
+                    title={t.shopSitemapCopyFullUrl}
+                    onClick={() => void copyText(buildPartnerSiteSitemapUrl(previewOrigin))}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-[11px]"
+                    title={t.shopSitemapCopyPath}
+                    onClick={() => void copyText('sitemap.xml')}
+                  >
+                    <Copy className="mr-1 h-3 w-3" />
+                    sitemap.xml
+                  </Button>
+                  <Button asChild size="sm" variant="outline" className="h-7 text-[11px] gap-1">
+                    <a
+                      href={buildGoogleSearchConsoleSitemapsUrl(previewOrigin)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Google Search Console
+                    </a>
                   </Button>
                 </div>
               ) : null}

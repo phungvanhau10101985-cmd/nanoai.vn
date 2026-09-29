@@ -71,6 +71,7 @@ import { PartnerShopGoLivePanel } from '@/app/dashboard/messaging/partner-shop-g
 import { PartnerShopIsolationPanel } from '@/app/dashboard/messaging/partner-shop-isolation-panel'
 import { PartnerShopProvinceFeesPanel } from '@/app/dashboard/messaging/partner-shop-province-fees-panel'
 import { PartnerCustomDomainSettingsCard } from '@/app/dashboard/messaging/partner-custom-domain-settings-card'
+import { PartnerShopSitemapCard } from '@/components/messaging/partner-shop-sitemap-card'
 import { PartnerApiIntegrationWorkspace } from '@/components/integration/partner-api-integration-workspace'
 import { PartnerSiteLoginGuide } from '@/components/integration/partner-site-login-guide'
 import { API_KEYS_HUB_COPY } from '@/lib/integration/api-keys-hub-copy'
@@ -3344,6 +3345,18 @@ export function PartnerMessagingSettingsClient({
                 )}
               </CardContent>
             </Card>
+            {selectedPartnerId ? (
+              <PartnerShopSitemapCard
+                partnerId={selectedPartnerId}
+                partnerSlug={selectedPartner?.slug}
+                siteSlug={websiteSiteSlug}
+                sitePublished={websitePublished}
+                publicUrl={websitePublicUrl}
+                appOrigin={appOrigin}
+                t={t}
+                roleCopy={roleCopy}
+              />
+            ) : null}
           </SettingsBlock>
           ) : null}
 
@@ -3580,6 +3593,18 @@ export function PartnerMessagingSettingsClient({
                 </SettingsDataRoleBox>
               </CardContent>
             </Card>
+            {selectedPartnerId ? (
+              <PartnerShopSitemapCard
+                partnerId={selectedPartnerId}
+                partnerSlug={selectedPartner?.slug}
+                siteSlug={websiteSiteSlug}
+                sitePublished={websitePublished}
+                publicUrl={websitePublicUrl}
+                appOrigin={appOrigin}
+                t={t}
+                roleCopy={roleCopy}
+              />
+            ) : null}
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.shopCustomHtmlTitle}</CardTitle>
