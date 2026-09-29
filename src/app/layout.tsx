@@ -418,6 +418,9 @@ export default async function RootLayout({
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        <link rel="ai-catalog" type="application/json" href="/.well-known/ai-catalog.json" />
+        <link rel="ard" type="application/json" href="/.well-known/ard.json" />
+        <link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs.txt" />
         {bunnyCdnOrigin ? <link rel="preconnect" href={bunnyCdnOrigin} crossOrigin="anonymous" /> : null}
         {isPartnerWebsitePage ? (
           <>

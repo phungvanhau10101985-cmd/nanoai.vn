@@ -39,12 +39,12 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        allow: ['/', '/api/agent/'],
         disallow: disallowPaths,
       },
       {
         userAgent: 'Googlebot',
-        allow: '/',
+        allow: ['/', '/api/agent/'],
         disallow: disallowPaths,
       },
     ],

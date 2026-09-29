@@ -19,6 +19,9 @@ export default function Home() {
     <div className="min-h-screen">
       <section className="w-full pb-10 pt-5 md:pb-14 md:pt-8">
         <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+          <h1 className="sr-only">
+            {t.app.siteName} - {t.app.defaultDescription || 'Nền tảng Trí tuệ Nhân tạo Đa tính năng'}
+          </h1>
           <div className="space-y-6 md:space-y-8">
             <Suspense fallback={null}>
               <HomeHubChatBar />

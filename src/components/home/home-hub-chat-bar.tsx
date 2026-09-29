@@ -3548,6 +3548,7 @@ export function HomeHubChatBar() {
               type="file"
               accept="image/*"
               className="hidden"
+              aria-label={hc.studioLogoUploadBtn}
               onChange={(e) => {
                 if (e.target.files?.length) void postStudioLogoUpload(e.target.files)
               }}
@@ -3581,6 +3582,7 @@ export function HomeHubChatBar() {
               accept="image/*"
               multiple
               className="hidden"
+              aria-label={studioUploadHint || hc.studioUploadBtn}
               onChange={(e) => {
                 if (e.target.files?.length) void postStudioUpload(e.target.files)
               }}
@@ -4129,6 +4131,7 @@ export function HomeHubChatBar() {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder={chatInputPlaceholder}
+                  aria-label={chatInputPlaceholder || hc.send}
                   rows={3}
                   disabled={busy}
                   className="min-h-[80px] w-full min-w-0 flex-1 resize-y text-sm"
@@ -4182,6 +4185,7 @@ export function HomeHubChatBar() {
                   className="mt-0.5"
                   checked={logoStripBg}
                   disabled={busy}
+                  aria-label={hc.studioLogoStripBg}
                   onChange={(e) => setLogoStripBg(e.target.checked)}
                 />
                 <span>{hc.studioLogoStripBg}</span>
