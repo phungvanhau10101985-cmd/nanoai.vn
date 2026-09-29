@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
+import { formatVnd, formatVndOrZero } from '@/lib/partner-website/shop/cart-line-utils'
 import { partnerOrderRemainingAfterDeposit } from '@/lib/partner-website/shop/order-deposit'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
@@ -426,7 +426,7 @@ export function PartnerSiteShopOrdersClient({
                       <p>
                         {t.orderDueOnDeliveryLine}:{' '}
                         <strong>
-                          {formatVnd(
+                          {formatVndOrZero(
                             partnerOrderRemainingAfterDeposit({
                               amount_after_discount: o.amount_after_discount ?? o.subtotal_amount,
                               shipping_fee_amount: o.shipping_fee_amount,

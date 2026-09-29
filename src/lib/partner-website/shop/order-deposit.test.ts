@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   isPartnerShopDepositWaiting,
+  partnerOrderEstimatedRemainingAfterDeposit,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
   pickDepositLandingOrder,
@@ -87,5 +88,38 @@ test('remaining after deposit is total minus actual paid, not the % due', () => 
       paid_amount: 200000,
     }),
     830000
+  )
+})
+
+test('estimated remaining on delivery after deposit accounts for required amount or paid amount', () => {
+  // Cọc 100%: khi nhận hàng cần thanh toán 0 đồng
+  assert.equal(
+    partnerOrderEstimatedRemainingAfterDeposit({
+      amount_after_discount: 1_297_200,
+      shipping_fee_amount: 0,
+      required_amount: 1_297_200,
+      paid_amount: 0,
+    }),
+    0
+  )
+  // Cọc 30%: khi nhận hàng cần thanh toán 70% còn lại
+  assert.equal(
+    partnerOrderEstimatedRemainingAfterDeposit({
+      amount_after_discount: 1_000_000,
+      shipping_fee_amount: 30000,
+      required_amount: 300000,
+      paid_amount: 0,
+    }),
+    730000
+  )
+  // Khi đã thanh toán cọc 100%
+  assert.equal(
+    partnerOrderEstimatedRemainingAfterDeposit({
+      amount_after_discount: 1_297_200,
+      shipping_fee_amount: 0,
+      required_amount: 1_297_200,
+      paid_amount: 1_297_200,
+    }),
+    0
   )
 })

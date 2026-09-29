@@ -3,6 +3,8 @@ import test from 'node:test'
 import {
   cartLinesQuantity,
   cartLinesSignature,
+  formatVnd,
+  formatVndOrZero,
   parseSiteCartLines,
 } from '@/lib/partner-website/shop/cart-line-utils'
 
@@ -40,4 +42,14 @@ test('parseSiteCartLines keeps display cards and drops leftover PDP fields', () 
   assert.match(lines[0]?.card.image_url ?? '', /_600x600q90/)
   assert.equal(cartLinesQuantity(lines), 2)
   assert.equal(cartLinesSignature(lines), 'line-1:2:Đen:')
+})
+
+test('formatVnd and formatVndOrZero format currency correctly', () => {
+  assert.equal(formatVnd(1297200), '1.297.200đ')
+  assert.equal(formatVnd(0), '—')
+  assert.equal(formatVnd(-100), '—')
+
+  assert.equal(formatVndOrZero(1297200), '1.297.200đ')
+  assert.equal(formatVndOrZero(0), '0đ')
+  assert.equal(formatVndOrZero(-100), '—')
 })

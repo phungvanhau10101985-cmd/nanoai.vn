@@ -41,9 +41,13 @@ export function parseVndFromPriceHint(priceHint: string | undefined): number {
   return Number.isFinite(n) ? n : 0
 }
 
-export function formatVnd(amount: number): string {
-  if (amount <= 0) return '—'
+export function formatVnd(amount: number, allowZero = false): string {
+  if (amount < 0 || (!allowZero && amount <= 0)) return '—'
   return `${new Intl.NumberFormat('vi-VN').format(amount)}đ`
+}
+
+export function formatVndOrZero(amount: number): string {
+  return formatVnd(amount, true)
 }
 
 function slimCartCardImage(card: PartnerAiProductCard): PartnerAiProductCard {

@@ -72,6 +72,23 @@ export function partnerOrderRemainingAfterDeposit(order: {
   return Math.max(0, total - paid)
 }
 
+/**
+ * Dự tính số tiền còn lại cần thanh toán khi nhận hàng sau cọc (cho trang thanh toán cọc).
+ * Gợi ý "Còn lại sau cọc":
+ * - Khách chọn cọc 100%: khi nhận hàng thanh toán là 0 đồng (0đ).
+ * - Khách chọn cọc 30%: khi nhận hàng thanh toán 70% còn lại.
+ */
+export function partnerOrderEstimatedRemainingAfterDeposit(order: {
+  amount_after_discount?: number | string | null
+  shipping_fee_amount?: number | string | null
+  required_amount?: number | string | null
+  paid_amount?: number | string | null
+}): number {
+  const total = partnerOrderPayableTotal(order)
+  const covered = Math.max(money(order.paid_amount), money(order.required_amount))
+  return Math.max(0, total - Math.round(covered))
+}
+
 export function isPartnerShopDepositWaiting(order: PartnerShopDepositOrderLike): boolean {
   if (money(order.required_amount) <= 0) return false
   if (shouldShowDepositSuccessPage(order)) return false

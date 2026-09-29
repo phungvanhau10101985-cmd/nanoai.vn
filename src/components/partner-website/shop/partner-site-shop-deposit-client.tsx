@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { PartnerSiteOrderGoogleCustomerReviews } from '@/components/partner-website/shop/partner-site-order-google-customer-reviews'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
+import { formatVnd, formatVndOrZero } from '@/lib/partner-website/shop/cart-line-utils'
 import {
   markGoogleCustomerReviewsForOrder,
 } from '@/lib/partner-website/shop/google-customer-reviews'
@@ -18,6 +18,7 @@ import {
 import { depositQrDownloadFilename } from '@/lib/messaging/deposit-qr-image'
 import {
   isPartnerShopDepositWaiting,
+  partnerOrderEstimatedRemainingAfterDeposit,
   partnerOrderPayableTotal,
   partnerOrderRemainingAfterDeposit,
   shouldShowDepositSuccessPage,
@@ -552,6 +553,12 @@ export function PartnerSiteShopDepositClient({
     required_amount: order.required_amount,
     paid_amount: order.paid_amount,
   })
+  const remainingOnDelivery = partnerOrderEstimatedRemainingAfterDeposit({
+    amount_after_discount: order.amount_after_discount ?? order.subtotal_amount,
+    shipping_fee_amount: order.shipping_fee_amount,
+    required_amount: required,
+    paid_amount: order.paid_amount,
+  })
   const qr =
     paymentDisplay?.kind === 'ewallet'
       ? paymentDisplay.qr_url
@@ -624,7 +631,7 @@ export function PartnerSiteShopDepositClient({
                 {t.orderDepositPaidLine}: <strong>{formatVnd(paid)}</strong>
               </p>
               <p>
-                {t.orderDueOnDeliveryLine}: <strong>{formatVnd(remaining)}</strong>
+                {t.orderDueOnDeliveryLine}: <strong>{formatVndOrZero(remaining)}</strong>
               </p>
               <div style={{ marginTop: 16 }}>
                 <PartnerSiteOrderShipmentSteps
@@ -703,7 +710,7 @@ export function PartnerSiteShopDepositClient({
         </div>
         <div>
           <p className="k">{t.depositOnDeliveryLabel}</p>
-          <p className="v">{formatVnd(remaining)}</p>
+          <p className="v">{formatVndOrZero(remainingOnDelivery)}</p>
           <p className="pw-shop-deposit-money-hint">{t.depositOnDeliveryHint}</p>
         </div>
         {order.payment_method !== 'ewallet' ? (

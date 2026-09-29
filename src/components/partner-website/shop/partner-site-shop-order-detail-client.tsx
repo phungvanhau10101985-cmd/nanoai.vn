@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { PartnerSiteOrderGoogleCustomerReviews } from '@/components/partner-website/shop/partner-site-order-google-customer-reviews'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
+import { formatVnd, formatVndOrZero } from '@/lib/partner-website/shop/cart-line-utils'
 import { markGoogleCustomerReviewsForOrder } from '@/lib/partner-website/shop/google-customer-reviews'
 import {
   isPartnerShopDepositWaiting,
@@ -313,7 +313,7 @@ export function PartnerSiteShopOrderDetailClient({
                   {t.orderDepositPaidLine}: <strong>{formatVnd(paid)}</strong>
                 </p>
                 <p>
-                  {t.orderDueOnDeliveryLine}: <strong>{formatVnd(remaining)}</strong>
+                  {t.orderDueOnDeliveryLine}: <strong>{formatVndOrZero(remaining)}</strong>
                 </p>
               </>
             ) : null}
