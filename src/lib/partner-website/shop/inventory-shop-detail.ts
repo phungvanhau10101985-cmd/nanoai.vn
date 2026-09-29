@@ -221,7 +221,7 @@ export function nextShopImageRetrySrc(currentSrc: string): string | null {
     next = applyShopAlicdnCardSize(next)
   }
   if (!/^https?:\/\//i.test(next) && !next.startsWith('//')) return null
-  if (/alicdn\.com|alicdn\.net|tbcdn\.cn|1688\.com|alibaba\.com/i.test(next)) {
+  if (/alicdn\.com|alicdn\.net|tbcdn\.cn|1688\.com|alibaba\.com|b-cdn\.net/i.test(next)) {
     return `/api/fetch-image?url=${encodeURIComponent(next)}`
   }
   return null
@@ -339,7 +339,7 @@ export const PW_SHOP_IMAGE_RETRY_JS = `function nextShopImageRetrySrc(src){
     inner=inner.replace(/\\.webp\\.jpg$/i,'.webp').replace(/\\.png\\.jpg$/i,'.png');
     inner=inner.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'')+'_600x600q90.jpg';
   }
-  if(/^https?:\\/\\//i.test(inner)&&/alicdn\\.com|alicdn\\.net|tbcdn\\.cn|1688\\.com|alibaba\\.com/i.test(inner)){
+  if(/^https?:\\/\\//i.test(inner)&&/alicdn\\.com|alicdn\\.net|tbcdn\\.cn|1688\\.com|alibaba\\.com|b-cdn\\.net/i.test(inner)){
     return '/api/fetch-image?url='+encodeURIComponent(inner);
   }
   return '';

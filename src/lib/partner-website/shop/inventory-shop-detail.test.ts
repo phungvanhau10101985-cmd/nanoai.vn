@@ -53,6 +53,8 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
   assert.equal(nextShopImageRetrySrc(broken), `/api/fetch-image?url=${encodeURIComponent(broken)}`)
   assert.equal(nextShopImageRetrySrc(page), `/api/fetch-image?url=${encodeURIComponent(page)}`)
   assert.equal(nextShopImageRetrySrc(raw), `/api/fetch-image?url=${encodeURIComponent(card)}`)
+  const bunnyUrl = 'https://gudo-vn-3f93.b-cdn.net/site/manual-products/a.jpg'
+  assert.equal(nextShopImageRetrySrc(bunnyUrl), `/api/fetch-image?url=${encodeURIComponent(bunnyUrl)}`)
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}`), null)
   const rewritten = rewritePdpHtmlImagesForPage(`<img src="${raw}" alt="x">`)

@@ -209,10 +209,45 @@ async function createStorageZone(name: string): Promise<{ id: number; password: 
   return { id, password }
 }
 
+export async function setPullZoneForceSsl(
+  pullZoneId: number,
+  hostname: string,
+  forceSsl = true
+): Promise<boolean> {
+  const res = await bunnyAccount('/pullzone/setForceSSL', {
+    method: 'POST',
+    body: JSON.stringify({ PullZoneId: pullZoneId, Hostname: hostname, ForceSSL: forceSsl }),
+  })
+  return res.status === 200
+}
+
+export async function addPullZoneHostname(
+  pullZoneId: number,
+  hostname: string
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await bunnyAccount(`/pullzone/${pullZoneId}/addHostname`, {
+    method: 'POST',
+    body: JSON.stringify({ Hostname: hostname }),
+  })
+  if (res.status === 204 || res.status === 200) return { ok: true }
+  if (res.status === 400 && /already/i.test(res.body)) return { ok: true }
+  return { ok: false, error: res.body.slice(0, 200) }
+}
+
+export async function loadFreeCertificateForHostname(
+  hostname: string
+): Promise<{ ok: boolean; error?: string }> {
+  const res = await bunnyAccount(`/pullzone/loadFreeCertificate?hostname=${encodeURIComponent(hostname)}`, {
+    method: 'GET',
+  })
+  if (res.status === 200 || res.status === 204) return { ok: true }
+  return { ok: false, error: res.body.slice(0, 200) }
+}
+
 async function createPullZone(name: string, storageZoneId: number): Promise<{ id: number } | { conflict: true } | { error: string }> {
   const payloads = [
-    { Name: name, Type: 0, StorageZoneId: storageZoneId },
-    { Name: name, Type: 0, StorageZoneId: storageZoneId, OriginUrl: '' },
+    { Name: name, Type: 0, StorageZoneId: storageZoneId, DisableCookies: true },
+    { Name: name, Type: 0, StorageZoneId: storageZoneId, OriginUrl: '', DisableCookies: true },
   ]
   let last = ''
   for (const payload of payloads) {
@@ -224,6 +259,10 @@ async function createPullZone(name: string, storageZoneId: number): Promise<{ id
     if (created.status >= 200 && created.status < 300) {
       const id = numField(created.json, 'Id')
       if (!id) return { error: 'Bunny pull zone thiếu Id.' }
+      // Bật ForceSSL giống NanoAI và 188.com.vn
+      await setPullZoneForceSsl(id, `${name}.b-cdn.net`, true).catch((e) => {
+        console.warn('[createPullZone] setForceSSL warning:', e)
+      })
       return { id }
     }
     last = `Bunny pull zone ${created.status}: ${created.body.slice(0, 240)}`

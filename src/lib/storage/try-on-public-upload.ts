@@ -186,7 +186,7 @@ async function bunnyStorageRequest(
         AccessKey: accessKey,
         ...(contentType ? { 'Content-Type': contentType } : {}),
       },
-      body,
+      body: body ? Buffer.from(body) : undefined,
       signal: AbortSignal.timeout(60_000),
     })
     const hint = res.ok || res.status === 404 ? '' : (await res.text().catch(() => '')).slice(0, 300)
