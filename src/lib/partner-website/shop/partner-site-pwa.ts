@@ -35,11 +35,12 @@ export function partnerShopPushIconPath(siteSlug: string, customDomain: boolean)
   return partnerSitePwaIconPath(siteSlug.trim().toLowerCase(), 192, customDomain)
 }
 
-export const PARTNER_PWA_ICON_SIZES = [32, 180, 192, 512] as const
+export const PARTNER_PWA_ICON_SIZES = [16, 32, 48, 96, 180, 192, 512] as const
 export type PartnerPwaIconSize = (typeof PARTNER_PWA_ICON_SIZES)[number]
 
 export function isPartnerPwaIconSize(value: string): value is `${PartnerPwaIconSize}` {
-  return value === '32' || value === '180' || value === '192' || value === '512'
+  const n = Number(String(value || '').trim())
+  return PARTNER_PWA_ICON_SIZES.includes(n as PartnerPwaIconSize)
 }
 
 export function partnerPwaManifestColor(value: unknown, fallback: string): string {
@@ -118,7 +119,7 @@ export function buildPartnerShopWebManifest(input: {
   const name = input.name.trim() || 'Shop'
   const startUrl = partnerSitePwaStartUrl(input.siteSlug, input.customDomain)
   const slug = input.siteSlug.trim().toLowerCase()
-  const icon = (size: 192 | 512, maskable: boolean) => ({
+  const icon = (size: 48 | 96 | 192 | 512, maskable: boolean) => ({
     src: partnerSitePwaIconPath(slug, size, input.customDomain, {
       maskable,
       bust: input.iconBust,
@@ -140,7 +141,14 @@ export function buildPartnerShopWebManifest(input: {
     theme_color: partnerPwaManifestColor(input.themeColor, '#111827'),
     lang: input.locale?.trim() || 'vi',
     prefer_related_applications: false,
-    icons: [icon(192, false), icon(512, false), icon(192, true), icon(512, true)],
+    icons: [
+      icon(48, false),
+      icon(96, false),
+      icon(192, false),
+      icon(512, false),
+      icon(192, true),
+      icon(512, true),
+    ],
   }
 }
 

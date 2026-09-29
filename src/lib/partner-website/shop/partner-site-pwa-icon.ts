@@ -23,7 +23,7 @@ export function partnerShopBrandIconUrls(input: {
   logoUrl?: string | null
 }): string[] {
   const out: string[] = []
-  for (const raw of [input.pwaIconUrl, input.faviconUrl, input.logoUrl]) {
+  for (const raw of [input.faviconUrl, input.pwaIconUrl, input.logoUrl]) {
     const value = String(raw || '').trim()
     if (!value || !isHttpUrl(value) || out.includes(value)) continue
     out.push(value)

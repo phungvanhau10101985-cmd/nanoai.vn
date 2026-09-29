@@ -26,6 +26,11 @@ import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-
 import { injectPartnerCustomDomainLinkRewriteScript } from '@/lib/partner-website/shop/inject-partner-custom-domain-link-script'
 import { injectPartnerLogoHomeLinkScript } from '@/lib/partner-website/shop/inject-partner-logo-home-link'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import {
+  loadPartnerShopLiveBrandTheme,
+  partnerShopLiveIconBust,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
+import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 
 type Props = {
   params: Promise<{ slug: string }>
@@ -34,7 +39,8 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const site = (await loadPartnerSiteShopContext(slug).catch(() => null))?.site ?? null
+  const shop = await loadPartnerSiteShopContext(slug).catch(() => null)
+  const site = shop?.site ?? null
   if (!site) {
     return buildMetadata({
       title: 'Website',
@@ -43,6 +49,19 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       noIndex: true,
     })
   }
+  const customDomain = Boolean(
+    readPartnerCustomDomainFromHeaders((name) => headers().get(name))
+  )
+  const live = shop
+    ? await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: site.theme })
+    : { theme: site.theme, saleIconUrl: null, cacheToken: 'off' }
+  const icons = buildPartnerShopFaviconMetadataIcons({
+    siteSlug: site.siteSlug,
+    customDomain,
+    faviconUrl: live.theme.faviconUrl,
+    logoUrl: site.logoUrl,
+    iconBust: partnerShopLiveIconBust(live.theme, site.logoUrl),
+  })
   const base = buildPartnerSiteMetadata({
     siteSlug: site.siteSlug,
     siteName: site.title,
@@ -51,8 +70,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     path: '/',
     image: site.logoUrl,
     locale: site.locale,
+    icons,
   })
-  return base
+  return {
+    ...base,
+    icons,
+  }
 }
 
 export const dynamic = 'force-dynamic'

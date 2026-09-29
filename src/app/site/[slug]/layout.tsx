@@ -59,6 +59,7 @@ export async function generateMetadata({
     customDomain,
     faviconUrl: live.theme.faviconUrl,
     logoUrl: site.logoUrl,
+    iconBust: partnerShopLiveIconBust(live.theme, site.logoUrl),
   })
   const verification = partnerShopDocumentVerification({
     googleSearchConsoleVerify: site.googleSearchConsoleVerify,

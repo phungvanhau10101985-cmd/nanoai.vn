@@ -48,6 +48,14 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
   'pw-shop-sw.js',
   'pwa-icon',
   'favicon.ico',
+  'favicon.png',
+  'apple-touch-icon.png',
+  'apple-touch-icon-precomposed.png',
+  'icons',
+  'meta',
+  'favicon-16x16.png',
+  'favicon-32x32.png',
+  'favicon.svg',
 ])
 
 /**
@@ -100,6 +108,33 @@ export function mapPartnerCustomDomainPathToInternal(
   // Custom-domain `/sw.js` is NanoAI next-pwa. Shop workers use `/pw-shop-sw.js`.
   if (root === 'pw-shop-sw.js' || root === 'sw.js') {
     return `${prefix}/sw.js`
+  }
+
+  if (root === 'favicon.ico' || (root.startsWith('favicon') && root.endsWith('.ico'))) {
+    return `${prefix}/favicon.ico`
+  }
+
+  if (root === 'favicon.png' || (root.startsWith('favicon') && root.endsWith('.png')) || root === 'favicon.svg') {
+    return `${prefix}/favicon.png`
+  }
+
+  if (root.startsWith('apple-touch-icon')) {
+    return `${prefix}/apple-touch-icon.png`
+  }
+
+  if (root === 'icons' || root === 'meta') {
+    const iconName = segments[1]?.toLowerCase() ?? ''
+    if (iconName.includes('512')) return `${prefix}/pwa-icon/512`
+    if (iconName.includes('192')) return `${prefix}/pwa-icon/192`
+    if (iconName.includes('180') || iconName.includes('apple')) return `${prefix}/apple-touch-icon.png`
+    return `${prefix}/pwa-icon/192`
+  }
+
+  if (root === 'pwa-icon') {
+    const sizePart = segments[1]?.toLowerCase() ?? ''
+    const cleanSize = sizePart.replace(/\.png$/i, '')
+    if (cleanSize) return `${prefix}/pwa-icon/${cleanSize}`
+    return `${prefix}/pwa-icon/48`
   }
 
   // Known shop routes and unknown URLs both enter `/site/{slug}/…`.

@@ -125,6 +125,16 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
         }) as MetadataRoute.Manifest
       }
     }
+    // Custom domain fallback: NEVER return NanoAI manifest
+    return buildPartnerShopWebManifest({
+      siteSlug: siteSlug || 'shop',
+      name: customHost,
+      description: customHost,
+      customDomain: true,
+      backgroundColor: '#ffffff',
+      themeColor: '#111827',
+      locale: 'vi',
+    }) as MetadataRoute.Manifest
   }
 
   return nanoAiManifest()

@@ -48,6 +48,10 @@ import {
   type PartnerSiteSearchParams,
 } from '@/components/partner-website/shop/partner-site-visual-html-screen'
 import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
+import {
+  loadPartnerShopLiveBrandTheme,
+  partnerShopLiveIconBust,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
 
 type Props = {
   params: Promise<{ slug: string; inventoryId: string }>
@@ -75,6 +79,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: row ? inventoryShopDisplayDescription(row) : '',
     siteName: shop.site.title,
   })
+  const live = await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: shop.site.theme }).catch(() => null)
+  const theme = live?.theme || shop.site.theme
   return buildPartnerSiteMetadata({
     siteSlug: shop.site.siteSlug,
     siteName: shop.site.title,
@@ -82,6 +88,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: description || shop.site.title,
     path: `/products/${canonicalKey}`,
     image: product?.imageUrl,
+    faviconUrl: theme.faviconUrl,
+    iconBust: partnerShopLiveIconBust(theme, shop.site.logoUrl),
   })
 }
 

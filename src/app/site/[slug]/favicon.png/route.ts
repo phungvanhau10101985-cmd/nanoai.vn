@@ -9,8 +9,14 @@ import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-w
 
 export const dynamic = 'force-dynamic'
 
-/** Custom domain `/favicon.ico` — tab trình duyệt. PNG trong suốt giữ alpha; không tô `--pw-primary`. */
-export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
+/**
+ * Route phục vụ `/site/[slug]/favicon.png` (size 48 chuẩn Google Search)
+ * Đảm bảo Googlebot & trình duyệt lấy đúng logo favicon của shop, không bao giờ rơi về NanoAI.
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ slug: string }> }
+) {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) {
@@ -32,7 +38,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   return new NextResponse(new Uint8Array(png), {
     status: 200,
     headers: {
-      'Content-Type': 'image/x-icon',
+      'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=3600, must-revalidate',
     },
   })

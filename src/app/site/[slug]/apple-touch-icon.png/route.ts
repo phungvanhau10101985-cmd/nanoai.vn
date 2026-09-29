@@ -9,8 +9,14 @@ import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-w
 
 export const dynamic = 'force-dynamic'
 
-/** Custom domain `/favicon.ico` — tab trình duyệt. PNG trong suốt giữ alpha; không tô `--pw-primary`. */
-export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }> }) {
+/**
+ * Route phục vụ `/site/[slug]/apple-touch-icon.png` (size 180 cho iOS/iPadOS)
+ * Đảm bảo crawler & thiết bị Apple lấy đúng icon của shop, không bao giờ rơi về NanoAI.
+ */
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ slug: string }> }
+) {
   const { slug } = await ctx.params
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) {
@@ -23,7 +29,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
       theme: shop.site.theme,
       logoUrl: shop.site.logoUrl,
     }),
-    size: 48,
+    size: 180,
     backgroundColor: shopBrowserChromeColor(shop.site.theme),
     maskable: false,
     fallbackLetter: partnerShopIconFallbackLetter(shop.site.title || shop.site.partnerDisplayName),
@@ -32,7 +38,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ slug: string }
   return new NextResponse(new Uint8Array(png), {
     status: 200,
     headers: {
-      'Content-Type': 'image/x-icon',
+      'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=3600, must-revalidate',
     },
   })

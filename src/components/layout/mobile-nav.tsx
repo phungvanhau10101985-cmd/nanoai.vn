@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
-import { Sheet, SheetContent, SheetTrigger, SheetClose } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetTitle } from '@/components/ui/sheet'
 import { Menu, ChevronRight, BarChart3 } from 'lucide-react'
 import { NAV_GROUPS } from '@/lib/nav-config'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
@@ -37,6 +37,7 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
         }}
       >
         <div className="flex items-center justify-between px-5 pt-14 pb-4 border-b shrink-0 safe-area-pt">
+          <SheetTitle className="sr-only">{t.menu.mainMenu}</SheetTitle>
           <SheetClose asChild>
             <Link
               href="/"

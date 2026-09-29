@@ -222,6 +222,7 @@ function HubBannerBatchGallery({
             <button
               key={`${item.url}-${item.index}`}
               type="button"
+              aria-label={item.screenLabel || viewLargeLabel}
               onClick={() => onSelect(item.index)}
               className={`rounded-lg border-2 bg-white p-1.5 text-left transition dark:bg-slate-900 ${
                 selected

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { resolvePartnerSiteAbsoluteUrl } from './partner-site-absolute-url'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { buildPartnerShopFaviconMetadataIcons } from './inject-partner-shop-favicon'
 
 /**
  * Metadata riêng cho trang shop công khai `/site/{slug}/...` (và alias trên custom domain).
@@ -32,6 +34,12 @@ export interface PartnerSiteSEOConfig {
   type?: 'website' | 'article'
   /** Query canonical đã whitelist (min_price, max_price, page, size, style_tag, sort, color). */
   search?: string
+  /** URL favicon tùy chỉnh của shop */
+  faviconUrl?: string | null
+  /** Token bust cache icon */
+  iconBust?: string | null
+  /** Icons ghi đè hoàn toàn icons nền tảng NanoAI. */
+  icons?: Metadata['icons']
 }
 
 export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata {
@@ -69,12 +77,33 @@ export function buildPartnerSiteMetadata(config: PartnerSiteSEOConfig): Metadata
     .replace(/[^a-z]/g, '')
     .slice(0, 8) || 'vi'
 
+  const hostname = (() => {
+    try {
+      return new URL(origin).hostname
+    } catch {
+      return ''
+    }
+  })()
+  const customDomain = Boolean(hostname && !isPlatformAppHostname(hostname))
+  const resolvedIcons =
+    config.icons ??
+    (siteSlug
+      ? buildPartnerShopFaviconMetadataIcons({
+          siteSlug,
+          customDomain,
+          faviconUrl: config.faviconUrl,
+          logoUrl: image,
+          iconBust: config.iconBust,
+        })
+      : undefined)
+
   return {
     // absolute: root layout template is `%s | NanoAI` — shop tabs must not show the platform name.
     title: { absolute: title },
     description,
     keywords: keywordsStr,
     metadataBase: new URL(origin),
+    icons: resolvedIcons,
     alternates: {
       canonical: url,
       languages: { [hreflang]: url },

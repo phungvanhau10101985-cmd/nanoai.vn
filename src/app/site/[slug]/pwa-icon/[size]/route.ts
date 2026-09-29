@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
-import { loadPartnerShopLiveBrandTheme } from '@/lib/partner-website/promotions/partner-sale-icon-live'
+import {
+  loadPartnerShopLiveBrandIconUrls,
+  loadPartnerShopLiveBrandTheme,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
 import {
   buildPartnerPwaIconPng,
-  partnerShopBrandIconUrls,
   partnerShopIconFallbackLetter,
 } from '@/lib/partner-website/shop/partner-site-pwa-icon'
 import { isPartnerPwaIconSize, type PartnerPwaIconSize } from '@/lib/partner-website/shop/partner-site-pwa'
@@ -19,10 +21,11 @@ export async function GET(
   ctx: { params: Promise<{ slug: string; size: string }> }
 ) {
   const { slug, size: sizeRaw } = await ctx.params
-  if (!isPartnerPwaIconSize(sizeRaw)) {
+  const cleanSizeRaw = (sizeRaw || '').replace(/\.png$/i, '').trim()
+  if (!isPartnerPwaIconSize(cleanSizeRaw)) {
     return new NextResponse('Not found', { status: 404 })
   }
-  const size = Number(sizeRaw) as PartnerPwaIconSize
+  const size = Number(cleanSizeRaw) as PartnerPwaIconSize
   const shop = await loadPartnerSiteShopContext(slug)
   if (!shop) {
     return new NextResponse('Not found', { status: 404 })
@@ -34,9 +37,9 @@ export async function GET(
   })
   const purpose = new URL(req.url).searchParams.get('purpose')?.trim().toLowerCase()
   const png = await buildPartnerPwaIconPng({
-    logoUrls: partnerShopBrandIconUrls({
-      pwaIconUrl: live.theme.pwaIconUrl,
-      faviconUrl: live.theme.faviconUrl,
+    logoUrls: await loadPartnerShopLiveBrandIconUrls({
+      partnerId: shop.partnerId,
+      theme: shop.site.theme,
       logoUrl: shop.site.logoUrl,
     }),
     size,

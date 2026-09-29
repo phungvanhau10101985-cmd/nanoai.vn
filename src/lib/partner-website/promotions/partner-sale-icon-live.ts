@@ -66,8 +66,8 @@ export async function loadPartnerShopLiveBrandIconUrls(input: {
 }): Promise<string[]> {
   const live = await loadPartnerShopLiveBrandTheme({ partnerId: input.partnerId, theme: input.theme })
   return partnerShopBrandIconUrls({
-    pwaIconUrl: live.theme.pwaIconUrl,
     faviconUrl: live.theme.faviconUrl,
+    pwaIconUrl: live.theme.pwaIconUrl,
     logoUrl: input.logoUrl,
   })
 }

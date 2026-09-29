@@ -19,6 +19,7 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 
 ## Tài liệu & Khám phá Agent
 
+- [Tài liệu chi tiết đầy đủ (Full Documentation)](https://nanoai.vn/llms-full.txt): Toàn bộ tài liệu chi tiết và hướng dẫn tích hợp hệ thống NanoAI
 - [Catalog Agent & WebMCP](https://nanoai.vn/.well-known/ai-catalog.json): Danh mục dịch vụ chuẩn Agentic Resource Discovery (ARD v1.0) và WebMCP cho AI Agent
 - [Định nghĩa MCP Server](https://nanoai.vn/api/agent/mcp.json): Danh sách công cụ Model Context Protocol để tích hợp trực tiếp vào AI Assistant
 - [Chính sách bảo mật](https://nanoai.vn/privacy): Cam kết bảo vệ quyền riêng tư và dữ liệu người dùng
@@ -36,6 +37,7 @@ export function GET() {
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'public, max-age=3600, s-maxage=86400',
+      'Access-Control-Allow-Origin': '*',
     },
   })
 }

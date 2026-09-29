@@ -322,6 +322,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|pw-shop-runtime/|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|pw-shop-runtime/|api/|(?!favicon|apple-touch-icon|icons/|pwa-icon/|meta/).*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

@@ -13,6 +13,24 @@ export const metadata: Metadata = buildMetadata({
   keywords: ['NanoAI', 'thử đồ online', 'thử đồ ảo', 'AI thử đồ', 'phối đồ', 'phục dựng ảnh', 'làm nét ảnh', 'ghép ảnh'],
 })
 
+function HomeHubChatBarSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="surface-card min-h-[170px] animate-pulse border border-indigo-100/80 p-3 sm:min-h-[185px] sm:p-5 dark:border-indigo-900/40"
+    >
+      <div className="h-6 w-48 rounded bg-muted/60" />
+      <div className="mt-4 h-16 w-full rounded-lg bg-muted/40" />
+      <div className="mt-4 flex flex-wrap gap-2">
+        <div className="h-7 w-28 rounded-full bg-muted/40" />
+        <div className="h-7 w-32 rounded-full bg-muted/40" />
+        <div className="h-7 w-24 rounded-full bg-muted/40" />
+      </div>
+      <div className="mt-6 h-20 w-full rounded-lg bg-muted/30" />
+    </div>
+  )
+}
+
 export default function Home() {
   const { t } = getServerDictionary()
   return (
@@ -23,7 +41,7 @@ export default function Home() {
             {t.app.siteName} - {t.app.defaultDescription || 'Nền tảng Trí tuệ Nhân tạo Đa tính năng'}
           </h1>
           <div className="space-y-6 md:space-y-8">
-            <Suspense fallback={null}>
+            <Suspense fallback={<HomeHubChatBarSkeleton />}>
               <HomeHubChatBar />
             </Suspense>
             {NAV_GROUPS.map((group) => {

@@ -40,6 +40,17 @@ import {
   type PartnerShopGoogleTagInstall,
 } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 import { loadPartnerShopGoogleTagIdsBySlug } from '@/lib/partner-website/shop/load-partner-shop-google-tag-ids'
+import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
+import { resolveActivePartnerCustomDomainByHostPg } from '@/lib/db/messaging-partner-custom-domains-pg'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
+import {
+  loadPartnerShopLiveBrandTheme,
+  partnerShopLiveIconBust,
+} from '@/lib/partner-website/promotions/partner-sale-icon-live'
+import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
+import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
+import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
+import { partnerShopDocumentVerification } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -199,43 +210,140 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
-export const metadata: Metadata = {
-  ...buildMetadata({
-    title: "NanoAI - Sáng tạo không giới hạn cùng AI",
-    description: "Trải nghiệm phòng thử đồ ảo với AI. Thử đồ 1-5 người, phục dựng ảnh, làm nét ảnh, ghép ảnh. Nhanh chóng, chính xác.",
-    path: "/",
-    keywords: ["NanoAI", "thử đồ online", "thử đồ ảo", "AI thử đồ", "phối đồ", "phục dựng ảnh", "làm nét ảnh", "ghép ảnh"],
-  }),
-  title: {
-    default: "NanoAI - Sáng tạo không giới hạn cùng AI",
-    template: "%s | NanoAI",
-  },
-  manifest: "/manifest.webmanifest",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "default",
-    title: "NanoAI",
-  },
-  formatDetection: {
-    telephone: false,
-    email: false,
-  },
-  icons: {
-    icon: [
-      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
-      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
-    ],
-    shortcut: [{ url: "/favicon.png", type: "image/png" }],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
-  },
-  other: {
-    "mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-capable": "yes",
-    "apple-mobile-web-app-status-bar-style": "default",
-    "apple-mobile-web-app-title": "NanoAI",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const headerStore = headers()
+  const forwardedHost = headerStore.get('x-forwarded-host')?.split(',')[0]?.trim().toLowerCase()
+  const rawHost = forwardedHost || headerStore.get('host')?.split(',')[0]?.trim().toLowerCase() || ''
+  const host = rawHost.split(':')[0] ?? ''
+
+  const partnerCustomDomain = readPartnerCustomDomainFromHeaders((name) => headerStore.get(name))
+  const isCustomDomain = Boolean(partnerCustomDomain || (host && !isPlatformAppHostname(host)))
+
+  const currentPathWithQuery = readLoginNextFromHeaders((name) => headerStore.get(name))
+  const [currentPathname = ''] = currentPathWithQuery.split('?')
+  let partnerSiteSlug =
+    readPartnerSiteSlugFromHeaders((name) => headerStore.get(name)) ||
+    partnerSiteSlugFromPathname(currentPathname)
+
+  if (isCustomDomain && !partnerSiteSlug && host) {
+    const row = await resolveActivePartnerCustomDomainByHostPg(host).catch(() => null)
+    if (row?.site_slug) {
+      partnerSiteSlug = row.site_slug.trim()
+    }
+  }
+
+  const isShopSurface = isCustomDomain || currentPathname.startsWith('/site/') || Boolean(partnerSiteSlug)
+
+  if (isShopSurface && partnerSiteSlug && !isReservedMessagingGuestSlug(partnerSiteSlug)) {
+    const shop = await loadPartnerSiteShopContext(partnerSiteSlug).catch(() => null)
+    if (shop) {
+      const site = shop.site
+      const name = site.title.trim() || site.partnerDisplayName || 'Shop'
+      const live = await loadPartnerShopLiveBrandTheme({ partnerId: shop.partnerId, theme: site.theme }).catch(() => null)
+      const theme = live?.theme || site.theme
+      const icons = buildPartnerShopFaviconMetadataIcons({
+        siteSlug: site.siteSlug,
+        customDomain: isCustomDomain,
+        faviconUrl: theme.faviconUrl,
+        logoUrl: site.logoUrl,
+        iconBust: partnerShopLiveIconBust(theme, site.logoUrl),
+      })
+      const verification = partnerShopDocumentVerification({
+        googleSearchConsoleVerify: site.googleSearchConsoleVerify,
+        googleMerchantCenterVerify: site.googleMerchantCenterVerify,
+        facebookDomainVerification: site.facebookDomainVerification,
+      })
+      return {
+        title: {
+          default: name,
+          template: '%s',
+        },
+        applicationName: name,
+        manifest: partnerSitePwaManifestPath(
+          site.siteSlug,
+          isCustomDomain,
+          shopBrowserChromeColor(theme).slice(1),
+          partnerShopLiveIconBust(theme, site.logoUrl)
+        ),
+        appleWebApp: {
+          capable: true,
+          statusBarStyle: 'default',
+          title: name,
+        },
+        icons,
+        ...(verification ? { verification } : {}),
+        other: {
+          'mobile-web-app-capable': 'yes',
+          'apple-mobile-web-app-capable': 'yes',
+          'apple-mobile-web-app-title': name,
+        },
+      }
+    }
+  }
+
+  if (isCustomDomain) {
+    // Custom domain fallback: NEVER leak NanoAI branding or icons
+    return {
+      title: {
+        default: host,
+        template: '%s',
+      },
+      applicationName: host,
+      manifest: `/manifest.webmanifest`,
+      icons: {
+        icon: [
+          { url: '/favicon.ico', type: 'image/x-icon', sizes: '48x48' },
+          { url: '/favicon.png', type: 'image/png', sizes: '48x48' },
+          { url: '/pwa-icon/96', type: 'image/png', sizes: '96x96' },
+          { url: '/pwa-icon/192', type: 'image/png', sizes: '192x192' },
+          { url: '/pwa-icon/512', type: 'image/png', sizes: '512x512' },
+          { url: '/pwa-icon/32', type: 'image/png', sizes: '32x32' },
+        ],
+        shortcut: [{ url: '/favicon.ico', type: 'image/x-icon' }],
+        apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
+      },
+    }
+  }
+
+  // NanoAI platform default metadata
+  return {
+    ...buildMetadata({
+      title: "NanoAI - Sáng tạo không giới hạn cùng AI",
+      description: "Trải nghiệm phòng thử đồ ảo với AI. Thử đồ 1-5 người, phục dựng ảnh, làm nét ảnh, ghép ảnh. Nhanh chóng, chính xác.",
+      path: "/",
+      keywords: ["NanoAI", "thử đồ online", "thử đồ ảo", "AI thử đồ", "phối đồ", "phục dựng ảnh", "làm nét ảnh", "ghép ảnh"],
+    }),
+    title: {
+      default: "NanoAI - Sáng tạo không giới hạn cùng AI",
+      template: "%s | NanoAI",
+    },
+    manifest: "/manifest.webmanifest",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "default",
+      title: "NanoAI",
+    },
+    formatDetection: {
+      telephone: false,
+      email: false,
+    },
+    icons: {
+      icon: [
+        { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+        { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+        { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      ],
+      shortcut: [{ url: "/favicon.png", type: "image/png" }],
+      apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    },
+    other: {
+      "mobile-web-app-capable": "yes",
+      "apple-mobile-web-app-capable": "yes",
+      "apple-mobile-web-app-status-bar-style": "default",
+      "apple-mobile-web-app-title": "NanoAI",
+    },
+  }
+}
 
 export default async function RootLayout({
   children,

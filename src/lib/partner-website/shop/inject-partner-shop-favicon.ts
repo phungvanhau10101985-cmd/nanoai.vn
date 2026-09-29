@@ -1,8 +1,15 @@
-import { escapeAttr } from '@/lib/packaging/mockup-share-html'
-import { partnerSitePwaIconPath } from '@/lib/partner-website/shop/partner-site-pwa'
+import { partnerSitePwaIconPath } from './partner-site-pwa'
+
+function escapeAttr(value: string): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
 
 const ICON_LINK_RE =
-  /<link\b[^>]*\brel=["'](?:icon|shortcut icon|apple-touch-icon)["'][^>]*\/?>\s*/gi
+  /<link\b[^>]*\brel=["'][^"']*\b(?:icon|shortcut|apple-touch-icon)[^"']*["'][^>]*\/?>\s*/gi
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(String(value || '').trim())
@@ -46,7 +53,7 @@ export function resolvePartnerShopFaviconHref(input: {
   const slug = String(input.siteSlug || '').trim()
   if (slug) {
     return appendPartnerShopFaviconCacheToken(
-      partnerSitePwaIconPath(slug, 32, Boolean(input.customDomain)),
+      input.customDomain ? '/favicon.ico' : `/site/${encodeURIComponent(slug)}/favicon.ico`,
       token
     )
   }
@@ -64,7 +71,7 @@ export function resolvePartnerShopAppleTouchHref(input: {
   const token = cacheTokenOf(input)
   if (slug) {
     return appendPartnerShopFaviconCacheToken(
-      partnerSitePwaIconPath(slug, 180, Boolean(input.customDomain)),
+      input.customDomain ? '/apple-touch-icon.png' : `/site/${encodeURIComponent(slug)}/apple-touch-icon.png`,
       token
     )
   }
@@ -76,25 +83,60 @@ export function buildPartnerShopFaviconHeadLinks(input: {
   customDomain?: boolean
   faviconUrl?: string | null
   logoUrl?: string | null
+  iconBust?: string | null
 }): string {
-  const slug = String(input.siteSlug || '').trim()
-  const token = cacheTokenOf(input)
-  const icon32 = slug
-    ? appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(slug, 32, Boolean(input.customDomain)), token)
+  const slug = String(input.siteSlug || '').trim().toLowerCase()
+  const token = input.iconBust?.trim() || cacheTokenOf(input)
+  const iconPath = (size: 32 | 48 | 96 | 192 | 512) =>
+    slug ? appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(slug, size, Boolean(input.customDomain)), token) : ''
+  const icoPath = slug
+    ? appendPartnerShopFaviconCacheToken(
+        input.customDomain ? '/favicon.ico' : `/site/${encodeURIComponent(slug)}/favicon.ico`,
+        token
+      )
     : resolvePartnerShopFaviconHref(input)
-  const icon192 = slug
-    ? appendPartnerShopFaviconCacheToken(partnerSitePwaIconPath(slug, 192, Boolean(input.customDomain)), token)
-    : ''
-  const apple = resolvePartnerShopAppleTouchHref(input)
-  if (!icon32 && !apple) return ''
+  const pngPath = (size: 32 | 48 | 96 | 192 | 512) => {
+    if (size === 48) {
+      return appendPartnerShopFaviconCacheToken(
+        input.customDomain ? '/favicon.png' : `/site/${encodeURIComponent(slug)}/favicon.png`,
+        token
+      )
+    }
+    return iconPath(size)
+  }
+  const applePath = appendPartnerShopFaviconCacheToken(
+    input.customDomain ? '/apple-touch-icon.png' : `/site/${encodeURIComponent(slug)}/apple-touch-icon.png`,
+    token
+  )
+
+  const icon32 = pngPath(32) || icoPath
+  const icon48 = pngPath(48)
+  const icon96 = pngPath(96)
+  const icon192 = pngPath(192)
+  const icon512 = pngPath(512)
+  const apple = applePath || resolvePartnerShopAppleTouchHref({ ...input, siteSlug: slug })
+  if (!icon32 && !apple && !icoPath) return ''
+
   const lines: string[] = []
-  if (icon32) {
-    const href = escapeAttr(icon32)
-    lines.push(`<link rel="icon" type="image/png" sizes="32x32" href="${href}"/>`)
+  if (icoPath) {
+    const href = escapeAttr(icoPath)
+    lines.push(`<link rel="icon" type="image/x-icon" sizes="48x48" href="${href}"/>`)
     lines.push(`<link rel="shortcut icon" href="${href}"/>`)
+  }
+  if (icon48) {
+    lines.push(`<link rel="icon" type="image/png" sizes="48x48" href="${escapeAttr(icon48)}"/>`)
+  }
+  if (icon96) {
+    lines.push(`<link rel="icon" type="image/png" sizes="96x96" href="${escapeAttr(icon96)}"/>`)
+  }
+  if (icon32) {
+    lines.push(`<link rel="icon" type="image/png" sizes="32x32" href="${escapeAttr(icon32)}"/>`)
   }
   if (icon192) {
     lines.push(`<link rel="icon" type="image/png" sizes="192x192" href="${escapeAttr(icon192)}"/>`)
+  }
+  if (icon512) {
+    lines.push(`<link rel="icon" type="image/png" sizes="512x512" href="${escapeAttr(icon512)}"/>`)
   }
   if (apple) {
     lines.push(`<link rel="apple-touch-icon" sizes="180x180" href="${escapeAttr(apple)}"/>`)
@@ -107,27 +149,53 @@ export function buildPartnerShopFaviconMetadataIcons(input: {
   customDomain: boolean
   faviconUrl?: string | null
   logoUrl?: string | null
+  iconBust?: string | null
 }): {
   icon: Array<{ url: string; type: string; sizes: string }>
   shortcut: Array<{ url: string; type: string }>
   apple: Array<{ url: string; type: string; sizes: string }>
 } {
-  const token = cacheTokenOf(input)
-  const icon32 = appendPartnerShopFaviconCacheToken(
-    partnerSitePwaIconPath(input.siteSlug, 32, input.customDomain),
+  const token = input.iconBust?.trim() || cacheTokenOf(input)
+  const slug = input.siteSlug.trim().toLowerCase()
+  const iconPath = (size: 32 | 48 | 96 | 192 | 512) =>
+    appendPartnerShopFaviconCacheToken(
+      partnerSitePwaIconPath(slug, size, input.customDomain),
+      token
+    )
+  const icoPath = appendPartnerShopFaviconCacheToken(
+    input.customDomain ? '/favicon.ico' : `/site/${encodeURIComponent(slug)}/favicon.ico`,
     token
   )
-  const icon192 = appendPartnerShopFaviconCacheToken(
-    partnerSitePwaIconPath(input.siteSlug, 192, input.customDomain),
+  const pngPath = (size: 32 | 48 | 96 | 192 | 512) => {
+    if (size === 48) {
+      return appendPartnerShopFaviconCacheToken(
+        input.customDomain ? '/favicon.png' : `/site/${encodeURIComponent(slug)}/favicon.png`,
+        token
+      )
+    }
+    return iconPath(size)
+  }
+  const applePath = appendPartnerShopFaviconCacheToken(
+    input.customDomain ? '/apple-touch-icon.png' : `/site/${encodeURIComponent(slug)}/apple-touch-icon.png`,
     token
   )
-  const icon180 = resolvePartnerShopAppleTouchHref(input)
+
+  const icon32 = pngPath(32)
+  const icon48 = pngPath(48)
+  const icon96 = pngPath(96)
+  const icon192 = pngPath(192)
+  const icon512 = pngPath(512)
+  const icon180 = applePath || resolvePartnerShopAppleTouchHref({ ...input, siteSlug: slug })
   return {
     icon: [
-      { url: icon32, type: 'image/png', sizes: '32x32' },
+      { url: icoPath, type: 'image/x-icon', sizes: '48x48' },
+      { url: icon48, type: 'image/png', sizes: '48x48' },
+      { url: icon96, type: 'image/png', sizes: '96x96' },
       { url: icon192, type: 'image/png', sizes: '192x192' },
+      { url: icon512, type: 'image/png', sizes: '512x512' },
+      { url: icon32, type: 'image/png', sizes: '32x32' },
     ],
-    shortcut: [{ url: icon32, type: 'image/png' }],
+    shortcut: [{ url: icoPath, type: 'image/x-icon' }],
     apple: [{ url: icon180, type: 'image/png', sizes: '180x180' }],
   }
 }

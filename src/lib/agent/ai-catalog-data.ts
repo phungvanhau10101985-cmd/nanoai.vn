@@ -1,10 +1,10 @@
 export const AI_CATALOG_DATA = {
-  $schema: 'https://agentic-resource-discovery.org/schemas/v1.0/catalog.json',
   specVersion: '1.0',
   host: {
     displayName: 'NanoAI',
-    identifier: 'did:web:nanoai.vn',
+    identifier: 'nanoai.vn',
     documentationUrl: 'https://nanoai.vn/llms.txt',
+    logoUrl: 'https://nanoai.vn/icons/icon-192x192.png',
   },
   entries: [
     {
