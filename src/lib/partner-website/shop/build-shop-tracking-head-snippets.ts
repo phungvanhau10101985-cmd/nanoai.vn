@@ -1,3 +1,6 @@
+import { isPgConfigured } from '@/lib/db/pool'
+import { pgQueryOne } from '@/lib/db/pg-query'
+import { partnerSiteConsentStorageKey } from '@/lib/partner-website/shop/partner-site-consent-key'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
   partnerShopVerifyMetaTags,
@@ -92,6 +95,86 @@ export function injectShopTrackingSnippetsIntoHtml(html: string, config: Partner
   const noscript = buildShopTrackingGtmNoscript(config.gtmContainerId)
   if (noscript) out = insertAfterBodyOpen(out, noscript)
   return out
+}
+
+const GA4_ID_RE = /^G-[A-Z0-9]+$/i
+const GOOGLE_ADS_ID_RE = /^AW-[A-Z0-9]+$/i
+
+export type PartnerShopGoogleTagInstall = {
+  /** Same id `ensureGtagLoaded` uses, so React does not inject a second copy. */
+  scriptId: string
+  src: string
+  /** Parser-blocking snippet: consent default, then gtag('config'). */
+  inlineJs: string
+}
+
+function escapeJsSingleQuoted(raw: string): string {
+  return raw.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+}
+
+/**
+ * Google tag trong HTML đầu, đo ngay. `banner` = shop: chỉ tắt khi localStorage là «Từ chối».
+ * `granted` = trang tư vấn, không đọc banner.
+ */
+export function buildPartnerShopGoogleTagInstall(input: {
+  ga4MeasurementId?: string | null
+  googleAdsId?: string | null
+  siteSlug?: string | null
+  consent: 'banner' | 'granted'
+}): PartnerShopGoogleTagInstall | null {
+  const ga4 = (input.ga4MeasurementId ?? '').trim().toUpperCase()
+  const ads = (input.googleAdsId ?? '').trim().toUpperCase()
+  const ga4Ok = GA4_ID_RE.test(ga4)
+  const adsOk = GOOGLE_ADS_ID_RE.test(ads)
+  if (!ga4Ok && !adsOk) return null
+  const primary = ga4Ok ? ga4 : ads
+  const lines = [
+    'window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}',
+    "gtag('consent','default',{ad_storage:'granted',ad_user_data:'granted',ad_personalization:'granted',analytics_storage:'granted'});",
+  ]
+  if (input.consent === 'banner') {
+    const slug = (input.siteSlug ?? '').trim()
+    if (slug) {
+      const key = escapeJsSingleQuoted(partnerSiteConsentStorageKey(slug))
+      lines.push(
+        `try{var c=localStorage.getItem('${key}');if(c==='rejected'){gtag('consent','update',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied'});}}catch(e){}`
+      )
+    }
+  }
+  lines.push("gtag('js',new Date());")
+  if (ga4Ok) lines.push(`gtag('config','${ga4}',{send_page_view:false});`)
+  if (adsOk) lines.push(`gtag('config','${ads}');`)
+  return {
+    scriptId: `shop-gtag-js-${primary}`,
+    src: `https://www.googletagmanager.com/gtag/js?id=${primary}`,
+    inlineJs: lines.join('\n'),
+  }
+}
+
+export async function loadPartnerShopGoogleTagIdsBySlug(slug: string): Promise<{
+  ga4MeasurementId: string | null
+  googleAdsId: string | null
+} | null> {
+  const key = slug.trim()
+  if (!key || !/^[a-z0-9][a-z0-9-]{0,80}$/i.test(key) || !isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ ga4_measurement_id: string | null; google_ads_id: string | null }>(
+      `select nullif(trim(coalesce(ga4_measurement_id, '')), '') as ga4_measurement_id,
+              nullif(trim(coalesce(google_ads_id, '')), '') as google_ads_id
+         from public.messaging_partners
+        where slug = $1
+        limit 1`,
+      [key]
+    )
+    if (!row) return null
+    return {
+      ga4MeasurementId: row.ga4_measurement_id ? String(row.ga4_measurement_id).trim() : null,
+      googleAdsId: row.google_ads_id ? String(row.google_ads_id).trim() : null,
+    }
+  } catch (e) {
+    console.warn('[loadPartnerShopGoogleTagIdsBySlug]', e)
+    return null
+  }
 }
 
 /** Live visual HTML: verification metas + sanitized custom HTML. Pixels stay in React bootstrap (consent). */

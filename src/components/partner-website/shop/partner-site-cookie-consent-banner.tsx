@@ -7,8 +7,8 @@ import { getPartnerSiteConsent, setPartnerSiteConsent } from '@/lib/partner-webs
 
 /**
  * S0.9 — banner cookie/consent tối thiểu cho trang shop công khai. Ẩn ngay khi khách đã quyết định
- * (chấp nhận/từ chối), lưu theo từng shop (`siteSlug`). Việc chặn tải script tracking cho tới khi
- * có consent nằm ở `PartnerSiteShopTrackingBootstrap`, không phải component này.
+ * (chấp nhận/từ chối), lưu theo từng shop (`siteSlug`). Không bấm thì vẫn đo.
+ * Chỉ «Từ chối» tắt GA4 / pixel — `PartnerSiteShopTrackingBootstrap`.
  */
 export function PartnerSiteCookieConsentBanner({ siteSlug, locale }: { siteSlug: string; locale: WebLocale }) {
   const t = getPartnerSiteShopCopy(locale)

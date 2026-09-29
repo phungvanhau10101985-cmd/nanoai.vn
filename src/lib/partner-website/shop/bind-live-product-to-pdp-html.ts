@@ -706,12 +706,14 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
   }
   let thumbIndex = 0
   out = out.replace(
-    /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']thumb["'][^>]*)>([\s\S]*?)<\/\1>/gi,
-    (_full, tag: string, attrs: string, thumbInner: string) => {
+    /<([a-z0-9]+)\b((?=[^>]*(?:\bdata-pw-el=["']thumb["']|\bclass=["'][^"']*\bpw-shop-product-thumb\b))[^>]*)>([\s\S]*?)<\/\1>/gi,
+    (full, tag: string, attrs: string, thumbInner: string) => {
+      if (/\bdata-pw-pdp-video-thumb\b/.test(attrs)) return full
       const pair = pairs[thumbIndex]
       thumbIndex += 1
+      const stampedAttrs = setAttr(attrs, 'data-pw-el', PW_EL.thumb)
       if (!pair) {
-        let nextAttrs = setAttr(attrs, 'hidden', '')
+        let nextAttrs = setAttr(stampedAttrs, 'hidden', '')
         if (!/\bstyle=/.test(nextAttrs)) nextAttrs += ' style="display:none"'
         const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
           return `<img${setAttr(setAttr(imgAttrs, 'src', ''), 'alt', '')}>`
@@ -721,7 +723,7 @@ function rewriteGalleryInner(inner: string, product: LivePdpBindProduct): string
       const nextInner = thumbInner.replace(/<img\b([^>]*)>/i, (_img, imgAttrs: string) => {
         return `<img${stampPdpPageImg(imgAttrs, pair.page, pair.full, name, { lazy: true })}>`
       })
-      return `<${tag}${stripHidden(attrs)}>${nextInner}</${tag}>`
+      return `<${tag}${stripHidden(stampedAttrs)}>${nextInner}</${tag}>`
     }
   )
   if (thumbIndex < pairs.length) {

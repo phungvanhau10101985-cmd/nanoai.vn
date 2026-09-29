@@ -62,8 +62,9 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
 })
 
 test('lazy PDP detail images are not marked broken before the browser fetches them', () => {
-  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /loading'\)==='lazy'&&!imgEl\.currentSrc/)
-  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /if\(!lazyNotStarted&&imgEl\.complete/)
+  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /var isLazy=imgEl\.getAttribute\('loading'\)==='lazy'/)
+  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /if\(!isLazy&&imgEl\.complete/)
+  assert.doesNotMatch(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /lazyNotStarted/)
 })
 
 test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn + 600q90)', () => {

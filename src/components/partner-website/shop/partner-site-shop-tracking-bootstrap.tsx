@@ -46,11 +46,34 @@ function ensureGtagLoaded(tagId: string): void {
   }
   const scriptId = `shop-gtag-js-${tagId}`
   if (document.getElementById(scriptId)) return
+  if (document.querySelector('script[src*="googletagmanager.com/gtag/js"]')) return
   const script = document.createElement('script')
   script.id = scriptId
   script.async = true
   script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(tagId)}`
   document.head.appendChild(script)
+}
+
+function applyShopGoogleConsent(granted: boolean): void {
+  window.dataLayer = window.dataLayer || []
+  if (typeof window.gtag !== 'function') {
+    window.gtag = function gtag(...args: unknown[]) {
+      window.dataLayer?.push(args)
+    }
+  }
+  const state = granted ? 'granted' : 'denied'
+  window.gtag('consent', 'update', {
+    ad_storage: state,
+    ad_user_data: state,
+    ad_personalization: state,
+    analytics_storage: state,
+  })
+}
+
+function shopTrackingAllowed(siteSlug: string | null | undefined): boolean {
+  const slug = (siteSlug ?? '').trim()
+  if (!slug) return true
+  return getPartnerSiteConsent(slug) !== 'rejected'
 }
 
 function ensureGtmLoaded(containerId: string): void {
@@ -142,17 +165,14 @@ type Props = {
 }
 
 function useTrackingConsentGranted(siteSlug: string | null | undefined): boolean {
-  const [granted, setGranted] = useState(false)
+  const [granted, setGranted] = useState(true)
   useEffect(() => {
     const slug = (siteSlug ?? '').trim()
-    if (!slug) {
-      setGranted(true)
-      return
-    }
-    setGranted(getPartnerSiteConsent(slug) === 'accepted')
+    const read = () => !slug || getPartnerSiteConsent(slug) !== 'rejected'
+    setGranted(read())
     const onChange = (e: Event) => {
       const detail = (e as CustomEvent<{ siteSlug: string; choice: string }>).detail
-      if (detail?.siteSlug === slug) setGranted(detail.choice === 'accepted')
+      if (detail?.siteSlug === slug) setGranted(detail.choice !== 'rejected')
     }
     window.addEventListener(PARTNER_SITE_CONSENT_CHANGED_EVENT, onChange)
     return () => window.removeEventListener(PARTNER_SITE_CONSENT_CHANGED_EVENT, onChange)
@@ -204,7 +224,11 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
     if (currency) {
       window.__nanoShopCurrency = currency
     }
-    if (!consentGranted) return
+    if (!shopTrackingAllowed(tracking.siteSlug)) {
+      applyShopGoogleConsent(false)
+      return
+    }
+    applyShopGoogleConsent(true)
 
     applyCustomHtml(tracking.customEmbedHeadHtml || '', 'head')
     applyCustomHtml(tracking.customEmbedBodyOpenHtml || '', 'body-start')
@@ -249,7 +273,7 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
   }, [tracking, consentGranted])
 
   useEffect(() => {
-    if (!consentGranted) return
+    if (!shopTrackingAllowed(tracking.siteSlug)) return
     const onNav = () => trackPartnerSitePageView(tracking)
     window.addEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)
     return () => window.removeEventListener(PW_SHOP_SOFT_NAV_EVENT, onNav)

@@ -66,6 +66,27 @@ test('bindLiveProductToPdpHtml hides leftover thumbs when the next product has f
   assert.match(next, /data-pw-el="thumb"[^>]*hidden/)
 })
 
+test('bind stamps and rewrites legacy class-only thumbs used by the mobile swipe gallery', () => {
+  const bunny = 'https://shop.b-cdn.net/localized-images/product-vi.jpg'
+  const html = `<!DOCTYPE html><html data-pw-edit-device="mobile"><body data-pw-page="product">
+<section data-pw-region="gallery" class="pw-pdp-hero">
+  <img class="pw-pdp-hero-img" data-pw-el="main-image" src="https://old.example/main.jpg" alt="Old" />
+  <nav class="pw-pdp-hero-thumbs">
+    <button class="pw-shop-product-thumb"><img src="https://old.example/thumb.jpg" alt="" /></button>
+  </nav>
+</section>
+<div data-pw-region="pdp-info"><h1 data-pw-el="title">Old</h1></div>
+</body></html>`
+  const next = bindLiveProductToPdpHtml(html, {
+    ...PRODUCT_B,
+    imageUrl: bunny,
+    galleryImages: [bunny],
+  }, { device: 'mobile' })
+  assert.match(next, /class="pw-shop-product-thumb" data-pw-el="thumb"/)
+  assert.match(next, /data-pw-full-src="https:\/\/shop\.b-cdn\.net\/localized-images\/product-vi\.jpg"/)
+  assert.doesNotMatch(next, /old\.example\/thumb/)
+})
+
 test('bindLiveProductToPdpHtml is a no-op without a product id', () => {
   assert.equal(bindLiveProductToPdpHtml(SHELL, { id: '', name: 'X' }), SHELL)
 })

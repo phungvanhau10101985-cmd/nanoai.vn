@@ -85,12 +85,13 @@ function heroCollectItems(hero){
   var nav=hero.querySelector('.pw-pdp-hero-thumbs');
   var items=[];
   if(!nav)return items;
-  nav.querySelectorAll('[data-pw-el="thumb"],[data-pw-pdp-video-thumb]').forEach(function(btn){
+  nav.querySelectorAll('[data-pw-el="thumb"],.pw-shop-product-thumb,[data-pw-pdp-video-thumb]').forEach(function(btn){
     if(btn.hidden||btn.hasAttribute('hidden'))return;
     if(btn.hasAttribute('data-pw-pdp-video-thumb')){
       if(hero.querySelector('[data-pw-pdp-hero-video]'))items.push({kind:'video',btn:btn});
       return;
     }
+    if(!btn.hasAttribute('data-pw-el'))btn.setAttribute('data-pw-el','thumb');
     var img=btn.querySelector('img');
     var raw=(img&&(img.getAttribute('data-pw-full-src')||img.getAttribute('src')))||'';
     var page=heroSlidePage(raw);

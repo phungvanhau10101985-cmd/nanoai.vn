@@ -1,5 +1,7 @@
 'use client'
 
+import { partnerSiteConsentStorageKey } from '@/lib/partner-website/shop/partner-site-consent-key'
+
 /**
  * S0.9 (docs/PARTNER_WEBSITE_AND_LANDING_UPGRADE_188.md) — consent cookie/tracking cho trang shop
  * công khai. Lưu theo TỪNG shop (`siteSlug`) — các shop khác nhau trên cùng domain platform
@@ -11,7 +13,7 @@ export type PartnerSiteConsentChoice = 'accepted' | 'rejected'
 export const PARTNER_SITE_CONSENT_CHANGED_EVENT = 'pw-consent-changed'
 
 function storageKey(siteSlug: string): string {
-  return `pw_shop_cookie_consent:${siteSlug.trim().toLowerCase()}`
+  return partnerSiteConsentStorageKey(siteSlug)
 }
 
 export function getPartnerSiteConsent(siteSlug: string): PartnerSiteConsentChoice | null {

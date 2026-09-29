@@ -64,13 +64,13 @@ function pushEcommerceDataLayer(eventName: string, ecommerce: Record<string, unk
 }
 
 /**
- * S0.9 — chặn MỌI event (pixel/CAPI/GA4/Ads/TikTok/dataLayer) cho tới khi khách "Đồng ý" ở banner
- * cookie. Không có `siteSlug` (context cũ/chat, không có banner) = không chặn — giữ hành vi cũ.
+ * Đo ngay khi vào trang. Banner cookie không chặn. Chỉ dừng khi khách bấm «Từ chối».
+ * Không có `siteSlug` = luôn đo.
  */
 function hasTrackingConsent(config: { siteSlug?: string | null }): boolean {
   const slug = (config.siteSlug ?? '').trim()
   if (!slug) return true
-  return getPartnerSiteConsent(slug) === 'accepted'
+  return getPartnerSiteConsent(slug) !== 'rejected'
 }
 
 function contentIds(product: PartnerSiteShopTrackingProduct): string[] {

@@ -35,6 +35,11 @@ import {
   buildPartnerSiteImageSearchPageBootScript,
   PW_IMAGE_SEARCH_BOOT_SCRIPT_ID,
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
+import {
+  buildPartnerShopGoogleTagInstall,
+  loadPartnerShopGoogleTagIdsBySlug,
+  type PartnerShopGoogleTagInstall,
+} from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -115,6 +120,16 @@ function parseMetaTag(raw: string): MetaTagPayload | null {
   if (!content || (!name && !property)) return null;
 
   return { name, property, content };
+}
+
+function messagingGuestSlugFromPathname(pathname: string): string {
+  const match = String(pathname || '').match(/^\/messaging\/p\/([^/]+)/)
+  if (!match?.[1]) return ''
+  try {
+    return decodeURIComponent(match[1])
+  } catch {
+    return match[1]
+  }
 }
 
 function extractMessagingPartnerSlugFromChatUrl(chatUrl: string): string | null {
@@ -383,6 +398,23 @@ export default async function RootLayout({
     !isCustomerOwnedSurface
   const shouldRenderGlobalGoogleTags = !isCustomerOwnedSurface
   const shouldRenderNanoAiSiteTags = !isCustomerOwnedSurface
+  const shopGoogleTagSlug = isPartnerWebsitePage
+    ? partnerSiteSlug
+    : isMessagingGuestPage
+      ? messagingGuestSlugFromPathname(currentPathname)
+      : ''
+  let shopGoogleTag: PartnerShopGoogleTagInstall | null = null
+  if (shopGoogleTagSlug && !isReservedMessagingGuestSlug(shopGoogleTagSlug)) {
+    const ids = await loadPartnerShopGoogleTagIdsBySlug(shopGoogleTagSlug)
+    if (ids) {
+      shopGoogleTag = buildPartnerShopGoogleTagInstall({
+        ga4MeasurementId: ids.ga4MeasurementId,
+        googleAdsId: ids.googleAdsId,
+        siteSlug: shopGoogleTagSlug,
+        consent: isPartnerWebsitePage ? 'banner' : 'granted',
+      })
+    }
+  }
   const bunnyCdnOrigin = getBunnyPublicBase()
 
   return (
@@ -418,6 +450,12 @@ export default async function RootLayout({
                 __html: buildPartnerSiteImageSearchPageBootScript(partnerSiteSlug),
               }}
             />
+          </>
+        ) : null}
+        {shopGoogleTag ? (
+          <>
+            <script id="pw-shop-gtag" dangerouslySetInnerHTML={{ __html: shopGoogleTag.inlineJs }} />
+            <script id={shopGoogleTag.scriptId} async src={shopGoogleTag.src} />
           </>
         ) : null}
         {shouldRenderNanoAiSiteTags
