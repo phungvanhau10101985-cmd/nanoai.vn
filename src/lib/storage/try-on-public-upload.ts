@@ -176,7 +176,8 @@ async function bunnyStorageRequest(
   method: 'PUT' | 'DELETE' | 'HEAD' | 'GET',
   remotePath: string,
   body?: Uint8Array,
-  contentType?: string
+  contentType?: string,
+  options?: { range?: string; discardBody?: boolean }
 ): Promise<BunnyStorageResult> {
   const accessKey = auth.accessKey.trim()
   const send = async (host: string): Promise<BunnyStorageResult> => {
@@ -185,11 +186,16 @@ async function bunnyStorageRequest(
       headers: {
         AccessKey: accessKey,
         ...(contentType ? { 'Content-Type': contentType } : {}),
+        ...(options?.range ? { Range: options.range } : {}),
       },
       body: method === 'PUT' && body ? Buffer.from(body) : undefined,
       signal: AbortSignal.timeout(60_000),
     })
-    if (method === 'GET' && res.ok) {
+    if (method === 'GET' && (res.ok || res.status === 206)) {
+      if (options?.discardBody) {
+        await res.body?.cancel().catch(() => undefined)
+        return { status: res.status, hint: '', ok: true }
+      }
       const bytes = Buffer.from(await res.arrayBuffer())
       return { status: res.status, hint: '', ok: true, bytes }
     }
@@ -302,7 +308,10 @@ export async function uploadTryOnImagePublic(
   return uploadToBunny(path, buffer, contentType)
 }
 
-/** File có trên Storage API (AccessKey), không HEAD pull zone `*.b-cdn.net`. */
+/**
+ * File có trên Storage API (AccessKey), không HEAD pull zone `*.b-cdn.net`.
+ * Bunny Storage thường trả HEAD 404 ngay sau PUT thành công — phải xác nhận bằng GET.
+ */
 export async function bunnyStorageObjectExists(path: string, auth: BunnyStorageAuth): Promise<boolean> {
   const trimmed = path.trim()
   if (!trimmed || trimmed.includes('..')) return false
@@ -310,10 +319,12 @@ export async function bunnyStorageObjectExists(path: string, auth: BunnyStorageA
   if (!remotePath) return false
   const head = await bunnyStorageRequest(auth, 'HEAD', remotePath)
   if (head.status === 200 || head.status === 204) return true
-  if (head.status === 404) return false
-  if (head.status !== 405 && head.status !== 400 && head.status !== 501) return false
-  const got = await bunnyStorageRequest(auth, 'GET', remotePath)
-  return Boolean(got.ok && got.bytes && got.bytes.length > 0)
+  if (head.status !== 404 && head.status !== 405 && head.status !== 400 && head.status !== 501) return false
+  const got = await bunnyStorageRequest(auth, 'GET', remotePath, undefined, undefined, {
+    range: 'bytes=0-31',
+    discardBody: true,
+  })
+  return got.status === 200 || got.status === 206
 }
 
 /** Tải object đã PUT — cùng AccessKey với upload, không đi qua hostname CDN bị chặn. */

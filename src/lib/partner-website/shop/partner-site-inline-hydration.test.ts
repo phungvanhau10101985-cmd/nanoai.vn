@@ -97,6 +97,12 @@ test('root layout injects parser-blocking native navigation for custom-domain sh
   assert.match(source, /beforeinstallprompt/)
   assert.match(source, /buildPartnerShopGoogleTagInstall/)
   assert.match(source, /id="pw-shop-gtag"/)
+  assert.match(source, /buildPartnerShopMetaPixelInstall/)
+  assert.match(source, /id="pw-shop-meta-pixel"/)
+  assert.match(source, /buildPartnerShopTiktokPixelInstall/)
+  assert.match(source, /id="pw-shop-tiktok-pixel"/)
+  assert.match(source, /buildPartnerShopGtmInstall/)
+  assert.match(source, /id="pw-shop-gtm"/)
   assert.doesNotMatch(source, /strategy="beforeInteractive"/)
 })
 

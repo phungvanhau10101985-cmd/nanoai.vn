@@ -121,8 +121,10 @@ function imageUrlFromPayload(raw: Json | null): string | null {
   const gm = o.guest_media ?? o.partner_media
   if (!gm || typeof gm !== 'object' || gm === null) return null
   const m = gm as Record<string, unknown>
-  if (m.kind !== 'image' || typeof m.url !== 'string') return null
-  return m.url
+  if (m.kind !== 'image') return null
+  const storagePath = typeof m.storage_path === 'string' ? m.storage_path.trim() : ''
+  const url = typeof m.url === 'string' ? m.url.trim() : ''
+  return guestChatSameOriginImageSrc(storagePath) || guestChatSameOriginImageSrc(url) || url || null
 }
 
 function visionCandidateCardsFromPayload(raw: Json | null): VisionCandidateCard[] {
@@ -882,7 +884,7 @@ export function CustomerCareMessageBody({
   renderAiProductCarousel?: boolean
 }) {
   const url = imageUrlFromPayload(row.raw_payload)
-  const caption = row.body.replace(/^📷\s*/u, '').trim()
+  const caption = row.body.replace(/^📷\s*/u, '').replace(/^≡ƒô╖\s*/u, '').trim()
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
   const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []

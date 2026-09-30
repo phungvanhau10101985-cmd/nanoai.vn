@@ -38,6 +38,10 @@ declare global {
     __nanoShopGoogleAdsId?: string
     __nanoShopTiktokPixelId?: string
     __nanoShopCurrency?: string
+    /** Head đã bắn PageView — React bỏ đúng lần đầu, soft-nav sau vẫn bắn. */
+    __nanoShopMetaPageViewTracked?: boolean
+    __nanoShopAdsPageViewTracked?: boolean
+    __nanoShopTiktokPageTracked?: boolean
     __pwShopTrack?: (kind: PartnerSiteNativeTrackKind, payload?: PartnerSiteNativeTrackPayload) => void
     __pwShopTrackEvent?: (kind: PartnerSiteNativeTrackKind, payload?: PartnerSiteNativeTrackPayload) => void
     __pwShopTrackQueue?: Array<{ kind: PartnerSiteNativeTrackKind; payload?: PartnerSiteNativeTrackPayload }>
@@ -207,13 +211,25 @@ export function trackPartnerSitePageView(config: PartnerSiteShopTrackingConfig):
   if (ga4 && typeof window.gtag === 'function') {
     window.gtag('event', 'page_view', { send_to: ga4.toUpperCase() })
   }
-  trackGoogleAdsEvent(config.googleAdsId, 'page_view', {}, currency)
+  if (window.__nanoShopAdsPageViewTracked) {
+    window.__nanoShopAdsPageViewTracked = false
+  } else {
+    trackGoogleAdsEvent(config.googleAdsId, 'page_view', {}, currency)
+  }
   const meta = (config.facebookPixelId ?? '').trim()
-  if (meta && ensureFbqPixelInitialized(meta) && typeof window.fbq === 'function') {
-    window.fbq('track', 'PageView')
+  if (meta && typeof window.fbq === 'function') {
+    if (window.__nanoShopMetaPageViewTracked) {
+      window.__nanoShopMetaPageViewTracked = false
+    } else if (ensureFbqPixelInitialized(meta)) {
+      window.fbq('track', 'PageView')
+    }
   }
   if (typeof window.ttq?.page === 'function') {
-    window.ttq.page()
+    if (window.__nanoShopTiktokPageTracked) {
+      window.__nanoShopTiktokPageTracked = false
+    } else {
+      window.ttq.page()
+    }
   }
 }
 

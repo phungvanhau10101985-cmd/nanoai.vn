@@ -197,7 +197,7 @@ export function PartnerSiteShopTrackingBootstrap({ tracking }: Props) {
     if (googleAds) {
       window.__nanoShopGoogleAdsId = googleAds
       ensureGtagLoaded(googleAds)
-      window.gtag?.('config', googleAds)
+      window.gtag?.('config', googleAds, { send_page_view: false })
     }
 
     const meta = (tracking.facebookPixelId ?? '').trim()

@@ -37,7 +37,13 @@ import {
 } from '@/lib/partner-website/shop/partner-site-image-search-page-boot'
 import {
   buildPartnerShopGoogleTagInstall,
+  buildPartnerShopGtmInstall,
+  buildPartnerShopMetaPixelInstall,
+  buildPartnerShopTiktokPixelInstall,
   type PartnerShopGoogleTagInstall,
+  type PartnerShopGtmInstall,
+  type PartnerShopMetaPixelInstall,
+  type PartnerShopTiktokPixelInstall,
 } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 import { loadPartnerShopGoogleTagIdsBySlug } from '@/lib/partner-website/shop/load-partner-shop-google-tag-ids'
 import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-platform-host'
@@ -512,6 +518,9 @@ export default async function RootLayout({
       ? messagingGuestSlugFromPathname(currentPathname)
       : ''
   let shopGoogleTag: PartnerShopGoogleTagInstall | null = null
+  let shopMetaPixel: PartnerShopMetaPixelInstall | null = null
+  let shopTiktokPixel: PartnerShopTiktokPixelInstall | null = null
+  let shopGtm: PartnerShopGtmInstall | null = null
   if (shopGoogleTagSlug && !isReservedMessagingGuestSlug(shopGoogleTagSlug)) {
     const ids = await loadPartnerShopGoogleTagIdsBySlug(shopGoogleTagSlug)
     if (ids) {
@@ -519,6 +528,9 @@ export default async function RootLayout({
         ga4MeasurementId: ids.ga4MeasurementId,
         googleAdsId: ids.googleAdsId,
       })
+      shopMetaPixel = buildPartnerShopMetaPixelInstall(ids.facebookPixelId)
+      shopTiktokPixel = buildPartnerShopTiktokPixelInstall(ids.tiktokPixelId)
+      shopGtm = buildPartnerShopGtmInstall(ids.gtmContainerId)
     }
   }
   const bunnyCdnOrigin = getBunnyPublicBase()
@@ -567,6 +579,15 @@ export default async function RootLayout({
             <script id={shopGoogleTag.scriptId} async src={shopGoogleTag.src} />
           </>
         ) : null}
+        {shopMetaPixel ? (
+          <script id="pw-shop-meta-pixel" dangerouslySetInnerHTML={{ __html: shopMetaPixel.inlineJs }} />
+        ) : null}
+        {shopTiktokPixel ? (
+          <script id="pw-shop-tiktok-pixel" dangerouslySetInnerHTML={{ __html: shopTiktokPixel.inlineJs }} />
+        ) : null}
+        {shopGtm ? (
+          <script id="pw-shop-gtm" dangerouslySetInnerHTML={{ __html: shopGtm.inlineJs }} />
+        ) : null}
         {shouldRenderNanoAiSiteTags
           ? metaTags.map((tag, index) =>
               tag.name ? (
@@ -585,6 +606,28 @@ export default async function RootLayout({
         }
         suppressHydrationWarning
       >
+        {shopMetaPixel ? (
+          <noscript>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              height="1"
+              width="1"
+              style={{ display: 'none' }}
+              alt=""
+              src={`https://www.facebook.com/tr?id=${encodeURIComponent(shopMetaPixel.pixelId)}&ev=PageView&noscript=1`}
+            />
+          </noscript>
+        ) : null}
+        {shopGtm ? (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(shopGtm.containerId)}`}
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+            />
+          </noscript>
+        ) : null}
         {shouldRenderGlobalGoogleTags && gtmContainerId ? (
           <>
             <Script id="google-tag-manager" strategy="afterInteractive">

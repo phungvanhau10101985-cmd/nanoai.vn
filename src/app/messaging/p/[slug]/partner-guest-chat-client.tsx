@@ -7387,18 +7387,30 @@ export function PartnerGuestChatClient({
                   <div className="flex flex-wrap gap-1">
                     {imageStoragePaths.slice(0, 4).map((path, idx) => {
                       const preview = imagePreviewUrls[idx] ?? ''
+                      const storedSrc = guestChatSameOriginImageSrc(path) || ''
+                      const src =
+                        preview.startsWith('blob:') || preview.startsWith('data:')
+                          ? preview
+                          : storedSrc || guestChatSameOriginImageSrc(preview) || msgImgSrc(preview)
                       return (
-                        <div key={`${path}-${idx}`} className="relative h-12 w-12">
-                          {preview ? (
+                        <div key={`${path}-${idx}`} className="relative h-28 w-28">
+                          {src ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={msgImgSrc(preview)}
+                              src={src}
                               alt=""
-                              className="h-12 w-12 rounded-md object-cover"
-                              onError={onGuestChatShopThumbError}
+                              className="h-28 w-28 rounded-md bg-background object-contain"
+                              onError={(ev) => {
+                                const img = ev.currentTarget
+                                if (img.dataset.chatImgRetry === '1') return
+                                const current = img.getAttribute('src') || ''
+                                if (!storedSrc || storedSrc === current) return
+                                img.dataset.chatImgRetry = '1'
+                                img.src = storedSrc
+                              }}
                             />
                           ) : (
-                            <div className="h-12 w-12 rounded-md bg-muted" />
+                            <div className="h-28 w-28 rounded-md bg-muted" />
                           )}
                           <Button
                             type="button"
