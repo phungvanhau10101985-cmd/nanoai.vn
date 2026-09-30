@@ -589,6 +589,9 @@ export type Dictionary = {
     googleTagPlaceholder: string
     facebookPixelLabel: string
     facebookPixelPlaceholder: string
+    shopFacebookPixelHint: string
+    shopFacebookCapiHint: string
+    shopFacebookPixelInvalidToast: string
     /** Meta Pixel + CAPI cho trang tư vấn / link có ctx_inventory */
     metaConsultTrackingSection: string
     metaConsultTrackingHint: string
@@ -4295,6 +4298,11 @@ const VI_DICTIONARY: Dictionary = {
     googleTagPlaceholder: 'Ví dụ: G-XXXXXXXXXX hoặc GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: 'Ví dụ: 123456789012345',
+    shopFacebookPixelHint:
+      'Chỉ nhập Pixel ID (số). Dùng chung cho chuyển đổi và tiếp thị động trên web shop. Dán snippet Meta cũng được — hệ thống tự lấy số.',
+    shopFacebookCapiHint:
+      'Events Manager → Cài đặt → Conversions API. Token chỉ dùng trên máy chủ, không gắn vào HTML. Ô trống giữ token đã lưu.',
+    shopFacebookPixelInvalidToast: 'Pixel ID không hợp lệ. Nhập số Pixel (ít nhất 10 chữ số) hoặc dán snippet Meta.',
     metaConsultTrackingSection: 'Meta Pixel & Conversions API (tư vấn sản phẩm)',
     metaConsultTrackingHint:
       'Khi khách mở link tư vấn từng sản phẩm (trang /tu-van/… hoặc chat có ?ctx_inventory=), hệ thống gửi ViewContent trùng tham số trên Pixel và máy chủ (dedupe bằng event_id).',
@@ -4589,7 +4597,8 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavAnalyticsTiktokCatalog: 'TikTok Catalog',
     settingsNavAnalyticsTiktokCatalogDesc: 'Feed CSV sản phẩm để đồng bộ catalog TikTok Ads.',
     settingsNavAnalyticsAds: 'Pixel theo dõi',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads và TikTok Pixel — không phải feed catalog.',
+    settingsNavAnalyticsAdsDesc:
+      'Meta Pixel, Conversions API, Google Analytics 4, Google Ads và TikTok Pixel — không phải feed catalog.',
     settingsNavSheets: 'Google Sheet',
     settingsNavSheetsDesc: 'Đồng bộ đơn hàng từ chat lên Google Sheet của shop.',
     settingsNavAiUsage: 'Token API AI',
@@ -6102,7 +6111,7 @@ const VI_DICTIONARY: Dictionary = {
     guestTakePhoto: 'Chụp ảnh',
     guestRemoveAttachment: 'Bỏ ảnh',
     guestUploading: 'Đang tải ảnh…',
-    guestImageTooLarge: 'Ảnh quá lớn (tối đa ~10 MB).',
+    guestImageTooLarge: 'Ảnh quá lớn (tối đa ~15 MB).',
     guestImageInvalidType: 'Chỉ hỗ trợ JPG, PNG, WebP hoặc GIF.',
     guestCaptionHint: 'Có thể thêm chú thích kèm ảnh (tuỳ chọn).',
     loginPromptTitle: 'Đăng nhập để chat',
@@ -8015,6 +8024,11 @@ const EN_DICTIONARY: Dictionary = {
     googleTagPlaceholder: 'Example: G-XXXXXXXXXX or GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: 'Example: 123456789012345',
+    shopFacebookPixelHint:
+      'Enter the Pixel ID (digits only). Used for conversions and dynamic ads on the shop. Pasting a Meta snippet is fine — the ID is extracted.',
+    shopFacebookCapiHint:
+      'Events Manager → Settings → Conversions API. The token stays on the server and is never written into HTML. Leave blank to keep the saved token.',
+    shopFacebookPixelInvalidToast: 'Invalid Pixel ID. Enter at least 10 digits, or paste the Meta snippet.',
     metaConsultTrackingSection: 'Meta Pixel & Conversions API (product consult pages)',
     metaConsultTrackingHint:
       'When a guest opens a per-product consult link (/tu-van/… or chat with ?ctx_inventory=), ViewContent is sent on both Pixel and server with matching parameters (deduped via event_id).',
@@ -8306,7 +8320,8 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavAnalyticsTiktokCatalog: 'TikTok catalog',
     settingsNavAnalyticsTiktokCatalogDesc: 'CSV product feed to sync your TikTok Ads catalog.',
     settingsNavAnalyticsAds: 'Tracking pixels',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, and TikTok Pixel — not product catalog feeds.',
+    settingsNavAnalyticsAdsDesc:
+      'Meta Pixel, Conversions API, Google Analytics 4, Google Ads, and TikTok Pixel — not product catalog feeds.',
     settingsNavSheets: 'Google Sheets',
     settingsNavSheetsDesc: 'Sync chat orders to your shop Google Sheet.',
     settingsNavAiUsage: 'AI API tokens',
@@ -9822,7 +9837,7 @@ const EN_DICTIONARY: Dictionary = {
     guestTakePhoto: 'Take photo',
     guestRemoveAttachment: 'Remove photo',
     guestUploading: 'Uploading photo…',
-    guestImageTooLarge: 'Image is too large (max ~10 MB).',
+    guestImageTooLarge: 'Image is too large (max ~15 MB).',
     guestImageInvalidType: 'Only JPG, PNG, WebP, or GIF is supported.',
     guestCaptionHint: 'You can add an optional caption with the photo.',
     loginPromptTitle: 'Sign in to chat',
@@ -11732,6 +11747,11 @@ const ZH_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '例如：G-XXXXXXXXXX 或 GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '例如：123456789012345',
+    shopFacebookPixelHint:
+      '只填写 Pixel ID（数字）。用于店铺转化和动态广告。也可以粘贴 Meta 代码，系统会自动提取数字。',
+    shopFacebookCapiHint:
+      'Events Manager → 设置 → Conversions API。令牌只保存在服务器，不会写入网页。留空则保留已保存的令牌。',
+    shopFacebookPixelInvalidToast: 'Pixel ID 无效。请输入至少 10 位数字，或粘贴 Meta 代码。',
     metaConsultTrackingSection: 'Meta Pixel 与转化 API（商品咨询页）',
     metaConsultTrackingHint:
       '访客打开单商品咨询链接（/tu-van/… 或带 ?ctx_inventory= 的聊天）时，系统会在 Pixel 与服务器发送一致的 ViewContent（event_id 去重）。',
@@ -12012,7 +12032,8 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavAnalyticsTiktokCatalog: 'TikTok 目录',
     settingsNavAnalyticsTiktokCatalogDesc: 'CSV 商品 Feed，用于同步 TikTok 广告目录。',
     settingsNavAnalyticsAds: '追踪像素',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads 与 TikTok Pixel — 不是商品目录 Feed。',
+    settingsNavAnalyticsAdsDesc:
+      'Meta Pixel、转化 API、Google Analytics 4、Google Ads 与 TikTok Pixel — 不是商品目录 Feed。',
     settingsNavSheets: 'Google 表格',
     settingsNavSheetsDesc: '将聊天订单同步到店铺 Google 表格。',
     settingsNavAiUsage: 'AI API 用量',
@@ -13484,7 +13505,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestTakePhoto: '拍照',
     guestRemoveAttachment: '移除图片',
     guestUploading: '正在上传图片…',
-    guestImageTooLarge: '图片过大（最大约 10 MB）。',
+    guestImageTooLarge: '图片过大（最大约 15 MB）。',
     guestImageInvalidType: '仅支持 JPG、PNG、WebP 或 GIF。',
     guestCaptionHint: '可为图片添加说明（选填）。',
     loginPromptTitle: '登录后开始聊天',
@@ -15345,6 +15366,11 @@ const JA_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '例: G-XXXXXXXXXX または GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '例: 123456789012345',
+    shopFacebookPixelHint:
+      'Pixel ID（数字）だけ入力。ショップのコンバージョンと動的広告に使います。Meta のスニペットを貼っても番号だけ取り出します。',
+    shopFacebookCapiHint:
+      'Events Manager → 設定 → Conversions API。トークンはサーバーだけに置き、HTML には出しません。空欄なら保存済みトークンを維持します。',
+    shopFacebookPixelInvalidToast: 'Pixel ID が無効です。10桁以上の数字、または Meta のスニペットを貼ってください。',
     metaConsultTrackingSection: 'Meta Pixel と Conversions API（商品相談ページ）',
     metaConsultTrackingHint:
       'お客様が商品ごとの相談リンク（/tu-van/… または ?ctx_inventory= 付きチャット）を開くと、Pixel とサーバーに同じ ViewContent を送信します（event_id で重複排除）。',
@@ -15634,7 +15660,8 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavAnalyticsTiktokCatalog: 'TikTok カタログ',
     settingsNavAnalyticsTiktokCatalogDesc: 'TikTok 広告カタログ同期用の CSV 商品フィード。',
     settingsNavAnalyticsAds: '計測ピクセル',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4、Google Ads、TikTok Pixel — カタログフィードではありません。',
+    settingsNavAnalyticsAdsDesc:
+      'Meta Pixel、コンバージョン API、Google Analytics 4、Google Ads、TikTok Pixel — カタログフィードではありません。',
     settingsNavSheets: 'Google スプレッドシート',
     settingsNavSheetsDesc: 'チャット注文をショップの Google スプレッドシートに同期。',
     settingsNavAiUsage: 'AI API トークン',
@@ -17138,7 +17165,7 @@ const JA_DICTIONARY: Dictionary = {
     guestTakePhoto: 'カメラで撮影',
     guestRemoveAttachment: '写真を削除',
     guestUploading: 'アップロード中…',
-    guestImageTooLarge: '画像が大きすぎます（最大約 10 MB）。',
+    guestImageTooLarge: '画像が大きすぎます（最大約 15 MB）。',
     guestImageInvalidType: 'JPG / PNG / WebP / GIF のみ対応です。',
     guestCaptionHint: '写真に説明を添えられます（任意）。',
     loginPromptTitle: 'チャットするにはログイン',
@@ -19034,6 +19061,11 @@ const KO_DICTIONARY: Dictionary = {
     googleTagPlaceholder: '예: G-XXXXXXXXXX 또는 GTM-XXXXXXX',
     facebookPixelLabel: 'Facebook Pixel / Meta Pixel',
     facebookPixelPlaceholder: '예: 123456789012345',
+    shopFacebookPixelHint:
+      'Pixel ID(숫자)만 입력합니다. 쇼핑몰 전환과 동적 광고에 씁니다. Meta 스니펫을 붙여도 숫자만 추출합니다.',
+    shopFacebookCapiHint:
+      'Events Manager → 설정 → Conversions API. 토큰은 서버에만 두고 HTML에 넣지 않습니다. 비우면 저장된 토큰을 유지합니다.',
+    shopFacebookPixelInvalidToast: 'Pixel ID가 올바르지 않습니다. 숫자 10자리 이상을 입력하거나 Meta 스니펫을 붙여 넣으세요.',
     metaConsultTrackingSection: 'Meta Pixel 및 Conversions API(상품 상담 페이지)',
     metaConsultTrackingHint:
       '고객이 상품별 상담 링크(/tu-van/… 또는 ?ctx_inventory= 채팅)를 열면 Pixel과 서버에 동일한 ViewContent를 보냅니다(event_id로 중복 제거).',
@@ -19322,7 +19354,8 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavAnalyticsTiktokCatalog: 'TikTok 카탈로그',
     settingsNavAnalyticsTiktokCatalogDesc: 'TikTok 광고 카탈로그 동기화용 CSV 상품 피드.',
     settingsNavAnalyticsAds: '추적 픽셀',
-    settingsNavAnalyticsAdsDesc: 'Google Analytics 4, Google Ads, TikTok Pixel — 카탈로그 피드가 아닙니다.',
+    settingsNavAnalyticsAdsDesc:
+      'Meta Pixel, Conversions API, Google Analytics 4, Google Ads, TikTok Pixel — 카탈로그 피드가 아닙니다.',
     settingsNavSheets: 'Google 시트',
     settingsNavSheetsDesc: '채팅 주문을 매장 Google 시트에 동기화합니다.',
     settingsNavAiUsage: 'AI API 토큰',
@@ -20822,7 +20855,7 @@ const KO_DICTIONARY: Dictionary = {
     guestTakePhoto: '카메라로 촬영',
     guestRemoveAttachment: '사진 제거',
     guestUploading: '사진 업로드 중…',
-    guestImageTooLarge: '이미지가 너무 큽니다(최대 약 10 MB).',
+    guestImageTooLarge: '이미지가 너무 큽니다(최대 약 15 MB).',
     guestImageInvalidType: 'JPG, PNG, WebP, GIF만 지원합니다.',
     guestCaptionHint: '사진에 설명을 덧붙일 수 있습니다(선택).',
     loginPromptTitle: '채팅하려면 로그인',

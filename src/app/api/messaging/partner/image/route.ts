@@ -3,7 +3,7 @@ import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolvePartnerDashboardAccessFromPg } from '@/lib/messaging/partner-dashboard-access'
 import { partnerStaffHasPerm } from '@/lib/messaging/partner-staff-permissions'
-import { isAllowedGuestImageMime, uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
+import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -49,13 +49,8 @@ export async function POST(request: NextRequest) {
   if (!file || !(file instanceof File) || file.size <= 0) {
     return NextResponse.json({ error: 'Missing file.' }, { status: 400 })
   }
-  const mime = file.type
-  if (!isAllowedGuestImageMime(mime)) {
-    return NextResponse.json({ error: 'Unsupported image type.' }, { status: 400 })
-  }
-
   const buffer = Buffer.from(await file.arrayBuffer())
-  const up = await uploadPartnerChatImageBuffer(partnerId, buffer, mime)
+  const up = await uploadPartnerChatImageBuffer(partnerId, buffer, file.type || '', file.name || '')
   if ('error' in up) {
     return NextResponse.json({ error: up.error }, { status: 400 })
   }

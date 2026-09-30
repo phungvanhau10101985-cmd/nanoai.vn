@@ -4,7 +4,8 @@ import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
 import { tryOnObjectExistsByPath } from '@/lib/storage/try-on-public-upload'
 import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 
-export const GUEST_CHAT_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+/** Cùng trần admin Bunny 188 (`_BUNNY_UPLOAD_MAX_BYTES`). */
+export const GUEST_CHAT_IMAGE_MAX_BYTES = 15 * 1024 * 1024
 
 export const GUEST_CHAT_IMAGE_BUCKET = 'try-on-images'
 
@@ -15,12 +16,20 @@ const MIME_TO_EXT = new Map<string, string>([
   ['image/gif', 'gif'],
 ])
 
+export function canonicalGuestImageMime(mime: string): string {
+  const t = mime.split(';')[0].trim().toLowerCase()
+  if (t === 'image/jpg' || t === 'image/pjpeg' || t === 'image/x-citrix-jpeg') return 'image/jpeg'
+  if (t === 'image/x-png') return 'image/png'
+  if (t === 'image/heic-sequence' || t === 'image/heif-sequence') return 'image/heic'
+  return t
+}
+
 export function guestImageMimeToExt(mime: string): string | null {
-  return MIME_TO_EXT.get(mime) ?? null
+  return MIME_TO_EXT.get(canonicalGuestImageMime(mime)) ?? null
 }
 
 export function isAllowedGuestImageMime(mime: string): boolean {
-  return MIME_TO_EXT.has(mime)
+  return MIME_TO_EXT.has(canonicalGuestImageMime(mime))
 }
 
 export function buildGuestMessagingStoragePath(partnerId: string, ext: string): string {
@@ -62,19 +71,73 @@ export async function guestImageObjectExists(path: string): Promise<boolean> {
   return tryOnObjectExistsByPath(path)
 }
 
+const HEIF_FTYP_BRANDS = new Set(['heic', 'heix', 'hevc', 'hevx', 'mif1', 'msf1', 'heim', 'heis'])
+
+function bufferLooksLikeHeif(buf: Buffer): boolean {
+  if (buf.length < 12) return false
+  if (buf.toString('ascii', 4, 8) !== 'ftyp') return false
+  return HEIF_FTYP_BRANDS.has(buf.toString('ascii', 8, 12).toLowerCase())
+}
+
+function mimeFromImageFilename(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? ''
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+  if (ext === 'png') return 'image/png'
+  if (ext === 'gif') return 'image/gif'
+  if (ext === 'webp') return 'image/webp'
+  if (ext === 'heic' || ext === 'heif') return 'image/heic'
+  return ''
+}
+
+/** WebP / HEIC (ảnh điện thoại) → JPEG trước khi PUT Bunny, cùng hướng admin 188. JPEG/PNG/GIF giữ nguyên byte. */
+async function rasterBytesToJpeg(imageBytes: Buffer): Promise<Buffer | null> {
+  try {
+    const sharp = (await import('sharp')).default
+    return await sharp(imageBytes, { failOn: 'none' }).rotate().jpeg({ quality: 90 }).toBuffer()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Chuẩn hóa từng ảnh khách gửi shop trước khi lên Bunny.
+ * MIME trình duyệt mobile thường trống hoặc `image/heic` — tin magic byte, không tin `file.type`.
+ */
+export async function prepareGuestChatImageForBunny(
+  buffer: Buffer,
+  declaredMime: string,
+  filename = ''
+): Promise<{ buffer: Buffer; mime: string } | { error: string }> {
+  if (buffer.length > GUEST_CHAT_IMAGE_MAX_BYTES) return { error: 'Image too large.' }
+  if (buffer.length < 32) return { error: 'Invalid image.' }
+  const sniffed = sniffImageMimeFromMagic(buffer)
+  const declared = canonicalGuestImageMime(declaredMime) || mimeFromImageFilename(filename)
+  const heif = !sniffed && (bufferLooksLikeHeif(buffer) || declared === 'image/heic' || declared === 'image/heif')
+  if (heif || sniffed === 'image/webp') {
+    const jpeg = await rasterBytesToJpeg(buffer)
+    if (!jpeg || jpeg.length < 32 || jpeg.length > GUEST_CHAT_IMAGE_MAX_BYTES) {
+      return { error: 'Unsupported image type.' }
+    }
+    return { buffer: jpeg, mime: 'image/jpeg' }
+  }
+  const mime = sniffed || (isAllowedGuestImageMime(declared) ? declared : '')
+  if (!mime || !isAllowedGuestImageMime(mime)) return { error: 'Unsupported image type.' }
+  return { buffer, mime }
+}
+
 export async function uploadGuestChatImageBuffer(
   partnerId: string,
   buffer: Buffer,
-  mime: string
+  mime: string,
+  filename = ''
 ): Promise<{ path: string; publicUrl: string } | { error: string }> {
-  const ext = guestImageMimeToExt(mime)
+  const prepared = await prepareGuestChatImageForBunny(buffer, mime, filename)
+  if ('error' in prepared) return prepared
+  const ext = guestImageMimeToExt(prepared.mime)
   if (!ext) return { error: 'Unsupported image type.' }
-  if (buffer.length > GUEST_CHAT_IMAGE_MAX_BYTES) {
-    return { error: 'Image too large.' }
-  }
   const path = buildGuestMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, buffer, mime)
+    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, prepared.buffer, prepared.mime)
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }
@@ -220,16 +283,16 @@ export async function durablePartnerChatIconLogoUrl(partnerId: string, url: stri
 export async function uploadPartnerChatImageBuffer(
   partnerId: string,
   buffer: Buffer,
-  mime: string
+  mime: string,
+  filename = ''
 ): Promise<{ path: string; publicUrl: string } | { error: string }> {
-  const ext = guestImageMimeToExt(mime)
+  const prepared = await prepareGuestChatImageForBunny(buffer, mime, filename)
+  if ('error' in prepared) return prepared
+  const ext = guestImageMimeToExt(prepared.mime)
   if (!ext) return { error: 'Unsupported image type.' }
-  if (buffer.length > GUEST_CHAT_IMAGE_MAX_BYTES) {
-    return { error: 'Image too large.' }
-  }
   const path = buildPartnerMessagingStoragePath(partnerId, ext)
   try {
-    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, buffer, mime)
+    const { publicUrl } = await uploadPartnerBunnyObject(partnerId, path, prepared.buffer, prepared.mime)
     return { path, publicUrl }
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Upload failed.' }

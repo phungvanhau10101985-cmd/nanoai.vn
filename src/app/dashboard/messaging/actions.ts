@@ -37,6 +37,7 @@ import {
 import { dispatchPartnerOutboundWebhook } from '@/lib/messaging/partner-outbound-webhook-dispatch'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
+import { extractFacebookPixelId } from '@/lib/tracking/extract-facebook-pixel-id'
 import { PARTNER_OUTBOUND_WEBHOOK_EVENTS } from '@/lib/messaging/partner-outbound-webhook-types'
 import {
   deletePartnerCustomDomainPg,
@@ -613,7 +614,9 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
   const step = await requireAccountStepUp(user.id)
   if ('error' in step) return { error: step.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
-  const pixel = input.pixelId.trim()
+  const pixelRaw = input.pixelId.trim()
+  const pixel = pixelRaw ? extractFacebookPixelId(pixelRaw) : null
+  if (pixelRaw && !pixel) return { error: 'INVALID_FACEBOOK_PIXEL_ID' }
   const capiTok = input.capiToken.trim()
   const updateCapi = capiTok.length > 0
   const ok = await updateMessagingPartnerFacebookMetaForOwnerFromPg({
@@ -623,10 +626,10 @@ export async function savePartnerMessagingFacebookMeta(partnerId: string, input:
     update_capi_token: updateCapi,
     facebook_capi_access_token: updateCapi ? capiTok : null,
   })
-  if (!ok) return { error: 'Kh├┤ng l╞░u ─æ╞░ß╗úc Pixel / Conversions API.' }
+  if (!ok) return { error: 'Không lưu được Pixel / Conversions API.' }
   await bumpPartnerShopSiteCacheAfterTrackingSave(partnerId)
   revalidateMessagingDashboard()
-  return { ok: true as const }
+  return { ok: true as const, pixelId: pixel }
 }
 
 export async function savePartnerMessagingGa4(partnerId: string, measurementId: string) {

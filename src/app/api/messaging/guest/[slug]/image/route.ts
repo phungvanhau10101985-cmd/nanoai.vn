@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import {
-  isAllowedGuestImageMime,
   uploadGuestChatImageBuffer,
 } from '@/lib/messaging/guest-chat-image'
 import {
@@ -39,11 +38,6 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   if (!file || !(file instanceof File) || file.size <= 0) {
     return NextResponse.json({ error: 'Missing file.' }, { status: 400 })
   }
-  const mime = file.type
-  if (!isAllowedGuestImageMime(mime)) {
-    return NextResponse.json({ error: 'Unsupported image type.' }, { status: 400 })
-  }
-
   const r = await resolvePartner(slug)
   if ('error' in r) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -51,7 +45,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const { partnerId } = r
 
   const buffer = Buffer.from(await file.arrayBuffer())
-  const up = await uploadGuestChatImageBuffer(partnerId, buffer, mime)
+  const up = await uploadGuestChatImageBuffer(partnerId, buffer, file.type || '', file.name || '')
   if ('error' in up) {
     return NextResponse.json({ error: up.error }, { status: 400 })
   }

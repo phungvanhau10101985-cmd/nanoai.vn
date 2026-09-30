@@ -1823,9 +1823,14 @@ export function PartnerMessagingSettingsClient({
       )
       if ('error' in res && res.error) {
         if (isStepUpRequiredError(res)) return
+        if (res.error === 'INVALID_FACEBOOK_PIXEL_ID') {
+          toast({ title: t.shopFacebookPixelInvalidToast, variant: 'destructive' })
+          return
+        }
         toast({ title: res.error, variant: 'destructive' })
         return
       }
+      if ('pixelId' in res) setMetaPixelId(res.pixelId ?? '')
       setMetaCapiToken('')
       const snap = await getPartnerMessagingFacebookMeta(selectedPartnerId)
       if ('capiConfigured' in snap) setMetaCapiConfigured(Boolean(snap.capiConfigured))
@@ -3371,53 +3376,6 @@ export function PartnerMessagingSettingsClient({
             <p className="text-[11px] text-muted-foreground leading-relaxed">{t.catalogFeedsPageHint}</p>
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; CAPI</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 px-4 pb-4 pt-0">
-                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
-                <div className="space-y-2">
-                  <Label className="text-xs font-medium">{t.facebookPixelLabel}</Label>
-                  <Input
-                    className="h-9 text-sm"
-                    value={metaPixelId}
-                    onChange={(e) => setMetaPixelId(e.target.value)}
-                    placeholder={t.facebookPixelPlaceholder}
-                    inputMode="numeric"
-                    autoComplete="off"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Label className="text-xs font-medium">{t.metaConsultCapiTokenLabel}</Label>
-                    {metaCapiConfigured ? (
-                      <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-100">
-                        {t.metaConsultCapiConfiguredBadge}
-                      </span>
-                    ) : null}
-                  </div>
-                  <Input
-                    className="h-9 text-sm"
-                    value={metaCapiToken}
-                    onChange={(e) => setMetaCapiToken(e.target.value)}
-                    placeholder={t.metaConsultCapiTokenPlaceholder}
-                    type="password"
-                    autoComplete="new-password"
-                  />
-                  <p className="text-[11px] text-muted-foreground">
-                    {metaCapiConfigured ? t.metaConsultCapiSavedHint : t.credentialsKeepHint}
-                  </p>
-                </div>
-                </SettingsDataRoleBox>
-                {!isOwnerSelected ? (
-                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
-                ) : null}
-                <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
-                  {t.metaConsultSaveButton}
-                </Button>
-              </CardContent>
-            </Card>
-            <Card className="border-border/70 shadow-sm">
-              <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">{t.facebookCatalogFeedTitle}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 pt-0">
@@ -3492,6 +3450,54 @@ export function PartnerMessagingSettingsClient({
             title={t.settingsNavAnalyticsAds}
             description={t.settingsNavAnalyticsAdsDesc}
           >
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Meta Pixel &amp; Conversions API</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 pt-0">
+                <SettingsDataRoleBox role="inbound" copy={roleCopy}>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.facebookPixelLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={metaPixelId}
+                    onChange={(e) => setMetaPixelId(e.target.value)}
+                    placeholder={t.facebookPixelPlaceholder}
+                    autoComplete="off"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopFacebookPixelHint}</p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs font-medium">{t.metaConsultCapiTokenLabel}</Label>
+                    {metaCapiConfigured ? (
+                      <span className="rounded-full border border-emerald-500/35 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-900 dark:text-emerald-100">
+                        {t.metaConsultCapiConfiguredBadge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <Input
+                    className="h-9 text-sm"
+                    value={metaCapiToken}
+                    onChange={(e) => setMetaCapiToken(e.target.value)}
+                    placeholder={t.metaConsultCapiTokenPlaceholder}
+                    type="password"
+                    autoComplete="new-password"
+                  />
+                  <p className="text-[11px] text-muted-foreground">{t.shopFacebookCapiHint}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {metaCapiConfigured ? t.metaConsultCapiSavedHint : t.credentialsKeepHint}
+                  </p>
+                </div>
+                </SettingsDataRoleBox>
+                {!isOwnerSelected ? (
+                  <p className="text-[11px] text-muted-foreground">{t.integrationsAnalyticsOwnerOnly}</p>
+                ) : null}
+                <Button type="button" size="sm" onClick={saveMetaConsult} disabled={pending || !selectedPartnerId || !isOwnerSelected}>
+                  {t.metaConsultSaveButton}
+                </Button>
+              </CardContent>
+            </Card>
             <Card className="border-border/70 shadow-sm">
               <CardHeader className="px-4 py-3 pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Google Analytics 4</CardTitle>

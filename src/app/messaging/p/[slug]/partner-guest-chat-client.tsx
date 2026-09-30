@@ -155,6 +155,10 @@ import {
 } from '@/lib/messaging/guest-purchase-flow'
 import { inboundTextLooksLikePurchasePickListIntent } from '@/lib/messaging/partner-ai-purchase-intent'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
+import {
+  browserCanPreviewChatImage,
+  guestChatSameOriginImageSrc,
+} from '@/lib/messaging/guest-chat-image-src'
 import { nextShopImageRetrySrc, shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { PARTNER_SITE_CUSTOMER_TOKEN_QUERY_KEY } from '@/lib/messaging/partner-site-customer-auth-constants'
 
@@ -175,8 +179,15 @@ function guestChatShopThumbSrc(url: string): string {
 function onGuestChatShopThumbError(ev: { currentTarget: HTMLImageElement }) {
   const img = ev.currentTarget
   if (img.getAttribute('data-pw-img-retry') === '1') return
-  const retry = nextShopImageRetrySrc(img.currentSrc || img.getAttribute('src') || '')
-  if (!retry || retry === (img.getAttribute('src') || '')) return
+  const current = img.currentSrc || img.getAttribute('src') || ''
+  const same = guestChatSameOriginImageSrc(current)
+  if (same && same !== current) {
+    img.setAttribute('data-pw-img-retry', '1')
+    img.src = same
+    return
+  }
+  const retry = nextShopImageRetrySrc(current)
+  if (!retry || retry === current) return
   img.setAttribute('data-pw-img-retry', '1')
   img.src = retry
 }
@@ -985,7 +996,72 @@ function tryOnUserPortraitStorageKey(partnerSlug: string): string {
 const MESSAGING_AUTH_SYNC_EVENT_KEY = 'nanoai_messaging_auth_sync'
 const FALLBACK_SHOP_TYPING_WAIT_MS = 75_000
 const ORDER_PROFILE_STORAGE_PREFIX = 'nanoai_order_profile_v1'
-const GUEST_IMAGE_MAX_BYTES = 10 * 1024 * 1024
+const GUEST_IMAGE_MAX_BYTES = 15 * 1024 * 1024
+const GUEST_CHAT_IMAGE_ACCEPT = 'image/*,.heic,.heif,.jpg,.jpeg,.png,.webp,.gif'
+
+function revokeGuestChatBlobUrl(url: string) {
+  if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+}
+
+/** Ảnh thư viện iOS thường là HEIC hoặc `file.type` rỗng. Vẽ lại JPEG trước khi PUT Bunny. */
+async function normalizeMobileChatImageFile(file: File): Promise<File | null> {
+  const type = (file.type || '').split(';')[0].trim().toLowerCase()
+  const name = file.name || 'photo.jpg'
+  const extOk = /\.(jpe?g|png|gif|webp|heic|heif)$/i.test(name)
+  if (type && !type.startsWith('image/') && !extOk) return null
+  const passthrough =
+    type === 'image/jpeg' ||
+    type === 'image/jpg' ||
+    type === 'image/png' ||
+    type === 'image/gif' ||
+    type === 'image/webp'
+  if (passthrough && type !== 'image/jpg') return file
+  if (type === 'image/jpg') return new File([file], name.replace(/\.jpe?g$/i, '') + '.jpg', { type: 'image/jpeg' })
+  const draw = async (source: CanvasImageSource, width: number, height: number) => {
+    const maxEdge = 2560
+    const scale = Math.min(1, maxEdge / Math.max(width, height, 1))
+    const w = Math.max(1, Math.round(width * scale))
+    const h = Math.max(1, Math.round(height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    ctx.drawImage(source, 0, 0, w, h)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9))
+    if (!blob || blob.size < 32) return null
+    const stem = name.replace(/\.[^.]+$/, '') || 'photo'
+    return new File([blob], `${stem}.jpg`, { type: 'image/jpeg' })
+  }
+  try {
+    if (typeof createImageBitmap === 'function') {
+      const bmp = await createImageBitmap(file)
+      try {
+        return await draw(bmp, bmp.width, bmp.height)
+      } finally {
+        bmp.close()
+      }
+    }
+  } catch {
+    /* HEIC trên một số WebView không qua createImageBitmap — thử thẻ img. */
+  }
+  try {
+    const url = URL.createObjectURL(file)
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new window.Image()
+        el.onload = () => resolve(el)
+        el.onerror = () => reject(new Error('decode'))
+        el.src = url
+      })
+      return await draw(img, img.naturalWidth, img.naturalHeight)
+    } finally {
+      URL.revokeObjectURL(url)
+    }
+  } catch {
+    return extOk || type.startsWith('image/') ? file : null
+  }
+}
 
 /** Tổng số cái từ các dòng màu (mỗi dòng tối đa 99), tổng tối đa 99 theo DB đơn. */
 function sumPaletteLineUnits(imgs: string[], qtyByImg: Record<string, string>): number {
@@ -1832,6 +1908,7 @@ export function PartnerGuestChatClient({
   const [tryOnUserPreviewUrl, setTryOnUserPreviewUrl] = useState<string | null>(null)
   const [imageStoragePaths, setImageStoragePaths] = useState<string[]>([])
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([])
+  const imagePreviewUrlsRef = useRef<string[]>([])
   const [visionPickBusyId, setVisionPickBusyId] = useState<string | null>(null)
   /** Thẻ vision 3 nút: mỗi nút một khóa (`messageId\u001finventoryId::detail|buy|consult`). */
   const [visionButtonTappedKeys, setVisionButtonTappedKeys] = useState(() => new Set<string>())
@@ -3134,7 +3211,12 @@ export function PartnerGuestChatClient({
     })
   }
 
+  useEffect(() => {
+    imagePreviewUrlsRef.current = imagePreviewUrls
+  }, [imagePreviewUrls])
+
   const clearAttachment = useCallback(() => {
+    for (const url of imagePreviewUrlsRef.current) revokeGuestChatBlobUrl(url)
     setImageStoragePaths([])
     setImagePreviewUrls([])
     setTryOnResultInComposer(false)
@@ -3146,7 +3228,11 @@ export function PartnerGuestChatClient({
 
   const removeAttachmentAt = useCallback((index: number) => {
     setImageStoragePaths((prev) => prev.filter((_, i) => i !== index))
-    setImagePreviewUrls((prev) => prev.filter((_, i) => i !== index))
+    setImagePreviewUrls((prev) => {
+      const url = prev[index]
+      if (url) revokeGuestChatBlobUrl(url)
+      return prev.filter((_, i) => i !== index)
+    })
     if (index === 0) {
       setTryOnResultInComposer(false)
       setTryOnComposerLargeOpen(false)
@@ -4494,17 +4580,20 @@ export function PartnerGuestChatClient({
   }
 
   /** Upload ảnh lên storage guest — dùng cho đính kèm chat và cho luồng biên lai riêng. */
-  const uploadGuestImageToStorage = async (file: File): Promise<{ path: string; publicUrl?: string } | null> => {
-    if (!file.type.startsWith('image/')) {
+  const uploadGuestImageToStorage = async (
+    file: File
+  ): Promise<{ path: string; publicUrl?: string; previewFile: File } | null> => {
+    const normalized = await normalizeMobileChatImageFile(file)
+    if (!normalized) {
       toast({ title: t.guestImageInvalidType, variant: 'destructive' })
       return null
     }
-    if (file.size > GUEST_IMAGE_MAX_BYTES) {
+    if (normalized.size > GUEST_IMAGE_MAX_BYTES) {
       toast({ title: t.guestImageTooLarge, variant: 'destructive' })
       return null
     }
     const fd = new FormData()
-    fd.set('file', file)
+    fd.set('file', normalized)
     const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/image`, {
       method: 'POST',
       body: fd,
@@ -4530,7 +4619,7 @@ export function PartnerGuestChatClient({
       else toast({ title: msg, variant: 'destructive' })
       return null
     }
-    return { path: data.path, publicUrl: data.publicUrl }
+    return { path: data.path, publicUrl: data.publicUrl, previewFile: normalized }
   }
 
   const pickAndVerifyPaymentProof = (orderId: string) => {
@@ -4595,6 +4684,9 @@ export function PartnerGuestChatClient({
     const maxImagesPerMessage = 4
     setUploading(true)
     try {
+      if (options?.replace) {
+        for (const url of imagePreviewUrlsRef.current) revokeGuestChatBlobUrl(url)
+      }
       const nextPaths = options?.replace ? [] : [...imageStoragePaths]
       const nextPreviews = options?.replace ? [] : [...imagePreviewUrls]
       for (const file of picked) {
@@ -4602,7 +4694,11 @@ export function PartnerGuestChatClient({
         const data = await uploadGuestImageToStorage(file)
         if (!data) continue
         nextPaths.push(data.path)
-        nextPreviews.push(data.publicUrl ?? '')
+        nextPreviews.push(
+          browserCanPreviewChatImage(data.previewFile)
+            ? URL.createObjectURL(data.previewFile)
+            : guestChatSameOriginImageSrc(data.publicUrl || data.path) || ''
+        )
       }
       if (nextPaths.length < 1) {
         clearAttachment()
@@ -4622,11 +4718,13 @@ export function PartnerGuestChatClient({
 
   const onPickGallery = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []).slice(0, 4)
+    e.target.value = ''
     if (files.length > 0) void uploadFiles(files)
   }
 
   const onPickCamera = (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
+    e.target.value = ''
     if (f) void uploadFiles([f])
   }
 
@@ -7163,6 +7261,26 @@ export function PartnerGuestChatClient({
           ) : null}
           </div>
 
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept={GUEST_CHAT_IMAGE_ACCEPT}
+              multiple
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
+              onChange={onPickGallery}
+            />
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept={GUEST_CHAT_IMAGE_ACCEPT}
+              capture="environment"
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none fixed left-0 top-0 h-px w-px opacity-0"
+              onChange={onPickCamera}
+            />
             <div
               className={`space-y-2 border-t border-border bg-background px-2 pt-2 sm:px-3 ${
                 guestChatNarrowLayout
@@ -7173,6 +7291,7 @@ export function PartnerGuestChatClient({
                 /**
                  * WebView/Facebook in-app có máy không co layout khi bàn phím mở:
                  * dịch toàn bộ composer lên trên bàn phím để ô nhập không bị che.
+                 * Ô chọn file nằm ngoài transform — iOS không mở thư viện nếu input nằm trong transform.
                  */
                 transform:
                   guestChatShouldTranslateComposer
@@ -7193,22 +7312,6 @@ export function PartnerGuestChatClient({
                 {t.birthdayPromoComposerHint.replace('{percent}', String(birthdayPromoDiscountPct))}
               </div>
             ) : null}
-            <input
-              ref={galleryInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              multiple
-              className="hidden"
-              onChange={onPickGallery}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={onPickCamera}
-            />
 
             {pendingUrlPageContextChip && hasWidgetPageContextSeed(pendingUrlPageContextChip) ? (
               <div className="relative w-full max-w-full rounded-xl border border-violet-200/80 bg-violet-50/90 shadow-sm dark:border-violet-800/60 dark:bg-violet-950/40">
@@ -7288,7 +7391,12 @@ export function PartnerGuestChatClient({
                         <div key={`${path}-${idx}`} className="relative h-12 w-12">
                           {preview ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={msgImgSrc(preview)} alt="" className="h-12 w-12 rounded-md object-cover" />
+                            <img
+                              src={msgImgSrc(preview)}
+                              alt=""
+                              className="h-12 w-12 rounded-md object-cover"
+                              onError={onGuestChatShopThumbError}
+                            />
                           ) : (
                             <div className="h-12 w-12 rounded-md bg-muted" />
                           )}

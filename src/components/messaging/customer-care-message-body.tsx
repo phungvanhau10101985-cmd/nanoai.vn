@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Copy, Loader2, Play } from 'lucide-react'
 import type { Json } from '@/types/database.types'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,8 @@ import {
 } from '@/lib/messaging/shop-payment-reference'
 import { MessageTextWithLinks } from '@/components/messaging/message-text-with-links'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
+import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
+import { nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 
 /** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
@@ -86,6 +88,31 @@ function formatVndPrice(priceHint: string | undefined): string | null {
   const n = Number.parseInt(digits, 10)
   if (!Number.isFinite(n)) return raw
   return `${new Intl.NumberFormat('vi-VN').format(n)}đ`
+}
+
+function ChatPayloadImage({ src, className }: { src: string; className: string }) {
+  const [current, setCurrent] = useState(src)
+  useEffect(() => {
+    setCurrent(src)
+  }, [src])
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={current}
+      alt=""
+      className={className}
+      loading="lazy"
+      onError={() => {
+        const same = guestChatSameOriginImageSrc(current) || guestChatSameOriginImageSrc(src)
+        if (same && same !== current) {
+          setCurrent(same)
+          return
+        }
+        const retry = nextShopImageRetrySrc(current)
+        if (retry && retry !== current) setCurrent(retry)
+      }}
+    />
+  )
 }
 
 function imageUrlFromPayload(raw: Json | null): string | null {
@@ -869,7 +896,9 @@ export function CustomerCareMessageBody({
       : visionCards.map((c) => ({ ...c, product_url: c.product_url ?? '' }))
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [videoLightboxSrc, setVideoLightboxSrc] = useState<string | null>(null)
-  const displayUrl = url ? resolveExternalImageDisplayUrl(url) : null
+  const displayUrl = url
+    ? guestChatSameOriginImageSrc(url) || resolveExternalImageDisplayUrl(url)
+    : null
 
   return (
     <div
@@ -879,15 +908,15 @@ export function CustomerCareMessageBody({
         <button
           type="button"
           className="block max-w-sm cursor-zoom-in text-left"
-          onClick={() => setLightboxSrc(displayUrl)}
+          onClick={(e) => {
+            const img = e.currentTarget.querySelector('img')
+            setLightboxSrc(img?.currentSrc || displayUrl)
+          }}
           aria-label="Xem ảnh lớn"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <ChatPayloadImage
             src={displayUrl}
-            alt=""
             className={`max-h-52 w-full rounded-lg border object-contain ${onViolet ? 'border-white/25 bg-white/10' : 'border-border/60 bg-muted/30'}`}
-            loading="lazy"
           />
         </button>
       ) : null}

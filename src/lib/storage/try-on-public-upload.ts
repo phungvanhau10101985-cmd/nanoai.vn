@@ -169,11 +169,11 @@ function preferredStorageHost(auth: BunnyStorageAuth): string {
   return resolvedHostByZone.get(auth.zone) || normalizeBunnyStorageHost(auth.storageHost)
 }
 
-type BunnyStorageResult = { status: number; hint: string; ok: boolean }
+type BunnyStorageResult = { status: number; hint: string; ok: boolean; bytes?: Buffer }
 
 async function bunnyStorageRequest(
   auth: BunnyStorageAuth,
-  method: 'PUT' | 'DELETE',
+  method: 'PUT' | 'DELETE' | 'HEAD' | 'GET',
   remotePath: string,
   body?: Uint8Array,
   contentType?: string
@@ -186,9 +186,13 @@ async function bunnyStorageRequest(
         AccessKey: accessKey,
         ...(contentType ? { 'Content-Type': contentType } : {}),
       },
-      body: body ? Buffer.from(body) : undefined,
+      body: method === 'PUT' && body ? Buffer.from(body) : undefined,
       signal: AbortSignal.timeout(60_000),
     })
+    if (method === 'GET' && res.ok) {
+      const bytes = Buffer.from(await res.arrayBuffer())
+      return { status: res.status, hint: '', ok: true, bytes }
+    }
     const hint = res.ok || res.status === 404 ? '' : (await res.text().catch(() => '')).slice(0, 300)
     return { status: res.status, hint, ok: res.ok }
   }
@@ -296,6 +300,35 @@ export async function uploadTryOnImagePublic(
   const contentType = options?.contentType || 'application/octet-stream'
   const buffer = await bodyToBuffer(body)
   return uploadToBunny(path, buffer, contentType)
+}
+
+/** File có trên Storage API (AccessKey), không HEAD pull zone `*.b-cdn.net`. */
+export async function bunnyStorageObjectExists(path: string, auth: BunnyStorageAuth): Promise<boolean> {
+  const trimmed = path.trim()
+  if (!trimmed || trimmed.includes('..')) return false
+  const remotePath = buildTryOnEncodedPath(trimmed)
+  if (!remotePath) return false
+  const head = await bunnyStorageRequest(auth, 'HEAD', remotePath)
+  if (head.status === 200 || head.status === 204) return true
+  if (head.status === 404) return false
+  if (head.status !== 405 && head.status !== 400 && head.status !== 501) return false
+  const got = await bunnyStorageRequest(auth, 'GET', remotePath)
+  return Boolean(got.ok && got.bytes && got.bytes.length > 0)
+}
+
+/** Tải object đã PUT — cùng AccessKey với upload, không đi qua hostname CDN bị chặn. */
+export async function downloadBunnyStorageObject(
+  path: string,
+  auth: BunnyStorageAuth,
+  maxBytes: number
+): Promise<Buffer | null> {
+  const trimmed = path.trim()
+  if (!trimmed || trimmed.includes('..')) return null
+  const remotePath = buildTryOnEncodedPath(trimmed)
+  if (!remotePath) return null
+  const got = await bunnyStorageRequest(auth, 'GET', remotePath)
+  if (!got.ok || !got.bytes || got.bytes.length < 1 || got.bytes.length > maxBytes) return null
+  return got.bytes
 }
 
 /** Upload vào một zone đã biết (ổ shop hoặc zone chung). */

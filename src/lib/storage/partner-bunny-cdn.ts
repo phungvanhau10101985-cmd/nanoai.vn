@@ -17,7 +17,9 @@ import { partnerBunnyZoneName } from '@/lib/storage/partner-bunny-zone-name'
 import { bunnyStorageHostForRegion, partnerBunnyStorageRegionCode } from '@/lib/storage/bunny-storage-endpoint'
 import {
   buildTryOnEncodedPath,
+  bunnyStorageObjectExists,
   deleteBunnyStorageObject,
+  downloadBunnyStorageObject,
   platformBunnyStorageAuth,
   uploadBunnyStorageObject,
   type BunnyStorageAuth,
@@ -131,9 +133,20 @@ export async function partnerOrPlatformPublicUrl(partnerId: string, storagePath:
 }
 
 export async function partnerStorageObjectExists(partnerId: string, storagePath: string): Promise<boolean> {
-  const url = await partnerOrPlatformPublicUrl(partnerId, storagePath)
-  const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(20_000) })
-  return res.ok
+  const auth = (await partnerBunnyAuth(partnerId)) ?? platformBunnyStorageAuth()
+  if (!auth) return false
+  return bunnyStorageObjectExists(storagePath, auth)
+}
+
+/** Đọc ảnh chat đã upload. Pull zone `*.b-cdn.net` hay bị chặn trên điện thoại. */
+export async function downloadPartnerBunnyObject(
+  partnerId: string,
+  storagePath: string,
+  maxBytes: number
+): Promise<Buffer | null> {
+  const auth = (await partnerBunnyAuth(partnerId)) ?? platformBunnyStorageAuth()
+  if (!auth) return null
+  return downloadBunnyStorageObject(storagePath, auth, maxBytes)
 }
 
 function hostOf(url: string): string {
