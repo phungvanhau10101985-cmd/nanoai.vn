@@ -17,6 +17,7 @@ import {
   customerMessageWantsSimilarCatalogVersusLastConsulted,
   inboundTextLooksLikeFollowUpConsultHeuristic,
 } from '@/lib/messaging/partner-inventory-ai-search'
+import { productCodesFromImageSignalText } from '@/lib/messaging/partner-ai-photo-item-consult'
 import {
   fetchLastOutboundCustomerCareMessageBodyPg,
   mergeConversationUiLocaleFromPg,
@@ -80,6 +81,8 @@ export type WidgetGuestImageBatchItemResult = {
 
 type ImageProductSignal = {
   productCode: string
+  /** Mã đọc được, mã sau «Mã SP», rồi biến thể O/0 — thử lần lượt trên kho. */
+  productCodes: string[]
   gender: GuestProfileGender | null
   productType: string | null
 }
@@ -315,7 +318,9 @@ async function analyzeProductSignalFromImage(
     const genAI = new GoogleGenerativeAI(apiKey)
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' })
     const prompt =
-      'Read this fashion product image. Extract visible product code/SKU, product gender target, and product type/category.' +
+      'Read this shop product screenshot. Extract the product code printed after the label "Mã SP" or "SKU", plus gender target and product type.' +
+      ' productCode is only a shop SKU: one letter plus 4 digits (O1040) or two letters plus 4 digits (AB1234), keeping letter O distinct from zero.' +
+      ' Do not return the label "Mã SP", the site name, or the clock.' +
       ' Return strict JSON only: {"productCode":"", "gender":"male|female|unknown", "productType":""}.' +
       ' If no reliable code, productCode must be empty string.'
     const res = await model.generateContent([
@@ -331,13 +336,13 @@ async function analyzeProductSignalFromImage(
     const raw = res.response.text().trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim()
     const parsed = JSON.parse(raw) as { productCode?: unknown; gender?: unknown; productType?: unknown }
     const rawCode = typeof parsed.productCode === 'string' ? parsed.productCode.trim() : ''
-    const codeMatch = rawCode.match(/[A-Za-z0-9][A-Za-z0-9._-]{1,63}/)
-    const productCode = codeMatch ? codeMatch[0] : ''
+    const productCodes = productCodesFromImageSignalText(rawCode)
+    const productCode = productCodes[0] ?? ''
     const gender = typeof parsed.gender === 'string' ? normalizeDetectedGender(parsed.gender) : null
     const productType =
       typeof parsed.productType === 'string' ? normalizeDetectedProductType(parsed.productType) : null
     if (!productCode && !gender && !productType) return null
-    return { productCode, gender, productType }
+    return { productCode, productCodes, gender, productType }
   } catch {
     return null
   }
@@ -524,30 +529,32 @@ async function processGuestImageFollowUp(
         if (imageSignal?.productType) {
           detectedProductType = imageSignal.productType
         }
-        if (imageSignal?.productCode) {
-          const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(
-            ctx.partnerId,
-            imageSignal.productCode
-          )
-          if (matchedBySku) {
-            imageSkuMatchDirectConsult = true
-            imageMatchedInventoryContext = {
-              inventoryId: matchedBySku.id,
-              sku: (matchedBySku.sku ?? imageSignal.productCode).trim().slice(0, 128),
-            }
-            detectedProductGender =
-              inferInventoryRowGender({
-                name: matchedBySku.name,
-                description: matchedBySku.description,
-                consult_note: matchedBySku.consult_note,
-              }) ?? detectedProductGender
-            detectedProductType =
-              inferInventoryRowProductType({
-                name: matchedBySku.name,
-                description: matchedBySku.description,
-                consult_note: matchedBySku.consult_note,
-              }) ?? detectedProductType
+        const codesToMatch = imageSignal?.productCodes?.length
+          ? imageSignal.productCodes
+          : imageSignal?.productCode
+            ? [imageSignal.productCode]
+            : []
+        for (const code of codesToMatch) {
+          const matchedBySku = await fetchPartnerInventoryRowByComparableSkuFromPg(ctx.partnerId, code)
+          if (!matchedBySku) continue
+          imageSkuMatchDirectConsult = true
+          imageMatchedInventoryContext = {
+            inventoryId: matchedBySku.id,
+            sku: (matchedBySku.sku ?? code).trim().slice(0, 128),
           }
+          detectedProductGender =
+            inferInventoryRowGender({
+              name: matchedBySku.name,
+              description: matchedBySku.description,
+              consult_note: matchedBySku.consult_note,
+            }) ?? detectedProductGender
+          detectedProductType =
+            inferInventoryRowProductType({
+              name: matchedBySku.name,
+              description: matchedBySku.description,
+              consult_note: matchedBySku.consult_note,
+            }) ?? detectedProductType
+          break
         }
 
         if (!imageSkuMatchDirectConsult) {

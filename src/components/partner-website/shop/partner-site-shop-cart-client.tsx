@@ -1135,6 +1135,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
       value: quoteByLineId.get(item.id)?.effectiveUnitPrice ?? parseVndFromPriceHint(item.card.price_hint),
       quantity: item.quantity,
       sku: item.card.sku,
+      remarketingId: item.card.remarketing_id || undefined,
     }))
     trackPartnerSiteBeginCheckout(tracking, checkoutLines)
     try {

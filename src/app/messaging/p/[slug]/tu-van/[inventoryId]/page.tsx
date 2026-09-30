@@ -21,6 +21,7 @@ import { resolveActiveMessagingPartnerBySlug } from '@/lib/messaging/resolve-act
 import { fetchGuestPurchaseConfigForPartnerFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import { runMetaViewContentForConsultInventoryPage } from '@/lib/tracking/meta-view-content-consult-server'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -191,8 +192,9 @@ export default async function PartnerGuestConsultByInventoryPage(props: {
   const productUrl = (row.product_url ?? '').trim()
   const sku = (row.sku ?? '').trim()
   const remarketingId = (row.remarketing_id ?? '').trim()
+  const contentId = catalogContentId({ remarketingId, inventoryId: row.id })
   const ga4InitialViewItem = {
-    itemId: sku || remarketingId || row.id,
+    itemId: contentId || row.id,
     itemName: (row.name ?? '').trim() || sku || row.id,
     value: parseVndAmountFromPriceHint(row.price_hint),
   }

@@ -64,6 +64,7 @@ export default async function PartnerSiteOrderDepositPage({ params }: Props) {
         initialMerchantId={initial?.google_customer_reviews_merchant_id ?? null}
         initialSiblings={initial?.sibling_orders ?? []}
         initialShipmentEvents={initial?.shipment_events ?? []}
+        initialCatalogItems={initial?.catalog_items ?? []}
       />
     </>
   )

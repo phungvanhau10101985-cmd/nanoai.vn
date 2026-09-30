@@ -3,6 +3,7 @@
  * Cột `id` = remarketing_id (nếu có) hoặc inventory.id — cùng định danh với feed Facebook.
  */
 
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import type { Database } from '@/types/database.types'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -39,8 +40,7 @@ export function catalogFeedTrimMax(s: string, max: number): string {
 }
 
 export function catalogFeedItemId(row: Pick<CatalogFeedInventoryRow, 'id' | 'remarketing_id'>): string {
-  const idRaw = (row.remarketing_id ?? '').trim() || row.id
-  return catalogFeedTrimMax(idRaw.replace(/[\s\r\n]+/g, ' ').trim(), 100)
+  return catalogContentId({ remarketingId: row.remarketing_id, inventoryId: row.id })
 }
 
 export function catalogFeedTitle(row: Pick<CatalogFeedInventoryRow, 'name'>, max = 200): string {

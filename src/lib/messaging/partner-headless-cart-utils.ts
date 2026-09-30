@@ -32,12 +32,14 @@ export function asPartnerProductCard(x: unknown): PartnerAiProductCard | null {
   const price_hint = typeof o.price_hint === 'string' ? o.price_hint.trim() : ''
   const sku = typeof o.sku === 'string' ? o.sku.trim().slice(0, 128) : ''
   const inventoryId = typeof o.inventory_id === 'string' ? o.inventory_id.trim() : ''
+  const remarketingId = typeof o.remarketing_id === 'string' ? o.remarketing_id.replace(/[\s\r\n]+/g, ' ').trim().slice(0, 100) : ''
   if (!name || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
   const base = price_hint ? { name, image_url, product_url, price_hint } : { name, image_url, product_url }
   const withSku = sku ? { ...base, sku } : base
+  const withRemarketing = remarketingId ? { ...withSku, remarketing_id: remarketingId } : withSku
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inventoryId)
-    ? { ...withSku, inventory_id: inventoryId }
-    : withSku
+    ? { ...withRemarketing, inventory_id: inventoryId }
+    : withRemarketing
 }
 
 export function sanitizeHeadlessCartItems(raw: unknown): Json {

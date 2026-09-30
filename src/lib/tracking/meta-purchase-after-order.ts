@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server'
-import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import { fetchPartnerInventoryRowByIdForPartnerFromPg, fetchPartnerRemarketingIdsByInventoryIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerOrderLinesFromPg, type PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import {
   fetchMessagingPartnerDefaultCurrencyFromPg,
   fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg,
@@ -16,6 +16,22 @@ import {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function purchaseLineItems(partnerId: string, order: PartnerOrderRow) {
+  const lines = await fetchPartnerOrderLinesFromPg(order.id)
+  if (!lines.length) return undefined
+  const map = await fetchPartnerRemarketingIdsByInventoryIdsFromPg(
+    partnerId,
+    lines.map((line) => line.product_inventory_id || '')
+  )
+  return lines.map((line) => ({
+    inventoryId: line.product_inventory_id,
+    remarketingId: line.product_inventory_id ? map.get(line.product_inventory_id) : '',
+    name: line.product_name,
+    quantity: line.quantity,
+    unitPrice: line.unit_price,
+  }))
+}
 
 function clientIpFromRequest(request: NextRequest): string | null {
   const xff = request.headers.get('x-forwarded-for')
@@ -69,10 +85,12 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
   const currency = normalizePartnerShopCurrency(
     await fetchMessagingPartnerDefaultCurrencyFromPg(params.partnerId)
   )
+  const lineItems = await purchaseLineItems(params.partnerId, params.order)
   const base = buildMetaPurchaseCustomDataFromOrder({
     order: params.order,
     inventory,
     currency,
+    lineItems,
   })
   // ID ổn định theo đơn (không phải UUID ngẫu nhiên) — bắt buộc để Meta dedupe đúng với Purchase
   // gửi lại sau khi xác nhận thanh toán (`sendPartnerMetaPurchaseCapiOnPaymentConfirmed`), dù 2 lần
@@ -131,10 +149,12 @@ export async function sendPartnerMetaPurchaseCapiOnPaymentConfirmed(params: {
   const currency = normalizePartnerShopCurrency(
     await fetchMessagingPartnerDefaultCurrencyFromPg(params.partnerId)
   )
+  const lineItems = await purchaseLineItems(params.partnerId, params.order)
   const customData = buildMetaPurchaseCustomDataFromOrder({
     order: params.order,
     inventory,
     currency,
+    lineItems,
   })
   const eventId = `Purchase_${params.order.id}`
   let eventSourceUrl = (params.eventSourceUrl ?? '').trim()

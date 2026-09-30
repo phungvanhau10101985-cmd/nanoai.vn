@@ -22,6 +22,8 @@ export type PartnerAiProductCard = {
   sku?: string
   /** UUID dòng `messaging_partner_inventory` — gắn từ kho khi lưu tin; neo «Tư vấn» không cần embed lại ảnh. */
   inventory_id?: string
+  /** Mã tiếp thị lại — cột `id` feed Meta/Google/TikTok khi khác UUID kho. */
+  remarketing_id?: string
   /** YouTube hoặc URL video trực tiếp — từ kho hoặc JSON LLM. */
   product_video_url?: string
 }

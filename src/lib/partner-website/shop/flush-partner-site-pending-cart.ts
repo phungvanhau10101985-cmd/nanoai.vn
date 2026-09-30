@@ -47,6 +47,7 @@ async function resolvePendingCard(
       productUrl?: string
       priceHint?: string
       sku?: string
+      remarketingId?: string
     }
   }
   const p = json.product
@@ -61,6 +62,9 @@ async function resolvePendingCard(
     inventory_id: p.id || item.inventory_id,
     ...(p.priceHint || item.price_hint ? { price_hint: p.priceHint || item.price_hint } : {}),
     ...(p.sku || item.sku ? { sku: p.sku || item.sku } : {}),
+    ...(p.remarketingId
+      ? { remarketing_id: String(p.remarketingId).replace(/\s+/g, ' ').trim() }
+      : {}),
   }
 }
 

@@ -1,21 +1,10 @@
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
 import { hashMetaCapiEmail, hashMetaCapiPhone } from '@/lib/tracking/meta-capi-hash'
 
 const GRAPH_VERSION = 'v21.0'
-
-function uniqueIds(ids: string[]): string[] {
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const x of ids) {
-    const t = x.trim()
-    if (!t || seen.has(t)) continue
-    seen.add(t)
-    out.push(t)
-  }
-  return out
-}
 
 /** Purchase — Meta Pixel + CAPI (value = tổng đơn theo currency shop). */
 export type MetaPurchaseClientPayload = {
@@ -35,41 +24,69 @@ export function buildMetaPurchaseCustomDataFromOrder(params: {
   order: PartnerOrderRow
   inventory: MessagingPartnerInventoryRow | null
   currency?: string | null
+  /** Dòng đơn — content id từng SP khớp cột `id` feed. */
+  lineItems?: Array<{
+    inventoryId?: string | null
+    remarketingId?: string | null
+    name?: string | null
+    quantity?: number | null
+    unitPrice?: number | null
+  }>
 }): Omit<MetaPurchaseClientPayload, 'pixelId' | 'eventId'> {
   const order = params.order
   const value = Math.max(0, Math.round(Number(order.subtotal_amount) || 0))
-  const qty = Math.max(1, Math.min(99, Math.floor(Number(order.quantity) || 1)))
-  const unit = Math.max(0, Math.round(Number(order.unit_price) || 0))
-  const currency = String(params.currency ?? 'VND')
-    .trim()
-    .toUpperCase() || 'VND'
-
-  const inv = params.inventory
-  let lineId = order.product_inventory_id?.trim() || order.id
+  const currency =
+    String(params.currency ?? 'VND')
+      .trim()
+      .toUpperCase() || 'VND'
+  const headerRemarketing = (params.inventory?.remarketing_id ?? '').trim()
+  const sources = params.lineItems?.length
+    ? params.lineItems
+    : [
+        {
+          inventoryId: params.inventory?.id || order.product_inventory_id,
+          remarketingId: headerRemarketing,
+          name: order.product_name,
+          quantity: order.quantity,
+          unitPrice: order.unit_price,
+        },
+      ]
+  const contents: MetaPurchaseClientPayload['contents'] = []
   const ids: string[] = []
-  if (inv) {
-    const sku = (inv.sku ?? '').trim()
-    const remark = (inv.remarketing_id ?? '').trim()
-    ids.push(...uniqueIds([sku, remark, inv.id].filter(Boolean) as string[]))
-    lineId = ids[0] || inv.id
-  } else {
-    ids.push(lineId)
+  for (const line of sources) {
+    const contentId = catalogContentId({
+      remarketingId: line.remarketingId,
+      inventoryId: line.inventoryId,
+    })
+    if (!contentId) continue
+    if (!ids.includes(contentId)) ids.push(contentId)
+    const qty = Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1)))
+    const unit = Math.max(0, Math.round(Number(line.unitPrice) || 0))
+    const title = decodeHtmlEntitiesLite(String(line.name ?? '').trim()).slice(0, 500)
+    contents.push({ id: contentId, quantity: qty, item_price: unit, ...(title ? { title } : {}) })
   }
-  if (ids.length === 0) ids.push(order.id)
-
-  const title = decodeHtmlEntitiesLite((order.product_name ?? '').trim()).slice(0, 500)
+  if (ids.length === 0) {
+    const fallback = catalogContentId({ inventoryId: order.product_inventory_id })
+    if (fallback) {
+      ids.push(fallback)
+      contents.push({
+        id: fallback,
+        quantity: Math.max(1, Math.min(99, Math.floor(Number(order.quantity) || 1))),
+        item_price: Math.max(0, Math.round(Number(order.unit_price) || 0)),
+      })
+    }
+  }
+  const numItems = contents.reduce((sum, line) => sum + line.quantity, 0) || 1
 
   return {
     value,
     currency,
     content_ids: ids,
     content_type: 'product',
-    num_items: qty,
-    contents: [{ id: lineId, quantity: qty, item_price: unit, ...(title ? { title } : {}) }],
+    num_items: numItems,
+    contents,
     order_id: order.id,
-    ...(inv && (inv.remarketing_id ?? '').trim()
-      ? { remarketing_id: (inv.remarketing_id ?? '').trim() }
-      : {}),
+    ...(headerRemarketing ? { remarketing_id: headerRemarketing } : {}),
   }
 }
 

@@ -46,6 +46,8 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { PartnerSiteStorefrontProductHits } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import { trackPartnerSiteDepositPage, trackPartnerSitePurchase } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import type { PartnerSiteShopTrackingLine } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import type { OrderCatalogContentItem } from '@/lib/partner-website/shop/order-catalog-content'
 import { usePartnerSiteShop } from '@/lib/partner-website/shop/partner-site-shop-context'
 import {
   PartnerOrderDiscountBreakdown,
@@ -99,6 +101,32 @@ type Props = {
   initialMerchantId?: number | null
   initialSiblings?: ShopSiblingOrderView[]
   initialShipmentEvents?: ShopShipmentEventView[]
+  initialCatalogItems?: OrderCatalogContentItem[]
+}
+
+function catalogTrackingLines(
+  order: DepositOrder,
+  items: OrderCatalogContentItem[]
+): PartnerSiteShopTrackingLine[] {
+  if (items.length) {
+    return items.map((item) => ({
+      itemId: item.content_id,
+      itemName: item.item_name,
+      value: item.value,
+      quantity: item.quantity,
+      remarketingId: item.content_id,
+    }))
+  }
+  const inventoryId = String(order.product_inventory_id || '').trim()
+  if (!inventoryId) return []
+  return [
+    {
+      itemId: inventoryId,
+      itemName: order.product_name || inventoryId,
+      value: Math.max(0, Math.round(Number(order.subtotal_amount) || 0)),
+      quantity: 1,
+    },
+  ]
 }
 
 function CopyButton({ text, label, copiedLabel }: { text: string; label: string; copiedLabel: string }) {
@@ -136,6 +164,7 @@ export function PartnerSiteShopDepositClient({
   initialMerchantId = null,
   initialSiblings = [],
   initialShipmentEvents = [],
+  initialCatalogItems = [],
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -154,6 +183,8 @@ export function PartnerSiteShopDepositClient({
   const [toast, setToast] = useState('')
   const [toastKind, setToastKind] = useState<'info' | 'pay'>('info')
   const [siblings, setSiblings] = useState<ShopSiblingOrderView[]>(initialSiblings)
+  const [catalogItems, setCatalogItems] = useState<OrderCatalogContentItem[]>(initialCatalogItems)
+  const [catalogReady, setCatalogReady] = useState(initialOrder != null)
   const [shipmentEvents, setShipmentEvents] = useState<ShopShipmentEventView[]>(initialShipmentEvents)
   const prevStatusRef = useRef<string | null>(null)
   const depositPageTrackedRef = useRef('')
@@ -173,12 +204,17 @@ export function PartnerSiteShopDepositClient({
       google_customer_reviews_merchant_id?: number | null
       sibling_orders?: ShopSiblingOrderView[]
       shipment_events?: ShopShipmentEventView[]
+      catalog_items?: OrderCatalogContentItem[]
     }) => {
       if (!json.order) return false
       setOrder(json.order)
       clearPartnerSiteCheckoutHandoff(siteSlug)
       setSiblings(Array.isArray(json.sibling_orders) ? json.sibling_orders : [])
       setShipmentEvents(Array.isArray(json.shipment_events) ? json.shipment_events : [])
+      if (Array.isArray(json.catalog_items)) {
+        setCatalogItems(json.catalog_items)
+        setCatalogReady(true)
+      }
       setPaymentDisplay(json.payment_display ?? null)
       if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
         setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
@@ -205,6 +241,7 @@ export function PartnerSiteShopDepositClient({
         google_customer_reviews_merchant_id?: number | null
         sibling_orders?: ShopSiblingOrderView[]
         shipment_events?: ShopShipmentEventView[]
+        catalog_items?: OrderCatalogContentItem[]
       }
       if (!res.ok || !json.order) {
         return
@@ -247,6 +284,7 @@ export function PartnerSiteShopDepositClient({
         google_customer_reviews_merchant_id: boot.google_customer_reviews_merchant_id,
         sibling_orders: Array.isArray(boot.sibling_orders) ? (boot.sibling_orders as ShopSiblingOrderView[]) : [],
         shipment_events: Array.isArray(boot.shipment_events) ? (boot.shipment_events as ShopShipmentEventView[]) : [],
+        catalog_items: Array.isArray(boot.catalog_items) ? (boot.catalog_items as OrderCatalogContentItem[]) : undefined,
       })
     }
     const onReady = () => {
@@ -259,6 +297,7 @@ export function PartnerSiteShopDepositClient({
         google_customer_reviews_merchant_id: next.google_customer_reviews_merchant_id,
         sibling_orders: Array.isArray(next.sibling_orders) ? (next.sibling_orders as ShopSiblingOrderView[]) : [],
         shipment_events: Array.isArray(next.shipment_events) ? (next.shipment_events as ShopShipmentEventView[]) : [],
+        catalog_items: Array.isArray(next.catalog_items) ? (next.catalog_items as OrderCatalogContentItem[]) : undefined,
       })
     }
     window.addEventListener(PW_GUEST_ORDER_PAGE_READY_EVENT, onReady)
@@ -281,7 +320,7 @@ export function PartnerSiteShopDepositClient({
   }, [load, order])
 
   useEffect(() => {
-    if (!order) return
+    if (!order || !catalogReady) return
     const prev = prevStatusRef.current
     const nowDone = shouldShowDepositSuccessPage(order)
     const wasWaiting = prev === 'awaiting_payment' || prev === 'waiting_deposit' || prev === 'payment_checking'
@@ -312,19 +351,12 @@ export function PartnerSiteShopDepositClient({
         trackPartnerSitePurchase(tracking, {
           transactionId: order.id,
           value,
-          lines: [
-            {
-              itemId: order.id,
-              itemName: order.product_name || shopTitle,
-              value,
-              quantity: 1,
-            },
-          ],
+          lines: catalogTrackingLines(order, catalogItems),
         })
       }
     }
     prevStatusRef.current = order.status
-  }, [order, shopTitle, t.depositToastBody, tracking])
+  }, [catalogItems, catalogReady, order, shopTitle, t.depositToastBody, tracking])
 
   useEffect(() => {
     if (!toast || toastKind === 'pay') return
@@ -345,7 +377,7 @@ export function PartnerSiteShopDepositClient({
   const depositOrderId = order?.id ?? ''
 
   useEffect(() => {
-    if (!waitingDeposit || !order?.id) return
+    if (!waitingDeposit || !order?.id || !catalogReady) return
     if (depositPageTrackedRef.current === order.id) return
     depositPageTrackedRef.current = order.id
     const value = partnerOrderPayableTotal({
@@ -355,16 +387,9 @@ export function PartnerSiteShopDepositClient({
     trackPartnerSiteDepositPage(tracking, {
       transactionId: order.id,
       value,
-      lines: [
-        {
-          itemId: order.product_inventory_id || order.id,
-          itemName: order.product_name || shopTitle,
-          value,
-          quantity: 1,
-        },
-      ],
+      lines: catalogTrackingLines(order, catalogItems),
     })
-  }, [waitingDeposit, order, shopTitle, tracking])
+  }, [catalogItems, catalogReady, waitingDeposit, order, tracking])
 
   useEffect(() => {
     qrBlobRef.current = null

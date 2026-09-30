@@ -15,6 +15,7 @@ import {
 import { resolveCommerceOrderPartnerBySlug } from '@/lib/messaging/resolve-commerce-partner'
 import { resolveWidgetOrderThreadFromCookies } from '@/lib/messaging/resolve-widget-order-thread'
 import type { PartnerSiteDepositPaymentDisplay } from '@/lib/partner-website/shop/partner-site-checkout-handoff'
+import { loadOrderCatalogContentItems, type OrderCatalogContentItem } from '@/lib/partner-website/shop/order-catalog-content'
 
 export type GuestOrderPagePayload = Awaited<ReturnType<typeof buildGuestOrderDepositView>> & {
   partner_display_name: string
@@ -24,6 +25,7 @@ export type GuestOrderPagePayload = Awaited<ReturnType<typeof buildGuestOrderDep
   can_confirm_received: boolean
   can_cancel: boolean
   buyer_actions: ReturnType<typeof buyerOrderActions>
+  catalog_items: OrderCatalogContentItem[]
 }
 
 export async function buildGuestOrderPagePayload(input: {
@@ -34,9 +36,10 @@ export async function buildGuestOrderPagePayload(input: {
 }): Promise<GuestOrderPagePayload> {
   const order = input.order
   const view = await buildGuestOrderDepositView({ partnerId: input.partnerId, order })
-  const [events, siblings] = await Promise.all([
+  const [events, siblings, catalogItems] = await Promise.all([
     fetchPartnerOrderShipmentEventsFromPg(order.id),
     fetchPartnerCheckoutGroupOrdersFromPg(input.partnerId, order.checkout_group_id),
+    loadOrderCatalogContentItems(input.partnerId, order),
   ])
   const buyerActions = buyerOrderActions({
     status: order.status,
@@ -58,6 +61,7 @@ export async function buildGuestOrderPagePayload(input: {
     can_confirm_received: buyerActions.includes('confirm_received'),
     can_cancel: buyerActions.includes('cancel'),
     buyer_actions: buyerActions,
+    catalog_items: catalogItems,
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchMessagingGuestCartFromPg, upsertMessagingGuestCartFromPg } from '@/lib/db/messaging-guest-cart-pg'
+import { fetchPartnerRemarketingIdsByInventoryIdsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { sanitizeHeadlessCartItems } from '@/lib/messaging/partner-headless-cart-utils'
 import {
   cartLinesQuantity,
@@ -38,6 +39,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const countOnly =
     request.nextUrl.searchParams.get('countOnly') === '1' ||
     request.nextUrl.searchParams.get('idsOnly') === '1'
+  if (!countOnly) {
+    const remarketing = await fetchPartnerRemarketingIdsByInventoryIdsFromPg(
+      shop.partnerId,
+      items.map((item) => item.card.inventory_id || '')
+    )
+    for (const item of items) {
+      const id = item.card.inventory_id
+      const contentId = id ? remarketing.get(id) : ''
+      if (contentId) item.card.remarketing_id = contentId
+    }
+  }
 
   return jsonSitePersonalization(
     request,

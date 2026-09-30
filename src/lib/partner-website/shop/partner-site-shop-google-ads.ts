@@ -6,6 +6,7 @@ import type {
   PartnerSiteShopTrackingLine,
   PartnerSiteShopTrackingProduct,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { normalizeGoogleAdsConversionLabel } from '@/lib/partner-website/shop/normalize-ads-conversion-label'
 
 function adsAwId(raw: string | null | undefined): string | null {
@@ -14,7 +15,7 @@ function adsAwId(raw: string | null | undefined): string | null {
 }
 
 export function retailItemId(product: PartnerSiteShopTrackingProduct): string {
-  return (product.remarketingId || product.itemId || product.sku || '').trim()
+  return catalogContentId({ remarketingId: product.remarketingId, inventoryId: product.itemId })
 }
 
 export function googleAdsRetailItem(product: PartnerSiteShopTrackingProduct, quantity = 1) {

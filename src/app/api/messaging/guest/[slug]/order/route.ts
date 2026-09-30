@@ -17,6 +17,7 @@ import {
 } from '@/lib/messaging/guest-chat-ordering'
 import { stripInternalOrderSource } from '@/lib/messaging/partner-order-notify-ui'
 import { runMetaPurchaseAfterOrderComplete } from '@/lib/tracking/meta-purchase-after-order'
+import { loadOrderCatalogContentItems } from '@/lib/partner-website/shop/order-catalog-content'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   ensurePartnerCustomerAddressesSeededFromPg,
@@ -354,6 +355,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
       ),
       checkout_group_id: done.checkout_group_id,
       payment_display: done.payment_display,
+      catalog_items: isPgConfigured() ? await loadOrderCatalogContentItems(partner.partnerId, done.order) : [],
       ...(metaPurchase ? { metaPurchase } : {}),
     })
   }
@@ -416,6 +418,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
   return NextResponse.json({
     ok: true,
     order: stripInternalOrderSource(done.order as unknown as Record<string, unknown>),
+    catalog_items: isPgConfigured() ? await loadOrderCatalogContentItems(partner.partnerId, done.order) : [],
     ...(metaPurchase ? { metaPurchase } : {}),
   })
 }

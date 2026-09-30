@@ -901,6 +901,8 @@ function trackGuestPurchaseFromOrderSnapshot(
 ): void {
   const orderId = String(order?.id ?? '').trim()
   if (!orderId) return
+  const itemId = String(order?.product_inventory_id || '').trim()
+  if (!itemId) return
   const qty = Math.max(1, Math.floor(Number(order?.quantity) || 1))
   const value = Math.max(
     0,
@@ -913,12 +915,49 @@ function trackGuestPurchaseFromOrderSnapshot(
       value,
       lines: [
         {
-          itemId: order?.product_inventory_id || order?.product_url || orderId,
-          itemName: order?.product_name || order?.product_inventory_id || orderId,
+          itemId,
+          itemName: order?.product_name || itemId,
           value: Math.max(0, Math.round(Number(order?.unit_price) || 0)),
           quantity: qty,
         },
       ],
+    },
+    options
+  )
+}
+
+function trackGuestPurchaseFromCatalogItems(
+  adsTracking: PartnerSiteShopTrackingConfig,
+  order: GuestOrderGa4Snapshot | null | undefined,
+  items: Array<{ content_id?: string; item_name?: string; value?: number; quantity?: number }> | undefined,
+  options?: { skipMeta?: boolean }
+): void {
+  const rows = (items ?? []).filter((item) => String(item.content_id || '').trim())
+  if (!rows.length) {
+    trackGuestPurchaseFromOrderSnapshot(adsTracking, order, options)
+    return
+  }
+  const orderId = String(order?.id ?? '').trim()
+  if (!orderId) return
+  const value = Math.max(
+    0,
+    Math.round(Number(order?.amount_after_discount ?? order?.subtotal_amount ?? order?.required_amount) || 0)
+  )
+  trackPartnerSitePurchase(
+    adsTracking,
+    {
+      transactionId: orderId,
+      value,
+      lines: rows.map((item) => {
+        const contentId = String(item.content_id || '').trim()
+        return {
+          itemId: contentId,
+          remarketingId: contentId,
+          itemName: String(item.item_name || '').trim() || contentId,
+          value: Math.max(0, Math.round(Number(item.value) || 0)),
+          quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+        }
+      }),
     },
     options
   )
@@ -3974,6 +4013,7 @@ export function PartnerGuestChatClient({
         ok?: boolean
         error?: string
         order?: GuestOrderGa4Snapshot
+        catalog_items?: Array<{ content_id?: string; item_name?: string; value?: number; quantity?: number }>
         metaPurchase?: {
           pixelId?: string
           eventId?: string
@@ -4027,6 +4067,7 @@ export function PartnerGuestChatClient({
             value: purchasePayload.value,
             lines: purchasePayload.contents.map((item) => ({
               itemId: item.id,
+              remarketingId: item.id,
               itemName: item.title || item.id,
               value: item.item_price,
               quantity: item.quantity,
@@ -4035,7 +4076,7 @@ export function PartnerGuestChatClient({
           { skipMeta: true }
         )
       } else if (!mp) {
-        trackGuestPurchaseFromOrderSnapshot(adsTracking, data.order)
+        trackGuestPurchaseFromCatalogItems(adsTracking, data.order, data.catalog_items)
       }
       saveLocalOrderProfile({
         customerName: orderName,
@@ -4471,6 +4512,7 @@ export function PartnerGuestChatClient({
           payment_qr_url?: string | null
           payment_reference?: string | null
         }
+        catalog_items?: Array<{ content_id?: string; item_name?: string; value?: number; quantity?: number }>
         metaPurchase?: {
           pixelId?: string
           eventId?: string
@@ -4529,6 +4571,7 @@ export function PartnerGuestChatClient({
             value: purchasePayload.value,
             lines: purchasePayload.contents.map((item) => ({
               itemId: item.id,
+              remarketingId: item.id,
               itemName: item.title || item.id,
               value: item.item_price,
               quantity: item.quantity,
@@ -4537,7 +4580,7 @@ export function PartnerGuestChatClient({
           { skipMeta: true }
         )
       } else if (!mp) {
-        trackGuestPurchaseFromOrderSnapshot(adsTracking, data.order)
+        trackGuestPurchaseFromCatalogItems(adsTracking, data.order, data.catalog_items)
       }
       saveLocalOrderProfile({
         customerName: orderName,

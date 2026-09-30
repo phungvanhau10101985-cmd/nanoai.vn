@@ -12,6 +12,7 @@ import {
 } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import {
   computePartnerCategoryFacetSnapshotFromPg,
   computePartnerDependentFacetsFromPg,
@@ -3796,11 +3797,46 @@ export async function fetchPartnerInventoryRemarketingKeysFromPg(
     }
     return all.filter((r) => r.id)
   } catch (e) {
-    const err = e as { code?: string }
-    if (err.code === '42P01' || err.code === '42703') return []
     console.warn('[fetchPartnerInventoryRemarketingKeysFromPg]', e)
     return null
   }
+}
+
+const CATALOG_CONTENT_ID_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** `remarketing_id` theo vài UUID kho — content id feed, không kéo gallery. */
+export async function fetchPartnerRemarketingIdsByInventoryIdsFromPg(
+  partnerId: string,
+  inventoryIds: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  if (!isPgConfigured()) return out
+  const pid = String(partnerId ?? '').trim()
+  const ids = [
+    ...new Set(
+      inventoryIds
+        .map((id) => String(id ?? '').trim())
+        .filter((id) => CATALOG_CONTENT_ID_UUID_RE.test(id))
+    ),
+  ]
+  if (!pid || ids.length === 0) return out
+  try {
+    const rows = await pgQuery<{ id: string; remarketing_id: string | null }>(
+      `select mpi.id::text as id, mpi.remarketing_id
+       from public.messaging_partner_inventory mpi
+       where mpi.partner_id = $1::uuid and mpi.id = any($2::uuid[])`,
+      [pid, ids]
+    )
+    for (const row of rows) {
+      const id = String(row.id ?? '').trim()
+      const contentId = catalogContentId({ remarketingId: row.remarketing_id, inventoryId: id })
+      if (id && contentId && contentId !== id) out.set(id, contentId)
+    }
+  } catch (e) {
+    console.warn('[fetchPartnerRemarketingIdsByInventoryIdsFromPg]', e)
+  }
+  return out
 }
 
 const INVENTORY_DELETE_CHUNK = 200

@@ -2,6 +2,7 @@ import {
   fetchPartnerInventoryRowByProductUrlNormKeyFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 
 /**
  * Gắn `product_video_url` và `inventory_id` từ kho (theo URL trang SP đã chuẩn hoá) — không phụ thuộc LLM.
@@ -26,12 +27,15 @@ export async function enrichPartnerAiProductCardsWithInventoryVideoFromPg(
       }
       const id = row.id?.trim()
       const vid = (row.product_video_url ?? '').trim()
+      const contentId = catalogContentId({ remarketingId: row.remarketing_id, inventoryId: id })
       const withId = id ? { ...c, inventory_id: id } : c
+      const withRemarketing =
+        contentId && id && contentId !== id ? { ...withId, remarketing_id: contentId } : withId
       if (vid && /^https?:\/\//i.test(vid)) {
-        out.push({ ...withId, product_video_url: vid })
+        out.push({ ...withRemarketing, product_video_url: vid })
         continue
       }
-      out.push(withId)
+      out.push(withRemarketing)
       continue
     } catch {
       /* giữ card gốc */

@@ -28,6 +28,45 @@ const PHOTO_ITEM_CONSULT_RE = new RegExp(
   'i'
 )
 
+/** SKU shop: 1 chữ + 4 số (O1040) hoặc 2 chữ + 4 số (AB1234). */
+const SHOP_SKU_RE = /^[A-Za-z]{1,2}\d{4}$/
+
+/** Ảnh hay đọc chữ O đầu mã thành số 0. Chỉ giữ dạng chữ đã chuẩn. */
+function shopSkuFromImageToken(token: string): string | null {
+  const t = token.trim().replace(/^[._-]+|[._-]+$/g, '')
+  if (SHOP_SKU_RE.test(t)) return t
+  if (/^0\d{4}$/.test(t)) return `O${t.slice(1)}`
+  if (/^0[A-Za-z]\d{4}$/.test(t)) return `O${t.slice(1)}`
+  return null
+}
+
+/**
+ * Mã trên ảnh chụp trang SP. Chỉ nhận SKU 1 chữ + 4 số hoặc 2 chữ + 4 số.
+ * Nhãn «Mã SP» / tên miền / giờ không phải mã.
+ */
+export function productCodesFromImageSignalText(raw: string): string[] {
+  const text = String(raw ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!text) return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  const push = (token: string) => {
+    const sku = shopSkuFromImageToken(token)
+    if (!sku) return
+    const key = sku.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push(sku)
+  }
+
+  const labeled =
+    /(?:m[aã]\s*sp|m[aã]\s*s[aả]n\s*ph[aẩ]m|sku|product\s*code)\s*[:#.\-]?\s*(?:sp\s*[:#.\-]?\s*)?([A-Za-z0-9][A-Za-z0-9._-]{2,31})/gi
+  for (const m of text.matchAll(labeled)) push(m[1] ?? '')
+  for (const m of text.matchAll(/\b([A-Za-z]{1,2}\d{4}|0\d{4}|0[A-Za-z]\d{4})\b/g)) push(m[1] ?? '')
+  return out.slice(0, 8)
+}
+
 const ASK_SKU_OF_THIS_PHOTO_RE =
   /(?:mã|ma)\s*(?:sp|sản\s*phẩm|san\s*pham).{0,24}(?:mẫu|mau|ảnh|anh|hình|hinh|này|nay)|(?:sku|product\s*code).{0,16}(?:this|photo|image)/i
 

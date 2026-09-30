@@ -512,6 +512,7 @@ function resolveCartCard(product){
     var card={name:p.name||product.name,image_url:p.imageUrl||product.image_url,product_url:p.productUrl||product.product_url,inventory_id:p.id||product.inventory_id};
     if(p.priceHint||product.price_hint)card.price_hint=p.priceHint||product.price_hint;
     if(p.sku)card.sku=p.sku;
+    if(p.remarketingId||p.remarketing_id)card.remarketing_id=String(p.remarketingId||p.remarketing_id).replace(/\\s+/g,' ').trim();
     if(!/^https?:\\/\\//i.test(card.image_url)||!/^https?:\\/\\//i.test(card.product_url))return null;
     return card;
   });

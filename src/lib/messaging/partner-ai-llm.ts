@@ -43,6 +43,7 @@ import {
   findLatestLockedVisionTop,
   inboundTextLooksLikeConsultThisPhotoItem,
   lockedVisionTopFromRaw,
+  visionAutoLockedFromRaw,
 } from '@/lib/messaging/partner-ai-photo-item-consult'
 import {
   fetchInventoryRowsSimilarToAnchorProductImage,
@@ -1165,14 +1166,20 @@ export async function buildPartnerAiContext(
   /** «Mẫu khác / tương tự» nhưng không có SP trên tin này và shop chưa vừa gửi thẻ/Mã — không tìm kho bừa. */
   const forceClarifySimilarWithoutAnchor =
     similarCatalogVersusLastConsulted && !selectedInventoryId && !similarIntentHasUsableThreadAnchor
+  /** Ảnh đã đọc được mã / khóa mẫu — classifier «làm rõ» không được bắt khách gửi lại mã. */
+  const photoItemLocked = visionAutoLockedFromRaw(triggerRawPayload)
+  if (photoItemLocked && (!partnerAiRouteIntent || partnerAiRouteIntent === 'clarify')) {
+    partnerAiRouteIntent = 'explicit_sku_consult'
+  }
   const useClarifyShoppingBranch =
-    partnerAiRouteIntent === 'clarify' ||
-    forceClarifySimilarWithoutAnchor ||
-    partnerAiShouldUseClarifyBranchFromWidgetPayload(
-      effectiveLocaleOpts?.channel,
-      triggerRawPayload,
-      heuristicClarifyShoppingIntent
-    )
+    !photoItemLocked &&
+    (partnerAiRouteIntent === 'clarify' ||
+      forceClarifySimilarWithoutAnchor ||
+      partnerAiShouldUseClarifyBranchFromWidgetPayload(
+        effectiveLocaleOpts?.channel,
+        triggerRawPayload,
+        heuristicClarifyShoppingIntent
+      ))
   if (useClarifyShoppingBranch) {
     const transcriptBlock = formatPartnerAiTranscriptLines(chronological)
     const clarifyUser = buildPartnerAiClarifyShoppingIntentUser(

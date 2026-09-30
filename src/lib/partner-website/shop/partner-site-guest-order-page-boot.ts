@@ -21,6 +21,7 @@ export type PartnerSiteGuestOrderPageBoot = {
   google_customer_reviews_merchant_id?: number | null
   shipment_events?: unknown[]
   sibling_orders?: unknown[]
+  catalog_items?: unknown[]
   can_confirm_received?: boolean
 }
 

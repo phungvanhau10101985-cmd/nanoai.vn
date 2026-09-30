@@ -1,4 +1,5 @@
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
+import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
 import { hashMetaCapiEmail, hashMetaCapiPhone } from '@/lib/tracking/meta-capi-hash'
@@ -38,34 +39,20 @@ export type MetaBuyNowClientPayload = MetaCommerceCustomData & {
 
 const GRAPH_VERSION = 'v21.0'
 
-function uniqueIds(ids: string[]): string[] {
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const x of ids) {
-    const t = x.trim()
-    if (!t || seen.has(t)) continue
-    seen.add(t)
-    out.push(t)
-  }
-  return out
-}
-
 export function buildMetaCommerceCustomDataFromInventoryRow(
   row: MessagingPartnerInventoryRow
 ): MetaCommerceCustomData {
-  const sku = (row.sku ?? '').trim()
   const remarketing = (row.remarketing_id ?? '').trim()
-  const ids = uniqueIds([sku, remarketing, row.id].filter(Boolean) as string[])
-  if (ids.length === 0) ids.push(row.id)
+  const contentId = catalogContentId({ remarketingId: remarketing, inventoryId: row.id })
   const name = decodeHtmlEntitiesLite((row.name ?? '').trim()) || 'Product'
   const value = parseVndAmountFromPriceHint(row.price_hint)
   return {
-    content_ids: ids,
+    content_ids: contentId ? [contentId] : [row.id],
     content_name: name,
     content_type: 'product',
     currency: 'VND',
     value: value > 0 ? value : 0,
-    ...(remarketing ? { remarketing_id: remarketing } : {}),
+    ...(remarketing ? { remarketing_id: remarketing.slice(0, 128) } : {}),
   }
 }
 

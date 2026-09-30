@@ -11,6 +11,7 @@ import {
   lockedVisionTopFromRaw,
   PHOTO_ITEM_LOCK_MIN_SCORE,
   shouldLockTopVisionMatch,
+  productCodesFromImageSignalText,
   visionAutoLockedFromRaw,
 } from '../src/lib/messaging/partner-ai-photo-item-consult'
 import { rawPayloadHasInboundProductPageContext } from '../src/lib/messaging/partner-ai-llm'
@@ -66,6 +67,17 @@ function main() {
     },
   }
   assert.equal(rawPayloadHasInboundProductPageContext(nearestLegacy), false)
+
+  assert.deepEqual(productCodesFromImageSignalText('Mã SP: O1040'), ['O1040'])
+  assert.deepEqual(productCodesFromImageSignalText('Mã SP: 01040'), ['O1040'])
+  assert.deepEqual(productCodesFromImageSignalText('Ma SP: S3501'), ['S3501'])
+  assert.deepEqual(productCodesFromImageSignalText('Mã SP: AB1234'), ['AB1234'])
+  assert.deepEqual(productCodesFromImageSignalText('SKU: 0B1234'), ['OB1234'])
+  assert.deepEqual(productCodesFromImageSignalText('188.com.vn Mã SP: O1040'), ['O1040'])
+  assert.deepEqual(productCodesFromImageSignalText('SP'), [])
+  assert.deepEqual(productCodesFromImageSignalText('188.com.vn'), [])
+  assert.deepEqual(productCodesFromImageSignalText('Mã SP: A12345'), [])
+  assert.deepEqual(productCodesFromImageSignalText('Mã SP: ABC1234'), [])
 
   console.log('OK partner-ai-photo-item-consult')
 }

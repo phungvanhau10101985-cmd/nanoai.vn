@@ -59,6 +59,7 @@ function slimCartCardImage(card: PartnerAiProductCard): PartnerAiProductCard {
     ...(card.price_hint ? { price_hint: card.price_hint } : {}),
     ...(card.sku ? { sku: card.sku } : {}),
     ...(card.inventory_id ? { inventory_id: card.inventory_id } : {}),
+    ...(card.remarketing_id ? { remarketing_id: card.remarketing_id } : {}),
   }
 }
 

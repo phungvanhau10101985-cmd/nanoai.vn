@@ -308,7 +308,12 @@ export function trackPartnerSiteViewItem(
   options?: { skipMeta?: boolean }
 ): void {
   const currency = trackingCurrency(config)
-  trackShopGa4ProductEvent('view_item', config.ga4MeasurementId, product)
+  trackShopGa4ProductEvent('view_item', config.ga4MeasurementId, {
+    itemId: retailItemId(product),
+    itemName: product.itemName,
+    value: product.value,
+    quantity: 1,
+  })
   trackGoogleAdsEvent(
     config.googleAdsId,
     'view_item',
@@ -418,7 +423,7 @@ export function trackPartnerSiteBeginCheckout(
     config.ga4MeasurementId,
     value,
     lines.map((line) => ({
-      itemId: line.itemId,
+      itemId: retailItemId(line),
       itemName: line.itemName,
       value: line.value,
       quantity: line.quantity,
@@ -462,7 +467,7 @@ export function trackPartnerSiteBeginCheckout(
   })
   trackTiktokEvent(config.tiktokPixelId, 'InitiateCheckout', {
     contents: lines.map((line) => ({
-      content_id: line.itemId,
+      content_id: retailItemId(line),
       content_name: line.itemName,
       quantity: line.quantity,
       price: line.value,
@@ -492,7 +497,7 @@ export function trackPartnerSitePurchase(
     transactionId,
     value: params.value,
     items: params.lines.map((line) => ({
-      itemId: line.itemId,
+      itemId: retailItemId(line),
       itemName: line.itemName,
       value: line.value,
       quantity: line.quantity,
@@ -538,7 +543,7 @@ export function trackPartnerSitePurchase(
     order_id: transactionId,
     num_items: params.lines.reduce((n, line) => n + line.quantity, 0),
     contents: params.lines.map((line) => ({
-      id: line.itemId,
+      id: retailItemId(line),
       quantity: line.quantity,
       item_price: line.value,
     })),
@@ -594,28 +599,35 @@ export function trackPartnerSiteDepositPage(
   config: PartnerSiteShopTrackingConfig,
   params: { value: number; lines?: PartnerSiteShopTrackingLine[]; transactionId?: string }
 ): void {
-  const lines = params.lines?.length
-    ? params.lines
-    : [
-        {
-          itemId: params.transactionId || 'deposit',
-          itemName: 'Deposit',
-          value: params.value,
-          quantity: 1,
-        },
-      ]
-  firePartnerSiteGoogleAdsRetailPageView(config, {
-    ecomm_pagetype: 'cart',
-    products: lines,
-    value: params.value,
-  })
+  const lines = params.lines ?? []
+  const currency = trackingCurrency(config)
+  const ids = [...new Set(lines.map((line) => retailItemId(line)).filter(Boolean))]
+  if (lines.length) {
+    firePartnerSiteGoogleAdsRetailPageView(config, {
+      ecomm_pagetype: 'cart',
+      products: lines,
+      value: params.value,
+    })
+  }
   firePartnerSiteGoogleAdsConversion(config, 'deposit_page', {
     value: params.value,
-    items: partnerSiteAdsConversionLines(lines),
+    items: lines.length ? partnerSiteAdsConversionLines(lines) : [],
     transactionId: params.transactionId,
   })
   trackMetaCustom(config, 'ViewDepositPayment', {
-    currency: trackingCurrency(config),
+    ...(ids.length
+      ? {
+          content_ids: ids,
+          content_type: 'product',
+          num_items: lines.reduce((n, line) => n + line.quantity, 0),
+          contents: lines.map((line) => ({
+            id: retailItemId(line),
+            quantity: line.quantity,
+            item_price: line.value,
+          })),
+        }
+      : {}),
+    currency,
     value: params.value,
     order_id: params.transactionId || '',
   })
@@ -712,7 +724,14 @@ export function normalizeTiktokPixelId(raw: string | null | undefined): string |
 }
 
 export function guestCardToTrackingProduct(
-  card: { name?: string; sku?: string; inventory_id?: string; product_url?: string; price_hint?: string },
+  card: {
+    name?: string
+    sku?: string
+    inventory_id?: string
+    product_url?: string
+    price_hint?: string
+    remarketing_id?: string
+  },
   quantity = 1
 ): PartnerSiteShopTrackingLine {
   const sku = (card.sku ?? '').trim()
@@ -720,12 +739,14 @@ export function guestCardToTrackingProduct(
   const productUrl = (card.product_url ?? '').trim()
   const name = (card.name ?? '').trim()
   const qty = Math.max(1, Math.min(99, Math.floor(quantity) || 1))
+  const remarketingId = (card.remarketing_id ?? '').trim()
   return {
-    itemId: sku || inv || productUrl,
+    itemId: inv || sku || productUrl,
     itemName: name || sku || inv || productUrl,
     value: parseVndFromPriceHint(card.price_hint),
     quantity: qty,
     sku: sku || undefined,
+    remarketingId: remarketingId || undefined,
   }
 }
 
