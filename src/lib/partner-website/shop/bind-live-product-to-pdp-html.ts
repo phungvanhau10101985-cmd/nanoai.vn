@@ -161,6 +161,8 @@ export type LivePdpBindProduct = {
   categoryL1?: string | null
   categoryL2?: string | null
   categoryL3?: string | null
+  /** Catalogue id (cột `id` feed) — ViewContent `content_ids`, giống 188 `product_id`. */
+  remarketingId?: string | null
   reviews?: LivePdpBindReview[] | null
   questions?: LivePdpBindQuestion[] | null
   relatedProducts?: LivePdpBindRelated[] | null
@@ -342,6 +344,30 @@ function stampInventoryIdOnTag(open: string, id: string): string {
 function stampPdpServerBoundOnTag(open: string): string {
   if (/\bdata-pw-pdp-server-bound=/.test(open)) return open
   return open.replace(/>$/, ' data-pw-pdp-server-bound="1">')
+}
+
+function stripPdpTrackPayload(html: string): string {
+  return html.replace(/<script\b[^>]*\bdata-pw-pdp-track=["']1["'][^>]*>[\s\S]*?<\/script>/gi, '')
+}
+
+/** JSON trong body (sống sót khi live chỉ nhúng inner HTML). Bootstrap đọc để bắn ViewContent khi không fetch lại. */
+function stampPdpTrackPayload(html: string, product: LivePdpBindProduct): string {
+  const category = String(product.categoryL3 || product.categoryL2 || product.categoryL1 || '').trim()
+  const payload = {
+    id: product.id,
+    name: product.name,
+    sku: String(product.sku || '').trim(),
+    remarketingId: String(product.remarketingId || '').trim(),
+    priceAmount: product.priceAmount ?? null,
+    salePriceAmount: product.salePriceAmount ?? null,
+    siteSalePhase: product.siteSalePhase || '',
+    priceHint: String(product.priceHint || '').trim(),
+    category,
+  }
+  const json = JSON.stringify(payload).replace(/</g, '\\u003c')
+  const tag = `<script type="application/json" data-pw-pdp-track="1">${json}</script>`
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${tag}\n</body>`)
+  return `${html}\n${tag}`
 }
 
 function replaceElInner(
@@ -1755,7 +1781,7 @@ export function bindLiveProductToPdpHtml(
     customDomain?: boolean
   }
 ): string {
-  const source = html.trim()
+  const source = stripPdpTrackPayload(html.trim())
   const id = String(product?.id || '').trim()
   if (!source || !id || !product) return html
   const locale = opts?.locale || 'vi'
@@ -1828,13 +1854,16 @@ export function bindLiveProductToPdpHtml(
   out = stampTryOnContextInHtml(out, product)
   const device = pdpHtmlDeviceOf(out, opts?.device)
   if (device) out = deferOffDevicePdpGalleryMedia(out, device)
-  return unmaskInlineCodeBlocks(
-    applyPdpFavoriteLikeCounts(
-      out,
-      Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
-      locale
+  return stampPdpTrackPayload(
+    unmaskInlineCodeBlocks(
+      applyPdpFavoriteLikeCounts(
+        out,
+        Math.max(0, Math.round(Number(product.likesCount ?? 0) || 0)),
+        locale
+      ),
+      blocks
     ),
-    blocks
+    product
   )
 }
 

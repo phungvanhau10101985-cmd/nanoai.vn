@@ -206,7 +206,7 @@ async function bunnyStorageRequest(
   const firstHost = preferredStorageHost(auth)
   const first = await send(firstHost)
   if (first.status !== 401) {
-    if (first.ok || first.status === 404) resolvedHostByZone.set(auth.zone, firstHost)
+    if (first.ok) resolvedHostByZone.set(auth.zone, firstHost)
     return first
   }
 
@@ -309,22 +309,33 @@ export async function uploadTryOnImagePublic(
 }
 
 /**
- * File có trên Storage API (AccessKey), không HEAD pull zone `*.b-cdn.net`.
- * Bunny Storage thường trả HEAD 404 ngay sau PUT thành công — phải xác nhận bằng GET.
+ * File có trên Storage API (AccessKey), không đi qua pull zone `*.b-cdn.net`.
+ * Log VPS 30/9: POST `/image` 200 rồi POST gửi tin 500 body «Image not found.».
+ * Bunny trả HEAD 401 trên đúng vùng ngay sau PUT 201 — HEAD không được tính là thiếu file.
+ * GET `Range: bytes=0-31` trả 206 khi object có thật.
  */
 export async function bunnyStorageObjectExists(path: string, auth: BunnyStorageAuth): Promise<boolean> {
   const trimmed = path.trim()
   if (!trimmed || trimmed.includes('..')) return false
   const remotePath = buildTryOnEncodedPath(trimmed)
   if (!remotePath) return false
-  const head = await bunnyStorageRequest(auth, 'HEAD', remotePath)
-  if (head.status === 200 || head.status === 204) return true
-  if (head.status !== 404 && head.status !== 405 && head.status !== 400 && head.status !== 501) return false
   const got = await bunnyStorageRequest(auth, 'GET', remotePath, undefined, undefined, {
     range: 'bytes=0-31',
     discardBody: true,
   })
-  return got.status === 200 || got.status === 206
+  if (got.status === 200 || got.status === 206) return true
+  if (got.status === 400 || got.status === 416) {
+    const full = await bunnyStorageRequest(auth, 'GET', remotePath, undefined, undefined, { discardBody: true })
+    if (full.status === 200 || full.status === 206) return true
+    if (full.status !== 404) {
+      console.warn('[bunny-storage] exists', { status: full.status })
+    }
+    return false
+  }
+  if (got.status !== 404) {
+    console.warn('[bunny-storage] exists', { status: got.status })
+  }
+  return false
 }
 
 /** Tải object đã PUT — cùng AccessKey với upload, không đi qua hostname CDN bị chặn. */

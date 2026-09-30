@@ -38,6 +38,7 @@ export type PartnerSiteShopTrackingProduct = {
   quantity?: number
   sku?: string
   remarketingId?: string
+  category?: string
 }
 
 export type PartnerSiteShopTrackingLine = PartnerSiteShopTrackingProduct & {
@@ -61,6 +62,7 @@ export type PartnerSiteNativeTrackPayload = {
   quantity?: number
   sku?: string
   remarketingId?: string
+  category?: string
   products?: PartnerSiteShopTrackingProduct[]
   lines?: PartnerSiteShopTrackingLine[]
   transactionId?: string

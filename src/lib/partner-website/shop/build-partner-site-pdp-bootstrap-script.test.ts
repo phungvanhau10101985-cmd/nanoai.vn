@@ -24,6 +24,9 @@ test('PDP bootstrap hydrates reviews, Q&A, and options instead of clearing cards
   assert.match(s, /pw-recently-viewed-updated/)
   assert.match(s, /function pwEnsureGuestSessionId/)
   assert.match(s, /pwShopTrack\('view_item'/)
+  assert.match(s, /data-pw-pdp-track/)
+  assert.match(s, /data-pw-pdp-server-bound/)
+  assert.match(s, /trackViewItemPayload\(readPdpTrackProduct\(id\)\)/)
   assert.match(s, /data-pw-region="pdp-info"/)
   assert.match(s, /data-nanoai-inventory/)
   assert.doesNotMatch(

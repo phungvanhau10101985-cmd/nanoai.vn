@@ -486,7 +486,12 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   }
 
   if ('error' in posted) {
-    const status = posted.requireAuth ? 403 : posted.error === 'Invalid message.' ? 400 : 500
+    const clientError =
+      posted.error === 'Invalid message.' ||
+      posted.error === 'Invalid image path.' ||
+      posted.error === 'Image not found.' ||
+      posted.error === 'Shop is not accepting messages.'
+    const status = posted.requireAuth ? 403 : clientError ? 400 : 500
     const res = NextResponse.json({ error: posted.error, requireAuth: posted.requireAuth === true }, { status })
     if (identity.newSessionId) {
       mirrorGuestSessionToClient(res, request, identity.newSessionId)

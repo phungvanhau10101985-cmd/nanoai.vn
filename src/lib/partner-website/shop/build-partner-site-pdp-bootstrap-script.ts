@@ -318,11 +318,37 @@ function stampTryOnButtons(p){
     stampProductGatewayEl(el,cover||main,second,sku,id,false);
   });
 }
+function readPdpTrackProduct(fallbackId){
+  var node=document.querySelector('[data-pw-pdp-track="1"]');
+  var p=null;
+  if(node){try{p=JSON.parse(node.textContent||'');}catch(e){}}
+  if(!p||typeof p!=='object'){
+    var info=document.querySelector('[data-pw-region="pdp-info"]');
+    var title=info&&info.querySelector('[data-pw-el="title"]');
+    var priceEl=info&&info.querySelector('[data-pw-el="price"]');
+    var skuEl=info&&info.querySelector('[data-pw-el="sku"],.pw-pdp-sku');
+    p={
+      id:fallbackId,
+      name:title?(title.textContent||'').trim():'',
+      priceHint:priceEl?(priceEl.textContent||'').trim():'',
+      sku:skuEl?(skuEl.textContent||'').replace(/^SKU:\\s*/i,'').trim():''
+    };
+  }
+  if(!p.id)p.id=fallbackId;
+  return p;
+}
+function trackViewItemPayload(p){
+  var pid=String((p&&(p.id||p.inventory_id))||'').trim();
+  if(!pid)return;
+  if(window.__pwPdpViewItemId===pid)return;
+  window.__pwPdpViewItemId=pid;
+  try{pwShopTrack('view_item',pwShopTrackProduct(p));}catch(e){}
+}
 function apply(p){
   var id=String(p.id||'').trim();
   if(!id)return;
   trackView(id);
-  try{pwShopTrack('view_item',pwShopTrackProduct(p));}catch(e){}
+  trackViewItemPayload(p);
   stampId(document.body,id);
   document.querySelectorAll('[data-pw-region="pdp-info"],[data-pw-region="gallery"],.pw-pdp,.pw-pdp-sticky,[data-pw-pdp-favorite],[data-pw-pdp-add-cart],[data-pw-pdp-buy-now]').forEach(function(el){stampId(el,id);});
   var name=String(p.name||'Product');
@@ -1356,7 +1382,9 @@ if(!window.__pwPdpHeroSwipeBound){
 if(!id)return;
 trackView(id);
 bindLive(id);
-if(!document.querySelector('[data-pw-pdp-server-bound="1"]')){
+if(document.querySelector('[data-pw-pdp-server-bound="1"]')){
+  trackViewItemPayload(readPdpTrackProduct(id));
+}else{
   fetch(API_PREFIX+encodeURIComponent(id),{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json();}).then(function(j){
     if(j&&j.product){
       if(j.birthdayOffer){

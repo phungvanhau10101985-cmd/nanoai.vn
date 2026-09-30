@@ -77,14 +77,21 @@ function metaCustom(
   currency = 'VND'
 ): Record<string, unknown> {
   const ids = contentIds(product)
+  const contentIdsOut = ids.length > 0 ? ids : [product.itemId]
+  const qty = Math.max(1, quantity)
+  const value = Math.max(0, Math.round(product.value))
+  const primaryId = contentIdsOut[0] || product.itemId
   const custom: Record<string, unknown> = {
-    content_ids: ids.length > 0 ? ids : [product.itemId],
+    content_ids: contentIdsOut,
     content_name: product.itemName.slice(0, 500),
     content_type: 'product',
     currency,
-    value: Math.max(0, Math.round(product.value)),
-    num_items: Math.max(1, quantity),
+    value,
+    num_items: qty,
+    contents: [{ id: primaryId, quantity: qty, item_price: value }],
   }
+  const category = (product.category ?? '').trim()
+  if (category) custom.content_category = category.slice(0, 200)
   if (product.remarketingId) custom.remarketing_id = product.remarketingId
   return custom
 }
@@ -119,6 +126,56 @@ function trackTiktokEvent(
 }
 
 type MetaCapiEventName = 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
+
+type ShopFbq = ((...args: unknown[]) => void) & { callMethod?: unknown; loaded?: boolean }
+
+/** Stub `fbq` đặt `loaded=true` trước khi fbevents.js chạy — Pixel Helper mất ViewContent nếu bắn lúc đó. */
+function isShopFbqReady(): boolean {
+  if (typeof window === 'undefined') return false
+  const fbq = window.fbq as ShopFbq | undefined
+  return typeof fbq === 'function' && typeof fbq.callMethod === 'function'
+}
+
+function whenShopFbqReady(run: () => void): void {
+  if (typeof window === 'undefined') return
+  if (isShopFbqReady()) {
+    run()
+    return
+  }
+  let done = false
+  let ticks = 0
+  const id = window.setInterval(() => {
+    if (done) return
+    if (isShopFbqReady()) {
+      done = true
+      window.clearInterval(id)
+      run()
+      return
+    }
+    ticks += 1
+    if (ticks >= 200) {
+      window.clearInterval(id)
+      if (!done && typeof window.fbq === 'function') {
+        done = true
+        run()
+      }
+    }
+  }, 100)
+}
+
+let lastViewContentFingerprint = ''
+let lastViewContentAtMs = 0
+const VIEW_CONTENT_DEDUPE_MS = 2500
+
+function shouldDedupeViewContent(custom: Record<string, unknown>): boolean {
+  const ids = Array.isArray(custom.content_ids) ? custom.content_ids.join(',') : ''
+  const fp = `${ids}|${custom.value ?? ''}|${custom.content_name ?? ''}`
+  const now = Date.now()
+  if (lastViewContentFingerprint === fp && now - lastViewContentAtMs < VIEW_CONTENT_DEDUPE_MS) return true
+  lastViewContentFingerprint = fp
+  lastViewContentAtMs = now
+  return false
+}
 
 function randomEventId(eventName: string): string {
   const uuid =
@@ -171,9 +228,15 @@ function trackMetaEvent(
 ): void {
   if (options?.skip) return
   const pid = (config.facebookPixelId ?? '').trim()
-  if (!pid || !ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
+  if (!pid) return
+  if (eventName === 'ViewContent' && shouldDedupeViewContent(custom)) return
   const eventId = options?.eventId ?? randomEventId(eventName)
-  window.fbq('track', eventName, custom, { eventID: eventId })
+  const firePixel = () => {
+    if (!ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
+    window.fbq('track', eventName, custom, { eventID: eventId })
+  }
+  if (isShopFbqReady()) firePixel()
+  else whenShopFbqReady(firePixel)
   sendPartnerSiteMetaCapi(config.siteSlug, eventName, eventId, custom, {
     useBeacon: options?.useBeacon,
     customerEmail: options?.customerEmail,
@@ -187,8 +250,13 @@ function trackMetaCustom(
   custom: Record<string, unknown>
 ): void {
   const pid = (config.facebookPixelId ?? '').trim()
-  if (!pid || !ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
-  window.fbq('trackCustom', eventName, custom)
+  if (!pid) return
+  const firePixel = () => {
+    if (!ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
+    window.fbq('trackCustom', eventName, custom)
+  }
+  if (isShopFbqReady()) firePixel()
+  else whenShopFbqReady(firePixel)
 }
 
 export function shopProductToTrackingProduct(
@@ -202,6 +270,7 @@ export function shopProductToTrackingProduct(
     value: parseVndFromPriceHint(hint),
     sku: product.sku || undefined,
     remarketingId: product.remarketingId || undefined,
+    category: product.categoryL3 || product.categoryL2 || product.categoryL1 || undefined,
   }
 }
 
@@ -553,6 +622,7 @@ export function trackPartnerSiteDepositPage(
 }
 
 function nativeProduct(payload: PartnerSiteNativeTrackPayload | undefined): PartnerSiteShopTrackingProduct {
+  const category = String(payload?.category || '').trim()
   return {
     itemId: String(payload?.itemId || payload?.sku || payload?.remarketingId || '').trim(),
     itemName: String(payload?.itemName || payload?.itemId || '').trim(),
@@ -560,6 +630,7 @@ function nativeProduct(payload: PartnerSiteNativeTrackPayload | undefined): Part
     quantity: Math.max(1, Math.floor(Number(payload?.quantity) || 1)),
     sku: payload?.sku,
     remarketingId: payload?.remarketingId,
+    ...(category ? { category } : {}),
   }
 }
 

@@ -3,7 +3,7 @@ export const PW_SHOP_TRACK_BRIDGE_ATTR = 'data-pw-shop-track-bridge'
 /** Shared by catalog / PDP / shop-actions native bootstraps. */
 export const PW_SHOP_NATIVE_TRACK_JS = [
   'function pwShopTrack(kind,payload){try{if(typeof window.__pwShopTrackEvent==="function")window.__pwShopTrackEvent(kind,payload||{});}catch(e){}}',
-  'function pwShopTrackProduct(p){p=p||{};var sale=Number(p.salePriceAmount);var list=Number(p.priceAmount);var phase=String(p.siteSalePhase||"");var value=sale>0&&phase==="active"?sale:(list>0?list:Math.max(0,Math.round(Number(String(p.priceHint||"").replace(/[^\\d]/g,""))||0)));return {itemId:String(p.id||p.inventory_id||""),itemName:String(p.name||""),value:Math.max(0,Math.round(value||0)),quantity:Math.max(1,Math.floor(Number(p.quantity)||1)),sku:String(p.sku||""),remarketingId:String(p.remarketingId||p.remarketing_id||"")};}',
+  'function pwShopTrackProduct(p){p=p||{};var sale=Number(p.salePriceAmount);var list=Number(p.priceAmount);var phase=String(p.siteSalePhase||"");var value=sale>0&&phase==="active"?sale:(list>0?list:Math.max(0,Math.round(Number(String(p.priceHint||"").replace(/[^\\d]/g,""))||0)));var out={itemId:String(p.id||p.inventory_id||""),itemName:String(p.name||""),value:Math.max(0,Math.round(value||0)),quantity:Math.max(1,Math.floor(Number(p.quantity)||1)),sku:String(p.sku||""),remarketingId:String(p.remarketingId||p.remarketing_id||"")};var cat=String(p.category||p.categoryL3||"").trim();if(cat)out.category=cat;return out;}',
   'function pwShopTrackProducts(list){return (Array.isArray(list)?list:[]).map(pwShopTrackProduct);}',
 ].join('')
 
