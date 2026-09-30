@@ -803,11 +803,14 @@ function confirmVariantModal(buyNow){
   var color=st.colors[st.colorIndex]||null;
   var product={
     inventory_id:st.inventoryId,
+    id:st.inventoryId,
     name:st.name,
     price_hint:st.priceHint,
     image_url:(color&&color.img)||st.imageUrl,
     product_url:st.productUrl,
     sku:st.sku,
+    remarketingId:st.remarketingId||'',
+    remarketing_id:st.remarketingId||'',
     color:color?color.name:'',
     size:st.size||'',
     quantity:st.qty
@@ -834,7 +837,8 @@ function openPdpVariantModal(seed,action){
   window.__pwVariantState={
     inventoryId:id,
     name:seed.name||'Product',
-    sku:'',
+    sku:seed.sku||'',
+    remarketingId:seed.remarketingId||seed.remarketing_id||'',
     imageUrl:seed.image_url||'',
     productUrl:seed.product_url||'',
     priceHint:seed.price_hint||'',
@@ -882,6 +886,7 @@ function openPdpVariantModal(seed,action){
       st.product=p;
       st.name=p.name||st.name;
       st.sku=p.sku||st.sku;
+      st.remarketingId=p.remarketingId||p.remarketing_id||st.remarketingId;
       st.imageUrl=p.imageUrl||st.imageUrl;
       st.productUrl=p.productUrl||st.productUrl;
       st.priceHint=p.priceHint||st.priceHint;
@@ -897,6 +902,7 @@ function openPdpVariantModal(seed,action){
     if(opt){
       st.name=opt.name||st.name;
       st.sku=opt.sku||st.sku;
+      st.remarketingId=opt.remarketingId||opt.remarketing_id||st.remarketingId;
       st.imageUrl=opt.image_url||st.imageUrl;
       st.productUrl=opt.product_url||st.productUrl;
       st.priceHint=opt.price_hint||st.priceHint;

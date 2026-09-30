@@ -466,6 +466,12 @@ function readProductFromEl(el){
       id=(pageHost.getAttribute('data-inventory-id')||pageHost.getAttribute('data-pw-inventory-id')||pageHost.getAttribute('data-nanoai-inventory')||'').trim();
     }
   }
+  var trkEl=document.querySelector('[data-pw-pdp-track="1"]');
+  var trkJson=null;
+  if(trkEl){try{trkJson=JSON.parse(trkEl.textContent||'');}catch(e){}}
+  if((!id||!UUID_RE.test(id))&&trkJson&&trkJson.id&&UUID_RE.test(trkJson.id)){
+    id=trkJson.id;
+  }
   if(!id||!UUID_RE.test(id)){
     id=productIdFromHref(location.href)||productIdFromHref(location.pathname);
   }
@@ -477,12 +483,18 @@ function readProductFromEl(el){
   var linkEl=host2.querySelector('a[href*="/products/"]');
   var productUrl=(linkEl&&linkEl.href)||(DETAIL_PREFIX+id);
   var onPdp=el.closest('[data-pw-region="pdp-info"],.pw-pdp,.pw-pdp-sticky,[data-pw-pdp-add-cart],[data-pw-pdp-buy-now]');
+  var remarketingId=(host2.getAttribute('data-remarketing-id')||host2.getAttribute('data-pw-remarketing-id')||el.getAttribute('data-remarketing-id')||(trkJson&&trkJson.remarketingId)||'').trim();
+  var sku=(host2.getAttribute('data-sku')||host2.getAttribute('data-nanoai-sku')||el.getAttribute('data-sku')||(trkJson&&trkJson.sku)||'').trim();
   return {
     inventory_id:id,
-    name:(nameEl&&nameEl.textContent||'Product').trim(),
-    price_hint:(priceEl&&priceEl.textContent||'').trim(),
+    id:id,
+    name:(nameEl&&nameEl.textContent||(trkJson&&trkJson.name)||'Product').trim(),
+    price_hint:(priceEl&&priceEl.textContent||(trkJson&&trkJson.priceHint)||'').trim(),
     image_url:(imgEl&&imgEl.getAttribute('src'))||'',
     product_url:productUrl,
+    sku:sku,
+    remarketingId:remarketingId,
+    remarketing_id:remarketingId,
     size:onPdp?selectedPdpOption('size'):'',
     color:onPdp?selectedPdpOption('color'):'',
     quantity:onPdp?selectedPdpQty():1
@@ -511,8 +523,9 @@ function resolveCartCard(product){
     if(!res.ok||!p)return null;
     var card={name:p.name||product.name,image_url:p.imageUrl||product.image_url,product_url:p.productUrl||product.product_url,inventory_id:p.id||product.inventory_id};
     if(p.priceHint||product.price_hint)card.price_hint=p.priceHint||product.price_hint;
-    if(p.sku)card.sku=p.sku;
-    if(p.remarketingId||p.remarketing_id)card.remarketing_id=String(p.remarketingId||p.remarketing_id).replace(/\\s+/g,' ').trim();
+    if(p.sku||product.sku)card.sku=p.sku||product.sku;
+    var rmk=p.remarketingId||p.remarketing_id||product.remarketingId||product.remarketing_id;
+    if(rmk)card.remarketing_id=String(rmk).replace(/\\s+/g,' ').trim();
     if(!/^https?:\\/\\//i.test(card.image_url)||!/^https?:\\/\\//i.test(card.product_url))return null;
     return card;
   });

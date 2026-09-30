@@ -45,6 +45,39 @@ export function inventoryAdminWebHref(
   }
 
   const raw = String(product.product_url ?? '').trim()
-  if (/^https?:\/\//i.test(raw) && !/(^|\.)(1688|taobao|tmall)\./i.test(raw)) return raw
+  if (/^https?:\/\//i.test(raw) && !isChinaSourceProductUrl(raw)) return raw
   return ''
+}
+
+export function isChinaSourceProductUrl(raw: string): boolean {
+  const value = raw.trim()
+  if (!/^https?:\/\//i.test(value)) return false
+  try {
+    const host = new URL(value).hostname.toLowerCase()
+    return (
+      host === '1688.com' ||
+      host.endsWith('.1688.com') ||
+      host === 'taobao.com' ||
+      host.endsWith('.taobao.com') ||
+      host === 'tmall.com' ||
+      host.endsWith('.tmall.com')
+    )
+  } catch {
+    return /(^|\.)(1688|taobao|tmall)\./i.test(value)
+  }
+}
+
+/**
+ * «Xem chi tiết» trên thẻ chat.
+ * URL shop / web khách (không phải nguồn TQ) giữ nguyên.
+ * Link 1688 / Taobao / Tmall đổi sang PDP shop khi có inventory id.
+ */
+export function guestChatProductDetailHref(
+  siteSlug: string,
+  websitePublicUrl: string | null | undefined,
+  product: InventoryAdminWebProduct
+): string {
+  const raw = String(product.product_url ?? '').trim()
+  if (/^https?:\/\//i.test(raw) && !isChinaSourceProductUrl(raw)) return raw
+  return inventoryAdminWebHref(siteSlug, websitePublicUrl, product)
 }

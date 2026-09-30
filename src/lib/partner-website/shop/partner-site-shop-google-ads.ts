@@ -14,20 +14,48 @@ function adsAwId(raw: string | null | undefined): string | null {
   return /^AW-[A-Z0-9]+$/.test(id) ? id : null
 }
 
-export function retailItemId(product: PartnerSiteShopTrackingProduct): string {
-  return catalogContentId({ remarketingId: product.remarketingId, inventoryId: product.itemId })
+export function retailItemId(product: {
+  itemId?: string | null
+  id?: string | null
+  inventoryId?: string | null
+  inventory_id?: string | null
+  remarketingId?: string | null
+  remarketing_id?: string | null
+  [key: string]: unknown
+}): string {
+  const remarketing = product.remarketingId || product.remarketing_id
+  const inventory = product.itemId || product.id || product.inventoryId || product.inventory_id
+  return catalogContentId({ remarketingId: remarketing, inventoryId: inventory })
 }
 
-export function googleAdsRetailItem(product: PartnerSiteShopTrackingProduct, quantity = 1) {
+export function googleAdsRetailItem(
+  product: {
+    itemId?: string | null
+    id?: string | null
+    inventoryId?: string | null
+    inventory_id?: string | null
+    remarketingId?: string | null
+    remarketing_id?: string | null
+    itemName?: string | null
+    name?: string | null
+    value?: number | null
+    price?: number | null
+    quantity?: number | null
+  },
+  quantity = 1
+) {
   const id = retailItemId(product)
+  const name = String(product.itemName || product.name || '').slice(0, 200)
+  const val = Number(product.value ?? product.price ?? 0)
+  const qty = Math.max(1, Number(product.quantity ?? quantity ?? 1))
   return {
     id,
     item_id: id,
     google_business_vertical: 'retail' as const,
-    name: product.itemName.slice(0, 200),
-    item_name: product.itemName.slice(0, 200),
-    quantity: Math.max(1, quantity),
-    ...(product.value > 0 ? { price: product.value } : {}),
+    name,
+    item_name: name,
+    quantity: qty,
+    ...(val > 0 ? { price: val } : {}),
   }
 }
 
@@ -45,7 +73,7 @@ function conversionLabelFor(
   return normalizeGoogleAdsConversionLabel(map[key])
 }
 
-function ecommProdid(products: PartnerSiteShopTrackingProduct[]): string | string[] | undefined {
+export function ecommProdid(products: PartnerSiteShopTrackingProduct[]): string | string[] | undefined {
   const ids = [...new Set(products.map(retailItemId).filter(Boolean))]
   if (ids.length === 1) return ids[0]
   if (ids.length > 1) return ids

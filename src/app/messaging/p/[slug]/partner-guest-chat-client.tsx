@@ -77,6 +77,7 @@ import {
 import { partnerSiteAddressesApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { MessageImagePreviewDialog } from '@/components/messaging/message-image-preview-dialog'
 import { collectGuestOrderDepositConfirmationSplit } from '@/lib/messaging/order-sepay-message-helpers'
+import { guestChatProductDetailHref } from '@/lib/messaging/inventory-admin-web-href'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { findPaletteColorByImageUrl } from '@/lib/messaging/palette-color-match'
 import { useToast } from '@/hooks/use-toast'
@@ -3708,10 +3709,23 @@ export function PartnerGuestChatClient({
     [guestPurchaseFlow, openOrderFormByOption, resolveSkuForGuestPurchase]
   )
 
-  const openGuestProductCardNav = useCallback((card: PartnerAiProductCard) => {
-    const href = (card.product_url ?? '').trim()
-    if (/^https?:\/\//i.test(href)) openGuestProductDetailUrl(href)
-  }, [])
+  const guestProductDetailHref = useCallback(
+    (card: { name?: string | null; product_url?: string | null; inventory_id?: string | null }) =>
+      guestChatProductDetailHref(guestSiteSlug || '', guestSaasPublicUrl, {
+        id: card.inventory_id || '',
+        name: card.name,
+        product_url: card.product_url,
+      }),
+    [guestSaasPublicUrl, guestSiteSlug]
+  )
+
+  const openGuestProductCardNav = useCallback(
+    (card: PartnerAiProductCard) => {
+      const href = guestProductDetailHref(card)
+      if (href) openGuestProductDetailUrl(href)
+    },
+    [guestProductDetailHref]
+  )
 
   const openGuestProductOrderFormFromCard = triggerGuestProductPurchase
 
@@ -6289,6 +6303,11 @@ export function PartnerGuestChatClient({
                               const isSelected = vs.selectedInventoryId === c.inventoryId
                               const isBusy = visionPickBusyId === m.id
                               const puVision = (c.product_url || '').trim()
+                              const detailHref = guestChatProductDetailHref(guestSiteSlug || '', guestSaasPublicUrl, {
+                                id: c.inventoryId,
+                                name: c.name,
+                                product_url: puVision,
+                              })
                               const vk = `${m.id}\u001f${c.inventoryId}`
                               const idVisDetail = `${vk}::detail`
                               const idVisBuy = `${vk}::buy`
@@ -6324,9 +6343,9 @@ export function PartnerGuestChatClient({
                                   title={c.name}
                                 >
                                   {c.image_url ? (
-                                    puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                    detailHref ? (
                                       <a
-                                        href={puVision.trim()}
+                                        href={detailHref}
                                         rel="noopener noreferrer"
                                         className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
@@ -6341,7 +6360,7 @@ export function PartnerGuestChatClient({
                                             inventoryId: c.inventoryId,
                                           })
                                           if (card) openGuestProductCardNav(card)
-                                          else openGuestProductDetailUrl(puVision.trim())
+                                          else openGuestProductDetailUrl(detailHref)
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
@@ -6380,9 +6399,9 @@ export function PartnerGuestChatClient({
                                     >
                                       {formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? '\u00a0'}
                                     </p>
-                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                    {detailHref ? (
                                       <a
-                                        href={puVision.trim()}
+                                        href={detailHref}
                                         rel="noopener noreferrer"
                                         className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                                           visionTapped(idVisDetail)
@@ -6393,7 +6412,7 @@ export function PartnerGuestChatClient({
                                           e.preventDefault()
                                           e.stopPropagation()
                                           markVisionBtn(idVisDetail)
-                                          openGuestProductDetailUrl(puVision.trim())
+                                          openGuestProductDetailUrl(detailHref)
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                         lang="vi"
@@ -6521,6 +6540,7 @@ export function PartnerGuestChatClient({
                         tone={isMe && !consultLinkShopStyle ? 'onViolet' : 'default'}
                         openMessageLinksInSameTab
                         renderAiProductCarousel={!isMe && !isBirthdayPromoGreetingPayload(m.raw_payload)}
+                        resolveProductDetailHref={guestProductDetailHref}
                         labels={{
                           productCardOpenProduct: t.visionProductLink,
                           productCardViewDetails: t.visionProductViewDetails,
@@ -6572,6 +6592,11 @@ export function PartnerGuestChatClient({
                               const isSelected = vs.selectedInventoryId === c.inventoryId
                               const isBusy = visionPickBusyId === pickSourceMessageId
                               const puVision = (c.product_url || '').trim()
+                              const detailHref = guestChatProductDetailHref(guestSiteSlug || '', guestSaasPublicUrl, {
+                                id: c.inventoryId,
+                                name: c.name,
+                                product_url: puVision,
+                              })
                               const vk = `${pickSourceMessageId}\u001f${c.inventoryId}`
                               const idVisDetail = `${vk}::detail`
                               const idVisBuy = `${vk}::buy`
@@ -6607,9 +6632,9 @@ export function PartnerGuestChatClient({
                                   title={c.name}
                                 >
                                   {c.image_url ? (
-                                    puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                    detailHref ? (
                                       <a
-                                        href={puVision.trim()}
+                                        href={detailHref}
                                         rel="noopener noreferrer"
                                         className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                         onClick={(ev) => {
@@ -6624,7 +6649,7 @@ export function PartnerGuestChatClient({
                                             inventoryId: c.inventoryId,
                                           })
                                           if (card) openGuestProductCardNav(card)
-                                          else openGuestProductDetailUrl(puVision.trim())
+                                          else openGuestProductDetailUrl(detailHref)
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                       >
@@ -6663,9 +6688,9 @@ export function PartnerGuestChatClient({
                                     >
                                       {formatVndPriceWithBirthday(c.price_hint, birthdayPromoDiscountPct) ?? '\u00a0'}
                                     </p>
-                                    {puVision && /^https?:\/\//i.test(puVision.trim()) ? (
+                                    {detailHref ? (
                                       <a
-                                        href={puVision.trim()}
+                                        href={detailHref}
                                         rel="noopener noreferrer"
                                         className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                                           visionTapped(idVisDetail)
@@ -6676,7 +6701,7 @@ export function PartnerGuestChatClient({
                                           e.preventDefault()
                                           e.stopPropagation()
                                           markVisionBtn(idVisDetail)
-                                          openGuestProductDetailUrl(puVision.trim())
+                                          openGuestProductDetailUrl(detailHref)
                                         }}
                                         aria-label={`${c.name}. ${t.visionProductViewDetails}`}
                                         lang="vi"
@@ -6859,7 +6884,7 @@ export function PartnerGuestChatClient({
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {buyOptions.map((item) => {
                       const pu = (item.product_url || '').trim()
-                      const href = pu && /^https?:\/\//i.test(pu) ? pu : ''
+                      const href = guestProductDetailHref(item)
                       return (
                         <div
                           key={`${item.product_url}-${item.name}`}
@@ -6875,7 +6900,7 @@ export function PartnerGuestChatClient({
                                 e.preventDefault()
                                 const card = guestCardFromChatSurface(item)
                                 if (card) openGuestProductCardNav(card)
-                                else openGuestProductDetailUrl(href)
+                                else if (href) openGuestProductDetailUrl(href)
                               }}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -6966,16 +6991,16 @@ export function PartnerGuestChatClient({
                   {activeOrderCard ? (
                     <div className="rounded-md border border-border/70 bg-background p-2">
                       <div className="flex items-center gap-2">
-                        {activeOrderCard.product_url &&
-                        /^https?:\/\//i.test(activeOrderCard.product_url.trim()) ? (
+                        {guestProductDetailHref(activeOrderCard) ? (
                           <a
-                            href={activeOrderCard.product_url.trim()}
+                            href={guestProductDetailHref(activeOrderCard)}
                             rel="noopener noreferrer"
                             className="shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             aria-label={`Mở trang sản phẩm: ${activeOrderCard.name}`}
                             onClick={(e) => {
                               e.preventDefault()
-                              openGuestProductDetailUrl(activeOrderCard.product_url.trim())
+                              const href = guestProductDetailHref(activeOrderCard)
+                              if (href) openGuestProductDetailUrl(href)
                             }}
                           >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -8428,15 +8453,16 @@ export function PartnerGuestChatClient({
             <div className="grid grid-cols-2 gap-2.5">
               {productShelfDisplayRows.slice(0, productShelfVisibleCount).map((row) => {
                 const href = row.card.product_url.trim()
+                const detailHref = guestProductDetailHref(row.card)
                 const priceLabel = formatVndPriceWithBirthday(row.card.price_hint, birthdayPromoDiscountPct)
                 return (
                   <div
                     key={`${row.sourceMessageId}-${href}`}
                     className="flex flex-col gap-1.5 rounded-lg border border-border/70 bg-muted/15 p-2 [content-visibility:auto] supports-[content-visibility:auto]:[contain-intrinsic-size:12rem]"
                   >
-                    {/^https?:\/\//i.test(href) ? (
+                    {detailHref ? (
                       <a
-                        href={href}
+                        href={detailHref}
                         rel="noopener noreferrer"
                         className="relative block aspect-square w-full overflow-hidden rounded-md border border-border/50 bg-background outline-none ring-offset-background transition-opacity hover:opacity-95 active:opacity-90 focus-visible:ring-2 focus-visible:ring-ring"
                         aria-label={`${row.card.name.trim() || t.visionProductViewDetails} — ${t.visionProductViewDetails}`}
@@ -8514,18 +8540,17 @@ export function PartnerGuestChatClient({
                           {t.visionProductLink}
                         </Button>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-full px-1 text-[11px]"
-                        onClick={() => {
-                          if (!/^https?:\/\//i.test(href)) return
-                          openGuestProductDetailUrl(href)
-                        }}
-                      >
-                        {t.visionProductViewDetails}
-                      </Button>
+                      {detailHref ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-full px-1 text-[11px]"
+                          onClick={() => openGuestProductDetailUrl(detailHref)}
+                        >
+                          {t.visionProductViewDetails}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 )

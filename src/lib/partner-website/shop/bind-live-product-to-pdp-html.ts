@@ -334,11 +334,30 @@ function setAttr(attrs: string, name: string, value: string): string {
   return `${attrs} ${name}="${escAttr(value)}"`
 }
 
-function stampInventoryIdOnTag(open: string, id: string): string {
-  if (/\bdata-inventory-id\s*=/.test(open)) {
-    return open.replace(/\bdata-inventory-id\s*=\s*(["'])[^"']*\1/i, `data-inventory-id="${escAttr(id)}"`)
+function stampInventoryIdOnTag(open: string, id: string, remarketingId?: string, sku?: string): string {
+  let res = open
+  if (/\bdata-inventory-id\s*=/.test(res)) {
+    res = res.replace(/\bdata-inventory-id\s*=\s*(["'])[^"']*\1/i, `data-inventory-id="${escAttr(id)}"`)
+  } else {
+    res = res.replace(/>$/, ` data-inventory-id="${escAttr(id)}">`)
   }
-  return open.replace(/>$/, ` data-inventory-id="${escAttr(id)}">`)
+  const rid = String(remarketingId || '').trim()
+  if (rid) {
+    if (/\bdata-remarketing-id\s*=/.test(res)) {
+      res = res.replace(/\bdata-remarketing-id\s*=\s*(["'])[^"']*\1/i, `data-remarketing-id="${escAttr(rid)}"`)
+    } else {
+      res = res.replace(/>$/, ` data-remarketing-id="${escAttr(rid)}">`)
+    }
+  }
+  const s = String(sku || '').trim()
+  if (s) {
+    if (/\bdata-sku\s*=/.test(res)) {
+      res = res.replace(/\bdata-sku\s*=\s*(["'])[^"']*\1/i, `data-sku="${escAttr(s)}"`)
+    } else {
+      res = res.replace(/>$/, ` data-sku="${escAttr(s)}">`)
+    }
+  }
+  return res
 }
 
 function stampPdpServerBoundOnTag(open: string): string {
@@ -1421,21 +1440,21 @@ function rewriteReviewsInner(inner: string, product: LivePdpBindProduct): string
   return out
 }
 
-function stampPdpHosts(html: string, id: string): string {
+function stampPdpHosts(html: string, id: string, remarketingId?: string, sku?: string): string {
   let out = html.replace(/<body\b([^>]*)>/i, (full, attrs: string) => {
     if (!/\bdata-pw-page=["']product["']/.test(attrs)) return full
-    const stamped = stampInventoryIdOnTag(full, id)
+    const stamped = stampInventoryIdOnTag(full, id, remarketingId, sku)
     return /\bdata-pw-pdp-server-bound=/.test(stamped)
       ? stamped
       : stamped.replace(/>$/, ' data-pw-pdp-server-bound="1">')
   })
   out = out.replace(
     /<(div|section|nav|aside)\b([^>]*\b(?:class=["'][^"']*\b(?:pw-pdp|pw-pdp-sticky|pw-shop-pdp-info|pw-shop-product-detail)\b|data-pw-page=["']product["'])[^>]*)>/gi,
-    (full) => stampInventoryIdOnTag(full, id)
+    (full) => stampInventoryIdOnTag(full, id, remarketingId, sku)
   )
   out = out.replace(
     /<(button|a)\b([^>]*\b(?:data-pw-pdp-(?:favorite|add-cart|buy-now)\s*=|data-pw-chrome-btn\s*=\s*["']favorite-product["'])[^>]*)>/gi,
-    (full) => stampInventoryIdOnTag(full, id)
+    (full) => stampInventoryIdOnTag(full, id, remarketingId, sku)
   )
   return out
 }
@@ -1786,18 +1805,20 @@ export function bindLiveProductToPdpHtml(
   if (!source || !id || !product) return html
   const locale = opts?.locale || 'vi'
   const siteSlug = opts?.siteSlug
+  const remarketingId = String(product?.remarketingId || '').trim()
+  const sku = String(product?.sku || '').trim()
   const { masked, blocks } = maskInlineCodeBlocks(source)
   let out = ensurePartnerSitePdpBottomNavInHtml(restoreDeferredPdpGalleryMediaInHtml(masked), {
     locale,
     siteSlug,
     pageKey: 'product_detail',
   })
-  out = stampPdpHosts(out, id)
+  out = stampPdpHosts(out, id, remarketingId, sku)
   out = replaceRegionBlocks(out, PW_REGION.breadcrumb, (inner, open) => {
     return `${open}${breadcrumbInnerHtml(product, locale, siteSlug)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.gallery, (inner, open) => {
-    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(open, id))}${rewriteGalleryInner(inner, product)}`
+    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(open, id, remarketingId, sku))}${rewriteGalleryInner(inner, product)}`
   })
   out = replaceRegionBlocks(out, PW_REGION.pdpInfo, (inner, open) => {
     const variants = !/\bpw-shop-product-detail\b/.test(open)
@@ -1805,7 +1826,7 @@ export function bindLiveProductToPdpHtml(
     const stamped = kind
       ? open.replace(/\sdata-pw-size-guide-kind=(["'])[^"']*\1/i, '').replace(/>$/, ` data-pw-size-guide-kind="${escAttr(kind)}">`)
       : open.replace(/\sdata-pw-size-guide-kind=(["'])[^"']*\1/i, '')
-    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(stamped, id))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
+    return `${stampPdpServerBoundOnTag(stampInventoryIdOnTag(stamped, id, remarketingId, sku))}${rewritePdpInfoInner(inner, product, locale, { variants })}`
   })
   out = replaceRegionBlocks(out, PW_REGION.reviews, (inner, open) => {
     if (

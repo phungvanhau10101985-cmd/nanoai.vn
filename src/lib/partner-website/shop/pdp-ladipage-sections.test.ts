@@ -5,9 +5,11 @@ import {
   bindPdpLadipageToHtml,
   buildPdpLadipageFaqJsonLd,
   pdpLadipageHeroCopyVisible,
+  placeMobilePdpSkuBesideSuggestedBadge,
   type PdpLadipageOverlay,
 } from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import { isPdpCartTriggerForTest, PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+import { bindPdpShareControlsToHtml } from '@/lib/partner-website/shop/pdp-share-controls'
 
 const SHELL = `<html><head></head><body>
 <div class="pw-shop-product-layout">
@@ -154,6 +156,35 @@ test('offer line still binds when the product has no published story', () => {
   assert.match(html, /data-pw-pdp-offer/)
   assert.doesNotMatch(html, /<!--pw-pdp-ladipage-hero-->/)
   assert.doesNotMatch(html, /<!--pw-pdp-ladipage-story-->/)
+})
+
+test('mobile moves the product code onto the suggested-for-you row', () => {
+  const shell = `<html><head></head><body>
+<div class="pw-shop-product-layout">
+  <div class="pw-shop-pdp-info" data-pw-region="pdp-info">
+    <h1 data-pw-el="title">Áo sơ mi</h1>
+    <p class="pw-pdp-sku">Mã SP: <strong data-pw-el="sku">QA0001</strong></p>
+    <div class="pw-pdp-actions"></div>
+  </div>
+</div>
+<section class="pw-shop-product-detail"></section>
+</body></html>`
+  const bound = bindPdpLadipageToHtml(shell, overlay, { locale: 'vi', device: 'mobile' })
+  const moved = placeMobilePdpSkuBesideSuggestedBadge(bindPdpShareControlsToHtml(bound, 'vi'))
+  const row = moved.match(/<div\b[^>]*data-pw-lp-badge-row="1"[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+  assert.match(row, /Gợi ý dành cho bạn/)
+  assert.match(row, /QA0001/)
+  assert.doesNotMatch(row, /data-pw-share/)
+  const infoStart = moved.indexOf('class="pw-shop-pdp-info"')
+  const infoSlice = moved.slice(infoStart, moved.indexOf('pw-pdp-actions', infoStart))
+  assert.doesNotMatch(infoSlice, /<p\b[^>]*\bpw-pdp-sku\b/)
+  assert.match(infoSlice, /data-pw-share="copy"/)
+  const tablet = bindPdpLadipageToHtml(shell, overlay, { locale: 'vi', device: 'tablet' })
+  const tabletRow = tablet.match(/<div\b[^>]*data-pw-lp-badge-row="1"[^>]*>[\s\S]*?<\/div>/i)?.[0] || ''
+  assert.doesNotMatch(tabletRow, /QA0001/)
+  assert.match(tablet, /pw-shop-pdp-info[\s\S]*QA0001/)
+  const again = placeMobilePdpSkuBesideSuggestedBadge(moved)
+  assert.equal(again, moved)
 })
 
 test('faq json-ld only includes published questions', () => {

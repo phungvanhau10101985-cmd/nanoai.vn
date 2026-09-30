@@ -107,6 +107,8 @@ export function PartnerSitePdpLadipageBlocks({
   locale,
   onBuy,
   part,
+  sku,
+  skuLabel,
 }: {
   story: PdpLadipageStory
   productName: string
@@ -114,6 +116,8 @@ export function PartnerSitePdpLadipageBlocks({
   locale: WebLocale
   onBuy: () => void
   part: 'hero' | 'blurb' | 'story'
+  sku?: string
+  skuLabel?: string
 }) {
   const shop = getPartnerSiteShopCopy(locale)
   const visible = pdpLadipageHeroCopyVisible(
@@ -132,10 +136,17 @@ export function PartnerSitePdpLadipageBlocks({
     return (
       <div data-pw-ladipage-mobile data-pw-pdp-ladipage="blurb" className="pw-pdp-ladipage-mobile-only">
         {face}
-        <p data-pw-el="badge">
-          <span className="pw-lp-dot" aria-hidden="true" />
-          {shop.lpSuggestedForYou}
-        </p>
+        <div className="pw-lp-badge-row" data-pw-lp-badge-row="1">
+          <p data-pw-el="badge">
+            <span className="pw-lp-dot" aria-hidden="true" />
+            {shop.lpSuggestedForYou}
+          </p>
+          {sku ? (
+            <p className="pw-pdp-sku pw-lp-sku-inline">
+              {skuLabel}: <strong>{sku}</strong>
+            </p>
+          ) : null}
+        </div>
         {visible.showHeadline ? <h2 data-pw-el="title">{story.hero.headline}</h2> : null}
         {visible.showSub ? (
           <p data-pw-el="subtitle">

@@ -165,6 +165,18 @@ ${PDP_LADIPAGE_OFFER_CSS}
 [data-pw-pdp-ladipage="trust"] strong{display:block;color:#111827;font-size:14px;font-weight:800}
 [data-pw-pdp-ladipage="trust"] .pw-lp-trust-body{display:block;margin-top:3px;color:var(--pw-muted,#6b7280);font-size:12px;font-weight:500;line-height:1.45}
 [data-pw-pdp-ladipage="blurb"]{display:flex;flex-direction:column;align-items:flex-start;gap:12px;margin:12px 0 4px;padding:16px 14px 14px;border-radius:20px;border:1px solid color-mix(in srgb,var(--pw-primary) 16%,#fff);background:linear-gradient(180deg,#fff,color-mix(in srgb,var(--pw-primary) 6%,#fff))}
+[data-pw-pdp-ladipage="blurb"] [data-pw-lp-badge-row]{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:0}
+[data-pw-pdp-ladipage="blurb"] [data-pw-lp-badge-row] [data-pw-el="badge"]{flex:0 1 auto;min-width:0}
+[data-pw-pdp-ladipage="blurb"] [data-pw-lp-badge-row] .pw-pdp-sku{margin:0 0 0 auto;flex:0 1 auto;min-width:0;text-align:right;font-size:12px;line-height:1.3;white-space:nowrap}
+.pw-lp-sku-inline{display:none}
+html[data-pw-edit-device="mobile"] .pw-lp-sku-inline,html[data-pw-scene-lock="mobile"] .pw-lp-sku-inline{display:block}
+html[data-pw-edit-device="mobile"] .pw-pdp:has(.pw-lp-sku-inline) .pw-shop-pdp-info .pw-pdp-sku,html[data-pw-scene-lock="mobile"] .pw-pdp:has(.pw-lp-sku-inline) .pw-shop-pdp-info .pw-pdp-sku{display:none!important}
+html[data-pw-edit-device="mobile"] .pw-pdp:has(.pw-lp-sku-inline) .pw-pdp-share-line,html[data-pw-scene-lock="mobile"] .pw-pdp:has(.pw-lp-sku-inline) .pw-pdp-share-line{justify-content:flex-end}
+@media (max-width:767px){
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-lp-sku-inline{display:block}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-pdp:has(.pw-lp-sku-inline) .pw-shop-pdp-info .pw-pdp-sku{display:none!important}
+  html:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-pdp:has(.pw-lp-sku-inline) .pw-pdp-share-line{justify-content:flex-end}
+}
 [data-pw-pdp-ladipage="blurb"] [data-pw-el="title"]{margin:0;font-size:1.35rem;font-weight:800;letter-spacing:-.03em;line-height:1.2;color:#111827}
 [data-pw-pdp-ladipage="blurb"] [data-pw-el="subtitle"]{margin:0;font-size:1rem;font-weight:500;line-height:1.55;color:#374151}
 [data-pw-pdp-ladipage="blurb"] .pw-shop-btn-buy{border-radius:999px;font-weight:800;padding:12px 22px}
@@ -204,7 +216,11 @@ ${PDP_LADIPAGE_OFFER_CSS}
 `
 const CSS = `<style data-pw-pdp-ladipage-css>${PDP_LADIPAGE_FACE_CSS}</style>`
 
-function heroCopyHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
+function heroCopyHtml(
+  input: PdpLadipageOverlay,
+  locale: WebLocale,
+  opts?: { badgeRow?: boolean }
+): string {
   const story = input.story
   if (!story) return ''
   const shop = getPartnerSiteShopCopy(locale)
@@ -213,7 +229,11 @@ function heroCopyHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
     story.hero.headline || '',
     story.hero.subheadline || ''
   )
-  return `<p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>
+  const badge = `<p data-pw-el="badge"><span class="pw-lp-dot" aria-hidden="true"></span>${esc(shop.lpSuggestedForYou)}</p>`
+  const badgeHtml = opts?.badgeRow
+    ? `<div class="pw-lp-badge-row" data-pw-lp-badge-row="1">${badge}</div>`
+    : badge
+  return `${badgeHtml}
         ${visible.showHeadline ? `<h2 data-pw-el="title">${esc(story.hero.headline || '')}</h2>` : ''}
         ${visible.showSub ? `<p data-pw-el="subtitle">${emphasize(story.hero.subheadline || '')}</p>` : ''}
         <button type="button" class="pw-shop-btn pw-shop-btn-buy" data-pw-el="cta" data-pw-buy data-pw-pdp-buy-now="1" data-pw-ladipage-buy="1">${esc(shop.buyNow)}<span class="pw-lp-arrow" aria-hidden="true">→</span></button>`
@@ -247,8 +267,28 @@ function blurbHtml(input: PdpLadipageOverlay, locale: WebLocale): string {
   return wrap(
     'blurb',
     `<div data-pw-pdp-ladipage="blurb">
-      ${heroCopyHtml(input, locale)}
+      ${heroCopyHtml(input, locale, { badgeRow: true })}
     </div>`
+  )
+}
+
+const SKU_PARAGRAPH_RE = /<p\b[^>]*\bpw-pdp-sku\b[^>]*>[\s\S]*?<\/p>/i
+
+function skuParagraphHasCode(block: string): boolean {
+  const strong = block.match(/<strong\b[^>]*>([\s\S]*?)<\/strong>/i)
+  return Boolean(strong && strong[1].replace(/<[^>]+>/g, '').trim())
+}
+
+/** Mobile: mã SP trong buy box lên cùng hàng với nhãn «Gợi ý dành cho bạn». */
+export function placeMobilePdpSkuBesideSuggestedBadge(html: string): string {
+  const row = html.match(/<div\b[^>]*\bdata-pw-lp-badge-row=["']1["'][^>]*>[\s\S]*?<\/div>/i)
+  if (!row?.[0] || /\bpw-pdp-sku\b/.test(row[0])) return html
+  const sku = html.match(SKU_PARAGRAPH_RE)
+  if (!sku?.[0] || !skuParagraphHasCode(sku[0])) return html
+  const without = html.replace(SKU_PARAGRAPH_RE, '')
+  return without.replace(
+    /(<div\b[^>]*\bdata-pw-lp-badge-row=["']1["'][^>]*>\s*<p\b[^>]*\bdata-pw-el=["']badge["'][^>]*>[\s\S]*?<\/p>)/i,
+    `$1${sku[0]}`
   )
 }
 

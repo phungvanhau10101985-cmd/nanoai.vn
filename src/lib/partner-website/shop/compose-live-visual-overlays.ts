@@ -17,7 +17,11 @@ import {
 import type { PartnerMarketingBannerPublicItem } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-editor-pages'
-import { bindPdpLadipageToHtml, type PdpLadipageOverlay } from '@/lib/partner-website/shop/pdp-ladipage-sections'
+import {
+  bindPdpLadipageToHtml,
+  placeMobilePdpSkuBesideSuggestedBadge,
+  type PdpLadipageOverlay,
+} from '@/lib/partner-website/shop/pdp-ladipage-sections'
 import { bindPdpShareControlsToHtml } from '@/lib/partner-website/shop/pdp-share-controls'
 
 /**
@@ -52,12 +56,14 @@ export function applyLiveVisualOverlays(
     device: input.device,
   })
   const withShare = input.liveProduct ? bindPdpShareControlsToHtml(withLadipage, input.locale) : withLadipage
+  const withMobileSku =
+    input.device === 'mobile' ? placeMobilePdpSkuBesideSuggestedBadge(withShare) : withShare
   const withListing = input.liveListing
-    ? bindLiveCategoryListingToHtml(withShare, input.liveListing, {
+    ? bindLiveCategoryListingToHtml(withMobileSku, input.liveListing, {
         locale: input.locale,
         siteSlug: input.siteSlug,
       })
-    : withShare
+    : withMobileSku
   const withoutHub = input.liveListing ? stripFeaturedCategoryHostsInHtml(withListing) : withListing
   const withCategories = bindLiveCategorySurfacesInHtml(withoutHub, input.liveCategoryBind ?? null)
   const withBanners = bindLiveMarketingBannersToHtml(withCategories, input.liveMarketingBanners, input.locale)

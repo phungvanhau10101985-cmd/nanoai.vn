@@ -606,6 +606,7 @@ function AiProductCards({
   onProductCardPick,
   onProductCardBuy,
   onProductCardAddToCart,
+  resolveProductDetailHref,
   onPreviewImage,
   onPreviewVideo,
 }: {
@@ -616,6 +617,8 @@ function AiProductCards({
   onProductCardBuy?: (card: PartnerAiProductCard) => void
   /** Widget khách: thêm sản phẩm vào giỏ hàng. */
   onProductCardAddToCart?: (card: PartnerAiProductCard) => void
+  /** PDP shop. Trả chuỗi rỗng khi không được mở link nguồn Trung Quốc. */
+  resolveProductDetailHref?: (card: PartnerAiProductCard) => string
   onPreviewImage: (imageUrl: string) => void
   onPreviewVideo: (videoUrl: string) => void
 }) {
@@ -638,18 +641,20 @@ function AiProductCards({
       {cards.map((p, idx) => {
         const priceLabel = formatVndPrice(p.price_hint)
         const pickable = typeof onProductCardPick === 'function'
-        const productHref =
+        const sourceHref =
           typeof p.product_url === 'string' && /^https?:\/\//i.test(p.product_url.trim()) ? p.product_url.trim() : ''
+        const resolvedDetail = resolveProductDetailHref?.(p)?.trim() ?? ''
+        const detailHref = resolveProductDetailHref ? resolvedDetail : sourceHref
         const showDualBuyConsult =
           Boolean(pickable) &&
           Boolean(consultLabel) &&
           Boolean(buyLabel) &&
-          Boolean(productHref) &&
+          Boolean(sourceHref) &&
           typeof onProductCardBuy === 'function'
         const cta = consultLabel
         const ctaAria = cta ? `${p.name}. ${cta}` : p.name
         const detailAria = `${p.name}. ${viewDetailsLabel}`
-        const showDetailRow = Boolean(productHref && viewDetailsLabel)
+        const showDetailRow = Boolean(detailHref && viewDetailsLabel)
         const rawVideo = (p.product_video_url ?? '').trim()
         const videoUrl = rawVideo && /^https?:\/\//i.test(rawVideo) ? rawVideo : ''
         const ytThumb = videoUrl ? youtubeThumbnailUrl(videoUrl) : null
@@ -669,15 +674,15 @@ function AiProductCards({
             <div className="flex gap-1">
               <div className="min-w-0 flex-1">
                 {displayImageUrl ? (
-                  productHref ? (
+                  detailHref ? (
                     <a
-                      href={productHref}
+                      href={detailHref}
                       rel="noopener noreferrer"
                       className="block w-full outline-none transition-opacity hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                       onClick={(ev) => {
                         ev.preventDefault()
                         ev.stopPropagation()
-                        openGuestProductDetailUrl(productHref)
+                        openGuestProductDetailUrl(detailHref)
                       }}
                       aria-label={detailAria}
                     >
@@ -743,7 +748,7 @@ function AiProductCards({
               </p>
               {showDetailRow ? (
                 <a
-                  href={productHref}
+                  href={detailHref}
                   rel="noopener noreferrer"
                   className={`flex h-8 w-full min-w-0 items-center justify-center rounded-md border px-1 text-[10px] font-semibold leading-snug transition-colors duration-150 active:scale-[0.99] sm:text-[10px] ${
                     isTapped(idDetail)
@@ -753,7 +758,7 @@ function AiProductCards({
                   onClick={(ev) => {
                     ev.preventDefault()
                     ev.stopPropagation()
-                    openGuestProductDetailUrl(productHref)
+                    openGuestProductDetailUrl(detailHref)
                     markTapped(idDetail)
                   }}
                   aria-label={detailAria}
@@ -857,6 +862,7 @@ export function CustomerCareMessageBody({
   onProductCardPick,
   onProductCardBuy,
   onProductCardAddToCart,
+  resolveProductDetailHref,
   orderPaymentProof,
   shopDisplayName = '',
   openMessageLinksInSameTab = false,
@@ -872,6 +878,8 @@ export function CustomerCareMessageBody({
   onProductCardBuy?: (card: PartnerAiProductCard) => void
   /** Trang guest: thêm sản phẩm vào giỏ hàng. */
   onProductCardAddToCart?: (card: PartnerAiProductCard) => void
+  /** PDP shop cho «Xem chi tiết» / ảnh thẻ. Không trả link 1688 / Taobao / Tmall. */
+  resolveProductDetailHref?: (card: PartnerAiProductCard) => string
   /** Trang guest: nút gửi biên lai gắn với đơn trong khối QR. */
   orderPaymentProof?: OrderPaymentProofSlot | null
   /** Tên hiển thị của shop (widget khách). */
@@ -949,6 +957,7 @@ export function CustomerCareMessageBody({
               onProductCardPick={onProductCardPick}
               onProductCardBuy={onProductCardBuy}
               onProductCardAddToCart={onProductCardAddToCart}
+              resolveProductDetailHref={resolveProductDetailHref}
               onPreviewImage={setLightboxSrc}
               onPreviewVideo={setVideoLightboxSrc}
             />
@@ -960,6 +969,7 @@ export function CustomerCareMessageBody({
             onProductCardPick={onProductCardPick}
             onProductCardBuy={onProductCardBuy}
             onProductCardAddToCart={onProductCardAddToCart}
+            resolveProductDetailHref={resolveProductDetailHref}
             onPreviewImage={setLightboxSrc}
             onPreviewVideo={setVideoLightboxSrc}
           />

@@ -643,12 +643,8 @@ export async function fetchGuestPurchaseConfigForPartnerFromPg(
        limit 1`,
       [partnerId]
     )
-    if (!row) return { ...EMPTY_GUEST_PURCHASE }
-    const flow = normalizeGuestPurchaseFlow(row.guest_purchase_flow)
-    const stored = parseGuestExternalCartUrlTemplate(row.guest_external_cart_url_template)
-    if (flow !== 'external_cart_url') {
-      return { ...EMPTY_GUEST_PURCHASE, flow, externalCartUrlTemplate: stored }
-    }
+    const flow = normalizeGuestPurchaseFlow(row?.guest_purchase_flow)
+    const stored = parseGuestExternalCartUrlTemplate(row?.guest_external_cart_url_template)
     const [preview, meta] = await Promise.all([
       resolvePartnerSaasCartAddPreview(partnerId),
       fetchPartnerWebsitePublishMetaFromPg(partnerId),
@@ -656,7 +652,7 @@ export async function fetchGuestPurchaseConfigForPartnerFromPg(
     return {
       flow,
       externalCartUrlTemplate: stored,
-      saasCartUrlTemplate: preview.autoTemplate,
+      saasCartUrlTemplate: flow === 'external_cart_url' ? preview.autoTemplate : null,
       saasPublicUrl: preview.publicUrl,
       siteSlug: meta?.siteSlug?.trim() || null,
     }

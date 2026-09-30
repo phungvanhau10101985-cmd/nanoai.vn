@@ -910,6 +910,8 @@ export function PartnerSiteShopProductClient({
           imageUrl={product.imageUrl || ''}
           locale={locale}
           onBuy={() => setVariantModalOpen(true)}
+          sku={sku}
+          skuLabel={t.skuLabel}
         />
       ) : null}
       <div className="pw-shop-product-layout">

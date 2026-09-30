@@ -326,7 +326,7 @@ function readPdpTrackProduct(fallbackId){
     var info=document.querySelector('[data-pw-region="pdp-info"]');
     var title=info&&info.querySelector('[data-pw-el="title"]');
     var priceEl=info&&info.querySelector('[data-pw-el="price"]');
-    var skuEl=info&&info.querySelector('[data-pw-el="sku"],.pw-pdp-sku');
+    var skuEl=(info&&info.querySelector('[data-pw-el="sku"],.pw-pdp-sku'))||document.querySelector('.pw-pdp-sku');
     p={
       id:fallbackId,
       name:title?(title.textContent||'').trim():'',

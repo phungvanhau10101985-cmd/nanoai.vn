@@ -8,6 +8,7 @@ import type {
   PartnerSiteShopTrackingProduct,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import {
+  ecommProdid,
   firePartnerSiteGoogleAdsConversion,
   firePartnerSiteGoogleAdsRetailPageView,
   googleAdsRetailItem,
@@ -102,7 +103,14 @@ function googleAdsItem(product: PartnerSiteShopTrackingProduct, quantity = 1) {
 
 function trackGoogleAdsEvent(
   googleAdsId: string | null | undefined,
-  eventName: 'page_view' | 'view_item' | 'add_to_cart' | 'begin_checkout' | 'purchase',
+  eventName:
+    | 'page_view'
+    | 'view_item'
+    | 'view_item_list'
+    | 'add_to_cart'
+    | 'begin_checkout'
+    | 'add_payment_info'
+    | 'purchase',
   params: Record<string, unknown>,
   currency = 'VND'
 ): void {
@@ -308,8 +316,9 @@ export function trackPartnerSiteViewItem(
   options?: { skipMeta?: boolean }
 ): void {
   const currency = trackingCurrency(config)
+  const prodId = retailItemId(product)
   trackShopGa4ProductEvent('view_item', config.ga4MeasurementId, {
-    itemId: retailItemId(product),
+    itemId: prodId,
     itemName: product.itemName,
     value: product.value,
     quantity: 1,
@@ -318,6 +327,11 @@ export function trackPartnerSiteViewItem(
     config.googleAdsId,
     'view_item',
     {
+      id: prodId,
+      item_id: prodId,
+      ecomm_prodid: prodId,
+      ecomm_pagetype: 'product',
+      ecomm_totalvalue: product.value,
       value: product.value,
       items: [googleAdsItem(product)],
     },
@@ -335,15 +349,31 @@ export function trackPartnerSiteViewItem(
   pushEcommerceDataLayer('view_item', {
     currency,
     value: product.value,
-    items: [{ item_id: retailItemId(product), item_name: product.itemName, price: product.value, quantity: 1 }],
+    id: prodId,
+    item_id: prodId,
+    ecomm_prodid: prodId,
+    ecomm_pagetype: 'product',
+    ecomm_totalvalue: product.value,
+    items: [{ item_id: prodId, item_name: product.itemName, price: product.value, quantity: 1 }],
   })
   trackMetaEvent(config, 'ViewContent', metaCustom(product, 1, currency), { skip: options?.skipMeta })
   trackTiktokEvent(config.tiktokPixelId, 'ViewContent', {
-    content_id: retailItemId(product),
+    content_id: prodId,
     content_type: 'product',
     content_name: product.itemName,
+    quantity: 1,
+    price: product.value,
     value: product.value,
     currency,
+    contents: [
+      {
+        content_id: prodId,
+        content_type: 'product',
+        content_name: product.itemName,
+        quantity: 1,
+        price: product.value,
+      },
+    ],
   })
 }
 
@@ -353,6 +383,7 @@ export function trackPartnerSiteViewItemList(
 ): void {
   if (products.length === 0) return
   const currency = trackingCurrency(config)
+  const prodIds = ecommProdid(products)
   const ga4 = (config.ga4MeasurementId ?? '').trim()
   if (ga4 && typeof window.gtag === 'function') {
     window.gtag('event', 'view_item_list', {
@@ -365,9 +396,39 @@ export function trackPartnerSiteViewItemList(
       })),
     })
   }
+  trackGoogleAdsEvent(
+    config.googleAdsId,
+    'view_item_list',
+    {
+      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+      ecomm_pagetype: 'category',
+      items: products.map((p) => googleAdsItem(p)),
+    },
+    currency
+  )
   firePartnerSiteGoogleAdsRetailPageView(config, {
     ecomm_pagetype: 'category',
     products,
+  })
+  pushEcommerceDataLayer('view_item_list', {
+    currency,
+    ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+    ecomm_pagetype: 'category',
+    items: products.map((p) => ({
+      item_id: retailItemId(p),
+      item_name: p.itemName,
+      ...(p.value > 0 ? { price: p.value } : {}),
+    })),
+  })
+  trackTiktokEvent(config.tiktokPixelId, 'ViewContent', {
+    content_type: 'product_group',
+    contents: products.slice(0, 20).map((p) => ({
+      content_id: retailItemId(p),
+      content_type: 'product',
+      content_name: p.itemName,
+      ...(p.value > 0 ? { price: p.value } : {}),
+    })),
+    currency,
   })
 }
 
@@ -379,37 +440,64 @@ export function trackPartnerSiteAddToCart(
 ): void {
   const currency = trackingCurrency(config)
   const qty = Math.max(1, Math.min(99, Math.floor(quantity) || 1))
+  const prodId = retailItemId(product)
+  const totalVal = product.value * qty
   trackShopGa4AddToCart(config.ga4MeasurementId, {
     content_ids: contentIds(product),
     content_name: product.itemName,
-    value: product.value * qty,
+    value: totalVal,
   })
   trackGoogleAdsEvent(
     config.googleAdsId,
     'add_to_cart',
     {
-      value: product.value * qty,
+      id: prodId,
+      item_id: prodId,
+      ecomm_prodid: prodId,
+      ecomm_pagetype: 'cart',
+      ecomm_totalvalue: totalVal,
+      value: totalVal,
       items: [{ ...googleAdsItem(product), quantity: qty }],
     },
     currency
   )
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'cart',
+    products: [product],
+    value: totalVal,
+  })
   pushEcommerceDataLayer('add_to_cart', {
     currency,
-    value: product.value * qty,
-    items: [{ item_id: retailItemId(product), item_name: product.itemName, price: product.value, quantity: qty }],
+    value: totalVal,
+    id: prodId,
+    item_id: prodId,
+    ecomm_prodid: prodId,
+    ecomm_pagetype: 'cart',
+    ecomm_totalvalue: totalVal,
+    items: [{ item_id: prodId, item_name: product.itemName, price: product.value, quantity: qty }],
   })
   firePartnerSiteGoogleAdsConversion(config, 'add_to_cart', {
-    value: product.value * qty,
+    value: totalVal,
     items: [googleAdsItem(product, qty)],
   })
   trackMetaEvent(config, 'AddToCart', metaCustom(product, qty, currency), { skip: options?.skipMeta })
   trackTiktokEvent(config.tiktokPixelId, 'AddToCart', {
-    content_id: retailItemId(product),
+    content_id: prodId,
     content_type: 'product',
     content_name: product.itemName,
-    value: product.value * qty,
-    currency,
     quantity: qty,
+    price: product.value,
+    value: totalVal,
+    currency,
+    contents: [
+      {
+        content_id: prodId,
+        content_type: 'product',
+        content_name: product.itemName,
+        quantity: qty,
+        price: product.value,
+      },
+    ],
   })
 }
 
@@ -419,6 +507,7 @@ export function trackPartnerSiteBeginCheckout(
 ): void {
   const currency = trackingCurrency(config)
   const value = lines.reduce((sum, line) => sum + line.value * line.quantity, 0)
+  const prodIds = ecommProdid(lines)
   trackShopGa4BeginCheckout(
     config.ga4MeasurementId,
     value,
@@ -433,6 +522,10 @@ export function trackPartnerSiteBeginCheckout(
     config.googleAdsId,
     'begin_checkout',
     {
+      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+      ...(typeof prodIds === 'string' ? { id: prodIds, item_id: prodIds } : {}),
+      ecomm_pagetype: 'cart',
+      ecomm_totalvalue: value,
       value,
       items: lines.map((line) => ({ ...googleAdsItem(line), quantity: line.quantity })),
     },
@@ -441,6 +534,9 @@ export function trackPartnerSiteBeginCheckout(
   pushEcommerceDataLayer('begin_checkout', {
     currency,
     value,
+    ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+    ecomm_pagetype: 'cart',
+    ecomm_totalvalue: value,
     items: lines.map((line) => ({
       item_id: retailItemId(line),
       item_name: line.itemName,
@@ -465,15 +561,23 @@ export function trackPartnerSiteBeginCheckout(
     value,
     num_items: lines.reduce((n, line) => n + line.quantity, 0),
   })
+  const tiktokLines = lines.map((line) => ({
+    content_id: retailItemId(line),
+    content_type: 'product',
+    content_name: line.itemName,
+    quantity: line.quantity,
+    price: line.value,
+  }))
+  const tiktokFirstId = lines.length === 1 ? retailItemId(lines[0]) : undefined
+  const tiktokIds = lines.map((line) => retailItemId(line)).filter(Boolean)
   trackTiktokEvent(config.tiktokPixelId, 'InitiateCheckout', {
-    contents: lines.map((line) => ({
-      content_id: retailItemId(line),
-      content_name: line.itemName,
-      quantity: line.quantity,
-      price: line.value,
-    })),
+    content_type: 'product',
+    ...(tiktokFirstId ? { content_id: tiktokFirstId } : {}),
+    ...(tiktokIds.length ? { content_ids: tiktokIds } : {}),
+    contents: tiktokLines,
     value,
     currency,
+    num_items: lines.reduce((n, line) => n + line.quantity, 0),
   })
 }
 
@@ -492,6 +596,7 @@ export function trackPartnerSitePurchase(
   const transactionId = params.transactionId.trim()
   if (!transactionId) return
   const currency = trackingCurrency(config)
+  const prodIds = ecommProdid(params.lines)
   trackShopGa4PurchaseEvent({
     measurementId: config.ga4MeasurementId,
     transactionId,
@@ -509,6 +614,10 @@ export function trackPartnerSitePurchase(
     {
       transaction_id: transactionId,
       value: params.value,
+      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+      ...(typeof prodIds === 'string' ? { id: prodIds, item_id: prodIds } : {}),
+      ecomm_pagetype: 'purchase',
+      ecomm_totalvalue: params.value,
       items: params.lines.map((line) => ({ ...googleAdsItem(line), quantity: line.quantity })),
     },
     currency
@@ -517,6 +626,9 @@ export function trackPartnerSitePurchase(
     transaction_id: transactionId,
     currency,
     value: params.value,
+    ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+    ecomm_pagetype: 'purchase',
+    ecomm_totalvalue: params.value,
     items: params.lines.map((line) => ({
       item_id: retailItemId(line),
       item_name: line.itemName,
@@ -556,15 +668,24 @@ export function trackPartnerSitePurchase(
     customerEmail: params.customerEmail,
     customerPhone: params.customerPhone,
   })
+  const tiktokPurchaseLines = params.lines.map((line) => ({
+    content_id: retailItemId(line),
+    content_type: 'product',
+    content_name: line.itemName,
+    quantity: line.quantity,
+    price: line.value,
+  }))
+  const tiktokPurchaseFirstId = params.lines.length === 1 ? retailItemId(params.lines[0]) : undefined
+  const tiktokPurchaseIds = params.lines.map((line) => retailItemId(line)).filter(Boolean)
   trackTiktokEvent(config.tiktokPixelId, 'CompletePayment', {
-    contents: params.lines.map((line) => ({
-      content_id: retailItemId(line),
-      content_name: line.itemName,
-      quantity: line.quantity,
-      price: line.value,
-    })),
+    content_type: 'product',
+    ...(tiktokPurchaseFirstId ? { content_id: tiktokPurchaseFirstId } : {}),
+    ...(tiktokPurchaseIds.length ? { content_ids: tiktokPurchaseIds } : {}),
+    order_id: transactionId,
+    contents: tiktokPurchaseLines,
     value: params.value,
     currency,
+    num_items: params.lines.reduce((n, line) => n + line.quantity, 0),
   })
 }
 
@@ -574,6 +695,40 @@ export function trackPartnerSitePlaceOrder(
   params: { value: number; lines: PartnerSiteShopTrackingLine[]; transactionId?: string }
 ): void {
   const currency = trackingCurrency(config)
+  const prodIds = ecommProdid(params.lines)
+  trackGoogleAdsEvent(
+    config.googleAdsId,
+    'add_payment_info',
+    {
+      ...(params.transactionId ? { transaction_id: params.transactionId } : {}),
+      value: params.value,
+      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+      ...(typeof prodIds === 'string' ? { id: prodIds, item_id: prodIds } : {}),
+      ecomm_pagetype: 'cart',
+      ecomm_totalvalue: params.value,
+      items: params.lines.map((line) => ({ ...googleAdsItem(line), quantity: line.quantity })),
+    },
+    currency
+  )
+  firePartnerSiteGoogleAdsRetailPageView(config, {
+    ecomm_pagetype: 'cart',
+    products: params.lines,
+    value: params.value,
+  })
+  pushEcommerceDataLayer('add_payment_info', {
+    ...(params.transactionId ? { transaction_id: params.transactionId } : {}),
+    currency,
+    value: params.value,
+    ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+    ecomm_pagetype: 'cart',
+    ecomm_totalvalue: params.value,
+    items: params.lines.map((line) => ({
+      item_id: retailItemId(line),
+      item_name: line.itemName,
+      price: line.value,
+      quantity: line.quantity,
+    })),
+  })
   const ids = [...new Set(params.lines.flatMap((line) => contentIds(line)))]
   trackMetaCustom(config, 'OrderAwaitingDeposit', {
     content_ids: ids,
@@ -583,15 +738,24 @@ export function trackPartnerSitePlaceOrder(
     num_items: params.lines.reduce((n, line) => n + line.quantity, 0),
     order_id: params.transactionId || '',
   })
+  const tiktokPlaceLines = params.lines.map((line) => ({
+    content_id: retailItemId(line),
+    content_type: 'product',
+    content_name: line.itemName,
+    quantity: line.quantity,
+    price: line.value,
+  }))
+  const tiktokPlaceFirstId = params.lines.length === 1 ? retailItemId(params.lines[0]) : undefined
+  const tiktokPlaceIds = params.lines.map((line) => retailItemId(line)).filter(Boolean)
   trackTiktokEvent(config.tiktokPixelId, 'PlaceAnOrder', {
-    contents: params.lines.map((line) => ({
-      content_id: retailItemId(line),
-      content_name: line.itemName,
-      quantity: line.quantity,
-      price: line.value,
-    })),
+    content_type: 'product',
+    ...(tiktokPlaceFirstId ? { content_id: tiktokPlaceFirstId } : {}),
+    ...(tiktokPlaceIds.length ? { content_ids: tiktokPlaceIds } : {}),
+    order_id: params.transactionId || '',
+    contents: tiktokPlaceLines,
     value: params.value,
     currency,
+    num_items: params.lines.reduce((n, line) => n + line.quantity, 0),
   })
 }
 
@@ -603,10 +767,57 @@ export function trackPartnerSiteDepositPage(
   const currency = trackingCurrency(config)
   const ids = [...new Set(lines.map((line) => retailItemId(line)).filter(Boolean))]
   if (lines.length) {
+    const prodIds = ecommProdid(lines)
+    trackGoogleAdsEvent(
+      config.googleAdsId,
+      'add_payment_info',
+      {
+        ...(params.transactionId ? { transaction_id: params.transactionId } : {}),
+        value: params.value,
+        ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+        ...(typeof prodIds === 'string' ? { id: prodIds, item_id: prodIds } : {}),
+        ecomm_pagetype: 'cart',
+        ecomm_totalvalue: params.value,
+        items: lines.map((line) => ({ ...googleAdsItem(line), quantity: line.quantity })),
+      },
+      currency
+    )
     firePartnerSiteGoogleAdsRetailPageView(config, {
       ecomm_pagetype: 'cart',
       products: lines,
       value: params.value,
+    })
+    pushEcommerceDataLayer('deposit_page', {
+      ...(params.transactionId ? { transaction_id: params.transactionId } : {}),
+      currency,
+      value: params.value,
+      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+      ecomm_pagetype: 'cart',
+      ecomm_totalvalue: params.value,
+      items: lines.map((line) => ({
+        item_id: retailItemId(line),
+        item_name: line.itemName,
+        price: line.value,
+        quantity: line.quantity,
+      })),
+    })
+    const tiktokDepositLines = lines.map((line) => ({
+      content_id: retailItemId(line),
+      content_type: 'product',
+      content_name: line.itemName,
+      quantity: line.quantity,
+      price: line.value,
+    }))
+    const tiktokDepositFirstId = lines.length === 1 ? retailItemId(lines[0]) : undefined
+    trackTiktokEvent(config.tiktokPixelId, 'AddPaymentInfo', {
+      content_type: 'product',
+      ...(tiktokDepositFirstId ? { content_id: tiktokDepositFirstId } : {}),
+      ...(ids.length ? { content_ids: ids } : {}),
+      order_id: params.transactionId || '',
+      contents: tiktokDepositLines,
+      value: params.value,
+      currency,
+      num_items: lines.reduce((n, line) => n + line.quantity, 0),
     })
   }
   firePartnerSiteGoogleAdsConversion(config, 'deposit_page', {
