@@ -53,6 +53,19 @@ function trackingCurrency(config?: { currency?: string | null }): string {
   return normalizePartnerShopCurrency(config?.currency ?? (typeof window !== 'undefined' ? window.__nanoShopCurrency : null))
 }
 
+/** PDP: retail page_view phải là sản phẩm đang xem. Lưới gợi ý không được ghi đè thành category. */
+function retailPageIsProduct(): boolean {
+  if (typeof document === 'undefined') return false
+  const marked = (
+    document.documentElement?.getAttribute('data-pw-page') ||
+    document.body?.getAttribute('data-pw-page') ||
+    ''
+  ).trim()
+  if (marked === 'product') return true
+  const path = typeof location !== 'undefined' ? location.pathname || '' : ''
+  return /\/products\/[^/?#]+/.test(path)
+}
+
 /**
  * S0.4 — đẩy ecommerce event thô vào `window.dataLayer` (chuẩn GTM), độc lập với GA4/Ads qua
  * `gtag`. Merchant tự cấu hình tag GA4/Google Ads/khác trong GTM container đọc từ đây — không phụ
@@ -396,20 +409,23 @@ export function trackPartnerSiteViewItemList(
       })),
     })
   }
-  trackGoogleAdsEvent(
-    config.googleAdsId,
-    'view_item_list',
-    {
-      ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+  const onProductPage = retailPageIsProduct()
+  if (!onProductPage) {
+    trackGoogleAdsEvent(
+      config.googleAdsId,
+      'view_item_list',
+      {
+        ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),
+        ecomm_pagetype: 'category',
+        items: products.map((p) => googleAdsItem(p)),
+      },
+      currency
+    )
+    firePartnerSiteGoogleAdsRetailPageView(config, {
       ecomm_pagetype: 'category',
-      items: products.map((p) => googleAdsItem(p)),
-    },
-    currency
-  )
-  firePartnerSiteGoogleAdsRetailPageView(config, {
-    ecomm_pagetype: 'category',
-    products,
-  })
+      products,
+    })
+  }
   pushEcommerceDataLayer('view_item_list', {
     currency,
     ...(prodIds != null ? { ecomm_prodid: prodIds } : {}),

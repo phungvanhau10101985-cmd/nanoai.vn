@@ -156,8 +156,50 @@ test('trackPartnerSiteAddToCart sends full retail parameters to Google Ads and d
   assert.equal(dlEvent.ecommerce.id, 'A789012345')
 })
 
+test('product page grids do not overwrite Google Ads page_view product id', () => {
+  const { gtagCalls } = setupMockWindow()
+  const prevDocument = global.document
+  global.document = {
+    documentElement: { getAttribute: (name: string) => (name === 'data-pw-page' ? 'product' : null) },
+    body: { getAttribute: () => null },
+  } as unknown as Document
+
+  trackPartnerSiteViewItem(mockConfig, {
+    ...sampleProduct,
+    remarketingId: 'A1027032024891',
+  })
+  trackPartnerSiteViewItemList(mockConfig, [
+    { itemId: 'uuid-a', itemName: 'Khác 1', remarketingId: 'A746144242664', value: 1 },
+    { itemId: 'uuid-b', itemName: 'Khác 2', remarketingId: 'A763167859418', value: 1 },
+    { itemId: 'uuid-c', itemName: 'Khác 3', remarketingId: 'A886940722853', value: 1 },
+  ])
+
+  const retailViews = gtagCalls.filter(
+    (c) =>
+      c.args[0] === 'event' &&
+      c.args[1] === 'page_view' &&
+      (c.args[2] as Record<string, unknown>)?.send_to === 'AW-18484324626'
+  )
+  assert.equal(retailViews.length, 1)
+  const body = retailViews[0].args[2] as Record<string, unknown>
+  assert.equal(body.ecomm_pagetype, 'product')
+  assert.equal(body.ecomm_prodid, 'A1027032024891')
+  assert.equal(
+    gtagCalls.some(
+      (c) => c.args[1] === 'view_item_list' && (c.args[2] as Record<string, unknown>)?.send_to === 'AW-18484324626'
+    ),
+    false
+  )
+  global.document = prevDocument
+})
+
 test('trackPartnerSiteViewItemList sends category remarketing parameters', () => {
   const { gtagCalls, dataLayer } = setupMockWindow()
+  const prevDocument = global.document
+  global.document = {
+    documentElement: { getAttribute: (name: string) => (name === 'data-pw-page' ? 'listing' : null) },
+    body: { getAttribute: () => null },
+  } as unknown as Document
 
   trackPartnerSiteViewItemList(mockConfig, [
     sampleProduct,
@@ -176,6 +218,14 @@ test('trackPartnerSiteViewItemList sends category remarketing parameters', () =>
   assert.ok(dlEvent, 'Must push view_item_list to dataLayer')
   assert.deepEqual(dlEvent.ecommerce.ecomm_prodid, ['A789012345', 'A999999'])
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'category')
+  const retailPage = gtagCalls.find(
+    (c) =>
+      c.args[0] === 'event' &&
+      c.args[1] === 'page_view' &&
+      (c.args[2] as Record<string, unknown>)?.send_to === 'AW-18484324626'
+  )
+  assert.equal((retailPage?.args[2] as Record<string, unknown>)?.ecomm_pagetype, 'category')
+  global.document = prevDocument
 })
 
 test('trackPartnerSiteBeginCheckout sends cart remarketing parameters', () => {
