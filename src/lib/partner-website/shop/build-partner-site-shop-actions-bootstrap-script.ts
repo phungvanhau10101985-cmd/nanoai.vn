@@ -489,7 +489,11 @@ function readProductFromEl(el){
     inventory_id:id,
     id:id,
     name:(nameEl&&nameEl.textContent||(trkJson&&trkJson.name)||'Product').trim(),
-    price_hint:(priceEl&&priceEl.textContent||(trkJson&&trkJson.priceHint)||'').trim(),
+    price_hint:(trkJson&&trkJson.priceHint)||(priceEl&&priceEl.textContent)||'',
+    priceHint:(trkJson&&trkJson.priceHint)||'',
+    priceAmount:(trkJson&&trkJson.priceAmount)||0,
+    salePriceAmount:(trkJson&&trkJson.salePriceAmount)||0,
+    siteSalePhase:(trkJson&&trkJson.siteSalePhase)||'',
     image_url:(imgEl&&imgEl.getAttribute('src'))||'',
     product_url:productUrl,
     sku:sku,
@@ -523,6 +527,9 @@ function resolveCartCard(product){
     if(!res.ok||!p)return null;
     var card={name:p.name||product.name,image_url:p.imageUrl||product.image_url,product_url:p.productUrl||product.product_url,inventory_id:p.id||product.inventory_id};
     if(p.priceHint||product.price_hint)card.price_hint=p.priceHint||product.price_hint;
+    card.price_amount=p.priceAmount;
+    card.sale_price_amount=p.salePriceAmount;
+    card.site_sale_phase=String((p.siteSale&&p.siteSale.phase)||p.siteSalePhase||'');
     if(p.sku||product.sku)card.sku=p.sku||product.sku;
     var rmk=p.remarketingId||p.remarketing_id||product.remarketingId||product.remarketing_id;
     if(rmk)card.remarketing_id=String(rmk).replace(/\\s+/g,' ').trim();
@@ -570,10 +577,10 @@ function addToCart(product, opts){
         name:product.name||(addedCard&&addedCard.name)||'',
         sku:product.sku||(addedCard&&addedCard.sku)||'',
         remarketingId:product.remarketingId||product.remarketing_id||(addedCard&&(addedCard.remarketing_id||addedCard.remarketingId))||'',
-        priceAmount:product.priceAmount||(addedCard&&addedCard.price_amount)||0,
-        priceHint:product.priceHint||(addedCard&&addedCard.price_hint)||'',
-        salePriceAmount:product.salePriceAmount||(addedCard&&addedCard.sale_price_amount)||0,
-        siteSalePhase:product.siteSalePhase||(addedCard&&addedCard.site_sale_phase)||''
+        priceAmount:(addedCard?addedCard.price_amount:product.priceAmount)||0,
+        priceHint:(addedCard&&addedCard.price_hint)||product.priceHint||product.price_hint||'',
+        salePriceAmount:addedCard?addedCard.sale_price_amount:(product.salePriceAmount||0),
+        siteSalePhase:(addedCard&&addedCard.site_sale_phase)||product.siteSalePhase||''
       });
       pwShopTrack('add_to_cart',pwShopTrackProduct(trackSrc));
     }catch(e){}

@@ -5,6 +5,8 @@ import {
   ecommProdid,
 } from '@/lib/partner-website/shop/partner-site-shop-google-ads'
 import {
+  partnerShopTrackingChargedUnit,
+  shopProductToTrackingProduct,
   trackPartnerSiteViewItem,
   trackPartnerSiteViewItemList,
   trackPartnerSiteAddToCart,
@@ -13,6 +15,7 @@ import {
   trackPartnerSiteDepositPage,
   trackPartnerSitePurchase,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import type {
   PartnerSiteShopTrackingConfig,
   PartnerSiteShopTrackingProduct,
@@ -404,4 +407,79 @@ test('TikTok Pixel sends product ID (Feed ID) and order/product value across all
   const purchaseContents = ttqPurchase.params.contents as Array<{ content_id: string; quantity: number }>
   assert.equal(purchaseContents[0]?.content_id, 'A789012345')
   assert.equal(purchaseContents[0]?.quantity, 2)
+})
+
+test('add to cart value is the price after sale, not the list price', () => {
+  assert.equal(
+    partnerShopTrackingChargedUnit({
+      priceAmount: 1_130_000,
+      salePriceAmount: 1_062_200,
+      priceHint: '1.130.000₫',
+    }),
+    1_062_200
+  )
+  assert.equal(
+    partnerShopTrackingChargedUnit({
+      priceAmount: 1_130_000,
+      salePriceAmount: null,
+      priceHint: '1.130.000₫',
+    }),
+    1_130_000
+  )
+  assert.match(PW_SHOP_NATIVE_TRACK_JS, /sale<list/)
+  const trackProduct = new Function(`${PW_SHOP_NATIVE_TRACK_JS}; return pwShopTrackProduct`)() as (
+    product: Record<string, unknown>
+  ) => { value: number }
+  assert.equal(
+    trackProduct({
+      id: 'inv',
+      name: 'Đầm',
+      priceAmount: 1_130_000,
+      salePriceAmount: 1_062_200,
+      priceHint: '1.130.000₫',
+      siteSalePhase: 'active',
+    }).value,
+    1_062_200
+  )
+  assert.equal(
+    trackProduct({
+      id: 'inv',
+      name: 'Đầm',
+      priceAmount: 1_130_000,
+      salePriceAmount: 1_062_200,
+      priceHint: '1.130.000₫',
+      siteSalePhase: 'off',
+    }).value,
+    1_062_200
+  )
+  assert.equal(
+    trackProduct({
+      id: 'inv',
+      name: 'Đầm',
+      priceAmount: 1_130_000,
+      salePriceAmount: null,
+      priceHint: '1.130.000₫',
+      siteSalePhase: 'teaser',
+    }).value,
+    1_130_000
+  )
+
+  const tracked = shopProductToTrackingProduct({
+    id: 'inv',
+    name: 'Đầm',
+    priceHint: '1.130.000₫',
+    priceAmount: 1_130_000,
+    salePriceAmount: 1_062_200,
+  } as never)
+  assert.equal(tracked.value, 1_062_200)
+
+  const { gtagCalls, dataLayer, ttqCalls } = setupMockWindow()
+  trackPartnerSiteAddToCart(mockConfig, { ...sampleProduct, value: tracked.value }, 1)
+  const ads = gtagCalls.find((c) => c.args[1] === 'add_to_cart')
+  assert.equal((ads?.args[2] as { value?: number })?.value, 1_062_200)
+  const dl = dataLayer.find((d) => (d as { event?: string }).event === 'add_to_cart') as {
+    ecommerce?: { value?: number }
+  }
+  assert.equal(dl.ecommerce?.value, 1_062_200)
+  assert.equal(ttqCalls.find((c) => c.event === 'AddToCart')?.params.value, 1_062_200)
 })

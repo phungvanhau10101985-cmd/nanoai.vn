@@ -25,6 +25,7 @@ import { notifyPartnerOwnerOrderCustomerAction } from '@/lib/messaging/partner-a
 import { emailCustomerOrderCancelled } from '@/lib/messaging/partner-order-customer-email'
 import { runPartnerOrderDeliveredHook } from '@/lib/messaging/fulfillment/order-delivered-hook'
 import { stripInternalOrderSource } from '@/lib/messaging/partner-order-notify-ui'
+import { shouldShowDepositSuccessPage } from '@/lib/partner-website/shop/order-deposit'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   if (!order) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   if (request.nextUrl.searchParams.get('poll') === '1') {
+    // Chờ CK: chỉ trạng thái. Vừa cọc xong: trả cả lịch trình (TQ 7 bước / VN 4 bước) đã seed.
+    if (shouldShowDepositSuccessPage(order)) {
+      return NextResponse.json(
+        await buildGuestOrderPagePayload({
+          partnerId: partner.partnerId,
+          partnerDisplayName: partner.displayName,
+          slug,
+          order,
+        })
+      )
+    }
     return NextResponse.json({
       order: stripInternalOrderSource(order as unknown as Record<string, unknown>),
     })

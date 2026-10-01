@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   buildCustomerDepositQrEmailBlock,
+  buildOrderOpenButtonHtml,
   customerDepositOrderUrl,
   customerOrderDetailUrl,
   DEPOSIT_QR_EMAIL_CID,
@@ -46,6 +47,18 @@ test('customer order detail URL is storefront /orders/{id}', () => {
     }),
     'https://gudo.vn/orders/ord-1'
   )
+})
+
+test('order open button hides the raw URL and keeps it on the button only', () => {
+  const url = 'https://gudo.vn/orders/ord-1'
+  const html = buildOrderOpenButtonHtml({ url, button: 'Mở đơn', heading: 'Xem đơn:' })
+  assert.match(html, /href="https:\/\/gudo\.vn\/orders\/ord-1"/)
+  assert.match(html, />Mở đơn</)
+  assert.doesNotMatch(html, /Hoặc mở liên kết/)
+  assert.doesNotMatch(html, /Mở đơn trên trang chat/)
+  const visible = html.replace(/<[^>]+>/g, '')
+  assert.equal(visible.includes('https://'), false)
+  assert.equal(buildOrderOpenButtonHtml({ url: '', button: 'Mở đơn' }), '')
 })
 
 test('deposit QR email block embeds CID image and CK memo', () => {

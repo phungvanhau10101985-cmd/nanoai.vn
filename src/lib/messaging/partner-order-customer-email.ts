@@ -33,6 +33,7 @@ import {
 import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import {
   buildCustomerDepositQrEmailBlock,
+  buildOrderOpenButtonHtml,
   orderNeedsCustomerDepositMail,
   resolveCustomerOrderOpenUrl,
   resolveDepositQrForEmail,
@@ -135,13 +136,12 @@ function escapeHtml(s: string): string {
 }
 
 type CustomerMailCtaOpts = {
-  /** Mail Ä‘áº·t hÃ ng / nháº¯c cá»c: nhÃºng QR khi Ä‘Æ¡n cÃ²n cáº§n cá»c. */
+  /** Mail đặt hàng / nhắc cọc: nhúng QR khi đơn còn cần cọc. */
   includeDepositQr?: boolean
-  /** Shop Ä‘Ã£ xÃ¡c nháº­n cá»c â€” CTA xem Ä‘Æ¡n, khÃ´ng kÃªu Ä‘áº·t cá»c láº¡i. */
+  /** Shop đã xác nhận cọc — CTA xem đơn, không kêu đặt cọc lại. */
   depositAlreadyConfirmed?: boolean
   ctaHeading?: string
   ctaButton?: string
-  ctaTextHint?: string
 }
 
 async function resolveCustomerMailOpenUrl(
@@ -164,10 +164,10 @@ function wrapCustomerMailHtml(baseText: string, extraHtml: string): string {
 
 function orderOpenCtaHtml(input: {
   url: string
-  heading: string
+  heading?: string
   button: string
 }): string {
-  return `<p style="margin:16px 0 8px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;color:#111827;">${escapeHtml(input.heading)}</p><p style="margin:0 0 12px;"><a href="${escapeHtml(input.url)}" style="display:inline-block;padding:12px 22px;background:#111827;color:#ffffff !important;text-decoration:none;border-radius:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;font-weight:600;">${escapeHtml(input.button)}</a></p><p style="font-size:12px;color:#6b7280;margin:0;font-family:system-ui,sans-serif;">Hoặc mở liên kết: <a href="${escapeHtml(input.url)}">${escapeHtml(input.url)}</a></p>`
+  return buildOrderOpenButtonHtml(input)
 }
 
 /** Nội dung text + HTML (nút mở đơn / trang cọc + QR nếu cần) cho email khách. */
@@ -190,8 +190,6 @@ async function customerMailBodyWithOrderCta(
     opts?.ctaHeading ??
     (needsDeposit ? 'Bấm vào đây để mở đơn và đặt cọc nhanh:' : 'Bấm vào đây để xem chi tiết đơn hàng:')
   const ctaButton = opts?.ctaButton ?? (needsDeposit ? 'Mở đơn đặt cọc' : 'Xem chi tiết đơn hàng')
-  const ctaTextHint =
-    opts?.ctaTextHint ?? (needsDeposit ? 'Mở đơn nhanh để đặt cọc:' : 'Xem chi tiết đơn hàng:')
 
   let qrText = ''
   let qrHtml = ''
@@ -219,7 +217,6 @@ async function customerMailBodyWithOrderCta(
   const signText = signIdx >= 0 ? baseText.slice(signIdx + 1) : ''
   const textParts = [bodyText]
   if (qrText) textParts.push('', qrText)
-  if (openUrl) textParts.push('', 'â€”', ctaTextHint, openUrl)
   if (signText) textParts.push('', signText)
   const extraHtml =
     qrHtml +
@@ -234,16 +231,25 @@ async function customerMailBodyWithOrderCta(
   }
 }
 
-async function appendShopOrderLinkLines(
+/** Mail chủ shop: nút mở đơn trên web shop; chưa có web thì chat. Không in URL. */
+async function shopOrderNotifyMail(
   order: PartnerOrderRow,
   lines: string[],
-  meta?: PartnerEmailMeta
-): Promise<void> {
-  const m = meta ?? (await fetchPartnerEmailMeta(order.partner_id))
-  const u = await guestChatOrderDetailUrl(order, m)
-  if (u) {
-    lines.push('', `Mở đơn trên trang chat: ${u}`)
-  }
+  meta: PartnerEmailMeta
+): Promise<{ text: string; html: string }> {
+  const chatUrl = await guestChatOrderDetailUrl(order, meta)
+  const openUrl = await resolveCustomerOrderOpenUrl({
+    partnerId: order.partner_id,
+    orderId: order.id,
+    needsDeposit: false,
+    chatFallback: chatUrl,
+  })
+  const text = lines.join('\n')
+  const html = wrapCustomerMailHtml(
+    text,
+    openUrl ? orderOpenCtaHtml({ url: openUrl, button: 'Mở đơn' }) : ''
+  )
+  return { text, html }
 }
 
 /** Đặt hàng thành công — có mã CK / QR (hoặc COD 0đ). */
@@ -291,11 +297,12 @@ export async function emailCustomerOrderCheckoutSubmitted(input: {
       `SP: ${trim(input.order.product_name)}`,
       `Cần thanh toán: ${toVnd(input.order.required_amount)}`,
     ]
-    await appendShopOrderLinkLines(input.order, shopLines, meta)
+    const shopMail = await shopOrderNotifyMail(input.order, shopLines, meta)
     await sendSmtpMail({
       to: shop,
       subject: `${shopLabel} — [Thông báo shop] Đơn mới ${ref}`,
-      text: shopLines.join('\n'),
+      text: shopMail.text,
+      html: shopMail.html,
       fromName: shopLabel,
     })
   }
@@ -380,11 +387,12 @@ export async function emailCustomerOrderPaymentVerified(input: {
       `Số tiền đã cọc: ${amounts.paidAmountLabel}`,
       `Còn thu khi nhận hàng: ${amounts.remainingAmountLabel}`,
     ]
-    await appendShopOrderLinkLines(input.order, shopLines, meta)
+    const shopMail = await shopOrderNotifyMail(input.order, shopLines, meta)
     await sendSmtpMail({
       to: shop,
       subject: `${shopLabel} — [Thông báo shop] Đã cọc ${ref}`,
-      text: shopLines.join('\n'),
+      text: shopMail.text,
+      html: shopMail.html,
       fromName: shopLabel,
     })
   }
@@ -540,31 +548,20 @@ export async function emailCustomerOrderRefunded(input: {
   await notifyPartnerCustomerRefundedWebApp(input.order, toVnd(input.refundAmount), locale)
 }
 
-function reviewMailCta(locale: WebLocale): Pick<
-  CustomerMailCtaOpts,
-  'ctaHeading' | 'ctaButton' | 'ctaTextHint'
-> {
+function reviewMailCta(locale: WebLocale): Pick<CustomerMailCtaOpts, 'ctaHeading' | 'ctaButton'> {
   if (locale === 'zh') {
-    return { ctaHeading: '打开订单并评价商品：', ctaButton: '评价商品', ctaTextHint: '打开订单评价：' }
+    return { ctaHeading: '打开订单并评价商品：', ctaButton: '评价商品' }
   }
   if (locale === 'ja') {
-    return {
-      ctaHeading: '注文を開いて商品をレビュー：',
-      ctaButton: '商品をレビュー',
-      ctaTextHint: 'レビューする注文を開く：',
-    }
+    return { ctaHeading: '注文を開いて商品をレビュー：', ctaButton: '商品をレビュー' }
   }
   if (locale === 'ko') {
-    return { ctaHeading: '주문을 열어 상품을 리뷰하세요:', ctaButton: '상품 리뷰', ctaTextHint: '리뷰할 주문 열기:' }
+    return { ctaHeading: '주문을 열어 상품을 리뷰하세요:', ctaButton: '상품 리뷰' }
   }
   if (locale === 'en') {
-    return { ctaHeading: 'Open your order to review the product:', ctaButton: 'Review product', ctaTextHint: 'Open order to review:' }
+    return { ctaHeading: 'Open your order to review the product:', ctaButton: 'Review product' }
   }
-  return {
-    ctaHeading: 'Mở đơn hàng để đánh giá sản phẩm:',
-    ctaButton: 'Đánh giá sản phẩm',
-    ctaTextHint: 'Mở đơn để đánh giá:',
-  }
+  return { ctaHeading: 'Mở đơn hàng để đánh giá sản phẩm:', ctaButton: 'Đánh giá sản phẩm' }
 }
 
 function depositReminderMailCta(locale: WebLocale): {
@@ -702,9 +699,7 @@ export async function emailCustomerDepositReminder(input: {
       if (qr.attachment) attachments = [qr.attachment]
     }
   }
-  const text = [copy.text, qrText, openUrl ? `${cta.button}: ${openUrl}` : '', `${cta.closing},\n${shopLabel}`]
-    .filter(Boolean)
-    .join('\n\n') + '\n'
+  const text = [copy.text, qrText, `${cta.closing},\n${shopLabel}`].filter(Boolean).join('\n\n') + '\n'
   const extraHtml =
     qrHtml +
     (openUrl

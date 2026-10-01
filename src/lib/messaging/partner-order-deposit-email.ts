@@ -53,6 +53,22 @@ export function escapeDepositEmailHtml(s: string): string {
     .replace(/"/g, '&quot;')
 }
 
+/** Nút mở đơn trong mail. Href nằm trên nút; thân thư không in URL. */
+export function buildOrderOpenButtonHtml(input: {
+  url: string
+  button: string
+  heading?: string
+}): string {
+  const url = String(input.url || '').trim()
+  const button = String(input.button || '').trim()
+  if (!url || !button) return ''
+  const heading = String(input.heading || '').trim()
+  const headingHtml = heading
+    ? `<p style="margin:16px 0 8px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;color:#111827;">${escapeDepositEmailHtml(heading)}</p>`
+    : ''
+  return `${headingHtml}<p style="margin:${heading ? '0' : '16px'} 0 12px;"><a href="${escapeDepositEmailHtml(url)}" style="display:inline-block;padding:12px 22px;background:#111827;color:#ffffff !important;text-decoration:none;border-radius:10px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;font-weight:600;">${escapeDepositEmailHtml(button)}</a></p>`
+}
+
 /** Ảnh QR trong mail khách — CID (đã nhúng) hoặc URL https công khai. */
 export function buildCustomerDepositQrEmailBlock(input: {
   qrImageSrc: string

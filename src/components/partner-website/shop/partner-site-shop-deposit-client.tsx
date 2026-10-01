@@ -247,6 +247,10 @@ export function PartnerSiteShopDepositClient({
         return
       }
       if (opts?.poll) {
+        if (Array.isArray(json.shipment_events)) {
+          applyFull(json)
+          return
+        }
         setOrder(json.order)
         return
       }

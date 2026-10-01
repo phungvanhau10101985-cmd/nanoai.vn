@@ -280,6 +280,21 @@ function trackMetaCustom(
   else whenShopFbqReady(firePixel)
 }
 
+/** Giá khách đang trả. `salePriceAmount` chỉ có khi sale đã trừ (lịch active, flash, thanh lý, cửa sổ giá). Teaser để null → giá niêm yết. */
+export function partnerShopTrackingChargedUnit(input: {
+  priceAmount?: number | null
+  salePriceAmount?: number | null
+  priceHint?: string | null
+}): number {
+  const sale = Number(input.salePriceAmount)
+  const list = Number(input.priceAmount)
+  if (Number.isFinite(sale) && sale > 0 && (!Number.isFinite(list) || list <= 0 || sale < list)) {
+    return Math.round(sale)
+  }
+  if (Number.isFinite(list) && list > 0) return Math.round(list)
+  return parseVndFromPriceHint(String(input.priceHint || ''))
+}
+
 export function shopProductToTrackingProduct(
   product: PartnerSiteShopProduct,
   priceHint?: string
@@ -288,7 +303,11 @@ export function shopProductToTrackingProduct(
   return {
     itemId: product.id,
     itemName: product.name,
-    value: parseVndFromPriceHint(hint),
+    value: partnerShopTrackingChargedUnit({
+      priceAmount: product.priceAmount,
+      salePriceAmount: product.salePriceAmount,
+      priceHint: hint,
+    }),
     sku: product.sku || undefined,
     remarketingId: product.remarketingId || undefined,
     category: product.categoryL3 || product.categoryL2 || product.categoryL1 || undefined,

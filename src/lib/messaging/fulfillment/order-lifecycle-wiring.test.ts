@@ -45,4 +45,14 @@ describe('order lifecycle mutation wiring', () => {
     assert.match(guestOrder, /runPartnerOrderDeliveredHook/)
     assert.match(shopReturn, /event: 'returned'/)
   })
+
+  it('returns the seeded shipment timeline when deposit poll sees a paid order', () => {
+    const guestOrder = source('../../../app/api/messaging/guest/[slug]/order/[orderId]/route.ts')
+    const depositClient = source('../../../components/partner-website/shop/partner-site-shop-deposit-client.tsx')
+    assert.match(
+      guestOrder,
+      /get\('poll'\) === '1'[\s\S]*shouldShowDepositSuccessPage\(order\)[\s\S]*buildGuestOrderPagePayload/
+    )
+    assert.match(depositClient, /opts\?\.poll[\s\S]*json\.shipment_events[\s\S]*applyFull\(json\)/)
+  })
 })
