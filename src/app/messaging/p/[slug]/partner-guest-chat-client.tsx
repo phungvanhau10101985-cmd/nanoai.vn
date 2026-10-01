@@ -6883,7 +6883,6 @@ export function PartnerGuestChatClient({
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-1">
                     {buyOptions.map((item) => {
-                      const pu = (item.product_url || '').trim()
                       const href = guestProductDetailHref(item)
                       return (
                         <div
