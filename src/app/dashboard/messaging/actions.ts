@@ -2970,33 +2970,41 @@ export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
-  if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
   }
-  const settings = await fetchMessagingPartnerAiSettingsFullFromPg(partnerId)
-  const saasShopCart = await loadPartnerSaasCartPreview(partnerId)
+  const access = await resolvePartnerDashboardAccessFromPg(user.id, partnerId)
+  if (access == null) return { error: 'Forbidden.' }
+  const canAi = access === 'owner' || partnerStaffHasPerm(access, 'ai_settings')
+  const canInventory = access === 'owner' || partnerStaffHasPerm(access, 'inventory_products')
+  if (!canAi && !canInventory) return { error: 'Forbidden.' }
+
+  const settings = canAi ? await fetchMessagingPartnerAiSettingsFullFromPg(partnerId) : null
+  const saasShopCart = canInventory
+    ? await loadPartnerSaasCartPreview(partnerId)
+    : { linked: false, publicUrl: null, autoTemplate: null }
   let rows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
   let total = 0
-  try {
-    const counted = await fetchPartnerInventoryActiveCountFromPg(partnerId)
-    if (typeof counted === 'number') total = counted
-    const invPg = await fetchPartnerInventoryAdminListPageFromPg(
-      partnerId,
-      0,
-      PARTNER_INVENTORY_PAGE_SIZE
-    )
-    if (invPg) {
-      rows = invPg.rows
-      total = Math.max(total, invPg.rows.length, invPg.count)
+  if (canInventory) {
+    try {
+      const counted = await fetchPartnerInventoryActiveCountFromPg(partnerId)
+      if (typeof counted === 'number') total = counted
+      const invPg = await fetchPartnerInventoryAdminListPageFromPg(
+        partnerId,
+        0,
+        PARTNER_INVENTORY_PAGE_SIZE
+      )
+      if (invPg) {
+        rows = invPg.rows
+        total = Math.max(total, invPg.rows.length, invPg.count)
+      }
+    } catch (e) {
+      console.warn('[getPartnerAiBundle] inventory', e)
     }
-  } catch (e) {
-    console.warn('[getPartnerAiBundle] inventory', e)
   }
-  const runner = (await fetchVisionWarehouseRunnerLockFieldsFromPg(1)) ?? null
+  const runner = canInventory ? ((await fetchVisionWarehouseRunnerLockFieldsFromPg(1)) ?? null) : null
   return {
-    settings: toPartnerAiSettingsClient(settings ?? null),
+    settings: canAi ? toPartnerAiSettingsClient(settings ?? null) : null,
     inventory: rows,
     inventoryTotalCount: total,
     inventoryPageSize: PARTNER_INVENTORY_PAGE_SIZE,

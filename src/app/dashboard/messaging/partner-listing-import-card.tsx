@@ -21,6 +21,7 @@ import {
   type ParsedTaobaoCardRow,
 } from '@/lib/messaging/listing-import/taobao-cards-html-parse';
 import { listingImportClient, type ListingImportQueueRunsResponse as AdminListingImportQueueRunsResponse } from '@/lib/messaging/listing-import/listing-import-client';
+import { listingImportRunIsSharedLive } from '@/lib/messaging/listing-import/listing-import-types';
 import {
   IMPORT_1688_EXCEL_COLUMNS,
   excelExportRowFromProductData,
@@ -648,6 +649,8 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     skipLines: string[];
   } | null>(null);
   const [trackedQueueTokens, setTrackedQueueTokens] = useState<string[]>([]);
+  const trackedQueueTokensRef = useRef(trackedQueueTokens);
+  trackedQueueTokensRef.current = trackedQueueTokens;
   const [queuesPanelCollapsed, setQueuesPanelCollapsed] = useState(false);
   const [queueStatusByToken, setQueueStatusByToken] = useState<
     Record<string, AdminListingImportQueueStatus>
@@ -743,6 +746,34 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       /* noop */
     }
   }, []);
+
+  /** Đợt đang cào của shop — không phụ thuộc localStorage máy vừa bấm «Lấy thông tin». */
+  useEffect(() => {
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const data = await listingImportClient(partnerId).listListingImportQueueRuns({ limit: 40, offset: 0 });
+        if (cancelled) return;
+        const live = data.items.filter((row) => listingImportRunIsSharedLive(row)).map((row) => row.queue_token);
+        if (!live.length) return;
+        const missing = live.filter((token) => !trackedQueueTokensRef.current.includes(token));
+        if (!missing.length) return;
+        setTrackedQueueTokens((prev) => {
+          const add = live.filter((token) => !prev.includes(token));
+          return add.length ? [...prev, ...add] : prev;
+        });
+        setQueuesPanelCollapsed(false);
+      } catch {
+        /* đợt local vẫn hiện; lần poll sau thử lại */
+      }
+    };
+    void pull();
+    const id = window.setInterval(() => void pull(), 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [partnerId]);
 
   useEffect(() => {
     if (!trackedQueueTokens.length) {
@@ -2936,8 +2967,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
           role="status"
         >
           <span className="min-w-0">
-            Chưa theo dõi đợt import nào trên trình duyệt — «Bỏ theo dõi» / «Ngắt theo dõi tất cả» chỉ ẩn ở đây,{' '}
-            <strong className="font-medium text-slate-900">không</strong> dừng worker trên server. Để xem lại tiến độ:{' '}
+            Shop chưa có đợt đang cào. Chủ shop và người được mời cùng thấy đợt đang chạy trên shop này. Đợt đã xong:{' '}
             <strong className="font-medium text-slate-900">Đợt đã lưu (DB)</strong> → <strong className="font-medium text-slate-900">Mở đợt</strong>.
           </span>
           <button
@@ -2998,10 +3028,9 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                 Đợt đang theo dõi ({displayQueueTokens.length})
               </div>
               <p className="text-sm text-slate-700 mt-1 max-w-2xl">
-                Xếp <strong>cũ → mới</strong> (theo thời điểm tạo trên server). Mỗi đợt có worker riêng — có thể chạy
-                song song. «Bỏ theo dõi» / «Ngắt theo dõi tất cả» chỉ ẩn trên trình duyệt — để xem lại, mở{' '}
-                <strong className="font-semibold text-slate-800">Đợt đã lưu (DB)</strong> rồi bấm{' '}
-                <strong className="font-semibold text-slate-800">Mở đợt</strong>.
+                Xếp <strong>cũ → mới</strong>. Đợt đang cào của shop hiện cho mọi tài khoản có quyền cào — chủ shop và
+                người được mời cùng tạm dừng, tiếp tục hoặc dừng. «Bỏ theo dõi» chỉ ẩn đợt đã xong trên máy này; đợt
+                đang chạy sẽ hiện lại.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -3017,7 +3046,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                 type="button"
                 onClick={forgetAllTrackedQueues}
                 className="px-3 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 text-sm"
-                title="Gỡ mọi token khỏi trình duyệt — không dừng server. Xem lại: «Đợt đã lưu (DB)» → «Mở đợt», hoặc «Lấy thông tin»."
+                title="Gỡ đợt đã xong khỏi máy này — không dừng server. Đợt đang cào của shop sẽ hiện lại."
               >
                 Ngắt theo dõi tất cả
               </button>
@@ -3071,7 +3100,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                         type="button"
                         onClick={() => removeTrackedQueueToken(token)}
                         className="px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-slate-700 text-xs"
-                        title="Chỉ gỡ khỏi danh sách trình duyệt — không dừng worker. Xem lại: «Đợt đã lưu (DB)» → «Mở đợt»."
+                        title="Ẩn đợt đã xong trên máy này. Đợt đang cào của shop sẽ hiện lại cho mọi tài khoản có quyền cào."
                       >
                         Bỏ theo dõi
                       </button>

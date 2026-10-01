@@ -119,6 +119,18 @@ export function countsFromListingItems(items: ListingImportQueueItem[]): Listing
   return { total, done, error, pending, running }
 }
 
+/** Đợt shop đang cào — chủ shop và người được mời cùng thấy, không khóa theo trình duyệt. */
+export function listingImportRunIsSharedLive(run: {
+  run_status?: string
+  stop_requested?: boolean
+  counts?: { pending?: number; running?: number }
+}): boolean {
+  if (run.stop_requested || run.run_status === 'stopped') return false
+  if ((run.counts?.pending ?? 0) > 0 || (run.counts?.running ?? 0) > 0) return true
+  const rs = run.run_status || ''
+  return rs === 'running' || rs === 'pausing' || rs === 'paused' || rs === 'idle'
+}
+
 export function newListingImportQueueSkeleton(createdBy?: string | null): ListingImportQueuePayload {
   const now = new Date().toISOString()
   const token = crypto.randomUUID().replace(/-/g, '')
