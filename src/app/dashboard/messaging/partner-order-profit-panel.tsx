@@ -8,8 +8,12 @@ import { DEFAULT_VND_PER_CNY_FOR_LISTING_ESTIMATE } from '@/lib/messaging/listin
 
 type Props = {
   partnerId: string
-  dateFrom: string
-  dateTo: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+function isoTodayVn(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date())
 }
 
 function formatVnd(amount: number): string {
@@ -30,7 +34,10 @@ function numOrNull(raw: string): number | null {
   return n
 }
 
-export function PartnerOrderProfitPanel({ partnerId, dateFrom, dateTo }: Props) {
+export function PartnerOrderProfitPanel({ partnerId, dateFrom: dateFromProp, dateTo: dateToProp }: Props) {
+  const today = isoTodayVn()
+  const [dateFrom, setDateFrom] = useState(dateFromProp || `${today.slice(0, 8)}01`)
+  const [dateTo, setDateTo] = useState(dateToProp || today)
   const storageKey = `gudo-profit:${partnerId || 'all'}`
   const [rate, setRate] = useState(String(DEFAULT_VND_PER_CNY_FOR_LISTING_ESTIMATE))
   const [shipChina, setShipChina] = useState('0')
@@ -128,6 +135,14 @@ export function PartnerOrderProfitPanel({ partnerId, dateFrom, dateTo }: Props) 
       </div>
       <div className="space-y-4 p-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="text-sm text-gray-700 dark:text-zinc-200">
+            Từ ngày
+            <input value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} type="date" className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900" />
+          </label>
+          <label className="text-sm text-gray-700 dark:text-zinc-200">
+            Đến ngày
+            <input value={dateTo} onChange={(e) => setDateTo(e.target.value)} type="date" className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900" />
+          </label>
           <label className="text-sm text-gray-700 dark:text-zinc-200">
             Tỷ giá (₫ / 1 ¥)
             <input value={rate} onChange={(e) => setRate(e.target.value)} type="number" min="0" step="0.0001" className="mt-1 w-full rounded-lg border px-3 py-2 dark:border-zinc-600 dark:bg-zinc-900" />

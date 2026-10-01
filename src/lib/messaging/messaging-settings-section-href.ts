@@ -2,6 +2,7 @@ export type MessagingSettingsOperationsSection =
   | 'hub-notifications'
   | 'hub-marketing'
   | 'hub-orders'
+  | 'hub-profit'
   | 'hub-email'
   | 'hub-ems'
 

@@ -293,7 +293,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
-const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-ems', 'hub-email'] as const
+const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-profit', 'hub-ems', 'hub-email'] as const
 type OperationsSectionId = (typeof OPERATIONS_SECTION_IDS)[number]
 type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId | OperationsSectionId
 
@@ -375,6 +375,14 @@ const PartnerEmailManagementClient = dynamic(
   () =>
     import('@/app/dashboard/messaging/partner-email-management-client').then(
       (mod) => mod.PartnerEmailManagementClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerOrderProfitPanel = dynamic(
+  () =>
+    import('@/app/dashboard/messaging/partner-order-profit-panel').then(
+      (mod) => mod.PartnerOrderProfitPanel
     ),
   { ssr: false, loading: () => sectionLoading }
 )
@@ -768,6 +776,12 @@ export function PartnerMessagingSettingsClient({
         id: 'hub-orders' as const,
         label: t.messagingOrdersLink,
         icon: ClipboardList,
+        visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
+      },
+      {
+        id: 'hub-profit' as const,
+        label: 'Lợi nhuận',
+        icon: TrendingUp,
         visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
       },
       {
@@ -2725,7 +2739,7 @@ export function PartnerMessagingSettingsClient({
               'min-w-0 flex-1 rounded-xl border border-border/70 bg-white dark:bg-zinc-950',
               activeSection === 'partner-website-editor'
                 ? 'flex min-h-0 flex-col p-2 sm:p-3'
-                : activeSection === 'hub-orders' || activeSection === 'hub-ems'
+                : activeSection === 'hub-orders' || activeSection === 'hub-profit' || activeSection === 'hub-ems'
                   ? 'min-w-0 overflow-x-hidden p-3 sm:p-4 lg:p-5'
                   : 'p-3 sm:p-4 lg:p-5'
             )}
@@ -4502,6 +4516,12 @@ export function PartnerMessagingSettingsClient({
                 t={dict.partnerMessagingEmail}
                 lockedPartnerId={selectedPartnerId}
               />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-profit' && selectedPartnerId && partnerCanOrdersHub(selectedPartner) ? (
+            <div id="messaging-profit" className="min-w-0 scroll-mt-4">
+              <PartnerOrderProfitPanel key={selectedPartnerId} partnerId={selectedPartnerId} />
             </div>
           ) : null}
 
