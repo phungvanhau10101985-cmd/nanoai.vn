@@ -1,10 +1,12 @@
 /**
- * Hợp đồng dữ liệu sản phẩm khớp Excel 188.com.vn (~41 cột).
+ * Hợp đồng dữ liệu sản phẩm khớp Excel 188.com.vn (~43 cột, gồm giá nhập).
  * Engine dùng chung mọi shop — không khóa slug 188.
  *
  * Cột Excel EN + nhãn VI lấy từ `188-com-vn/backend/app/services/excel_importer.py`
  * (`PRODUCT_EXCEL_EXPORT_COLUMNS` / `PRODUCT_EXCEL_VIETNAMESE_HEADERS`).
  */
+
+import { scrapedCnyAmount, stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
 
 export const CATALOG_188_EXCEL_COLUMNS = [
   'id',
@@ -48,6 +50,8 @@ export const CATALOG_188_EXCEL_COLUMNS = [
   'shop_name_chinese',
   'Slug',
   'listed',
+  'cost_cny',
+  'cost_vnd',
 ] as const
 
 export type Catalog188ExcelColumn = (typeof CATALOG_188_EXCEL_COLUMNS)[number]
@@ -94,6 +98,8 @@ export const CATALOG_188_VI_HEADERS: Record<Catalog188ExcelColumn, string> = {
   shop_name_chinese: 'Shop Trung Quốc',
   Slug: 'Slug',
   listed: 'Trong danh sách (1=import, 0=xóa DB)',
+  cost_cny: 'Giá gốc tệ',
+  cost_vnd: 'Giá Việt Nam',
 }
 
 /** Cột chỉ có trên file xuất SaaS — 188 bỏ qua khi import. */
@@ -150,6 +156,8 @@ export type Catalog188Snapshot = {
   chinese_name: string
   shop_name_chinese: string
   slug: string
+  cost_cny: number | null
+  cost_vnd: number | null
 }
 
 export type InventoryCatalog188Fields = {
@@ -178,6 +186,11 @@ export type InventoryCatalog188Fields = {
   source_shop_name_chinese: string
   price_low_hint: string
   price_high_hint: string
+  cost_cny: number | null
+  cost_vnd: number | null
+  /** true = ghi đè cột (kể cả null). Bỏ trống = giữ số đang có trong kho. */
+  write_cost_cny?: boolean
+  write_cost_vnd?: boolean
   rating_group_id: number | null
   question_group_id: number | null
   sizes: string[]
@@ -534,6 +547,8 @@ export function buildCatalog188Snapshot(input: {
   chineseName: string
   shopNameChinese: string
   slug: string
+  costCny?: number | null
+  costVnd?: number | null
 }): Catalog188Snapshot {
   return {
     product_id: input.productId,
@@ -579,6 +594,8 @@ export function buildCatalog188Snapshot(input: {
     chinese_name: input.chineseName,
     shop_name_chinese: input.shopNameChinese,
     slug: input.slug,
+    cost_cny: input.costCny ?? null,
+    cost_vnd: input.costVnd ?? null,
   }
 }
 
@@ -609,6 +626,8 @@ export function catalogFieldsFromSnapshot(snap: Catalog188Snapshot): InventoryCa
     source_shop_name_chinese: snap.shop_name_chinese,
     price_low_hint: snap.pro_lower_price,
     price_high_hint: snap.pro_high_price,
+    cost_cny: snap.cost_cny,
+    cost_vnd: snap.cost_vnd,
     rating_group_id: snap.group_rating || null,
     question_group_id: snap.group_question || null,
     sizes: snap.sizes,
@@ -808,6 +827,25 @@ export function catalogFieldsFromExternalProduct(product: unknown): InventoryCat
     chineseName: cellText(p.chinese_name).slice(0, 500),
     shopNameChinese: cellText(p.shop_name_chinese).slice(0, 200),
     slug: cellText(p.slug).slice(0, 500),
+    costCny: scrapedCnyAmount(p.cost_cny),
+    costVnd: scrapedCnyAmount(p.cost_vnd),
   })
-  return catalogFieldsFromSnapshot(snap)
+  const stamped: Record<string, unknown> = {
+    ...p,
+    link_default: p.link_default ?? p.product_url,
+  }
+  stampScrapedCostCny(stamped)
+  if (snap.cost_cny == null && snap.cost_vnd == null) {
+    snap.cost_cny = scrapedCnyAmount(stamped.cost_cny)
+    snap.cost_vnd = scrapedCnyAmount(stamped.cost_vnd)
+  }
+  const fields = catalogFieldsFromSnapshot(snap)
+  if (fields.cost_cny != null && fields.cost_vnd != null) {
+    fields.cost_cny = null
+    fields.cost_vnd = null
+  } else {
+    fields.write_cost_cny = fields.cost_cny != null
+    fields.write_cost_vnd = fields.cost_vnd != null
+  }
+  return fields
 }

@@ -3468,6 +3468,9 @@ export async function upsertPartnerInventoryItem(
     sale_price_amount?: number | null
     sale_starts_at?: string | null
     sale_ends_at?: string | null
+    /** Giá nhập. Chỉ một trong hai. Không phải giá bán. */
+    cost_cny?: number | null
+    cost_vnd?: number | null
   }
 ) {
   const auth = await requireUser()
@@ -3489,6 +3492,17 @@ export async function upsertPartnerInventoryItem(
   const consult = (fields.consult_note ?? '').trim().slice(0, 2000)
   const materialNote = (fields.material_note ?? '').trim().slice(0, 8000)
   const remarketingId = fields.remarketing_id.trim().slice(0, 500) || null
+  const writeCosts = fields.cost_cny !== undefined || fields.cost_vnd !== undefined
+  if (writeCosts && fields.cost_cny != null && fields.cost_vnd != null) {
+    return { error: 'Chỉ điền một cột giá nhập: giá gốc tệ hoặc giá Việt Nam.' }
+  }
+  if (
+    writeCosts &&
+    ((fields.cost_cny != null && (!Number.isFinite(fields.cost_cny) || fields.cost_cny < 0)) ||
+      (fields.cost_vnd != null && (!Number.isFinite(fields.cost_vnd) || fields.cost_vnd < 0)))
+  ) {
+    return { error: 'Giá nhập không hợp lệ.' }
+  }
   const shared = {
     name: fields.name.trim(),
     sku,
@@ -3506,6 +3520,9 @@ export async function upsertPartnerInventoryItem(
     real_use_image_url_2: realUseImageUrl2,
     remarketing_id: remarketingId,
     sort_order: fields.sort_order,
+    ...(writeCosts
+      ? { cost_cny: fields.cost_cny ?? null, cost_vnd: fields.cost_vnd ?? null }
+      : {}),
   }
   if (itemId) {
     const ok = await updatePartnerInventoryDashboardItemFromPg(partnerId, itemId, {

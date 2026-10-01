@@ -4,6 +4,8 @@
  * Dùng để hiển thị preview trong admin (vuốt ngang như file Excel).
  */
 
+import { looksLikeChinaSource, scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
+
 export type Import1688ExcelExportRow = Record<string, string | number>;
 
 /** [khóa cột Excel, nhãn tiếng Việt — hàng 2 file xuất] */
@@ -48,6 +50,8 @@ export const IMPORT_1688_EXCEL_COLUMNS: ReadonlyArray<readonly [string, string]>
   ['chinese_name', 'Tên tiếng trung'],
   ['shop_name_chinese', 'Shop Trung Quốc'],
   ['listed', 'Trong danh sách (1=import, 0=xóa DB)'],
+  ['cost_cny', 'Giá gốc tệ'],
+  ['cost_vnd', 'Giá Việt Nam'],
 ];
 
 function jsonExcelCell(value: unknown): string {
@@ -153,6 +157,7 @@ export function excelExportRowFromProductData(
 
   const pd = productData;
   const styleCell = styleCellFromPd(pd);
+  const costs = exportImportCostCells(pd);
 
   return {
     id: pd.product_id != null ? String(pd.product_id) : '',
@@ -195,5 +200,33 @@ export function excelExportRowFromProductData(
     chinese_name: excelStr(pd.chinese_name),
     shop_name_chinese: excelStr(pd.shop_name_chinese),
     listed: depositRequireToExcelInt(pd.is_active, 1),
+    cost_cny: costs.cost_cny,
+    cost_vnd: costs.cost_vnd,
   };
+}
+
+/** Giá nhập trên file xuất cào. Cột pro_lower_price vẫn để trống như 188. */
+function exportImportCostCells(pd: Record<string, unknown>): { cost_cny: number | ''; cost_vnd: number | '' } {
+  const storedCny = scrapedCnyAmount(pd.cost_cny)
+  const storedVnd = scrapedCnyAmount(pd.cost_vnd)
+  if (storedCny != null && storedVnd != null) return { cost_cny: '', cost_vnd: '' }
+  if (storedCny != null || storedVnd != null) {
+    return { cost_cny: storedCny ?? '', cost_vnd: storedVnd ?? '' }
+  }
+  const link = pd.link_default ?? pd.source_url ?? pd.product_url
+  if (!looksLikeChinaSource(pd.origin, link)) return { cost_cny: '', cost_vnd: '' }
+  let amount = scrapedCnyAmount(pd.pro_lower_price)
+  if (amount == null) {
+    const info = pd.product_info
+    const market =
+      info && typeof info === 'object' && !Array.isArray(info)
+        ? (info as Record<string, unknown>).market_info
+        : null
+    if (market && typeof market === 'object' && !Array.isArray(market)) {
+      const m = market as Record<string, unknown>
+      amount = scrapedCnyAmount(m.price_cny_low)
+      if (amount == null) amount = scrapedCnyAmount(m.source_price)
+    }
+  }
+  return { cost_cny: amount ?? '', cost_vnd: '' }
 }

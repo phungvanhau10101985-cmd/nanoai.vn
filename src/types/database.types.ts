@@ -1073,6 +1073,8 @@ export interface Database {
           source_shop_name_chinese: string | null
           price_low_hint: string | null
           price_high_hint: string | null
+          cost_cny?: number | null
+          cost_vnd?: number | null
           rating_group_id: number | null
           question_group_id: number | null
           source_stock_status?: string
@@ -1166,6 +1168,8 @@ export interface Database {
           source_shop_name_chinese?: string | null
           price_low_hint?: string | null
           price_high_hint?: string | null
+          cost_cny?: number | null
+          cost_vnd?: number | null
           rating_group_id?: number | null
           question_group_id?: number | null
           source_stock_status?: string
@@ -1259,6 +1263,8 @@ export interface Database {
           source_shop_name_chinese?: string | null
           price_low_hint?: string | null
           price_high_hint?: string | null
+          cost_cny?: number | null
+          cost_vnd?: number | null
           rating_group_id?: number | null
           question_group_id?: number | null
           source_stock_status?: string

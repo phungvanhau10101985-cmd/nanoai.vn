@@ -4,6 +4,7 @@ import {
   type Catalog188Color,
 } from '@/lib/messaging/partner-inventory-catalog-188'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
+import { scrapedCnyAmount, stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
 import { validateInventoryImageUrl } from '@/lib/messaging/partner-inventory-excel'
 
 function str(v: unknown): string {
@@ -60,6 +61,7 @@ export function productDataToInventoryExcelInsert(
   const sizes = asStringArray(pd.sizes)
   const mainImage = validateInventoryImageUrl(str(pd.main_image)) || gallery[0] || colors[0]?.img || ''
   const price = num(pd.price, 0)
+  stampScrapedCostCny(pd)
   const snap = buildCatalog188Snapshot({
     productId,
     sku: str(pd.code),
@@ -101,8 +103,17 @@ export function productDataToInventoryExcelInsert(
     chineseName: str(pd.chinese_name),
     shopNameChinese: str(pd.shop_name_chinese),
     slug: str(pd.slug),
+    costCny: scrapedCnyAmount(pd.cost_cny),
+    costVnd: scrapedCnyAmount(pd.cost_vnd),
   })
   const catalog = catalogFieldsFromSnapshot(snap)
+  if (catalog.cost_cny != null && catalog.cost_vnd != null) {
+    catalog.cost_cny = null
+    catalog.cost_vnd = null
+  } else {
+    catalog.write_cost_cny = catalog.cost_cny != null
+    catalog.write_cost_vnd = catalog.cost_vnd != null
+  }
   const priceHint = price > 0 ? `${new Intl.NumberFormat('vi-VN').format(Math.round(price))}đ` : ''
   return {
     sort_order: sortOrder,

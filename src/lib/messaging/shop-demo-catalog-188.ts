@@ -401,4 +401,6 @@ export const CATALOG_188_SNAPSHOT_KEYS: Array<keyof Catalog188Snapshot> = [
   'chinese_name',
   'shop_name_chinese',
   'slug',
+  'cost_cny',
+  'cost_vnd',
 ]

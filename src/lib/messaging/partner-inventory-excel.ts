@@ -25,6 +25,7 @@ import {
   resolveCatalog188Column,
   type InventoryCatalog188Fields,
 } from '@/lib/messaging/partner-inventory-catalog-188'
+import { scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
 
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -91,7 +92,7 @@ export type InventoryImportWarning = {
   row_number: number
   sku: string
   name: string
-  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint' | 'product_info' | 'category'
+  field: 'size_json' | 'color_json' | 'stock_qty' | 'price_hint' | 'product_info' | 'category' | 'import_cost'
   code: string
   raw_value: string
   normalized_value: string
@@ -374,6 +375,8 @@ function catalog188ExampleRow(): (string | number)[] {
     '',
     '',
     1,
+    '',
+    '',
   ]
 }
 
@@ -384,6 +387,13 @@ export function buildInventoryTemplateBuffer(): Buffer {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, SHEET_NAME)
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+}
+
+function costCell(primary: unknown, fallback: unknown): number | '' {
+  const n = scrapedCnyAmount(primary)
+  if (n != null) return n
+  const fb = scrapedCnyAmount(fallback)
+  return fb != null ? fb : ''
 }
 
 function inventoryRowToCatalog188Cells(
@@ -464,6 +474,8 @@ function inventoryRowToCatalog188Cells(
     r.source_shop_name_chinese || '',
     r.catalog_slug || String(snap?.slug ?? ''),
     listed,
+    costCell(r.cost_cny, snap?.cost_cny),
+    costCell(r.cost_vnd, snap?.cost_vnd),
     extras.consultUrl,
     r.id,
   ]
@@ -650,7 +662,30 @@ function parseCatalog188Workbook(
       shopNameChinese: get('shop_name_chinese').trim().slice(0, 200),
       slug: get('Slug').trim().slice(0, 500),
     })
+    const costCny = colIndex.cost_cny !== undefined ? scrapedCnyAmount(get('cost_cny')) : null
+    const costVnd = colIndex.cost_vnd !== undefined ? scrapedCnyAmount(get('cost_vnd')) : null
+    if (costCny != null && costVnd != null) {
+      pushWarning({
+        row_number: r + 1,
+        sku: sku ?? '',
+        name: name.slice(0, 500),
+        field: 'import_cost',
+        code: 'IMPORT_COST_BOTH',
+        raw_value: `${get('cost_cny')} / ${get('cost_vnd')}`.slice(0, 200),
+        normalized_value: '',
+        message: 'Chỉ điền một cột giá nhập: giá gốc tệ hoặc giá Việt Nam. Đã giữ nguyên giá nhập đang có.',
+      })
+    } else {
+      snap.cost_cny = costCny
+      snap.cost_vnd = costVnd
+    }
     const catalog = catalogFieldsFromSnapshot(snap)
+    if (!(costCny != null && costVnd != null)) {
+      catalog.write_cost_cny = colIndex.cost_cny !== undefined
+      catalog.write_cost_vnd = colIndex.cost_vnd !== undefined
+      catalog.cost_cny = costCny
+      catalog.cost_vnd = costVnd
+    }
     const stockNote = colors.length ? JSON.stringify(colors) : ''
 
     out.push({

@@ -109,3 +109,32 @@ test('188 listed=0 deletes by product id without requiring name', () => {
   assert.equal(parsed.rows[0]?.removeFromInventory, true)
   assert.equal(parsed.rows[0]?.remarketing_id, 'A746-DEL')
 })
+
+test('188 import stores one import cost and leaves the selling price alone', () => {
+  const aoa = [
+    [...CATALOG_188_EXCEL_COLUMNS],
+    CATALOG_188_EXCEL_COLUMNS.map((col) => {
+      if (col === 'id') return 'A1'
+      if (col === 'name') return 'Áo'
+      if (col === 'price') return 199000
+      if (col === 'pro_lower_price') return '88'
+      if (col === 'cost_cny') return '128,00'
+      if (col === 'listed') return 1
+      return ''
+    }),
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'inventory')
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  const parsed = parseInventoryWorkbook(buf)
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  const catalog = parsed.rows[0]?.catalog
+  assert.equal(catalog?.catalog_json.price, 199000)
+  assert.equal(catalog?.price_low_hint, '88')
+  assert.equal(catalog?.cost_cny, 128)
+  assert.equal(catalog?.cost_vnd, null)
+  assert.equal(catalog?.write_cost_cny, true)
+  assert.equal(catalog?.write_cost_vnd, true)
+})

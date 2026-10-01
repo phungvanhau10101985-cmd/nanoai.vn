@@ -71,6 +71,7 @@ import {
 import { Bot, Copy, Download, FileSpreadsheet, Image as ImageIcon, Package, RefreshCw, Search, Sparkles, Truck, Upload } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
+import { scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
 import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
 import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
@@ -78,6 +79,18 @@ type AiT = Dictionary['partnerMessagingAi']
 type SettingsRow = PartnerAiSettingsClientRow
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
+
+function formatImportCostCell(value: number | null | undefined, empty: string): string {
+  if (value == null || !Number.isFinite(value)) return empty
+  return String(value)
+}
+
+function parseImportCostDraft(raw: string): number | null | 'bad' {
+  const text = raw.trim()
+  if (!text) return null
+  const n = scrapedCnyAmount(text)
+  return n == null ? 'bad' : n
+}
 
 function formatInventoryListPrice(row: InvRow, empty: string): string {
   const amount = row.price_amount
@@ -2315,6 +2328,8 @@ function InventoryEditor({
     stock_note: '',
     stock_qty: '0',
     price_hint: '',
+    cost_cny: '',
+    cost_vnd: '',
     sale_price_amount: '',
     sale_starts_at: '',
     sale_ends_at: '',
@@ -2339,6 +2354,8 @@ function InventoryEditor({
       stock_note: '',
       stock_qty: '0',
       price_hint: '',
+      cost_cny: '',
+      cost_vnd: '',
       sale_price_amount: '',
       sale_starts_at: '',
       sale_ends_at: '',
@@ -2457,6 +2474,8 @@ function InventoryEditor({
       stock_note: r.stock_note,
       stock_qty: String(r.stock_qty ?? 0),
       price_hint: r.price_hint,
+      cost_cny: r.cost_cny != null ? String(r.cost_cny) : '',
+      cost_vnd: r.cost_vnd != null ? String(r.cost_vnd) : '',
       sale_price_amount: r.sale_price_amount != null ? String(r.sale_price_amount) : '',
       sale_starts_at: r.sale_starts_at ? String(r.sale_starts_at).slice(0, 16) : '',
       sale_ends_at: r.sale_ends_at ? String(r.sale_ends_at).slice(0, 16) : '',
@@ -2487,6 +2506,19 @@ function InventoryEditor({
     if (!draft.name.trim()) return
     startTransition(async () => {
       const saleRaw = draft.sale_price_amount.trim()
+      const costCny = parseImportCostDraft(draft.cost_cny)
+      const costVnd = parseImportCostDraft(draft.cost_vnd)
+      if (costCny === 'bad' || costVnd === 'bad') {
+        toast({ title: 'Giá nhập không hợp lệ', variant: 'destructive' })
+        return
+      }
+      if (costCny != null && costVnd != null) {
+        toast({
+          title: 'Chỉ điền một cột giá nhập: giá gốc tệ hoặc giá Việt Nam.',
+          variant: 'destructive',
+        })
+        return
+      }
       const res = await upsertPartnerInventoryItem(partnerId, draft.id, {
         name: draft.name,
         sku: draft.sku,
@@ -2494,6 +2526,8 @@ function InventoryEditor({
         stock_note: draft.stock_note,
         stock_qty: Math.max(0, Math.floor(Number(draft.stock_qty || '0') || 0)),
         price_hint: draft.price_hint,
+        cost_cny: costCny,
+        cost_vnd: costVnd,
         image_url: draft.image_url,
         product_url: draft.product_url,
         product_video_url: draft.product_video_url,
@@ -2941,6 +2975,18 @@ function InventoryEditor({
                   <th className="sticky top-0 z-20 min-w-[6.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryPrice}
                   </th>
+                  <th
+                    className="sticky top-0 z-20 min-w-[7rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
+                    title="Giá nhập nhân dân tệ lúc cào. Không phải giá bán."
+                  >
+                    Giá gốc tệ
+                  </th>
+                  <th
+                    className="sticky top-0 z-20 min-w-[7.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
+                    title="Giá nhập đồng của hàng Việt Nam. Không phải giá bán."
+                  >
+                    Giá Việt Nam
+                  </th>
                   <th className="sticky top-0 z-20 min-w-[8rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryColBrand}
                   </th>
@@ -3037,6 +3083,12 @@ function InventoryEditor({
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
                         {formatInventoryListPrice(r, empty)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá nhập nhân dân tệ lúc cào">
+                        {formatImportCostCell(r.cost_cny, empty)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá nhập đồng của hàng Việt Nam">
+                        {formatImportCostCell(r.cost_vnd, empty)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 align-top">{r.brand_name?.trim() || empty}</td>
                       <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
@@ -3141,6 +3193,22 @@ function InventoryEditor({
           <div className="space-y-2">
             <Label>{t.inventoryPrice}</Label>
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
+          </div>
+          <div className="space-y-2">
+            <Label title="Giá nhập nhân dân tệ lúc cào. Không phải giá bán.">Giá gốc tệ</Label>
+            <Input
+              value={draft.cost_cny}
+              onChange={(e) => setDraft((d) => ({ ...d, cost_cny: e.target.value }))}
+              placeholder="Hàng Trung Quốc"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label title="Giá nhập đồng của hàng Việt Nam. Không phải giá bán.">Giá Việt Nam</Label>
+            <Input
+              value={draft.cost_vnd}
+              onChange={(e) => setDraft((d) => ({ ...d, cost_vnd: e.target.value }))}
+              placeholder="Hàng Việt Nam"
+            />
           </div>
           <div className="space-y-2">
             <Label>Flash sale price (VND)</Label>

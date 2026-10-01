@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto'
 import { normalizeListingProductImageUrl } from '@/lib/messaging/listing-import/listing-import-alicdn-urls'
+import { stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
 
 const VIPOMALL_IMAGE_HOST_MARKERS = ['viposeller', 'viettelidc.com.vn']
 
@@ -110,6 +111,7 @@ export function mergeListingOverlayIntoProductData(
   if (shopCn) productData.shop_name_chinese = shopCn
   const pl = String(overlay.pro_lower_price || '').trim()
   if (pl) productData.pro_lower_price = pl
+  stampScrapedCostCny(productData)
   const ph = String(overlay.pro_high_price || '').trim()
   if (ph) productData.pro_high_price = ph
   const price = overlay.price

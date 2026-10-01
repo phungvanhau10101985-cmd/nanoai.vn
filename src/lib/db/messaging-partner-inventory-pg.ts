@@ -165,6 +165,14 @@ function isMissingImageLocalizationColumnError(e: unknown): boolean {
   )
 }
 
+function isMissingImportCostColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  const msg = String(err.message ?? '').toLowerCase()
+  return msg.includes('cost_cny') || msg.includes('cost_vnd')
+}
+
 /** Catalog 188 — DB chưa áp migration `catalog_json` / brand / deposit… */
 function isMissingCatalog188ColumnError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
@@ -184,6 +192,8 @@ function isMissingCatalog188ColumnError(e: unknown): boolean {
       msg.includes('features_json') ||
       msg.includes('rating_group_id') ||
       msg.includes('question_group_id') ||
+      msg.includes('cost_cny') ||
+      msg.includes('cost_vnd') ||
       msg.includes('mpi.style') ||
       msg.includes('.style'))
   )
@@ -284,6 +294,8 @@ type PgInventoryRaw = {
   source_shop_name_chinese?: string | null
   price_low_hint?: string | null
   price_high_hint?: string | null
+  cost_cny?: number | string | null
+  cost_vnd?: number | string | null
   rating_group_id?: number | string | null
   question_group_id?: number | string | null
   image_localization_status?: string | null
@@ -440,6 +452,8 @@ function mapPgInventoryRow(r: PgInventoryRaw): MessagingPartnerInventoryRow {
     source_shop_name_chinese: r.source_shop_name_chinese != null ? String(r.source_shop_name_chinese) : null,
     price_low_hint: r.price_low_hint != null ? String(r.price_low_hint) : null,
     price_high_hint: r.price_high_hint != null ? String(r.price_high_hint) : null,
+    cost_cny: numOrNull(r.cost_cny),
+    cost_vnd: numOrNull(r.cost_vnd),
     rating_group_id: numOrNull(r.rating_group_id),
     question_group_id: numOrNull(r.question_group_id),
     image_localization_status: r.image_localization_status != null ? String(r.image_localization_status) : undefined,
@@ -747,6 +761,8 @@ const INVENTORY_PAGE_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.source_shop_name_chinese,
   mpi.price_low_hint,
   mpi.price_high_hint,
+  mpi.cost_cny,
+  mpi.cost_vnd,
   mpi.rating_group_id,
   mpi.question_group_id,
   mpi.image_localization_status,
@@ -1019,6 +1035,8 @@ const INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO = `select
   mpi.source_shop_name_chinese,
   mpi.price_low_hint,
   mpi.price_high_hint,
+  mpi.cost_cny,
+  mpi.cost_vnd,
   mpi.rating_group_id,
   mpi.question_group_id,
   mpi.created_at,
@@ -4103,7 +4121,9 @@ export async function applyPartnerInventoryCatalogPatchFromPg(
            material_note = case
              when coalesce(trim($34), '') = '' then material_note
              else $34
-           end
+           end,
+           cost_cny = case when $37::boolean then $35::double precision else cost_cny end,
+           cost_vnd = case when $38::boolean then $36::double precision else cost_vnd end
          where id = $1::uuid and partner_id = $2::uuid`,
         [
           r.id,
@@ -4140,6 +4160,10 @@ export async function applyPartnerInventoryCatalogPatchFromPg(
           JSON.stringify(r.catalog.gallery_urls ?? []),
           JSON.stringify(r.catalog.detail_image_urls ?? []),
           (r.materialNote ?? r.catalog.material_note ?? '').trim(),
+          r.catalog.cost_cny,
+          r.catalog.cost_vnd,
+          r.catalog.write_cost_cny === true,
+          r.catalog.write_cost_vnd === true,
         ]
       )
     }
@@ -4615,12 +4639,39 @@ export async function updatePartnerInventoryDashboardItemFromPg(
     sale_price_amount?: number | null
     sale_starts_at?: string | null
     sale_ends_at?: string | null
+    cost_cny?: number | null
+    cost_vnd?: number | null
   }
 ): Promise<boolean> {
   if (!isPgConfigured()) return false
-  try {
-    const r = await getPgPool().query(
-      `update public.messaging_partner_inventory set
+  const writeCosts = fields.cost_cny !== undefined || fields.cost_vnd !== undefined
+  const params: unknown[] = [
+    partnerId,
+    itemId,
+    fields.name,
+    fields.sku,
+    fields.description,
+    fields.stock_note,
+    fields.stock_qty,
+    fields.price_hint,
+    fields.image_url,
+    fields.product_url,
+    fields.product_video_url,
+    fields.consult_note,
+    fields.material_note,
+    fields.material_detail_image_url,
+    fields.real_use_image_url,
+    fields.real_use_image_url_2,
+    fields.remarketing_id,
+    fields.sort_order,
+    fields.updated_at,
+    computePriceAmountForWrite(fields.price_hint),
+    fields.sale_price_amount == null ? null : Math.max(0, Number(fields.sale_price_amount)),
+    fields.sale_starts_at || null,
+    fields.sale_ends_at || null,
+  ]
+  if (writeCosts) params.push(fields.cost_cny ?? null, fields.cost_vnd ?? null)
+  const sqlHead = `update public.messaging_partner_inventory set
         name = $3,
         sku = $4,
         description = $5,
@@ -4642,37 +4693,35 @@ export async function updatePartnerInventoryDashboardItemFromPg(
         sale_price_amount = $21::numeric,
         sale_starts_at = $22::timestamptz,
         sale_ends_at = $23::timestamptz,
-        updated_at = $19::timestamptz
-       where partner_id = $1::uuid and id = $2::uuid`,
-      [
-        partnerId,
-        itemId,
-        fields.name,
-        fields.sku,
-        fields.description,
-        fields.stock_note,
-        fields.stock_qty,
-        fields.price_hint,
-        fields.image_url,
-        fields.product_url,
-        fields.product_video_url,
-        fields.consult_note,
-        fields.material_note,
-        fields.material_detail_image_url,
-        fields.real_use_image_url,
-        fields.real_use_image_url_2,
-        fields.remarketing_id,
-        fields.sort_order,
-        fields.updated_at,
-        computePriceAmountForWrite(fields.price_hint),
-        fields.sale_price_amount == null ? null : Math.max(0, Number(fields.sale_price_amount)),
-        fields.sale_starts_at || null,
-        fields.sale_ends_at || null,
-      ]
+        updated_at = $19::timestamptz`
+  const sqlCosts = `,
+        cost_cny = $24::double precision,
+        cost_vnd = $25::double precision`
+  const sqlWhere = `
+       where partner_id = $1::uuid and id = $2::uuid`
+  try {
+    const r = await getPgPool().query(
+      sqlHead + (writeCosts ? sqlCosts : '') + sqlWhere,
+      params
     )
     if ((r.rowCount ?? 0) > 0) bumpInventoryCacheLater(partnerId)
     return (r.rowCount ?? 0) > 0
   } catch (e) {
+    if (
+      writeCosts &&
+      isMissingImportCostColumnError(e) &&
+      fields.cost_cny == null &&
+      fields.cost_vnd == null
+    ) {
+      try {
+        const r = await getPgPool().query(sqlHead + sqlWhere, params.slice(0, -2))
+        if ((r.rowCount ?? 0) > 0) bumpInventoryCacheLater(partnerId)
+        return (r.rowCount ?? 0) > 0
+      } catch (e2) {
+        console.warn('[updatePartnerInventoryDashboardItemFromPg]', e2)
+        return false
+      }
+    }
     console.warn('[updatePartnerInventoryDashboardItemFromPg]', e)
     return false
   }
@@ -4699,45 +4748,72 @@ export async function insertPartnerInventoryDashboardItemFromPg(
     sort_order: number
     created_at: string
     updated_at: string
+    cost_cny?: number | null
+    cost_vnd?: number | null
   }
 ): Promise<string | null> {
   if (!isPgConfigured()) return null
-  try {
-    const row = await pgQueryOne<{ id: string }>(
-      `insert into public.messaging_partner_inventory (
+  const writeCosts = fields.cost_cny !== undefined || fields.cost_vnd !== undefined
+  const params: unknown[] = [
+    partnerId,
+    fields.name,
+    fields.sku,
+    fields.description,
+    fields.stock_note,
+    fields.stock_qty,
+    fields.price_hint,
+    fields.image_url,
+    fields.product_url,
+    fields.product_video_url,
+    fields.consult_note,
+    fields.material_note,
+    fields.material_detail_image_url,
+    fields.real_use_image_url,
+    fields.real_use_image_url_2,
+    fields.remarketing_id,
+    fields.sort_order,
+    fields.created_at,
+    fields.updated_at,
+    computePriceAmountForWrite(fields.price_hint),
+  ]
+  if (writeCosts) params.push(fields.cost_cny ?? null, fields.cost_vnd ?? null)
+  const sqlHead = `insert into public.messaging_partner_inventory (
         partner_id, name, sku, description, stock_note, stock_qty, price_hint, image_url, product_url, product_video_url, consult_note,
         material_note, material_detail_image_url, real_use_image_url, real_use_image_url_2, remarketing_id,
-        sort_order, is_active, price_amount, created_at, updated_at
-      ) values (
-        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, $20::numeric, $18::timestamptz, $19::timestamptz
+        sort_order, is_active, price_amount, created_at, updated_at`
+  const sqlCostsCols = `, cost_cny, cost_vnd`
+  const sqlValues = `) values (
+        $1::uuid, $2, $3, $4, $5, $6::int, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, $20::numeric, $18::timestamptz, $19::timestamptz`
+  const sqlCostVals = `, $21::double precision, $22::double precision`
+  const sqlTail = `
       )
-      returning id::text as id`,
-      [
-        partnerId,
-        fields.name,
-        fields.sku,
-        fields.description,
-        fields.stock_note,
-        fields.stock_qty,
-        fields.price_hint,
-        fields.image_url,
-        fields.product_url,
-        fields.product_video_url,
-        fields.consult_note,
-        fields.material_note,
-        fields.material_detail_image_url,
-        fields.real_use_image_url,
-        fields.real_use_image_url_2,
-        fields.remarketing_id,
-        fields.sort_order,
-        fields.created_at,
-        fields.updated_at,
-        computePriceAmountForWrite(fields.price_hint),
-      ]
+      returning id::text as id`
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      sqlHead + (writeCosts ? sqlCostsCols : '') + sqlValues + (writeCosts ? sqlCostVals : '') + sqlTail,
+      params
     )
     if (row?.id) bumpInventoryCacheLater(partnerId)
     return row?.id ?? null
   } catch (e) {
+    if (
+      writeCosts &&
+      isMissingImportCostColumnError(e) &&
+      fields.cost_cny == null &&
+      fields.cost_vnd == null
+    ) {
+      try {
+        const row = await pgQueryOne<{ id: string }>(
+          sqlHead + sqlValues + sqlTail,
+          params.slice(0, -2)
+        )
+        if (row?.id) bumpInventoryCacheLater(partnerId)
+        return row?.id ?? null
+      } catch (e2) {
+        console.warn('[insertPartnerInventoryDashboardItemFromPg]', e2)
+        return null
+      }
+    }
     console.warn('[insertPartnerInventoryDashboardItemFromPg]', e)
     return null
   }

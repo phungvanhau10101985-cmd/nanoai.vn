@@ -485,6 +485,8 @@ describe('listing import Excel / product_info parity with 188', () => {
     assert.equal(row.shop_id, '')
     assert.equal(row.pro_lower_price, '')
     assert.equal(row.pro_high_price, '')
+    assert.equal(row.cost_cny, 128)
+    assert.equal(row.cost_vnd, '')
     assert.equal(row.pro_content, 'Mô tả bán')
     assert.equal(row.sizes, '["S", "XXL"]')
     assert.equal(row.question_group_id, 88)

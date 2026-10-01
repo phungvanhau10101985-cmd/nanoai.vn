@@ -22,6 +22,7 @@ import { normalizeListingProductDataImageUrls } from '@/lib/messaging/listing-im
 import { reapplyListingLocaleOverlay } from '@/lib/messaging/listing-import/listing-import-body-specs'
 import { applyListingYearSanitizeToProductData } from '@/lib/messaging/listing-import/listing-import-year-sanitize'
 import { scrapePandamallForImport } from '@/lib/messaging/listing-import/pandamall-scraper'
+import { stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
 import { mergeListingOverlayIntoProductData, preferListingChineseName } from '@/lib/messaging/listing-import/scrape-common'
 import { scrapeVipomallForImport } from '@/lib/messaging/listing-import/vipomall-scraper'
 import { CATEGORY_AUTO_CREATE_DISABLED, CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
@@ -87,6 +88,7 @@ export async function executeOneListingImport(input: {
         : await scrapeVipomallForImport(sourceUrl, input.partnerId)
     const productData = { ...scraped.productData }
     mergeListingOverlayIntoProductData(productData, input.overlay)
+    stampScrapedCostCny(productData)
     preferListingChineseName(productData)
     const warnings = [...(scraped.warnings || [])]
     try {
