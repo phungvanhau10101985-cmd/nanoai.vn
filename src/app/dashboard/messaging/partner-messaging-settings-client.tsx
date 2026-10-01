@@ -780,7 +780,7 @@ export function PartnerMessagingSettingsClient({
       },
       {
         id: 'hub-profit' as const,
-        label: 'Lợi nhuận',
+        label: t.messagingProfitLink,
         icon: TrendingUp,
         visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
       },

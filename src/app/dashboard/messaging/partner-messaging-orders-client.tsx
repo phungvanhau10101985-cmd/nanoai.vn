@@ -41,7 +41,6 @@ import {
   canTransitionPartnerOrderShipping,
   partnerOrderCancellationAxis,
 } from '@/lib/messaging/fulfillment/order-lifecycle-transition'
-import { PartnerOrderProfitPanel } from '@/app/dashboard/messaging/partner-order-profit-panel'
 import {
   confirmMyMessagingOrderDeposit,
   exportMyMessagingOrdersExcel,
@@ -607,7 +606,6 @@ export function PartnerMessagingOrdersClient({
   }))
   const [revenueReport, setRevenueReport] = useState<PartnerOrderAdminRevenueReport | null>(null)
   const [revenueLoading, setRevenueLoading] = useState(false)
-  const [workspaceTab, setWorkspaceTab] = useState<'orders' | 'profit'>('orders')
   const [revenueError, setRevenueError] = useState<string | null>(null)
 
   const partnerIdArg = selectedPartnerId === 'all' ? '' : selectedPartnerId
@@ -1052,27 +1050,6 @@ export function PartnerMessagingOrdersClient({
         </div>
       </div>
 
-      <div className="mb-4 flex gap-2" role="tablist" aria-label="Đơn hàng và lợi nhuận">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={workspaceTab === 'orders'}
-          onClick={() => setWorkspaceTab('orders')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${workspaceTab === 'orders' ? 'bg-[#ea580c] text-white' : 'bg-white text-gray-700 dark:bg-zinc-800 dark:text-zinc-100'}`}
-        >
-          Đơn hàng
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={workspaceTab === 'profit'}
-          onClick={() => setWorkspaceTab('profit')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${workspaceTab === 'profit' ? 'bg-[#ea580c] text-white' : 'bg-white text-gray-700 dark:bg-zinc-800 dark:text-zinc-100'}`}
-        >
-          Lợi nhuận
-        </button>
-      </div>
-
       <section className="mb-4 overflow-hidden rounded-lg bg-white shadow lg:mb-6 dark:bg-zinc-800" aria-label={t.revenueReportTitle}>
         <div className="border-b px-4 py-3 dark:border-zinc-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-zinc-50">{t.revenueReportTitle}</h2>
@@ -1330,13 +1307,6 @@ export function PartnerMessagingOrdersClient({
         </div>
       </section>
 
-      {workspaceTab === 'profit' ? (
-        <PartnerOrderProfitPanel
-          partnerId={partnerIdArg}
-          dateFrom={revenueReport?.dateFrom || ''}
-          dateTo={revenueReport?.dateTo || ''}
-        />
-      ) : (
       <div className="min-w-0 overflow-hidden rounded-lg bg-white shadow dark:bg-zinc-800">
         <div className="flex flex-wrap gap-2 border-b p-2 dark:border-zinc-700">
           {PARTNER_ADMIN_LIFECYCLE_TABS.map(({ key }) => (
@@ -1515,7 +1485,6 @@ export function PartnerMessagingOrdersClient({
           </div>
         ) : null}
       </div>
-      )}
 
       {detailOpen && selectedOrder ? (
         <div

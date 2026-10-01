@@ -41,6 +41,13 @@ function setupMockWindow() {
   return { gtagCalls, dataLayer, ttqCalls }
 }
 
+function findDataLayerEvent(dataLayer: unknown[], eventName: string) {
+  return dataLayer.find((entry): entry is { event: string; ecommerce: Record<string, unknown> } => {
+    if (!entry || typeof entry !== 'object') return false
+    return (entry as { event?: unknown }).event === eventName
+  })
+}
+
 const mockConfig: PartnerSiteShopTrackingConfig = {
   googleAdsId: 'AW-18484324626',
   ga4MeasurementId: 'G-TEST999',
@@ -115,7 +122,7 @@ test('trackPartnerSiteViewItem sends remarketing id at root to Google Ads and da
   assert.equal(retailPayload.ecomm_pagetype, 'product')
 
   // Kiểm tra GTM dataLayer
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'view_item') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'view_item')
   assert.ok(dlEvent, 'Must push view_item to dataLayer')
   assert.equal(dlEvent.ecommerce.ecomm_prodid, 'A789012345')
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'product')
@@ -151,7 +158,7 @@ test('trackPartnerSiteAddToCart sends full retail parameters to Google Ads and d
   assert.equal(retailPayload.ecomm_totalvalue, 1960000)
 
   // Kiểm tra GTM dataLayer
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'add_to_cart') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'add_to_cart')
   assert.ok(dlEvent, 'Must push add_to_cart to dataLayer')
   assert.equal(dlEvent.ecommerce.ecomm_prodid, 'A789012345')
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'cart')
@@ -217,7 +224,7 @@ test('trackPartnerSiteViewItemList sends category remarketing parameters', () =>
   assert.deepEqual(adsPayload.ecomm_prodid, ['A789012345', 'A999999'])
   assert.equal(adsPayload.ecomm_pagetype, 'category')
 
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'view_item_list') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'view_item_list')
   assert.ok(dlEvent, 'Must push view_item_list to dataLayer')
   assert.deepEqual(dlEvent.ecommerce.ecomm_prodid, ['A789012345', 'A999999'])
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'category')
@@ -254,7 +261,7 @@ test('trackPartnerSiteBeginCheckout sends cart remarketing parameters', () => {
   assert.equal(adsPayload.ecomm_pagetype, 'cart')
   assert.equal(adsPayload.ecomm_totalvalue, 980000)
 
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'begin_checkout') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'begin_checkout')
   assert.ok(dlEvent, 'Must push begin_checkout to dataLayer')
   assert.equal(dlEvent.ecommerce.ecomm_prodid, 'A789012345')
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'cart')
@@ -283,7 +290,7 @@ test('trackPartnerSitePlaceOrder sends add_payment_info with remarketing IDs', (
   assert.equal(adsPayload.ecomm_pagetype, 'cart')
   assert.equal(adsPayload.ecomm_totalvalue, 980000)
 
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'add_payment_info') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'add_payment_info')
   assert.ok(dlEvent, 'Must push add_payment_info to dataLayer')
   assert.equal(dlEvent.ecommerce.ecomm_prodid, 'A789012345')
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'cart')
@@ -312,7 +319,7 @@ test('trackPartnerSitePurchase sends purchase remarketing parameters', () => {
   assert.equal(adsPayload.ecomm_pagetype, 'purchase')
   assert.equal(adsPayload.ecomm_totalvalue, 980000)
 
-  const dlEvent = dataLayer.find((d: any) => d && d.event === 'purchase') as any
+  const dlEvent = findDataLayerEvent(dataLayer, 'purchase')
   assert.ok(dlEvent, 'Must push purchase to dataLayer')
   assert.equal(dlEvent.ecommerce.ecomm_prodid, 'A789012345')
   assert.equal(dlEvent.ecommerce.ecomm_pagetype, 'purchase')

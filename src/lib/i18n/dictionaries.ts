@@ -799,6 +799,7 @@ export type Dictionary = {
     /** Link tới /dashboard/messaging/website */
     messagingWebsiteLink: string
     messagingOrdersLink: string
+    messagingProfitLink: string
     messagingAnalyticsLink: string
     messagingSettingsPageTitle: string
     /** Ô chọn shop trên thanh header trang quản trị */
@@ -4520,6 +4521,7 @@ const VI_DICTIONARY: Dictionary = {
     emailManagementLink: 'Quản lý gửi email',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
+    messagingProfitLink: 'Lợi nhuận',
     messagingAnalyticsLink: 'Doanh thu',
     messagingSettingsPageTitle: 'Quản trị shop',
     settingsHeaderShopSelect: 'Chọn shop',
@@ -8246,6 +8248,7 @@ const EN_DICTIONARY: Dictionary = {
     emailManagementLink: 'Email sending',
     messagingWebsiteLink: 'Website & landing',
     messagingOrdersLink: 'Orders',
+    messagingProfitLink: 'Profit',
     messagingAnalyticsLink: 'Revenue',
     messagingSettingsPageTitle: 'Shop admin',
     settingsHeaderShopSelect: 'Select shop',
@@ -11960,6 +11963,7 @@ const ZH_DICTIONARY: Dictionary = {
     emailManagementLink: '邮件发送管理',
     messagingWebsiteLink: '网站与落地页',
     messagingOrdersLink: '订单',
+    messagingProfitLink: '利润',
     messagingAnalyticsLink: '营收',
     messagingSettingsPageTitle: '店铺管理',
     settingsHeaderShopSelect: '选择店铺',
@@ -15587,6 +15591,7 @@ const JA_DICTIONARY: Dictionary = {
     emailManagementLink: 'メール送信管理',
     messagingWebsiteLink: 'Web・ランディング',
     messagingOrdersLink: '注文',
+    messagingProfitLink: '利益',
     messagingAnalyticsLink: '売上',
     messagingSettingsPageTitle: '店舗管理',
     settingsHeaderShopSelect: 'ショップを選択',
@@ -19281,6 +19286,7 @@ const KO_DICTIONARY: Dictionary = {
     emailManagementLink: '이메일 발송 관리',
     messagingWebsiteLink: '웹·랜딩',
     messagingOrdersLink: '주문',
+    messagingProfitLink: '이익',
     messagingAnalyticsLink: '매출',
     messagingSettingsPageTitle: '매장 관리',
     settingsHeaderShopSelect: '매장 선택',
