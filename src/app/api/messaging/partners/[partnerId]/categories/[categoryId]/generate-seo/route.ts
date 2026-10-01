@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const pid = partnerId.trim()
   const cid = categoryId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_categories')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const category = await fetchPartnerCategoryByIdFromPg(pid, cid)

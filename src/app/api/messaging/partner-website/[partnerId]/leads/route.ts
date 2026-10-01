@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ partnerId:
   }
 
   const { partnerId } = await ctx.params
-  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website_leads')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -29,7 +29,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ partnerId
   }
 
   const { partnerId } = await ctx.params
-  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website_leads')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

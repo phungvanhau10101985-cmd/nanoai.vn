@@ -4456,7 +4456,7 @@ const VI_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Đã hủy lịch xóa workspace.',
     teamStaffSectionTitle: 'Nhân viên workspace',
     teamStaffSectionHint:
-      'Mời bằng Gmail/email. Chưa có tài khoản NanoAI thì hệ thống tạo khi họ đăng nhập Google trên web shop. Email kèm link quản trị. Chọn quyền từng người; chỉ nên cho quyền nhạy cảm khi tin tưởng hoàn toàn.',
+      'Mời bằng Gmail/email. Chưa có tài khoản NanoAI thì hệ thống tạo khi họ đăng nhập Google trên web shop. Email kèm link quản trị. Mỗi ô là một mục con trên sidebar quản trị, không cấp cả nhóm. Chỉ nên cho quyền nhạy cảm khi tin tưởng hoàn toàn.',
     badgeStaffWorkspace: 'được mời',
     teamInviteEmailLabel: 'Email đăng nhập',
     teamInviteEmailPlaceholder: 'email@vidu.com',
@@ -8183,7 +8183,7 @@ const EN_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: 'Workspace team',
     teamStaffSectionHint:
-      'Invite by Gmail/email. If they do not have a NanoAI account yet, one is created when they sign in with Google on the shop. We email a shop admin link. Choose permissions carefully; sensitive areas should only go to trusted users.',
+      'Invite by Gmail/email. If they do not have a NanoAI account yet, one is created when they sign in with Google on the shop. We email a shop admin link. Each box is one admin sidebar item, not a whole group. Sensitive areas should only go to trusted users.',
     badgeStaffWorkspace: 'invited',
     teamInviteEmailLabel: 'Login email',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -11902,7 +11902,7 @@ const ZH_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: '团队成员',
     teamStaffSectionHint:
-      '按 NanoAI 登录邮箱邀请。系统会发送带店铺管理页链接的邮件。按需勾选权限；敏感权限仅授予可信人员。',
+      '按 NanoAI 登录邮箱邀请。系统会发送带店铺管理页链接的邮件。每个勾选对应管理侧栏的一项，不会整组开通。敏感权限仅授予可信人员。',
     badgeStaffWorkspace: '受邀成员',
     teamInviteEmailLabel: '登录邮箱',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -15525,7 +15525,7 @@ const JA_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: 'ワークスペースのメンバー',
     teamStaffSectionHint:
-      'NanoAI のログインメールで招待してください。店舗管理ページへのリンク付きメールを送ります。権限は最小限にし、決済情報など機密機能は十分信頼できる人のみに許可しましょう。',
+      'NanoAI のログインメールで招待してください。店舗管理ページへのリンク付きメールを送ります。チェックは管理画面の各項目ごとで、グループ全体にはなりません。決済情報など機密機能は十分信頼できる人のみに許可しましょう。',
     badgeStaffWorkspace: '招待済み',
     teamInviteEmailLabel: 'ログインメール',
     teamInviteEmailPlaceholder: 'user@example.com',
@@ -19221,7 +19221,7 @@ const KO_DICTIONARY: Dictionary = {
     deleteWorkspaceScheduleCancelled: 'Scheduled deletion cancelled.',
     teamStaffSectionTitle: '워크스페이스 팀원',
     teamStaffSectionHint:
-      'NanoAI 로그인 이메일로 초대합니다. 샵 관리 페이지 링크가 포함된 이메일을 보냅니다. 권한은 최소만 부여하고, 민감 항목은 신뢰하는 사람에게만 허용하세요.',
+      'NanoAI 로그인 이메일로 초대합니다. 샵 관리 페이지 링크가 포함된 이메일을 보냅니다. 각 체크는 관리 사이드바의 한 항목이며 그룹 전체가 아닙니다. 민감 항목은 신뢰하는 사람에게만 허용하세요.',
     badgeStaffWorkspace: '초대됨',
     teamInviteEmailLabel: '로그인 이메일',
     teamInviteEmailPlaceholder: 'user@example.com',

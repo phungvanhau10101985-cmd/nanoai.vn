@@ -13,6 +13,7 @@ import {
 import { clearMessagingPartnerLogoUrlPg } from '@/lib/db/messaging-partners-pg'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
+import { WEBSITE_CHILD_PERMS } from '@/lib/messaging/partner-staff-permissions'
 import { composePartnerWebsiteHtmlAsync } from '@/lib/partner-website/compose-partner-website-html'
 import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-partner-website-full-landing'
 import {
@@ -166,7 +167,10 @@ export async function GET(
   }
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, [
+    ...WEBSITE_CHILD_PERMS,
+    'workspace_branding',
+  ])
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -220,10 +224,6 @@ export async function PATCH(
   }
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
-  if (!access.ok) {
-    return NextResponse.json({ error: access.error }, { status: access.status })
-  }
 
   type PartnerWebsitePatchBody = {
     action?:
@@ -267,6 +267,22 @@ export async function PATCH(
     body = (await req.json()) as PartnerWebsitePatchBody
   } catch {
     return NextResponse.json({ error: 'Invalid or too large save payload' }, { status: 400 })
+  }
+
+  const patchPerm =
+    body.action === 'update_floating_cta'
+      ? (['website_floating_cta'] as const)
+      : body.action === 'update_slogan' ||
+          body.action === 'update_brand' ||
+          body.action === 'update_logo_url' ||
+          body.action === 'update_logo_slot' ||
+          body.action === 'update_chat_icon_logo' ||
+          body.action === 'clear_logo'
+        ? (['website_editor', 'workspace_branding'] as const)
+        : (['website_editor'] as const)
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, patchPerm)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
   }
 
   if (body.action === 'update_floating_cta') {

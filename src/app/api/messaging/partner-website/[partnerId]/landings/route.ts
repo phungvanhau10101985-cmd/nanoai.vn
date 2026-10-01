@@ -52,7 +52,7 @@ export async function GET(
   }
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -110,7 +110,7 @@ export async function POST(
   }
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

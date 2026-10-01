@@ -35,6 +35,14 @@ describe('partner order profit', () => {
       80 * 3580 + 10 * 3580 + 30_000,
     )
 
+    const both = summarizeStoredImport([
+      { quantity: 1, costCny: 80, costVnd: 80 * 3580, isWarehouse: false, isClearance: false },
+    ])
+    assert.ok(both)
+    assert.equal(both.goodsCny, 80)
+    assert.equal(both.goodsVnd, 0)
+    assert.equal(both.usesChinaShip, true)
+
     const sale = summarizeStoredImport([
       { quantity: 1, costCny: null, costVnd: null, isWarehouse: false, isClearance: true },
     ])

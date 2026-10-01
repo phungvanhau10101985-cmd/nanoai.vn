@@ -19,7 +19,7 @@ function revalidateMessagingDashboard() {
 
 export async function POST(_req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
-  const gate = await requireMessagingPartnerInventoryAccess(partnerId)
+  const gate = await requireMessagingPartnerInventoryAccess(partnerId, 'inventory_open_sync')
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
 
   const outcome: ExternalCatalogSyncOutcome = await runPartnerExternalCatalogSyncJob({

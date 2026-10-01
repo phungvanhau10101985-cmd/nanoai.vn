@@ -2056,7 +2056,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
           count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled,
           count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned
        from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
        where ($2::uuid is null or o.partner_id = $2::uuid)
          and nullif(trim(o.payment_reference), '') is not null
          and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
@@ -2746,7 +2746,7 @@ export async function fetchPartnerOrderProfitSheetFromPg(input: {
               i.cost_vnd::double precision as cost_vnd,
               coalesce(i.is_clearance, false) as is_clearance
        from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
        left join public.messaging_partner_order_lines l on l.order_id = o.id
        left join public.messaging_partner_inventory i on i.id = l.product_inventory_id
        where ($2::uuid is null or o.partner_id = $2::uuid)

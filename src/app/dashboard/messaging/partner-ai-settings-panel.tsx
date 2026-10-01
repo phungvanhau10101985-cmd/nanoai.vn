@@ -2512,13 +2512,6 @@ function InventoryEditor({
         toast({ title: 'Giá nhập không hợp lệ', variant: 'destructive' })
         return
       }
-      if (costCny != null && costVnd != null) {
-        toast({
-          title: 'Chỉ điền một cột giá nhập: giá gốc tệ hoặc giá Việt Nam.',
-          variant: 'destructive',
-        })
-        return
-      }
       const res = await upsertPartnerInventoryItem(partnerId, draft.id, {
         name: draft.name,
         sku: draft.sku,
@@ -2977,15 +2970,15 @@ function InventoryEditor({
                   </th>
                   <th
                     className="sticky top-0 z-20 min-w-[7rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
-                    title="Giá nhập nhân dân tệ lúc cào. Không phải giá bán."
+                    title="Giá gốc lúc cào, tính bằng tiền tệ nguồn. Không phải giá bán."
                   >
-                    Giá gốc tệ
+                    Giá gốc tiền tệ
                   </th>
                   <th
                     className="sticky top-0 z-20 min-w-[7.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
-                    title="Giá nhập đồng của hàng Việt Nam. Không phải giá bán."
+                    title="Giá gốc quy ra tiền Việt. Không phải giá bán."
                   >
-                    Giá Việt Nam
+                    Giá gốc tiền Việt
                   </th>
                   <th className="sticky top-0 z-20 min-w-[8rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryColBrand}
@@ -3084,10 +3077,10 @@ function InventoryEditor({
                       <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
                         {formatInventoryListPrice(r, empty)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá nhập nhân dân tệ lúc cào">
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá gốc tiền tệ">
                         {formatImportCostCell(r.cost_cny, empty)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá nhập đồng của hàng Việt Nam">
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá gốc tiền Việt">
                         {formatImportCostCell(r.cost_vnd, empty)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 align-top">{r.brand_name?.trim() || empty}</td>
@@ -3195,7 +3188,7 @@ function InventoryEditor({
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label title="Giá nhập nhân dân tệ lúc cào. Không phải giá bán.">Giá gốc tệ</Label>
+            <Label title="Giá gốc lúc cào, tính bằng tiền tệ nguồn. Không phải giá bán.">Giá gốc tiền tệ</Label>
             <Input
               value={draft.cost_cny}
               onChange={(e) => setDraft((d) => ({ ...d, cost_cny: e.target.value }))}
@@ -3203,7 +3196,7 @@ function InventoryEditor({
             />
           </div>
           <div className="space-y-2">
-            <Label title="Giá nhập đồng của hàng Việt Nam. Không phải giá bán.">Giá Việt Nam</Label>
+            <Label title="Giá gốc quy ra tiền Việt. Không phải giá bán.">Giá gốc tiền Việt</Label>
             <Input
               value={draft.cost_vnd}
               onChange={(e) => setDraft((d) => ({ ...d, cost_vnd: e.target.value }))}

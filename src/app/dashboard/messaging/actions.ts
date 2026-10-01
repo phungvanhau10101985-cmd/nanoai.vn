@@ -584,7 +584,7 @@ export async function getPartnerMessagingFacebookMeta(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'integrations_analytics')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'analytics_ads')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   try {
@@ -593,7 +593,7 @@ export async function getPartnerMessagingFacebookMeta(partnerId: string) {
               (mp.facebook_capi_access_token is not null and length(trim(coalesce(mp.facebook_capi_access_token, ''))) > 0) as capi_set
        from public.messaging_partners mp
        where mp.id = $1::uuid
-         and ${sqlPartnerMpActorHasPerm(2, 'integrations_analytics')}
+         and ${sqlPartnerMpActorHasPerm(2, 'analytics_ads', { parentKey: 'integrations_analytics', markerKey: 'analytics_catalog' })}
        limit 1`,
       [partnerId, user.id]
     )
@@ -753,7 +753,7 @@ export async function getPartnerMessagingShopTrackingExtras(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'integrations_analytics')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'analytics_ads')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const extras = await fetchMessagingPartnerShopTrackingExtrasFromPg(partnerId)
@@ -1148,7 +1148,7 @@ export async function getMessagingWorkspaceLoyaltySettings(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'orders')
+  const gate = await assertPartnerOwner(user.id, partnerId)
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const row = await fetchPartnerLoyaltyDashboardForActorFromPg({
@@ -1177,7 +1177,7 @@ export async function saveMessagingWorkspaceLoyaltySettings(input: {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, input.partnerId, 'orders')
+  const gate = await assertPartnerOwner(user.id, input.partnerId)
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const ok = await updatePartnerLoyaltyDashboardForActorFromPg({
@@ -2953,7 +2953,7 @@ export async function getPartnerAiSettingsBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerAnyStaffCapability(user.id, partnerId, ['ai_settings', 'inventory'])
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -2970,7 +2970,7 @@ export async function getPartnerAiBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerAnyStaffCapability(user.id, partnerId, ['ai_settings', 'inventory'])
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'ai_settings')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3010,7 +3010,7 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3037,7 +3037,7 @@ export async function getPartnerInventoryItem(partnerId: string, inventoryId: st
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3051,7 +3051,7 @@ export async function getPartnerInventoryEmbeddingStats(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -3078,7 +3078,7 @@ export async function getPartnerInventoryEmbeddingErrors(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -3115,7 +3115,7 @@ export async function exportPartnerInventoryEmbeddingErrorsCsv(partnerId: string
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -3157,7 +3157,7 @@ export async function getPartnerInventoryTextEmbeddingStats(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
 
   if (!isPgConfigured()) {
@@ -3180,7 +3180,7 @@ export async function triggerPartnerInventoryEmbeddingSync(partnerId: string, li
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3582,7 +3582,7 @@ export async function upsertPartnerInventoryItem(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3599,9 +3599,6 @@ export async function upsertPartnerInventoryItem(
   const materialNote = (fields.material_note ?? '').trim().slice(0, 8000)
   const remarketingId = fields.remarketing_id.trim().slice(0, 500) || null
   const writeCosts = fields.cost_cny !== undefined || fields.cost_vnd !== undefined
-  if (writeCosts && fields.cost_cny != null && fields.cost_vnd != null) {
-    return { error: 'Chỉ điền một cột giá nhập: giá gốc tệ hoặc giá Việt Nam.' }
-  }
   if (
     writeCosts &&
     ((fields.cost_cny != null && (!Number.isFinite(fields.cost_cny) || fields.cost_cny < 0)) ||
@@ -3685,7 +3682,7 @@ export async function getPartnerInventoryExternalSyncSettings(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_open_sync')
   if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const row = await fetchPartnerInventoryExternalSyncSettingsFromPg(partnerId)
@@ -3728,7 +3725,7 @@ export async function savePartnerInventoryExternalSyncSettings(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_open_sync')
   if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
   const step = await requireAccountStepUp(user.id)
   if ('error' in step) return { error: step.error }
@@ -3759,7 +3756,7 @@ export async function runPartnerExternalCatalogSyncNow(
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_open_sync')
   if ('error' in gate) return { error: gate.error ?? 'Forbidden.' }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const outcome = await runPartnerExternalCatalogSyncJob({
@@ -3776,7 +3773,7 @@ export async function deletePartnerInventoryItem(partnerId: string, itemId: stri
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3796,7 +3793,7 @@ export async function deletePartnerInventoryItems(partnerId: string, itemIds: st
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) {
     return { error: 'DATABASE_URL is not set.' }
@@ -3822,7 +3819,7 @@ export async function reloadShopDemoInventory(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
   const { user } = auth
-  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory')
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const result = await seedShopDemoInventoryForPartner(partnerId)
@@ -4269,7 +4266,7 @@ export async function updateMessagingPartnerCustomDomainUsage(input: {
 export async function getPartnerCapabilitiesBundle(partnerId: string) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
-  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website')
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website_editor')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const partners = await fetchMessagingPartnersForDashboardFromPg(auth.user.id)
@@ -4284,7 +4281,7 @@ export async function getPartnerCapabilitiesBundle(partnerId: string) {
 export async function savePartnerCapabilities(partnerId: string, capabilities: PartnerCapabilities) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
-  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website')
+  const gate = await assertPartnerStaffGate(auth.user.id, partnerId, 'website_editor')
   if ('error' in gate) return { error: gate.error }
   if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
   const saved = await updatePartnerCapabilitiesForOwnerFromPg({

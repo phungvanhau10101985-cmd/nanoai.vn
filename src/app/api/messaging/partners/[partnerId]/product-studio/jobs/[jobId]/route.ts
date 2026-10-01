@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_studio')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const job = await fetchProductStudioJobByIdPg(pid, jobId.trim())
@@ -30,7 +30,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ partnerI
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_studio')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const ok = await deleteProductStudioJobPg(pid, jobId.trim())

@@ -24,7 +24,7 @@ export async function POST(
 
   const pid = partnerId.trim()
   const lid = landingId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

@@ -98,8 +98,8 @@ export const CATALOG_188_VI_HEADERS: Record<Catalog188ExcelColumn, string> = {
   shop_name_chinese: 'Shop Trung Quốc',
   Slug: 'Slug',
   listed: 'Trong danh sách (1=import, 0=xóa DB)',
-  cost_cny: 'Giá gốc tệ',
-  cost_vnd: 'Giá Việt Nam',
+  cost_cny: 'Giá gốc tiền tệ',
+  cost_vnd: 'Giá gốc tiền Việt',
 }
 
 /** Cột chỉ có trên file xuất SaaS — 188 bỏ qua khi import. */
@@ -331,6 +331,10 @@ const HEADER_TO_COLUMN: Record<string, Catalog188ExcelColumn> = (() => {
   add('thong_tin_san_pham', 'product_info')
   add('ten_tieng_trung', 'chinese_name')
   add('shop_trung_quoc', 'shop_name_chinese')
+  add('Giá gốc tệ', 'cost_cny')
+  add('gia_goc_te', 'cost_cny')
+  add('Giá Việt Nam', 'cost_vnd')
+  add('gia_viet_nam', 'cost_vnd')
   add('trong_danh_sach', 'listed')
   add('listed', 'listed')
   add('is_active', 'listed')
@@ -840,12 +844,7 @@ export function catalogFieldsFromExternalProduct(product: unknown): InventoryCat
     snap.cost_vnd = scrapedCnyAmount(stamped.cost_vnd)
   }
   const fields = catalogFieldsFromSnapshot(snap)
-  if (fields.cost_cny != null && fields.cost_vnd != null) {
-    fields.cost_cny = null
-    fields.cost_vnd = null
-  } else {
-    fields.write_cost_cny = fields.cost_cny != null
-    fields.write_cost_vnd = fields.cost_vnd != null
-  }
+  fields.write_cost_cny = fields.cost_cny != null
+  fields.write_cost_vnd = fields.cost_vnd != null
   return fields
 }

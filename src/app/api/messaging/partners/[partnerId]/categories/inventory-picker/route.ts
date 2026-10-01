@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_categories')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const page = Math.max(0, Number(req.nextUrl.searchParams.get('page') || 0) || 0)

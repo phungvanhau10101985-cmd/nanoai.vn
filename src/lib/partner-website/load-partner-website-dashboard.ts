@@ -9,10 +9,12 @@ import { syncPartnerWebsiteFullLandingPg } from '@/lib/partner-website/sync-part
 import { isFullLandingV1Template } from '@/lib/partner-website/template/upgrade-landing-v1-template'
 import type { PartnerWebsiteRow } from '@/lib/partner-website/partner-website-types'
 import { pickPreferredWebsitePartnerId } from '@/lib/partner-website/pick-preferred-website-partner'
+import { partnerStaffHasAnyPerm, WEBSITE_CHILD_PERMS } from '@/lib/messaging/partner-staff-permissions'
 
 export function partnerCanManageWebsite(p: MessagingPartnerDashboardRow): boolean {
   if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.website)
+  if (!p.staff_permissions) return false
+  return partnerStaffHasAnyPerm(p.staff_permissions, WEBSITE_CHILD_PERMS)
 }
 
 export type PartnerWebsiteDashboardData = {

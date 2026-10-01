@@ -27,7 +27,7 @@ export async function GET(
   }
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_landings')
   if (!access.ok) {
     return new NextResponse(access.error, { status: access.status })
   }

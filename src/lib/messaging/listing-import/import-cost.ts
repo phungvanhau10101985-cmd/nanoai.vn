@@ -18,9 +18,26 @@ export function looksLikeChinaSource(origin: unknown, link: unknown): boolean {
   return CHINA_TOKENS.some((token) => blob.includes(token))
 }
 
-/** Ghi cost_cny từ số tệ đã cào. Không đụng giá bán. Bỏ qua nếu đã có một trong hai giá nhập. */
+function listingVndPerCnyForCost(): number {
+  const n = Number(process.env.LISTING_IMPORT_VND_PER_CNY)
+  if (Number.isFinite(n) && n > 0) return n
+  return 3580
+}
+
+/** Giá gốc tiền Việt = giá gốc tiền tệ × tỷ giá. Không cộng hệ số lưới bán. */
+export function sourceCostVndFromCny(cny: number): number {
+  return Math.round(cny * listingVndPerCnyForCost())
+}
+
+/** Ghi giá gốc tệ và giá gốc tiền Việt từ số tệ đã cào. Không đụng giá bán. Hàng đã có giá Việt Nam thì giữ. */
 export function stampScrapedCostCny(payload: Record<string, unknown>): void {
-  if (scrapedCnyAmount(payload.cost_cny) != null || scrapedCnyAmount(payload.cost_vnd) != null) return
+  const existingCny = scrapedCnyAmount(payload.cost_cny)
+  const existingVnd = scrapedCnyAmount(payload.cost_vnd)
+  if (existingCny != null) {
+    if (existingVnd == null) payload.cost_vnd = sourceCostVndFromCny(existingCny)
+    return
+  }
+  if (existingVnd != null) return
   let amount = scrapedCnyAmount(payload.pro_lower_price)
   if (amount == null) {
     const info = payload.product_info
@@ -38,15 +55,15 @@ export function stampScrapedCostCny(payload: Record<string, unknown>): void {
   const link = payload.link_default || payload.source_url || payload.product_url
   if (!looksLikeChinaSource(payload.origin, link)) return
   payload.cost_cny = amount
+  payload.cost_vnd = sourceCostVndFromCny(amount)
 }
 
-/** Một sản phẩm chỉ có một giá nhập. Cả hai cùng có số thì không ghi cột nào. */
+/** Đọc cả hai cột giá gốc. Cả hai cùng có số thì giữ cả hai. */
 export function singleImportCost(
   cny: unknown,
   vnd: unknown
 ): { costCny: number | null; costVnd: number | null; both: boolean } {
   const costCny = scrapedCnyAmount(cny)
   const costVnd = scrapedCnyAmount(vnd)
-  if (costCny != null && costVnd != null) return { costCny: null, costVnd: null, both: true }
-  return { costCny, costVnd, both: false }
+  return { costCny, costVnd, both: costCny != null && costVnd != null }
 }

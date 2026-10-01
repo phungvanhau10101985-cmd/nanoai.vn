@@ -15,7 +15,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ partnerId:
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_search_aliases')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const aliases = await listPartnerSearchAliasesFromPg(pid)
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_search_aliases')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const body = (await req.json().catch(() => ({}))) as {

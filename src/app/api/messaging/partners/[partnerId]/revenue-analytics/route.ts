@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'orders')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'orders_profit')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const url = req.nextUrl

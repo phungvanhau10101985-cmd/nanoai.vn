@@ -11,7 +11,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ partnerId: str
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_reviews')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const buf = buildQuestionImportSampleXlsx()

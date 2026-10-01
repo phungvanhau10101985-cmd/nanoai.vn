@@ -18,7 +18,7 @@ export async function PATCH(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_reviews')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const body = (await req.json().catch(() => ({}))) as { isActive?: boolean; content?: string }
@@ -37,7 +37,7 @@ export async function DELETE(
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_reviews')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const ok = await deletePartnerProductAnswerFromPg(pid, answerId)

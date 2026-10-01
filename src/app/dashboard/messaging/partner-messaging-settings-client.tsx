@@ -19,7 +19,10 @@ import type { MessagingPartnerDashboardRow } from '@/lib/db/messaging-partners-p
 import type { PartnerMemberRow } from '@/lib/db/messaging-partner-members-pg'
 import { getDictionary, type Dictionary } from '@/lib/i18n/dictionaries'
 import type { PartnerStaffPermKey, PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
-import { PARTNER_STAFF_PERM_KEYS } from '@/lib/messaging/partner-staff-permissions'
+import {
+  partnerStaffHasAnyPerm,
+  WEBSITE_CHILD_PERMS,
+} from '@/lib/messaging/partner-staff-permissions'
 import type { Database as AppDatabase } from '@/types/database.types'
 import {
   cancelMessagingWorkspaceDeletionSchedule,
@@ -175,7 +178,7 @@ function partnerCanAiSettingsPanel(p: MessagingPartnerDashboardRow | null | unde
 function partnerCanAiUsagePanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.ai_settings || p.staff_permissions?.usage_reports)
+  return Boolean(p.staff_permissions?.usage_reports)
 }
 
 function partnerCanOrdersHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
@@ -195,19 +198,41 @@ function partnerCanMarketingHub(p: MessagingPartnerDashboardRow | null | undefin
 function partnerCanEmailHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.marketing_campaigns || p.staff_permissions?.website)
+  return Boolean(p.staff_permissions?.email_management)
 }
 
-function partnerCanWebsiteHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+function partnerCanAnyWebsite(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.website)
+  if (!p.staff_permissions) return false
+  return partnerStaffHasAnyPerm(p.staff_permissions, WEBSITE_CHILD_PERMS)
 }
 
-function partnerCanInventoryPanel(p: MessagingPartnerDashboardRow | null | undefined): boolean {
-  if (!p) return false
-  if (p.dashboard_access === 'owner') return true
-  return Boolean(p.staff_permissions?.inventory)
+function websiteSectionPerm(sectionId: string): PartnerStaffPermKey | null {
+  switch (sectionId) {
+    case 'partner-website-editor':
+      return 'website_editor'
+    case 'partner-website-categories':
+      return 'website_categories'
+    case 'partner-website-reviews-qa':
+      return 'website_reviews'
+    case 'partner-website-customers':
+      return 'website_customers'
+    case 'partner-website-static-pages':
+      return 'website_static_pages'
+    case 'partner-website-promotions':
+      return 'website_promotions'
+    case 'partner-website-landings':
+      return 'website_landings'
+    case 'partner-website-floating-cta':
+      return 'website_floating_cta'
+    case 'partner-website-leads':
+      return 'website_leads'
+    case 'partner-website-search-aliases':
+      return 'inventory_search_aliases'
+    default:
+      return null
+  }
 }
 
 const SETTINGS_SIDEBAR_SURFACE = 'bg-zinc-700 text-white dark:bg-zinc-800'
@@ -620,7 +645,7 @@ export function PartnerMessagingSettingsClient({
     [partners]
   )
   const isOwnerSelected = selectedPartner?.dashboard_access === 'owner'
-  const canShippingOps = Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'orders'))
+  const canShippingOps = Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'orders_shipping'))
   const sectionParam = searchParams.get('section')
   const normalizedSectionParam = normalizeSettingsSectionParam(sectionParam)
   const [activeSection, setActiveSection] = useState<SettingsPageSectionId>(() =>
@@ -702,14 +727,14 @@ export function PartnerMessagingSettingsClient({
         group: 'connect',
         label: t.settingsNavAnalyticsMeta,
         icon: Database,
-        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+        visible: partnerAllowsPerm(selectedPartner, 'analytics_catalog'),
       },
       {
         id: 'analytics-ads',
         group: 'connect',
         label: t.settingsNavAnalyticsAds,
         icon: TrendingUp,
-        visible: partnerAllowsPerm(selectedPartner, 'integrations_analytics'),
+        visible: partnerAllowsPerm(selectedPartner, 'analytics_ads'),
       },
       { id: 'api', group: 'connect', label: t.messagingSettingsApiHubCardTitle, icon: Plug, visible: isOwnerSelected },
       { id: 'sheets', group: 'connect', label: t.settingsNavSheets, icon: Table, visible: isOwnerSelected },
@@ -733,22 +758,22 @@ export function PartnerMessagingSettingsClient({
   }, [isOwnerSelected, selectedPartner, selectedPartnerId, t, tAi])
 
   const inventorySidebarItems = useMemo(() => {
-    const canInv = Boolean(selectedPartnerId && partnerCanInventoryPanel(selectedPartner))
+    const allow = (key: PartnerStaffPermKey) => Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, key))
     return [
-      { id: 'inventory' as const, label: t.settingsNavInventoryCatalog, icon: Package, visible: canInv },
-      { id: 'inventory-studio' as const, label: t.settingsNavInventoryStudio, icon: Wand2, visible: canInv },
-      { id: 'inventory-listing-import' as const, label: tAi.listingImportTitle, icon: FileSearch, visible: canInv },
-      { id: 'inventory-source-stock' as const, label: tAi.sourceStockTitle, icon: ShieldCheck, visible: canInv },
-      { id: 'inventory-open-sync' as const, label: tAi.inventoryExternalSyncTitle, icon: RefreshCw, visible: canInv },
-      { id: 'inventory-image-loc' as const, label: tAi.imageLocTitle, icon: Image, visible: canInv },
+      { id: 'inventory' as const, label: t.settingsNavInventoryCatalog, icon: Package, visible: allow('inventory_products') },
+      { id: 'inventory-studio' as const, label: t.settingsNavInventoryStudio, icon: Wand2, visible: allow('inventory_studio') },
+      { id: 'inventory-listing-import' as const, label: tAi.listingImportTitle, icon: FileSearch, visible: allow('inventory_listing_import') },
+      { id: 'inventory-source-stock' as const, label: tAi.sourceStockTitle, icon: ShieldCheck, visible: allow('inventory_source_stock') },
+      { id: 'inventory-open-sync' as const, label: tAi.inventoryExternalSyncTitle, icon: RefreshCw, visible: allow('inventory_open_sync') },
+      { id: 'inventory-image-loc' as const, label: tAi.imageLocTitle, icon: Image, visible: allow('inventory_image_loc') },
       {
         id: 'partner-website-search-aliases' as const,
         label: tWeb.searchAliasesPanelTitle,
         icon: Search,
-        visible: canInv,
+        visible: allow('inventory_search_aliases'),
       },
-      { id: 'listing-facet-cache' as const, label: t.settingsNavListingFacetCache, icon: Filter, visible: canInv },
-      { id: 'search-cache' as const, label: t.settingsNavSearchCache, icon: Database, visible: canInv },
+      { id: 'listing-facet-cache' as const, label: t.settingsNavListingFacetCache, icon: Filter, visible: allow('inventory_facet_cache') },
+      { id: 'search-cache' as const, label: t.settingsNavSearchCache, icon: Database, visible: allow('inventory_search_cache') },
     ]
   }, [selectedPartner, selectedPartnerId, t, tAi, tWeb.searchAliasesPanelTitle])
 
@@ -758,11 +783,13 @@ export function PartnerMessagingSettingsClient({
   )
 
   const settingsWebsiteNavItems = useMemo(() => {
-    const visible = Boolean(selectedPartnerId && partnerCanWebsiteHub(selectedPartner))
-    return buildPartnerWebsiteAdminNavItems(tWeb, t.settingsNavWebsiteEditor).map((item) => ({
-      ...item,
-      visible,
-    }))
+    return buildPartnerWebsiteAdminNavItems(tWeb, t.settingsNavWebsiteEditor).map((item) => {
+      const perm = websiteSectionPerm(item.sectionId)
+      return {
+        ...item,
+        visible: Boolean(selectedPartnerId && perm && partnerAllowsPerm(selectedPartner, perm)),
+      }
+    })
   }, [selectedPartner, selectedPartnerId, t.settingsNavWebsiteEditor, tWeb])
 
   const visibleWebsiteSectionIds = useMemo(
@@ -782,13 +809,13 @@ export function PartnerMessagingSettingsClient({
         id: 'hub-profit' as const,
         label: t.messagingProfitLink,
         icon: TrendingUp,
-        visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
+        visible: Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'orders_profit')),
       },
       {
         id: 'hub-ems' as const,
         label: t.settingsNavEmsOps,
         icon: Package,
-        visible: Boolean(selectedPartnerId && partnerCanOrdersHub(selectedPartner)),
+        visible: Boolean(selectedPartnerId && partnerAllowsPerm(selectedPartner, 'orders_ems')),
       },
       {
         id: 'hub-notifications' as const,
@@ -798,9 +825,7 @@ export function PartnerMessagingSettingsClient({
           selectedPartnerId &&
             selectedPartner &&
             selectedPartner.industry_key !== 'hotel' &&
-            (selectedPartner.dashboard_access === 'owner' ||
-              selectedPartner.staff_permissions?.website ||
-              selectedPartner.staff_permissions?.marketing_campaigns)
+            partnerAllowsPerm(selectedPartner, 'notifications')
         ),
       },
       {
@@ -891,7 +916,7 @@ export function PartnerMessagingSettingsClient({
   }, [inventorySidebarItems, settingsNavItems, settingsOperationsNavItems, settingsWebsiteNavItems, t])
 
   const refreshWebsitePublicUrl = useCallback(async () => {
-    if (!selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
+    if (!selectedPartnerId || !partnerCanAnyWebsite(selectedPartner)) {
       setWebsitePublicUrl(null)
       setWebsiteHasProject(false)
       setWebsiteSiteSlug(null)
@@ -934,7 +959,7 @@ export function PartnerMessagingSettingsClient({
   }, [refreshWebsitePublicUrl])
 
   useEffect(() => {
-    if (activeSection !== 'brand' || !selectedPartnerId || !partnerCanWebsiteHub(selectedPartner)) {
+    if (activeSection !== 'brand' || !selectedPartnerId || !partnerAllowsPerm(selectedPartner, 'workspace_branding')) {
       return
     }
     let cancelled = false
@@ -1244,7 +1269,7 @@ export function PartnerMessagingSettingsClient({
       return
     }
     const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
-    if (!partnerAllowsPerm(cur, 'integrations_analytics')) {
+    if (!partnerAllowsPerm(cur, 'analytics_ads')) {
       setMetaCapiConfigured(false)
       return
     }
@@ -1262,7 +1287,7 @@ export function PartnerMessagingSettingsClient({
       return
     }
     const cur = partners.find((p) => p.id === selectedPartnerId) ?? null
-    if (!partnerAllowsPerm(cur, 'integrations_analytics')) {
+    if (!partnerAllowsPerm(cur, 'analytics_ads')) {
       setTiktokEventsApiConfigured(false)
       return
     }
@@ -1493,10 +1518,9 @@ export function PartnerMessagingSettingsClient({
 
   const persistWorkspaceProfile = async (opts?: { logoUrl?: string; silent?: boolean }): Promise<boolean> => {
     if (!selectedPartnerId || !workspaceName.trim() || !workspaceBrandName.trim()) return false
-    const keepExistingLogo =
-      partnerCanWebsiteHub(selectedPartner) && brandWebsite
-        ? String(selectedPartner?.logo_url || workspaceLogoUrl || '').trim()
-        : workspaceLogoUrl.trim()
+    const keepExistingLogo = brandWebsite
+      ? String(selectedPartner?.logo_url || workspaceLogoUrl || '').trim()
+      : workspaceLogoUrl.trim()
     const res = await updateMessagingWorkspaceProfile({
       partnerId: selectedPartnerId,
       displayName: workspaceName.trim(),
@@ -1522,34 +1546,79 @@ export function PartnerMessagingSettingsClient({
     return false
   }
 
-  const staffPermCheckboxLabel = (k: PartnerStaffPermKey): string => {
-    switch (k) {
-      case 'inbox':
-        return t.teamPermInbox
-      case 'orders':
-        return t.teamPermOrders
-      case 'inventory':
-        return t.teamPermInventory
-      case 'ai_settings':
-        return t.teamPermAiSettings
-      case 'workspace_branding':
-        return t.teamPermWorkspaceBranding
-      case 'workspace_payment':
-        return t.teamPermWorkspacePayment
-      case 'integrations_channels':
-        return t.teamPermIntegrationsChannels
-      case 'integrations_analytics':
-        return t.teamPermIntegrationsAnalytics
-      case 'usage_reports':
-        return t.teamPermUsageReports
-      case 'marketing_campaigns':
-        return t.teamPermMarketingCampaigns
-      case 'website':
-        return t.teamPermWebsite
-      default:
-        return k
-    }
-  }
+  const staffPermGroups = useMemo(
+    (): Array<{ title: string; items: Array<{ key: PartnerStaffPermKey; label: string }> }> => [
+      { title: t.teamPermInbox, items: [{ key: 'inbox', label: t.teamPermInbox }] },
+      {
+        title: t.settingsNavShopTitle,
+        items: [{ key: 'workspace_branding', label: t.teamPermWorkspaceBranding }],
+      },
+      {
+        title: t.settingsNavInventoryGroupTitle,
+        items: [
+          { key: 'inventory_products', label: t.settingsNavInventoryCatalog },
+          { key: 'inventory_studio', label: t.settingsNavInventoryStudio },
+          { key: 'inventory_listing_import', label: tAi.listingImportTitle },
+          { key: 'inventory_source_stock', label: tAi.sourceStockTitle },
+          { key: 'inventory_open_sync', label: tAi.inventoryExternalSyncTitle },
+          { key: 'inventory_image_loc', label: tAi.imageLocTitle },
+          { key: 'inventory_search_aliases', label: tWeb.searchAliasesPanelTitle },
+          { key: 'inventory_facet_cache', label: t.settingsNavListingFacetCache },
+          { key: 'inventory_search_cache', label: t.settingsNavSearchCache },
+        ],
+      },
+      {
+        title: t.settingsNavSalesTitle,
+        items: [{ key: 'orders_shipping', label: t.settingsNavShipping }],
+      },
+      {
+        title: t.settingsNavOperationsTitle,
+        items: [
+          { key: 'orders', label: t.messagingOrdersLink },
+          { key: 'orders_profit', label: t.messagingProfitLink },
+          { key: 'orders_ems', label: t.settingsNavEmsOps },
+          { key: 'notifications', label: t.notificationsLink },
+          { key: 'marketing_campaigns', label: t.marketingCampaignsLink },
+          { key: 'email_management', label: t.emailManagementLink },
+        ],
+      },
+      {
+        title: t.settingsNavCustomersTitle,
+        items: [
+          { key: 'website_customers', label: tWeb.customersTitle },
+          { key: 'website_leads', label: tWeb.leadsPanelTitle },
+        ],
+      },
+      {
+        title: t.settingsNavWebsiteTitle,
+        items: [
+          { key: 'website_editor', label: t.settingsNavWebsiteEditor },
+          { key: 'website_categories', label: tWeb.categoriesTitle },
+          { key: 'website_reviews', label: tWeb.reviewsAdminTitle },
+          { key: 'website_static_pages', label: tWeb.staticPagesTitle },
+          { key: 'website_promotions', label: tWeb.promotionsTitle },
+          { key: 'website_landings', label: tWeb.lpPanelTitle },
+          { key: 'website_floating_cta', label: tWeb.floatingCtaPanelTitle },
+        ],
+      },
+      {
+        title: t.settingsNavConnectTitle,
+        items: [
+          { key: 'integrations_channels', label: t.channelsSection },
+          { key: 'analytics_catalog', label: t.settingsNavAnalyticsMeta },
+          { key: 'analytics_ads', label: t.settingsNavAnalyticsAds },
+        ],
+      },
+      {
+        title: t.settingsNavAiGroupTitle,
+        items: [
+          { key: 'ai_settings', label: tAi.panelTitle },
+          { key: 'usage_reports', label: t.settingsNavAiUsage },
+        ],
+      },
+    ],
+    [t, tAi, tWeb]
+  )
 
   const inviteStaffByEmailAction = () => {
     if (!selectedPartnerId || !isOwnerSelected || !staffInviteEmail.trim()) return
@@ -2510,7 +2579,7 @@ export function PartnerMessagingSettingsClient({
           >
             <RefreshCw className="h-4 w-4" aria-hidden />
           </Button>
-          {selectedPartnerId && partnerCanWebsiteHub(selectedPartner) ? (
+          {selectedPartnerId && partnerCanAnyWebsite(selectedPartner) ? (
             websiteLoading ? (
               <Button type="button" variant="outline" size="sm" className="h-8 gap-1.5 px-2.5" disabled>
                 <Globe className="h-3.5 w-3.5 animate-pulse" aria-hidden />
@@ -2899,16 +2968,32 @@ export function PartnerMessagingSettingsClient({
                               {t.teamRemoveMember}
                             </Button>
                           </div>
-                          <div className="grid gap-1.5 sm:grid-cols-2">
-                            {PARTNER_STAFF_PERM_KEYS.map((key) => (
-                              <label key={key} className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                                <input
-                                  type="checkbox"
-                                  checked={Boolean(staffDraftPerm[sm.member_user_id]?.[key] ?? sm.permissions[key])}
-                                  onChange={(e) => toggleStaffDraftPerm(sm.member_user_id, key, e.target.checked)}
-                                />
-                                <span>{staffPermCheckboxLabel(key)}</span>
-                              </label>
+                          <div className="space-y-3">
+                            {staffPermGroups.map((group) => (
+                              <div key={group.title}>
+                                {group.items.length > 1 || group.items[0]?.label !== group.title ? (
+                                  <p className="mb-1 text-[11px] font-medium text-foreground">{group.title}</p>
+                                ) : null}
+                                <div className="grid gap-1.5 sm:grid-cols-2">
+                                  {group.items.map((item) => (
+                                    <label
+                                      key={item.key}
+                                      className="flex items-center gap-2 text-[11px] text-muted-foreground"
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(
+                                          staffDraftPerm[sm.member_user_id]?.[item.key] ?? sm.permissions[item.key]
+                                        )}
+                                        onChange={(e) =>
+                                          toggleStaffDraftPerm(sm.member_user_id, item.key, e.target.checked)
+                                        }
+                                      />
+                                      <span>{item.label}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
                             ))}
                           </div>
                           <Button
@@ -3081,7 +3166,7 @@ export function PartnerMessagingSettingsClient({
                       {t.shopDefaultCurrencySaveButton}
                     </Button>
                   </div>
-                  {partnerCanWebsiteHub(selectedPartner) && brandWebsite ? null : (
+                  {brandWebsite ? null : (
                   <div className="space-y-2">
                     <Label htmlFor="ws-logo-main">Logo URL</Label>
                     <Input
@@ -3123,8 +3208,7 @@ export function PartnerMessagingSettingsClient({
                 </div>
               </CardContent>
             </Card>
-            {partnerCanWebsiteHub(selectedPartner) ? (
-              <PartnerWebsiteLogosPanel
+            <PartnerWebsiteLogosPanel
                 locale={locale}
                 website={brandWebsite}
                 partnerId={selectedPartnerId}
@@ -3136,11 +3220,10 @@ export function PartnerMessagingSettingsClient({
                 }
                 onWebsiteRefresh={(website) => setBrandWebsite(website)}
               />
-            ) : null}
             </SettingsBlock>
           ) : null}
 
-          {activeSection === 'inventory' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+          {activeSection === 'inventory' && selectedPartnerId && partnerAllowsPerm(selectedPartner, 'inventory_products') ? (
             <div id="messaging-inventory" className="scroll-mt-4">
               <PartnerAiSettingsPanel
                 key={`${selectedPartnerId}-inventory`}
@@ -3157,7 +3240,7 @@ export function PartnerMessagingSettingsClient({
             </div>
           ) : null}
 
-          {activeSection === 'inventory-studio' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+          {activeSection === 'inventory-studio' && selectedPartnerId && partnerAllowsPerm(selectedPartner, 'inventory_studio') ? (
             <SettingsBlock
               id="messaging-inventory-studio"
               icon={Wand2}
@@ -3178,7 +3261,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'inventory-listing-import' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_listing_import') ? (
             <div id="messaging-listing-import" className="scroll-mt-4">
               <PartnerListingImportCard partnerId={selectedPartnerId} t={tAi} />
             </div>
@@ -3186,7 +3269,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'inventory-source-stock' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_source_stock') ? (
             <div id="messaging-source-stock" className="scroll-mt-4">
               <PartnerSourceStockCheckCard partnerId={selectedPartnerId} t={tAi} />
             </div>
@@ -3194,7 +3277,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'inventory-open-sync' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_open_sync') ? (
             <div id="messaging-open-sync" className="scroll-mt-4">
               <PartnerInventoryExternalSyncCard
                 partnerId={selectedPartnerId}
@@ -3206,7 +3289,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'inventory-image-loc' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_image_loc') ? (
             <div id="messaging-image-loc" className="scroll-mt-4">
               <PartnerImageLocalizationCard partnerId={selectedPartnerId} t={tAi} />
             </div>
@@ -3214,7 +3297,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'partner-website-search-aliases' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_search_aliases') ? (
             <div id="messaging-search-aliases" className="scroll-mt-4">
               <PartnerWebsiteSearchAliasesPanel
                 locale={locale}
@@ -3229,7 +3312,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'listing-facet-cache' &&
           selectedPartnerId &&
-          partnerCanInventoryPanel(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, 'inventory_facet_cache') ? (
             <div id="messaging-listing-facet-cache" className="scroll-mt-4">
               <PartnerListingFacetCachePanel
                 t={tWeb}
@@ -3242,7 +3325,7 @@ export function PartnerMessagingSettingsClient({
             </div>
           ) : null}
 
-          {activeSection === 'search-cache' && selectedPartnerId && partnerCanInventoryPanel(selectedPartner) ? (
+          {activeSection === 'search-cache' && selectedPartnerId && partnerAllowsPerm(selectedPartner, 'inventory_search_cache') ? (
             <div id="messaging-search-cache" className="scroll-mt-4">
               <PartnerSearchCachePanel
                 t={tWeb}
@@ -3380,7 +3463,7 @@ export function PartnerMessagingSettingsClient({
             </SettingsBlock>
           ) : null}
 
-          {activeSection === 'analytics-catalog-feeds' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          {activeSection === 'analytics-catalog-feeds' && partnerAllowsPerm(selectedPartner, 'analytics_catalog') ? (
           <SettingsBlock
             id="messaging-catalog-feeds"
             icon={Database}
@@ -3457,7 +3540,7 @@ export function PartnerMessagingSettingsClient({
           </SettingsBlock>
           ) : null}
 
-          {activeSection === 'analytics-ads' && partnerAllowsPerm(selectedPartner, 'integrations_analytics') ? (
+          {activeSection === 'analytics-ads' && partnerAllowsPerm(selectedPartner, 'analytics_ads') ? (
           <SettingsBlock
             id="messaging-ads-analytics"
             icon={TrendingUp}
@@ -4460,7 +4543,7 @@ export function PartnerMessagingSettingsClient({
           {isPartnerWebsiteAdminSectionId(activeSection) &&
           activeSection !== 'partner-website-search-aliases' &&
           selectedPartner &&
-          partnerCanWebsiteHub(selectedPartner) ? (
+          partnerAllowsPerm(selectedPartner, websiteSectionPerm(activeSection) ?? 'website_editor') ? (
             <div id="partner-website-admin" className="flex min-h-0 min-w-0 flex-1 flex-col scroll-mt-4">
               <PartnerWebsiteDashboardClient
                 key={selectedPartner.id}

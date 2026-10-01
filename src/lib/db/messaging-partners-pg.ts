@@ -2,7 +2,7 @@ import type { Database } from '@/types/database.types'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStaffPermissionMap } from '@/lib/messaging/partner-staff-permissions'
-import { normalizeStaffPermissionsFromJson } from '@/lib/messaging/partner-staff-permissions'
+import { normalizeStaffPermissionsFromJson, WEBSITE_CHILD_PERMS } from '@/lib/messaging/partner-staff-permissions'
 import type { PartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 import { normalizePartnerCapabilities } from '@/lib/partner-website/partner-capabilities'
 
@@ -1684,7 +1684,13 @@ export async function updatePartnerCapabilitiesForOwnerFromPg(params: {
              from public.messaging_partner_members m
              where m.partner_id = messaging_partners.id
                and m.member_user_id = $2::uuid
-               and coalesce((m.permissions->>'website')::boolean, false)
+               and (
+                 coalesce((m.permissions->>'website_editor')::boolean, false)
+                 or (
+                   coalesce((m.permissions->>'website')::boolean, false)
+                   and ${WEBSITE_CHILD_PERMS.map((key) => `not (m.permissions ? '${key}')`).join(' and ')}
+                 )
+               )
            )
          )
          and coalesce(is_active, true) = true

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_facet_cache')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const url = req.nextUrl
@@ -49,7 +49,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ partnerI
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory_facet_cache')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const url = req.nextUrl

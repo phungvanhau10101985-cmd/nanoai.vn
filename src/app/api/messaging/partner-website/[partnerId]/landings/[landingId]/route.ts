@@ -43,7 +43,7 @@ export async function GET(
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: 401 })
   }
-  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId.trim(), 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId.trim(), 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -78,7 +78,7 @@ export async function PATCH(
   }
   const pid = partnerId.trim()
   const lid = landingId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -189,7 +189,7 @@ export async function DELETE(
   if ('error' in auth) {
     return NextResponse.json({ error: auth.error }, { status: 401 })
   }
-  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId.trim(), 'website')
+  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId.trim(), 'website_landings')
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

@@ -41,7 +41,7 @@ async function authorize(partnerId: string) {
   if (!isPgConfigured()) return { ok: false as const, status: 503, error: 'Database not configured', userId: '' }
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { ok: false as const, status: 401, error: auth.error, userId: '' }
-  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'inventory_image_loc')
   if (!access.ok) return { ok: false as const, status: access.status, error: access.error, userId: '' }
   return { ok: true as const, userId: auth.user.id }
 }

@@ -4,6 +4,7 @@ import {
   looksLikeChinaSource,
   scrapedCnyAmount,
   singleImportCost,
+  sourceCostVndFromCny,
   stampScrapedCostCny,
 } from './import-cost'
 import { productDataToInventoryExcelInsert } from './product-data-to-inventory'
@@ -24,8 +25,8 @@ describe('import cost', () => {
     }
     stampScrapedCostCny(pd)
     assert.equal(pd.cost_cny, 128)
+    assert.equal(pd.cost_vnd, sourceCostVndFromCny(128))
     assert.equal(pd.price, 458000)
-    assert.equal('cost_vnd' in pd, false)
   })
 
   it('skips the stamp when a Vietnam cost is already set', () => {
@@ -48,8 +49,8 @@ describe('import cost', () => {
     assert.equal('cost_cny' in pd, false)
   })
 
-  it('refuses both import costs', () => {
-    assert.deepEqual(singleImportCost(12, 34000), { costCny: null, costVnd: null, both: true })
+  it('keeps both original-price columns', () => {
+    assert.deepEqual(singleImportCost(12, 34000), { costCny: 12, costVnd: 34000, both: true })
     assert.deepEqual(singleImportCost('9,5', ''), { costCny: 9.5, costVnd: null, both: false })
   })
 
@@ -65,7 +66,8 @@ describe('import cost', () => {
     assert.ok(row)
     assert.equal(row?.catalog?.cost_cny, 128)
     assert.equal(row?.catalog?.write_cost_cny, true)
-    assert.equal(row?.catalog?.cost_vnd, null)
+    assert.equal(row?.catalog?.cost_vnd, sourceCostVndFromCny(128))
+    assert.equal(row?.catalog?.write_cost_vnd, true)
     assert.equal(row?.catalog?.catalog_json.price, 458000)
     assert.equal(row?.catalog?.price_low_hint, '128,00')
   })

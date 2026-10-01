@@ -107,13 +107,8 @@ export function productDataToInventoryExcelInsert(
     costVnd: scrapedCnyAmount(pd.cost_vnd),
   })
   const catalog = catalogFieldsFromSnapshot(snap)
-  if (catalog.cost_cny != null && catalog.cost_vnd != null) {
-    catalog.cost_cny = null
-    catalog.cost_vnd = null
-  } else {
-    catalog.write_cost_cny = catalog.cost_cny != null
-    catalog.write_cost_vnd = catalog.cost_vnd != null
-  }
+  catalog.write_cost_cny = catalog.cost_cny != null
+  catalog.write_cost_vnd = catalog.cost_vnd != null
   const priceHint = price > 0 ? `${new Intl.NumberFormat('vi-VN').format(Math.round(price))}đ` : ''
   return {
     sort_order: sortOrder,

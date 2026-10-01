@@ -2,7 +2,7 @@ import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
 import { resolvePartnerDashboardAccessFromPg } from '@/lib/messaging/partner-dashboard-access'
-import { partnerStaffHasPerm } from '@/lib/messaging/partner-staff-permissions'
+import { partnerStaffHasPerm, type PartnerStaffPermKey } from '@/lib/messaging/partner-staff-permissions'
 
 /** Xác thực chủ workspace (Postgres). */
 export async function requireMessagingPartnerOwner(partnerId: string): Promise<
@@ -31,7 +31,10 @@ export async function requireMessagingPartnerOwner(partnerId: string): Promise<
 }
 
 /** Chủ workspace hoặc nhân viên có quyền chỉnh kệ hàng / Excel. */
-export async function requireMessagingPartnerInventoryAccess(partnerId: string): Promise<
+export async function requireMessagingPartnerInventoryAccess(
+  partnerId: string,
+  perm: PartnerStaffPermKey = 'inventory_products'
+): Promise<
   { ok: true; userId: string } | { ok: false; error: string; status: number }
 > {
   const auth = await getUserForAction()
@@ -42,7 +45,7 @@ export async function requireMessagingPartnerInventoryAccess(partnerId: string):
   try {
     const access = await resolvePartnerDashboardAccessFromPg(auth.user.id, partnerId)
     if (access === null) return { ok: false, error: 'Forbidden.', status: 403 }
-    const okGate = access === 'owner' || partnerStaffHasPerm(access, 'inventory')
+    const okGate = access === 'owner' || partnerStaffHasPerm(access, perm)
     if (!okGate) return { ok: false, error: 'Forbidden.', status: 403 }
     return { ok: true, userId: auth.user.id }
   } catch (e) {

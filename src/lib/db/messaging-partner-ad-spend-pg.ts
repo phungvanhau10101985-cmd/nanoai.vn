@@ -85,7 +85,7 @@ async function partnerOrdersAllowed(ownerUserId: string, partnerId: string): Pro
     `select mp.id::text as id
      from public.messaging_partners mp
      where mp.id = $2::uuid
-       and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
      limit 1`,
     [ownerUserId, partnerId],
   )

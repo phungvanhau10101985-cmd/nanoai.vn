@@ -1,13 +1,13 @@
 import { fetchMessagingPartnersForDashboardFromPg } from '@/lib/db/messaging-partners-pg'
 import {
-  partnerStaffHasPerm,
+  partnerStaffHasAnyPerm,
   type PartnerStaffPermKey,
 } from '@/lib/messaging/partner-staff-permissions'
 
 export async function assertPartnerDashboardAccess(
   userId: string,
   partnerId: string,
-  requiredPerm?: PartnerStaffPermKey
+  requiredPerm?: PartnerStaffPermKey | readonly PartnerStaffPermKey[]
 ): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const partners = await fetchMessagingPartnersForDashboardFromPg(userId)
   if (partners === null) {
@@ -19,7 +19,8 @@ export async function assertPartnerDashboardAccess(
   }
   if (requiredPerm && match.dashboard_access !== 'owner') {
     const perms = match.staff_permissions
-    if (!perms || !partnerStaffHasPerm(perms, requiredPerm)) {
+    const keys = Array.isArray(requiredPerm) ? requiredPerm : [requiredPerm]
+    if (!perms || !partnerStaffHasAnyPerm(perms, keys)) {
       return { ok: false, status: 403, error: 'Permission denied' }
     }
   }

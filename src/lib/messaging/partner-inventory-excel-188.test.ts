@@ -138,3 +138,36 @@ test('188 import stores one import cost and leaves the selling price alone', () 
   assert.equal(catalog?.write_cost_cny, true)
   assert.equal(catalog?.write_cost_vnd, true)
 })
+
+test('188 import stores both original price columns', () => {
+  const aoa = [
+    [...CATALOG_188_EXCEL_COLUMNS],
+    CATALOG_188_EXCEL_COLUMNS.map((col) => {
+      if (col === 'cost_cny') return 'Giá gốc tiền tệ'
+      if (col === 'cost_vnd') return 'Giá gốc tiền Việt'
+      return CATALOG_188_VI_HEADERS[col]
+    }),
+    CATALOG_188_EXCEL_COLUMNS.map((col) => {
+      if (col === 'id') return 'A2'
+      if (col === 'name') return 'Áo'
+      if (col === 'price') return 199000
+      if (col === 'cost_cny') return '80'
+      if (col === 'cost_vnd') return '286400'
+      if (col === 'listed') return 1
+      return ''
+    }),
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(aoa)
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'inventory')
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  const parsed = parseInventoryWorkbook(buf)
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  const catalog = parsed.rows[0]?.catalog
+  assert.equal(catalog?.catalog_json.price, 199000)
+  assert.equal(catalog?.cost_cny, 80)
+  assert.equal(catalog?.cost_vnd, 286400)
+  assert.equal(catalog?.write_cost_cny, true)
+  assert.equal(catalog?.write_cost_vnd, true)
+})

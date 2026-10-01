@@ -5,7 +5,17 @@
 
 import type { PartnerStaffPermKey } from '@/lib/messaging/partner-staff-permissions'
 
-export function sqlPartnerMpActorHasPerm(actorParamSlot: number, permKey: PartnerStaffPermKey): string {
+function sqlMemberPermMatch(permKey: string, legacy?: { parentKey: string; markerKey: string }): string {
+  const exact = `COALESCE((_pms.permissions ->> '${permKey}')::boolean, false)`
+  if (!legacy) return exact
+  return `(${exact} OR (COALESCE((_pms.permissions ->> '${legacy.parentKey}')::boolean, false) AND NOT (_pms.permissions ? '${legacy.markerKey}')))`
+}
+
+export function sqlPartnerMpActorHasPerm(
+  actorParamSlot: number,
+  permKey: PartnerStaffPermKey,
+  legacy?: { parentKey: string; markerKey: string }
+): string {
   return `(
     mp.owner_user_id = $${actorParamSlot}::uuid
     OR EXISTS (
@@ -13,7 +23,7 @@ export function sqlPartnerMpActorHasPerm(actorParamSlot: number, permKey: Partne
       FROM public.messaging_partner_members _pms
       WHERE _pms.partner_id = mp.id
         AND _pms.member_user_id = $${actorParamSlot}::uuid
-        AND COALESCE((_pms.permissions ->> '${permKey}')::boolean, false)
+        AND ${sqlMemberPermMatch(permKey, legacy)}
     )
   )`
 }

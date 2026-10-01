@@ -29,10 +29,10 @@ export function collectedGoodsVnd(amountAfterDiscount: number, subtotal: number)
 export function lineStoredImport(line: ProfitImportLine): { kind: 'cny' | 'vnd'; amount: number } | null {
   const qty = Math.round(line.quantity)
   if (!Number.isFinite(qty) || qty <= 0) return null
+  const cny = finite(line.costCny)
+  if (cny != null && cny > 0) return { kind: 'cny', amount: cny * qty }
   const vnd = finite(line.costVnd)
   if (vnd != null) return { kind: 'vnd', amount: vnd * qty }
-  const cny = finite(line.costCny)
-  if (cny != null) return { kind: 'cny', amount: cny * qty }
   if (line.isWarehouse || line.isClearance) return { kind: 'vnd', amount: 0 }
   return null
 }

@@ -25,11 +25,7 @@ async function requireUser() {
 
 async function gateNotifications(userId: string, partnerId: string) {
   if (!isValidUuidString(partnerId)) return { error: 'Forbidden.' }
-  const website = await assertPartnerStaffGate(userId, partnerId, 'website')
-  if (!('error' in website)) return { ok: true as const }
-  const marketing = await assertPartnerStaffGate(userId, partnerId, 'marketing_campaigns')
-  if (!('error' in marketing)) return { ok: true as const }
-  return website
+  return assertPartnerStaffGate(userId, partnerId, 'notifications')
 }
 
 function revalidateNotificationPaths() {

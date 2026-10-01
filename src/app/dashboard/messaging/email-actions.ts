@@ -38,7 +38,7 @@ async function assertEmailHub(userId: string, partnerId: string): Promise<{ ok: 
   if (!isValidUuidString(userId) || !isValidUuidString(partnerId)) return { error: 'Forbidden.' }
   const access = await resolvePartnerDashboardAccessFromPg(userId, partnerId)
   if (access == null) return { error: 'Forbidden.' }
-  if (partnerStaffHasPerm(access, 'marketing_campaigns') || partnerStaffHasPerm(access, 'website')) {
+  if (partnerStaffHasPerm(access, 'email_management')) {
     return { ok: true }
   }
   return { error: 'Forbidden.' }

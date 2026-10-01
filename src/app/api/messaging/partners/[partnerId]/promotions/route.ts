@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'marketing_campaigns')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_promotions')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const url = req.nextUrl
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'marketing_campaigns')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_promotions')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const body = (await req.json().catch(() => ({}))) as Partial<UpsertPromotionInput>

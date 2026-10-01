@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'partnerId required' }, { status: 400 })
     }
 
-    const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website')
+    const access = await assertPartnerDashboardAccess(auth.user.id, partnerId, 'website_editor')
     if (!access.ok) {
       return NextResponse.json({ error: access.error }, { status: access.status })
     }

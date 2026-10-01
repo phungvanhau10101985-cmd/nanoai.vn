@@ -19,7 +19,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_categories')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const ids = await fetchInventoryIdsForCategoryFromPg(categoryId.trim())
@@ -37,7 +37,7 @@ export async function PUT(req: NextRequest, ctx: Ctx) {
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
 
   const pid = partnerId.trim()
-  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'inventory')
+  const access = await assertPartnerDashboardAccess(auth.user.id, pid, 'website_categories')
   if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
 
   const body = (await req.json().catch(() => ({}))) as { inventoryIds?: unknown }

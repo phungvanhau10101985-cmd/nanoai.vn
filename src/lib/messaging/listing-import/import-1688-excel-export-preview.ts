@@ -4,7 +4,11 @@
  * Dùng để hiển thị preview trong admin (vuốt ngang như file Excel).
  */
 
-import { looksLikeChinaSource, scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
+import {
+  looksLikeChinaSource,
+  scrapedCnyAmount,
+  sourceCostVndFromCny,
+} from '@/lib/messaging/listing-import/import-cost'
 
 export type Import1688ExcelExportRow = Record<string, string | number>;
 
@@ -50,8 +54,8 @@ export const IMPORT_1688_EXCEL_COLUMNS: ReadonlyArray<readonly [string, string]>
   ['chinese_name', 'Tên tiếng trung'],
   ['shop_name_chinese', 'Shop Trung Quốc'],
   ['listed', 'Trong danh sách (1=import, 0=xóa DB)'],
-  ['cost_cny', 'Giá gốc tệ'],
-  ['cost_vnd', 'Giá Việt Nam'],
+  ['cost_cny', 'Giá gốc tiền tệ'],
+  ['cost_vnd', 'Giá gốc tiền Việt'],
 ];
 
 function jsonExcelCell(value: unknown): string {
@@ -205,28 +209,28 @@ export function excelExportRowFromProductData(
   };
 }
 
-/** Giá nhập trên file xuất cào. Cột pro_lower_price vẫn để trống như 188. */
+/** Giá gốc trên file xuất cào. Cột pro_lower_price vẫn để trống như 188. Có tệ thì kèm giá gốc tiền Việt. */
 function exportImportCostCells(pd: Record<string, unknown>): { cost_cny: number | ''; cost_vnd: number | '' } {
-  const storedCny = scrapedCnyAmount(pd.cost_cny)
-  const storedVnd = scrapedCnyAmount(pd.cost_vnd)
-  if (storedCny != null && storedVnd != null) return { cost_cny: '', cost_vnd: '' }
-  if (storedCny != null || storedVnd != null) {
-    return { cost_cny: storedCny ?? '', cost_vnd: storedVnd ?? '' }
-  }
-  const link = pd.link_default ?? pd.source_url ?? pd.product_url
-  if (!looksLikeChinaSource(pd.origin, link)) return { cost_cny: '', cost_vnd: '' }
-  let amount = scrapedCnyAmount(pd.pro_lower_price)
-  if (amount == null) {
-    const info = pd.product_info
-    const market =
-      info && typeof info === 'object' && !Array.isArray(info)
-        ? (info as Record<string, unknown>).market_info
-        : null
-    if (market && typeof market === 'object' && !Array.isArray(market)) {
-      const m = market as Record<string, unknown>
-      amount = scrapedCnyAmount(m.price_cny_low)
-      if (amount == null) amount = scrapedCnyAmount(m.source_price)
+  let storedCny = scrapedCnyAmount(pd.cost_cny)
+  let storedVnd = scrapedCnyAmount(pd.cost_vnd)
+  if (storedCny == null && storedVnd == null) {
+    const link = pd.link_default ?? pd.source_url ?? pd.product_url
+    if (looksLikeChinaSource(pd.origin, link)) {
+      storedCny = scrapedCnyAmount(pd.pro_lower_price)
+      if (storedCny == null) {
+        const info = pd.product_info
+        const market =
+          info && typeof info === 'object' && !Array.isArray(info)
+            ? (info as Record<string, unknown>).market_info
+            : null
+        if (market && typeof market === 'object' && !Array.isArray(market)) {
+          const m = market as Record<string, unknown>
+          storedCny = scrapedCnyAmount(m.price_cny_low)
+          if (storedCny == null) storedCny = scrapedCnyAmount(m.source_price)
+        }
+      }
     }
   }
-  return { cost_cny: amount ?? '', cost_vnd: '' }
+  if (storedCny != null && storedVnd == null) storedVnd = sourceCostVndFromCny(storedCny)
+  return { cost_cny: storedCny ?? '', cost_vnd: storedVnd ?? '' }
 }
