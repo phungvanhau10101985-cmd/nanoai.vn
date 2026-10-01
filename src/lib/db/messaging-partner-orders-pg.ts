@@ -3,6 +3,7 @@ import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
 import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
+import { summarizeStoredImport, type ProfitImportLine } from '@/lib/messaging/partner-order-profit'
 import {
   partnerAdminDepositedOrderSql,
   partnerAdminFulfillmentFilterSql,
@@ -2703,6 +2704,108 @@ export async function confirmPartnerOrderReceivedForConversationFromPg(input: {
     return row ? mapOrderRow(row) : null
   } catch (e) {
     console.warn('[confirmPartnerOrderReceivedForConversationFromPg]', e)
+    return null
+  }
+}
+
+export type PartnerOrderProfitLine = ProfitImportLine & { orderId: string }
+
+export type PartnerOrderProfitRow = {
+  orderId: string
+  orderCode: string
+  createdOn: string
+  collectedVnd: number
+  goodsCny: number | null
+  goodsVnd: number
+  usesChinaShip: boolean
+}
+
+const PROFIT_ORDER_LIMIT = 400
+
+/** Đơn đã cọc trong kỳ, kèm giá nhập đã lưu trên sản phẩm. */
+export async function fetchPartnerOrderProfitSheetFromPg(input: {
+  ownerUserId: string
+  partnerId?: string | null
+  dateFrom: string
+  dateTo: string
+}): Promise<{ dateFrom: string; dateTo: string; truncated: boolean; orders: PartnerOrderProfitRow[] } | null> {
+  if (!isPgConfigured()) return null
+  const partnerId = String(input.partnerId ?? '').trim()
+  const from = parseOrderDateFilterParam(input.dateFrom)
+  const to = parseOrderDateFilterParam(input.dateTo)
+  if (!from || !to) return null
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select o.id::text as order_id,
+              coalesce(nullif(trim(o.payment_reference), ''), o.id::text) as order_code,
+              to_char((o.created_at at time zone 'Asia/Ho_Chi_Minh')::date, 'YYYY-MM-DD') as created_on,
+              coalesce(nullif(o.amount_after_discount, 0), o.subtotal_amount, 0)::double precision as collected_vnd,
+              l.quantity::int as quantity,
+              l.is_warehouse_item as is_warehouse_item,
+              i.cost_cny::double precision as cost_cny,
+              i.cost_vnd::double precision as cost_vnd,
+              coalesce(i.is_clearance, false) as is_clearance
+       from public.messaging_partner_orders o
+       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
+       left join public.messaging_partner_order_lines l on l.order_id = o.id
+       left join public.messaging_partner_inventory i on i.id = l.product_inventory_id
+       where ($2::uuid is null or o.partner_id = $2::uuid)
+         and ${partnerAdminDepositedOrderSql()}
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
+         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $4::date
+       order by o.created_at desc, o.id desc, l.sort_order asc`,
+      [input.ownerUserId, partnerId || null, from, to],
+    )
+    const grouped = new Map<string, { row: PartnerOrderProfitRow; lines: ProfitImportLine[] }>()
+    const orderIds: string[] = []
+    let truncated = false
+    for (const raw of rows) {
+      const orderId = String(raw.order_id ?? '')
+      if (!orderId) continue
+      let bucket = grouped.get(orderId)
+      if (!bucket) {
+        if (orderIds.length >= PROFIT_ORDER_LIMIT) {
+          truncated = true
+          continue
+        }
+        orderIds.push(orderId)
+        bucket = {
+          row: {
+            orderId,
+            orderCode: String(raw.order_code ?? orderId),
+            createdOn: String(raw.created_on ?? ''),
+            collectedVnd: Math.max(0, Math.round(Number(raw.collected_vnd) || 0)),
+            goodsCny: null,
+            goodsVnd: 0,
+            usesChinaShip: true,
+          },
+          lines: [],
+        }
+        grouped.set(orderId, bucket)
+      }
+      if (raw.quantity == null) continue
+      bucket.lines.push({
+        quantity: Math.max(0, Math.round(Number(raw.quantity) || 0)),
+        costCny: raw.cost_cny == null ? null : Number(raw.cost_cny),
+        costVnd: raw.cost_vnd == null ? null : Number(raw.cost_vnd),
+        isWarehouse: raw.is_warehouse_item === true,
+        isClearance: raw.is_clearance === true,
+      })
+    }
+    const orders = orderIds.map((orderId) => {
+      const bucket = grouped.get(orderId)!
+      const stored = summarizeStoredImport(bucket.lines)
+      if (!stored) return bucket.row
+      return {
+        ...bucket.row,
+        goodsCny: stored.goodsCny,
+        goodsVnd: stored.goodsVnd,
+        usesChinaShip: stored.usesChinaShip,
+      }
+    })
+    return { dateFrom: from, dateTo: to, truncated, orders }
+  } catch (e) {
+    console.error('[fetchPartnerOrderProfitSheetFromPg]', e)
     return null
   }
 }

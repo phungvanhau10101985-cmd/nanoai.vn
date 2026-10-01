@@ -243,6 +243,7 @@ import {
   fetchPartnerOrderStatsForOwnerFromPg,
   fetchPartnerOrderAdminTabCountsFromPg,
   fetchPartnerOrderAdminRevenueFromPg,
+  fetchPartnerOrderProfitSheetFromPg,
   fetchPartnerOrdersAdminPageFromPg,
   fetchPartnerOrderLinesForOwnerFromPg,
   insertPartnerOrderEventFromPg,
@@ -250,6 +251,7 @@ import {
   type PartnerOrderOwnerStats,
   type PartnerOrderAdminTabCounts,
   type PartnerOrderAdminRevenueReport,
+  type PartnerOrderProfitRow,
   type PartnerOrderLineRow,
   type PartnerOrderEventRow,
   upsertPartnerPaymentSettingsFromPg,
@@ -1328,6 +1330,25 @@ export async function fetchMyMessagingOrderRevenueReport(input: {
   })
   if (!report) return { error: 'Khong tai duoc bao cao doanh thu.' }
   return { report }
+}
+
+export async function fetchMyMessagingOrderProfitSheet(input: {
+  partnerId?: string
+  dateFrom: string
+  dateTo: string
+}): Promise<{ dateFrom: string; dateTo: string; truncated: boolean; orders: PartnerOrderProfitRow[] } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const sheet = await fetchPartnerOrderProfitSheetFromPg({
+    ownerUserId: user.id,
+    partnerId: input.partnerId?.trim() || null,
+    dateFrom: String(input.dateFrom ?? '').trim(),
+    dateTo: String(input.dateTo ?? '').trim(),
+  })
+  if (!sheet) return { error: 'Không tải được lợi nhuận.' }
+  return sheet
 }
 
 export async function listMyMessagingOrderLines(input: {
