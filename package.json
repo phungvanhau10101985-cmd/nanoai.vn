@@ -34,7 +34,7 @@
     "email:test": "npx tsx scripts/send-test-email.ts",
     "test:partner-site-token": "npx tsx --test src/lib/messaging/partner-site-customer-auth.test.ts",
     "test:external-catalog-get-plan": "npx tsx --test src/lib/messaging/partner-inventory-external-catalog-get-plan.test.ts",
-    "test:listing-import": "npx tsx --test src/lib/messaging/listing-import/listing-import-urls.test.ts src/lib/messaging/listing-import/product-data-to-inventory.test.ts src/lib/messaging/listing-import/listing-import-parity.test.ts src/lib/messaging/listing-import/import-cost.test.ts src/lib/messaging/partner-order-profit.test.ts",
+    "test:listing-import": "npx tsx --test src/lib/messaging/listing-import/listing-import-urls.test.ts src/lib/messaging/listing-import/product-data-to-inventory.test.ts src/lib/messaging/listing-import/listing-import-parity.test.ts src/lib/messaging/listing-import/import-cost.test.ts src/lib/messaging/partner-order-profit.test.ts src/lib/messaging/ad-spend/partner-ad-spend.test.ts",
     "test:source-stock": "npx tsx --test src/lib/messaging/source-stock-check/source-stock-urls.test.ts",
     "test:inventory-bunny-delete": "npx tsx --test src/lib/messaging/inventory-bunny-delete.test.ts",
     "test:image-localization": "npx tsx --test src/lib/messaging/image-localization/image-localization-classifier.test.ts src/lib/messaging/image-localization/split-tall-image.test.ts src/lib/messaging/image-localization/image-localization-runtime.test.ts src/lib/messaging/image-localization/process-product.test.ts src/lib/messaging/image-localization/overlay-brand-logo.test.ts",

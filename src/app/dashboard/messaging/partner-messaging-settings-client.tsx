@@ -4521,7 +4521,7 @@ export function PartnerMessagingSettingsClient({
 
           {activeSection === 'hub-profit' && selectedPartnerId && partnerCanOrdersHub(selectedPartner) ? (
             <div id="messaging-profit" className="min-w-0 scroll-mt-4">
-              <PartnerOrderProfitPanel key={selectedPartnerId} partnerId={selectedPartnerId} />
+              <PartnerOrderProfitPanel key={selectedPartnerId} partnerId={selectedPartnerId} locale={locale} />
             </div>
           ) : null}
 

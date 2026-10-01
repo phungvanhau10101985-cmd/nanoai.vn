@@ -1351,6 +1351,91 @@ export async function fetchMyMessagingOrderProfitSheet(input: {
   return sheet
 }
 
+export async function fetchMyMessagingAdSpendSettings(input: {
+  partnerId: string
+}): Promise<{ settings: import('@/lib/db/messaging-partner-ad-spend-pg').PartnerAdSpendSettingsView } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const partnerId = input.partnerId?.trim()
+  if (!partnerId || !isValidUuidString(partnerId)) return { error: 'Invalid partner id.' }
+  const { loadPartnerAdSpendSettingsFromPg } = await import('@/lib/db/messaging-partner-ad-spend-pg')
+  try {
+    const settings = await loadPartnerAdSpendSettingsFromPg({ ownerUserId: auth.user.id, partnerId })
+    if (!settings) return { error: 'Không tải được khóa quảng cáo.' }
+    return { settings }
+  } catch (error) {
+    console.error('[fetchMyMessagingAdSpendSettings]', error)
+    return { error: 'Không tải được khóa quảng cáo.' }
+  }
+}
+
+export async function saveMyMessagingAdSpendSettings(input: {
+  partnerId: string
+  googleCustomerId: string
+  googleLoginCustomerId: string
+  metaAdAccountId: string
+  googleDeveloperToken?: string
+  googleClientId?: string
+  googleClientSecret?: string
+  googleRefreshToken?: string
+  metaAccessToken?: string
+  clearGoogleSecrets?: boolean
+  clearMetaSecrets?: boolean
+}): Promise<{ settings: import('@/lib/db/messaging-partner-ad-spend-pg').PartnerAdSpendSettingsView } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const partnerId = input.partnerId?.trim()
+  if (!partnerId || !isValidUuidString(partnerId)) return { error: 'Invalid partner id.' }
+  const { savePartnerAdSpendSettingsFromPg } = await import('@/lib/db/messaging-partner-ad-spend-pg')
+  try {
+    const settings = await savePartnerAdSpendSettingsFromPg({
+      ownerUserId: auth.user.id,
+      partnerId,
+      googleCustomerId: String(input.googleCustomerId ?? '').slice(0, 40),
+      googleLoginCustomerId: String(input.googleLoginCustomerId ?? '').slice(0, 40),
+      metaAdAccountId: String(input.metaAdAccountId ?? '').slice(0, 40),
+      googleDeveloperToken: String(input.googleDeveloperToken ?? '').slice(0, 400),
+      googleClientId: String(input.googleClientId ?? '').slice(0, 400),
+      googleClientSecret: String(input.googleClientSecret ?? '').slice(0, 400),
+      googleRefreshToken: String(input.googleRefreshToken ?? '').slice(0, 800),
+      metaAccessToken: String(input.metaAccessToken ?? '').slice(0, 800),
+      clearGoogleSecrets: input.clearGoogleSecrets === true,
+      clearMetaSecrets: input.clearMetaSecrets === true,
+    })
+    if (!settings) return { error: 'Không lưu được khóa quảng cáo.' }
+    return { settings }
+  } catch (error) {
+    console.error('[saveMyMessagingAdSpendSettings]', error)
+    return { error: 'Không lưu được khóa quảng cáo.' }
+  }
+}
+
+export async function fetchMyMessagingAdSpendReport(input: {
+  partnerId: string
+  dateFrom: string
+  dateTo: string
+}): Promise<{ report: import('@/lib/messaging/ad-spend/partner-ad-spend').AdSpendReport } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const partnerId = input.partnerId?.trim()
+  if (!partnerId || !isValidUuidString(partnerId)) return { error: 'Invalid partner id.' }
+  const { loadPartnerAdSpendCredentialsFromPg } = await import('@/lib/db/messaging-partner-ad-spend-pg')
+  const { AdSpendApiError, buildPartnerAdSpendReport } = await import('@/lib/messaging/ad-spend/partner-ad-spend')
+  try {
+    const creds = await loadPartnerAdSpendCredentialsFromPg({ ownerUserId: auth.user.id, partnerId })
+    if (!creds) return { error: 'Không tải được chi phí quảng cáo.' }
+    const report = await buildPartnerAdSpendReport(creds, input.dateFrom, input.dateTo)
+    return { report }
+  } catch (error) {
+    console.error('[fetchMyMessagingAdSpendReport]', error)
+    const message = error instanceof AdSpendApiError ? error.message : 'Không tải được chi phí quảng cáo.'
+    return { error: message }
+  }
+}
+
 export async function listMyMessagingOrderLines(input: {
   orderId: string
 }): Promise<{ rows: PartnerOrderLineRow[] } | { error: string }> {
