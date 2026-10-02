@@ -1496,6 +1496,12 @@ export type Dictionary = {
     tokenUsageCostDisclaimer: string
     /** Tổng ước tính; placeholder {amount} = số VNĐ định dạng */
     tokenUsageEstimatedTotalLabel: string
+    /** Trung bình mỗi lần gọi */
+    tokenUsageKpiAvg: string
+    /** Cột % chi phí */
+    tokenUsageColShare: string
+    /** {detailAmount} {periodAmount} khi bảng chi tiết bị cắt */
+    tokenUsageDetailMismatchNote: string
     /** Tổng chi tiết từng lần gọi; placeholder {amount} */
     tokenUsageDetailEstimatedTotalLabel: string
     /** Gom theo usage_kind (inbox / material_infer / …) */
@@ -1518,12 +1524,18 @@ export type Dictionary = {
     tokenUsageColMonthUtc: string
     /** Gợi ý khi có bảng chi phí theo nhánh/ngày/tuần/tháng */
     tokenUsageCostTablesNote: string
+    /** Tab chi tiết thống kê token shop */
+    usageSliceOverview: string
+    usageSliceTime: string
+    usageSliceCalls: string
+    usageSliceMedia: string
     usageDetailApiTitle: string
     usageDetailApiIntro: string
     usageDetailColTime: string
     usageDetailColUsageKind: string
     usageTokenKindInbox: string
     usageTokenKindMaterialInfer: string
+    usageTokenKindLandingImage: string
     usageDetailEmpty: string
     usageCreditLedgerTitle: string
     usageCreditLedgerIntro: string
@@ -4824,7 +4836,7 @@ const VI_DICTIONARY: Dictionary = {
     kpiDepositCollected: 'Cọc đã thu',
     kpiShippingNow: 'Đang giao hàng',
     revenueReportTitle: 'Báo cáo doanh thu',
-    revenueReportDesc: 'Tổng doanh thu và số đơn theo ngày, tuần, tháng, năm hoặc khoảng ngày tùy chọn.',
+    revenueReportDesc: 'Tổng doanh thu và số đơn theo ngày, tuần, tháng, năm hoặc khoảng ngày. Đơn trùng cùng khách, cùng tiền và cùng hàng chỉ tính một lần; trong nhóm trùng thì chỉ tính đơn đã đặt cọc.',
     revenueModeDay: 'Theo ngày',
     revenueModeWeek: 'Theo tuần',
     revenueModeMonth: 'Theo tháng',
@@ -5189,10 +5201,10 @@ const VI_DICTIONARY: Dictionary = {
     usagePeriodScopeMonth: 'trong 30 ngày gần nhất',
     usageRangeModeLabel: 'Cách xem',
     usageRangeModeRolling: 'Theo khoảng lăn',
-    usageRangeModeCalendar: 'Chọn ngày (UTC)',
+    usageRangeModeCalendar: 'Chọn ngày (giờ Việt Nam)',
     usageCalendarFromLabel: 'Từ ngày',
     usageCalendarToLabel: 'Đến ngày',
-    usagePeriodScopeCalendar: 'từ {from} đến {to} (UTC, cả hai ngày tính trọn)',
+    usagePeriodScopeCalendar: 'từ {from} đến {to} (giờ Việt Nam, cả hai ngày tính trọn)',
     usageSectionCreditTitle: 'Trừ credit (ví & logo workspace)',
     usageSectionCreditIntro:
       'Các khoản đã trừ số dư trên tài khoản: nhật ký ví (giáo trình, English coach, …) và phí chuẩn hóa logo shop — khác với nhóm chỉ ghi nhận token API phía dưới.',
@@ -5210,34 +5222,43 @@ const VI_DICTIONARY: Dictionary = {
     tokenUsageColTotal: 'Tổng token',
     tokenUsageColEstimatedCost: 'Ước tính (₫)',
     tokenUsageCostDisclaimer:
-      'Chi phí ước tính theo bảng giá Gemini Developer API (USD/1M token; có model bậc theo prompt >200k/lần gọi). Dòng thống kê gom nhiều lần gọi dùng bậc thấp (gần đúng). Model không khai báo dùng gemini-3-flash-preview. Tỷ giá: env PARTNER_AI_TOKEN_COST_USD_TO_VND.',
+      'Ước tính theo bảng giá Gemini, DeepSeek và OpenAI (USD/1M token). Dòng gom nhiều lần gọi dùng bậc thấp. Model chưa có trong bảng dùng gemini-3-flash-preview. Tỷ giá: env PARTNER_AI_TOKEN_COST_USD_TO_VND.',
     tokenUsageEstimatedTotalLabel: 'Tổng ước tính (khoảng {amount} ₫)',
+    tokenUsageKpiAvg: 'Trung bình mỗi lần gọi',
+    tokenUsageColShare: 'Tỷ lệ',
+    tokenUsageDetailMismatchNote:
+      'Cộng các dòng chi tiết đang hiện là {detailAmount}. Tổng kỳ là {periodAmount}. Bảng chi tiết chỉ giữ 250 lần gọi mới nhất.',
     tokenUsageDetailEstimatedTotalLabel: 'Cộng các dòng chi tiết (khoảng {amount} ₫)',
     tokenUsageByKindTitle: 'Theo loại gọi (usage_kind)',
     tokenUsageByKindIntro:
       'Gom tất cả lần ghi token LLM: inbox (job hội thoại), suy chất liệu, tạo ảnh inbox, v.v.',
-    tokenUsageByDayTitle: 'Theo ngày (UTC)',
-    tokenUsageByDayIntro: 'Tổng token và số lần gọi từng ngày theo giờ UTC.',
-    tokenUsageColDay: 'Ngày (UTC)',
+    tokenUsageByDayTitle: 'Theo ngày (giờ Việt Nam)',
+    tokenUsageByDayIntro: 'Tổng token và số lần gọi từng ngày theo lịch giờ Việt Nam.',
+    tokenUsageColDay: 'Ngày',
     tokenUsageCostByKindAndModelTitle: 'Chi tiết theo nhánh và model',
     tokenUsageCostByKindAndModelIntro:
       'Mỗi dòng là một cặp usage_kind + model; chi phí ước tính (₫) cộng từ token đã gom.',
-    tokenUsageCostByWeekTitle: 'Theo tuần (UTC, từ thứ Hai)',
+    tokenUsageCostByWeekTitle: 'Theo tuần (từ thứ Hai)',
     tokenUsageCostByWeekIntro:
-      'Gộp các ngày trong khoảng đã chọn theo tuần lịch UTC (tuần bắt đầu thứ Hai).',
-    tokenUsageColWeekStart: 'Tuần từ (UTC)',
-    tokenUsageCostByMonthTitle: 'Theo tháng (UTC)',
-    tokenUsageCostByMonthIntro: 'Gộp theo tháng lịch UTC (YYYY-MM) trong khoảng đã chọn.',
-    tokenUsageColMonthUtc: 'Tháng (UTC)',
+      'Gộp các ngày trong khoảng đã chọn theo tuần lịch giờ Việt Nam (tuần bắt đầu thứ Hai).',
+    tokenUsageColWeekStart: 'Tuần từ',
+    tokenUsageCostByMonthTitle: 'Theo tháng',
+    tokenUsageCostByMonthIntro: 'Gộp theo tháng lịch giờ Việt Nam (YYYY-MM) trong khoảng đã chọn.',
+    tokenUsageColMonthUtc: 'Tháng',
     tokenUsageCostTablesNote:
-      'Có thêm cột chi phí ước tính (₫) theo nhánh, ngày, tuần và tháng (UTC); cùng cách tính với tổng kỳ.',
-    usageDetailApiTitle: 'Chi tiết từng lần gọi LLM (inbox)',
+      'Có thêm cột chi phí ước tính (₫) theo nhánh, ngày, tuần và tháng; cùng cách tính với tổng kỳ.',
+    usageSliceOverview: 'Theo việc',
+    usageSliceTime: 'Theo thời gian',
+    usageSliceCalls: 'Từng lần gọi',
+    usageSliceMedia: 'Ảnh và embedding',
+    usageDetailApiTitle: 'Chi tiết từng lần gọi',
     usageDetailApiIntro:
-      'Mỗi dòng là một lần gọi API sau thời gian chờ — ghi nhận token thực tế.',
+      'Mỗi dòng là một lần gọi đã ghi — hội thoại, suy chất liệu hoặc tạo ảnh. Bảng giữ 250 lần mới nhất.',
     usageDetailColTime: 'Thời điểm',
     usageDetailColUsageKind: 'Nhánh',
     usageTokenKindInbox: 'LLM hội thoại',
     usageTokenKindMaterialInfer: 'Suy chất liệu (ảnh SP)',
+    usageTokenKindLandingImage: 'Ảnh chất liệu landing',
     usageDetailEmpty: 'Chưa có lần gọi chi tiết trong khoảng này.',
     usageCreditLedgerTitle: 'Trừ credit (nhật ký ví — spend có ghi nhận)',
     usageCreditLedgerIntro:
@@ -8549,7 +8570,7 @@ const EN_DICTIONARY: Dictionary = {
     kpiDepositCollected: 'Deposit collected',
     kpiShippingNow: 'Out for delivery',
     revenueReportTitle: 'Revenue report',
-    revenueReportDesc: 'Revenue and order counts by day, week, month, year, or a custom date range.',
+    revenueReportDesc: 'Revenue and order counts by day, week, month, year, or a custom range. Identical orders (same customer, amount, and items) count once; if one has a deposit, only that deposited order is counted.',
     revenueModeDay: 'By day',
     revenueModeWeek: 'By week',
     revenueModeMonth: 'By month',
@@ -8915,10 +8936,10 @@ const EN_DICTIONARY: Dictionary = {
     usagePeriodScopeMonth: 'over the last 30 days',
     usageRangeModeLabel: 'View',
     usageRangeModeRolling: 'Rolling window',
-    usageRangeModeCalendar: 'Pick dates (UTC)',
+    usageRangeModeCalendar: 'Pick dates (Vietnam time)',
     usageCalendarFromLabel: 'From',
     usageCalendarToLabel: 'To',
-    usagePeriodScopeCalendar: 'from {from} through {to} (UTC calendar days, inclusive)',
+    usagePeriodScopeCalendar: 'from {from} through {to} (Vietnam calendar days, inclusive)',
     usageSectionCreditTitle: 'Credits deducted (wallet & logo)',
     usageSectionCreditIntro:
       'Balance deductions we record: your wallet spend ledger (e.g. curriculum, English coach) and shop logo normalization charges — separate from API token tallies below.',
@@ -8936,34 +8957,43 @@ const EN_DICTIONARY: Dictionary = {
     tokenUsageColTotal: 'Total tokens',
     tokenUsageColEstimatedCost: 'Est. (₫)',
     tokenUsageCostDisclaimer:
-      'Estimates use Gemini Developer API–style USD/1M token rates (some models tier at >200k prompt tokens per call). Aggregated rows use the lower tier as an approximation. Unknown models fall back to gemini-3-flash-preview. USD→VND: env PARTNER_AI_TOKEN_COST_USD_TO_VND.',
+      'Estimates use Gemini, DeepSeek, and OpenAI USD/1M token rates. Aggregated rows use the lower tier. Unknown models fall back to gemini-3-flash-preview. USD→VND: env PARTNER_AI_TOKEN_COST_USD_TO_VND.',
     tokenUsageEstimatedTotalLabel: 'Estimated total (~{amount} ₫)',
+    tokenUsageKpiAvg: 'Average per call',
+    tokenUsageColShare: 'Share',
+    tokenUsageDetailMismatchNote:
+      'Visible detail rows add up to {detailAmount}. Period total is {periodAmount}. The detail table keeps only the latest 250 calls.',
     tokenUsageDetailEstimatedTotalLabel: 'Sum of detail rows (~{amount} ₫)',
     tokenUsageByKindTitle: 'By call type (usage_kind)',
     tokenUsageByKindIntro:
       'Aggregates all LLM token rows: inbox chat jobs, material inference, inbox image generation, etc.',
-    tokenUsageByDayTitle: 'By day (UTC)',
-    tokenUsageByDayIntro: 'Calls and token totals per calendar day in UTC.',
-    tokenUsageColDay: 'Day (UTC)',
+    tokenUsageByDayTitle: 'By day (Vietnam time)',
+    tokenUsageByDayIntro: 'Calls and token totals per Vietnam calendar day.',
+    tokenUsageColDay: 'Day',
     tokenUsageCostByKindAndModelTitle: 'By branch and model',
     tokenUsageCostByKindAndModelIntro:
       'Each row is a usage_kind + model pair; estimated cost (₫) from aggregated tokens.',
-    tokenUsageCostByWeekTitle: 'By week (UTC, Monday start)',
+    tokenUsageCostByWeekTitle: 'By week (Monday start)',
     tokenUsageCostByWeekIntro:
-      'Days in the selected range grouped by UTC week (weeks start on Monday).',
-    tokenUsageColWeekStart: 'Week of (UTC)',
-    tokenUsageCostByMonthTitle: 'By month (UTC)',
-    tokenUsageCostByMonthIntro: 'Grouped by UTC calendar month (YYYY-MM) within the selected range.',
-    tokenUsageColMonthUtc: 'Month (UTC)',
+      'Days in the selected range grouped by Vietnam-time week (weeks start on Monday).',
+    tokenUsageColWeekStart: 'Week of',
+    tokenUsageCostByMonthTitle: 'By month',
+    tokenUsageCostByMonthIntro: 'Grouped by Vietnam calendar month (YYYY-MM) within the selected range.',
+    tokenUsageColMonthUtc: 'Month',
     tokenUsageCostTablesNote:
-      'Extra columns show estimated cost (₫) by branch, day, week, and month (UTC), using the same formula as the period total.',
-    usageDetailApiTitle: 'Per-call LLM usage (inbox)',
+      'Extra columns show estimated cost (₫) by branch, day, week, and month, using the same formula as the period total.',
+    usageSliceOverview: 'By job',
+    usageSliceTime: 'Over time',
+    usageSliceCalls: 'Each call',
+    usageSliceMedia: 'Images and embeddings',
+    usageDetailApiTitle: 'Per-call usage',
     usageDetailApiIntro:
-      'Each row is one API call after the wait time — actual token counts.',
+      'Each row is one recorded call — chat, material inference, or image generation. The table keeps the latest 250 calls.',
     usageDetailColTime: 'Time',
     usageDetailColUsageKind: 'Kind',
     usageTokenKindInbox: 'Inbox LLM',
     usageTokenKindMaterialInfer: 'Material (from photo)',
+    usageTokenKindLandingImage: 'Landing material image',
     usageDetailEmpty: 'No per-call records in this period.',
     usageCreditLedgerTitle: 'Credits deducted (wallet ledger — idempotent spend)',
     usageCreditLedgerIntro:
@@ -12250,7 +12280,7 @@ const ZH_DICTIONARY: Dictionary = {
     kpiDepositCollected: '已收定金',
     kpiShippingNow: '配送中',
     revenueReportTitle: '营收报表',
-    revenueReportDesc: '按日、周、月、年或自定义日期查看营收与订单数。',
+    revenueReportDesc: '按日、周、月、年或自定义日期查看营收与订单数。同一客户、同一金额、同一商品的重复订单只计一次；若其中有已付定金的订单，只计该单。',
     revenueModeDay: '按日',
     revenueModeWeek: '按周',
     revenueModeMonth: '按月',
@@ -12612,10 +12642,10 @@ const ZH_DICTIONARY: Dictionary = {
     usagePeriodScopeMonth: '最近 30 天',
     usageRangeModeLabel: '方式',
     usageRangeModeRolling: '滚动区间',
-    usageRangeModeCalendar: '选择日期（UTC）',
+    usageRangeModeCalendar: '选择日期（越南时间）',
     usageCalendarFromLabel: '开始',
     usageCalendarToLabel: '结束',
-    usagePeriodScopeCalendar: '{from} 至 {to}（UTC，含首尾日）',
+    usagePeriodScopeCalendar: '{from} 至 {to}（越南时间，含首尾日）',
     usageSectionCreditTitle: '扣除积分（钱包与店铺 logo）',
     usageSectionCreditIntro:
       '已记录的余额扣减：钱包流水（课程、English coach 等）与店铺 logo 规范化费用 — 与下方仅统计 API token 不同。',
@@ -12633,31 +12663,40 @@ const ZH_DICTIONARY: Dictionary = {
     tokenUsageColTotal: '总 token',
     tokenUsageColEstimatedCost: '估算 (₫)',
     tokenUsageCostDisclaimer:
-      '按 Gemini Developer API 风格单价（USD/百万 token）估算；部分模型单次 prompt>20 万时分档。汇总行用低档近似。未知模型按 gemini-3-flash-preview。汇率：环境变量 PARTNER_AI_TOKEN_COST_USD_TO_VND。',
+      '按 Gemini、DeepSeek、OpenAI 单价（USD/百万 token）估算。汇总行用低档近似。未知模型按 gemini-3-flash-preview。汇率：环境变量 PARTNER_AI_TOKEN_COST_USD_TO_VND。',
     tokenUsageEstimatedTotalLabel: '估算合计（约 {amount} ₫）',
+    tokenUsageKpiAvg: '每次调用平均',
+    tokenUsageColShare: '占比',
+    tokenUsageDetailMismatchNote:
+      '当前明细合计 {detailAmount}。本期合计 {periodAmount}。明细表只保留最近 250 次调用。',
     tokenUsageDetailEstimatedTotalLabel: '明细行合计（约 {amount} ₫）',
     tokenUsageByKindTitle: '按调用类型 (usage_kind)',
     tokenUsageByKindIntro: '汇总所有 LLM token 记录：收件箱、面料推断、收件箱出图等。',
-    tokenUsageByDayTitle: '按日（UTC）',
-    tokenUsageByDayIntro: '按 UTC 日历日汇总的调用次数与 token。',
-    tokenUsageColDay: '日期（UTC）',
+    tokenUsageByDayTitle: '按日（越南时间）',
+    tokenUsageByDayIntro: '按越南时间日历日汇总的调用次数与 token。',
+    tokenUsageColDay: '日期',
     tokenUsageCostByKindAndModelTitle: '按分支与模型',
     tokenUsageCostByKindAndModelIntro: '每行一对 usage_kind + 模型；费用 (₫) 由汇总 token 估算。',
-    tokenUsageCostByWeekTitle: '按周（UTC，周一起）',
-    tokenUsageCostByWeekIntro: '将所选范围内各日按 UTC 周合并（周从周一开始）。',
-    tokenUsageColWeekStart: '周起始（UTC）',
-    tokenUsageCostByMonthTitle: '按月（UTC）',
-    tokenUsageCostByMonthIntro: '按 UTC 日历月 (YYYY-MM) 在所选范围内合并。',
-    tokenUsageColMonthUtc: '月份（UTC）',
+    tokenUsageCostByWeekTitle: '按周（周一起）',
+    tokenUsageCostByWeekIntro: '将所选范围内各日按越南时间的周合并（周从周一开始）。',
+    tokenUsageColWeekStart: '周起始',
+    tokenUsageCostByMonthTitle: '按月',
+    tokenUsageCostByMonthIntro: '按越南时间日历月 (YYYY-MM) 在所选范围内合并。',
+    tokenUsageColMonthUtc: '月份',
     tokenUsageCostTablesNote:
-      '以下表格含按分支、日、周、月（UTC）估算的费用 (₫)，与期间总计算法一致。',
-    usageDetailApiTitle: '每次 LLM 调用明细（收件箱）',
+      '以下表格含按分支、日、周、月估算的费用 (₫)，与期间总计算法一致。',
+    usageSliceOverview: '按用途',
+    usageSliceTime: '按时间',
+    usageSliceCalls: '每次调用',
+    usageSliceMedia: '图片与向量',
+    usageDetailApiTitle: '每次调用明细',
     usageDetailApiIntro:
-      '每一行表示等待时间后的一次 API 调用及实际 token。',
+      '每一行是一次已记录的调用：对话、面料推断或出图。表中只保留最近 250 次。',
     usageDetailColTime: '时间',
     usageDetailColUsageKind: '类型',
     usageTokenKindInbox: '会话 LLM',
     usageTokenKindMaterialInfer: '从商品图推断面料',
+    usageTokenKindLandingImage: '落地页材质图',
     usageDetailEmpty: '此期间尚无逐次调用记录。',
     usageCreditLedgerTitle: '扣除积分（钱包流水 — 幂等扣费）',
     usageCreditLedgerIntro:
@@ -15884,7 +15923,7 @@ const JA_DICTIONARY: Dictionary = {
     kpiDepositCollected: '受領手付',
     kpiShippingNow: '配送中',
     revenueReportTitle: '売上レポート',
-    revenueReportDesc: '日・週・月・年または期間で売上と注文件数を表示します。',
+    revenueReportDesc: '日・週・月・年または期間で売上と注文件数を表示します。同じお客様・同じ金額・同じ商品の重複注文は1件だけ集計し、入金済みがあればその注文だけを数えます。',
     revenueModeDay: '日別',
     revenueModeWeek: '週別',
     revenueModeMonth: '月別',
@@ -16250,10 +16289,10 @@ const JA_DICTIONARY: Dictionary = {
     usagePeriodScopeMonth: '過去 30 日間',
     usageRangeModeLabel: '表示',
     usageRangeModeRolling: 'ローリング',
-    usageRangeModeCalendar: '日付指定（UTC）',
+    usageRangeModeCalendar: '日付指定（ベトナム時間）',
     usageCalendarFromLabel: '開始',
     usageCalendarToLabel: '終了',
-    usagePeriodScopeCalendar: '{from}〜{to}（UTC・両端含む）',
+    usagePeriodScopeCalendar: '{from}〜{to}（ベトナム時間・両端含む）',
     usageSectionCreditTitle: 'クレジット控除（ウォレットとロゴ）',
     usageSectionCreditIntro:
       '残高からの控除として記録されるもの：ウォレット台帳（カリキュラム、English coach など）と店舗ロゴの正規化 — 下の API トークン集計とは別です。',
@@ -16271,34 +16310,43 @@ const JA_DICTIONARY: Dictionary = {
     tokenUsageColTotal: '合計トークン',
     tokenUsageColEstimatedCost: '見積 (₫)',
     tokenUsageCostDisclaimer:
-      'Gemini Developer API 基準の USD/100万トークン換算の目安（一部モデルは1リクエストで prompt>20万の段階料金）。集計行は低めの段階で近似。未登録は gemini-3-flash-preview。為替は PARTNER_AI_TOKEN_COST_USD_TO_VND。',
+      'Gemini・DeepSeek・OpenAI の USD/100万トークン換算の目安。集計行は低めの段階で近似。未登録は gemini-3-flash-preview。為替は PARTNER_AI_TOKEN_COST_USD_TO_VND。',
     tokenUsageEstimatedTotalLabel: '見積合計（約 {amount} ₫）',
+    tokenUsageKpiAvg: '1回あたり平均',
+    tokenUsageColShare: '割合',
+    tokenUsageDetailMismatchNote:
+      '表示中の明細合計は {detailAmount}。期間合計は {periodAmount}。明細は直近250件のみです。',
     tokenUsageDetailEstimatedTotalLabel: '明細行の合計（約 {amount} ₫）',
     tokenUsageByKindTitle: '呼び出し種別（usage_kind）',
     tokenUsageByKindIntro:
       'LLM トークン記録の集計：受信トレイ、素材推定、受信トレイ画像生成など。',
-    tokenUsageByDayTitle: '日別（UTC）',
-    tokenUsageByDayIntro: 'UTC の暦日ごとの呼び出し回数とトークン合計。',
-    tokenUsageColDay: '日付（UTC）',
+    tokenUsageByDayTitle: '日別（ベトナム時間）',
+    tokenUsageByDayIntro: 'ベトナム時間の暦日ごとの呼び出し回数とトークン合計。',
+    tokenUsageColDay: '日付',
     tokenUsageCostByKindAndModelTitle: '分岐とモデル別の内訳',
     tokenUsageCostByKindAndModelIntro:
       '各行は usage_kind + モデルの組；見積 (₫) は集計トークンから算出。',
-    tokenUsageCostByWeekTitle: '週別（UTC・月曜始まり）',
+    tokenUsageCostByWeekTitle: '週別（月曜始まり）',
     tokenUsageCostByWeekIntro:
-      '選択範囲内の日を UTC 週にまとめます（週は月曜開始）。',
-    tokenUsageColWeekStart: '週の開始（UTC）',
-    tokenUsageCostByMonthTitle: '月別（UTC）',
-    tokenUsageCostByMonthIntro: '選択範囲内を UTC 暦月 (YYYY-MM) でまとめます。',
-    tokenUsageColMonthUtc: '月（UTC）',
+      '選択範囲内の日をベトナム時間の週にまとめます（週は月曜開始）。',
+    tokenUsageColWeekStart: '週の開始',
+    tokenUsageCostByMonthTitle: '月別',
+    tokenUsageCostByMonthIntro: '選択範囲内をベトナム時間の暦月 (YYYY-MM) でまとめます。',
+    tokenUsageColMonthUtc: '月',
     tokenUsageCostTablesNote:
-      '分岐・日・週・月（UTC）ごとの見積費用 (₫) 列を表示します。期間合計と同じ計算式です。',
-    usageDetailApiTitle: 'LLM 呼び出しごとの詳細（受信トレイ）',
+      '分岐・日・週・月ごとの見積費用 (₫) 列を表示します。期間合計と同じ計算式です。',
+    usageSliceOverview: '用途別',
+    usageSliceTime: '期間別',
+    usageSliceCalls: '呼び出しごと',
+    usageSliceMedia: '画像と埋め込み',
+    usageDetailApiTitle: '呼び出しごとの詳細',
     usageDetailApiIntro:
-      '各行は待機時間後の 1 回の API 呼び出しと実トークンです。',
+      '各行は記録された 1 回の呼び出しです（チャット、素材推定、画像生成）。直近 250 件だけ表示します。',
     usageDetailColTime: '日時',
     usageDetailColUsageKind: '種別',
     usageTokenKindInbox: '受信トレイ LLM',
     usageTokenKindMaterialInfer: '素材推定（商品画像）',
+    usageTokenKindLandingImage: 'ランディング素材画像',
     usageDetailEmpty: 'この期間に詳細レコードはありません。',
     usageCreditLedgerTitle: 'クレジット控除（ウォレット台帳 — べき等な spend）',
     usageCreditLedgerIntro:
@@ -19578,7 +19626,7 @@ const KO_DICTIONARY: Dictionary = {
     kpiDepositCollected: '수령 계약금',
     kpiShippingNow: '배송 중',
     revenueReportTitle: '매출 보고서',
-    revenueReportDesc: '일·주·월·년 또는 기간으로 매출과 주문 수를 봅니다.',
+    revenueReportDesc: '일·주·월·년 또는 기간으로 매출과 주문 수를 봅니다. 같은 고객·같은 금액·같은 상품의 중복 주문은 한 번만 집계하고, 입금된 주문이 있으면 그 주문만 집계합니다.',
     revenueModeDay: '일별',
     revenueModeWeek: '주별',
     revenueModeMonth: '월별',
@@ -19944,10 +19992,10 @@ const KO_DICTIONARY: Dictionary = {
     usagePeriodScopeMonth: '최근 30일',
     usageRangeModeLabel: '보기',
     usageRangeModeRolling: '슬라이딩 구간',
-    usageRangeModeCalendar: '날짜 선택(UTC)',
+    usageRangeModeCalendar: '날짜 선택(베트남 시간)',
     usageCalendarFromLabel: '시작',
     usageCalendarToLabel: '종료',
-    usagePeriodScopeCalendar: '{from}~{to}(UTC, 양끝 포함)',
+    usagePeriodScopeCalendar: '{from}~{to}(베트남 시간, 양끝 포함)',
     usageSectionCreditTitle: '크레딧 차감(지갑·로고)',
     usageSectionCreditIntro:
       '잔액에서 차감된 기록: 지갑 원장(커리큘럼, English coach 등)과 매장 로고 정규화 — 아래 API 토큰 집계와는 별도입니다.',
@@ -19965,32 +20013,41 @@ const KO_DICTIONARY: Dictionary = {
     tokenUsageColTotal: '총 토큰',
     tokenUsageColEstimatedCost: '추정 (₫)',
     tokenUsageCostDisclaimer:
-      'Gemini Developer API 스타일 단가(백만 토큰당 USD) 기준 추정(일부 모델은 호출당 prompt>20만 구간). 집계 행은 낮은 구간으로 근사. 미등록은 gemini-3-flash-preview. 환율: PARTNER_AI_TOKEN_COST_USD_TO_VND.',
+      'Gemini, DeepSeek, OpenAI 단가(백만 토큰당 USD) 기준 추정. 집계 행은 낮은 구간으로 근사. 미등록은 gemini-3-flash-preview. 환율: PARTNER_AI_TOKEN_COST_USD_TO_VND.',
     tokenUsageEstimatedTotalLabel: '추정 합계(약 {amount} ₫)',
+    tokenUsageKpiAvg: '호출당 평균',
+    tokenUsageColShare: '비중',
+    tokenUsageDetailMismatchNote:
+      '보이는 상세 합계는 {detailAmount}입니다. 기간 합계는 {periodAmount}입니다. 상세 표는 최근 250건만 유지합니다.',
     tokenUsageDetailEstimatedTotalLabel: '상세 행 합계(약 {amount} ₫)',
     tokenUsageByKindTitle: '호출 유형(usage_kind)',
     tokenUsageByKindIntro: '모든 LLM 토큰 기록 합산: 받은편지함, 소재 추론, 받은편지함 이미지 생성 등.',
-    tokenUsageByDayTitle: '일별(UTC)',
-    tokenUsageByDayIntro: 'UTC 기준 일자별 호출 수와 토큰 합계.',
-    tokenUsageColDay: '날짜(UTC)',
+    tokenUsageByDayTitle: '일별(베트남 시간)',
+    tokenUsageByDayIntro: '베트남 시간 기준 일자별 호출 수와 토큰 합계.',
+    tokenUsageColDay: '날짜',
     tokenUsageCostByKindAndModelTitle: '분기·모델별 상세',
     tokenUsageCostByKindAndModelIntro:
       '각 행은 usage_kind + 모델 쌍이며, 비용(₫)은 집계 토큰으로 산출합니다.',
-    tokenUsageCostByWeekTitle: '주별(UTC, 월요일 시작)',
-    tokenUsageCostByWeekIntro: '선택한 범위의 날짜를 UTC 주 단위로 묶습니다(주는 월요일 시작).',
-    tokenUsageColWeekStart: '주 시작(UTC)',
-    tokenUsageCostByMonthTitle: '월별(UTC)',
-    tokenUsageCostByMonthIntro: '선택 범위 안에서 UTC 달력 월(YYYY-MM)으로 묶습니다.',
-    tokenUsageColMonthUtc: '월(UTC)',
+    tokenUsageCostByWeekTitle: '주별(월요일 시작)',
+    tokenUsageCostByWeekIntro: '선택한 범위의 날짜를 베트남 시간 주 단위로 묶습니다(주는 월요일 시작).',
+    tokenUsageColWeekStart: '주 시작',
+    tokenUsageCostByMonthTitle: '월별',
+    tokenUsageCostByMonthIntro: '선택 범위 안에서 베트남 시간 달력 월(YYYY-MM)으로 묶습니다.',
+    tokenUsageColMonthUtc: '월',
     tokenUsageCostTablesNote:
-      '분기·일·주·월(UTC)별 추정 비용(₫) 열이 표시되며, 기간 합계와 동일한 방식으로 계산합니다.',
-    usageDetailApiTitle: 'LLM 호출별 상세(받은편지함)',
+      '분기·일·주·월별 추정 비용(₫) 열이 표시되며, 기간 합계와 동일한 방식으로 계산합니다.',
+    usageSliceOverview: '용도별',
+    usageSliceTime: '기간별',
+    usageSliceCalls: '호출별',
+    usageSliceMedia: '이미지와 임베딩',
+    usageDetailApiTitle: '호출별 상세',
     usageDetailApiIntro:
-      '각 행은 대기 시간 후 한 번의 API 호출과 실제 토큰입니다.',
+      '각 행은 기록된 호출 한 건입니다(대화, 소재 추론, 이미지 생성). 최근 250건만 표시합니다.',
     usageDetailColTime: '시각',
     usageDetailColUsageKind: '구분',
     usageTokenKindInbox: '받은편지함 LLM',
     usageTokenKindMaterialInfer: '소재 추론(상품 사진)',
+    usageTokenKindLandingImage: '랜딩 소재 이미지',
     usageDetailEmpty: '이 기간에 상세 호출 기록이 없습니다.',
     usageCreditLedgerTitle: '크레딧 차감(지갑 원장 — 멱등 spend)',
     usageCreditLedgerIntro:

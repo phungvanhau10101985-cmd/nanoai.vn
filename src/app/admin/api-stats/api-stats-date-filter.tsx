@@ -9,10 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Calendar } from 'lucide-react'
-
-function toYMD(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
+import { ictMonthStartYmd, ictShiftDays, ictYearStartYmd, ictYmd } from './ict-date'
 
 export function ApiStatsDateFilter({
   defaultFrom,
@@ -79,37 +76,23 @@ export function ApiStatsDateFilter({
 
   const presets = [
     { label: tr('Hôm nay', 'Today', '今天', '今日', '오늘'), getRange: () => {
-      const t = new Date()
-      const s = toYMD(t)
+      const s = ictYmd()
       return [s, s]
     }},
     { label: tr('7 ngày', '7 days', '7天', '7日', '7일'), getRange: () => {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - 6)
-      return [toYMD(start), toYMD(end)]
+      return [ictShiftDays(-6), ictYmd()]
     }},
     { label: tr('30 ngày', '30 days', '30天', '30日', '30일'), getRange: () => {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - 29)
-      return [toYMD(start), toYMD(end)]
+      return [ictShiftDays(-29), ictYmd()]
     }},
     { label: tr('90 ngày', '90 days', '90天', '90日', '90일'), getRange: () => {
-      const end = new Date()
-      const start = new Date()
-      start.setDate(start.getDate() - 89)
-      return [toYMD(start), toYMD(end)]
+      return [ictShiftDays(-89), ictYmd()]
     }},
     { label: tr('Tháng này', 'This month', '本月', '今月', '이번 달'), getRange: () => {
-      const end = new Date()
-      const start = new Date(end.getFullYear(), end.getMonth(), 1)
-      return [toYMD(start), toYMD(end)]
+      return [ictMonthStartYmd(), ictYmd()]
     }},
     { label: tr('Năm nay', 'This year', '今年', '今年', '올해'), getRange: () => {
-      const end = new Date()
-      const start = new Date(end.getFullYear(), 0, 1)
-      return [toYMD(start), toYMD(end)]
+      return [ictYearStartYmd(), ictYmd()]
     }},
   ]
 
@@ -118,7 +101,13 @@ export function ApiStatsDateFilter({
       <CardHeader className="py-3 px-4">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
           <Calendar className="h-4 w-4" />
-          {tr('Lọc theo khoảng ngày', 'Filter by date range', '按日期范围筛选', '日付範囲で絞り込み', '날짜 범위로 필터')}
+          {tr(
+            'Lọc theo ngày (giờ Việt Nam)',
+            'Filter by date (Vietnam time)',
+            '按日期筛选（越南时间）',
+            '日付で絞り込み（ベトナム時間）',
+            '날짜로 필터 (베트남 시간)'
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="py-2 px-4 pb-4">

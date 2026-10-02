@@ -8,6 +8,8 @@ import {
   partnerAdminAmountDueOnDeliverySql,
   partnerAdminDepositedOrderSql,
   partnerAdminLifecycleSql,
+  partnerAdminRevenueDuplicateOrderBySql,
+  pickRevenueStatDuplicateIds,
   partnerAdminMatchesLifecycleTab,
   partnerAdminMatchesPaymentFilter,
   partnerAdminNeedsDepositStage,
@@ -187,6 +189,86 @@ test('payment SQL treats remaining COD as deposit_paid, not fully paid', () => {
   assert.match(paidSql, /amount_after_discount/)
   assert.match(depositSql, /paid_amount/)
   assert.equal(partnerAdminAmountDueOnDeliverySql().includes('amount_after_discount'), true)
+})
+
+test('revenue stats keep one duplicate and prefer the deposited order', () => {
+  const unpaid = (id: string, createdAt: string) => ({
+    id,
+    groupKey: 'same-cart',
+    status: 'awaiting_payment',
+    shippingStatus: 'pending',
+    refundStatus: 'none',
+    paidAmount: 0,
+    createdAt,
+  })
+  const threeUnpaid = pickRevenueStatDuplicateIds([
+    unpaid('a', '2026-10-01T09:30:00Z'),
+    unpaid('b', '2026-10-01T09:32:00Z'),
+    unpaid('c', '2026-10-01T09:31:00Z'),
+  ])
+  assert.deepEqual(threeUnpaid, ['b'])
+
+  const withDeposit = pickRevenueStatDuplicateIds([
+    unpaid('a', '2026-10-01T09:32:00Z'),
+    {
+      id: 'paid',
+      groupKey: 'same-cart',
+      status: 'paid_verified',
+      shippingStatus: 'pending',
+      refundStatus: 'none',
+      paidAmount: 648000,
+      createdAt: '2026-10-01T09:30:00Z',
+    },
+    unpaid('c', '2026-10-01T09:31:00Z'),
+  ])
+  assert.deepEqual(withDeposit, ['paid'])
+
+  const twoDeposits = pickRevenueStatDuplicateIds([
+    {
+      id: 'partial',
+      groupKey: 'same-cart',
+      status: 'paid_verified',
+      shippingStatus: 'pending',
+      refundStatus: 'none',
+      paidAmount: 648000,
+      createdAt: '2026-10-01T10:00:00Z',
+    },
+    {
+      id: 'full',
+      groupKey: 'same-cart',
+      status: 'paid_verified',
+      shippingStatus: 'pending',
+      refundStatus: 'none',
+      paidAmount: 2160000,
+      createdAt: '2026-10-01T09:00:00Z',
+    },
+  ])
+  assert.deepEqual(twoDeposits, ['full'])
+
+  const distinctCarts = pickRevenueStatDuplicateIds([
+    { ...unpaid('dh825', '2026-10-01T09:32:00Z'), groupKey: '2160000' },
+    { ...unpaid('dh824', '2026-10-01T08:56:00Z'), groupKey: '1030000' },
+  ])
+  assert.deepEqual(distinctCarts.sort(), ['dh824', 'dh825'])
+
+  const cancelledTwin = pickRevenueStatDuplicateIds([
+    {
+      id: 'void',
+      groupKey: 'same-cart',
+      status: 'cancelled',
+      shippingStatus: 'cancelled',
+      refundStatus: 'none',
+      paidAmount: 0,
+      createdAt: '2026-10-01T11:00:00Z',
+    },
+    unpaid('live', '2026-10-01T09:00:00Z'),
+  ])
+  assert.deepEqual(cancelledTwin, ['live'])
+
+  const orderBy = partnerAdminRevenueDuplicateOrderBySql('s')
+  assert.match(orderBy, /paid_amount/)
+  assert.match(orderBy, /s\.created_at desc/)
+  assert.doesNotMatch(orderBy, /\$\{|`/)
 })
 
 test('deposited order SQL counts received deposit and skips cancel or refund', () => {

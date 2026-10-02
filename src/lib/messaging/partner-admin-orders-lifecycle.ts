@@ -308,3 +308,80 @@ export function partnerAdminDepositedOrderSql(): string {
     and coalesce(o.paid_amount, 0) > 0
   )`
 }
+
+/**
+ * Trong một nhóm đơn trùng, chọn một đơn cho báo cáo doanh thu.
+ * Đã cọc thắng đơn chưa cọc. Chưa cọc thì giữ đơn còn hiệu lực, bỏ bản hủy/hoàn.
+ * Nhiều đơn đã cọc: giữ đơn nhận nhiều tiền hơn, rồi đơn mới hơn.
+ */
+export function partnerAdminRevenueDuplicateOrderBySql(alias = 's'): string {
+  const a = alias
+  const deposited = `(
+    ${a}.status <> 'cancelled'
+    and coalesce(${a}.shipping_status, 'pending') <> 'cancelled'
+    and coalesce(${a}.refund_status, 'none') <> 'refunded'
+    and coalesce(${a}.paid_amount, 0) > 0
+  )`
+  const dropped = `(
+    ${a}.status = 'cancelled'
+    or coalesce(${a}.shipping_status, 'pending') = 'cancelled'
+    or coalesce(${a}.refund_status, 'none') = 'refunded'
+  )`
+  return `case when ${deposited} then 0 else 1 end,
+          case when ${dropped} then 1 else 0 end,
+          coalesce(${a}.paid_amount, 0) desc,
+          ${a}.created_at desc,
+          ${a}.id desc`
+}
+
+export type RevenueStatDuplicateCandidate = {
+  id: string
+  groupKey: string
+  status: string
+  shippingStatus: string
+  refundStatus: string
+  paidAmount: number
+  createdAt: string
+}
+
+function revenueDuplicateIsDeposited(row: RevenueStatDuplicateCandidate): boolean {
+  return (
+    row.status !== 'cancelled' &&
+    row.shippingStatus !== 'cancelled' &&
+    row.refundStatus !== 'refunded' &&
+    row.paidAmount > 0
+  )
+}
+
+function revenueDuplicateIsDropped(row: RevenueStatDuplicateCandidate): boolean {
+  return row.status === 'cancelled' || row.shippingStatus === 'cancelled' || row.refundStatus === 'refunded'
+}
+
+function compareRevenueStatDuplicates(a: RevenueStatDuplicateCandidate, b: RevenueStatDuplicateCandidate): number {
+  const rank = (row: RevenueStatDuplicateCandidate) => {
+    if (revenueDuplicateIsDeposited(row)) return 0
+    if (!revenueDuplicateIsDropped(row)) return 1
+    return 2
+  }
+  const byRank = rank(a) - rank(b)
+  if (byRank !== 0) return byRank
+  if (a.paidAmount !== b.paidAmount) return b.paidAmount - a.paidAmount
+  if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1
+  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0
+}
+
+/** Giữ một đơn mỗi nhóm trùng. Khóa nhóm do SQL báo cáo doanh thu tạo. */
+export function pickRevenueStatDuplicateIds(rows: RevenueStatDuplicateCandidate[]): string[] {
+  const groups = new Map<string, RevenueStatDuplicateCandidate[]>()
+  for (const row of rows) {
+    const list = groups.get(row.groupKey)
+    if (list) list.push(row)
+    else groups.set(row.groupKey, [row])
+  }
+  const picked: string[] = []
+  for (const list of groups.values()) {
+    const best = [...list].sort(compareRevenueStatDuplicates)[0]
+    if (best) picked.push(best.id)
+  }
+  return picked
+}

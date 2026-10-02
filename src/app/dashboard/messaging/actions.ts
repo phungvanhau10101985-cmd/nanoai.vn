@@ -304,6 +304,7 @@ import {
   partnerAiTokenDetailRowEstimatedCostVnd,
   type PartnerAiUsageCostBreakdown,
 } from '@/lib/pricing/api-token-cost'
+import { ictDayStartIso } from '@/app/admin/api-stats/ict-date'
 
 export type {
   PartnerAiImageGenUsageStatRow,
@@ -316,6 +317,8 @@ export type {
 
 export type PartnerAiTokenUsageStatRowWithCostEstimate = PartnerAiTokenUsageStatRow & {
   estimated_cost_vnd: number
+  estimated_input_vnd: number
+  estimated_output_vnd: number
 }
 export type PartnerAiTokenUsageDetailRowWithCostEstimate = PartnerAiTokenUsageDetailRow & {
   estimated_cost_vnd: number
@@ -2612,19 +2615,21 @@ function resolvePartnerAiUsageWindow(query: PartnerAiUsageQuery):
   const from = parsePartnerAiUsageDayUtcStrict(query.fromDayUtc)
   const to = parsePartnerAiUsageDayUtcStrict(query.toDayUtc)
   if (!from || !to) {
-    return { error: 'Invalid date. Use YYYY-MM-DD (UTC calendar day).' }
+    return { error: 'Invalid date. Use YYYY-MM-DD (Vietnam calendar day).' }
   }
   if (from > to) {
     return { error: 'Start date must be on or before end date.' }
   }
-  const startMs = Date.parse(`${from}T00:00:00.000Z`)
-  const endMs = Date.parse(`${to}T00:00:00.000Z`)
+  const startMs = Date.parse(`${from}T00:00:00.000+07:00`)
+  const endMs = Date.parse(`${to}T00:00:00.000+07:00`)
   const spanDays = Math.floor((endMs - startMs) / 86400000) + 1
   if (spanDays > PARTNER_AI_USAGE_MAX_CALENDAR_DAYS) {
     return { error: `Date range cannot exceed ${PARTNER_AI_USAGE_MAX_CALENDAR_DAYS} days.` }
   }
-  const sinceIso = `${from}T00:00:00.000Z`
-  const untilIsoExclusive = new Date(endMs + 86400000).toISOString()
+  const [endY, endM, endD] = to.split('-').map((part) => Number.parseInt(part, 10))
+  const nextDay = new Date(Date.UTC(endY, endM - 1, endD + 1)).toISOString().slice(0, 10)
+  const sinceIso = ictDayStartIso(from)
+  const untilIsoExclusive = ictDayStartIso(nextDay)
   return {
     sinceIso,
     untilIsoExclusive,

@@ -55,6 +55,8 @@ export type MessagingPartnerTokenUsageByShopModelRow = {
   partner_display_name: string
   owner_user_id: string | null
   owner_email: string | null
+  /** null = hội thoại inbox. Ảnh chất liệu / thực tế không ghi vào api_usage_log. */
+  usage_kind: string | null
   model: string
   call_count: number
   sum_prompt_tokens: number
@@ -77,6 +79,7 @@ export async function fetchMessagingPartnerTokenUsageByShopModelInRange(
     partner_display_name: string | null
     owner_user_id: string | null
     owner_email: string | null
+    usage_kind: string | null
     model: string | null
     call_count: string | number | null
     sum_prompt_tokens: string | number | null
@@ -89,6 +92,10 @@ export async function fetchMessagingPartnerTokenUsageByShopModelInRange(
        mp.display_name as partner_display_name,
        mp.owner_user_id::text as owner_user_id,
        nullif(au.email, '') as owner_email,
+       case
+         when u.usage_kind is null or trim(u.usage_kind) = '' then null
+         else trim(u.usage_kind)
+       end as usage_kind,
        u.model as model,
        count(*)::bigint as call_count,
        coalesce(sum(u.prompt_tokens), 0)::bigint as sum_prompt_tokens,
@@ -99,7 +106,7 @@ export async function fetchMessagingPartnerTokenUsageByShopModelInRange(
      left join auth.users au on au.id = mp.owner_user_id
      where u.created_at >= $1::timestamptz and u.created_at <= $2::timestamptz
      group by
-       u.partner_id, mp.slug, mp.display_name, mp.owner_user_id, au.email, u.model
+       u.partner_id, mp.slug, mp.display_name, mp.owner_user_id, au.email, usage_kind, u.model
      order by sum_total_tokens desc nulls last, u.partner_id asc`,
     [fromIso, toIso]
   )
@@ -110,6 +117,7 @@ export async function fetchMessagingPartnerTokenUsageByShopModelInRange(
     partner_display_name: String(r.partner_display_name ?? '').trim(),
     owner_user_id: r.owner_user_id ? String(r.owner_user_id) : null,
     owner_email: r.owner_email ? String(r.owner_email) : null,
+    usage_kind: r.usage_kind == null || String(r.usage_kind).trim() === '' ? null : String(r.usage_kind).trim(),
     model: String(r.model ?? '').trim() || 'unknown',
     call_count: Math.max(0, Math.floor(Number(r.call_count ?? 0))),
     sum_prompt_tokens: Math.max(0, Math.floor(Number(r.sum_prompt_tokens ?? 0))),

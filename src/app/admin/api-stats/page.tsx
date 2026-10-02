@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Fragment } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
@@ -7,7 +8,8 @@ import { LogsTableWithDetail } from './logs-table-with-detail'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 import { isEnglishCoachApiUsageFeature } from '@/lib/english-coach-api-usage'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
-import { calcCostVnd, calcCostVndSplit, USD_TO_VND } from './api-cost'
+import { calcCostVnd, calcCostVndSplit, getPartnerAiTokenCostUsdToVnd, isListedApiCostModel } from './api-cost'
+import { formatIctYmdVi, ictDayEndIso, ictDayStartIso, ictShiftDays, ictYmd } from './ict-date'
 import { mergeApiFeatureLabelsForLogs } from './api-stats-labels'
 import {
   aggregateEnglishCoachApiCostByLessonKind,
@@ -23,8 +25,11 @@ import {
   fetchRevenueFromCompletedPaymentsInRange,
 } from '@/lib/db/admin-api-stats-pg'
 
-function toYMD(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+function formatShare(part: number, whole: number): string {
+  if (!(whole > 0)) return '—'
+  const pct = (part / whole) * 100
+  if (pct > 0 && pct < 0.1) return '<0,1%'
+  return `${pct.toLocaleString('vi-VN', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`
 }
 
 export default async function AdminApiStatsPage({
@@ -42,17 +47,14 @@ export default async function AdminApiStatsPage({
   }
   const params = searchParams ?? {}
 
-  const today = new Date()
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(today.getDate() - 30)
-
   const fromParam = params.from?.trim()
   const toParam = params.to?.trim()
-  const fromDate = fromParam || toYMD(thirtyDaysAgo)
-  const toDate = toParam || toYMD(today)
+  const fromDate = fromParam || ictShiftDays(-30)
+  const toDate = toParam || ictYmd()
 
-  const fromIso = fromDate + 'T00:00:00'
-  const toIso = toDate + 'T23:59:59.999'
+  const fromIso = ictDayStartIso(fromDate)
+  const toIso = ictDayEndIso(toDate)
+  const usdToVnd = getPartnerAiTokenCostUsdToVnd()
 
   const [logFetch, revenueInRange, languageCoachCreditEvents, shopTokenRowsByModel] = await Promise.all([
     fetchAllApiUsageLogsInRange(fromIso, toIso),
@@ -90,6 +92,7 @@ export default async function AdminApiStatsPage({
     costVnd: number
     inputCostVnd: number
     outputCostVnd: number
+    calls1K: number
     calls2K: number
     calls4K: number
     callsNoImage: number
@@ -102,6 +105,7 @@ export default async function AdminApiStatsPage({
     costVnd: 0,
     inputCostVnd: 0,
     outputCostVnd: 0,
+    calls1K: 0,
     calls2K: 0,
     calls4K: 0,
     callsNoImage: 0,
@@ -116,11 +120,14 @@ export default async function AdminApiStatsPage({
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
       const imgSize = (log as { image_size?: string | null }).image_size
-      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize, {
+        usdToVnd,
+      })
       acc[key].costVnd += split.totalVnd
       acc[key].inputCostVnd += split.inputVnd
       acc[key].outputCostVnd += split.outputVnd
-      if (imgSize === '2K') acc[key].calls2K += 1
+      if (imgSize === '1K') acc[key].calls1K += 1
+      else if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
       else acc[key].callsNoImage += 1
       return acc
@@ -137,11 +144,14 @@ export default async function AdminApiStatsPage({
       acc[key].outputTokens += log.candidates_token_count || 0
       acc[key].totalTokens += log.total_token_count || 0
       const imgSize = (log as { image_size?: string | null }).image_size
-      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize)
+      const split = calcCostVndSplit(log.prompt_token_count || 0, log.candidates_token_count || 0, log.model, imgSize, {
+        usdToVnd,
+      })
       acc[key].costVnd += split.totalVnd
       acc[key].inputCostVnd += split.inputVnd
       acc[key].outputCostVnd += split.outputVnd
-      if (imgSize === '2K') acc[key].calls2K += 1
+      if (imgSize === '1K') acc[key].calls1K += 1
+      else if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
       else acc[key].callsNoImage += 1
       return acc
@@ -152,7 +162,7 @@ export default async function AdminApiStatsPage({
   const byImageSize = logsList.reduce(
     (acc, log) => {
       const imgSize = (log as { image_size?: string | null }).image_size
-      const key = imgSize === '2K' ? '2K' : imgSize === '4K' ? '4K' : 'no-image'
+      const key = imgSize === '1K' ? '1K' : imgSize === '2K' ? '2K' : imgSize === '4K' ? '4K' : 'no-image'
       if (!acc[key]) {
         acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, inputCostVnd: 0, outputCostVnd: 0 }
       }
@@ -164,7 +174,8 @@ export default async function AdminApiStatsPage({
         log.prompt_token_count || 0,
         log.candidates_token_count || 0,
         log.model,
-        (log as { image_size?: string | null }).image_size
+        (log as { image_size?: string | null }).image_size,
+        { usdToVnd }
       )
       acc[key].costVnd += split.totalVnd
       acc[key].inputCostVnd += split.inputVnd
@@ -188,7 +199,8 @@ export default async function AdminApiStatsPage({
       log.prompt_token_count || 0,
       log.candidates_token_count || 0,
       log.model,
-      (log as { image_size?: string | null }).image_size
+      (log as { image_size?: string | null }).image_size,
+      { usdToVnd }
     )
     totals.inputCostVnd += split.inputVnd
     totals.outputCostVnd += split.outputVnd
@@ -196,8 +208,7 @@ export default async function AdminApiStatsPage({
   }
 
   const apiCostVndInRange = totals.totalCostVnd
-  const apiCostUsdInRange = apiCostVndInRange / USD_TO_VND
-  const profitInRange = revenueInRange - apiCostVndInRange
+  const apiCostUsdInRange = apiCostVndInRange / usdToVnd
 
   const formatNum = (n: number) => n.toLocaleString('vi-VN')
   const formatVnd = (n: number) => `${n.toLocaleString('vi-VN')}₫`
@@ -218,21 +229,44 @@ export default async function AdminApiStatsPage({
           costVnd: 0,
           inputCostVnd: 0,
           outputCostVnd: 0,
-          models: new Set<string>(),
+          models: [] as Array<{
+            usageKind: string | null
+            model: string
+            calls: number
+            promptTokens: number
+            outputTokens: number
+            totalTokens: number
+            costVnd: number
+            inputCostVnd: number
+            outputCostVnd: number
+            listedPrice: boolean
+          }>,
         }
       }
       const current = acc[key]
+      const split = calcCostVndSplit(row.sum_prompt_tokens, row.sum_completion_tokens, row.model, null, {
+        usdToVnd,
+        pricingMode: 'aggregate_short',
+      })
       current.calls += row.call_count
       current.promptTokens += row.sum_prompt_tokens
       current.outputTokens += row.sum_completion_tokens
       current.totalTokens += row.sum_total_tokens
-      current.models.add(row.model)
-      const split = calcCostVndSplit(row.sum_prompt_tokens, row.sum_completion_tokens, row.model, null, {
-        pricingMode: 'aggregate_short',
-      })
       current.costVnd += split.totalVnd
       current.inputCostVnd += split.inputVnd
       current.outputCostVnd += split.outputVnd
+      current.models.push({
+        usageKind: row.usage_kind,
+        model: row.model,
+        calls: row.call_count,
+        promptTokens: row.sum_prompt_tokens,
+        outputTokens: row.sum_completion_tokens,
+        totalTokens: row.sum_total_tokens,
+        costVnd: split.totalVnd,
+        inputCostVnd: split.inputVnd,
+        outputCostVnd: split.outputVnd,
+        listedPrice: isListedApiCostModel(row.model),
+      })
       return acc
     },
     {} as Record<
@@ -249,14 +283,44 @@ export default async function AdminApiStatsPage({
         costVnd: number
         inputCostVnd: number
         outputCostVnd: number
-        models: Set<string>
+        models: Array<{
+          usageKind: string | null
+          model: string
+          calls: number
+          promptTokens: number
+          outputTokens: number
+          totalTokens: number
+          costVnd: number
+          inputCostVnd: number
+          outputCostVnd: number
+          listedPrice: boolean
+        }>
       }
     >
   )
 
   const byShopToken = Object.values(byShopTokenMap)
-    .map((x) => ({ ...x, modelCount: x.models.size }))
-    .sort((a, b) => b.totalTokens - a.totalTokens)
+    .map((x) => ({
+      ...x,
+      modelCount: x.models.length,
+      models: [...x.models].sort((a, b) => b.costVnd - a.costVnd),
+    }))
+    .sort((a, b) => b.costVnd - a.costVnd)
+  const shopCostVndTotal = byShopToken.reduce((sum, shop) => sum + shop.costVnd, 0)
+  /** Ảnh chất liệu / thực tế trong chat chỉ ghi sổ shop, không ghi api_usage_log. */
+  const shopImageCostOutsidePlatformLog = byShopToken.reduce(
+    (sum, shop) =>
+      sum +
+      shop.models.reduce(
+        (inner, modelRow) =>
+          modelRow.usageKind === 'image_material_detail' || modelRow.usageKind === 'image_real_use'
+            ? inner + modelRow.costVnd
+            : inner,
+        0
+      ),
+    0
+  )
+  const profitInRange = revenueInRange - apiCostVndInRange - shopImageCostOutsidePlatformLog
 
   const chartLocaleTag =
     uiLocale === 'en'
@@ -269,7 +333,7 @@ export default async function AdminApiStatsPage({
             ? 'ko-KR'
             : 'vi-VN'
 
-  const chartPayload = buildApiUsageChartData(logsRaw || [], fromDate, toDate, chartLocaleTag)
+  const chartPayload = buildApiUsageChartData(logsRaw || [], fromDate, toDate, chartLocaleTag, 8, usdToVnd)
   const modelLabels: Record<string, string> = {}
   for (const log of logsList) {
     if (!modelLabels[log.model]) modelLabels[log.model] = getApiUsageModelDisplayLabel(log.model)
@@ -278,11 +342,11 @@ export default async function AdminApiStatsPage({
   const chartCopy = {
     sectionTitle: tr('Biểu đồ theo thời gian', 'Trend charts', '趋势图', '推移チャート', '추이 차트'),
     subtitle: tr(
-      'Theo ngày trong khoảng đã chọn • Tối đa 8 model phổ biến nhất; còn lại gộp “Khác”.',
-      'By day in the selected range • Up to 8 most-used models; others grouped as “Other”.',
-      '按所选日期范围 • 最多 8 个最常用模型，其余归入“其他”。',
-      '選択した期間の日別 • 上位8モデル、その他は「その他」。',
-      '선택한 기간 일별 • 상위 8개 모델, 나머지는 “기타”.'
+      'Theo ngày giờ Việt Nam (ICT) trong khoảng đã chọn • Tối đa 8 model đắt nhất; còn lại gộp “Khác”.',
+      'By Vietnam-time day in the selected range • Up to 8 costliest models; others grouped as “Other”.',
+      '按越南时间的所选日期 • 费用最高的 8 个模型，其余归入“其他”。',
+      'ベトナム時間の日別 • 費用上位8モデル、その他は「その他」。',
+      '베트남 시간 기준 일별 • 비용 상위 8개 모델, 나머지는 “기타”.'
     ),
     requestsAndInputTitle: tr(
       'Lượt gọi & token input theo ngày',
@@ -349,22 +413,23 @@ export default async function AdminApiStatsPage({
     ),
   }
 
-  const rangeLabel = fromDate === toDate
-    ? new Date(fromDate).toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-    : `${new Date(fromDate).toLocaleDateString('vi-VN')} – ${new Date(toDate).toLocaleDateString('vi-VN')}`
+  const rangeLabel =
+    fromDate === toDate
+      ? formatIctYmdVi(fromDate)
+      : `${formatIctYmdVi(fromDate)} – ${formatIctYmdVi(toDate)}`
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê sử dụng API Google (Gemini)', 'Google API usage statistics (Gemini)', 'Google API 使用统计（Gemini）', 'Google API利用統計（Gemini）', 'Google API 사용 통계 (Gemini)')}</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{tr('Thống kê chi phí API nền tảng', 'Platform API cost', '平台 API 费用', 'プラットフォーム API 費用', '플랫폼 API 비용')}</h2>
         <p className="text-muted-foreground mt-1">
           {tr(
-            'Toàn bộ bản ghi api_usage_log trong khoảng ngày • Tỷ giá 1 USD = 25.000₫',
-            'All api_usage_log rows in the date range • Exchange rate: 1 USD = 25,000₫',
-            '日期范围内全部 api_usage_log 记录 • 汇率：1 USD = 25,000₫',
-            '期間内の api_usage_log 全件 • 為替: 1 USD = 25,000₫',
-            '기간 내 api_usage_log 전체 • 환율: 1 USD = 25,000₫'
-          )}
+            'Sổ api_usage_log (Gemini, DeepSeek, OpenAI…) trong khoảng ngày giờ Việt Nam • Tỷ giá 1 USD = {rate}₫',
+            'api_usage_log (Gemini, DeepSeek, OpenAI…) in Vietnam-time days • Exchange rate: 1 USD = {rate}₫',
+            'api_usage_log（Gemini、DeepSeek、OpenAI…）按越南时间 • 汇率：1 USD = {rate}₫',
+            'api_usage_log（Gemini / DeepSeek / OpenAI…）ベトナム時間 • 為替: 1 USD = {rate}₫',
+            'api_usage_log(Gemini, DeepSeek, OpenAI…) 베트남 시간 • 환율: 1 USD = {rate}₫'
+          ).replace('{rate}', usdToVnd.toLocaleString('vi-VN'))}
         </p>
         <p className="text-sm mt-2 flex flex-wrap gap-x-4 gap-y-1">
           <Link href="/admin/api-stats/english-coach" className="text-primary underline underline-offset-2 hover:text-primary/80">
@@ -406,11 +471,11 @@ export default async function AdminApiStatsPage({
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           {tr(
-            'Giá theo bảng Google 2025: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
-            'Pricing by Google 2025 table: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
-            '按 Google 2025 定价：pro-image $2/$120 输入/输出，flash $0.5/$3，2.5-flash $0.3/$2.5，2.0-flash $0.1/$0.4',
-            'Google 2025価格表: pro-image $2/$120 input/output, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4',
-            'Google 2025 요금표: pro-image $2/$120 입력/출력, flash $0.5/$3, 2.5-flash $0.3/$2.5, 2.0-flash $0.1/$0.4'
+            'Đơn giá lấy từ bảng trong mã (Gemini / DeepSeek / OpenAI, USD/1M). Model chưa có dòng dùng giá gemini-3-flash-preview. Veo / Imagen / Lyria ghi lượt gọi, không tính token.',
+            'Rates come from the in-code table (Gemini / DeepSeek / OpenAI, USD per 1M). Unknown models use gemini-3-flash-preview. Veo / Imagen / Lyria log calls only.',
+            '单价来自代码内价格表（Gemini / DeepSeek / OpenAI，每百万 token 美元）。未登记模型按 gemini-3-flash-preview。Veo / Imagen / Lyria 只记调用。',
+            '単価はコード内の表（Gemini / DeepSeek / OpenAI、100万トークンあたり USD）。未登録は gemini-3-flash-preview。Veo / Imagen / Lyria は呼び出しのみ。',
+            '단가는 코드 표(Gemini / DeepSeek / OpenAI, 100만 토큰당 USD). 미등록은 gemini-3-flash-preview. Veo / Imagen / Lyria는 호출만 기록합니다.'
           )}
         </p>
       </div>
@@ -437,13 +502,25 @@ export default async function AdminApiStatsPage({
               <p className="text-xs text-muted-foreground">
                 ~{apiCostUsdInRange.toFixed(4)} USD • {logsList.length} {tr('lượt gọi', 'calls', '次调用', '回', '회 호출')}
               </p>
+              {shopImageCostOutsidePlatformLog > 0 ? (
+                <p className="text-xs text-amber-800 mt-1">
+                  {tr(
+                    'Cộng thêm ảnh chat shop chưa vào sổ này',
+                    'Plus shop chat images not in this ledger',
+                    '另加未入此账的店铺聊天出图',
+                    'この台帳にないショップ画像を加算',
+                    '이 장부에 없는 샵 채팅 이미지 추가'
+                  )}
+                  : {formatVnd(shopImageCostOutsidePlatformLog)}
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="text-sm font-medium text-muted-foreground">{tr('Lợi nhuận', 'Profit', '利润', '利益', '이익')}</p>
               <p className={`text-2xl font-bold ${profitInRange >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                 {formatVnd(profitInRange)}
               </p>
-              <p className="text-xs text-muted-foreground">{tr('Thu − Chi', 'Revenue − Cost', '收入 − 支出', '収入 − コスト', '매출 − 비용')}</p>
+              <p className="text-xs text-muted-foreground">{tr('Thu nạp credit − chi api_usage_log − ảnh chất liệu/thực tế của shop (chỉ có ở sổ shop). Chat DeepSeek và ảnh landing đã nằm trong sổ API nên không trừ lần hai.', 'Top-up revenue − api_usage_log − shop material/lifestyle images (shop ledger only). DeepSeek chat and landing images are already in the API ledger.', '充值收入 − api_usage_log − 店铺面料/实拍图（仅店铺账）。DeepSeek 对话和落地页图已在 API 账中。', 'チャージ収入 − api_usage_log − ショップの素材/実使用画像（ショップ台帳のみ）。DeepSeek とランディング画像は API 台帳に既出。', '충전 매출 − api_usage_log − 샵 소재/실사용 이미지(샵 장부만). DeepSeek 대화와 랜딩 이미지는 API 장부에 이미 있습니다.')}</p>
             </div>
           </div>
         </CardContent>
@@ -583,13 +660,21 @@ export default async function AdminApiStatsPage({
           <CardTitle>{tr('Token theo từng shop (Messaging)', 'Tokens by shop (Messaging)', '按店铺统计 Token（Messaging）', 'ショップ別トークン（Messaging）', '샵별 토큰 (Messaging)')}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {tr(
-              'Nguồn: bảng messaging_partner_ai_token_usage, gom theo shop trong khoảng ngày đã chọn.',
-              'Source: messaging_partner_ai_token_usage, grouped by shop for the selected date range.',
-              '来源：messaging_partner_ai_token_usage，按所选日期范围聚合到店铺。',
-              'ソース: messaging_partner_ai_token_usage。選択期間でショップ集計。',
-              '소스: messaging_partner_ai_token_usage. 선택 기간 기준 샵별 집계.'
+              'Sổ messaging_partner_ai_token_usage, xếp theo chi phí. Mỗi dòng model ghi nhánh (hội thoại, suy chất liệu, ảnh…). Chat và ảnh landing đã nằm trong sổ API phía trên. Chỉ ảnh chất liệu và ảnh thực tế được cộng vào lợi nhuận.',
+              'Ledger messaging_partner_ai_token_usage, sorted by cost. Each model row shows its branch (chat, material, images…). Chat and landing images are already in the API ledger above. Only material and lifestyle images are added into profit.',
+              '来源 messaging_partner_ai_token_usage，按费用排序。每个模型行标出用途。对话和落地页图已在上方 API 账。只有面料图和实拍图计入利润。',
+              '台帳 messaging_partner_ai_token_usage。費用順。各モデル行に用途。チャットとランディング画像は上の API 台帳に既出。素材画像と実使用画像だけ利益に含めます。',
+              '원장 messaging_partner_ai_token_usage, 비용순. 각 모델 행에 용도. 대화와 랜딩 이미지는 위 API 장부에 있습니다. 소재·실사용 이미지만 이익에 넣습니다.'
             )}
           </p>
+          {shopCostVndTotal > 0 ? (
+            <p className="text-sm font-semibold tabular-nums text-amber-800">
+              {tr('Tổng chi shop SaaS', 'Total SaaS shop cost', '店铺费用合计', 'ショップ費用合計', '샵 비용 합계')}: {formatVnd(shopCostVndTotal)}
+              {' · '}
+              {formatNum(byShopToken.reduce((s, shop) => s + shop.calls, 0))}{' '}
+              {tr('lượt', 'calls', '次', '回', '회')}
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent>
           {byShopToken.length > 0 ? (
@@ -602,38 +687,91 @@ export default async function AdminApiStatsPage({
                   <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
                   <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng token', 'Total tokens', '总 token', '合計トークン', '총 토큰')}</TableHead>
-                  <TableHead className="text-right">{tr('Số model', 'Models', '模型数', 'モデル数', '모델 수')}</TableHead>
+                  <TableHead className="text-right">{tr('Số dòng', 'Rows', '行数', '行数', '행 수')}</TableHead>
+                  <TableHead className="text-right">{tr('Tỷ lệ', 'Share', '占比', '割合', '비중')}</TableHead>
                   <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {byShopToken.map((shop) => (
-                  <TableRow key={shop.partnerId}>
-                    <TableCell>
-                      <span className="font-medium">{shop.partnerName || shop.partnerSlug || shop.partnerId}</span>
-                      <br />
-                      <span className="text-xs text-muted-foreground">{shop.partnerId}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{shop.ownerEmail || 'N/A'}</span>
-                    </TableCell>
-                    <TableCell className="text-right">{formatNum(shop.calls)}</TableCell>
-                    <TableCell className="text-right">
-                      <span>{formatNum(shop.promptTokens)}</span>
-                      <br />
-                      <span className="text-xs text-amber-700">{formatVnd(shop.inputCostVnd)}</span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span>{formatNum(shop.outputTokens)}</span>
-                      <br />
-                      <span className="text-xs text-amber-700">{formatVnd(shop.outputCostVnd)}</span>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{formatNum(shop.totalTokens)}</TableCell>
-                    <TableCell className="text-right">{formatNum(shop.modelCount)}</TableCell>
-                    <TableCell className="text-right">
-                      <span className="font-medium text-amber-700">{formatVnd(shop.costVnd)}</span>
-                    </TableCell>
-                  </TableRow>
+                  <Fragment key={shop.partnerId}>
+                    <TableRow key={`${shop.partnerId}-total`} className="bg-muted/30">
+                      <TableCell>
+                        <span className="font-medium">{shop.partnerName || shop.partnerSlug || shop.partnerId}</span>
+                        <br />
+                        <span className="text-xs text-muted-foreground">{shop.partnerSlug || shop.partnerId}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{shop.ownerEmail || '—'}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatNum(shop.calls)}</TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(shop.promptTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(shop.inputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span>{formatNum(shop.outputTokens)}</span>
+                        <br />
+                        <span className="text-xs text-amber-700">{formatVnd(shop.outputCostVnd)}</span>
+                      </TableCell>
+                      <TableCell className="text-right font-medium">{formatNum(shop.totalTokens)}</TableCell>
+                      <TableCell className="text-right">{formatNum(shop.modelCount)}</TableCell>
+                      <TableCell className="text-right">{formatShare(shop.costVnd, shopCostVndTotal)}</TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-medium text-amber-700">{formatVnd(shop.costVnd)}</span>
+                      </TableCell>
+                    </TableRow>
+                    {shop.models.map((modelRow) => (
+                      <TableRow key={`${shop.partnerId}:${modelRow.usageKind ?? 'inbox'}:${modelRow.model}`}>
+                        <TableCell className="pl-6">
+                          <span className="text-[11px] text-muted-foreground">
+                            {modelRow.usageKind == null
+                              ? tr('Hội thoại', 'Chat', '对话', 'チャット', '대화')
+                              : modelRow.usageKind === 'material_infer'
+                                ? tr('Suy chất liệu', 'Material infer', '面料推断', '素材推定', '소재 추론')
+                                : modelRow.usageKind === 'image_material_detail'
+                                  ? tr('Ảnh chất liệu', 'Material image', '面料图', '素材画像', '소재 이미지')
+                                  : modelRow.usageKind === 'image_real_use'
+                                    ? tr('Ảnh thực tế', 'Lifestyle image', '实拍图', '実使用画像', '실사용 이미지')
+                                    : modelRow.usageKind === 'image_landing_material'
+                                      ? tr('Ảnh landing', 'Landing image', '落地页图', 'ランディング画像', '랜딩 이미지')
+                                      : modelRow.usageKind}
+                          </span>
+                          <br />
+                          <span className="font-mono text-xs">{modelRow.model}</span>
+                          {modelRow.usageKind === 'image_material_detail' || modelRow.usageKind === 'image_real_use' ? (
+                            <span className="ml-2 text-[10px] text-amber-800">
+                              {tr('ngoài sổ API', 'not in API ledger', '不在 API 账', 'API台帳外', 'API 장부 밖')}
+                            </span>
+                          ) : null}
+                          {modelRow.listedPrice ? null : (
+                            <span className="ml-2 text-[10px] text-amber-700">
+                              {tr('giá tạm', 'fallback price', '临时价格', '暫定価格', '임시 가격')}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell />
+                        <TableCell className="text-right text-muted-foreground">{formatNum(modelRow.calls)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          <span>{formatNum(modelRow.promptTokens)}</span>
+                          <br />
+                          <span className="text-xs">{formatVnd(modelRow.inputCostVnd)}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          <span>{formatNum(modelRow.outputTokens)}</span>
+                          <br />
+                          <span className="text-xs">{formatVnd(modelRow.outputCostVnd)}</span>
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">{formatNum(modelRow.totalTokens)}</TableCell>
+                        <TableCell />
+                        <TableCell className="text-right text-xs text-muted-foreground">
+                          {formatShare(modelRow.costVnd, shop.costVnd)}
+                        </TableCell>
+                        <TableCell className="text-right text-amber-700">{formatVnd(modelRow.costVnd)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -663,25 +801,33 @@ export default async function AdminApiStatsPage({
                 <TableRow>
                   <TableHead>{tr('Model', 'Model', '模型', 'モデル', '모델')}</TableHead>
                   <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
+                  <TableHead className="text-right">1K</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
                   <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
                   <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+                  <TableHead className="text-right">{tr('Tỷ lệ', 'Share', '占比', '割合', '비중')}</TableHead>
                   <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Object.entries(byModel)
-                  .sort((a, b) => b[1].totalTokens - a[1].totalTokens)
+                  .sort((a, b) => b[1].costVnd - a[1].costVnd)
                   .map(([model, stats]) => (
                     <TableRow key={model}>
                       <TableCell>
                         <Badge variant="outline" className="font-mono text-xs">
                           {model}
                         </Badge>
+                        {isListedApiCostModel(model) ? null : (
+                          <span className="ml-2 text-[10px] text-amber-700">
+                            {tr('giá tạm', 'fallback price', '临时价格', '暫定価格', '임시 가격')}
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
+                      <TableCell className="text-right">{formatNum(stats.calls1K)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
                       <TableCell className="text-right">
@@ -695,6 +841,7 @@ export default async function AdminApiStatsPage({
                         <span className="text-xs text-amber-700">{formatVnd(stats.outputCostVnd)}</span>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatNum(stats.totalTokens)}</TableCell>
+                      <TableCell className="text-right text-xs">{formatShare(stats.costVnd, totals.totalCostVnd)}</TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
                         <br />
@@ -718,17 +865,19 @@ export default async function AdminApiStatsPage({
                 <TableRow>
                   <TableHead>{tr('Chức năng', 'Feature', '功能', '機能', '기능')}</TableHead>
                   <TableHead className="text-right">{tr('Lượt gọi', 'Calls', '调用次数', '呼び出し回数', '호출 수')}</TableHead>
+                  <TableHead className="text-right">1K</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
                   <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
                   <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
+                  <TableHead className="text-right">{tr('Tỷ lệ', 'Share', '占比', '割合', '비중')}</TableHead>
                   <TableHead className="text-right">{tr('Chi phí (₫)', 'Cost (₫)', '费用 (₫)', 'コスト (₫)', '비용 (₫)')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {Object.entries(byFeature)
-                  .sort((a, b) => b[1].totalTokens - a[1].totalTokens)
+                  .sort((a, b) => b[1].costVnd - a[1].costVnd)
                   .map(([feature, stats]) => (
                     <TableRow key={feature}>
                       <TableCell>
@@ -737,6 +886,7 @@ export default async function AdminApiStatsPage({
                         <span className="text-xs text-muted-foreground">{feature}</span>
                       </TableCell>
                       <TableCell className="text-right">{formatNum(stats.calls)}</TableCell>
+                      <TableCell className="text-right">{formatNum(stats.calls1K)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
                       <TableCell className="text-right">
@@ -750,6 +900,7 @@ export default async function AdminApiStatsPage({
                         <span className="text-xs text-amber-700">{formatVnd(stats.outputCostVnd)}</span>
                       </TableCell>
                       <TableCell className="text-right font-medium">{formatNum(stats.totalTokens)}</TableCell>
+                      <TableCell className="text-right text-xs">{formatShare(stats.costVnd, totals.totalCostVnd)}</TableCell>
                       <TableCell className="text-right">
                         <span className="font-medium text-amber-700">{formatVnd(stats.costVnd)}</span>
                         <br />
@@ -766,7 +917,7 @@ export default async function AdminApiStatsPage({
       <Card>
         <CardHeader>
           <CardTitle>{tr('Theo độ phân giải ảnh', 'By image resolution', '按图像分辨率', '画像解像度別', '이미지 해상도별')}</CardTitle>
-          <p className="text-sm text-muted-foreground">{tr('Số lượt gọi trả ảnh 2K, 4K hoặc không trả ảnh (chỉ text)', 'Calls returning 2K, 4K images or no image (text only)', '返回2K、4K图片或不返回图片（仅文本）的调用次数', '2K/4K画像返却または画像なし（テキストのみ）の呼び出し', '2K/4K 이미지 반환 또는 이미지 없음(텍스트만) 호출 수')}</p>
+          <p className="text-sm text-muted-foreground">{tr('Số lượt gọi trả ảnh 1K, 2K, 4K hoặc không trả ảnh (chỉ text)', 'Calls returning 1K, 2K, 4K images or no image (text only)', '返回 1K、2K、4K 图片或不返回图片（仅文本）', '1K/2K/4K画像または画像なし（テキストのみ）', '1K/2K/4K 이미지 또는 이미지 없음(텍스트만)')}</p>
         </CardHeader>
         <CardContent>
           <Table>
@@ -781,14 +932,21 @@ export default async function AdminApiStatsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(['2K', '4K', 'no-image'] as const).map((key) => {
-                const label = key === '2K' ? '2K' : key === '4K' ? '4K' : tr('Không trả ảnh', 'No image', '无图片', '画像なし', '이미지 없음')
+              {(['1K', '2K', '4K', 'no-image'] as const).map((key) => {
+                const label =
+                  key === '1K'
+                    ? '1K'
+                    : key === '2K'
+                      ? '2K'
+                      : key === '4K'
+                        ? '4K'
+                        : tr('Không trả ảnh', 'No image', '无图片', '画像なし', '이미지 없음')
                 const stats = byImageSize[key]
                 if (!stats || stats.calls === 0) return null
                 return (
                   <TableRow key={key}>
                     <TableCell>
-                      <Badge variant={key === 'no-image' ? 'secondary' : 'outline'} className={key === '2K' ? 'text-sky-600 border-sky-300' : key === '4K' ? 'text-amber-600 border-amber-300' : ''}>
+                      <Badge variant={key === 'no-image' ? 'secondary' : 'outline'} className={key === '1K' || key === '2K' ? 'text-sky-600 border-sky-300' : key === '4K' ? 'text-amber-600 border-amber-300' : ''}>
                         {label}
                       </Badge>
                     </TableCell>
@@ -831,7 +989,8 @@ export default async function AdminApiStatsPage({
                   log.prompt_token_count || 0,
                   log.candidates_token_count || 0,
                   log.model,
-                  (log as { image_size?: string | null }).image_size
+                  (log as { image_size?: string | null }).image_size,
+                  { usdToVnd }
                 ),
               }))}
               featureLabels={featureLabelsMerged}

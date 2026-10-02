@@ -128,6 +128,11 @@ export const USD_TO_VND = 25_000
 
 const DEFAULT_FALLBACK_MODEL = 'gemini-3-flash-preview'
 
+/** Model có dòng trong bảng giá. Model lạ đang bị tính theo gemini-3-flash-preview. */
+export function isListedApiCostModel(model: string): boolean {
+  return Object.prototype.hasOwnProperty.call(API_COST_PER_1M, model)
+}
+
 export function getPartnerAiTokenCostUsdToVnd(): number {
   const raw = process.env.PARTNER_AI_TOKEN_COST_USD_TO_VND?.trim()
   if (!raw) return USD_TO_VND
@@ -249,13 +254,18 @@ export function partnerAiAggregatedModelRowsEstimatedCostVnd<T extends PartnerAi
   rows: T[],
   usdToVnd = getPartnerAiTokenCostUsdToVnd()
 ): { totalVnd: number; rows: Array<T & { estimated_cost_vnd: number }> } {
-  const out = rows.map((r) => ({
-    ...r,
-    estimated_cost_vnd: calcCostVnd(r.sum_prompt_tokens, r.sum_completion_tokens, r.model, null, {
+  const out = rows.map((r) => {
+    const split = calcCostVndSplit(r.sum_prompt_tokens, r.sum_completion_tokens, r.model, null, {
       usdToVnd,
       pricingMode: 'aggregate_short',
-    }),
-  }))
+    })
+    return {
+      ...r,
+      estimated_cost_vnd: split.totalVnd,
+      estimated_input_vnd: split.inputVnd,
+      estimated_output_vnd: split.outputVnd,
+    }
+  })
   const totalVnd = out.reduce((s, x) => s + x.estimated_cost_vnd, 0)
   return { totalVnd, rows: out }
 }
@@ -272,9 +282,9 @@ export function partnerAiTokenDetailRowEstimatedCostVnd(
   let p = Math.max(0, row.prompt_tokens ?? 0)
   let c = Math.max(0, row.completion_tokens ?? 0)
   if (p === 0 && c === 0 && row.total_tokens != null && row.total_tokens > 0) {
-    const t = row.total_tokens
-    p = Math.floor(t / 2)
-    c = t - p
+    // Thiếu tách input/output: tính cả khối theo giá input. Chia 50/50 sẽ gán nhầm phần đắt (output).
+    p = row.total_tokens
+    c = 0
   }
   return calcCostVnd(p, c, row.model, null, { usdToVnd, pricingMode: 'per_call' })
 }

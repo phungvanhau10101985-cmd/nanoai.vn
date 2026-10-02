@@ -125,8 +125,13 @@ const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 const creditFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
 const vndFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 
-function utcYmdToday(): string {
-  return new Date().toISOString().slice(0, 10)
+function ictYmdToday(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
 }
 
 function dateTimeForLocale(iso: string, locale: WebLocale): string {
@@ -175,6 +180,7 @@ function tokenUsageDetailKindLabel(row: PartnerAiTokenUsageDetailRowWithCostEsti
   if (k === 'material_infer') return t.usageTokenKindMaterialInfer
   if (k === 'image_material_detail') return t.usageImageGenKindMaterial
   if (k === 'image_real_use') return t.usageImageGenKindRealUse
+  if (k === 'image_landing_material') return t.usageTokenKindLandingImage
   return k
 }
 
@@ -183,7 +189,15 @@ function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
   if (kind === 'material_infer') return t.usageTokenKindMaterialInfer
   if (kind === 'image_material_detail') return t.usageImageGenKindMaterial
   if (kind === 'image_real_use') return t.usageImageGenKindRealUse
+  if (kind === 'image_landing_material') return t.usageTokenKindLandingImage
   return kind
+}
+
+function formatUsageCostShare(part: number, whole: number): string {
+  if (!(whole > 0)) return '—'
+  const pct = (part / whole) * 100
+  if (pct > 0 && pct < 0.1) return '<0,1%'
+  return `${pct.toLocaleString('vi-VN', { maximumFractionDigits: 1, minimumFractionDigits: 1 })}%`
 }
 
 function defaultsFromSettings(s: SettingsRow | null) {
@@ -322,6 +336,7 @@ export function PartnerAiSettingsPanel({
   const [tokenUsageCostBreakdown, setTokenUsageCostBreakdown] = useState<PartnerAiUsageCostBreakdown | null>(
     null
   )
+  const [usageSlice, setUsageSlice] = useState<'overview' | 'time' | 'calls' | 'media'>('overview')
   const [tokenDetailsEstimatedCostVndTotal, setTokenDetailsEstimatedCostVndTotal] = useState(0)
   const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
   const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
@@ -351,7 +366,7 @@ export function PartnerAiSettingsPanel({
     )
   }, [partnerId, panelMode])
   useEffect(() => {
-    const d = utcYmdToday()
+    const d = ictYmdToday()
     setUsageCalendarFrom(d)
     setUsageCalendarTo(d)
     setUsageTodayUtc(d)
@@ -517,8 +532,8 @@ export function PartnerAiSettingsPanel({
               ? { type: 'rolling', period: usagePeriodRef.current }
               : {
                   type: 'calendar',
-                  fromDayUtc: usageCalendarFromRef.current || utcYmdToday(),
-                  toDayUtc: usageCalendarToRef.current || utcYmdToday(),
+                  fromDayUtc: usageCalendarFromRef.current || ictYmdToday(),
+                  toDayUtc: usageCalendarToRef.current || ictYmdToday(),
                 }
           await loadUsageAnalyticsWithSeq(seq, usageQuery)
         }
@@ -1294,8 +1309,8 @@ export function PartnerAiSettingsPanel({
                       if (mode === 'rolling') {
                         void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: usagePeriod })
                       } else {
-                        const from = usageCalendarFrom || utcYmdToday()
-                        const to = usageCalendarTo || utcYmdToday()
+                        const from = usageCalendarFrom || ictYmdToday()
+                        const to = usageCalendarTo || ictYmdToday()
                         if (!usageCalendarFrom) setUsageCalendarFrom(from)
                         if (!usageCalendarTo) setUsageCalendarTo(to)
                         void loadUsageAnalyticsWithSeq(seq, {
@@ -1390,6 +1405,52 @@ export function PartnerAiSettingsPanel({
                 )}
               </div>
             </div>
+
+            {tokenUsageRows.length > 0 ? (
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColCalls}</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0))}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColPrompt}</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.sum_prompt_tokens, 0))}
+                  </p>
+                  <p className="text-[11px] tabular-nums text-amber-700">
+                    {vndFmt.format(tokenUsageRows.reduce((sum, row) => sum + (row.estimated_input_vnd || 0), 0))}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColCompletion}</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.sum_completion_tokens, 0))}
+                  </p>
+                  <p className="text-[11px] tabular-nums text-amber-700">
+                    {vndFmt.format(tokenUsageRows.reduce((sum, row) => sum + (row.estimated_output_vnd || 0), 0))}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColEstimatedCost}</p>
+                  <p className="text-lg font-semibold tabular-nums">{vndFmt.format(tokenUsageEstimatedCostVndTotal)}</p>
+                </div>
+                <div className="rounded-lg border bg-background px-3 py-2">
+                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageKpiAvg}</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {vndFmt.format(
+                      tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0) > 0
+                        ? Math.round(
+                            tokenUsageEstimatedCostVndTotal /
+                              tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0)
+                          )
+                        : 0
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : null}
 
             <div className="space-y-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 dark:border-amber-500/25 dark:bg-amber-950/20">
               <div>
@@ -1536,18 +1597,30 @@ export function PartnerAiSettingsPanel({
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                      <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                       <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {tokenUsageRows.map((row) => (
+                    {[...tokenUsageRows]
+                      .sort((a, b) => b.estimated_cost_vnd - a.estimated_cost_vnd)
+                      .map((row) => (
                       <tr key={`${row.provider}:${row.model}`} className="border-b border-border/60 last:border-0">
                         <td className="p-2 capitalize">{row.provider}</td>
                         <td className="p-2 font-mono text-[11px]">{row.model}</td>
                         <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
-                        <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_prompt_tokens)}</td>
-                        <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
+                        <td className="p-2 tabular-nums">
+                          {tokenFmt.format(row.sum_prompt_tokens)}
+                          <div className="text-[10px] text-amber-700">{vndFmt.format(row.estimated_input_vnd || 0)}</div>
+                        </td>
+                        <td className="p-2 tabular-nums">
+                          {tokenFmt.format(row.sum_completion_tokens)}
+                          <div className="text-[10px] text-amber-700">{vndFmt.format(row.estimated_output_vnd || 0)}</div>
+                        </td>
                         <td className="p-2 tabular-nums font-medium">{tokenFmt.format(row.sum_total_tokens)}</td>
+                        <td className="p-2 tabular-nums text-muted-foreground">
+                          {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
+                        </td>
                         <td className="p-2 tabular-nums font-medium text-foreground">
                           {vndFmt.format(row.estimated_cost_vnd)}
                         </td>
@@ -1558,6 +1631,30 @@ export function PartnerAiSettingsPanel({
               </div>
             )}
 
+            <div className="flex flex-wrap gap-1.5">
+              {(
+                [
+                  ['overview', t.usageSliceOverview],
+                  ['time', t.usageSliceTime],
+                  ['calls', t.usageSliceCalls],
+                  ['media', t.usageSliceMedia],
+                ] as const
+              ).map(([id, label]) => (
+                <Button
+                  key={id}
+                  type="button"
+                  size="sm"
+                  variant={usageSlice === id ? 'default' : 'outline'}
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() => setUsageSlice(id)}
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+
+            {usageSlice === 'overview' ? (
+            <>
             {tokenUsageCostBreakdown && tokenUsageCostBreakdown.byKind.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">{t.tokenUsageByKindTitle}</h3>
@@ -1571,6 +1668,7 @@ export function PartnerAiSettingsPanel({
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                       </tr>
                     </thead>
@@ -1588,6 +1686,9 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
                           </td>
                           <td className="p-2 tabular-nums font-medium text-foreground">
                             {vndFmt.format(row.estimated_cost_vnd)}
@@ -1653,6 +1754,7 @@ export function PartnerAiSettingsPanel({
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                       </tr>
                     </thead>
@@ -1673,6 +1775,9 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
                           </td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
+                          </td>
                           <td className="p-2 tabular-nums font-medium text-foreground">
                             {vndFmt.format(row.estimated_cost_vnd)}
                           </td>
@@ -1683,7 +1788,11 @@ export function PartnerAiSettingsPanel({
                 </div>
               </div>
             ) : null}
+            </>
+            ) : null}
 
+            {usageSlice === 'time' ? (
+            <>
             {tokenUsageCostBreakdown && tokenUsageCostBreakdown.daily.length > 0 ? (
               <div className="space-y-2">
                 <h3 className="text-sm font-medium">{t.tokenUsageByDayTitle}</h3>
@@ -1697,6 +1806,7 @@ export function PartnerAiSettingsPanel({
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                       </tr>
                     </thead>
@@ -1711,6 +1821,9 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
                           </td>
                           <td className="p-2 tabular-nums font-medium text-foreground">
                             {vndFmt.format(row.estimated_cost_vnd)}
@@ -1769,6 +1882,7 @@ export function PartnerAiSettingsPanel({
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                       </tr>
                     </thead>
@@ -1783,6 +1897,9 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_completion_tokens)}</td>
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
+                          </td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
                           </td>
                           <td className="p-2 tabular-nums font-medium text-foreground">
                             {vndFmt.format(row.estimated_cost_vnd)}
@@ -1808,6 +1925,7 @@ export function PartnerAiSettingsPanel({
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColPrompt}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCompletion}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
                         <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                       </tr>
                     </thead>
@@ -1823,6 +1941,9 @@ export function PartnerAiSettingsPanel({
                           <td className="p-2 tabular-nums font-medium">
                             {tokenFmt.format(row.sum_total_tokens)}
                           </td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
+                          </td>
                           <td className="p-2 tabular-nums font-medium text-foreground">
                             {vndFmt.format(row.estimated_cost_vnd)}
                           </td>
@@ -1833,12 +1954,20 @@ export function PartnerAiSettingsPanel({
                 </div>
               </div>
             ) : null}
+            </>
+            ) : null}
 
+            {usageSlice === 'media' ? (
+            <>
             <div className="space-y-2">
               <h3 className="text-sm font-medium">{t.usageImageGenTitle}</h3>
               {(() => {
                 const nanoCalls = imageGenRows.reduce((s, r) => s + r.call_count, 0)
                 const nanoTokens = imageGenRows.reduce((s, r) => s + r.sum_total_tokens, 0)
+                const nanoCost = imageGenRows.reduce((s, r) => {
+                  const hit = tokenUsageCostBreakdown?.byKind.find((k) => k.usage_kind === r.usage_kind)
+                  return s + (hit?.estimated_cost_vnd ?? 0)
+                }, 0)
                 return (
                   <div className="flex flex-col gap-1.5 rounded-lg border border-violet-500/25 bg-violet-500/[0.07] px-3 py-2.5 dark:border-violet-500/30 dark:bg-violet-950/25">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1853,6 +1982,9 @@ export function PartnerAiSettingsPanel({
                       </span>
                       <span className="tabular-nums text-muted-foreground">
                         {t.usageNanoBananaStatTokens.replace('{tokens}', tokenFmt.format(nanoTokens))}
+                      </span>
+                      <span className="tabular-nums font-medium text-amber-800">
+                        {vndFmt.format(nanoCost)}
                       </span>
                     </div>
                   </div>
@@ -1874,6 +2006,7 @@ export function PartnerAiSettingsPanel({
                           <th className="p-2 font-medium">{t.usageImageGenColKind}</th>
                           <th className="p-2 font-medium tabular-nums">{t.usageImageGenColCalls}</th>
                           <th className="p-2 font-medium tabular-nums">{t.usageImageGenColTotalTokens}</th>
+                          <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1890,6 +2023,12 @@ export function PartnerAiSettingsPanel({
                             <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
                             <td className="p-2 tabular-nums font-medium">
                               {tokenFmt.format(row.sum_total_tokens)}
+                            </td>
+                            <td className="p-2 tabular-nums font-medium text-foreground">
+                              {vndFmt.format(
+                                tokenUsageCostBreakdown?.byKind.find((k) => k.usage_kind === row.usage_kind)
+                                  ?.estimated_cost_vnd ?? 0
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -2067,7 +2206,10 @@ export function PartnerAiSettingsPanel({
                 </div>
               )}
             </div>
+            </>
+            ) : null}
 
+            {usageSlice === 'calls' ? (
             <div className="space-y-2 border-t border-border/50 pt-3">
               <div>
                 <h3 className="text-sm font-medium">{t.usageDetailApiTitle}</h3>
@@ -2078,6 +2220,15 @@ export function PartnerAiSettingsPanel({
                       '{amount}',
                       vndFmt.format(tokenDetailsEstimatedCostVndTotal)
                     )}
+                  </p>
+                ) : null}
+                {tokenUsageEstimatedCostVndTotal > 0 &&
+                tokenDetailsEstimatedCostVndTotal > 0 &&
+                tokenDetailsEstimatedCostVndTotal !== tokenUsageEstimatedCostVndTotal ? (
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">
+                    {t.tokenUsageDetailMismatchNote
+                      .replace('{detailAmount}', vndFmt.format(tokenDetailsEstimatedCostVndTotal))
+                      .replace('{periodAmount}', vndFmt.format(tokenUsageEstimatedCostVndTotal))}
                   </p>
                 ) : null}
                 {tokenDetailRows.length === 0 ? (
@@ -2122,6 +2273,7 @@ export function PartnerAiSettingsPanel({
                 )}
               </div>
             </div>
+            ) : null}
             </div>
           </TabsContent>
           ) : null}

@@ -1,5 +1,6 @@
 import type { ApiUsageLogRow } from './fetch-api-usage-logs-range'
-import { calcCostVndSplit } from './api-cost'
+import { calcCostVndSplit, USD_TO_VND } from './api-cost'
+import { ictYmdFromTimestamp } from './ict-date'
 
 export const API_USAGE_CHART_OTHER_KEY = '__other__' as const
 
@@ -57,7 +58,8 @@ export function buildApiUsageChartData(
   fromYmd: string,
   toYmd: string,
   localeTag: string,
-  topModels = 8
+  topModels = 8,
+  usdToVnd = USD_TO_VND
 ): ApiUsageChartPayload {
   const days = enumerateDaysInclusive(fromYmd, toYmd)
   const dailyAgg = new Map<
@@ -70,7 +72,14 @@ export function buildApiUsageChartData(
 
   const modelTotals = new Map<string, number>()
   for (const log of logs) {
-    modelTotals.set(log.model, (modelTotals.get(log.model) ?? 0) + 1)
+    const split = calcCostVndSplit(
+      log.prompt_token_count || 0,
+      log.candidates_token_count || 0,
+      log.model,
+      (log as { image_size?: string | null }).image_size,
+      { usdToVnd }
+    )
+    modelTotals.set(log.model, (modelTotals.get(log.model) ?? 0) + split.totalVnd)
   }
   const sortedModels = [...modelTotals.entries()].sort((a, b) => b[1] - a[1])
   const topKeys = sortedModels.slice(0, topModels).map(([k]) => k)
@@ -88,14 +97,15 @@ export function buildApiUsageChartData(
 
   let otherAny = false
   for (const log of logs) {
-    const day = String(log.created_at).slice(0, 10)
+    const day = ictYmdFromTimestamp(log.created_at)
     const bucket = dailyAgg.get(day)
     if (!bucket) continue
     const split = calcCostVndSplit(
       log.prompt_token_count || 0,
       log.candidates_token_count || 0,
       log.model,
-      (log as { image_size?: string | null }).image_size
+      (log as { image_size?: string | null }).image_size,
+      { usdToVnd }
     )
     bucket.requests += 1
     bucket.inputTokens += log.prompt_token_count || 0

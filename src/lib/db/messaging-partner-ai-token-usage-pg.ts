@@ -72,7 +72,7 @@ export async function fetchMessagingPartnerAiTokenStatsByUsageKindFromPg(
   }
 }
 
-/** Tổng hợp theo ngày (UTC) trong khoảng thời gian. */
+/** Tổng hợp theo ngày giờ Việt Nam (ICT, +07) trong khoảng thời gian. */
 export type PartnerAiTokenDailyStatRow = {
   day_utc: string
   call_count: number
@@ -81,7 +81,7 @@ export type PartnerAiTokenDailyStatRow = {
   sum_total_tokens: number
 }
 
-/** Gom token theo ngày UTC + model — dùng tính chi phí VNĐ chính xác theo ngày. */
+/** Gom token theo ngày ICT + model — dùng tính chi phí VNĐ theo ngày giờ Việt Nam. */
 export type PartnerAiTokenDailyModelStatRow = {
   day_utc: string
   provider: string
@@ -109,7 +109,7 @@ export async function fetchMessagingPartnerAiTokenDailyByModelFromPg(
       sum_total_tokens: string | number | null
     }>(
       `select
-        (date_trunc('day', u.created_at at time zone 'UTC'))::date as day_utc,
+        (date_trunc('day', u.created_at at time zone 'Asia/Ho_Chi_Minh'))::date as day_utc,
         u.provider,
         u.model,
         count(*)::bigint as call_count,
@@ -218,7 +218,7 @@ export async function fetchMessagingPartnerAiTokenDailyStatsFromPg(
       sum_total_tokens: string | number | null
     }>(
       `select
-        (date_trunc('day', u.created_at at time zone 'UTC'))::date as day_utc,
+        (date_trunc('day', u.created_at at time zone 'Asia/Ho_Chi_Minh'))::date as day_utc,
         count(*)::bigint as call_count,
         coalesce(sum(u.prompt_tokens), 0)::bigint as sum_prompt_tokens,
         coalesce(sum(u.completion_tokens), 0)::bigint as sum_completion_tokens,

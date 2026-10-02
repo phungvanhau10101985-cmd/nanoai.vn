@@ -9,6 +9,7 @@ import {
   partnerAdminFulfillmentFilterSql,
   partnerAdminLifecycleSql,
   partnerAdminPaymentFilterSql,
+  partnerAdminRevenueDuplicateOrderBySql,
   type PartnerAdminFulfillmentFilter,
   type PartnerAdminLifecycleTab,
   type PartnerAdminPaymentFilter,
@@ -2045,7 +2046,70 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
   if (!from || !to) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
-      `select
+      `with scoped as (
+         select
+            o.id,
+            o.status,
+            o.shipping_status,
+            o.refund_status,
+            o.paid_amount,
+            o.required_amount,
+            o.amount_after_discount,
+            o.subtotal_amount,
+            o.created_at,
+            concat_ws('||',
+              o.partner_id::text,
+              coalesce(
+                nullif(right(regexp_replace(coalesce(o.customer_phone, ''), '\\D', '', 'g'), 9), ''),
+                nullif(lower(btrim(coalesce(o.customer_email, ''))), ''),
+                nullif(regexp_replace(lower(btrim(coalesce(o.customer_name, ''))), '\\s+', ' ', 'g'), ''),
+                o.id::text
+              ),
+              trunc(coalesce(${ORDER_TOTAL_EXPR}, 0))::bigint::text,
+              trunc(coalesce(o.shipping_fee_amount, 0))::bigint::text,
+              coalesce(nullif(cart.cart_key, ''), nullif(concat_ws(':',
+                lower(btrim(coalesce(o.product_name, ''))),
+                lower(btrim(coalesce(o.variant_color, ''))),
+                lower(btrim(coalesce(o.variant_size, ''))),
+                coalesce(o.quantity, 1)::text
+              ), ''), o.id::text)
+            ) as dup_key
+         from public.messaging_partner_orders o
+         join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
+         left join lateral (
+           select string_agg(piece, '|' order by piece) as cart_key
+           from (
+             select concat_ws(':',
+               coalesce(
+                 nullif(l.product_inventory_id::text, ''),
+                 nullif(lower(btrim(coalesce(l.product_sku_snapshot, ''))), ''),
+                 lower(btrim(coalesce(l.product_name, '')))
+               ),
+               lower(btrim(coalesce(l.variant_color, ''))),
+               lower(btrim(coalesce(l.variant_size, ''))),
+               coalesce(l.quantity, 1)::text
+             ) as piece
+             from public.messaging_partner_order_lines l
+             where l.order_id = o.id
+           ) pieces
+         ) cart on true
+         where ($2::uuid is null or o.partner_id = $2::uuid)
+           and nullif(trim(o.payment_reference), '') is not null
+           and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
+           and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $4::date
+       ),
+       picked as (
+         select * from (
+           select s.*,
+             row_number() over (
+               partition by s.dup_key
+               order by ${partnerAdminRevenueDuplicateOrderBySql('s')}
+             ) as rn
+           from scoped s
+         ) ranked
+         where rn = 1
+       )
+       select
           count(*)::int as total_orders,
           coalesce(sum(${ORDER_TOTAL_EXPR}), 0)::double precision as total_revenue,
           count(*) filter (where ${partnerAdminLifecycleSql('waiting_deposit')})::int as waiting_deposit,
@@ -2055,12 +2119,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
           coalesce(sum(coalesce(o.paid_amount, 0)) filter (where ${partnerAdminDepositedOrderSql()}), 0)::double precision as deposited_amount,
           count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled,
           count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned
-       from public.messaging_partner_orders o
-       join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
-       where ($2::uuid is null or o.partner_id = $2::uuid)
-         and nullif(trim(o.payment_reference), '') is not null
-         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date >= $3::date
-         and (o.created_at at time zone 'Asia/Ho_Chi_Minh')::date <= $4::date`,
+       from picked o`,
       [input.ownerUserId, partnerId || null, from, to]
     )
     const n = (k: string) => Math.max(0, Math.floor(Number(row?.[k]) || 0))
