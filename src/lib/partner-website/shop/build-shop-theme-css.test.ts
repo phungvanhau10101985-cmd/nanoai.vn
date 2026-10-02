@@ -168,6 +168,7 @@ test('shop theme CSS defaults desktop/laptop PDP detail photos to half the descr
   assert.match(css, /\.pw-pdp-detail-photos img\{[^}]*content-visibility:visible/)
   assert.match(css, /\.pw-pdp-detail-photos img\{[^}]*border-radius:0/)
   assert.match(css, /\.pw-pdp-detail-photos img\{[^}]*border:0/)
+  assert.match(css, /\.pw-pdp-detail-photos img\+img\{[^}]*margin-top:-1px/)
   assert.doesNotMatch(css, /\.pw-pdp-detail-photos\{[^}]*gap:16px/)
   assert.match(css, /content-visibility:auto/)
   assert.doesNotMatch(css, /\[data-pw-pdp-slot="material"\][^}]*width:50%/)
