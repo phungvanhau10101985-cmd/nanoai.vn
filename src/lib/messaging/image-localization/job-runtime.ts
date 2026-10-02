@@ -10,6 +10,7 @@ import {
   resetStaleImageLocProcessingFromPg,
   updateImageLocJobFromPg,
 } from '@/lib/db/messaging-partner-image-localization-pg'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   imageLocAiExplicitOnly,
   imageLocAiJobsAllowed,
@@ -18,9 +19,8 @@ import {
   imageLocJobQueueIdsMax,
   imageLocMaxAutoResumeCount,
   imageLocMaxConsecutiveProductFailures,
-} from '@/lib/messaging/image-localization/job-runtime-limits'
-import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
-import { imageLocStallMinutes } from './image-localization-config'
+  imageLocStallMinutes,
+} from './image-localization-config'
 import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } from './deepseek-pricing'
 import { processInventoryProduct } from './process-product'
 import { loadImageLocBrandLogoBytes } from './overlay-brand-logo'
