@@ -4,6 +4,7 @@ import { resumeImageLocalizationAfterRestart } from '@/lib/messaging/image-local
 
 /**
  * Phục hồi job bản địa hóa ảnh sau restart PM2 — mirror 188 start_resume_daemon.
+ * Job queued/running chưa xong được spawn lại trên process mới (deploy). Trần chỉ trong cùng process.
  * GET|POST + Authorization: Bearer <MESSAGING_PARTNER_AI_CRON_SECRET>.
  */
 async function handleCron(req: NextRequest) {

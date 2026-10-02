@@ -94,6 +94,27 @@ export function imageLocWorkerAlive(partnerId: string, jobId: string): boolean {
   return workerRegistry.has(workerKey(partnerId, jobId))
 }
 
+/** Số lần cron đã spawn lại job trong process hiện tại. Deploy/restart PM2 tạo process mới nên đếm lại từ 0. */
+const resumeAttemptsThisProcess = new Map<string, number>()
+
+export type ImageLocAutoResumeDecision = 'running' | 'resume' | 'skip-cap'
+
+/**
+ * Job queued/running chưa xong phải được chạy lại sau deploy.
+ * Trần chỉ chặn vòng crash lặp trong cùng process — không dùng resume_count trên DB.
+ */
+export function imageLocShouldAutoResume(input: {
+  workerAlive: boolean
+  stalled: boolean
+  attemptsThisProcess: number
+  maxAttempts: number
+}): ImageLocAutoResumeDecision {
+  if (input.workerAlive && !input.stalled) return 'running'
+  const max = input.maxAttempts > 0 ? input.maxAttempts : 6
+  if (input.attemptsThisProcess >= max) return 'skip-cap'
+  return 'resume'
+}
+
 async function jobCancelled(partnerId: string, jobId: string): Promise<boolean> {
   const row = await fetchImageLocJobFromPg(partnerId, jobId)
   if (!row) return true
@@ -531,20 +552,25 @@ export async function cancelImageLocalizationJob(
 
 export async function resumeImageLocalizationAfterRestart(): Promise<{ resumed: number; skipped: number }> {
   const jobs = await listResumableImageLocJobsFromPg()
+  const maxAttempts = imageLocMaxAutoResumeCount()
   let resumed = 0
   let skipped = 0
   for (const job of jobs) {
-    if (job.resume_count >= imageLocMaxAutoResumeCount()) {
+    const key = workerKey(job.partner_id, job.job_id)
+    const workerAlive = imageLocWorkerAlive(job.partner_id, job.job_id)
+    const decision = imageLocShouldAutoResume({
+      workerAlive,
+      stalled: imageLocJobIsStalled(job),
+      attemptsThisProcess: resumeAttemptsThisProcess.get(key) || 0,
+      maxAttempts,
+    })
+    if (decision === 'running') continue
+    if (decision === 'skip-cap') {
       skipped += 1
       continue
     }
-    if (imageLocWorkerAlive(job.partner_id, job.job_id)) {
-      if (!imageLocJobIsStalled(job)) continue
-      spawn(job.partner_id, job.job_id, true, true)
-      resumed += 1
-      continue
-    }
-    spawn(job.partner_id, job.job_id, true)
+    resumeAttemptsThisProcess.set(key, (resumeAttemptsThisProcess.get(key) || 0) + 1)
+    spawn(job.partner_id, job.job_id, true, workerAlive)
     resumed += 1
   }
   return { resumed, skipped }

@@ -7,7 +7,7 @@ import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vis
 import { overlayTranslatedText } from '@/lib/translate-overlay'
 import { mergeDenseImageLocOverlayItems } from './local-pipeline'
 import { isTransientImageLocDbError } from './process-product'
-import { imageLocJobIsStalled } from './job-runtime'
+import { imageLocJobIsStalled, imageLocShouldAutoResume } from './job-runtime'
 
 const originalPublicBase = process.env.BUNNY_STORAGE_PUBLIC_BASE_URL
 
@@ -121,6 +121,36 @@ describe('image localization runtime parity', () => {
     assert.equal(isTransientImageLocDbError({ code: '40001' }), true)
     assert.equal(isTransientImageLocDbError(new Error('read ECONNRESET')), true)
     assert.equal(isTransientImageLocDbError({ code: '23505' }), false)
+  })
+
+  it('resumes an unfinished job after deploy even when the database resume count is already at the cap', () => {
+    assert.equal(
+      imageLocShouldAutoResume({
+        workerAlive: false,
+        stalled: true,
+        attemptsThisProcess: 0,
+        maxAttempts: 6,
+      }),
+      'resume'
+    )
+    assert.equal(
+      imageLocShouldAutoResume({
+        workerAlive: true,
+        stalled: false,
+        attemptsThisProcess: 0,
+        maxAttempts: 6,
+      }),
+      'running'
+    )
+    assert.equal(
+      imageLocShouldAutoResume({
+        workerAlive: false,
+        stalled: true,
+        attemptsThisProcess: 6,
+        maxAttempts: 6,
+      }),
+      'skip-cap'
+    )
   })
 
   it('replaces stalled processing workers but never off-peak waiters', () => {

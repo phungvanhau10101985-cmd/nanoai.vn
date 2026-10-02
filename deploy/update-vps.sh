@@ -92,6 +92,23 @@ ensure_cron() {
   (crontab -l 2>/dev/null | grep -v "${marker}"; echo "${line}") | crontab -
 }
 
+# Job bản địa hóa queued/running chết cùng PM2. Gọi ngay sau health, không chờ cron phút sau.
+resume_unfinished_image_localization() {
+  local secret
+  secret="$(env_read MESSAGING_PARTNER_AI_CRON_SECRET)"
+  if [[ -z "${secret}" ]]; then secret="$(env_read CRON_SECRET)"; fi
+  if [[ -z "${secret}" ]]; then
+    echo "  Cảnh báo: thiếu cron secret — không resume bản địa hóa ảnh."
+    return 0
+  fi
+  local body
+  if body="$(curl -fsS -m 120 -X POST http://127.0.0.1:3000/api/cron/image-localization-resume -H "Authorization: Bearer ${secret}")"; then
+    echo "  Resume bản địa hóa ảnh: ${body}"
+  else
+    echo "  Cảnh báo: gọi image-localization-resume thất bại — cron mỗi phút sẽ thử lại."
+  fi
+}
+
 # Tắt toàn bộ PM2 + build tay + process mồ côi — không app web nào chạy trong lúc lint/build.
 stop_all_apps_for_deploy() {
   echo "  NODE_OPTIONS=${NODE_OPTIONS}"
@@ -551,6 +568,7 @@ else
     exit 1
   fi
 fi
+resume_unfinished_image_localization
 echo "  DONE [14/15]"
 
 echo "[15/15] Start 188 + edge stack (nginx + domain)"
