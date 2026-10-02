@@ -13,6 +13,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const OUTPAINT_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -94,6 +95,8 @@ export async function outpaintImage(formData: FormData) {
   ]
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'mo-rong-khung-hinh', user.id, imageQuality)

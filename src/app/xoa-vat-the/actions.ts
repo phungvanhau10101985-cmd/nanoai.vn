@@ -14,6 +14,7 @@ import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const ERASER_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -92,6 +93,8 @@ export async function eraseObjects(formData: FormData) {
   ]
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xoa-vat-the', user.id, imageQuality)

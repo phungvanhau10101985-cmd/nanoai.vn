@@ -6,6 +6,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildTransparentPngFromMask } from '@/lib/mask-to-transparent'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   removeBgMaskPrompt,
   type RemoveBgMaskVariant,
@@ -39,6 +40,8 @@ export async function buildTransparentPngWithGeminiMask(input: {
   variant: RemoveBgMaskVariant
   imageSize?: '2K' | '4K'
 }): Promise<Buffer> {
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) throw new Error(bunnyReady.error)
   const mimeType = input.mimeType || 'image/png'
   const imageSize = input.imageSize || '2K'
   const genAI = new GoogleGenerativeAI(input.apiKey)

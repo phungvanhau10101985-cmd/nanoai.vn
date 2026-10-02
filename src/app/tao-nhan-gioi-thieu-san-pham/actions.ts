@@ -12,6 +12,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 
 const LABEL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -322,6 +323,8 @@ export async function createProductLabel(formData: FormData) {
   if (logoPart) contentParts.push(logoPart)
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const result = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gioi-thieu-san-pham', user.id, imageQuality)
@@ -435,6 +438,8 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   ]
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(
       [MOCKUP_PROMPT, productImagePart, labelImagePart],
       { safetySettings }

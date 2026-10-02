@@ -5,6 +5,7 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const toTenths = (value: number) => Math.round(value * 10)
@@ -36,6 +37,9 @@ export async function runFaceCropOutpaint(input: {
   if (toTenths(balance) < toTenths(UI_MOCKUP_CREDIT)) {
     return { ok: false, error: `Không đủ credits (cần ${UI_MOCKUP_CREDIT}).` }
   }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
   const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
   const genAI = new GoogleGenerativeAI(apiKey)

@@ -15,6 +15,7 @@ import { detectFaceInTargetImage, detectFacesInTargetImage, extractFaceFromSourc
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const FACESWAP_COSTS = { '2K': 1, '4K': 2 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -286,6 +287,8 @@ ${NO_TEXT}`
       )
     }
 
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     logGeminiResponse('single_call_vision_local', genResult)

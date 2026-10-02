@@ -12,6 +12,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 
 const SEAL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -130,6 +131,8 @@ export async function createSealLabelWithAI(formData: FormData) {
   }
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-tem-niem-phong-bao-hanh', user.id, imageQuality)

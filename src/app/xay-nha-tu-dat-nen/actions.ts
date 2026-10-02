@@ -11,6 +11,7 @@ import {
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
@@ -247,6 +248,9 @@ export async function step1Build3D(formData: FormData) {
   let promptEn = (synthRes.response.text?.() || '').trim()
   if (!promptEn) promptEn = userInput
 
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { error: bunnyReady.error }
+
   const imageModel = genAI.getGenerativeModel({
     model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
@@ -384,6 +388,9 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const imgBuf = Buffer.from(await imgRes.arrayBuffer())
   const base64 = imgBuf.toString('base64')
 
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { error: bunnyReady.error }
+
   const imageModel = genAI.getGenerativeModel({
     model: GEMINI_3_PRO_IMAGE.model,
     generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
@@ -470,6 +477,9 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const imgRes = await fetch(floorPlanImageUrl)
   const imgBuf = Buffer.from(await imgRes.arrayBuffer())
   const base64 = imgBuf.toString('base64')
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
   const imageModel = genAI.getGenerativeModel({

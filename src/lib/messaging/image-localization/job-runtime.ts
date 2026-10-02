@@ -18,8 +18,9 @@ import {
   imageLocJobQueueIdsMax,
   imageLocMaxAutoResumeCount,
   imageLocMaxConsecutiveProductFailures,
-  imageLocStallMinutes,
-} from './image-localization-config'
+} from '@/lib/messaging/image-localization/job-runtime-limits'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageLocStallMinutes } from './image-localization-config'
 import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } from './deepseek-pricing'
 import { processInventoryProduct } from './process-product'
 import { loadImageLocBrandLogoBytes } from './overlay-brand-logo'
@@ -191,6 +192,19 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
     if (workerSuperseded(partnerId, jobId, epoch)) return
     await finalizeCancelled(partnerId, jobId, done, failed, skipped, total, processed, recent, skippedReports)
     return
+  }
+
+  if (total > 0) {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel(partnerId)
+    if (!bunnyReady.ok) {
+      await updateImageLocJobFromPg(partnerId, jobId, {
+        status: 'error',
+        phase: 'error',
+        message: clip(bunnyReady.error),
+        finished_at: new Date().toISOString(),
+      })
+      return
+    }
   }
 
   for (const inventoryId of queue) {

@@ -7,6 +7,7 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
@@ -336,6 +337,8 @@ ${flashInstruction}`
   })
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const imageResult = await imageModel.generateContent(imagePrompt, { safetySettings: [...safetySettings] } as never)
     const imageResponse = imageResult.response
     void trackFromUsageMetadata(imageResponse.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-infographic-tu-sach', user.id, '2K')

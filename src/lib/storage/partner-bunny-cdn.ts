@@ -124,20 +124,73 @@ export async function uploadPartnerBunnyObject(
   return uploadBunnyStorageObject(path, body, { contentType }, auth)
 }
 
-/** PUT rồi xóa một file nhỏ. 401/thiếu key trả lỗi trước khi gọi model ảnh. */
+const BUNNY_PROBE_BODY = Buffer.from('ok')
+const BUNNY_PROBE_OK_MS = 2 * 60 * 1000
+const bunnyProbeOkUntil = new Map<string, number>()
+
+function clipBunnyProbeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.slice(0, 240)
+}
+
+async function forgetBunnyProbeFile(path: string, auth: BunnyStorageAuth | null): Promise<void> {
+  if (!auth) return
+  try {
+    await deleteBunnyStorageObject(path, auth)
+  } catch {
+    /* Xóa file thử lỗi vẫn coi là ghi được. */
+  }
+}
+
+/** PUT rồi xóa một file nhỏ trên đúng ổ shop. 401/thiếu key trả lỗi trước khi gọi model ảnh. */
 export async function probePartnerBunnyStorageWrite(
   partnerId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const path = `partners/${partnerId}/marketing-banners/_write-probe.txt`
+  const path = `partners/${partnerId}/_write-probe.txt`
   try {
-    await uploadPartnerBunnyObject(partnerId, path, Buffer.from('ok'), 'text/plain')
+    await uploadPartnerBunnyObject(partnerId, path, BUNNY_PROBE_BODY, 'text/plain')
     const auth = (await partnerBunnyAuth(partnerId)) ?? platformBunnyStorageAuth()
-    if (auth) await deleteBunnyStorageObject(path, auth)
+    await forgetBunnyProbeFile(path, auth)
     return { ok: true }
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    return { ok: false, error: message.slice(0, 240) }
+    return { ok: false, error: clipBunnyProbeError(error) }
   }
+}
+
+/** Cùng bước thử trên zone chung (công cụ ảnh nền tảng, không có partnerId). */
+export async function probePlatformBunnyStorageWrite(): Promise<{ ok: true } | { ok: false; error: string }> {
+  const auth = platformBunnyStorageAuth()
+  if (!auth) {
+    return {
+      ok: false,
+      error: 'Thiếu Bunny Storage (BUNNY_STORAGE_ZONE, BUNNY_STORAGE_API_KEY, BUNNY_STORAGE_PUBLIC_BASE_URL).',
+    }
+  }
+  const path = 'platform/_write-probe.txt'
+  try {
+    await uploadBunnyStorageObject(path, BUNNY_PROBE_BODY, { contentType: 'text/plain' }, auth)
+    await forgetBunnyProbeFile(path, auth)
+    return { ok: true }
+  } catch (error) {
+    return { ok: false, error: clipBunnyProbeError(error) }
+  }
+}
+
+/**
+ * Gọi trước model ảnh trả phí khi kết quả phải lưu Bunny.
+ * Một file vài byte, một đường dẫn cố định, ghi đè rồi xóa.
+ * Thành công được nhớ 2 phút theo ổ để một đợt nhiều ảnh không thử lại từng file.
+ */
+export async function ensureBunnyWritableBeforeImageModel(
+  partnerId?: string | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const id = partnerId?.trim() || ''
+  const key = id || 'platform'
+  const until = bunnyProbeOkUntil.get(key) ?? 0
+  if (until > Date.now()) return { ok: true }
+  const result = id ? await probePartnerBunnyStorageWrite(id) : await probePlatformBunnyStorageWrite()
+  if (result.ok) bunnyProbeOkUntil.set(key, Date.now() + BUNNY_PROBE_OK_MS)
+  return result
 }
 
 export async function partnerOrPlatformPublicUrl(partnerId: string, storagePath: string): Promise<string> {

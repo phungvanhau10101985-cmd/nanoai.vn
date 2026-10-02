@@ -7,6 +7,7 @@ import {
   buildMaterialQualityInfographicPrompt,
 } from '@/lib/partner-website/material-quality-infographic-prompt'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 /**
  * L3.4 — Ảnh section "material": image-edit ảnh SP thật thành infographic chất liệu
@@ -76,6 +77,8 @@ export async function generateLandingMaterialImage(input: {
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel(input.partnerId)
+    if (!bunnyReady.ok) return null
     const prompt = buildMaterialCollagePrompt(input)
     const result = await model.generateContent(
       [prompt, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,

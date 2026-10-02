@@ -5,6 +5,7 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/ge
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   completeWeddingAiImage,
   createWeddingCardDraft,
@@ -322,6 +323,8 @@ export async function generateWeddingCardImage(formData: FormData) {
       getReferenceImagePartFromFile(customReferenceImageFile),
     ])
     referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(parts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')

@@ -4,6 +4,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { fetchImageWith1688Bypass, is1688ImageUrl } from '@/lib/fetch-image-1688'
 import { updatePartnerInventoryMaterialDetailImageUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   customerMessageAsksAboutMaterial,
   pickInventoryRowForReferenceImage,
@@ -225,6 +226,12 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
     }
   }
 
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel(partnerId)
+  if (!bunnyReady.ok) {
+    console.warn('[material-detail-image] bunny probe', bunnyReady.error)
+    return emptyFollowup
+  }
+
   const gen = await generateMaterialDetailCollageBuffer(focus.image_url.trim(), focus)
   if (!gen?.buffer.length) return emptyFollowup
 
@@ -279,6 +286,11 @@ export async function regenerateInventoryMaterialDetailImage(
 ): Promise<PartnerMaterialDetailFollowup | null> {
   const src = (row.image_url ?? '').trim()
   if (!/^https?:\/\//i.test(src)) return null
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel(partnerId)
+  if (!bunnyReady.ok) {
+    console.warn('[material-detail-image] bunny probe', bunnyReady.error)
+    return null
+  }
   const gen = await generateMaterialDetailCollageBuffer(src, row)
   if (!gen?.buffer.length) return null
   const stored = await storeGeneratedMaterialDetailImage(partnerId, row.id, gen)

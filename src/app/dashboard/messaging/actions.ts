@@ -13,6 +13,7 @@ import {
   lookupPartnerShipping,
 } from '@/lib/messaging/partner-shipping-lookup'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   clearMessagingPartnerAiImageSearchSecretFromPg,
   emergencyDisablePartnerAiVisionFromPg,
@@ -1942,6 +1943,9 @@ export async function normalizeMessagingWorkspaceLogo(input: {
     return { error: 'Can goi y text hoac anh logo tham chieu (it nhat mot trong hai) de tao icon.' }
   }
   if (!process.env.GOOGLE_API_KEY?.trim()) return { error: 'Missing GOOGLE_API_KEY.' }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const charged = await deductUserCredits(user.id, LOGO_NORMALIZE_COST, 'messaging-workspace-logo-normalize')
   if (!charged.ok) {

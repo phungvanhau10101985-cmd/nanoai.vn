@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const TARGET_LANGUAGES: Record<string, string> = {
   vi: 'Vietnamese (Tiếng Việt)',
@@ -88,6 +89,8 @@ export async function translateOneImage(
   ]
 
   console.log(`${prefix} [Dịch ảnh] Gửi request tới Gemini...`)
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { buffer: Buffer.alloc(0), error: bunnyReady.error }
   const result = await model.generateContent([prompt, imagePart], { safetySettings })
   const response = result.response
 

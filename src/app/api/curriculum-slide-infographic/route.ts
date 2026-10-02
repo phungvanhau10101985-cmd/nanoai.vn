@@ -6,6 +6,7 @@ import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-co
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { randomUUID } from 'crypto'
 import { CURRICULUM_AI_CHARGE_TYPES } from '@/lib/curriculum-ai-credits'
 import {
@@ -225,6 +226,10 @@ ${FLASH_INSTRUCTION}`
         imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
       },
     })
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) {
+      return NextResponse.json({ error: bunnyReady.error }, { status: 503 })
+    }
     let imageResult: Awaited<ReturnType<typeof imageModel.generateContent>>
     try {
       imageResult = await imageModel.generateContent(imagePrompt, {

@@ -12,6 +12,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 
 const IDCARD_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -110,6 +111,8 @@ export async function createIdCard(formData: FormData) {
   ]
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const result = await model.generateContent([prompt, imagePart], { safetySettings })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-anh-the', user.id, imageQuality)

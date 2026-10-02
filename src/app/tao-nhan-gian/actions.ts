@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import sharp from 'sharp'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { stripBackground } from '@/lib/remove-background'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -178,6 +179,11 @@ export async function createStickerLabel(formData: FormData) {
     },
   })
 
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) {
+    await deleteTryOnHistoryRowAndStorage(historyItem.id)
+    return { error: bunnyReady.error }
+  }
   const genResult = await model.generateContent(fullPrompt, { safetySettings })
   const response = genResult.response
   trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gian', user.id, imageQuality)
@@ -338,6 +344,8 @@ export async function createStickerFromPhoto(formData: FormData) {
   })
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(
       [{ text: fullPrompt }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
       { safetySettings: [...photoStickerSafetySettings] } as never

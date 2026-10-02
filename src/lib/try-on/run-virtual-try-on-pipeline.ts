@@ -11,6 +11,7 @@ import {
   getTryOnPublicUrlFromPath,
   removeTryOnStorageObjects,
 } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import {
@@ -91,6 +92,9 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
       error: `Không đủ credits. Cần ${formatCredits(cost)} credits, hiện có ${formatCredits(balanceBefore)}.`,
     }
   }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { error: bunnyReady.error }
 
   const timestamp = Date.now()
   const userImagePath = `uploads/${billingUserId}/user_${timestamp}.png`

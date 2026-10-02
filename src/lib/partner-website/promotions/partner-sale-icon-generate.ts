@@ -195,7 +195,10 @@ export async function generatePartnerSaleIcon(input: {
   }
 
   const actorUserId = input.actorUserId ?? (await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId))
-  if (input.chargeCredits && actorUserId) {
+  if (input.chargeCredits) {
+    if (!actorUserId) {
+      return { ok: false, error: 'Không trừ được credit vì shop chưa có chủ tài khoản.', status: 402 }
+    }
     try {
       const balance = await getCreditBalanceByUserId(actorUserId)
       if (toTenths(balance) < toTenths(PARTNER_SALE_ICON_CREDIT_COST)) {
@@ -246,21 +249,6 @@ export async function generatePartnerSaleIcon(input: {
     const path = `partners/${input.partnerId}/sale-icons/${input.month}-${input.day}-${Date.now()}-${digest}.png`
     const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
     if (!isHttpUrl(publicUrl)) throw new Error('Không tải được icon sale lên kho.')
-    if (input.chargeCredits && actorUserId) {
-      const deducted = await deductUserCredits(
-        actorUserId,
-        PARTNER_SALE_ICON_CREDIT_COST,
-        'partner-sale-icon'
-      )
-      if (!deducted.ok) {
-        await failPartnerSaleIconFromPg({ id: row.id, errorMessage: deducted.error })
-        return {
-          ok: false,
-          error: deducted.error,
-          status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500,
-        }
-      }
-    }
     const ready = await completePartnerSaleIconFromPg({
       id: row.id,
       imageUrl: publicUrl,
@@ -268,6 +256,20 @@ export async function generatePartnerSaleIcon(input: {
       sourcePwaIconUrl: sourcePwa,
     })
     if (!ready) return { ok: false, error: 'Không lưu được icon sale.', status: 500 }
+    if (input.chargeCredits && actorUserId) {
+      const deducted = await deductUserCredits(
+        actorUserId,
+        PARTNER_SALE_ICON_CREDIT_COST,
+        'partner-sale-icon'
+      )
+      if (!deducted.ok) {
+        return {
+          ok: false,
+          error: deducted.error,
+          status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500,
+        }
+      }
+    }
     return { ok: true, asset: ready }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

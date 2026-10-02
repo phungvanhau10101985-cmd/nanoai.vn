@@ -5,6 +5,7 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { loadImageBufferFromUrl } from '@/lib/hub-agent/sharpen-pipeline'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
@@ -37,6 +38,9 @@ export async function runUiMockupPipeline(input: RunUiMockupInput): Promise<RunU
   if (toTenths(balance) < toTenths(UI_MOCKUP_CREDIT)) {
     return { ok: false, error: `Không đủ credits (cần ${UI_MOCKUP_CREDIT}).` }
   }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
   const styleNote =
     input.referenceImageUrls?.length ?

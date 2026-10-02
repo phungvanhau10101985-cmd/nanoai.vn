@@ -8,6 +8,7 @@ import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -218,6 +219,12 @@ export async function enrichInventoryRealUseImageIfNeeded(
       },
       realUsePhotoLimitExceeded: false,
     }
+  }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel(partnerId)
+  if (!bunnyReady.ok) {
+    console.warn('[real-use-image] bunny probe', bunnyReady.error)
+    return empty
   }
 
   const gen = await generateRealUseLifestyleBuffer(focus.image_url.trim(), slot)

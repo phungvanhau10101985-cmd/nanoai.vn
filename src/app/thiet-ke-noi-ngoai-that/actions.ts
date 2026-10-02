@@ -16,6 +16,7 @@ import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 
 import { optimizeInteriorAiInputBuffer } from '@/lib/interior-ai-input-sharp'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const IMAGE_COSTS = APPLY_COSTS
 const ANALYZE_COST = ANALYZE_CREDIT
@@ -323,6 +324,8 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
 
   const resultUrls: string[] = []
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     console.info('[interior-apply] started', {
       userId: user.id,
       imageQuality,
@@ -512,6 +515,8 @@ export async function processInteriorImage(formData: FormData) {
   ]
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const result = await model.generateContent([prompt, imagePart] as never, { safetySettings } as never)
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)

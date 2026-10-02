@@ -6,6 +6,7 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import type { HubAutoRunImageQuality } from '@/lib/hub-agent/auto-run-support'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
@@ -56,6 +57,9 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   if (toTenths(balance) < toTenths(COST)) {
     return { ok: false, error: `Kh├┤ng ─æß╗º credits (cß║ºn ${COST}).` }
   }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
   const timestamp = Date.now()
   const first = images[0]!

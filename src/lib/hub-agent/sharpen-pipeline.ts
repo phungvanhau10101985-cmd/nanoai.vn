@@ -11,6 +11,7 @@ import {
   tryOnPublicUrlToStoragePath,
   uploadTryOnImagePublic,
 } from '@/lib/storage/try-on-public-upload'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import type { HubAutoRunImageQuality } from '@/lib/hub-agent/auto-run-support'
 
@@ -69,6 +70,9 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   if (toTenths(balance) < toTenths(COST)) {
     return { ok: false, error: `Không đủ credits (cần ${COST}).` }
   }
+
+  const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+  if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
   const timestamp = Date.now()
   const path = `uploads/${input.userId}/sharpen_${timestamp}.png`

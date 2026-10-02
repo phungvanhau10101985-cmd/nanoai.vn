@@ -75,7 +75,7 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
       month: inputCreate.month,
       discountPercent: inputCreate.discountPercent,
       actorUserId: inputCreate.ownerUserId,
-      chargeCredits: false,
+      chargeCredits: true,
     })
     if (created.ok) {
       result[inputCreate.bucket].created += 1

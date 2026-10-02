@@ -79,7 +79,7 @@ export async function ensureDailyPartnerSaleIcons(input?: {
       month: saleEvent.month,
       discountPercent: saleEvent.discountPercent,
       actorUserId: ownerUserId,
-      chargeCredits: false,
+      chargeCredits: true,
     })
     if (created.ok) {
       if (existing?.imageUrl && created.asset.imageUrl === existing.imageUrl) {

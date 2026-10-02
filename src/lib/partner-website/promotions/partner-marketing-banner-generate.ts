@@ -241,7 +241,10 @@ export async function generatePartnerMarketingBanner(input: {
     return { ok: false, error: storage.error, status: 500 }
   }
 
-  if (input.chargeCredits && input.actorUserId) {
+  if (input.chargeCredits) {
+    if (!input.actorUserId) {
+      return { ok: false, error: 'Không trừ được credit vì shop chưa có chủ tài khoản.', status: 402 }
+    }
     try {
       const balance = await getCreditBalanceByUserId(input.actorUserId)
       if (toTenths(balance) < toTenths(PARTNER_MARKETING_BANNER_CREDIT_COST)) {
@@ -298,16 +301,6 @@ export async function generatePartnerMarketingBanner(input: {
     const digest = bytes.subarray(0, 12).toString('hex')
     const path = `partners/${input.partnerId}/marketing-banners/${input.kind}/${key}/v${version}-${Date.now()}-${digest}.png`
     const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
-    if (input.chargeCredits && input.actorUserId) {
-      const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST, 'partner-marketing-banner')
-      if (!deducted.ok) {
-        await failPartnerMarketingBannerAssetFromPg({
-          id: row.id,
-          errorMessage: deducted.error,
-        })
-        return { ok: false, error: deducted.error, status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500 }
-      }
-    }
     const ready = await completePartnerMarketingBannerAssetFromPg({
       id: row.id,
       partnerId: input.partnerId,
@@ -316,6 +309,12 @@ export async function generatePartnerMarketingBanner(input: {
       imageUrl: publicUrl,
     })
     if (!ready) return { ok: false, error: 'Không lưu được ảnh banner.', status: 500 }
+    if (input.chargeCredits && input.actorUserId) {
+      const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST, 'partner-marketing-banner')
+      if (!deducted.ok) {
+        return { ok: false, error: deducted.error, status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500 }
+      }
+    }
     return { ok: true, asset: ready }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

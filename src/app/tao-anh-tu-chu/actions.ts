@@ -13,6 +13,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage/try-on-public-upload'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'] as const
@@ -153,6 +154,8 @@ export async function createImageFromText(formData: FormData) {
   }
 
   try {
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-anh-tu-chu', user.id, imageQuality)
