@@ -42,13 +42,21 @@ export function postPartnerInventoryExcelImport(
   })
 }
 
+export type PartnerInventoryExcelImportWarning = {
+  row_number?: number
+  sku?: string
+  name?: string
+  message?: string
+  code?: string
+}
+
 export type PartnerInventoryExcelImportResult = {
   ok?: boolean
   count?: number
   inserted?: number
   updated?: number
   deleted?: number
-  warnings?: unknown[]
+  warnings?: PartnerInventoryExcelImportWarning[]
   warnings_count?: number
   error?: string
   detail?: string

@@ -42,6 +42,18 @@ export function normProductImageUrl(raw: string, extraBlockHosts: string[] = [])
   return normalizeListingProductImageUrl(u)
 }
 
+/** Thumbnail AliCDN trên cột Q: `.310x310.jpg`, `_300x300`, `_110x100xz`, `_600x600q90`. */
+const LISTING_DETAIL_THUMB_SIZE_RE = /(?:^|[^a-z0-9])\d{2,4}x\d{2,4}(?:q\d+|xz)?(?=[^a-z0-9]|$)/i
+
+/** Cột Q `detail_images` (Nội dung): bỏ thumbnail kích thước và mọi ảnh PNG. */
+export function keepListingDetailImageUrl(url: string): boolean {
+  const path = (url || '').split('?')[0].split('#')[0]
+  if (!path) return false
+  if (/\.png(?:$|[._])/i.test(path)) return false
+  if (LISTING_DETAIL_THUMB_SIZE_RE.test(path)) return false
+  return true
+}
+
 export function dedupeUrls(values: string[], extraBlockHosts: string[] = []): string[] {
   const seen = new Set<string>()
   const out: string[] = []

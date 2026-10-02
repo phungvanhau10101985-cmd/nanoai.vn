@@ -1724,6 +1724,7 @@ export type Dictionary = {
     listingImportExcelSuccessDeleted: string
     listingImportExcelFailedTitle: string
     listingImportExcelFailedToast: string
+    listingImportExcelOkTitle: string
     listingImportExcelDoneTitle: string
     /** {n} số cảnh báo */
     listingImportExcelWarnings: string
@@ -5458,6 +5459,7 @@ const VI_DICTIONARY: Dictionary = {
     listingImportExcelSuccessDeleted: ', {n} đã xóa',
     listingImportExcelFailedTitle: 'Import thất bại',
     listingImportExcelFailedToast: 'Import lỗi — xem chi tiết phía dưới ô Import.',
+    listingImportExcelOkTitle: 'Import xong',
     listingImportExcelDoneTitle: 'Import xong — có cảnh báo',
     listingImportExcelWarnings: 'Có {n} dòng cần rà soát.',
     listingImportExcelCancelTitle: 'Import đã hủy',
@@ -9194,6 +9196,7 @@ const EN_DICTIONARY: Dictionary = {
     listingImportExcelSuccessDeleted: ', {n} deleted',
     listingImportExcelFailedTitle: 'Import failed',
     listingImportExcelFailedToast: 'Import error — see details below the Import button.',
+    listingImportExcelOkTitle: 'Import finished',
     listingImportExcelDoneTitle: 'Import finished — warnings',
     listingImportExcelWarnings: '{n} row(s) need review.',
     listingImportExcelCancelTitle: 'Import cancelled',
@@ -12891,6 +12894,7 @@ const ZH_DICTIONARY: Dictionary = {
     listingImportExcelSuccessDeleted: '，已删除 {n}',
     listingImportExcelFailedTitle: '导入失败',
     listingImportExcelFailedToast: '导入出错 — 请查看 Import 按钮下方详情。',
+    listingImportExcelOkTitle: '导入完成',
     listingImportExcelDoneTitle: '导入完成 — 有警告',
     listingImportExcelWarnings: '有 {n} 行需要核对。',
     listingImportExcelCancelTitle: '导入已取消',
@@ -16547,6 +16551,7 @@ const JA_DICTIONARY: Dictionary = {
     listingImportExcelSuccessDeleted: '、削除 {n}',
     listingImportExcelFailedTitle: 'インポート失敗',
     listingImportExcelFailedToast: 'エラー — Import ボタン下の詳細を確認してください。',
+    listingImportExcelOkTitle: 'インポート完了',
     listingImportExcelDoneTitle: '完了 — 警告あり',
     listingImportExcelWarnings: '{n} 行の確認が必要です。',
     listingImportExcelCancelTitle: 'インポートをキャンセルしました',
@@ -20247,6 +20252,7 @@ const KO_DICTIONARY: Dictionary = {
     listingImportExcelSuccessDeleted: ', {n}개 삭제',
     listingImportExcelFailedTitle: '가져오기 실패',
     listingImportExcelFailedToast: '오류 — Import 버튼 아래 자세한 내용을 확인하세요.',
+    listingImportExcelOkTitle: '가져오기 완료',
     listingImportExcelDoneTitle: '완료 — 경고 있음',
     listingImportExcelWarnings: '{n}행을 검토해야 합니다.',
     listingImportExcelCancelTitle: '가져오기를 취소함',

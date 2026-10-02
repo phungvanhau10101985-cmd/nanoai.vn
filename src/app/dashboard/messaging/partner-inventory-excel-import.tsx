@@ -5,6 +5,7 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   parsePartnerInventoryExcelImportResponse,
   postPartnerInventoryExcelImport,
+  type PartnerInventoryExcelImportResult,
 } from '@/lib/messaging/partner-inventory-excel-import-client'
 import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 
@@ -22,6 +23,44 @@ export type PartnerInventoryExcelImportDetailPanel = {
 }
 
 type ToastFn = (type: 'ok' | 'err', msg: string) => void
+
+/** Báo cáo giữ trên trang sau khi import xong — trang sản phẩm và trang cào dùng chung. */
+export function buildPartnerInventoryExcelImportReport(
+  data: PartnerInventoryExcelImportResult,
+  t: AiT
+): PartnerInventoryExcelImportDetailPanel {
+  const inserted = data.inserted ?? 0
+  const updated = data.updated ?? 0
+  const deleted = data.deleted ?? 0
+  const headline = t.inventoryImportSuccess
+    .replace('{count}', String(data.count ?? 0))
+    .replace('{inserted}', String(inserted))
+    .replace('{updated}', String(updated))
+    .replace('{deleted}', String(deleted))
+  const warnings = Array.isArray(data.warnings) ? data.warnings : []
+  const warnCount = data.warnings_count ?? warnings.length
+  if (warnCount <= 0) {
+    return { variant: 'ok', title: t.listingImportExcelOkTitle, body: headline }
+  }
+  const lines = warnings
+    .slice(0, 20)
+    .map((w) => {
+      const row = w.row_number ? `#${w.row_number}` : ''
+      const sku = (w.sku ?? '').trim()
+      const name = (w.name ?? '').trim()
+      const msg = (w.message ?? '').trim() || (w.code ?? '').trim()
+      return [row, sku, name, msg].filter(Boolean).join(' · ')
+    })
+    .filter(Boolean)
+  const more = warnCount > lines.length ? '\n…' : ''
+  return {
+    variant: 'warn',
+    title: t.listingImportExcelDoneTitle,
+    body: `${headline}\n\n${t.listingImportExcelWarnings.replace('{n}', String(warnCount))}${
+      lines.length ? `\n${lines.join('\n')}` : ''
+    }${more}`,
+  }
+}
 
 function mapImportError(code: string | undefined, detail: string | undefined, t: AiT): string {
   if (detail?.trim()) return detail.trim()
@@ -131,26 +170,13 @@ export function usePartnerInventoryExcelImport(opts: { partnerId: string; t: AiT
         const inserted = data.inserted ?? 0
         const updated = data.updated ?? 0
         const deleted = data.deleted ?? 0
-        const warnCount = data.warnings_count ?? (Array.isArray(data.warnings) ? data.warnings.length : 0)
-        const headline = t.inventoryImportSuccess
-          .replace('{count}', String(data.count ?? 0))
-          .replace('{inserted}', String(inserted))
-          .replace('{updated}', String(updated))
-          .replace('{deleted}', String(deleted))
+        const report = buildPartnerInventoryExcelImportReport(data, t)
+        setImportDetailPanel(report)
         const deletedBit = deleted ? t.listingImportExcelSuccessDeleted.replace('{n}', String(deleted)) : ''
         const toastMsg = t.listingImportExcelSuccess
           .replace('{inserted}', String(inserted))
           .replace('{updated}', String(updated))
           .replace('{deleted}', deletedBit)
-        if (warnCount > 0) {
-          setImportDetailPanel({
-            variant: 'warn',
-            title: t.listingImportExcelDoneTitle,
-            body: `${headline}\n\n${t.listingImportExcelWarnings.replace('{n}', String(warnCount))}`,
-          })
-        } else {
-          setImportDetailPanel(null)
-        }
         onToast('ok', toastMsg)
       } catch (err) {
         if (err instanceof DOMException && err.name === 'AbortError') {
@@ -240,6 +266,44 @@ export function PartnerInventoryExcelImportButton({
   )
 }
 
+export function PartnerInventoryExcelImportReportCard({
+  panel,
+  closeLabel,
+  onClose,
+}: {
+  panel: PartnerInventoryExcelImportDetailPanel
+  closeLabel: string
+  onClose: () => void
+}) {
+  return (
+    <div
+      className={`rounded-md border p-3 text-sm ${
+        panel.variant === 'err'
+          ? 'border-red-300 bg-red-50 text-slate-900'
+          : panel.variant === 'warn'
+            ? 'border-amber-300 bg-amber-50 text-slate-900'
+            : 'border-emerald-300 bg-emerald-50 text-slate-900'
+      }`}
+      role="region"
+      aria-label={panel.title}
+    >
+      <div className="flex justify-between gap-2 items-start mb-2">
+        <span className="font-semibold">{panel.title}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs shrink-0 px-2 py-1 rounded border border-slate-400/60 hover:bg-white/80 text-slate-700"
+        >
+          {closeLabel}
+        </button>
+      </div>
+      <pre className="whitespace-pre-wrap break-words max-h-[22rem] overflow-y-auto font-mono text-xs leading-relaxed text-slate-800">
+        {panel.body}
+      </pre>
+    </div>
+  )
+}
+
 export function PartnerInventoryExcelImportStatus({
   ctrl,
   t,
@@ -291,31 +355,11 @@ export function PartnerInventoryExcelImportStatus({
       ) : null}
 
       {importDetailPanel ? (
-        <div
-          className={`rounded-md border p-3 text-sm ${
-            importDetailPanel.variant === 'err'
-              ? 'border-red-300 bg-red-50 text-slate-900'
-              : importDetailPanel.variant === 'warn'
-                ? 'border-amber-300 bg-amber-50 text-slate-900'
-                : 'border-sky-200 bg-sky-50 text-slate-900'
-          }`}
-          role="region"
-          aria-label={importDetailPanel.title}
-        >
-          <div className="flex justify-between gap-2 items-start mb-2">
-            <span className="font-semibold">{importDetailPanel.title}</span>
-            <button
-              type="button"
-              onClick={() => setImportDetailPanel(null)}
-              className="text-xs shrink-0 px-2 py-1 rounded border border-slate-400/60 hover:bg-white/80 text-slate-700"
-            >
-              {t.listingImportExcelClose}
-            </button>
-          </div>
-          <pre className="whitespace-pre-wrap break-words max-h-[22rem] overflow-y-auto font-mono text-xs leading-relaxed text-slate-800">
-            {importDetailPanel.body}
-          </pre>
-        </div>
+        <PartnerInventoryExcelImportReportCard
+          panel={importDetailPanel}
+          closeLabel={t.listingImportExcelClose}
+          onClose={() => setImportDetailPanel(null)}
+        />
       ) : null}
     </>
   )

@@ -16,6 +16,7 @@ import {
   dedupeUrls,
   estimateCnyFromVnd,
   isVariantInStock,
+  keepListingDetailImageUrl,
   listingVndPerCny,
   normProductImageUrl,
   parseVndPrice,
@@ -140,7 +141,7 @@ export function vipomallRowToProductData(
   const exclude = new Set(gallery.map((u) => u.split('?')[0]))
   for (const c of colorsOut) if (c.img) exclude.add(c.img.split('?')[0])
   const detailImgs = dedupeUrls((row.detail_images as unknown[] | undefined)?.map((x) => String(x)) || []).filter(
-    (u) => !exclude.has(u.split('?')[0])
+    (u) => keepListingDetailImageUrl(u) && !exclude.has(u.split('?')[0])
   )
 
   let variantRows = ((row.variant_rows as unknown[]) || []).filter(

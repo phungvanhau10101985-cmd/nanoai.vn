@@ -714,6 +714,38 @@ describe('pandamall Variant / gallery thumbs (188 test_import_pandamall_scraper)
     assert.ok(!detail[0].includes('?__r__='))
     assert.ok(detail[0].endsWith('O1CN01bDLH1h1fRQWkELLbt_!!2210284314003-0-cib.jpg'))
   })
+
+  it('drops sized thumbs and png from detail_images column Q', () => {
+    const full = 'https://cbu01.alicdn.com/img/ibank/2019/055/963/11322369550_823790914.jpg'
+    const product = pandamallRowToProductData(
+      {
+        title: 'Áo',
+        colors: [],
+        sizes: [],
+        variant_rows: [],
+        gallery_images: ['https://cbu01.alicdn.com/img/ibank/O1CN01keepGallery_!!1-0-cib.310x310.jpg'],
+        detail_images: [
+          'https://gview.alicdn.com/16300288547781/1.0.0/img/17254220304978.png',
+          'https://cbu01.alicdn.com/img/ibank/O1CN01Rqp59N2Mb4OnBq2gM_!!2251189845-0-cib.310x310.jpg',
+          'https://cbu01.alicdn.com/img/ibank/thumb_300x300.jpg',
+          'https://img.alicdn.com/bao/uploaded/i1/TB1_110x100xz.jpg',
+          'https://cbu01.alicdn.com/img/ibank/O1CN01sizePng_!!1-0-cib.310x310.png',
+          full,
+        ],
+      },
+      'https://pandamall.vn/1688/detail/1',
+      '1',
+      '1688'
+    )
+    assert.deepEqual(product.gallery, [full])
+    assert.deepEqual(product.detail_block_images_1688, [full])
+    const images = product.images as string[]
+    assert.equal(images.length, 1)
+    assert.match(images[0], /310x310\.jpg$/)
+    const row = excelExportRowFromProductData(product)
+    assert.equal(row.detail_images, JSON.stringify([full]))
+    assert.match(String(row.gallery_images), /310x310\.jpg/)
+  })
 })
 
 describe('listing import color / Variant labels (188 variant_color_translate)', () => {

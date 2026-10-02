@@ -23,6 +23,12 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { ProductStudioManualDialog } from '@/components/partner-website/product-studio/product-studio-manual-dialog'
 import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import {
+  buildPartnerInventoryExcelImportReport,
+  PartnerInventoryExcelImportReportCard,
+  type PartnerInventoryExcelImportDetailPanel,
+} from '@/app/dashboard/messaging/partner-inventory-excel-import'
+import type { PartnerInventoryExcelImportResult } from '@/lib/messaging/partner-inventory-excel-import-client'
+import {
   deletePartnerInventoryItem,
   deletePartnerInventoryItems,
   getPartnerAiBundle,
@@ -2471,6 +2477,7 @@ function InventoryEditor({
   const [excelBusy, setExcelBusy] = useState(false)
   /** Chỉ khi nhập Excel: % hoặc null = không xác định (thanh pulse) */
   const [excelImportProgress, setExcelImportProgress] = useState<{ percent: number | null } | null>(null)
+  const [excelImportReport, setExcelImportReport] = useState<PartnerInventoryExcelImportDetailPanel | null>(null)
 
   const [draft, setDraft] = useState({
     id: null as string | null,
@@ -2787,6 +2794,7 @@ function InventoryEditor({
     if (!file) return
     if (!window.confirm(t.inventoryImportReplaceWarning)) return
     setExcelBusy(true)
+    setExcelImportReport(null)
     setExcelImportProgress({ percent: 0 })
     let importOk = false
     try {
@@ -2803,31 +2811,25 @@ function InventoryEditor({
       })
       // Uploaded. Waiting for server parse/upsert response.
       setExcelImportProgress({ percent: null })
-      let data: {
-        ok?: boolean
-        count?: number
-        inserted?: number
-        updated?: number
-        deleted?: number
-        warnings?: InventoryImportWarningRow[]
-        warnings_count?: number
-        error?: string
-        detail?: string
-      } = {}
+      let data: PartnerInventoryExcelImportResult = {}
       try {
-        data = JSON.parse(text) as typeof data
+        data = JSON.parse(text) as PartnerInventoryExcelImportResult
       } catch {
         data = {}
       }
       if (!ok) {
+        const body = data.detail || mapInventoryImportError(data.error, t)
+        setExcelImportReport({ variant: 'err', title: t.listingImportExcelFailedTitle, body })
         toast({
-          title: data.detail || mapInventoryImportError(data.error, t),
+          title: body,
           variant: 'destructive',
         })
         return
       }
       setExcelImportProgress({ percent: 100 })
       importOk = true
+      const report = buildPartnerInventoryExcelImportReport(data, t)
+      setExcelImportReport(report)
       toast({
         title: t.inventoryImportSuccess
           .replace('{count}', String(data.count ?? 0))
@@ -2839,14 +2841,16 @@ function InventoryEditor({
         const csv = buildInventoryImportWarningCsv(data.warnings)
         const ts = new Date().toISOString().replace(/[:.]/g, '-')
         downloadTextFile(csv, `bao-cao-import-canh-bao-${ts}.csv`)
-        toast({
-          title: `Import vẫn thành công, có ${data.warnings.length} dòng cần rà soát. Đã tải báo cáo CSV.`,
-        })
       }
       resetDraft()
       onChanged()
       onImportCompleted?.()
     } catch {
+      setExcelImportReport({
+        variant: 'err',
+        title: t.listingImportExcelFailedTitle,
+        body: t.inventoryImportFailed,
+      })
       toast({ title: t.inventoryImportFailed, variant: 'destructive' })
     } finally {
       setExcelBusy(false)
@@ -2970,6 +2974,13 @@ function InventoryEditor({
             )}
           </div>
         </div>
+      ) : null}
+      {excelImportReport ? (
+        <PartnerInventoryExcelImportReportCard
+          panel={excelImportReport}
+          closeLabel={t.listingImportExcelClose}
+          onClose={() => setExcelImportReport(null)}
+        />
       ) : null}
       <p className="text-[11px] leading-relaxed text-muted-foreground">{t.inventoryExcel188Hint}</p>
       <p className="text-[11px] leading-relaxed text-muted-foreground">

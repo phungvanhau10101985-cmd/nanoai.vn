@@ -39,8 +39,10 @@ import type { Dictionary } from '@/lib/i18n/dictionaries';
 import {
   PartnerInventoryExcelImportButton,
   PartnerInventoryExcelImportHiddenInput,
+  PartnerInventoryExcelImportReportCard,
   PartnerInventoryExcelImportStatus,
   usePartnerInventoryExcelImport,
+  type PartnerInventoryExcelImportDetailPanel,
 } from '@/app/dashboard/messaging/partner-inventory-excel-import';
 
 /** Lưu ô «Tỷ giá» (chuỗi gõ tay) để lần sau không phải nhập lại. */
@@ -670,6 +672,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     Record<string, string>
   >({});
   const [toast, setToast] = useState<{ type: 'ok' | 'err'; msg: string } | null>(null);
+  const [draftPublishReport, setDraftPublishReport] = useState<PartnerInventoryExcelImportDetailPanel | null>(null);
   const [cookieText, setCookieText] = useState('');
   const [pandamallUser, setPandamallUser] = useState('');
   const [pandamallPass, setPandamallPass] = useState('');
@@ -1698,6 +1701,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     let ok = 0;
     let fail = 0;
     const errMsgs: string[] = [];
+    const reportLines: string[] = [];
     try {
       for (const id of publishable) {
         flushSync(() => {
@@ -1710,6 +1714,8 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
           ok += 1;
           const pid = res?.product_id?.trim() ?? '';
           const extra = res?.slug?.trim() ? ` · /${res.slug}` : '';
+          const detail = pid ? `SP đăng: ${pid}${extra}` : res?.action === 'updated' ? 'Đã cập nhật SP' : 'Đã đăng';
+          reportLines.push(`${draftModalRowTitle(rowByDraftId.get(id)?.draft ?? null)} — ${detail}`);
           flushSync(() => {
             setDoneDraftsPublishLines((prev) =>
               prev.map((line) =>
@@ -1717,7 +1723,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                   ? {
                       ...line,
                       status: 'ok',
-                      detail: pid ? `SP đăng: ${pid}${extra}` : res?.action === 'updated' ? 'Đã cập nhật SP' : 'Đã đăng',
+                      detail,
                     }
                   : line,
               ),
@@ -1727,6 +1733,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
           fail += 1;
           const msg = e instanceof Error ? e.message : String(e);
           errMsgs.push(`#${id}: ${msg}`);
+          reportLines.push(`${draftModalRowTitle(rowByDraftId.get(id)?.draft ?? null)} — ${msg}`);
           flushSync(() => {
             setDoneDraftsPublishLines((prev) =>
               prev.map((line) =>
@@ -1750,9 +1757,17 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       setListingParseDbPresenceTick((n) => n + 1);
     }
     if (fail === 0) {
+      const body = [`Đã đăng ${ok} sản phẩm lên kho.`, ...reportLines].join('\n');
+      setDraftPublishReport({ variant: 'ok', title: t.listingImportExcelOkTitle, body });
       showToast('ok', `Đã đăng ${ok} sản phẩm lên danh mục (cùng API với Import 1688).`);
       closeDoneDraftsModal();
     } else {
+      const body = [`Đăng được ${ok}, lỗi ${fail}.`, ...reportLines].join('\n');
+      setDraftPublishReport({
+        variant: ok > 0 ? 'warn' : 'err',
+        title: ok > 0 ? t.listingImportExcelDoneTitle : t.listingImportExcelFailedTitle,
+        body,
+      });
       showToast(
         'err',
         `Đăng được ${ok}, lỗi ${fail}. ${errMsgs.slice(0, 3).join(' ')}${errMsgs.length > 3 ? '…' : ''}`,
@@ -1765,6 +1780,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     doneDraftsShopPresenceKeys,
     showToast,
     closeDoneDraftsModal,
+    t,
   ]);
 
   const doneDraftsPublishSummary = useMemo(() => {
@@ -2956,6 +2972,13 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
         </div>
       )}
       <PartnerInventoryExcelImportHiddenInput ctrl={productExcelImport} />
+      {draftPublishReport ? (
+        <PartnerInventoryExcelImportReportCard
+          panel={draftPublishReport}
+          closeLabel={t.listingImportExcelClose}
+          onClose={() => setDraftPublishReport(null)}
+        />
+      ) : null}
       {(productExcelImport.importing || productExcelImport.importDetailPanel) &&
       (queuesPanelCollapsed || trackedQueueTokens.length === 0) ? (
         <PartnerInventoryExcelImportStatus ctrl={productExcelImport} t={t} />
