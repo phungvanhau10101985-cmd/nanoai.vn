@@ -171,6 +171,7 @@ export function PartnerSiteShopAccountClient({
   const initialDob = (initialProfile?.date_of_birth ?? '').trim().slice(0, 10)
   const [profile, setProfile] = useState<PartnerSiteVisitorProfile | null>(initialProfile)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
+  const [shopInboxHref, setShopInboxHref] = useState<string | null>(null)
   const [customerName, setCustomerName] = useState(initialProfile?.customer_name ?? '')
   const [customerPhone, setCustomerPhone] = useState(initialProfile?.customer_phone ?? '')
   const [gender, setGender] = useState<PartnerShopGender | ''>(
@@ -203,6 +204,7 @@ export function PartnerSiteShopAccountClient({
     if (shouldPartnerSiteShopSkipAuthSync(siteSlug)) {
       setProfile(null)
       setShopAdminHref(null)
+      setShopInboxHref(null)
       setCustomerName('')
       setCustomerPhone('')
       setGender('')
@@ -222,11 +224,12 @@ export function PartnerSiteShopAccountClient({
     const json = (await res.json().catch(() => ({}))) as {
       profile?: PartnerSiteVisitorProfile
       requireAuth?: boolean
-      shopAdmin?: { href?: string } | null
+      shopAdmin?: { href?: string; inboxHref?: string } | null
     }
     const next = json.profile ?? null
     setProfile(next)
     setShopAdminHref(json.shopAdmin?.href?.trim() || null)
+    setShopInboxHref(json.shopAdmin?.inboxHref?.trim() || null)
     applyProfileFields(next, {
       setCustomerName,
       setCustomerPhone,
@@ -241,6 +244,7 @@ export function PartnerSiteShopAccountClient({
       writePartnerSiteAccountBrowserCache(siteSlug, {
         profile: next,
         shopAdminHref: json.shopAdmin?.href?.trim() || null,
+        shopInboxHref: json.shopAdmin?.inboxHref?.trim() || null,
       })
     }
     return next
@@ -254,6 +258,7 @@ export function PartnerSiteShopAccountClient({
       const next = visitorProfileFromCache(cached.profile)
       setProfile(next)
       setShopAdminHref(cached.shopAdminHref)
+      setShopInboxHref(cached.shopInboxHref)
       applyProfileFields(next, {
         setCustomerName,
         setCustomerPhone,
@@ -267,8 +272,9 @@ export function PartnerSiteShopAccountClient({
         setNeedsAuth(false)
         setLoading(false)
       }
-    } else if (cached.shopAdminHref) {
+    } else if (cached.shopAdminHref || cached.shopInboxHref) {
       setShopAdminHref(cached.shopAdminHref)
+      setShopInboxHref(cached.shopInboxHref)
     }
     if (cached.wallet.length) setWallet(walletFromCache(cached.wallet))
     if (cached.notifications.length) {
@@ -486,7 +492,7 @@ export function PartnerSiteShopAccountClient({
           setContactAddress,
         })
         setNeedsAuth(false)
-        writePartnerSiteAccountBrowserCache(siteSlug, { profile: json.profile, shopAdminHref })
+        writePartnerSiteAccountBrowserCache(siteSlug, { profile: json.profile, shopAdminHref, shopInboxHref })
       }
       setStatus(t.accountSaved)
     } finally {
@@ -573,6 +579,7 @@ export function PartnerSiteShopAccountClient({
                 locale={locale}
                 profile={profile}
                 shopAdminHref={shopAdminHref}
+                shopInboxHref={shopInboxHref}
                 displayName={displayName}
                 unreadNotifications={unreadCount}
                 initialLoyalty={initialLoyalty}

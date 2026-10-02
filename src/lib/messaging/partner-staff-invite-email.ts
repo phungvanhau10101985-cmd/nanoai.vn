@@ -40,6 +40,13 @@ export function partnerStaffAdminPath(
   return `/dashboard/messaging/settings?partner=${encodeURIComponent(id)}`
 }
 
+/** Hộp thư hội thoại shop — cùng origin dashboard, không dùng hostname domain shop. */
+export function partnerStaffInboxPath(partnerId: string): string {
+  const id = partnerId.trim()
+  if (!id) return '/dashboard/messaging/inbox'
+  return `/dashboard/messaging/inbox?partner=${encodeURIComponent(id)}`
+}
+
 /** Origin dashboard NanoAI — không dùng hostname domain shop (vd. tiemanhai.vn). */
 export function partnerStaffAdminOrigin(): string {
   const configured =
@@ -61,6 +68,10 @@ export function partnerStaffAdminAbsoluteUrl(
     partnerId,
     industryKey,
   })
+}
+
+export function partnerStaffInboxAbsoluteUrl(partnerId: string): string {
+  return `${partnerStaffAdminOrigin()}${partnerStaffInboxPath(partnerId)}`
 }
 
 export function buildPartnerStaffInviteAdminUrl(input: {

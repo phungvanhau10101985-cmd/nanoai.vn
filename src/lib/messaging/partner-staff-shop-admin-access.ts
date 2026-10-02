@@ -1,6 +1,9 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import { partnerStaffAdminAbsoluteUrl } from '@/lib/messaging/partner-staff-invite-email'
+import {
+  partnerStaffAdminAbsoluteUrl,
+  partnerStaffInboxAbsoluteUrl,
+} from '@/lib/messaging/partner-staff-invite-email'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -8,6 +11,7 @@ export type PartnerShopAdminAccess = {
   userId: string
   role: 'owner' | 'staff'
   href: string
+  inboxHref: string
 }
 
 /** Gmail đã là chủ shop hoặc được mời nhân viên → link trang quản trị. */
@@ -45,6 +49,7 @@ export async function resolvePartnerShopAdminAccessByEmail(input: {
       userId: row.id,
       role: row.is_owner ? 'owner' : 'staff',
       href: partnerStaffAdminAbsoluteUrl(partnerId, input.industryKey),
+      inboxHref: partnerStaffInboxAbsoluteUrl(partnerId),
     }
   } catch (e) {
     console.warn('[resolvePartnerShopAdminAccessByEmail]', e)

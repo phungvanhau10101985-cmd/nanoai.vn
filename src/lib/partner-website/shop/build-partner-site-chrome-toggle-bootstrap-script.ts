@@ -204,6 +204,7 @@ function writeAccountCache(patch){
       savedAt:Date.now(),
       profile:prev.profile||null,
       shopAdminHref:prev.shopAdminHref||null,
+      shopInboxHref:prev.shopInboxHref||null,
       orders:prev.orders||[],
       wallet:prev.wallet||[],
       addresses:prev.addresses||[],
@@ -216,6 +217,7 @@ function writeAccountCache(patch){
         next.profile=Object.assign({},prevProfile,patch.profile);
       }
       if('shopAdminHref' in patch)next.shopAdminHref=patch.shopAdminHref;
+      if('shopInboxHref' in patch)next.shopInboxHref=patch.shopInboxHref;
     }
     window.localStorage.setItem(accountCacheKey(),JSON.stringify(next));
   }catch(errCacheWrite){}
@@ -1004,7 +1006,8 @@ function hydrateLoginIdentity(){
     if(p&&(p.email||p.customer_name||p.greeting_name||p.avatar_url)){
       writeAccountCache({
         profile:p,
-        shopAdminHref:json&&json.shopAdmin&&json.shopAdmin.href?String(json.shopAdmin.href).trim():null
+        shopAdminHref:json&&json.shopAdmin&&json.shopAdmin.href?String(json.shopAdmin.href).trim():null,
+        shopInboxHref:json&&json.shopAdmin&&json.shopAdmin.inboxHref?String(json.shopAdmin.inboxHref).trim():null
       });
     }
     if(!isLoggedIn){restoreLoginIdentity();return;}

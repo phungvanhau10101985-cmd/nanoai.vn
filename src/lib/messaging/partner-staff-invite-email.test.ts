@@ -6,6 +6,8 @@ import {
   buildPartnerStaffInviteEmailContent,
   partnerStaffAdminAbsoluteUrl,
   partnerStaffAdminPath,
+  partnerStaffInboxAbsoluteUrl,
+  partnerStaffInboxPath,
 } from './partner-staff-invite-email'
 
 test('partnerStaffAdminPath points to shop admin with partner id', () => {
@@ -31,6 +33,19 @@ test('buildPartnerStaffInviteAdminUrl is an absolute shop admin link', () => {
     url,
     'https://nanoai.vn/dashboard/messaging/settings?partner=11111111-1111-4111-8111-111111111111'
   )
+})
+
+test('partnerStaffInboxPath opens the shop conversation inbox', () => {
+  assert.equal(
+    partnerStaffInboxPath('11111111-1111-4111-8111-111111111111'),
+    '/dashboard/messaging/inbox?partner=11111111-1111-4111-8111-111111111111'
+  )
+})
+
+test('partnerStaffInboxAbsoluteUrl stays on the dashboard origin', () => {
+  const href = partnerStaffInboxAbsoluteUrl('11111111-1111-4111-8111-111111111111')
+  assert.match(href, /^https?:\/\//)
+  assert.match(href, /\/dashboard\/messaging\/inbox\?partner=11111111-1111-4111-8111-111111111111$/)
 })
 
 test('partnerStaffAdminAbsoluteUrl never uses a relative /dashboard path', () => {

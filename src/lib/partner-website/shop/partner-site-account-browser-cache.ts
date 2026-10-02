@@ -94,6 +94,7 @@ export type PartnerSiteAccountBrowserCache = {
   savedAt: number
   profile: PartnerSiteCachedAccountProfile | null
   shopAdminHref: string | null
+  shopInboxHref: string | null
   orders: PartnerSiteCachedOrder[]
   wallet: PartnerSiteCachedWalletVoucher[]
   addresses: PartnerSiteCachedAddress[]
@@ -104,6 +105,7 @@ export type PartnerSiteAccountBrowserCache = {
 export type PartnerSiteAccountBrowserCachePatch = {
   profile?: unknown
   shopAdminHref?: string | null
+  shopInboxHref?: string | null
   orders?: unknown[]
   wallet?: unknown[]
   addresses?: unknown[]
@@ -118,6 +120,7 @@ function emptyCache(accountId: string): PartnerSiteAccountBrowserCache {
     savedAt: 0,
     profile: null,
     shopAdminHref: null,
+    shopInboxHref: null,
     orders: [],
     wallet: [],
     addresses: [],
@@ -335,6 +338,7 @@ function parseCache(raw: string | null): PartnerSiteAccountBrowserCache | null {
       savedAt,
       profile: sanitizePartnerSiteCachedAccountProfile(json.profile),
       shopAdminHref: clipOrNull(json.shopAdminHref, 400),
+      shopInboxHref: clipOrNull(json.shopInboxHref, 400),
       orders: Array.isArray(json.orders)
         ? json.orders.map(sanitizeOrder).filter((row): row is PartnerSiteCachedOrder => Boolean(row))
         : [],
@@ -413,6 +417,7 @@ export function writePartnerSiteAccountBrowserCache(
     }
   }
   if ('shopAdminHref' in patch) next.shopAdminHref = clipOrNull(patch.shopAdminHref, 400)
+  if ('shopInboxHref' in patch) next.shopInboxHref = clipOrNull(patch.shopInboxHref, 400)
   if (Array.isArray(patch.orders)) {
     const sanitized = patch.orders.map(sanitizeOrder).filter((row): row is PartnerSiteCachedOrder => Boolean(row))
     if (sanitized.length) {

@@ -519,6 +519,8 @@ export type PartnerSiteShopCopy = {
   accountQuickLinks: string
   accountOpenShopAdmin: string
   accountOpenShopAdminHint: string
+  accountOpenShopInbox: string
+  accountOpenShopInboxHint: string
   accountSectionEditProfile: string
   accountProfileLead: string
   accountFullName: string
@@ -1231,6 +1233,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountQuickLinks: 'Truy cập nhanh',
     accountOpenShopAdmin: 'Quản trị web',
     accountOpenShopAdminHint: 'Gmail này được mời làm quản trị — mở nhanh trang quản trị shop.',
+    accountOpenShopInbox: 'Hội thoại',
+    accountOpenShopInboxHint: 'Mở trang hội thoại của shop.',
     accountSectionEditProfile: 'Chỉnh sửa hồ sơ',
     accountProfileLead: 'Email đăng nhập không đổi tại đây. Cập nhật họ tên, ngày sinh và địa chỉ liên hệ.',
     accountFullName: 'Họ và tên',
@@ -1938,6 +1942,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountQuickLinks: 'Quick links',
     accountOpenShopAdmin: 'Shop admin',
     accountOpenShopAdminHint: 'This Gmail was invited as shop admin — open the shop admin page.',
+    accountOpenShopInbox: 'Conversations',
+    accountOpenShopInboxHint: 'Open the shop conversation inbox.',
     accountSectionEditProfile: 'Edit profile',
     accountProfileLead: 'Your login email cannot be changed here. Update your name, date of birth, and contact address.',
     accountFullName: 'Full name',
@@ -2640,6 +2646,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountQuickLinks: '快捷入口',
     accountOpenShopAdmin: '店铺管理',
     accountOpenShopAdminHint: '此 Gmail 已被邀请为店铺管理员 — 可快速打开管理页。',
+    accountOpenShopInbox: '会话',
+    accountOpenShopInboxHint: '打开店铺会话页。',
     accountSectionEditProfile: '编辑资料',
     accountProfileLead: '登录邮箱不可在此修改。请更新姓名、出生日期和联系地址。',
     accountFullName: '姓名',
@@ -3342,6 +3350,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountQuickLinks: 'クイックリンク',
     accountOpenShopAdmin: '店舗管理',
     accountOpenShopAdminHint: 'この Gmail は店舗管理者に招待されています。管理ページをすぐ開けます。',
+    accountOpenShopInbox: '会話',
+    accountOpenShopInboxHint: '店舗の会話ページを開きます。',
     accountSectionEditProfile: 'プロフィール編集',
     accountProfileLead: 'ログイン用メールはここでは変更できません。氏名・生年月日・連絡先住所を更新してください。',
     accountFullName: '氏名',
@@ -4046,6 +4056,8 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     accountQuickLinks: '빠른 메뉴',
     accountOpenShopAdmin: '샵 관리',
     accountOpenShopAdminHint: '이 Gmail은 샵 관리자로 초대되었습니다. 관리 페이지를 바로 여세요.',
+    accountOpenShopInbox: '대화',
+    accountOpenShopInboxHint: '샵 대화 페이지를 엽니다.',
     accountSectionEditProfile: '프로필 수정',
     accountProfileLead: '로그인 이메일은 여기서 바꿀 수 없습니다. 이름, 생년월일, 연락 주소를 업데이트하세요.',
     accountFullName: '이름',

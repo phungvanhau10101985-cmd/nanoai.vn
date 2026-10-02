@@ -52,6 +52,7 @@ type Props = {
   locale: WebLocale
   profile: PartnerSiteVisitorProfile | null
   shopAdminHref: string | null
+  shopInboxHref: string | null
   displayName: string
   unreadNotifications?: number
   initialLoyalty?: PartnerSiteLoyaltyStatusView | null
@@ -85,6 +86,7 @@ export function PartnerSiteAccountHub({
   locale,
   profile,
   shopAdminHref,
+  shopInboxHref,
   displayName,
   unreadNotifications = 0,
   initialLoyalty = null,
@@ -211,6 +213,22 @@ export function PartnerSiteAccountHub({
               </span>
             </a>
           ) : null}
+          {shopInboxHref ? (
+            <a
+              href={shopInboxHref}
+              className="pw-shop-account-hub-row is-admin"
+              data-pw-el={PW_EL.menuItem}
+              rel="noopener noreferrer"
+              title={t.accountOpenShopInboxHint}
+            >
+              <span>
+                {partnerSiteAccountMenuEmoji('inbox')} {t.accountOpenShopInbox}
+              </span>
+              <span className="pw-shop-account-hub-chevron" aria-hidden>
+                ›
+              </span>
+            </a>
+          ) : null}
           {hubItems.map((item) => (
             <a key={item.id} href={item.href} className="pw-shop-account-hub-row" data-pw-el={PW_EL.menuItem}>
               <span>
@@ -269,6 +287,18 @@ export function PartnerSiteAccountHub({
             <div>
               <a href={shopAdminHref} className="pw-shop-btn pw-shop-btn-outline" rel="noopener noreferrer">
                 {t.accountOpenShopAdmin}
+              </a>
+            </div>
+          ) : null}
+          {shopInboxHref ? (
+            <div>
+              <a
+                href={shopInboxHref}
+                className="pw-shop-btn pw-shop-btn-outline"
+                rel="noopener noreferrer"
+                title={t.accountOpenShopInboxHint}
+              >
+                {t.accountOpenShopInbox}
               </a>
             </div>
           ) : null}

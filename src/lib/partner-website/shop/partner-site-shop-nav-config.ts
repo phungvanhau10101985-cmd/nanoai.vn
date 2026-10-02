@@ -381,9 +381,9 @@ export function isPartnerSiteAccountHubRow(item: PartnerSiteAccountMenuItem): bo
 }
 
 export function partnerSiteAccountMenuEmoji(
-  id: PartnerSiteAccountMenuItemId | 'admin'
+  id: PartnerSiteAccountMenuItemId | 'admin' | 'inbox'
 ): string {
-  const map: Record<PartnerSiteAccountMenuItemId | 'admin', string> = {
+  const map: Record<PartnerSiteAccountMenuItemId | 'admin' | 'inbox', string> = {
     account: '👤',
     'edit-profile': '✏️',
     cart: '🛒',
@@ -401,6 +401,7 @@ export function partnerSiteAccountMenuEmoji(
     contact: '📞',
     logout: '🚪',
     admin: '⚙️',
+    inbox: '💬',
   }
   return map[id]
 }

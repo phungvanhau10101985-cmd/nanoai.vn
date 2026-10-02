@@ -60,11 +60,13 @@ test('read/write cache is bound to the logged-in account id', () => {
   writePartnerSiteAccountBrowserCache('demo-shop', {
     profile: { email: 'a@x.com', customer_name: 'An', greeting_name: null, customer_phone: '0901', shipping_address: null, gender: null, date_of_birth: null, avatar_url: null, auth_mode: 'guest_account' },
     shopAdminHref: '/dashboard',
+    shopInboxHref: '/dashboard/messaging/inbox?partner=1',
   })
   const cached = readPartnerSiteAccountBrowserCache('demo-shop')
   assert.equal(cached?.accountId, 'acc-a')
   assert.equal(cached?.profile?.customer_name, 'An')
   assert.equal(cached?.shopAdminHref, '/dashboard')
+  assert.equal(cached?.shopInboxHref, '/dashboard/messaging/inbox?partner=1')
   store.set('app_guest_account_id', 'acc-b')
   assert.equal(readPartnerSiteAccountBrowserCache('demo-shop'), null)
   store.set('app_guest_account_id', 'acc-a')
@@ -89,6 +91,7 @@ test('login identity comes from cached profile immediately', () => {
       auth_mode: 'linked_user',
     },
     shopAdminHref: null,
+    shopInboxHref: null,
     orders: [],
     wallet: [],
     addresses: [],

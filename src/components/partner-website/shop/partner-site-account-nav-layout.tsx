@@ -41,6 +41,7 @@ export function PartnerSiteAccountNavLayout({
   const customDomain = usePartnerSiteCustomDomain()
   const { isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [shopAdminHref, setShopAdminHref] = useState<string | null>(null)
+  const [shopInboxHref, setShopInboxHref] = useState<string | null>(null)
   const [pathname, setPathname] = useState(pathnameProp)
   const activeId = partnerSiteAccountNavActiveId(pathname || pathnameProp)
 
@@ -69,11 +70,14 @@ export function PartnerSiteAccountNavLayout({
   useLayoutEffect(() => {
     const cached = readPartnerSiteAccountBrowserCache(siteSlug)
     if (cached?.shopAdminHref) setShopAdminHref(cached.shopAdminHref)
+    if (cached?.shopInboxHref) setShopInboxHref(cached.shopInboxHref)
   }, [siteSlug])
 
   useEffect(() => {
     if (!isAuthenticated) {
-      if (!readPartnerSiteAccountBrowserCache(siteSlug)?.shopAdminHref) setShopAdminHref(null)
+      const cached = readPartnerSiteAccountBrowserCache(siteSlug)
+      if (!cached?.shopAdminHref) setShopAdminHref(null)
+      if (!cached?.shopInboxHref) setShopInboxHref(null)
       return
     }
     let cancelled = false
@@ -85,14 +89,17 @@ export function PartnerSiteAccountNavLayout({
         captureFromResponse(res)
         const json = (await res.json().catch(() => ({}))) as {
           profile?: unknown
-          shopAdmin?: { href?: string } | null
+          shopAdmin?: { href?: string; inboxHref?: string } | null
         }
         if (cancelled) return
         const href = json.shopAdmin?.href?.trim() || null
+        const inboxHref = json.shopAdmin?.inboxHref?.trim() || null
         setShopAdminHref(href)
+        setShopInboxHref(inboxHref)
         writePartnerSiteAccountBrowserCache(siteSlug, {
           profile: json.profile,
           shopAdminHref: href,
+          shopInboxHref: inboxHref,
         })
       })
       .catch(() => {
@@ -113,18 +120,36 @@ export function PartnerSiteAccountNavLayout({
     <div className="pw-shop-account-layout">
       <aside className="pw-shop-account-sidebar" data-pw-region={PW_REGION.accountNav}>
         <nav className="pw-shop-account-nav" aria-label={t.accountQuickLinks}>
-          {shopAdminHref ? (
-            <a
-              href={shopAdminHref}
-              className="pw-shop-account-nav-item is-accent"
-              data-pw-el={PW_EL.menuItem}
-              rel="noopener noreferrer"
-            >
-              <span className="pw-shop-account-nav-emoji" aria-hidden="true">
-                {partnerSiteAccountMenuEmoji('admin')}
-              </span>
-              <span>{t.accountOpenShopAdmin}</span>
-            </a>
+          {shopAdminHref || shopInboxHref ? (
+            <div className="pw-shop-account-nav-admin">
+              {shopAdminHref ? (
+                <a
+                  href={shopAdminHref}
+                  className="pw-shop-account-nav-item is-accent"
+                  data-pw-el={PW_EL.menuItem}
+                  rel="noopener noreferrer"
+                >
+                  <span className="pw-shop-account-nav-emoji" aria-hidden="true">
+                    {partnerSiteAccountMenuEmoji('admin')}
+                  </span>
+                  <span>{t.accountOpenShopAdmin}</span>
+                </a>
+              ) : null}
+              {shopInboxHref ? (
+                <a
+                  href={shopInboxHref}
+                  className="pw-shop-account-nav-item is-accent"
+                  data-pw-el={PW_EL.menuItem}
+                  rel="noopener noreferrer"
+                  title={t.accountOpenShopInboxHint}
+                >
+                  <span className="pw-shop-account-nav-emoji" aria-hidden="true">
+                    {partnerSiteAccountMenuEmoji('inbox')}
+                  </span>
+                  <span>{t.accountOpenShopInbox}</span>
+                </a>
+              ) : null}
+            </div>
           ) : null}
           {items.map((item) => {
             const active = item.id === activeId
@@ -153,6 +178,16 @@ export function PartnerSiteAccountNavLayout({
         {shopAdminHref ? (
           <a href={shopAdminHref} className="pw-shop-account-admin-banner" rel="noopener noreferrer">
             {partnerSiteAccountMenuEmoji('admin')} {t.accountOpenShopAdmin}
+          </a>
+        ) : null}
+        {shopInboxHref ? (
+          <a
+            href={shopInboxHref}
+            className="pw-shop-account-admin-banner"
+            rel="noopener noreferrer"
+            title={t.accountOpenShopInboxHint}
+          >
+            {partnerSiteAccountMenuEmoji('inbox')} {t.accountOpenShopInbox}
           </a>
         ) : null}
         {showMobileBack ? (

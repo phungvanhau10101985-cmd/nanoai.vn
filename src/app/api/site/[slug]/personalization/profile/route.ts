@@ -43,7 +43,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     {
       ok: true,
       profile,
-      shopAdmin: shopAdmin ? { href: shopAdmin.href, role: shopAdmin.role } : null,
+      shopAdmin: shopAdmin
+        ? { href: shopAdmin.href, inboxHref: shopAdmin.inboxHref, role: shopAdmin.role }
+        : null,
     },
     200,
     { sessionId: visitor.sessionId, thread: visitor.thread }
