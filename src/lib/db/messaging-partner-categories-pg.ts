@@ -285,6 +285,61 @@ export async function insertPartnerCategoryFromPg(
   }
 }
 
+const CATEGORY_ASSIGN_CHUNK = 400
+
+/**
+ * Gán nhiều SP vào danh mục chính trong một transaction.
+ * Import Excel vài trăm dòng không được gọi `assignInventoryToCategoryFromPg` từng SP
+ * (mỗi lần một INCR Redis — log VPS `pw:inv:…:ver Command timed out`).
+ */
+export async function assignInventoriesToPrimaryCategoriesFromPg(
+  partnerId: string,
+  pairs: Array<{ inventoryId: string; categoryId: string }>
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const byInventory = new Map<string, string>()
+  for (const pair of pairs) {
+    const inventoryId = pair.inventoryId.trim()
+    const categoryId = pair.categoryId.trim()
+    if (!inventoryId || !categoryId) continue
+    byInventory.set(inventoryId, categoryId)
+  }
+  const inventoryIds = [...byInventory.keys()]
+  const categoryIds = inventoryIds.map((id) => byInventory.get(id) as string)
+  if (inventoryIds.length === 0) return true
+
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    for (let i = 0; i < inventoryIds.length; i += CATEGORY_ASSIGN_CHUNK) {
+      const invChunk = inventoryIds.slice(i, i + CATEGORY_ASSIGN_CHUNK)
+      const catChunk = categoryIds.slice(i, i + CATEGORY_ASSIGN_CHUNK)
+      await client.query(
+        `update public.messaging_partner_inventory_categories
+         set is_primary = false
+         where inventory_id = any($1::uuid[]) and is_primary = true`,
+        [invChunk]
+      )
+      await client.query(
+        `insert into public.messaging_partner_inventory_categories (inventory_id, category_id, is_primary)
+         select u.inventory_id, u.category_id, true
+         from unnest($1::uuid[], $2::uuid[]) as u(inventory_id, category_id)
+         on conflict (inventory_id, category_id) do update set is_primary = excluded.is_primary`,
+        [invChunk, catChunk]
+      )
+    }
+    await client.query('commit')
+    bumpInventoryCacheLater(partnerId)
+    return true
+  } catch (e) {
+    await client.query('rollback').catch(() => undefined)
+    console.warn('[assignInventoriesToPrimaryCategoriesFromPg]', e)
+    return false
+  } finally {
+    client.release()
+  }
+}
+
 /** Gán 1 sản phẩm vào 1 danh mục. `isPrimary=true` sẽ tự bỏ primary cũ (constraint chỉ cho 1 primary/sản phẩm). */
 export async function assignInventoryToCategoryFromPg(
   partnerId: string,

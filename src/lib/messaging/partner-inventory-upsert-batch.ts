@@ -4,6 +4,8 @@ import {
   applyPartnerInventoryCatalogPatchFromPg,
   deletePartnerInventoryByIdsForPartnerFromPg,
   fetchPartnerInventoryFullListOrderedCreatedFromPg,
+  fetchPartnerInventoryImportMatchListFromPg,
+  type PartnerInventoryImportMatchRow,
   insertPartnerInventoryChunkFromPg,
   upsertPartnerInventoryChunkFromPg,
   type InventoryCatalogPatchRow,
@@ -275,6 +277,44 @@ export async function listPartnerInventoryRows(
     return { ok: false, error: 'Could not load inventory from Postgres.' }
   }
   return { ok: true, rows: fromPg as InventoryRow[] }
+}
+
+function importMatchToInventoryRow(row: PartnerInventoryImportMatchRow): InventoryRow {
+  return toInventoryRow(
+    row.id,
+    row.partner_id,
+    {
+      name: row.name,
+      sku: row.sku,
+      description: row.description,
+      stock_note: row.stock_note,
+      stock_qty: Number(row.stock_qty) || 0,
+      price_hint: row.price_hint,
+      image_url: row.image_url,
+      product_url: row.product_url,
+      product_video_url: row.product_video_url,
+      consult_note: row.consult_note,
+      remarketing_id: row.remarketing_id,
+      sort_order: Number(row.sort_order) || 0,
+      is_active: row.is_active !== false,
+      updated_at: row.updated_at,
+    },
+    row.created_at
+  )
+}
+
+/** Khớp import: chỉ cột so SKU/tên, không kéo vector/gallery. */
+async function listPartnerInventoryRowsForUpsert(
+  partnerId: string
+): Promise<{ ok: true; rows: InventoryRow[] } | { ok: false; error: string }> {
+  if (!isPgConfigured()) {
+    return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
+  }
+  const fromPg = await fetchPartnerInventoryImportMatchListFromPg(partnerId)
+  if (fromPg === null) {
+    return { ok: false, error: 'Could not load inventory from Postgres.' }
+  }
+  return { ok: true, rows: fromPg.map(importMatchToInventoryRow) }
 }
 
 /**
@@ -646,7 +686,7 @@ export async function upsertPartnerInventoryBatch(
 
   if (options?.remarketingIdSnapshot) {
     if (!options.existingRows) {
-      const listed = await listPartnerInventoryRows(partnerId)
+      const listed = await listPartnerInventoryRowsForUpsert(partnerId)
       if (!listed.ok) return { ok: false, error: listed.error }
       return upsertPartnerInventoryRemarketingSnapshotBatch(partnerId, rows, {
         existingRows: listed.rows,
@@ -665,7 +705,7 @@ export async function upsertPartnerInventoryBatch(
   if (options?.existingRows) {
     resolvedExistingRows = options.existingRows
   } else {
-    const listed = await listPartnerInventoryRows(partnerId)
+    const listed = await listPartnerInventoryRowsForUpsert(partnerId)
     if (!listed.ok) return { ok: false, error: listed.error }
     resolvedExistingRows = listed.rows
   }

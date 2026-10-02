@@ -3774,6 +3774,76 @@ export async function fetchPartnerInventoryFullListOrderedCreatedFromPg(
   }
 }
 
+export type PartnerInventoryImportMatchRow = {
+  id: string
+  partner_id: string
+  sku: string | null
+  name: string
+  description: string
+  stock_note: string
+  stock_qty: number
+  price_hint: string
+  image_url: string
+  product_url: string
+  product_video_url: string
+  consult_note: string
+  remarketing_id: string
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+const INVENTORY_IMPORT_MATCH_PAGE = 4000
+
+/**
+ * Khớp SKU/tên lúc import Excel. Không kéo embedding, gallery, catalog_json.
+ */
+export async function fetchPartnerInventoryImportMatchListFromPg(
+  partnerId: string
+): Promise<PartnerInventoryImportMatchRow[] | null> {
+  if (!isPgConfigured()) return null
+  const all: PartnerInventoryImportMatchRow[] = []
+  let from = 0
+  try {
+    while (true) {
+      const rows = await pgQuery<PartnerInventoryImportMatchRow>(
+        `select
+           mpi.id::text as id,
+           mpi.partner_id::text as partner_id,
+           mpi.sku,
+           coalesce(mpi.name, '') as name,
+           coalesce(mpi.description, '') as description,
+           coalesce(mpi.stock_note, '') as stock_note,
+           coalesce(mpi.stock_qty, 0)::int as stock_qty,
+           coalesce(mpi.price_hint, '') as price_hint,
+           coalesce(mpi.image_url, '') as image_url,
+           coalesce(mpi.product_url, '') as product_url,
+           coalesce(mpi.product_video_url, '') as product_video_url,
+           coalesce(mpi.consult_note, '') as consult_note,
+           coalesce(mpi.remarketing_id, '') as remarketing_id,
+           coalesce(mpi.sort_order, 0)::int as sort_order,
+           coalesce(mpi.is_active, true) as is_active,
+           mpi.created_at::text as created_at,
+           mpi.updated_at::text as updated_at
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+         order by mpi.created_at asc nulls last, mpi.id asc
+         limit $2 offset $3`,
+        [partnerId, INVENTORY_IMPORT_MATCH_PAGE, from]
+      )
+      if (rows.length === 0) break
+      all.push(...rows)
+      if (rows.length < INVENTORY_IMPORT_MATCH_PAGE) break
+      from += INVENTORY_IMPORT_MATCH_PAGE
+    }
+    return all
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryImportMatchListFromPg]', e)
+    return null
+  }
+}
+
 export type InventoryRemarketingKeyRow = {
   id: string
   remarketing_id: string | null
@@ -4079,96 +4149,152 @@ export type InventoryCatalogPatchRow = {
 }
 
 /** Ghi cột catalog 188 + sizes/colors/gallery có cấu trúc sau upsert core. */
+const CATALOG_PATCH_CHUNK = 40
+
+function finiteIntOrNull(value: unknown): number | null {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  return Math.round(n)
+}
+
+function catalogPatchJsonRow(r: InventoryCatalogPatchRow): Record<string, unknown> {
+  return {
+    id: r.id,
+    catalog_json: r.catalog.catalog_json ?? {},
+    brand_name: r.catalog.brand_name || null,
+    source_origin: r.catalog.source_origin || null,
+    chinese_name: r.catalog.chinese_name || null,
+    deposit_required: r.catalog.deposit_required === true,
+    category_l1: r.catalog.category_l1 || null,
+    category_l2: r.catalog.category_l2 || null,
+    category_l3: r.catalog.category_l3 || null,
+    likes_count: Math.max(0, Math.round(Number(r.catalog.likes_count) || 0)),
+    purchases_count: Math.max(0, Math.round(Number(r.catalog.purchases_count) || 0)),
+    reviews_count: Math.max(0, Math.round(Number(r.catalog.reviews_count) || 0)),
+    questions_count: Math.max(0, Math.round(Number(r.catalog.questions_count) || 0)),
+    rating_score: Number(r.catalog.rating_score) || 0,
+    catalog_slug: r.catalog.catalog_slug || null,
+    style: r.catalog.style || null,
+    color_summary: r.catalog.color_summary || null,
+    occasion: r.catalog.occasion || null,
+    weight: r.catalog.weight || null,
+    features_json: r.catalog.features_json ?? [],
+    product_info_json: r.catalog.product_info_json ?? null,
+    source_shop_name: r.catalog.source_shop_name || null,
+    source_shop_id: r.catalog.source_shop_id || null,
+    source_shop_name_chinese: r.catalog.source_shop_name_chinese || null,
+    price_low_hint: r.catalog.price_low_hint || null,
+    price_high_hint: r.catalog.price_high_hint || null,
+    rating_group_id: finiteIntOrNull(r.catalog.rating_group_id),
+    question_group_id: finiteIntOrNull(r.catalog.question_group_id),
+    colors: r.catalog.colors ?? [],
+    sizes: r.catalog.sizes ?? [],
+    gallery_urls: r.catalog.gallery_urls ?? [],
+    detail_image_urls: r.catalog.detail_image_urls ?? [],
+    material_note: (r.materialNote ?? r.catalog.material_note ?? '').trim(),
+    cost_cny: r.catalog.cost_cny ?? null,
+    cost_vnd: r.catalog.cost_vnd ?? null,
+    write_cost_cny: r.catalog.write_cost_cny === true,
+    write_cost_vnd: r.catalog.write_cost_vnd === true,
+  }
+}
+
+const CATALOG_PATCH_SQL = `update public.messaging_partner_inventory as mpi set
+  catalog_json = v.catalog_json,
+  brand_name = v.brand_name,
+  source_origin = v.source_origin,
+  chinese_name = v.chinese_name,
+  deposit_required = v.deposit_required,
+  category_l1 = v.category_l1,
+  category_l2 = v.category_l2,
+  category_l3 = v.category_l3,
+  likes_count = v.likes_count,
+  purchases_count = v.purchases_count,
+  reviews_count = v.reviews_count,
+  questions_count = v.questions_count,
+  rating_score = v.rating_score,
+  catalog_slug = v.catalog_slug,
+  style = v.style,
+  color_summary = v.color_summary,
+  occasion = v.occasion,
+  weight = v.weight,
+  features_json = v.features_json,
+  product_info_json = v.product_info_json,
+  source_shop_name = v.source_shop_name,
+  source_shop_id = v.source_shop_id,
+  source_shop_name_chinese = v.source_shop_name_chinese,
+  price_low_hint = v.price_low_hint,
+  price_high_hint = v.price_high_hint,
+  rating_group_id = v.rating_group_id,
+  question_group_id = v.question_group_id,
+  colors_json = v.colors,
+  sizes_json = v.sizes,
+  gallery_urls = v.gallery_urls,
+  detail_image_urls = v.detail_image_urls,
+  material_note = case
+    when coalesce(trim(v.material_note), '') = '' then mpi.material_note
+    else v.material_note
+  end,
+  cost_cny = case when v.write_cost_cny then v.cost_cny else mpi.cost_cny end,
+  cost_vnd = case when v.write_cost_vnd then v.cost_vnd else mpi.cost_vnd end
+from jsonb_to_recordset($1::jsonb) as v(
+  id uuid,
+  catalog_json jsonb,
+  brand_name text,
+  source_origin text,
+  chinese_name text,
+  deposit_required boolean,
+  category_l1 text,
+  category_l2 text,
+  category_l3 text,
+  likes_count int,
+  purchases_count int,
+  reviews_count int,
+  questions_count int,
+  rating_score numeric,
+  catalog_slug text,
+  style text,
+  color_summary text,
+  occasion text,
+  weight text,
+  features_json jsonb,
+  product_info_json jsonb,
+  source_shop_name text,
+  source_shop_id text,
+  source_shop_name_chinese text,
+  price_low_hint text,
+  price_high_hint text,
+  rating_group_id int,
+  question_group_id int,
+  colors jsonb,
+  sizes jsonb,
+  gallery_urls jsonb,
+  detail_image_urls jsonb,
+  material_note text,
+  cost_cny double precision,
+  cost_vnd double precision,
+  write_cost_cny boolean,
+  write_cost_vnd boolean
+)
+where mpi.id = v.id and mpi.partner_id = $2::uuid`
+
 export async function applyPartnerInventoryCatalogPatchFromPg(
   rows: InventoryCatalogPatchRow[]
 ): Promise<boolean> {
   if (!isPgConfigured() || rows.length === 0) return true
   try {
-    for (const r of rows) {
-      await getPgPool().query(
-        `update public.messaging_partner_inventory set
-           catalog_json = $3::jsonb,
-           brand_name = $4,
-           source_origin = $5,
-           chinese_name = $6,
-           deposit_required = $7,
-           category_l1 = $8,
-           category_l2 = $9,
-           category_l3 = $10,
-           likes_count = $11,
-           purchases_count = $12,
-           reviews_count = $13,
-           questions_count = $14,
-           rating_score = $15,
-           catalog_slug = $16,
-           style = $17,
-           color_summary = $18,
-           occasion = $19,
-           weight = $20,
-           features_json = $21::jsonb,
-           product_info_json = $22::jsonb,
-           source_shop_name = $23,
-           source_shop_id = $24,
-           source_shop_name_chinese = $25,
-           price_low_hint = $26,
-           price_high_hint = $27,
-           rating_group_id = $28,
-           question_group_id = $29,
-           colors_json = $30::jsonb,
-           sizes_json = $31::jsonb,
-           gallery_urls = $32::jsonb,
-           detail_image_urls = $33::jsonb,
-           material_note = case
-             when coalesce(trim($34), '') = '' then material_note
-             else $34
-           end,
-           cost_cny = case when $37::boolean then $35::double precision else cost_cny end,
-           cost_vnd = case when $38::boolean then $36::double precision else cost_vnd end
-         where id = $1::uuid and partner_id = $2::uuid`,
-        [
-          r.id,
-          r.partnerId,
-          JSON.stringify(r.catalog.catalog_json),
-          r.catalog.brand_name || null,
-          r.catalog.source_origin || null,
-          r.catalog.chinese_name || null,
-          r.catalog.deposit_required === true,
-          r.catalog.category_l1 || null,
-          r.catalog.category_l2 || null,
-          r.catalog.category_l3 || null,
-          r.catalog.likes_count,
-          r.catalog.purchases_count,
-          r.catalog.reviews_count,
-          r.catalog.questions_count,
-          r.catalog.rating_score,
-          r.catalog.catalog_slug || null,
-          r.catalog.style || null,
-          r.catalog.color_summary || null,
-          r.catalog.occasion || null,
-          r.catalog.weight || null,
-          JSON.stringify(r.catalog.features_json ?? []),
-          r.catalog.product_info_json ? JSON.stringify(r.catalog.product_info_json) : null,
-          r.catalog.source_shop_name || null,
-          r.catalog.source_shop_id || null,
-          r.catalog.source_shop_name_chinese || null,
-          r.catalog.price_low_hint || null,
-          r.catalog.price_high_hint || null,
-          r.catalog.rating_group_id,
-          r.catalog.question_group_id,
-          JSON.stringify(r.catalog.colors ?? []),
-          JSON.stringify(r.catalog.sizes ?? []),
-          JSON.stringify(r.catalog.gallery_urls ?? []),
-          JSON.stringify(r.catalog.detail_image_urls ?? []),
-          (r.materialNote ?? r.catalog.material_note ?? '').trim(),
-          r.catalog.cost_cny,
-          r.catalog.cost_vnd,
-          r.catalog.write_cost_cny === true,
-          r.catalog.write_cost_vnd === true,
-        ]
-      )
+    const byPartner = new Map<string, InventoryCatalogPatchRow[]>()
+    for (const row of rows) {
+      const list = byPartner.get(row.partnerId) ?? []
+      list.push(row)
+      byPartner.set(row.partnerId, list)
     }
-    for (const id of new Set(rows.map((r) => r.partnerId))) {
-      bumpInventoryCacheLater(id)
+    for (const [partnerId, partnerRows] of byPartner) {
+      for (let i = 0; i < partnerRows.length; i += CATALOG_PATCH_CHUNK) {
+        const chunk = partnerRows.slice(i, i + CATALOG_PATCH_CHUNK)
+        await getPgPool().query(CATALOG_PATCH_SQL, [JSON.stringify(chunk.map(catalogPatchJsonRow)), partnerId])
+      }
+      bumpInventoryCacheLater(partnerId)
     }
     return true
   } catch (e) {

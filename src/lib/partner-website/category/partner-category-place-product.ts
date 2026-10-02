@@ -1,5 +1,6 @@
 import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-partner-category-auto-create-pg'
 import {
+  assignInventoriesToPrimaryCategoriesFromPg,
   assignInventoryToCategoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
   fetchPartnerCategoryByIdFromPg,
@@ -347,6 +348,7 @@ export async function placeImportedInventoryInCategoryTreeBatch(
   const pathCache = new Map<string, string | null>()
   const samples: string[] = []
   const skippedInventoryIds: string[] = []
+  const assignments: Array<{ inventoryId: string; categoryId: string }> = []
   for (const item of work) {
     const pathKey = [item.categoryL1, item.categoryL2, item.categoryL3]
       .map((v) => (v ?? '').trim().toLowerCase())
@@ -366,8 +368,14 @@ export async function placeImportedInventoryInCategoryTreeBatch(
       skippedInventoryIds.push(item.inventoryId)
       continue
     }
-    await assignInventoryToCategoryFromPg(partnerId, item.inventoryId, leafId, true)
+    assignments.push({ inventoryId: item.inventoryId, categoryId: leafId })
     if (item.productName?.trim() && samples.length < 8) samples.push(item.productName.trim())
+  }
+  if (assignments.length > 0) {
+    const assigned = await assignInventoriesToPrimaryCategoriesFromPg(partnerId, assignments)
+    if (!assigned) {
+      return { ok: false, error: 'db_error', skippedInventoryIds }
+    }
   }
   const finished = await finishSession(session, samples)
   if (!finished.ok) return { ok: false, error: finished.error, skippedInventoryIds }
