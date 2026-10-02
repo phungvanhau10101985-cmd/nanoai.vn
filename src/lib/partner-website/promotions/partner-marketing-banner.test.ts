@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  partnerMarketingImageAttemptsExhausted,
+  partnerMarketingImageKindLabel,
+  PARTNER_MARKETING_IMAGE_MAX_ATTEMPTS,
+} from '@/lib/partner-website/promotions/partner-marketing-image-guard'
+import {
   buildPartnerMarketingBannerPrompt,
   composePartnerMarketingBannerSlides,
   fallbackPartnerMarketingBannerCopy,
@@ -27,6 +32,17 @@ import {
   partnerSalePercentForSameDayMonth,
   resolvePartnerSaleCalendarState,
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
+
+test('marketing image generation stops after 3 failed saves', () => {
+  assert.equal(PARTNER_MARKETING_IMAGE_MAX_ATTEMPTS, 3)
+  assert.equal(partnerMarketingImageAttemptsExhausted(0), false)
+  assert.equal(partnerMarketingImageAttemptsExhausted(2), false)
+  assert.equal(partnerMarketingImageAttemptsExhausted(3), true)
+  assert.equal(partnerMarketingImageAttemptsExhausted(139), true)
+  assert.equal(partnerMarketingImageAttemptsExhausted(3, true), false)
+  assert.equal(partnerMarketingImageKindLabel('sale'), 'banner sale ngày trùng tháng')
+  assert.equal(partnerMarketingImageKindLabel('warehouse'), 'banner sale kho')
+})
 
 test('campaign key is stable per kind/date/percent', () => {
   assert.equal(partnerMarketingBannerCampaignKey('sale', 9, 9, 8), 'sale-09-09-p8')

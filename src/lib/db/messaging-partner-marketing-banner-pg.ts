@@ -495,6 +495,47 @@ function isLeapYear(year: number): boolean {
   return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
 }
 
+/** Public website and a custom domain whose SSL is active. */
+export async function partnerShopHasLiveCustomDomainFromPg(partnerId: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const row = await pgQueryOne<{ ok: boolean }>(
+    `select (
+       coalesce(w.is_published, false)
+       and exists (
+         select 1
+         from public.messaging_partner_custom_domains d
+         where d.partner_id = w.partner_id
+           and d.ssl_status = 'ssl_active'
+       )
+     ) as ok
+     from public.messaging_partner_websites w
+     where w.partner_id = $1::uuid
+     limit 1`,
+    [partnerId]
+  )
+  return row?.ok === true
+}
+
+export async function countFailedPartnerMarketingBannerAiAttemptsFromPg(input: {
+  partnerId: string
+  kind: PartnerMarketingBannerKind
+  campaignKey: string
+}): Promise<{ count: number; lastError: string | null }> {
+  if (!isPgConfigured()) return { count: 0, lastError: null }
+  const row = await pgQueryOne<{ n: number; last_error: string | null }>(
+    `select count(*)::int as n,
+            (array_agg(error_message order by created_at desc))[1] as last_error
+     from public.messaging_partner_marketing_banner_assets
+     where partner_id = $1::uuid
+       and kind = $2
+       and campaign_key = $3
+       and status = 'failed'
+       and coalesce(source, 'ai') = 'ai'`,
+    [input.partnerId, input.kind, input.campaignKey]
+  )
+  return { count: Number(row?.n) || 0, lastError: row?.last_error ? String(row.last_error) : null }
+}
+
 export async function listWebsitePartnerIdsForMarketingBannersFromPg(limit = 80): Promise<string[]> {
   if (!isPgConfigured()) return []
   const rows = await pgQuery<{ partner_id: string }>(
@@ -503,6 +544,13 @@ export async function listWebsitePartnerIdsForMarketingBannersFromPg(limit = 80)
      join public.messaging_partner_websites w on w.partner_id = p.id
      where coalesce(p.is_active, true) = true
        and p.purge_at is null
+       and coalesce(w.is_published, false) = true
+       and exists (
+         select 1
+         from public.messaging_partner_custom_domains d
+         where d.partner_id = p.id
+           and d.ssl_status = 'ssl_active'
+       )
      order by w.updated_at desc nulls last
      limit $1`,
     [Math.max(1, Math.min(200, limit))]

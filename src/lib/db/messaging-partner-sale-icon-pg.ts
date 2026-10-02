@@ -11,6 +11,8 @@ type SaleIconDbRow = {
   source_favicon_url: string | null
   source_pwa_icon_url: string | null
   status: 'generating' | 'ready' | 'failed'
+  attempt_count?: number | string | null
+  error_message?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -33,11 +35,12 @@ export async function findPartnerSaleIconFromPg(input: {
   partnerId: string
   day: number
   month: number
-}): Promise<(PartnerSaleIconAsset & { createdAt?: string }) | null> {
+}): Promise<(PartnerSaleIconAsset & { createdAt?: string; attemptCount: number; errorMessage: string | null }) | null> {
   if (!isPgConfigured()) return null
   const row = await pgQueryOne<SaleIconDbRow>(
     `select id::text, day, month, discount_percent, image_url, source_favicon_url,
-            source_pwa_icon_url, status, created_at::text, updated_at::text
+            source_pwa_icon_url, status, attempt_count, error_message,
+            created_at::text, updated_at::text
      from public.messaging_partner_sale_icons
      where partner_id = $1::uuid and day = $2 and month = $3
      limit 1`,
@@ -45,7 +48,12 @@ export async function findPartnerSaleIconFromPg(input: {
   ).catch(() => null)
   const mapped = mapRow(row)
   if (!mapped) return null
-  return { ...mapped, createdAt: row?.created_at }
+  return {
+    ...mapped,
+    createdAt: row?.created_at,
+    attemptCount: Number(row?.attempt_count) || 0,
+    errorMessage: row?.error_message ? String(row.error_message) : null,
+  }
 }
 
 export async function findReadyPartnerSaleIconFromPg(input: {
@@ -72,8 +80,8 @@ export async function insertGeneratingPartnerSaleIconFromPg(input: {
   const row = await pgQueryOne<SaleIconDbRow>(
     `insert into public.messaging_partner_sale_icons (
        partner_id, day, month, discount_percent, prompt, model, status,
-       source_favicon_url, source_pwa_icon_url, updated_at
-     ) values ($1::uuid,$2,$3,$4,$5,$6,'generating',$7,$8,now())
+       source_favicon_url, source_pwa_icon_url, attempt_count, updated_at
+     ) values ($1::uuid,$2,$3,$4,$5,$6,'generating',$7,$8,1,now())
      on conflict (partner_id, day, month) do update set
        discount_percent = excluded.discount_percent,
        prompt = excluded.prompt,
@@ -82,6 +90,7 @@ export async function insertGeneratingPartnerSaleIconFromPg(input: {
        error_message = null,
        source_favicon_url = excluded.source_favicon_url,
        source_pwa_icon_url = excluded.source_pwa_icon_url,
+       attempt_count = public.messaging_partner_sale_icons.attempt_count + 1,
        updated_at = now()
      returning id::text, day, month, discount_percent, image_url, source_favicon_url,
                source_pwa_icon_url, status`,

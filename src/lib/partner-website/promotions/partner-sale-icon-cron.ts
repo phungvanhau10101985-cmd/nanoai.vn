@@ -14,6 +14,7 @@ export type PartnerSaleIconCronResult = {
   reused: number
   failed: number
   skipped: number
+  capped: number
 }
 
 /** Same cron as marketing banners: next same-day-same-month sale, one engine. */
@@ -27,6 +28,7 @@ export async function ensureDailyPartnerSaleIcons(input?: {
     reused: 0,
     failed: 0,
     skipped: 0,
+    capped: 0,
   }
   const partnerIds = await listWebsitePartnerIdsForMarketingBannersFromPg(input?.limitPartners ?? 40)
   result.partners = partnerIds.length
@@ -90,7 +92,16 @@ export async function ensureDailyPartnerSaleIcons(input?: {
       }
       continue
     }
+    if (created.code === 'attempt_cap') {
+      result.capped += 1
+      continue
+    }
+    if (created.code === 'shop_not_live' || created.status === 409 || created.status === 402 || created.status === 400) {
+      result.skipped += 1
+      continue
+    }
     result.failed += 1
+    generated += 1
   }
 
   return result

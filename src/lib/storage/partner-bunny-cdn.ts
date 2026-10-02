@@ -124,6 +124,22 @@ export async function uploadPartnerBunnyObject(
   return uploadBunnyStorageObject(path, body, { contentType }, auth)
 }
 
+/** PUT rồi xóa một file nhỏ. 401/thiếu key trả lỗi trước khi gọi model ảnh. */
+export async function probePartnerBunnyStorageWrite(
+  partnerId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const path = `partners/${partnerId}/marketing-banners/_write-probe.txt`
+  try {
+    await uploadPartnerBunnyObject(partnerId, path, Buffer.from('ok'), 'text/plain')
+    const auth = (await partnerBunnyAuth(partnerId)) ?? platformBunnyStorageAuth()
+    if (auth) await deleteBunnyStorageObject(path, auth)
+    return { ok: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { ok: false, error: message.slice(0, 240) }
+  }
+}
+
 export async function partnerOrPlatformPublicUrl(partnerId: string, storagePath: string): Promise<string> {
   const auth = (await partnerBunnyAuth(partnerId)) ?? platformBunnyStorageAuth()
   if (!auth) {

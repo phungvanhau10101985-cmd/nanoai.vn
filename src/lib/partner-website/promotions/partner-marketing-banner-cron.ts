@@ -20,6 +20,7 @@ export type PartnerMarketingBannerCronResult = {
   birthday: { created: number; reused: number; failed: number }
   sale: { created: number; reused: number; failed: number }
   warehouse: { created: number; reused: number; failed: number; skipped: number }
+  capped: number
   saleIcons: PartnerSaleIconCronResult
 }
 
@@ -37,7 +38,8 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
     birthday: emptyCounts(),
     sale: emptyCounts(),
     warehouse: { ...emptyCounts(), skipped: 0 },
-    saleIcons: { partners: 0, created: 0, reused: 0, failed: 0, skipped: 0 },
+    capped: 0,
+    saleIcons: { partners: 0, created: 0, reused: 0, failed: 0, skipped: 0, capped: 0 },
   }
   const partnerIds = await listWebsitePartnerIdsForMarketingBannersFromPg(input?.limitPartners ?? 40)
   result.partners = partnerIds.length
@@ -80,7 +82,15 @@ export async function ensureDailyPartnerMarketingBanners(input?: {
       generated += 1
       return
     }
+    if (created.code === 'attempt_cap') {
+      result.capped += 1
+      return
+    }
+    if (created.code === 'shop_not_live' || created.status === 409 || created.status === 402 || created.status === 400) {
+      return
+    }
     result[inputCreate.bucket].failed += 1
+    generated += 1
   }
 
   for (const partnerId of partnerIds) {

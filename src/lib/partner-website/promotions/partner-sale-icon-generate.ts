@@ -8,7 +8,16 @@ import {
   findPartnerSaleIconFromPg,
   insertGeneratingPartnerSaleIconFromPg,
 } from '@/lib/db/messaging-partner-sale-icon-pg'
-import { fetchPartnerMarketingBannerBrandFromPg } from '@/lib/db/messaging-partner-marketing-banner-pg'
+import {
+  fetchPartnerMarketingBannerBrandFromPg,
+  partnerShopHasLiveCustomDomainFromPg,
+} from '@/lib/db/messaging-partner-marketing-banner-pg'
+import { notifyNanoAiAdminsMarketingImageBlocked } from '@/lib/partner-website/promotions/partner-marketing-image-admin-notify'
+import {
+  PARTNER_MARKETING_IMAGE_ATTEMPT_CAP_ERROR,
+  PARTNER_MARKETING_IMAGE_SHOP_NOT_LIVE_ERROR,
+  partnerMarketingImageAttemptsExhausted,
+} from '@/lib/partner-website/promotions/partner-marketing-image-guard'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { normalizeTemplateTheme } from '@/lib/partner-website/template/default-landing-v1'
@@ -20,7 +29,7 @@ import {
   PARTNER_SALE_ICON_CREDIT_COST,
   partnerShopSaleIconSourceUrls,
 } from '@/lib/partner-website/promotions/partner-sale-icon'
-import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
+import { probePartnerBunnyStorageWrite, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const SAFETY = [
@@ -125,7 +134,7 @@ export async function generatePartnerSaleIcon(input: {
   chargeCredits?: boolean
 }): Promise<
   | { ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerSaleIconFromPg>>> }
-  | { ok: false; error: string; status?: number }
+  | { ok: false; error: string; status?: number; code?: 'shop_not_live' | 'attempt_cap' }
 > {
   if (!isPartnerSaleIconSameDayMonth(input.day, input.month)) {
     return { ok: false, error: 'Chỉ tạo icon cho ngày trùng tháng (1/1 … 12/12).', status: 400 }
@@ -147,10 +156,42 @@ export async function generatePartnerSaleIcon(input: {
   ) {
     return { ok: true, asset: existing }
   }
+  if (!(await partnerShopHasLiveCustomDomainFromPg(input.partnerId))) {
+    return { ok: false, error: PARTNER_MARKETING_IMAGE_SHOP_NOT_LIVE_ERROR, status: 403, code: 'shop_not_live' }
+  }
+  if (
+    existing &&
+    existing.status !== 'ready' &&
+    partnerMarketingImageAttemptsExhausted(existing.attemptCount, input.force)
+  ) {
+    await notifyNanoAiAdminsMarketingImageBlocked({
+      partnerId: input.partnerId,
+      kind: 'sale-icon',
+      campaignKey: `sale-icon-${input.month}-${input.day}`,
+      lastError: existing.errorMessage,
+    })
+    return { ok: false, error: PARTNER_MARKETING_IMAGE_ATTEMPT_CAP_ERROR, status: 429, code: 'attempt_cap' }
+  }
   if (existing?.status === 'generating' && existing.createdAt) {
     const started = Date.parse(existing.createdAt)
     const stale = !Number.isFinite(started) || Date.now() - started >= 20 * 60 * 1000
     if (!stale) return { ok: false, error: 'Icon sale đang được tạo.', status: 409 }
+  }
+
+  const storage = await probePartnerBunnyStorageWrite(input.partnerId)
+  if (!storage.ok) {
+    const probeRow = await insertGeneratingPartnerSaleIconFromPg({
+      partnerId: input.partnerId,
+      day: input.day,
+      month: input.month,
+      discountPercent: input.discountPercent,
+      prompt: 'storage-probe',
+      model: 'storage-probe',
+      sourceFaviconUrl: sourceFav,
+      sourcePwaIconUrl: sourcePwa,
+    })
+    if (probeRow) await failPartnerSaleIconFromPg({ id: probeRow.id, errorMessage: storage.error })
+    return { ok: false, error: storage.error, status: 500 }
   }
 
   const actorUserId = input.actorUserId ?? (await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId))

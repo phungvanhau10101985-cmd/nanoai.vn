@@ -3,12 +3,14 @@ import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import {
   completePartnerMarketingBannerAssetFromPg,
+  countFailedPartnerMarketingBannerAiAttemptsFromPg,
   failPartnerMarketingBannerAssetFromPg,
   fetchPartnerMarketingBannerBrandFromPg,
   findActivePartnerMarketingBannerFromPg,
   findGeneratingPartnerMarketingBannerFromPg,
   findLatestPartnerMarketingBannerFromPg,
   insertPartnerMarketingBannerAssetFromPg,
+  partnerShopHasLiveCustomDomainFromPg,
 } from '@/lib/db/messaging-partner-marketing-banner-pg'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
@@ -26,7 +28,13 @@ import {
   type PartnerMarketingBannerCopy,
   type PartnerMarketingBannerKind,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
-import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
+import { probePartnerBunnyStorageWrite, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
+import { notifyNanoAiAdminsMarketingImageBlocked } from '@/lib/partner-website/promotions/partner-marketing-image-admin-notify'
+import {
+  PARTNER_MARKETING_IMAGE_ATTEMPT_CAP_ERROR,
+  PARTNER_MARKETING_IMAGE_SHOP_NOT_LIVE_ERROR,
+  partnerMarketingImageAttemptsExhausted,
+} from '@/lib/partner-website/promotions/partner-marketing-image-guard'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 const SAFETY = [
@@ -144,7 +152,10 @@ export async function generatePartnerMarketingBanner(input: {
   force?: boolean
   actorUserId?: string | null
   chargeCredits?: boolean
-}): Promise<{ ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> } | { ok: false; error: string; status?: number }> {
+}): Promise<
+  | { ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> }
+  | { ok: false; error: string; status?: number; code?: 'shop_not_live' | 'attempt_cap' }
+> {
   const day = Number.isFinite(input.day) ? Number(input.day) : 0
   const month = Number.isFinite(input.month) ? Number(input.month) : 0
   const key =
@@ -171,6 +182,9 @@ export async function generatePartnerMarketingBanner(input: {
       return { ok: true, asset: latestSame }
     }
   }
+  if (!(await partnerShopHasLiveCustomDomainFromPg(input.partnerId))) {
+    return { ok: false, error: PARTNER_MARKETING_IMAGE_SHOP_NOT_LIVE_ERROR, status: 403, code: 'shop_not_live' }
+  }
   const generating = await findGeneratingPartnerMarketingBannerFromPg({
     partnerId: input.partnerId,
     kind: input.kind,
@@ -184,6 +198,47 @@ export async function generatePartnerMarketingBanner(input: {
       id: generating.id,
       errorMessage: 'Tạo banner bị treo (generating quá hạn).',
     })
+  }
+
+  if (input.kind !== 'regular' || String(input.campaignKey ?? '').trim()) {
+    const attempts = await countFailedPartnerMarketingBannerAiAttemptsFromPg({
+      partnerId: input.partnerId,
+      kind: input.kind,
+      campaignKey: key,
+    })
+    if (partnerMarketingImageAttemptsExhausted(attempts.count, input.force)) {
+      await notifyNanoAiAdminsMarketingImageBlocked({
+        partnerId: input.partnerId,
+        kind: input.kind,
+        campaignKey: key,
+        lastError: attempts.lastError,
+      })
+      return { ok: false, error: PARTNER_MARKETING_IMAGE_ATTEMPT_CAP_ERROR, status: 429, code: 'attempt_cap' }
+    }
+  }
+
+  const storage = await probePartnerBunnyStorageWrite(input.partnerId)
+  if (!storage.ok) {
+    const latestProbe = await findLatestPartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: input.kind,
+      campaignKey: key,
+    })
+    const probeRow = await insertPartnerMarketingBannerAssetFromPg({
+      partnerId: input.partnerId,
+      kind: input.kind,
+      campaignKey: key,
+      dateKey: partnerMarketingBannerDateKeyForKind(input.kind, day, month),
+      discountPercent: input.discountPercent,
+      prompt: 'storage-probe',
+      model: 'storage-probe',
+      version: (latestProbe?.version ?? 0) + 1,
+      source: 'ai',
+    })
+    if (probeRow) {
+      await failPartnerMarketingBannerAssetFromPg({ id: probeRow.id, errorMessage: storage.error })
+    }
+    return { ok: false, error: storage.error, status: 500 }
   }
 
   if (input.chargeCredits && input.actorUserId) {
