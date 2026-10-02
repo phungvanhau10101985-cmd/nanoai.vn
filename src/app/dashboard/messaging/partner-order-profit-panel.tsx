@@ -4,16 +4,13 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import {
   fetchMyMessagingAdSpendReport,
   fetchMyMessagingAdSpendSettings,
-  fetchMyMessagingOrderProfitSheet,
   saveMyMessagingAdSpendSettings,
 } from '@/app/dashboard/messaging/actions'
+import { PartnerOrderProfitSection, type AdSpendProfitSummary } from '@/app/dashboard/messaging/partner-order-profit-section'
 import type { PartnerAdSpendSettingsView } from '@/lib/db/messaging-partner-ad-spend-pg'
 import { adSpendPageCopy, fillCopy, type AdSpendPageCopy } from '@/lib/messaging/ad-spend/partner-ad-spend-copy'
 import type { AdSpendPlatformReport, AdSpendReport } from '@/lib/messaging/ad-spend/partner-ad-spend'
 import type { WebLocale } from '@/lib/i18n/config'
-import type { PartnerOrderProfitRow } from '@/lib/db/messaging-partner-orders-pg'
-import { orderCostVnd } from '@/lib/messaging/partner-order-profit'
-import { DEFAULT_VND_PER_CNY_FOR_LISTING_ESTIMATE } from '@/lib/messaging/listing-import/taobao-cards-html-parse'
 import { SettingsDataRoleBox, SettingsDataRoleLegend } from '@/components/messaging/settings-data-role'
 
 type RangeKey = 'today' | 'yesterday' | 'week' | 'prevWeek' | '7' | '30' | 'month' | 'prev'
@@ -130,20 +127,25 @@ function formatMoney(amount: number, currency: string | null): string {
   return amount.toLocaleString('vi-VN')
 }
 
-function formatCny(amount: number): string {
-  return `${new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(amount)} ¥`
-}
-
 function formatCount(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n || 0)
 }
 
-function numOrNull(raw: string): number | null {
-  const text = raw.trim()
-  if (!text) return null
-  const n = Number(text)
-  if (!Number.isFinite(n) || n < 0) return null
-  return n
+function sameSummary(prev: AdSpendProfitSummary, next: AdSpendProfitSummary): boolean {
+  return (
+    prev.dateFrom === next.dateFrom &&
+    prev.dateTo === next.dateTo &&
+    prev.loading === next.loading &&
+    prev.orderCount === next.orderCount &&
+    prev.revenue === next.revenue &&
+    prev.revenueCny === next.revenueCny &&
+    prev.returnedCount === next.returnedCount &&
+    prev.uncollected === next.uncollected &&
+    prev.cost === next.cost &&
+    prev.missing === next.missing &&
+    prev.gross === next.gross &&
+    prev.profit === next.profit
+  )
 }
 
 function sumDaily(days: AdSpendPlatformReport['daily'], from: string, to: string) {
@@ -198,16 +200,7 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
-  const [orders, setOrders] = useState<PartnerOrderProfitRow[]>([])
-  const [truncated, setTruncated] = useState(false)
-  const [loadingOrders, setLoadingOrders] = useState(false)
-  const [orderError, setOrderError] = useState<string | null>(null)
-  const storageKey = `gudo-profit:${partnerId || 'all'}`
-  const [rate, setRate] = useState(String(DEFAULT_VND_PER_CNY_FOR_LISTING_ESTIMATE))
-  const [shipChina, setShipChina] = useState('0')
-  const [shipBorder, setShipBorder] = useState('0')
-  const [shipHanoi, setShipHanoi] = useState('0')
-  const [manualAds, setManualAds] = useState('0')
+  const [profitSummary, setProfitSummary] = useState<AdSpendProfitSummary | null>(null)
   const [googleCustomerId, setGoogleCustomerId] = useState('')
   const [googleLoginCustomerId, setGoogleLoginCustomerId] = useState('')
   const [googleDeveloperToken, setGoogleDeveloperToken] = useState('')
@@ -245,24 +238,9 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
     setLoadingReport(false)
   }, [partnerId])
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(storageKey)
-      if (!raw) return
-      const saved = JSON.parse(raw) as Record<string, string>
-      if (saved.rate) setRate(saved.rate)
-      if (saved.shipChina) setShipChina(saved.shipChina)
-      if (saved.shipBorder) setShipBorder(saved.shipBorder)
-      if (saved.shipHanoi) setShipHanoi(saved.shipHanoi)
-      if (saved.adSpend) setManualAds(saved.adSpend)
-    } catch {
-      /* bỏ qua bản lưu hỏng */
-    }
-  }, [storageKey])
-
-  useEffect(() => {
-    window.localStorage.setItem(storageKey, JSON.stringify({ rate, shipChina, shipBorder, shipHanoi, adSpend: manualAds }))
-  }, [storageKey, rate, shipChina, shipBorder, shipHanoi, manualAds])
+  const onProfitSummary = useCallback((next: AdSpendProfitSummary) => {
+    setProfitSummary((prev) => (prev && sameSummary(prev, next) ? prev : next))
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -291,27 +269,6 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
     // Chỉ tải khi khóa đã đủ. Đổi kỳ đi qua nút.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.googleConfigured, settings?.facebookConfigured, partnerId])
-
-  useEffect(() => {
-    if (!focusFrom || !focusTo) return
-    let cancelled = false
-    setLoadingOrders(true)
-    setOrderError(null)
-    void fetchMyMessagingOrderProfitSheet({ partnerId, dateFrom: focusFrom, dateTo: focusTo }).then((res) => {
-      if (cancelled) return
-      if ('error' in res) {
-        setOrders([])
-        setOrderError(res.error)
-      } else {
-        setOrders(res.orders)
-        setTruncated(res.truncated)
-      }
-      setLoadingOrders(false)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [partnerId, focusFrom, focusTo])
 
   const applyPeriod = (from: string, to: string, preset: RangeKey | null) => {
     setChosenPreset(preset)
@@ -366,10 +323,6 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
     else setReport(null)
   }
 
-  const rateNumber = numOrNull(rate)
-  const china = numOrNull(shipChina) ?? 0
-  const border = numOrNull(shipBorder) ?? 0
-  const hanoi = numOrNull(shipHanoi) ?? 0
   const adsConfigured = Boolean(settings?.googleConfigured || settings?.facebookConfigured)
   const periodReport = report && report.dateFrom === periodFrom && report.dateTo === periodTo ? report : null
   const spendLoading = loadingReport || (adsConfigured && !periodReport && !error)
@@ -410,47 +363,15 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
 
   const focusTotalVnd =
     focusSpend && focusSpend.status === 'ok' && (focusSpend.currency || '').toUpperCase() === 'VND' ? focusSpend.total : null
-  const manualAmount = numOrNull(manualAds)
   const adSpendState: AdSpendState = !settings || loadingSettings
     ? 'loading'
-    : adsConfigured
-      ? spendLoading
+    : !adsConfigured
+      ? 'unavailable'
+      : spendLoading
         ? 'loading'
         : focusTotalVnd != null
           ? 'ready'
           : 'unavailable'
-      : manualAmount == null
-        ? 'unavailable'
-        : 'ready'
-  const adsAmount = adsConfigured ? focusTotalVnd : manualAmount
-
-  const summary = useMemo(() => {
-    let revenue = 0
-    let cost = 0
-    let missing = 0
-    for (const order of orders) {
-      revenue += order.collectedVnd
-      if (order.goodsCny == null) {
-        missing += 1
-        continue
-      }
-      const line = orderCostVnd({
-        goodsCny: order.goodsCny,
-        goodsVnd: order.goodsVnd,
-        usesChinaShip: order.usesChinaShip,
-        shipChinaCny: china,
-        shipBorderCny: border,
-        shipHanoiVnd: hanoi,
-        vndPerCny: rateNumber ?? 0,
-      })
-      if (line == null) missing += 1
-      else cost += line
-    }
-    const ready = missing === 0
-    const gross = ready ? revenue - cost : null
-    const profit = ready && adSpendState === 'ready' && adsAmount != null ? revenue - cost - adsAmount : null
-    return { revenue, cost: ready ? cost : null, missing, gross, profit }
-  }, [orders, china, border, hanoi, rateNumber, adsAmount, adSpendState])
 
   const dailyRows = useMemo(() => {
     if (!periodReport) return []
@@ -467,29 +388,31 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
   const presetLabel = chosenPreset ? copy.presets[chosenPreset] : null
   const focusCaption = focusFrom === focusTo ? formatViDate(focusFrom) : `${formatViDate(focusFrom)} → ${formatViDate(focusTo)}`
   const viewingLabel = dayFocused ? focusCaption : presetLabel ? `${presetLabel} · ${focusCaption}` : focusCaption
-  const profitLoading = loadingOrders || adSpendState === 'loading'
-  const profitText = profitLoading ? copy.reading : summary.profit == null ? copy.dash : formatVnd(summary.profit)
-  const profitNegative = !profitLoading && summary.profit != null && summary.profit < 0
+  const profitForFocus =
+    profitSummary && profitSummary.dateFrom === focusFrom && profitSummary.dateTo === focusTo ? profitSummary : null
+  const profitLoading = !profitForFocus || profitForFocus.loading
+  const profitText = profitLoading
+    ? copy.calculating
+    : profitForFocus.profit == null
+      ? copy.dash
+      : formatVnd(profitForFocus.profit)
+  const profitNegative = !profitLoading && profitForFocus.profit != null && profitForFocus.profit < 0
   const profitHint = profitLoading
     ? copy.depositedHint
-    : summary.missing
-      ? fillCopy(copy.missingCost, { n: summary.missing })
-      : summary.gross != null
-        ? fillCopy(copy.grossBeforeAds, { n: orders.length, amount: formatVnd(summary.gross) })
-        : fillCopy(copy.orders, { n: orders.length })
-  const totalText = !adsConfigured
-    ? manualAmount == null
+    : profitForFocus.missing
+      ? fillCopy(copy.missingCost, { n: profitForFocus.missing })
+      : profitForFocus.gross != null
+        ? fillCopy(copy.grossBeforeAds, { n: profitForFocus.orderCount, amount: formatVnd(profitForFocus.gross) })
+        : fillCopy(copy.orders, { n: profitForFocus.orderCount })
+  const totalText = spendLoading
+    ? copy.reading
+    : !focusSpend
       ? copy.dash
-      : formatVnd(manualAmount)
-    : spendLoading
-      ? copy.reading
-      : !focusSpend
-        ? copy.dash
-        : focusSpend.status === 'mixed_currency'
-          ? copy.mixedCurrency
-          : focusSpend.status === 'ok' && focusSpend.total != null
-            ? formatMoney(focusSpend.total, focusSpend.currency)
-            : copy.dash
+      : focusSpend.status === 'mixed_currency'
+        ? copy.mixedCurrency
+        : focusSpend.status === 'ok' && focusSpend.total != null
+          ? formatMoney(focusSpend.total, focusSpend.currency)
+          : copy.dash
 
   const presetClass = (key: RangeKey) => {
     const selected = chosenPreset === key
@@ -589,8 +512,26 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
         <div className="grid grid-cols-2 gap-px border-t border-orange-100 bg-orange-100 lg:grid-cols-4 dark:border-orange-900/40 dark:bg-orange-950/40">
           <MiniStat label={copy.google} value={platformText(copy, focusSpend?.google, spendLoading && adsConfigured)} hint={platformHint(copy, focusSpend?.google)} />
           <MiniStat label={copy.facebook} value={platformText(copy, focusSpend?.facebook, spendLoading && adsConfigured)} hint={platformHint(copy, focusSpend?.facebook)} />
-          <MiniStat label={copy.revenue} value={loadingOrders ? copy.reading : formatVnd(summary.revenue)} hint={loadingOrders ? undefined : fillCopy(copy.orders, { n: orders.length })} />
-          <MiniStat label={copy.cost} value={loadingOrders ? copy.reading : summary.cost == null ? copy.dash : formatVnd(summary.cost)} hint={summary.missing ? copy.missingGoods.replace('{n}', String(summary.missing)) : undefined} />
+          <MiniStat
+            label={copy.revenue}
+            value={profitLoading ? copy.calculating : formatVnd(profitForFocus?.revenue ?? 0)}
+            hint={
+              profitLoading
+                ? undefined
+                : profitForFocus?.returnedCount
+                  ? fillCopy(copy.returnedRevenue, {
+                      n: profitForFocus.orderCount,
+                      amount: formatVnd(profitForFocus.uncollected),
+                      returned: profitForFocus.returnedCount,
+                    })
+                  : fillCopy(copy.orders, { n: profitForFocus?.orderCount ?? 0 })
+            }
+          />
+          <MiniStat
+            label={copy.cost}
+            value={profitLoading ? copy.calculating : profitForFocus?.cost == null ? copy.dash : formatVnd(profitForFocus.cost)}
+            hint={profitForFocus?.missing ? copy.missingCostShort : copy.costHint}
+          />
         </div>
       </section>
 
@@ -640,70 +581,18 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
         </div>
       ) : spendLoading ? <p className="mt-4 text-sm text-slate-500">{copy.reading}</p> : null}
 
-      <section className="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900" aria-label={copy.profitTitle}>
-        <div className="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-zinc-50">{copy.profitTitle}</h3>
-          <p className="mt-1 text-xs text-slate-500">{copy.profitBody}</p>
-        </div>
-        <div className="space-y-4 px-4 py-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label={copy.rate} value={rate} onChange={setRate} step="0.0001" />
-            <Field label={copy.shipChina} value={shipChina} onChange={setShipChina} step="0.01" />
-            <Field label={copy.shipBorder} value={shipBorder} onChange={setShipBorder} step="0.01" />
-            <Field label={copy.shipHanoi} value={shipHanoi} onChange={setShipHanoi} step="1" />
-            {!adsConfigured ? <Field label={copy.manualAds} value={manualAds} onChange={setManualAds} step="1" /> : null}
-          </div>
-          {!adsConfigured ? <p className="text-xs text-slate-500">{copy.manualAdsHint}</p> : null}
-          <p className="text-xs text-slate-500">{copy.shipNote}</p>
-          {orderError ? <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{orderError}</div> : null}
-          {summary.missing > 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{fillCopy(copy.missingGoods, { n: summary.missing })}</div> : null}
-          {truncated ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.truncated}</div> : null}
-          {loadingOrders ? <p className="text-sm text-slate-500">{copy.loadingOrders}</p> : null}
-          {!loadingOrders && orders.length === 0 && !orderError ? <p className="text-sm text-slate-500">{copy.noOrders}</p> : null}
-          {orders.length > 0 ? (
-            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700">
-              <table className="min-w-full text-sm">
-                <thead className="bg-slate-50 text-left text-slate-500 dark:bg-zinc-950">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">{copy.colOrder}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colDate}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colRevenue}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colGoods}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colImport}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colCost}</th>
-                    <th className="px-3 py-2 font-medium">{copy.colGross}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order) => {
-                    const cost = order.goodsCny == null ? null : orderCostVnd({
-                      goodsCny: order.goodsCny,
-                      goodsVnd: order.goodsVnd,
-                      usesChinaShip: order.usesChinaShip,
-                      shipChinaCny: china,
-                      shipBorderCny: border,
-                      shipHanoiVnd: hanoi,
-                      vndPerCny: rateNumber ?? 0,
-                    })
-                    const gross = cost == null ? null : order.collectedVnd - cost
-                    return (
-                      <tr key={order.orderId} className="border-t border-slate-100 dark:border-zinc-800">
-                        <td className="px-3 py-2 font-medium">{order.orderCode}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{order.createdOn || copy.dash}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatVnd(order.collectedVnd)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{order.goodsCny == null ? copy.dash : formatCny(order.goodsCny)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{formatVnd(order.goodsVnd)}</td>
-                        <td className="px-3 py-2 whitespace-nowrap">{cost == null ? copy.dash : formatVnd(cost)}</td>
-                        <td className={`px-3 py-2 whitespace-nowrap ${gross != null && gross < 0 ? 'text-red-700' : ''}`}>{gross == null ? copy.dash : formatVnd(gross)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
-      </section>
+      <div className="mt-6">
+        <PartnerOrderProfitSection
+          partnerId={partnerId}
+          locale={locale}
+          dateFrom={focusFrom}
+          dateTo={focusTo}
+          refreshKey={0}
+          adSpend={focusTotalVnd}
+          adSpendState={adSpendState}
+          onSummaryChange={onProfitSummary}
+        />
+      </div>
 
       <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <button type="button" className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-slate-800 dark:text-zinc-100" aria-expanded={showSettings} onClick={() => setShowSettings((value) => !value)}>
@@ -796,15 +685,6 @@ function MiniStat({ label, value, hint }: { label: string; value: string; hint?:
       <p className="mt-1 text-base font-bold tabular-nums text-[#ea580c]">{value}</p>
       {hint ? <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p> : null}
     </div>
-  )
-}
-
-function Field({ label, value, onChange, step }: { label: string; value: string; onChange: (value: string) => void; step: string }) {
-  return (
-    <label className="text-sm text-slate-700 dark:text-zinc-200">
-      {label}
-      <input type="number" min="0" step={step} value={value} onChange={(e) => onChange(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 dark:border-zinc-600 dark:bg-zinc-950" />
-    </label>
   )
 }
 

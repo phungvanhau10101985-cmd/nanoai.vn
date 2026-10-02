@@ -9,6 +9,7 @@ export type AdSpendPageCopy = {
   to: string
   viewPeriod: string
   reading: string
+  calculating: string
   viewing: string
   wholePeriod: string
   eachDay: string
@@ -18,6 +19,9 @@ export type AdSpendPageCopy = {
   facebook: string
   revenue: string
   cost: string
+  costHint: string
+  missingCostShort: string
+  returnedRevenue: string
   googlePlusFacebook: string
   mixedCurrency: string
   dash: string
@@ -68,6 +72,19 @@ export type AdSpendPageCopy = {
   shipChina: string
   shipBorder: string
   shipHanoi: string
+  saveRates: string
+  savingRates: string
+  savedRates: string
+  badMoney: string
+  badCell: string
+  goodsPlaceholder: string
+  returnedLine: string
+  revenueTitle: string
+  returnedTitle: string
+  goodsAria: string
+  shipChinaAria: string
+  shipBorderAria: string
+  shipHanoiAria: string
   manualAds: string
   manualAdsHint: string
   shipNote: string
@@ -81,6 +98,10 @@ export type AdSpendPageCopy = {
   colRevenue: string
   colGoods: string
   colImport: string
+  colShipChina: string
+  colShipBorder: string
+  colShipHanoi: string
+  colCny: string
   colCost: string
   colGross: string
   presets: Record<'today' | 'yesterday' | 'week' | 'prevWeek' | '7' | '30' | 'month' | 'prev', string>
@@ -95,6 +116,7 @@ const vi: AdSpendPageCopy = {
   to: 'Đến',
   viewPeriod: 'Xem kỳ này',
   reading: 'Đang đọc…',
+  calculating: 'Đang tính…',
   viewing: 'Đang xem',
   wholePeriod: 'Cả kỳ',
   eachDay: 'Từng ngày — bấm để xem số của ngày đó',
@@ -104,6 +126,9 @@ const vi: AdSpendPageCopy = {
   facebook: 'Facebook Ads',
   revenue: 'Doanh thu đã cọc',
   cost: 'Giá vốn',
+  costHint: 'Giá hàng và ship',
+  missingCostShort: 'Còn đơn thiếu giá nhập',
+  returnedRevenue: '{n} đơn · trừ {amount} chưa cọc của {returned} đơn hoàn',
   googlePlusFacebook: 'Google + Facebook',
   mixedCurrency: 'Google và Facebook không cùng đơn vị tiền',
   dash: '—',
@@ -160,15 +185,30 @@ const vi: AdSpendPageCopy = {
   savedToast: 'Đã lưu khóa đọc chi phí quảng cáo.',
   guideTitle: 'Hướng dẫn tích hợp chi phí quảng cáo',
   profitTitle: 'Chi tiết đơn đã cọc',
-  profitBody: 'Giá thu là tiền hàng sau sale. Hàng Trung Quốc lấy giá gốc tệ × tỷ giá. Hàng Việt Nam và sale thanh lý kho lấy giá nhập đồng (sale = 0đ, không cộng ship Trung Quốc). Quảng cáo trừ một lần cho cả kỳ đang chọn.',
+  profitBody:
+    'Chỉ đơn đã cọc trong khoảng đang chọn. Giá thu là tiền hàng sau các chương trình sale, không gồm phí ship khách trả. Giá vốn hàng Trung Quốc lấy giá gốc tệ × tỷ giá. Hàng Việt Nam lấy giá nhập đồng; hàng sale thanh lý kho là 0đ và không cộng ship Trung Quốc. Lợi nhuận = giá thu − giá vốn − ship − quảng cáo.',
   rate: 'Tỷ giá (₫ / 1 ¥)',
   shipChina: 'Ship TQ nội địa (¥ / đơn)',
   shipBorder: 'Ship cửa khẩu về Hà Nội (¥ / đơn)',
   shipHanoi: 'Ship Hà Nội đến khách (₫ / đơn)',
+  saveRates: 'Lưu tỷ giá và tiền ship',
+  savingRates: 'Đang lưu…',
+  savedRates: 'Đã lưu tỷ giá và tiền ship.',
+  badMoney: 'Nhập tỷ giá và tiền ship mức chung. Các số không được âm.',
+  badCell: 'Có ô tiền không đọc được. Nhập số không âm, dùng dấu chấm cho phần thập phân.',
+  goodsPlaceholder: 'Nhập ¥',
+  returnedLine: 'Hoàn · trừ {amount} chưa cọc',
+  revenueTitle: 'Tiền hàng sau sale, không gồm phí ship khách trả',
+  returnedTitle: 'Đơn hoàn: giữ tiền cọc, trừ phần hàng khách chưa trả',
+  goodsAria: 'Giá hàng tệ {code}',
+  shipChinaAria: 'Ship Trung Quốc {code}',
+  shipBorderAria: 'Ship cửa khẩu {code}',
+  shipHanoiAria: 'Ship Hà Nội {code}',
   manualAds: 'Quảng cáo kỳ (₫)',
   manualAdsHint: 'Chưa nối Google hoặc Facebook nên ô này nhập tay. Sau khi lưu khóa, số này lấy từ hai nền tảng.',
-  shipNote: 'Mức ship chung áp cho đơn có hàng tệ. Đơn chỉ có hàng Việt Nam hoặc sale kho không cộng ship Trung Quốc.',
-  missingGoods: '{n} đơn chưa có đủ giá nhập nên tổng giá vốn và lợi nhuận chưa chốt.',
+  shipNote:
+    'Mức ship chung áp cho đơn có hàng tệ. Đơn chỉ có hàng Việt Nam hoặc sale kho giữ ship Trung Quốc bằng 0, trừ khi sửa riêng đơn đó. Đổi tỷ giá thì tiền vốn tệ đổi lại; giá gốc tệ và giá nhập đồng đã lưu không đổi.',
+  missingGoods: '{n} đơn chưa có đủ giá nhập nên tổng giá vốn và lợi nhuận chưa chốt. Nhập giá hàng ¥ cho các đơn đó.',
   truncated: 'Kỳ này nhiều hơn 400 đơn đã cọc. Rút ngắn khoảng ngày để hạch toán đủ.',
   noOrders: 'Không có đơn đã cọc trong khoảng này.',
   loadingOrders: 'Đang tải đơn đã cọc…',
@@ -178,6 +218,10 @@ const vi: AdSpendPageCopy = {
   colRevenue: 'Giá thu',
   colGoods: 'Giá hàng ¥',
   colImport: 'Nhập VN',
+  colShipChina: 'Ship TQ ¥',
+  colShipBorder: 'Cửa khẩu ¥',
+  colShipHanoi: 'Hà Nội ₫',
+  colCny: 'Giá tệ',
   colCost: 'Giá vốn',
   colGross: 'Lãi gộp',
   presets: {
@@ -208,6 +252,7 @@ const en: AdSpendPageCopy = {
   to: 'To',
   viewPeriod: 'View this period',
   reading: 'Loading…',
+  calculating: 'Calculating…',
   viewing: 'Viewing',
   wholePeriod: 'Whole period',
   eachDay: 'Each day — click to see that day',
@@ -215,6 +260,9 @@ const en: AdSpendPageCopy = {
   profit: 'Profit',
   revenue: 'Deposited revenue',
   cost: 'Cost',
+  costHint: 'Goods and shipping',
+  missingCostShort: 'Some orders are missing import cost',
+  returnedRevenue: '{n} orders · minus {amount} not deposited on {returned} returns',
   googlePlusFacebook: 'Google + Facebook',
   mixedCurrency: 'Google and Facebook use different currencies',
   notConfigured: 'Not connected',
@@ -261,15 +309,30 @@ const en: AdSpendPageCopy = {
   savedToast: 'Ad spend keys saved.',
   guideTitle: 'How to connect ad spend',
   profitTitle: 'Deposited orders',
-  profitBody: 'Revenue is merchandise after sale, without the shipping the customer paid. China goods use source yuan × the rate. Vietnam goods and clearance use the dong import cost (clearance is 0 and skips China shipping). Ad spend is subtracted once for the selected period.',
+  profitBody:
+    'Only deposited orders in the selected range. Revenue is merchandise after every sale, without the shipping the customer paid. China goods use source yuan × the rate. Vietnam goods use the dong import cost; clearance is 0 and skips China shipping. Profit = revenue − cost − shipping − ads.',
   rate: 'Rate (₫ / 1 ¥)',
   shipChina: 'China domestic ship (¥ / order)',
   shipBorder: 'Border to Hanoi (¥ / order)',
   shipHanoi: 'Hanoi to customer (₫ / order)',
+  saveRates: 'Save rate and shipping',
+  savingRates: 'Saving…',
+  savedRates: 'Rate and shipping saved.',
+  badMoney: 'Enter the shared rate and shipping. Amounts cannot be negative.',
+  badCell: 'A money cell could not be read. Enter a non-negative number and use a dot for decimals.',
+  goodsPlaceholder: 'Enter ¥',
+  returnedLine: 'Return · minus {amount} not deposited',
+  revenueTitle: 'Merchandise after sale, without the shipping the customer paid',
+  returnedTitle: 'Returned order: keep the deposit, drop the goods the customer did not pay',
+  goodsAria: 'Yuan goods {code}',
+  shipChinaAria: 'China shipping {code}',
+  shipBorderAria: 'Border shipping {code}',
+  shipHanoiAria: 'Hanoi shipping {code}',
   manualAds: 'Period ads (₫)',
   manualAdsHint: 'Google and Facebook are not connected, so this amount is typed. After the keys are saved, the figure comes from both platforms.',
-  shipNote: 'The shared shipping amounts apply to orders that still have yuan goods. Vietnam-only and clearance orders skip China shipping.',
-  missingGoods: '{n} orders are missing import cost, so cost and profit are not final.',
+  shipNote:
+    'The shared shipping amounts apply to orders that still have yuan goods. Vietnam-only and clearance orders keep China shipping at 0 unless that order is edited. Changing the rate recalculates yuan cost; a saved yuan price and a saved dong import cost stay as they are.',
+  missingGoods: '{n} orders are missing import cost, so cost and profit are not final. Enter the yuan goods price for those orders.',
   truncated: 'This period has more than 400 deposited orders. Shorten the dates to account for all of them.',
   noOrders: 'No deposited orders in this range.',
   loadingOrders: 'Loading deposited orders…',
@@ -279,6 +342,10 @@ const en: AdSpendPageCopy = {
   colRevenue: 'Revenue',
   colGoods: 'Goods ¥',
   colImport: 'VN import',
+  colShipChina: 'China ship ¥',
+  colShipBorder: 'Border ¥',
+  colShipHanoi: 'Hanoi ₫',
+  colCny: 'Yuan total',
   colCost: 'Cost',
   colGross: 'Gross',
   presets: {
@@ -309,6 +376,7 @@ const zh: AdSpendPageCopy = {
   to: '到',
   viewPeriod: '查看此期间',
   reading: '正在读取…',
+  calculating: '正在计算…',
   viewing: '正在查看',
   wholePeriod: '整个期间',
   eachDay: '按天 — 点击查看当天',
@@ -316,6 +384,9 @@ const zh: AdSpendPageCopy = {
   profit: '利润',
   revenue: '已付定金营收',
   cost: '成本',
+  costHint: '货款和运费',
+  missingCostShort: '还有订单缺少进货价',
+  returnedRevenue: '{n} 笔 · 减去 {returned} 笔退货未付定金 {amount}',
   googlePlusFacebook: 'Google + Facebook',
   mixedCurrency: 'Google 与 Facebook 货币不同',
   notConfigured: '未连接',
@@ -362,15 +433,30 @@ const zh: AdSpendPageCopy = {
   savedToast: '已保存广告费密钥。',
   guideTitle: '如何接入广告费',
   profitTitle: '已付定金订单',
-  profitBody: '收入是促销后的货款，不含客户支付的运费。中国货用原价人民币 × 汇率。越南货和清仓用越南盾进价（清仓为 0，不加中国运费）。广告费按所选期间扣除一次。',
+  profitBody:
+    '只统计所选区间内已付定金的订单。收入是各项促销后的货款，不含客户支付的运费。中国货成本 = 人民币原价 × 汇率。越南货用越南盾进价；清仓为 0，不加中国运费。利润 = 收入 − 成本 − 运费 − 广告费。',
   rate: '汇率（₫ / 1 ¥）',
   shipChina: '中国国内运费（¥ / 单）',
   shipBorder: '口岸到河内（¥ / 单）',
   shipHanoi: '河内到客户（₫ / 单）',
+  saveRates: '保存汇率和运费',
+  savingRates: '正在保存…',
+  savedRates: '已保存汇率和运费。',
+  badMoney: '请填写共用汇率和运费。数字不能为负。',
+  badCell: '有金额无法读取。请填非负数字，小数用点。',
+  goodsPlaceholder: '输入 ¥',
+  returnedLine: '退货 · 减去未付定金 {amount}',
+  revenueTitle: '促销后的货款，不含客户支付的运费',
+  returnedTitle: '退货单：保留定金，减去客户未付的货款',
+  goodsAria: '人民币货款 {code}',
+  shipChinaAria: '中国运费 {code}',
+  shipBorderAria: '口岸运费 {code}',
+  shipHanoiAria: '河内运费 {code}',
   manualAds: '期间广告费（₫）',
   manualAdsHint: '尚未连接 Google 或 Facebook，因此这里手工填写。保存密钥后，数字来自两个平台。',
-  shipNote: '共用运费用于仍有人民币货款的订单。仅越南货和清仓不加中国运费。',
-  missingGoods: '{n} 笔订单缺少进货价，成本和利润尚未确定。',
+  shipNote:
+    '共用运费用于仍有人民币货款的订单。仅越南货和清仓的中国运费保持 0，除非单独改那一单。改汇率会重算人民币成本；已保存的人民币原价和越南盾进价不变。',
+  missingGoods: '{n} 笔订单缺少进货价，成本和利润尚未确定。请为这些订单填写人民币货款。',
   truncated: '此期间已付定金订单超过 400 笔。缩短日期才能全部核算。',
   noOrders: '此区间没有已付定金订单。',
   loadingOrders: '正在加载已付定金订单…',
@@ -380,6 +466,10 @@ const zh: AdSpendPageCopy = {
   colRevenue: '收入',
   colGoods: '货款 ¥',
   colImport: '越南进价',
+  colShipChina: '中国运费 ¥',
+  colShipBorder: '口岸 ¥',
+  colShipHanoi: '河内 ₫',
+  colCny: '人民币合计',
   colCost: '成本',
   colGross: '毛利',
   presets: {
@@ -410,6 +500,7 @@ const ja: AdSpendPageCopy = {
   to: '終了',
   viewPeriod: 'この期間を見る',
   reading: '読み込み中…',
+  calculating: '計算中…',
   viewing: '表示中',
   wholePeriod: '期間全体',
   eachDay: '日ごと — クリックするとその日を表示',
@@ -417,6 +508,9 @@ const ja: AdSpendPageCopy = {
   profit: '利益',
   revenue: '入金済み売上',
   cost: '原価',
+  costHint: '商品と送料',
+  missingCostShort: '仕入値が未入力の注文があります',
+  returnedRevenue: '{n} 件 · 返品 {returned} 件の未入金 {amount} を差し引き',
   googlePlusFacebook: 'Google + Facebook',
   mixedCurrency: 'Google と Facebook の通貨が違います',
   notConfigured: '未接続',
@@ -463,15 +557,30 @@ const ja: AdSpendPageCopy = {
   savedToast: '広告費のキーを保存しました。',
   guideTitle: '広告費のつなぎ方',
   profitTitle: '入金済み注文',
-  profitBody: '売上はセール後の商品代金で、お客様負担の送料は含みません。中国商品は元の人民元 × レート。ベトナム商品と在庫処分はドンの仕入値（処分は 0、中国送料なし）。広告費は選択期間で一度だけ引きます。',
+  profitBody:
+    '選択期間の入金済み注文だけを見ます。売上はセール後の商品代金で、お客様負担の送料は含みません。中国商品の原価は人民元 × レート。ベトナム商品はドンの仕入値。在庫処分は 0 で中国送料なし。利益 = 売上 − 原価 − 送料 − 広告費。',
   rate: 'レート（₫ / 1 ¥）',
   shipChina: '中国国内送料（¥ / 件）',
   shipBorder: '国境からハノイ（¥ / 件）',
   shipHanoi: 'ハノイからお客様（₫ / 件）',
+  saveRates: 'レートと送料を保存',
+  savingRates: '保存中…',
+  savedRates: 'レートと送料を保存しました。',
+  badMoney: '共通のレートと送料を入力してください。負の数は使えません。',
+  badCell: '読めない金額があります。0 以上の数を入れ、小数は点を使います。',
+  goodsPlaceholder: '¥ を入力',
+  returnedLine: '返品 · 未入金 {amount} を差し引き',
+  revenueTitle: 'セール後の商品代金。お客様負担の送料は含みません',
+  returnedTitle: '返品: 入金は残し、未払いの商品代金を引きます',
+  goodsAria: '人民元の商品 {code}',
+  shipChinaAria: '中国送料 {code}',
+  shipBorderAria: '国境送料 {code}',
+  shipHanoiAria: 'ハノイ送料 {code}',
   manualAds: '期間の広告費（₫）',
   manualAdsHint: 'Google と Facebook が未接続のため手入力です。キー保存後は両プラットフォームの数値になります。',
-  shipNote: '共通送料は人民元の商品がある注文に使います。ベトナムのみと在庫処分は中国送料を足しません。',
-  missingGoods: '{n} 件は仕入値が足りないため、原価と利益は未確定です。',
+  shipNote:
+    '共通送料は人民元の商品がある注文に使います。ベトナムのみと在庫処分の中国送料は 0 のままです。その注文だけ変えた場合は別です。レートを変えると人民元の原価を再計算します。保存済みの人民元とドン仕入値は変わりません。',
+  missingGoods: '{n} 件は仕入値が足りないため、原価と利益は未確定です。それらの注文に人民元の商品価格を入力してください。',
   truncated: 'この期間の入金済み注文は 400 件を超えています。日付を短くすると全部計算できます。',
   noOrders: 'この期間に入金済み注文はありません。',
   loadingOrders: '入金済み注文を読み込み中…',
@@ -481,6 +590,10 @@ const ja: AdSpendPageCopy = {
   colRevenue: '売上',
   colGoods: '商品 ¥',
   colImport: 'VN 仕入',
+  colShipChina: '中国送料 ¥',
+  colShipBorder: '国境 ¥',
+  colShipHanoi: 'ハノイ ₫',
+  colCny: '人民元合計',
   colCost: '原価',
   colGross: '粗利',
   presets: {
@@ -511,6 +624,7 @@ const ko: AdSpendPageCopy = {
   to: '까지',
   viewPeriod: '이 기간 보기',
   reading: '읽는 중…',
+  calculating: '계산 중…',
   viewing: '보는 중',
   wholePeriod: '전체 기간',
   eachDay: '날짜별 — 누르면 그날 수치',
@@ -518,6 +632,9 @@ const ko: AdSpendPageCopy = {
   profit: '이익',
   revenue: '입금된 매출',
   cost: '원가',
+  costHint: '상품과 배송',
+  missingCostShort: '매입가가 없는 주문이 있습니다',
+  returnedRevenue: '{n}건 · 반품 {returned}건의 미입금 {amount} 제외',
   googlePlusFacebook: 'Google + Facebook',
   mixedCurrency: 'Google과 Facebook 통화가 다릅니다',
   notConfigured: '연결 안 됨',
@@ -564,15 +681,30 @@ const ko: AdSpendPageCopy = {
   savedToast: '광고비 키를 저장했습니다.',
   guideTitle: '광고비 연결 방법',
   profitTitle: '입금된 주문',
-  profitBody: '매출은 할인 후 상품 대금이며 고객 배송비는 포함하지 않습니다. 중국 상품은 위안 원가 × 환율. 베트남 상품과 재고 정리는 동 매입가(정리는 0, 중국 배송비 없음). 광고비는 선택 기간에 한 번만 뺍니다.',
+  profitBody:
+    '선택한 구간의 입금 주문만 봅니다. 매출은 할인 후 상품 대금이며 고객 배송비는 포함하지 않습니다. 중국 상품 원가는 위안 × 환율. 베트남 상품은 동 매입가. 재고 정리는 0이고 중국 배송비 없음. 이익 = 매출 − 원가 − 배송 − 광고비.',
   rate: '환율 (₫ / 1 ¥)',
   shipChina: '중국 국내 배송 (¥ / 주문)',
   shipBorder: '국경에서 하노이 (¥ / 주문)',
   shipHanoi: '하노이에서 고객 (₫ / 주문)',
+  saveRates: '환율과 배송비 저장',
+  savingRates: '저장 중…',
+  savedRates: '환율과 배송비를 저장했습니다.',
+  badMoney: '공통 환율과 배송비를 입력하세요. 음수는 안 됩니다.',
+  badCell: '읽을 수 없는 금액이 있습니다. 0 이상 숫자를 넣고 소수는 점을 씁니다.',
+  goodsPlaceholder: '¥ 입력',
+  returnedLine: '반품 · 미입금 {amount} 제외',
+  revenueTitle: '할인 후 상품 대금. 고객 배송비는 포함하지 않습니다',
+  returnedTitle: '반품: 입금은 유지하고 고객이 내지 않은 상품 대금을 뺍니다',
+  goodsAria: '위안 상품 {code}',
+  shipChinaAria: '중국 배송 {code}',
+  shipBorderAria: '국경 배송 {code}',
+  shipHanoiAria: '하노이 배송 {code}',
   manualAds: '기간 광고비 (₫)',
   manualAdsHint: 'Google 또는 Facebook이 연결되지 않아 직접 입력합니다. 키를 저장하면 두 플랫폼 수치를 씁니다.',
-  shipNote: '공통 배송비는 위안 상품이 있는 주문에 적용됩니다. 베트남 전용과 재고 정리는 중국 배송비를 더하지 않습니다.',
-  missingGoods: '{n}건은 매입가가 부족해 원가와 이익이 확정되지 않았습니다.',
+  shipNote:
+    '공통 배송비는 위안 상품이 있는 주문에 적용됩니다. 베트남 전용과 재고 정리의 중국 배송비는 0입니다. 그 주문만 고치면 달라집니다. 환율을 바꾸면 위안 원가를 다시 계산합니다. 저장한 위안 가격과 동 매입가는 그대로입니다.',
+  missingGoods: '{n}건은 매입가가 부족해 원가와 이익이 확정되지 않았습니다. 해당 주문에 위안 상품 가격을 입력하세요.',
   truncated: '이 기간의 입금 주문이 400건을 넘습니다. 날짜를 줄이면 모두 계산합니다.',
   noOrders: '이 구간에 입금 주문이 없습니다.',
   loadingOrders: '입금 주문을 불러오는 중…',
@@ -582,6 +714,10 @@ const ko: AdSpendPageCopy = {
   colRevenue: '매출',
   colGoods: '상품 ¥',
   colImport: 'VN 매입',
+  colShipChina: '중국 배송 ¥',
+  colShipBorder: '국경 ¥',
+  colShipHanoi: '하노이 ₫',
+  colCny: '위안 합계',
   colCost: '원가',
   colGross: '매출총이익',
   presets: {

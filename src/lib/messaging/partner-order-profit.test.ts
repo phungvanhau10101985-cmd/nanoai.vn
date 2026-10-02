@@ -1,16 +1,25 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  assembleProfitOrder,
   collectedGoodsVnd,
+  goodsCnyMatchingListing,
   orderCostVnd,
+  recognizedGoodsVnd,
   summarizeStoredImport,
 } from './partner-order-profit'
 import { estimateListingVndRounded, listingVndToCny } from './listing-import/taobao-cards-html-parse'
 
 describe('partner order profit', () => {
   it('uses the price after sale, not shipping', () => {
-    assert.equal(collectedGoodsVnd(900_000, 1_000_000), 900_000)
-    assert.equal(collectedGoodsVnd(0, 800_000), 800_000)
+    assert.equal(collectedGoodsVnd(1_000_000, 100_000, 880_000), 900_000)
+    assert.equal(collectedGoodsVnd(0, 0, 490_000), 490_000)
+  })
+
+  it('keeps only the deposit on a returned order', () => {
+    assert.equal(recognizedGoodsVnd(1_000_000, 300_000, false), 1_000_000)
+    assert.equal(recognizedGoodsVnd(1_000_000, 300_000, true), 300_000)
+    assert.equal(recognizedGoodsVnd(1_000_000, 0, true), 0)
   })
 
   it('costs china yuan and vietnam dong, with sale stock at 0', () => {
@@ -53,6 +62,108 @@ describe('partner order profit', () => {
         goodsCny: sale.goodsCny,
         goodsVnd: sale.goodsVnd,
         usesChinaShip: false,
+        shipChinaCny: 10,
+        shipBorderCny: 20,
+        shipHanoiVnd: 30_000,
+        vndPerCny: 3580,
+      }),
+      30_000,
+    )
+  })
+
+  it('inverts a listing price when the catalog has no yuan', () => {
+    const selling = estimateListingVndRounded(
+      { price_cny_approx: 80, cny_exchange_multiplier: 3 },
+      3580,
+    )
+    assert.ok(selling)
+    const goods = goodsCnyMatchingListing(
+      [{ quantity: 1, unitPriceVnd: selling, lineTotalVnd: selling, catalogRaw: null }],
+      3580,
+      selling,
+    )
+    assert.ok(goods != null && Math.abs(goods - 80) < 1.5)
+    const labeled = goodsCnyMatchingListing(
+      [{ quantity: 1, unitPriceVnd: selling, lineTotalVnd: selling, catalogRaw: 'giày tây nam g05' }],
+      3580,
+      selling,
+    )
+    assert.ok(labeled != null && Math.abs(labeled - 80) < 1.5)
+  })
+
+  it('assembles stored china cost and skips china ship on clearance', () => {
+    const china = assembleProfitOrder(
+      {
+        orderId: '11111111-1111-1111-1111-111111111111',
+        orderCode: 'DH1',
+        depositedOn: '2026-10-01',
+        subtotal: 1_000_000,
+        discount: 0,
+        amountAfterDiscount: 1_000_000,
+        paidAmount: 300_000,
+        returned: true,
+        lines: [
+          {
+            quantity: 1,
+            unitPriceVnd: 1_000_000,
+            lineTotalVnd: 1_000_000,
+            catalogRaw: null,
+            costCny: 80,
+            costVnd: 80 * 3580,
+            isWarehouse: false,
+            isClearance: false,
+          },
+        ],
+        goodsCnyOverride: null,
+        shipChinaOverride: null,
+        shipBorderOverride: null,
+        shipHanoiOverride: null,
+      },
+      3580,
+    )
+    assert.equal(china.revenueVnd, 300_000)
+    assert.equal(china.uncollectedVnd, 700_000)
+    assert.equal(china.catalogGoodsCny, 80)
+    assert.equal(china.goodsVnd, 0)
+    assert.equal(china.usesChinaShip, true)
+    assert.equal(china.importStored, true)
+
+    const clearance = assembleProfitOrder(
+      {
+        orderId: '22222222-2222-2222-2222-222222222222',
+        orderCode: 'DH2',
+        depositedOn: '2026-10-01',
+        subtotal: 200_000,
+        discount: 0,
+        amountAfterDiscount: 200_000,
+        paidAmount: 200_000,
+        returned: false,
+        lines: [
+          {
+            quantity: 1,
+            unitPriceVnd: 200_000,
+            lineTotalVnd: 200_000,
+            catalogRaw: null,
+            costCny: null,
+            costVnd: null,
+            isWarehouse: false,
+            isClearance: true,
+          },
+        ],
+        goodsCnyOverride: null,
+        shipChinaOverride: null,
+        shipBorderOverride: null,
+        shipHanoiOverride: null,
+      },
+      3580,
+    )
+    assert.equal(clearance.usesChinaShip, false)
+    assert.equal(clearance.goodsVnd, 0)
+    assert.equal(
+      orderCostVnd({
+        goodsCny: clearance.catalogGoodsCny ?? 0,
+        goodsVnd: clearance.goodsVnd,
+        usesChinaShip: clearance.usesChinaShip,
         shipChinaCny: 10,
         shipBorderCny: 20,
         shipHanoiVnd: 30_000,
