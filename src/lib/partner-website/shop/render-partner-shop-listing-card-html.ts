@@ -136,7 +136,7 @@ export function renderPartnerShopListingCardHtml(
   const relatedClass = related ? ' pw-related-card' : ''
   const bodyClass = related ? ' pw-related-card-body' : ''
   const imgTag = img
-    ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(name)}" loading="${loading}" decoding="async"${fetchPriority} referrerpolicy="no-referrer"/>`
+    ? `<img src="${escapeAttr(img)}" alt="" loading="${loading}" decoding="async"${fetchPriority} referrerpolicy="no-referrer"/>`
     : ''
   return (
     `<article class="pw-product-card${relatedClass}" ${pwElAttr(PW_EL.card)} data-inventory-id="${escapeAttr(id)}" data-pw-actions-ready="1">` +

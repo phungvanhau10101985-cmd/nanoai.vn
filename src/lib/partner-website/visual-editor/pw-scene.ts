@@ -1652,7 +1652,9 @@ export const PARTNER_SHOP_SCENE_CENTER_SCRIPT = `${pwCoordinateRuntimeSource()}
     }
     if(root&&root.style){
       var h=root.offsetHeight||0;
-      if(z>1&&h>0)root.style.marginBottom=Math.round((z-1)*h)+'px';
+      // scale() keeps the unscaled layout box. z>1 needs room below the paint;
+      // z<1 leaves a blank tail under the footer unless margin pulls that tail up.
+      if(z&&Math.abs(z-1)>0.004&&h>0)root.style.marginBottom=Math.round((z-1)*h)+'px';
       else root.style.removeProperty('margin-bottom');
     }
     var bgs=document.querySelectorAll('[data-pw-added-bg="1"]');

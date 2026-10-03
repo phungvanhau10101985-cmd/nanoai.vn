@@ -32,6 +32,7 @@ import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/s
 import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
 import { PartnerSiteLoginChromeLink } from '@/components/partner-website/shop/partner-site-login-chrome-link'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { CART_ADDED_MODAL_COPY, releasePartnerShopBodyScroll } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PartnerSiteNewsletterForm } from '@/components/partner-website/shop/partner-site-newsletter-form'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
@@ -1048,7 +1049,7 @@ function PartnerSiteShopShellInner({
             </div>
             {logoUrl ? (
               <a href={paths.home} className="pw-shop-brand">
-                <img className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
+                <ShopCdnImg className="pw-shop-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
                 <span className="pw-wordmark" data-pw-el={PW_EL.wordmark}>{title}</span>
               </a>
             ) : (
@@ -1208,7 +1209,7 @@ function PartnerSiteShopShellInner({
             {logoUrl ? (
               <a href={paths.home}>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="pw-shop-footer-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
+                <ShopCdnImg className="pw-shop-footer-logo" data-pw-el={PW_EL.logo} src={logoUrl} alt={title} />
               </a>
             ) : null}
             <p className="pw-shop-footer-name">{title}</p>

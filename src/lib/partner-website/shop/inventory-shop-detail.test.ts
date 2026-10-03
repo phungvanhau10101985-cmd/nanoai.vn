@@ -15,7 +15,10 @@ import {
   shopAboveFoldDisplaySrc,
   shopAboveFoldBannerSrc,
   rewritePdpHtmlImagesForPage,
+  clampShopImageRetryEdge,
   nextShopImageRetrySrc,
+  SHOP_IMAGE_RETRY_MAX_EDGE,
+  buildPartnerShopCdnImageRetryScript,
   PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS,
 } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { inventoryRowToShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
@@ -50,22 +53,41 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
   assert.equal(shopPdpPageSrc(raw), page)
   assert.equal(shopPdpPageSrc(broken), page)
   assert.equal(applyShopAlicdnPageSize(raw), page)
-  assert.equal(nextShopImageRetrySrc(broken), `/api/fetch-image?url=${encodeURIComponent(broken)}`)
-  assert.equal(nextShopImageRetrySrc(page), `/api/fetch-image?url=${encodeURIComponent(page)}`)
-  assert.equal(nextShopImageRetrySrc(raw), `/api/fetch-image?url=${encodeURIComponent(card)}`)
+  const retry = (url: string) => `/api/fetch-image?url=${encodeURIComponent(url)}&w=${SHOP_IMAGE_RETRY_MAX_EDGE}`
+  assert.equal(nextShopImageRetrySrc(broken), retry(broken))
+  assert.equal(nextShopImageRetrySrc(page), retry(page))
+  assert.equal(nextShopImageRetrySrc(raw), retry(card))
   const bunnyUrl = 'https://gudo-vn-3f93.b-cdn.net/site/manual-products/a.jpg'
-  assert.equal(nextShopImageRetrySrc(bunnyUrl), `/api/fetch-image?url=${encodeURIComponent(bunnyUrl)}`)
+  assert.equal(nextShopImageRetrySrc(bunnyUrl), retry(bunnyUrl))
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
-  assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}`), null)
+  assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}&w=1200`), null)
+  assert.equal(clampShopImageRetryEdge('1200'), 1200)
+  assert.equal(clampShopImageRetryEdge('4000'), SHOP_IMAGE_RETRY_MAX_EDGE)
+  assert.equal(clampShopImageRetryEdge(''), 0)
   const rewritten = rewritePdpHtmlImagesForPage(`<img src="${raw}" alt="x">`)
   assert.match(rewritten, /_1200x1200\.jpg/)
   assert.match(rewritten, /data-pw-full-src="/)
   assert.match(rewritten, /loading="lazy"/)
 })
 
+test('shop HTML retries blocked Bunny hosts through same-origin fetch-image', () => {
+  const script = buildPartnerShopCdnImageRetryScript()
+  assert.match(script, /data-pw-cdn-image-retry/)
+  assert.match(script, /b-cdn\\.net/)
+  assert.match(script, /\/api\/fetch-image\?url=/)
+  assert.match(script, /data-pw-inline-visual-root/)
+  assert.match(script, /data-pw-img-react/)
+  assert.match(script, /stopPropagation/)
+  assert.match(script, /querySelectorAll\('img'\)/)
+  assert.match(script, /getAttribute\('loading'\)==='lazy'/)
+  assert.match(script, /IntersectionObserver/)
+  assert.match(script, /&w=1200/)
+  assert.doesNotMatch(script, /naturalWidth===0&&\(img\.currentSrc\|\|img\.getAttribute\('src'\)\)\)retry\(img\)/)
+})
+
 test('lazy PDP detail images are not marked broken before the browser fetches them', () => {
   assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /var isLazy=imgEl\.getAttribute\('loading'\)==='lazy'/)
-  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /if\(!isLazy&&imgEl\.complete/)
+  assert.match(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /if\(!isLazy&&imgEl\.getAttribute\('data-pw-img-retry'\)!=='1'&&imgEl\.complete/)
   assert.doesNotMatch(PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS, /lazyNotStarted/)
 })
 

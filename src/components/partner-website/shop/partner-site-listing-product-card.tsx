@@ -2,6 +2,7 @@
 
 import type { WebLocale } from '@/lib/i18n/config'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
@@ -151,7 +152,7 @@ export function PartnerSiteListingProductCard({
     >
       <a className="pw-product-card-hit" href={dest} aria-label={name || dest} tabIndex={-1} />
       <div className="pw-product-card-media" data-pw-el={PW_EL.cardMedia}>
-        {img ? <img src={img} alt="" loading="lazy" decoding="async" /> : null}
+        {img ? <ShopCdnImg src={img} alt="" loading="lazy" decoding="async" /> : null}
         <PartnerSiteSaleMediaMarks product={product as SaleCardProduct} locale={locale} />
         {newBadge ? <span className="pw-badge-new">NEW</span> : null}
       </div>

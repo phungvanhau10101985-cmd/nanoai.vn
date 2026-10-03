@@ -68,6 +68,7 @@ import {
 import { PartnerSiteSaleCountdown } from '@/components/partner-website/shop/partner-site-sale-face'
 import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { PW_SHOP_CART_PAGE_CSS } from '@/lib/partner-website/shop/partner-site-cart-page-css'
 import { scrollPartnerShopViewportToTop } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import {
@@ -1407,7 +1408,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               />
             </label>
             <PartnerSiteProductHitLink href={productHref} className="pw-shop-cart-product-media" aria-label={item.card.name}>
-              <img
+              <ShopCdnImg
                 src={shopCardDisplaySrc(item.card.image_url) || item.card.image_url}
                 alt={item.card.name}
                 width={72}

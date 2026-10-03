@@ -201,6 +201,45 @@ export function partnerAiIntentYieldsCardConsultIsolation(
   )
 }
 
+/** Chỉ các nhánh nghiệp vụ sản phẩm mới được phép đọc SKU/page_context và dựng catalog context. */
+export function partnerAiIntentAllowsProductContext(
+  intent: PartnerAiRouteIntent | null
+): boolean {
+  return (
+    intent === 'card_consult_isolated' ||
+    intent === 'explicit_sku_consult' ||
+    intent === 'follow_up_current_product' ||
+    intent === 'new_product_search' ||
+    intent === 'similar_alternatives' ||
+    intent === 'purchase_or_order'
+  )
+}
+
+/** Hợp nhất classifier + hard rule thành route cuối trước khi bất kỳ nhánh nào đọc catalog/page_context. */
+export function resolvePartnerAiFinalRouteDecision(input: {
+  classified: PartnerAiRouteDecision | null
+  orderStatusAsk: boolean
+  policyAsk: boolean
+  followUpHeuristic: boolean
+}): PartnerAiRouteDecision {
+  if (input.orderStatusAsk || input.policyAsk) {
+    return createPartnerAiRouteDecision('policy_or_order_support', {
+      source: 'hard_rule',
+      reason: input.orderStatusAsk ? 'order_status_lookup' : 'shop_policy_ask',
+      confidence: 1,
+    })
+  }
+  if (input.classified) return input.classified
+  return createPartnerAiRouteDecision(
+    input.followUpHeuristic ? 'follow_up_current_product' : 'clarify',
+    {
+      source: 'fallback',
+      reason: 'classifier_unavailable',
+      confidence: 0.5,
+    }
+  )
+}
+
 /**
  * Neo thẻ «Tư vấn» chỉ khi khách đang hỏi tiếp đúng SP đó.
  * Ý chính sách / tìm mới / mẫu khác không bị `page_context` cũ đè thành cô lập 1 SKU.

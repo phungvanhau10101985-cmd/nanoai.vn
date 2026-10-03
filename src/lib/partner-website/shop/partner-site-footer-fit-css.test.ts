@@ -13,6 +13,9 @@ test('footer fit CSS stacks newsletter on mobile and lets the email field shrink
   assert.match(PW_SHOP_FOOTER_FIT_CSS, /html \.pw-footer-grid[\s\S]*grid-template-columns:minmax\(0,1fr\)!important/)
   assert.match(PW_SHOP_FOOTER_FIT_CSS, /html \.pw-footer-grid[\s\S]*min-width:0!important/)
   assert.match(PW_SHOP_FOOTER_FIT_CSS, /html\[data-pw-edit-device="desktop"\] \.pw-newsletter[\s\S]*flex-direction:row!important/)
+  assert.match(PW_SHOP_FOOTER_FIT_CSS, /html \.pw-footer,html \.pw-shop-footer\{[\s\S]*height:auto!important/)
+  assert.match(PW_SHOP_FOOTER_FIT_CSS, /html \.pw-footer,html \.pw-shop-footer\{[\s\S]*min-height:0!important/)
+  assert.match(PW_SHOP_FOOTER_FIT_CSS, /html \.pw-footer,html \.pw-shop-footer\{[\s\S]*padding:16px 16px 4px!important/)
   assert.doesNotMatch(PW_SHOP_FOOTER_FIT_CSS, /overflow-x:clip/)
 })
 

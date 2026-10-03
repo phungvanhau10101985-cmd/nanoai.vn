@@ -1269,6 +1269,33 @@ export async function countPartnerAiRealUseImagesSentForInventoryInConversationP
   }
 }
 
+/** Chống gửi lặp ảnh chất liệu khi cùng AI job được retry sau khi đã insert media. */
+export async function hasPartnerAiMaterialImageForJobPg(
+  conversationId: string,
+  aiJobId: string,
+  inventoryId: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const row = await pgQueryOne<{ found: boolean }>(
+      `select exists(
+         select 1
+         from public.customer_care_messages
+         where conversation_id = $1::uuid
+           and direction = 'outbound'
+           and coalesce(raw_payload->>'partner_ai_job_id','') = $2
+           and coalesce(raw_payload->'partner_ai_image_followup'->>'kind','') = 'material'
+           and coalesce(raw_payload->'partner_ai_image_followup'->>'inventory_id','') = $3
+       ) as found`,
+      [conversationId, aiJobId, inventoryId]
+    )
+    return row?.found === true
+  } catch (e) {
+    console.warn('[customer-care-pg] hasPartnerAiMaterialImageForJobPg', e)
+    return false
+  }
+}
+
 /** Tin outbound mới nhất trước — để đọc `ai_product_cards` (mặt hàng vừa tư vấn). */
 export async function fetchOutboundRawPayloadsNewestFirstPg(
   conversationId: string,

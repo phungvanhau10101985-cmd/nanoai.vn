@@ -598,7 +598,7 @@ function productPriceText(product: LivePdpBindProduct, locale: WebLocale = 'vi')
 
 function thumbButtonHtml(url: string, name: string, full?: string): string {
   const fullAttr = full ? ` data-pw-full-src="${escAttr(full)}"` : ''
-  return `<button type="button" class="pw-shop-product-thumb" data-pw-el="${PW_EL.thumb}"><img src="${escAttr(url)}"${fullAttr} alt="${escAttr(name)}" loading="lazy" decoding="async" /></button>`
+  return `<button type="button" class="pw-shop-product-thumb" data-pw-el="${PW_EL.thumb}" aria-label="${escAttr(name)}"><img src="${escAttr(url)}"${fullAttr} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" /></button>`
 }
 
 function stripHidden(attrs: string): string {

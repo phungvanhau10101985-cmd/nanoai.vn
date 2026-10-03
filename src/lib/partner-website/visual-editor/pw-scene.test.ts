@@ -299,7 +299,7 @@ describe('pw scene layers', () => {
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveFloat(root){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function findLiveFloatKit(root){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT.split('hoistLiveFloat(root)').length - 1).toBeGreaterThanOrEqual(2)
-    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('z>1&&h>0')
+    expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('Math.abs(z-1)>0.004&&h>0')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("root.style.removeProperty('margin-bottom')")
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain('function hoistLiveOverlays(){')
     expect(PARTNER_SHOP_SCENE_CENTER_SCRIPT).toContain("var isPdp=!isKit&&((el.getAttribute&&el.getAttribute('data-pw-pdp-bottom')==='1')||(el.classList&&el.classList.contains('pw-pdp-sticky')));")

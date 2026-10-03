@@ -2,7 +2,10 @@ import type { Database } from '@/types/database.types'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchImageWith1688Bypass, is1688ImageUrl } from '@/lib/fetch-image-1688'
-import { updatePartnerInventoryMaterialDetailImageUrlFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import {
+  fetchPartnerInventoryRowByIdForPartnerFromPg,
+  updatePartnerInventoryMaterialDetailImageUrlFromPg,
+} from '@/lib/db/messaging-partner-inventory-pg'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -22,11 +25,39 @@ type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
 
 export type PartnerMaterialDetailFollowup = {
+  inventoryId: string
   publicUrl: string
   storagePath: string
   mime: string
   /** Copy ưu điểm chất liệu gửi kèm ảnh trong chat (tăng chuyển đổi). */
   pitchText?: string
+}
+
+export type PartnerMaterialDetailImageRequest = {
+  inventoryId: string
+}
+
+const materialImageInflight = new Map<string, Promise<PartnerMaterialDetailFollowup | null>>()
+
+export function materialDetailPlanForInventoryRow(row: InvRow): {
+  followup: PartnerMaterialDetailFollowup | null
+  request: PartnerMaterialDetailImageRequest | null
+} {
+  const existing = (row.material_detail_image_url ?? '').trim()
+  if (/^https?:\/\//i.test(existing)) {
+    const material = (row.material_note ?? '').trim()
+    return {
+      followup: {
+        inventoryId: row.id,
+        publicUrl: existing,
+        storagePath: '',
+        mime: 'image/png',
+        pitchText: material ? `Chất liệu: ${material.slice(0, 500)}` : undefined,
+      },
+      request: null,
+    }
+  }
+  return { followup: null, request: { inventoryId: row.id } }
 }
 
 function mergeInventoryTextForPitch(row: InvRow): string {
@@ -94,10 +125,6 @@ export function buildMaterialDetailImageChatCaption(followup: PartnerMaterialDet
   const pitch = followup.pitchText?.trim()
   const lead = '📷 Chi tiết chất liệu & màu sắc (từ ảnh sản phẩm chính).'
   return pitch ? `${lead}\n\n${pitch}` : lead
-}
-
-function patchMaterialDetailImage<T extends InvRow>(rows: T[], id: string, url: string): T[] {
-  return rows.map((r) => (r.id === id ? ({ ...r, material_detail_image_url: url } as T) : r))
 }
 
 async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; data: string } | null> {
@@ -176,8 +203,8 @@ async function generateMaterialDetailCollageBuffer(
 }
 
 /**
- * Khi khách hỏi chất liệu: đảm bảo có URL ảnh collage chi tiết (cache DB hoặc tạo mới bằng Gemini từ **ảnh chính** `image_url`).
- * Trả về thông tin để gửi kèm tin nhắn (widget/Facebook…).
+ * Khi khách hỏi chất liệu: chỉ đọc ảnh collage đã cache. Nếu chưa có, trả một request để worker
+ * trả lời chữ trước rồi mới tạo ảnh nền từ đúng `inventory_id`.
  */
 export async function enrichInventoryMaterialDetailCollageIfNeeded(
   partnerId: string,
@@ -194,8 +221,13 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
   invForContext: InvRow[]
   selectedRow: InvRow | null
   materialDetailFollowup: PartnerMaterialDetailFollowup | null
+  materialDetailImageRequest: PartnerMaterialDetailImageRequest | null
 }> {
-  const emptyFollowup = { ...input, materialDetailFollowup: null as PartnerMaterialDetailFollowup | null }
+  const emptyFollowup = {
+    ...input,
+    materialDetailFollowup: null as PartnerMaterialDetailFollowup | null,
+    materialDetailImageRequest: null as PartnerMaterialDetailImageRequest | null,
+  }
   if (!isPgConfigured() || !customerMessageAsksAboutMaterial(latestCustomerMessage)) {
     return emptyFollowup
   }
@@ -209,50 +241,72 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
   )
   if (!focus) return emptyFollowup
 
-  const pitchText = (await generateMaterialDetailSalesPitch(focus, partnerId)) ?? undefined
-
-  const existing = (focus.material_detail_image_url ?? '').trim()
-  if (/^https?:\/\//i.test(existing)) {
+  const plan = materialDetailPlanForInventoryRow(focus)
+  if (plan.followup) {
     return {
       explicitSkuRows: input.explicitSkuRows,
       invForContext: input.invForContext,
       selectedRow: input.selectedRow,
-      materialDetailFollowup: {
-        publicUrl: existing,
-        storagePath: '',
-        mime: 'image/png',
-        pitchText,
-      },
+      materialDetailFollowup: plan.followup,
+      materialDetailImageRequest: null,
     }
   }
+  return {
+    ...emptyFollowup,
+    materialDetailImageRequest: plan.request,
+  }
+}
 
+async function generateInventoryMaterialDetailFollowupByIdUncached(
+  partnerId: string,
+  inventoryId: string
+): Promise<PartnerMaterialDetailFollowup | null> {
+  const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, inventoryId)
+  if (!row) return null
+  const existing = (row.material_detail_image_url ?? '').trim()
+  if (/^https?:\/\//i.test(existing)) {
+    return {
+      inventoryId: row.id,
+      publicUrl: existing,
+      storagePath: '',
+      mime: 'image/png',
+      pitchText: row.material_note?.trim() ? `Chất liệu: ${row.material_note.trim().slice(0, 500)}` : undefined,
+    }
+  }
+  const src = (row.image_url ?? '').trim()
+  if (!/^https?:\/\//i.test(src)) return null
   const bunnyReady = await ensureBunnyWritableBeforeImageModel(partnerId)
   if (!bunnyReady.ok) {
     console.warn('[material-detail-image] bunny probe', bunnyReady.error)
-    return emptyFollowup
+    return null
   }
-
-  const gen = await generateMaterialDetailCollageBuffer(focus.image_url.trim(), focus)
-  if (!gen?.buffer.length) return emptyFollowup
-
-  const stored = await storeGeneratedMaterialDetailImage(partnerId, focus.id, gen)
-  if (!stored) return emptyFollowup
-
-  const nextUrl = stored.publicUrl
+  const gen = await generateMaterialDetailCollageBuffer(src, row)
+  if (!gen?.buffer.length) return null
+  const stored = await storeGeneratedMaterialDetailImage(partnerId, row.id, gen)
+  if (!stored) return null
+  const pitchText = (await generateMaterialDetailSalesPitch(row, partnerId)) ?? undefined
   return {
-    explicitSkuRows: patchMaterialDetailImage(input.explicitSkuRows, focus.id, nextUrl),
-    invForContext: patchMaterialDetailImage(input.invForContext, focus.id, nextUrl),
-    selectedRow:
-      input.selectedRow?.id === focus.id
-        ? ({ ...input.selectedRow, material_detail_image_url: nextUrl } as InvRow)
-        : input.selectedRow,
-    materialDetailFollowup: {
-      publicUrl: nextUrl,
-      storagePath: stored.storagePath,
-      mime: 'image/png',
-      pitchText,
-    },
+    inventoryId: row.id,
+    publicUrl: stored.publicUrl,
+    storagePath: stored.storagePath,
+    mime: 'image/png',
+    pitchText,
   }
+}
+
+/** Một process chỉ tạo một ảnh cho cùng tenant + inventory; DB URL là cache xuyên process. */
+export function generateInventoryMaterialDetailFollowupById(
+  partnerId: string,
+  inventoryId: string
+): Promise<PartnerMaterialDetailFollowup | null> {
+  const key = `${partnerId}:${inventoryId}`
+  const current = materialImageInflight.get(key)
+  if (current) return current
+  const pending = generateInventoryMaterialDetailFollowupByIdUncached(partnerId, inventoryId).finally(() => {
+    materialImageInflight.delete(key)
+  })
+  materialImageInflight.set(key, pending)
+  return pending
 }
 
 async function storeGeneratedMaterialDetailImage(
@@ -297,6 +351,7 @@ export async function regenerateInventoryMaterialDetailImage(
   if (!stored) return null
   const pitchText = (await generateMaterialDetailSalesPitch(row, partnerId)) ?? undefined
   return {
+    inventoryId: row.id,
     publicUrl: stored.publicUrl,
     storagePath: stored.storagePath,
     mime: 'image/png',

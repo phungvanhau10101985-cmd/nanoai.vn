@@ -206,9 +206,26 @@ export function shopPdpPageSrc(raw: string | null | undefined): string {
   return displayShopImageUrl(applyShopAlicdnPageSize(url))
 }
 
+/** Cạnh dài tối đa khi proxy lại ảnh lỗi. Điện thoại không decode file Bunny gốc. */
+export const SHOP_IMAGE_RETRY_MAX_EDGE = 1200
+
+export function shopImageRetryProxyUrl(httpsUrl: string): string {
+  return `/api/fetch-image?url=${encodeURIComponent(httpsUrl)}&w=${SHOP_IMAGE_RETRY_MAX_EDGE}`
+}
+
+/** `w` trên `/api/fetch-image`. 0 = không thu nhỏ (giữ trần 2.5MB). */
+export function clampShopImageRetryEdge(raw: string | null | undefined): number {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 0
+  const edge = Math.round(n)
+  if (edge < 64) return 0
+  return Math.min(SHOP_IMAGE_RETRY_MAX_EDGE, edge)
+}
+
 /**
  * One retry only: proxy the *current* display URL (keep `_600x600` / `_1200x1200`).
  * Never strip the size suffix — originals are several MB and decode to gigabytes in Chrome.
+ * `&w=` asks the proxy to shrink a Bunny original the phone could not decode.
  * `data-pw-full-src` still holds the original for zoom / Thử đồ / Chat mua.
  */
 export function nextShopImageRetrySrc(currentSrc: string): string | null {
@@ -222,7 +239,7 @@ export function nextShopImageRetrySrc(currentSrc: string): string | null {
   }
   if (!/^https?:\/\//i.test(next) && !next.startsWith('//')) return null
   if (/alicdn\.com|alicdn\.net|tbcdn\.cn|1688\.com|alibaba\.com|b-cdn\.net/i.test(next)) {
-    return `/api/fetch-image?url=${encodeURIComponent(next)}`
+    return shopImageRetryProxyUrl(next)
   }
   return null
 }
@@ -340,10 +357,80 @@ export const PW_SHOP_IMAGE_RETRY_JS = `function nextShopImageRetrySrc(src){
     inner=inner.replace(/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i,'')+'_600x600q90.jpg';
   }
   if(/^https?:\\/\\//i.test(inner)&&/alicdn\\.com|alicdn\\.net|tbcdn\\.cn|1688\\.com|alibaba\\.com|b-cdn\\.net/i.test(inner)){
-    return '/api/fetch-image?url='+encodeURIComponent(inner);
+    return '/api/fetch-image?url='+encodeURIComponent(inner)+'&w=${SHOP_IMAGE_RETRY_MAX_EDGE}';
   }
   return '';
 }`
+
+/**
+ * WiFi chặn DNS `*.b-cdn.net`. Ảnh HTML shop thử CDN trước.
+ * `loading=lazy` chưa tải cũng có `complete && naturalWidth===0` — không đổi src lúc DOMContentLoaded
+ * (điện thoại sẽ mất ảnh CDN mà desktop đã kịp hiện). Lỗi thật mới proxy một lần.
+ * Ảnh React (`data-pw-img-react`) tự đổi src.
+ */
+export const PW_SHOP_CDN_IMAGE_RETRY_BOOT_JS = `${PW_SHOP_IMAGE_RETRY_JS}
+(function(){
+  if(window.__pwShopCdnImgRetry)return;
+  window.__pwShopCdnImgRetry=1;
+  var HOST='[data-pw-inline-visual-root],[data-pw-live-chrome],[data-pw-live-dock],[data-pw-live-fixed-layer]';
+  function inShop(img){
+    return !!(img&&img.closest&&img.closest(HOST));
+  }
+  function retry(img){
+    if(!img||img.tagName!=='IMG')return false;
+    if(img.getAttribute('data-pw-img-react')==='1')return false;
+    if(img.getAttribute('data-pw-img-retry')==='1')return false;
+    if(!inShop(img))return false;
+    var cur=img.currentSrc||img.getAttribute('src')||'';
+    var next=nextShopImageRetrySrc(cur);
+    if(!next||next===cur)return false;
+    img.setAttribute('data-pw-img-retry','1');
+    img.src=next;
+    return true;
+  }
+  document.addEventListener('error',function(ev){
+    if(retry(ev.target))ev.stopPropagation();
+  },true);
+  function alreadyFailed(img){
+    return !!(img.complete&&img.naturalWidth===0&&(img.currentSrc||img.getAttribute('src')));
+  }
+  function watchLazy(list){
+    if(!list.length||!window.IntersectionObserver)return;
+    var io=new IntersectionObserver(function(entries){
+      for(var i=0;i<entries.length;i++){
+        if(!entries[i].isIntersecting)continue;
+        (function(img){
+          io.unobserve(img);
+          setTimeout(function(){
+            if(img.getAttribute('data-pw-img-retry')==='1')return;
+            if(img.naturalWidth>0||!img.complete)return;
+            retry(img);
+          },2500);
+        })(entries[i].target);
+      }
+    },{rootMargin:'120px'});
+    for(var j=0;j<list.length;j++)io.observe(list[j]);
+  }
+  function sweep(){
+    var roots=document.querySelectorAll(HOST);
+    var lazy=[];
+    for(var r=0;r<roots.length;r++){
+      var imgs=roots[r].querySelectorAll('img');
+      for(var i=0;i<imgs.length;i++){
+        var img=imgs[i];
+        if(img.getAttribute('loading')==='lazy'){lazy.push(img);continue;}
+        if(alreadyFailed(img))retry(img);
+      }
+    }
+    watchLazy(lazy);
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',sweep);
+  else sweep();
+})();`
+
+export function buildPartnerShopCdnImageRetryScript(): string {
+  return `<script data-pw-cdn-image-retry>${PW_SHOP_CDN_IMAGE_RETRY_BOOT_JS}</script>`
+}
 
 export const PW_SHOP_HIDE_BROKEN_PDP_IMGS_JS = `${PW_SHOP_IMAGE_RETRY_JS}
 
@@ -375,7 +462,7 @@ function hideBrokenPdpImgs(root){
       }
       imgEl.addEventListener('error',retryOrHide);
       var isLazy=imgEl.getAttribute('loading')==='lazy';
-      if(!isLazy&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
+      if(!isLazy&&imgEl.getAttribute('data-pw-img-retry')!=='1'&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
     })(imgs[i]);
   }
 }`

@@ -88,7 +88,8 @@ function hideBrokenCardImgs(root){
       }
       imgEl.addEventListener('load',function(){this.style.visibility='';});
       imgEl.addEventListener('error',retryOrHide);
-      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||''))retryOrHide();
+      var isLazy=imgEl.getAttribute('loading')==='lazy';
+      if(!isLazy&&imgEl.getAttribute('data-pw-img-retry')!=='1'&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
     })(imgs[i]);
   }
 }

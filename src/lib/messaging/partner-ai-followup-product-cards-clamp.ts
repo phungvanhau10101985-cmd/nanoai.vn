@@ -19,6 +19,9 @@ function normImgBase(u: string): string {
 }
 
 function productCardMatchesInventoryRow(card: PartnerAiProductCard, row: InvRow): boolean {
+  const cardInventoryId = card.inventory_id?.trim()
+  if (cardInventoryId) return cardInventoryId === row.id
+
   const rowSku = normSku(row.sku)
   const cSku = normSku(card.sku)
   if (rowSku && cSku && rowSku === cSku) return true
@@ -46,7 +49,10 @@ export function clampProductCardsToLastConsultedRow(
 ): PartnerAiProductCard[] {
   if (cards.length === 0) return cards
   const matched = cards.filter((c) => productCardMatchesInventoryRow(c, row))
-  if (matched.length > 0) return matched.slice(0, 1)
+  if (matched.length > 0) {
+    const canonical = partnerAiProductCardFromInventoryRow(row)
+    return canonical ? [canonical] : []
+  }
   return []
 }
 

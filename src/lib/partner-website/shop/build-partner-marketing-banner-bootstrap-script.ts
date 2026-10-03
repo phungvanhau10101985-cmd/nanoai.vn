@@ -169,7 +169,8 @@ function wireCarousel(host,box,items){
         dropSlide();
       }
       imgEl.addEventListener('error',retryOrDrop);
-      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrDrop();
+      var isLazy=imgEl.getAttribute('loading')==='lazy';
+      if(!isLazy&&imgEl.getAttribute('data-pw-img-retry')!=='1'&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrDrop();
     })(img);
   }
   var prev=box.querySelector('[data-pw-promo-prev]');

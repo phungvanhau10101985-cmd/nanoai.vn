@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { WebLocale } from '@/lib/i18n/config'
 import { PartnerSiteImageSearchPopover } from '@/components/partner-website/shop/partner-site-image-search-popover'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { imageUrlToFile } from '@/lib/partner-website/shop/partner-site-image-from-url'
 import {
   emitPartnerSiteSearchHistory,
@@ -633,8 +634,7 @@ export function PartnerSiteMobileSearchClient({
         aria-busy={searchingThis}
       >
         <span className="pw-mobile-search-tile-media">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={img} alt="" loading="lazy" decoding="async" />
+          <ShopCdnImg src={img} alt="" loading="lazy" decoding="async" />
           <span className="pw-mobile-search-tile-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden>
               <path

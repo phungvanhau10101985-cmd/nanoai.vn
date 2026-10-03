@@ -19,9 +19,10 @@ import { buildPartnerSiteShopTrackingBridgeScript } from '@/lib/partner-website/
 import { replaceInlineShopRuntimesWithHashedFiles } from '@/lib/partner-website/shop/pw-shop-hashed-runtime'
 import { injectPartnerShopCdnPreconnect } from '@/lib/partner-website/shop/preload-partner-shop-lcp'
 import { getBunnyPublicBase } from '@/lib/bunny-cdn-url'
+import { buildPartnerShopCdnImageRetryScript } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -152,6 +153,7 @@ export function injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(
   }
   if (hooks.slider) out = appendBeforeBody(out, buildPartnerSiteSliderBootstrapScript())
   if (hooks.paper) out = appendBeforeBody(out, buildPartnerSitePaperTileBootstrapScript())
+  out = appendBeforeBody(out, buildPartnerShopCdnImageRetryScript())
   return out
 }
 
@@ -186,6 +188,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   if (chatBridge) out = appendBeforeBody(out, chatBridge)
   if (!siteSlug) return out
 
+  out = appendBeforeBody(out, buildPartnerShopCdnImageRetryScript())
   out = appendBeforeBody(out, buildPartnerSiteShopTrackingBridgeScript())
   out = appendBeforeBody(out, buildPartnerSiteSearchBootstrapScript({ siteSlug, locale }))
   if (hooks.catalog || hooks.personalization) {

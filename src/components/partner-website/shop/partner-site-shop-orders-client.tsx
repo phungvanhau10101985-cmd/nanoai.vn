@@ -33,6 +33,7 @@ import {
 import { PW_EL, PW_REGION } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import { usePartnerSiteCustomDomain } from '@/lib/partner-website/shop/partner-site-custom-domain-context'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import type { SiteOrderRow } from '@/lib/partner-website/shop/load-site-orders-for-request'
 import {
   PartnerSiteOrderEmsTracking,
@@ -334,7 +335,7 @@ export function PartnerSiteShopOrdersClient({
               <div className="pw-shop-order-card-head">
                 {o.product_image_url ? (
                   <PartnerSiteProductHitLink href={productHref} className="pw-shop-product-hit-media" aria-label={o.product_name || t.orderIdLabel}>
-                    <img src={shopCardDisplaySrc(o.product_image_url) || o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" loading="lazy" decoding="async" />
+                    <ShopCdnImg src={shopCardDisplaySrc(o.product_image_url) || o.product_image_url} alt={o.product_name ?? ''} className="pw-shop-order-thumb" loading="lazy" decoding="async" />
                   </PartnerSiteProductHitLink>
                 ) : null}
                 <div className="pw-shop-order-card-main">

@@ -30,16 +30,34 @@ html .pw-footer,html .pw-shop-footer{
   min-width:0!important;
   max-width:100%!important;
   width:100%!important;
+  height:auto!important;
+  min-height:0!important;
+  margin-top:16px!important;
+  padding:16px 16px 4px!important;
   overflow-x:visible!important;
   box-sizing:border-box!important;
 }
 html .pw-footer-grid,html .pw-shop-footer-inner{
   display:grid!important;
   grid-template-columns:minmax(0,1fr)!important;
+  gap:12px 20px!important;
   min-width:0!important;
   max-width:100%!important;
   width:100%!important;
+  height:auto!important;
   box-sizing:border-box!important;
+}
+html .pw-shop-footer-bar,html .pw-footer-bottom,html .pw-footer-bar{
+  margin-top:10px!important;
+  padding:8px 0 8px!important;
+}
+html .pw-footer-col h3,html .pw-shop-footer-col h3{
+  margin:0 0 4px!important;
+}
+html .pw-footer-col a,html .pw-shop-footer-col a{
+  min-height:0!important;
+  padding-top:1px!important;
+  padding-bottom:1px!important;
 }
 html .pw-shop-footer-brand,html .pw-footer-brand,
 html .pw-footer-col,html .pw-shop-footer-col,

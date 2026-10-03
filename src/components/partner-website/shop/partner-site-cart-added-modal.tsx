@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { PartnerSiteProductHitLink } from '@/components/partner-website/shop/partner-site-product-hit-link'
 import type { CartAddedModalCopy } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 
@@ -71,10 +72,10 @@ export function PartnerSiteCartAddedModal({ open, item, cartHref, copy, onClose 
                   onPointerDown={onClose}
                   onClick={onClose}
                 >
-                  <img src={image} alt={name} width={48} height={48} draggable={false} />
+                  <ShopCdnImg src={image} alt={name} width={48} height={48} draggable={false} />
                 </PartnerSiteProductHitLink>
               ) : (
-                <img src={image} alt={name} width={48} height={48} draggable={false} />
+                <ShopCdnImg src={image} alt={name} width={48} height={48} draggable={false} />
               )}
             </div>
           ) : (

@@ -212,7 +212,7 @@ function renderCard(p, opts){
   var price=priceHtml(p);
   var badge=saleBadgeHtml(sale,opts,p);
   var favBtn=listingFavHtml(id);
-  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+badge+'<img src="'+img+'" alt="'+name+'" loading="lazy"/></div><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a>'+favBtn+'</article>';
+  return '<article class="pw-product-card" ${pwElAttr(PW_EL.card)} data-inventory-id="'+esc(id)+'" data-pw-actions-ready="1"><div class="pw-product-card-media" ${pwElAttr(PW_EL.cardMedia)}>'+badge+'<img src="'+img+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer"/></div><div class="pw-product-card-body"><h3 ${pwElAttr(PW_EL.cardName)}><a href="'+esc(href)+'">'+name+'</a></h3>'+(price?'<p class="pw-price" ${pwElAttr(PW_EL.cardPrice)}>'+price+'</p>':'')+listingStatsHtml(p)+'</div><a class="pw-product-card-hit" href="'+esc(href)+'" aria-label="'+name+'" tabindex="-1"></a>'+favBtn+'</article>';
 }
 function isRelated(el){
   return el.getAttribute('data-pw-related')==='1'||el.getAttribute('data-pw-grid-kind')==='related';
@@ -241,7 +241,8 @@ function hideBrokenCardImgs(root){
       }
       imgEl.addEventListener('load',function(){this.style.visibility='';});
       imgEl.addEventListener('error',retryOrHide);
-      if(imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||''))retryOrHide();
+      var isLazy=imgEl.getAttribute('loading')==='lazy';
+      if(!isLazy&&imgEl.getAttribute('data-pw-img-retry')!=='1'&&imgEl.complete&&imgEl.naturalWidth===0&&(imgEl.currentSrc||imgEl.getAttribute('src')))retryOrHide();
     })(imgs[i]);
   }
 }

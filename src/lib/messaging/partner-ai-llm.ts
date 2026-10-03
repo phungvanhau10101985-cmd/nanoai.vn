@@ -12,6 +12,11 @@ import {
   FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT,
 } from '@/lib/messaging/fashion-size-weight-units'
 import {
+  fashionSizeRecommendationPrompt,
+  resolveFashionSizeRecommendation,
+  type FashionSizeRecommendation,
+} from '@/lib/messaging/fashion-size-recommendation'
+import {
   buildPartnerAiWarehouseVndPricingNote,
   shouldMarkInventoryPricesAsVndForAi,
 } from '@/lib/messaging/partner-ai-currency-context'
@@ -26,14 +31,12 @@ import {
   buildInventorySearchQueryWithLastConsulted,
   customerMessageWantsColorAlternativesForLastConsulted,
   filterInventoryRowsBySharedCoarseCategory,
-  customerMessageWantsSimilarCatalogVersusLastConsulted,
   fetchInventoryRowsByExplicitSku,
   fetchInventoryRowsForPartnerAi,
   fetchInventoryRowsFromPageContextSku,
   fetchInventoryRowsFromProductCardConsultPageContext,
   PARTNER_AI_INVENTORY_CONTEXT_LIMIT,
   customerMessageIsFollowUpContextQuery,
-  customerMessageOpensNewProductSearch,
   inboundTextLooksLikeFollowUpConsultHeuristic,
   shouldAugmentInventorySearchWithLastConsulted,
   extractExplicitSkuCandidates,
@@ -52,6 +55,7 @@ import {
 import { dedupeRowsById, enrichInventoryRowsWithMaterialIfNeeded } from '@/lib/messaging/partner-inventory-material-enrichment'
 import {
   enrichInventoryMaterialDetailCollageIfNeeded,
+  type PartnerMaterialDetailImageRequest,
   type PartnerMaterialDetailFollowup,
 } from '@/lib/messaging/partner-inventory-material-detail-image'
 import { fetchLastConsultedInventoryRowFromConversationPg } from '@/lib/messaging/partner-ai-last-consulted-inventory'
@@ -71,6 +75,7 @@ import {
 import {
   defaultSalesConversionForIntent,
   parsePartnerAiRouteDecision,
+  partnerAiIntentAllowsProductContext,
   partnerAiShouldIsolateProductCardConsult,
   partnerAiIntentYieldsCardConsultIsolation,
   type PartnerAiCtaStrategy,
@@ -193,13 +198,16 @@ function formatInventoryLines(
   const priceKey = options?.markPricesAsVnd ? 'Giá (đơn vị VNĐ / ₫)' : 'Giá'
   const annotateSizes = options?.annotateChineseJinSizes === true
   const maybeAnnotate = (s: string) => (annotateSizes ? annotateFashionSizeWeightTextForAi(s) : s)
+  const clip = (s: string, max = 900) => (s.length <= max ? s : `${s.slice(0, max).trimEnd()}…`)
   return rows
     .map((r, i) => {
       const sku = r.sku?.trim() ? ` [Mã/SKU: ${r.sku.trim()}]` : ''
-      const stock = r.stock_note?.trim() ? ` | Tồn kho: ${maybeAnnotate(r.stock_note.trim())}` : ''
+      const stock = r.stock_note?.trim()
+        ? ` | Tồn kho: ${clip(maybeAnnotate(r.stock_note.trim()), 700)}`
+        : ''
       const price = r.price_hint?.trim() ? ` | ${priceKey}: ${r.price_hint.trim()}` : ''
       const desc = r.description?.trim()
-        ? ` — Thông số/mô tả: ${maybeAnnotate(r.description.trim())}`
+        ? ` — Thông số/mô tả: ${clip(maybeAnnotate(r.description.trim()))}`
         : ''
       const img = r.image_url?.trim()
         ? ` | Ảnh chính sản phẩm (URL — nguồn duy nhất để tạo ảnh chi tiết chất liệu và ảnh đời thường/góc tự nhiên): ${r.image_url.trim()}`
@@ -210,9 +218,13 @@ function formatInventoryLines(
       const pv = r.product_video_url?.trim()
       const video =
         pv && /^https?:\/\//i.test(pv) ? ` | Video sản phẩm (URL): ${pv}` : ''
-      const extra = r.consult_note?.trim() ? ` | Ghi chú tư vấn: ${maybeAnnotate(r.consult_note.trim())}` : ''
+      const extra = r.consult_note?.trim()
+        ? ` | Ghi chú tư vấn: ${clip(maybeAnnotate(r.consult_note.trim()), 700)}`
+        : ''
       const colors = colorHintsFromInventoryRow(r)
-      const mat = r.material_note?.trim() ? ` | Chất liệu (đã lưu/kho): ${r.material_note.trim()}` : ''
+      const mat = r.material_note?.trim()
+        ? ` | Chất liệu (đã lưu/kho): ${clip(r.material_note.trim(), 600)}`
+        : ''
       const matImg = r.material_detail_image_url?.trim()
         ? ` | Ảnh chi tiết chất liệu/màu (đã lưu, sinh từ ảnh chính): ${r.material_detail_image_url.trim()}`
         : ''
@@ -853,6 +865,7 @@ export async function buildPartnerAiContext(
   system: string
   user: string
   materialDetailFollowup: PartnerMaterialDetailFollowup | null
+  materialDetailImageRequest: PartnerMaterialDetailImageRequest | null
   realUseFollowup: PartnerRealUseImageFollowup | null
   /** Neo SP vừa tư vấn — job sau parse có thể ép `products` không lệch carousel. */
   useLastConsultedContext: boolean
@@ -886,6 +899,7 @@ export async function buildPartnerAiContext(
   specificAnglePhotoTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
   /** Shop ngành thời trang — áp dụng quy ước cân TQ (斤) khi tư vấn size. */
   isFashionPartner: boolean
+  deterministicSizeRecommendation: FashionSizeRecommendation | null
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   let isFashionPartner = false
@@ -932,10 +946,16 @@ export async function buildPartnerAiContext(
   let partnerAiRouteIntent: PartnerAiRouteIntent | null = isConsultCardPick
     ? 'card_consult_isolated'
     : payloadRouteIntent
+  if (!partnerAiRouteIntent) {
+    partnerAiRouteIntent = inboundTextLooksLikeFollowUpConsultHeuristic(latestCustomerMessage)
+      ? 'follow_up_current_product'
+      : 'clarify'
+  }
+  const routeAllowsProductContext = partnerAiIntentAllowsProductContext(partnerAiRouteIntent)
   let explicitSkuRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
   const triggerPageContextInventoryId = pageContextInventoryIdFromRaw(triggerRawPayload)
 
-  if (triggerPageContextInventoryId && isPgConfigured()) {
+  if (routeAllowsProductContext && triggerPageContextInventoryId && isPgConfigured()) {
     try {
       const rowById = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, triggerPageContextInventoryId)
       if (rowById) {
@@ -945,7 +965,7 @@ export async function buildPartnerAiContext(
       console.warn('[partner-ai-llm] page_context inventory_id lookup failed', e)
     }
   }
-  if (explicitSkuRows.length === 0) {
+  if (routeAllowsProductContext && explicitSkuRows.length === 0) {
     const triggerPageContextProductUrl = pageContextProductUrlFromRaw(triggerRawPayload)
     if (triggerPageContextProductUrl && isPgConfigured()) {
       try {
@@ -962,14 +982,14 @@ export async function buildPartnerAiContext(
     }
   }
 
-  if (isConsultCardPick) {
+  if (routeAllowsProductContext && isConsultCardPick) {
     if (explicitSkuRows.length === 0) {
       explicitSkuRows = await fetchInventoryRowsFromPageContextSku(partnerId, triggerRawPayload)
     }
     if (explicitSkuRows.length === 0) {
       explicitSkuRows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, triggerRawPayload)
     }
-  } else {
+  } else if (routeAllowsProductContext) {
     /**
      * Widget / trang SP: `page_context.sku` trên **tin kích hoạt** phải thắng khi `latestCustomerMessage` là chuỗi
      * nhiều tin khách (`inboundTail` trong job) — tránh trích SKU từ tin cũ rồi bỏ qua mã đang xem (vd. A6009).
@@ -984,15 +1004,12 @@ export async function buildPartnerAiContext(
       explicitSkuRows = await fetchInventoryRowsFromProductCardConsultPageContext(partnerId, triggerRawPayload)
     }
   }
-  if (!partnerAiRouteIntent && explicitSkuRows.length > 0) {
-    partnerAiRouteIntent = 'explicit_sku_consult'
-  }
   const selectedInventoryId = selectedInventoryIdFromTrigger(triggerRawPayload)
   /** Mã / `inventory_id` trên trang không khớp kho — tìm mẫu gần giống theo ảnh `page_context` hoặc ảnh tin. */
   let inboundPageSkuMissImageSimilarFallback = false
 
   let lastConsultedRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
-  if (isPgConfigured()) {
+  if (routeAllowsProductContext && isPgConfigured()) {
     try {
       lastConsultedRow = await fetchLastConsultedInventoryRowFromConversationPg(partnerId, conversationId)
     } catch (e) {
@@ -1009,7 +1026,14 @@ export async function buildPartnerAiContext(
   }[] = []
   if (isPgConfigured()) {
     try {
-      const rows = await fetchCustomerCareTranscriptLinesFromPg(conversationId, 16)
+      const transcriptLimit =
+        partnerAiRouteIntent === 'policy_or_order_support'
+          ? 6
+          : partnerAiRouteIntent === 'new_product_search' ||
+              partnerAiRouteIntent === 'similar_alternatives'
+            ? 8
+            : 5
+      const rows = await fetchCustomerCareTranscriptLinesFromPg(conversationId, transcriptLimit)
       if (rows?.length) chronological = rows
     } catch (e) {
       console.warn('[partner-ai-llm] transcript (early) PG failed', e)
@@ -1018,6 +1042,7 @@ export async function buildPartnerAiContext(
   const humanShopFactsBlock = buildRecentHumanShopFactsBlock(chronological, isFashionPartner)
 
   if (
+    routeAllowsProductContext &&
     explicitSkuRows.length === 0 &&
     inboundTextLooksLikeConsultThisPhotoItem(latestCustomerMessage) &&
     isPgConfigured()
@@ -1048,12 +1073,7 @@ export async function buildPartnerAiContext(
   /** **Nhánh A** — «Mẫu khác / loại khác / tương tự / gần giống» — lấy kho bằng embedding ảnh SP neo so với toàn kho, không khóa một dòng kho (đối lập Nhánh B). */
   const similarCatalogVersusLastConsulted =
     !colorAlternativesVersusLastConsulted &&
-    (partnerAiRouteIntent === 'similar_alternatives' ||
-      (partnerAiRouteIntent !== 'new_product_search' &&
-        customerMessageWantsSimilarCatalogVersusLastConsulted(latestCustomerMessage)))
-  if (!partnerAiRouteIntent && similarCatalogVersusLastConsulted) {
-    partnerAiRouteIntent = 'similar_alternatives'
-  }
+    partnerAiRouteIntent === 'similar_alternatives'
   const lastShopTurnForSimilar = lastShopOutboundBeforeLatestCustomerChunk(
     chronological as PartnerAiTranscriptMsg[]
   )
@@ -1070,7 +1090,12 @@ export async function buildPartnerAiContext(
     Boolean(rawPayloadHasInboundProductPageContext(triggerRawPayload))
   const widgetIntent = parsePartnerAiWidgetIntentFromPayload(triggerRawPayload)
   let contextReplyAnchorRow: Database['public']['Tables']['messaging_partner_inventory']['Row'] | null = null
-  if (effectiveLocaleOpts?.channel === 'widget' && widgetIntent === 'context_reply' && isPgConfigured()) {
+  if (
+    routeAllowsProductContext &&
+    effectiveLocaleOpts?.channel === 'widget' &&
+    widgetIntent === 'context_reply' &&
+    isPgConfigured()
+  ) {
     for (let i = chronological.length - 1; i >= 0; i--) {
       const raw = chronological[i]?.raw_payload ?? null
       const invId = pageContextInventoryIdFromRaw(raw)
@@ -1104,14 +1129,7 @@ export async function buildPartnerAiContext(
 
   /** Bấm **Tư vấn** trên thẻ: phiên làm việc chỉ một SKU — không đưa lịch sử thread vào model (tránh kéo chủ đề cũ như túi/váy lẫn nhau). */
   const opensGeneralShopCatalog =
-    partnerAiRouteIntent === 'new_product_search' ||
-    (partnerAiRouteIntent !== 'follow_up_current_product' &&
-      partnerAiRouteIntent !== 'purchase_or_order' &&
-      partnerAiRouteIntent !== 'policy_or_order_support' &&
-      customerMessageOpensNewProductSearch(latestCustomerMessage))
-  if (!partnerAiRouteIntent && opensGeneralShopCatalog) {
-    partnerAiRouteIntent = 'new_product_search'
-  }
+    partnerAiRouteIntent === 'new_product_search'
   const latestCardConsultAnchorInvId = latestProductCardConsultAnchorInventoryId(
     chronological as PartnerAiTranscriptMsg[],
     lastConsultedRow
@@ -1168,7 +1186,11 @@ export async function buildPartnerAiContext(
     similarCatalogVersusLastConsulted && !selectedInventoryId && !similarIntentHasUsableThreadAnchor
   /** Ảnh đã đọc được mã / khóa mẫu — classifier «làm rõ» không được bắt khách gửi lại mã. */
   const photoItemLocked = visionAutoLockedFromRaw(triggerRawPayload)
-  if (photoItemLocked && (!partnerAiRouteIntent || partnerAiRouteIntent === 'clarify')) {
+  if (
+    routeAllowsProductContext &&
+    photoItemLocked &&
+    partnerAiRouteIntent === 'clarify'
+  ) {
     partnerAiRouteIntent = 'explicit_sku_consult'
   }
   const useClarifyShoppingBranch =
@@ -1195,6 +1217,7 @@ export async function buildPartnerAiContext(
 ${humanShopFactsBlock}`,
       user: guestProfileBlockForAi ? `${clarifyUser}\n\n${guestProfileBlockForAi}\n` : clarifyUser,
       materialDetailFollowup: null,
+      materialDetailImageRequest: null,
       realUseFollowup: null,
       useLastConsultedContext: false,
       lastConsultedRow: null,
@@ -1212,6 +1235,7 @@ ${humanShopFactsBlock}`,
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
       isFashionPartner,
+      deterministicSizeRecommendation: null,
     }
   }
 
@@ -1227,6 +1251,7 @@ ${humanShopFactsBlock}`,
 ${humanShopFactsBlock}`,
       user: guestProfileBlockForAi ? `${pauseUser}\n\n${guestProfileBlockForAi}\n` : pauseUser,
       materialDetailFollowup: null,
+      materialDetailImageRequest: null,
       realUseFollowup: null,
       useLastConsultedContext: false,
       lastConsultedRow: null,
@@ -1244,6 +1269,7 @@ ${humanShopFactsBlock}`,
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
       isFashionPartner,
+      deterministicSizeRecommendation: null,
     }
   }
 
@@ -1263,7 +1289,13 @@ ${humanShopFactsBlock}`,
     rawPayloadHasInboundProductPageContext(triggerRawPayload) &&
     Boolean(extImgWhenPageContextSkuMiss?.trim())
 
-  if (followUpSingleProductNoVector && lastConsultedRow && !pageContextWantsImageSimilarWhenSkuMiss) {
+  if (!routeAllowsProductContext) {
+    invForContext = []
+  } else if (
+    followUpSingleProductNoVector &&
+    lastConsultedRow &&
+    !pageContextWantsImageSimilarWhenSkuMiss
+  ) {
     let row = lastConsultedRow
     if (isPgConfigured()) {
       try {
@@ -1438,6 +1470,7 @@ ${humanShopFactsBlock}`,
   }
 
   let materialDetailFollowup: PartnerMaterialDetailFollowup | null = null
+  let materialDetailImageRequest: PartnerMaterialDetailImageRequest | null = null
   let realUseFollowup: PartnerRealUseImageFollowup | null = null
   let realUsePhotoLimitExceeded = false
   const specificAnglePhotoRequest = customerMessageAsksSpecificPhotoAngleDetail(latestCustomerMessage)
@@ -1465,6 +1498,7 @@ ${humanShopFactsBlock}`,
     invForContext = collageEnriched.invForContext
     selectedRowForEnrich = collageEnriched.selectedRow
     materialDetailFollowup = collageEnriched.materialDetailFollowup
+    materialDetailImageRequest = collageEnriched.materialDetailImageRequest
   }
 
   /** Nhánh B: sau enrich vẫn chỉ một dòng kho neo — tránh LLM thấy nhiều dòng từ merge. */
@@ -1673,7 +1707,31 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 
   const fashionSizeWeightBlock = isFashionPartner ? FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT : ''
 
-  const system = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
+  const compactSingleProductBranch =
+    cardConsultIsolatedThread ||
+    inboundAnchoredProductConsultBranch ||
+    effectiveFollowUpSingleProductNoVector ||
+    forceSingleRowContextFromWidgetIntent
+  const compactBase = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
+${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}`
+  const policySystem = `${compactBase}
+${humanShopFactsBlock}
+${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${khoContextInstructionForSystem}
+${salesConversionRouterBlock}
+Trả lời đúng câu hỏi chính sách/hỗ trợ trước, ngắn và rõ. Không đọc hay gửi catalog/thẻ sản phẩm; products = []. Không bịa chính sách, thời hạn hoặc cam kết ngoài dữ liệu shop.
+Đầu ra là một JSON đúng schema trong user prompt.`
+  const compactSingleProductSystem = `${compactBase}
+${humanShopFactsBlock}${fashionSizeWeightBlock}
+${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
+${salesConversionRouterBlock}
+Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
+Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán.
+CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
+Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.`
+  const broadCatalogSystem = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_TRANSCRIPT_READING_CONVENTION}
 ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
@@ -1701,6 +1759,12 @@ Nếu trong tin nhắn khách hoặc ngữ cảnh hệ thống có dòng [Custom
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trường \`message\` trong JSON: **súc tích**, đúng ý khách; có thể gạch đầu dòng khi cần — **không** văn mẫu kiểu chatbot, **không** tự giới thiệu vai trò kỹ thuật.
 Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.`
+  const system =
+    partnerAiRouteIntent === 'policy_or_order_support'
+      ? policySystem
+      : compactSingleProductBranch
+        ? compactSingleProductSystem
+        : broadCatalogSystem
 
   const explicitSkuBlock =
     inboundAnchoredProductConsultBranch || !explicitSkuRows.length
@@ -1772,8 +1836,21 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
   const guestProfilePromptBlock =
     !cardConsultIsolatedThread && guestProfileBlockForAi ? `${guestProfileBlockForAi}\n\n` : ''
+  const deterministicSizeRecommendation =
+    isFashionPartner && invForContext.length === 1
+      ? resolveFashionSizeRecommendation(latestCustomerMessage, invForContext[0].sizes_json)
+      : null
+  const deterministicSizeBlock = deterministicSizeRecommendation
+    ? fashionSizeRecommendationPrompt(deterministicSizeRecommendation)
+    : ''
+  const inventoryRowsForPrompt =
+    effectiveFollowUpSingleProductNoVector ||
+    inboundAnchoredProductConsultBranch ||
+    forceSingleRowContextFromWidgetIntent
+      ? invForContext.slice(0, 1)
+      : invForContext.slice(0, 8)
 
-  const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfilePromptBlock}${userInventoryPreamble}${formatInventoryLines(invForContext, invFmtOpts)}
+  const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfilePromptBlock}${userInventoryPreamble}${formatInventoryLines(inventoryRowsForPrompt, invFmtOpts)}
 ${explicitSkuBlock}
 ${selectedRowBlock}
 
@@ -1782,7 +1859,7 @@ ${transcript}
 ${conversationFocusBlock}${followUpSnapshotBlock}
 
 Tin nhắn mới nhất của khách:
-${latestCustomerMessage}
+${latestCustomerMessage}${deterministicSizeBlock}
 ${
   realUsePhotoLimitExceeded
     ? `
@@ -1819,11 +1896,38 @@ Chỉ dùng URL http(s) đúng như trong dữ liệu kho; không bịa link. im
 Ưu tiên để products có dữ liệu khi trong kho có mặt hàng gần với nhu cầu khách (**cùng nhóm sản phẩm / cùng mục đích dùng** — màu/kiểu lệch một chút vẫn được), kể cả khi không khớp tuyệt đối; **không** lấp đầy products bằng mặt hàng khác ngành (ví dụ đang hỏi dép mà đưa túi xách).
 Khi products có phần tử: message không được liệt kê từng tên sản phẩm; chỉ xác nhận ngắn gọn, có thể gợi ý khách xem thẻ khi cần — **không** dùng template ép "chọn màu" / "đã chọn màu chưa" lặp lại nếu trong hội thoại vừa có câu tương tự.
 Chỉ để products = [] khi thực sự không tìm được mặt hàng phù hợp hoặc gần phù hợp trong danh sách kho.`
+  const finalUser =
+    partnerAiRouteIntent === 'policy_or_order_support'
+      ? `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}
+Lịch sử liên quan gần đây:
+${formatPartnerAiTranscriptLines(chronological)}
+
+Tin nhắn mới nhất của khách:
+${latestCustomerMessage}
+
+Trả lời bằng một JSON hợp lệ duy nhất, không markdown:
+{"message":"câu trả lời chính sách/hỗ trợ ngắn, đúng dữ liệu shop","products":[]}`
+      : user
+  const finalSystem =
+    partnerAiRouteIntent === 'policy_or_order_support'
+      ? `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
+Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
+${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
+${humanShopFactsBlock}
+${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+[Nhánh chính sách / hỗ trợ đơn — ý định khách thắng mọi neo sản phẩm]
+- Trả lời cọc, COD, giao hàng, đổi trả, hủy/hoàn chỉ từ dữ liệu shop ở trên và lịch sử liên quan.
+- Cấm bịa tỷ lệ cọc, thời gian giao, điều kiện đổi trả hoặc cam kết hoàn tiền.
+- Hỏi chính sách chung không được hỏi mã đơn. Chỉ hỏi mã đơn/SĐT khi khách thực sự tra cứu một đơn cụ thể.
+- Không đọc catalog, không gửi thẻ sản phẩm; JSON products luôn là [].
+${salesConversionRouterBlock}`
+      : system
 
   return {
-    system,
-    user,
+    system: finalSystem,
+    user: finalUser,
     materialDetailFollowup,
+    materialDetailImageRequest,
     realUseFollowup,
     useLastConsultedContext,
     lastConsultedRow: forceSingleRowContextFromWidgetIntent ? contextReplySingleRow : lastConsultedRow,
@@ -1842,6 +1946,7 @@ Chỉ để products = [] khi thực sự không tìm được mặt hàng phù 
     specificAnglePhotoTemplateInventoryRows:
       specificAnglePhotoTemplateInventoryRows.length > 0 ? specificAnglePhotoTemplateInventoryRows : null,
     isFashionPartner,
+    deterministicSizeRecommendation,
   }
 }
 

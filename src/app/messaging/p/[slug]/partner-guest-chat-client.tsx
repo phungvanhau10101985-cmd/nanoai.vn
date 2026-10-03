@@ -1773,6 +1773,24 @@ export function PartnerGuestChatClient({
     return () => root.removeEventListener('focusin', onFocusIn)
   }, [])
 
+  useEffect(() => {
+    const onErr = (ev: Event) => {
+      const img = ev.target
+      if (!(img instanceof HTMLImageElement)) return
+      if (img.getAttribute('data-pw-img-react') === '1') return
+      if (img.getAttribute('data-pw-img-retry') === '1') return
+      const cur = img.currentSrc || img.getAttribute('src') || ''
+      const same = guestChatSameOriginImageSrc(cur)
+      const next = same && same !== cur ? same : nextShopImageRetrySrc(cur)
+      if (!next || next === cur) return
+      img.setAttribute('data-pw-img-retry', '1')
+      img.src = next
+      ev.stopPropagation()
+    }
+    document.addEventListener('error', onErr, true)
+    return () => document.removeEventListener('error', onErr, true)
+  }, [])
+
   const guestChatKeyboardUaProfile = useMemo(() => detectGuestChatKeyboardUaProfile(), [])
 
   /**
@@ -6369,6 +6387,7 @@ export function PartnerGuestChatClient({
                                           src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
+                                          onError={onGuestChatShopThumbError}
                                         />
                                       </a>
                                     ) : (
@@ -6386,6 +6405,7 @@ export function PartnerGuestChatClient({
                                           src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
+                                          onError={onGuestChatShopThumbError}
                                         />
                                       </button>
                                     )
@@ -6658,6 +6678,7 @@ export function PartnerGuestChatClient({
                                           src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
+                                          onError={onGuestChatShopThumbError}
                                         />
                                       </a>
                                     ) : (
@@ -6675,6 +6696,7 @@ export function PartnerGuestChatClient({
                                           src={msgImgSrc(c.image_url)}
                                           alt=""
                                           className="h-28 w-full bg-muted/30 object-contain"
+                                          onError={onGuestChatShopThumbError}
                                         />
                                       </button>
                                     )
@@ -6907,6 +6929,7 @@ export function PartnerGuestChatClient({
                                 src={msgImgSrc(item.image_url)}
                                 alt={item.name}
                                 className="h-auto w-full rounded object-contain"
+                                onError={onGuestChatShopThumbError}
                               />
                             </a>
                           ) : (
@@ -6915,6 +6938,7 @@ export function PartnerGuestChatClient({
                               src={msgImgSrc(item.image_url)}
                               alt={item.name}
                               className="h-auto w-full rounded object-contain"
+                              onError={onGuestChatShopThumbError}
                             />
                           )}
                           {item.price_hint ? (
@@ -7007,6 +7031,7 @@ export function PartnerGuestChatClient({
                               src={msgImgSrc(activeOrderCard.image_url)}
                               alt={activeOrderCard.name}
                               className="h-10 w-10 rounded object-cover"
+                              onError={onGuestChatShopThumbError}
                             />
                           </a>
                         ) : (
@@ -7015,6 +7040,7 @@ export function PartnerGuestChatClient({
                             src={msgImgSrc(activeOrderCard.image_url)}
                             alt={activeOrderCard.name}
                             className="h-10 w-10 rounded object-cover"
+                            onError={onGuestChatShopThumbError}
                           />
                         )}
                         <div className="min-w-0">
@@ -8263,6 +8289,7 @@ export function PartnerGuestChatClient({
                       src={msgImgSrc(item.variantLineImages?.[0] || item.card.image_url)}
                       alt=""
                       className="h-14 w-14 rounded object-cover"
+                      onError={onGuestChatShopThumbError}
                     />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{item.card.name}</p>
@@ -8479,6 +8506,7 @@ export function PartnerGuestChatClient({
                           loading="lazy"
                           decoding="async"
                           fetchPriority="low"
+                          onError={onGuestChatShopThumbError}
                         />
                       </a>
                     ) : (
@@ -8500,6 +8528,7 @@ export function PartnerGuestChatClient({
                           loading="lazy"
                           decoding="async"
                           fetchPriority="low"
+                          onError={onGuestChatShopThumbError}
                         />
                       </button>
                     )}

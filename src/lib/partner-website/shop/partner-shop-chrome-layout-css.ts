@@ -219,12 +219,13 @@ html .pw-footer [data-pw-footer-added][data-pw-added-text],html .pw-shop-footer 
 }
 html footer [data-pw-footer-added][data-pw-added-btn-slot],html .pw-footer [data-pw-footer-added][data-pw-added-btn-slot],
 html .pw-shop-footer [data-pw-footer-added][data-pw-added-btn-slot]{padding:0!important;text-align:left!important;width:auto!important}
-html .pw-footer-grid,html .pw-shop-footer-inner{display:grid!important;height:auto!important;gap:28px 32px!important;grid-template-columns:minmax(0,1fr)!important;min-width:0!important;max-width:100%!important;width:100%!important}
+html .pw-footer,html .pw-shop-footer{height:auto!important;min-height:0!important;margin-top:16px!important;padding:16px 16px 4px!important}
+html .pw-footer-grid,html .pw-shop-footer-inner{display:grid!important;height:auto!important;gap:12px 20px!important;grid-template-columns:minmax(0,1fr)!important;min-width:0!important;max-width:100%!important;width:100%!important}
 html .pw-shop-footer-brand,html .pw-footer-brand,html .pw-footer-col,html .pw-shop-footer-col{grid-column:auto!important;min-width:0!important;max-width:100%!important}
 html[data-pw-edit-device="mobile"] .pw-footer-grid,html[data-pw-edit-device="mobile"] .pw-shop-footer-inner,
 html[data-pw-scene-lock="mobile"] .pw-footer-grid,html[data-pw-scene-lock="mobile"] .pw-shop-footer-inner,
 [data-pw-inline-visual-root][data-pw-active-device="mobile"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-active-device="mobile"] .pw-shop-footer-inner,
-[data-pw-inline-visual-root][data-pw-edit-device="mobile"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-edit-device="mobile"] .pw-shop-footer-inner{grid-template-columns:1fr!important;gap:20px!important}
+[data-pw-inline-visual-root][data-pw-edit-device="mobile"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-edit-device="mobile"] .pw-shop-footer-inner{grid-template-columns:1fr!important;gap:12px!important}
 html[data-pw-edit-device="tablet"] .pw-footer-grid,html[data-pw-edit-device="tablet"] .pw-shop-footer-inner,
 html[data-pw-scene-lock="tablet"] .pw-footer-grid,html[data-pw-scene-lock="tablet"] .pw-shop-footer-inner,
 [data-pw-inline-visual-root][data-pw-active-device="tablet"] .pw-footer-grid,[data-pw-inline-visual-root][data-pw-active-device="tablet"] .pw-shop-footer-inner,

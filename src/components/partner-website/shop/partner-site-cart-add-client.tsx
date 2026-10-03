@@ -30,6 +30,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
 import { shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
 type Props = {
   siteSlug: string
@@ -237,8 +238,7 @@ export function PartnerSiteCartAddClient({ siteSlug, locale, product, fromNanoAi
     <div className="mx-auto max-w-lg px-4 py-8">
       <div className="flex gap-3 rounded-lg border border-[var(--pw-border,#e5e7eb)] bg-[var(--pw-surface,#fff)] p-3">
         {thumb ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt="" className="h-20 w-20 rounded object-contain" />
+          <ShopCdnImg src={thumb} alt="" className="h-20 w-20 rounded object-contain" />
         ) : null}
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-snug">{product.name}</p>

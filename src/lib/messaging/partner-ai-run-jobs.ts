@@ -5,6 +5,7 @@ import {
   fetchInboundTailForPartnerAiJobPg,
   hasAutoOutboundAfterTriggerPg,
   hasHumanOutboundAfterTriggerPg,
+  hasPartnerAiMaterialImageForJobPg,
 } from '@/lib/db/customer-care-pg'
 import { fetchMessagingPartnerAiSettingsFullFromPg } from '@/lib/db/messaging-partner-ai-settings-pg'
 import {
@@ -16,6 +17,7 @@ import {
 import { isPgConfigured } from '@/lib/db/pool'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { sanitizeFashionSizeWeightMessageForCustomer } from '@/lib/messaging/fashion-size-weight-units'
+import { enforceFashionSizeRecommendation } from '@/lib/messaging/fashion-size-recommendation'
 import {
   buildPartnerAiContext,
   deepseekPartnerChat,
@@ -26,7 +28,11 @@ import {
   fetchSafeSkuIsolatedProductConsultCacheFromPg,
   upsertSafeSkuIsolatedProductConsultCachePg,
 } from '@/lib/db/partner-product-consult-cache-pg'
-import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
+import {
+  deliverAutomatedPartnerMessage,
+  deliverPartnerMaterialImageFollowup,
+} from '@/lib/messaging/partner-ai-deliver'
+import { generateInventoryMaterialDetailFollowupById } from '@/lib/messaging/partner-inventory-material-detail-image'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -39,6 +45,10 @@ import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usag
 import { resolveDeepSeekChatModel } from '@/lib/deepseek-api'
 import { DEFAULT_WEB_LOCALE, normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  parsePartnerAiRouteDecision,
+  partnerAiIntentAllowsProductContext,
+} from '@/lib/messaging/partner-ai-intent-router'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type TriggerRawForVisionRepick = { vision_selected_inventory_id?: string }
@@ -183,6 +193,10 @@ async function runMessagingPartnerAiJobBatchUsingPg(
       const triggerAt = triggerFull.created_at
       let inboundForAi = latestInboundTextForPartnerAi(triggerFull.body, triggerFull.raw_payload)
       let effectiveTriggerRawPayloadForAi = triggerFull.raw_payload
+      const triggerRoute = parsePartnerAiRouteDecision(triggerFull.raw_payload)
+      const allowProductCardTailOverride = partnerAiIntentAllowsProductContext(
+        triggerRoute?.intent ?? null
+      )
       const inboundTail = await fetchInboundTailForPartnerAiJobPg(job.conversation_id, triggerAt)
       if (inboundTail && inboundTail.length > 0) {
         let latestProductCardConsultTail: (typeof inboundTail)[number] | null = null
@@ -196,7 +210,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           .map((row) => latestInboundTextForPartnerAi(row.body, row.raw_payload))
           .map((s) => s.trim())
           .filter((s) => s.length > 0)
-        if (latestProductCardConsultTail) {
+        if (latestProductCardConsultTail && allowProductCardTailOverride) {
           inboundForAi = latestInboundTextForPartnerAi(
             latestProductCardConsultTail.body,
             latestProductCardConsultTail.raw_payload
@@ -259,6 +273,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         system,
         user,
         materialDetailFollowup,
+        materialDetailImageRequest,
         realUseFollowup,
         useLastConsultedContext,
         lastConsultedRow,
@@ -276,6 +291,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         specificAnglePhotoRequest,
         specificAnglePhotoTemplateInventoryRows,
         isFashionPartner,
+        deterministicSizeRecommendation,
       } = await buildPartnerAiContext(
         job.partner_id,
         job.conversation_id,
@@ -440,6 +456,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         partnerAiRouteIntent === 'card_consult_isolated' &&
         inboundAnchoredConsultRow &&
         configuredGender &&
+        !deterministicSizeRecommendation &&
         !materialDetailFollowup &&
         !realUseFollowup
       ) {
@@ -598,7 +615,10 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           : null)
       parsed = {
         ...parsed,
-        message: sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
+        message: enforceFashionSizeRecommendation(
+          sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
+          deterministicSizeRecommendation
+        ),
       }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,
@@ -638,6 +658,44 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         await setPartnerAiJobStatus(job.id, { status: 'failed', error: d2.error })
         failed += 1
       } else {
+        if (materialDetailImageRequest) {
+          const requestedInventoryId = materialDetailImageRequest.inventoryId
+          const requiredAnchorId =
+            inboundAnchoredConsultRow?.id ??
+            (useLastConsultedContext ? lastConsultedRow?.id ?? null : null)
+          if (!requiredAnchorId || requiredAnchorId === requestedInventoryId) {
+            try {
+              const alreadySent = await hasPartnerAiMaterialImageForJobPg(
+                job.conversation_id,
+                job.id,
+                requestedInventoryId
+              )
+              if (!alreadySent) {
+                const generated = await generateInventoryMaterialDetailFollowupById(
+                  job.partner_id,
+                  requestedInventoryId
+                )
+                if (generated?.inventoryId === requestedInventoryId) {
+                  const imageDelivery = await deliverPartnerMaterialImageFollowup({
+                    conversation: conv,
+                    followup: generated,
+                    aiJobId: job.id,
+                  })
+                  if (imageDelivery.error) {
+                    console.warn('[partner-ai-run-jobs] material image followup delivery', imageDelivery.error)
+                  }
+                }
+              }
+            } catch (e) {
+              console.warn('[partner-ai-run-jobs] material image background generation', e)
+            }
+          } else {
+            console.warn('[partner-ai-run-jobs] skipped stale material image anchor', {
+              requestedInventoryId,
+              requiredAnchorId,
+            })
+          }
+        }
         await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
         completed += 1
         if (

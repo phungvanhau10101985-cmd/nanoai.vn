@@ -21,6 +21,7 @@ import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
 import { nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
 /** Gỡ hậu tố «(BIN …)» còn sót từ bản cũ. */
 function displayBankName(raw: string): string {
@@ -686,8 +687,7 @@ function AiProductCards({
                       }}
                       aria-label={detailAria}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <ShopCdnImg
                         src={displayImageUrl}
                         alt=""
                         className="h-28 w-full bg-muted/30 object-contain"
@@ -704,8 +704,7 @@ function AiProductCards({
                       }}
                       aria-label={`Xem ảnh lớn: ${p.name}`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
+                      <ShopCdnImg
                         src={displayImageUrl}
                         alt=""
                         className="h-28 w-full bg-muted/30 object-contain"

@@ -27,8 +27,12 @@ function messagingAiSplitGapMs(): number {
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
 type ConvRow = Database['public']['Tables']['customer_care_conversations']['Row']
 
-function mergeAutomatedOutboundPayload(rawPayload: Json, realUseFollowup: PartnerRealUseImageFollowup | null | undefined): Json {
-  const follow = realUseFollowup
+function mergeAutomatedOutboundPayload(
+  rawPayload: Json,
+  realUseFollowup: PartnerRealUseImageFollowup | null | undefined,
+  materialFollowup?: PartnerMaterialDetailFollowup | null
+): Json {
+  const follow = realUseFollowup ?? materialFollowup
   const inv = follow?.inventoryId?.trim()
   const url = follow?.publicUrl?.trim()
   if (!follow || !inv || !url) {
@@ -39,9 +43,9 @@ function mergeAutomatedOutboundPayload(rawPayload: Json, realUseFollowup: Partne
       ? ({ ...(rawPayload as Record<string, unknown>) } as Record<string, unknown>)
       : ({} as Record<string, unknown>)
   base.partner_ai_image_followup = {
-    kind: 'real_use' as const,
+    kind: realUseFollowup ? ('real_use' as const) : ('material' as const),
     inventory_id: inv,
-    slot: follow.slot,
+    ...(realUseFollowup ? { slot: realUseFollowup.slot } : {}),
   }
   return base as Json
 }
@@ -106,7 +110,12 @@ export async function deliverAutomatedPartnerMessage(params: {
       imageKind === 'real_use'
         ? `📷 Em gửi ảnh đời thường góc tự nhiên để mình xem sản phẩm chân thực ạ: ${imageFollowup.publicUrl}`
         : `${buildMaterialDetailImageChatCaption(
-            materialDetailFollowup ?? { publicUrl: imageFollowup.publicUrl, storagePath: '', mime: 'image/png' }
+            materialDetailFollowup ?? {
+              inventoryId: '',
+              publicUrl: imageFollowup.publicUrl,
+              storagePath: '',
+              mime: 'image/png',
+            }
           )}: ${imageFollowup.publicUrl}`
     const last = outboundTexts[outboundTexts.length - 1]
     outboundTexts = [...outboundTexts.slice(0, -1), `${last}\n\n${zaloLine}`]
@@ -153,7 +162,8 @@ export async function deliverAutomatedPartnerMessage(params: {
     const isLast = i === n - 1
     const payload = mergeAutomatedOutboundPayload(
       rawPayloadForSplitChunk(rawPayload, isLast),
-      isLast ? realUseFollowup : undefined
+      isLast ? realUseFollowup : undefined,
+      isLast ? materialDetailFollowup : undefined
     )
     const ins = await insertMessage({
       conversationId: conversation.id,
@@ -184,13 +194,22 @@ export async function deliverAutomatedPartnerMessage(params: {
       imageKind === 'real_use'
         ? '📷 Em gửi ảnh đời thường góc tự nhiên để mình xem sản phẩm chân thực ạ'
         : buildMaterialDetailImageChatCaption(
-            materialDetailFollowup ?? { publicUrl: imageFollowup.publicUrl, storagePath: '', mime: 'image/png' }
+            materialDetailFollowup ?? {
+              inventoryId: '',
+              publicUrl: imageFollowup.publicUrl,
+              storagePath: '',
+              mime: 'image/png',
+            }
           )
     const ins2 = await insertMessage({
       conversationId: conversation.id,
       direction: 'outbound',
       body: caption,
-      rawPayload: partnerMediaPayloadToJson(p),
+      rawPayload: mergeAutomatedOutboundPayload(
+        partnerMediaPayloadToJson(p),
+        imageKind === 'real_use' ? realUseFollowup : null,
+        imageKind === 'material' ? materialDetailFollowup : null
+      ),
       senderAdminId: null,
     })
     if ('error' in ins2) return { error: ins2.error }
@@ -204,4 +223,57 @@ export async function deliverAutomatedPartnerMessage(params: {
   }
 
   return {}
+}
+
+/** Gửi riêng ảnh chất liệu sau khi tin chữ đã đến khách; không tạo thêm bong bóng chữ chung. */
+export async function deliverPartnerMaterialImageFollowup(params: {
+  conversation: ConvRow
+  followup: PartnerMaterialDetailFollowup
+  aiJobId: string
+}): Promise<{ error?: string }> {
+  const { conversation, followup, aiJobId } = params
+  const url = followup.publicUrl.trim()
+  const inventoryId = followup.inventoryId.trim()
+  if (!url || !inventoryId) return { error: 'Invalid material image followup' }
+  const caption = buildMaterialDetailImageChatCaption(followup)
+
+  if (conversation.channel === 'facebook') {
+    const pageId = conversation.channel_external_ref
+    if (!pageId) return { error: 'Facebook Page token missing.' }
+    const token = await getFacebookSendToken(conversation.partner_id, pageId)
+    if (token.error) return { error: token.error }
+    if (!token.token) return { error: 'Facebook Page token missing.' }
+    const sent = await sendFacebookMessengerImageUrl(conversation.external_thread_id, url, token.token)
+    if ('error' in sent) return { error: sent.error }
+    return {}
+  }
+
+  if (conversation.channel === 'zalo') {
+    const token = await getZaloSendToken(conversation.partner_id)
+    if (token.error) return { error: token.error }
+    if (!token.token) return { error: 'Zalo OA token missing.' }
+    const sent = await sendZaloOaText(conversation.external_thread_id, `${caption}: ${url}`, token.token)
+    return 'error' in sent ? { error: sent.error } : {}
+  }
+
+  const storagePath =
+    followup.storagePath.trim() ||
+    `material-detail-cached/${conversation.partner_id}/${inventoryId}`
+  const media = buildPartnerMediaPayload(url, storagePath, followup.mime.trim() || 'image/png')
+  const raw = mergeAutomatedOutboundPayload(
+    {
+      ...(partnerMediaPayloadToJson(media) as Record<string, unknown>),
+      partner_ai_job_id: aiJobId,
+    } as Json,
+    null,
+    followup
+  )
+  const inserted = await insertMessage({
+    conversationId: conversation.id,
+    direction: 'outbound',
+    body: caption,
+    rawPayload: raw,
+    senderAdminId: null,
+  })
+  return 'error' in inserted ? { error: inserted.error } : {}
 }

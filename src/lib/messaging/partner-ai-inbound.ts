@@ -55,8 +55,9 @@ import {
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
 import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
 import {
-  createPartnerAiRouteDecision,
+  partnerAiIntentAllowsProductContext,
   partnerAiRouteDecisionToPayload,
+  resolvePartnerAiFinalRouteDecision,
   type PartnerAiRouteDecision,
 } from '@/lib/messaging/partner-ai-intent-router'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
@@ -90,10 +91,9 @@ export function stripInboundBodyForIntentClassify(body: string): string {
   return kept.join('\n').replace(/^📷\s*/u, '').trim()
 }
 
-async function mergePartnerAiWidgetIntentFromClassifier(input: {
+async function classifyPartnerInboundIntent(input: {
   partnerId: string
   conversationId: string
-  messageId: string
   inboundBody: string
   intentClassifyText?: string | null
 }): Promise<PartnerAiRouteDecision | null> {
@@ -107,11 +107,9 @@ async function mergePartnerAiWidgetIntentFromClassifier(input: {
       customerText: raw,
       lastShopMessage: lastShop,
     })
-    if (!decision) return null
-    await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, partnerAiRouteDecisionToPayload(decision))
     return decision
   } catch (e) {
-    console.warn('[partner-ai-inbound] mergePartnerAiWidgetIntentFromClassifier', e)
+    console.warn('[partner-ai-inbound] classifyPartnerInboundIntent', e)
     return null
   }
 }
@@ -276,13 +274,34 @@ export async function handlePartnerInboundForAi(input: {
       return { show: false }
     }
 
-    let routeDecision = await mergePartnerAiWidgetIntentFromClassifier({
+    let routeDecision = await classifyPartnerInboundIntent({
       partnerId: input.partnerId,
       conversationId: input.conversationId,
-      messageId: input.messageId,
       inboundBody: input.inboundBody,
       intentClassifyText: input.intentClassifyText,
     })
+    const probeForLookup = stripInboundBodyForIntentClassify(
+      typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
+        ? input.intentClassifyText
+        : input.inboundBody
+    )
+    const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
+    const policyWithoutTrack =
+      inboundTextLooksLikeShopPolicyAsk(probeForLookup) && !orderStatusAsk
+    routeDecision = resolvePartnerAiFinalRouteDecision({
+      classified: routeDecision,
+      orderStatusAsk,
+      policyAsk: policyWithoutTrack,
+      followUpHeuristic: inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup),
+    })
+    try {
+      await mergeCustomerCareMessageRawPayloadPatchPg(
+        input.messageId,
+        partnerAiRouteDecisionToPayload(routeDecision)
+      )
+    } catch (e) {
+      console.warn('[partner-ai-inbound] final route payload', e)
+    }
 
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)
     let faqLocale = normalizeWebLocale(input.widgetUiLocale ?? null)
@@ -346,11 +365,6 @@ export async function handlePartnerInboundForAi(input: {
     /** Ảnh khách + ý mua: chỉ carousel vector theo ảnh (`widget-guest-post`), không gộp list «đã bấm Tư vấn». */
     const skipPurchasePickForCustomerImage =
       input.channel === 'widget' && inboundBodyHasCustomerUploadedImage(input.inboundBody)
-    const probeForLookup = stripInboundBodyForIntentClassify(
-      typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
-        ? input.intentClassifyText
-        : input.inboundBody
-    )
     let boundOrder = null as ReturnType<typeof findLatestBoundOrderSnapshot>
     let transcriptLines: Awaited<ReturnType<typeof fetchCustomerCareTranscriptLinesFromPg>> = null
     if (isPgConfigured()) {
@@ -375,10 +389,6 @@ export async function handlePartnerInboundForAi(input: {
     const depositAsk = inboundTextLooksLikeDepositConfirmAsk(probeForLookup)
     const variantAsk = Boolean(activeBound && inboundTextLooksLikeBoundOrderVariantFollowUp(probeForLookup))
     const followsBound = Boolean(activeBound && inboundTextFollowsBoundOrder(probeForLookup, activeBound))
-    const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
-    /** Chính sách cọc/giao/đổi trả: AI `policy_or_order_support` — không hỏi mã DH. */
-    const policyWithoutTrack =
-      inboundTextLooksLikeShopPolicyAsk(probeForLookup) && !orderStatusAsk
     const boundProductFollowUp =
       Boolean(activeBound) &&
       !policyWithoutTrack &&
@@ -387,37 +397,11 @@ export async function handlePartnerInboundForAi(input: {
       !variantAsk &&
       !orderStatusAsk
 
-    if (orderStatusAsk && routeDecision?.intent !== 'policy_or_order_support') {
-      routeDecision = createPartnerAiRouteDecision('policy_or_order_support', {
-        source: 'hard_rule',
-        reason: 'order_status_lookup',
-        confidence: 1,
-      })
-      try {
-        await mergeCustomerCareMessageRawPayloadPatchPg(
-          input.messageId,
-          partnerAiRouteDecisionToPayload(routeDecision)
-        )
-      } catch (e) {
-        console.warn('[partner-ai-inbound] order-status hard-rule payload', e)
-      }
-    } else if (policyWithoutTrack && routeDecision?.intent !== 'policy_or_order_support') {
-      routeDecision = createPartnerAiRouteDecision('policy_or_order_support', {
-        source: 'hard_rule',
-        reason: 'shop_policy_ask',
-        confidence: 1,
-      })
-      try {
-        await mergeCustomerCareMessageRawPayloadPatchPg(
-          input.messageId,
-          partnerAiRouteDecisionToPayload(routeDecision)
-        )
-      } catch (e) {
-        console.warn('[partner-ai-inbound] shop-policy hard-rule payload', e)
-      }
-    }
-
-    if (activeBound && boundProductFollowUp) {
+    if (
+      activeBound &&
+      boundProductFollowUp &&
+      partnerAiIntentAllowsProductContext(routeDecision.intent)
+    ) {
       const sku = firstBoundOrderSku(activeBound)
       try {
         await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {

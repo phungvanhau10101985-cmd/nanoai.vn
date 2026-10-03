@@ -1,5 +1,6 @@
 /** Độ dài tối đa mỗi bong bóng chat — chia đoạn cho dễ đọc (tư vấn AI). */
 const CHUNK_SOFT_MAX = 400
+const CHUNK_MAX_COUNT = 3
 
 function cutAtSemanticBoundary(s: string, max: number): { text: string; rest: string } {
   if (s.length <= max) return { text: s, rest: '' }
@@ -50,6 +51,16 @@ function mergeShortFragments(chunks: string[], minLen: number, hardMax: number):
   return out
 }
 
+function capChunkCount(chunks: string[], maxCount: number): string[] {
+  if (chunks.length <= maxCount) return chunks
+  const out = Array.from({ length: maxCount }, () => [] as string[])
+  for (let i = 0; i < chunks.length; i++) {
+    const bucket = Math.min(maxCount - 1, Math.floor((i * maxCount) / chunks.length))
+    out[bucket].push(chunks[i])
+  }
+  return out.map((group) => group.join('\n\n').trim()).filter(Boolean)
+}
+
 /**
  * Chia nội dung tư vấn dài thành nhiều đoạn ngắt ý (đoạn → câu → từ).
  * Trả về ít nhất một phần nếu `body` không rỗng.
@@ -85,5 +96,5 @@ export function splitAutomatedReplyIntoChunks(body: string): string[] {
     if (rest.length) out.push(rest)
   }
 
-  return mergeShortFragments(out, 28, CHUNK_SOFT_MAX)
+  return capChunkCount(mergeShortFragments(out, 28, CHUNK_SOFT_MAX), CHUNK_MAX_COUNT)
 }

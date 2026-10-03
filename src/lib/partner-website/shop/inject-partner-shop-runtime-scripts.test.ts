@@ -319,6 +319,8 @@ test('runtime scripts do not duplicate bootstraps on a second inject', () => {
   assert.equal(twice.split('data-pw-search-bootstrap').length, 2)
   assert.equal(twice.split('data-pw-chrome-toggle-bootstrap').length, 2)
   assert.equal(twice.split('data-pw-chat-bridge').length, 2)
+  assert.equal(twice.split('data-pw-cdn-image-retry').length, 2)
+  assert.match(once, /__pwShopCdnImgRetry/)
 })
 
 test('runtime scripts replace a stale chat bridge and stamp Chat mua open attrs', () => {
