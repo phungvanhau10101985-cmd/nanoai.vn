@@ -57,6 +57,39 @@ describe('planExternalCatalogGetWrites', () => {
     assert.deepEqual(plan.deleteIds, ['id-a'])
   })
 
+  it('patches image consult context on an existing remarketing id without inserting it', () => {
+    const context = {
+      captured_at: '2026-10-03T00:00:00Z',
+      language: 'vi',
+      images: [{ url: 'external-catalog', lines: [{ src: '胸围 88cm', vi: 'Vòng ngực 88cm' }] }],
+    }
+    const existing = row('A')
+    existing.image_consult_context = context
+    const fresh = row('B')
+    fresh.image_consult_context = context
+    const plan = planExternalCatalogGetWrites({
+      incoming: [existing, fresh],
+      existingKeys: [{ id: 'id-a', remarketing_id: 'A' }],
+      deleteRemarketingIds: [],
+    })
+    assert.equal(plan.insertRows.length, 1)
+    assert.equal(plan.insertRows[0].remarketing_id, 'B')
+    assert.equal(plan.consultContextPatches.length, 1)
+    assert.equal(plan.consultContextPatches[0].inventoryId, 'id-a')
+    assert.equal(plan.consultContextPatches[0].imageConsultContext, context)
+  })
+
+  it('does not patch consult context when the catalog field is missing or empty', () => {
+    const bare = row('A', 'Giữ tên')
+    const plan = planExternalCatalogGetWrites({
+      incoming: [bare],
+      existingKeys: [{ id: 'id-a', remarketing_id: 'A' }],
+      deleteRemarketingIds: [],
+    })
+    assert.deepEqual(plan.insertRows, [])
+    assert.deepEqual(plan.consultContextPatches, [])
+  })
+
   it('ignores empty remarketing_id on incoming and existing rows', () => {
     const plan = planExternalCatalogGetWrites({
       incoming: [row(''), row('   '), row('NEW')],

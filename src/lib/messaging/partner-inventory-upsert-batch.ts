@@ -17,6 +17,7 @@ import {
 import { emptyInventoryCatalogRowFields } from '@/lib/messaging/partner-inventory-catalog-188'
 import { linkImportedInventoryToCatalogCategoriesBatch } from '@/lib/messaging/partner-inventory-import-categories'
 import { importedInventoryInsertIdsBlockedByAutoCreate } from '@/lib/partner-website/category/partner-category-place-product'
+import { patchInventoryImageConsultContextsFromPg } from '@/lib/db/messaging-partner-image-localization-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { InventoryExcelInsert } from '@/lib/messaging/partner-inventory-excel'
@@ -427,8 +428,8 @@ async function upsertPartnerInventoryRemarketingSnapshotBatch(
 }
 
 /**
- * GET kho khách: không nạp full dòng. Mã đã có → bỏ qua; mã mới → insert; xóa theo cờ API khách.
- * Không ghi đè nội dung SKU đã có (khác IncrementalBatch).
+ * GET kho khách: không nạp full dòng. Mã đã có → bỏ qua tên/giá/tồn; mã mới → insert; xóa theo cờ API khách.
+ * Có `image_consult_context` thì ghi riêng cột đó, kể cả mã đã có. Không embed cột này.
  */
 export async function applyPartnerInventoryExternalCatalogGetBatch(
   partnerId: string,
@@ -454,6 +455,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
   const changedIds = new Set<string>(plan.deleteIds)
   const plannedInserts = new Map<string, InventoryInsert>()
   const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
+  const consultByNewId = new Map<string, NonNullable<InventoryExcelInsert['image_consult_context']>>()
 
   for (const r of plan.insertRows) {
     const rk = inventoryRemarketingMatchKey(r.remarketing_id)
@@ -476,6 +478,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     }
     const newId = randomUUID()
     plannedInserts.set(rk, { id: newId, partner_id: partnerId, ...base, created_at: now })
+    if (r.image_consult_context?.images?.length) consultByNewId.set(newId, r.image_consult_context)
     if (r.catalog) catalogPatches.set(newId, { id: newId, partnerId, catalog: r.catalog })
     inserted += 1
     changedIds.add(newId)
@@ -495,6 +498,26 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
   for (const rowsChunk of chunked(Array.from(plannedInserts.values()), WRITE_CHUNK_SIZE)) {
     const ok = await insertPartnerInventoryChunkFromPg(rowsChunk)
     if (!ok) return { ok: false, error: 'Inventory insert failed (Postgres).' }
+  }
+
+  const liveInsertIds = new Set(
+    Array.from(plannedInserts.values())
+      .map((row) => String(row.id ?? '').trim())
+      .filter(Boolean)
+  )
+  const consultWrites = [
+    ...plan.consultContextPatches.map((patch) => ({
+      id: patch.inventoryId,
+      context: patch.imageConsultContext,
+    })),
+    ...Array.from(consultByNewId.entries())
+      .filter(([id]) => liveInsertIds.has(id))
+      .map(([id, context]) => ({ id, context })),
+  ]
+  let consultUpdated = 0
+  if (consultWrites.length > 0) {
+    const wrote = await patchInventoryImageConsultContextsFromPg(partnerId, consultWrites)
+    if (wrote > 0) consultUpdated = plan.consultContextPatches.length
   }
 
   const patches = Array.from(catalogPatches.values())
@@ -523,7 +546,14 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
     await syncPartnerInventoryTextEmbeddings(partnerId, { inventoryIds: ids, force: false })
   }
 
-  return { ok: true, inserted, updated: 0, deleted, embeddingsDeferred: deferEmbeddings, categoryAutoCreateSkipped }
+  return {
+    ok: true,
+    inserted,
+    updated: consultUpdated,
+    deleted,
+    embeddingsDeferred: deferEmbeddings,
+    categoryAutoCreateSkipped,
+  }
 }
 
 /**

@@ -49,6 +49,8 @@ export type ImageProcessResult = {
   status: 'processed' | 'kept' | 'deleted' | 'error'
   message: string
   detail?: Record<string, unknown>
+  /** Có mặt khi ảnh đã OCR. Bỏ qua thì lần sau giữ chữ cũ của URL đó. */
+  consult_sources?: string[]
 }
 
 export type ImageLocStartPayload = {

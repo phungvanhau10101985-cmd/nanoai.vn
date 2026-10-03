@@ -632,6 +632,14 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
         ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
         ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
+        ...(materialDetailImageRequest
+          ? {
+              partner_ai_followup_pending: {
+                kind: 'material' as const,
+                inventory_id: materialDetailImageRequest.inventoryId,
+              },
+            }
+          : {}),
         ...(partnerAiRouteIntent
           ? { partner_ai_pipeline_branch: partnerAiRouteIntent }
           : inboundAnchoredProductConsultBranch

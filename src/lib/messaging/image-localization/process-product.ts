@@ -2,11 +2,14 @@ import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging
 import {
   applyImageLocProductResultFromPg,
   claimInventoryForImageLocFromPg,
+  fetchInventoryImageConsultContextFromPg,
 } from '@/lib/db/messaging-partner-image-localization-pg'
 import { collectInventoryImageRefs, uniqueImageUrls } from './collect-image-refs'
 import { imageLocMaxImagesPerProduct, normalizeImageUrl } from './image-localization-config'
 import type { ImageProcessResult } from './image-localization-types'
 import { prepareImageLocBatchOcr } from './batch-ocr'
+import { fillImageConsultTranslations, mergeImageConsultContext } from './image-consult-context'
+import { translateImageLocTexts } from './local-pipeline'
 import { processPreparedImage, type ProcessImageContext } from './process-one'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 import { partnerBunnyHostname } from '@/lib/storage/partner-bunny-cdn'
@@ -227,6 +230,44 @@ export async function processInventoryProduct(opts: {
   )
   info.image_localization = loc
 
+  let writeImageConsultContext = false
+  let imageConsultContext: unknown = null
+  if (Object.values(results).some((result) => result.consult_sources !== undefined)) {
+    try {
+      const previous = await fetchInventoryImageConsultContextFromPg(opts.partnerId, opts.inventoryId)
+      let merged = mergeImageConsultContext({
+        previous,
+        results,
+        stillHostedUrls: collectInventoryImageRefs(patched).map((ref) => ref.url),
+        language: opts.ctx.language,
+      })
+      if (merged.context && merged.pendingSources.length) {
+        try {
+          const translated = await translateImageLocTexts(
+            merged.pendingSources,
+            opts.ctx.language,
+            opts.ctx.userId
+          )
+          const bySource = new Map<string, string>()
+          merged.pendingSources.forEach((src, index) => {
+            bySource.set(src, (translated[index] || '').trim() || src)
+          })
+          merged = { ...merged, context: fillImageConsultTranslations(merged.context, bySource) }
+        } catch (error) {
+          console.warn('[image-localization] dịch chữ tư vấn thất bại, giữ chữ gốc', error)
+          const bySource = new Map(merged.pendingSources.map((src) => [src, src] as const))
+          merged = { ...merged, context: fillImageConsultTranslations(merged.context, bySource) }
+        }
+      }
+      if (merged.context) {
+        writeImageConsultContext = true
+        imageConsultContext = merged.context
+      }
+    } catch (error) {
+      console.warn('[image-localization] không gom được chữ tư vấn, giữ bản đã lưu', error)
+    }
+  }
+
   await withDbRetry(() => applyImageLocProductResultFromPg({
     partnerId: opts.partnerId,
     inventoryId: opts.inventoryId,
@@ -239,6 +280,8 @@ export async function processInventoryProduct(opts: {
     detailImageUrls: patched.detail_image_urls,
     materialDetailImageUrl: patched.material_detail_image_url,
     productInfoJson: info,
+    writeImageConsultContext,
+    imageConsultContext,
   }), 'Lưu ảnh bản địa hóa sau retry DB')
 
   return {

@@ -216,6 +216,8 @@ export function PartnerInventoryExternalSyncCard({
         return t.inventoryProductVideoUrl
       case 'consult_note':
         return t.inventoryConsultNote
+      case 'image_consult_context':
+        return t.inventoryExternalSyncRowImageConsult
       case 'sort_order':
         return t.inventorySort
       case 'is_active':

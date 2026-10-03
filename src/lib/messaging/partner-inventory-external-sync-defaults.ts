@@ -17,6 +17,11 @@ export const INVENTORY_EXTERNAL_SYNC_MAP_KEYS = [
   'slug',
   'video',
   'consult_note',
+  /**
+   * Cột `image_consult_context` — chữ trên ảnh cho prompt tư vấn một SKU.
+   * Không embed, không hiện web. Web khách gửi object `image_consult_context`.
+   */
+  'image_consult_context',
   'sort_order',
   'is_active',
 ] as const
@@ -43,6 +48,7 @@ export const INVENTORY_EXTERNAL_SYNC_VECTOR_ROLE: Record<
   slug: null,
   video: null,
   consult_note: 'text',
+  image_consult_context: null,
   sort_order: null,
   is_active: null,
 }
@@ -61,6 +67,7 @@ export const DEFAULT_188_INVENTORY_FIELD_MAPPING: Record<InventoryExternalSyncMa
   slug: 'slug',
   video: 'video_link',
   consult_note: 'product_info',
+  image_consult_context: 'image_consult_context',
   sort_order: 'id',
   is_active: 'is_active',
 }
@@ -81,6 +88,8 @@ export const EXTERNAL_SYNC_FIELD_SAMPLE_188: Record<InventoryExternalSyncMapKey,
   slug: 'https://188.com.vn/products/giay-…-a976167321349a188b3630',
   video: 'https://www.youtube.com/embed/Phx1BGK1Al8',
   consult_note: '{"product_info":{"sku":"B3630"}}',
+  image_consult_context:
+    '{"language":"vi","lines":[{"src":"胸围88cm","vi":"Vòng ngực 88cm"}],"images":[{"url":"https://cdn.shop/size-chart.jpg","lines":[{"src":"胸围88cm","vi":"Vòng ngực 88cm"}]}]}',
   sort_order: '1',
   is_active: 'true',
 }

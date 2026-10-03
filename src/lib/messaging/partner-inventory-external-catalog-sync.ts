@@ -1,9 +1,11 @@
 /**
  * Đồng bộ kho từ REST danh sách SP khách (GET products_list_url) + bảng map trường.
- * GET job: mã đã có → bỏ qua (không ghi đè); mã mới → insert; xóa chỉ khi API khách đánh dấu xóa.
+ * GET job: mã đã có → không ghi đè nội dung kho; mã mới → insert; xóa chỉ khi API khách đánh dấu xóa.
+ * Cột `image_consult_context` là ngoại lệ: mã đã có vẫn được cập nhật khi payload có chữ trên ảnh.
  * Không nạp full dòng kho — chỉ id + remarketing_id.
  */
 
+import { normalizeExternalImageConsultContext } from '@/lib/messaging/image-localization/image-consult-context'
 import { validateInventoryHttpUrl } from '@/lib/messaging/inventory-http-url'
 import { catalogFieldsFromExternalProduct } from '@/lib/messaging/partner-inventory-catalog-188'
 import type { InventoryExcelInsert, InventoryRow } from '@/lib/messaging/partner-inventory-excel'
@@ -263,6 +265,12 @@ function mapProductToInventoryRow(
     consult_note = consult_note.slice(0, 2000)
   }
 
+  const imageConsultRaw = get('image_consult_context')
+  const image_consult_context =
+    imageConsultRaw == null || imageConsultRaw === ''
+      ? undefined
+      : normalizeExternalImageConsultContext(imageConsultRaw) ?? undefined
+
   const remarketing_id = cellStr(getWithFallback('remarketing_id', ['product_id', 'id'])).slice(0, 500)
 
   let sort_order = 100
@@ -290,6 +298,7 @@ function mapProductToInventoryRow(
     product_url,
     product_video_url,
     consult_note,
+    image_consult_context,
     remarketing_id,
     is_active,
     removeFromInventory: false,

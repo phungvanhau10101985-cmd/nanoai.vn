@@ -59,6 +59,11 @@ import {
   type PartnerMaterialDetailFollowup,
 } from '@/lib/messaging/partner-inventory-material-detail-image'
 import { fetchLastConsultedInventoryRowFromConversationPg } from '@/lib/messaging/partner-ai-last-consulted-inventory'
+import { fetchInventoryImageConsultContextFromPg } from '@/lib/db/messaging-partner-image-localization-pg'
+import {
+  formatImageConsultContextForPrompt,
+  shouldAttachImageConsultContext,
+} from '@/lib/messaging/image-localization/image-consult-context'
 import {
   customerMessageAsksAboutRealUsePhoto,
   customerMessageAsksSpecificPhotoAngleDetail,
@@ -1850,7 +1855,25 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
       ? invForContext.slice(0, 1)
       : invForContext.slice(0, 8)
 
+  let imageConsultPrompt = ''
+  const imageConsultRow =
+    inventoryRowsForPrompt.length === 1 &&
+    !similarCatalogVersusLastConsulted &&
+    !inboundPageSkuMissImageSimilarFallback &&
+    shouldAttachImageConsultContext(partnerAiRouteIntent)
+      ? inventoryRowsForPrompt[0]
+      : null
+  if (imageConsultRow && isPgConfigured()) {
+    try {
+      const imageConsultRaw = await fetchInventoryImageConsultContextFromPg(partnerId, imageConsultRow.id)
+      imageConsultPrompt = formatImageConsultContextForPrompt(imageConsultRaw)
+    } catch (error) {
+      console.warn('[partner-ai-llm] image consult context', error)
+    }
+  }
+
   const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfilePromptBlock}${userInventoryPreamble}${formatInventoryLines(inventoryRowsForPrompt, invFmtOpts)}
+${imageConsultPrompt}
 ${explicitSkuBlock}
 ${selectedRowBlock}
 

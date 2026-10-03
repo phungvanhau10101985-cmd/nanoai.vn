@@ -87,6 +87,7 @@ import {
   isGuestChatLoadAbortError,
   nextGuestChatLoadRetryDelayMs,
 } from '@/lib/messaging/guest-chat-load'
+import { partnerAiPayloadHasPendingOutbound } from '@/lib/messaging/partner-ai-typing-continuation'
 import {
   useVisualViewportBottomInset,
   useVisualViewportShellHeightPx,
@@ -382,7 +383,7 @@ type GuestMsg = {
 /** Baseline để tắt «shop đang soạn tin»: so `(created_at, id)` — tránh kẹt khi cửa sổ fetch trượt mà đếm outbound trong batch không đổi. */
 type GuestShopOutboundCursor = { at: number; id: string }
 
-function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null {
+function latestOutboundMessage(msgs: GuestMsg[]): GuestMsg | null {
   let best: GuestMsg | null = null
   for (const m of msgs) {
     if (m.direction !== 'outbound') continue
@@ -399,6 +400,11 @@ function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null 
     }
     if (ta > tb || (ta === tb && m.id > best.id)) best = m
   }
+  return best
+}
+
+function latestOutboundCursor(msgs: GuestMsg[]): GuestShopOutboundCursor | null {
+  const best = latestOutboundMessage(msgs)
   if (!best) return null
   const at = Date.parse(best.created_at)
   if (!Number.isFinite(at)) return null
@@ -2759,7 +2765,23 @@ export function PartnerGuestChatClient({
           /** Tải tin cũ: không so baseline — tránh tắt nhầm khi thêm outbound lịch sử phía trên. */
           if (appendOlder) return typingPrev
           const latest = latestOutboundCursor(merged)
-          if (hasNewOutboundSinceTypingBaseline(latest, typingPrev.baselineLatestOutbound)) return null
+          if (hasNewOutboundSinceTypingBaseline(latest, typingPrev.baselineLatestOutbound)) {
+            const latestMessage = latestOutboundMessage(merged)
+            if (
+              latest &&
+              latestMessage &&
+              partnerAiPayloadHasPendingOutbound(latestMessage.raw_payload)
+            ) {
+              return {
+                deadline: Math.max(
+                  typingPrev.deadline,
+                  Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS
+                ),
+                baselineLatestOutbound: latest,
+              }
+            }
+            return null
+          }
           return typingPrev
         })
         return guestMessagesEquivalent(prev, merged) ? prev : merged
@@ -5239,13 +5261,10 @@ export function PartnerGuestChatClient({
         setBuyOptionsOpen(false)
       }
       const baselineLatestOutbound = latestOutboundCursor(messages)
-      const sendingImages = imageStoragePaths.length >= 1
-      if (sendingImages) {
-        setShopTyping({
-          deadline: Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS,
-          baselineLatestOutbound,
-        })
-      }
+      setShopTyping({
+        deadline: Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS,
+        baselineLatestOutbound,
+      })
       setSending(true)
       try {
         const seedText =
@@ -5296,11 +5315,11 @@ export function PartnerGuestChatClient({
         }
         if (res.status === 401) {
           setUserId(null)
-          if (sendingImages) setShopTyping(null)
+          setShopTyping(null)
           return false
         }
         if (!res.ok) {
-          if (sendingImages) setShopTyping(null)
+          setShopTyping(null)
           if (data.requireAuth) {
             setAuthGateRequired(true)
             toast({
@@ -5358,7 +5377,7 @@ export function PartnerGuestChatClient({
         scrollGuestChatToBottomOnce('smooth')
         return true
       } catch {
-        if (sendingImages) setShopTyping(null)
+        setShopTyping(null)
         toast({ title: t.sendError, variant: 'destructive' })
         return false
       } finally {

@@ -1909,6 +1909,7 @@ export type Dictionary = {
     inventoryExternalSyncRowStockQty: string
     inventoryExternalSyncRowSlug: string
     inventoryExternalSyncRowIsActive: string
+    inventoryExternalSyncRowImageConsult: string
     /** Màu sắc dạng JSON mảng — map tới trường API khách (vd colors) */
     inventoryExternalSyncRowColorsJson: string
     /** Đồng bộ GET từ kho khách — cron + nút tay */
@@ -5650,6 +5651,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExternalSyncRowStockQty: 'Số lượng tồn (stock_qty)',
     inventoryExternalSyncRowSlug: 'Slug (đoạn URL sản phẩm)',
     inventoryExternalSyncRowIsActive: 'Đang bán (trạng thái)',
+    inventoryExternalSyncRowImageConsult: 'Chữ trên ảnh (tư vấn)',
     inventoryExternalSyncRowColorsJson:
       'Màu sắc (JSON) — vd [{"name":"Đen","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: 'Tự động đồng bộ từ API kho khách',
@@ -6200,7 +6202,7 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthRememberDeviceHint:
       'Tin cậy thiết bị/trình duyệt này lâu dài (đăng nhập lại cùng email sẽ bỏ qua OTP).',
     guestAuthVerifyingProgress: 'Đang đăng nhập, vui lòng chờ...',
-    shopTypingHint: 'Nhân viên của shop {shop} đang trả lời',
+    shopTypingHint: 'Shop {shop} đang soạn thông tin để gửi…',
     consultLinkShopPreparingHint: 'Cửa hàng đang gửi thông tin sản phẩm…',
     similarAlternativesTemplateMessage:
       'Bên em có thêm một số mẫu khác bên dưới, anh/chị tham khảo ạ.',
@@ -9387,6 +9389,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExternalSyncRowStockQty: 'Stock quantity (stock_qty)',
     inventoryExternalSyncRowSlug: 'Slug (product URL segment)',
     inventoryExternalSyncRowIsActive: 'Listed / active status',
+    inventoryExternalSyncRowImageConsult: 'Image text (consultation)',
     inventoryExternalSyncRowColorsJson:
       'Colors (JSON) — e.g. [{"name":"Black","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: 'Auto-sync from customer catalog API',
@@ -9937,7 +9940,7 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthRememberDeviceHint:
       'Trust this device/browser long term (signing in again with the same email may skip OTP).',
     guestAuthVerifyingProgress: 'Signing in, please wait...',
-    shopTypingHint: 'A staff member from {shop} is replying',
+    shopTypingHint: '{shop} is preparing more information to send…',
     consultLinkShopPreparingHint: 'The shop is sending product details…',
     similarAlternativesTemplateMessage: 'Here are a few more styles for you below.',
     productSearchTemplateMessage:
@@ -13083,6 +13086,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExternalSyncRowStockQty: '库存数量（stock_qty）',
     inventoryExternalSyncRowSlug: 'Slug（URL 片段）',
     inventoryExternalSyncRowIsActive: '上架 / 状态',
+    inventoryExternalSyncRowImageConsult: '图片文字（咨询）',
     inventoryExternalSyncRowColorsJson:
       '颜色（JSON）— 例 [{"name":"黑","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '从顾客目录 API 自动同步',
@@ -13613,7 +13617,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
     guestAuthRememberDeviceHint: '长期信任此设备/浏览器（同一邮箱再次登录可能免去 OTP）。',
     guestAuthVerifyingProgress: '正在登录，请稍候...',
-    shopTypingHint: '{shop} 的店员正在回复',
+    shopTypingHint: '{shop} 正在整理更多信息并发送…',
     consultLinkShopPreparingHint: '店铺正在发送商品信息…',
     similarAlternativesTemplateMessage: '下方还有更多款式供您参考。',
     productSearchTemplateMessage:
@@ -16742,6 +16746,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExternalSyncRowStockQty: '在庫数（stock_qty）',
     inventoryExternalSyncRowSlug: 'スラッグ（URL セグメント）',
     inventoryExternalSyncRowIsActive: '販売中 / 状態',
+    inventoryExternalSyncRowImageConsult: '画像の文字（接客）',
     inventoryExternalSyncRowColorsJson:
       '色（JSON）— 例 [{"name":"黒","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '顧客カタログ API から自動同期',
@@ -17287,7 +17292,7 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthRememberDeviceHint:
       'この端末/ブラウザを長期間信頼する（同じメールで再ログイン時にOTPを省略する場合があります）。',
     guestAuthVerifyingProgress: 'ログイン処理中です。お待ちください…',
-    shopTypingHint: '{shop} のスタッフが返信しています',
+    shopTypingHint: '{shop} が続きの情報を作成しています…',
     consultLinkShopPreparingHint: '店舗が商品情報を送信中…',
     similarAlternativesTemplateMessage: '下にほかのデザインをいくつかご用意しました。',
     productSearchTemplateMessage:
@@ -20443,6 +20448,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExternalSyncRowStockQty: '재고 수량(stock_qty)',
     inventoryExternalSyncRowSlug: '슬러그(URL 조각)',
     inventoryExternalSyncRowIsActive: '판매 중 / 상태',
+    inventoryExternalSyncRowImageConsult: '이미지 문구 (상담)',
     inventoryExternalSyncRowColorsJson:
       '색상(JSON) — 예 [{"name":"블랙","img":"https://..."}]',
     inventoryExternalSyncAutoLabel: '고객 카탈로그 API 자동 동기화',
@@ -20988,7 +20994,7 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthRememberDeviceHint:
       '이 기기/브라우저를 장기간 신뢰(동일 이메일로 다시 로그인하면 OTP를 생략할 수 있음).',
     guestAuthVerifyingProgress: '로그인 중입니다. 잠시만 기다려 주세요...',
-    shopTypingHint: '{shop} 직원이 답변하는 중',
+    shopTypingHint: '{shop}에서 이어서 보낼 정보를 작성 중입니다…',
     consultLinkShopPreparingHint: '매장이 상품 정보를 보내는 중…',
     similarAlternativesTemplateMessage: '아래에 다른 스타일을 더 준비했습니다.',
     productSearchTemplateMessage:

@@ -4,6 +4,7 @@ import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { isOwnCdnUrl, normalizeImageUrl } from './image-localization-config'
 import type { ImageLocOcrBlock, ImageProcessResult } from './image-localization-types'
 import { classifyImage, hasChineseText, hasSizeOrLaundryContext } from './image-localization-classifier'
+import { collectImageConsultSourceLines } from './image-consult-context'
 import { encodeJpeg, localBlocksNeedDraw, localDrawTranslated, ocrImageBlocks } from './local-pipeline'
 import { geminiProcessImage, ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 import { openaiProcessImage } from './openai-adapter'
@@ -185,6 +186,11 @@ export async function processPreparedImage(
 ): Promise<ImageProcessResult> {
   const normalized = normalizeImageUrl(input.url)
   const { bytes, filename, blocks } = input
+  const consultSources = collectImageConsultSourceLines(blocks)
+  const withConsult = (result: ImageProcessResult): ImageProcessResult => ({
+    ...result,
+    consult_sources: consultSources,
+  })
   throwIfCancelled(ctx)
   const parts = await splitTallImageIfNeeded({ bytes, blocks, filename })
 
@@ -210,24 +216,24 @@ export async function processPreparedImage(
       language: ctx.language,
       imageBytes: withLogo,
     })
-    return { original_url: normalized, final_url: finalUrl, status: 'processed', message }
+    return withConsult({ original_url: normalized, final_url: finalUrl, status: 'processed', message })
   }
 
   if (outcomes.every((o) => o.kind === 'deleted')) {
-    return {
+    return withConsult({
       original_url: normalized,
       final_url: null,
       status: 'deleted',
       message: outcomes[0]?.message || 'Xóa ảnh',
-    }
+    })
   }
   if (outcomes.every((o) => o.kind === 'kept')) {
-    return {
+    return withConsult({
       original_url: normalized,
       final_url: normalized,
       status: 'kept',
       message: parts.length > 1 ? 'Ảnh dài: các phần giữ nguyên' : outcomes[0]?.message || 'Giữ nguyên',
-    }
+    })
   }
 
   const stitch: Buffer[] = []
@@ -236,12 +242,12 @@ export async function processPreparedImage(
   if (parts.length > 1) notes.push(`cắt ${parts.length} phần`)
   if (parts.length > 1 && outcomes.some((outcome) => outcome.kind === 'deleted')) {
     const deletedIndex = outcomes.findIndex((outcome) => outcome.kind === 'deleted')
-    return {
+    return withConsult({
       original_url: normalized,
       final_url: null,
       status: 'deleted',
       message: `Phần ${deletedIndex + 1}/${parts.length}: ${outcomes[deletedIndex]?.message || 'yêu cầu xóa ảnh'}`,
-    }
+    })
   }
   for (let i = 0; i < outcomes.length; i++) {
     const o = outcomes[i]
@@ -259,20 +265,20 @@ export async function processPreparedImage(
   const anyProcessed = outcomes.some((o) => o.kind === 'processed')
   const anyDeleted = outcomes.some((o) => o.kind === 'deleted')
   if (!anyProcessed && !anyDeleted) {
-    return {
+    return withConsult({
       original_url: normalized,
       final_url: normalized,
       status: 'kept',
       message: notes.filter(Boolean).join(' · ') || 'Giữ nguyên',
-    }
+    })
   }
   if (!stitch.length) {
-    return {
+    return withConsult({
       original_url: normalized,
       final_url: null,
       status: 'deleted',
       message: notes.filter(Boolean).join(' · ') || 'Xóa ảnh',
-    }
+    })
   }
   const merged = await vstackImageParts(stitch, originalShapes)
   return finishProcessed(merged, notes.filter(Boolean).join(' · '))

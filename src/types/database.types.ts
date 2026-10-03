@@ -1087,6 +1087,7 @@ export interface Database {
           image_localization_language?: string | null
           image_localized_at?: string | null
           image_localization_error?: string | null
+          image_consult_context?: Json | null
           created_at: string
           updated_at: string
         }
@@ -1182,6 +1183,7 @@ export interface Database {
           image_localization_language?: string | null
           image_localized_at?: string | null
           image_localization_error?: string | null
+          image_consult_context?: Json | null
           created_at?: string
           updated_at?: string
         }
@@ -1277,6 +1279,7 @@ export interface Database {
           image_localization_language?: string | null
           image_localized_at?: string | null
           image_localization_error?: string | null
+          image_consult_context?: Json | null
           created_at?: string
           updated_at?: string
         }

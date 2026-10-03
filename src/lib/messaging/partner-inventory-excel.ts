@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx'
+import type { ImageConsultContext } from '@/lib/messaging/image-localization/image-consult-context'
 import type { Database } from '@/types/database.types'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
@@ -78,6 +79,11 @@ export type InventoryExcelInsert = {
   product_url: string
   product_video_url: string
   consult_note: string
+  /**
+   * Chữ trên ảnh từ API web khách, đã lọc. Chỉ đồng bộ catalog ngoài.
+   * Thiếu khóa trên payload = không ghi cột (giữ bản bản địa hóa nếu có).
+   */
+  image_consult_context?: ImageConsultContext | null
   remarketing_id: string
   is_active: boolean
   /** true: xóa dòng kho khớp SKU/tên/id (không thêm mới). */

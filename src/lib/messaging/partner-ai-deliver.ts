@@ -10,6 +10,7 @@ import {
 import type { PartnerRealUseImageFollowup } from '@/lib/messaging/partner-inventory-real-use-image'
 import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
 import { splitAutomatedReplyIntoChunks } from '@/lib/messaging/partner-ai-split-reply'
+import { withPartnerAiReplyContinuation } from '@/lib/messaging/partner-ai-typing-continuation'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 
 function sleep(ms: number): Promise<void> {
@@ -60,15 +61,14 @@ function applyDisclosure(body: string, settings: SettingsRow): string {
 }
 
 /** Chỉ bản tin cuối mang đủ payload (vd. thẻ SP); các bản trước bỏ `ai_product_cards` để UI không lặp. */
-function rawPayloadForSplitChunk(full: Json, isLast: boolean): Json {
-  if (isLast) return full
+function rawPayloadForSplitChunk(full: Json, isLast: boolean, hasMoreOutbound = false): Json {
+  if (isLast) return hasMoreOutbound ? withPartnerAiReplyContinuation(full) : full
   if (full !== null && typeof full === 'object' && !Array.isArray(full)) {
     const o = { ...(full as Record<string, unknown>) }
     delete o.ai_product_cards
-    o.ai_reply_continuation = true
-    return o as Json
+    return withPartnerAiReplyContinuation(o as Json)
   }
-  return { ai_reply_continuation: true } as Json
+  return withPartnerAiReplyContinuation({} as Json)
 }
 
 /**
@@ -160,8 +160,12 @@ export async function deliverAutomatedPartnerMessage(params: {
   for (let i = 0; i < n; i++) {
     if (i > 0) await sleep(gapMs)
     const isLast = i === n - 1
+    const imageWillFollowInThread =
+      isLast &&
+      Boolean(imageFollowup?.publicUrl) &&
+      (conversation.channel === 'widget' || conversation.channel === 'internal')
     const payload = mergeAutomatedOutboundPayload(
-      rawPayloadForSplitChunk(rawPayload, isLast),
+      rawPayloadForSplitChunk(rawPayload, isLast, imageWillFollowInThread),
       isLast ? realUseFollowup : undefined,
       isLast ? materialDetailFollowup : undefined
     )

@@ -12,6 +12,7 @@ import type {
   ImageRef,
 } from '@/lib/messaging/image-localization/image-localization-types'
 import { IMAGE_LOC_TERMINAL_JOB_STATUSES } from '@/lib/messaging/image-localization/image-localization-types'
+import type { ImageConsultContext } from '@/lib/messaging/image-localization/image-consult-context'
 
 type JobRow = {
   job_id: string
@@ -363,10 +364,24 @@ export async function applyImageLocProductResultFromPg(opts: {
   detailImageUrls?: unknown
   materialDetailImageUrl?: string | null
   productInfoJson?: unknown
+  writeImageConsultContext?: boolean
+  imageConsultContext?: unknown
 }): Promise<void> {
   if (!isPgConfigured()) return
-  await pgQuery(
-    `update public.messaging_partner_inventory set
+  const params = [
+    opts.partnerId,
+    opts.inventoryId,
+    opts.status,
+    opts.language,
+    opts.error ?? null,
+    opts.imageUrl ?? null,
+    opts.colorsJson != null ? JSON.stringify(opts.colorsJson) : null,
+    opts.galleryUrls != null ? JSON.stringify(opts.galleryUrls) : null,
+    opts.detailImageUrls != null ? JSON.stringify(opts.detailImageUrls) : null,
+    opts.materialDetailImageUrl ?? null,
+    opts.productInfoJson != null ? JSON.stringify(opts.productInfoJson) : null,
+  ]
+  const sql = `update public.messaging_partner_inventory set
        image_localization_status = $3,
        image_localization_language = $4,
        image_localization_error = $5,
@@ -378,22 +393,80 @@ export async function applyImageLocProductResultFromPg(opts: {
        material_detail_image_url = coalesce($10, material_detail_image_url),
        product_info_json = coalesce($11::jsonb, product_info_json),
        updated_at = now()
-     where partner_id = $1::uuid and id = $2::uuid`,
-    [
-      opts.partnerId,
-      opts.inventoryId,
-      opts.status,
-      opts.language,
-      opts.error ?? null,
-      opts.imageUrl ?? null,
-      opts.colorsJson != null ? JSON.stringify(opts.colorsJson) : null,
-      opts.galleryUrls != null ? JSON.stringify(opts.galleryUrls) : null,
-      opts.detailImageUrls != null ? JSON.stringify(opts.detailImageUrls) : null,
-      opts.materialDetailImageUrl ?? null,
-      opts.productInfoJson != null ? JSON.stringify(opts.productInfoJson) : null,
-    ]
-  )
+     where partner_id = $1::uuid and id = $2::uuid`
+  if (opts.writeImageConsultContext) {
+    try {
+      await pgQuery(
+        sql.replace(
+          'product_info_json = coalesce($11::jsonb, product_info_json),',
+          `product_info_json = coalesce($11::jsonb, product_info_json),
+       image_consult_context = coalesce($12::jsonb, image_consult_context),`
+        ),
+        [...params, opts.imageConsultContext == null ? null : JSON.stringify(opts.imageConsultContext)]
+      )
+    } catch (error) {
+      if (!isMissingImageConsultContextColumnError(error)) throw error
+      console.warn('[image-localization] thiếu cột image_consult_context, bỏ qua chữ tư vấn')
+      await pgQuery(sql, params)
+    }
+  } else {
+    await pgQuery(sql, params)
+  }
   bumpInventoryCacheLater(opts.partnerId)
+}
+
+function isMissingImageConsultContextColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { code?: string; message?: string }
+  if (err.code !== '42703') return false
+  return String(err.message || '').toLowerCase().includes('image_consult_context')
+}
+
+/** Ghi cột chữ tư vấn theo id kho. Thiếu cột (chưa migration) → 0, không làm fail đồng bộ. */
+export async function patchInventoryImageConsultContextsFromPg(
+  partnerId: string,
+  patches: Array<{ id: string; context: ImageConsultContext }>
+): Promise<number> {
+  if (!isPgConfigured() || patches.length === 0) return 0
+  const ids = patches.map((patch) => patch.id)
+  const payloads = patches.map((patch) => JSON.stringify(patch.context))
+  try {
+    const res = await getPgPool().query(
+      `update public.messaging_partner_inventory as mpi
+          set image_consult_context = v.ctx
+         from unnest($1::uuid[], $2::jsonb[]) as v(id, ctx)
+        where mpi.id = v.id
+          and mpi.partner_id = $3::uuid`,
+      [ids, payloads, partnerId]
+    )
+    return res.rowCount ?? 0
+  } catch (error) {
+    if (isMissingImageConsultContextColumnError(error)) {
+      console.warn('[external-catalog] thiếu cột image_consult_context, bỏ qua chữ tư vấn')
+      return 0
+    }
+    throw error
+  }
+}
+
+export async function fetchInventoryImageConsultContextFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<unknown | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ image_consult_context: unknown }>(
+      `select image_consult_context
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and id = $2::uuid
+       limit 1`,
+      [partnerId, inventoryId]
+    )
+    return row?.image_consult_context ?? null
+  } catch (error) {
+    if (isMissingImageConsultContextColumnError(error)) return null
+    throw error
+  }
 }
 
 export async function fetchImageLocProductReportFromPg(

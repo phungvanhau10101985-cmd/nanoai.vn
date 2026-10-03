@@ -94,6 +94,14 @@ export async function ocrImageBlocks(
   return { blocks, scale }
 }
 
+export async function translateImageLocTexts(
+  texts: string[],
+  language: string,
+  userId?: string | null
+): Promise<string[]> {
+  return translateBlocksDeepseek(texts, language, userId)
+}
+
 async function translateBlocksDeepseek(
   texts: string[],
   language: string,
