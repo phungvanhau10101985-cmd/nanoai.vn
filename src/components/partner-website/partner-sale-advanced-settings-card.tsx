@@ -32,9 +32,14 @@ const COPY: Record<WebLocale, string[]> = {
 export function PartnerSaleAdvancedSettingsCard(props: {
   partnerId: string
   locale: WebLocale
+  /** `google` stays on Sale Center. `affiliate` is the standalone admin menu. */
+  part?: 'all' | 'google' | 'affiliate'
   onToast?: (message: string, variant?: 'default' | 'destructive') => void
 }) {
   const t = COPY[props.locale] ?? COPY.en
+  const part = props.part ?? 'all'
+  const showGoogle = part !== 'affiliate'
+  const showAffiliate = part !== 'google'
   const api = useMemo(
     () => `/api/messaging/partners/${encodeURIComponent(props.partnerId)}/sale-program-settings`,
     [props.partnerId]
@@ -60,10 +65,16 @@ export function PartnerSaleAdvancedSettingsCard(props: {
     if (!settings || saving) return
     setSaving(true)
     try {
+      const payload =
+        part === 'google'
+          ? { google: settings.google }
+          : part === 'affiliate'
+            ? { affiliate: settings.affiliate }
+            : settings
       const response = await fetch(api, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(settings),
+        body: JSON.stringify(payload),
       })
       props.onToast?.(response.ok ? t[10] : t[11], response.ok ? 'default' : 'destructive')
     } finally {
@@ -102,41 +113,49 @@ export function PartnerSaleAdvancedSettingsCard(props: {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <BadgePercent className="h-5 w-5" />
-          {t[0]}
+          {part === 'affiliate' ? t[5] : part === 'google' ? t[1] : t[0]}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label>{t[1]}</Label>
-          <Switch checked={settings.google.enabled} onCheckedChange={(enabled) => setSettings({ ...settings, google: { ...settings.google, enabled } })} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="space-y-1.5"><Label>{t[2]}</Label><Input value={settings.google.merchantId} onChange={(event) => setSettings({ ...settings, google: { ...settings.google, merchantId: event.target.value } })} /></div>
-          {number('google', 'lockHours', t[3], 168)}
-          {number('google', 'minimumPricePercent', t[4])}
-        </div>
-        <div className="flex items-center justify-between">
-          <Label>{t[5]}</Label>
-          <Switch checked={settings.affiliate.enabled} onCheckedChange={(enabled) => setSettings({ ...settings, affiliate: { ...settings.affiliate, enabled } })} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {number('affiliate', 'commissionPercent', t[6])}
-          {number('affiliate', 'attributionDays', t[7], 365)}
-          {number('affiliate', 'minimumPayoutAmount', t[8], 1_000_000_000)}
-        </div>
-        <div className="space-y-1.5">
-          <Label>{t[12]}</Label>
-          <Textarea
-            rows={4}
-            value={settings.affiliate.commissionPolicy}
-            onChange={(event) =>
-              setSettings({
-                ...settings,
-                affiliate: { ...settings.affiliate, commissionPolicy: event.target.value },
-              })
-            }
-          />
-        </div>
+        {showGoogle ? (
+          <>
+            <div className="flex items-center justify-between">
+              <Label>{t[1]}</Label>
+              <Switch checked={settings.google.enabled} onCheckedChange={(enabled) => setSettings({ ...settings, google: { ...settings.google, enabled } })} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1.5"><Label>{t[2]}</Label><Input value={settings.google.merchantId} onChange={(event) => setSettings({ ...settings, google: { ...settings.google, merchantId: event.target.value } })} /></div>
+              {number('google', 'lockHours', t[3], 168)}
+              {number('google', 'minimumPricePercent', t[4])}
+            </div>
+          </>
+        ) : null}
+        {showAffiliate ? (
+          <>
+            <div className="flex items-center justify-between">
+              <Label>{t[5]}</Label>
+              <Switch checked={settings.affiliate.enabled} onCheckedChange={(enabled) => setSettings({ ...settings, affiliate: { ...settings.affiliate, enabled } })} />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {number('affiliate', 'commissionPercent', t[6])}
+              {number('affiliate', 'attributionDays', t[7], 365)}
+              {number('affiliate', 'minimumPayoutAmount', t[8], 1_000_000_000)}
+            </div>
+            <div className="space-y-1.5">
+              <Label>{t[12]}</Label>
+              <Textarea
+                rows={4}
+                value={settings.affiliate.commissionPolicy}
+                onChange={(event) =>
+                  setSettings({
+                    ...settings,
+                    affiliate: { ...settings.affiliate, commissionPolicy: event.target.value },
+                  })
+                }
+              />
+            </div>
+          </>
+        ) : null}
         <Button onClick={save} disabled={saving}>
           {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
           {t[9]}

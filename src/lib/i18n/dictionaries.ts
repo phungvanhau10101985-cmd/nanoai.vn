@@ -869,6 +869,7 @@ export type Dictionary = {
     settingsNavShippingSaveFee: string
     settingsNavEmsOps: string
     settingsNavEmsOpsDesc: string
+    settingsNavAffiliate: string
     settingsNavLoyalty: string
     settingsNavLoyaltyDesc: string
     settingsNavPromotions: string
@@ -4601,6 +4602,7 @@ const VI_DICTIONARY: Dictionary = {
     settingsNavEmsOps: 'Vận chuyển EMS',
     settingsNavEmsOpsDesc:
       'Import EMS, đối soát COD/cước, xác nhận hoàn và nhập kho — cùng bảng với Cài đặt vận chuyển, đặt cạnh danh sách đơn.',
+    settingsNavAffiliate: 'Affiliate',
     settingsNavLoyalty: 'Thành viên thân quen',
     settingsNavLoyaltyDesc:
       'Tính hạng theo chi tiêu của khách trong cửa sổ thời gian và tự động giảm giá khi chốt đơn.',
@@ -8336,6 +8338,7 @@ const EN_DICTIONARY: Dictionary = {
     settingsNavEmsOps: 'EMS shipping',
     settingsNavEmsOpsDesc:
       'EMS import, COD/freight settlement, returns, and warehouse intake — same ops as Shipping settings, next to the order hub.',
+    settingsNavAffiliate: 'Affiliate',
     settingsNavLoyalty: 'Returning members',
     settingsNavLoyaltyDesc:
       'Tier customers by spend within a time window and apply automatic discounts at checkout.',
@@ -12061,6 +12064,7 @@ const ZH_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '保存运费',
     settingsNavEmsOps: 'EMS 物流',
     settingsNavEmsOpsDesc: 'EMS 导入、代收/运费对账、退件入库 — 与物流设置同一引擎，放在订单旁边。',
+    settingsNavAffiliate: '联盟计划',
     settingsNavLoyalty: '常客会员',
     settingsNavLoyaltyDesc: '按时间窗口内的消费划分等级，并在结账时自动打折。',
     settingsNavPromotions: '生日优惠',
@@ -15701,6 +15705,7 @@ const JA_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '送料を保存',
     settingsNavEmsOps: 'EMS配送',
     settingsNavEmsOpsDesc: 'EMS取込、代引/運賃照合、返品入庫 — 配送設定と同じエンジンで、注文の横に置きます。',
+    settingsNavAffiliate: 'アフィリエイト',
     settingsNavLoyalty: '常連会員',
     settingsNavLoyaltyDesc: '期間内の購入額でランク付けし、注文確定時に自動割引します。',
     settingsNavPromotions: '誕生日特典',
@@ -19407,6 +19412,7 @@ const KO_DICTIONARY: Dictionary = {
     settingsNavShippingSaveFee: '배송비 저장',
     settingsNavEmsOps: 'EMS 배송',
     settingsNavEmsOpsDesc: 'EMS 가져오기, 착불/운임 대사, 반품 입고 — 배송 설정과 같은 엔진이며 주문 옆에 둡니다.',
+    settingsNavAffiliate: '제휴',
     settingsNavLoyalty: '단골 회원',
     settingsNavLoyaltyDesc: '기간 내 구매액으로 등급을 매기고 주문 확정 시 자동 할인합니다.',
     settingsNavPromotions: '생일 혜택',

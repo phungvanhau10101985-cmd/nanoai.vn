@@ -16,7 +16,6 @@ import { PartnerBirthdayPromoSettingsCard } from '@/app/dashboard/messaging/part
 import { PartnerFeatureTestCard } from '@/components/partner-website/partner-feature-test-card'
 import { PartnerSaleCalendarSettingsCard } from '@/components/partner-website/partner-sale-calendar-settings-card'
 import { PartnerSaleAdvancedSettingsCard } from '@/components/partner-website/partner-sale-advanced-settings-card'
-import { PartnerAffiliateOpsCard } from '@/components/partner-website/partner-affiliate-ops-card'
 import { PartnerMarketingBannerManager } from '@/components/partner-website/partner-marketing-banner-manager'
 
 /**
@@ -349,11 +348,7 @@ export function PartnerWebsitePromotionsPanel({ locale, t, partnerId, siteSlug, 
         <PartnerSaleAdvancedSettingsCard
           partnerId={partnerId}
           locale={locale}
-          onToast={onToast}
-        />
-        <PartnerAffiliateOpsCard
-          partnerId={partnerId}
-          locale={locale}
+          part="google"
           onToast={onToast}
         />
         {loading ? (

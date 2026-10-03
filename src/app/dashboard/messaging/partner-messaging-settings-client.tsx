@@ -106,6 +106,7 @@ import {
   CreditCard,
   ExternalLink,
   Globe,
+  Handshake,
   Database,
   ListChecks,
   Loader2,
@@ -191,6 +192,12 @@ function partnerCanOrdersHub(p: MessagingPartnerDashboardRow | null | undefined)
 function partnerCanMarketingHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
   if (!p) return false
   if (!isMarketingEligibleIndustry(p.industry_key)) return false
+  if (p.dashboard_access === 'owner') return true
+  return Boolean(p.staff_permissions?.marketing_campaigns)
+}
+
+function partnerCanAffiliateHub(p: MessagingPartnerDashboardRow | null | undefined): boolean {
+  if (!p) return false
   if (p.dashboard_access === 'owner') return true
   return Boolean(p.staff_permissions?.marketing_campaigns)
 }
@@ -318,7 +325,7 @@ const MESSAGING_SETTINGS_SECTION_IDS = [
 ] as const
 
 type MessagingSettingsSectionId = (typeof MESSAGING_SETTINGS_SECTION_IDS)[number]
-const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-orders', 'hub-profit', 'hub-ems', 'hub-email'] as const
+const OPERATIONS_SECTION_IDS = ['hub-notifications', 'hub-marketing', 'hub-affiliate', 'hub-orders', 'hub-profit', 'hub-ems', 'hub-email'] as const
 type OperationsSectionId = (typeof OPERATIONS_SECTION_IDS)[number]
 type SettingsPageSectionId = MessagingSettingsSectionId | PartnerWebsiteAdminSectionId | OperationsSectionId
 
@@ -351,6 +358,7 @@ function normalizeSettingsSectionParam(value: string | null): SettingsPageSectio
   }
   if (value === 'notifications') return 'hub-notifications'
   if (value === 'marketing') return 'hub-marketing'
+  if (value === 'affiliate') return 'hub-affiliate'
   if (value === 'orders') return 'hub-orders'
   if (value === 'email') return 'hub-email'
   if (value != null && (MESSAGING_SETTINGS_SECTION_IDS as readonly string[]).includes(value)) {
@@ -384,6 +392,14 @@ const PartnerNotificationsClient = dynamic(
   () =>
     import('@/app/dashboard/messaging/partner-notifications-client').then(
       (mod) => mod.PartnerNotificationsClient
+    ),
+  { ssr: false, loading: () => sectionLoading }
+)
+
+const PartnerAffiliateAdminPanel = dynamic(
+  () =>
+    import('@/components/partner-website/partner-affiliate-admin-panel').then(
+      (mod) => mod.PartnerAffiliateAdminPanel
     ),
   { ssr: false, loading: () => sectionLoading }
 )
@@ -835,6 +851,12 @@ export function PartnerMessagingSettingsClient({
         visible: Boolean(selectedPartnerId && partnerCanMarketingHub(selectedPartner)),
       },
       {
+        id: 'hub-affiliate' as const,
+        label: t.settingsNavAffiliate,
+        icon: Handshake,
+        visible: Boolean(selectedPartnerId && partnerCanAffiliateHub(selectedPartner)),
+      },
+      {
         id: 'hub-email' as const,
         label: t.emailManagementLink,
         icon: Mail,
@@ -873,10 +895,10 @@ export function PartnerMessagingSettingsClient({
           visible: item.visible,
         }))
     return [
+      { id: 'operations', title: t.settingsNavOperationsTitle, items: settingsOperationsNavItems },
       { id: 'shop', title: t.settingsNavShopTitle, items: fromSettings('shop') },
       { id: 'inventory', title: t.settingsNavInventoryGroupTitle, items: inventorySidebarItems },
       { id: 'sales', title: t.settingsNavSalesTitle, items: fromSettings('sales') },
-      { id: 'operations', title: t.settingsNavOperationsTitle, items: settingsOperationsNavItems },
       {
         id: 'customers',
         title: t.settingsNavCustomersTitle,
@@ -4574,6 +4596,19 @@ export function PartnerMessagingSettingsClient({
                 locale={locale}
                 lockedPartnerId={selectedPartnerId}
                 hidePartnerPicker
+              />
+            </div>
+          ) : null}
+
+          {activeSection === 'hub-affiliate' && selectedPartnerId && partnerCanAffiliateHub(selectedPartner) ? (
+            <div id="messaging-affiliate" className="scroll-mt-4">
+              <PartnerAffiliateAdminPanel
+                key={selectedPartnerId}
+                partnerId={selectedPartnerId}
+                locale={locale}
+                onToast={(message, variant) =>
+                  toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
+                }
               />
             </div>
           ) : null}
