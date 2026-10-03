@@ -108,6 +108,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /pwEnsureFeaturedMarquees/)
   assert.match(out, /syncFeaturedMarqueeClone/)
   assert.match(out, /data-pw-featured-live/)
+  assert.match(out, /data-pw-featured-count/)
+  assert.match(out, /featuredLiveComplete/)
   assert.match(out, /ensureFeaturedMarquee\(el\)/)
   assert.match(out, /data-pw-featured-clone/)
   assert.match(out, /FEATURED_LIMIT=16/)

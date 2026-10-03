@@ -76,6 +76,37 @@ test('bindLiveCategorySurfacesInHtml paints featured tiles and stamps live', () 
   assert.match(out, /data-pw-featured-marquee-on="1"/)
 })
 
+test('bindLiveCategorySurfacesInHtml expands one seed card to every personalized tile', () => {
+  const tiles = ['Đầm ôm body', 'Đầm maxi', 'Đầm suông', 'Blazer nữ', 'Set công sở'].map((name, index) => ({
+    id: `c${index}`,
+    name,
+    short_name: name,
+    path: `nu/${index}`,
+    href: `/site/demo-shop/c/nu/${index}`,
+    image_url: `https://cdn.example/${index}.jpg`,
+    product_count: 3,
+    level: 3 as const,
+  }))
+  const source = `<section class="pw-featured-cat" data-pw-featured-categories="1" data-limit="16">
+    <div class="pw-featured-cat-viewport"><div class="pw-featured-cat-marquee">
+      <div data-pw-grid>
+        <a class="pw-featured-cat-card" data-pw-el="card" data-pw-edit="categoryName:0" href="#"><span data-pw-el="card-media"></span><span data-pw-el="card-name">Áo sơ mi</span></a>
+      </div>
+    </div></div>
+  </section>`
+  const out = bindLiveCategorySurfacesInHtml(source, { ...bind, tiles })
+  assert.match(out, /data-pw-featured-count="5"/)
+  assert.match(out, /data-pw-featured-marquee-on="1"/)
+  assert.match(out, /data-pw-featured-clone="1"/)
+  assert.equal((out.match(/pw-featured-cat-card/g) || []).length, 10)
+  for (const name of ['Đầm ôm body', 'Đầm maxi', 'Đầm suông', 'Blazer nữ', 'Set công sở']) {
+    assert.equal((out.match(new RegExp(`>${name}<`, 'g')) || []).length, 2)
+  }
+  assert.doesNotMatch(out, /Áo sơ mi/)
+  const sourceGrid = out.split('data-pw-featured-clone')[0] || ''
+  assert.equal((sourceGrid.match(/data-pw-edit="categoryName:0"/g) || []).length, 1)
+})
+
 test('bindLiveCategorySurfacesInHtml sizes AliCDN featured tile images', () => {
   const raw = 'https://img.alicdn.com/img/ibank/O1CN01dam.jpg'
   const source = `<section class="pw-featured-cat" data-pw-featured-categories="1">

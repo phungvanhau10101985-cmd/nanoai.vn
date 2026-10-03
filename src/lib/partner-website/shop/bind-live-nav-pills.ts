@@ -6,6 +6,8 @@
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
+  FEATURED_CATEGORY_TILE_DEFAULT,
+  FEATURED_CATEGORY_TILE_MAX,
   PW_PERSONALIZE_NAV_ATTR,
   PW_PERSONALIZE_NAV_RECENT,
 } from '@/lib/partner-website/shop/featured-categories-constants'
@@ -27,6 +29,7 @@ import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 export const PW_NAV_LIVE_ATTR = 'data-pw-nav-live'
 export const PW_FEATURED_LIVE_ATTR = 'data-pw-featured-live'
+export const PW_FEATURED_COUNT_ATTR = 'data-pw-featured-count'
 
 export type LiveCategoryBind = {
   siteSlug: string
@@ -214,6 +217,21 @@ function paintFeaturedCardHtml(cardHtml: string, tile: FeaturedCategoryTile): st
   return out
 }
 
+function featuredTileLimit(open: string, tileCount: number): number {
+  const match = open.match(/\bdata-limit=["'](\d+)["']/i)
+  const attr = match ? Math.floor(Number(match[1])) : FEATURED_CATEGORY_TILE_DEFAULT
+  const cap = Math.max(4, Math.min(FEATURED_CATEGORY_TILE_MAX, attr || FEATURED_CATEGORY_TILE_DEFAULT))
+  return Math.max(0, Math.min(tileCount, cap))
+}
+
+/** Ô thêm lúc serve không mang id sửa của thẻ mẫu. */
+function featuredCardTemplateHtml(cardHtml: string): string {
+  return cardHtml
+    .replace(/\sdata-pw-edit\s*=\s*(["'])[\s\S]*?\1/gi, '')
+    .replace(/\sdata-pw-seed-(?:name|href|src)\s*=\s*(["'])[\s\S]*?\1/gi, '')
+    .replace(/\sdata-pw-grid-placeholder(?:\s*=\s*(["'])[\s\S]*?\1)?/gi, '')
+}
+
 function collectCardRanges(inner: string): Array<{ start: number; end: number; html: string }> {
   const masked = maskHtmlForTagScan(inner)
   const openRe =
@@ -300,15 +318,37 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
       const workInner = inner.replace(/<div\b[^>]*\bdata-pw-featured-clone\b[^>]*>[\s\S]*?<\/div>/gi, '')
       const cards = collectCardRanges(workInner)
       if (!cards.length) return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: workInner }
+      const marqueeHost = /\bpw-featured-cat\b/.test(open)
+      const paintedCount = marqueeHost
+        ? featuredTileLimit(open, bind.tiles.length)
+        : Math.min(cards.length, bind.tiles.length)
       let nextInner = workInner
+      const templateCard = cards[0]
+      const lastCard = cards[cards.length - 1]
+      if (marqueeHost && paintedCount > cards.length && templateCard && lastCard) {
+        const template = featuredCardTemplateHtml(templateCard.html)
+        let extras = ''
+        for (let i = cards.length; i < paintedCount; i += 1) {
+          const tile = bind.tiles[i]
+          if (!tile) break
+          extras += paintFeaturedCardHtml(template, tile)
+        }
+        nextInner = nextInner.slice(0, lastCard.end) + extras + nextInner.slice(lastCard.end)
+      }
       for (let i = cards.length - 1; i >= 0; i -= 1) {
         const card = cards[i]
-        const tile = bind.tiles[i]
+        if (!card) continue
+        const tile = i < paintedCount ? bind.tiles[i] : undefined
         const painted = tile
           ? paintFeaturedCardHtml(card.html, tile)
           : card.html.replace(/^<([a-z0-9]+)\b/i, '<$1 hidden')
         nextInner = nextInner.slice(0, card.start) + painted + nextInner.slice(card.end)
       }
+      const liveOpen = stampAttr(
+        stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'),
+        PW_FEATURED_COUNT_ATTR,
+        String(paintedCount)
+      )
       nextInner = nextInner.replace(
         /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']section-more["'][^>]*)>/gi,
         (full, tag: string, attrs: string) => {
@@ -321,7 +361,7 @@ export function bindLiveFeaturedCategoryTilesToHtml(html: string, bind: LiveCate
       const innerOut = /\bpw-featured-cat\b/.test(open)
         ? appendFeaturedMarqueeCloneHtml(nextInner)
         : nextInner
-      return { open: stampAttr(open, PW_FEATURED_LIVE_ATTR, '1'), inner: innerOut }
+      return { open: liveOpen, inner: innerOut }
     }
   )
 }
