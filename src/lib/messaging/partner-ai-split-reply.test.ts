@@ -11,11 +11,17 @@ test('short sales answer stays in one bubble', () => {
   ])
 })
 
-test('next bubble waits 80% of reading time at one word per second', () => {
+test('next bubble waits 80% of a 160-word-per-minute reading pace', () => {
   const oneHundredWords = Array.from({ length: 100 }, (_, index) => `word${index}`).join(' ')
-  assert.equal(automatedReplyNextChunkDelayMs(oneHundredWords), 80_000)
-  assert.equal(automatedReplyNextChunkDelayMs('một hai ba bốn năm sáu bảy tám chín mười'), 8_000)
+  assert.equal(automatedReplyNextChunkDelayMs(oneHundredWords), 30_000)
+  assert.equal(automatedReplyNextChunkDelayMs('một hai ba bốn năm sáu bảy tám chín mười'), 3_000)
   assert.equal(automatedReplyNextChunkDelayMs('   '), 0)
+})
+
+test('B2618-length message waits about ten seconds before the next bubble', () => {
+  const message =
+    'Dạ mẫu B2618 này là giày tây buộc dây nam da bò, đế cao khoảng 3cm, đế cao su tổng hợp chống trơn trượt — dáng lịch lãm, dễ phối với đồ công sở.'
+  assert.equal(automatedReplyNextChunkDelayMs(message), 10_200)
 })
 
 test('reply is split by semantic sections even when total text is under 400 characters', () => {

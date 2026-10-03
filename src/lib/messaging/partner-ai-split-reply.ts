@@ -1,8 +1,9 @@
 const CHUNK_MAX_COUNT = 3
-const READING_MS_PER_WORD = 1_000
+/** Nhịp đọc chat thực tế khoảng 160 từ/phút. */
+const READING_MS_PER_WORD = 375
 const NEXT_MESSAGE_READING_RATIO = 0.8
 
-/** Chờ 80% thời gian đọc ước tính (1 từ/giây) trước khi gửi phần kế tiếp. */
+/** Chờ 80% thời gian đọc ước tính trước khi gửi phần kế tiếp. */
 export function automatedReplyNextChunkDelayMs(chunk: string): number {
   const words = chunk.trim().split(/\s+/u).filter(Boolean).length
   if (words === 0) return 0
