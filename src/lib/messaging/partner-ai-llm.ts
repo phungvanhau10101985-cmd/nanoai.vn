@@ -1720,12 +1720,19 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
   const compactBase = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}`
+  const semanticMessageSectionsBlock = `
+[Chia tin theo nội dung]
+- Trường \`message\` có tối đa 3 phần nội dung theo đúng ý nghĩa, không theo số ký tự: (1) câu trả lời chính/lợi ích, (2) thông tin bổ sung như giá·màu·size khi thực sự cần, (3) câu hỏi hoặc CTA tiếp theo.
+- Ngăn mỗi phần bằng đúng một dòng trống (\`\\n\\n\`) để hệ thống gửi thành các bong bóng nối tiếp. Không chẻ một ý giữa câu; không tạo phần rỗng.
+- Khi cùng trả lời có cả **tổng quan/chất liệu/lợi ích** và **màu sắc/biến thể/cách dùng**, hai nhóm này là hai phần riêng dù toàn bộ message ngắn. Câu hỏi fit hoặc CTA là phần thứ ba riêng.
+- Chỉ có một phần nội dung thì viết một đoạn. Câu hỏi/CTA cuối khác phần trả lời chính thì luôn tách thành đoạn riêng.`
   const policySystem = `${compactBase}
 ${humanShopFactsBlock}
 ${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
 ${khoContextInstructionForSystem}
 ${salesConversionRouterBlock}
 Trả lời đúng câu hỏi chính sách/hỗ trợ trước, ngắn và rõ. Không đọc hay gửi catalog/thẻ sản phẩm; products = []. Không bịa chính sách, thời hạn hoặc cam kết ngoài dữ liệu shop.
+${semanticMessageSectionsBlock}
 Đầu ra là một JSON đúng schema trong user prompt.`
   const compactSingleProductSystem = `${compactBase}
 ${humanShopFactsBlock}${fashionSizeWeightBlock}
@@ -1735,6 +1742,7 @@ ${salesConversionRouterBlock}
 Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
 Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán.
 CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
+${semanticMessageSectionsBlock}
 Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.`
   const broadCatalogSystem = `${partnerAiOpeningLanguageLine(effectiveLocaleOpts)}${partnerAiWidgetTargetRoutingLine(effectiveLocaleOpts)}
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
@@ -1763,7 +1771,8 @@ Khi giới thiệu mặt hàng có "Ảnh (URL)" và/hoặc "Trang sản phẩm 
 Nếu trong tin nhắn khách hoặc ngữ cảnh hệ thống có dòng [Customer product SKU: …], đó là mã sản phẩm khách vừa chọn — ưu tiên tư vấn đúng mặt hàng khớp mã trong kho (xem khối "mặt hàng khớp mã/SKU" nếu có). Không đề xuất nhiều thẻ/carousel mẫu khác thay thế trừ khi khách muốn xem thêm hoặc so sánh.
 Định dạng đầu ra: một đối tượng JSON đúng schema ở cuối prompt user — không bọc markdown, không giải thích ngoài JSON.
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trường \`message\` trong JSON: **súc tích**, đúng ý khách; có thể gạch đầu dòng khi cần — **không** văn mẫu kiểu chatbot, **không** tự giới thiệu vai trò kỹ thuật.
-Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.`
+Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.
+${semanticMessageSectionsBlock}`
   const system =
     partnerAiRouteIntent === 'policy_or_order_support'
       ? policySystem

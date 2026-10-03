@@ -18,13 +18,31 @@ test('next bubble waits 80% of reading time at one word per second', () => {
   assert.equal(automatedReplyNextChunkDelayMs('   '), 0)
 })
 
-test('long answer is split at semantic boundaries into no more than three bubbles', () => {
+test('reply is split by semantic sections even when total text is under 400 characters', () => {
+  const overview =
+    'Dạ anh, mẫu Cr3667 này là quần jean nam ống đứng cạp vừa, dáng rộng thoáng, chất liệu denim cotton co giãn nhẹ nên mặc dễ chịu, vận động không gò bó.'
+  const variants =
+    'Quần có 3 màu: xanh lam đậm, đen, xanh lam nhạt; vải xử lý không cần ủi, giữ phom gọn gàng, phù hợp đi làm, đi chơi hay dạo phố.'
+  const fitQuestion =
+    'Anh cho em xin chiều cao và cân nặng (kg) để em chốt size chuẩn nhất nhé.'
+  assert.deepEqual(splitAutomatedReplyIntoChunks(`${overview} ${variants}\n\n${fitQuestion}`), [
+    overview,
+    variants,
+    fitQuestion,
+  ])
+})
+
+test('one long semantic section is not cut by character length', () => {
   const body = Array.from(
-    { length: 14 },
-    (_, i) => `Ý ${i + 1}: thông tin hữu ích cho khách, trình bày rõ ràng và dễ đọc.`
-  ).join('\n\n')
+    { length: 20 },
+    (_, i) => `Câu ${i + 1} vẫn thuộc cùng một phần nội dung sản phẩm.`
+  ).join(' ')
+  assert.deepEqual(splitAutomatedReplyIntoChunks(body), [body])
+})
+
+test('more than three semantic sections keep their order without losing content', () => {
+  const body = ['Phần một.', 'Phần hai.', 'Phần ba.', 'Phần bốn.'].join('\n\n')
   const chunks = splitAutomatedReplyIntoChunks(body)
-  assert.ok(chunks.length >= 2)
-  assert.ok(chunks.length <= 3)
+  assert.equal(chunks.length, 3)
   assert.equal(chunks.join('\n\n'), body)
 })
