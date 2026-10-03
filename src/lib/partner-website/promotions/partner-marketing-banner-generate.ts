@@ -24,6 +24,7 @@ import {
   PARTNER_MARKETING_BANNER_CREDIT_COST,
   partnerMarketingBannerCampaignKey,
   partnerMarketingBannerDateKeyForKind,
+  partnerMarketingBannerStoragePath,
   type PartnerMarketingBannerBrand,
   type PartnerMarketingBannerCopy,
   type PartnerMarketingBannerKind,
@@ -140,6 +141,25 @@ async function generateBannerImageBytes(input: {
     throw new Error('AI không trả về ảnh banner hợp lệ.')
   }
   return Buffer.from(imagePart.inlineData.data, 'base64')
+}
+
+/** JPEG cạnh dài 1600 — điện thoại decode được, cùng trần hiển thị banner shop. */
+const BANNER_JPEG_MAX_EDGE = 1600
+const BANNER_JPEG_MAX_BYTES = 1_500_000
+
+export async function preparePartnerMarketingBannerJpeg(bytes: Buffer): Promise<Buffer> {
+  const sharp = (await import('sharp')).default
+  const input = { failOn: 'none' as const, limitInputPixels: 40_000_000 }
+  const encode = (edge: number, quality: number) =>
+    sharp(bytes, input)
+      .rotate()
+      .resize({ width: edge, height: edge, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true })
+      .toBuffer()
+  let out = await encode(BANNER_JPEG_MAX_EDGE, 82)
+  if (out.length > BANNER_JPEG_MAX_BYTES) out = await encode(1200, 70)
+  if (out.length < 32) throw new Error('Không nén được ảnh banner.')
+  return out
 }
 
 export async function generatePartnerMarketingBanner(input: {
@@ -293,14 +313,20 @@ export async function generatePartnerMarketingBanner(input: {
   if (!row) return { ok: false, error: 'Không tạo được bản ghi banner.', status: 500 }
 
   try {
-    const bytes = await generateBannerImageBytes({
+    const raw = await generateBannerImageBytes({
       prompt,
       apiKey,
       userId: input.actorUserId,
     })
+    const bytes = await preparePartnerMarketingBannerJpeg(raw)
     const digest = bytes.subarray(0, 12).toString('hex')
-    const path = `partners/${input.partnerId}/marketing-banners/${input.kind}/${key}/v${version}-${Date.now()}-${digest}.png`
-    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
+    const path = partnerMarketingBannerStoragePath({
+      partnerId: input.partnerId,
+      kind: input.kind,
+      campaignKey: key,
+      fileName: `v${version}-${Date.now()}-${digest}.jpg`,
+    })
+    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/jpeg')
     const ready = await completePartnerMarketingBannerAssetFromPg({
       id: row.id,
       partnerId: input.partnerId,
@@ -345,11 +371,6 @@ export async function uploadPartnerMarketingBannerImage(input: {
     campaignKey: key,
   })
   const version = (latest?.version ?? 0) + 1
-  const ext = input.contentType.includes('jpeg') || input.contentType.includes('jpg')
-    ? 'jpg'
-    : input.contentType.includes('webp')
-      ? 'webp'
-      : 'png'
   const row = await insertPartnerMarketingBannerAssetFromPg({
     partnerId: input.partnerId,
     kind: input.kind,
@@ -363,8 +384,14 @@ export async function uploadPartnerMarketingBannerImage(input: {
   })
   if (!row) return { ok: false, error: 'Không tạo được bản ghi banner.', status: 500 }
   try {
-    const path = `partners/${input.partnerId}/marketing-banners/${input.kind}/${key}/v${version}-${Date.now()}-upload.${ext}`
-    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, input.file, input.contentType)
+    const bytes = await preparePartnerMarketingBannerJpeg(input.file)
+    const path = partnerMarketingBannerStoragePath({
+      partnerId: input.partnerId,
+      kind: input.kind,
+      campaignKey: key,
+      fileName: `v${version}-${Date.now()}-upload.jpg`,
+    })
+    const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/jpeg')
     const ready = await completePartnerMarketingBannerAssetFromPg({
       id: row.id,
       partnerId: input.partnerId,

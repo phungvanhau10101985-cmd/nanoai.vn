@@ -59,6 +59,15 @@ test('PDP src keeps AliCDN original metadata and bounds broken-size retries thro
   assert.equal(nextShopImageRetrySrc(raw), retry(card))
   const bunnyUrl = 'https://gudo-vn-3f93.b-cdn.net/site/manual-products/a.jpg'
   assert.equal(nextShopImageRetrySrc(bunnyUrl), retry(bunnyUrl))
+  const bannerUrl =
+    'https://gudo-vn-3f93.b-cdn.net/messaging-partner/11111111-1111-4111-8111-111111111111/marketing-banners/birthday/birthday-10-03-p6/v1.jpg'
+  assert.equal(
+    nextShopImageRetrySrc(bannerUrl),
+    '/api/messaging/chat-image?path=' +
+      encodeURIComponent(
+        'messaging-partner/11111111-1111-4111-8111-111111111111/marketing-banners/birthday/birthday-10-03-p6/v1.jpg'
+      )
+  )
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(raw)}`), null)
   assert.equal(nextShopImageRetrySrc(`/api/fetch-image?url=${encodeURIComponent(page)}&w=1200`), null)
   assert.equal(clampShopImageRetryEdge('1200'), 1200)
@@ -75,6 +84,8 @@ test('shop HTML retries blocked Bunny hosts through same-origin fetch-image', ()
   assert.match(script, /data-pw-cdn-image-retry/)
   assert.match(script, /b-cdn\\.net/)
   assert.match(script, /\/api\/fetch-image\?url=/)
+  assert.match(script, /\/api\/messaging\/chat-image\?path=/)
+  assert.match(script, /messaging-partner\//)
   assert.match(script, /data-pw-inline-visual-root/)
   assert.match(script, /data-pw-img-react/)
   assert.match(script, /stopPropagation/)

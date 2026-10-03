@@ -4,8 +4,8 @@ import { clampShopImageRetryEdge } from '@/lib/partner-website/shop/inventory-sh
 
 /** Display thumbs/page sizes are well under 1MB. Originals (5–20MB) must not pass unchanged. */
 const STOREFRONT_IMAGE_MAX_BYTES = 2.5 * 1024 * 1024
-/** Retry `?w=` may download a Bunny original, then shrink before the phone decodes it. */
-const DISPLAY_RETRY_INPUT_MAX_BYTES = 8 * 1024 * 1024
+/** Retry `?w=` may download a Bunny original (banner AI ~2K PNG), then shrink before the phone decodes it. */
+const DISPLAY_RETRY_INPUT_MAX_BYTES = 20 * 1024 * 1024
 const STOREFRONT_IMAGE_TIMEOUT_MS = 20_000
 
 function imageResponse(body: Buffer, contentType: string) {

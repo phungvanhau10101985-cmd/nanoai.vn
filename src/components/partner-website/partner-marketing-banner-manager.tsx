@@ -5,6 +5,7 @@ import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerMarketingBannerAdminItem } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import {
@@ -491,8 +492,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
                   </div>
 
                   {current.image_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <ShopCdnImg
                       src={current.image_url}
                       alt={`${current.kind} ${current.date_key}`}
                       className="h-auto w-full rounded-lg border bg-muted"

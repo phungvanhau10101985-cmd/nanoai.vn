@@ -49,6 +49,20 @@ export function newPartnerMarketingBannerRegularCampaignKey(): string {
   return `regular-${crypto.randomUUID()}`
 }
 
+/** Cùng prefix `messaging-partner/{id}` như logo / ảnh chat — điện thoại đọc Storage API khi `*.b-cdn.net` bị chặn. */
+export function partnerMarketingBannerStoragePath(input: {
+  partnerId: string
+  kind: PartnerMarketingBannerKind
+  campaignKey: string
+  fileName: string
+}): string {
+  const partnerId = input.partnerId.trim()
+  const key =
+    input.campaignKey.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'banner'
+  const file = input.fileName.replace(/[^a-zA-Z0-9._-]+/g, '').slice(0, 96) || 'banner.jpg'
+  return `messaging-partner/${partnerId}/marketing-banners/${input.kind}/${key}/${file}`
+}
+
 export function partnerMarketingBannerDateKey(day: number, month: number): string {
   return `${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }

@@ -15,6 +15,7 @@ import {
   parsePartnerMarketingBannerDateKey,
   partnerMarketingBannerCampaignKey,
   partnerMarketingBannerDateKey,
+  partnerMarketingBannerStoragePath,
   partnerMarketingBannerDateKeyForKind,
   partnerMarketingBannerGreeting,
   ensureRecommendedGridAnchorInHtml,
@@ -27,11 +28,28 @@ import {
   PARTNER_MARKETING_BANNER_SLIDE_ORDER,
   PARTNER_MARKETING_BANNER_WAREHOUSE_DATE_KEY,
 } from '@/lib/partner-website/promotions/partner-marketing-banner'
+import { isPartnerMessagingStoragePathForPartner } from '@/lib/messaging/guest-chat-image'
 import {
   listUpcomingPartnerSaleEvents,
   partnerSalePercentForSameDayMonth,
   resolvePartnerSaleCalendarState,
 } from '@/lib/partner-website/promotions/partner-sale-calendar'
+
+test('birthday banner files sit on the same messaging-partner Bunny path as logos and chat images', () => {
+  const partnerId = '11111111-1111-4111-8111-111111111111'
+  const path = partnerMarketingBannerStoragePath({
+    partnerId,
+    kind: 'birthday',
+    campaignKey: partnerMarketingBannerCampaignKey('birthday', 3, 10, 6),
+    fileName: 'v1-1-abc.jpg',
+  })
+  assert.equal(
+    path,
+    `messaging-partner/${partnerId}/marketing-banners/birthday/birthday-10-03-p6/v1-1-abc.jpg`
+  )
+  assert.equal(isPartnerMessagingStoragePathForPartner(path, partnerId), true)
+  assert.ok(path.length < 480)
+})
 
 test('marketing image generation stops after 3 failed saves', () => {
   assert.equal(PARTNER_MARKETING_IMAGE_MAX_ATTEMPTS, 3)

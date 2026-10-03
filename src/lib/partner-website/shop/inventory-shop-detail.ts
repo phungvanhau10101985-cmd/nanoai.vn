@@ -1,4 +1,5 @@
 import { is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
+import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
 import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
 import { isPdpProductInfoJsonBlob } from '@/lib/partner-website/shop/pdp-product-info-html'
 
@@ -231,6 +232,8 @@ export function clampShopImageRetryEdge(raw: string | null | undefined): number 
 export function nextShopImageRetrySrc(currentSrc: string): string | null {
   const src = String(currentSrc || '').trim()
   if (!src) return null
+  const sameOrigin = guestChatSameOriginImageSrc(src)
+  if (sameOrigin && sameOrigin !== src) return sameOrigin
   const { proxied, inner } = unwrapShopFetchImageUrl(src)
   if (proxied || !inner) return null
   let next = inner
@@ -348,6 +351,15 @@ function galleryFaceVisible(el){
 export const PW_SHOP_IMAGE_RETRY_JS = `function nextShopImageRetrySrc(src){
   src=String(src||'').trim();
   if(!src)return '';
+  var chatPath='';
+  try{
+    chatPath=decodeURIComponent(new URL(src, location.origin).pathname.replace(/^\\/+/, ''));
+  }catch(eChat){
+    chatPath=src.split('?')[0].replace(/^\\/+/, '');
+  }
+  if((chatPath.indexOf('messaging-guest/')===0||chatPath.indexOf('messaging-partner/')===0)&&chatPath.indexOf('..')<0){
+    return '/api/messaging/chat-image?path='+encodeURIComponent(chatPath);
+  }
   if(src.indexOf('/api/fetch-image')===0)return '';
   var inner=src;
   if(/alicdn\\.com|alicdn\\.net|tbcdn\\.cn/i.test(inner)&&!/_\\d+x\\d+(?:q\\d+)?\\.jpg$/i.test(inner)&&inner.indexOf('gw.alicdn.com/mt/')<0){
