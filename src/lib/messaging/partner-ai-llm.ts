@@ -1741,6 +1741,7 @@ ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
 ${salesConversionRouterBlock}
 Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
 Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán.
+Câu hỏi fit cuối tin (tối đa một câu, đúng nhóm hàng đang tư vấn): quần áo/váy/đầm/áo khoác → **chiều cao và cân nặng (kg)**; giày/dép/sandal/boot/sneaker → **size khách thường đi**, **cấm** hỏi chiều cao hoặc cân nặng để tư vấn giày; túi/ví/ba lô → mục đích dùng hoặc kích thước cần đựng, không hỏi size giày.
 CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
 ${semanticMessageSectionsBlock}
 Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.`

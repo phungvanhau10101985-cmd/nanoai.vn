@@ -17,6 +17,7 @@ import {
 import { isPgConfigured } from '@/lib/db/pool'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { sanitizeFashionSizeWeightMessageForCustomer } from '@/lib/messaging/fashion-size-weight-units'
+import { rewriteShoeHeightWeightFitQuestion } from '@/lib/messaging/partner-ai-fit-question'
 import { enforceFashionSizeRecommendation } from '@/lib/messaging/fashion-size-recommendation'
 import {
   buildPartnerAiContext,
@@ -99,6 +100,7 @@ function sanitizeFashionPartnerAiMessage(
   isFashionPartner: boolean
 ): string {
   let out = sanitizeFashionFitQuestionForBag(message, row)
+  out = rewriteShoeHeightWeightFitQuestion(out, row)
   if (isFashionPartner) out = sanitizeFashionSizeWeightMessageForCustomer(out)
   return out
 }
