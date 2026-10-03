@@ -1,6 +1,15 @@
 /** Độ dài tối đa mỗi bong bóng chat — chia đoạn cho dễ đọc (tư vấn AI). */
 const CHUNK_SOFT_MAX = 400
 const CHUNK_MAX_COUNT = 3
+const READING_MS_PER_WORD = 1_000
+const NEXT_MESSAGE_READING_RATIO = 0.8
+
+/** Chờ 80% thời gian đọc ước tính (1 từ/giây) trước khi gửi phần kế tiếp. */
+export function automatedReplyNextChunkDelayMs(chunk: string): number {
+  const words = chunk.trim().split(/\s+/u).filter(Boolean).length
+  if (words === 0) return 0
+  return Math.ceil(words * READING_MS_PER_WORD * NEXT_MESSAGE_READING_RATIO)
+}
 
 function cutAtSemanticBoundary(s: string, max: number): { text: string; rest: string } {
   if (s.length <= max) return { text: s, rest: '' }

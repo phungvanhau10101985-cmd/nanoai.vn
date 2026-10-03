@@ -1,11 +1,21 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { splitAutomatedReplyIntoChunks } from './partner-ai-split-reply'
+import {
+  automatedReplyNextChunkDelayMs,
+  splitAutomatedReplyIntoChunks,
+} from './partner-ai-split-reply'
 
 test('short sales answer stays in one bubble', () => {
   assert.deepEqual(splitAutomatedReplyIntoChunks('Chất liệu polyester pha spandex, giữ form tốt ạ.'), [
     'Chất liệu polyester pha spandex, giữ form tốt ạ.',
   ])
+})
+
+test('next bubble waits 80% of reading time at one word per second', () => {
+  const oneHundredWords = Array.from({ length: 100 }, (_, index) => `word${index}`).join(' ')
+  assert.equal(automatedReplyNextChunkDelayMs(oneHundredWords), 80_000)
+  assert.equal(automatedReplyNextChunkDelayMs('một hai ba bốn năm sáu bảy tám chín mười'), 8_000)
+  assert.equal(automatedReplyNextChunkDelayMs('   '), 0)
 })
 
 test('long answer is split at semantic boundaries into no more than three bubbles', () => {

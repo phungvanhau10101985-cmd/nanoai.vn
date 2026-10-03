@@ -9,20 +9,15 @@ import {
 } from '@/lib/messaging/partner-inventory-material-detail-image'
 import type { PartnerRealUseImageFollowup } from '@/lib/messaging/partner-inventory-real-use-image'
 import { getFacebookSendToken, getZaloSendToken } from '@/lib/messaging/partner-channels-db'
-import { splitAutomatedReplyIntoChunks } from '@/lib/messaging/partner-ai-split-reply'
+import {
+  automatedReplyNextChunkDelayMs,
+  splitAutomatedReplyIntoChunks,
+} from '@/lib/messaging/partner-ai-split-reply'
 import { withPartnerAiReplyContinuation } from '@/lib/messaging/partner-ai-typing-continuation'
 import { maybeEmailCustomerOfflineShopReply } from '@/lib/messaging/partner-reply-offline-customer-email'
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-/** Khoảng cách giữa các bong bóng khi AI chia tin (ms). Env: MESSAGING_AI_SPLIT_GAP_MS */
-function messagingAiSplitGapMs(): number {
-  const raw = process.env.MESSAGING_AI_SPLIT_GAP_MS?.trim()
-  if (!raw) return 2200
-  const n = parseInt(raw, 10)
-  return Number.isFinite(n) ? Math.min(20000, Math.max(250, n)) : 2200
 }
 
 type SettingsRow = Database['public']['Tables']['messaging_partner_ai_settings']['Row']
@@ -61,14 +56,23 @@ function applyDisclosure(body: string, settings: SettingsRow): string {
 }
 
 /** Chỉ bản tin cuối mang đủ payload (vd. thẻ SP); các bản trước bỏ `ai_product_cards` để UI không lặp. */
-function rawPayloadForSplitChunk(full: Json, isLast: boolean, hasMoreOutbound = false): Json {
-  if (isLast) return hasMoreOutbound ? withPartnerAiReplyContinuation(full) : full
+function rawPayloadForSplitChunk(
+  full: Json,
+  isLast: boolean,
+  hasMoreOutbound = false,
+  continuationWaitMs = 0
+): Json {
+  if (isLast) {
+    return hasMoreOutbound
+      ? withPartnerAiReplyContinuation(full, continuationWaitMs)
+      : full
+  }
   if (full !== null && typeof full === 'object' && !Array.isArray(full)) {
     const o = { ...(full as Record<string, unknown>) }
     delete o.ai_product_cards
-    return withPartnerAiReplyContinuation(o as Json)
+    return withPartnerAiReplyContinuation(o as Json, continuationWaitMs)
   }
-  return withPartnerAiReplyContinuation({} as Json)
+  return withPartnerAiReplyContinuation({} as Json, continuationWaitMs)
 }
 
 /**
@@ -122,8 +126,6 @@ export async function deliverAutomatedPartnerMessage(params: {
   }
 
   const externalId = conversation.external_thread_id
-  const gapMs = messagingAiSplitGapMs()
-
   if (conversation.channel === 'facebook') {
     let pageToken: string | null = null
     const pageId = conversation.channel_external_ref
@@ -134,12 +136,15 @@ export async function deliverAutomatedPartnerMessage(params: {
     }
     if (!pageToken) return { error: 'Facebook Page token missing.' }
     for (let fi = 0; fi < outboundTexts.length; fi++) {
-      if (fi > 0) await sleep(gapMs)
+      if (fi > 0) {
+        await sleep(automatedReplyNextChunkDelayMs(outboundTexts[fi - 1]))
+      }
       const part = outboundTexts[fi]
       const sent = await sendFacebookMessengerText(externalId, part, pageToken)
       if ('error' in sent) return { error: sent.error }
     }
     if (imageFollowup?.publicUrl) {
+      await sleep(automatedReplyNextChunkDelayMs(outboundTexts[outboundTexts.length - 1]))
       const imgSent = await sendFacebookMessengerImageUrl(externalId, imageFollowup.publicUrl, pageToken)
       if ('error' in imgSent) return { error: imgSent.error }
     }
@@ -149,7 +154,9 @@ export async function deliverAutomatedPartnerMessage(params: {
     const tok = r.token ?? null
     if (!tok) return { error: 'Zalo OA token missing.' }
     for (let zi = 0; zi < outboundTexts.length; zi++) {
-      if (zi > 0) await sleep(gapMs)
+      if (zi > 0) {
+        await sleep(automatedReplyNextChunkDelayMs(outboundTexts[zi - 1]))
+      }
       const part = outboundTexts[zi]
       const sent = await sendZaloOaText(externalId, part, tok)
       if ('error' in sent) return { error: sent.error }
@@ -158,14 +165,28 @@ export async function deliverAutomatedPartnerMessage(params: {
 
   const n = outboundTexts.length
   for (let i = 0; i < n; i++) {
-    if (i > 0) await sleep(gapMs)
+    if (
+      i > 0 &&
+      (conversation.channel === 'widget' || conversation.channel === 'internal')
+    ) {
+      await sleep(automatedReplyNextChunkDelayMs(outboundTexts[i - 1]))
+    }
     const isLast = i === n - 1
     const imageWillFollowInThread =
       isLast &&
       Boolean(imageFollowup?.publicUrl) &&
       (conversation.channel === 'widget' || conversation.channel === 'internal')
+    const continuationWaitMs =
+      !isLast || imageWillFollowInThread
+        ? automatedReplyNextChunkDelayMs(outboundTexts[i])
+        : 0
     const payload = mergeAutomatedOutboundPayload(
-      rawPayloadForSplitChunk(rawPayload, isLast, imageWillFollowInThread),
+      rawPayloadForSplitChunk(
+        rawPayload,
+        isLast,
+        imageWillFollowInThread,
+        continuationWaitMs
+      ),
       isLast ? realUseFollowup : undefined,
       isLast ? materialDetailFollowup : undefined
     )
@@ -183,7 +204,7 @@ export async function deliverAutomatedPartnerMessage(params: {
     imageFollowup?.publicUrl &&
     (conversation.channel === 'widget' || conversation.channel === 'internal')
   ) {
-    await sleep(gapMs)
+    await sleep(automatedReplyNextChunkDelayMs(outboundTexts[outboundTexts.length - 1]))
     const storagePath =
       imageFollowup.storagePath?.trim() ||
       (imageKind === 'real_use'

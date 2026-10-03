@@ -17,10 +17,19 @@ export function partnerAiPayloadHasPendingOutbound(raw: Json | null | undefined)
   return pending !== null && typeof pending === 'object' && !Array.isArray(pending)
 }
 
-export function withPartnerAiReplyContinuation(raw: Json): Json {
+export function partnerAiPayloadContinuationWaitMs(raw: Json | null | undefined): number | null {
+  const payload = jsonObject(raw)
+  const value = Number(payload?.ai_reply_continuation_wait_ms)
+  return Number.isFinite(value) && value > 0 ? Math.min(10 * 60_000, Math.ceil(value)) : null
+}
+
+export function withPartnerAiReplyContinuation(raw: Json, waitMs?: number): Json {
   const payload = jsonObject(raw)
   return {
     ...(payload ?? {}),
     ai_reply_continuation: true,
+    ...(Number.isFinite(waitMs) && Number(waitMs) > 0
+      ? { ai_reply_continuation_wait_ms: Math.ceil(Number(waitMs)) }
+      : {}),
   } as Json
 }

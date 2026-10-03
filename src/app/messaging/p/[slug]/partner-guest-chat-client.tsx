@@ -87,7 +87,10 @@ import {
   isGuestChatLoadAbortError,
   nextGuestChatLoadRetryDelayMs,
 } from '@/lib/messaging/guest-chat-load'
-import { partnerAiPayloadHasPendingOutbound } from '@/lib/messaging/partner-ai-typing-continuation'
+import {
+  partnerAiPayloadContinuationWaitMs,
+  partnerAiPayloadHasPendingOutbound,
+} from '@/lib/messaging/partner-ai-typing-continuation'
 import {
   useVisualViewportBottomInset,
   useVisualViewportShellHeightPx,
@@ -2772,10 +2775,13 @@ export function PartnerGuestChatClient({
               latestMessage &&
               partnerAiPayloadHasPendingOutbound(latestMessage.raw_payload)
             ) {
+              const continuationWaitMs =
+                partnerAiPayloadContinuationWaitMs(latestMessage.raw_payload) ??
+                FALLBACK_SHOP_TYPING_WAIT_MS
               return {
                 deadline: Math.max(
                   typingPrev.deadline,
-                  Date.now() + FALLBACK_SHOP_TYPING_WAIT_MS
+                  Date.now() + continuationWaitMs + 15_000
                 ),
                 baselineLatestOutbound: latest,
               }

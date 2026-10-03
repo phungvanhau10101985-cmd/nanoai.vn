@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  partnerAiPayloadContinuationWaitMs,
   partnerAiPayloadHasPendingOutbound,
   withPartnerAiReplyContinuation,
 } from './partner-ai-typing-continuation'
@@ -20,6 +21,12 @@ test('pending generated material image also keeps typing visible', () => {
     }),
     true
   )
+})
+
+test('continuation exposes the expected wait before the next outbound', () => {
+  const payload = withPartnerAiReplyContinuation({ source: 'ai_llm' }, 80_000)
+  assert.equal(partnerAiPayloadHasPendingOutbound(payload), true)
+  assert.equal(partnerAiPayloadContinuationWaitMs(payload), 80_000)
 })
 
 test('final outbound without a continuation clears typing', () => {
