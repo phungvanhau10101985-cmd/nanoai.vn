@@ -7,11 +7,8 @@ import {
 } from './import-source-ids'
 import { extractPandamallDetail, resolvePandamallImportUrl } from './listing-import-urls'
 import { enrichListingProductDataFromBody, pickCnyPriceFromScrapeRow } from './listing-import-body-specs'
-import {
-  formatCnyCell,
-  listingSellVndForCny,
-  parseCnyAmount,
-} from './per-sku-listing-price'
+import { listingSellVndForCny } from './listing-sell-vnd'
+import { formatCnyCell, parseCnyAmount } from './per-sku-listing-price'
 import {
   cleanText,
   dedupeUrls,

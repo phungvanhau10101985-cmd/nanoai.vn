@@ -4,11 +4,8 @@ import {
   supplyProductLinkDefaultForItemSlug,
 } from '@/lib/messaging/listing-import/import-source-ids'
 import { VIPOMALL_PLATFORM_TAOBAO } from '@/lib/messaging/listing-import/listing-import-urls'
-import {
-  formatCnyCell,
-  listingSellVndForCny,
-  parseCnyAmount,
-} from '@/lib/messaging/listing-import/per-sku-listing-price'
+import { listingSellVndForCny } from '@/lib/messaging/listing-import/listing-sell-vnd'
+import { formatCnyCell, parseCnyAmount } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import {
   cleanText,
   dedupeUrls,

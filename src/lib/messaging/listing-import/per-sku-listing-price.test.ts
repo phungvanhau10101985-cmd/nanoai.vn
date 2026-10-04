@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { pandamallRowToProductData } from '@/lib/messaging/listing-import/pandamall-scraper'
+import { listingSellVndForCny } from '@/lib/messaging/listing-import/listing-sell-vnd'
 import {
   colorsHaveTieredPrices,
   inventoryCardTieredPrices,
   listingLabelIsModelCode,
   listingPricePrefix,
   listingPricePrefixRuntimeJs,
-  listingSellVndForCny,
   shopProductForSelectedColor,
   storedVariantListPrice,
 } from '@/lib/messaging/listing-import/per-sku-listing-price'
