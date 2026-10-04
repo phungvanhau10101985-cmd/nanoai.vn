@@ -10,7 +10,6 @@ import {
 import { buildPartnerShopFaviconHeadLinks } from '@/lib/partner-website/shop/inject-partner-shop-favicon'
 import { PARTNER_WEBSITE_LOOK_SHOP } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
-import { getPartnerSiteCategoryNavLabels } from '@/lib/partner-website/shop/partner-site-shop-nav-config'
 import {
   partnerSiteInfoPath,
   partnerSiteProductsPath,
