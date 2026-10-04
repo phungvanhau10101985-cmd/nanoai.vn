@@ -14,6 +14,7 @@ import {
   type MessagingPartnerInventoryRow,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
+import { inventoryCardTieredPrices } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import {
   appendPartnerVisitorEventInventoryIdsFromPg,
   clearPartnerVisitorRecentlyViewedFromPg,
@@ -99,6 +100,7 @@ export type PartnerSitePersonalizationProduct = {
   likesCount?: number
   purchasesCount?: number
   ratingScore?: number
+  tieredPrices?: boolean
 }
 
 export type PartnerSiteVisitorProfile = {
@@ -307,6 +309,7 @@ export function mapInventoryRowToPersonalizationProduct(
     likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
     purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
     ratingScore: Number(row.rating_score ?? 0) || 0,
+    tieredPrices: inventoryCardTieredPrices(row),
   }
 }
 

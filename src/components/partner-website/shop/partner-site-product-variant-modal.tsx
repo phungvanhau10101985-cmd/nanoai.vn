@@ -32,9 +32,10 @@ import {
   variantModalShowsLowStock,
   type ProductVariantModalCopy,
 } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
+import { shopProductForSelectedColor } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { WebLocale } from '@/lib/i18n/config'
 
-export type PartnerSiteVariantModalColor = { name: string; img?: string | null }
+export type PartnerSiteVariantModalColor = { name: string; img?: string | null; price?: number | null }
 
 export type PartnerSiteVariantModalProduct = {
   name: string
@@ -241,7 +242,9 @@ export function PartnerSiteProductVariantModal({
   const effectiveQty = Math.min(maxQty, Math.max(1, qty))
   const showStock = variantModalShowsLowStock(product.stockQty)
   const stockQty = Math.max(0, Math.round(Number(product.stockQty) || 0))
-  const saleFace = resolvePartnerProductSaleFace(product, locale)
+  const selectedColorName = colorIndex >= 0 ? colors[colorIndex]?.name || '' : ''
+  const priced = shopProductForSelectedColor(product, selectedColorName)
+  const saleFace = resolvePartnerProductSaleFace(priced, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
   const showSiteSale =
     saleFace.kind === 'teaser' ||
@@ -265,18 +268,18 @@ export function PartnerSiteProductVariantModal({
   const flashActive =
     saleFace.kind === 'active' ||
     isPartnerFlashSaleActive({
-      priceAmount: product.priceAmount ?? null,
-      salePriceAmount: product.salePriceAmount ?? null,
-      saleStartsAt: product.saleStartsAt ?? null,
-      saleEndsAt: product.saleEndsAt ?? null,
+      priceAmount: priced.priceAmount ?? null,
+      salePriceAmount: priced.salePriceAmount ?? null,
+      saleStartsAt: priced.saleStartsAt ?? null,
+      saleEndsAt: priced.saleEndsAt ?? null,
     })
   const unitPrice =
     saleFace.kind
       ? saleFace.displayPrice
-      : flashActive && product.salePriceAmount != null
-        ? product.salePriceAmount
-        : product.priceAmount != null && Number.isFinite(product.priceAmount)
-          ? product.priceAmount
+      : flashActive && priced.salePriceAmount != null
+        ? priced.salePriceAmount
+        : priced.priceAmount != null && Number.isFinite(priced.priceAmount)
+          ? priced.priceAmount
           : null
   const priceLabel =
     unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : String(product.priceHint || '').trim()
@@ -285,7 +288,7 @@ export function PartnerSiteProductVariantModal({
   const lineSavings = showSiteSale && saleFace.savings > 0 ? saleFace.savings * effectiveQty : 0
   const lineSaveText =
     lineSavings > 0 ? partnerSiteSaleSaveText(saleFace, locale, { amount: lineSavings, surface: 'detail' }) : ''
-  const listUnitPrice = variantListFromProduct(product)
+  const listUnitPrice = variantListFromProduct(priced)
   const birthdayFace = resolvePartnerBirthdayOfferFace({
     locale,
     birthdayOfferPercent: product.birthdayOfferPercent,

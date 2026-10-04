@@ -8,6 +8,11 @@ import {
 import { extractPandamallDetail, resolvePandamallImportUrl } from './listing-import-urls'
 import { enrichListingProductDataFromBody, pickCnyPriceFromScrapeRow } from './listing-import-body-specs'
 import {
+  formatCnyCell,
+  listingSellVndForCny,
+  parseCnyAmount,
+} from './per-sku-listing-price'
+import {
   cleanText,
   dedupeUrls,
   estimateCnyFromVnd,
@@ -111,9 +116,7 @@ export function pandamallRowToProductData(
     const size = cleanText(r.size, 80)
     const color = colorMap.get(rawColor) || rawColor
     if (rawColor) inStockRawColors.add(rawColor)
-    if (colorOnlyLayout) {
-      if (color) pairObjs.push({ color, size: '' })
-    } else if (color && size) {
+    if (!colorOnlyLayout && color && size) {
       pairObjs.push({ color, size })
     }
     if (!colorOnlyLayout && size && !seenSize.has(size.toLowerCase())) {
@@ -152,9 +155,7 @@ export function pandamallRowToProductData(
     }
   } else {
     sizes = []
-    if (!pairObjs.length) {
-      pairObjs = colorsOut.filter((c) => c.name).map((c) => ({ color: c.name, size: '' }))
-    }
+    pairObjs = []
   }
 
   let priceVnd = prices.length ? Math.min(...prices) : 0
@@ -267,7 +268,92 @@ export function pandamallRowToProductData(
     slug: '',
   }
   enrichListingProductDataFromBody(out, row)
+  applyPandaMallListingPrices(out, row)
   return out
+}
+
+function applyPandaMallListingPrices(out: Record<string, unknown>, row: Record<string, unknown>): void {
+  const colors = (Array.isArray(out.colors) ? out.colors : []).filter(
+    (c) => c && typeof c === 'object'
+  ) as Record<string, unknown>[]
+  const cnyByLabel = new Map<string, number>()
+  const remember = (label: unknown, rawCny: unknown) => {
+    const key = cleanText(label, 160).toLowerCase()
+    const cny = parseCnyAmount(rawCny)
+    if (key && cny > 0 && !cnyByLabel.has(key)) cnyByLabel.set(key, cny)
+  }
+  for (const item of (row.colors as unknown[]) || []) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    remember(rec.label, rec.price_cny)
+  }
+  for (const item of (row.variant_rows as unknown[]) || []) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    remember(rec.color, rec.price_cny)
+  }
+  if (!cnyByLabel.size) return
+  let priced = 0
+  for (const color of colors) {
+    const name = cleanText(color.name, 160)
+    const cny = cnyByLabel.get(name.toLowerCase()) || 0
+    const sell = listingSellVndForCny(cny)
+    if (!name || sell <= 0) continue
+    color.price = sell
+    color.price_cny = cny
+    color.sku = name
+    color.sku_code = name
+    priced += 1
+  }
+  if (!priced) return
+  const priceKey = (color: Record<string, unknown>) => {
+    const n = Number(color.price) || 0
+    return n > 0 ? n : Number.MAX_SAFE_INTEGER
+  }
+  colors.sort((a, b) => priceKey(a) - priceKey(b))
+  out.colors = colors
+  const sells = colors.map((c) => Number(c.price) || 0).filter((n) => n > 0)
+  const cnys = colors.map((c) => Number(c.price_cny) || 0).filter((n) => n > 0)
+  if (!sells.length || !cnys.length) return
+  const minSell = Math.min(...sells)
+  const minCny = Math.min(...cnys)
+  const maxCny = Math.max(...cnys)
+  out.price = minSell
+  out.cost_cny = minCny
+  out.pro_lower_price = formatCnyCell(minCny)
+  out.pro_high_price = formatCnyCell(maxCny)
+  const cheap = colors.find((c) => Number(c.price) === minSell && c.img)
+  if (cheap?.img) out.main_image = String(cheap.img)
+  const info = out.product_info
+  if (!info || typeof info !== 'object' || Array.isArray(info)) return
+  const variants = (info as Record<string, unknown>).variants
+  if (!variants || typeof variants !== 'object' || Array.isArray(variants)) return
+  const v = variants as Record<string, unknown>
+  const pairs = (Array.isArray(v.pairs) ? v.pairs : []).filter((p) => p && typeof p === 'object') as Record<
+    string,
+    unknown
+  >[]
+  const byName = new Map(colors.map((c) => [cleanText(c.name, 160).toLowerCase(), c]))
+  for (const pair of pairs) {
+    const src = byName.get(cleanText(pair.color, 160).toLowerCase())
+    if (!src || !(Number(src.price) > 0)) continue
+    pair.price = src.price
+    pair.price_cny = src.price_cny
+    pair.sku_code = src.sku_code
+  }
+  if (pairs.some((p) => Number(p.price) > 0)) {
+    v.price_pairs = pairs.map((p) => ({
+      color: p.color || '',
+      size: p.size || '',
+      price: p.price,
+      price_cny: p.price_cny,
+      sku_code: p.sku_code || '',
+    }))
+  }
+  const market = (info as Record<string, unknown>).market_info
+  if (market && typeof market === 'object' && !Array.isArray(market)) {
+    ;(market as Record<string, unknown>).price_cny_approx = minCny
+  }
 }
 
 export async function scrapePandamallForImport(

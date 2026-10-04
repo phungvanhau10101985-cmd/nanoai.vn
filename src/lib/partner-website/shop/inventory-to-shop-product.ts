@@ -1,3 +1,4 @@
+import { colorsHaveTieredPrices } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import type { Catalog188Snapshot } from '@/lib/messaging/partner-inventory-catalog-188'
@@ -101,6 +102,7 @@ export type PartnerInventoryShopCardRow = {
   rating_score: number
   created_at: string
   updated_at: string
+  tiered_prices?: boolean
 }
 
 function catalog188SnapshotOf(raw: unknown): Catalog188Snapshot | null {
@@ -244,6 +246,8 @@ export type PartnerSiteShopProduct = {
   saleStartsAt?: string | null
   saleEndsAt?: string | null
   isClearance?: boolean
+  /** Ít nhất hai mã có giá niêm yết khác nhau — thẻ hiện tiền tố "từ". */
+  tieredPrices?: boolean
   siteSalePhase?: 'off' | 'teaser' | 'active'
   siteSalePercent?: number
   siteSaleExpectedPrice?: number | null
@@ -379,6 +383,7 @@ export function inventoryRowToShopProduct(
     saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
     saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
     isClearance: row.is_clearance === true,
+    tieredPrices: row.is_clearance !== true && colorsHaveTieredPrices(sizedColors),
     sizes: variants.sizes,
     colors: sizedColors,
     sizeGuideImageUrl: row.sizeGuideImageUrl?.trim() || null,
@@ -458,6 +463,7 @@ export function inventoryCardRowToShopProduct(
     saleStartsAt: row.sale_starts_at,
     saleEndsAt: row.sale_ends_at,
     isClearance: row.is_clearance,
+    tieredPrices: row.tiered_prices === true,
     sizes: [],
     colors: [],
     brandName: null,
@@ -509,10 +515,23 @@ export function inventoryRowToLivePdpVariants(row: {
   const structured = hasColorsColumn
     ? colorRows
         .map((item: unknown) => {
-          const c = item as { name?: string; img?: string } | null
+          const c = item as {
+            name?: string
+            img?: string
+            price?: number
+            price_cny?: number
+            sku?: string
+            sku_code?: string
+          } | null
+          const price = Number(c?.price)
+          const priceCny = Number(c?.price_cny)
           return {
             name: String(c?.name || '').trim(),
             img: String(c?.img || '').trim() || null,
+            ...(Number.isFinite(price) && price > 0 ? { price: Math.round(price) } : {}),
+            ...(Number.isFinite(priceCny) && priceCny > 0 ? { price_cny: priceCny } : {}),
+            ...(c?.sku ? { sku: String(c.sku) } : {}),
+            ...(c?.sku_code ? { sku_code: String(c.sku_code) } : {}),
           }
         })
         .filter((c: LivePdpBindColor) => c.name)

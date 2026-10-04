@@ -326,10 +326,10 @@ function jsonArrayColumnPresent(raw: unknown): boolean {
   return typeof raw === 'string' && raw.trim().startsWith('[')
 }
 
-function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | null {
+function parseColorsJsonColumn(raw: unknown): { name: string; img: string; price?: number; price_cny?: number; sku?: string; sku_code?: string }[] | null {
   if (!jsonArrayColumnPresent(raw)) return null
   const arr = parseJsonArrayColumn(raw)
-  const out: { name: string; img: string }[] = []
+  const out: { name: string; img: string; price?: number; price_cny?: number; sku?: string; sku_code?: string }[] = []
   for (const item of arr) {
     if (typeof item === 'string' && item.trim()) {
       out.push({ name: item.trim(), img: '' })
@@ -339,7 +339,19 @@ function parseColorsJsonColumn(raw: unknown): { name: string; img: string }[] | 
     const o = item as Record<string, unknown>
     const name = typeof o.name === 'string' ? o.name.trim() : typeof o.label === 'string' ? o.label.trim() : ''
     const img = typeof o.img === 'string' ? o.img.trim() : typeof o.image_url === 'string' ? o.image_url.trim() : ''
-    if (name) out.push({ name, img })
+    if (!name) continue
+    const price = Number(o.price)
+    const priceCny = Number(o.price_cny)
+    const sku = typeof o.sku === 'string' ? o.sku.trim() : ''
+    const skuCode = typeof o.sku_code === 'string' ? o.sku_code.trim() : ''
+    out.push({
+      name,
+      img,
+      ...(Number.isFinite(price) && price > 0 ? { price: Math.round(price) } : {}),
+      ...(Number.isFinite(priceCny) && priceCny > 0 ? { price_cny: priceCny } : {}),
+      ...(sku ? { sku } : {}),
+      ...(skuCode ? { sku_code: skuCode } : {}),
+    })
   }
   return out
 }
@@ -495,6 +507,7 @@ type PgInventoryCardRaw = {
   rating_score: number | string | null
   created_at: unknown
   updated_at: unknown
+  tiered_prices?: boolean | null
 }
 
 function mapPgInventoryCardRow(r: PgInventoryCardRaw): PartnerInventoryShopCardRow {
@@ -526,6 +539,7 @@ function mapPgInventoryCardRow(r: PgInventoryCardRaw): PartnerInventoryShopCardR
     rating_score: num(r.rating_score, 0),
     created_at: tsIsoReq(r.created_at),
     updated_at: tsIsoReq(r.updated_at),
+    tiered_prices: r.tiered_prices === true,
   }
 }
 
@@ -637,7 +651,18 @@ const INVENTORY_CARD_SELECT = `select
   coalesce(mpi.questions_count, 0) as questions_count,
   coalesce(mpi.rating_score, 0) as rating_score,
   mpi.created_at,
-  mpi.updated_at
+  mpi.updated_at,
+  case
+    when coalesce(mpi.is_clearance, false) then false
+    else (
+      select count(distinct round((elem->>'price')::numeric)) > 1
+      from jsonb_array_elements(
+        case when jsonb_typeof(coalesce(mpi.colors_json, '[]'::jsonb)) = 'array'
+          then coalesce(mpi.colors_json, '[]'::jsonb) else '[]'::jsonb end
+      ) elem
+      where coalesce(elem->>'price', '') ~ '^[0-9]+(\\.[0-9]+)?$'
+    )
+  end as tiered_prices
 from public.messaging_partner_inventory mpi`
 
 /** Old-schema fallback keeps the projection small instead of falling back to the full row SELECT. */

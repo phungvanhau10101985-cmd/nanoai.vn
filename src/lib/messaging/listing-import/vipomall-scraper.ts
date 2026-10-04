@@ -1,4 +1,3 @@
-import { VIPOMALL_SCRAPE_JS } from './vipomall-scrape-js'
 import {
   buildCanonical1688ProductId,
   buildCanonicalTaobaoProductId,
@@ -22,11 +21,11 @@ import {
   parseVndPrice,
   syntheticEngagementCounts,
 } from './scrape-common'
-import { ListingImportPlaywrightError, expandVipomallDetailOnPage, withListingImportPage } from './playwright-browser'
+import { fetchVipomallProductDetail, VipomallApiUnavailable, vipomallApiDetailToProductData } from './vipomall-api'
 
 const VIPOMALL_INFO_NOISE_RE =
   /(trung tâm hỗ trợ|hướng dẫn|ước tính chi phí|chính sách|hàng cấm|giới thiệu|điều khoản dịch vụ|quy chế hoạt động|kinh nghiệm vipomall|vipo\s*mall)/i
-const BLOCK_MARKERS = ['captcha', 'cloudflare', 'cf-ray', 'access denied', 'forbidden', 'blocked']
+const VIPOMALL_SKU_PRICE_ERROR = 'Không lấy được giá tệ từng mã từ Vipomall. Thử lại.'
 
 function cleanInfoTexts(values: unknown[]): string[] {
   const out: string[] = []
@@ -353,37 +352,26 @@ export async function scrapeVipomallForImport(
     platformType = VIPOMALL_PLATFORM_1688
     pageUrl = `https://vipomall.vn/san-pham/${oid}?platform_type=${platformType}`
   }
+  void partnerId
   const offerId = extractVipomallOfferId(pageUrl) || ''
-  const raw = await withListingImportPage(pageUrl, VIPOMALL_SCRAPE_JS, {
-    partnerId,
-    preferHosts: ['vipomall.vn'],
-    afterIdle: expandVipomallDetailOnPage,
-  })
-  const pageText = ['title', 'document_title', 'body_text_sample']
-    .map((k) => String(raw[k] || ''))
-    .join(' ')
-    .toLowerCase()
-  if (BLOCK_MARKERS.some((t) => pageText.includes(t))) {
-    throw new ListingImportPlaywrightError('Vipomall đang chặn/CAPTCHA hoặc không cho tải PDP.')
+  if (!offerId) throw new Error(VIPOMALL_SKU_PRICE_ERROR)
+  let merchantId = '101'
+  try {
+    merchantId = new URL(pageUrl).searchParams.get('merchant_id') || '101'
+  } catch {
+    merchantId = '101'
   }
-  const productData = vipomallRowToProductData(raw, pageUrl, offerId, platformType)
+  let detail: Record<string, unknown>
+  try {
+    detail = await fetchVipomallProductDetail(offerId, platformType, merchantId)
+  } catch (error) {
+    if (error instanceof VipomallApiUnavailable) throw new Error(VIPOMALL_SKU_PRICE_ERROR)
+    throw new Error(VIPOMALL_SKU_PRICE_ERROR)
+  }
+  const productData = vipomallApiDetailToProductData(detail, pageUrl, offerId, platformType)
   const warnings: string[] = []
   if (!Array.isArray(productData.colors) || !(productData.colors as unknown[]).length) {
-    warnings.push('Vipomall: chưa thu được variant màu từ .product-type-list / .product-type-list-size.')
+    warnings.push('Vipomall: API không trả mã đang bán.')
   }
-  if (
-    (!Array.isArray(productData.sizes) || !(productData.sizes as unknown[]).length) &&
-    (!Array.isArray(productData.colors) || !(productData.colors as unknown[]).length)
-  ) {
-    const rawVariantCount = ((raw.variant_rows as unknown[]) || []).filter((r) => r && typeof r === 'object').length
-    if (rawVariantCount) {
-      warnings.push('Vipomall: mọi size đều hết hàng — đã bỏ biến thể «Hết hàng», không còn size nào import.')
-    } else {
-      warnings.push('Vipomall: chưa thu được size từ .product-type-list-size.')
-    }
-  }
-  if (!Array.isArray(productData.gallery) || !(productData.gallery as unknown[]).length) {
-    warnings.push('Vipomall: chưa thu được ảnh chi tiết sau Xem thêm/Xem thêm chi tiết.')
-  }
-  return { raw, productData, warnings }
+  return { raw: detail, productData, warnings }
 }

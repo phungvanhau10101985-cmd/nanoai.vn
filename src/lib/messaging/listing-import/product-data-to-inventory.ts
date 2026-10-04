@@ -41,7 +41,18 @@ function asColors(raw: unknown): Catalog188Color[] {
     const name = str(rec.name || rec.label)
     const img = validateInventoryImageUrl(str(rec.img || rec.image || rec.image_url || rec.url))
     if (!name && !img) continue
-    out.push({ name: name || 'Màu', img })
+    const price = num(rec.price, 0)
+    const priceCny = num(rec.price_cny, 0)
+    const sku = str(rec.sku)
+    const skuCode = str(rec.sku_code)
+    out.push({
+      name: name || 'Màu',
+      img,
+      ...(price > 0 ? { price: Math.round(price) } : {}),
+      ...(priceCny > 0 ? { price_cny: priceCny } : {}),
+      ...(sku ? { sku } : {}),
+      ...(skuCode ? { sku_code: skuCode } : {}),
+    })
   }
   return out
 }

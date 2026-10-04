@@ -3,6 +3,7 @@
  * Bind at serve. Sửa nhanh keeps placeholders.
  */
 
+import { listingPricePrefix } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { escapeAttr, escapeHtml } from '@/lib/packaging/mockup-share-html'
 import type { WebLocale } from '@/lib/i18n/config'
 import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/shop/listing-card-html'
@@ -87,14 +88,16 @@ function priceHtml(product: PartnerSiteShopProduct, locale: WebLocale): string {
   const sale = resolvePartnerProductSaleFace(product, locale)
   const copy = partnerSiteSaleCopy(locale)
   const extra = birthdayBits(product, locale).hintHtml
-  if (!sale.kind) return `${escapeHtml(product.priceHint || '')}${extra}`
+  const fromPrefix = listingPricePrefix(locale, product.tieredPrices === true, product.isClearance === true)
+  const withFrom = (text: string) => (fromPrefix && text ? `${fromPrefix}${text}` : text)
+  if (!sale.kind) return `${escapeHtml(withFrom(product.priceHint || ''))}${extra}`
   if (sale.kind === 'teaser') {
     const expected = sale.expectedPrice != null ? formatPartnerSaleMoney(sale.expectedPrice, locale) : ''
     const save = String(copy.expectedSave || '')
       .replace('{program}', sale.eventLabel || '')
       .replace('{pct}', String(sale.percent))
       .replace('{amount}', formatPartnerSaleMoney(sale.savings, locale))
-    return `<span class="pw-price-sale">${escapeHtml(formatPartnerSaleMoney(sale.displayPrice, locale))}</span> <span class="pw-price-expected">→ ${escapeHtml(expected)}</span><small class="pw-price-teaser">${escapeHtml(save)}</small>${extra}`
+    return `<span class="pw-price-sale">${escapeHtml(withFrom(formatPartnerSaleMoney(sale.displayPrice, locale)))}</span> <span class="pw-price-expected">→ ${escapeHtml(expected)}</span><small class="pw-price-teaser">${escapeHtml(save)}</small>${extra}`
   }
   const save = sale.savings
     ? `<small class="pw-price-save">${escapeHtml(
@@ -107,7 +110,7 @@ function priceHtml(product: PartnerSiteShopProduct, locale: WebLocale): string {
     sale.comparePrice != null
       ? `<del class="pw-price-compare">${escapeHtml(formatPartnerSaleMoney(sale.comparePrice, locale))}</del>`
       : ''
-  return `<span class="pw-price-sale">${escapeHtml(formatPartnerSaleMoney(sale.displayPrice, locale))}</span> ${compare}${save}${extra}`
+  return `<span class="pw-price-sale">${escapeHtml(withFrom(formatPartnerSaleMoney(sale.displayPrice, locale)))}</span> ${compare}${save}${extra}`
 }
 
 /** One listing / related / personalize card. No add-to-cart. */

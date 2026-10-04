@@ -457,6 +457,7 @@ export default function TaoBaiHatLyria3ClientPage() {
         error?: string
         code?: string
         audioUrl?: string
+        generatedLyrics?: string
         lyricsOrNotes?: string
         charged?: number
         historySaved?: boolean
@@ -465,6 +466,7 @@ export default function TaoBaiHatLyria3ClientPage() {
       if (!res.ok) {
         throw new Error(data.error || tr('Tạo nhạc thất bại', 'Generation failed', '生成失败', '生成に失敗', '생성 실패'))
       }
+      if (data.generatedLyrics?.trim()) setSongContent(data.generatedLyrics.trim())
       if (data.audioUrl) {
         setAudioUrl(data.audioUrl)
         void tryAutoCompleteHubPlanStep('/tao-bai-hat-lyria-3', data.audioUrl)
@@ -537,11 +539,11 @@ export default function TaoBaiHatLyria3ClientPage() {
           </h1>
           <p className="mt-2 text-muted-foreground text-sm">
             {tr(
-              'Chọn thể loại, có thể tải ảnh để nhạc bám mood ảnh, thêm lời/nội dung nếu cần.',
-              'Pick a genre, optional image for mood, optional lyrics.',
-              '可选风格、参考图与歌词。',
-              'ジャンル、画像、歌詞を任意で指定。',
-              '장르·이미지·가사 선택 가능.',
+              'Có lời: hệ thống viết lời từ mô tả trước, rồi mới tạo nhạc. Đã có lời từng dòng thì giữ nguyên lời đó.',
+              'With vocals: lyrics are written from your description first, then the track is composed. Line-by-line lyrics you already pasted are kept.',
+              '人声模式：先根据描述写歌词，再生成音乐。已粘贴的分行歌词会保留。',
+              'ボーカル：説明から歌詞を書いてから曲を作ります。行ごとの歌詞を貼ってある場合はそのまま使います。',
+              '보컬: 설명으로 가사를 먼저 쓴 다음 음악을 만듭니다. 이미 줄 단위로 붙인 가사는 그대로 둡니다.',
             )}
           </p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -559,11 +561,11 @@ export default function TaoBaiHatLyria3ClientPage() {
             </CardTitle>
             <CardDescription>
               {tr(
-                'Chọn thể loại (pop, rap, nhạc tâm trạng, remix, trap, chill…), có thể upload ảnh. Có lời: dán lời vào ô nội dung.',
-                'Choose genre (pop, rap, mood music, remix, trap, chill…); optional image. With vocals: paste lyrics.',
-                '选择风格；可上传图片。有歌词模式可在内容框粘贴歌词。',
-                'ジャンル選択・画像任意。ボーカル時は歌詞を入力。',
-                '장르 선택·이미지 선택. 보컬 시 가사 입력.',
+                'Chọn thể loại, có thể upload ảnh. Có lời mà chưa dán lời: mô tả chủ đề — hệ thống viết lời rồi mới tạo nhạc.',
+                'Choose a genre and optional image. For vocals without pasted lyrics, describe the theme — lyrics are written first, then the music.',
+                '选择风格，可上传图片。未粘贴歌词时填写主题：先写词再生成音乐。',
+                'ジャンルと任意の画像。歌詞未入力のボーカルはテーマを書くと、先に歌詞を作ってから曲を生成します。',
+                '장르와 선택 이미지. 가사를 붙이지 않은 보컬은 주제를 적으면 가사를 먼저 쓴 뒤 음악을 만듭니다.',
               )}
             </CardDescription>
           </CardHeader>
@@ -840,7 +842,9 @@ export default function TaoBaiHatLyria3ClientPage() {
             <div className="flex flex-wrap items-center gap-3">
               <Button type="button" onClick={() => void handleGenerate()} disabled={busy}>
                 {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                {tr('Tạo nhạc', 'Generate', '生成', '生成', '생성')}
+                {busy && vocalMode === 'vocal'
+                  ? tr('Đang viết lời, rồi tạo nhạc…', 'Writing lyrics, then music…', '先写词，再生成音乐…', '歌詞を書いてから曲を生成…', '가사를 쓴 다음 음악 생성…')
+                  : tr('Tạo nhạc', 'Generate', '生成', '生成', '생성')}
                 <span className="ml-2 text-xs opacity-90">({cost} credit)</span>
               </Button>
               {lastCharged != null && (

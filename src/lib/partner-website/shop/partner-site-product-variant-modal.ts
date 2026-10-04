@@ -298,9 +298,42 @@ function variantModalFace(){
 function variantEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function variantDigits(raw){return Math.max(0,Math.round(Number(String(raw||'').replace(/[^\\d]/g,''))||0));}
 function variantListAmount(p,st){
+  var colors=(st&&st.colors)||(p&&p.colors)||[];
+  var idx=st?st.colorIndex:0;
+  var c=colors[idx]||null;
+  var fromColor=c?Math.round(Number(c.price)||0):0;
+  if(fromColor>0 && !(p&&p.isClearance===true))return fromColor;
   var n=Math.max(0,Math.round(Number(p&&p.priceAmount)||0));
   if(n>0)return n;
   return variantDigits((p&&p.priceHint)||(st&&st.priceHint)||'');
+}
+function syncVariantUnitPrice(st){
+  if(!st)return;
+  var p=st.product;
+  var list=p?variantListAmount(p,st):0;
+  if(!p){
+    if(list>0)st.unitPrice=list;
+    return;
+  }
+  var base=Math.max(0,Math.round(Number(p.priceAmount)||0));
+  var priced=p;
+  if(list>0 && base>0 && Math.abs(list-base)>=1 && p.isClearance!==true){
+    priced={};
+    for(var k in p) priced[k]=p[k];
+    priced.priceAmount=list;
+    var sale=Number(p.salePriceAmount);
+    if(Number.isFinite(sale)&&sale>0&&sale<base)priced.salePriceAmount=Math.round(list*(sale/base));
+    var site=p.siteSale;
+    if(site){
+      var next=Object.assign({}, site, {listPrice:list});
+      var expected=Number(site.expectedSalePrice);
+      if(Number.isFinite(expected)&&expected>0&&expected<base)next.expectedSalePrice=Math.round(list*(expected/base));
+      priced.siteSale=next;
+    }
+  }
+  st.saleFace=variantSaleFace(priced);
+  if(st.saleFace)st.unitPrice=st.saleFace.display;
+  else st.unitPrice=Number((priced.salePriceAmount!=null?priced.salePriceAmount:priced.priceAmount)||list||0)||0;
 }
 function variantMoney(n,fallback){
   var amt=Number(n);
@@ -725,6 +758,7 @@ function variantQtyCompact(st){
 }
 function paintVariantModal(){
   var st=window.__pwVariantState;if(!st)return;
+  syncVariantUnitPrice(st);
   var root=ensureVariantModal();
   var color=st.colors[st.colorIndex]||null;
   var img=variantImg((color&&color.img)||st.imageUrl,true);
@@ -896,7 +930,7 @@ function openPdpVariantModal(seed,action){
       st.stockQty=Math.max(0,Math.round(Number(p.stockQty)||0));
       st.showStock=st.stockQty>=1&&st.stockQty<=5;
       st.maxQty=st.stockQty>0?Math.min(99,st.stockQty):99;
-      if(Array.isArray(p.colors))st.colors=p.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
+      if(Array.isArray(p.colors))st.colors=p.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||''),price:Math.round(Number(c.price)||0)};}).filter(function(c){return c.name;});
       if(Array.isArray(p.sizes))st.sizes=p.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
     }
     if(opt){
@@ -906,7 +940,7 @@ function openPdpVariantModal(seed,action){
       st.imageUrl=opt.image_url||st.imageUrl;
       st.productUrl=opt.product_url||st.productUrl;
       st.priceHint=opt.price_hint||st.priceHint;
-      if(Array.isArray(opt.colors))st.colors=opt.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||'')};}).filter(function(c){return c.name;});
+      if(Array.isArray(opt.colors))st.colors=opt.colors.map(function(c){return {name:String(c.name||'').trim(),img:String(c.img||''),price:Math.round(Number(c.price)||0)};}).filter(function(c){return c.name;});
       if(Array.isArray(opt.sizes))st.sizes=opt.sizes.map(function(s){return String(s||'').trim();}).filter(Boolean);
     }
     if(st.colors.length){

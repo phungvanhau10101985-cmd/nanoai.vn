@@ -113,7 +113,15 @@ export const CATALOG_188_EXPORT_ONLY_VI = {
   inventory_id: 'Id kho',
 } as const
 
-export type Catalog188Color = { name: string; img: string; value?: string }
+export type Catalog188Color = {
+  name: string
+  img: string
+  value?: string
+  price?: number
+  price_cny?: number
+  sku?: string
+  sku_code?: string
+}
 
 /** Snapshot JSON khớp dict `excel_row_to_product` bên 188 (tên field DB 188). */
 export type Catalog188Snapshot = {

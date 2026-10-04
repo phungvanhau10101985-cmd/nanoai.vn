@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent, type UIEvent } from 'react'
 import type { ProductPurchaseOptions } from '@/lib/messaging/guest-chat-ordering'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
+import { listingPricePrefix, shopProductForSelectedColor } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   shopProductToCartCard,
@@ -241,7 +242,9 @@ export function PartnerSiteShopProductClient({
   const heroScrollFromUser = useRef(false)
   const heroScrollProg = useRef(false)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
-  const saleFace = resolvePartnerProductSaleFace(product, locale)
+  const priced = shopProductForSelectedColor(product, color)
+  const fromPrefix = listingPricePrefix(locale, product.tieredPrices === true, product.isClearance === true)
+  const saleFace = resolvePartnerProductSaleFace(priced, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
   const birthdayBlock = (
     <PartnerSiteBirthdayOfferBlock
@@ -475,14 +478,14 @@ export function PartnerSiteShopProductClient({
       ? saleFace.displayPrice
       : saleFace.kind === 'active'
         ? saleFace.displayPrice
-        : flashActive && product.salePriceAmount != null
-          ? product.salePriceAmount
-          : product.priceAmount != null && Number.isFinite(product.priceAmount)
-            ? product.priceAmount
+        : flashActive && priced.salePriceAmount != null
+          ? priced.salePriceAmount
+          : priced.priceAmount != null && Number.isFinite(priced.priceAmount)
+            ? priced.priceAmount
             : null
   const comparePrice = saleFace.kind === 'active' ? saleFace.comparePrice : saleFace.kind === 'teaser' ? null : (
-    flashActive && product.priceAmount != null && product.salePriceAmount != null && product.priceAmount > product.salePriceAmount
-      ? product.priceAmount
+    flashActive && priced.priceAmount != null && priced.salePriceAmount != null && priced.priceAmount > priced.salePriceAmount
+      ? priced.priceAmount
       : null
   )
   const savings = saleFace.kind ? saleFace.savings : comparePrice != null && unitPrice != null ? comparePrice - unitPrice : 0
@@ -1008,7 +1011,7 @@ export function PartnerSiteShopProductClient({
                   : partnerSiteSaleProgramName(saleFace, locale)}
               </p>
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>
-                {formatPartnerSaleMoney(saleFace.displayPrice, locale)}
+                {fromPrefix}{formatPartnerSaleMoney(saleFace.displayPrice, locale)}
                 {saleFace.kind === 'teaser' && saleFace.expectedPrice != null ? (
                   <span className="pw-price-expected" data-pw-el={PW_EL.comparePrice}>
                     {' '}
@@ -1035,7 +1038,7 @@ export function PartnerSiteShopProductClient({
             <div className="pw-pdp-price-card">
               <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>{t.flashSaleBadge}</span>
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>
-                {formatPartnerShopMoneyVnd(product.salePriceAmount)}
+                {fromPrefix}{formatPartnerShopMoneyVnd(priced.salePriceAmount)}
                 {comparePrice != null ? (
                   <span className="pw-pdp-compare" data-pw-el={PW_EL.comparePrice}>
                     {formatPartnerShopMoneyVnd(comparePrice)}
@@ -1049,7 +1052,7 @@ export function PartnerSiteShopProductClient({
             </div>
           ) : priceLabel ? (
             <div className="pw-pdp-price-card">
-              <p className="pw-shop-price" data-pw-el={PW_EL.price}>{priceLabel}</p>
+              <p className="pw-shop-price" data-pw-el={PW_EL.price}>{fromPrefix}{unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : priceLabel}</p>
               {birthdayBlock}
             </div>
           ) : product.isClearance !== true && (product.birthdayOfferPercent || 0) > 0 ? (
@@ -1185,7 +1188,7 @@ export function PartnerSiteShopProductClient({
             locale={locale}
             productName={productName}
             productImage={product.imageUrl || product.galleryImages?.[0]}
-            productPrice={priceLabel || (unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : '')}
+            productPrice={`${fromPrefix}${priceLabel || (unitPrice != null ? formatPartnerShopMoneyVnd(unitPrice) : '')}`}
             catalogReviewsCount={product.reviewsCount}
             catalogRatingScore={product.ratingScore}
             catalogQuestionsCount={product.questionsCount}

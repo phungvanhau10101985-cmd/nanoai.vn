@@ -29,6 +29,7 @@ import {
   trackPartnerSiteAddToCart,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
 import { PartnerSiteProductVariantModal } from '@/components/partner-website/shop/partner-site-product-variant-modal'
+import { listingPricePrefix } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
@@ -242,7 +243,12 @@ export function PartnerSiteCartAddClient({ siteSlug, locale, product, fromNanoAi
         ) : null}
         <div className="min-w-0">
           <p className="text-sm font-semibold leading-snug">{product.name}</p>
-          {product.priceHint ? <p className="mt-1 text-sm text-[var(--pw-primary)]">{product.priceHint}</p> : null}
+          {product.priceHint ? (
+            <p className="mt-1 text-sm text-[var(--pw-primary)]">
+              {listingPricePrefix(locale, product.tieredPrices === true, product.isClearance === true)}
+              {product.priceHint}
+            </p>
+          ) : null}
         </div>
       </div>
       {message ? <p className="mt-3 text-sm text-red-600">{message}</p> : null}

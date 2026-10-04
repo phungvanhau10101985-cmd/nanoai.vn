@@ -12,6 +12,7 @@ import { PW_ENSURE_GUEST_BROWSER_SESSION_JS } from '@/lib/partner-website/shop/p
 import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-ui-off'
 import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
 import { PW_SITE_SALE_CARD_CSS, PW_SITE_SALE_VIEW_JS, partnerSiteSaleCopy } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { listingPricePrefixRuntimeJs } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import {
   PW_PDP_HELPFUL_THUMB_ICON,
   PW_PDP_REVIEW_QA_ICON,
@@ -181,6 +182,7 @@ function trackView(id){
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');}
 function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat(COPY.locale==='vi'?'vi-VN':COPY.locale,{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
+${listingPricePrefixRuntimeJs(locale)}
 function pdpBirthdayCount(iso){
   if(!iso)return '';
   var t=Date.parse(iso);if(!Number.isFinite(t))return '';
@@ -370,7 +372,7 @@ function apply(p){
     rewriteDescImgs(el);
   });
   var sale=saleView(p);
-  var price=sale?sale.price:String(p.priceHint||'').trim();
+  var price=priceFromPrefix(p)+(sale?sale.price:String(p.priceHint||'').trim());
   if(price)document.querySelectorAll('[data-pw-region="pdp-info"] [data-pw-el="price"]').forEach(function(el){
     var compare=el.querySelector('[data-pw-el="compare-price"]');
     if(compare){

@@ -121,15 +121,47 @@ export function mergeListingOverlayIntoProductData(
   if (cn) productData.chinese_name = cn
   const shopCn = String(overlay.shop_name_chinese || '').trim()
   if (shopCn) productData.shop_name_chinese = shopCn
-  const pl = String(overlay.pro_lower_price || '').trim()
-  if (pl) productData.pro_lower_price = pl
-  stampScrapedCostCny(productData)
-  const ph = String(overlay.pro_high_price || '').trim()
-  if (ph) productData.pro_high_price = ph
-  const price = overlay.price
-  if (typeof price === 'number' && Number.isFinite(price) && price > 0) {
-    productData.price = price
+  const keepSkuPrices = listingColorsAlreadyPriced(productData)
+  if (!keepSkuPrices) {
+    const pl = String(overlay.pro_lower_price || '').trim()
+    if (pl) productData.pro_lower_price = pl
   }
+  const explicitCost = overlay.cost_cny
+  if (explicitCost != null && explicitCost !== '') productData.cost_cny = explicitCost
+  stampScrapedCostCny(productData)
+  if (!keepSkuPrices) {
+    const ph = String(overlay.pro_high_price || '').trim()
+    if (ph) productData.pro_high_price = ph
+    const price = overlay.price
+    if (typeof price === 'number' && Number.isFinite(price) && price > 0) {
+      productData.price = price
+    }
+  }
+}
+
+function listingColorsAlreadyPriced(productData: Record<string, unknown>): boolean {
+  const colors = Array.isArray(productData.colors) ? productData.colors : []
+  for (const item of colors) {
+    if (!item || typeof item !== 'object') continue
+    const price = Number((item as { price?: unknown }).price)
+    if (Number.isFinite(price) && price > 0) return true
+  }
+  const info = productData.product_info
+  const variants =
+    info && typeof info === 'object' && !Array.isArray(info)
+      ? (info as { variants?: unknown }).variants
+      : null
+  const pairs =
+    variants && typeof variants === 'object' && !Array.isArray(variants)
+      ? (variants as { price_pairs?: unknown; pairs?: unknown }).price_pairs ||
+        (variants as { pairs?: unknown }).pairs
+      : null
+  if (!Array.isArray(pairs)) return false
+  return pairs.some((pair) => {
+    if (!pair || typeof pair !== 'object') return false
+    const price = Number((pair as { price?: unknown }).price)
+    return Number.isFinite(price) && price > 0
+  })
 }
 
 export function preferListingChineseName(productData: Record<string, unknown>): void {

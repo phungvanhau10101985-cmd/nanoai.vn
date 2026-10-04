@@ -158,6 +158,17 @@ export async function expandPandamallDetailOnPage(page: Page): Promise<void> {
     expanded = false
   }
   await page.waitForTimeout(expanded ? 3000 : 1500)
+  try {
+    await page.evaluate(async () => {
+      const rows = [...document.querySelectorAll('.item-property')]
+      for (const row of rows) {
+        row.scrollIntoView({ block: 'center' })
+        await new Promise((resolve) => setTimeout(resolve, 40))
+      }
+    })
+  } catch {
+    /* lazy rows stay unresolved */
+  }
 }
 
 export async function withListingImportPage(

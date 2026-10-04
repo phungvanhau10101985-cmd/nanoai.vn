@@ -4,6 +4,7 @@
  * product keeps its own content while buttons/layout stay in sync.
  */
 
+import { colorsHaveTieredPrices, listingPricePrefix } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   formatPartnerShopMoneyVnd,
@@ -73,6 +74,10 @@ import {
 export type LivePdpBindColor = {
   name: string
   img?: string | null
+  price?: number | null
+  price_cny?: number | null
+  sku?: string | null
+  sku_code?: string | null
 }
 
 export type LivePdpBindReview = {
@@ -557,9 +562,15 @@ function productPriceText(product: LivePdpBindProduct, locale: WebLocale = 'vi')
   expected: boolean
 } {
   const face = resolvePartnerProductSaleFace(product, locale)
+  const fromPrefix = listingPricePrefix(
+    locale,
+    colorsHaveTieredPrices(product.colors),
+    product.isClearance === true
+  )
+  const withFrom = (text: string) => (fromPrefix && text ? `${fromPrefix}${text}` : text)
   if (face.kind === 'teaser') {
     return {
-      price: formatPartnerShopMoneyVnd(face.displayPrice),
+      price: withFrom(formatPartnerShopMoneyVnd(face.displayPrice)),
       compare:
         face.expectedPrice != null
           ? partnerSiteSaleExpectedPriceText(
@@ -573,7 +584,7 @@ function productPriceText(product: LivePdpBindProduct, locale: WebLocale = 'vi')
   }
   if (face.kind === 'active') {
     return {
-      price: formatPartnerShopMoneyVnd(face.displayPrice),
+      price: withFrom(formatPartnerShopMoneyVnd(face.displayPrice)),
       compare: face.comparePrice != null ? formatPartnerShopMoneyVnd(face.comparePrice) : '',
       expected: false,
     }
@@ -584,8 +595,9 @@ function productPriceText(product: LivePdpBindProduct, locale: WebLocale = 'vi')
     saleStartsAt: product.saleStartsAt ?? null,
     saleEndsAt: product.saleEndsAt ?? null,
   })
-  const price =
+  const price = withFrom(
     effective != null ? formatPartnerShopMoneyVnd(effective) : String(product.priceHint || '').trim()
+  )
   const compare =
     effective != null &&
     product.priceAmount != null &&

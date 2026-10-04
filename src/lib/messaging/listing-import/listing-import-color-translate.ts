@@ -1,3 +1,4 @@
+import { listingLabelIsModelCode } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 
 const CJK_RE = /[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/
@@ -12,6 +13,7 @@ const CHUNK = 40
 export function listingImportColorNeedsTranslate(name: string): boolean {
   const s = (name || '').trim()
   if (!s) return false
+  if (listingLabelIsModelCode(s)) return false
   if (CJK_RE.test(s) || CYR_RE.test(s)) return true
   if (VI_LATIN_RE.test(s)) return false
   if (SIZE_LIKE_RE.test(s.trim())) return false
@@ -167,6 +169,8 @@ export async function applyListingImportColorTranslation(
       delete rec.label
       n += 1
     }
+    const nextName = String(rec.name || '').trim()
+    if (nextName) rec.sku = nextName
   }
   const pi = productData.product_info
   if (pi && typeof pi === 'object') {

@@ -18,6 +18,7 @@ export function toPartnerSiteCardPayload(product: PartnerSiteShopProduct) {
     saleStartsAt: product.saleStartsAt ?? null,
     saleEndsAt: product.saleEndsAt ?? null,
     isClearance: product.isClearance === true,
+    tieredPrices: product.tieredPrices === true,
     siteSalePhase: product.siteSalePhase ?? 'off',
     siteSalePercent: product.siteSalePercent ?? 0,
     siteSaleExpectedPrice: product.siteSaleExpectedPrice ?? null,

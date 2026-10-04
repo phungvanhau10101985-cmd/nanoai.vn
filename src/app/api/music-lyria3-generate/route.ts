@@ -9,6 +9,7 @@ import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/tr
 export const maxDuration = 300
 
 const LYRIA3_MODEL = 'lyria-3-pro-preview' as const
+const LYRICS_TEXT_MODEL = 'gemini-2.5-flash' as const
 const LYRIA3_TARGET_SEC = 180 as const
 const LYRIA3_CHARGE = 3
 
@@ -19,7 +20,7 @@ const INSTRUMENTAL_SUFFIX =
   '\n\nImportant: Instrumental only, no vocals, no singing, no voice. Pure instrumental track.'
 
 const VOCAL_HINT =
-  '\n\nInclude lead vocals and sung lyrics appropriate to the genre and mood described above. Match the language of the main prompt and any provided lyrics when possible.'
+  '\n\nSing the lyrics below as lead vocals. The words are final — do not rewrite them and do not reply with lyrics text only. The response must include the audio recording of the finished song.'
 
 const VALID_VOICE_GENDER = new Set(['auto', 'female', 'male', 'neutral', 'duet_mf'])
 const VALID_VOICE_TIMBRE = new Set(['auto', 'high', 'bright', 'warm', 'soft', 'deep', 'rap'])
@@ -266,6 +267,132 @@ function buildCorePrompt(params: {
   return blocks.join('\n\n')
 }
 
+const LYRICS_LANG_HINTS: Record<string, string> = {
+  auto: 'Write in the same language as the user brief. If the brief is Vietnamese or empty, write Vietnamese.',
+  vi_north: 'Write the lyrics in Vietnamese with Northern (Hanoi) diction.',
+  vi_central: 'Write the lyrics in Vietnamese with Central regional diction.',
+  vi_south: 'Write the lyrics in Vietnamese with Southern diction.',
+  en_uk: 'Write the lyrics in British English.',
+  en_us: 'Write the lyrics in American English.',
+  zh: 'Write the lyrics in standard Mandarin Chinese.',
+  ja: 'Write the lyrics in natural Japanese.',
+  ko: 'Write the lyrics in natural Korean.',
+}
+
+/** Lời đã chốt (nhiều dòng ngắn hoặc có nhãn đoạn) thì giữ, không viết lại. */
+function looksLikeFinishedLyrics(raw: string): boolean {
+  const t = raw.trim()
+  if (t.length < 40) return false
+  if (/\[(intro|verse|chorus|bridge|hook|outro|pre-chorus)/i.test(t)) return true
+  if (/(điệp khúc|khổ\s*\d|lời\s*\d)/i.test(t) && t.includes('\n')) return true
+  const lines = t
+    .split(/\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length < 6) return false
+  const avg = lines.reduce((n, line) => n + line.length, 0) / lines.length
+  return avg < 100
+}
+
+function textFromGenerateResponse(response: {
+  text?: string
+  candidates?: Array<{ content?: { parts?: ContentPart[] } }>
+}): string {
+  const direct = typeof response.text === 'string' ? response.text.trim() : ''
+  if (direct) return direct
+  const parts = response.candidates?.[0]?.content?.parts ?? []
+  return parts
+    .map((part) => part.text?.trim() || '')
+    .filter(Boolean)
+    .join('\n')
+    .trim()
+}
+
+function stripLyricFences(text: string): string {
+  return text
+    .replace(/^```(?:\w+)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+}
+
+function summarizeLyriaParts(response: { candidates?: Array<{ content?: { parts?: ContentPart[] } }> }): string {
+  const parts = response.candidates?.[0]?.content?.parts ?? []
+  if (!parts.length) return 'no-parts'
+  return parts
+    .map((part) => {
+      if (part.text?.trim()) return `text:${part.text.trim().slice(0, 180)}`
+      const mime = part.inlineData?.mimeType || '?'
+      const bytes = part.inlineData?.data ? part.inlineData.data.length : 0
+      return `inline:${mime}:${bytes}`
+    })
+    .join(' | ')
+    .slice(0, 800)
+}
+
+/** Viết lời hát từ mô tả trước khi gọi Lyria — model nhạc không tự viết lời rồi trả audio. */
+async function writeLyricsFromBrief(
+  ai: GoogleGenAI,
+  params: {
+    userId: string
+    genre: string
+    promptRaw: string
+    songContent: string
+    voiceLanguage: string
+    structurePreset: string
+    imageBuffer: Buffer | null
+    imageMime: string
+  }
+): Promise<string> {
+  const genreHint = GENRE_MODEL_HINTS[params.genre] || 'Follow the mood and genre in the user brief.'
+  const langHint = LYRICS_LANG_HINTS[params.voiceLanguage] || LYRICS_LANG_HINTS.auto
+  const structureHint = STRUCTURE_PRESET_HINTS[params.structurePreset] || 'Song structure: verse, chorus, verse, chorus, short outro.'
+  const brief = [params.promptRaw.trim(), params.songContent.trim()].filter(Boolean).join('\n\n')
+  const instruction = [
+    'You are a songwriter. Write original singable lyrics for one song of about three minutes.',
+    genreHint,
+    langHint,
+    structureHint,
+    brief
+      ? `User brief (theme, mood, story — not final lyrics unless the brief is already line-by-line lyrics):\n${brief}`
+      : 'No written brief. If an image is attached, write lyrics that match its mood, scene, and colors.',
+    'Output ONLY the lyrics. Use section labels [Verse 1], [Chorus], [Verse 2], [Bridge], [Outro].',
+    'Include a chorus that can be repeated. Keep lines short enough to sing.',
+    'No song title, no chords, no commentary, no markdown fences.',
+    'Original words only. Do not copy or closely paraphrase an existing copyrighted song.',
+  ].join('\n\n')
+
+  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: instruction }]
+  if (params.imageBuffer?.length) {
+    parts.push({
+      inlineData: { mimeType: params.imageMime, data: params.imageBuffer.toString('base64') },
+    })
+  }
+
+  const response = await ai.models.generateContent({
+    model: LYRICS_TEXT_MODEL,
+    contents: createUserContent(parts),
+  })
+  const usage = (
+    response as {
+      usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number }
+    }
+  ).usageMetadata
+  void trackApiUsage({
+    userId: params.userId,
+    model: LYRICS_TEXT_MODEL,
+    feature: 'music-lyria3-lyrics',
+    promptTokenCount: usage?.promptTokenCount ?? 0,
+    candidatesTokenCount: usage?.candidatesTokenCount ?? 0,
+    totalTokenCount: usage?.totalTokenCount ?? 1,
+  })
+
+  const lyrics = stripLyricFences(textFromGenerateResponse(response)).slice(0, 3800)
+  if (lyrics.length < 20) {
+    throw new Error('Không viết được lời bài hát từ mô tả.')
+  }
+  return lyrics
+}
+
 export async function POST(request: NextRequest) {
   try {
     const apiKey = process.env.GOOGLE_API_KEY
@@ -387,10 +514,35 @@ export async function POST(request: NextRequest) {
     }
 
     const hasImage = Boolean(imageBuffer?.length)
+    const ai = new GoogleGenAI({ apiKey })
+
+    let lyricsForMusic = songContent
+    let generatedLyrics: string | undefined
+    if (vocalMode === 'vocal' && !looksLikeFinishedLyrics(songContent)) {
+      try {
+        lyricsForMusic = await writeLyricsFromBrief(ai, {
+          userId: user.id,
+          genre,
+          promptRaw,
+          songContent,
+          voiceLanguage,
+          structurePreset,
+          imageBuffer,
+          imageMime,
+        })
+        generatedLyrics = lyricsForMusic
+      } catch (e) {
+        await refundUserCredits(user.id, cost, 'music-lyria3-generate')
+        const msg = e instanceof Error ? e.message : 'Không viết được lời bài hát từ mô tả.'
+        console.error('[music-lyria3] lyrics step failed', msg)
+        return NextResponse.json({ error: msg }, { status: 502 })
+      }
+    }
+
     const corePrompt = buildCorePrompt({
       genre,
       promptRaw,
-      songContent,
+      songContent: lyricsForMusic,
       hasImage,
       vocalMode,
       bpmPreset,
@@ -413,10 +565,8 @@ export async function POST(request: NextRequest) {
     let mimeType: string
     let textParts: string[]
 
-    try {
-      const ai = new GoogleGenAI({ apiKey })
-
-      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: fullPrompt }]
+    const lyriaParts = (promptText: string): Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> => {
+      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: promptText }]
       if (imageBuffer?.length) {
         parts.push({
           inlineData: {
@@ -425,18 +575,34 @@ export async function POST(request: NextRequest) {
           },
         })
       }
+      return parts
+    }
 
-      const contents = createUserContent(parts)
-
+    try {
       const response = await ai.models.generateContent({
         model: modelId,
-        contents,
+        contents: createUserContent(lyriaParts(fullPrompt)),
         config: {
           responseModalities: ['AUDIO', 'TEXT'],
         },
       })
 
-      const extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
+      let extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
+      if (!extracted) {
+        console.error('[music-lyria3] no audio on first call', summarizeLyriaParts(response))
+        const retryPrompt = `${fullPrompt}\n\nReturn the finished song as an audio file now.`
+        const retry = await ai.models.generateContent({
+          model: modelId,
+          contents: createUserContent(lyriaParts(retryPrompt)),
+          config: {
+            responseModalities: ['AUDIO'],
+          },
+        })
+        extracted = extractFromResponse(retry as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
+        if (!extracted) {
+          console.error('[music-lyria3] no audio on retry', summarizeLyriaParts(retry))
+        }
+      }
       if (!extracted) {
         await refundUserCredits(user.id, cost, 'music-lyria3-generate')
         return NextResponse.json(
@@ -458,6 +624,7 @@ export async function POST(request: NextRequest) {
     } catch (e) {
       await refundUserCredits(user.id, cost, 'music-lyria3-generate')
       const msg = e instanceof Error ? e.message : 'Lỗi gọi Lyria 3.'
+      console.error('[music-lyria3] generate failed', msg)
       return NextResponse.json({ error: msg }, { status: 502 })
     }
 
@@ -499,11 +666,13 @@ export async function POST(request: NextRequest) {
       console.error('music_generations insert failed (pg)')
     }
 
+    const modelNotes = textParts.length ? textParts.join('\n\n') : undefined
     return NextResponse.json({
       ok: true,
       audioUrl,
       mimeType,
-      lyricsOrNotes: textParts.length ? textParts.join('\n\n') : undefined,
+      generatedLyrics,
+      lyricsOrNotes: modelNotes || generatedLyrics,
       charged: cost,
       variant: 'pro',
       targetDurationSec: LYRIA3_TARGET_SEC,

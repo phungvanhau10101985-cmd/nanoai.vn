@@ -2,6 +2,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import { fetchPartnerSaleCalendarConfigFromPg, type PartnerSaleCalendarConfig } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
+import { storedVariantListPrice } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { applyPartnerSiteSalePrice, type PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
@@ -21,6 +22,8 @@ type InventoryPriceDbRow = {
   sale_starts_at: unknown
   sale_ends_at: unknown
   is_clearance: boolean
+  colors_json?: unknown
+  product_info_json?: unknown
 }
 
 type GoogleLockDbRow = {
@@ -45,6 +48,14 @@ export type PartnerCheckoutPriceLineInput = {
   inventoryId: string | null
   quantity: number
   fallbackUnitPrice: number
+  color?: string | null
+  size?: string | null
+}
+
+function scaleMoney(amount: number, priorList: number, nextList: number): number {
+  if (!(amount > 0) || !(nextList > 0)) return amount
+  if (!(priorList > 0) || Math.abs(nextList - priorList) < 1) return amount
+  return Math.max(0, Math.round(nextList * (amount / priorList)))
 }
 
 export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
@@ -71,7 +82,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     pgQuery<InventoryPriceDbRow>(
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
               sale_price_amount, sale_starts_at, sale_ends_at,
-              coalesce(is_clearance, false) as is_clearance
+              coalesce(is_clearance, false) as is_clearance,
+              colors_json, product_info_json
        from public.messaging_partner_inventory
        where partner_id = $1::uuid and id = any($2::uuid[])`,
       [input.partnerId, ids]
@@ -123,8 +135,18 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
   return input.lines.map((line) => {
     const row = line.inventoryId ? byId.get(line.inventoryId) : null
     const fallback = money(line.fallbackUnitPrice)
-    const listUnitPrice =
+    const productList =
       money(row?.price_amount) || parseVndFromPriceHint(row?.price_hint || '') || fallback
+    const variantList =
+      row && !row.is_clearance
+        ? storedVariantListPrice({
+            colors: row.colors_json,
+            productInfo: row.product_info_json,
+            colorName: line.color || '',
+            sizeName: line.size,
+          })
+        : null
+    const listUnitPrice = variantList && variantList > 0 ? variantList : productList
     if (!row) {
       return {
         inventoryId: line.inventoryId,
@@ -146,10 +168,14 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
         priceKind: 'clearance',
       }
     }
+    const scaledSale =
+      row.sale_price_amount == null
+        ? null
+        : scaleMoney(money(row.sale_price_amount), productList, listUnitPrice)
     const productSale =
       resolvePartnerEffectiveUnitPrice({
         priceAmount: listUnitPrice,
-        salePriceAmount: row.sale_price_amount == null ? null : money(row.sale_price_amount),
+        salePriceAmount: scaledSale,
         saleStartsAt: row.sale_starts_at ? String(row.sale_starts_at) : null,
         saleEndsAt: row.sale_ends_at ? String(row.sale_ends_at) : null,
       }, input.at?.getTime()) ?? listUnitPrice
@@ -169,7 +195,8 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       now: input.at,
     })
     const googleLock = lockById.get(row.id)
-    const googlePrice = googleLock?.price
+    const googlePrice =
+      googleLock?.price == null ? null : scaleMoney(googleLock.price, productList, listUnitPrice)
     // Parity 188: a valid Google pv2 lock owns line pricing for its 48-hour
     // lifetime; product/calendar/flash sales are not stacked onto that line.
     const effectiveUnitPrice =

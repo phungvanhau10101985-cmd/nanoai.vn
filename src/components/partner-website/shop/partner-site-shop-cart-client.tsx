@@ -736,6 +736,8 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
           lineId: item.id,
           inventoryId: item.card.inventory_id || item.id,
           quantity: item.quantity,
+          color: item.color,
+          size: item.size,
           selected: selectedIds.has(item.id),
           fallbackUnitPrice: parseVndFromPriceHint(item.card.price_hint),
         })),

@@ -860,6 +860,8 @@ export async function completeOrderCheckout(input: {
         inventoryId: oldOrder.product_inventory_id,
         quantity: qty,
         fallbackUnitPrice: oldOrder.unit_price,
+        color: oldOrder.variant_color,
+        size: oldOrder.variant_size,
       }],
     }),
     resolveActiveBirthdayDiscountPercentForCustomer({
@@ -1296,6 +1298,8 @@ export async function completeCartCheckout(input: {
         inventoryId: line.productInventoryId,
         quantity: line.quantity,
         fallbackUnitPrice: line.unitPrice,
+        color: line.variantColor,
+        size: line.variantSize,
       })),
     }),
     resolveActiveBirthdayDiscountPercentForCustomer({

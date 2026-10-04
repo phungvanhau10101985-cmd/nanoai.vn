@@ -33,6 +33,8 @@ type QuoteLineInput = {
   quantity?: number
   fallbackUnitPrice?: number
   selected?: boolean
+  color?: string
+  size?: string
 }
 
 function money(value: unknown): number {
@@ -71,8 +73,10 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
           : null,
       quantity: Math.max(1, Math.min(99, Math.floor(Number(line.quantity) || 1))),
       selected: line.selected !== false,
+      color: typeof line.color === 'string' ? line.color.trim().slice(0, 240) : '',
+      size: typeof line.size === 'string' ? line.size.trim().slice(0, 80) : '',
       // A public quote must never accept the browser's price as authoritative.
-      // Inventory `price_amount` / `price_hint` is the only source in production.
+      // Inventory price, or the selected code's stored price, is the source.
       fallbackUnitPrice: 0,
     }))
     .filter((line) => line.inventoryId)
@@ -106,7 +110,13 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         partnerId: shop.partnerId,
         accountKey: visitor.accountKey,
         visitorEmail: emailNormalized,
-        lines: validLines,
+        lines: validLines.map((line) => ({
+          inventoryId: line.inventoryId,
+          quantity: line.quantity,
+          fallbackUnitPrice: line.fallbackUnitPrice,
+          color: line.color,
+          size: line.size,
+        })),
         saleConfig,
         calendarState: saleCalendar,
       }),

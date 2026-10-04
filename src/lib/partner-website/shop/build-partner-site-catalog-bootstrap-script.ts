@@ -21,6 +21,7 @@ import {
   partnerSiteSaleCopy,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PW_SHOP_NATIVE_TRACK_JS } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
+import { listingPricePrefixRuntimeJs } from '@/lib/messaging/listing-import/per-sku-listing-price'
 
 const COPY: Record<
   WebLocale,
@@ -160,16 +161,18 @@ function fetchJsonOnce(url){
 }
 function money(n){var v=Math.max(0,Math.round(Number(n)||0));try{return new Intl.NumberFormat(LOCALE==='vi'?'vi-VN':LOCALE,{style:'currency',currency:'VND',maximumFractionDigits:0}).format(v);}catch(e){return v.toLocaleString()+'₫';}}
 ${PW_SITE_SALE_VIEW_JS}
+${listingPricePrefixRuntimeJs(locale)}
 function priceHtml(p){
   var sale=saleView(p);
   var bdayPct=Math.max(0,Math.round(Number(p.birthdayOfferPercent||(p.birthdayOffer&&p.birthdayOffer.percent)||0)||0));
   var bday=bdayPct>0&&p.isClearance!==true?String(COPY.birthdayCheckoutHint||'').replace('{pct}',String(bdayPct)):'';
   var extra=bday?'<small class="pw-price-birthday">'+esc(bday)+'</small>':'';
-  if(!sale)return esc(p.priceHint||'')+extra;
+  var from=priceFromPrefix(p);
+  if(!sale)return esc(from+(p.priceHint||''))+extra;
   if(sale.kind==='teaser'){
-    return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>'+extra;
+    return '<span class="pw-price-sale">'+esc(from+sale.price)+'</span> <span class="pw-price-expected">→ '+esc(sale.expected)+'</span><small class="pw-price-teaser">'+esc((COPY.expectedSave||'').replace('{program}',sale.program||'').replace('{pct}',String(sale.percent)).replace('{amount}',sale.savings))+'</small>'+extra;
   }
-  return '<span class="pw-price-sale">'+esc(sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
+  return '<span class="pw-price-sale">'+esc(from+sale.price)+'</span> <del class="pw-price-compare">'+esc(sale.compare)+'</del>'+(sale.savings?'<small class="pw-price-save">'+esc((COPY.save||'').replace('{program}',sale.program||'').replace('{amount}',sale.savings))+'</small>':'')+extra;
 }
 function saleBadgeHtml(sale, opts, p){
   var badges='';

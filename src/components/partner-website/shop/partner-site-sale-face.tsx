@@ -16,12 +16,14 @@ import {
   type PartnerProductSaleFace,
   type PartnerSiteSalePromoKind,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
+import { listingPricePrefix } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { PW_EL } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type SaleProduct = Parameters<typeof resolvePartnerProductSaleFace>[0] & {
   priceHint?: string | null
   birthdayOfferPercent?: number | null
   isClearance?: boolean
+  tieredPrices?: boolean
 }
 
 export function PartnerSiteSaleCountdown({
@@ -161,6 +163,7 @@ export function PartnerSiteSalePriceBlock({
   className?: string
 }) {
   const face = resolvePartnerProductSaleFace(product, locale)
+  const fromPrefix = listingPricePrefix(locale, product.tieredPrices === true, product.isClearance === true)
   const birthdayHint =
     product.isClearance === true
       ? null
@@ -169,7 +172,7 @@ export function PartnerSiteSalePriceBlock({
     const text = fallback || ''
     return text || birthdayHint ? (
       <p className={className} data-pw-el={PW_EL.cardPrice}>
-        {text}
+        {fromPrefix}{text}
         {birthdayHint ? <small className="pw-price-birthday">{birthdayHint}</small> : null}
       </p>
     ) : null
@@ -177,7 +180,7 @@ export function PartnerSiteSalePriceBlock({
   if (face.kind === 'teaser') {
     return (
       <p className={className} data-pw-el={PW_EL.cardPrice}>
-        <span className="pw-price-sale">{formatPartnerSaleMoney(face.displayPrice, locale)}</span>
+        <span className="pw-price-sale">{fromPrefix}{formatPartnerSaleMoney(face.displayPrice, locale)}</span>
         {face.expectedPrice != null ? (
           <span className="pw-price-expected"> → {formatPartnerSaleMoney(face.expectedPrice, locale)}</span>
         ) : null}
@@ -188,7 +191,7 @@ export function PartnerSiteSalePriceBlock({
   }
   return (
     <p className={className} data-pw-el={PW_EL.cardPrice}>
-      <span className="pw-price-sale">{formatPartnerSaleMoney(face.displayPrice, locale)}</span>
+      <span className="pw-price-sale">{fromPrefix}{formatPartnerSaleMoney(face.displayPrice, locale)}</span>
       {face.comparePrice != null ? (
         <del className="pw-price-compare">{formatPartnerSaleMoney(face.comparePrice, locale)}</del>
       ) : null}

@@ -85,7 +85,7 @@ export function compactListingImportProductInfoForWeb(productData: Record<string
   const varSrc = asRecord(pi.variants)
   const slimVar: Record<string, unknown> = {}
   if (varSrc) {
-    for (const k of ['colors', 'sizes'] as const) {
+    for (const k of ['colors', 'sizes', 'price_pairs'] as const) {
       if (!(k in varSrc)) continue
       const v = varSrc[k]
       if (!truthy(v)) continue

@@ -11,6 +11,7 @@ import {
   type InventorySameShopSignal,
 } from '@/lib/db/messaging-partner-recommendation-pg'
 import { fetchPartnerInventoryCardsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { inventoryCardTieredPrices } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { fetchPartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-visitor-personalization-pg'
 import {
   HOME_RECOMMENDATION_COHORT_LIMIT,
@@ -72,6 +73,7 @@ function mapInventoryRowToPersonalizationProduct(
     likesCount: Math.max(0, Math.round(Number(row.likes_count ?? 0)) || 0),
     purchasesCount: Math.max(0, Math.round(Number(row.purchases_count ?? 0)) || 0),
     ratingScore: Number(row.rating_score ?? 0) || 0,
+    tieredPrices: inventoryCardTieredPrices(row),
   }
 }
 
