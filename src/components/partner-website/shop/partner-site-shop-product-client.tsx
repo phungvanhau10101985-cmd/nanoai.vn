@@ -1278,6 +1278,7 @@ export function PartnerSiteShopProductClient({
         locale={locale}
         products={relatedProducts}
         categoryPath={product.categoryPath}
+        inventoryId={product.id}
       />
 
       {lightboxOpen ? (

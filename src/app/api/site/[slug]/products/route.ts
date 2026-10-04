@@ -228,18 +228,17 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     color: color || '',
     styleTag: styleTag || '',
   }
+  const facetRequested = sp.get('facets') === '1' || sp.get('facets') === 'true'
   const wantFacets =
-    !related &&
-    (sp.get('facets') === '1' ||
-      sp.get('facets') === 'true' ||
-      partnerListingFacetFiltersActive(listingFacets))
+    facetRequested ||
+    (!related && partnerListingFacetFiltersActive(listingFacets))
   const facetDefs = partnerShopFacetDefsForIndustry(shop.industryKey)
   const facets =
     !wantFacets || facetDefs.length === 0
       ? null
       : use188TextSearch
         ? await fetchPartnerTextSearchFacetCountsFromPg(shop.partnerId, q, listingFacets)
-        : categoryId && UUID_RE.test(categoryId) && !related
+        : categoryId && UUID_RE.test(categoryId)
           ? await fetchPartnerCategoryFacetCountsFromPg(shop.partnerId, categoryId, listingFacets)
           : await fetchPartnerShopListFacetCountsFromPg(shop.partnerId, {
               warehouse,
@@ -263,7 +262,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     hasMore,
     total: products.length < page.rows.length ? products.length : page.count,
     mapped: products.length,
-    inventoryTotal: related ? products.length : page.count,
+    inventoryTotal: related && !facetRequested ? products.length : page.count,
     offset,
     limit,
     facetDefs,

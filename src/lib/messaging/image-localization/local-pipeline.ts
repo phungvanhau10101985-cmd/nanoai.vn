@@ -260,12 +260,54 @@ export function mergeDenseImageLocOverlayItems(
   })
 }
 
+function overlayWordTokens(text: string): string[] {
+  const trimmed = text.trim().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '')
+  return trimmed.split(/\s+/).filter(Boolean)
+}
+
+/** Một từ ngắn trên nền chiếm lớn ảnh (vd. «Xương»). Bỏ đúng cụm đó; cụm khác trên cùng ảnh vẫn dịch. */
+export function isOversizedSingleWordOverlay(
+  item: OverlayItem,
+  imageWidth: number,
+  imageHeight: number
+): boolean {
+  const tokens = overlayWordTokens(item.translatedText || '')
+  if (tokens.length !== 1 || tokens[0].length > 24) return false
+  const width = Math.max(0, item.bbox.width)
+  const height = Math.max(0, item.bbox.height)
+  const imageArea = Math.max(1, imageWidth * imageHeight)
+  const areaRatio = (width * height) / imageArea
+  const wide = width >= imageWidth * 0.34
+  const tall = height >= imageHeight * 0.2
+  return (wide && tall) || areaRatio >= 0.15
+}
+
+export function dropOversizedSingleWordOverlays(
+  items: OverlayItem[],
+  imageWidth: number,
+  imageHeight: number
+): OverlayItem[] {
+  return items.filter((item) => !isOversizedSingleWordOverlay(item, imageWidth, imageHeight))
+}
+
+/** Bỏ cụm một chữ trên nền lớn trước khi gộp, để ô đó không nuốt các cụm xung quanh. */
+export function layoutImageLocOverlays(
+  items: OverlayItem[],
+  imageWidth: number,
+  imageHeight: number
+): OverlayItem[] {
+  const rest = dropOversizedSingleWordOverlays(items, imageWidth, imageHeight)
+  return mergeDenseImageLocOverlayItems(rest, imageWidth, imageHeight)
+}
+
+export type LocalDrawOutcome = { kind: 'drawn'; bytes: Buffer } | { kind: 'unchanged' }
+
 export async function localDrawTranslated(
   imageBytes: Buffer,
   blocks: ImageLocOcrBlock[],
   language: string,
   userId?: string | null
-): Promise<Buffer> {
+): Promise<LocalDrawOutcome> {
   const prepared = blocks.map((block) => ({
     block,
     source: convertJinWeightText(block.text || '').trim(),
@@ -307,14 +349,13 @@ export async function localDrawTranslated(
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
   const metadata = await sharp(imageBytes).metadata()
-  overlayItems = mergeDenseImageLocOverlayItems(
-    overlayItems,
-    metadata.width || 1,
-    metadata.height || 1
-  )
+  const imageWidth = metadata.width || 1
+  const imageHeight = metadata.height || 1
+  overlayItems = layoutImageLocOverlays(overlayItems, imageWidth, imageHeight)
+  if (!overlayItems.length) return { kind: 'unchanged' }
   const png = await overlayTranslatedText(imageBytes, overlayItems, { sampleBackground: true })
   const q = imageLocJpegQuality()
-  return sharp(png).jpeg({ quality: q, mozjpeg: true }).toBuffer()
+  return { kind: 'drawn', bytes: await sharp(png).jpeg({ quality: q, mozjpeg: true }).toBuffer() }
 }
 
 export async function encodeJpeg(imageBytes: Buffer): Promise<Buffer> {

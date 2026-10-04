@@ -146,3 +146,45 @@ export async function fetchMessagingPartnerTextEmbedDetailsFromPg(
     return null
   }
 }
+
+export type PartnerTextEmbedModelCostRow = {
+  model: string
+  sum_prompt_tokens: number
+  sum_total_tokens: number
+}
+
+/** Gom theo model để tính ₫ — không gộp nhiều model vào một giá. */
+export async function fetchMessagingPartnerTextEmbedStatsByModelFromPg(
+  partnerId: string,
+  sinceIso: string,
+  untilIsoExclusive?: string | null
+): Promise<PartnerTextEmbedModelCostRow[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{
+      model: string | null
+      sum_prompt_tokens: string | number | null
+      sum_total_tokens: string | number | null
+    }>(
+      `select
+        coalesce(nullif(trim(u.model), ''), '') as model,
+        coalesce(sum(u.prompt_tokens), 0)::bigint as sum_prompt_tokens,
+        coalesce(sum(u.total_tokens), 0)::bigint as sum_total_tokens
+      from public.messaging_partner_text_embed_usage u
+      where u.partner_id = $1::uuid
+        ${embedCreatedAtRangeSql('u')}
+      group by 1`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
+    )
+    return rows.map((r) => ({
+      model: String(r.model ?? ''),
+      sum_prompt_tokens: Math.max(0, Math.floor(Number(r.sum_prompt_tokens ?? 0))),
+      sum_total_tokens: Math.max(0, Math.floor(Number(r.sum_total_tokens ?? 0))),
+    }))
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') return []
+    console.warn('[fetchMessagingPartnerTextEmbedStatsByModelFromPg]', e)
+    return null
+  }
+}

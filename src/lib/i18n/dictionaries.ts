@@ -1476,8 +1476,32 @@ export type Dictionary = {
     usageRangeModeCalendar: string
     usageCalendarFromLabel: string
     usageCalendarToLabel: string
-    /** {from} {to} ngày YYYY-MM-DD UTC */
+    /** {from} {to} ngày YYYY-MM-DD ICT */
     usagePeriodScopeCalendar: string
+    usagePresetToday: string
+    usagePresetYesterday: string
+    usagePresetThisWeek: string
+    usagePresetLastWeek: string
+    usagePresetThisMonth: string
+    usagePresetLastMonth: string
+    usagePresetYear: string
+    usagePresetAll: string
+    usageCreditHeroKicker: string
+    usageCreditHeroHint: string
+    usageApiHeroKicker: string
+    usageApiHeroHint: string
+    usageApiEmbedImageLine: string
+    usageApiEmbedTextLine: string
+    usageApiModelTableNote: string
+    usageColYear: string
+    usageCreditTypeFromImage: string
+    usageCreditTypeSlideVerify: string
+    usageCreditTypeLessonSlides: string
+    usageCreditTypeInfographic: string
+    usageCreditTypeMonthlyCurriculum: string
+    usageCreditTypeEnglishLiveStart: string
+    usageCreditTypeEnglishLiveUnlock: string
+    usageCreditTypeEnglishPreset: string
     usageSectionCreditTitle: string
     usageSectionCreditIntro: string
     usageSectionApiTitle: string
@@ -1549,6 +1573,7 @@ export type Dictionary = {
     usageCreditColSingle: string
     usageLogoCreditTitle: string
     usageLogoCreditIntro: string
+    usageLogoCreditCappedNote: string
     usageLogoCreditEmpty: string
     usageLogoColModel: string
     usageLogoColStatus: string
@@ -1661,6 +1686,12 @@ export type Dictionary = {
     inventoryStatusShown: string
     inventoryStatusHidden: string
     inventoryViewWeb: string
+    inventoryViewDetail: string
+    inventoryDetailTitle: string
+    inventoryDetailBack: string
+    inventoryDetailLoading: string
+    inventoryDetailFailed: string
+    inventoryDetailEmbeddingOmitted: string
     inventoryEmptyCell: string
     inventoryClearanceBadge: string
     /** Link /messaging/p/{slug}?ctx_* — mở chat tư vấn kèm ảnh SP */
@@ -5209,6 +5240,33 @@ const VI_DICTIONARY: Dictionary = {
     usageCalendarFromLabel: 'Từ ngày',
     usageCalendarToLabel: 'Đến ngày',
     usagePeriodScopeCalendar: 'từ {from} đến {to} (giờ Việt Nam, cả hai ngày tính trọn)',
+    usagePresetToday: 'Hôm nay',
+    usagePresetYesterday: 'Hôm qua',
+    usagePresetThisWeek: 'Tuần này',
+    usagePresetLastWeek: 'Tuần trước',
+    usagePresetThisMonth: 'Tháng này',
+    usagePresetLastMonth: 'Tháng trước',
+    usagePresetYear: 'Năm nay',
+    usagePresetAll: 'Tất cả',
+    usageCreditHeroKicker: 'Đã trừ credit',
+    usageCreditHeroHint:
+      'Credit đã trừ trên ví chủ shop (giáo trình, English coach…) và logo. Không phải tiền gọi API.',
+    usageApiHeroKicker: 'API chưa trừ credit',
+    usageApiHeroHint:
+      'Ước tính tiền nhà cung cấp (₫) cho LLM, tạo ảnh và embedding. Shop không bị trừ ví cho các lần gọi này.',
+    usageApiEmbedImageLine: 'Embedding ảnh',
+    usageApiEmbedTextLine: 'Embedding chữ',
+    usageApiModelTableNote:
+      'Bảng model bên dưới là LLM và tạo ảnh. Embedding được cộng vào tổng API phía trên, không nằm trong bảng đó.',
+    usageColYear: 'Năm',
+    usageCreditTypeFromImage: 'Giáo trình — tạo từ ảnh',
+    usageCreditTypeSlideVerify: 'Giáo trình — kiểm tra đề xuất slide',
+    usageCreditTypeLessonSlides: 'Giáo trình — tạo slide tiết',
+    usageCreditTypeInfographic: 'Giáo trình — infographic',
+    usageCreditTypeMonthlyCurriculum: 'Gói tháng — giáo trình',
+    usageCreditTypeEnglishLiveStart: 'Học ngoại ngữ — bắt đầu live',
+    usageCreditTypeEnglishLiveUnlock: 'Học ngoại ngữ — mở thêm lượt live',
+    usageCreditTypeEnglishPreset: 'Học ngoại ngữ — bài có sẵn',
     usageSectionCreditTitle: 'Trừ credit (ví & logo workspace)',
     usageSectionCreditIntro:
       'Các khoản đã trừ số dư trên tài khoản: nhật ký ví (giáo trình, English coach, …) và phí chuẩn hóa logo shop — khác với nhóm chỉ ghi nhận token API phía dưới.',
@@ -5216,8 +5274,8 @@ const VI_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       'LLM inbox, tạo ảnh Nano Banana, embedding ảnh/văn bản, suy chất liệu từ ảnh sản phẩm… — thống kê theo usage đã ghi, không đi qua ví như phần trên.',
     tokenUsageIntro:
-      'Tổng hợp {scope}. Mỗi dòng là một model API đã gọi khi AI trả lời bằng LLM (sau thời gian chờ).',
-    tokenUsageEmpty: 'Chưa có lần gọi LLM nào trong khoảng thời gian này.',
+      'Khoảng {scope} (giờ Việt Nam). Thẻ vàng là credit đã trừ. Thẻ xanh là ước tính tiền API, shop không bị trừ ví.',
+    tokenUsageEmpty: 'Chưa có lần gọi API nào trong khoảng này.',
     tokenUsageColProvider: 'Nhà cung cấp',
     tokenUsageColModel: 'Model',
     tokenUsageColCalls: 'Số lần gọi',
@@ -5276,6 +5334,8 @@ const VI_DICTIONARY: Dictionary = {
     usageCreditColSingle: 'Credit',
     usageLogoCreditTitle: 'Chuẩn hóa logo (workspace shop)',
     usageLogoCreditIntro: 'Trừ credit trực tiếp khi tạo/chỉnh logo brand; không đi qua bảng nhật ký spend ở trên.',
+    usageLogoCreditCappedNote:
+      'Bảng dưới là các lần gần nhất. Số trên thẻ vàng là tổng đủ trong khoảng đang xem.',
     usageLogoCreditEmpty: 'Chưa có lần chuẩn hóa logo có trừ credit trong khoảng này.',
     usageLogoColModel: 'Model',
     usageLogoColStatus: 'Trạng thái',
@@ -5397,6 +5457,12 @@ const VI_DICTIONARY: Dictionary = {
     inventoryStatusShown: 'Hiển thị',
     inventoryStatusHidden: 'Ẩn',
     inventoryViewWeb: 'Xem web',
+    inventoryViewDetail: 'Chi tiết',
+    inventoryDetailTitle: 'Chi tiết sản phẩm',
+    inventoryDetailBack: 'Quay lại danh sách',
+    inventoryDetailLoading: 'Đang tải thông tin sản phẩm…',
+    inventoryDetailFailed: 'Không tải được thông tin sản phẩm.',
+    inventoryDetailEmbeddingOmitted: 'Vector embedding ảnh và chữ được lưu trong kho nhưng không in ra trang này.',
     inventoryEmptyCell: '—',
     inventoryClearanceBadge: 'Kho thanh lý',
     inventoryGuestConsultLink: 'Mở chat tư vấn',
@@ -8947,6 +9013,33 @@ const EN_DICTIONARY: Dictionary = {
     usageCalendarFromLabel: 'From',
     usageCalendarToLabel: 'To',
     usagePeriodScopeCalendar: 'from {from} through {to} (Vietnam calendar days, inclusive)',
+    usagePresetToday: 'Today',
+    usagePresetYesterday: 'Yesterday',
+    usagePresetThisWeek: 'This week',
+    usagePresetLastWeek: 'Last week',
+    usagePresetThisMonth: 'This month',
+    usagePresetLastMonth: 'Last month',
+    usagePresetYear: 'This year',
+    usagePresetAll: 'All',
+    usageCreditHeroKicker: 'Credits deducted',
+    usageCreditHeroHint:
+      'Credits taken from the shop owner wallet (curriculum, English coach…) and logo. This is not the API bill.',
+    usageApiHeroKicker: 'API not charged as credit',
+    usageApiHeroHint:
+      'Estimated provider cost (₫) for LLM, image generation, and embeddings. These calls are not deducted from the wallet.',
+    usageApiEmbedImageLine: 'Image embeddings',
+    usageApiEmbedTextLine: 'Text embeddings',
+    usageApiModelTableNote:
+      'The model table below is LLM and image generation. Embeddings are included in the API total above, not in that table.',
+    usageColYear: 'Year',
+    usageCreditTypeFromImage: 'Curriculum — from photo',
+    usageCreditTypeSlideVerify: 'Curriculum — check slide proposal',
+    usageCreditTypeLessonSlides: 'Curriculum — lesson slides',
+    usageCreditTypeInfographic: 'Curriculum — infographic',
+    usageCreditTypeMonthlyCurriculum: 'Monthly plan — curriculum',
+    usageCreditTypeEnglishLiveStart: 'Language coach — start live',
+    usageCreditTypeEnglishLiveUnlock: 'Language coach — extra live turn',
+    usageCreditTypeEnglishPreset: 'Language coach — saved lesson',
     usageSectionCreditTitle: 'Credits deducted (wallet & logo)',
     usageSectionCreditIntro:
       'Balance deductions we record: your wallet spend ledger (e.g. curriculum, English coach) and shop logo normalization charges — separate from API token tallies below.',
@@ -8954,8 +9047,8 @@ const EN_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       'Inbox LLM, Nano Banana renders, image/text embeddings, material inference from product photos — counted from usage logs, not routed like wallet credits above.',
     tokenUsageIntro:
-      'Aggregated {scope}. Each row is an API model used when the AI replies via LLM (after the wait time).',
-    tokenUsageEmpty: 'No LLM calls in this period yet.',
+      'Range {scope} (Vietnam time). The amber card is credits already deducted. The blue card is estimated API spend, not taken from the shop wallet.',
+    tokenUsageEmpty: 'No API calls in this period yet.',
     tokenUsageColProvider: 'Provider',
     tokenUsageColModel: 'Model',
     tokenUsageColCalls: 'Calls',
@@ -9015,6 +9108,8 @@ const EN_DICTIONARY: Dictionary = {
     usageLogoCreditTitle: 'Logo normalization (shop workspace)',
     usageLogoCreditIntro:
       'Credits charged directly when generating/editing brand logo; not routed through the spend ledger above.',
+    usageLogoCreditCappedNote:
+      'The table lists the latest charges. The amber card is the full total for this range.',
     usageLogoCreditEmpty: 'No logo normalization with credits in this period.',
     usageLogoColModel: 'Model',
     usageLogoColStatus: 'Status',
@@ -9137,6 +9232,12 @@ const EN_DICTIONARY: Dictionary = {
     inventoryStatusShown: 'Visible',
     inventoryStatusHidden: 'Hidden',
     inventoryViewWeb: 'View site',
+    inventoryViewDetail: 'Details',
+    inventoryDetailTitle: 'Product details',
+    inventoryDetailBack: 'Back to list',
+    inventoryDetailLoading: 'Loading product details…',
+    inventoryDetailFailed: 'Could not load this product.',
+    inventoryDetailEmbeddingOmitted: 'Image and text embedding vectors are stored, and this page does not print them.',
     inventoryEmptyCell: '—',
     inventoryClearanceBadge: 'Clearance',
     inventoryGuestConsultLink: 'Open consult chat',
@@ -12656,6 +12757,30 @@ const ZH_DICTIONARY: Dictionary = {
     usageCalendarFromLabel: '开始',
     usageCalendarToLabel: '结束',
     usagePeriodScopeCalendar: '{from} 至 {to}（越南时间，含首尾日）',
+    usagePresetToday: '今天',
+    usagePresetYesterday: '昨天',
+    usagePresetThisWeek: '本周',
+    usagePresetLastWeek: '上周',
+    usagePresetThisMonth: '本月',
+    usagePresetLastMonth: '上月',
+    usagePresetYear: '今年',
+    usagePresetAll: '全部',
+    usageCreditHeroKicker: '已扣积分',
+    usageCreditHeroHint: '已从店主钱包（教案、英语教练等）和 logo 扣除的积分。不是 API 费用。',
+    usageApiHeroKicker: 'API 未扣积分',
+    usageApiHeroHint: 'LLM、生图和向量的供应商估算费用（₫）。这些调用不从钱包扣积分。',
+    usageApiEmbedImageLine: '图片向量',
+    usageApiEmbedTextLine: '文本向量',
+    usageApiModelTableNote: '下方模型表是 LLM 和生图。向量已计入上方 API 合计，不在该表里。',
+    usageColYear: '年',
+    usageCreditTypeFromImage: '教案 — 从图片生成',
+    usageCreditTypeSlideVerify: '教案 — 检查幻灯片建议',
+    usageCreditTypeLessonSlides: '教案 — 生成课时幻灯片',
+    usageCreditTypeInfographic: '教案 — 信息图',
+    usageCreditTypeMonthlyCurriculum: '月套餐 — 教案',
+    usageCreditTypeEnglishLiveStart: '外语学习 — 开始直播课',
+    usageCreditTypeEnglishLiveUnlock: '外语学习 — 追加直播回合',
+    usageCreditTypeEnglishPreset: '外语学习 — 现成课',
     usageSectionCreditTitle: '扣除积分（钱包与店铺 logo）',
     usageSectionCreditIntro:
       '已记录的余额扣减：钱包流水（课程、English coach 等）与店铺 logo 规范化费用 — 与下方仅统计 API token 不同。',
@@ -12663,8 +12788,8 @@ const ZH_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '收件箱 LLM、Nano Banana 出图、图片/文本向量、从商品图推断面料等 — 按 usage 记录统计，不经上方钱包扣费路径。',
     tokenUsageIntro:
-      '{scope}的汇总。每一行表示在等待时间后通过 LLM 回复时使用的 API 模型。',
-    tokenUsageEmpty: '此期间尚无 LLM 调用记录。',
+      '范围 {scope}（越南时间）。黄色卡片是已扣积分。蓝色卡片是 API 费用估算，不从店铺钱包扣除。',
+    tokenUsageEmpty: '此期间尚无 API 调用。',
     tokenUsageColProvider: '提供商',
     tokenUsageColModel: '模型',
     tokenUsageColCalls: '调用次数',
@@ -12720,6 +12845,7 @@ const ZH_DICTIONARY: Dictionary = {
     usageCreditColSingle: '积分',
     usageLogoCreditTitle: 'Logo 规范化（店铺工作区）',
     usageLogoCreditIntro: '生成/编辑品牌 logo 时直接扣积分；不经过上方的消费流水表。',
+    usageLogoCreditCappedNote: '下表是最近的扣费。琥珀色卡片是所选时段的完整合计。',
     usageLogoCreditEmpty: '此期间没有产生扣费的 logo 规范化记录。',
     usageLogoColModel: '模型',
     usageLogoColStatus: '状态',
@@ -12840,6 +12966,12 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryStatusShown: '显示',
     inventoryStatusHidden: '隐藏',
     inventoryViewWeb: '查看网页',
+    inventoryViewDetail: '详情',
+    inventoryDetailTitle: '商品详情',
+    inventoryDetailBack: '返回列表',
+    inventoryDetailLoading: '正在加载商品信息…',
+    inventoryDetailFailed: '无法加载该商品。',
+    inventoryDetailEmbeddingOmitted: '图片和文本向量已保存，此页不展开这些向量。',
     inventoryEmptyCell: '—',
     inventoryClearanceBadge: '清仓库',
     inventoryGuestConsultLink: '打开咨询聊天',
@@ -16306,6 +16438,33 @@ const JA_DICTIONARY: Dictionary = {
     usageCalendarFromLabel: '開始',
     usageCalendarToLabel: '終了',
     usagePeriodScopeCalendar: '{from}〜{to}（ベトナム時間・両端含む）',
+    usagePresetToday: '今日',
+    usagePresetYesterday: '昨日',
+    usagePresetThisWeek: '今週',
+    usagePresetLastWeek: '先週',
+    usagePresetThisMonth: '今月',
+    usagePresetLastMonth: '先月',
+    usagePresetYear: '今年',
+    usagePresetAll: 'すべて',
+    usageCreditHeroKicker: 'クレジット控除済み',
+    usageCreditHeroHint:
+      '店主ウォレット（教材・英語コーチなど）とロゴから引いたクレジット。API 料金ではありません。',
+    usageApiHeroKicker: 'API（クレジット未控除）',
+    usageApiHeroHint:
+      'LLM・画像生成・埋め込みの推定費用（₫）。これらの呼び出しはウォレットから引きません。',
+    usageApiEmbedImageLine: '画像埋め込み',
+    usageApiEmbedTextLine: 'テキスト埋め込み',
+    usageApiModelTableNote:
+      '下のモデル表は LLM と画像生成です。埋め込みは上の API 合計に含まれ、この表には入りません。',
+    usageColYear: '年',
+    usageCreditTypeFromImage: '教材 — 写真から作成',
+    usageCreditTypeSlideVerify: '教材 — スライド案の確認',
+    usageCreditTypeLessonSlides: '教材 — 授業スライド作成',
+    usageCreditTypeInfographic: '教材 — インフォグラフィック',
+    usageCreditTypeMonthlyCurriculum: '月額 — 教材',
+    usageCreditTypeEnglishLiveStart: '語学 — ライブ開始',
+    usageCreditTypeEnglishLiveUnlock: '語学 — ライブ追加',
+    usageCreditTypeEnglishPreset: '語学 — 保存済みレッスン',
     usageSectionCreditTitle: 'クレジット控除（ウォレットとロゴ）',
     usageSectionCreditIntro:
       '残高からの控除として記録されるもの：ウォレット台帳（カリキュラム、English coach など）と店舗ロゴの正規化 — 下の API トークン集計とは別です。',
@@ -16313,8 +16472,8 @@ const JA_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '受信トレイ LLM、Nano Banana 画像、画像/テキスト埋め込み、商品画像からの素材推定など — usage ログに基づき、上のウォレット経路とは別に集計します。',
     tokenUsageIntro:
-      '{scope}の集計です。各行は待機時間後に LLM で返信したときの API モデルです。',
-    tokenUsageEmpty: 'この期間に LLM 呼び出しはまだありません。',
+      '期間 {scope}（ベトナム時間）。黄色は控除済みクレジット。青は API 費用の見積もりで、ショップのウォレットからは引きません。',
+    tokenUsageEmpty: 'この期間に API 呼び出しはまだありません。',
     tokenUsageColProvider: 'プロバイダー',
     tokenUsageColModel: 'モデル',
     tokenUsageColCalls: '呼び出し回数',
@@ -16374,6 +16533,8 @@ const JA_DICTIONARY: Dictionary = {
     usageLogoCreditTitle: 'ロゴ正規化（ショップワークスペース）',
     usageLogoCreditIntro:
       'ブランドロゴの生成・編集時に直接クレジットを控除します。上の spend 台帳とは経路が異なります。',
+    usageLogoCreditCappedNote:
+      '下の表は直近の分です。黄色いカードがこの期間の合計です。',
     usageLogoCreditEmpty: 'この期間に控除のあるロゴ正規化はありません。',
     usageLogoColModel: 'モデル',
     usageLogoColStatus: '状態',
@@ -16496,6 +16657,12 @@ const JA_DICTIONARY: Dictionary = {
     inventoryStatusShown: '表示',
     inventoryStatusHidden: '非表示',
     inventoryViewWeb: 'サイトを見る',
+    inventoryViewDetail: '詳細',
+    inventoryDetailTitle: '商品詳細',
+    inventoryDetailBack: '一覧に戻る',
+    inventoryDetailLoading: '商品情報を読み込み中…',
+    inventoryDetailFailed: '商品情報を読み込めませんでした。',
+    inventoryDetailEmbeddingOmitted: '画像とテキストの埋め込みベクトルは保存されていますが、このページには表示しません。',
     inventoryEmptyCell: '—',
     inventoryClearanceBadge: '清算在庫',
     inventoryGuestConsultLink: '相談チャットを開く',
@@ -20012,6 +20179,33 @@ const KO_DICTIONARY: Dictionary = {
     usageCalendarFromLabel: '시작',
     usageCalendarToLabel: '종료',
     usagePeriodScopeCalendar: '{from}~{to}(베트남 시간, 양끝 포함)',
+    usagePresetToday: '오늘',
+    usagePresetYesterday: '어제',
+    usagePresetThisWeek: '이번 주',
+    usagePresetLastWeek: '지난 주',
+    usagePresetThisMonth: '이번 달',
+    usagePresetLastMonth: '지난 달',
+    usagePresetYear: '올해',
+    usagePresetAll: '전체',
+    usageCreditHeroKicker: '차감된 크레딧',
+    usageCreditHeroHint:
+      '샵 주인 지갑(교재, 영어 코치 등)과 로고에서 뺀 크레딧입니다. API 요금이 아닙니다.',
+    usageApiHeroKicker: '크레딧 미차감 API',
+    usageApiHeroHint:
+      'LLM, 이미지 생성, 임베딩의 공급자 추정 비용(₫). 이 호출은 지갑에서 빼지 않습니다.',
+    usageApiEmbedImageLine: '이미지 임베딩',
+    usageApiEmbedTextLine: '텍스트 임베딩',
+    usageApiModelTableNote:
+      '아래 모델 표는 LLM과 이미지 생성입니다. 임베딩은 위 API 합계에 포함되며 이 표에는 없습니다.',
+    usageColYear: '연도',
+    usageCreditTypeFromImage: '교재 — 사진으로 만들기',
+    usageCreditTypeSlideVerify: '교재 — 슬라이드 제안 확인',
+    usageCreditTypeLessonSlides: '교재 — 수업 슬라이드',
+    usageCreditTypeInfographic: '교재 — 인포그래픽',
+    usageCreditTypeMonthlyCurriculum: '월 이용 — 교재',
+    usageCreditTypeEnglishLiveStart: '외국어 — 라이브 시작',
+    usageCreditTypeEnglishLiveUnlock: '외국어 — 라이브 추가',
+    usageCreditTypeEnglishPreset: '외국어 — 저장된 레슨',
     usageSectionCreditTitle: '크레딧 차감(지갑·로고)',
     usageSectionCreditIntro:
       '잔액에서 차감된 기록: 지갑 원장(커리큘럼, English coach 등)과 매장 로고 정규화 — 아래 API 토큰 집계와는 별도입니다.',
@@ -20019,8 +20213,8 @@ const KO_DICTIONARY: Dictionary = {
     usageSectionApiIntro:
       '받은편지함 LLM, Nano Banana 이미지, 이미지/텍스트 임베딩, 상품 사진에서 소재 추론 등 — usage 로그 기준이며 위 지갑 차감과는 다릅니다.',
     tokenUsageIntro:
-      '{scope} 요약입니다. 각 행은 대기 시간 후 LLM으로 답할 때 사용한 API 모델입니다.',
-    tokenUsageEmpty: '이 기간에 LLM 호출이 없습니다.',
+      '기간 {scope} (베트남 시간). 노란 카드는 이미 차감된 크레딧입니다. 파란 카드는 API 비용 추정이며 샵 지갑에서 빼지 않습니다.',
+    tokenUsageEmpty: '이 기간에 API 호출이 없습니다.',
     tokenUsageColProvider: '제공자',
     tokenUsageColModel: '모델',
     tokenUsageColCalls: '호출 수',
@@ -20078,6 +20272,8 @@ const KO_DICTIONARY: Dictionary = {
     usageLogoCreditTitle: '로고 정규화(샵 워크스페이스)',
     usageLogoCreditIntro:
       '브랜드 로고 생성/편집 시 직접 크레딧을 차감합니다. 위 spend 원장과는 경로가 다릅니다.',
+    usageLogoCreditCappedNote:
+      '아래 표는 최근 건입니다. 노란 카드가 이 기간의 전체 합계입니다.',
     usageLogoCreditEmpty: '이 기간에 차감이 있는 로고 정규화가 없습니다.',
     usageLogoColModel: '모델',
     usageLogoColStatus: '상태',
@@ -20199,6 +20395,12 @@ const KO_DICTIONARY: Dictionary = {
     inventoryStatusShown: '표시',
     inventoryStatusHidden: '숨김',
     inventoryViewWeb: '웹 보기',
+    inventoryViewDetail: '상세',
+    inventoryDetailTitle: '상품 상세',
+    inventoryDetailBack: '목록으로',
+    inventoryDetailLoading: '상품 정보를 불러오는 중…',
+    inventoryDetailFailed: '상품 정보를 불러오지 못했습니다.',
+    inventoryDetailEmbeddingOmitted: '이미지와 텍스트 임베딩 벡터는 저장되어 있으며 이 페이지에는 출력하지 않습니다.',
     inventoryEmptyCell: '—',
     inventoryClearanceBadge: '클리어런스',
     inventoryGuestConsultLink: '상담 채팅 열기',

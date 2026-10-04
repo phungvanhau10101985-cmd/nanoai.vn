@@ -143,6 +143,7 @@ ${PW_SHOP_LIVE_UI_OFF_FN};
 ${PW_SHOP_NATIVE_TRACK_JS};
 var API=${JSON.stringify(api)};
 var LISTING_BATCH=${PW_LISTING_BATCH_SIZE};
+var RELATED_ALL_BATCH=48;
 var PRODUCTS_PATH=${JSON.stringify(productsPath)};
 var DETAIL_PREFIX=${JSON.stringify(detailPrefix)};
 var PRODUCT_API_PREFIX=${JSON.stringify(productApiPrefix)};
@@ -218,7 +219,18 @@ function isRelated(el){
   return el.getAttribute('data-pw-related')==='1'||el.getAttribute('data-pw-grid-kind')==='related';
 }
 function currentProductId(el){
-  return String((el&&el.getAttribute('data-exclude'))||document.body.getAttribute('data-inventory-id')||'').trim();
+  var id=String((el&&el.getAttribute('data-exclude'))||'').trim();
+  if(id)return id;
+  id=String((document.body&&document.body.getAttribute('data-inventory-id'))||'').trim();
+  if(id)return id;
+  var info=document.querySelector('[data-pw-region="pdp-info"]');
+  if(info){
+    id=String(info.getAttribute('data-inventory-id')||'').trim();
+    if(id)return id;
+    var nested=info.querySelector('[data-inventory-id]');
+    if(nested)id=String(nested.getAttribute('data-inventory-id')||'').trim();
+  }
+  return id;
 }
 function renderRelatedCard(p){
   var id=String(p.id||'').trim();
@@ -271,7 +283,7 @@ function ensureGridMore(el){
     more.innerHTML='<span class="pw-grid-more-icon" aria-hidden="true">↻</span> '+esc(COPY.loadMore);
     actions.appendChild(more);
   }
-  if(categoryListingEl(el)){
+  if(categoryListingEl(el)||relatedAllListing(el)){
     dropListingSeeAll(el);
     return more;
   }
@@ -281,7 +293,7 @@ function ensureGridMore(el){
     see.className=el.getAttribute('data-pw-related')==='1'?'pw-related-all':'pw-grid-all';
     see.setAttribute('data-pw-el','section-more');
     see.textContent=COPY.seeAll;
-    var listing=el.getAttribute('data-pw-listing-href')||PRODUCTS_PATH||'#';
+    var listing=el.getAttribute('data-more-href')||el.getAttribute('data-pw-listing-href')||PRODUCTS_PATH||'#';
     see.setAttribute('href',listing);
     actions.appendChild(see);
   }
@@ -346,7 +358,20 @@ function categoryListingEl(el){
   var root=document.querySelector('[data-pw-inline-visual-root]');
   return !!(root&&root.getAttribute('data-pw-listing-category')==='1');
 }
+function relatedToFromUrl(){
+  try{
+    return String(new URLSearchParams(location.search||'').get('relatedTo')||'').trim();
+  }catch(e){return '';}
+}
+function relatedAllListing(el){
+  if(!el||isRelated(el))return false;
+  if(el.getAttribute('data-pw-personalize'))return false;
+  if(el.getAttribute('data-pw-featured-categories')==='1'||el.getAttribute('data-pw-grid-kind')==='featured-categories')return false;
+  if(el.getAttribute('data-pw-outfit')==='1'||el.getAttribute('data-pw-grid-kind')==='outfit')return false;
+  return !!relatedToFromUrl();
+}
 function catalogPageSize(el){
+  if(relatedAllListing(el))return RELATED_ALL_BATCH;
   if(categoryListingEl(el))return LISTING_BATCH;
   return pwGridPageSize(el);
 }
@@ -385,7 +410,11 @@ function queryFor(el,offset,limit){
   if(p.min_price)qstr+='&min_price='+encodeURIComponent(p.min_price);
   if(p.max_price)qstr+='&max_price='+encodeURIComponent(p.max_price);
   if(sort==='random'&&p.r)qstr+='&r='+encodeURIComponent(p.r);
-  if(listingCatalogEl(el))qstr+='&facets=1';
+  if(relatedAllListing(el)){
+    var rel=relatedToFromUrl();
+    if(rel)qstr+='&relatedTo='+encodeURIComponent(rel);
+  }
+  if(listingCatalogEl(el)||relatedAllListing(el))qstr+='&facets=1';
   return qstr;
 }
 function listingFilterBar(){
@@ -750,7 +779,7 @@ function finishListingPaint(el,j,append){
   releaseListingGate();
   holdListingPending(el,false);
 }
-function loadGridPage(el,append){
+function loadGridPage(el,append,attempt){
   if(pwShopLiveUiOff())return;
   if(el.getAttribute('data-pw-personalize'))return;
   if(el.getAttribute('data-pw-featured-categories')==='1'||el.getAttribute('data-pw-grid-kind')==='featured-categories')return;
@@ -761,7 +790,17 @@ function loadGridPage(el,append){
   if(!grid)return;
   var gen=listingGenCurrent(el);
   st.loading=true;
+  function retryRelated(){
+    if(!isRelated(el)||append||(attempt||0)>=1||!el.isConnected)return false;
+    st.loading=false;
+    window.setTimeout(function(){
+      if(!el.isConnected||listingGenCurrent(el)!==gen)return;
+      loadGridPage(el,false,1);
+    },450);
+    return true;
+  }
   fetchJsonOnce(API+queryFor(el,st.offset,st.pageSize)).then(function(res){
+    if(!el.isConnected)return;
     if(!append&&listingGenCurrent(el)!==gen)return;
     st.loading=false;
     var products=(res.j&&res.j.products)||[];
@@ -770,6 +809,7 @@ function loadGridPage(el,append){
       if(exclude)products=products.filter(function(p){return String(p.id||'')!==exclude;});
     }
     if(!res.ok){
+      if(retryRelated())return;
       if(!append){
         grid.innerHTML='';
         if(empty){empty.hidden=false;empty.textContent=COPY.error+' ('+res.status+')';}
@@ -794,7 +834,7 @@ function loadGridPage(el,append){
     }
     if(empty)empty.hidden=true;
     appendCards(el,products,!append);
-    st.offset+=products.length;
+    st.offset+=relatedAllListing(el)?st.pageSize:products.length;
     st.settled=true;st.hasMore=gridHasMore(res.j,st.offset);
     paintMore(el);
     revealLiveCatalog(el);
@@ -802,8 +842,10 @@ function loadGridPage(el,append){
     if(!append)pwShopTrack('view_item_list',{products:pwShopTrackProducts(products)});
     finishListingPaint(el,res.j,append);
   }).catch(function(){
+    if(!el.isConnected)return;
     if(!append&&listingGenCurrent(el)!==gen)return;
     st.loading=false;
+    if(retryRelated())return;
     holdListingPending(el,false);
     releaseListingGate();
     if(!append){
@@ -887,36 +929,49 @@ ${PW_SITE_SALE_TICK_CHIPS_JS}
 function tickSaleChips(){
   pwSaleTickChips(COPY.remaining,COPY.startsAfter,COPY.flashRemaining,COPY.countdownStarts,COPY.countdownLeft);
 }
+function bootCatalogHost(el,fromVisualReady){
+  if(!el||!el.isConnected)return;
+  if(fromVisualReady){
+    if(el.getAttribute('data-pw-personalize'))return;
+    if(el.getAttribute('data-pw-featured-categories')==='1'||el.getAttribute('data-pw-grid-kind')==='featured-categories')return;
+    if(el.getAttribute('data-pw-outfit')==='1'||el.getAttribute('data-pw-grid-kind')==='outfit')return;
+    if(el._pwGrid&&(el._pwGrid.loading||el._pwGrid.settled))return;
+  }
+  var grid=el.querySelector('[data-pw-grid]');
+  if(grid&&el.getAttribute('data-pw-live-products')==='loading'&&!el._pwGrid)grid.innerHTML='';
+  if(catalogAlreadySeeded(el)){
+    var n=grid?grid.querySelectorAll('[data-inventory-id]').length:0;
+    var page=catalogPageSize(el);
+    var listing=categoryListingEl(el);
+    var full=n>=page;
+    el._pwGrid={offset:n,pageSize:page,hasMore:listing?full:true,loading:false,settled:listing?!full:false};
+    el.hidden=false;
+    revealLiveCatalog(el);
+    paintMore(el);
+    /*
+     * The live document has just loaded these cards from the server after the
+     * site/inventory cache. Re-fetching the same page here competes with PDP
+     * navigation and chrome hydration for no first-paint benefit. Listings
+     * still refresh because their response also carries dependent facets;
+     * home/catalog grids keep the server-bound cards and fetch only when the
+     * customer explicitly asks for another page.
+     */
+    if(listingCatalogEl(el))refreshSeededCatalog(el);
+    return;
+  }
+  if(!(grid&&grid.children.length)) el.hidden=true;
+  hydrate(el);
+}
+function bootCatalogHosts(fromVisualReady){
+  document.querySelectorAll('[data-pw-catalog],[data-pw-related]').forEach(function(el){
+    bootCatalogHost(el,fromVisualReady);
+  });
+}
 function run(){
   ensureStyles();
   tickSaleChips();
   if(!window.__pwSaleChipTimer)window.__pwSaleChipTimer=setInterval(tickSaleChips,1000);
-  document.querySelectorAll('[data-pw-catalog],[data-pw-related]').forEach(function(el){
-    var grid=el.querySelector('[data-pw-grid]');
-    if(grid&&el.getAttribute('data-pw-live-products')==='loading')grid.innerHTML='';
-    if(catalogAlreadySeeded(el)){
-      var n=grid?grid.querySelectorAll('[data-inventory-id]').length:0;
-      var page=catalogPageSize(el);
-      var listing=categoryListingEl(el);
-      var full=n>=page;
-      el._pwGrid={offset:n,pageSize:page,hasMore:listing?full:true,loading:false,settled:listing?!full:false};
-      el.hidden=false;
-      revealLiveCatalog(el);
-      paintMore(el);
-      /*
-       * The live document has just loaded these cards from the server after the
-       * site/inventory cache. Re-fetching the same page here competes with PDP
-       * navigation and chrome hydration for no first-paint benefit. Listings
-       * still refresh because their response also carries dependent facets;
-       * home/catalog grids keep the server-bound cards and fetch only when the
-       * customer explicitly asks for another page.
-       */
-      if(listingCatalogEl(el))refreshSeededCatalog(el);
-      return;
-    }
-    if(!(grid&&grid.children.length)) el.hidden=true;
-    hydrate(el);
-  });
+  bootCatalogHosts(false);
   bindListingFilters();
   window.__pwBindListingFilters=bindListingFilters;
   if(!document.documentElement.getAttribute('data-pw-listing-gate-timer')){
@@ -929,7 +984,11 @@ function run(){
       if(document.documentElement.getAttribute('data-pw-listing-filters-ready')==='1')return;
       releaseListingGate();
     },4000);
-    document.addEventListener('pw-shop-visual-ready',function(){ bindListingFilters(); });
+    document.addEventListener('pw-shop-visual-ready',function(){
+      if(pwShopLiveUiOff())return;
+      bootCatalogHosts(true);
+      bindListingFilters();
+    });
   }
   if(!document.documentElement.getAttribute('data-pw-grid-more-bound')){
     document.documentElement.setAttribute('data-pw-grid-more-bound','1');

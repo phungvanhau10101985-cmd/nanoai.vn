@@ -28,6 +28,7 @@ test('related factory stamps 188-style contract', () => {
   assert.match(html, /data-pw-grid-more/)
   assert.match(html, /data-pw-el="section-more"/)
   assert.match(html, /Xem tất cả các nhóm/)
+  assert.match(html, /relatedTo=22222222-2222-4222-8222-222222222222/)
   assert.doesNotMatch(html, /data-pw-el="card-cart"/)
   assert.doesNotMatch(html, /data-pw-el="card-buy"/)
   assert.match(html, /pw-rec-fav/)
@@ -73,7 +74,15 @@ test('related live cards keep a square media slot and do not leak name as img al
 
 test('related listing href prefers category path', () => {
   assert.match(relatedListingHref({ siteSlug: 'demo-shop', categoryPath: 'ao/ao-thun' }), /ao\/ao-thun/)
+  assert.doesNotMatch(relatedListingHref({ siteSlug: 'demo-shop', categoryPath: 'ao/ao-thun' }), /relatedTo=/)
   assert.match(relatedListingHref({ siteSlug: 'demo-shop' }), /\/products/)
+  const all = relatedListingHref({
+    siteSlug: 'demo-shop',
+    categoryPath: 'ao/ao-thun',
+    inventoryId: '22222222-2222-4222-8222-222222222222',
+  })
+  assert.match(all, /ao\/ao-thun/)
+  assert.match(all, /relatedTo=22222222-2222-4222-8222-222222222222/)
 })
 
 test('isRelatedCatalogOpenTag ignores recommended and added catalogs', () => {

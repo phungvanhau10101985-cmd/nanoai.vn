@@ -4,9 +4,13 @@ import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
+  getIndustrialShopTemplateSampleBannerImages,
+  getIndustrialShopTemplateSampleCategories,
+  getIndustrialShopTemplateSampleProducts,
   getShopTemplateSampleBannerImages,
   getShopTemplateSampleCategories,
   getShopTemplateSampleProducts,
+  type ShopTemplateSampleCategory,
   type ShopTemplateSampleProduct,
 } from '@/lib/partner-website/template/shop-template-sample-products'
 
@@ -67,9 +71,9 @@ function sampleCardHtml(input: {
 function paintPlaceholderCards(
   html: string,
   locale: WebLocale,
-  opts: { rec?: boolean; badge?: string; sale?: boolean; offset?: number }
+  opts: { rec?: boolean; badge?: string; sale?: boolean; offset?: number; products?: ShopTemplateSampleProduct[] }
 ): string {
-  const products = getShopTemplateSampleProducts(locale)
+  const products = opts.products || getShopTemplateSampleProducts(locale)
   const copy = getPartnerSiteShopCopy(locale)
   let index = opts.offset || 0
   return html.replace(
@@ -95,7 +99,7 @@ function paintSectionCards(
   html: string,
   locale: WebLocale,
   attr: string,
-  opts: { rec?: boolean; badge?: string; sale?: boolean; offset?: number }
+  opts: { rec?: boolean; badge?: string; sale?: boolean; offset?: number; products?: ShopTemplateSampleProduct[] }
 ): string {
   const re = new RegExp(`(<section\\b[^>]*${attr}[^>]*>)([\\s\\S]*?)(<\\/section>)`, 'i')
   return html.replace(re, (_full, open: string, inner: string, close: string) => {
@@ -103,13 +107,13 @@ function paintSectionCards(
   })
 }
 
-function paintFeaturedTiles(html: string, locale: WebLocale): string {
-  const cats = getShopTemplateSampleCategories(locale)
-  if (!cats.length) return html
+function paintFeaturedTiles(html: string, locale: WebLocale, cats?: ShopTemplateSampleCategory[]): string {
+  const tiles = cats || getShopTemplateSampleCategories(locale)
+  if (!tiles.length) return html
   let index = 0
   const next = html.replace(/<a\b([^>]*\bpw-featured-cat-card\b[^>]*)>([\s\S]*?)<\/a>/gi, (_full, attrs: string) => {
-    if (index >= cats.length) return ''
-    const cat = cats[index]!
+    if (index >= tiles.length) return ''
+    const cat = tiles[index]!
     index += 1
     const cleaned = String(attrs || '').replace(/\sdata-pw-grid-placeholder=(["'])[^"']*\1/gi, '')
     return `<a${cleaned}>
@@ -126,8 +130,10 @@ function paintFeaturedTiles(html: string, locale: WebLocale): string {
   )
 }
 
-function paintBannerImages(html: string): string {
-  const images = getShopTemplateSampleBannerImages()
+function paintBannerImages(
+  html: string,
+  images = getShopTemplateSampleBannerImages()
+): string {
   const order = ['birthday', 'sale', 'warehouse', 'regular'] as const
   let index = 0
   return html.replace(/<img\b([^>]*\bdata-pw-banner-placeholder=["']1["'][^>]*)>/gi, (_full, imgAttrs: string) => {
@@ -157,23 +163,30 @@ function stampNavLive(html: string): string {
 /** Gallery `/mau-giao-dien`: fill seed placeholders so the sample looks like a live shop. */
 export function paintShopTemplateSamplePreviewInHtml(html: string, locale: WebLocale): string {
   if (!html.trim()) return html
+  const industrial = /\bpw-industrial-home\b/.test(html)
+  const products = industrial ? getIndustrialShopTemplateSampleProducts(locale) : undefined
+  const categories = industrial ? getIndustrialShopTemplateSampleCategories(locale) : undefined
+  const banners = industrial ? getIndustrialShopTemplateSampleBannerImages() : undefined
   let out = stampShopTemplateSamplePreviewInHtml(html)
   out = paintSectionCards(out, locale, 'data-pw-personalize=["\']flash-sale["\']', {
     rec: true,
     offset: 0,
+    products,
   })
   out = paintSectionCards(out, locale, 'data-pw-personalize=["\']recommended["\']', {
     rec: true,
     badge: locale === 'vi' ? 'Đề xuất' : locale === 'zh' ? '推荐' : locale === 'ja' ? 'おすすめ' : locale === 'ko' ? '추천' : 'For you',
     offset: 4,
+    products,
   })
   out = paintSectionCards(out, locale, 'data-sale=["\']1["\']', {
     sale: true,
     offset: 2,
+    products,
   })
-  out = paintPlaceholderCards(out, locale, { offset: 1 })
-  out = paintFeaturedTiles(out, locale)
-  out = paintBannerImages(out)
+  out = paintPlaceholderCards(out, locale, { offset: 1, products })
+  out = paintFeaturedTiles(out, locale, categories)
+  out = paintBannerImages(out, banners)
   out = stampNavLive(out)
   return out
 }

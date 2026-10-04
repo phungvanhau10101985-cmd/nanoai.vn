@@ -7,13 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
@@ -61,10 +54,12 @@ import {
   type PartnerTextEmbedUsageDetailRow,
   type PartnerTextEmbedUsageSummaryRow,
   type PartnerAiUsageCostBreakdown,
-  type PartnerAiUsagePeriod,
+  type PartnerAiUsagePreset,
   type PartnerAiUsageQuery,
 } from '@/app/dashboard/messaging/actions'
 import { PartnerInventoryEmbeddingErrorsPanel } from '@/app/dashboard/messaging/partner-inventory-embedding-errors-panel'
+import { PartnerInventoryDetailPage } from '@/app/dashboard/messaging/partner-inventory-detail-view'
+import { InventoryAdminTableScroll } from '@/app/dashboard/messaging/partner-inventory-list-scroll'
 import { buildGuestConsultChatAbsoluteUrl } from '@/lib/messaging/build-guest-consult-chat-link'
 import { inventoryAdminWebHref } from '@/lib/messaging/inventory-admin-web-href'
 import { inventoryFieldToJsonCellText } from '@/lib/messaging/inventory-admin-json-cell'
@@ -79,6 +74,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
 import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
+import { resolvePartnerAiUsagePresetRange } from '@/app/admin/api-stats/ict-date'
 import { SettingsDataRoleBox } from '@/components/messaging/settings-data-role'
 
 type AiT = Dictionary['partnerMessagingAi']
@@ -130,15 +126,6 @@ function parseStockQtyInput(raw: string): string {
 const tokenFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
 const creditFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 })
 const vndFmt = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 })
-
-function ictYmdToday(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
 
 function dateTimeForLocale(iso: string, locale: WebLocale): string {
   const tag =
@@ -197,6 +184,76 @@ function tokenUsageKindStatLabel(kind: string | null, t: AiT): string {
   if (kind === 'image_real_use') return t.usageImageGenKindRealUse
   if (kind === 'image_landing_material') return t.usageTokenKindLandingImage
   return kind
+}
+
+function formatIctDmy(ymd: string): string {
+  const [y, m, d] = ymd.split('-')
+  if (!y || !m || !d) return ymd
+  return `${d}/${m}/${y}`
+}
+
+const USAGE_PRESETS: PartnerAiUsagePreset[] = [
+  'today',
+  'yesterday',
+  'this_week',
+  'last_week',
+  'this_month',
+  'last_month',
+  'this_year',
+  'all',
+]
+
+function creditChargeLabel(chargeType: string, t: AiT): string {
+  if (chargeType === 'curriculum_from_image') return t.usageCreditTypeFromImage
+  if (chargeType === 'curriculum_slide_proposal_verify') return t.usageCreditTypeSlideVerify
+  if (chargeType === 'curriculum_lesson_slide_generate') return t.usageCreditTypeLessonSlides
+  if (chargeType === 'curriculum_slide_infographic') return t.usageCreditTypeInfographic
+  if (chargeType === 'monthly_service_curriculum') return t.usageCreditTypeMonthlyCurriculum
+  if (chargeType === 'english_coach_live_start') return t.usageCreditTypeEnglishLiveStart
+  if (chargeType === 'english_coach_live_unlock') return t.usageCreditTypeEnglishLiveUnlock
+  if (chargeType === 'english_coach_preset_start') return t.usageCreditTypeEnglishPreset
+  return (chargeType || '—').replace(/_/g, ' ')
+}
+
+function usagePresetLabel(preset: PartnerAiUsagePreset, t: AiT): string {
+  if (preset === 'today') return t.usagePresetToday
+  if (preset === 'yesterday') return t.usagePresetYesterday
+  if (preset === 'this_week') return t.usagePresetThisWeek
+  if (preset === 'last_week') return t.usagePresetLastWeek
+  if (preset === 'this_month') return t.usagePresetThisMonth
+  if (preset === 'last_month') return t.usagePresetLastMonth
+  if (preset === 'this_year') return t.usagePresetYear
+  return t.usagePresetAll
+}
+
+function UsageMeterList({
+  lines,
+  total,
+  formatAmount,
+}: {
+  lines: Array<{ key: string; label: string; amount: number }>
+  total: number
+  formatAmount: (n: number) => string
+}) {
+  if (lines.length === 0) return null
+  return (
+    <ul className="mt-3 space-y-2.5">
+      {lines.map((line) => {
+        const pct = total > 0 ? Math.min(100, Math.max(line.amount > 0 ? 3 : 0, (line.amount / total) * 100)) : 0
+        return (
+          <li key={line.key}>
+            <div className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="min-w-0 truncate">{line.label}</span>
+              <span className="shrink-0 font-medium tabular-nums">{formatAmount(line.amount)}</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
+              <div className="h-full rounded-full bg-current opacity-80" style={{ width: `${pct}%` }} />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 function formatUsageCostShare(part: number, whole: number): string {
@@ -331,14 +388,11 @@ export function PartnerAiSettingsPanel({
   const [tokenUsageKindRows, setTokenUsageKindRows] = useState<PartnerAiTokenUsageKindStatRow[]>([])
   const [tokenDailyRows, setTokenDailyRows] = useState<PartnerAiTokenDailyStatRow[]>([])
   const [imageGenRows, setImageGenRows] = useState<PartnerAiImageGenUsageStatRow[]>([])
-  const [usageRangeMode, setUsageRangeMode] = useState<'rolling' | 'calendar'>('rolling')
-  const [usagePeriod, setUsagePeriod] = useState<PartnerAiUsagePeriod>('month')
-  /** Empty until client mount so SSR and first client paint match (avoids UTC-day hydration mismatch). */
-  const [usageCalendarFrom, setUsageCalendarFrom] = useState('')
-  const [usageCalendarTo, setUsageCalendarTo] = useState('')
-  const [usageTodayUtc, setUsageTodayUtc] = useState('')
+  const [usagePreset, setUsagePreset] = useState<PartnerAiUsagePreset>('this_month')
   const [tokenDetailRows, setTokenDetailRows] = useState<PartnerAiTokenUsageDetailRowWithCostEstimate[]>([])
   const [tokenUsageEstimatedCostVndTotal, setTokenUsageEstimatedCostVndTotal] = useState(0)
+  const [imageEmbedEstimatedCostVnd, setImageEmbedEstimatedCostVnd] = useState(0)
+  const [textEmbedEstimatedCostVnd, setTextEmbedEstimatedCostVnd] = useState(0)
   const [tokenUsageCostBreakdown, setTokenUsageCostBreakdown] = useState<PartnerAiUsageCostBreakdown | null>(
     null
   )
@@ -347,6 +401,7 @@ export function PartnerAiSettingsPanel({
   const [creditSummaryRows, setCreditSummaryRows] = useState<OwnerCreditEventSummaryRow[]>([])
   const [creditDetailRows, setCreditDetailRows] = useState<OwnerCreditEventDetailRow[]>([])
   const [logoCreditRows, setLogoCreditRows] = useState<PartnerLogoCreditRow[]>([])
+  const [logoCreditChargedTotal, setLogoCreditChargedTotal] = useState(0)
   const [usageOwnerLinked, setUsageOwnerLinked] = useState(true)
   const [imageEmbedSummaryRows, setImageEmbedSummaryRows] = useState<PartnerImageEmbedUsageSummaryRow[]>([])
   const [imageEmbedDetailRows, setImageEmbedDetailRows] = useState<PartnerImageEmbedUsageDetailRow[]>([])
@@ -371,12 +426,6 @@ export function PartnerAiSettingsPanel({
       panelMode === 'inventory-only' ? 'inv' : panelMode === 'usage-only' ? 'usage' : 'settings'
     )
   }, [partnerId, panelMode])
-  useEffect(() => {
-    const d = ictYmdToday()
-    setUsageCalendarFrom(d)
-    setUsageCalendarTo(d)
-    setUsageTodayUtc(d)
-  }, [])
   /** Tránh chạy song song với nút «Đồng bộ ngay». */
   const manualEmbedLockRef = useRef(false)
   /** Đồng bộ ref mỗi render — không đưa vào deps của useEffect auto-sync (tránh cắt chuỗi lô khi pending đổi). */
@@ -418,36 +467,36 @@ export function PartnerAiSettingsPanel({
         setCreditSummaryRows([])
         setCreditDetailRows([])
         setLogoCreditRows([])
+        setLogoCreditChargedTotal(0)
         setUsageOwnerLinked(true)
         setImageEmbedSummaryRows([])
         setImageEmbedDetailRows([])
         setTextEmbedSummaryRows([])
         setTextEmbedDetailRows([])
+        setImageEmbedEstimatedCostVnd(0)
+        setTextEmbedEstimatedCostVnd(0)
       } else {
         setTokenDetailRows(analyticsRes.tokenDetails)
         setTokenDetailsEstimatedCostVndTotal(analyticsRes.tokenDetailsEstimatedCostVndTotal ?? 0)
         setCreditSummaryRows(analyticsRes.creditSummaries)
         setCreditDetailRows(analyticsRes.creditDetails)
         setLogoCreditRows(analyticsRes.logoCreditRows)
+        setLogoCreditChargedTotal(analyticsRes.logoCreditChargedTotal ?? 0)
         setUsageOwnerLinked(analyticsRes.ownerAccountLinked)
         setImageEmbedSummaryRows(analyticsRes.imageEmbedSummaries)
         setImageEmbedDetailRows(analyticsRes.imageEmbedDetails)
         setTextEmbedSummaryRows(analyticsRes.textEmbedSummaries ?? [])
         setTextEmbedDetailRows(analyticsRes.textEmbedDetails ?? [])
+        setImageEmbedEstimatedCostVnd(analyticsRes.imageEmbedEstimatedCostVnd ?? 0)
+        setTextEmbedEstimatedCostVnd(analyticsRes.textEmbedEstimatedCostVnd ?? 0)
       }
     },
     [partnerId, t.loadError, toast]
   )
 
   /** Refs so `load` does not depend on usage-tab filters — avoids extra full reload on mount + race where usage await skipped applying bundle inventory. */
-  const usageRangeModeRef = useRef(usageRangeMode)
-  const usagePeriodRef = useRef(usagePeriod)
-  const usageCalendarFromRef = useRef(usageCalendarFrom)
-  const usageCalendarToRef = useRef(usageCalendarTo)
-  usageRangeModeRef.current = usageRangeMode
-  usagePeriodRef.current = usagePeriod
-  usageCalendarFromRef.current = usageCalendarFrom
-  usageCalendarToRef.current = usageCalendarTo
+  const usagePresetRef = useRef(usagePreset)
+  usagePresetRef.current = usagePreset
 
   const load = useCallback((): Promise<void> => {
     const seq = ++loadSeqRef.current
@@ -532,16 +581,7 @@ export function PartnerAiSettingsPanel({
         }
 
         if (needUsage) {
-          const mode = usageRangeModeRef.current
-          const usageQuery: PartnerAiUsageQuery =
-            mode === 'rolling'
-              ? { type: 'rolling', period: usagePeriodRef.current }
-              : {
-                  type: 'calendar',
-                  fromDayUtc: usageCalendarFromRef.current || ictYmdToday(),
-                  toDayUtc: usageCalendarToRef.current || ictYmdToday(),
-                }
-          await loadUsageAnalyticsWithSeq(seq, usageQuery)
+          await loadUsageAnalyticsWithSeq(seq, { type: 'preset', preset: usagePresetRef.current })
         }
       } catch (err) {
         if (seq !== loadSeqRef.current) return
@@ -738,15 +778,103 @@ export function PartnerAiSettingsPanel({
   }, [partnerId])
 
   const usageScopeLabel = useMemo(() => {
-    if (usageRangeMode === 'calendar') {
-      return t.usagePeriodScopeCalendar
-        .replace('{from}', usageCalendarFrom)
-        .replace('{to}', usageCalendarTo)
+    const range = resolvePartnerAiUsagePresetRange(usagePreset)
+    if (!range.fromDay || !range.toDay) return t.usagePresetAll
+    if (range.fromDay === range.toDay) return formatIctDmy(range.fromDay)
+    return `${formatIctDmy(range.fromDay)} – ${formatIctDmy(range.toDay)}`
+  }, [t.usagePresetAll, usagePreset])
+
+  const creditLines = useMemo(() => {
+    const lines = creditSummaryRows.map((row) => ({
+      key: row.charge_type || '(empty)',
+      label: creditChargeLabel(row.charge_type || '', t),
+      amount: row.sum_amount,
+    }))
+    const logoShown = logoCreditRows.reduce((sum, row) => sum + row.charged_credits, 0)
+    const logo = logoCreditChargedTotal > 0 ? logoCreditChargedTotal : logoShown
+    if (logo > 0) {
+      lines.push({ key: 'logo', label: t.usageLogoCreditTitle, amount: logo })
     }
-    if (usagePeriod === 'day') return t.usagePeriodScopeDay
-    if (usagePeriod === 'week') return t.usagePeriodScopeWeek
-    return t.usagePeriodScopeMonth
-  }, [t, usageRangeMode, usageCalendarFrom, usageCalendarTo, usagePeriod])
+    return lines.sort((a, b) => b.amount - a.amount)
+  }, [creditSummaryRows, logoCreditChargedTotal, logoCreditRows, t])
+  const creditTotal = creditLines.reduce((sum, line) => sum + line.amount, 0)
+
+  const apiLines = useMemo(() => {
+    const kindLines = (tokenUsageCostBreakdown?.byKind ?? [])
+      .filter((row) => row.estimated_cost_vnd > 0)
+      .map((row) => ({
+      key: row.usage_kind ?? 'inbox',
+      label: tokenUsageKindStatLabel(row.usage_kind, t),
+      amount: row.estimated_cost_vnd,
+    }))
+    const kindSum = kindLines.reduce((sum, line) => sum + line.amount, 0)
+    const llm = tokenUsageEstimatedCostVndTotal
+    const kindsMatchModel =
+      kindLines.length > 0 &&
+      (llm === 0 || Math.abs(kindSum - llm) <= Math.max(1000, Math.round(llm * 0.02)))
+    const lines = kindsMatchModel ? kindLines.slice() : []
+    if (!kindsMatchModel && llm > 0) {
+      lines.push({
+        key: 'llm',
+        label: t.usageSectionApiTitle,
+        amount: llm,
+      })
+    }
+    if (imageEmbedEstimatedCostVnd > 0) {
+      lines.push({
+        key: 'embed-image',
+        label: t.usageApiEmbedImageLine,
+        amount: imageEmbedEstimatedCostVnd,
+      })
+    }
+    if (textEmbedEstimatedCostVnd > 0) {
+      lines.push({
+        key: 'embed-text',
+        label: t.usageApiEmbedTextLine,
+        amount: textEmbedEstimatedCostVnd,
+      })
+    }
+    const drift = llm - (kindsMatchModel ? kindSum : llm)
+    if (kindsMatchModel && drift !== 0 && kindLines.length > 0) {
+      const host = kindLines.reduce((best, line) => (line.amount > best.amount ? line : best), kindLines[0])
+      host.amount += drift
+    }
+    const sorted = lines.sort((a, b) => b.amount - a.amount)
+    return {
+      lines: sorted,
+      total: llm + imageEmbedEstimatedCostVnd + textEmbedEstimatedCostVnd,
+    }
+  }, [
+    imageEmbedEstimatedCostVnd,
+    t,
+    textEmbedEstimatedCostVnd,
+    tokenUsageCostBreakdown,
+    tokenUsageEstimatedCostVndTotal,
+  ])
+
+  const apiCallCount =
+    tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0) +
+    imageEmbedSummaryRows.reduce((sum, row) => sum + row.call_count, 0) +
+    textEmbedSummaryRows.reduce((sum, row) => sum + row.call_count, 0)
+
+  const yearlyCostRows = useMemo(() => {
+    const months = tokenUsageCostBreakdown?.monthly ?? []
+    const byYear = new Map<
+      string,
+      { call_count: number; sum_total_tokens: number; estimated_cost_vnd: number }
+    >()
+    for (const row of months) {
+      const year = row.month_utc.slice(0, 4)
+      const cur = byYear.get(year) ?? { call_count: 0, sum_total_tokens: 0, estimated_cost_vnd: 0 }
+      cur.call_count += row.call_count
+      cur.sum_total_tokens += row.sum_total_tokens
+      cur.estimated_cost_vnd += row.estimated_cost_vnd
+      byYear.set(year, cur)
+    }
+    return [...byYear.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([year, row]) => ({ year, ...row }))
+  }, [tokenUsageCostBreakdown])
 
   return (
     <Card className="overflow-hidden border-violet-200/60 bg-gradient-to-br from-violet-50/40 via-background to-background dark:border-violet-900/40 dark:from-violet-950/20 shadow-sm">
@@ -1262,6 +1390,7 @@ export function PartnerAiSettingsPanel({
               partnerId={partnerId}
               partnerChatSlug={partnerChatSlug}
               websitePublicUrl={saasShopCart.publicUrl}
+              locale={locale}
               showProductStudio={false}
               t={t}
               rows={inventory}
@@ -1299,164 +1428,69 @@ export function PartnerAiSettingsPanel({
 
           {showUsageTab ? (
           <TabsContent value="usage" className="mt-0 space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <p className="min-w-0 flex-1 text-xs text-muted-foreground leading-relaxed">
-                {t.tokenUsageIntro.replace(/\{scope\}/g, usageScopeLabel)}
-              </p>
-              <div className="flex shrink-0 flex-wrap items-end justify-end gap-2">
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-[11px] text-muted-foreground">{t.usageRangeModeLabel}</span>
-                  <Select
-                    value={usageRangeMode}
-                    onValueChange={(v) => {
-                      const mode = v as 'rolling' | 'calendar'
-                      setUsageRangeMode(mode)
+            <div className="space-y-2">
+              <div className="flex flex-wrap gap-1.5">
+                {USAGE_PRESETS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    size="sm"
+                    variant={usagePreset === preset ? 'default' : 'outline'}
+                    className="h-8 px-2.5 text-xs"
+                    onClick={() => {
+                      if (preset === usagePreset) return
+                      setUsagePreset(preset)
                       const seq = ++loadSeqRef.current
-                      if (mode === 'rolling') {
-                        void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: usagePeriod })
-                      } else {
-                        const from = usageCalendarFrom || ictYmdToday()
-                        const to = usageCalendarTo || ictYmdToday()
-                        if (!usageCalendarFrom) setUsageCalendarFrom(from)
-                        if (!usageCalendarTo) setUsageCalendarTo(to)
-                        void loadUsageAnalyticsWithSeq(seq, {
-                          type: 'calendar',
-                          fromDayUtc: from,
-                          toDayUtc: to,
-                        })
-                      }
+                      void loadUsageAnalyticsWithSeq(seq, { type: 'preset', preset })
                     }}
                   >
-                    <SelectTrigger className="h-8 w-[168px] text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="rolling">{t.usageRangeModeRolling}</SelectItem>
-                      <SelectItem value="calendar">{t.usageRangeModeCalendar}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {usageRangeMode === 'rolling' ? (
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[11px] text-muted-foreground">{t.usagePeriodLabel}</span>
-                    <Select
-                      value={usagePeriod}
-                      onValueChange={(v) => {
-                        const p = v as PartnerAiUsagePeriod
-                        setUsagePeriod(p)
-                        const seq = ++loadSeqRef.current
-                        void loadUsageAnalyticsWithSeq(seq, { type: 'rolling', period: p })
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-[128px] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">{t.usagePeriodDay}</SelectItem>
-                        <SelectItem value="week">{t.usagePeriodWeek}</SelectItem>
-                        <SelectItem value="month">{t.usagePeriodMonth}</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-0.5">
-                      <Label className="text-[11px] font-normal text-muted-foreground">
-                        {t.usageCalendarFromLabel}
-                      </Label>
-                      <Input
-                        type="date"
-                        className="h-8 w-[142px] text-xs"
-                        value={usageCalendarFrom}
-                        max={usageCalendarTo || undefined}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          if (!v) return
-                          setUsageCalendarFrom(v)
-                          let to = usageCalendarTo
-                          if (v > to) {
-                            to = v
-                            setUsageCalendarTo(to)
-                          }
-                          const seq = ++loadSeqRef.current
-                          void loadUsageAnalyticsWithSeq(seq, { type: 'calendar', fromDayUtc: v, toDayUtc: to })
-                        }}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <Label className="text-[11px] font-normal text-muted-foreground">
-                        {t.usageCalendarToLabel}
-                      </Label>
-                      <Input
-                        type="date"
-                        className="h-8 w-[142px] text-xs"
-                        value={usageCalendarTo}
-                        min={usageCalendarFrom || undefined}
-                        max={usageTodayUtc || undefined}
-                        onChange={(e) => {
-                          const v = e.target.value
-                          if (!v) return
-                          setUsageCalendarTo(v)
-                          let from = usageCalendarFrom
-                          if (v < from) {
-                            from = v
-                            setUsageCalendarFrom(from)
-                          }
-                          const seq = ++loadSeqRef.current
-                          void loadUsageAnalyticsWithSeq(seq, { type: 'calendar', fromDayUtc: from, toDayUtc: v })
-                        }}
-                      />
-                    </div>
-                  </>
-                )}
+                    {usagePresetLabel(preset, t)}
+                  </Button>
+                ))}
               </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {t.tokenUsageIntro.replace(/\{scope\}/g, usageScopeLabel)}
+              </p>
             </div>
 
-            {tokenUsageRows.length > 0 ? (
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                <div className="rounded-lg border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColCalls}</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0))}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColPrompt}</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.sum_prompt_tokens, 0))}
-                  </p>
-                  <p className="text-[11px] tabular-nums text-amber-700">
-                    {vndFmt.format(tokenUsageRows.reduce((sum, row) => sum + (row.estimated_input_vnd || 0), 0))}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColCompletion}</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {tokenFmt.format(tokenUsageRows.reduce((sum, row) => sum + row.sum_completion_tokens, 0))}
-                  </p>
-                  <p className="text-[11px] tabular-nums text-amber-700">
-                    {vndFmt.format(tokenUsageRows.reduce((sum, row) => sum + (row.estimated_output_vnd || 0), 0))}
-                  </p>
-                </div>
-                <div className="rounded-lg border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageColEstimatedCost}</p>
-                  <p className="text-lg font-semibold tabular-nums">{vndFmt.format(tokenUsageEstimatedCostVndTotal)}</p>
-                </div>
-                <div className="rounded-lg border bg-background px-3 py-2">
-                  <p className="text-[11px] text-muted-foreground">{t.tokenUsageKpiAvg}</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {vndFmt.format(
-                      tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0) > 0
-                        ? Math.round(
-                            tokenUsageEstimatedCostVndTotal /
-                              tokenUsageRows.reduce((sum, row) => sum + row.call_count, 0)
-                          )
-                        : 0
-                    )}
-                  </p>
-                </div>
-              </div>
-            ) : null}
+            <div className="grid gap-3 lg:grid-cols-2">
+              <section className="rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-4 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-50">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800 dark:text-amber-200">
+                  {t.usageCreditHeroKicker}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{creditFmt.format(creditTotal)}</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/80 dark:text-amber-100/80">
+                  {t.usageCreditHeroHint}
+                </p>
+                <UsageMeterList lines={creditLines} total={creditTotal} formatAmount={(n) => creditFmt.format(n)} />
+                {creditLines.length === 0 ? (
+                  <p className="mt-3 text-sm text-amber-900/70 dark:text-amber-100/70">{t.usageCreditLedgerEmpty}</p>
+                ) : null}
+              </section>
+              <section className="rounded-xl border border-sky-500/35 bg-sky-500/[0.07] p-4 text-sky-950 dark:border-sky-500/30 dark:bg-sky-950/30 dark:text-sky-50">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-sky-800 dark:text-sky-200">
+                  {t.usageApiHeroKicker}
+                </p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">{vndFmt.format(apiLines.total)} ₫</p>
+                <p className="mt-1 text-xs leading-relaxed text-sky-900/80 dark:text-sky-100/80">
+                  {t.usageApiHeroHint}
+                </p>
+                <p className="mt-2 text-xs tabular-nums text-sky-900/70 dark:text-sky-100/70">
+                  {t.tokenUsageColCalls}: {tokenFmt.format(apiCallCount)}
+                  {apiCallCount > 0
+                    ? ` · ${t.tokenUsageKpiAvg} ${vndFmt.format(Math.round(apiLines.total / apiCallCount))} ₫`
+                    : ''}
+                </p>
+                <UsageMeterList
+                  lines={apiLines.lines}
+                  total={apiLines.total}
+                  formatAmount={(n) => `${vndFmt.format(n)} ₫`}
+                />
+                {apiLines.lines.length === 0 ? (
+                  <p className="mt-3 text-sm text-sky-900/70 dark:text-sky-100/70">{t.tokenUsageEmpty}</p>
+                ) : null}
+              </section>
+            </div>
 
             <div className="space-y-4 rounded-lg border border-amber-500/20 bg-amber-500/[0.04] p-3 dark:border-amber-500/25 dark:bg-amber-950/20">
               <div>
@@ -1489,7 +1523,7 @@ export function PartnerAiSettingsPanel({
                                 key={row.charge_type || '(empty)'}
                                 className="border-b border-border/60 last:border-0"
                               >
-                                <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                <td className="p-2">{creditChargeLabel(row.charge_type || '', t)}</td>
                                 <td className="p-2 tabular-nums">{tokenFmt.format(row.event_count)}</td>
                                 <td className="p-2 tabular-nums font-medium">
                                   {creditFmt.format(row.sum_amount)}
@@ -1520,7 +1554,7 @@ export function PartnerAiSettingsPanel({
                                   <td className="p-2 whitespace-nowrap tabular-nums">
                                     {dateTimeForLocale(row.created_at, locale)}
                                   </td>
-                                  <td className="p-2 font-mono text-[11px]">{row.charge_type || '—'}</td>
+                                  <td className="p-2">{creditChargeLabel(row.charge_type || '', t)}</td>
                                   <td className="p-2 tabular-nums font-medium">
                                     {creditFmt.format(row.amount)}
                                   </td>
@@ -1538,6 +1572,10 @@ export function PartnerAiSettingsPanel({
               <div>
                 <h4 className="text-sm font-medium">{t.usageLogoCreditTitle}</h4>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageLogoCreditIntro}</p>
+                {logoCreditChargedTotal >
+                logoCreditRows.reduce((sum, row) => sum + row.charged_credits, 0) + 0.001 ? (
+                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{t.usageLogoCreditCappedNote}</p>
+                ) : null}
                 {logoCreditRows.length === 0 ? (
                   <p className="mt-2 text-sm text-muted-foreground">{t.usageLogoCreditEmpty}</p>
                 ) : (
@@ -1581,14 +1619,12 @@ export function PartnerAiSettingsPanel({
                 {tokenUsageCostBreakdown ? (
                   <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t.tokenUsageCostTablesNote}</p>
                 ) : null}
-                {tokenUsageEstimatedCostVndTotal > 0 ? (
+                {apiLines.total > 0 ? (
                   <p className="mt-2 text-sm font-semibold tabular-nums text-foreground">
-                    {t.tokenUsageEstimatedTotalLabel.replace(
-                      '{amount}',
-                      vndFmt.format(tokenUsageEstimatedCostVndTotal)
-                    )}
+                    {t.tokenUsageEstimatedTotalLabel.replace('{amount}', vndFmt.format(apiLines.total))}
                   </p>
                 ) : null}
+                <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{t.usageApiModelTableNote}</p>
               </div>
             {tokenUsageRows.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t.tokenUsageEmpty}</p>
@@ -1960,6 +1996,39 @@ export function PartnerAiSettingsPanel({
                 </div>
               </div>
             ) : null}
+
+            {(usagePreset === 'this_year' || usagePreset === 'all' || yearlyCostRows.length > 1) &&
+            yearlyCostRows.length > 0 ? (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">{t.usageColYear}</h3>
+                <div className="overflow-x-auto rounded-lg border">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-left">
+                        <th className="p-2 font-medium">{t.usageColYear}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColCalls}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColTotal}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColShare}</th>
+                        <th className="p-2 font-medium tabular-nums">{t.tokenUsageColEstimatedCost}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {yearlyCostRows.map((row) => (
+                        <tr key={row.year} className="border-b border-border/60 last:border-0">
+                          <td className="p-2 font-medium tabular-nums">{row.year}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.call_count)}</td>
+                          <td className="p-2 tabular-nums">{tokenFmt.format(row.sum_total_tokens)}</td>
+                          <td className="p-2 tabular-nums text-muted-foreground">
+                            {formatUsageCostShare(row.estimated_cost_vnd, tokenUsageEstimatedCostVndTotal)}
+                          </td>
+                          <td className="p-2 font-medium tabular-nums">{vndFmt.format(row.estimated_cost_vnd)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
             </>
             ) : null}
 
@@ -2048,6 +2117,9 @@ export function PartnerAiSettingsPanel({
             <div className="space-y-2">
               <h3 className="text-sm font-medium">{t.usageEmbedImageTitle}</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{t.usageEmbedImageIntro}</p>
+              {imageEmbedEstimatedCostVnd > 0 ? (
+                <p className="text-sm font-medium tabular-nums">{vndFmt.format(imageEmbedEstimatedCostVnd)} ₫</p>
+              ) : null}
               {imageEmbedSummaryRows.length === 0 && imageEmbedDetailRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t.usageEmbedImageEmpty}</p>
               ) : (
@@ -2132,6 +2204,9 @@ export function PartnerAiSettingsPanel({
             <div className="space-y-2">
               <h3 className="text-sm font-medium">{t.usageEmbedTextTitle}</h3>
               <p className="text-xs text-muted-foreground leading-relaxed">{t.usageEmbedTextIntro}</p>
+              {textEmbedEstimatedCostVnd > 0 ? (
+                <p className="text-sm font-medium tabular-nums">{vndFmt.format(textEmbedEstimatedCostVnd)} ₫</p>
+              ) : null}
               {textEmbedSummaryRows.length === 0 && textEmbedDetailRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t.usageEmbedTextEmpty}</p>
               ) : (
@@ -2426,6 +2501,7 @@ function InventoryEditor({
   partnerId,
   partnerChatSlug,
   websitePublicUrl,
+  locale,
   showProductStudio = true,
   t,
   rows,
@@ -2447,6 +2523,7 @@ function InventoryEditor({
   partnerId: string
   partnerChatSlug: string
   websitePublicUrl?: string | null
+  locale: WebLocale
   showProductStudio?: boolean
   t: AiT
   rows: InvRow[]
@@ -2478,6 +2555,7 @@ function InventoryEditor({
   /** Chỉ khi nhập Excel: % hoặc null = không xác định (thanh pulse) */
   const [excelImportProgress, setExcelImportProgress] = useState<{ percent: number | null } | null>(null)
   const [excelImportReport, setExcelImportReport] = useState<PartnerInventoryExcelImportDetailPanel | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
 
   const [draft, setDraft] = useState({
     id: null as string | null,
@@ -2537,6 +2615,7 @@ function InventoryEditor({
   useEffect(() => {
     setVectorSearchRows(null)
     setVectorQuery('')
+    setDetailId(null)
   }, [partnerId])
 
   const displayRows = vectorSearchRows ?? rows
@@ -2863,6 +2942,20 @@ function InventoryEditor({
     }
   }
 
+  if (detailId) {
+    return (
+      <PartnerInventoryDetailPage
+        partnerId={partnerId}
+        inventoryId={detailId}
+        partnerChatSlug={partnerChatSlug}
+        websitePublicUrl={websitePublicUrl}
+        locale={locale}
+        t={t}
+        onBack={() => setDetailId(null)}
+      />
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
@@ -3081,7 +3174,7 @@ function InventoryEditor({
           <div className="border-b border-border bg-muted/20 px-4 py-2 text-xs text-muted-foreground">
             {t.inventoryListScrollHint}
           </div>
-          <div className="max-h-[min(70vh,40rem)] max-w-full overflow-auto overscroll-x-contain">
+          <InventoryAdminTableScroll scrollLabel={t.inventoryListScrollHint}>
             <table className="w-max min-w-full border-separate border-spacing-0 text-sm">
               <thead>
                 <tr>
@@ -3158,7 +3251,7 @@ function InventoryEditor({
                   <th className="sticky top-0 z-20 min-w-[5.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryColImageI18n}
                   </th>
-                  <th className="sticky right-0 top-0 z-30 min-w-[8.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                  <th className="sticky right-0 top-0 z-30 min-w-[16rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                     {t.inventoryColActions}
                   </th>
                 </tr>
@@ -3277,8 +3370,11 @@ function InventoryEditor({
                           {loc || 'pending'}
                         </span>
                       </td>
-                      <td className="sticky right-0 z-10 whitespace-nowrap bg-card px-3 py-2 align-top group-hover:bg-muted/40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
+                      <td className="sticky right-0 z-10 min-w-[16rem] whitespace-nowrap bg-card px-3 py-2 align-top group-hover:bg-muted/40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
                         <div className="flex shrink-0 gap-1">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setDetailId(r.id)} disabled={pending}>
+                            {t.inventoryViewDetail}
+                          </Button>
                           <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
                             {t.edit}
                           </Button>
@@ -3299,7 +3395,7 @@ function InventoryEditor({
                 })}
               </tbody>
             </table>
-          </div>
+          </InventoryAdminTableScroll>
         </div>
       )}
       {hasMore && !vectorFilterActive ? (

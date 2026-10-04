@@ -5,7 +5,11 @@ import { isOwnCdnUrl } from './image-localization-config'
 import { isImageLocalizationFatalDependencyError } from './gemini-adapter'
 import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vision-ocr'
 import { overlayTranslatedText } from '@/lib/translate-overlay'
-import { mergeDenseImageLocOverlayItems } from './local-pipeline'
+import {
+  dropOversizedSingleWordOverlays,
+  layoutImageLocOverlays,
+  mergeDenseImageLocOverlayItems,
+} from './local-pipeline'
 import { isTransientImageLocDbError } from './process-product'
 import { imageLocJobIsStalled, imageLocShouldAutoResume } from './job-runtime'
 
@@ -109,6 +113,56 @@ describe('image localization runtime parity', () => {
     assert.equal(merged[0].translatedText, 'Tôn dáng, tăng chiều cao 8.5cm')
     assert.ok(merged[0].bbox.x < 150)
     assert.ok(merged[0].bbox.width > 330)
+  })
+
+  it('drops a giant background that only holds one short word', () => {
+    const kept = dropOversizedSingleWordOverlays(
+      [
+        { bbox: { x: 40, y: 80, width: 700, height: 420 }, translatedText: 'Xương' },
+        { bbox: { x: 20, y: 520, width: 140, height: 28 }, translatedText: 'Mặt trước' },
+      ],
+      800,
+      600
+    )
+    assert.equal(kept.length, 1)
+    assert.equal(kept[0].translatedText, 'Mặt trước')
+  })
+
+  it('drops only the giant one-word slab and still lays out the other clusters', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 40, y: 80, width: 700, height: 420 }, translatedText: 'Xương' },
+        { bbox: { x: 80, y: 200, width: 180, height: 40 }, translatedText: 'Chất liệu cotton' },
+        { bbox: { x: 20, y: 540, width: 160, height: 28 }, translatedText: 'Mặt trước' },
+      ],
+      800,
+      600
+    )
+    assert.equal(
+      laid.some((item) => item.translatedText === 'Xương'),
+      false
+    )
+    assert.equal(
+      laid.some((item) => item.translatedText.includes('Chất liệu cotton')),
+      true
+    )
+    assert.equal(
+      laid.some((item) => item.translatedText.includes('Mặt trước')),
+      true
+    )
+  })
+
+  it('keeps a small one-word label and a multi-word block on a large box', () => {
+    const kept = dropOversizedSingleWordOverlays(
+      [
+        { bbox: { x: 10, y: 10, width: 90, height: 32 }, translatedText: 'Cotton' },
+        { bbox: { x: 20, y: 40, width: 640, height: 36 }, translatedText: 'Sale' },
+        { bbox: { x: 40, y: 80, width: 700, height: 420 }, translatedText: 'Chất liệu cotton mềm' },
+      ],
+      800,
+      600
+    )
+    assert.equal(kept.length, 3)
   })
 
   it('does not treat a Bunny Storage 401 as a fatal Gemini dependency', () => {

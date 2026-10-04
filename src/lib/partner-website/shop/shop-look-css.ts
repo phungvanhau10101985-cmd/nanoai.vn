@@ -6,6 +6,7 @@ import {
   stampPartnerWebsiteLookInHtml,
   PARTNER_WEBSITE_LOOK_SHOP,
 } from '@/lib/partner-website/shop/marketplace-shop-look-css'
+import { buildIndustrialPdpCss } from '@/lib/partner-website/shop/industrial-pdp-css'
 import { pwUnlockedBelowLaptopMediaQuery } from '@/lib/partner-website/visual-editor/pw-coordinate-space'
 
 export const PARTNER_SHOP_LOOK_STYLE_ID = 'pw-shop-look-css'
@@ -311,6 +312,7 @@ html[data-pw-look="shop"]:not([data-pw-edit-device]):not([data-pw-scene-lock]) .
 html[data-pw-look="shop"]:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-wordmark{color:#fff!important}
 html[data-pw-look="shop"]:not([data-pw-edit-device]):not([data-pw-scene-lock]) .pw-hero{min-height:240px}
 }
+${buildIndustrialPdpCss()}
 `.trim()
   return scopeShopLookCss(css)
 }

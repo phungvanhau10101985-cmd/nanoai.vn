@@ -191,6 +191,89 @@ export function getShopTemplateSampleCategories(locale: WebLocale): ShopTemplate
   }))
 }
 
+const INDUSTRIAL_IMAGES = [
+  'https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c7?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1581092160562-40aa08e78837?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1581092334651-ddf26d9a09d0?auto=format&fit=crop&w=800&q=80',
+  'https://images.unsplash.com/photo-1513828583688-c52646db42da?auto=format&fit=crop&w=800&q=80',
+]
+
+/** Demo machines for the GD09 gallery — not live inventory. */
+export function getIndustrialShopTemplateSampleProducts(locale: WebLocale): ShopTemplateSampleProduct[] {
+  const names =
+    locale === 'vi'
+      ? [
+          'Máy phay CNC VMC-850',
+          'Máy tiện vạn năng CA6140',
+          'Máy xúc bánh xích',
+          'Máy xúc lật',
+          'Cần cẩu tự hành',
+          'Máy cưa gỗ',
+          'Máy nén khí',
+          'Máy phát điện',
+        ]
+      : locale === 'zh'
+        ? ['数控铣床 VMC-850', '普通车床 CA6140', '履带挖掘机', '装载机', '汽车起重机', '木工锯床', '空压机', '发电机']
+        : locale === 'ja'
+          ? ['CNCフライス VMC-850', '汎用旋盤 CA6140', '油圧ショベル', 'ホイールローダー', 'クレーン', '木材鋸盤', 'コンプレッサー', '発電機']
+          : locale === 'ko'
+            ? ['CNC 밀링 VMC-850', '범용 선반 CA6140', '굴삭기', '로더', '크레인', '목재 톱', '컴프레서', '발전기']
+            : [
+                'CNC mill VMC-850',
+                'Lathe CA6140',
+                'Crawler excavator',
+                'Wheel loader',
+                'Mobile crane',
+                'Wood saw',
+                'Air compressor',
+                'Generator',
+              ]
+  const prices =
+    locale === 'vi'
+      ? ['550.000.000 đ', '120.000.000 đ', '890.000.000 đ', '640.000.000 đ', '1.200.000.000 đ', '85.000.000 đ', '42.000.000 đ', '76.000.000 đ']
+      : ['550,000,000 VND', '120,000,000 VND', '890,000,000 VND', '640,000,000 VND', '1,200,000,000 VND', '85,000,000 VND', '42,000,000 VND', '76,000,000 VND']
+  return names.map((name, i) => ({
+    name,
+    price: prices[i] || prices[0]!,
+    imageUrl: INDUSTRIAL_IMAGES[i] || INDUSTRIAL_IMAGES[0]!,
+    ctaText: locale === 'vi' ? 'Xem chi tiết' : locale === 'zh' ? '查看详情' : locale === 'ja' ? '詳細' : locale === 'ko' ? '상세 보기' : 'View details',
+  }))
+}
+
+export function getIndustrialShopTemplateSampleCategories(locale: WebLocale): ShopTemplateSampleCategory[] {
+  const names =
+    locale === 'vi'
+      ? ['Máy xây dựng', 'Máy cơ khí', 'Máy chế biến gỗ', 'Máy nông nghiệp', 'Vật tư', 'Phụ tùng', 'Nâng hạ', 'Động cơ']
+      : locale === 'zh'
+        ? ['工程机械', '机械加工', '木材加工', '农机', '物资', '配件', '起重', '动力']
+        : locale === 'ja'
+          ? ['建設機械', '工作機械', '木材加工', '農業機械', '資材', '部品', '揚重', '動力']
+          : locale === 'ko'
+            ? ['건설 기계', '공작 기계', '목재 가공', '농기계', '자재', '부품', '인양', '동력']
+            : ['Construction', 'Machine tools', 'Woodworking', 'Farm machinery', 'Supplies', 'Spare parts', 'Lifting', 'Power']
+  return names.map((name, i) => ({
+    name,
+    imageUrl: INDUSTRIAL_IMAGES[i] || INDUSTRIAL_IMAGES[0]!,
+  }))
+}
+
+export function getIndustrialShopTemplateSampleBannerImages(): Record<
+  'birthday' | 'sale' | 'warehouse' | 'regular',
+  string
+> {
+  const wide = 'auto=format&fit=crop&w=2100&h=900&q=80'
+  return {
+    birthday: `https://images.unsplash.com/photo-1504307651254-35680f356dfd?${wide}`,
+    sale: `https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?${wide}`,
+    warehouse: `https://images.unsplash.com/photo-1565043589221-1a6fd9ae45c7?${wide}`,
+    regular: `https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?${wide}`,
+  }
+}
+
 /** 21:9 fashion photos for the four promo banner slots on the gallery sample. */
 export function getShopTemplateSampleBannerImages(): Record<'birthday' | 'sale' | 'warehouse' | 'regular', string> {
   return {

@@ -105,6 +105,37 @@ export type PartnerLogoCreditRow = {
   created_at: string
 }
 
+/** Tổng credit logo trong khoảng — không bị cắt bởi danh sách chi tiết. */
+export async function fetchPartnerLogoCreditSumInRangeFromPg(
+  partnerId: string,
+  sinceIso: string,
+  untilIsoExclusive?: string | null
+): Promise<{ event_count: number; sum_amount: number } | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQuery<{ event_count: string | number | null; sum_amount: string | number | null }>(
+      `select count(*)::int as event_count,
+              coalesce(sum(charged_credits), 0)::numeric as sum_amount
+       from public.messaging_partner_logo_versions
+       where partner_id = $1::uuid
+         and coalesce(charged_credits, 0) > 0
+         and created_at >= $2::timestamptz
+         and ($3::timestamptz is null or created_at < $3::timestamptz)`,
+      [partnerId, sinceIso, untilIsoExclusive ?? null]
+    )
+    const first = row[0]
+    return {
+      event_count: Math.max(0, Math.floor(Number(first?.event_count ?? 0))),
+      sum_amount: Math.max(0, Number(first?.sum_amount ?? 0)),
+    }
+  } catch (e) {
+    const code = typeof e === 'object' && e && 'code' in e ? String((e as { code?: unknown }).code || '') : ''
+    if (code === '42P01') return { event_count: 0, sum_amount: 0 }
+    console.warn('[fetchPartnerLogoCreditSumInRangeFromPg]', e)
+    return null
+  }
+}
+
 /** Chuẩn hóa logo workspace — trừ credit trực tiếp, không qua language_coach_credit_events. */
 export async function fetchPartnerLogoCreditRowsInRangeFromPg(
   partnerId: string,

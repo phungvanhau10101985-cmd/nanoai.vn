@@ -52,11 +52,17 @@ export function shopProductsToRelatedBind(products: PartnerSiteShopProduct[]): R
 export function relatedListingHref(input: {
   siteSlug?: string | null
   categoryPath?: string | null
+  /** When set, the listing is every similar product of this SKU (48 per page). */
+  inventoryId?: string | null
 }): string {
   const slug = String(input.siteSlug || '').trim()
   if (!slug) return '#'
   const path = String(input.categoryPath || '').trim()
-  return path ? partnerSiteCategoryPath(slug, path) : partnerSiteProductsPath(slug)
+  const base = path ? partnerSiteCategoryPath(slug, path) : partnerSiteProductsPath(slug)
+  const inventoryId = String(input.inventoryId || '').trim()
+  if (!inventoryId) return base
+  const join = base.includes('?') ? '&' : '?'
+  return `${base}${join}relatedTo=${encodeURIComponent(inventoryId)}`
 }
 
 export function isRelatedCatalogOpenTag(open: string): boolean {
@@ -132,7 +138,11 @@ export function buildRelatedProductsSectionHtml(input: {
   const added = input.added ? ' data-pw-added-catalog="1"' : ''
   const loadMore = t.gridLoadMore || t.loadMore
   const seeAll = t.gridSeeAllGroups || t.relatedSeeAll
-  const seeAllHref = relatedListingHref({ siteSlug: slug, categoryPath: input.categoryPath })
+  const seeAllHref = relatedListingHref({
+    siteSlug: slug,
+    categoryPath: input.categoryPath,
+    inventoryId: excludeId,
+  })
   return `<section class="pw-related pw-catalog" ${pwRegionAttr(PW_REGION.catalog)}${pwKindSceneAttr(PW_KIND_SCENE_MEDIA)} data-pw-bg-role="catalog" data-pw-catalog data-pw-related="1" data-pw-grid-kind="related" data-pw-grid-cols="${PW_GRID_COLS_WIDE}" data-pw-grid-cols-laptop="${PW_GRID_COLS_LAPTOP}" data-pw-grid-cols-tablet="${PW_GRID_COLS_TABLET}" data-pw-grid-cols-mobile="${PW_GRID_COLS_NARROW}" data-pw-grid-rows="${rows}" data-limit="${pageSize}"${added}${
     categoryId ? ` data-category-id="${escapeAttr(categoryId)}"` : ''
   }${excludeId ? ` data-exclude="${escapeAttr(excludeId)}"` : ''}>

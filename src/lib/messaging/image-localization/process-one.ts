@@ -115,7 +115,8 @@ async function transformImageBytes(
     if (local.action === 'deleted') return { kind: 'deleted', message: local.message }
     if (local.action === 'empty') return { kind: 'kept', bytes, message: local.message }
     const drawn = await localDrawTranslated(bytes, local.blocks, ctx.language, ctx.userId)
-    return { kind: 'processed', bytes: drawn, message: local.message }
+    if (drawn.kind === 'unchanged') return { kind: 'kept', bytes, message: local.message }
+    return { kind: 'processed', bytes: drawn.bytes, message: local.message }
   }
 
   const runAi = async (): Promise<PartOutcome> => {
@@ -130,7 +131,8 @@ async function transformImageBytes(
         const local = localBlocksNeedDraw(post.blocks, { deleteSizeAndLaundry: !useGeminiForRich })
         if (local.action === 'draw') {
           const drawn = await localDrawTranslated(ai.bytes, local.blocks, ctx.language, ctx.userId)
-          return { kind: 'processed', bytes: drawn, message: `${ai.message} + hậu kiểm local` }
+          if (drawn.kind === 'unchanged') return { kind: 'processed', bytes: ai.bytes, message: ai.message }
+          return { kind: 'processed', bytes: drawn.bytes, message: `${ai.message} + hậu kiểm local` }
         }
       }
       return { kind: 'processed', bytes: ai.bytes, message: ai.message }

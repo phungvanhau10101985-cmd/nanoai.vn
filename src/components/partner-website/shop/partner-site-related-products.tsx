@@ -17,6 +17,7 @@ type Props = {
   locale: WebLocale
   products: PartnerSiteShopProduct[]
   categoryPath?: string | null
+  inventoryId?: string | null
 }
 
 function relatedColsFromViewport(): number {
@@ -33,6 +34,7 @@ export function PartnerSiteRelatedProducts({
   locale,
   products,
   categoryPath,
+  inventoryId,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
   const customDomain = usePartnerSiteCustomDomain()
@@ -111,7 +113,7 @@ export function PartnerSiteRelatedProducts({
             <Link
               className="pw-related-all"
               data-pw-el={PW_EL.sectionMore}
-              href={relatedListingHref({ siteSlug, categoryPath })}
+              href={relatedListingHref({ siteSlug, categoryPath, inventoryId })}
             >
               {t.gridSeeAllGroups || t.relatedSeeAll}
             </Link>

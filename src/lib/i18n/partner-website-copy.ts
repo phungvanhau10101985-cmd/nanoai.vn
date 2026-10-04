@@ -1541,7 +1541,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditMenuTheme: 'Màu',
     visualEditMenuLook: 'Giao diện',
     visualEditMenuLookHint:
-      'Đổi mẫu GD01–GD08 ngay trên Sửa nhanh. Sửa nhanh của mẫu hiện tại được lưu; quay lại mẫu đó thì còn nguyên. Catalog và giỏ không đổi.',
+      'Đổi mẫu GD01–GD09 ngay trên Sửa nhanh. Sửa nhanh của mẫu hiện tại được lưu; quay lại mẫu đó thì còn nguyên. Catalog và giỏ không đổi.',
     visualEditMenuBlock: 'Khối',
     visualEditHoverName: 'Tên phần tử',
     visualEditHoverNameHint: 'Đưa chuột lên trang — luôn hiện tên phần tử dưới chuột.',
@@ -2861,7 +2861,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditMenuTheme: 'Colors',
     visualEditMenuLook: 'Look',
     visualEditMenuLookHint:
-      'Switch GD01–GD08 from Quick edit. Quick-edit pages for the current look are saved; switching back restores them. Catalog and cart stay.',
+      'Switch GD01–GD09 from Quick edit. Quick-edit pages for the current look are saved; switching back restores them. Catalog and cart stay.',
     visualEditMenuBlock: 'Block',
     visualEditHoverName: 'Element name',
     visualEditHoverNameHint: 'Hover the page to always see the name of the element under the pointer.',
@@ -4176,7 +4176,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditMenuTheme: '颜色',
     visualEditMenuLook: '界面',
     visualEditMenuLookHint:
-      '在快捷编辑中切换 GD01–GD08。当前界面的快捷编辑会保存；切回该界面时仍在。商品与购物车不变。',
+      '在快捷编辑中切换 GD01–GD09。当前界面的快捷编辑会保存；切回该界面时仍在。商品与购物车不变。',
     visualEditMenuBlock: '区块',
     visualEditHoverName: '元素名称',
     visualEditHoverNameHint: '把鼠标移到页面上，始终显示指针下的元素名称。',
@@ -5459,7 +5459,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditMenuTheme: 'カラー',
     visualEditMenuLook: 'デザイン',
     visualEditMenuLookHint:
-      'クイック編集から GD01–GD08 を切り替えます。現在のデザインの編集は保存され、戻すとそのまま残ります。カタログとカートは変わりません。',
+      'クイック編集から GD01–GD09 を切り替えます。現在のデザインの編集は保存され、戻すとそのまま残ります。カタログとカートは変わりません。',
     visualEditMenuBlock: 'ブロック',
     visualEditHoverName: '要素名',
     visualEditHoverNameHint: 'ページ上にマウスを置くと、ポインター下の要素名を常に表示します。',
@@ -6764,7 +6764,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     visualEditMenuTheme: '색상',
     visualEditMenuLook: '디자인',
     visualEditMenuLookHint:
-      '빠른 수정에서 GD01–GD08을 바꿉니다. 현재 디자인의 빠른 수정은 저장되며, 다시 고르면 그대로입니다. 카탈로그와 장바구니는 그대로입니다.',
+      '빠른 수정에서 GD01–GD09을 바꿉니다. 현재 디자인의 빠른 수정은 저장되며, 다시 고르면 그대로입니다. 카탈로그와 장바구니는 그대로입니다.',
     visualEditMenuBlock: '블록',
     visualEditHoverName: '요소 이름',
     visualEditHoverNameHint: '페이지 위에 마우스를 올리면 포인터 아래 요소 이름이 항상 보입니다.',

@@ -1324,7 +1324,11 @@ function stampRelatedOpenTag(open: string, product: LivePdpBindProduct, siteSlug
   out = stampOpenAttr(out, 'data-exclude', product.id)
   const categoryId = String(product.categoryId || '').trim()
   if (categoryId) out = stampOpenAttr(out, 'data-category-id', categoryId)
-  const moreHref = relatedListingHref({ siteSlug, categoryPath: product.categoryPath })
+  const moreHref = relatedListingHref({
+    siteSlug,
+    categoryPath: product.categoryPath,
+    inventoryId: product.id,
+  })
   if (moreHref && moreHref !== '#') out = stampOpenAttr(out, 'data-more-href', moreHref)
   return out
 }
@@ -1398,7 +1402,11 @@ function rewriteCatalogRelatedInner(
 ): string {
   const t = getPartnerSiteShopCopy(locale)
   let out = replaceElInner(inner, PW_EL.sectionTitle, escText(t.relatedProducts))
-  const moreHref = relatedListingHref({ siteSlug, categoryPath: product.categoryPath })
+  const moreHref = relatedListingHref({
+    siteSlug,
+    categoryPath: product.categoryPath,
+    inventoryId: product.id,
+  })
   if (moreHref && moreHref !== '#') {
     out = out.replace(
       /<([a-z0-9]+)\b([^>]*\bdata-pw-el=["']section-more["'][^>]*)>/gi,
@@ -1790,6 +1798,56 @@ function ensureMissingPdpSlots(
   return out
 }
 
+function machineSpecRows(product: LivePdpBindProduct): Array<[string, string]> {
+  const info = product.productInfo
+  const rows: Array<[string, string]> = []
+  const bucket =
+    info && typeof info === 'object'
+      ? (info.specifications ?? info.thong_so ?? info.specs)
+      : null
+  if (bucket && typeof bucket === 'object' && !Array.isArray(bucket)) {
+    for (const [key, value] of Object.entries(bucket as Record<string, unknown>)) {
+      if (rows.length >= 4) break
+      if (value == null || typeof value === 'object') continue
+      const text = String(value).trim()
+      if (!text) continue
+      rows.push([key.replace(/_/g, ' '), text])
+    }
+  }
+  if (!rows.length && String(product.weight || '').trim()) {
+    rows.push(['Weight', String(product.weight).trim()])
+  }
+  return rows
+}
+
+function bindIndustrialPdpExtras(html: string, product: LivePdpBindProduct): string {
+  if (!/\bpw-industrial-pdp\b/.test(html)) return html
+  let out = html
+  if (/data-pw-pdp-slot=["']machine-specs["']/.test(out)) {
+    const rows = machineSpecRows(product)
+    if (!rows.length) {
+      out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'machine-specs')
+    } else {
+      const body = rows
+        .map(([label, value]) => `<p class="pw-ind-spec"><span>${escText(label)}: ${escText(value)}</span></p>`)
+        .join('')
+      out = replaceAttrBlocks(out, 'data-pw-pdp-slot', 'machine-specs', (inner, open) => {
+        const head = inner.match(/<p class="pw-ind-specs-head"[\s\S]*?<\/p>/i)?.[0] || ''
+        return `${open}${head}${body}`
+      })
+    }
+  }
+  if (/data-pw-pdp-slot=["']lead["']/.test(out)) {
+    const raw = String(product.detailDescription || product.description || '')
+    const text = raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    if (!text) out = dropAttrBlocks(out, 'data-pw-pdp-slot', 'lead')
+    else {
+      out = replaceAttrBlocks(out, 'data-pw-pdp-slot', 'lead', (_inner, open) => `${open}${escText(text.slice(0, 280))}`)
+    }
+  }
+  return out
+}
+
 export function bindLiveProductToPdpHtml(
   html: string,
   product: LivePdpBindProduct | null | undefined,
@@ -1872,6 +1930,7 @@ export function bindLiveProductToPdpHtml(
     leftoverPhotoUrls: leftoverSizeGuidePhotos,
   })
   out = fillPdpReviewQaSamples(out, product, locale)
+  out = bindIndustrialPdpExtras(out, product)
   out = stampTryOnContextInHtml(out, product)
   const device = pdpHtmlDeviceOf(out, opts?.device)
   if (device) out = deferOffDevicePdpGalleryMedia(out, device)

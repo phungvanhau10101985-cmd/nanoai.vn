@@ -61,6 +61,7 @@ import {
   deletePartnerInventoryByIdsForPartnerFromPg,
   deletePartnerInventoryItemForPartnerFromPg,
   fetchPartnerInventoryActiveCountFromPg,
+  fetchPartnerInventoryAdminDetailFromPg,
   fetchPartnerInventoryAdminListPageFromPg,
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   fetchPartnerInventoryEmbeddingStatsFromPg,
@@ -190,16 +191,19 @@ import {
 } from '@/lib/db/messaging-partner-ai-token-usage-pg'
 import {
   fetchMessagingPartnerImageEmbedDetailsFromPg,
+  fetchMessagingPartnerImageEmbedStatsByModelFromPg,
   fetchMessagingPartnerImageEmbedStatsBySourceFromPg,
 } from '@/lib/db/messaging-partner-image-embed-usage-pg'
 import {
   fetchMessagingPartnerTextEmbedDetailsFromPg,
+  fetchMessagingPartnerTextEmbedStatsByModelFromPg,
   fetchMessagingPartnerTextEmbedStatsBySourceFromPg,
 } from '@/lib/db/messaging-partner-text-embed-usage-pg'
 import {
   fetchOwnerCreditEventDetailsFromPg,
   fetchOwnerCreditEventSummariesFromPg,
   fetchPartnerLogoCreditRowsInRangeFromPg,
+  fetchPartnerLogoCreditSumInRangeFromPg,
 } from '@/lib/db/partner-owner-credit-ledger-pg'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { Database, Json } from '@/types/database.types'
@@ -300,10 +304,15 @@ import { buildPartnerOrdersXlsxBuffer } from '@/lib/messaging/partner-orders-exc
 import {
   buildPartnerAiUsageCostBreakdown,
   partnerAiAggregatedModelRowsEstimatedCostVnd,
+  partnerAiEmbedModelRowsEstimatedCostVnd,
   partnerAiTokenDetailRowEstimatedCostVnd,
   type PartnerAiUsageCostBreakdown,
 } from '@/lib/pricing/api-token-cost'
-import { ictDayStartIso } from '@/app/admin/api-stats/ict-date'
+import {
+  ictDayStartIso,
+  resolvePartnerAiUsagePresetRange,
+  type PartnerAiUsagePreset,
+} from '@/app/admin/api-stats/ict-date'
 
 export type {
   PartnerAiImageGenUsageStatRow,
@@ -2619,10 +2628,13 @@ const PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT = 80
 
 export type PartnerAiUsagePeriod = 'day' | 'week' | 'month'
 
-/** Cß╗¡a sß╗ò l─ân (24h / 7d / 30d) hoß║╖c khoß║úng ng├áy lß╗ïch UTC [from, to] (YYYY-MM-DD). */
+export type { PartnerAiUsagePreset }
+
+/** Cửa sổ lăn (tương thích), khoảng ngày ICT, hoặc mốc lịch hôm nay / tuần / tháng / năm / tất cả. */
 export type PartnerAiUsageQuery =
   | { type: 'rolling'; period: PartnerAiUsagePeriod }
   | { type: 'calendar'; fromDayUtc: string; toDayUtc: string }
+  | { type: 'preset'; preset: PartnerAiUsagePreset }
 
 const PARTNER_AI_USAGE_MAX_CALENDAR_DAYS = 400
 
@@ -2654,6 +2666,22 @@ function resolvePartnerAiUsageWindow(query: PartnerAiUsageQuery):
       lookbackDays: number
       usageQuery: PartnerAiUsageQuery
     } {
+  if (query.type === 'preset') {
+    const range = resolvePartnerAiUsagePresetRange(query.preset)
+    if (query.preset === 'all' || range.fromDay == null || range.toDay == null) {
+      return {
+        sinceIso: '1970-01-01T00:00:00.000+07:00',
+        untilIsoExclusive: null,
+        lookbackDays: 0,
+        usageQuery: { type: 'preset', preset: 'all' },
+      }
+    }
+    return resolvePartnerAiUsageWindow({
+      type: 'calendar',
+      fromDayUtc: range.fromDay,
+      toDayUtc: range.toDay,
+    })
+  }
   if (query.type === 'rolling') {
     const { sinceIso, lookbackDays } = partnerAiUsageSinceIso(query.period)
     return { sinceIso, untilIsoExclusive: null, lookbackDays, usageQuery: query }
@@ -2687,7 +2715,7 @@ function resolvePartnerAiUsageWindow(query: PartnerAiUsageQuery):
 /** Tß╗òng token theo model (API) trong cß╗¡a sß╗ò thß╗¥i gian ─æ├ú chß╗ìn ΓÇö chß╗º shop xem tr├¬n dashboard. */
 export async function getPartnerAiTokenUsageStats(
   partnerId: string,
-  usageQuery: PartnerAiUsageQuery = { type: 'rolling', period: 'month' }
+  usageQuery: PartnerAiUsageQuery = { type: 'preset', preset: 'this_month' }
 ) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2737,7 +2765,7 @@ export async function getPartnerAiTokenUsageStats(
  */
 export async function getPartnerAiUsageAnalytics(
   partnerId: string,
-  usageQuery: PartnerAiUsageQuery = { type: 'rolling', period: 'month' }
+  usageQuery: PartnerAiUsageQuery = { type: 'preset', preset: 'this_month' }
 ) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -2758,7 +2786,7 @@ export async function getPartnerAiUsageAnalytics(
   )
   const ownerId = (ownerRow?.owner ?? '').trim() || null
 
-  const [tokenDetails, creditSummaries, creditDetails, logoRows, embedSummaries, embedDetails, textEmbedSummaries, textEmbedDetails] =
+  const [tokenDetails, creditSummaries, creditDetails, logoRows, logoCreditSum, embedSummaries, embedDetails, textEmbedSummaries, textEmbedDetails, imageEmbedModels, textEmbedModels] =
     await Promise.all([
       fetchMessagingPartnerAiTokenUsageDetailsFromPg(
         partnerId,
@@ -2783,6 +2811,7 @@ export async function getPartnerAiUsageAnalytics(
         PARTNER_AI_LOGO_CREDIT_ROW_LIMIT,
         untilIsoExclusive
       ),
+      fetchPartnerLogoCreditSumInRangeFromPg(partnerId, sinceIso, untilIsoExclusive),
       fetchMessagingPartnerImageEmbedStatsBySourceFromPg(partnerId, sinceIso, untilIsoExclusive),
       fetchMessagingPartnerImageEmbedDetailsFromPg(
         partnerId,
@@ -2797,6 +2826,8 @@ export async function getPartnerAiUsageAnalytics(
         PARTNER_AI_TEXT_EMBED_DETAIL_ROW_LIMIT,
         untilIsoExclusive
       ),
+      fetchMessagingPartnerImageEmbedStatsByModelFromPg(partnerId, sinceIso, untilIsoExclusive),
+      fetchMessagingPartnerTextEmbedStatsByModelFromPg(partnerId, sinceIso, untilIsoExclusive),
     ])
 
   if (tokenDetails === null) {
@@ -2818,11 +2849,16 @@ export async function getPartnerAiUsageAnalytics(
     creditSummaries: creditSummaries ?? [],
     creditDetails: creditDetails ?? [],
     logoCreditRows: logoRows ?? [],
+    logoCreditChargedTotal:
+      logoCreditSum?.sum_amount ??
+      (logoRows ?? []).reduce((sum, row) => sum + row.charged_credits, 0),
     ownerAccountLinked: Boolean(ownerId),
     imageEmbedSummaries: embedSummaries ?? [],
     imageEmbedDetails: embedDetails ?? [],
     textEmbedSummaries: textEmbedSummaries ?? [],
     textEmbedDetails: textEmbedDetails ?? [],
+    imageEmbedEstimatedCostVnd: partnerAiEmbedModelRowsEstimatedCostVnd(imageEmbedModels ?? []),
+    textEmbedEstimatedCostVnd: partnerAiEmbedModelRowsEstimatedCostVnd(textEmbedModels ?? []),
   }
 }
 
@@ -3090,6 +3126,20 @@ export async function getPartnerInventoryPage(partnerId: string, page: number, p
     totalCount: outTotal,
     hasMore: from + outRows.length < outTotal,
   }
+}
+
+export async function getPartnerInventoryDetail(partnerId: string, inventoryId: string) {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error }
+  const { user } = auth
+  const gate = await assertPartnerStaffGate(user.id, partnerId, 'inventory_products')
+  if ('error' in gate) return { error: gate.error }
+  if (!isPgConfigured()) {
+    return { error: 'DATABASE_URL is not set.' }
+  }
+  const fields = await fetchPartnerInventoryAdminDetailFromPg(partnerId, inventoryId)
+  if (!fields) return { error: 'Failed to load inventory item.' }
+  return { fields }
 }
 
 export async function getPartnerInventoryItem(partnerId: string, inventoryId: string) {

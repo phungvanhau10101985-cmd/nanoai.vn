@@ -270,6 +270,23 @@ export function partnerAiAggregatedModelRowsEstimatedCostVnd<T extends PartnerAi
   return { totalVnd, rows: out }
 }
 
+const EMBED_COST_FALLBACK_MODEL = 'gemini-embedding-2-preview'
+
+/** Embedding chỉ có token đầu vào. Model trống dùng Gemini Embedding 2 preview. */
+export function partnerAiEmbedModelRowsEstimatedCostVnd(
+  rows: Array<{ model: string; sum_prompt_tokens: number; sum_total_tokens: number }>,
+  usdToVnd = getPartnerAiTokenCostUsdToVnd()
+): number {
+  let total = 0
+  for (const row of rows) {
+    const model = row.model.trim() || EMBED_COST_FALLBACK_MODEL
+    const prompt = row.sum_prompt_tokens > 0 ? row.sum_prompt_tokens : row.sum_total_tokens
+    if (prompt <= 0) continue
+    total += calcCostVnd(prompt, 0, model, null, { usdToVnd, pricingMode: 'aggregate_short' })
+  }
+  return total
+}
+
 export function partnerAiTokenDetailRowEstimatedCostVnd(
   row: {
     model: string

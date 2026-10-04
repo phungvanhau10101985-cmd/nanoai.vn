@@ -3053,6 +3053,58 @@ export async function fetchPartnerInventoryRowByImageUrlFromPg(
   }
 }
 
+const INVENTORY_DETAIL_OMIT_COLUMNS = [
+  'image_embedding_vec',
+  'text_embedding_vec',
+  'image_embedding_json',
+  'text_embedding_json',
+] as const
+
+/** One product, every column except embedding vectors (pgvector has no jsonb cast, and the payload is not a readable field). */
+export async function fetchPartnerInventoryAdminDetailFromPg(
+  partnerId: string,
+  inventoryId: string
+): Promise<Record<string, unknown> | null> {
+  if (!isPgConfigured()) return null
+  const id = inventoryId.trim()
+  if (!id) return null
+  try {
+    const columns = await pgQuery<{ column_name: string }>(
+      `select column_name
+       from information_schema.columns
+       where table_schema = 'public'
+         and table_name = 'messaging_partner_inventory'
+         and column_name <> all ($1::text[])
+       order by ordinal_position`,
+      [INVENTORY_DETAIL_OMIT_COLUMNS]
+    )
+    const names = columns
+      .map((column) => column.column_name)
+      .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name))
+    if (names.length === 0) return null
+    const selectList = names.map((name) => `mpi.${name}`).join(', ')
+    const row = await pgQueryOne<{ fields: unknown }>(
+      `select to_jsonb(s) as fields
+       from (
+         select ${selectList}
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+           and mpi.id = $2::uuid
+         limit 1
+       ) s`,
+      [partnerId, id]
+    )
+    const fields = row?.fields
+    if (fields && typeof fields === 'object' && !Array.isArray(fields)) {
+      return fields as Record<string, unknown>
+    }
+    return null
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryAdminDetailFromPg]', e)
+    return null
+  }
+}
+
 export async function fetchPartnerInventoryRowByIdForPartnerFromPg(
   partnerId: string,
   inventoryId: string
