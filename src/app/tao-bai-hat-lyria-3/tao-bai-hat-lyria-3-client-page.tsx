@@ -343,7 +343,8 @@ export default function TaoBaiHatLyria3ClientPage() {
   const [densityPreset, setDensityPreset] = useState<DensityPreset>('auto')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [busyKind, setBusyKind] = useState<null | 'lyrics' | 'music'>(null)
+  const busy = busyKind !== null
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
   const [notes, setNotes] = useState<string | null>(null)
   const [notesKind, setNotesKind] = useState<'instrumental' | 'vocal' | null>(null)
@@ -413,41 +414,104 @@ export default function TaoBaiHatLyria3ClientPage() {
     }
   }, [imagePreview])
 
-  const handleGenerate = async () => {
-    const p = prompt.trim()
-    const song = songContent.trim()
-    const hasImg = Boolean(imageFile)
-    if (p.length < 4 && !hasImg && song.length < 10) {
+  const appendMusicSettings = (form: FormData) => {
+    form.append('prompt', prompt.trim())
+    form.append('variant', 'pro')
+    form.append('targetDurationSec', String(LYRIA3_TARGET_SEC))
+    form.append('vocalMode', vocalMode)
+    form.append('voiceGender', voiceGender)
+    form.append('voiceTimbre', voiceTimbre)
+    form.append('voiceLanguage', voiceLanguage)
+    form.append('bpmPreset', bpmPreset)
+    form.append('structurePreset', structurePreset)
+    form.append('densityPreset', densityPreset)
+    form.append('genre', genre)
+  }
+
+  const handleWriteLyrics = async () => {
+    const idea = prompt.trim()
+    if (idea.length < 4) {
       toast({
-        title: tr('Thiếu đầu vào', 'Missing input', '缺少输入', '入力不足', '입력 부족'),
+        title: tr('Thiếu ý tưởng', 'Missing idea', '缺少想法', 'アイデア不足', '아이디어 부족'),
         description: tr(
-          'Nhập mô tả từ 4 ký tự, hoặc tải ảnh, hoặc nội dung/lời bài từ 10 ký tự.',
-          'Add a 4+ char description, or an image, or lyrics/content (10+ chars).',
-          '请填写至少 4 字描述、或上传图片、或 10 字以上内容/歌词。',
-          '説明4文字以上、画像、または歌詞・内容10文字以上のいずれかを入力してください。',
-          '설명 4자 이상, 이미지, 또는 가사/내용 10자 이상 중 하나를 입력하세요.',
+          'Nhập ý tưởng bài hát (ít nhất 4 ký tự). Lời viết theo thể loại, giọng, ngôn ngữ, nhịp và cấu trúc phía trên — không dùng ảnh.',
+          'Enter a song idea (at least 4 characters). Lyrics follow the genre, voice, language, tempo, and structure above — no image.',
+          '请填写歌曲想法（至少 4 字）。歌词按上方风格、声部、语言、节拍和结构来写，不使用图片。',
+          '曲のアイデアを4文字以上入力してください。歌詞は上のジャンル・声・言語・テンポ・構成に従い、画像は使いません。',
+          '곡 아이디어를 4자 이상 입력하세요. 가사는 위 장르·보이스·언어·템포·구성에 따르며 이미지는 쓰지 않습니다.',
         ),
         variant: 'destructive',
       })
       return
     }
-    setBusy(true)
+    setBusyKind('lyrics')
+    try {
+      const form = new FormData()
+      form.append('step', 'lyrics')
+      appendMusicSettings(form)
+      const res = await fetch('/api/music-lyria3-generate', { method: 'POST', body: form })
+      const data = (await res.json().catch(() => ({}))) as { lyrics?: string; error?: string }
+      if (!res.ok || !data.lyrics?.trim()) {
+        throw new Error(data.error || tr('Không viết được lời', 'Could not write lyrics', '未能写出歌词', '歌詞を書けませんでした', '가사를 쓰지 못했습니다'))
+      }
+      setSongContent(data.lyrics.trim())
+      toast({
+        title: tr('Đã viết lời', 'Lyrics ready', '歌词已写好', '歌詞ができました', '가사 작성됨'),
+        description: tr(
+          'Xem và sửa lời bên dưới, rồi bấm Tạo nhạc.',
+          'Review or edit the lyrics below, then generate the track.',
+          '请查看或修改下方歌词，再生成音乐。',
+          '下の歌詞を確認・修正してから曲を生成してください。',
+          '아래 가사를 확인하거나 고친 뒤 음악을 만드세요.',
+        ),
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : tr('Lỗi không xác định', 'Unknown error', '未知错误', '不明なエラー', '알 수 없는 오류')
+      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: msg, variant: 'destructive' })
+    } finally {
+      setBusyKind(null)
+    }
+  }
+
+  const handleGenerate = async () => {
+    const p = prompt.trim()
+    const song = songContent.trim()
+    const hasImg = Boolean(imageFile)
+    if (vocalMode === 'vocal' && song.length < 10) {
+      toast({
+        title: tr('Chưa có lời', 'No lyrics yet', '还没有歌词', '歌詞がありません', '가사가 없습니다'),
+        description: tr(
+          'Bấm Tạo lời bài hát (theo cài đặt phía trên), hoặc tự nhập lời, rồi mới tạo nhạc.',
+          'Write lyrics from the settings above, or paste lyrics, then generate the track.',
+          '请先按上方设置生成歌词，或自行填写歌词，再生成音乐。',
+          '上の設定で歌詞を作るか、歌詞を入力してから曲を生成してください。',
+          '위 설정으로 가사를 만들거나 직접 입력한 다음 음악을 만드세요.',
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+    if (vocalMode !== 'vocal' && p.length < 4 && !hasImg && song.length < 10) {
+      toast({
+        title: tr('Thiếu đầu vào', 'Missing input', '缺少输入', '入力不足', '입력 부족'),
+        description: tr(
+          'Nhập ý tưởng từ 4 ký tự, hoặc tải ảnh.',
+          'Add a 4+ character idea, or an image.',
+          '请填写至少 4 字想法，或上传图片。',
+          'アイデアを4文字以上入力するか、画像を追加してください。',
+          '아이디어 4자 이상 또는 이미지를 넣으세요.',
+        ),
+        variant: 'destructive',
+      })
+      return
+    }
+    setBusyKind('music')
     setAudioUrl(null)
     setNotes(null)
     setNotesKind(null)
     try {
       const form = new FormData()
-      form.append('prompt', p)
-      form.append('variant', 'pro')
-      form.append('targetDurationSec', String(LYRIA3_TARGET_SEC))
-      form.append('vocalMode', vocalMode)
-      form.append('voiceGender', voiceGender)
-      form.append('voiceTimbre', voiceTimbre)
-      form.append('voiceLanguage', voiceLanguage)
-      form.append('bpmPreset', bpmPreset)
-      form.append('structurePreset', structurePreset)
-      form.append('densityPreset', densityPreset)
-      form.append('genre', genre)
+      appendMusicSettings(form)
       form.append('songContent', song)
       if (imageFile) form.append('image', imageFile)
 
@@ -457,7 +521,6 @@ export default function TaoBaiHatLyria3ClientPage() {
         error?: string
         code?: string
         audioUrl?: string
-        generatedLyrics?: string
         lyricsOrNotes?: string
         charged?: number
         historySaved?: boolean
@@ -466,7 +529,6 @@ export default function TaoBaiHatLyria3ClientPage() {
       if (!res.ok) {
         throw new Error(data.error || tr('Tạo nhạc thất bại', 'Generation failed', '生成失败', '生成に失敗', '생성 실패'))
       }
-      if (data.generatedLyrics?.trim()) setSongContent(data.generatedLyrics.trim())
       if (data.audioUrl) {
         setAudioUrl(data.audioUrl)
         void tryAutoCompleteHubPlanStep('/tao-bai-hat-lyria-3', data.audioUrl)
@@ -508,7 +570,7 @@ export default function TaoBaiHatLyria3ClientPage() {
       const msg = e instanceof Error ? e.message : tr('Lỗi không xác định', 'Unknown error', '未知错误', '不明なエラー', '알 수 없는 오류')
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: msg, variant: 'destructive' })
     } finally {
-      setBusy(false)
+      setBusyKind(null)
     }
   }
 
@@ -539,11 +601,11 @@ export default function TaoBaiHatLyria3ClientPage() {
           </h1>
           <p className="mt-2 text-muted-foreground text-sm">
             {tr(
-              'Có lời: hệ thống viết lời từ mô tả trước, rồi mới tạo nhạc. Đã có lời từng dòng thì giữ nguyên lời đó.',
-              'With vocals: lyrics are written from your description first, then the track is composed. Line-by-line lyrics you already pasted are kept.',
-              '人声模式：先根据描述写歌词，再生成音乐。已粘贴的分行歌词会保留。',
-              'ボーカル：説明から歌詞を書いてから曲を作ります。行ごとの歌詞を貼ってある場合はそのまま使います。',
-              '보컬: 설명으로 가사를 먼저 쓴 다음 음악을 만듭니다. 이미 줄 단위로 붙인 가사는 그대로 둡니다.',
+              'Có lời: nhập ý tưởng, bấm Tạo lời theo cài đặt phía trên, sửa lời nếu cần, rồi mới Tạo nhạc. Ảnh không dùng để viết lời.',
+              'With vocals: enter an idea, write lyrics from the settings above, edit if needed, then generate the track. Images are not used for lyrics.',
+              '人声：填写想法，按上方设置生成歌词，可修改后再生成音乐。图片不用于写词。',
+              'ボーカル：アイデアを書き、上の設定で歌詞を作り、必要なら直してから曲を生成。画像は歌詞に使いません。',
+              '보컬: 아이디어를 적고 위 설정으로 가사를 만든 뒤, 필요하면 고치고 음악을 만듭니다. 이미지는 가사에 쓰지 않습니다.',
             )}
           </p>
           <p className="mt-1 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -561,11 +623,11 @@ export default function TaoBaiHatLyria3ClientPage() {
             </CardTitle>
             <CardDescription>
               {tr(
-                'Chọn thể loại, có thể upload ảnh. Có lời mà chưa dán lời: mô tả chủ đề — hệ thống viết lời rồi mới tạo nhạc.',
-                'Choose a genre and optional image. For vocals without pasted lyrics, describe the theme — lyrics are written first, then the music.',
-                '选择风格，可上传图片。未粘贴歌词时填写主题：先写词再生成音乐。',
-                'ジャンルと任意の画像。歌詞未入力のボーカルはテーマを書くと、先に歌詞を作ってから曲を生成します。',
-                '장르와 선택 이미지. 가사를 붙이지 않은 보컬은 주제를 적으면 가사를 먼저 쓴 뒤 음악을 만듭니다.',
+                'Cài đặt thể loại, giọng, nhịp và cấu trúc phía trên. Ý tưởng bài hát nằm dưới. Có lời thì tạo lời trước, rồi mới tạo nhạc.',
+                'Set genre, voice, tempo, and structure above. The song idea is below. With vocals, write lyrics first, then generate the track.',
+                '先设置上方风格、声部、节拍和结构。歌曲想法在下方。有人声时先写词再生成音乐。',
+                '上でジャンル・声・テンポ・構成を選び、下に曲のアイデア。ボーカルは先に歌詞、その後に曲。',
+                '위에서 장르·보이스·템포·구성을 고치고, 아래에 곡 아이디어. 보컬은 가사를 먼저 만든 다음 음악.',
               )}
             </CardDescription>
           </CardHeader>
@@ -758,9 +820,62 @@ export default function TaoBaiHatLyria3ClientPage() {
               </p>
             </div>
 
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{tr('Ý tưởng bài hát', 'Song idea', '歌曲想法', '曲のアイデア', '곡 아이디어')}</label>
+              <Textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={4}
+                disabled={busy}
+                placeholder={tr(
+                  'Chủ đề, câu chuyện, cảm xúc… Lời sẽ viết theo thể loại, giọng, ngôn ngữ, nhịp và cấu trúc phía trên.',
+                  'Theme, story, feeling… Lyrics follow the genre, voice, language, tempo, and structure above.',
+                  '主题、故事、情绪…歌词按上方风格、声部、语言、节拍和结构来写。',
+                  'テーマ、物語、感情…歌詞は上のジャンル・声・言語・テンポ・構成に従います。',
+                  '주제, 이야기, 감정… 가사는 위 장르·보이스·언어·템포·구성에 따릅니다.',
+                )}
+                className="resize-y min-h-[96px]"
+              />
+            </div>
+
+            {vocalMode === 'vocal' && (
+              <div className="space-y-2">
+                <Button type="button" variant="outline" onClick={() => void handleWriteLyrics()} disabled={busy}>
+                  {busyKind === 'lyrics' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {busyKind === 'lyrics'
+                    ? tr('Đang viết lời…', 'Writing lyrics…', '正在写词…', '歌詞を書いています…', '가사 작성 중…')
+                    : tr('Tạo lời bài hát', 'Write lyrics', '生成歌词', '歌詞を作る', '가사 만들기')}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    'Dùng cài đặt phía trên và ý tưởng. Không đọc ảnh.',
+                    'Uses the settings above and the idea. Does not read an image.',
+                    '使用上方设置和想法。不读取图片。',
+                    '上の設定とアイデアを使います。画像は読みません。',
+                    '위 설정과 아이디어를 사용합니다. 이미지는 읽지 않습니다.',
+                  )}
+                </p>
+                <label className="text-sm font-medium">{tr('Lời bài hát', 'Lyrics', '歌词', '歌詞', '가사')}</label>
+                <Textarea
+                  value={songContent}
+                  onChange={(e) => setSongContent(e.target.value)}
+                  rows={8}
+                  disabled={busy}
+                  placeholder={tr(
+                    'Lời hiện ở đây sau khi bấm Tạo lời bài hát. Có thể sửa trước khi tạo nhạc.',
+                    'Lyrics appear here after Write lyrics. You can edit them before generating the track.',
+                    '点击生成歌词后显示在这里。生成音乐前可以修改。',
+                    '「歌詞を作る」のあとここに出ます。曲を作る前に直せます。',
+                    '가사 만들기를 누르면 여기에 나옵니다. 음악을 만들기 전에 고칠 수 있습니다.',
+                  )}
+                  className="resize-y min-h-[160px]"
+                />
+              </div>
+            )}
+
             <div className="space-y-2 rounded-lg border p-3">
               <div className="flex items-center justify-between gap-2">
-                <label className="text-sm font-medium">{tr('Ảnh tham chiếu (tuỳ chọn)', 'Reference image (optional)', '参考图（可选）', '参考画像（任意）', '참조 이미지(선택)')}</label>
+                <label className="text-sm font-medium">{tr('Ảnh mood khi tạo nhạc (tuỳ chọn)', 'Mood image for the track (optional)', '生成音乐时的情绪图（可选）', '曲の雰囲気用画像（任意）', '곡 무드 이미지(선택)')}</label>
                 {imageFile && (
                   <Button type="button" variant="ghost" size="sm" className="h-8 px-2" onClick={clearImage} disabled={busy}>
                     <X className="h-4 w-4" />
@@ -772,7 +887,7 @@ export default function TaoBaiHatLyria3ClientPage() {
                 <div className="h-44 overflow-hidden rounded-md border">
                   <ImagePreview
                     src={imagePreview}
-                    alt={tr('Ảnh tham chiếu', 'Reference image', '参考图', '参考画像', '참조 이미지')}
+                    alt={tr('Ảnh mood', 'Mood image', '情绪图', '雰囲気画像', '무드 이미지')}
                     className="h-full w-full object-cover"
                     asImg
                   />
@@ -780,71 +895,19 @@ export default function TaoBaiHatLyria3ClientPage() {
               )}
               <p className="text-xs text-muted-foreground">
                 {tr(
-                  'JPEG/PNG/WebP/GIF, tối đa 8MB. Ảnh giúp AI bám mood.',
-                  'JPEG/PNG/WebP/GIF, max 8MB. Image guides mood.',
-                  '最大 8MB，可用图片引导情绪。',
-                  '最大8MB。画像で雰囲気を指定できます。',
-                  '최대 8MB. 이미지로 무드를 맞출 수 있습니다.',
+                  'JPEG/PNG/WebP/GIF, tối đa 8MB. Chỉ gửi kèm lúc tạo nhạc. Không dùng để viết lời.',
+                  'JPEG/PNG/WebP/GIF, max 8MB. Sent only when generating the track. Not used to write lyrics.',
+                  '最大 8MB。仅在生成音乐时发送。不用于写词。',
+                  '最大8MB。曲を生成するときだけ送ります。歌詞には使いません。',
+                  '최대 8MB. 음악을 만들 때만 보냅니다. 가사에는 쓰지 않습니다.',
                 )}
               </p>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">{tr('Mô tả thêm', 'Extra description', '补充描述', '追加の説明', '추가 설명')}</label>
-              <Textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                rows={4}
-                disabled={busy}
-                placeholder={tr(
-                  'Tempo, mood, nhạc cụ, bối cảnh… (có thể để trống nếu chỉ dùng ảnh + thể loại)',
-                  'Tempo, mood, instruments… (optional if image + genre is enough)',
-                  '节奏、情绪、乐器…',
-                  'テンポ、雰囲気、楽器…',
-                  '템포, 분위기, 악기…',
-                )}
-                className="resize-y min-h-[96px]"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {vocalMode === 'vocal'
-                  ? tr('Lời / nội dung bài hát (tuỳ chọn)', 'Lyrics / song text (optional)', '歌词/正文（可选）', '歌詞・本文（任意）', '가사·내용(선택)')
-                  : tr('Ý tưởng chủ đề — gợi nhạc cụ (tuỳ chọn)', 'Theme text for instrumental (optional)', '主题参考（纯音乐，可选）', 'テーマ文（インスト用・任意）', '테마 텍스트(인스트·선택)')}
-              </label>
-              <Textarea
-                value={songContent}
-                onChange={(e) => setSongContent(e.target.value)}
-                rows={5}
-                disabled={busy}
-                placeholder={
-                  vocalMode === 'vocal'
-                    ? tr(
-                        '[Verse 1] … [Chorus] … hoặc mô tả từng đoạn cần có',
-                        '[Verse] … [Chorus] … or section ideas',
-                        '【主歌】…【副歌】…',
-                        '【Aメロ】…【サビ】…',
-                        '[Verse] … [Chorus] …',
-                      )
-                    : tr(
-                        'Ví dụ chủ đề: hoàng hôn, biển, kỷ niệm — nhạc cụ thể hiện không lời',
-                        'e.g. sunset, sea — instrumental mood only',
-                        '例如：日落、海洋——纯器乐情绪',
-                        '例：夕焼け、海——インストで表現',
-                        '예: 석양, 바다 — 인스트루멘탈 무드',
-                      )
-                }
-                className="resize-y min-h-[100px]"
-              />
-            </div>
-
             <div className="flex flex-wrap items-center gap-3">
               <Button type="button" onClick={() => void handleGenerate()} disabled={busy}>
-                {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                {busy && vocalMode === 'vocal'
-                  ? tr('Đang viết lời, rồi tạo nhạc…', 'Writing lyrics, then music…', '先写词，再生成音乐…', '歌詞を書いてから曲を生成…', '가사를 쓴 다음 음악 생성…')
-                  : tr('Tạo nhạc', 'Generate', '生成', '生成', '생성')}
+                {busyKind === 'music' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                {tr('Tạo nhạc', 'Generate', '生成', '生成', '생성')}
                 <span className="ml-2 text-xs opacity-90">({cost} credit)</span>
               </Button>
               {lastCharged != null && (

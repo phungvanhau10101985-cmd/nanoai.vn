@@ -279,21 +279,6 @@ const LYRICS_LANG_HINTS: Record<string, string> = {
   ko: 'Write the lyrics in natural Korean.',
 }
 
-/** Lời đã chốt (nhiều dòng ngắn hoặc có nhãn đoạn) thì giữ, không viết lại. */
-function looksLikeFinishedLyrics(raw: string): boolean {
-  const t = raw.trim()
-  if (t.length < 40) return false
-  if (/\[(intro|verse|chorus|bridge|hook|outro|pre-chorus)/i.test(t)) return true
-  if (/(điệp khúc|khổ\s*\d|lời\s*\d)/i.test(t) && t.includes('\n')) return true
-  const lines = t
-    .split(/\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-  if (lines.length < 6) return false
-  const avg = lines.reduce((n, line) => n + line.length, 0) / lines.length
-  return avg < 100
-}
-
 function textFromGenerateResponse(response: {
   text?: string
   candidates?: Array<{ content?: { parts?: ContentPart[] } }>
@@ -329,48 +314,52 @@ function summarizeLyriaParts(response: { candidates?: Array<{ content?: { parts?
     .slice(0, 800)
 }
 
-/** Viết lời hát từ mô tả trước khi gọi Lyria — model nhạc không tự viết lời rồi trả audio. */
+/** Viết lời từ ý tưởng + cài đặt. Không đọc ảnh. */
 async function writeLyricsFromBrief(
   ai: GoogleGenAI,
   params: {
     userId: string
     genre: string
-    promptRaw: string
-    songContent: string
+    songIdea: string
+    voiceGender: string
+    voiceTimbre: string
     voiceLanguage: string
+    bpmPreset: string
     structurePreset: string
-    imageBuffer: Buffer | null
-    imageMime: string
+    densityPreset: string
   }
 ): Promise<string> {
-  const genreHint = GENRE_MODEL_HINTS[params.genre] || 'Follow the mood and genre in the user brief.'
+  const genreHint = GENRE_MODEL_HINTS[params.genre] || 'Follow the mood and genre in the song idea.'
   const langHint = LYRICS_LANG_HINTS[params.voiceLanguage] || LYRICS_LANG_HINTS.auto
-  const structureHint = STRUCTURE_PRESET_HINTS[params.structurePreset] || 'Song structure: verse, chorus, verse, chorus, short outro.'
-  const brief = [params.promptRaw.trim(), params.songContent.trim()].filter(Boolean).join('\n\n')
+  const structureHint =
+    STRUCTURE_PRESET_HINTS[params.structurePreset] || 'Song structure: verse, chorus, verse, chorus, short outro.'
+  const bpmHint = BPM_PRESET_HINTS[params.bpmPreset] || ''
+  const densityHint = DENSITY_PRESET_HINTS[params.densityPreset] || ''
+  const vocalHint = buildVocalDirectionBlock(params.voiceGender, params.voiceTimbre, params.voiceLanguage)
+  const idea = params.songIdea.trim()
   const instruction = [
     'You are a songwriter. Write original singable lyrics for one song of about three minutes.',
+    'Use only the song idea and the settings below. Ignore any image. Do not invent a scene from a picture.',
     genreHint,
     langHint,
     structureHint,
-    brief
-      ? `User brief (theme, mood, story — not final lyrics unless the brief is already line-by-line lyrics):\n${brief}`
-      : 'No written brief. If an image is attached, write lyrics that match its mood, scene, and colors.',
+    bpmHint,
+    densityHint,
+    vocalHint.trim(),
+    idea
+      ? `Song idea (theme, mood, story — not final lyrics):\n${idea}`
+      : 'No extra idea. Write from the genre, language, structure, and vocal settings above.',
     'Output ONLY the lyrics. Use section labels [Verse 1], [Chorus], [Verse 2], [Bridge], [Outro].',
     'Include a chorus that can be repeated. Keep lines short enough to sing.',
     'No song title, no chords, no commentary, no markdown fences.',
     'Original words only. Do not copy or closely paraphrase an existing copyrighted song.',
-  ].join('\n\n')
-
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: instruction }]
-  if (params.imageBuffer?.length) {
-    parts.push({
-      inlineData: { mimeType: params.imageMime, data: params.imageBuffer.toString('base64') },
-    })
-  }
+  ]
+    .filter(Boolean)
+    .join('\n\n')
 
   const response = await ai.models.generateContent({
     model: LYRICS_TEXT_MODEL,
-    contents: createUserContent(parts),
+    contents: createUserContent([{ text: instruction }]),
   })
   const usage = (
     response as {
@@ -388,7 +377,7 @@ async function writeLyricsFromBrief(
 
   const lyrics = stripLyricFences(textFromGenerateResponse(response)).slice(0, 3800)
   if (lyrics.length < 20) {
-    throw new Error('Không viết được lời bài hát từ mô tả.')
+    throw new Error('Không viết được lời bài hát từ ý tưởng.')
   }
   return lyrics
 }
@@ -402,6 +391,7 @@ export async function POST(request: NextRequest) {
 
     const ct = request.headers.get('content-type') || ''
 
+    let step: 'music' | 'lyrics' = 'music'
     let promptRaw = ''
     let vocalMode: 'instrumental' | 'vocal' = 'instrumental'
     let genre = 'custom'
@@ -417,6 +407,7 @@ export async function POST(request: NextRequest) {
 
     if (ct.includes('multipart/form-data')) {
       const form = await request.formData()
+      step = form.get('step') === 'lyrics' ? 'lyrics' : 'music'
       promptRaw = String(form.get('prompt') || '').trim()
       vocalMode = form.get('vocalMode') === 'vocal' ? 'vocal' : 'instrumental'
       const g = String(form.get('genre') || 'custom').toLowerCase()
@@ -455,7 +446,9 @@ export async function POST(request: NextRequest) {
         densityPreset?: string
         imageBase64?: string
         imageMimeType?: string
+        step?: string
       }
+      step = body?.step === 'lyrics' ? 'lyrics' : 'music'
       promptRaw = String(body?.prompt || '').trim()
       vocalMode = body?.vocalMode === 'vocal' ? 'vocal' : 'instrumental'
       const g = String(body?.genre || 'custom').toLowerCase()
@@ -478,7 +471,48 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const auth = await getUserForCreditAction()
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
+    const { user } = auth
+
+    if (step === 'lyrics') {
+      if (vocalMode !== 'vocal') {
+        return NextResponse.json({ error: 'Chỉ tạo lời khi đang chọn Có lời.' }, { status: 400 })
+      }
+      if (promptRaw.length < 4) {
+        return NextResponse.json({ error: 'Nhập ý tưởng bài hát (ít nhất 4 ký tự).' }, { status: 400 })
+      }
+      if (promptRaw.length > 6000) {
+        return NextResponse.json({ error: 'Ý tưởng bài hát quá dài.' }, { status: 400 })
+      }
+      try {
+        const ai = new GoogleGenAI({ apiKey })
+        const lyrics = await writeLyricsFromBrief(ai, {
+          userId: user.id,
+          genre,
+          songIdea: promptRaw,
+          voiceGender,
+          voiceTimbre,
+          voiceLanguage,
+          bpmPreset,
+          structurePreset,
+          densityPreset,
+        })
+        return NextResponse.json({ ok: true, lyrics })
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Không viết được lời bài hát từ ý tưởng.'
+        console.error('[music-lyria3] lyrics step failed', msg)
+        return NextResponse.json({ error: msg }, { status: 502 })
+      }
+    }
+
     const songOk = songContent.trim().length >= 10
+    if (vocalMode === 'vocal' && !songOk) {
+      return NextResponse.json(
+        { error: 'Hãy tạo hoặc nhập lời bài hát trước khi tạo nhạc.' },
+        { status: 400 }
+      )
+    }
     if (promptRaw.length < 4 && !imageBuffer && !songOk) {
       return NextResponse.json(
         {
@@ -494,10 +528,6 @@ export async function POST(request: NextRequest) {
     if (songContent.length > 4000) {
       return NextResponse.json({ error: 'Nội dung bài hát quá dài.' }, { status: 400 })
     }
-
-    const auth = await getUserForCreditAction()
-    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: 401 })
-    const { user } = auth
 
     if (!bunnyStorageConfigured()) {
       return NextResponse.json(
@@ -516,33 +546,10 @@ export async function POST(request: NextRequest) {
     const hasImage = Boolean(imageBuffer?.length)
     const ai = new GoogleGenAI({ apiKey })
 
-    let lyricsForMusic = songContent
-    let generatedLyrics: string | undefined
-    if (vocalMode === 'vocal' && !looksLikeFinishedLyrics(songContent)) {
-      try {
-        lyricsForMusic = await writeLyricsFromBrief(ai, {
-          userId: user.id,
-          genre,
-          promptRaw,
-          songContent,
-          voiceLanguage,
-          structurePreset,
-          imageBuffer,
-          imageMime,
-        })
-        generatedLyrics = lyricsForMusic
-      } catch (e) {
-        await refundUserCredits(user.id, cost, 'music-lyria3-generate')
-        const msg = e instanceof Error ? e.message : 'Không viết được lời bài hát từ mô tả.'
-        console.error('[music-lyria3] lyrics step failed', msg)
-        return NextResponse.json({ error: msg }, { status: 502 })
-      }
-    }
-
     const corePrompt = buildCorePrompt({
       genre,
       promptRaw,
-      songContent: lyricsForMusic,
+      songContent,
       hasImage,
       vocalMode,
       bpmPreset,
@@ -671,8 +678,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       audioUrl,
       mimeType,
-      generatedLyrics,
-      lyricsOrNotes: modelNotes || generatedLyrics,
+      lyricsOrNotes: modelNotes,
       charged: cost,
       variant: 'pro',
       targetDurationSec: LYRIA3_TARGET_SEC,
