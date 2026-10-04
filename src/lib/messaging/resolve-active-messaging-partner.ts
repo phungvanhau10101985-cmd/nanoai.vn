@@ -5,7 +5,7 @@ import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slu
 export type ActiveMessagingPartner = {
   id: string
   display_name: string
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   embed_key: string
   /** URL logo shop — hiển thị tròn (crop góc vuông). */
   logo_url: string | null

@@ -14,7 +14,7 @@ export type PartnerSiteShopContext = {
   site: PartnerWebsitePublicRow
   partnerId: string
   partnerSlug: string
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   capabilities: PartnerCapabilities
 }
 
@@ -81,7 +81,7 @@ export async function loadPartnerSiteCapabilities(siteSlug: string): Promise<Par
 /** Safe parse when only raw JSON + industry is available (no PG round-trip). */
 export function partnerSiteCapabilitiesFromJson(
   raw: unknown,
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
 ): PartnerCapabilities {
   return normalizePartnerCapabilities(raw, industryKey)
 }

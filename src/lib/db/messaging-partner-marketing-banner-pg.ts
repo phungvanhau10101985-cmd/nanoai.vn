@@ -560,7 +560,7 @@ export async function listWebsitePartnerIdsForMarketingBannersFromPg(limit = 80)
 
 export async function fetchPartnerMarketingBannerBrandFromPg(partnerId: string): Promise<{
   shopName: string
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   logoUrl: string | null
   themeJson: unknown
 } | null> {
@@ -587,6 +587,7 @@ export async function fetchPartnerMarketingBannerBrandFromPg(partnerId: string):
     row.industry_key === 'fashion' ||
     row.industry_key === 'hotel' ||
     row.industry_key === 'food' ||
+    row.industry_key === 'machinery' ||
     row.industry_key === 'other'
       ? row.industry_key
       : null

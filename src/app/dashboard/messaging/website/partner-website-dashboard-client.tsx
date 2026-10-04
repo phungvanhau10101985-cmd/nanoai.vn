@@ -129,7 +129,7 @@ type WebsiteDashboardPartner = {
   brand_name: string | null
   display_name: string | null
   logo_url?: string | null
-  industry_key?: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industry_key?: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
 }
 
 type Props = {
@@ -668,9 +668,11 @@ export function PartnerWebsiteDashboardClient({
                         ? t.industryLabelHotel
                         : (p.industry_key || 'fashion') === 'food'
                           ? t.industryLabelFood
-                          : (p.industry_key || 'fashion') === 'other'
-                            ? t.industryLabelOther
-                            : t.industryLabelFashion}
+                          : (p.industry_key || 'fashion') === 'machinery'
+                            ? t.industryLabelMachinery
+                            : (p.industry_key || 'fashion') === 'other'
+                              ? t.industryLabelOther
+                              : t.industryLabelFashion}
                       )
                     </span>
                   </Button>

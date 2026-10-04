@@ -1,5 +1,4 @@
 import * as XLSX from 'xlsx'
-import { sourceCostVndFromCny } from '@/lib/messaging/listing-import/import-cost'
 import { IMPORT_1688_EXCEL_COLUMNS, excelExportRowFromProductData } from '@/lib/messaging/listing-import/import-1688-excel-export-preview'
 
 export function listingImportProductsXlsxBuffer(productDataRows: Record<string, unknown>[]): Buffer {
@@ -12,7 +11,7 @@ export function listingImportProductsXlsxBuffer(productDataRows: Record<string, 
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'products')
+  XLSX.utils.book_append_sheet(wb, ws, 'Products')
   return Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }))
 }
 
@@ -23,16 +22,14 @@ const LISTING_LINK_HEADERS_EN = [
   'shop_name_chinese',
   'China price',
   'chinese_name',
-  'source_price_vnd',
 ]
 const LISTING_LINK_HEADERS_VI = [
   'id',
   'Sku',
   'link',
   'Shop Trung Quốc',
-  'Giá gốc tiền tệ',
+  'Giá Tệ',
   'Tên tiếng trung',
-  'Giá gốc tiền Việt',
 ]
 
 export function listingLinkTemplateXlsxBuffer(
@@ -54,7 +51,6 @@ export function listingLinkTemplateXlsxBuffer(
       String(r.shop_name_chinese || ''),
       typeof price === 'number' && Number.isFinite(price) ? price : '',
       String(r.chinese_name || ''),
-      typeof price === 'number' && Number.isFinite(price) && price > 0 ? sourceCostVndFromCny(price) : '',
     ])
   }
   const ws = XLSX.utils.aoa_to_sheet(aoa)

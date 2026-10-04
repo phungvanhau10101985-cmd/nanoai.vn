@@ -27,7 +27,6 @@ import {
 import { appendListingImportColorSuffixToViName } from '@/lib/messaging/listing-import/listing-import-taxonomy'
 import { compactListingImportProductInfoForWeb } from '@/lib/messaging/listing-import/listing-import-product-info-compact'
 import { excelExportRowFromProductData } from '@/lib/messaging/listing-import/import-1688-excel-export-preview'
-import { sourceCostVndFromCny } from '@/lib/messaging/listing-import/import-cost'
 import {
   collectListingImportColorLabels,
   collectListingImportColorLabelStrings,
@@ -487,7 +486,8 @@ describe('listing import Excel / product_info parity with 188', () => {
     assert.equal(row.pro_lower_price, '')
     assert.equal(row.pro_high_price, '')
     assert.equal(row.cost_cny, 128)
-    assert.equal(row.cost_vnd, sourceCostVndFromCny(128))
+    assert.equal(row.cost_vnd, '')
+    assert.equal(row.Slug, '')
     assert.equal(row.pro_content, 'Mô tả bán')
     assert.equal(row.sizes, '["S", "XXL"]')
     assert.equal(row.question_group_id, 88)

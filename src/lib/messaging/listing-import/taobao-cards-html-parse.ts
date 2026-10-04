@@ -1264,8 +1264,7 @@ export function rowsToCsv(
     'cny_exchange_multiplier',
     'vnd_per_cny_used',
     'approx_vnd',
-    'Giá gốc tiền tệ',
-    'Giá gốc tiền Việt',
+    'Giá gốc tệ',
   ] as const;
 
   const esc = (v: string) => {
@@ -1300,11 +1299,6 @@ export function rowsToCsv(
         String(rate),
         numOrEmpty(approx),
         numOrEmpty(r.price_cny_approx),
-        numOrEmpty(
-          r.price_cny_approx != null && r.price_cny_approx > 0
-            ? Math.round(r.price_cny_approx * rate)
-            : null,
-        ),
       ].join(','),
     );
   }

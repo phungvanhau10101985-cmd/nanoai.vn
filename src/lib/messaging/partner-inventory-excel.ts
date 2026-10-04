@@ -26,7 +26,7 @@ import {
   resolveCatalog188Column,
   type InventoryCatalog188Fields,
 } from '@/lib/messaging/partner-inventory-catalog-188'
-import { scrapedCnyAmount, sourceCostVndFromCny } from '@/lib/messaging/listing-import/import-cost'
+import { scrapedCnyAmount } from '@/lib/messaging/listing-import/import-cost'
 
 export type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
@@ -402,9 +402,8 @@ function costCell(primary: unknown, fallback: unknown): number | '' {
   return fb != null ? fb : ''
 }
 
-/** File xuất danh sách: có giá gốc tiền tệ mà chưa có giá gốc tiền Việt thì tính theo tỷ giá. */
+/** File xuất danh sách: giữ đúng hai ô đã lưu. Có tệ thì cột Giá Việt Nam để trống, giống file cào 188. */
 function exportCostPair(cny: number | '', vnd: number | ''): [number | '', number | ''] {
-  if (typeof cny === 'number' && vnd === '') return [cny, sourceCostVndFromCny(cny)]
   return [cny, vnd]
 }
 

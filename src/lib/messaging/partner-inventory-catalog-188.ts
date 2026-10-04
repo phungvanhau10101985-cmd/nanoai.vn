@@ -6,7 +6,11 @@
  * (`PRODUCT_EXCEL_EXPORT_COLUMNS` / `PRODUCT_EXCEL_VIETNAMESE_HEADERS`).
  */
 
-import { scrapedCnyAmount, stampScrapedCostCny } from '@/lib/messaging/listing-import/import-cost'
+import {
+  looksLikeChinaSource,
+  scrapedCnyAmount,
+  stampScrapedCostCny,
+} from '@/lib/messaging/listing-import/import-cost'
 
 export const CATALOG_188_EXCEL_COLUMNS = [
   'id',
@@ -92,14 +96,14 @@ export const CATALOG_188_VI_HEADERS: Record<Catalog188ExcelColumn, string> = {
   Color: 'màu sắc',
   Occasion: 'Dịp',
   Features: 'Tính năng',
-  Weight: 'Trọng lượng (g)',
+  Weight: 'Trọng lượng',
   product_info: 'Thông tin sản phẩm',
   chinese_name: 'Tên tiếng trung',
   shop_name_chinese: 'Shop Trung Quốc',
   Slug: 'Slug',
   listed: 'Trong danh sách (1=import, 0=xóa DB)',
-  cost_cny: 'Giá gốc tiền tệ',
-  cost_vnd: 'Giá gốc tiền Việt',
+  cost_cny: 'Giá gốc tệ',
+  cost_vnd: 'Giá Việt Nam',
 }
 
 /** Cột chỉ có trên file xuất SaaS — 188 bỏ qua khi import. */
@@ -328,13 +332,19 @@ const HEADER_TO_COLUMN: Record<string, Catalog188ExcelColumn> = (() => {
   add('dip', 'Occasion')
   add('tinh_nang', 'Features')
   add('trong_luong', 'Weight')
+  add('Trọng lượng (g)', 'Weight')
+  add('trong_luong_g', 'Weight')
   add('thong_tin_san_pham', 'product_info')
   add('ten_tieng_trung', 'chinese_name')
   add('shop_trung_quoc', 'shop_name_chinese')
   add('Giá gốc tệ', 'cost_cny')
   add('gia_goc_te', 'cost_cny')
+  add('Giá gốc tiền tệ', 'cost_cny')
+  add('gia_goc_tien_te', 'cost_cny')
   add('Giá Việt Nam', 'cost_vnd')
   add('gia_viet_nam', 'cost_vnd')
+  add('Giá gốc tiền Việt', 'cost_vnd')
+  add('gia_goc_tien_viet', 'cost_vnd')
   add('trong_danh_sach', 'listed')
   add('listed', 'listed')
   add('is_active', 'listed')
@@ -839,12 +849,15 @@ export function catalogFieldsFromExternalProduct(product: unknown): InventoryCat
     link_default: p.link_default ?? p.product_url,
   }
   stampScrapedCostCny(stamped)
+  const china = looksLikeChinaSource(stamped.origin, stamped.link_default)
   if (snap.cost_cny == null && snap.cost_vnd == null) {
     snap.cost_cny = scrapedCnyAmount(stamped.cost_cny)
-    snap.cost_vnd = scrapedCnyAmount(stamped.cost_vnd)
+    snap.cost_vnd = china ? null : scrapedCnyAmount(stamped.cost_vnd)
   }
+  if (china) snap.cost_vnd = null
   const fields = catalogFieldsFromSnapshot(snap)
   fields.write_cost_cny = fields.cost_cny != null
-  fields.write_cost_vnd = fields.cost_vnd != null
+  fields.write_cost_vnd = china || fields.cost_vnd != null
+  if (china) fields.cost_vnd = null
   return fields
 }

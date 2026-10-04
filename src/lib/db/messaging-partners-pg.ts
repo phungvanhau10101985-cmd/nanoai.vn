@@ -89,7 +89,7 @@ export function isMessagingPartnerInboundOpen(row: { is_active: boolean; purge_a
 export type MessagingPartnerBySlugRow = {
   id: string
   display_name: string
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   is_active: boolean
   purge_at: string | null
   /** Dùng cho embed widget; có thể rỗng. */
@@ -117,7 +117,7 @@ export async function fetchMessagingPartnerBySlugFromPg(slug: string): Promise<M
     const row = await pgQueryOne<{
       id: string
       display_name: string | null
-      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+      industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
       is_active: boolean | null
       purge_at: string | null
       embed_key: string | null
@@ -738,7 +738,7 @@ export async function updateMessagingPartnerContactChannelsForOwnerFromPg(params
 
 export type MessagingPartnerByIdRow = {
   id: string
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   is_active: boolean
   purge_at: string | null
 }
@@ -756,7 +756,7 @@ export async function fetchMessagingPartnerByIdFromPg(partnerId: string): Promis
   try {
     const row = await pgQueryOne<{
       id: string
-      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+      industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
       is_active: boolean | null
       purge_at: string | null
     }>(
@@ -880,7 +880,7 @@ export type MessagingPartnerByIdsRow = {
   brand_name: string
   slug: string
   is_active: boolean
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
 }
 
 /**
@@ -894,7 +894,7 @@ export async function fetchMessagingPartnersByIdsFromPg(partnerIds: string[]): P
     const rows = await pgQuery<{
       id: string
       display_name: string | null
-      industry_key: 'fashion' | 'hotel' | 'food' | 'other' | null
+      industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
       brand_name: string | null
       logo_url: string | null
       slug: string | null
@@ -1267,7 +1267,7 @@ export async function fetchMessagingPartnerEmbedKeyForOwnerFromPg(
 export async function insertMessagingPartnerForOwnerFromPg(params: {
   slug: string
   display_name: string
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other'
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other'
   brand_name: string
   logo_url: string | null
   owner_user_id: string
@@ -1430,7 +1430,7 @@ export async function updateMessagingPartnerProfileForOwnerFromPg(params: {
   partner_id: string
   owner_user_id: string
   display_name: string
-  industry_key: 'fashion' | 'hotel' | 'food' | 'other'
+  industry_key: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other'
   brand_name: string
   logo_url: string | null
 }): Promise<MessagingPartnerRow | null> {

@@ -1220,6 +1220,7 @@ export type PartnerWebsiteCopy = {
   industryLabelFashion: string
   industryLabelHotel: string
   industryLabelFood: string
+  industryLabelMachinery: string
   industryLabelOther: string
   journalStepDone: string
   journalStepCurrent: string
@@ -2537,6 +2538,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateInUseNow: 'Mẫu này đang được dùng',
     templateSuggestedBadge: 'Mặc định ngành',
     industryLabelFashion: 'thời trang',
+    industryLabelMachinery: 'cơ khí máy móc',
     industryLabelHotel: 'khách sạn',
     industryLabelFood: 'ẩm thực',
     industryLabelOther: 'khác',
@@ -3858,6 +3860,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateInUseNow: 'This template is in use',
     templateSuggestedBadge: 'Industry default',
     industryLabelFashion: 'fashion',
+    industryLabelMachinery: 'machinery',
     industryLabelHotel: 'hotel',
     industryLabelFood: 'food',
     industryLabelOther: 'other',
@@ -5142,6 +5145,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateInUseNow: '正在使用此模板',
     templateSuggestedBadge: '行业默认',
     industryLabelFashion: '时尚',
+    industryLabelMachinery: '机械设备',
     industryLabelHotel: '酒店',
     industryLabelFood: '餐饮',
     industryLabelOther: '其他',
@@ -6445,6 +6449,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateInUseNow: 'このテンプレートを使用中',
     templateSuggestedBadge: '業種の既定',
     industryLabelFashion: 'ファッション',
+    industryLabelMachinery: '機械・機材',
     industryLabelHotel: 'ホテル',
     industryLabelFood: 'フード',
     industryLabelOther: 'その他',
@@ -7750,6 +7755,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateInUseNow: '이 템플릿을 사용 중',
     templateSuggestedBadge: '업종 기본',
     industryLabelFashion: '패션',
+    industryLabelMachinery: '기계·장비',
     industryLabelHotel: '호텔',
     industryLabelFood: '푸드',
     industryLabelOther: '기타',

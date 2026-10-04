@@ -51,6 +51,35 @@ describe('partner order profit', () => {
     assert.equal(both.goodsCny, 80)
     assert.equal(both.goodsVnd, 0)
     assert.equal(both.usesChinaShip, true)
+    const atLaterRate = orderCostVnd({
+      goodsCny: both.goodsCny,
+      goodsVnd: both.goodsVnd,
+      usesChinaShip: true,
+      shipChinaCny: 0,
+      shipBorderCny: 0,
+      shipHanoiVnd: 0,
+      vndPerCny: 3700,
+    })
+    assert.equal(atLaterRate, 80 * 3700)
+    const vietnam = summarizeStoredImport([
+      { quantity: 1, costCny: null, costVnd: 150000, isWarehouse: false, isClearance: false },
+    ])
+    assert.ok(vietnam)
+    assert.equal(vietnam.goodsCny, 0)
+    assert.equal(vietnam.goodsVnd, 150000)
+    assert.equal(vietnam.usesChinaShip, false)
+    assert.equal(
+      orderCostVnd({
+        goodsCny: vietnam.goodsCny,
+        goodsVnd: vietnam.goodsVnd,
+        usesChinaShip: false,
+        shipChinaCny: 10,
+        shipBorderCny: 0,
+        shipHanoiVnd: 0,
+        vndPerCny: 3700,
+      }),
+      150000,
+    )
 
     const sale = summarizeStoredImport([
       { quantity: 1, costCny: null, costVnd: null, isWarehouse: false, isClearance: true },

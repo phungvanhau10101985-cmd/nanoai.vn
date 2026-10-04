@@ -4,7 +4,6 @@ import {
   looksLikeChinaSource,
   scrapedCnyAmount,
   singleImportCost,
-  sourceCostVndFromCny,
   stampScrapedCostCny,
 } from './import-cost'
 import { productDataToInventoryExcelInsert } from './product-data-to-inventory'
@@ -25,28 +24,35 @@ describe('import cost', () => {
     }
     stampScrapedCostCny(pd)
     assert.equal(pd.cost_cny, 128)
-    assert.equal(pd.cost_vnd, sourceCostVndFromCny(128))
+    assert.equal(pd.cost_vnd, null)
     assert.equal(pd.price, 458000)
   })
 
-  it('skips the stamp when a Vietnam cost is already set', () => {
+  it('keeps yuan for China and drops a stored dong conversion', () => {
     const pd: Record<string, unknown> = {
       origin: '1688',
+      link_default: 'https://detail.1688.com/offer/1.html',
       pro_lower_price: '10',
       cost_vnd: 150000,
       price: 200000,
     }
     stampScrapedCostCny(pd)
-    assert.equal('cost_cny' in pd, false)
-    assert.equal(pd.cost_vnd, 150000)
+    assert.equal(pd.cost_cny, 10)
+    assert.equal(pd.cost_vnd, null)
     assert.equal(pd.price, 200000)
   })
 
-  it('does not stamp a non-China source', () => {
+  it('does not convert yuan into the Vietnam column', () => {
     assert.equal(looksLikeChinaSource('Việt Nam', 'https://shop.example/ao'), false)
-    const pd: Record<string, unknown> = { origin: 'Việt Nam', pro_lower_price: '10', price: 1 }
+    const pd: Record<string, unknown> = {
+      origin: 'Việt Nam',
+      pro_lower_price: '10',
+      cost_vnd: 90000,
+      price: 1,
+    }
     stampScrapedCostCny(pd)
-    assert.equal('cost_cny' in pd, false)
+    assert.equal(pd.cost_cny, null)
+    assert.equal(pd.cost_vnd, 90000)
   })
 
   it('keeps both original-price columns', () => {
@@ -66,7 +72,7 @@ describe('import cost', () => {
     assert.ok(row)
     assert.equal(row?.catalog?.cost_cny, 128)
     assert.equal(row?.catalog?.write_cost_cny, true)
-    assert.equal(row?.catalog?.cost_vnd, sourceCostVndFromCny(128))
+    assert.equal(row?.catalog?.cost_vnd, null)
     assert.equal(row?.catalog?.write_cost_vnd, true)
     assert.equal(row?.catalog?.catalog_json.price, 458000)
     assert.equal(row?.catalog?.price_low_hint, '128,00')

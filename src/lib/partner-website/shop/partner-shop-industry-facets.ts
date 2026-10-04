@@ -12,7 +12,7 @@ export type PartnerShopFacetDef = {
 }
 
 export function partnerShopFacetDefsForIndustry(
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null | undefined
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null | undefined
 ): PartnerShopFacetDef[] {
   if (industryKey === 'fashion') {
     return [

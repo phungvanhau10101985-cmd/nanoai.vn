@@ -24,38 +24,52 @@ function listingVndPerCnyForCost(): number {
   return 3580
 }
 
-/** Giá gốc tiền Việt = giá gốc tiền tệ × tỷ giá. Không cộng hệ số lưới bán. */
-export function sourceCostVndFromCny(cny: number): number {
-  return Math.round(cny * listingVndPerCnyForCost())
+/** Quy đổi tệ → đồng tại thời điểm gọi. Không ghi kết quả vào cột Giá Việt Nam lúc cào. */
+export function sourceCostVndFromCny(cny: number, vndPerCny = listingVndPerCnyForCost()): number {
+  const rate = Number.isFinite(vndPerCny) && vndPerCny > 0 ? vndPerCny : listingVndPerCnyForCost()
+  return Math.round(cny * rate)
 }
 
-/** Ghi giá gốc tệ và giá gốc tiền Việt từ số tệ đã cào. Không đụng giá bán. Hàng đã có giá Việt Nam thì giữ. */
+export function looksLikeVietnamOrigin(origin: unknown): boolean {
+  const text = `${typeof origin === 'string' ? origin : ''}`.trim().toLowerCase()
+  if (!text) return false
+  return (
+    text === 'vn' ||
+    text === 'vietnam' ||
+    text.includes('việt nam') ||
+    text.includes('viet nam') ||
+    text.includes('việt')
+  )
+}
+
+/**
+ * Hàng Trung Quốc: giữ giá tệ, xóa cột tiền Việt.
+ * Hàng Việt Nam: không đổi tệ sang đồng. Cột tiền Việt do người dùng điền.
+ */
 export function stampScrapedCostCny(payload: Record<string, unknown>): void {
-  const existingCny = scrapedCnyAmount(payload.cost_cny)
-  const existingVnd = scrapedCnyAmount(payload.cost_vnd)
-  if (existingCny != null) {
-    if (existingVnd == null) payload.cost_vnd = sourceCostVndFromCny(existingCny)
+  const link = payload.link_default || payload.source_url || payload.product_url
+  if (looksLikeVietnamOrigin(payload.origin) && !looksLikeChinaSource(payload.origin, link)) {
+    payload.cost_cny = null
     return
   }
-  if (existingVnd != null) return
-  let amount = scrapedCnyAmount(payload.pro_lower_price)
-  if (amount == null) {
-    const info = payload.product_info
-    const market =
-      info && typeof info === 'object' && !Array.isArray(info)
-        ? (info as Record<string, unknown>).market_info
-        : null
-    if (market && typeof market === 'object' && !Array.isArray(market)) {
-      const m = market as Record<string, unknown>
-      amount = scrapedCnyAmount(m.price_cny_low)
-      if (amount == null) amount = scrapedCnyAmount(m.source_price)
-    }
-  }
-  if (amount == null) return
-  const link = payload.link_default || payload.source_url || payload.product_url
   if (!looksLikeChinaSource(payload.origin, link)) return
-  payload.cost_cny = amount
-  payload.cost_vnd = sourceCostVndFromCny(amount)
+  if (scrapedCnyAmount(payload.cost_cny) == null) {
+    let amount = scrapedCnyAmount(payload.pro_lower_price)
+    if (amount == null) {
+      const info = payload.product_info
+      const market =
+        info && typeof info === 'object' && !Array.isArray(info)
+          ? (info as Record<string, unknown>).market_info
+          : null
+      if (market && typeof market === 'object' && !Array.isArray(market)) {
+        const m = market as Record<string, unknown>
+        amount = scrapedCnyAmount(m.price_cny_low)
+        if (amount == null) amount = scrapedCnyAmount(m.source_price)
+      }
+    }
+    if (amount != null) payload.cost_cny = amount
+  }
+  payload.cost_vnd = null
 }
 
 /** Đọc cả hai cột giá gốc. Cả hai cùng có số thì giữ cả hai. */

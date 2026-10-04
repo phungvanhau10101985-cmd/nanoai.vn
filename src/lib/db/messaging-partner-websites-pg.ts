@@ -124,7 +124,7 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
   brandName: string | null
   logoUrl: string | null
   /** W2.2 — dùng cho gợi ý sửa nhanh theo ngành. */
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
 } | null> {
   if (!isPgConfigured()) return null
   const pid = partnerId.trim()
@@ -154,6 +154,7 @@ export async function fetchPartnerProfileForWebsitePg(partnerId: string): Promis
       rawIndustry === 'fashion' ||
       rawIndustry === 'hotel' ||
       rawIndustry === 'food' ||
+      rawIndustry === 'machinery' ||
       rawIndustry === 'other'
         ? rawIndustry
         : null

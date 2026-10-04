@@ -137,6 +137,7 @@ const INDUSTRY_OPTIONS = [
   { value: 'fashion', label: 'Thoi trang' },
   { value: 'hotel', label: 'Khach san' },
   { value: 'food', label: 'Quan an' },
+  { value: 'machinery', label: 'Cơ khí máy móc' },
   { value: 'other', label: 'Nganh khac' },
 ] as const
 
@@ -552,7 +553,7 @@ export function PartnerMessagingSettingsClient({
   useRegisterStepUpShop(selectedPartnerId)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceBrandName, setWorkspaceBrandName] = useState('')
-  const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'other'>('fashion')
+  const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'other'>('fashion')
   const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState('')
   const [fbPageId, setFbPageId] = useState('')
   const [fbToken, setFbToken] = useState('')

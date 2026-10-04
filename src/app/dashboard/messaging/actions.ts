@@ -470,8 +470,8 @@ export async function createMessagingWorkspace(displayName: string) {
   return { partner: inserted }
 }
 
-type MessagingIndustryKey = 'fashion' | 'hotel' | 'food' | 'other'
-const INDUSTRY_KEYS: readonly MessagingIndustryKey[] = ['fashion', 'hotel', 'food', 'other']
+type MessagingIndustryKey = 'fashion' | 'hotel' | 'food' | 'machinery' | 'other'
+const INDUSTRY_KEYS: readonly MessagingIndustryKey[] = ['fashion', 'hotel', 'food', 'machinery', 'other']
 
 function normalizeIndustryKey(raw: string): MessagingIndustryKey {
   const t = raw.trim().toLowerCase()

@@ -43,7 +43,7 @@ type Props = {
   partnerId: string
   partnerTitle: string
   defaultBrandName?: string
-  industryKey?: 'fashion' | 'hotel' | 'food' | 'other' | null
+  industryKey?: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
   partnerSlug?: string | null
   website: PartnerWebsiteRow | null
   logoUrl: string
@@ -161,10 +161,11 @@ function StepBadge({ n, done }: { n: number; done?: boolean }) {
 
 function industryLabel(
   t: PartnerWebsiteCopy,
-  industryKey: 'fashion' | 'hotel' | 'food' | 'other' | null | undefined
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null | undefined
 ): string {
   if (industryKey === 'hotel') return t.industryLabelHotel
   if (industryKey === 'food') return t.industryLabelFood
+  if (industryKey === 'machinery') return t.industryLabelMachinery
   if (industryKey === 'other') return t.industryLabelOther
   return t.industryLabelFashion
 }

@@ -7,6 +7,7 @@ import {
   resolveShopTemplatePresetId,
   shopTemplatePresetHeading,
   SHOP_TEMPLATE_PRESETS,
+  suggestedShopTemplatePresetForIndustry,
 } from '@/lib/partner-website/template/shop-template-presets'
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { WEB_LOCALES } from '@/lib/i18n/config'
@@ -20,6 +21,7 @@ test('every shop preset has a unique short code GD01–GD09', () => {
   assert.equal(getShopTemplatePreset('blank-white').code, 'GD08')
   assert.equal(getShopTemplatePreset('GD09').id, 'industrial-machinery')
   assert.equal(getShopTemplatePreset('industrial-machinery').code, 'GD09')
+  assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'industrial-machinery')
 })
 
 test('resolveShopTemplatePresetId accepts id or short code', () => {

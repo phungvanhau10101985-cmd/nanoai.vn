@@ -3226,15 +3226,15 @@ function InventoryEditor({
                   </th>
                   <th
                     className="sticky top-0 z-20 min-w-[7rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
-                    title="Giá gốc lúc cào, tính bằng tiền tệ nguồn. Không phải giá bán."
+                    title="Hàng Trung Quốc: giữ số tệ lúc cào. Lợi nhuận nhân tỷ giá lúc tính."
                   >
-                    Giá gốc tiền tệ
+                    Giá gốc tệ
                   </th>
                   <th
                     className="sticky top-0 z-20 min-w-[7.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground"
-                    title="Giá gốc quy ra tiền Việt. Không phải giá bán."
+                    title="Chỉ điền khi xuất xứ là Việt Nam. Không quy đổi từ tệ lúc cào."
                   >
-                    Giá gốc tiền Việt
+                    Giá Việt Nam
                   </th>
                   <th className="sticky top-0 z-20 min-w-[8rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryColBrand}
@@ -3333,10 +3333,10 @@ function InventoryEditor({
                       <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums">
                         {formatInventoryListPrice(r, empty)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá gốc tiền tệ">
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá gốc tệ">
                         {formatImportCostCell(r.cost_cny, empty)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá gốc tiền Việt">
+                      <td className="whitespace-nowrap px-3 py-2 align-top tabular-nums" title="Giá Việt Nam">
                         {formatImportCostCell(r.cost_vnd, empty)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 align-top">{r.brand_name?.trim() || empty}</td>
@@ -3447,7 +3447,7 @@ function InventoryEditor({
             <Input value={draft.price_hint} onChange={(e) => setDraft((d) => ({ ...d, price_hint: e.target.value }))} />
           </div>
           <div className="space-y-2">
-            <Label title="Giá gốc lúc cào, tính bằng tiền tệ nguồn. Không phải giá bán.">Giá gốc tiền tệ</Label>
+            <Label title="Hàng Trung Quốc: giữ số tệ lúc cào. Lợi nhuận nhân tỷ giá lúc tính.">Giá gốc tệ</Label>
             <Input
               value={draft.cost_cny}
               onChange={(e) => setDraft((d) => ({ ...d, cost_cny: e.target.value }))}
@@ -3455,7 +3455,7 @@ function InventoryEditor({
             />
           </div>
           <div className="space-y-2">
-            <Label title="Giá gốc quy ra tiền Việt. Không phải giá bán.">Giá gốc tiền Việt</Label>
+            <Label title="Chỉ điền khi xuất xứ là Việt Nam. Không quy đổi từ tệ lúc cào.">Giá Việt Nam</Label>
             <Input
               value={draft.cost_vnd}
               onChange={(e) => setDraft((d) => ({ ...d, cost_vnd: e.target.value }))}

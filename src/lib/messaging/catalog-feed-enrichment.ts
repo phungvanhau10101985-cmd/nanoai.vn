@@ -22,7 +22,7 @@ import {
   parseInventorySizesForFacet,
 } from '@/lib/partner-website/shop/partner-shop-industry-facets'
 
-export type CatalogFeedIndustryKey = 'fashion' | 'hotel' | 'food' | 'other' | null
+export type CatalogFeedIndustryKey = 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
 
 export type CatalogFeedBuildContext = {
   platformOrigin: string
@@ -137,6 +137,7 @@ export function catalogFeedAgeGroup(
 export function defaultGoogleProductCategory(industryKey: CatalogFeedIndustryKey): string {
   if (industryKey === 'fashion') return 'Apparel & Accessories'
   if (industryKey === 'food') return 'Food, Beverages & Tobacco'
+  if (industryKey === 'machinery') return 'Business & Industrial'
   return ''
 }
 
