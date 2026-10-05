@@ -8,13 +8,13 @@ import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/tr
 
 export const maxDuration = 300
 
-const LYRIA3_MODEL = 'lyria-3-pro-preview' as const
+const LYRIA3_MODEL = 'lyria-3.5' as const
 const LYRICS_TEXT_MODEL = 'gemini-2.5-flash' as const
 const LYRIA3_TARGET_SEC = 180 as const
 const LYRIA3_CHARGE = 3
 
 const LYRIA3_DURATION_PROMPT =
-  '\n\nTarget output length: up to approximately 180 seconds (three minutes) of continuous music — the maximum rich length for this model. Use the full duration where appropriate for a complete track with natural development and outro.'
+  '\n\nSong length: about three minutes, with a verse, a chorus, and an outro.'
 
 const INSTRUMENTAL_SUFFIX =
   '\n\nImportant: Instrumental only, no vocals, no singing, no voice. Pure instrumental track.'
@@ -300,9 +300,29 @@ function stripLyricFences(text: string): string {
     .trim()
 }
 
-function summarizeLyriaParts(response: { candidates?: Array<{ content?: { parts?: ContentPart[] } }> }): string {
+type LyriaGenerateResponse = {
+  promptFeedback?: { blockReason?: string }
+  candidates?: Array<{ finishReason?: string; content?: { parts?: ContentPart[] } }>
+}
+
+function lyriaBlockReason(response: LyriaGenerateResponse): string | null {
+  const block = response.promptFeedback?.blockReason
+  return block && block !== 'BLOCK_REASON_UNSPECIFIED' ? block : null
+}
+
+function lyriaEmptyAudioMessage(response: LyriaGenerateResponse): string {
+  if (lyriaBlockReason(response)) {
+    return 'Bộ lọc nhạc đã chặn mô tả hoặc lời này nên không có file âm thanh. Hãy sửa lời hoặc mô tả rồi thử lại.'
+  }
+  return 'Model nhạc không trả file âm thanh. Thử mô tả hoặc lời khác.'
+}
+
+function summarizeLyriaParts(response: LyriaGenerateResponse): string {
+  const block = lyriaBlockReason(response)
+  if (block) return `blocked:${block}`
+  const finish = response.candidates?.[0]?.finishReason || 'none'
   const parts = response.candidates?.[0]?.content?.parts ?? []
-  if (!parts.length) return 'no-parts'
+  if (!parts.length) return `no-parts:${finish}`
   return parts
     .map((part) => {
       if (part.text?.trim()) return `text:${part.text.trim().slice(0, 180)}`
@@ -594,28 +614,30 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      let extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
-      if (!extracted) {
-        console.error('[music-lyria3] no audio on first call', summarizeLyriaParts(response))
+      const first = response as LyriaGenerateResponse
+      let extracted = extractFromResponse(first)
+      let emptySource: LyriaGenerateResponse = first
+      if (!extracted && !lyriaBlockReason(first)) {
+        console.error('[music-lyria3] no audio on first call', summarizeLyriaParts(first))
         const retryPrompt = `${fullPrompt}\n\nReturn the finished song as an audio file now.`
         const retry = await ai.models.generateContent({
           model: modelId,
           contents: createUserContent(lyriaParts(retryPrompt)),
           config: {
-            responseModalities: ['AUDIO'],
+            responseModalities: ['AUDIO', 'TEXT'],
           },
         })
-        extracted = extractFromResponse(retry as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
+        emptySource = retry as LyriaGenerateResponse
+        extracted = extractFromResponse(emptySource)
         if (!extracted) {
-          console.error('[music-lyria3] no audio on retry', summarizeLyriaParts(retry))
+          console.error('[music-lyria3] no audio on retry', summarizeLyriaParts(emptySource))
         }
+      } else if (!extracted) {
+        console.error('[music-lyria3] prompt blocked', summarizeLyriaParts(first))
       }
       if (!extracted) {
         await refundUserCredits(user.id, cost, 'music-lyria3-generate')
-        return NextResponse.json(
-          { error: 'API không trả về file âm thanh. Thử mô tả khác hoặc kiểm tra quyền model Lyria 3.' },
-          { status: 502 }
-        )
+        return NextResponse.json({ error: lyriaEmptyAudioMessage(emptySource) }, { status: 502 })
       }
       void trackApiUsage({
         userId: user.id,
@@ -655,7 +677,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: msg }, { status: 500 })
     }
 
-    const baseTitle = 'Lyria 3 — Pro ~3 phút'
+    const baseTitle = 'Lyria 3.5 — ~3 phút'
     let titleVi = vocalMode === 'vocal' ? `${baseTitle} (có lời)` : `${baseTitle} (không lời)`
     if (hasImage) titleVi += ' + ảnh'
     const styleSnippet = [genre, promptRaw.slice(0, 80)].filter(Boolean).join(' · ')

@@ -122,6 +122,7 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   'imagen-4.0-ultra-generate-001': { input: 0, output: 0 },
   'lyria-3-clip-preview': { input: 0, output: 0 },
   'lyria-3-pro-preview': { input: 0, output: 0 },
+  'lyria-3.5': { input: 0, output: 0 },
 }
 
 export const USD_TO_VND = 25_000

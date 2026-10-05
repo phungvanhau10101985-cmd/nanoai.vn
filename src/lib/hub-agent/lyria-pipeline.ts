@@ -5,12 +5,12 @@ import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-cr
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
-const LYRIA3_MODEL = 'lyria-3-pro-preview' as const
+const LYRIA3_MODEL = 'lyria-3.5' as const
 const LYRIA3_TARGET_SEC = 180 as const
 const LYRIA3_CHARGE = 3
 
 const LYRIA3_DURATION_PROMPT =
-  '\n\nTarget output length: up to approximately 180 seconds (three minutes) of continuous music — the maximum rich length for this model. Use the full duration where appropriate for a complete track with natural development and outro.'
+  '\n\nSong length: about three minutes, with a verse, a chorus, and an outro.'
 
 const INSTRUMENTAL_SUFFIX =
   '\n\nImportant: Instrumental only, no vocals, no singing, no voice. Pure instrumental track.'
@@ -75,10 +75,21 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
       config: { responseModalities: ['AUDIO', 'TEXT'] },
     })
 
-    const extracted = extractFromResponse(response as { candidates?: Array<{ content?: { parts?: ContentPart[] } }> })
+    const lyria = response as {
+      promptFeedback?: { blockReason?: string }
+      candidates?: Array<{ content?: { parts?: ContentPart[] } }>
+    }
+    const extracted = extractFromResponse(lyria)
     if (!extracted) {
       await refundUserCredits(input.userId, LYRIA3_CHARGE, 'music-lyria3-generate')
-      return { ok: false, error: 'API không trả về file âm thanh.' }
+      const blocked = lyria.promptFeedback?.blockReason
+      console.error('[hub-lyria] no audio', blocked ? `blocked:${blocked}` : 'no-parts')
+      return {
+        ok: false,
+        error: blocked
+          ? 'Bộ lọc nhạc đã chặn mô tả này nên không có file âm thanh. Hãy sửa mô tả rồi thử lại.'
+          : 'API không trả về file âm thanh.',
+      }
     }
 
     void trackApiUsage({
@@ -101,7 +112,7 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
     await insertMusicGenerationPg({
       userId: input.userId,
       mode: 'lyria3',
-      title: 'Lyria 3 — Pro ~3 phút (hub agent)',
+      title: 'Lyria 3.5 — ~3 phút (hub agent)',
       style: promptRaw.slice(0, 120),
       durationSeconds: LYRIA3_TARGET_SEC,
       audioUrl: publicUrl,

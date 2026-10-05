@@ -45,6 +45,7 @@ export function getApiUsageModelDisplayLabel(model: string): string {
     'imagen-4.0-ultra-generate-001': 'Imagen 4 Ultra',
     'lyria-3-clip-preview': 'Lyria 3 Clip',
     'lyria-3-pro-preview': 'Lyria 3 Pro',
+    'lyria-3.5': 'Lyria 3.5',
     // OpenAI
     'gpt-5': 'GPT-5',
     'gpt-4o': 'GPT-4o',

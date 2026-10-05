@@ -198,7 +198,7 @@ function getWebLocaleFromCookie(): UiLocale {
   return 'vi'
 }
 
-/** Đồng bộ với `music-lyria3-generate`: Lyria 3 Pro ~3 phút. */
+/** Đồng bộ với `music-lyria3-generate`: Lyria 3.5 ~3 phút. */
 const LYRIA3_CREDITS = 3
 const LYRIA3_TARGET_SEC = 180
 
