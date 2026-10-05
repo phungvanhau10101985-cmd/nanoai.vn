@@ -4,11 +4,10 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { insertMusicGenerationPg } from '@/lib/db/music-generations-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { trackApiUsage } from '@/lib/track-ai-usage'
+import { LYRIA35_MODEL, generateLyria35Audio } from '@/lib/music/lyria35-generate'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 export const maxDuration = 300
-
-const LYRIA3_MODEL = 'lyria-3.5' as const
 const LYRICS_TEXT_MODEL = 'gemini-2.5-flash' as const
 const LYRIA3_TARGET_SEC = 180 as const
 const LYRIA3_CHARGE = 3
@@ -192,27 +191,7 @@ function parseLyriaProductionPreset(raw: unknown, valid: Set<string>): string {
   return valid.has(s) ? s : 'auto'
 }
 
-type ContentPart = { text?: string; inlineData?: { mimeType?: string; data?: string } }
-
-function extractFromResponse(response: {
-  candidates?: Array<{ content?: { parts?: ContentPart[] } }>
-}): { audioBase64: string; mimeType: string; textParts: string[] } | null {
-  const parts = response.candidates?.[0]?.content?.parts ?? []
-  const textParts: string[] = []
-  let audioBase64: string | null = null
-  let mimeType = 'audio/mpeg'
-
-  for (const part of parts) {
-    if (part.text?.trim()) textParts.push(part.text.trim())
-    if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
-      audioBase64 = part.inlineData.data
-      mimeType = part.inlineData.mimeType
-    }
-  }
-
-  if (!audioBase64) return null
-  return { audioBase64, mimeType, textParts }
-}
+type ContentPart = { text?: string }
 
 function buildCorePrompt(params: {
   genre: string
@@ -298,40 +277,6 @@ function stripLyricFences(text: string): string {
     .replace(/^```(?:\w+)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim()
-}
-
-type LyriaGenerateResponse = {
-  promptFeedback?: { blockReason?: string }
-  candidates?: Array<{ finishReason?: string; content?: { parts?: ContentPart[] } }>
-}
-
-function lyriaBlockReason(response: LyriaGenerateResponse): string | null {
-  const block = response.promptFeedback?.blockReason
-  return block && block !== 'BLOCK_REASON_UNSPECIFIED' ? block : null
-}
-
-function lyriaEmptyAudioMessage(response: LyriaGenerateResponse): string {
-  if (lyriaBlockReason(response)) {
-    return 'Bộ lọc nhạc đã chặn mô tả hoặc lời này nên không có file âm thanh. Hãy sửa lời hoặc mô tả rồi thử lại.'
-  }
-  return 'Model nhạc không trả file âm thanh. Thử mô tả hoặc lời khác.'
-}
-
-function summarizeLyriaParts(response: LyriaGenerateResponse): string {
-  const block = lyriaBlockReason(response)
-  if (block) return `blocked:${block}`
-  const finish = response.candidates?.[0]?.finishReason || 'none'
-  const parts = response.candidates?.[0]?.content?.parts ?? []
-  if (!parts.length) return `no-parts:${finish}`
-  return parts
-    .map((part) => {
-      if (part.text?.trim()) return `text:${part.text.trim().slice(0, 180)}`
-      const mime = part.inlineData?.mimeType || '?'
-      const bytes = part.inlineData?.data ? part.inlineData.data.length : 0
-      return `inline:${mime}:${bytes}`
-    })
-    .join(' | ')
-    .slice(0, 800)
 }
 
 /** Viết lời từ ý tưởng + cài đặt. Không đọc ảnh. */
@@ -564,7 +509,6 @@ export async function POST(request: NextRequest) {
     }
 
     const hasImage = Boolean(imageBuffer?.length)
-    const ai = new GoogleGenAI({ apiKey })
 
     const corePrompt = buildCorePrompt({
       genre,
@@ -586,58 +530,22 @@ export async function POST(request: NextRequest) {
         ? `${corePrompt}${durationBlock}${INSTRUMENTAL_SUFFIX}`
         : `${corePrompt}${durationBlock}${voiceHintBlock}${VOCAL_HINT}`
 
-    const modelId = LYRIA3_MODEL
+    const modelId = LYRIA35_MODEL
 
     let audioBase64: string
     let mimeType: string
     let textParts: string[]
 
-    const lyriaParts = (promptText: string): Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> => {
-      const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [{ text: promptText }]
-      if (imageBuffer?.length) {
-        parts.push({
-          inlineData: {
-            mimeType: imageMime,
-            data: imageBuffer.toString('base64'),
-          },
-        })
-      }
-      return parts
-    }
-
     try {
-      const response = await ai.models.generateContent({
-        model: modelId,
-        contents: createUserContent(lyriaParts(fullPrompt)),
-        config: {
-          responseModalities: ['AUDIO', 'TEXT'],
-        },
+      const generated = await generateLyria35Audio({
+        apiKey,
+        prompt: fullPrompt,
+        image: imageBuffer?.length ? { mimeType: imageMime, base64: imageBuffer.toString('base64') } : null,
       })
-
-      const first = response as LyriaGenerateResponse
-      let extracted = extractFromResponse(first)
-      let emptySource: LyriaGenerateResponse = first
-      if (!extracted && !lyriaBlockReason(first)) {
-        console.error('[music-lyria3] no audio on first call', summarizeLyriaParts(first))
-        const retryPrompt = `${fullPrompt}\n\nReturn the finished song as an audio file now.`
-        const retry = await ai.models.generateContent({
-          model: modelId,
-          contents: createUserContent(lyriaParts(retryPrompt)),
-          config: {
-            responseModalities: ['AUDIO', 'TEXT'],
-          },
-        })
-        emptySource = retry as LyriaGenerateResponse
-        extracted = extractFromResponse(emptySource)
-        if (!extracted) {
-          console.error('[music-lyria3] no audio on retry', summarizeLyriaParts(emptySource))
-        }
-      } else if (!extracted) {
-        console.error('[music-lyria3] prompt blocked', summarizeLyriaParts(first))
-      }
-      if (!extracted) {
+      if (!generated.ok) {
         await refundUserCredits(user.id, cost, 'music-lyria3-generate')
-        return NextResponse.json({ error: lyriaEmptyAudioMessage(emptySource) }, { status: 502 })
+        console.error('[music-lyria3]', generated.detail)
+        return NextResponse.json({ error: generated.error }, { status: 502 })
       }
       void trackApiUsage({
         userId: user.id,
@@ -647,9 +555,9 @@ export async function POST(request: NextRequest) {
         candidatesTokenCount: 0,
         totalTokenCount: 1,
       })
-      audioBase64 = extracted.audioBase64
-      mimeType = extracted.mimeType
-      textParts = extracted.textParts
+      audioBase64 = generated.audioBase64
+      mimeType = generated.mimeType
+      textParts = generated.textParts
     } catch (e) {
       await refundUserCredits(user.id, cost, 'music-lyria3-generate')
       const msg = e instanceof Error ? e.message : 'Lỗi gọi Lyria 3.'

@@ -1,11 +1,10 @@
-import { GoogleGenAI, createUserContent } from '@google/genai'
 import { insertMusicGenerationPg } from '@/lib/db/music-generations-pg'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
+import { LYRIA35_MODEL, generateLyria35Audio } from '@/lib/music/lyria35-generate'
 import { trackApiUsage } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
-const LYRIA3_MODEL = 'lyria-3.5' as const
 const LYRIA3_TARGET_SEC = 180 as const
 const LYRIA3_CHARGE = 3
 
@@ -14,26 +13,6 @@ const LYRIA3_DURATION_PROMPT =
 
 const INSTRUMENTAL_SUFFIX =
   '\n\nImportant: Instrumental only, no vocals, no singing, no voice. Pure instrumental track.'
-
-type ContentPart = { text?: string; inlineData?: { mimeType?: string; data?: string } }
-
-function extractFromResponse(response: {
-  candidates?: Array<{ content?: { parts?: ContentPart[] } }>
-}): { audioBase64: string; mimeType: string; textParts: string[] } | null {
-  const parts = response.candidates?.[0]?.content?.parts ?? []
-  const textParts: string[] = []
-  let audioBase64: string | null = null
-  let mimeType = 'audio/mpeg'
-  for (const part of parts) {
-    if (part.text?.trim()) textParts.push(part.text.trim())
-    if (part.inlineData?.data && part.inlineData.mimeType?.startsWith('audio/')) {
-      audioBase64 = part.inlineData.data
-      mimeType = part.inlineData.mimeType
-    }
-  }
-  if (!audioBase64) return null
-  return { audioBase64, mimeType, textParts }
-}
 
 export type RunLyriaPipelineInput = {
   userId: string
@@ -68,44 +47,27 @@ export async function runLyriaPipeline(input: RunLyriaPipelineInput): Promise<Ru
   const fullPrompt = `Creative direction from the user:\n${promptRaw}${LYRIA3_DURATION_PROMPT}${INSTRUMENTAL_SUFFIX}`
 
   try {
-    const ai = new GoogleGenAI({ apiKey })
-    const response = await ai.models.generateContent({
-      model: LYRIA3_MODEL,
-      contents: createUserContent([{ text: fullPrompt }]),
-      config: { responseModalities: ['AUDIO', 'TEXT'] },
-    })
-
-    const lyria = response as {
-      promptFeedback?: { blockReason?: string }
-      candidates?: Array<{ content?: { parts?: ContentPart[] } }>
-    }
-    const extracted = extractFromResponse(lyria)
-    if (!extracted) {
+    const generated = await generateLyria35Audio({ apiKey, prompt: fullPrompt })
+    if (!generated.ok) {
       await refundUserCredits(input.userId, LYRIA3_CHARGE, 'music-lyria3-generate')
-      const blocked = lyria.promptFeedback?.blockReason
-      console.error('[hub-lyria] no audio', blocked ? `blocked:${blocked}` : 'no-parts')
-      return {
-        ok: false,
-        error: blocked
-          ? 'Bộ lọc nhạc đã chặn mô tả này nên không có file âm thanh. Hãy sửa mô tả rồi thử lại.'
-          : 'API không trả về file âm thanh.',
-      }
+      console.error('[hub-lyria]', generated.detail)
+      return { ok: false, error: generated.error }
     }
 
     void trackApiUsage({
       userId: input.userId,
-      model: LYRIA3_MODEL,
+      model: LYRIA35_MODEL,
       feature: 'hub-agent-lyria',
       promptTokenCount: 0,
       candidatesTokenCount: 0,
       totalTokenCount: 1,
     })
 
-    const buffer = Buffer.from(extracted.audioBase64, 'base64')
-    const ext = extracted.mimeType.includes('wav') ? 'wav' : 'mp3'
+    const buffer = Buffer.from(generated.audioBase64, 'base64')
+    const ext = generated.mimeType.includes('wav') ? 'wav' : 'mp3'
     const uploadPath = `music-history/${input.userId}/lyria3_pro_180s_instrumental_txt_${Date.now()}.${ext}`
     const { publicUrl } = await uploadTryOnImagePublic(uploadPath, buffer, {
-      contentType: extracted.mimeType,
+      contentType: generated.mimeType,
       upsert: true,
     })
 
