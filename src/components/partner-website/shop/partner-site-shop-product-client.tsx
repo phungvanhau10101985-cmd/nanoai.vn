@@ -5,7 +5,12 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type TouchEvent as ReactTouchEvent, type UIEvent } from 'react'
 import type { ProductPurchaseOptions } from '@/lib/messaging/guest-chat-ordering'
 import { usePartnerSiteGuestSession } from '@/hooks/use-partner-site-guest-session'
-import { listingPricePrefix, shopProductForSelectedColor } from '@/lib/messaging/listing-import/per-sku-listing-price'
+import {
+  listingPricePrefix,
+  mergeColorPriceFields,
+  shopProductForSelectedColor,
+  storedVariantListPrice,
+} from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   shopProductToCartCard,
@@ -242,8 +247,18 @@ export function PartnerSiteShopProductClient({
   const heroScrollFromUser = useRef(false)
   const heroScrollProg = useRef(false)
   const buyActionsRef = useRef<HTMLDivElement | null>(null)
-  const priced = shopProductForSelectedColor(product, color)
-  const fromPrefix = listingPricePrefix(locale, product.tieredPrices === true, product.isClearance === true)
+  const colorOptions = mergeColorPriceFields(
+    options?.colors?.length ? options.colors : product.colors,
+    product.colors
+  )
+  const priced = shopProductForSelectedColor({ ...product, colors: colorOptions }, color)
+  const selectedHasOwnPrice =
+    storedVariantListPrice({ colors: colorOptions, productInfo: null, colorName: color }) != null
+  const fromPrefix = listingPricePrefix(
+    locale,
+    product.tieredPrices === true && !selectedHasOwnPrice,
+    product.isClearance === true
+  )
   const saleFace = resolvePartnerProductSaleFace(priced, locale)
   const saleCopy = partnerSiteSaleCopy(locale)
   const birthdayBlock = (
@@ -444,7 +459,6 @@ export function PartnerSiteShopProductClient({
     .map((x) => displayablePdpText(x))
     .filter(Boolean)
   const sizeOptions = options?.sizes?.length ? options.sizes : product.sizes
-  const colorOptions = options?.colors?.length ? options.colors : product.colors
   const custom = Boolean(customDomain)
   const merchantFacts = buildPartnerPdpMerchantFacts({
     locale,

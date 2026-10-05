@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { normalizeProductUrlKey } from '@/lib/messaging/normalize-product-url-key'
 import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
+import { mergeColorPriceFields } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { Json } from '@/types/database.types'
 import {
   ensureConversationPg,
@@ -242,7 +243,7 @@ export type ProductPurchaseOptions = {
   product_url: string
   price_hint: string
   sizes: string[]
-  colors: Array<{ name: string; img: string }>
+  colors: Array<{ name: string; img: string; price?: number; price_cny?: number; sku?: string; sku_code?: string }>
   deposit_policy: {
     mode: 'none' | 'percent' | 'fixed_amount'
     percent: number
@@ -1729,7 +1730,10 @@ export async function getProductPurchaseOptions(input: {
     price_hint: priceHint,
     // PS.1 — ưu tiên cột structured mới; fallback quy ước JSON cũ (description/stock_note) khi dòng chưa qua Product Studio.
     sizes: row.sizes_json ?? parseSizeJson(row.description),
-    colors: row.colors_json ?? parseColorVariantsJson(row.stock_note),
+    colors: mergeColorPriceFields(
+      row.colors_json ?? parseColorVariantsJson(row.stock_note),
+      row.catalog_colors
+    ),
     deposit_policy: {
       mode,
       percent,

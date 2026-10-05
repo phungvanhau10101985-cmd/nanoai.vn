@@ -443,15 +443,31 @@ export function parseColorVariantsField(raw: string): Catalog188Color[] {
   if (!t) return []
   const out: Catalog188Color[] = []
   const seen = new Set<string>()
-  const push = (nameRaw: unknown, imgRaw: unknown, valueRaw?: unknown) => {
+  const push = (
+    nameRaw: unknown,
+    imgRaw: unknown,
+    extra?: { value?: unknown; price?: unknown; price_cny?: unknown; sku?: unknown; sku_code?: unknown }
+  ) => {
     const name = String(nameRaw ?? '').trim()
     const img = String(imgRaw ?? '').trim()
-    const value = String(valueRaw ?? '').trim()
+    const value = String(extra?.value ?? '').trim()
     if (!name) return
     const key = `${name.toLowerCase()}|${img.toLowerCase()}`
     if (seen.has(key)) return
     seen.add(key)
-    out.push(value && value !== name ? { name, img, value } : { name, img })
+    const price = Number(extra?.price)
+    const priceCny = Number(extra?.price_cny)
+    const sku = String(extra?.sku ?? '').trim()
+    const skuCode = String(extra?.sku_code ?? '').trim()
+    out.push({
+      name,
+      img,
+      ...(value && value !== name ? { value } : {}),
+      ...(Number.isFinite(price) && price > 0 ? { price: Math.round(price) } : {}),
+      ...(Number.isFinite(priceCny) && priceCny > 0 ? { price_cny: priceCny } : {}),
+      ...(sku ? { sku } : {}),
+      ...(skuCode ? { sku_code: skuCode } : {}),
+    })
   }
   const parsed = parseJsonFieldLenient(t)
   if (Array.isArray(parsed)) {
@@ -462,7 +478,13 @@ export function parseColorVariantsField(raw: string): Catalog188Color[] {
       }
       if (!item || typeof item !== 'object') continue
       const o = item as Record<string, unknown>
-      push(o.name ?? o.label ?? o.value, o.img ?? o.image ?? o.image_url, o.value)
+      push(o.name ?? o.label ?? o.value, o.img ?? o.image ?? o.image_url, {
+        value: o.value,
+        price: o.price,
+        price_cny: o.price_cny,
+        sku: o.sku,
+        sku_code: o.sku_code,
+      })
     }
     return out.slice(0, 200)
   }

@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 import { createMessagingWorkspaceProfile } from '@/app/dashboard/messaging/actions'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import type { Database } from '@/types/database.types'
-import { Building2, Cog, Factory, Globe, Plus, Shirt, UtensilsCrossed } from 'lucide-react'
+import { Building2, Factory, Globe, Plus, ShoppingBag, UtensilsCrossed } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
@@ -20,9 +20,8 @@ function channelMeta(industryKey: string | null) {
   const key = String(industryKey || 'fashion')
   if (key === 'hotel') return { icon: Building2, label: 'Nhà nghỉ / khách sạn', tone: 'bg-blue-50 text-blue-700 border-blue-200' }
   if (key === 'food') return { icon: UtensilsCrossed, label: 'Nhà hàng / ăn uống', tone: 'bg-amber-50 text-amber-700 border-amber-200' }
-  if (key === 'machinery') return { icon: Cog, label: 'Cơ khí máy móc', tone: 'bg-orange-50 text-orange-800 border-orange-200' }
   if (key === 'other') return { icon: Factory, label: 'Kênh khác', tone: 'bg-slate-50 text-slate-700 border-slate-200' }
-  return { icon: Shirt, label: 'Shop bán hàng', tone: 'bg-violet-50 text-violet-700 border-violet-200' }
+  return { icon: ShoppingBag, label: 'Mua sắm trực tuyến', tone: 'bg-violet-50 text-violet-700 border-violet-200' }
 }
 
 function partnerEntryLink(partner: PartnerRow): string {
@@ -187,17 +186,16 @@ export function BusinessChannelsHubClient({
           <DialogHeader>
             <DialogTitle>Tạo kênh kinh doanh mới</DialogTitle>
             <DialogDescription>
-              Shop, khách sạn, nhà hàng hoặc cơ khí máy móc. Mỗi loại là một workspace riêng.
+              Mua sắm trực tuyến, khách sạn hoặc nhà hàng. Mỗi loại là một workspace riêng.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {(
                 [
-                  { value: 'fashion', label: 'Shop' },
+                  { value: 'fashion', label: 'Mua sắm trực tuyến' },
                   { value: 'hotel', label: 'Khách sạn' },
                   { value: 'food', label: 'Nhà hàng' },
-                  { value: 'machinery', label: 'Cơ khí máy móc' },
                   { value: 'other', label: 'Khác' },
                 ] as const
               ).map((opt) => (

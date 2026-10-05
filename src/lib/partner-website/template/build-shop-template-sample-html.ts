@@ -21,7 +21,6 @@ import {
 } from '@/lib/partner-website/template/shop-template-sample-products'
 import type { PartnerWebsitePage, PartnerWebsiteTheme } from '@/lib/partner-website/template/partner-website-template-types'
 import { rewriteThemeCssVarsInHtml } from '@/lib/partner-website/template/partner-website-theme-tokens'
-import { isIndustrialTemplateId } from '@/lib/partner-website/shop/build-industrial-shop-home-html'
 import { isMarketplaceTemplateId } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { preparePartnerVisualHtmlForPublic } from '@/lib/partner-website/shop/render-partner-visual-html'
 
@@ -77,12 +76,10 @@ export function buildShopTemplateSampleHtml(input: {
   const preset = getShopTemplatePreset(resolvedId)
   const originalTheme = { ...DEFAULT_PARTNER_WEBSITE_THEME, ...preset.theme }
   const theme = shopTemplateSampleThemeForPrimary(originalTheme, input.primaryColor)
-  const industrial = isIndustrialTemplateId(preset.templateId)
   const marketplace = isMarketplaceTemplateId(preset.templateId) || preset.theme.look === 'marketplace'
-  const brand =
-    industrial || marketplace
-      ? preset.label[input.locale] || preset.label.en
-      : getShopTemplateSampleBrand(input.locale)
+  const brand = marketplace
+    ? preset.label[input.locale] || preset.label.en
+    : getShopTemplateSampleBrand(input.locale)
   if (preset.id === 'blank-white') {
     const html = withSampleColorPicker(
       rewriteThemeCssVarsInHtml(
@@ -102,7 +99,7 @@ export function buildShopTemplateSampleHtml(input: {
     )
     return { ok: true, html, presetId: preset.id }
   }
-  if (industrial || marketplace) {
+  if (marketplace) {
     const seeded = buildShopTemplateHomeVisualHtml({
       variant: 'desktop',
       locale: input.locale,

@@ -563,7 +563,7 @@ export function PartnerMessagingInboxClient({
           <DialogHeader>
             <DialogTitle>Tạo kênh kinh doanh mới</DialogTitle>
             <DialogDescription className="text-left">
-              Mỗi kênh là một workspace độc lập: shop thời trang, nhà nghỉ/khách sạn, nhà hàng, cơ khí máy móc.
+              Mỗi kênh là một workspace độc lập: mua sắm trực tuyến, nhà nghỉ/khách sạn, nhà hàng.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -572,10 +572,9 @@ export function PartnerMessagingInboxClient({
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {(
                   [
-                    { value: 'fashion', label: 'Shop thời trang', hint: 'Bán lẻ · tư vấn size/màu' },
+                    { value: 'fashion', label: 'Mua sắm trực tuyến', hint: 'Bán lẻ · giỏ hàng · tư vấn' },
                     { value: 'hotel', label: 'Nhà nghỉ / khách sạn', hint: 'Đặt phòng · quản lý booking' },
                     { value: 'food', label: 'Nhà hàng / ăn uống', hint: 'Menu · đặt bàn' },
-                    { value: 'machinery', label: 'Cơ khí máy móc', hint: 'Máy móc · vật tư · tư vấn kỹ thuật' },
                     { value: 'other', label: 'Khác', hint: 'Tư vấn chung' },
                   ] as const
                 ).map((opt) => {
@@ -606,9 +605,7 @@ export function PartnerMessagingInboxClient({
                   ? 'Tên khách sạn / nhà nghỉ'
                   : channelKind === 'food'
                   ? 'Tên nhà hàng'
-                  : channelKind === 'machinery'
-                    ? 'Tên công ty / xưởng'
-                    : 'Tên shop / kênh hiển thị'}
+                  : 'Tên shop / kênh hiển thị'}
               </label>
               <Input
                 id="create-channel-name"
@@ -619,9 +616,7 @@ export function PartnerMessagingInboxClient({
                     ? 'VD: Khách sạn Bình Minh'
                     : channelKind === 'food'
                     ? 'VD: Nhà hàng Hương Việt'
-                    : channelKind === 'machinery'
-                      ? 'VD: Cơ khí Thành Đạt'
-                      : 'VD: Shop 188.com.vn'
+                    : 'VD: Shop của bạn'
                 }
                 maxLength={120}
               />

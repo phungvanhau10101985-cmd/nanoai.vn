@@ -1,4 +1,4 @@
-import { colorsHaveTieredPrices } from '@/lib/messaging/listing-import/per-sku-listing-price'
+import { colorsHaveTieredPrices, mergeColorPriceFields } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { parseColorVariantsJson } from '@/lib/messaging/inventory-color-variants'
 import type { Catalog188Snapshot } from '@/lib/messaging/partner-inventory-catalog-188'
@@ -150,10 +150,20 @@ export function hydrateInventoryShopRowFromCatalog188(row: InventoryShopProductR
   if (!snap) return row
   const snapColors = Array.isArray(snap.colors)
     ? snap.colors
-        .map((c) => ({
-          name: String(c?.name || '').trim(),
-          img: String(c?.img || '').trim(),
-        }))
+        .map((c) => {
+          const price = Number(c?.price)
+          const priceCny = Number(c?.price_cny)
+          const sku = String(c?.sku || '').trim()
+          const skuCode = String(c?.sku_code || '').trim()
+          return {
+            name: String(c?.name || '').trim(),
+            img: String(c?.img || '').trim(),
+            ...(Number.isFinite(price) && price > 0 ? { price: Math.round(price) } : {}),
+            ...(Number.isFinite(priceCny) && priceCny > 0 ? { price_cny: priceCny } : {}),
+            ...(sku ? { sku } : {}),
+            ...(skuCode ? { sku_code: skuCode } : {}),
+          }
+        })
         .filter((c) => c.name)
     : []
   return {
@@ -175,7 +185,9 @@ export function hydrateInventoryShopRowFromCatalog188(row: InventoryShopProductR
         ? snap.sizes
         : row.sizes_json,
     colors_json: Array.isArray(row.colors_json)
-      ? row.colors_json
+      ? row.colors_json.length
+        ? mergeColorPriceFields(row.colors_json as { name: string; img?: string; price?: number }[], snapColors)
+        : row.colors_json
       : snapColors.length
         ? snapColors
         : row.colors_json,

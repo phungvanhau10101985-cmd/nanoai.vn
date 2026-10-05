@@ -1281,7 +1281,28 @@ const INVENTORY_BUY_SELECT = INVENTORY_SHOP_SELECT_WITH_PRODUCT_STUDIO.replace(
   .replace('  mpi.gallery_urls,\n', '  null::jsonb as gallery_urls,\n')
   .replace('  mpi.detail_image_urls,\n', '  null::jsonb as detail_image_urls,\n')
   .replace('  mpi.product_studio_meta,\n', '  null::jsonb as product_studio_meta,\n')
-  .replace('  mpi.catalog_json,\n', '  null::jsonb as catalog_json,\n')
+  .replace(
+    '  mpi.catalog_json,\n',
+    `  (
+    select jsonb_build_object(
+      'colors',
+      coalesce((
+        select jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+          'name', c->>'name',
+          'img', c->>'img',
+          'price', nullif(c->>'price', '')::numeric,
+          'price_cny', nullif(c->>'price_cny', '')::numeric,
+          'sku', nullif(c->>'sku', ''),
+          'sku_code', nullif(c->>'sku_code', '')
+        )))
+        from jsonb_array_elements(
+          case when jsonb_typeof(mpi.catalog_json->'colors') = 'array'
+            then mpi.catalog_json->'colors' else '[]'::jsonb end
+        ) c
+      ), '[]'::jsonb)
+    )
+  ) as catalog_json,\n`
+  )
   .replace('  mpi.product_info_json,\n', '  null::jsonb as product_info_json,\n')
   .replace('  mpi.features_json,\n', '  null::jsonb as features_json,\n')
 
@@ -2922,7 +2943,8 @@ export type PartnerInventoryPurchaseOptionsRow = {
   product_url: string
   price_hint: string
   sizes_json: string[] | null
-  colors_json: Array<{ name: string; img: string }> | null
+  colors_json: Array<{ name: string; img: string; price?: number; price_cny?: number; sku?: string; sku_code?: string }> | null
+  catalog_colors?: unknown
   description: string
   stock_note: string
 }
@@ -2946,7 +2968,9 @@ export async function fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg(
     const row = await pgQueryOne<Omit<PartnerInventoryPurchaseOptionsRow, 'description' | 'stock_note'>>(
       `select sku, coalesce(name, '') as name, coalesce(image_url, '') as image_url,
               coalesce(product_url, '') as product_url, coalesce(price_hint, '') as price_hint,
-              sizes_json, colors_json
+              sizes_json, colors_json,
+              case when jsonb_typeof(catalog_json->'colors') = 'array'
+                then catalog_json->'colors' else '[]'::jsonb end as catalog_colors
        ${where}`,
       [partnerId, u]
     )

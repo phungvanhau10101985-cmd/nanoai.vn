@@ -100,6 +100,51 @@ export function storedVariantListPrice(input: {
   return null
 }
 
+type ColorPriceRow = {
+  name?: string | null
+  img?: string | null
+  price?: number | null
+  price_cny?: number | null
+  sku?: string | null
+  sku_code?: string | null
+}
+
+/** Giữ giá/SKU đã cào khi bản màu kia chỉ còn tên + ảnh. Mảng rỗng không nhận màu thừa. */
+export function mergeColorPriceFields<T extends ColorPriceRow>(
+  rows: T[] | null | undefined,
+  donors: unknown
+): T[] {
+  const list = Array.isArray(rows) ? rows : []
+  if (!list.length || !Array.isArray(donors)) return list
+  const byName = new Map<string, Record<string, unknown>>()
+  for (const item of donors) {
+    if (!item || typeof item !== 'object') continue
+    const rec = item as Record<string, unknown>
+    const key = normKey(rec.name || rec.label)
+    if (key && !byName.has(key)) byName.set(key, rec)
+  }
+  if (!byName.size) return list
+  return list.map((row) => {
+    if (positiveVnd(row.price)) return row
+    const donor = byName.get(normKey(row.name))
+    if (!donor) return row
+    const price = positiveVnd(donor.price)
+    if (!price) return row
+    const priceCny = Number(donor.price_cny)
+    const sku = typeof donor.sku === 'string' ? donor.sku.trim() : ''
+    const skuCode = typeof donor.sku_code === 'string' ? donor.sku_code.trim() : ''
+    const img = typeof donor.img === 'string' ? donor.img.trim() : ''
+    return {
+      ...row,
+      price,
+      ...(Number.isFinite(priceCny) && priceCny > 0 && !positiveVnd(row.price_cny) ? { price_cny: priceCny } : {}),
+      ...(sku && !String(row.sku || '').trim() ? { sku } : {}),
+      ...(skuCode && !String(row.sku_code || '').trim() ? { sku_code: skuCode } : {}),
+      ...(img && !String(row.img || '').trim() ? { img } : {}),
+    }
+  })
+}
+
 const PRICE_FROM: Record<string, string> = {
   vi: 'từ',
   en: 'from',
@@ -159,7 +204,9 @@ export function shopProductForSelectedColor<T extends PricedProduct>(product: T,
     if (!Number.isFinite(n) || n <= 0 || n >= base) return amount ?? null
     return Math.round(n * ratio)
   }
-  const salePriceAmount = scale(product.salePriceAmount)
+  const rawSale = Number(product.salePriceAmount)
+  const salePriceAmount =
+    Number.isFinite(rawSale) && rawSale > 0 && rawSale < base ? Math.round(rawSale * ratio) : null
   const site = product.siteSale
   const expected = scale(site?.expectedSalePrice ?? product.siteSaleExpectedPrice)
   const nextSale = site

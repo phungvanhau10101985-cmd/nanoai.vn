@@ -264,7 +264,7 @@ export function mergeShopThemeColors(
 }
 
 /**
- * Brand cascade for every look (GD01–GD09 + templates after):
+ * Brand cascade for every look (GD01–GD08 + templates after):
  * primary → accent + buy + surface wash.
  * Marketplace also sets cart = primary. Shop looks keep the supporting cart gray.
  */

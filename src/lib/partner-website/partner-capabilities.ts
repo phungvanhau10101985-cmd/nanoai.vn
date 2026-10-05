@@ -219,23 +219,6 @@ export function industryCopyProfile(industryKey: PartnerIndustryKey): PartnerSit
       },
     }
   }
-  if (industryKey === 'machinery') {
-    return {
-      heroBadge: { vi: 'Máy móc & vật tư', en: 'Machinery & supplies' },
-      heroCtaFallback: { vi: 'TƯ VẤN NGAY', en: 'GET ADVICE' },
-      secondaryCta: { vi: 'Xem máy', en: 'View machines' },
-      categoriesFallback: {
-        vi: ['Máy công cụ', 'Vật tư', 'Phụ tùng', 'Thiết bị nâng'],
-        en: ['Machine tools', 'Supplies', 'Spare parts', 'Lifting'],
-      },
-      newArrivalsFallback: { vi: 'Máy mới', en: 'NEW MACHINES' },
-      bestSellersFallback: { vi: 'Máy bán chạy', en: 'BEST SELLERS' },
-      heroSubtitleFallback: {
-        vi: 'Máy móc và vật tư — tư vấn kỹ thuật qua chat',
-        en: 'Machinery and supplies — technical advice by chat',
-      },
-    }
-  }
   return {
     heroBadge: { vi: 'Bộ sưu tập mới', en: 'New season' },
     heroCtaFallback: { vi: 'MUA NGAY', en: 'SHOP NOW' },

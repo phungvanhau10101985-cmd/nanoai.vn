@@ -23,7 +23,7 @@ async function main() {
   assert.ok(presets.length >= 6, `cần >=6 presets, có ${presets.length}`)
   assert.equal(suggestedShopTemplatePresetForIndustry('food'), 'food-warm')
   assert.equal(suggestedShopTemplatePresetForIndustry('hotel'), 'hospitality-stay')
-  assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'industrial-machinery')
+  assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'commerce-blue')
   console.log('OK W2.5 presets')
 
   const footer = normalizePartnerSiteNavLinks(null, DEFAULT_PARTNER_SITE_FOOTER_LINKS)

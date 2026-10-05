@@ -15,7 +15,6 @@ export type ShopTemplatePresetId =
   | 'commerce-minimal'
   | 'soft-neutral'
   | 'blank-white'
-  | 'industrial-machinery'
 
 /** Short UI / chat code — user says `GD03`, agent opens that preset. */
 export type ShopTemplatePresetCode =
@@ -27,7 +26,6 @@ export type ShopTemplatePresetCode =
   | 'GD06'
   | 'GD07'
   | 'GD08'
-  | 'GD09'
 
 export function isShopTemplatePresetId(id: string | null | undefined): id is ShopTemplatePresetId {
   return (
@@ -38,8 +36,7 @@ export function isShopTemplatePresetId(id: string | null | undefined): id is Sho
     id === 'food-warm' ||
     id === 'commerce-minimal' ||
     id === 'soft-neutral' ||
-    id === 'blank-white' ||
-    id === 'industrial-machinery'
+    id === 'blank-white'
   )
 }
 
@@ -53,9 +50,14 @@ export function isShopTemplatePresetCode(raw: string | null | undefined): raw is
     code === 'GD05' ||
     code === 'GD06' ||
     code === 'GD07' ||
-    code === 'GD08' ||
-    code === 'GD09'
+    code === 'GD08'
   )
+}
+
+/** GD09 (`industrial-machinery`) was retired. Stored ids open the general shop preset. */
+const RETIRED_SHOP_TEMPLATE_PRESET_ID: Record<string, ShopTemplatePresetId> = {
+  'industrial-machinery': 'commerce-blue',
+  GD09: 'commerce-blue',
 }
 
 /** Accepts stored `template_id` (`fashion-marketplace`) or short code (`GD03`). */
@@ -63,6 +65,8 @@ export function resolveShopTemplatePresetId(
   raw: string | null | undefined
 ): ShopTemplatePresetId | null {
   const v = String(raw || '').trim()
+  const retired = RETIRED_SHOP_TEMPLATE_PRESET_ID[v] || RETIRED_SHOP_TEMPLATE_PRESET_ID[v.toUpperCase()]
+  if (retired) return retired
   if (isShopTemplatePresetId(v)) return v
   const code = v.toUpperCase()
   if (!isShopTemplatePresetCode(code)) return null
@@ -435,41 +439,6 @@ const SHOP_TEMPLATE_PRESET_SOURCES: ShopTemplatePreset[] = [
     },
     flags: BLANK_CANVAS_FLAGS,
   },
-  {
-    id: 'industrial-machinery',
-    code: 'GD09',
-    templateId: 'industrial-machinery',
-    label: {
-      vi: 'Máy móc & vật tư',
-      en: 'Industrial machinery',
-      zh: '工业机械与物资',
-      ja: '産業機械・資材',
-      ko: '산업 기계·자재',
-    },
-    description: {
-      vi: 'Web máy móc công nghiệp: hero cam, danh mục, máy bán chạy, vì sao chọn, tin tức và gọi tư vấn.',
-      en: 'Industrial machinery site: orange hero, categories, best sellers, why us, news, and a call bar.',
-      zh: '工业机械站：橙色主视觉、分类、热销、优势、新闻与咨询条。',
-      ja: '産業機械サイト：オレンジのヒーロー、カテゴリ、売れ筋、選ばれる理由、ニュース、相談バー。',
-      ko: '산업 기계 사이트: 오렌지 히어로, 카테고리, 인기 상품, 선택 이유, 뉴스, 상담 바.',
-    },
-    swatch: { primary: '#ea580c', accent: '#c2410c', background: '#ffffff' },
-    coverImageUrl:
-      'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=1200&q=80',
-    readyToUse: true,
-    theme: {
-      primaryColor: '#ea580c',
-      accentColor: '#c2410c',
-      backgroundColor: '#ffffff',
-      textColor: '#111827',
-      mutedColor: '#6b7280',
-      surfaceColor: '#f8fafc',
-      borderColor: '#e5e7eb',
-      fontFamily:
-        '"Be Vietnam Pro", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif',
-    },
-    flags: COMMERCE_FULL_FLAGS,
-  },
 ]
 
 export const SHOP_TEMPLATE_PRESETS: ShopTemplatePreset[] = SHOP_TEMPLATE_PRESET_SOURCES.map((preset) => ({
@@ -507,6 +476,6 @@ export function suggestedShopTemplatePresetForIndustry(
   if (industryKey === 'hotel') return 'hospitality-stay'
   if (industryKey === 'fashion') return 'fashion-orange'
   if (industryKey === 'food') return 'food-warm'
-  if (industryKey === 'machinery') return 'industrial-machinery'
+  if (industryKey === 'machinery') return 'commerce-blue'
   return 'commerce-blue'
 }

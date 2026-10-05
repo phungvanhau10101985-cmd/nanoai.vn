@@ -8,6 +8,7 @@ import {
   listingLabelIsModelCode,
   listingPricePrefix,
   listingPricePrefixRuntimeJs,
+  mergeColorPriceFields,
   shopProductForSelectedColor,
   storedVariantListPrice,
 } from '@/lib/messaging/listing-import/per-sku-listing-price'
@@ -97,6 +98,30 @@ describe('listing sell price per code', () => {
     assert.equal(colors[1].price, 3_940_000)
     assert.equal(pd.price, 830_000)
     assert.equal(pd.cost_cny, 77)
+  })
+
+  it('fills a missing code price from the catalog snapshot and leaves an empty color list empty', () => {
+    const merged = mergeColorPriceFields(
+      [
+        { name: '2W31-15GBN-AC220V', img: 'https://cdn.example/15.jpg' },
+        { name: '2W31-25GBN-AC220V', img: 'https://cdn.example/25.jpg', price: 1_240_000 },
+      ],
+      [
+        { name: '2W31-15GBN-AC220V', price: 940_000, price_cny: 90.25, sku: '2W31-15GBN-AC220V' },
+        { name: '2W31-25GBN-AC220V', price: 999, sku: 'should-not-replace' },
+      ]
+    )
+    assert.equal(merged[0]?.price, 940_000)
+    assert.equal(merged[0]?.sku, '2W31-15GBN-AC220V')
+    assert.equal(merged[1]?.price, 1_240_000)
+    assert.equal(merged[1]?.sku, undefined)
+    assert.deepEqual(mergeColorPriceFields([], [{ name: '2W31-25GBN-AC220V', price: 1_240_000 }]), [])
+    const priced = shopProductForSelectedColor(
+      { priceAmount: 940_000, salePriceAmount: 940_000, colors: merged },
+      '2W31-25GBN-AC220V'
+    )
+    assert.equal(priced.priceAmount, 1_240_000)
+    assert.equal(priced.salePriceAmount, null)
   })
 
   it('keeps one product price when a published color has no stored price', () => {

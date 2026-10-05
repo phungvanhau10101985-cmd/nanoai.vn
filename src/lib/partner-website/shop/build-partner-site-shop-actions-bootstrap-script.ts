@@ -529,8 +529,26 @@ function resolveCartCard(product){
     if(p.priceHint||product.price_hint)card.price_hint=p.priceHint||product.price_hint;
     card.price_amount=p.priceAmount;
     card.sale_price_amount=p.salePriceAmount;
+    var want=String(product.color||'').trim().toLowerCase();
+    if(want&&p.isClearance!==true&&Array.isArray(p.colors)){
+      for(var ci=0;ci<p.colors.length;ci++){
+        var cc=p.colors[ci];
+        if(String(cc&&cc.name||'').trim().toLowerCase()!==want)continue;
+        var chosen=Math.round(Number(cc.price)||0);
+        if(!(chosen>0))break;
+        var base=Math.round(Number(p.priceAmount)||0);
+        card.price_amount=chosen;
+        var sale=Number(p.salePriceAmount);
+        if(Number.isFinite(sale)&&sale>0&&base>0&&sale<base)card.sale_price_amount=Math.round(chosen*(sale/base));
+        else card.sale_price_amount=null;
+        try{card.price_hint=new Intl.NumberFormat('vi-VN').format(chosen)+'\\u00a0₫';}catch(e){card.price_hint=String(chosen);}
+        if(cc.img)card.image_url=String(cc.img);
+        if(cc.sku)card.sku=String(cc.sku);
+        break;
+      }
+    }
     card.site_sale_phase=String((p.siteSale&&p.siteSale.phase)||p.siteSalePhase||'');
-    if(p.sku||product.sku)card.sku=p.sku||product.sku;
+    if(!card.sku&&(p.sku||product.sku))card.sku=p.sku||product.sku;
     var rmk=p.remarketingId||p.remarketing_id||product.remarketingId||product.remarketing_id;
     if(rmk)card.remarketing_id=String(rmk).replace(/\\s+/g,' ').trim();
     if(!/^https?:\\/\\//i.test(card.image_url)||!/^https?:\\/\\//i.test(card.product_url))return null;

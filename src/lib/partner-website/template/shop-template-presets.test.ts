@@ -12,23 +12,24 @@ import {
 import { getPartnerWebsiteCopy } from '@/lib/i18n/partner-website-copy'
 import { WEB_LOCALES } from '@/lib/i18n/config'
 
-test('every shop preset has a unique short code GD01–GD09', () => {
+test('every shop preset has a unique short code GD01–GD08', () => {
   const codes = SHOP_TEMPLATE_PRESETS.map((p) => p.code)
-  assert.deepEqual(codes, ['GD01', 'GD02', 'GD03', 'GD04', 'GD05', 'GD06', 'GD07', 'GD08', 'GD09'])
+  assert.deepEqual(codes, ['GD01', 'GD02', 'GD03', 'GD04', 'GD05', 'GD06', 'GD07', 'GD08'])
   assert.equal(new Set(codes).size, codes.length)
   assert.equal(getShopTemplatePreset('fashion-marketplace').code, 'GD03')
   assert.equal(getShopTemplatePreset('fashion-orange').code, 'GD02')
   assert.equal(getShopTemplatePreset('blank-white').code, 'GD08')
-  assert.equal(getShopTemplatePreset('GD09').id, 'industrial-machinery')
-  assert.equal(getShopTemplatePreset('industrial-machinery').code, 'GD09')
-  assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'industrial-machinery')
+  assert.equal(getShopTemplatePreset('GD09').id, 'commerce-blue')
+  assert.equal(getShopTemplatePreset('industrial-machinery').id, 'commerce-blue')
+  assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'commerce-blue')
 })
 
 test('resolveShopTemplatePresetId accepts id or short code', () => {
   assert.equal(resolveShopTemplatePresetId('GD03'), 'fashion-marketplace')
   assert.equal(resolveShopTemplatePresetId('gd03'), 'fashion-marketplace')
   assert.equal(resolveShopTemplatePresetId('fashion-marketplace'), 'fashion-marketplace')
-  assert.equal(resolveShopTemplatePresetId('GD09'), 'industrial-machinery')
+  assert.equal(resolveShopTemplatePresetId('GD09'), 'commerce-blue')
+  assert.equal(resolveShopTemplatePresetId('industrial-machinery'), 'commerce-blue')
   assert.equal(resolveShopTemplatePresetId('landing-v1'), null)
   assert.equal(getShopTemplatePreset('GD01').id, 'commerce-blue')
 })

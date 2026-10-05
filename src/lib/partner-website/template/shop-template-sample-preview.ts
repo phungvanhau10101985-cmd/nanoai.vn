@@ -4,9 +4,6 @@ import { listingCardFavHtml, listingCardStatsHtml } from '@/lib/partner-website/
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { PW_EL, pwElAttr } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 import {
-  getIndustrialShopTemplateSampleBannerImages,
-  getIndustrialShopTemplateSampleCategories,
-  getIndustrialShopTemplateSampleProducts,
   getShopTemplateSampleBannerImages,
   getShopTemplateSampleCategories,
   getShopTemplateSampleProducts,
@@ -163,30 +160,23 @@ function stampNavLive(html: string): string {
 /** Gallery `/mau-giao-dien`: fill seed placeholders so the sample looks like a live shop. */
 export function paintShopTemplateSamplePreviewInHtml(html: string, locale: WebLocale): string {
   if (!html.trim()) return html
-  const industrial = /\bpw-industrial-home\b/.test(html)
-  const products = industrial ? getIndustrialShopTemplateSampleProducts(locale) : undefined
-  const categories = industrial ? getIndustrialShopTemplateSampleCategories(locale) : undefined
-  const banners = industrial ? getIndustrialShopTemplateSampleBannerImages() : undefined
   let out = stampShopTemplateSamplePreviewInHtml(html)
   out = paintSectionCards(out, locale, 'data-pw-personalize=["\']flash-sale["\']', {
     rec: true,
     offset: 0,
-    products,
   })
   out = paintSectionCards(out, locale, 'data-pw-personalize=["\']recommended["\']', {
     rec: true,
     badge: locale === 'vi' ? 'Đề xuất' : locale === 'zh' ? '推荐' : locale === 'ja' ? 'おすすめ' : locale === 'ko' ? '추천' : 'For you',
     offset: 4,
-    products,
   })
   out = paintSectionCards(out, locale, 'data-sale=["\']1["\']', {
     sale: true,
     offset: 2,
-    products,
   })
-  out = paintPlaceholderCards(out, locale, { offset: 1, products })
-  out = paintFeaturedTiles(out, locale, categories)
-  out = paintBannerImages(out, banners)
+  out = paintPlaceholderCards(out, locale, { offset: 1 })
+  out = paintFeaturedTiles(out, locale)
+  out = paintBannerImages(out)
   out = stampNavLive(out)
   return out
 }

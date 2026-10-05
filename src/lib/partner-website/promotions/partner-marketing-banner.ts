@@ -214,8 +214,7 @@ export function fallbackPartnerMarketingBannerCopy(input: {
 function industryArtHint(industryKey: PartnerMarketingBannerBrand['industryKey']): string {
   if (industryKey === 'hotel') return 'phòng nghỉ, kỳ nghỉ, không gian hospitality cao cấp'
   if (industryKey === 'food') return 'món ăn, bàn tiệc, nguyên liệu tươi'
-  if (industryKey === 'machinery') return 'máy móc công nghiệp, xưởng cơ khí, vật tư kỹ thuật'
-  if (industryKey === 'other') return 'sản phẩm cửa hàng, đời sống hiện đại'
+  if (industryKey === 'other' || industryKey === 'machinery') return 'sản phẩm cửa hàng, mua sắm trực tuyến'
   return 'thời trang, giày dép, phụ kiện hiện đại'
 }
 

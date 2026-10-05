@@ -302,16 +302,27 @@ function normalizeJsonArrayOfStringsLenient(raw: string): string {
 function normalizeColorVariantsJsonLenient(raw: string): string {
   const t = raw.trim()
   if (!t) return ''
-  const out: Array<{ name: string; img: string }> = []
+  const out: Array<{ name: string; img: string; price?: number; price_cny?: number; sku?: string; sku_code?: string }> = []
   const seen = new Set<string>()
-  const push = (nameRaw: unknown, imgRaw: unknown) => {
+  const push = (nameRaw: unknown, imgRaw: unknown, extra?: Record<string, unknown>) => {
     const name = String(nameRaw ?? '').trim()
     const img = validateInventoryImageUrl(String(imgRaw ?? ''))
     if (!name || !img) return
     const key = `${name.toLowerCase()}|${img.toLowerCase()}`
     if (seen.has(key)) return
     seen.add(key)
-    out.push({ name, img })
+    const price = Number(extra?.price)
+    const priceCny = Number(extra?.price_cny)
+    const sku = String(extra?.sku ?? '').trim()
+    const skuCode = String(extra?.sku_code ?? '').trim()
+    out.push({
+      name,
+      img,
+      ...(Number.isFinite(price) && price > 0 ? { price: Math.round(price) } : {}),
+      ...(Number.isFinite(priceCny) && priceCny > 0 ? { price_cny: priceCny } : {}),
+      ...(sku ? { sku } : {}),
+      ...(skuCode ? { sku_code: skuCode } : {}),
+    })
   }
   try {
     const parsed = JSON.parse(t) as unknown
@@ -320,7 +331,7 @@ function normalizeColorVariantsJsonLenient(raw: string): string {
       for (const item of parsed) {
         if (!item || typeof item !== 'object' || Array.isArray(item)) continue
         const o = item as Record<string, unknown>
-        push(o.name, o.img)
+        push(o.name, o.img, o)
       }
     }
   } catch {

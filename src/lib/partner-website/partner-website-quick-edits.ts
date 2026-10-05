@@ -29,35 +29,30 @@ function industryNoun(locale: WebLocale, industryKey: PartnerIndustryKey): strin
   if (locale === 'vi') {
     if (key === 'hotel') return 'khách sạn / homestay'
     if (key === 'food') return 'quán ăn / F&B'
-    if (key === 'machinery') return 'cơ khí máy móc'
-    if (key === 'other') return 'cửa hàng'
+    if (key === 'other' || key === 'machinery') return 'cửa hàng'
     return 'cửa hàng'
   }
   if (locale === 'zh') {
     if (key === 'hotel') return '酒店/民宿'
     if (key === 'food') return '餐饮店铺'
-    if (key === 'machinery') return '机械设备'
-    if (key === 'other') return '店铺'
+    if (key === 'other' || key === 'machinery') return '店铺'
     return '店铺'
   }
   if (locale === 'ja') {
     if (key === 'hotel') return 'ホテル/宿泊'
     if (key === 'food') return '飲食店'
-    if (key === 'machinery') return '機械・機材'
-    if (key === 'other') return 'ショップ'
+    if (key === 'other' || key === 'machinery') return 'ショップ'
     return 'ショップ'
   }
   if (locale === 'ko') {
     if (key === 'hotel') return '호텔/숙소'
     if (key === 'food') return '음식점'
-    if (key === 'machinery') return '기계·장비'
-    if (key === 'other') return '스토어'
+    if (key === 'other' || key === 'machinery') return '스토어'
     return '스토어'
   }
   if (key === 'hotel') return 'hotel / stay'
   if (key === 'food') return 'food & beverage shop'
-  if (key === 'machinery') return 'industrial machinery'
-  if (key === 'other') return 'shop'
+  if (key === 'other' || key === 'machinery') return 'shop'
   return 'shop'
 }
 

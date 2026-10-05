@@ -134,12 +134,16 @@ import { settingsDataRoleCopy } from '@/lib/messaging/settings-data-role'
 import { SettingsDataRoleBox, SettingsDataRoleLegend } from '@/components/messaging/settings-data-role'
 
 const INDUSTRY_OPTIONS = [
-  { value: 'fashion', label: 'Thoi trang' },
+  { value: 'fashion', label: 'Mua sắm trực tuyến' },
   { value: 'hotel', label: 'Khach san' },
   { value: 'food', label: 'Quan an' },
-  { value: 'machinery', label: 'Cơ khí máy móc' },
   { value: 'other', label: 'Nganh khac' },
 ] as const
+
+function industrySelectValue(key: string): (typeof INDUSTRY_OPTIONS)[number]['value'] {
+  if (key === 'hotel' || key === 'food' || key === 'other') return key
+  return 'fashion'
+}
 
 type ChannelSnap = {
   facebookPageId: string | null
@@ -2685,7 +2689,7 @@ export function PartnerMessagingSettingsClient({
             </div>
             <div className="space-y-2">
               <Label>Nganh hang</Label>
-              <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+              <Select value={industrySelectValue(workspaceIndustry)} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
                 <SelectTrigger className="h-10 w-full bg-background">
                   <SelectValue placeholder="Nganh hang" />
                 </SelectTrigger>
@@ -3063,7 +3067,7 @@ export function PartnerMessagingSettingsClient({
                 </div>
                 <div className="space-y-2">
                   <Label>Nganh hang</Label>
-                  <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+                  <Select value={industrySelectValue(workspaceIndustry)} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
                     <SelectTrigger className="h-10 w-full bg-background">
                       <SelectValue placeholder="Nganh hang" />
                     </SelectTrigger>
@@ -3151,7 +3155,7 @@ export function PartnerMessagingSettingsClient({
                   </div>
                   <div className="space-y-2">
                     <Label>Nganh hang</Label>
-                    <Select value={workspaceIndustry} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
+                    <Select value={industrySelectValue(workspaceIndustry)} onValueChange={(v) => setWorkspaceIndustry(v as typeof workspaceIndustry)}>
                       <SelectTrigger className="h-10 w-full bg-background">
                         <SelectValue placeholder="Nganh hang" />
                       </SelectTrigger>

@@ -10,12 +10,7 @@ import {
   seedBlankShopVisualWebsite,
 } from '@/lib/partner-website/shop/build-blank-shop-visual-html'
 import { buildShopTemplatePageVisualHtml } from '@/lib/partner-website/shop/build-shop-template-page-visual-html'
-import { buildIndustrialShopHomeHtml, isIndustrialTemplateId } from '@/lib/partner-website/shop/build-industrial-shop-home-html'
 import { buildMarketplaceShopHomeHtml } from '@/lib/partner-website/shop/build-marketplace-shop-home-html'
-import {
-  buildIndustrialShopPdpHtml,
-  markIndustrialPdpChrome,
-} from '@/lib/partner-website/shop/build-industrial-shop-pdp-html'
 import { buildDefaultDemoPdpShellHtml } from '@/lib/partner-website/shop/build-default-demo-pdp-shell-html'
 import { ensureFullPartnerSiteFooterInHtml } from '@/lib/partner-website/shop/build-partner-site-footer-html'
 import {
@@ -105,21 +100,9 @@ export function buildShopTemplateHomeVisualHtml(input: {
   chatPath?: string
   samplePreview?: boolean
 }): string {
-  const industrial = isIndustrialTemplateId(input.templateId)
-  const marketplace = !industrial && (isMarketplaceTemplateId(input.templateId) || isMarketplaceLook(input.theme))
+  const marketplace = isMarketplaceTemplateId(input.templateId) || isMarketplaceLook(input.theme)
   const raw = stampHomePageAttr(
-    industrial
-      ? buildIndustrialShopHomeHtml({
-          variant: input.variant,
-          locale: input.locale,
-          siteSlug: input.siteSlug,
-          brand: input.brand,
-          logoUrl: input.logoUrl,
-          theme: input.theme,
-          chatPath: input.chatPath,
-          samplePreview: input.samplePreview,
-        })
-      : marketplace
+    marketplace
       ? buildMarketplaceShopHomeHtml({
           variant: input.variant,
           locale: input.locale,
@@ -208,17 +191,8 @@ function buildShopTemplatePdpVisualHtml(input: {
   look?: PartnerWebsiteTheme['look']
   templateId?: string | null
 }): string {
-  const industrial = isIndustrialTemplateId(input.templateId)
   const shell = finishVisualHtml(
-    industrial
-      ? buildIndustrialShopPdpHtml({
-          locale: input.locale,
-          siteSlug: input.siteSlug,
-          variant: input.variant,
-          title: input.brand,
-          logoUrl: input.logoUrl,
-        })
-      : buildDefaultDemoPdpShellHtml({
+    buildDefaultDemoPdpShellHtml({
           locale: input.locale,
           siteSlug: input.siteSlug,
           variant: input.variant,
@@ -228,8 +202,7 @@ function buildShopTemplatePdpVisualHtml(input: {
     input.variant,
     { ...input, pageKey: 'product_detail' }
   )
-  const withChrome = applyHomeSharedChrome(shell, input.homeHtml, input.variant)
-  return industrial ? markIndustrialPdpChrome(withChrome) : withChrome
+  return applyHomeSharedChrome(shell, input.homeHtml, input.variant)
 }
 
 /**

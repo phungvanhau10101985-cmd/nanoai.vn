@@ -875,7 +875,7 @@ type Props = {
   onOpenDestination?: (next: string) => void
   /** Màu giao diện đang chọn — gửi vào prompt tạo logo. */
   theme?: PartnerWebsiteTheme | null
-  /** Mẫu GD01–GD09 đang áp (`template_id`). */
+  /** Mẫu GD01–GD08 đang áp (`template_id`). */
   templateId?: string | null
   /** Đổi mẫu từ Sửa nhanh — cùng `apply_template` (snapshot / restore). */
   onApplyShopLook?: (

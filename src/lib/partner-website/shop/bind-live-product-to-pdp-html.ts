@@ -1010,7 +1010,9 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
       const face = img
         ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="${escAttr(name)}" loading="lazy" decoding="async" />`
         : escText(name)
-      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}">${face}</button>`
+      const price = Math.round(Number(c.price) || 0)
+      const priceAttr = price > 0 ? ` data-pw-variant-price="${price}"` : ''
+      return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}"${priceAttr}>${face}</button>`
     })
     .join('')
   return `<p style="font-weight:700;margin:0 0 8px;font-size:14px">${escText(t.colorLabel)}</p><div class="pw-pdp-pills">${pills}</div>`

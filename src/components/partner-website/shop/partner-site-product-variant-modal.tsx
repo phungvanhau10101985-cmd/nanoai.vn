@@ -273,11 +273,18 @@ export function PartnerSiteProductVariantModal({
       saleStartsAt: priced.saleStartsAt ?? null,
       saleEndsAt: priced.saleEndsAt ?? null,
     })
+  const scaledSale =
+    priced.salePriceAmount != null &&
+    priced.priceAmount != null &&
+    priced.salePriceAmount > 0 &&
+    priced.salePriceAmount < priced.priceAmount
+      ? priced.salePriceAmount
+      : null
   const unitPrice =
     saleFace.kind
       ? saleFace.displayPrice
-      : flashActive && priced.salePriceAmount != null
-        ? priced.salePriceAmount
+      : flashActive && scaledSale != null
+        ? scaledSale
         : priced.priceAmount != null && Number.isFinite(priced.priceAmount)
           ? priced.priceAmount
           : null

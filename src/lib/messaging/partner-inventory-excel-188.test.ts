@@ -32,6 +32,20 @@ test('parseColorVariantsField keeps name-only colors', () => {
   assert.equal(colors[0]?.img, '')
 })
 
+test('parseColorVariantsField keeps per-code price and sku', () => {
+  const colors = parseColorVariantsField(
+    JSON.stringify([
+      { name: '2W31-15GBN-AC220V', img: 'https://cdn.example/15.jpg', price: 940000, price_cny: 90.25, sku: '2W31-15GBN-AC220V' },
+      { name: '2W31-25GBN-AC220V', price: 1240000, sku_code: '2W31-25GBN-AC220V' },
+    ])
+  )
+  assert.equal(colors[0]?.price, 940000)
+  assert.equal(colors[0]?.price_cny, 90.25)
+  assert.equal(colors[0]?.sku, '2W31-15GBN-AC220V')
+  assert.equal(colors[1]?.price, 1240000)
+  assert.equal(colors[1]?.sku_code, '2W31-25GBN-AC220V')
+})
+
 test('buildInventoryTemplateBuffer + parseInventoryWorkbook round-trips 188 catalog', () => {
   const buf = buildInventoryTemplateBuffer()
   const parsed = parseInventoryWorkbook(buf)

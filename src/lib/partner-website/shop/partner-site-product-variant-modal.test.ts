@@ -106,6 +106,13 @@ test('shop-actions injects PDP variant modal before add-to-cart', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /birthdaySave/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /birthdayEndsAfter/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantListAmount/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /function mergeVariantColors/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /else st\.unitPrice=\(list>0\?list:/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-variant-price/)
+  assert.doesNotMatch(
+    PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS,
+    /salePriceAmount!=null\?priced\.salePriceAmount:priced\.priceAmount/
+  )
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /__pwBirthdayOffer/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /variantSaleFace/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /bindPdpDesktopStickyBar/)

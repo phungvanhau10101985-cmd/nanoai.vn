@@ -37,6 +37,27 @@ test('empty structured sizes/colors win over leftover description JSON', () => {
   assert.deepEqual(next.colors, [])
 })
 
+test('hydrate fills missing color prices from the catalog snapshot', () => {
+  const next = hydrateInventoryShopRowFromCatalog188({
+    id: '9744be2d-0b8d-4aa6-82a4-9bd861f7a034',
+    name: 'Van điện từ 2W31',
+    colors_json: [
+      { name: '2W31-15GBN-AC220V', img: 'https://cdn.example/15.jpg' },
+      { name: '2W31-25GBN-AC220V', img: 'https://cdn.example/25.jpg' },
+    ],
+    catalog_json: {
+      colors: [
+        { name: '2W31-15GBN-AC220V', price: 940000, sku: '2W31-15GBN-AC220V' },
+        { name: '2W31-25GBN-AC220V', price: 1240000, price_cny: 128.25, sku: '2W31-25GBN-AC220V' },
+      ],
+    },
+  })
+  const colors = next.colors_json as { name: string; price?: number; sku?: string }[]
+  assert.equal(colors[0]?.price, 940000)
+  assert.equal(colors[1]?.price, 1240000)
+  assert.equal(colors[1]?.sku, '2W31-25GBN-AC220V')
+})
+
 test('hydrate keeps empty sizes_json / colors_json even if catalog_json snapshot has leftover variants', () => {
   const next = hydrateInventoryShopRowFromCatalog188({
     id: '9744be2d-0b8d-4aa6-82a4-9bd861f7a034',

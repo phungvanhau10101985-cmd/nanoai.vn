@@ -2,7 +2,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import { fetchPartnerSaleCalendarConfigFromPg, type PartnerSaleCalendarConfig } from '@/lib/db/messaging-partner-sale-calendar-pg'
 import { resolvePartnerStorefrontSaleCalendarFromPg } from '@/lib/db/messaging-partner-feature-test-pg'
-import { storedVariantListPrice } from '@/lib/messaging/listing-import/per-sku-listing-price'
+import { mergeColorPriceFields, storedVariantListPrice } from '@/lib/messaging/listing-import/per-sku-listing-price'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import { resolvePartnerEffectiveUnitPrice } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 import { applyPartnerSiteSalePrice, type PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
@@ -24,6 +24,7 @@ type InventoryPriceDbRow = {
   is_clearance: boolean
   colors_json?: unknown
   product_info_json?: unknown
+  catalog_colors?: unknown
 }
 
 type GoogleLockDbRow = {
@@ -83,7 +84,9 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
       `select id::text, price_amount, coalesce(price_hint, '') as price_hint,
               sale_price_amount, sale_starts_at, sale_ends_at,
               coalesce(is_clearance, false) as is_clearance,
-              colors_json, product_info_json
+              colors_json, product_info_json,
+              case when jsonb_typeof(catalog_json->'colors') = 'array'
+                then catalog_json->'colors' else '[]'::jsonb end as catalog_colors
        from public.messaging_partner_inventory
        where partner_id = $1::uuid and id = any($2::uuid[])`,
       [input.partnerId, ids]
@@ -137,10 +140,17 @@ export async function resolvePartnerCheckoutPriceLinesFromPg(input: {
     const fallback = money(line.fallbackUnitPrice)
     const productList =
       money(row?.price_amount) || parseVndFromPriceHint(row?.price_hint || '') || fallback
+    const variantColors =
+      row && Array.isArray(row.colors_json)
+        ? mergeColorPriceFields(
+            row.colors_json as { name: string; price?: number }[],
+            row.catalog_colors
+          )
+        : row?.colors_json
     const variantList =
       row && !row.is_clearance
         ? storedVariantListPrice({
-            colors: row.colors_json,
+            colors: variantColors,
             productInfo: row.product_info_json,
             colorName: line.color || '',
             sizeName: line.size,
