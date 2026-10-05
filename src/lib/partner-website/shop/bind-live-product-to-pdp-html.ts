@@ -1007,9 +1007,10 @@ function colorVariantInner(colors: LivePdpBindColor[], locale: WebLocale): strin
       const name = String(c.name || '').trim()
       const img = shopCardDisplaySrc(c.img)
       const full = shopPdpDisplaySrc(c.img)
-      const face = img
-        ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="${escAttr(name)}" loading="lazy" decoding="async" />`
-        : escText(name)
+      const swatch = img
+        ? `<img src="${escAttr(img)}"${full ? ` data-pw-full-src="${escAttr(full)}"` : ''} alt="" loading="lazy" decoding="async" />`
+        : ''
+      const face = `${swatch}<span class="pw-pdp-color-name">${escText(name)}</span>`
       const price = Math.round(Number(c.price) || 0)
       const priceAttr = price > 0 ? ` data-pw-variant-price="${price}"` : ''
       return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escAttr(name)}"${priceAttr}>${face}</button>`

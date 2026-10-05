@@ -34,6 +34,19 @@ describe('image localization classifier', () => {
     assert.equal(convertJinWeightText('1.5斤'), '0.75 kg')
   })
 
+  it('keeps a product banner local when the only overlap is a model code', () => {
+    const out = classifyImage(
+      [
+        { text: 'YONGCHUANG', bbox: [43, 91, 151, 105] },
+        { text: '2W31', bbox: [585, 686, 732, 726] },
+        { text: '好阀选永创用心来创造50GBN', bbox: [37, 723, 748, 788] },
+      ],
+      [],
+      'https://example.com/valve.jpg'
+    )
+    assert.equal(out.type, 'local')
+  })
+
   it('uses overlap against the smaller box like 188', () => {
     const out = classifyImage(
       [
@@ -47,26 +60,28 @@ describe('image localization classifier', () => {
     assert.ok(Number(out.details.overlap_ratio) > 0.05)
   })
 
-  it('marks size/laundry for delete in local-only mode', () => {
-    const blocks: ImageLocOcrBlock[] = [
+  it('draws size charts and laundry guides instead of deleting them', () => {
+    const size = localBlocksNeedDraw([
       { text: '尺码表', bbox: [0, 0, 40, 12] },
       { text: 'S', bbox: [0, 14, 8, 22] },
       { text: 'M', bbox: [10, 14, 18, 22] },
       { text: 'L', bbox: [20, 14, 28, 22] },
       { text: '50cm', bbox: [0, 24, 20, 32] },
-    ]
-    const local = localBlocksNeedDraw(blocks, { deleteSizeAndLaundry: true })
-    assert.equal(local.action, 'deleted')
+    ])
+    assert.equal(size.action, 'draw')
+    assert.ok(size.blocks.some((block) => block.text === '尺码表'))
+    const laundry = localBlocksNeedDraw([
+      { text: '洗涤说明', bbox: [0, 0, 80, 16] },
+      { text: '手洗', bbox: [0, 20, 40, 32] },
+    ])
+    assert.equal(laundry.action, 'draw')
   })
 
   it('ignores isolated one-Hanzi OCR blocks like 188 translator', () => {
-    const local = localBlocksNeedDraw(
-      [
-        { text: '新款女装', bbox: [0, 0, 80, 20] },
-        { text: '荐', bbox: [90, 0, 100, 20] },
-      ],
-      { deleteSizeAndLaundry: false }
-    )
+    const local = localBlocksNeedDraw([
+      { text: '新款女装', bbox: [0, 0, 80, 20] },
+      { text: '荐', bbox: [90, 0, 100, 20] },
+    ])
     assert.equal(local.action, 'deleted', 'urgent keywords must still win before one-Hanzi filtering')
 
     const draw = localBlocksNeedDraw(
@@ -74,7 +89,6 @@ describe('image localization classifier', () => {
         { text: '新款女装', bbox: [0, 0, 80, 20] },
         { text: '春', bbox: [90, 0, 100, 20] },
       ],
-      { deleteSizeAndLaundry: false }
     )
     assert.equal(draw.action, 'draw')
     assert.deepEqual(draw.blocks.map((block) => block.text), ['新款女装'])

@@ -1,7 +1,16 @@
 import sharp from 'sharp'
 import { documentOcrWithScale, type TextWithBbox } from '@/lib/vision-ocr'
 import { hasVisionConfig } from '@/lib/vision-api'
-import { overlayTranslatedText, type OverlayItem } from '@/lib/translate-overlay'
+import {
+  overlayItemLooksLikeEdgeBanner,
+  overlayItemsLookLikeTable,
+  overlayTranslatedText,
+  attachTrailingMeasurements,
+  spaceSpecPunctuation,
+  splitTrailingModelCode,
+  stripInventedLeadingModelCode,
+  type OverlayItem,
+} from '@/lib/translate-overlay'
 import { deepseekPartnerChat } from '@/lib/messaging/partner-ai-llm'
 import {
   LANGUAGE_LABELS,
@@ -124,7 +133,10 @@ REQUIREMENTS:
 1. Return ONLY the ${target} result. Do not repeat the prompt.
 2. Preserve all measurements and numbers (45kg, 5cm, etc.).
 3. Translate both English and Chinese text when present.
-4. Do not add explanations.`
+4. If Chinese is already paired with an English gloss of the same phrase (e.g. "结构图 /Structure"), return one ${target} phrase. Do not repeat the meaning.
+5. Keep standard abbreviations such as NC and NO.
+6. Keep the full meaning of a short label. Do not shorten it to one fragment.
+7. Do not add explanations, model codes, or SKUs that are not in the source.`
       const res = await deepseekPartnerChat(
         'You are a precise e-commerce image translator. Output only the translated text.',
         prompt,
@@ -146,6 +158,7 @@ REQUIREMENTS:
         .trim()
         .replace(/^(?:Dịch|Bản dịch|Translation|Vietnamese|English|Chinese|Japanese|Korean):\s*/i, '')
         .replace(/^["']|["']$/g, '')
+        .replace(/\s*[|/／]\s*$/g, '')
         .replace(/\s+/g, ' ')
         .trim()
     }, 'DeepSeek dịch ảnh')
@@ -191,6 +204,7 @@ function overlayItemsClose(a: OverlayItem[], b: OverlayItem): boolean {
     ay2 + padY < by1 ||
     by2 + padY < ay1
   )
+  if (intersects && overlayModelCodeStaysApart(a, b)) return false
   if (intersects) return true
   const isCm = (text: string) => /^\d+(?:[.,]\d+)?\s*cm$/i.test(text.trim())
   if (!isCm(b.translatedText) && !a.some((item) => isCm(item.translatedText))) return false
@@ -240,7 +254,9 @@ export function mergeDenseImageLocOverlayItems(
       0
     )
     const density = totalArea / Math.max(1, (x2 - x1) * (y2 - y1))
-    if (density <= 0.1 && group.length < 3) return group
+    // Ô thưa trên bản vẽ kỹ thuật: nhiều box OCR rác vẫn phải giữ riêng.
+    // Gộp chúng thành một ô sẽ tô trắng mất nét vẽ.
+    if (density <= 0.1) return group
     const padX = Math.max(18, Math.trunc((x2 - x1) * 0.08))
     const padY = Math.max(12, Math.trunc((y2 - y1) * 0.25))
     const left = Math.max(0, x1 - padX)
@@ -265,21 +281,142 @@ function overlayWordTokens(text: string): string[] {
   return trimmed.split(/\s+/).filter(Boolean)
 }
 
-/** Một từ ngắn trên nền chiếm lớn ảnh (vd. «Xương»). Bỏ đúng cụm đó; cụm khác trên cùng ảnh vẫn dịch. */
+function overlayBoxIsOversized(
+  box: { width: number; height: number },
+  imageWidth: number,
+  imageHeight: number
+): boolean {
+  const width = Math.max(0, box.width)
+  const height = Math.max(0, box.height)
+  const imageArea = Math.max(1, imageWidth * imageHeight)
+  const areaRatio = (width * height) / imageArea
+  const wide = width >= imageWidth * 0.34
+  const tall = height >= imageHeight * 0.2
+  return (wide && tall) || areaRatio >= 0.15
+}
+
+/**
+ * Cụm ngắn (1–2 từ) trên ô chiếm lớn ảnh (vd. «Xương», «Mặc Băng» đọc nhầm nét vẽ).
+ * Bỏ đúng cụm đó; cụm khác trên cùng ảnh vẫn dịch.
+ */
 export function isOversizedSingleWordOverlay(
   item: OverlayItem,
   imageWidth: number,
   imageHeight: number
 ): boolean {
   const tokens = overlayWordTokens(item.translatedText || '')
-  if (tokens.length !== 1 || tokens[0].length > 24) return false
-  const width = Math.max(0, item.bbox.width)
-  const height = Math.max(0, item.bbox.height)
-  const imageArea = Math.max(1, imageWidth * imageHeight)
-  const areaRatio = (width * height) / imageArea
-  const wide = width >= imageWidth * 0.34
-  const tall = height >= imageHeight * 0.2
-  return (wide && tall) || areaRatio >= 0.15
+  if (tokens.length < 1 || tokens.length > 2) return false
+  if (tokens.some((token) => token.length > 24)) return false
+  return overlayBoxIsOversized(item.bbox, imageWidth, imageHeight)
+}
+
+/** «结构图 /Structure» → một câu, không «Sơ đồ cấu trúc/Cấu trúc». */
+export function collapseBilingualGlossTranslation(source: string, translated: string): string {
+  const src = source.trim()
+  const out = translated.trim()
+  if (!/[\u4e00-\u9fff].*[/／|].*[A-Za-z]/.test(src)) return out
+  const parts = out.split(/\s*[/／|]\s*/).map((part) => part.trim()).filter(Boolean)
+  if (parts.length !== 2) return out
+  const fold = (value: string) => value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+  const folded = parts.map(fold)
+  if (!folded[0] || !folded[1]) return out
+  if (folded[0].includes(folded[1]) || folded[1].includes(folded[0])) {
+    return folded[0].length >= folded[1].length ? parts[0] : parts[1]
+  }
+  return out
+}
+
+export function measureTechnicalLineArt(
+  gray: Uint8Array | Buffer,
+  width: number,
+  height: number
+): { inkRatio: number; thinRatio: number; longRunShare: number; lightBg: boolean } {
+  const n = width * height
+  if (n <= 0 || gray.length < n) return { inkRatio: 0, thinRatio: 0, longRunShare: 0, lightBg: true }
+  let ink = 0
+  let thin = 0
+  let light = 0
+  let longInk = 0
+  const minRun = Math.max(12, Math.round(Math.min(width, height) * 0.035))
+  const darkAt = (x: number, y: number) => gray[y * width + x] < 90
+  for (let y = 0; y < height; y++) {
+    let run = 0
+    for (let x = 0; x < width; x++) {
+      const value = gray[y * width + x]
+      if (value >= 210) light += 1
+      if (!darkAt(x, y)) {
+        if (run >= minRun) longInk += run
+        run = 0
+        continue
+      }
+      ink += 1
+      run += 1
+      const up = y > 0 ? gray[(y - 1) * width + x] : 255
+      const down = y + 1 < height ? gray[(y + 1) * width + x] : 255
+      const left = x > 0 ? gray[y * width + x - 1] : 255
+      const right = x + 1 < width ? gray[y * width + x + 1] : 255
+      if ((up >= 180 && down >= 180) || (left >= 180 && right >= 180)) thin += 1
+    }
+    if (run >= minRun) longInk += run
+  }
+  for (let x = 0; x < width; x++) {
+    let run = 0
+    for (let y = 0; y < height; y++) {
+      if (!darkAt(x, y)) {
+        if (run >= minRun) longInk += run
+        run = 0
+        continue
+      }
+      run += 1
+    }
+    if (run >= minRun) longInk += run
+  }
+  return {
+    inkRatio: ink / n,
+    thinRatio: ink ? thin / ink : 0,
+    longRunShare: ink ? longInk / ink : 0,
+    lightBg: light / n >= 0.55,
+  }
+}
+
+/** Nét mảnh hoặc nét thẳng dài trên nền sáng: sơ đồ kết cấu, không phải dòng chữ. */
+export function looksLikeTechnicalLineArt(stats: {
+  inkRatio: number
+  thinRatio: number
+  longRunShare: number
+  lightBg: boolean
+}): boolean {
+  const sparseInk = stats.lightBg && stats.inkRatio >= 0.012 && stats.inkRatio <= 0.35
+  if (!sparseInk) return false
+  if (stats.thinRatio >= 0.62) return true
+  return stats.thinRatio >= 0.15 && stats.longRunShare >= 0.15
+}
+
+export async function overlayRegionIsTechnicalLineArt(
+  imageBytes: Buffer,
+  box: { x: number; y: number; width: number; height: number },
+  imageWidth: number,
+  imageHeight: number
+): Promise<boolean> {
+  if (!overlayBoxIsOversized(box, imageWidth, imageHeight)) return false
+  const left = Math.max(0, Math.min(imageWidth - 1, Math.round(box.x)))
+  const top = Math.max(0, Math.min(imageHeight - 1, Math.round(box.y)))
+  const width = Math.max(1, Math.min(imageWidth - left, Math.round(box.width)))
+  const height = Math.max(1, Math.min(imageHeight - top, Math.round(box.height)))
+  const pipeline = sharp(imageBytes).extract({ left, top, width, height }).greyscale()
+  if (width * height > 500_000) {
+    const scale = Math.sqrt(500_000 / (width * height))
+    pipeline.resize({
+      width: Math.max(32, Math.round(width * scale)),
+      height: Math.max(32, Math.round(height * scale)),
+      fit: 'fill',
+      kernel: 'nearest',
+    })
+  }
+  const extracted = await pipeline.raw().toBuffer({ resolveWithObject: true })
+  return looksLikeTechnicalLineArt(
+    measureTechnicalLineArt(extracted.data, extracted.info.width, extracted.info.height)
+  )
 }
 
 export function dropOversizedSingleWordOverlays(
@@ -290,14 +427,67 @@ export function dropOversizedSingleWordOverlays(
   return items.filter((item) => !isOversizedSingleWordOverlay(item, imageWidth, imageHeight))
 }
 
-/** Bỏ cụm một chữ trên nền lớn trước khi gộp, để ô đó không nuốt các cụm xung quanh. */
+function isParagraphContinuation(previous: OverlayItem, next: OverlayItem, imageWidth: number): boolean {
+  if (previous.bbox.width < imageWidth * 0.42 || next.bbox.width < imageWidth * 0.28) return false
+  if (next.bbox.width >= previous.bbox.width - 8) return false
+  if (Math.abs(previous.bbox.x - next.bbox.x) > 16) return false
+  const gap = next.bbox.y - (previous.bbox.y + previous.bbox.height)
+  return gap >= -2 && gap <= 16
+}
+
+/** Hai dòng chú thích xếp chồng thành một đoạn để chữ Việt xuống dòng trong cùng một ô. */
+export function mergeStackedParagraphLines(items: OverlayItem[], imageWidth: number): OverlayItem[] {
+  if (items.length < 2 || imageWidth < 1) return items
+  const sorted = [...items].sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)
+  const used = new Set<OverlayItem>()
+  const out: OverlayItem[] = []
+  for (const item of sorted) {
+    if (used.has(item)) continue
+    const group = [item]
+    used.add(item)
+    let last = item
+    for (const other of sorted) {
+      if (used.has(other) || !isParagraphContinuation(last, other, imageWidth)) continue
+      group.push(other)
+      used.add(other)
+      last = other
+    }
+    if (group.length === 1) {
+      out.push(item)
+      continue
+    }
+    const [x1, y1, x2, y2] = overlayUnion(group)
+    out.push({
+      bbox: { x: x1, y: y1, width: x2 - x1, height: y2 - y1 },
+      translatedText: group.map((entry) => entry.translatedText.trim()).filter(Boolean).join(' '),
+      eraseOriginal: group.some((entry) => entry.eraseOriginal),
+    })
+  }
+  return out
+}
+
+/** Bỏ cụm ngắn trên nền lớn trước và sau khi gộp, để ô đó không nuốt bản vẽ. */
 export function layoutImageLocOverlays(
   items: OverlayItem[],
   imageWidth: number,
   imageHeight: number
 ): OverlayItem[] {
-  const rest = dropOversizedSingleWordOverlays(items, imageWidth, imageHeight)
-  return mergeDenseImageLocOverlayItems(rest, imageWidth, imageHeight)
+  const rest = dropOversizedSingleWordOverlays(mergeStackedParagraphLines(items, imageWidth), imageWidth, imageHeight)
+  if (overlayItemsLookLikeTable(rest)) return rest
+  const merged = mergeDenseImageLocOverlayItems(rest, imageWidth, imageHeight)
+  return dropOversizedSingleWordOverlays(merged, imageWidth, imageHeight)
+}
+
+function overlayModelCodeStaysApart(group: OverlayItem[], item: OverlayItem): boolean {
+  const texts = [...group.map((entry) => entry.translatedText), item.translatedText]
+  const code = texts.some((text) => isModelCodeToken(text))
+  const sentence = texts.some((text) => text.trim().split(/\s+/).length >= 4)
+  return code && sentence
+}
+
+function isModelCodeToken(text: string): boolean {
+  const token = text.trim()
+  return /^[A-Z0-9][A-Z0-9-]{2,11}$/i.test(token) && /\d/.test(token) && /[A-Za-z]/.test(token)
 }
 
 export type LocalDrawOutcome = { kind: 'drawn'; bytes: Buffer } | { kind: 'unchanged' }
@@ -308,12 +498,53 @@ export async function localDrawTranslated(
   language: string,
   userId?: string | null
 ): Promise<LocalDrawOutcome> {
-  const prepared = blocks.map((block) => ({
-    block,
-    source: convertJinWeightText(block.text || '').trim(),
-    translated: '',
-    eraseOriginal: !(block.text || '').trim(),
-  }))
+  const metadata = await sharp(imageBytes).metadata()
+  const imageWidth = metadata.width || 1
+  const imageHeight = metadata.height || 1
+  const drawableBlocks = blocks.filter((block) => !block.layoutOnly)
+  const modelObstacles: OverlayItem[] = blocks
+    .filter((block) => isModelCodeToken(block.text || '') && !hasChineseText(block.text || ''))
+    .map((block) => ({
+      bbox: {
+        x: block.bbox[0],
+        y: block.bbox[1],
+        width: Math.max(1, block.bbox[2] - block.bbox[0]),
+        height: Math.max(1, block.bbox[3] - block.bbox[1]),
+      },
+      translatedText: '',
+    }))
+  const obstacles: OverlayItem[] = []
+  const redrawLatin: OverlayItem[] = []
+  for (const block of blocks) {
+    if (!block.layoutOnly || !(block.text || '').trim()) continue
+    const bbox = {
+      x: block.bbox[0],
+      y: block.bbox[1],
+      width: Math.max(1, block.bbox[2] - block.bbox[0]),
+      height: Math.max(1, block.bbox[3] - block.bbox[1]),
+    }
+    const spaced = spaceSpecPunctuation(block.text || '')
+    if (spaced.includes('\n')) redrawLatin.push({ bbox, translatedText: spaced })
+    else obstacles.push({ bbox, translatedText: (block.text || '').trim() })
+  }
+  const prepared = drawableBlocks.map((block) => {
+    const raw = convertJinWeightText(block.text || '').trim()
+    const box = {
+      x: block.bbox[0],
+      y: block.bbox[1],
+      width: Math.max(1, block.bbox[2] - block.bbox[0]),
+      height: Math.max(1, block.bbox[3] - block.bbox[1]),
+    }
+    const peeled = overlayItemLooksLikeEdgeBanner({ bbox: box }, imageWidth, imageHeight)
+      ? splitTrailingModelCode(raw)
+      : { text: raw, code: '' }
+    return {
+      block,
+      source: peeled.text,
+      translated: '',
+      eraseOriginal: !raw,
+    }
+  })
   const translatable = prepared.filter(
     (item) =>
       !item.eraseOriginal &&
@@ -326,7 +557,8 @@ export async function localDrawTranslated(
     userId
   )
   translatable.forEach((item, index) => {
-    item.translated = (translated[index] || '').trim()
+    const phrase = collapseBilingualGlossTranslation(item.source, (translated[index] || '').trim())
+    item.translated = stripInventedLeadingModelCode(item.source, phrase)
   })
   let overlayItems: OverlayItem[] = prepared
     .map((item) => {
@@ -348,12 +580,19 @@ export async function localDrawTranslated(
       }
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
-  const metadata = await sharp(imageBytes).metadata()
-  const imageWidth = metadata.width || 1
-  const imageHeight = metadata.height || 1
-  overlayItems = layoutImageLocOverlays(overlayItems, imageWidth, imageHeight)
+  const attached = attachTrailingMeasurements(overlayItems, [...obstacles, ...modelObstacles])
+  overlayItems = layoutImageLocOverlays([...attached.items, ...redrawLatin], imageWidth, imageHeight)
+  const drawable: OverlayItem[] = []
+  for (const item of overlayItems) {
+    if (await overlayRegionIsTechnicalLineArt(imageBytes, item.bbox, imageWidth, imageHeight)) continue
+    drawable.push(item)
+  }
+  overlayItems = drawable
   if (!overlayItems.length) return { kind: 'unchanged' }
-  const png = await overlayTranslatedText(imageBytes, overlayItems, { sampleBackground: true })
+  const png = await overlayTranslatedText(imageBytes, overlayItems, {
+    sampleBackground: true,
+    obstacles: attached.obstacles,
+  })
   const q = imageLocJpegQuality()
   return { kind: 'drawn', bytes: await sharp(png).jpeg({ quality: q, mozjpeg: true }).toBuffer() }
 }

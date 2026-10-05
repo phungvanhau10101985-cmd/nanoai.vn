@@ -95,9 +95,8 @@ export function buildDefaultDemoPdpShellHtml(input?: {
   const colorPills = colors
     .map((c, i) => {
       const img = String(c.img || '').trim()
-      const face = img
-        ? `<img src="${escapeAttr(img)}" alt="${escapeAttr(c.name)}" />`
-        : escapeHtml(c.name)
+      const swatch = img ? `<img src="${escapeAttr(img)}" alt="" />` : ''
+      const face = `${swatch}<span class="pw-pdp-color-name">${escapeHtml(c.name)}</span>`
       return `<button type="button" class="pw-pdp-pill pw-pdp-color${i === 0 ? ' is-active' : ''}" data-pw-pdp-option-value="${escapeAttr(c.name)}">${face}</button>`
     })
     .join('')

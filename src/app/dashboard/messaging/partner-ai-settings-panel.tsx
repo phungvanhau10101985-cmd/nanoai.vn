@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -3251,9 +3251,6 @@ function InventoryEditor({
                   <th className="sticky top-0 z-20 min-w-[5.5rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground">
                     {t.inventoryColImageI18n}
                   </th>
-                  <th className="sticky right-0 top-0 z-30 min-w-[16rem] whitespace-nowrap bg-muted px-3 py-3 text-left font-semibold text-foreground shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
-                    {t.inventoryColActions}
-                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -3264,8 +3261,29 @@ function InventoryEditor({
                   const loc = (r.image_localization_status || '').trim()
                   const stickyTd =
                     'sticky z-10 bg-card py-2 px-3 align-top group-hover:bg-muted/40'
+                  const rowActions = (
+                    <div className="flex justify-end gap-1">
+                      <Button type="button" variant="outline" size="sm" onClick={() => setDetailId(r.id)} disabled={pending}>
+                        {t.inventoryViewDetail}
+                      </Button>
+                      <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
+                        {t.edit}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive"
+                        onClick={() => del(r.id)}
+                        disabled={pending}
+                      >
+                        {t.deleteRow}
+                      </Button>
+                    </div>
+                  )
                   return (
-                    <tr key={r.id} className="group border-b border-border/70 hover:bg-muted/30">
+                    <Fragment key={r.id}>
+                    <tr className="group hover:bg-muted/30">
                       <td className={`${stickyTd} left-0 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]`}>
                         <input
                           type="checkbox"
@@ -3370,27 +3388,13 @@ function InventoryEditor({
                           {loc || 'pending'}
                         </span>
                       </td>
-                      <td className="sticky right-0 z-10 min-w-[16rem] whitespace-nowrap bg-card px-3 py-2 align-top group-hover:bg-muted/40 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.08)]">
-                        <div className="flex shrink-0 gap-1">
-                          <Button type="button" variant="outline" size="sm" onClick={() => setDetailId(r.id)} disabled={pending}>
-                            {t.inventoryViewDetail}
-                          </Button>
-                          <Button type="button" variant="outline" size="sm" onClick={() => editRow(r)} disabled={pending}>
-                            {t.edit}
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={() => del(r.id)}
-                            disabled={pending}
-                          >
-                            {t.deleteRow}
-                          </Button>
-                        </div>
+                    </tr>
+                    <tr>
+                      <td colSpan={17} className="border-b border-border/70 bg-card px-3 pb-2.5 pt-1">
+                        {rowActions}
                       </td>
                     </tr>
+                    </Fragment>
                   )
                 })}
               </tbody>

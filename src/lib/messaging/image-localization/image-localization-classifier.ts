@@ -1,4 +1,5 @@
 import type { ImageLocClassifyType, ImageLocOcrBlock } from './image-localization-types'
+import { overlayItemsLookLikeTable } from '@/lib/translate-overlay'
 
 export type { ImageLocOcrBlock }
 import {
@@ -112,13 +113,14 @@ function containsComplexKeyword(blocks: ImageLocOcrBlock[]): string | null {
 }
 
 function overlapRatio(blocks: ImageLocOcrBlock[]): number {
-  if (blocks.length < 2) return 0
+  const hanzi = blocks.filter((block) => hasChineseText(block.text || ''))
+  if (hanzi.length < 2) return 0
   let overlapTotal = 0
   let overlapCount = 0
-  for (let i = 0; i < blocks.length; i++) {
-    const a = blocks[i].bbox
-    for (let j = i + 1; j < blocks.length; j++) {
-      const b = blocks[j].bbox
+  for (let i = 0; i < hanzi.length; i++) {
+    const a = hanzi[i].bbox
+    for (let j = i + 1; j < hanzi.length; j++) {
+      const b = hanzi[j].bbox
       const ax1 = a[0]
       const ay1 = a[1]
       const ax2 = a[2]
@@ -215,16 +217,9 @@ export function classifyImage(
 }
 
 export function localBlocksNeedDraw(
-  blocks: ImageLocOcrBlock[],
-  opts: { deleteSizeAndLaundry: boolean }
+  blocks: ImageLocOcrBlock[]
 ): { action: 'deleted' | 'empty' | 'draw'; blocks: ImageLocOcrBlock[]; message: string } {
   if (hasFactoryIntroContext(blocks)) {
-    return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
-  }
-  if (opts.deleteSizeAndLaundry && hasSizeTableContext(blocks)) {
-    return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
-  }
-  if (opts.deleteSizeAndLaundry && hasLaundryCareContext(blocks)) {
     return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
   }
   for (const b of blocks) {
@@ -251,7 +246,42 @@ export function localBlocksNeedDraw(
     }
   }
   if (!draw.length) return { action: 'empty', blocks: [], message: 'Không có block local cần xử lý' }
-  return { action: 'draw', blocks: draw, message: 'OCR: DeepSeek dịch chữ + vẽ lại chữ lên ảnh (local)' }
+  return {
+    action: 'draw',
+    blocks: appendTableLayoutNeighbors(blocks, draw),
+    message: 'OCR: DeepSeek dịch chữ + vẽ lại chữ lên ảnh (local)',
+  }
+}
+
+/** Ô Latin trong bảng thông số là mốc cột. Không dịch, không tô đè. */
+function appendTableLayoutNeighbors(all: ImageLocOcrBlock[], draw: ImageLocOcrBlock[]): ImageLocOcrBlock[] {
+  const probes = draw
+    .filter((block) => (block.text || '').trim())
+    .map((block) => ({
+      bbox: {
+        x: block.bbox[0],
+        y: block.bbox[1],
+        width: Math.max(1, block.bbox[2] - block.bbox[0]),
+        height: Math.max(1, block.bbox[3] - block.bbox[1]),
+      },
+      translatedText: block.text || 'x',
+    }))
+  if (!overlayItemsLookLikeTable(probes)) return draw
+  const top = Math.min(...probes.map((item) => item.bbox.y)) - 8
+  const bottom = Math.max(...probes.map((item) => item.bbox.y + item.bbox.height)) + 36
+  const left = Math.min(...probes.map((item) => item.bbox.x)) - 8
+  const right = Math.max(...probes.map((item) => item.bbox.x + item.bbox.width)) + 560
+  const extra: ImageLocOcrBlock[] = []
+  for (const block of all) {
+    if (draw.includes(block)) continue
+    const text = (block.text || '').trim()
+    if (!text || hasChineseText(text)) continue
+    const midX = (block.bbox[0] + block.bbox[2]) / 2
+    const midY = (block.bbox[1] + block.bbox[3]) / 2
+    if (midY < top || midY > bottom || midX < left || midX > right) continue
+    extra.push({ ...block, layoutOnly: true })
+  }
+  return extra.length ? [...draw, ...extra] : draw
 }
 
 export function convertJinWeightText(text: string): string {

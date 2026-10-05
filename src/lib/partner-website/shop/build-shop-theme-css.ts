@@ -822,8 +822,9 @@ html[data-pw-listing-category="1"] .pw-shop-category-hub,
 .pw-pdp-pills{display:flex;flex-wrap:wrap;gap:8px}
 .pw-pdp-pill{min-width:44px;min-height:36px;padding:6px 12px;border:1px solid var(--pw-border);border-radius:8px;background:#fff;color:var(--pw-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
 .pw-pdp-pill.is-active{border-color:var(--pw-primary);color:var(--pw-primary);background:var(--pw-surface);box-shadow:0 0 0 1px var(--pw-primary)}
-.pw-pdp-color{padding:4px;border-radius:10px}
-.pw-pdp-color img{width:44px;height:44px;object-fit:cover;border-radius:6px;display:block}
+.pw-pdp-color{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:3px 8px 3px 3px;border-radius:10px;text-align:left}
+.pw-pdp-color img{width:44px;height:44px;object-fit:cover;border-radius:6px;display:block;flex:0 0 auto}
+.pw-pdp-color-name{font-size:12px;font-weight:600;line-height:1.25;white-space:nowrap}
 .pw-pdp-qty{display:flex;align-items:center;gap:8px}
 .pw-pdp-qty button{width:32px;height:32px;border:1px solid var(--pw-border);border-radius:8px;background:#fff;color:var(--pw-text);font-size:16px;cursor:pointer}
 .pw-pdp-qty button:hover{background:var(--pw-surface)}
@@ -876,8 +877,9 @@ html[data-pw-edit-device="laptop"] .pw-shop-product-detail,html[data-pw-scene-lo
 .pw-shop-pdp-info>.pw-pdp-price-card{margin-top:10px;padding:11px 12px;border-radius:12px}
 .pw-shop-pdp-info .pw-pdp-pills{gap:6px}
 .pw-shop-pdp-info .pw-pdp-pill{min-width:38px;min-height:32px;padding:5px 10px;font-size:12px;border-radius:7px}
-.pw-shop-pdp-info .pw-pdp-color{padding:3px;border-radius:8px}
+.pw-shop-pdp-info .pw-pdp-color{gap:6px;padding:2px 8px 2px 2px;border-radius:8px}
 .pw-shop-pdp-info .pw-pdp-color img{width:38px;height:38px;border-radius:5px}
+.pw-shop-pdp-info .pw-pdp-color-name{font-size:11px}
 .pw-shop-pdp-info [data-pw-pdp-slot="size-guide"]{display:inline-block!important;margin:6px 0 0!important}
 .pw-shop-pdp-info [data-pw-pdp-slot="size-guide"] .pw-shop-btn{min-height:32px;padding:5px 12px!important;font-size:11px!important;border-radius:7px}
 .pw-shop-pdp-info>div:has(>.pw-pdp-qty){display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:10px 14px;margin-top:10px!important}

@@ -1495,12 +1495,15 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   const autoResizeDraft = useCallback(() => {
     const el = draftTextareaRef.current
     if (!el) return
-    el.style.height = '0px'
-    const minHeight = 22
-    const maxHeight = 72
-    const next = Math.min(Math.max(el.scrollHeight, minHeight), maxHeight)
+    const minHeight = 40
+    const maxHeight = 120
+    // height:0 + overflow:hidden làm scrollHeight kẹt 1 dòng — dòng 2 tràn đè icon.
+    el.style.overflowY = 'hidden'
+    el.style.height = 'auto'
+    const scroll = el.scrollHeight
+    const next = Math.min(Math.max(scroll, minHeight), maxHeight)
     el.style.height = `${next}px`
-    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden'
+    el.style.overflowY = scroll > maxHeight ? 'auto' : 'hidden'
   }, [])
 
   useLayoutEffect(() => {
@@ -1518,7 +1521,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   }, [enqueueGuestSend, submitGuestMessage])
 
   return (
-    <div className="space-y-1.5">
+    <div className="flex flex-col gap-1.5">
       <div className="relative">
         <Textarea
           ref={draftTextareaRef}
@@ -1544,7 +1547,7 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
           onBlur={() => onComposerFocusChange?.(false)}
           placeholder={labels.placeholder}
           rows={1}
-          className="resize-none border-0 bg-transparent px-0 pb-[4.25rem] pt-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:pb-[4.5rem] sm:text-lg"
+          className="box-border block max-h-[120px] min-h-10 w-full resize-none overflow-y-auto border-0 bg-background px-0 py-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault()
@@ -1554,14 +1557,15 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
         />
         <Button
           type="button"
-          className="absolute right-0 top-0.5 h-9 w-9 min-w-0 shrink-0 px-0 sm:h-10 sm:w-10"
+          className="absolute right-0 top-0.5 z-10 h-9 w-9 min-w-0 shrink-0 px-0 sm:h-10 sm:w-10"
           onClick={() => void send()}
           disabled={!canSend || sending}
           aria-label={labels.send}
         >
           {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
         </Button>
-        <div className="absolute bottom-0 left-0 z-10 flex max-w-[calc(100%-3rem)] items-end gap-1.5 overflow-x-auto pr-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+      </div>
+      <div className="relative z-0 flex shrink-0 items-end gap-1.5 overflow-x-auto bg-background [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           <Button
             type="button"
             variant="secondary"
@@ -1659,7 +1663,6 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
               ) : null}
             </Button>
           ) : null}
-        </div>
       </div>
       {uploading ? <p className="text-xs text-muted-foreground sm:text-sm">{labels.guestUploading}</p> : null}
       <p className="hidden text-xs leading-tight text-muted-foreground sm:block sm:text-sm">{labels.sendKeyboardHint}</p>

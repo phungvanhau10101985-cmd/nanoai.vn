@@ -614,7 +614,8 @@ function paintPills(kind,items){
     if(!name)continue;
     var img=String(items[i].img||'').trim();
     var price=Math.round(Number(items[i].price)||0);
-    var face=img?'<img src="'+esc(shopImg({imageUrl:img}))+'" data-pw-full-src="'+esc(shopPdpOrigSrc(img))+'" alt="'+esc(name)+'" loading="lazy" decoding="async" />':esc(name);
+    var swatch=img?'<img src="'+esc(shopImg({imageUrl:img}))+'" data-pw-full-src="'+esc(shopPdpOrigSrc(img))+'" alt="" loading="lazy" decoding="async" />':'';
+    var face=kind==='color'?swatch+'<span class="pw-pdp-color-name">'+esc(name)+'</span>':(swatch||esc(name));
     pills+='<button type="button" class="pw-pdp-pill'+(kind==='color'?' pw-pdp-color':'')+(i===0?' is-active':'')+'" data-pw-pdp-option-value="'+esc(name)+'"'+(price>0?' data-pw-variant-price="'+price+'"':'')+'>'+face+'</button>';
   }
   var keepGuide=kind==='size'?block.querySelector('[data-pw-pdp-slot="size-guide"]'):null;

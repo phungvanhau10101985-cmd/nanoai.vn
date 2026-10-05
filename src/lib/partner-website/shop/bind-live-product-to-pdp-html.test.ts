@@ -102,6 +102,7 @@ test('demo PDP product fills every locked field on the shared shell', () => {
   assert.match(next, /data-pw-el="variant"/)
   assert.match(next, /pw-pdp-pill/)
   assert.match(next, /pw-pdp-color/)
+  assert.match(next, /pw-pdp-color-name/)
   assert.match(next, />S</)
   assert.match(next, /Kem|Trắng/)
 })
@@ -806,6 +807,8 @@ test('bind moves gallery color leftover into the buy box and drops the demo line
   const buyBox = slice.slice(0, end)
   assert.match(buyBox, /data-pw-pdp-option="color"/)
   assert.match(buyBox, /data-pw-pdp-option-value="Đen"/)
+  assert.match(buyBox, /pw-pdp-color-name">Đen</)
+  assert.match(buyBox, /pw-pdp-color-name">Nâu</)
   assert.match(buyBox, /pw-pdp-actions/)
   const gallery = next.match(/<section\b[^>]*\bpw-shop-product-gallery\b[^>]*>[\s\S]*?<\/section>/i)?.[0] || ''
   assert.doesNotMatch(gallery, /data-pw-pdp-option="color"/)

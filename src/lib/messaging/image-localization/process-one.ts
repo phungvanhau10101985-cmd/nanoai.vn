@@ -100,7 +100,6 @@ async function transformImageBytes(
   throwIfCancelled(ctx)
   const cls = classifyImage(blocks, [], sourceUrl)
   const useGeminiForRich = ctx.allowsAi && ctx.geminiMode === 'api'
-  const deleteSizeAndLaundry = !useGeminiForRich
 
   if (cls.type === 'delete') {
     return { kind: 'deleted', message: `Xóa theo classifier: ${String(cls.details.detected_keyword || 'keyword')}` }
@@ -111,7 +110,7 @@ async function transformImageBytes(
 
   const runLocal = async (): Promise<PartOutcome> => {
     throwIfCancelled(ctx)
-    const local = localBlocksNeedDraw(blocks, { deleteSizeAndLaundry })
+    const local = localBlocksNeedDraw(blocks)
     if (local.action === 'deleted') return { kind: 'deleted', message: local.message }
     if (local.action === 'empty') return { kind: 'kept', bytes, message: local.message }
     const drawn = await localDrawTranslated(bytes, local.blocks, ctx.language, ctx.userId)
@@ -128,7 +127,7 @@ async function transformImageBytes(
       throwIfCancelled(ctx)
       const post = await ocrImageBlocks(ai.bytes, ctx.userId)
       if (post.blocks.some((b) => hasChineseText(b.text))) {
-        const local = localBlocksNeedDraw(post.blocks, { deleteSizeAndLaundry: !useGeminiForRich })
+        const local = localBlocksNeedDraw(post.blocks)
         if (local.action === 'draw') {
           const drawn = await localDrawTranslated(ai.bytes, local.blocks, ctx.language, ctx.userId)
           if (drawn.kind === 'unchanged') return { kind: 'processed', bytes: ai.bytes, message: ai.message }

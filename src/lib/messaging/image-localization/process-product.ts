@@ -48,7 +48,7 @@ function isKeptImageUrl(url: string | null | undefined): url is string {
   return Boolean(value) && value.toUpperCase() !== 'DELETED'
 }
 
-/** Classifier có thể xóa ảnh đại diện (keyword / bảng size). Lấy ảnh gallery còn lại làm cover. */
+/** Classifier có thể xóa ảnh đại diện (keyword cấm / intro xưởng). Lấy ảnh gallery còn lại làm cover. */
 export function applyImageLocResultsToRow(
   row: {
     image_url?: string | null

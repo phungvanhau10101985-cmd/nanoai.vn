@@ -1105,14 +1105,13 @@ export function PartnerSiteShopProductClient({
                       <img
                         src={shopPdpPageSrc(c.img) || c.img}
                         data-pw-full-src={shopPdpDisplaySrc(c.img) || undefined}
-                        alt={c.name}
+                        alt=""
                         loading="lazy"
                         decoding="async"
                         onError={hideBrokenPdpImage}
                       />
-                    ) : (
-                      c.name
-                    )}
+                    ) : null}
+                    <span className="pw-pdp-color-name">{c.name}</span>
                   </button>
                 ))}
               </div>

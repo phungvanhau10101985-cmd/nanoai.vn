@@ -4,11 +4,25 @@ import sharp from 'sharp'
 import { isOwnCdnUrl } from './image-localization-config'
 import { isImageLocalizationFatalDependencyError } from './gemini-adapter'
 import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vision-ocr'
-import { overlayTranslatedText } from '@/lib/translate-overlay'
 import {
+  attachTrailingMeasurements,
+  clipEdgeBannerBox,
+  expandTableCellBoxes,
+  fitTableCellText,
+  overlayItemsLookLikeTable,
+  overlayTranslatedText,
+  spaceSpecPunctuation,
+  splitTrailingModelCode,
+  stripInventedLeadingModelCode,
+} from '@/lib/translate-overlay'
+import {
+  collapseBilingualGlossTranslation,
   dropOversizedSingleWordOverlays,
   layoutImageLocOverlays,
+  looksLikeTechnicalLineArt,
+  measureTechnicalLineArt,
   mergeDenseImageLocOverlayItems,
+  overlayRegionIsTechnicalLineArt,
 } from './local-pipeline'
 import { isTransientImageLocDbError } from './process-product'
 import { imageLocJobIsStalled, imageLocShouldAutoResume } from './job-runtime'
@@ -150,6 +164,260 @@ describe('image localization runtime parity', () => {
       laid.some((item) => item.translatedText.includes('Mặt trước')),
       true
     )
+  })
+
+  it('drops a two-word hallucination covering the structure drawing', () => {
+    const kept = dropOversizedSingleWordOverlays(
+      [
+        { bbox: { x: 40, y: 70, width: 700, height: 380 }, translatedText: 'Mặc Băng' },
+        { bbox: { x: 80, y: 500, width: 160, height: 36 }, translatedText: 'Thường đóng NC' },
+        { bbox: { x: 520, y: 500, width: 150, height: 36 }, translatedText: 'Thường mở NO' },
+      ],
+      800,
+      600
+    )
+    assert.equal(
+      kept.some((item) => item.translatedText === 'Mặc Băng'),
+      false
+    )
+    assert.equal(kept.length, 2)
+  })
+
+  it('does not merge sparse OCR boxes on a line drawing into one wipe rectangle', () => {
+    const boxes = Array.from({ length: 12 }, (_, index) => ({
+      bbox: { x: index * 28, y: index * 20, width: 20, height: 16 },
+      translatedText: '常',
+    }))
+    const merged = mergeDenseImageLocOverlayItems(boxes, 800, 600)
+    assert.equal(merged.length, 12)
+  })
+
+  it('drops a merged two-word slab and keeps the real captions', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 40, y: 80, width: 300, height: 200 }, translatedText: 'Mặc' },
+        { bbox: { x: 360, y: 100, width: 300, height: 180 }, translatedText: 'Băng' },
+        { bbox: { x: 80, y: 520, width: 160, height: 32 }, translatedText: 'Thường đóng NC' },
+      ],
+      800,
+      600
+    )
+    assert.equal(
+      laid.some((item) => /Mặc|Băng/.test(item.translatedText)),
+      false
+    )
+    assert.equal(laid[0]?.translatedText, 'Thường đóng NC')
+  })
+
+  it('collapses a bilingual structure gloss into one phrase', () => {
+    assert.equal(
+      collapseBilingualGlossTranslation('结构图 /Structure', 'Sơ đồ cấu trúc/Cấu trúc'),
+      'Sơ đồ cấu trúc'
+    )
+    assert.equal(collapseBilingualGlossTranslation('常闭 NC', 'Thường đóng NC'), 'Thường đóng NC')
+  })
+
+  it('treats thin black strokes on white as a technical drawing', async () => {
+    const width = 480
+    const height = 320
+    const gray = new Uint8Array(width * height)
+    gray.fill(255)
+    for (let y = 40; y < 280; y += 14) {
+      for (let x = 30; x < 450; x++) gray[y * width + x] = 0
+    }
+    for (let x = 40; x < 440; x += 18) {
+      for (let y = 30; y < 290; y++) gray[y * width + x] = 0
+    }
+    const stats = measureTechnicalLineArt(gray, width, height)
+    assert.equal(looksLikeTechnicalLineArt(stats), true)
+    const png = await sharp(Buffer.from(gray), { raw: { width, height, channels: 1 } }).png().toBuffer()
+    assert.equal(
+      await overlayRegionIsTechnicalLineArt(png, { x: 10, y: 10, width: 460, height: 300 }, width, height),
+      true
+    )
+    const solid = new Uint8Array(width * height)
+    solid.fill(255)
+    for (let y = 80; y < 240; y++) {
+      for (let x = 80; x < 400; x++) solid[y * width + x] = 0
+    }
+    assert.equal(looksLikeTechnicalLineArt(measureTechnicalLineArt(solid, width, height)), false)
+  })
+
+  it('keeps each cell of a spec table instead of merging rows', () => {
+    const cells = [0, 1, 2, 3].flatMap((row) => [
+      { bbox: { x: 12, y: 40 + row * 36, width: 140, height: 24 }, translatedText: `Nhãn ${row}` },
+      { bbox: { x: 180, y: 40 + row * 36, width: 360, height: 24 }, translatedText: `Giá trị ${row}` },
+    ])
+    assert.equal(overlayItemsLookLikeTable(cells), true)
+    const laid = layoutImageLocOverlays(cells, 800, 400)
+    assert.equal(laid.length, 8)
+  })
+
+  it('stops a table value at the latin row underneath', () => {
+    const cells = [0, 1, 2, 3].flatMap((row) => [
+      { bbox: { x: 40, y: 60 + row * 34, width: 48, height: 16 }, translatedText: `Nhãn ${row}` },
+      { bbox: { x: 230, y: 60 + row * 34, width: 90, height: 16 }, translatedText: `Mã ${row}` },
+    ])
+    const expanded = expandTableCellBoxes(cells, 790, [
+      { bbox: { x: 230, y: 80, width: 280, height: 14 }, translatedText: '12, 15, 20' },
+    ])
+    const value = expanded[1]!
+    assert.ok(value.bbox.y + value.bbox.height <= 80)
+  })
+
+  it('widens a narrow label up to the value column', () => {
+    const cells = [0, 1, 2, 3].flatMap((row) => [
+      { bbox: { x: 40, y: 60 + row * 34, width: 48, height: 16 }, translatedText: row === 0 ? 'Cuộn dây' : `Nhãn ${row}` },
+      { bbox: { x: 230, y: 60 + row * 34, width: 160, height: 16 }, translatedText: `Giá trị ${row}` },
+    ])
+    const expanded = expandTableCellBoxes(cells, 790)
+    const label = expanded[0]!
+    assert.ok(label.bbox.width > 100)
+    assert.ok(label.bbox.x + label.bbox.width < 230)
+    assert.ok(label.bbox.y + label.bbox.height <= cells[2]!.bbox.y)
+  })
+
+  it('splits a spec line glued after IP65', () => {
+    const text = spaceSpecPunctuation('S91B/S91BT:20VA(AC),16W(DC),IP65SD01B:30VA(AC),40W(DC),IP65˙')
+    assert.match(text, /IP65\nSD01B: 30VA/)
+    assert.equal(text.endsWith('˙'), false)
+  })
+
+  it('fits a long Vietnamese label inside the table row', () => {
+    const fitted = fitTableCellText('Phạm vi áp suất làm việc', 130, 28)
+    assert.ok(fitted.lines.length * fitted.lineHeight <= 30)
+    assert.ok(fitted.fontSize <= 15)
+  })
+
+  it('keeps a body label and the measurement beside it on one line', () => {
+    const attached = attachTrailingMeasurements(
+      [{ bbox: { x: 141, y: 85, width: 22, height: 11 }, translatedText: 'Vòng ngực' }],
+      [{ bbox: { x: 170, y: 85, width: 31, height: 10 }, translatedText: '82cm' }]
+    )
+    assert.equal(attached.obstacles.length, 0)
+    assert.equal(attached.items[0]?.translatedText, 'Vòng ngực 82cm')
+    assert.ok((attached.items[0]?.bbox.width || 0) >= 50)
+    const fitted = fitTableCellText('Vòng ngực 82cm', 72, 16)
+    assert.deepEqual(fitted.lines, ['Vòng ngực 82cm'])
+  })
+
+  it('stops a short scale label at the midpoint before the next short label', () => {
+    const cells = [0, 1, 2, 3].flatMap((index) => [
+      { bbox: { x: 20, y: 40 + index * 30, width: 40, height: 14 }, translatedText: 'Đàn hồi' },
+      { bbox: { x: 220, y: 40 + index * 30, width: 36, height: 14 }, translatedText: 'Ôm sát' },
+    ])
+    const expanded = expandTableCellBoxes(cells, 384)
+    const first = expanded[0]!
+    assert.ok(first.bbox.x + first.bbox.width <= 150)
+    assert.ok(first.bbox.x + first.bbox.width < 220)
+  })
+
+  it('joins stacked care notes into one paragraph', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 29, y: 968, width: 324, height: 10 }, translatedText: 'Nên giặt tay vì máy giặt làm áo biến dạng.' },
+        { bbox: { x: 29, y: 985, width: 173, height: 10 }, translatedText: 'Dùng nước lạnh, không ngâm quá lâu.' },
+      ],
+      384,
+      1024
+    )
+    assert.equal(laid.length, 1)
+    assert.match(laid[0]!.translatedText, /Nên giặt tay/)
+    assert.match(laid[0]!.translatedText, /nước lạnh/)
+  })
+
+  it('peels a model code glued onto a slogan', () => {
+    const peeled = splitTrailingModelCode('好阀选永创用心来创造50GBN')
+    assert.equal(peeled.code, '50GBN')
+    assert.equal(peeled.text.includes('50GBN'), false)
+    assert.equal(splitTrailingModelCode('线圈').code, '')
+    assert.equal(
+      stripInventedLeadingModelCode('好阀选永创用心来创造', '2W31 Chọn van tốt, Yongchuang'),
+      'Chọn van tốt, Yongchuang'
+    )
+  })
+
+  it('does not merge a model code into the slogan line', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 585, y: 686, width: 147, height: 40 }, translatedText: '2W31' },
+        {
+          bbox: { x: 37, y: 723, width: 711, height: 65 },
+          translatedText: 'Chọn van tốt, Yongchuang tạo nên bằng cả trái tim',
+        },
+      ],
+      800,
+      800
+    )
+    assert.equal(laid.length, 2)
+  })
+
+  it('stops a bottom slogan before the model badge', async () => {
+    const slogan = {
+      bbox: { x: 37, y: 723, width: 711, height: 65 },
+      translatedText: 'Van tốt chọn Yongchuang, tạo bằng cả trái tim',
+    }
+    const badge = { bbox: { x: 585, y: 686, width: 147, height: 40 }, translatedText: '' }
+    const clipped = clipEdgeBannerBox(slogan, [badge], 800, 800)
+    assert.ok(clipped.x + clipped.width <= 585)
+    assert.ok(clipped.y <= 723)
+    assert.ok(clipped.y + clipped.height <= 800)
+
+    const source = await sharp({
+      create: { width: 800, height: 800, channels: 3, background: { r: 220, g: 40, b: 40 } },
+    })
+      .composite([
+        {
+          input: await sharp({
+            create: { width: 800, height: 110, channels: 3, background: { r: 20, g: 110, b: 70 } },
+          })
+            .png()
+            .toBuffer(),
+          top: 690,
+          left: 0,
+        },
+        {
+          input: await sharp({
+            create: { width: 250, height: 120, channels: 3, background: { r: 196, g: 154, b: 74 } },
+          })
+            .png()
+            .toBuffer(),
+          top: 680,
+          left: 550,
+        },
+      ])
+      .png()
+      .toBuffer()
+    const out = await overlayTranslatedText(source, [slogan], {
+      fillColor: '#ffffff',
+      textColor: '#ffffff',
+      obstacles: [badge],
+    })
+    const product = await sharp(out).extract({ left: 200, top: 640, width: 1, height: 1 }).raw().toBuffer()
+    const gold = await sharp(out).extract({ left: 640, top: 750, width: 1, height: 1 }).raw().toBuffer()
+    assert.ok(product[0] > 180 && product[1] < 80)
+    assert.ok(gold[0] > 150 && gold[2] < 140)
+  })
+
+  it('does not paint a table label into the row below', async () => {
+    const source = await sharp({
+      create: { width: 420, height: 180, channels: 3, background: '#ffffff' },
+    })
+      .png()
+      .toBuffer()
+    const cells = [0, 1, 2, 3].flatMap((row) => [
+      {
+        bbox: { x: 8, y: 8 + row * 40, width: 130, height: 28 },
+        translatedText: row === 0 ? 'Phạm vi áp suất làm việc' : `Nhãn ${row}`,
+      },
+      {
+        bbox: { x: 160, y: 8 + row * 40, width: 240, height: 28 },
+        translatedText: `Giá trị ${row}`,
+      },
+    ])
+    const out = await overlayTranslatedText(source, cells, { fillColor: '#ffffff', textColor: '#000000' })
+    const nextRow = await sharp(out).extract({ left: 110, top: 58, width: 1, height: 1 }).raw().toBuffer()
+    assert.ok(nextRow[0] > 240)
   })
 
   it('keeps a small one-word label and a multi-word block on a large box', () => {

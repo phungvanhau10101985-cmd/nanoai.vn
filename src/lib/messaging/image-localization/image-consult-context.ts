@@ -118,7 +118,7 @@ export type ImageConsultLine = { src: string; vi: string }
 export type ImageConsultImage = {
   url: string
   lines: ImageConsultLine[]
-  /** Ảnh đã bị xóa sau OCR (bảng size, hướng dẫn). Giữ chữ cho lần bản địa hóa sau. */
+  /** Ảnh đã bị xóa sau OCR (keyword cấm). Giữ chữ cho lần bản địa hóa sau. */
   retained?: boolean
 }
 

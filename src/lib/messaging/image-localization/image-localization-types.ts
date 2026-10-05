@@ -35,6 +35,8 @@ export type ImageLocClassifyType = 'delete' | 'keep' | 'local' | 'gemini'
 export type ImageLocOcrBlock = {
   text: string
   bbox: [number, number, number, number]
+  /** Có mặt để canh cột bảng, không dịch và không tô lại. */
+  layoutOnly?: boolean
 }
 
 export type ImageRef = {
