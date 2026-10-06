@@ -60,6 +60,44 @@ export function productNoun(cat3: string): string {
   return name || (cat3 || '').trim() || 'sản phẩm'
 }
 
+/** Cách khách hay gọi, không dán nguyên tên danh mục. «Dép quai ngang» → «dép». */
+const SPOKEN_HEADS: Array<[string, string]> = [
+  ['vòng cổ', 'vòng cổ'],
+  ['dây chuyền', 'dây chuyền'],
+  ['bông tai', 'bông tai'],
+  ['đồng hồ', 'đồng hồ'],
+  ['chân váy', 'chân váy'],
+  ['dây dắt', 'dây dắt'],
+  ['đồ ngủ', 'đồ ngủ'],
+  ['đồ bộ', 'bộ đồ'],
+  ['dép', 'dép'],
+  ['sandal', 'sandal'],
+  ['sneaker', 'giày'],
+  ['giày', 'giày'],
+  ['boot', 'boot'],
+  ['túi', 'túi'],
+  ['balo', 'balo'],
+  ['vali', 'vali'],
+  ['áo', 'áo'],
+  ['quần', 'quần'],
+  ['váy', 'váy'],
+  ['đầm', 'đầm'],
+  ['vest', 'vest'],
+  ['nhẫn', 'nhẫn'],
+  ['lắc', 'lắc'],
+  ['vòng', 'vòng'],
+  ['ví', 'ví'],
+]
+
+export function spokenReviewNoun(cat3: string): string {
+  const name = productNoun(cat3).toLowerCase()
+  const heads = [...SPOKEN_HEADS].sort((a, b) => b[0].length - a[0].length)
+  for (const [head, spoken] of heads) {
+    if (name.includes(head)) return spoken
+  }
+  return name.split(' ').filter(Boolean)[0] || 'món này'
+}
+
 function reviewKind(path: string): string {
   const t = path.toLowerCase()
   if (['chó', 'mèo', 'thú cưng', 'thú nuôi'].some((k) => t.includes(k))) return 'generic'
@@ -123,63 +161,81 @@ function reviewers(audience: ReviewAudience, rnd: () => number, count: number): 
   return shuffle([...female, ...male], rnd).slice(0, count)
 }
 
+function withNoun(line: string, noun: string): string {
+  const text = line.split('{n}').join(noun)
+  if (text.toLowerCase().startsWith(noun)) {
+    return noun.charAt(0).toUpperCase() + noun.slice(1) + text.slice(noun.length)
+  }
+  return text
+}
+
 function linesFor(kind: string, noun: string): [string[], string] {
   const common = [
-    `Nhận ${noun} đúng như hình, đóng gói chắc.`,
-    `Giao ${noun} nhanh, mở ra dùng được ngay.`,
-    `${noun} ổn so với giá, mình sẽ cân nhắc mua lại.`,
-    `Đặt ${noun} lần đầu, hàng về đủ phụ kiện như mô tả.`,
-    `Shop gói ${noun} cẩn thận, không móp méo.`,
+    'Nhận {n} đúng như hình, gói cũng chắc.',
+    'Giao {n} nhanh, về là dùng được luôn.',
+    '{n} ổn so với giá, có khi mình mua lại.',
+    'Đặt {n} lần đầu, về đúng như mô tả.',
+    'Shop gói {n} cẩn thận, không móp.',
   ]
+  const footwear =
+    noun === 'dép' || noun === 'sandal'
+      ? [
+          'Đi {n} êm, không cấn ngón.',
+          'Quai {n} chắc, mưa nhỏ không tuột.',
+          'Mang {n} nửa ngày vẫn ổn.',
+          '{n} nhẹ, đi trong nhà hay ra đường đều được.',
+          'Đi {n} cả buổi không đau chân.',
+        ]
+      : [
+          'Đi {n} êm, size vừa chân.',
+          'Đế {n} bám, mưa nhỏ không trơn.',
+          'Mang {n} nửa ngày không đau mũi.',
+          '{n} ôm chân, không rộng gót.',
+          'Mang {n} đi làm cả ngày vẫn ổn.',
+        ]
   const specific: Record<string, string[]> = {
     apparel: [
-      `Mặc ${noun} lên form vừa, vải không bị xù.`,
-      `${noun} mặc thoáng, đường may gọn.`,
-      `Form ${noun} đúng size mình chọn, mặc cả ngày vẫn ổn.`,
-      `Vải ${noun} mát, giặt xong không nhăn nhiều.`,
-      `${noun} lên dáng tự nhiên, không bị bóng.`,
+      'Mặc {n} lên form vừa, vải không xù.',
+      '{n} mặc thoáng, đường may gọn.',
+      '{n} đúng size mình chọn, mặc cả ngày vẫn ổn.',
+      'Vải {n} mát, giặt xong không nhăn nhiều.',
+      '{n} lên dáng tự nhiên, không bị bóng.',
     ],
-    footwear: [
-      `Đi ${noun} êm, size đúng chân mình.`,
-      `Đế ${noun} bám, đi mưa nhẹ không trơn.`,
-      `${noun} mang nửa ngày không đau mũi.`,
-      `Form ${noun} ôm vừa, không bị rộng gót.`,
-      `Đi ${noun} đi làm cả ngày vẫn ổn.`,
-    ],
+    footwear,
     bag: [
-      `${noun} đựng vừa đồ hàng ngày, khóa kéo mượt.`,
-      `Quai ${noun} chắc, đeo vai không bị tuột.`,
-      `Ngăn ${noun} chia rõ, lấy đồ nhanh.`,
-      `Đường may ${noun} đều, không chỉ thừa.`,
-      `${noun} đứng form, không bị xẹp sau vài ngày.`,
+      '{n} đựng vừa đồ hàng ngày, khóa kéo mượt.',
+      'Quai {n} chắc, đeo vai không tuột.',
+      'Ngăn {n} chia rõ, lấy đồ nhanh.',
+      '{n} may đều, không chỉ thừa.',
+      '{n} đứng form, để vài ngày không xẹp.',
     ],
     luggage: [
-      `Kéo ${noun} nhẹ tay, bánh xe chạy êm.`,
-      `Khóa ${noun} khớp, đựng đồ đi chơi cuối tuần vừa.`,
-      `${noun} đứng vững, không bị đổ khi kéo.`,
-      `Tay cầm ${noun} chắc, kéo trên sàn không kêu to.`,
-      `${noun} gọn hơn mình nghĩ, cho vào cốp xe vừa.`,
+      'Kéo {n} nhẹ tay, bánh xe chạy êm.',
+      'Khóa {n} khớp, đựng đồ đi chơi cuối tuần vừa.',
+      '{n} đứng vững, kéo không bị đổ.',
+      'Tay cầm {n} chắc, kéo trên sàn không kêu to.',
+      '{n} gọn hơn mình nghĩ, cho vào cốp xe vừa.',
     ],
     watch: [
-      `Đeo ${noun} vừa cổ tay, mặt nhìn rõ.`,
-      `Dây ${noun} không cấn, khóa giữ ổn.`,
-      `${noun} nhẹ, đeo cả ngày không khó chịu.`,
-      `Kim ${noun} chạy đều, nhìn ngoài trời vẫn thấy giờ.`,
-      `${noun} đúng mẫu mình chọn, hộp giao kèm đủ.`,
+      'Đeo {n} vừa cổ tay, mặt nhìn rõ.',
+      'Dây {n} không cấn, khóa giữ ổn.',
+      '{n} nhẹ, đeo cả ngày không khó chịu.',
+      'Kim {n} chạy đều, ngoài trời vẫn thấy giờ.',
+      '{n} đúng mẫu mình chọn, hộp giao kèm đủ.',
     ],
     jewelry: [
-      `Đeo ${noun} vừa, không bị kẹt khóa.`,
-      `${noun} sáng nhẹ, đeo đi làm không bị vướng.`,
-      `Khóa ${noun} đóng chắc, đeo cả buổi không tuột.`,
-      `${noun} nhẹ, không gây kích khi đeo.`,
-      `Hộp ${noun} gói gọn, món bên trong đúng mô tả.`,
+      'Đeo {n} vừa, không kẹt khóa.',
+      '{n} sáng nhẹ, đeo đi làm không vướng.',
+      'Khóa {n} đóng chắc, đeo cả buổi không tuột.',
+      '{n} nhẹ, đeo không bị kích.',
+      'Hộp {n} gói gọn, bên trong đúng mô tả.',
     ],
     generic: [
-      `${noun} dùng ổn, đúng phần mô tả trên trang.`,
-      `Mở ${noun} ra kiểm tra, không thiếu món.`,
-      `${noun} lắp dùng được ngay, không phải chỉnh nhiều.`,
-      `Dùng ${noun} vài ngày vẫn ổn, chưa thấy lỗi.`,
-      `${noun} gọn, để dùng hàng ngày tiện.`,
+      '{n} dùng ổn, đúng như mô tả.',
+      'Mở {n} ra kiểm tra, không thiếu gì.',
+      '{n} lắp dùng được ngay, không phải chỉnh nhiều.',
+      'Dùng {n} vài ngày vẫn ổn, chưa thấy lỗi.',
+      '{n} gọn, để dùng hàng ngày tiện.',
     ],
   }
   const caveats: Record<string, string> = {
@@ -191,7 +247,8 @@ function linesFor(kind: string, noun: string): [string[], string] {
     jewelry: 'khóa hơi nhỏ, đeo vẫn được.',
     generic: 'giao chậm hơn dự kiến khoảng một hôm.',
   }
-  return [common.concat(specific[kind] ?? specific.generic), caveats[kind] ?? caveats.generic]
+  const lines = common.concat(specific[kind] ?? specific.generic).map((line) => withNoun(line, noun))
+  return [lines, caveats[kind] ?? caveats.generic]
 }
 
 function contentFor(kind: string, noun: string, index: number, star: number): string {
@@ -210,7 +267,7 @@ function contentFor(kind: string, noun: string, index: number, star: number): st
   ]
   let text = `${lines[index % lines.length]}${closers[Math.floor(index / lines.length)] ?? ''}`.trim()
   if (star === 4) text = `${text} Chỉ có điều ${caveat}`
-  if (!text.toLowerCase().includes(noun.toLowerCase())) text = `${noun}: ${text}`
+  if (!text.toLowerCase().includes(noun.toLowerCase())) text = `Mình lấy ${noun}. ${text}`
   return text.slice(0, 500)
 }
 
@@ -225,7 +282,7 @@ export function buildSeedReviewDrafts(input: {
   const gid = Math.round(Number(input.groupId) || 0)
   const shop = (input.shopName || '').trim() || 'Shop'
   const audience = reviewAudience(input.cat1, input.cat2, input.cat3)
-  const noun = productNoun(input.cat3)
+  const noun = spokenReviewNoun(input.cat3)
   const kind = reviewKind(`${input.cat1} ${input.cat2} ${input.cat3}`)
   const rnd = mulberry32(gid || 1)
   const people = reviewers(audience, rnd, SEED_REVIEW_COUNT)

@@ -65,7 +65,7 @@ test('offer line uses shop deposit mode and shipping, never a fixed 30 percent',
       depositAmount: 0,
       shippingFeeAmount: 0,
     }),
-    'Thanh toán khi nhận hàng · Giao hàng miễn phí'
+    'Đặt cọc 30% · Giao hàng miễn phí'
   )
   assert.equal(
     formatPdpOfferLine({
@@ -99,7 +99,7 @@ test('product page offer line omits deposit money and keeps shipping', () => {
       shippingFeeAmount: 0,
       includeDeposit: false,
     }),
-    'Thanh toán khi nhận hàng · Giao hàng miễn phí'
+    'Giao hàng miễn phí'
   )
   assert.equal(
     formatPdpOfferLine({

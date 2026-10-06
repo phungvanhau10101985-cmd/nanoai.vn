@@ -6,6 +6,7 @@ import {
   productNoun,
   reviewAudience,
   reviewerNameGender,
+  spokenReviewNoun,
 } from '@/lib/partner-website/category/partner-category-seed-reviews'
 
 function word(text: string, token: string): boolean {
@@ -25,6 +26,7 @@ describe('seed reviews for a new level-3 rating group', () => {
     assert.equal(drafts.length, SEED_REVIEW_COUNT)
     assert.equal(reviewAudience('Thú cưng', 'Vòng cổ', 'Vòng cổ chó da'), 'unisex')
     assert.equal(productNoun('Vòng cổ chó da'), 'Vòng cổ chó da')
+    assert.equal(spokenReviewNoun('Vòng cổ chó da'), 'vòng cổ')
     const contents = new Set(drafts.map((d) => d.content))
     assert.equal(contents.size, SEED_REVIEW_COUNT)
     const stars = new Set(drafts.map((d) => d.rating))
@@ -35,7 +37,8 @@ describe('seed reviews for a new level-3 rating group', () => {
       assert.equal(draft.importGroup, 101)
       assert.equal(draft.imageUrls.length, 0)
       assert.equal(draft.merchantReplyBy, 'Nano Shop')
-      assert.match(draft.content.toLowerCase(), /vòng cổ chó da/)
+      assert.match(draft.content.toLowerCase(), /vòng cổ/)
+      assert.doesNotMatch(draft.content.toLowerCase(), /vòng cổ chó da/)
       assert.doesNotMatch(draft.content.toLowerCase(), /váy|giày/)
       const gender = reviewerNameGender(draft.reviewerName)
       if (gender === 'female') {
@@ -63,11 +66,13 @@ describe('seed reviews for a new level-3 rating group', () => {
     })
     assert.equal(reviewAudience('Giày dép Nữ', 'Sandal nữ', 'Dép quai ngang nữ'), 'female')
     assert.equal(productNoun('Dép quai ngang nữ'), 'Dép quai ngang')
+    assert.equal(spokenReviewNoun('Dép quai ngang nữ'), 'dép')
     for (const draft of women) {
       assert.equal(reviewerNameGender(draft.reviewerName), 'female')
       assert.equal(word(draft.merchantReply, 'chị'), true)
       assert.equal(word(draft.merchantReply, 'anh'), false)
-      assert.match(draft.content.toLowerCase(), /dép quai ngang/)
+      assert.match(draft.content.toLowerCase(), /dép/)
+      assert.doesNotMatch(draft.content.toLowerCase(), /quai ngang/)
     }
 
     const men = buildSeedReviewDrafts({
@@ -82,7 +87,8 @@ describe('seed reviews for a new level-3 rating group', () => {
       assert.equal(reviewerNameGender(draft.reviewerName), 'male')
       assert.equal(word(draft.merchantReply, 'anh'), true)
       assert.equal(word(draft.merchantReply, 'chị'), false)
-      assert.match(draft.content.toLowerCase(), /giày chạy bộ/)
+      assert.match(draft.content.toLowerCase(), /giày/)
+      assert.doesNotMatch(draft.content.toLowerCase(), /chạy bộ/)
     }
   })
 })

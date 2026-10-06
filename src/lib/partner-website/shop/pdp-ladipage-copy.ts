@@ -123,15 +123,12 @@ export function formatPdpOfferLine(input: {
   const ship = shipping > 0
     ? offer.shipFee.replace('{amount}', formatPartnerShopMoneyVnd(shipping))
     : offer.shipFree
-  const showDeposit = input.includeDeposit !== false
-  if (!showDeposit) {
-    if (input.depositMode === 'percent' && percent > 0) return ship
-    if (input.depositMode === 'fixed_amount' && depositAmount > 0) return ship
-  }
+  if (input.includeDeposit === false) return ship
+  const rateMode = input.depositMode === 'fixed_amount' ? 'fixed_amount' : 'percent'
   let deposit = offer.depositNone
-  if (showDeposit && input.depositMode === 'percent' && percent > 0) {
+  if (rateMode === 'percent' && percent > 0) {
     deposit = offer.depositPercent.replace('{percent}', String(percent))
-  } else if (showDeposit && input.depositMode === 'fixed_amount' && depositAmount > 0) {
+  } else if (rateMode === 'fixed_amount' && depositAmount > 0) {
     deposit = offer.depositFixed.replace('{amount}', formatPartnerShopMoneyVnd(depositAmount))
   }
   return `${deposit} · ${ship}`

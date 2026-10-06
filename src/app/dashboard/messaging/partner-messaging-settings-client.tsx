@@ -3973,7 +3973,7 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Luu y: Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don. Coc theo % da luu, toi thieu 100.000d; don nho hon muc do thi coc bang tien hang.
+                Luu y: Bat hay tat dat coc nam o tung san pham (cot Can dat coc). O nay chi chon muc tien. Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don. Coc theo % da luu, toi thieu 100.000d; don nho hon muc do thi coc bang tien hang.
               </p>
               <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <input
