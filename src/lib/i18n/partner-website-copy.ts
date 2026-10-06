@@ -921,6 +921,10 @@ export type PartnerWebsiteCopy = {
   reviewsAdminDisplayLogic: string
   reviewsAdminSearchGroupLabel: string
   reviewsAdminSearchGroupExample: string
+  reviewsAdminEmptyGroupsTitle: string
+  reviewsAdminEmptyGroupsHint: string
+  reviewsAdminEmptyGroupsNone: string
+  reviewsAdminCategoryLevel: string
   reviewsAdminSearch: string
   reviewsAdminClearFilter: string
   reviewsAdminTotalRecords: string
@@ -2225,6 +2229,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Đánh giá từ khách hàng (có sản phẩm) → hiển thị trên sản phẩm đã mua. Đánh giá import (không gắn sản phẩm) → hiển thị trên sản phẩm có nhóm đánh giá trùng với cột Nhóm.',
     reviewsAdminSearchGroupLabel: 'Tìm kiếm theo mã nhóm đánh giá',
     reviewsAdminSearchGroupExample: 'Ví dụ: 24, 94...',
+    reviewsAdminEmptyGroupsTitle: 'Nhóm chưa có đánh giá tạo sẵn',
+    reviewsAdminEmptyGroupsHint:
+      'Mỗi danh mục cấp 3 mới có mã nhóm riêng và 100 đánh giá viết theo đúng loại hàng. Danh sách này là nhóm cấp 3 vẫn chưa có đánh giá. Nhóm câu hỏi vẫn dùng 88 / 100 / 99.',
+    reviewsAdminEmptyGroupsNone: 'Không có nhóm cấp 3 nào đang chờ danh sách đánh giá.',
+    reviewsAdminCategoryLevel: 'Cấp',
     reviewsAdminSearch: 'Tìm kiếm',
     reviewsAdminClearFilter: 'Xóa lọc',
     reviewsAdminTotalRecords: 'Tổng số bản ghi: {n}',
@@ -3547,6 +3556,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       'Customer reviews (linked to a product) appear on the purchased product. Imported reviews (no product) appear on products whose review group matches the Group column.',
     reviewsAdminSearchGroupLabel: 'Search by review group code',
     reviewsAdminSearchGroupExample: 'e.g. 24, 94...',
+    reviewsAdminEmptyGroupsTitle: 'Groups with no prewritten reviews',
+    reviewsAdminEmptyGroupsHint:
+      'Each new level-3 category gets its own rating code and 100 reviews written for that product type. This list is level-3 groups that still have no reviews. Question groups stay 88 / 100 / 99.',
+    reviewsAdminEmptyGroupsNone: 'No level-3 groups are waiting for a review list.',
+    reviewsAdminCategoryLevel: 'Level',
     reviewsAdminSearch: 'Search',
     reviewsAdminClearFilter: 'Clear filter',
     reviewsAdminTotalRecords: 'Total records: {n}',
@@ -4845,6 +4859,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '顾客评价（已关联商品）显示在已购商品上。导入评价（未关联商品）显示在评价组与「组别」列相同的商品上。',
     reviewsAdminSearchGroupLabel: '按评价组编号搜索',
     reviewsAdminSearchGroupExample: '例如：24、94...',
+    reviewsAdminEmptyGroupsTitle: '还没有预制评价的评价组',
+    reviewsAdminEmptyGroupsHint:
+      '每个新建的三级分类都会得到独立评价码，并生成 100 条贴合该商品类型的评价。此列表是仍没有评价的三级分组。问答组仍使用 88 / 100 / 99。',
+    reviewsAdminEmptyGroupsNone: '没有等待评价列表的三级分组。',
+    reviewsAdminCategoryLevel: '级',
     reviewsAdminSearch: '搜索',
     reviewsAdminClearFilter: '清除筛选',
     reviewsAdminTotalRecords: '总记录数：{n}',
@@ -6144,6 +6163,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '顧客レビュー（商品あり）は購入した商品に表示。インポートレビュー（商品なし）はレビューグループが「グループ」列と一致する商品に表示。',
     reviewsAdminSearchGroupLabel: 'レビューグループ番号で検索',
     reviewsAdminSearchGroupExample: '例: 24, 94...',
+    reviewsAdminEmptyGroupsTitle: '作成済みレビューがない評価グループ',
+    reviewsAdminEmptyGroupsHint:
+      '新しい第3階層カテゴリには専用の評価コードと、商品種類に合わせたレビュー100件が付きます。この一覧はまだレビューがない第3階層グループです。質問グループは 88 / 100 / 99 のままです。',
+    reviewsAdminEmptyGroupsNone: 'レビュー一覧を待っている第3階層グループはありません。',
+    reviewsAdminCategoryLevel: '階層',
     reviewsAdminSearch: '検索',
     reviewsAdminClearFilter: 'フィルタ解除',
     reviewsAdminTotalRecords: '総件数: {n}',
@@ -7450,6 +7474,11 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
       '고객 리뷰(상품 연결)는 구매한 상품에 표시됩니다. 가져온 리뷰(상품 없음)는 리뷰 그룹이 그룹 열과 같은 상품에 표시됩니다.',
     reviewsAdminSearchGroupLabel: '리뷰 그룹 코드로 검색',
     reviewsAdminSearchGroupExample: '예: 24, 94...',
+    reviewsAdminEmptyGroupsTitle: '미리 쓴 리뷰가 없는 리뷰 그룹',
+    reviewsAdminEmptyGroupsHint:
+      '새로 만든 3단계 카테고리마다 전용 평가 코드와 상품 종류에 맞춘 리뷰 100개가 생깁니다. 이 목록은 아직 리뷰가 없는 3단계 그룹입니다. 질문 그룹은 88 / 100 / 99를 그대로 씁니다.',
+    reviewsAdminEmptyGroupsNone: '리뷰 목록을 기다리는 3단계 그룹이 없습니다.',
+    reviewsAdminCategoryLevel: '단계',
     reviewsAdminSearch: '검색',
     reviewsAdminClearFilter: '필터 지우기',
     reviewsAdminTotalRecords: '총 건수: {n}',

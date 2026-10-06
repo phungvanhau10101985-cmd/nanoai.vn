@@ -1,12 +1,15 @@
 import {
   bumpInventoryCacheLater,
+  bumpSharedCatalogCacheLater,
   categoryProductCountsFromCacheRecord,
   categoryProductCountsToCacheRecord,
+  SHARED_CATALOG_CACHE_PARTNER,
   SHOP_TREE_TTL_SEC,
   withInventoryShopCache,
 } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { nextSharedRatingGroupId } from '@/lib/partner-website/category/partner-category-rating-group'
 import {
   buildPartnerCategoryPath,
   buildPartnerCategoryTree,
@@ -50,6 +53,7 @@ type CategoryDbRow = {
   ai_generated: boolean
   external_id?: string | null
   seo_cluster_id?: string | null
+  rating_group_id?: number | null
   created_at: unknown
   updated_at: unknown
 }
@@ -59,7 +63,7 @@ const SELECT_COLS = `id::text, partner_id::text, parent_id::text, name, name_i18
   description_i18n, coalesce(seo_title, '') as seo_title, coalesce(seo_description, '') as seo_description,
   seo_index, coalesce(seo_body, '') as seo_body, seo_body_generated_at, seo_body_generated_locale,
   coalesce(size_guide_image_url, '') as size_guide_image_url, coalesce(ai_generated, false) as ai_generated,
-  created_at, updated_at`
+  rating_group_id, created_at, updated_at`
 
 function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
   return {
@@ -86,6 +90,8 @@ function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
     aiGenerated: r.ai_generated === true,
     externalId: r.external_id ?? null,
     seoClusterId: r.seo_cluster_id ?? null,
+    ratingGroupId:
+      r.rating_group_id != null && Number(r.rating_group_id) > 0 ? Math.round(Number(r.rating_group_id)) : null,
     createdAt: String(r.created_at ?? ''),
     updatedAt: String(r.updated_at ?? ''),
   }
@@ -117,7 +123,7 @@ export async function fetchPartnerCategoriesFlatFromPg(
   if (!isPgConfigured()) return null
   const activeOnly = opts.activeOnly !== false
   return withInventoryShopCache({
-    partnerId,
+    partnerId: SHARED_CATALOG_CACHE_PARTNER,
     kind: 'tree',
     suffix: activeOnly ? 'flat:active' : 'flat:all',
     ttlSec: SHOP_TREE_TTL_SEC,
@@ -133,10 +139,9 @@ async function fetchPartnerCategoriesFlatFromPgUncached(
     const rows = await pgQuery<CategoryDbRow>(
       `select ${SELECT_COLS}
        from public.messaging_partner_categories
-       where partner_id = $1::uuid
-         ${activeOnly ? 'and is_active = true' : ''}
+       ${activeOnly ? 'where is_active = true' : ''}
        order by depth asc, sort_order asc, name asc`,
-      [partnerId]
+      []
     )
     return rows.map(mapCategoryRow)
   } catch (e) {
@@ -153,9 +158,9 @@ export async function hasAnyPartnerCategoriesFromPg(partnerId: string): Promise<
     const row = await pgQueryOne<{ exists: boolean }>(
       `select exists(
          select 1 from public.messaging_partner_categories
-         where partner_id = $1::uuid and is_active = true
+         where is_active = true
        ) as exists`,
-      [partnerId]
+      []
     )
     return Boolean(row?.exists)
   } catch (e) {
@@ -174,8 +179,8 @@ export async function fetchPartnerCategoryByIdFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `select ${SELECT_COLS}
        from public.messaging_partner_categories
-       where partner_id = $1::uuid and id = $2::uuid`,
-      [partnerId, categoryId]
+       where id = $1::uuid`,
+      [categoryId]
     )
     return row ? mapCategoryRow(row) : null
   } catch (e) {
@@ -199,9 +204,9 @@ export async function fetchPartnerCategoryByPathFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `select ${SELECT_COLS}
        from public.messaging_partner_categories
-       where partner_id = $1::uuid and path = $2
+       where path = $1
          ${activeOnly ? 'and is_active = true' : ''}`,
-      [partnerId, cleanPath]
+      [cleanPath]
     )
     return row ? mapCategoryRow(row) : null
   } catch (e) {
@@ -242,15 +247,38 @@ export async function insertPartnerCategoryFromPg(
   }
   const path = buildPartnerCategoryPath(parentPath, slug)
 
+  const client = await getPgPool().connect()
   try {
-    const row = await pgQueryOne<CategoryDbRow>(
+    await client.query('begin')
+    let ratingGroupId: number | null = null
+    if (input.allocateRatingGroup) {
+      await client.query('select pg_advisory_xact_lock(48188001)')
+      const used = await client.query<{ max_gid: number }>(
+        `select coalesce(max(gid), 0)::int as max_gid
+         from (
+           select rating_group_id as gid
+           from public.messaging_partner_categories
+           where rating_group_id is not null and rating_group_id > 0 and rating_group_id not in (0, 88, 99, 100, 888, 1000)
+           union all
+           select import_group
+           from public.messaging_partner_product_reviews
+           where coalesce(is_imported, false) = true and import_group > 0 and import_group not in (0, 88, 99, 100, 888, 1000)
+           union all
+           select rating_group_id
+           from public.messaging_partner_inventory
+           where rating_group_id is not null and rating_group_id > 0 and rating_group_id not in (0, 88, 99, 100, 888, 1000)
+         ) u`
+      )
+      ratingGroupId = nextSharedRatingGroupId([Number(used.rows[0]?.max_gid) || 0])
+    }
+    const inserted = await client.query<CategoryDbRow>(
       `insert into public.messaging_partner_categories (
         partner_id, parent_id, name, name_i18n, slug, path, depth, sort_order, is_active,
         image_url, description, description_i18n, seo_title, seo_description, seo_index, ai_generated,
-        ai_generated_at
+        ai_generated_at, rating_group_id
       ) values (
         $1::uuid, $2::uuid, $3, $4::jsonb, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16,
-        case when $16 then now() else null end
+        case when $16 then now() else null end, $17
       )
       returning ${SELECT_COLS}`,
       [
@@ -270,11 +298,19 @@ export async function insertPartnerCategoryFromPg(
         (input.seoDescription ?? '').trim().slice(0, 500),
         input.seoIndex !== false,
         input.aiGenerated === true,
+        ratingGroupId,
       ]
     )
-    if (!row) return { ok: false, error: 'db_error' }
+    const row = inserted.rows[0]
+    if (!row) {
+      await client.query('rollback')
+      return { ok: false, error: 'db_error' }
+    }
+    await client.query('commit')
+    bumpSharedCatalogCacheLater()
     return { ok: true, row: mapCategoryRow(row) }
   } catch (e) {
+    await client.query('rollback').catch(() => undefined)
     const uniq = isUniqueViolation(e)
     if (uniq) {
       if (uniq.constraint.includes('path')) return { ok: false, error: 'duplicate_path' }
@@ -282,6 +318,8 @@ export async function insertPartnerCategoryFromPg(
     }
     console.warn('[insertPartnerCategoryFromPg]', e)
     return { ok: false, error: 'db_error' }
+  } finally {
+    client.release()
   }
 }
 
@@ -407,11 +445,10 @@ export async function fetchSizeGuideImageUrlForInventoryFromPg(
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
        where pic.inventory_id = $1::uuid
-         and c.partner_id = $2::uuid
          and coalesce(c.size_guide_image_url, '') <> ''
        order by pic.is_primary desc, c.depth desc
        limit 1`,
-      [inventoryId, partnerId]
+      [inventoryId]
     )
     const url = String(row?.size_guide_image_url ?? '').trim()
     return url || null
@@ -455,7 +492,8 @@ export async function fetchInventoryProductTypeBreadcrumbsFromPg(
       `select pic.inventory_id::text, pic.category_id::text, pic.is_primary
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where c.partner_id = $1::uuid`,
+       join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
+       where inv.partner_id = $1::uuid`,
       [partnerId]
     )
     const best = new Map<string, { categoryId: string; isPrimary: boolean; depth: number }>()
@@ -537,7 +575,7 @@ async function fetchDirectProductCountsByCategoryUncached(
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
        join public.messaging_partner_categories cat on cat.id = pic.category_id
-       where cat.partner_id = $1::uuid
+       where inv.partner_id = $1::uuid
          and coalesce(inv.is_active, true) = true
        group by pic.category_id`,
       [partnerId]
@@ -566,7 +604,7 @@ export async function fetchDirectProductCountForCategoryFromPg(
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
        join public.messaging_partner_categories cat on cat.id = pic.category_id
-       where cat.partner_id = $1::uuid
+       where inv.partner_id = $1::uuid
          and pic.category_id = $2::uuid
          and coalesce(inv.is_active, true) = true`,
       [partnerId, cid]
@@ -682,10 +720,11 @@ export async function updatePartnerCategoryFieldsFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `update public.messaging_partner_categories
        set ${sets.join(', ')}
-       where partner_id = $1::uuid and id = $2::uuid
+       where id = $2::uuid
        returning ${SELECT_COLS}`,
       params
     )
+    bumpSharedCatalogCacheLater()
     return row ? mapCategoryRow(row) : null
   } catch (e) {
     console.warn('[updatePartnerCategoryFieldsFromPg]', e)
@@ -754,8 +793,8 @@ export async function movePartnerCategoryFromPg(
     const maxDescendantDepthRow = await pgQueryOne<{ max_depth: number | null }>(
       `select max(depth)::int as max_depth
        from public.messaging_partner_categories
-       where partner_id = $1::uuid and (path = $2 or path like $2 || '/%')`,
-      [partnerId, current.path]
+       where path = $1 or path like $1 || '/%'`,
+      [current.path]
     )
     const maxDescendantDepth = maxDescendantDepthRow?.max_depth ?? current.depth
     if (maxDescendantDepth + depthDelta > PARTNER_CATEGORY_MAX_DEPTH) {
@@ -776,21 +815,22 @@ export async function movePartnerCategoryFromPg(
        set path = $1 || substring(path from ${current.path.length + 1}),
            depth = depth + $2,
            updated_at = now()
-       where partner_id = $3::uuid and path like $4 || '/%'`,
-      [newPath, depthDelta, partnerId, current.path]
+       where path like $3 || '/%'`,
+      [newPath, depthDelta, current.path]
     )
 
     const res = await client.query(
       `update public.messaging_partner_categories
        set parent_id = $1::uuid, slug = $2, path = $3, depth = $4, updated_at = now()
-       where partner_id = $5::uuid and id = $6::uuid
+       where id = $5::uuid
        returning ${SELECT_COLS}`,
-      [newParentId, newSlug, newPath, newDepth, partnerId, categoryId]
+      [newParentId, newSlug, newPath, newDepth, categoryId]
     )
 
     await client.query('commit')
     const row = res.rows[0] as CategoryDbRow | undefined
     if (!row) return { ok: false, error: 'db_error' }
+    bumpSharedCatalogCacheLater()
     return { ok: true, row: mapCategoryRow(row) }
   } catch (e) {
     await client.query('rollback').catch(() => undefined)
@@ -824,11 +864,10 @@ export async function reorderPartnerCategorySiblingFromPg(
     const siblings = await pgQuery<{ id: string }>(
       `select id::text
        from public.messaging_partner_categories
-       where partner_id = $1::uuid
-         and coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid)
-           = coalesce($2::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
+       where coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid)
+           = coalesce($1::uuid, '00000000-0000-0000-0000-000000000000'::uuid)
        order by sort_order asc, name asc, id asc`,
-      [partnerId, current.parentId]
+      [current.parentId]
     )
     const ids = siblings.map((s) => s.id)
     const idx = ids.indexOf(categoryId)
@@ -845,11 +884,12 @@ export async function reorderPartnerCategorySiblingFromPg(
         await client.query(
           `update public.messaging_partner_categories
            set sort_order = $1, updated_at = now()
-           where id = $2::uuid and partner_id = $3::uuid`,
-          [i, ids[i], partnerId]
+           where id = $2::uuid`,
+          [i, ids[i]]
         )
       }
       await client.query('commit')
+      bumpSharedCatalogCacheLater()
       return true
     } catch (e) {
       await client.query('rollback').catch(() => undefined)
@@ -873,8 +913,8 @@ export async function fetchPartnerCategoryChildCountFromPg(
     const row = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c
        from public.messaging_partner_categories
-       where partner_id = $1::uuid and parent_id = $2::uuid`,
-      [partnerId, categoryId]
+       where parent_id = $1::uuid`,
+      [categoryId]
     )
     return row?.c ?? 0
   } catch (e) {
@@ -892,10 +932,12 @@ export async function deletePartnerCategoryFromPg(
   try {
     const res = await getPgPool().query(
       `delete from public.messaging_partner_categories
-       where partner_id = $1::uuid and id = $2::uuid`,
-      [partnerId, categoryId]
+       where id = $1::uuid`,
+      [categoryId]
     )
-    return (res.rowCount ?? 0) > 0
+    const removed = (res.rowCount ?? 0) > 0
+    if (removed) bumpSharedCatalogCacheLater()
+    return removed
   } catch (e) {
     console.warn('[deletePartnerCategoryFromPg]', e)
     return false
@@ -955,10 +997,11 @@ export async function setPartnerCategoryGeneratedSeoFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `update public.messaging_partner_categories
        set ${sets.join(', ')}
-       where partner_id = $1::uuid and id = $2::uuid
+       where id = $2::uuid
        returning ${SELECT_COLS}`,
       params
     )
+    bumpSharedCatalogCacheLater()
     return row ? mapCategoryRow(row) : null
   } catch (e) {
     console.warn('[setPartnerCategoryGeneratedSeoFromPg]', e)

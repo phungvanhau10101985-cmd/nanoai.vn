@@ -1349,13 +1349,7 @@ export function PartnerMessagingSettingsClient({
           setPaymentAccountNumber(res.settings.account_number || '')
           setPaymentAccountHolder(res.settings.account_holder || '')
           setPaymentNotifyEmail(res.settings.notify_email || '')
-          setPaymentDepositMode(
-            res.settings.default_deposit_mode === 'none'
-              ? 'none'
-              : res.settings.default_deposit_mode === 'fixed_amount'
-                ? 'fixed_amount'
-                : 'percent'
-          )
+          setPaymentDepositMode(res.settings.default_deposit_mode === 'fixed_amount' ? 'fixed_amount' : 'percent')
           setPaymentDepositPercent(String(Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0)))))
           setPaymentDepositAmount(String(Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0))))
           setPaymentRequireProof(res.settings.require_payment_proof !== false)
@@ -1386,12 +1380,7 @@ export function PartnerMessagingSettingsClient({
             accountHolder: res.settings.account_holder || '',
             notifyEmail: res.settings.notify_email || '',
             defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0))),
-            defaultDepositMode:
-              res.settings.default_deposit_mode === 'none'
-                ? 'none'
-                : res.settings.default_deposit_mode === 'fixed_amount'
-                  ? 'fixed_amount'
-                  : 'percent',
+            defaultDepositMode: res.settings.default_deposit_mode === 'fixed_amount' ? 'fixed_amount' : 'percent',
             defaultDepositAmount: Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0)),
             requirePaymentProof: res.settings.require_payment_proof !== false,
             sepayEnabled: Boolean(res.settings.sepay_enabled),
@@ -3949,13 +3938,12 @@ export function PartnerMessagingSettingsClient({
                   <Label className="text-xs font-medium">Kieu dat coc mac dinh</Label>
                   <Select
                     value={paymentDepositMode}
-                    onValueChange={(v) => setPaymentDepositMode(v === 'none' || v === 'fixed_amount' ? v : 'percent')}
+                    onValueChange={(v) => setPaymentDepositMode(v === 'fixed_amount' ? 'fixed_amount' : 'percent')}
                   >
                     <SelectTrigger className="h-9 w-full bg-background">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Khong can dat coc</SelectItem>
                       <SelectItem value="percent">Dat coc theo % don hang</SelectItem>
                       <SelectItem value="fixed_amount">Dat coc theo so tien tuy y</SelectItem>
                     </SelectContent>
@@ -3985,7 +3973,7 @@ export function PartnerMessagingSettingsClient({
                 ) : null}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Luu y: Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don.
+                Luu y: Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don. Coc theo % da luu, toi thieu 100.000d; don nho hon muc do thi coc bang tien hang.
               </p>
               <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <input

@@ -65,6 +65,8 @@ export type PartnerCategoryRow = {
   externalId?: string | null
   /** Cluster SEO gắn cat3 (metadata import 188). Storefront không 301 `/c/{cluster-slug}`. */
   seoClusterId?: string | null
+  /** Mã nhóm đánh giá cấp khi cào tạo danh mục mới. Null = danh mục cũ, gán nhóm theo catalog đã có. */
+  ratingGroupId?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -92,6 +94,8 @@ export type PartnerCategoryCreateInput = {
   seoBody?: string
   /** PS.8 — đánh dấu node do AI tự tạo (Product Studio) — badge "cần xem lại" trong admin panel. */
   aiGenerated?: boolean
+  /** Cào listing: cấp mã nhóm đánh giá mới, không trùng mã đã có. */
+  allocateRatingGroup?: boolean
 }
 
 export type PartnerCategoryUpdateInput = Partial<

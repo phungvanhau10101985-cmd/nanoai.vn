@@ -70,3 +70,25 @@ test('pdp specs render JSON groups instead of a raw blob', () => {
   assert.doesNotMatch(html, /display_name_vi/)
   assert.doesNotMatch(html, /\{"product_info"/)
 })
+
+test('pdp specs omit image localization bookkeeping and source urls', () => {
+  const info = {
+    ...JSON.parse(CONSULT_JSON),
+    image_localization: {
+      language: 'vi',
+      processed_at: '2026-10-05T00:00:00.000Z',
+      results: {
+        'https://img.alicdn.com/img/ibank/O1CN01OIWqu61IOfyrhh8Yg.jpg': {
+          final_url: 'https://cdn.example/localized.jpg',
+          status: 'processed',
+          message: 'ok',
+        },
+      },
+    },
+    image_consult_context: { lines: ['chữ trên ảnh'] },
+  }
+  const html = pdpProductInfoHtml(info, 'vi', getPartnerSiteShopCopy('vi'), {})
+  assert.match(html, /Q2477/)
+  assert.match(html, /Thông số kỹ thuật/)
+  assert.doesNotMatch(html, /Image Localization|image_localization|alicdn|final_url|processed_at|image_consult/i)
+})

@@ -37,6 +37,7 @@ import {
   ensurePartnerInventorySkuPrefix,
   listOtherShopInternalSkusForPrefix,
 } from '@/lib/messaging/partner-inventory-sku-prefix-pg'
+import { claimExcelSourceProductId, listingSourceProductIdKey } from '@/lib/messaging/listing-import/import-source-ids'
 
 type InventoryRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 type InventoryInsert = Database['public']['Tables']['messaging_partner_inventory']['Insert']
@@ -51,6 +52,8 @@ type InventoryUpsertOk = {
   deleted: number
   embeddingsDeferred: boolean
   categoryAutoCreateSkipped?: CategoryAutoCreateSkipRow[]
+  /** Mã cột A (1688 A… / Tmall T…) đã có — không cập nhật, không tạo mới. */
+  sourceIdSkipped?: number
 }
 
 type InventoryUpsertBase = {
@@ -708,7 +711,13 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
 export async function upsertPartnerInventoryBatch(
   partnerId: string,
   rows: InventoryExcelInsert[],
-  options?: { existingRows?: InventoryRow[]; deferEmbeddings?: boolean; remarketingIdSnapshot?: boolean }
+  options?: {
+    existingRows?: InventoryRow[]
+    deferEmbeddings?: boolean
+    remarketingIdSnapshot?: boolean
+    /** Excel: cột id A…/T… đã có thì bỏ qua, không ghi đè. */
+    skipExistingSourceProductIds?: boolean
+  }
 ): Promise<InventoryUpsertOk | { ok: false; error: string }> {
   if (!isPgConfigured()) {
     return { ok: false, error: 'Postgres (DATABASE_URL) is not configured.' }
@@ -771,10 +780,19 @@ export async function upsertPartnerInventoryBatch(
   }
   const byRemarketing = indexExistingByRemarketing(resolvedExistingRows)
   const catalogPatches = new Map<string, InventoryCatalogPatchRow>()
+  const existingSourceIds = new Set<string>()
+  const claimedSourceIds = new Set<string>()
+  if (options?.skipExistingSourceProductIds) {
+    for (const row of resolvedExistingRows) {
+      const key = listingSourceProductIdKey(row.remarketing_id)
+      if (key) existingSourceIds.add(key)
+    }
+  }
 
   let inserted = 0
   let updated = 0
   let deleted = 0
+  let sourceIdSkipped = 0
   const changedIds = new Set<string>()
   const plannedDeletes = new Set<string>(deduped.duplicateIds)
   const plannedUpdates = new Map<string, InventoryInsert>()
@@ -798,6 +816,13 @@ export async function upsertPartnerInventoryBatch(
   }
 
   for (const r of rows) {
+    if (!r.removeFromInventory && options?.skipExistingSourceProductIds) {
+      const decision = claimExcelSourceProductId(r.remarketing_id, existingSourceIds, claimedSourceIds)
+      if (decision === 'skip') {
+        sourceIdSkipped += 1
+        continue
+      }
+    }
     const skuKey = inventorySkuMatchKey(r.sku)
     const rk = inventoryRemarketingMatchKey(r.remarketing_id)
     let targetId: string | null = null
@@ -1017,5 +1042,13 @@ export async function upsertPartnerInventoryBatch(
     })
   }
 
-  return { ok: true, inserted, updated, deleted, embeddingsDeferred: deferEmbeddings, categoryAutoCreateSkipped }
+  return {
+    ok: true,
+    inserted,
+    updated,
+    deleted,
+    embeddingsDeferred: deferEmbeddings,
+    categoryAutoCreateSkipped,
+    sourceIdSkipped,
+  }
 }

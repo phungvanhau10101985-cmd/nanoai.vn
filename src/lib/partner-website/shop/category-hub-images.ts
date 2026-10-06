@@ -161,7 +161,7 @@ export async function fetchCategorySampleImagesFromPg(partnerId: string): Promis
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_inventory mpi on mpi.id = pic.inventory_id
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where c.partner_id = $1::uuid
+       where mpi.partner_id = $1::uuid
          and coalesce(mpi.is_active, true) = true
          and coalesce(mpi.image_url, '') <> ''
        order by mpi.sort_order asc, mpi.updated_at desc
@@ -196,8 +196,7 @@ async function fetchInventoryCategoryIdsFromPg(
       `select pic.inventory_id::text as inventory_id, pic.category_id::text as category_id
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where c.partner_id = $1::uuid
-         and pic.inventory_id = any($2::uuid[])`,
+       where pic.inventory_id = any($2::uuid[])`,
       [partnerId, ids]
     )
     for (const row of rows) {

@@ -5,6 +5,9 @@ import { listingImportOverlayTitle } from '@/lib/messaging/listing-import/listin
 import {
   CATEGORY_AUTO_CREATE_DISABLED,
   CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+  explainCategoryAutoCreateDisabled,
+} from '@/lib/partner-website/category/partner-category-auto-create-copy'
+import {
   catalogInsertIdsBlockedWhenAutoCreateOff,
   findExistingCategoryTripleLeaf,
   findReusableCategoryTripleLeaf,
@@ -114,4 +117,11 @@ test('listing draft publish is blocked when taxonomy auto-create failed', () => 
   assert.ok(issues.some((m) => m.includes('chưa khớp')))
   assert.ok(issues.some((m) => m.includes('bật')))
   assert.equal(issues[0], CATEGORY_AUTO_CREATE_DISABLED_MESSAGE)
+})
+
+test('queue error line keeps the code and adds Vietnamese', () => {
+  const line = explainCategoryAutoCreateDisabled(CATEGORY_AUTO_CREATE_DISABLED)
+  assert.match(line, /^CATEGORY_AUTO_CREATE_DISABLED — Đã tắt chế độ tự tạo danh mục/)
+  assert.equal(explainCategoryAutoCreateDisabled(line), line)
+  assert.equal(explainCategoryAutoCreateDisabled('Không tạo được nháp import.'), 'Không tạo được nháp import.')
 })

@@ -757,12 +757,8 @@ export async function insertPartnerOrderDraftFromPg(input: {
     return await runInsert(input.depositPercent)
   } catch (e) {
     if (isLegacyDepositPercentConstraintError(e)) {
-      try {
-        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
-        return await runInsert(fallbackPercent)
-      } catch (e2) {
-        console.warn('[insertPartnerOrderDraftFromPg:legacy-retry]', e2)
-      }
+      console.warn('[insertPartnerOrderDraftFromPg] deposit_percent rejected by check constraint', e)
+      return null
     }
     console.warn('[insertPartnerOrderDraftFromPg]', e)
     return null
@@ -920,12 +916,8 @@ export async function updatePartnerOrderCheckoutFromPg(input: {
       return runUpdate(input.depositPercent, false)
     }
     if (isLegacyDepositPercentConstraintError(e)) {
-      try {
-        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
-        return await runUpdate(fallbackPercent)
-      } catch (e2) {
-        console.warn('[updatePartnerOrderCheckoutFromPg:legacy-retry]', e2)
-      }
+      console.warn('[updatePartnerOrderCheckoutFromPg] deposit_percent rejected by check constraint', e)
+      return null
     }
     console.warn('[updatePartnerOrderCheckoutFromPg]', e)
     return null
@@ -1085,12 +1077,8 @@ export async function updatePartnerOrderCartCheckoutFromPg(input: {
       return runUpdate(input.depositPercent, false)
     }
     if (isLegacyDepositPercentConstraintError(e)) {
-      try {
-        const fallbackPercent = Math.round(num(input.depositPercent, 30)) === 100 ? 100 : 30
-        return await runUpdate(fallbackPercent)
-      } catch (e2) {
-        console.warn('[updatePartnerOrderCartCheckoutFromPg:legacy-retry]', e2)
-      }
+      console.warn('[updatePartnerOrderCartCheckoutFromPg] deposit_percent rejected by check constraint', e)
+      return null
     }
     console.warn('[updatePartnerOrderCartCheckoutFromPg]', e)
     return null

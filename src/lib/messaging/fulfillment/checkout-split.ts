@@ -6,6 +6,7 @@ import {
   type PartnerSourcePlatform,
 } from '@/lib/messaging/fulfillment/fulfillment-routing'
 import { selectOptimizedFulfillmentOutcome } from '@/lib/messaging/fulfillment/optimized-fulfillment-runtime'
+import { clampPartnerDepositPercent, resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
 
 export type CheckoutSplitLine = {
   fulfillmentSource: PartnerFulfillmentSource
@@ -24,6 +25,7 @@ export type CheckoutSplitGroupPlan = {
   discount: number
   shippingFee: number
   amountAfterDiscount: number
+  depositPayable: number
   requiresDeposit: boolean
   depositPercent: number
   requiredAmount: number
@@ -64,7 +66,6 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
   }
   const discounts = allocateIntegerTotal(Math.max(0, Math.round(input.totalDiscount)), regularWeights, sources)
   const shippingSource = sources.includes(FULFILLMENT_VIETNAM) ? FULFILLMENT_VIETNAM : FULFILLMENT_CHINA
-  const skuDepositMode = input.lines.some((row) => row.depositRequired)
 
   const plans = sources.map((source, index) => {
     const lines = grouped[source]
@@ -72,17 +73,26 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
     const discount = Math.min(subtotal, discounts[source] || 0)
     const amountAfterDiscount = Math.max(0, subtotal - discount)
     const shippingFee = source === shippingSource ? Math.max(0, Math.round(input.shippingFee)) : 0
-    const warehouseOnly = lines.length > 0 && lines.every((row) => row.isWarehouseItem)
-    const lineWantsDeposit = lines.some((row) => row.depositRequired && !row.isWarehouseItem)
-    const shopWantsDeposit = input.shopDepositMode === 'percent' || input.shopDepositMode === 'fixed_amount'
-    // Có SKU cọc → theo dòng (188). Không có → shop percent/fixed như cũ. Kho thanh lý không cọc.
-    const requiresDeposit =
-      shopWantsDeposit && !warehouseOnly && (skuDepositMode ? lineWantsDeposit : true)
+    const regularGoods = lines
+      .filter((row) => !row.isWarehouseItem)
+      .reduce((sum, row) => sum + Math.max(0, Math.round(row.lineSubtotal)), 0)
+    const depositGoods = lines
+      .filter((row) => row.depositRequired && !row.isWarehouseItem)
+      .reduce((sum, row) => sum + Math.max(0, Math.round(row.lineSubtotal)), 0)
+    const depositDiscount =
+      regularGoods > 0 ? Math.round((discount * depositGoods) / regularGoods) : 0
+    const depositPayable = Math.max(0, depositGoods - Math.min(depositGoods, depositDiscount))
+    // Cọc hay không = cờ từng sản phẩm. % / số tiền cố định chỉ là mức tiền. Kho thanh lý không cọc.
+    let requiresDeposit = depositPayable > 0
     let depositPercent = 0
     let requiredAmount = 0
     if (requiresDeposit && input.shopDepositMode !== 'fixed_amount') {
-      depositPercent = Math.max(0, Math.min(100, Math.round(input.shopDepositPercent || 30)))
-      requiredAmount = Math.round((amountAfterDiscount * depositPercent) / 100)
+      depositPercent = clampPartnerDepositPercent(input.shopDepositPercent, 0)
+      requiredAmount = resolvePercentDepositAmount(depositPayable, depositPercent)
+      if (requiredAmount <= 0) {
+        requiresDeposit = false
+        depositPercent = 0
+      }
     }
     return {
       source,
@@ -92,6 +102,7 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
       discount,
       shippingFee,
       amountAfterDiscount,
+      depositPayable,
       requiresDeposit,
       depositPercent,
       requiredAmount,
@@ -101,9 +112,9 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
     const fixed = Math.max(0, Math.round(input.shopDepositFixed))
     const target = plans.find((plan) => plan.requiresDeposit)
     if (target) {
-      target.requiredAmount = Math.min(target.amountAfterDiscount, fixed)
+      target.requiredAmount = Math.min(target.depositPayable, fixed)
       target.depositPercent =
-        target.amountAfterDiscount > 0 ? Math.round((target.requiredAmount * 100) / target.amountAfterDiscount) : 0
+        target.depositPayable > 0 ? Math.round((target.requiredAmount * 100) / target.depositPayable) : 0
     }
     for (const plan of plans) {
       if (plan !== target) {

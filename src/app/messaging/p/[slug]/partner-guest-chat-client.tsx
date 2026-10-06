@@ -15,6 +15,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent, RefObject } from 'react'
+import { resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
@@ -5814,7 +5815,7 @@ export function PartnerGuestChatClient({
           : ({ kind: 'fixed' as const, policyFixed }),
       }
     }
-    const required = Math.ceil((subtotal * policyPercent) / 100)
+    const required = resolvePercentDepositAmount(subtotal, policyPercent)
     return {
       qty: totalUnits,
       lineCount,

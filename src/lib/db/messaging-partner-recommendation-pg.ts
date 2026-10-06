@@ -67,8 +67,7 @@ export async function fetchInventoryCategorySignalsFromPg(
       `select pic.inventory_id::text, pic.category_id::text, pic.is_primary, coalesce(c.name, '') as category_name
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where c.partner_id = $1::uuid
-         and pic.inventory_id = any($2::uuid[])`,
+       where pic.inventory_id = any($2::uuid[])`,
       [partnerId, ids]
     )
     const best = new Map<
@@ -188,8 +187,7 @@ export async function fetchInventorySameShopSignalsFromPg(
         `select pic.inventory_id::text, pic.category_id::text, pic.is_primary
          from public.messaging_partner_inventory_categories pic
          join public.messaging_partner_categories c on c.id = pic.category_id
-         where c.partner_id = $1::uuid
-           and pic.inventory_id = any($2::uuid[])`,
+         where pic.inventory_id = any($2::uuid[])`,
         [partnerId, missingL3]
       )
       const best = new Map<string, { name: string; depth: number; primary: boolean }>()
@@ -255,7 +253,6 @@ export async function fetchActiveInventoryByShopL3PairsFromPg(input: {
             from public.messaging_partner_inventory_categories pic
             join public.messaging_partner_categories c on c.id = pic.category_id
             where pic.inventory_id = mpi.id
-              and c.partner_id = $1::uuid
               and c.depth >= 3
               and lower(trim(c.name)) = p.l3
           )
@@ -297,7 +294,6 @@ export async function fetchActiveInventoryByShopKeysFromPg(input: {
            from public.messaging_partner_inventory_categories pic
            join public.messaging_partner_categories c on c.id = pic.category_id
            where pic.inventory_id = mpi.id
-             and c.partner_id = $1::uuid
              and (
                lower(c.id::text) = any($2::text[])
                or lower(coalesce(c.parent_id::text, '')) = any($2::text[])

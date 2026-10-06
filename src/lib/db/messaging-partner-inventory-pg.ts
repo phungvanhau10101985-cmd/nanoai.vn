@@ -1829,8 +1829,8 @@ async function fetchPartnerCategoryL1NameFromPg(partnerId: string, categoryId: s
   try {
     const row = await pgQueryOne<{ name: string; path: string; depth: number }>(
       `select name, path, depth from public.messaging_partner_categories
-       where partner_id = $1::uuid and id = $2::uuid`,
-      [partnerId, categoryId]
+       where id = $1::uuid`,
+      [categoryId]
     )
     if (!row) return ''
     if ((row.depth ?? 1) <= 1) return String(row.name ?? '').trim()
@@ -1838,9 +1838,9 @@ async function fetchPartnerCategoryL1NameFromPg(partnerId: string, categoryId: s
     if (!l1Path) return String(row.name ?? '').trim()
     const l1 = await pgQueryOne<{ name: string }>(
       `select name from public.messaging_partner_categories
-       where partner_id = $1::uuid and path = $2
+       where path = $1
        limit 1`,
-      [partnerId, l1Path]
+      [l1Path]
     )
     return String(l1?.name ?? row.name ?? '').trim()
   } catch {
@@ -2947,6 +2947,8 @@ export type PartnerInventoryPurchaseOptionsRow = {
   catalog_colors?: unknown
   description: string
   stock_note: string
+  deposit_required?: boolean | null
+  is_clearance?: boolean | null
 }
 
 /** Variant modal query: structured options first; legacy text is read only when still needed. */
@@ -2970,7 +2972,9 @@ export async function fetchPartnerInventoryPurchaseOptionsByProductUrlFromPg(
               coalesce(product_url, '') as product_url, coalesce(price_hint, '') as price_hint,
               sizes_json, colors_json,
               case when jsonb_typeof(catalog_json->'colors') = 'array'
-                then catalog_json->'colors' else '[]'::jsonb end as catalog_colors
+                then catalog_json->'colors' else '[]'::jsonb end as catalog_colors,
+              coalesce(deposit_required, false) as deposit_required,
+              coalesce(is_clearance, false) as is_clearance
        ${where}`,
       [partnerId, u]
     )
@@ -5329,12 +5333,10 @@ export async function fetchPartnerAssignedRatingGroupIdsFromPg(partnerId: string
     const rows = await pgQuery<{ gid: number }>(
       `select distinct rating_group_id as gid
        from public.messaging_partner_inventory
-       where partner_id = $1::uuid
-         and coalesce(is_active, true) = true
+       where coalesce(is_active, true) = true
          and rating_group_id > 0
          and rating_group_id <> 888
-       order by 1`,
-      [id]
+       order by 1`
     )
     return uniqPositiveGroupIds(rows.map((r) => Number(r.gid)))
   } catch (e) {
@@ -5351,11 +5353,9 @@ export async function fetchPartnerAssignedQuestionGroupIdsFromPg(partnerId: stri
     const rows = await pgQuery<{ gid: number }>(
       `select distinct question_group_id as gid
        from public.messaging_partner_inventory
-       where partner_id = $1::uuid
-         and coalesce(is_active, true) = true
+       where coalesce(is_active, true) = true
          and question_group_id in (88, 99, 100)
-       order by 1`,
-      [id]
+       order by 1`
     )
     return uniqPositiveGroupIds(rows.map((r) => Number(r.gid)))
   } catch (e) {
@@ -5364,7 +5364,7 @@ export async function fetchPartnerAssignedQuestionGroupIdsFromPg(partnerId: stri
   }
 }
 
-/** Nhãn nhóm đánh giá theo shop: L1/L2/L3 của SP đã gán rating_group_id trong pool admin import. */
+/** Nhãn nhóm đánh giá dùng chung: L1/L2/L3 của mọi SP đã gán rating_group_id. */
 export async function fetchPartnerRatingGroupPhraseRowsFromPg(
   partnerId: string,
   groupIds: number[]
@@ -5380,13 +5380,12 @@ export async function fetchPartnerRatingGroupPhraseRowsFromPg(
               coalesce(category_l3, '') as l3,
               count(*)::int as n
        from public.messaging_partner_inventory
-       where partner_id = $1::uuid
-         and coalesce(is_active, true) = true
-         and rating_group_id = any($2::int[])
+       where coalesce(is_active, true) = true
+         and rating_group_id = any($1::int[])
          and rating_group_id > 0
          and rating_group_id <> 888
        group by 1, 2, 3, 4`,
-      [id, ids]
+      [ids]
     )
     return rows.map((r) => ({
       ratingGroupId: Math.round(Number(r.gid)) || 0,

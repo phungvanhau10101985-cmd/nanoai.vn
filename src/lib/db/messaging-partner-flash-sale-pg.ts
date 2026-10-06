@@ -116,7 +116,6 @@ async function queryFlashSaleCandidatesOnce(input: {
           from public.messaging_partner_inventory_categories pic
           join public.messaging_partner_categories c on c.id = pic.category_id
           where pic.inventory_id = b.id
-            and c.partner_id = $1::uuid
             and c.depth >= 3
             and lower(trim(c.name)) = p.l3
         )

@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg'
-import { bumpInventoryCacheLater } from '@/lib/cache/partner-shop-cache'
+import { bumpSharedCatalogCacheLater } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import {
   draftsFromTaxonomySheets,
@@ -75,16 +75,13 @@ export async function fetchPartnerTaxonomyInfoFromPg(partnerId: string): Promise
     const cats = await pool.query<{ depth: number; c: number }>(
       `select depth, count(*)::int as c
        from public.messaging_partner_categories
-       where partner_id = $1::uuid
-       group by depth`,
-      [partnerId]
+       group by depth`
     )
     const byDepth = new Map(cats.rows.map((r) => [r.depth, r.c]))
     let clusters = 0
     try {
       const cl = await pool.query<{ c: number }>(
-        `select count(*)::int as c from public.messaging_partner_seo_clusters where partner_id = $1::uuid`,
-        [partnerId]
+        `select count(*)::int as c from public.messaging_partner_seo_clusters`
       )
       clusters = cl.rows[0]?.c ?? 0
     } catch (e) {
@@ -95,8 +92,8 @@ export async function fetchPartnerTaxonomyInfoFromPg(partnerId: string): Promise
          (select count(*)::int from public.messaging_partner_inventory where partner_id = $1::uuid) as total,
          (select count(distinct pic.inventory_id)::int
           from public.messaging_partner_inventory_categories pic
-          join public.messaging_partner_categories c on c.id = pic.category_id
-          where c.partner_id = $1::uuid) as linked`,
+          join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
+          where inv.partner_id = $1::uuid) as linked`,
       [partnerId]
     )
     return {
@@ -134,9 +131,7 @@ export async function fetchPartnerTaxonomyFormTreeFromPg(partnerId: string): Pro
       `select id::text, parent_id::text, name, slug, path, depth, sort_order, seo_index,
               nullif(btrim(coalesce(external_id, '')), '') as external_id
        from public.messaging_partner_categories
-       where partner_id = $1::uuid
-       order by depth asc, sort_order asc, name asc`,
-      [partnerId]
+       order by depth asc, sort_order asc, name asc`
     )
     const byId = new Map<string, TaxonomyFormTreeNode>()
     for (const r of rows.rows) {
@@ -177,9 +172,7 @@ export async function fetchPartnerTaxonomyClustersFromPg(partnerId: string): Pro
     const rows = await getPgPool().query<TaxonomyClusterOption>(
       `select external_id, slug, name, index_policy
        from public.messaging_partner_seo_clusters
-       where partner_id = $1::uuid
-       order by slug asc`,
-      [partnerId]
+       order by slug asc`
     )
     return rows.rows
   } catch (e) {
@@ -202,9 +195,9 @@ export async function fetchPartnerCategoryByExternalIdFromPg(
               c.name, c.slug, c.path, c.depth
        from public.messaging_partner_categories c
        left join public.messaging_partner_categories p on p.id = c.parent_id
-       where c.partner_id = $1::uuid and c.external_id = $2
+       where c.external_id = $1
        limit 1`,
-      [partnerId, id]
+      [id]
     )
     return row.rows[0] ?? null
   } catch (e) {
@@ -232,9 +225,7 @@ async function upsertClustersMap(
 ): Promise<{ map: Map<string, string>; inserted: number; updated: number }> {
   const existing = await client.query<ClusterDbRow>(
     `select id::text, external_id, slug, name, index_policy
-     from public.messaging_partner_seo_clusters
-     where partner_id = $1::uuid`,
-    [partnerId]
+     from public.messaging_partner_seo_clusters`
   )
   const map = new Map<string, string>()
   for (const r of existing.rows) map.set(r.external_id, r.id)
@@ -268,7 +259,7 @@ async function upsertClustersMap(
         await client.query(
           `update public.messaging_partner_seo_clusters
            set slug = $3, name = $4, canonical_path = $5, index_policy = $6, source = $7, notes = $8, updated_at = now()
-           where partner_id = $1::uuid and id = $2::uuid`,
+           where id = $2::uuid`,
           [
             partnerId,
             foundId,
@@ -307,8 +298,7 @@ async function upsertCategories(
   }>(
     `select id::text, nullif(btrim(coalesce(external_id, '')), '') as external_id, path
      from public.messaging_partner_categories
-     where partner_id = $1::uuid`,
-    [partnerId]
+     `
   )
   const byExt = new Map<string, string>()
   const byPath = new Map<string, { id: string; external_id: string | null }>()
@@ -402,7 +392,7 @@ async function upsertCategories(
                external_id = $11,
                seo_cluster_id = $12::uuid,
                updated_at = now()
-           where partner_id = $1::uuid and id = $2::uuid`,
+           where id = $2::uuid`,
           [
             partnerId,
             existingId,
@@ -470,7 +460,7 @@ export async function executePartnerTaxonomySheetsFromPg(
     const cats = await upsertCategories(client, partnerId, parsed.categories, clusters.map, categoryErrors)
     const pathErrors = validatePaths(sheets, cats.map, clusters.map)
     await client.query('commit')
-    bumpInventoryCacheLater(partnerId)
+    bumpSharedCatalogCacheLater()
     const summary = emptyTaxonomyImportSummary(Date.now() - started)
     summary.summary.categories['1'] = { inserted: cats.inserted[1], updated: cats.updated[1] }
     summary.summary.categories['2'] = { inserted: cats.inserted[2], updated: cats.updated[2] }

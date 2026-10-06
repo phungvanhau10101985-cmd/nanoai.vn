@@ -16,6 +16,7 @@ import {
   type InAppBrowserKind,
 } from '@/lib/partner-website/shop/in-app-browser'
 import { depositQrDownloadFilename } from '@/lib/messaging/deposit-qr-image'
+import { clampPartnerDepositPercent } from '@/lib/messaging/partner-deposit-amount'
 import {
   isPartnerShopDepositWaiting,
   partnerOrderEstimatedRemainingAfterDeposit,
@@ -61,6 +62,12 @@ import {
   type ShopShipmentEventView,
   type ShopSiblingOrderView,
 } from '@/components/partner-website/shop/partner-site-order-fulfillment-bits'
+
+function partialShopDepositPercent(value: unknown): number | null {
+  const n = clampPartnerDepositPercent(value, 0)
+  if (n <= 0 || n >= 100) return null
+  return n
+}
 
 type DepositOrder = PartnerOrderDiscountFields & {
   id: string
@@ -173,11 +180,7 @@ export function PartnerSiteShopDepositClient({
   const [order, setOrder] = useState<DepositOrder | null>(initialOrder)
   const [paymentDisplay, setPaymentDisplay] = useState<PaymentDisplay>(initialPaymentDisplay)
   const [merchantId, setMerchantId] = useState<number | null>(initialMerchantId)
-  const [shopPercent, setShopPercent] = useState(
-    typeof initialShopPercent === 'number' && initialShopPercent > 0
-      ? Math.max(1, Math.min(99, Math.round(initialShopPercent)))
-      : 30
-  )
+  const [shopPercent, setShopPercent] = useState<number | null>(() => partialShopDepositPercent(initialShopPercent))
   const [loading, setLoading] = useState(!initialOrder)
   const [updating, setUpdating] = useState(false)
   const [toast, setToast] = useState('')
@@ -189,6 +192,7 @@ export function PartnerSiteShopDepositClient({
   const prevStatusRef = useRef<string | null>(null)
   const depositPageTrackedRef = useRef('')
   const qrBlobRef = useRef<Blob | null>(null)
+  const depositSyncKey = useRef('')
   const [qrBlobReady, setQrBlobReady] = useState(false)
   const [qrDownloading, setQrDownloading] = useState(false)
   const [qrSavePreviewUrl, setQrSavePreviewUrl] = useState<string | null>(null)
@@ -216,9 +220,8 @@ export function PartnerSiteShopDepositClient({
         setCatalogReady(true)
       }
       setPaymentDisplay(json.payment_display ?? null)
-      if (typeof json.default_deposit_percent === 'number' && json.default_deposit_percent > 0) {
-        setShopPercent(Math.max(1, Math.min(99, Math.round(json.default_deposit_percent))))
-      }
+      const nextPercent = partialShopDepositPercent(json.default_deposit_percent)
+      if (nextPercent != null) setShopPercent(nextPercent)
       const mid = Number(json.google_customer_reviews_merchant_id ?? 0)
       setMerchantId(Number.isInteger(mid) && mid > 0 ? mid : null)
       setLoading(false)
@@ -268,9 +271,8 @@ export function PartnerSiteShopDepositClient({
     if (!handoff?.order) return
     setOrder(handoff.order as DepositOrder)
     setPaymentDisplay(handoff.payment_display ?? null)
-    if (typeof handoff.default_deposit_percent === 'number' && handoff.default_deposit_percent > 0) {
-      setShopPercent(Math.max(1, Math.min(99, Math.round(handoff.default_deposit_percent))))
-    }
+    const handoffPercent = partialShopDepositPercent(handoff.default_deposit_percent)
+    if (handoffPercent != null) setShopPercent(handoffPercent)
     setLoading(false)
   }, [initialOrder, orderId, siteSlug])
 
@@ -369,8 +371,9 @@ export function PartnerSiteShopDepositClient({
   }, [toast, toastKind])
 
   const depositOption = useMemo(() => {
-    const p = Math.round(Number(order?.deposit_percent ?? shopPercent))
-    return p >= 100 ? 100 : shopPercent
+    const stored = Math.round(Number(order?.deposit_percent))
+    if (Number.isFinite(stored) && stored >= 100) return 100
+    return shopPercent
   }, [order?.deposit_percent, shopPercent])
 
   const displayQr = useMemo(() => {
@@ -433,7 +436,9 @@ export function PartnerSiteShopDepositClient({
   }, [qrSavePreviewUrl])
 
   async function setDepositPercent(next: number) {
-    if (!order || updating || next === depositOption) return
+    if (!order || updating) return
+    const stored = Math.round(Number(order.deposit_percent))
+    if (Number.isFinite(stored) && next === stored) return
     setUpdating(true)
     try {
       const res = await fetch(orderApi, {
@@ -450,11 +455,24 @@ export function PartnerSiteShopDepositClient({
       if (res.ok && json.order) {
         setOrder(json.order)
         if (json.payment_display !== undefined) setPaymentDisplay(json.payment_display)
+      } else {
+        depositSyncKey.current = ''
       }
     } finally {
       setUpdating(false)
     }
   }
+
+  useEffect(() => {
+    if (shopPercent == null || !order) return
+    if (order.status !== 'awaiting_payment' || order.payment_method === 'ewallet') return
+    const stored = Math.round(Number(order.deposit_percent))
+    if (!Number.isFinite(stored) || stored >= 100 || stored === shopPercent) return
+    const key = `${order.id}:${shopPercent}`
+    if (depositSyncKey.current === key) return
+    depositSyncKey.current = key
+    void setDepositPercent(shopPercent)
+  }, [order, shopPercent])
 
   function closeQrSavePreview() {
     setQrSavePreviewUrl((prev) => {
@@ -750,11 +768,13 @@ export function PartnerSiteShopDepositClient({
                 <input
                   type="radio"
                   name="deposit_option"
-                  checked={depositOption !== 100}
-                  disabled={updating}
-                  onChange={() => void setDepositPercent(shopPercent)}
+                  checked={shopPercent != null && depositOption !== 100}
+                  disabled={updating || shopPercent == null}
+                  onChange={() => {
+                    if (shopPercent != null) void setDepositPercent(shopPercent)
+                  }}
                 />
-                {t.depositPercentOption.replace('{percent}', String(shopPercent))}
+                {shopPercent != null ? t.depositPercentOption.replace('{percent}', String(shopPercent)) : '…'}
               </label>
               <label>
                 <input

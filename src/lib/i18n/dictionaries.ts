@@ -5524,7 +5524,7 @@ const VI_DICTIONARY: Dictionary = {
     listingImportExcelCancelling: 'Đang hủy…',
     listingImportExcelHideTrack: 'Ẩn theo dõi',
     listingImportExcelClose: 'Đóng',
-    listingImportExcelSuccess: 'Import xong: {inserted} mới, {updated} cập nhật{deleted}',
+    listingImportExcelSuccess: 'Import xong: {inserted} mới, {updated} cập nhật, {skipped} bỏ qua (trùng mã 1688/Tmall){deleted}',
     listingImportExcelSuccessDeleted: ', {n} đã xóa',
     listingImportExcelFailedTitle: 'Import thất bại',
     listingImportExcelFailedToast: 'Import lỗi — xem chi tiết phía dưới ô Import.',
@@ -5766,7 +5766,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Xuất Excel',
     inventoryImportExcel: 'Nhập Excel',
     inventoryExcel188Hint:
-      'File mẫu / xuất Excel dùng đủ cột catalog (id, sku, mô tả, biến thể, thư viện ảnh, 3 cấp danh mục, chất liệu, listed…). File kho 12 cột cũ vẫn nhập được. Khớp trước theo Id sản phẩm (remarketing), rồi SKU, rồi tên. listed=0 xóa theo id/SKU/tên.',
+      'File mẫu / xuất Excel dùng đủ cột catalog (id, sku, mô tả, biến thể, thư viện ảnh, 3 cấp danh mục, chất liệu, listed…). File kho 12 cột cũ vẫn nhập được. Cột A mã 1688 (A…) hoặc Tmall (T…) đã có thì bỏ qua. Mã khác khớp Id, rồi SKU, rồi tên. listed=0 xóa theo id/SKU/tên.',
     inventoryReloadDemoProducts: 'Tải lại sản phẩm demo',
     inventoryReloadDemoHint:
       '9 sản phẩm mẫu từ catalog thời trang (3 túi nhiều màu, 3 giày nhiều màu·size, 3 quần áo nhiều màu·size) — đủ cột giống 188.com.vn. Có thể xóa rồi tải lại.',
@@ -5911,8 +5911,8 @@ const VI_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'Gallery đã chọn — tối thiểu 2 ảnh.',
     productStudioDetailOptionalHint: 'Chi tiết đã chọn — không chọn gì cũng được (bỏ qua).',
     inventoryImportReplaceWarning:
-      'Nhập Excel catalog: trùng Id sản phẩm (remarketing) hoặc Mã SKU thì cập nhật, chưa có thì thêm mới. Không có id/SKU thì khớp theo tên. Cột listed / Trạng thái: 1 = thêm/cập nhật; 0 = xóa (cần id, SKU hoặc tên). File 41 cột (hàng 1 EN, hàng 2 nhãn VI) và file kho 12 cột cũ đều được. Hàng đang có mà không nằm trong file vẫn giữ nguyên. Tiếp tục?',
-    inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, xóa {deleted}.',
+      'Nhập Excel catalog: cột A (Id) là mã 1688 (A…) hoặc Tmall (T…) đã có trên kho thì bỏ qua — không cập nhật, không tạo mới. Mã khác trùng Id hoặc SKU thì cập nhật; chưa có thì thêm. Không có id/SKU thì khớp theo tên. listed = 0 vẫn xóa. Hàng không có trong file vẫn giữ. Tiếp tục?',
+    inventoryImportSuccess: 'Đã xử lý {count} dòng: thêm {inserted}, cập nhật {updated}, bỏ qua {skipped} (trùng mã 1688/Tmall), xóa {deleted}.',
     inventoryImportFailed: 'Không nhập được từ Excel.',
     inventoryExcelImportUploading: 'Đang tải file Excel lên…',
     inventoryExcelImportSending: 'Đang gửi file…',
@@ -9298,7 +9298,7 @@ const EN_DICTIONARY: Dictionary = {
     listingImportExcelCancelling: 'Cancelling…',
     listingImportExcelHideTrack: 'Hide progress',
     listingImportExcelClose: 'Close',
-    listingImportExcelSuccess: 'Import done: {inserted} created, {updated} updated{deleted}',
+    listingImportExcelSuccess: 'Import done: {inserted} created, {updated} updated, {skipped} skipped (duplicate 1688/Tmall id){deleted}',
     listingImportExcelSuccessDeleted: ', {n} deleted',
     listingImportExcelFailedTitle: 'Import failed',
     listingImportExcelFailedToast: 'Import error — see details below the Import button.',
@@ -9540,7 +9540,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Export Excel',
     inventoryImportExcel: 'Import Excel',
     inventoryExcel188Hint:
-      'The sample/export file uses the full catalog columns (id, sku, description, variants, gallery, 3-level categories, material, listed…). The older 12-column inventory file still imports. Rows match by product id first, then SKU, then name. listed=0 deletes by id/SKU/name.',
+      'The sample/export file uses the full catalog columns (id, sku, description, variants, gallery, 3-level categories, material, listed…). The older 12-column inventory file still imports. Column A codes already on hand (1688 A… or Tmall T…) are skipped. Other rows match by product id, then SKU, then name. listed=0 deletes by id/SKU/name.',
     inventoryReloadDemoProducts: 'Reload demo products',
     inventoryReloadDemoHint:
       '9 sample fashion products (3 bags with colors, 3 shoes with colors & sizes, 3 apparel items with colors & sizes) — same catalog columns as 188.com.vn. Delete them, then reload anytime.',
@@ -9684,8 +9684,8 @@ const EN_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'Gallery selected — at least 2 photos.',
     productStudioDetailOptionalHint: 'Detail selected — you can skip this step.',
     inventoryImportReplaceWarning:
-      'Catalog Excel import: rows matching product id (remarketing) or SKU are updated; otherwise inserted. Without id/SKU, rows match by name. listed / Status: 1 = add/update; 0 = delete (needs id, SKU, or name). Both the 41-column catalog file (EN header + VI labels) and the older 12-column inventory file work. Items not in the file stay unchanged. Continue?',
-    inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {deleted} removed.',
+      'Catalog Excel import: column A (id) that is an existing 1688 (A…) or Tmall (T…) code is skipped — not updated and not created again. Other ids still update on id or SKU; new ids are added. Without id/SKU, rows match by name. listed = 0 still deletes. Items not in the file stay unchanged. Continue?',
+    inventoryImportSuccess: 'Processed {count} row(s): {inserted} added, {updated} updated, {skipped} skipped (duplicate 1688/Tmall id), {deleted} removed.',
     inventoryImportFailed: 'Excel import failed.',
     inventoryExcelImportUploading: 'Uploading Excel file…',
     inventoryExcelImportSending: 'Sending file…',
@@ -13029,7 +13029,7 @@ const ZH_DICTIONARY: Dictionary = {
     listingImportExcelCancelling: '正在取消…',
     listingImportExcelHideTrack: '隐藏进度',
     listingImportExcelClose: '关闭',
-    listingImportExcelSuccess: '导入完成：新增 {inserted}，更新 {updated}{deleted}',
+    listingImportExcelSuccess: '导入完成：新增 {inserted}，更新 {updated}，跳过 {skipped}（1688/天猫编号已存在）{deleted}',
     listingImportExcelSuccessDeleted: '，已删除 {n}',
     listingImportExcelFailedTitle: '导入失败',
     listingImportExcelFailedToast: '导入出错 — 请查看 Import 按钮下方详情。',
@@ -13267,7 +13267,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryExportExcel: '导出 Excel',
     inventoryImportExcel: '导入 Excel',
     inventoryExcel188Hint:
-      '模板/导出使用完整商品列（id、sku、描述、变体、图库、三级类目、材质、listed…）。旧的 12 列库存表仍可导入。先按商品 Id 匹配，再 SKU，再名称。listed=0 按 id/SKU/名称删除。',
+      '模板/导出使用完整商品列（id、sku、描述、变体、图库、三级类目、材质、listed…）。旧的 12 列库存表仍可导入。A 列已有的 1688（A…）或天猫（T…）编号会跳过。其他行先按商品 Id，再 SKU，再名称。listed=0 按 id/SKU/名称删除。',
     inventoryReloadDemoProducts: '重新加载演示商品',
     inventoryReloadDemoHint:
       '9 件时装示例商品（3 个多色包包、3 个多色多码鞋履、3 个多色多码服装）— 字段与 188.com.vn 目录一致。可删除后再加载。',
@@ -13407,8 +13407,8 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: '已选图库 — 至少 2 张。',
     productStudioDetailOptionalHint: '已选细节 — 也可以跳过。',
     inventoryImportReplaceWarning:
-      '导入商品 Excel：按商品 Id（remarketing）或 SKU 匹配则更新，否则新增。无 id/SKU 时按名称匹配。listed/状态：1 = 新增/更新；0 = 删除（需 id、SKU 或名称）。41 列目录表（第1行英文、第2行中文/越南语标签）和旧 12 列库存表均可。文件中未出现的现有商品保留。是否继续？',
-    inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，删除 {deleted}。',
+      '导入商品 Excel：A 列（Id）若是已有的 1688（A…）或天猫（T…）编号则跳过 — 不更新、不新建。其他编号仍按 Id 或 SKU 更新；新编号则新增。无 id/SKU 时按名称匹配。listed = 0 仍会删除。文件中未出现的现有商品保留。是否继续？',
+    inventoryImportSuccess: '已处理 {count} 行：新增 {inserted}，更新 {updated}，跳过 {skipped}（1688/天猫编号已存在），删除 {deleted}。',
     inventoryImportFailed: 'Excel 导入失败。',
     inventoryExcelImportUploading: '正在上传 Excel 文件…',
     inventoryExcelImportSending: '正在发送文件…',
@@ -16723,7 +16723,7 @@ const JA_DICTIONARY: Dictionary = {
     listingImportExcelCancelling: 'キャンセル中…',
     listingImportExcelHideTrack: '進捗を隠す',
     listingImportExcelClose: '閉じる',
-    listingImportExcelSuccess: '完了: 新規 {inserted}、更新 {updated}{deleted}',
+    listingImportExcelSuccess: '完了: 新規 {inserted}、更新 {updated}、スキップ {skipped}（1688/Tmallの重複）{deleted}',
     listingImportExcelSuccessDeleted: '、削除 {n}',
     listingImportExcelFailedTitle: 'インポート失敗',
     listingImportExcelFailedToast: 'エラー — Import ボタン下の詳細を確認してください。',
@@ -16965,7 +16965,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excelに出力',
     inventoryImportExcel: 'Excelから取込',
     inventoryExcel188Hint:
-      'テンプレ/出力は商品列一式（id、sku、説明、バリエーション、ギャラリー、3階層カテゴリ、素材、listed…）。旧12列の在庫ファイルも取り込めます。照合は商品Id → SKU → 商品名。listed=0 は id/SKU/名前で削除。',
+      'テンプレ/出力は商品列一式（id、sku、説明、バリエーション、ギャラリー、3階層カテゴリ、素材、listed…）。旧12列の在庫ファイルも取り込めます。A列の既存1688（A…）/Tmall（T…）はスキップ。それ以外は商品Id → SKU → 商品名。listed=0 は id/SKU/名前で削除。',
     inventoryReloadDemoProducts: 'デモ商品を再読込',
     inventoryReloadDemoHint:
       'ファッションのサンプル商品9点（多色バッグ3、多色・サイズ靴3、多色・サイズ衣類3）。188.com.vnと同じカタログ項目。削除してから再読込できます。',
@@ -17106,8 +17106,8 @@ const JA_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: 'ギャラリー選択済み — 最低2枚。',
     productStudioDetailOptionalHint: 'ディテール選択済み — スキップもできます。',
     inventoryImportReplaceWarning:
-      '商品Excel取込：商品Id（remarketing）または SKU が一致すれば更新、なければ追加。id/SKU がなければ商品名で照合。listed/状態：1 = 追加/更新、0 = 削除（id・SKU・名前のいずれか必要）。41列カタログ（1行目EN、2行目ラベル）と旧12列在庫ファイルの両方に対応。ファイルに無い既存商品はそのまま。続行しますか？',
-    inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、削除 {deleted}。',
+      '商品Excel取込：A列（Id）が既存の1688（A…）またはTmall（T…）ならスキップ — 更新せず、新規作成もしません。それ以外のIdはIdまたはSKUで更新、未登録は追加。id/SKUがなければ商品名で照合。listed = 0 は削除のまま。ファイルに無い既存商品はそのまま。続行しますか？',
+    inventoryImportSuccess: '{count} 行を処理：新規 {inserted}、更新 {updated}、スキップ {skipped}（1688/Tmallの重複）、削除 {deleted}。',
     inventoryImportFailed: 'Excelの取込に失敗しました。',
     inventoryExcelImportUploading: 'Excelファイルをアップロード中…',
     inventoryExcelImportSending: 'ファイルを送信中…',
@@ -20461,7 +20461,7 @@ const KO_DICTIONARY: Dictionary = {
     listingImportExcelCancelling: '취소 중…',
     listingImportExcelHideTrack: '진행 숨기기',
     listingImportExcelClose: '닫기',
-    listingImportExcelSuccess: '완료: 신규 {inserted}, 업데이트 {updated}{deleted}',
+    listingImportExcelSuccess: '완료: 신규 {inserted}, 업데이트 {updated}, 건너뜀 {skipped}(1688/Tmall 중복){deleted}',
     listingImportExcelSuccessDeleted: ', {n}개 삭제',
     listingImportExcelFailedTitle: '가져오기 실패',
     listingImportExcelFailedToast: '오류 — Import 버튼 아래 자세한 내용을 확인하세요.',
@@ -20703,7 +20703,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryExportExcel: 'Excel보내기',
     inventoryImportExcel: 'Excel 가져오기',
     inventoryExcel188Hint:
-      '샘플/보내기 파일은 전체 상품 열(id, sku, 설명, 변형, 갤러리, 3단계 카테고리, 소재, listed…)입니다. 예전 12열 재고 파일도 가져올 수 있습니다. 상품 Id → SKU → 이름 순으로 맞춥니다. listed=0 은 id/SKU/이름으로 삭제합니다.',
+      '샘플/보내기 파일은 전체 상품 열(id, sku, 설명, 변형, 갤러리, 3단계 카테고리, 소재, listed…)입니다. 예전 12열 재고 파일도 가져올 수 있습니다. A열의 기존 1688(A…) 또는 Tmall(T…) 코드는 건너뜁니다. 그 외는 상품 Id → SKU → 이름 순입니다. listed=0 은 id/SKU/이름으로 삭제합니다.',
     inventoryReloadDemoProducts: '데모 상품 다시 받기',
     inventoryReloadDemoHint:
       '패션 샘플 상품 9개(컬러 가방 3, 컬러·사이즈 신발 3, 컬러·사이즈 의류 3) — 188.com.vn과 같은 카탈로그 필드. 삭제한 뒤 다시 받을 수 있습니다.',
@@ -20844,8 +20844,8 @@ const KO_DICTIONARY: Dictionary = {
     productStudioGalleryMinHint: '갤러리 선택됨 — 최소 2장.',
     productStudioDetailOptionalHint: '디테일 선택됨 — 건너뛰어도 됩니다.',
     inventoryImportReplaceWarning:
-      '상품 Excel 가져오기: 상품 Id(remarketing) 또는 SKU가 같으면 업데이트, 없으면 추가. id/SKU가 없으면 이름으로 맞춥니다. listed/상태: 1 = 추가/업데이트, 0 = 삭제(id·SKU·이름 필요). 41열 카탈로그(1행 EN, 2행 라벨)와 예전 12열 재고 파일 모두 됩니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
-    inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 삭제 {deleted}.',
+      '상품 Excel 가져오기: A열(Id)이 이미 있는 1688(A…) 또는 Tmall(T…) 코드면 건너뜁니다 — 업데이트하지 않고 새로 만들지도 않습니다. 그 외 Id는 Id 또는 SKU로 업데이트하고, 없으면 추가합니다. id/SKU가 없으면 이름으로 맞춥니다. listed = 0 은 그대로 삭제합니다. 파일에 없는 기존 상품은 유지됩니다. 계속할까요?',
+    inventoryImportSuccess: '{count}행 처리: 추가 {inserted}, 업데이트 {updated}, 건너뜀 {skipped}(1688/Tmall 중복), 삭제 {deleted}.',
     inventoryImportFailed: 'Excel 가져오기에 실패했습니다.',
     inventoryExcelImportUploading: 'Excel 파일 업로드 중…',
     inventoryExcelImportSending: '파일 전송 중…',

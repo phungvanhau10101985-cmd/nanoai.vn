@@ -141,6 +141,23 @@ export function bumpInventoryCacheLater(partnerId: string | null | undefined): v
   bumpLater(bumpInventoryCache(partnerId))
 }
 
+/** Cache cây danh mục dùng chung — không gắn một shop. */
+export const SHARED_CATALOG_CACHE_PARTNER = 'shared-catalog'
+
+/** Đổi cây / pool dùng chung thì hết cache mọi shop. */
+export function bumpSharedCatalogCacheLater(): void {
+  bumpLater(
+    (async () => {
+      await bumpInventoryCache(SHARED_CATALOG_CACHE_PARTNER)
+      const { isPgConfigured } = await import('@/lib/db/pool')
+      if (!isPgConfigured()) return
+      const { pgQuery } = await import('@/lib/db/pg-query')
+      const rows = await pgQuery<{ id: string }>(`select id::text as id from public.messaging_partners`)
+      for (const row of rows) await bumpInventoryCache(row.id)
+    })()
+  )
+}
+
 export function bumpSiteCacheLater(slug: string | null | undefined): void {
   bumpLater(bumpSiteCache(slug))
 }

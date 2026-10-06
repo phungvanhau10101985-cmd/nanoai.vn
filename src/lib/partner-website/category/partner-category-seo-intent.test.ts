@@ -67,7 +67,7 @@ test('khác giới tính hoặc generic vs có giới tính = khác ý định',
   assert.equal(findLocalSeoIntentSibling([rows[1]], null, 'Áo thun nam'), undefined)
 })
 
-test('seo title rút gọn có tên shop', () => {
-  assert.equal(buildPartnerCategorySeoTitle('Áo thun nam', 'Nano Shop'), 'Áo thun nam | Nano Shop')
+test('seo title danh mục không gắn tên shop', () => {
+  assert.equal(buildPartnerCategorySeoTitle('Áo thun nam', 'Nano Shop'), 'Áo thun nam')
   assert.ok(buildPartnerCategorySeoTitle('A'.repeat(80), 'Shop').length <= 60)
 })

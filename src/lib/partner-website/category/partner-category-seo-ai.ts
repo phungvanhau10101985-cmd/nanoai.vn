@@ -79,12 +79,11 @@ function relatedInstruction(ctx: CategorySeoAiContext): string {
 }
 
 function buildDescriptionPrompt(ctx: CategorySeoAiContext): string {
-  const shop = ctx.shopDisplayName
   const name = ctx.categoryName
   const breadcrumb = categoryLabel(ctx)
   if (ctx.locale === 'vi') {
-    return `Bạn là chuyên gia SEO cho website shop "${shop}".
-Nhiệm vụ: Viết meta description chuẩn SEO cho trang danh mục sản phẩm.
+    return `Bạn là chuyên gia SEO cho trang danh mục sản phẩm.
+Nhiệm vụ: Viết meta description chuẩn SEO.
 
 Thông tin danh mục:
 - Tên: ${name}
@@ -96,13 +95,13 @@ Yêu cầu:
 3. Bao gồm: lợi ích mua hàng (đa dạng mẫu mã, chất lượng). KHÔNG ghi số lượng sản phẩm cụ thể (số thay đổi hàng ngày).
 4. Kêu gọi hành động (CTA) nhẹ nhàng
 5. Tự nhiên, không spam từ khóa
-6. Phù hợp thương hiệu "${shop}"
+6. Không nêu tên một shop cụ thể
 
 Chỉ trả về mô tả, không giải thích, không markdown, không dấu ngoặc kép.`
   }
   const lang = LOCALE_LANGUAGE_NAME[ctx.locale] ?? LOCALE_LANGUAGE_NAME.vi
-  return `You are an SEO expert writing for the online shop "${shop}".
-Write ONE meta description for a product category page.
+  return `You are an SEO expert writing a product category page.
+Write ONE meta description.
 Category: ${breadcrumb}
 ${ctx.sampleProductNames.length ? `Example products currently in this category: ${ctx.sampleProductNames.slice(0, 5).join(', ')}` : ''}
 Requirements:
@@ -116,13 +115,12 @@ Return ONLY the description text — no quotes, no markdown, no explanation.`
 }
 
 function buildBodyPrompt(ctx: CategorySeoAiContext): string {
-  const shop = ctx.shopDisplayName
   const name = ctx.categoryName
   const breadcrumb = categoryLabel(ctx)
   const related = relatedInstruction(ctx)
   if (ctx.locale === 'vi') {
-    return `Bạn là chuyên gia nội dung SEO cho website shop "${shop}".
-Nhiệm vụ: Viết MỘT đoạn văn (paragraph) từ 150 đến 300 từ, dùng cho cuối trang danh mục sản phẩm.
+    return `Bạn là chuyên gia nội dung SEO cho trang danh mục sản phẩm.
+Nhiệm vụ: Viết MỘT đoạn văn (paragraph) từ 150 đến 300 từ, dùng cho cuối trang danh mục.
 
 Thông tin danh mục:
 - Tên: ${name}
@@ -130,25 +128,25 @@ Thông tin danh mục:
 
 Yêu cầu nội dung (tự nhiên, không liệt kê số):
 - KHÔNG đề cập số lượng sản phẩm cụ thể (số thay đổi hàng ngày). Có thể dùng "đa dạng", "nhiều mẫu mã" nếu cần.
-1. Tại sao nên mua ${name.toLowerCase()} tại ${shop} (chất lượng, giá, giao hàng).
+1. Vì sao khách chọn ${name.toLowerCase()} (chất lượng, giá, giao hàng). Không nêu tên một shop.
 2. Các kiểu dáng/loại phổ biến phù hợp với danh mục này (ví dụ giày: Oxford, Derby, Loafer; áo: slim, regular...).
 3. Gợi ý bảo quản hoặc phối đồ ngắn gọn (1-2 câu).${related}
 
-Giọng văn: thân thiện, chuyên nghiệp, có CTA nhẹ (xem thêm, mua ngay tại ${shop}). Không spam từ khóa.
+Giọng văn: thân thiện, chuyên nghiệp, có CTA nhẹ (xem thêm, mua ngay). Không spam từ khóa. Không nêu tên shop.
 Chỉ trả về đoạn văn liền mạch, không tiêu đề con, không markdown, không dấu ngoặc kép.`
   }
   const lang = LOCALE_LANGUAGE_NAME[ctx.locale] ?? LOCALE_LANGUAGE_NAME.vi
-  return `You are an SEO content writer for the online shop "${shop}".
-Write ONE paragraph (150 to 300 words) to display at the bottom of a product category page.
+  return `You are an SEO content writer for a product category page.
+Write ONE paragraph (150 to 300 words) to display at the bottom of the page. Do not name a specific shop.
 Category: ${breadcrumb}
 ${ctx.sampleProductNames.length ? `Example products: ${ctx.sampleProductNames.slice(0, 5).join(', ')}.` : ''}
 Requirements:
 - Do NOT mention a specific product count (it changes daily).
-1. Why shop ${name} at ${shop} (quality, price, delivery).
+1. Why choose ${name} (quality, price, delivery).
 2. Popular styles/types in this category.
 3. One or two short care or styling tips.${related}
 4. Do NOT invent specific prices, discounts, guarantees, or made-up statistics.
-5. Warm, trustworthy tone. Soft CTA to view more at ${shop}.
+5. Warm, trustworthy tone. Soft CTA to view more. Do not name a shop.
 6. Write entirely in ${lang}
 Return ONLY the paragraph — no title, no markdown, no quotes.`
 }
@@ -158,11 +156,9 @@ export type CategorySeoAiResult =
   | { ok: false; error: CategorySeoAiError }
 
 /** Title trang danh mục (~60 ký tự) — không tốn thêm lời gọi AI. */
-export function buildPartnerCategorySeoTitle(categoryName: string, shopDisplayName: string): string {
-  const name = categoryName.trim()
-  const shop = shopDisplayName.trim()
-  const raw = shop && shop.toLowerCase() !== name.toLowerCase() ? `${name} | ${shop}` : name
-  return raw.slice(0, 60)
+/** Tiêu đề danh mục dùng chung mọi shop — không gắn tên một shop. */
+export function buildPartnerCategorySeoTitle(categoryName: string, _shopDisplayName = ''): string {
+  return categoryName.trim().slice(0, 60)
 }
 
 function normalizeDescription(text: string): string {

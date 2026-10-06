@@ -113,3 +113,30 @@ export function normalizeListingParserItemId(raw: string): string {
   if (m) return `${m[1].toUpperCase()}${m[2]}`
   return t
 }
+
+/** Mã nguồn 1688 `A{số}` hoặc Tmall `T{số}`. Hậu tố cũ `…a188…` được cắt về mã gốc. */
+export function listingSourceProductIdKey(raw: string | null | undefined): string | null {
+  const trimmed = String(raw ?? '').trim()
+  if (!trimmed) return null
+  const lower = trimmed.toLowerCase()
+  const marker = lower.indexOf('a188')
+  const base = marker > 0 ? trimmed.slice(0, marker).trim() : trimmed
+  const norm = normalizeListingParserItemId(base)
+  return /^[AT]\d+$/.test(norm) ? norm : null
+}
+
+/**
+ * Import Excel: mã 1688/Tmall đã có trên kho hoặc đã nhận trong cùng file → bỏ qua.
+ * Mã khác (`other`) vẫn khớp id/SKU/tên như cũ.
+ */
+export function claimExcelSourceProductId(
+  remarketingId: string,
+  existing: ReadonlySet<string>,
+  claimed: Set<string>,
+): 'skip' | 'new' | 'other' {
+  const key = listingSourceProductIdKey(remarketingId)
+  if (!key) return 'other'
+  if (existing.has(key) || claimed.has(key)) return 'skip'
+  claimed.add(key)
+  return 'new'
+}

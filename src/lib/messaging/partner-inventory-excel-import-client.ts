@@ -56,6 +56,7 @@ export type PartnerInventoryExcelImportResult = {
   inserted?: number
   updated?: number
   deleted?: number
+  skipped_source_ids?: number
   warnings?: PartnerInventoryExcelImportWarning[]
   warnings_count?: number
   error?: string

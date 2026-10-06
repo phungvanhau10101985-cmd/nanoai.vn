@@ -358,6 +358,7 @@ export function StepUpOtpProvider({ scope, children }: { scope: StepUpScope; chi
                 placeholder={tr(uiLocale, 'Nhập 6 số OTP', 'Enter 6-digit OTP', '输入6位OTP', '6桁OTP', '6자리 OTP')}
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className={`h-14 border-2 border-foreground/20 bg-background text-center font-mono text-2xl font-semibold text-foreground shadow-none placeholder:font-sans placeholder:text-base placeholder:font-normal placeholder:tracking-normal focus-visible:border-foreground/40 focus-visible:ring-2 md:text-2xl ${otpInput ? 'pl-[0.4em] tracking-[0.4em]' : ''}`}
               />
               <DialogFooter className="gap-2 sm:justify-between">
                 <Button type="button" variant="outline" onClick={() => setOtpStep('send')} disabled={busy}>

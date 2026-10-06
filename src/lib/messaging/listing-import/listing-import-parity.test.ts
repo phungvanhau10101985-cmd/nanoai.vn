@@ -105,19 +105,20 @@ describe('listing import rating groups', () => {
     assert.match(ctx, /Nữ 18-35/)
     assert.equal(inferRatingGroupIdFromText(ctx, shopCatalog.phrases, shopCatalog.genericPhrases), 31)
   })
-  it('keeps 888/0 without AI when taxonomy just created levels', async () => {
+  it('new L3 rating group is pinned and question group stays an existing one', async () => {
     const pd: Record<string, unknown> = {
       name: 'Đầm nữ dáng suông',
       category: 'Thời trang Nữ',
       subcategory: 'Đầm',
       sub_subcategory: 'đầm suông nữ midi',
-      _taxonomy_auto_created_levels: '2,3',
+      _taxonomy_auto_created_levels: '1,2,3',
+      _l3_rating_group_id: 120,
     }
     const warnings: string[] = []
     await applyListingImportRatingGroups(pd, warnings, { catalog: shopCatalog })
-    assert.equal(pd.group_rating, RATING_GROUP_ID_UNASSIGNED)
-    assert.equal(pd.group_question, 0)
-    assert.match(String(warnings[0] || ''), /taxonomy vừa tạo/)
+    assert.equal(pd.group_rating, 120)
+    assert.equal(pd.group_question, 88)
+    assert.match(warnings.join(' '), /120/)
   })
   it('only assigns groups that exist in this shop catalog', async () => {
     const hit: Record<string, unknown> = { name: 'Túi xách nữ da bò' }

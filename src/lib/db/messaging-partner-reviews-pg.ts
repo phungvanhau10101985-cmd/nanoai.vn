@@ -149,9 +149,24 @@ function mapQuestionRow(r: QuestionDbRow): PartnerQuestionRow {
   }
 }
 
-/** Thật theo SP + ảo cùng nhóm (188 group_rating / group_question). */
-function publicPoolWhereSql(inventoryParam: number, groupParam: number): string {
-  return `(inventory_id = $${inventoryParam}::uuid or (is_imported = true and coalesce(nullif(import_group, 0), 888) = $${groupParam}))`
+/** Đánh giá/hỏi thật của đúng shop + pool ảo dùng chung mọi shop. */
+function publicPoolWhereSql(partnerParam: number, inventoryParam: number, groupParam: number): string {
+  return `(
+    (partner_id = $${partnerParam}::uuid and inventory_id = $${inventoryParam}::uuid and coalesce(is_imported, false) = false)
+    or (coalesce(is_imported, false) = true and coalesce(nullif(import_group, 0), 888) = $${groupParam})
+  )`
+}
+
+/** Sửa/xóa: review thật chỉ shop đó; dòng import thì mọi shop. */
+const OWN_REAL_OR_SHARED_IMPORT_SQL = `(
+  (partner_id = $1::uuid and coalesce(is_imported, false) = false)
+  or coalesce(is_imported, false) = true
+)`
+
+function adminSharedScopeSql(source: PartnerReviewSourceFilter): string {
+  if (source === 'imported') return 'coalesce(is_imported, false) = true'
+  if (source === 'real') return 'partner_id = $1::uuid and coalesce(is_imported, false) = false'
+  return '((partner_id = $1::uuid and coalesce(is_imported, false) = false) or coalesce(is_imported, false) = true)'
 }
 
 function mapReplySlot(raw: unknown): QaReplySlot | null {
@@ -449,8 +464,8 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
     const rows = await pgQuery<ReviewDbRow>(
       `select ${REVIEW_SELECT}
        from public.messaging_partner_product_reviews
-       where partner_id = $1::uuid and is_active = true
-         and ${publicPoolWhereSql(2, 5)}
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 5)}
          ${extra}
        order by
          (case when cardinality($3::text[]) > 0 and (
@@ -467,8 +482,8 @@ export async function fetchPartnerProductReviewsPageFromPg(input: {
     const totalRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c
        from public.messaging_partner_product_reviews
-       where partner_id = $1::uuid and is_active = true
-         and ${publicPoolWhereSql(2, 3)}
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 3)}
          ${ratingFilter ? 'and rating = $4' : ''}`,
       ratingFilter
         ? [input.partnerId, input.inventoryId, importGroup, ratingFilter]
@@ -533,8 +548,8 @@ export async function fetchPartnerProductRatingSummaryFromPg(
     const rows = await pgQuery<{ rating: number; c: number }>(
       `select rating, count(*)::int as c
        from public.messaging_partner_product_reviews
-       where partner_id = $1::uuid and is_active = true
-         and ${publicPoolWhereSql(2, 3)}
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 3)}
        group by rating`,
       [partnerId, inventoryId, group]
     )
@@ -592,7 +607,7 @@ export async function fetchPartnerProductReviewsForAdminFromPg(input: {
       : null
   const source = input.source ?? 'all'
 
-  const conds = ['partner_id = $1::uuid']
+  const conds = [adminSharedScopeSql(source)]
   const params: unknown[] = [input.partnerId]
   if (ratingFilter) {
     params.push(ratingFilter)
@@ -606,8 +621,6 @@ export async function fetchPartnerProductReviewsForAdminFromPg(input: {
     params.push(importGroup)
     conds.push(`import_group = $${params.length}`)
   }
-  if (source === 'imported') conds.push('is_imported = true')
-  if (source === 'real') conds.push('is_imported = false')
   const where = conds.join(' and ')
 
   try {
@@ -698,7 +711,7 @@ export async function updatePartnerProductReviewFromPg(
     const row = await pgQueryOne<ReviewDbRow>(
       `update public.messaging_partner_product_reviews
        set ${sets.join(', ')}
-       where partner_id = $1::uuid and id = $2::uuid
+       where id = $2::uuid and ${OWN_REAL_OR_SHARED_IMPORT_SQL}
        returning ${REVIEW_SELECT}`,
       params
     )
@@ -713,7 +726,7 @@ export async function deletePartnerProductReviewFromPg(partnerId: string, review
   if (!isPgConfigured()) return false
   try {
     const res = await getPgPool().query(
-      `delete from public.messaging_partner_product_reviews where partner_id = $1::uuid and id = $2::uuid`,
+      `delete from public.messaging_partner_product_reviews where id = $2::uuid and ${OWN_REAL_OR_SHARED_IMPORT_SQL}`,
       [partnerId, reviewId]
     )
     return (res.rowCount ?? 0) > 0
@@ -758,8 +771,10 @@ export async function deleteAllPartnerProductReviewsFromPg(
   try {
     const res = await getPgPool().query(
       inventoryId
-        ? `delete from public.messaging_partner_product_reviews where partner_id = $1::uuid and inventory_id = $2::uuid`
-        : `delete from public.messaging_partner_product_reviews where partner_id = $1::uuid`,
+        ? `delete from public.messaging_partner_product_reviews
+           where partner_id = $1::uuid and inventory_id = $2::uuid and coalesce(is_imported, false) = false`
+        : `delete from public.messaging_partner_product_reviews
+           where partner_id = $1::uuid and coalesce(is_imported, false) = false`,
       inventoryId ? [partnerId, inventoryId] : [partnerId]
     )
     return res.rowCount ?? 0
@@ -833,8 +848,8 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
     const questions = await pgQuery<QuestionDbRow>(
       `select ${QUESTION_SELECT}
        from public.messaging_partner_product_questions
-       where partner_id = $1::uuid and is_active = true
-         and ${publicPoolWhereSql(2, 5)}
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 5)}
        order by
          (case when $6::uuid is not null and id = $6::uuid then 0 else 1 end) asc,
          (case when cardinality($4::text[]) > 0 and (
@@ -848,8 +863,8 @@ export async function fetchPartnerProductQuestionsPageFromPg(input: {
     )
     const totalRow = await pgQueryOne<{ c: number }>(
       `select count(*)::int as c from public.messaging_partner_product_questions
-       where partner_id = $1::uuid and is_active = true
-         and ${publicPoolWhereSql(2, 3)}`,
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 3)}`,
       [input.partnerId, input.inventoryId, importGroup]
     )
     if (!questions.length) return { rows: [], total: totalRow?.c ?? 0 }
@@ -1012,7 +1027,8 @@ export async function upsertPartnerQuestionReplySlotsFromPg(
     const q = await client.query<{ is_imported: boolean }>(
       `select coalesce(is_imported, false) as is_imported
        from public.messaging_partner_product_questions
-       where partner_id = $1::uuid and id = $2::uuid`,
+       where id = $2::uuid
+         and (partner_id = $1::uuid or coalesce(is_imported, false) = true)`,
       [partnerId, questionId]
     )
     if (!q.rows[0]) {
@@ -1032,8 +1048,8 @@ export async function upsertPartnerQuestionReplySlotsFromPg(
       if (hasContent && !content) {
         await client.query(
           `delete from public.messaging_partner_product_question_answers
-           where partner_id = $1::uuid and question_id = $2::uuid and reply_slot = $3`,
-          [partnerId, questionId, item.slot]
+           where question_id = $1::uuid and reply_slot = $2`,
+          [questionId, item.slot]
         )
         continue
       }
@@ -1113,7 +1129,7 @@ export async function fetchPartnerProductQuestionsForAdminFromPg(input: {
       : null
   const source = input.source ?? 'all'
 
-  const conds = ['partner_id = $1::uuid']
+  const conds = [adminSharedScopeSql(source)]
   const params: unknown[] = [input.partnerId]
   if (inventoryId) {
     params.push(inventoryId)
@@ -1123,8 +1139,6 @@ export async function fetchPartnerProductQuestionsForAdminFromPg(input: {
     params.push(importGroup)
     conds.push(`import_group = $${params.length}`)
   }
-  if (source === 'imported') conds.push('is_imported = true')
-  if (source === 'real') conds.push('is_imported = false')
   const where = conds.join(' and ')
 
   try {
@@ -1206,7 +1220,7 @@ export async function updatePartnerProductQuestionFromPg(
     const row = await pgQueryOne<QuestionDbRow>(
       `update public.messaging_partner_product_questions
        set ${sets.join(', ')}
-       where partner_id = $1::uuid and id = $2::uuid
+       where id = $2::uuid and ${OWN_REAL_OR_SHARED_IMPORT_SQL}
        returning ${QUESTION_SELECT}`,
       params
     )
@@ -1221,7 +1235,7 @@ export async function deletePartnerProductQuestionFromPg(partnerId: string, ques
   if (!isPgConfigured()) return false
   try {
     const res = await getPgPool().query(
-      `delete from public.messaging_partner_product_questions where partner_id = $1::uuid and id = $2::uuid`,
+      `delete from public.messaging_partner_product_questions where id = $2::uuid and ${OWN_REAL_OR_SHARED_IMPORT_SQL}`,
       [partnerId, questionId]
     )
     return (res.rowCount ?? 0) > 0
@@ -1257,7 +1271,15 @@ export async function updatePartnerProductAnswerFromPg(
     const row = await pgQueryOne<AnswerDbRow>(
       `update public.messaging_partner_product_question_answers
        set ${sets.join(', ')}
-       where partner_id = $1::uuid and id = $2::uuid
+       where id = $2::uuid
+         and (
+           partner_id = $1::uuid
+           or exists (
+             select 1 from public.messaging_partner_product_questions q
+             where q.id = messaging_partner_product_question_answers.question_id
+               and coalesce(q.is_imported, false) = true
+           )
+         )
        returning ${ANSWER_SELECT}`,
       params
     )
@@ -1272,7 +1294,15 @@ export async function deletePartnerProductAnswerFromPg(partnerId: string, answer
   if (!isPgConfigured()) return false
   try {
     const res = await getPgPool().query(
-      `delete from public.messaging_partner_product_question_answers where partner_id = $1::uuid and id = $2::uuid`,
+      `delete from public.messaging_partner_product_question_answers a
+       where a.id = $2::uuid
+         and (
+           a.partner_id = $1::uuid
+           or exists (
+             select 1 from public.messaging_partner_product_questions q
+             where q.id = a.question_id and coalesce(q.is_imported, false) = true
+           )
+         )`,
       [partnerId, answerId]
     )
     return (res.rowCount ?? 0) > 0
@@ -1294,6 +1324,17 @@ export async function insertImportedPartnerProductReviewsFromPg(
     await client.query('begin')
     for (const d of drafts) {
       const replyAt = d.merchantReply.trim() ? d.createdAt : null
+      const dup = await client.query(
+        `select 1
+         from public.messaging_partner_product_reviews
+         where is_imported = true
+           and import_group = $1
+           and lower(btrim(content)) = lower(btrim($2))
+           and lower(btrim(reviewer_name)) = lower(btrim($3))
+         limit 1`,
+        [d.importGroup, d.content, d.reviewerName]
+      )
+      if ((dup.rowCount ?? 0) > 0) continue
       await client.query(
         `insert into public.messaging_partner_product_reviews (
           partner_id, inventory_id, reviewer_name, rating, title, content, image_urls,
@@ -1340,6 +1381,17 @@ export async function insertImportedPartnerProductQuestionsFromPg(
   try {
     await client.query('begin')
     for (const d of drafts) {
+      const dup = await client.query(
+        `select 1
+         from public.messaging_partner_product_questions
+         where is_imported = true
+           and import_group = $1
+           and lower(btrim(content)) = lower(btrim($2))
+           and lower(btrim(asker_name)) = lower(btrim($3))
+         limit 1`,
+        [d.importGroup, d.content, d.askerName]
+      )
+      if ((dup.rowCount ?? 0) > 0) continue
       const q = await client.query<{ id: string }>(
         `insert into public.messaging_partner_product_questions (
           partner_id, inventory_id, asker_name, content, is_active, useful_count,
@@ -1411,13 +1463,11 @@ export async function fetchPartnerImportedReviewGroupIdsFromPg(partnerId: string
     const rows = await pgQuery<{ gid: number }>(
       `select distinct import_group as gid
        from public.messaging_partner_product_reviews
-       where partner_id = $1::uuid
-         and is_imported = true
+       where is_imported = true
          and is_active = true
          and import_group > 0
          and import_group <> 888
-       order by 1`,
-      [id]
+       order by 1`
     )
     return rows
       .map((r) => Math.round(Number(r.gid)))
@@ -1436,19 +1486,64 @@ export async function fetchPartnerImportedQuestionGroupIdsFromPg(partnerId: stri
     const rows = await pgQuery<{ gid: number }>(
       `select distinct import_group as gid
        from public.messaging_partner_product_questions
-       where partner_id = $1::uuid
-         and is_imported = true
+       where is_imported = true
          and is_active = true
          and import_group > 0
          and import_group <> 888
-       order by 1`,
-      [id]
+       order by 1`
     )
     return rows
       .map((r) => Math.round(Number(r.gid)))
       .filter((n) => Number.isFinite(n) && n > 0 && n !== 888)
   } catch (e) {
     console.warn('[fetchPartnerImportedQuestionGroupIdsFromPg]', e)
+    return []
+  }
+}
+
+export type RatingGroupWithoutReviews = {
+  ratingGroupId: number
+  depth: number
+  name: string
+  path: string
+}
+
+/** Danh mục cấp 3 của shop đã được cấp mã nhóm nhưng chưa có đánh giá import trong nhóm đó. */
+export async function listRatingGroupsWithoutImportedReviewsFromPg(
+  partnerId: string
+): Promise<RatingGroupWithoutReviews[]> {
+  const pid = partnerId.trim()
+  if (!pid || !isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ rating_group_id: number; depth: number; name: string; path: string }>(
+      `select c.rating_group_id, c.depth, c.name, c.path
+       from public.messaging_partner_categories c
+       where c.partner_id = $1::uuid
+         and c.rating_group_id is not null
+         and c.rating_group_id > 0
+         and c.rating_group_id not in (0, 88, 99, 100, 888, 1000)
+         and c.depth = 3
+         and not exists (
+           select 1
+           from public.messaging_partner_product_reviews r
+           where coalesce(r.is_imported, false) = true
+             and r.import_group = c.rating_group_id
+         )
+       order by c.depth asc, c.path asc`,
+      [pid]
+    )
+    return rows
+      .map((r) => ({
+        ratingGroupId: Math.round(Number(r.rating_group_id)),
+        depth: Math.round(Number(r.depth) || 0),
+        name: String(r.name || '').trim(),
+        path: String(r.path || '').trim(),
+      }))
+      .filter((r) => r.ratingGroupId > 0 && r.name)
+  } catch (e) {
+    const code = e && typeof e === 'object' && 'code' in e ? String((e as { code?: unknown }).code ?? '') : ''
+    if (code === '42703') return []
+    console.warn('[listRatingGroupsWithoutImportedReviewsFromPg]', e)
     return []
   }
 }

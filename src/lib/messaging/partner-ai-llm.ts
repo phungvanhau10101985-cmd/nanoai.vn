@@ -254,18 +254,19 @@ function buildPartnerPaymentPolicyBlockForPartnerAi(pay: PartnerPaymentSettingsR
     return `
 
 [Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: thường cần **cọc trước** (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu điều đó **mâu thuẫn** với cọc. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.`
+Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì cọc trước (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc. **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu mặt hàng đang bàn **có cọc**. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.`
   }
   if (pay.default_deposit_mode === 'percent' && pay.default_deposit_percent > 0) {
     return `
 
 [Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: thường cần **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mâu thuẫn; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.`
+Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc. **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mặt hàng đang bàn **có cọc**; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.`
   }
+  const savedPercent = Math.max(0, Math.min(100, Math.round(Number(pay.default_deposit_percent) || 0)))
   return `
 
 [Thanh toán (cài đặt hệ thống shop)]
-Cài đặt mặc định của **shop này**: **không bắt cọc**. **Cấm** nêu «cọc 30%» hay bất kỳ %/số cọc nào không có trong khối này hoặc [Ngữ cảnh shop]. Nếu **chính sách shop** hoặc tin tư vấn gần đây đã nêu **cọc** cho mặt hàng này — ưu tiên **cọc**; **không** hứa trả 100% lúc nhận nếu mâu thuẫn với cách tư vấn đang thống nhất.`
+Cọc hay không **theo từng sản phẩm** (cờ «Cần đặt cọc» trên kho). Sản phẩm không bật cờ đó thì khách trả khi nhận, không bắt cọc. Sản phẩm có bật thì mức cọc là **${savedPercent > 0 ? `khoảng ${savedPercent}%` : 'theo form đơn'}**. **Cấm** nói cả shop không bao giờ cọc, và **cấm** bịa % khác số này.`
 }
 
 function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {

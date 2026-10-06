@@ -547,11 +547,6 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     hasProvinceRates: false,
   })
   const [ewalletAvailable, setEwalletAvailable] = useState(false)
-  const [depositPolicy, setDepositPolicy] = useState<{
-    mode: 'none' | 'percent' | 'fixed_amount'
-    percent: number
-    fixedAmount: number
-  }>({ mode: 'percent', percent: 30, fixedAmount: 0 })
   const [paymentMethod, setPaymentMethod] = useState<'bank_transfer' | 'ewallet'>('bank_transfer')
   const [useAffiliateWallet, setUseAffiliateWallet] = useState(false)
   const [bookAddresses, setBookAddresses] = useState<PartnerSiteCustomerAddress[]>([])
@@ -663,11 +658,6 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               hasProvinceRates?: boolean
             }
             ewalletAvailable?: boolean
-            depositPolicy?: {
-              mode?: 'none' | 'percent' | 'fixed_amount'
-              percent?: number
-              fixedAmount?: number
-            }
           }) => {
             setCheckoutLoginRequired(json.checkoutLoginRequired !== false)
             setShippingPolicy({
@@ -678,12 +668,6 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
               hasProvinceRates: json.shippingPolicy?.hasProvinceRates === true,
             })
             setEwalletAvailable(json.ewalletAvailable === true)
-            const mode = json.depositPolicy?.mode
-            setDepositPolicy({
-              mode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
-              percent: Math.max(1, Math.min(99, Math.round(json.depositPolicy?.percent ?? 30))),
-              fixedAmount: Math.max(0, Math.round(json.depositPolicy?.fixedAmount ?? 0)),
-            })
           }
         )
         .catch(() => {
@@ -1080,30 +1064,18 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     (quote?.breakdown.clearanceSubtotal ?? 0) > 0 ? saleT.clearanceSubtotal : '',
   ].filter(Boolean)
   const depositPreview = useMemo(() => {
-    if (depositPolicy.mode === 'none') return null
     const split = quote?.checkoutSplit
-    if (split && typeof split.requiredAmount === 'number') {
-      const amount = Math.max(0, Math.round(split.requiredAmount))
-      if (amount <= 0) return null
-      const percent =
-        payableSubtotal > 0
-          ? Math.round((amount * 100) / payableSubtotal)
-          : Math.max(0, ...(split.plans || []).map((plan) => plan.depositPercent))
-      return { percent, amount }
-    }
-    if (payableSubtotal <= 0) return null
-    if (depositPolicy.mode === 'fixed_amount') {
-      const fixed = depositPolicy.fixedAmount
-      if (fixed > payableSubtotal) {
-        const amount = Math.ceil(payableSubtotal * 0.2)
-        return { percent: 20, amount }
-      }
-      const percent = payableSubtotal > 0 ? Math.round((fixed / payableSubtotal) * 100) : 0
-      return { percent, amount: fixed }
-    }
-    const percent = depositPolicy.percent
-    return { percent, amount: Math.ceil((payableSubtotal * percent) / 100) }
-  }, [depositPolicy, payableSubtotal, quote?.checkoutSplit])
+    if (!split || typeof split.requiredAmount !== 'number') return null
+    const amount = Math.max(0, Math.round(split.requiredAmount))
+    if (amount <= 0) return null
+    const planPercent = Math.max(0, ...(split.plans || []).map((plan) => Math.round(Number(plan.depositPercent) || 0)))
+    const percent = planPercent > 0
+      ? planPercent
+      : payableSubtotal > 0
+        ? Math.round((amount * 100) / payableSubtotal)
+        : 0
+    return { percent, amount }
+  }, [payableSubtotal, quote?.checkoutSplit])
 
   async function saveItems(next: SiteCartLine[]) {
     setItems(next)

@@ -103,6 +103,7 @@ import {
   buildCheckoutSplitPlansForTenant,
   pickPrimaryCheckoutOrderIndex,
 } from '@/lib/messaging/fulfillment/checkout-split'
+import { resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
 import { patchPartnerOrderFulfillmentFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 import { createPartnerCheckoutOrdersAtomicallyFromPg } from '@/lib/db/messaging-partner-checkout-transaction-pg'
 import {
@@ -421,8 +422,8 @@ function resolveRequiredAmountByDepositRule(input: {
     const pct = subtotal > 0 ? Math.round((fixed / subtotal) * 100) : 0
     return { requiredAmount: fixed, appliedPercent: clampPercent(pct, 0), fallbackApplied: false }
   }
-  const p = clampPercent(input.percent, 30)
-  return { requiredAmount: Math.ceil((subtotal * p) / 100), appliedPercent: p, fallbackApplied: false }
+  const p = clampPercent(input.percent, 0)
+  return { requiredAmount: resolvePercentDepositAmount(subtotal, p), appliedPercent: p, fallbackApplied: false }
 }
 
 /**
@@ -757,16 +758,19 @@ export async function createOrderDraftFromProductPick(input: {
   const unitPrice = Math.max(0, Math.round(baseUnit))
 
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  const settingsMode = settings?.default_deposit_mode ?? 'percent'
+  const settingsMode = settings?.default_deposit_mode === 'fixed_amount' ? 'fixed_amount' : 'percent'
   const depositPercent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   const depositAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   const subtotal = Math.max(0, Math.round(unitPrice))
-  const calc = resolveRequiredAmountByDepositRule({
-    subtotal,
-    mode: settingsMode,
-    percent: depositPercent,
-    fixedAmount: depositAmount,
-  })
+  const productWantsDeposit = inv?.deposit_required === true && inv?.is_clearance !== true
+  const calc = productWantsDeposit
+    ? resolveRequiredAmountByDepositRule({
+        subtotal,
+        mode: settingsMode,
+        percent: depositPercent,
+        fixedAmount: depositAmount,
+      })
+    : { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
     conversationId: conv.conversationId,
@@ -1710,7 +1714,12 @@ export async function getProductPurchaseOptions(input: {
   )
   if (!row) return null
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  const mode = settings?.default_deposit_mode ?? 'percent'
+  const mode =
+    row.deposit_required === false || row.is_clearance === true
+      ? 'none'
+      : settings?.default_deposit_mode === 'fixed_amount'
+        ? 'fixed_amount'
+        : 'percent'
   const percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   const fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
@@ -2050,7 +2059,7 @@ export async function buildGuestOrderDepositView(input: {
   }
 }
 
-/** Đổi mức cọc 30% (hoặc % shop) / 100% trên đơn đang chờ CK — tái tạo QR. */
+/** Đổi mức cọc theo % đã lưu hoặc 100% trên đơn đang chờ CK — tái tạo QR. */
 export async function updateCartOrderDepositPercent(input: {
   partnerId: string
   orderId: string
@@ -2077,7 +2086,7 @@ export async function updateCartOrderDepositPercent(input: {
   const payable = Math.max(0, Math.round(existing.amount_after_discount || existing.subtotal_amount || 0))
   const ship = Math.max(0, Math.round(existing.shipping_fee_amount || 0))
   const requiredAmount =
-    percent >= 100 ? payable + ship : Math.ceil((payable * percent) / 100)
+    percent >= 100 ? payable + ship : resolvePercentDepositAmount(payable, percent)
   const qrUrl = buildOrderPaymentQrBySettings({
     amount: requiredAmount,
     paymentReference: existing.payment_reference,

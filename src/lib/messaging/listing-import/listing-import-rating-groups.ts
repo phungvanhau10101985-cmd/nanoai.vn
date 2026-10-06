@@ -602,24 +602,24 @@ export async function applyListingImportRatingGroups(
   warnings: string[],
   opts?: { partnerId?: string; catalog?: PartnerRatingGroupCatalog }
 ): Promise<void> {
-  const autoLv = String(productData._taxonomy_auto_created_levels || '').trim()
-  if (autoLv) {
-    productData.group_rating = RATING_GROUP_ID_UNASSIGNED
-    productData.group_question = 0
-    warnings.push(`import_groups: taxonomy vừa tạo cấp [${autoLv}] — để trống nhóm đánh giá (888) và nhóm câu hỏi (0).`)
-    return
-  }
   const catalog =
     opts?.catalog ??
     (opts?.partnerId ? await loadPartnerRatingGroupCatalog(opts.partnerId) : emptyPartnerRatingGroupCatalog())
   const allowed = ratingWhitelist(catalog)
   const pname = String(productData.name || '').trim()
   const ctx = buildImportRatingContextText(productData)
-  let rid = inferRatingGroupIdFromText(ctx, catalog.phrases, catalog.genericPhrases, catalog.groupIds)
-  if (!allowed.has(rid)) rid = 0
   let qid = inferQuestionGroupIdFromProductName(pname)
   const qAllow = catalog.questionGroupIds.length ? new Set(catalog.questionGroupIds) : VALID_QUESTION_GROUP_IDS
   if (!qAllow.has(qid)) qid = catalog.questionGroupIds.length ? 0 : 99
+  const pinned = Math.round(Number(productData._l3_rating_group_id) || 0)
+  if (pinned > 0 && pinned !== RATING_GROUP_ID_UNASSIGNED && pinned !== 1000) {
+    productData.group_rating = pinned
+    productData.group_question = qid
+    warnings.push(`import_groups: L3 gắn nhóm đánh giá ${pinned}. Nhóm câu hỏi dùng nhóm đã có.`)
+    return
+  }
+  let rid = inferRatingGroupIdFromText(ctx, catalog.phrases, catalog.genericPhrases, catalog.groupIds)
+  if (!allowed.has(rid)) rid = 0
   if (rid <= 0 && allowed.size > 0) {
     const ai = await aiFallbackImportGroups(ctx, pname, warnings, catalog)
     if (ai.rating > 0) rid = ai.rating

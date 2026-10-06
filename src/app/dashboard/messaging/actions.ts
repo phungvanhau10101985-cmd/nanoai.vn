@@ -1121,12 +1121,7 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     accountNumber: input.accountNumber.trim().slice(0, 40),
     accountHolder: input.accountHolder.trim().slice(0, 120),
     defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(input.defaultDepositPercent) || 0))),
-    defaultDepositMode:
-      input.defaultDepositMode === 'none'
-        ? 'none'
-        : input.defaultDepositMode === 'fixed_amount'
-          ? 'fixed_amount'
-          : 'percent',
+    defaultDepositMode: input.defaultDepositMode === 'fixed_amount' ? 'fixed_amount' : 'percent',
     defaultDepositAmount: Math.max(0, Math.round(Number(input.defaultDepositAmount) || 0)),
     notifyEmail: input.notifyEmail.trim().slice(0, 180),
     requirePaymentProof: input.requirePaymentProof !== false,

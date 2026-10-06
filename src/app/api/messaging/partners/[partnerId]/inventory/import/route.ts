@@ -43,7 +43,10 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
 
   // Embed ảnh/chữ chạy nền phía dưới. Await trong request làm nginx 504 (proxy_read_timeout 300s)
   // sau khi dòng kho đã ghi — UI nhận «Không nhập được từ Excel» dù Postgres đã có hàng.
-  const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows, { deferEmbeddings: true })
+  const batch = await upsertPartnerInventoryBatch(partnerId, parsed.rows, {
+    deferEmbeddings: true,
+    skipExistingSourceProductIds: true,
+  })
   if (!batch.ok) {
     if (batch.error === CATEGORY_AUTO_CREATE_DISABLED) {
       return NextResponse.json(
@@ -111,6 +114,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ partnerId: str
     inserted: batch.inserted,
     updated: batch.updated,
     deleted: batch.deleted,
+    skipped_source_ids: batch.sourceIdSkipped ?? 0,
     embeddings_deferred: batch.embeddingsDeferred,
     warnings,
     warnings_count: warnings.length,

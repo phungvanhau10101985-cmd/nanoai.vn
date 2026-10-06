@@ -23,6 +23,7 @@ import {
 import { shouldSkipPartnerCategoryImportName } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
 import type { ProductStudioJobPayload } from '@/lib/partner-website/product-studio/product-studio-types'
 import { proposeProductStudioCategoryPath } from '@/lib/partner-website/category/partner-category-taxonomy-propose'
+import { seedReviewsForNewRatingGroup } from '@/lib/partner-website/category/partner-category-seed-reviews'
 
 export type PlaceProductCategoryHint = {
   productName: string
@@ -506,6 +507,8 @@ export type EnsurePartnerCategoryTripleResult = {
   cat2: string
   cat3: string
   fullSlug: string
+  /** Mã nhóm đánh giá của L3. Null khi L3 cũ chưa được cấp mã. */
+  ratingGroupId: number | null
   warnings: string[]
   error?: string
 }
@@ -532,6 +535,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     cat2: l2Name,
     cat3: l3Name,
     fullSlug: '',
+    ratingGroupId: null,
     warnings: [] as string[],
   }
   if (!l1Name || !l2Name || !l3Name) {
@@ -572,6 +576,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
       sortOrder: session.rows.filter((c) => (c.parentId ?? null) === parentId).length,
       seoTitle: buildPartnerCategorySeoTitle(name, session.shop.shopDisplayName),
       aiGenerated: true,
+      allocateRatingGroup: levelTag === '3',
     })
     if (!created.ok) {
       const again = await fetchPartnerCategoriesFlatFromPg(session.partnerId, { activeOnly: false })
@@ -620,6 +625,28 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     }
   }
 
+  if (createdTags.includes('3') && n3.ratingGroupId && n3.ratingGroupId > 0) {
+    try {
+      const seeded = await seedReviewsForNewRatingGroup({
+        partnerId: session.partnerId,
+        groupId: n3.ratingGroupId,
+        cat1: n1.name,
+        cat2: n2.name,
+        cat3: n3.name,
+        shopName: session.shop.shopDisplayName,
+      })
+      if (seeded > 0) {
+        session.warnings.push(
+          `taxonomy_reviews: đã tạo ${seeded} đánh giá cho nhóm ${n3.ratingGroupId} (theo «${n3.name}»).`
+        )
+      }
+    } catch (e) {
+      session.warnings.push(
+        `taxonomy_reviews: chưa tạo được đánh giá cho nhóm ${n3.ratingGroupId} — ${e instanceof Error ? e.message : String(e)}`
+      )
+    }
+  }
+
   const seo = await finishSession(session, [input.productName])
   if (!seo.ok) {
     session.warnings.push(`taxonomy_seo: ${seo.error}`)
@@ -631,6 +658,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     cat2: n2.name,
     cat3: n3.name,
     fullSlug: (n3.path || '').replace(/^\//, ''),
+    ratingGroupId: n3.ratingGroupId && n3.ratingGroupId > 0 ? n3.ratingGroupId : null,
     warnings: session.warnings,
   }
 }

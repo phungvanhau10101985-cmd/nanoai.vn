@@ -671,6 +671,9 @@ export async function applyListingImportTaxonomy(
   productData.subcategory = placed.cat2
   productData.sub_subcategory = placed.cat3
   if (placed.createdLevels) productData._taxonomy_auto_created_levels = placed.createdLevels
+  if (placed.ratingGroupId && placed.ratingGroupId > 0) {
+    productData._l3_rating_group_id = placed.ratingGroupId
+  }
   if (placed.fullSlug) productData.slug_seo = placed.fullSlug
 
   const canon: Triple = {

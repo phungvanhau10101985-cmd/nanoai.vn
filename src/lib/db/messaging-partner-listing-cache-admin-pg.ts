@@ -100,7 +100,7 @@ export async function listPartnerListingFacetCacheFromPg(input: {
               c.name as category_name
        from public.messaging_partner_listing_facet_cache f
        left join public.messaging_partner_categories c
-         on c.partner_id = f.partner_id and c.id::text = f.scope_key
+         on c.id::text = f.scope_key
        where f.partner_id = $1::uuid
          and ($2::text is null or f.scope_type = $2)
        order by f.updated_at desc nulls last
@@ -205,10 +205,17 @@ export async function listPartnerCategoryIdsForFacetRebuildFromPg(
   if (!isPgConfigured()) return []
   try {
     const rows = await pgQuery<{ id: string }>(
-      `select id::text as id
-       from public.messaging_partner_categories
-       where partner_id = $1::uuid
-       order by depth asc, sort_order asc, name asc
+      `select c.id::text as id
+       from public.messaging_partner_categories c
+       where exists (
+         select 1
+         from public.messaging_partner_inventory_categories pic
+         join public.messaging_partner_inventory inv on inv.id = pic.inventory_id
+         join public.messaging_partner_categories leaf on leaf.id = pic.category_id
+         where inv.partner_id = $1::uuid
+           and (leaf.path = c.path or leaf.path like c.path || '/%')
+       )
+       order by c.depth asc, c.sort_order asc, c.name asc
        limit $2`,
       [partnerId, Math.min(FACET_REBUILD_CATEGORY_CAP, Math.max(1, limit))]
     )

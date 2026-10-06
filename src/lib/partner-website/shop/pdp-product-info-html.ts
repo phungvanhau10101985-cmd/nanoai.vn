@@ -136,6 +136,22 @@ const PRODUCT_INFO_ROOT_KEYS = new Set([
   'thong_tin_thi_truong',
 ])
 
+/** Sổ nội bộ (bản địa hóa ảnh, chữ tư vấn). Không in lên PDP. */
+const PDP_PRIVATE_INFO_KEYS = new Set([
+  'image_localization',
+  'image_consult_context',
+  'originals',
+  'original_url',
+  'final_url',
+  'processed_at',
+  'consult_sources',
+])
+
+function isPrivatePdpInfoKey(key: string): boolean {
+  const k = key.trim().toLowerCase()
+  return PDP_PRIVATE_INFO_KEYS.has(k) || k.startsWith('image_localization') || k.startsWith('image_consult')
+}
+
 function looksLikeJsonBlob(raw: string): boolean {
   const t = raw.trim()
   return (t.startsWith('{') && t.endsWith('}')) || (t.startsWith('[') && t.endsWith(']'))
@@ -298,6 +314,7 @@ function renderNested(val: unknown, locale: WebLocale, t: PartnerSiteShopCopy): 
     return s ? esc(s) : ''
   }
   const rows = Object.entries(val as Record<string, unknown>)
+    .filter(([k]) => !isPrivatePdpInfoKey(k))
     .map(([k, v]) => {
       if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
         const inner = renderNested(v, locale, t)
@@ -366,6 +383,7 @@ export function pdpProductInfoHtml(
 ): string {
   if (info && Object.keys(info).length > 0) {
     const sections = Object.entries(info)
+      .filter(([sectionKey]) => !isPrivatePdpInfoKey(sectionKey))
       .map(([sectionKey, sectionVal]) => {
         if (sectionVal == null) return ''
         const title = formatSectionLabel(sectionKey)
@@ -386,6 +404,7 @@ export function pdpProductInfoHtml(
             })
           }
           const rows = entries
+            .filter(([key]) => !isPrivatePdpInfoKey(key))
             .map(([key, val]) => {
               if (typeof val === 'object' && val !== null && !Array.isArray(val)) {
                 const nested = renderNested(val, locale, t)

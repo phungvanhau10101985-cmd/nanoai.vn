@@ -350,6 +350,7 @@ export function PartnerWebsiteReviewsQaPanel({
   const [savingReviewId, setSavingReviewId] = useState<string | null>(null)
   const [savedReviewId, setSavedReviewId] = useState<string | null>(null)
   const [importingReviews, setImportingReviews] = useState(false)
+  const [emptyGroups, setEmptyGroups] = useState<Array<{ ratingGroupId: number; depth: number; name: string; path: string }>>([])
   const [deletingAllReviews, setDeletingAllReviews] = useState(false)
   const [viewReview, setViewReview] = useState<ReviewRow | null>(null)
 
@@ -397,6 +398,23 @@ export function PartnerWebsiteReviewsQaPanel({
   useEffect(() => {
     questionsRef.current = questions
   }, [questions])
+
+  const loadEmptyGroups = useCallback(async () => {
+    try {
+      const res = await fetch(`${basePath}/reviews/empty-groups`)
+      const json = (await res.json().catch(() => null)) as {
+        groups?: Array<{ ratingGroupId: number; depth: number; name: string; path: string }>
+      } | null
+      if (!res.ok || !json?.groups) return
+      setEmptyGroups(json.groups)
+    } catch {
+      setEmptyGroups([])
+    }
+  }, [basePath])
+
+  useEffect(() => {
+    void loadEmptyGroups()
+  }, [loadEmptyGroups])
 
   const loadReviews = useCallback(
     async (page: number, group: string, options?: { silent?: boolean }) => {
@@ -724,6 +742,7 @@ export function PartnerWebsiteReviewsQaPanel({
         onToast?.(fillCount(t.reviewsAdminImportOk, json?.created ?? 0))
         setReviewsPage(1)
         await loadReviews(1, reviewGroup)
+        await loadEmptyGroups()
       } else {
         onToast?.(t.reviewsAdminImportFail, 'destructive')
       }
@@ -895,6 +914,35 @@ export function PartnerWebsiteReviewsQaPanel({
           </div>
           <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             <strong>{t.reviewsAdminDisplayLogicLabel}</strong> {t.reviewsAdminDisplayLogic}
+          </div>
+
+          <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 text-sm text-slate-800">
+            <p className="mb-2 font-semibold text-gray-900">
+              {t.reviewsAdminEmptyGroupsTitle} ({emptyGroups.length})
+            </p>
+            <p className="mb-2 text-slate-600">{t.reviewsAdminEmptyGroupsHint}</p>
+            {emptyGroups.length === 0 ? (
+              <p className="text-slate-500">{t.reviewsAdminEmptyGroupsNone}</p>
+            ) : (
+              <ul className="max-h-48 space-y-1 overflow-y-auto">
+                {emptyGroups.map((group) => (
+                  <li key={`${group.ratingGroupId}-${group.path}`}>
+                    <button
+                      type="button"
+                      className="text-left text-blue-700 hover:underline"
+                      onClick={() => {
+                        const id = String(group.ratingGroupId)
+                        setReviewSearchInput(id)
+                        setReviewsPage(1)
+                        setReviewGroup(id)
+                      }}
+                    >
+                      {group.ratingGroupId} · {t.reviewsAdminCategoryLevel} {group.depth} · {group.name}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">

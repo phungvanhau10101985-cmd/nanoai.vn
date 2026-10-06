@@ -2914,7 +2914,8 @@ function InventoryEditor({
           .replace('{count}', String(data.count ?? 0))
           .replace('{inserted}', String(data.inserted ?? 0))
           .replace('{updated}', String(data.updated ?? 0))
-          .replace('{deleted}', String(data.deleted ?? 0)),
+          .replace('{deleted}', String(data.deleted ?? 0))
+          .replace('{skipped}', String(data.skipped_source_ids ?? 0)),
       })
       if (Array.isArray(data.warnings) && data.warnings.length > 0) {
         const csv = buildInventoryImportWarningCsv(data.warnings)

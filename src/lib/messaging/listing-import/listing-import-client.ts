@@ -163,7 +163,7 @@ export function listingImportClient(partnerId: string) {
       jsonFetch<ListingImportDraft>(`drafts/${encodeURIComponent(draftId)}`, { timeoutMs: 60_000 }),
 
     publishImport1688Draft: (draftId: string) =>
-      jsonFetch<{ success: boolean; action: 'created' | 'updated'; product_id: string; slug?: string }>(
+      jsonFetch<{ success: boolean; action: 'created' | 'skipped'; product_id: string; slug?: string }>(
         `drafts/${encodeURIComponent(draftId)}/publish`,
         { method: 'POST', timeoutMs: 120_000 }
       ),

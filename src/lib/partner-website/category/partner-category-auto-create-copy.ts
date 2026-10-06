@@ -7,3 +7,13 @@ export const CATEGORY_AUTO_CREATE_DISABLED = 'CATEGORY_AUTO_CREATE_DISABLED'
  */
 export const CATEGORY_AUTO_CREATE_DISABLED_MESSAGE =
   'Đã tắt chế độ tự tạo danh mục cấp 1/2/3. Cào/đăng vẫn dùng nhánh đã có trên cây. Sản phẩm này chưa khớp danh mục đã import. Muốn tự tạo nhánh mới thì vào Quản trị → Danh mục, bật «Tự tạo danh mục khi cào / đăng sản phẩm».'
+
+/** Mã lỗi kèm câu tiếng Việt. Chuỗi đã có câu thì giữ nguyên. */
+export function explainCategoryAutoCreateDisabled(text: string | null | undefined): string {
+  const raw = String(text ?? '')
+  if (!raw.includes(CATEGORY_AUTO_CREATE_DISABLED)) return raw
+  if (raw.includes(CATEGORY_AUTO_CREATE_DISABLED_MESSAGE)) return raw
+  return raw
+    .split(CATEGORY_AUTO_CREATE_DISABLED)
+    .join(`${CATEGORY_AUTO_CREATE_DISABLED} — ${CATEGORY_AUTO_CREATE_DISABLED_MESSAGE}`)
+}

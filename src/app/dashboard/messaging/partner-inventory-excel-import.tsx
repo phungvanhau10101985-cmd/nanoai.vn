@@ -32,11 +32,13 @@ export function buildPartnerInventoryExcelImportReport(
   const inserted = data.inserted ?? 0
   const updated = data.updated ?? 0
   const deleted = data.deleted ?? 0
+  const skipped = data.skipped_source_ids ?? 0
   const headline = t.inventoryImportSuccess
     .replace('{count}', String(data.count ?? 0))
     .replace('{inserted}', String(inserted))
     .replace('{updated}', String(updated))
     .replace('{deleted}', String(deleted))
+    .replace('{skipped}', String(skipped))
   const warnings = Array.isArray(data.warnings) ? data.warnings : []
   const warnCount = data.warnings_count ?? warnings.length
   if (warnCount <= 0) {
@@ -170,12 +172,14 @@ export function usePartnerInventoryExcelImport(opts: { partnerId: string; t: AiT
         const inserted = data.inserted ?? 0
         const updated = data.updated ?? 0
         const deleted = data.deleted ?? 0
+        const skipped = data.skipped_source_ids ?? 0
         const report = buildPartnerInventoryExcelImportReport(data, t)
         setImportDetailPanel(report)
         const deletedBit = deleted ? t.listingImportExcelSuccessDeleted.replace('{n}', String(deleted)) : ''
         const toastMsg = t.listingImportExcelSuccess
           .replace('{inserted}', String(inserted))
           .replace('{updated}', String(updated))
+          .replace('{skipped}', String(skipped))
           .replace('{deleted}', deletedBit)
         onToast('ok', toastMsg)
       } catch (err) {

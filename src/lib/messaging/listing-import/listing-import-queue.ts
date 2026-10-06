@@ -9,6 +9,7 @@ import {
   saveListingImportQueueFromPg,
 } from '@/lib/db/messaging-partner-listing-import-pg'
 import { executeOneListingImport } from '@/lib/messaging/listing-import/execute-one'
+import { explainCategoryAutoCreateDisabled } from '@/lib/partner-website/category/partner-category-auto-create-copy'
 import { inferListingImportSource } from '@/lib/messaging/listing-import/listing-import-urls'
 import {
   countsFromListingItems,
@@ -174,7 +175,9 @@ async function workerLoop(partnerId: string, token: string): Promise<void> {
         target.state = out.ok ? 'done' : 'error'
         target.job_id = out.job_id || null
         target.draft_id = out.draft_id || null
-        target.message = out.ok ? out.message || 'OK' : out.error || out.message || 'Lỗi'
+        target.message = explainCategoryAutoCreateDisabled(
+          out.ok ? out.message || 'OK' : out.error || out.message || 'Lỗi',
+        )
         target.finished_at = new Date().toISOString()
       }
       q.current_item_id = null

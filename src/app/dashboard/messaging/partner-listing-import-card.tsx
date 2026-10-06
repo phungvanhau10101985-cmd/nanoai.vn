@@ -30,6 +30,7 @@ import {
   getListingDraftPublishBlockers,
   isListingDraftPublishReady,
 } from '@/lib/messaging/listing-import/listing-draft-publish-validation';
+import { explainCategoryAutoCreateDisabled } from '@/lib/partner-website/category/partner-category-auto-create-copy';
 import type {
   ListingImportDraft as AdminImport1688Draft,
   ListingImportQueueItem as AdminListingImportQueueItem,
@@ -1698,7 +1699,8 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       setDoneDraftsPublishing(true);
       setDoneDraftsPublishLines(initialLines);
     });
-    let ok = 0;
+    let created = 0;
+    let skipped = 0;
     let fail = 0;
     const errMsgs: string[] = [];
     const reportLines: string[] = [];
@@ -1711,10 +1713,16 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
         });
         try {
           const res = await adminProductAPI.publishImport1688Draft(id);
-          ok += 1;
           const pid = res?.product_id?.trim() ?? '';
           const extra = res?.slug?.trim() ? ` · /${res.slug}` : '';
-          const detail = pid ? `SP đăng: ${pid}${extra}` : res?.action === 'updated' ? 'Đã cập nhật SP' : 'Đã đăng';
+          const kept = res?.action === 'skipped';
+          if (kept) skipped += 1;
+          else created += 1;
+          const detail = kept
+            ? `Mã ${pid || 'SP'} đã có — giữ nguyên sản phẩm cũ, không cập nhật`
+            : pid
+              ? `SP đăng: ${pid}${extra}`
+              : 'Đã đăng';
           reportLines.push(`${draftModalRowTitle(rowByDraftId.get(id)?.draft ?? null)} — ${detail}`);
           flushSync(() => {
             setDoneDraftsPublishLines((prev) =>
@@ -1753,16 +1761,20 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
     } catch {
       /* noop */
     }
-    if (ok > 0) {
+    const ok = created + skipped;
+    if (created > 0) {
       setListingParseDbPresenceTick((n) => n + 1);
     }
+    const summary = skipped
+      ? `Đăng mới ${created}, giữ nguyên ${skipped} (trùng mã, không cập nhật).`
+      : `Đã đăng ${created} sản phẩm lên kho.`;
     if (fail === 0) {
-      const body = [`Đã đăng ${ok} sản phẩm lên kho.`, ...reportLines].join('\n');
+      const body = [summary, ...reportLines].join('\n');
       setDraftPublishReport({ variant: 'ok', title: t.listingImportExcelOkTitle, body });
-      showToast('ok', `Đã đăng ${ok} sản phẩm lên danh mục (cùng API với Import 1688).`);
+      showToast('ok', summary);
       closeDoneDraftsModal();
     } else {
-      const body = [`Đăng được ${ok}, lỗi ${fail}.`, ...reportLines].join('\n');
+      const body = [`Đăng mới ${created}, giữ nguyên ${skipped}, lỗi ${fail}.`, ...reportLines].join('\n');
       setDraftPublishReport({
         variant: ok > 0 ? 'warn' : 'err',
         title: ok > 0 ? t.listingImportExcelDoneTitle : t.listingImportExcelFailedTitle,
@@ -1770,7 +1782,7 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
       });
       showToast(
         'err',
-        `Đăng được ${ok}, lỗi ${fail}. ${errMsgs.slice(0, 3).join(' ')}${errMsgs.length > 3 ? '…' : ''}`,
+        `Đăng mới ${created}, giữ nguyên ${skipped}, lỗi ${fail}. ${errMsgs.slice(0, 3).join(' ')}${errMsgs.length > 3 ? '…' : ''}`,
       );
     }
   }, [
@@ -2243,7 +2255,9 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                                 : pd
                                   ? strPd(pd.offer_id)
                                   : '';
-                            const errJoined = row.draft?.errors?.length ? row.draft.errors.join('\n') : '';
+                            const errJoined = row.draft?.errors?.length
+                              ? explainCategoryAutoCreateDisabled(row.draft.errors.join('\n'))
+                              : '';
                             const warnJoined = row.draft?.warnings?.length ? row.draft.warnings.join('\n') : '';
 
                             return (
@@ -3303,7 +3317,9 @@ export function PartnerListingImportCard({ partnerId, t }: { partnerId: string; 
                             [{it.state}]
                           </span>{' '}
                           {it.label || '—'} —{' '}
-                          {it.message || (it.draft_id ? `draft #${it.draft_id}` : it.url?.slice(0, 56))}
+                          {explainCategoryAutoCreateDisabled(
+                            it.message || (it.draft_id ? `draft #${it.draft_id}` : it.url?.slice(0, 56)),
+                          )}
                         </li>
                       ))}
                     </ul>

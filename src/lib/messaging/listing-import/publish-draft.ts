@@ -1,5 +1,6 @@
 import {
   fetchInventoryIdByRemarketingFromPg,
+  fetchInventoryIdForListingParserIdFromPg,
   fetchListingImportDraftFromPg,
   updateListingImportDraftFromPg,
 } from '@/lib/db/messaging-partner-listing-import-pg'
@@ -16,7 +17,7 @@ export async function publishListingImportDraft(input: {
   draftId: string
 }): Promise<{
   success: true
-  action: 'created' | 'updated'
+  action: 'created' | 'skipped'
   product_id: string
   inventory_id: string
 }> {
@@ -42,7 +43,15 @@ export async function publishListingImportDraft(input: {
   if (!row) {
     throw Object.assign(new Error('product_data thiếu tên hoặc product_id.'), { status: 400 })
   }
-  const existingId = await fetchInventoryIdByRemarketingFromPg(input.partnerId, row.remarketing_id)
+  const existingId = await fetchInventoryIdForListingParserIdFromPg(input.partnerId, row.remarketing_id)
+  if (existingId) {
+    return {
+      success: true,
+      action: 'skipped',
+      product_id: row.remarketing_id,
+      inventory_id: existingId,
+    }
+  }
   const upserted = await upsertPartnerInventoryBatch(input.partnerId, [row], { deferEmbeddings: true })
   if (!upserted.ok) {
     throw Object.assign(new Error(upserted.error), { status: 500 })
@@ -62,7 +71,7 @@ export async function publishListingImportDraft(input: {
   })
   return {
     success: true,
-    action: existingId ? 'updated' : 'created',
+    action: 'created',
     product_id: row.remarketing_id,
     inventory_id: inventoryId,
   }

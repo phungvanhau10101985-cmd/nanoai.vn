@@ -14,14 +14,16 @@ export const SITEMAP_PRODUCT_MAX_PAGES = 20
 export const PARTNER_CATEGORY_SUBTREE_IN_SQL = `mpi.id in (
       select pic.inventory_id
       from public.messaging_partner_inventory_categories pic
+      inner join public.messaging_partner_inventory inv
+        on inv.id = pic.inventory_id
+       and inv.partner_id = $1::uuid
       inner join public.messaging_partner_categories cat
         on cat.id = pic.category_id
-       and cat.partner_id = $1::uuid
       where cat.id = $2::uuid
          or cat.path like (
            select trim(trailing '/' from c2.path) || '/%'
            from public.messaging_partner_categories c2
-           where c2.id = $2::uuid and c2.partner_id = $1::uuid
+           where c2.id = $2::uuid
          )
     )`
 

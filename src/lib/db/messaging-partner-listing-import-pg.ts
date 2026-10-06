@@ -490,3 +490,31 @@ export async function fetchInventoryIdByRemarketingFromPg(
   )
   return row?.id || null
 }
+
+/** Mã listing A/T đã có trên kho. `A123` và `A123a188…` là một sản phẩm — chỉ để bỏ qua, không ghi đè. */
+export async function fetchInventoryIdForListingParserIdFromPg(
+  partnerId: string,
+  rawId: string
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  const { listingSourceProductIdKey } = await import('@/lib/messaging/listing-import/import-source-ids')
+  const raw = String(rawId || '').trim()
+  const key = listingSourceProductIdKey(raw)
+  if (!key) return fetchInventoryIdByRemarketingFromPg(partnerId, raw)
+  const exact = await fetchInventoryIdByRemarketingFromPg(partnerId, key)
+  if (exact) return exact
+  if (raw && raw !== key) {
+    const rawHit = await fetchInventoryIdByRemarketingFromPg(partnerId, raw)
+    if (rawHit) return rawHit
+  }
+  const prefixed = await pgQueryOne<{ id: string }>(
+    `select id::text
+     from public.messaging_partner_inventory
+     where partner_id = $1::uuid
+       and remarketing_id like $2
+     order by updated_at desc nulls last
+     limit 1`,
+    [partnerId, `${key}a188%`]
+  )
+  return prefixed?.id || null
+}
