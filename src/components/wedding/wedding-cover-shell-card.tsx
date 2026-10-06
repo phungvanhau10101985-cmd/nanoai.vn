@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 import { getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
+import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingSolidCtaButton } from '@/components/wedding/wedding-solid-cta-button'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
@@ -33,6 +34,8 @@ type WeddingCoverShellCardProps = {
   compact?: boolean
   /** Một nhịp phóng nhẹ rồi dừng. Chỉ thiệp công khai khi bật hiệu ứng. */
   breathe?: boolean
+  /** Tên chú rể từ trái, tên cô dâu từ phải, ghép vào giữa. */
+  namesFlyIn?: boolean
   onOpen?: () => void
   /** Có tên khách + RSVP bật: trả lời ngay trên vỏ, không cần mở thiệp. */
   quickRsvp?: {
@@ -173,15 +176,19 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       className={cn(
         'w-full text-center',
         compact ? 'max-w-[200px] rounded-[1.2rem] p-3' : 'rounded-[1.5rem] p-4 sm:rounded-[2rem] sm:p-6 lg:p-5',
+        props.namesFlyIn && !compact && 'overflow-visible',
       )}
     >
       <p className={cn('uppercase tracking-[0.28em] sm:tracking-[0.35em]', compact ? 'text-[8px]' : 'text-[11px] sm:text-xs', theme.accentText, theme.textGlow)}>
         {props.invitationLabel}
       </p>
-      <h1 className={cn('break-words font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-2 text-3xl leading-tight sm:mt-3 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]', theme.text, theme.textGlowHeading)}>
-        {props.groomName} & {props.brideName}
-      </h1>
-      <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', theme.textGlow)}>{theme.ornament}</div>
+      <WeddingCoupleNames
+        groomName={props.groomName}
+        brideName={props.brideName}
+        flyIn={props.namesFlyIn && !compact}
+        className={cn('font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-2 text-3xl leading-tight sm:mt-3 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]', theme.text, theme.textGlowHeading)}
+      />
+      <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
       {props.coverPhotoUrl ? (
         <div className={compact ? 'my-2' : 'my-2 sm:my-3 lg:my-2'}>
           <CoverPhoto
@@ -240,7 +247,8 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
   return (
     <div
       className={cn(
-        'w-full overflow-hidden text-center shadow-2xl ring-1 ring-black/10',
+        'w-full text-center shadow-2xl ring-1 ring-black/10',
+        props.namesFlyIn && !compact ? 'overflow-visible' : 'overflow-hidden',
         compact ? 'max-w-[200px] rounded-[1.2rem]' : 'max-w-md rounded-[1.5rem] sm:rounded-[2rem]',
       )}
     >
@@ -251,10 +259,13 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
         <p className={cn('uppercase tracking-[0.28em] text-white/90', compact ? 'text-[7px]' : 'text-[10px]')}>
           {props.invitationLabel}
         </p>
-        <h1 className={cn('break-words font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-xl leading-tight sm:mt-3 sm:text-3xl')}>
-          {props.groomName} & {props.brideName}
-        </h1>
-        <div className={cn('text-amber-300', compact ? 'my-1 text-base' : 'my-2 text-xl sm:my-3 sm:text-2xl')}>{preset.ornament}</div>
+        <WeddingCoupleNames
+          groomName={props.groomName}
+          brideName={props.brideName}
+          flyIn={props.namesFlyIn && !compact}
+          className={cn('font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-xl leading-tight sm:mt-3 sm:text-3xl')}
+        />
+        <div className={cn('text-amber-300', compact ? 'my-1 text-base' : 'my-2 text-xl sm:my-3 sm:text-2xl', props.namesFlyIn && !compact && 'wedding-couple-ornament')}>{preset.ornament}</div>
       </div>
       <div className="relative bg-[#fff8f0]/72 px-3 pb-3 pt-4 backdrop-blur-sm sm:px-5 sm:pb-5 sm:pt-5">
         <div

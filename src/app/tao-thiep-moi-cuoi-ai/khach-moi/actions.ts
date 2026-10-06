@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserForCreditAction } from '@/lib/auth'
 import {
   createWeddingInvitedGuest,
+  createWeddingInvitedGuestsBatch,
   deleteWeddingInvitedGuest,
   ensureWeddingCardOwnerProfile,
   getWeddingCardForUser,
@@ -13,8 +14,15 @@ import {
   confirmWeddingInvitedGuestStatusByHost,
   type WeddingInvitedGuestStatus,
 } from '@/lib/db/wedding-cards-pg'
+import { buildPersonalWeddingInviteFromSideContext } from '@/lib/wedding/build-personal-wedding-invite'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { stripQuyHonorificPrefix } from '@/lib/wedding/wedding-guest-honorific-map'
+import { weddingSideInviteSettingsFromCard } from '@/lib/wedding/wedding-side-invite-settings'
+import {
+  buildWeddingGuestImportTemplate,
+  parseWeddingGuestImportSheet,
+  WEDDING_GUEST_IMPORT_MAX_BYTES,
+} from '@/lib/wedding/wedding-invited-guests-excel'
 
 function clean(value: FormDataEntryValue | null, max = 300): string {
   return String(value ?? '').trim().slice(0, max)
@@ -28,6 +36,66 @@ function parseStatus(raw: FormDataEntryValue | null): WeddingInvitedGuestStatus 
 
 function parseGuestCount(raw: FormDataEntryValue | null): number {
   return Math.max(0, Math.min(20, Number(raw ?? 1) || 1))
+}
+
+export async function downloadWeddingGuestImportTemplate(): Promise<{ base64: string } | { error: string }> {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const buffer = buildWeddingGuestImportTemplate()
+  return { base64: buffer.toString('base64') }
+}
+
+export async function importWeddingInvitedGuests(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const cardId = clean(formData.get('cardId'))
+  const card = await getWeddingCardForUser(cardId, userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size <= 0) return { error: 'Chọn file Excel khách mời.' }
+  if (file.size > WEDDING_GUEST_IMPORT_MAX_BYTES) return { error: 'File quá lớn. Tối đa 1,5 MB.' }
+  const parsed = parseWeddingGuestImportSheet(Buffer.from(await file.arrayBuffer()))
+  if ('error' in parsed) return { error: parsed.error }
+  if (!parsed.rows.length) {
+    return {
+      error: parsed.skippedSample
+        ? 'File chỉ còn dòng mẫu. Xóa dòng mẫu, điền khách, rồi import lại.'
+        : parsed.errors[0] || 'Không có dòng khách hợp lệ.',
+    }
+  }
+  const sideSettings = weddingSideInviteSettingsFromCard(card)
+  const created = await createWeddingInvitedGuestsBatch({
+    cardId: card.id,
+    userId,
+    guests: parsed.rows.map((row) => {
+      const side = row.inviteVenue === 'bride_home' ? 'bride' : 'groom'
+      const honorific = stripQuyHonorificPrefix(row.guestHonorific)
+      return {
+        guestHonorific: honorific,
+        guestName: row.guestName,
+        inviteVenue: row.inviteVenue,
+        personalInvite: buildPersonalWeddingInviteFromSideContext({
+          side,
+          card,
+          sideSettings,
+          guestHonorific: honorific,
+          guestName: row.guestName,
+        }).slice(0, 1000),
+        status: row.status,
+        guestCount: row.guestCount,
+        wishMessage: row.wishMessage,
+        notes: row.notes,
+      }
+    }),
+  })
+  if (!created) return { error: 'Không thêm được khách. Thử lại.' }
+  revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
+  return {
+    created,
+    skipped: parsed.errors.length + parsed.skippedSample,
+    errors: parsed.errors,
+  }
 }
 
 export async function loadWeddingInvitedGuestsPage(cardId: string) {

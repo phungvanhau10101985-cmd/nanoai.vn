@@ -1,6 +1,7 @@
 'use client'
 
 import { MapPin } from 'lucide-react'
+import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CLASS } from '@/components/wedding/wedding-guest-name-font'
 import { cn } from '@/lib/utils'
 import { resolveGuestInviteMapUrl } from '@/lib/wedding/google-maps-embed-url'
 import { formatGuestInviteVenueDateTime } from '@/lib/wedding/wedding-calendar-utils'
@@ -39,14 +40,18 @@ export function WeddingGuestInviteBlock(props: Props) {
   const mapsHref = resolveGuestInviteMapUrl(props.mapUrl ?? '', address)
   const mapColors = getWeddingMapButtonColors(props.weddingThemeId)
 
+  const guestNameClass = cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none', props.nameClassName)
+
   return (
     <div className={cn(props.className)}>
+      <WeddingGuestNameFontLink />
       <div className={cn('rounded-2xl p-3 ring-1 ring-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:rounded-3xl sm:p-4', props.panelClassName)}>
         <p className={cn('text-xs sm:text-sm', props.cordiallyClassName)}>{props.cordiallyInvitesLabel}</p>
         <p
           className={cn(
-            'mt-1 font-semibold',
-            props.compact ? 'text-base' : 'text-lg sm:text-xl',
+            WEDDING_GUEST_NAME_CLASS,
+            'mt-1 break-words',
+            props.compact ? 'text-[1.65rem]' : 'text-[2.15rem] sm:text-[2.55rem]',
             props.nameClassName,
           )}
         >
@@ -116,7 +121,7 @@ export function WeddingGuestInviteBlock(props: Props) {
               props.personalInviteClassName ?? props.cordiallyClassName,
             )}
           >
-            {props.personalInviteText.trim()}
+            {renderWeddingGuestName(props.personalInviteText.trim(), name, guestNameClass)}
           </p>
         ) : null}
       </div>

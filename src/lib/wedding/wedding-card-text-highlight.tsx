@@ -12,20 +12,22 @@ export function renderWeddingHighlightedText(
   tokens: WeddingCardTextTokens,
   locale: WebLocale,
   highlightClassName: string,
+  guestHighlightClassName?: string,
 ): ReactNode {
   const text = resolveWeddingCardDisplayText(template, tokens, locale)
   const terms = collectWeddingHighlightTerms(tokens, locale)
   if (!text || terms.length === 0) return text
 
+  const guest = tokens.guestName?.trim() ?? ''
   const pattern = new RegExp(`(${terms.map(escapeWeddingHighlightRegex).join('|')})`, 'g')
   const parts = text.split(pattern)
-  return parts.map((part, index) =>
-    terms.includes(part) ? (
-      <span key={`${index}-${part.slice(0, 12)}`} className={highlightClassName}>
+  return parts.map((part, index) => {
+    if (!terms.includes(part)) return part
+    const isGuest = Boolean(guestHighlightClassName && guest && part.toLocaleLowerCase('vi') === guest.toLocaleLowerCase('vi'))
+    return (
+      <span key={`${index}-${part.slice(0, 12)}`} className={isGuest ? guestHighlightClassName : highlightClassName}>
         {part}
       </span>
-    ) : (
-      part
-    ),
-  )
+    )
+  })
 }

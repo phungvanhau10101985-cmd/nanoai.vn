@@ -7,6 +7,8 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
+  attachWeddingLibraryBackground,
+  attachWeddingPrivateBackground,
   completeWeddingAiImage,
   createWeddingCardDraft,
   ensureWeddingCardOwnerProfile,
@@ -14,8 +16,10 @@ import {
   getLatestWeddingCardForUser,
   getWeddingCardForUser,
   insertWeddingAiImageProcessing,
+  listWeddingBackgroundLibrary,
   listWeddingImages,
   listWeddingRsvps,
+  saveWeddingBackgroundToLibrary,
   publishWeddingCard,
   updateWeddingCardBrief,
   WEDDING_IMAGE_TYPES,
@@ -37,6 +41,10 @@ import {
   polishWeddingTextWithDeepseek,
   type WeddingPolishField,
 } from '@/lib/wedding/wedding-text-polish-deepseek'
+import {
+  WEDDING_TEXT_POLISH_CREDIT,
+  weddingPolishFieldCostsCredit,
+} from '@/lib/wedding/wedding-text-polish-credit'
 
 const COST = 1
 const MAX_TEXT = 2000
@@ -114,7 +122,8 @@ export async function getOrCreateWeddingCard() {
   const card = existing ?? (await createWeddingCardDraft(ownerUserId))
   const images = await listWeddingImages(card.id)
   const rsvps = await listWeddingRsvps(card.id, ownerUserId)
-  return { card, images, rsvps }
+  const library = await listWeddingBackgroundLibrary()
+  return { card, images, rsvps, library }
 }
 
 export async function saveWeddingCardBrief(formData: FormData) {
@@ -344,6 +353,7 @@ export async function generateWeddingCardImage(formData: FormData) {
     }
     charged = true
     await completeWeddingAiImage({ imageId, userId, imageUrl: publicUrl, makeMaster: type === 'master' })
+    await saveWeddingBackgroundToLibrary({ imageUrl: publicUrl, imageType: type }).catch(() => undefined)
     revalidatePath('/tao-thiep-moi-cuoi-ai')
     return { success: true, imageId, imageUrl: publicUrl }
   } catch (e) {
@@ -354,6 +364,62 @@ export async function generateWeddingCardImage(formData: FormData) {
     await failWeddingAiImage(imageId, userId, message).catch(() => undefined)
     return { error: `Tạo ảnh thất bại, credit chưa bị trừ nếu AI chưa ra ảnh: ${message}` }
   }
+}
+
+const PRIVATE_BACKGROUND_MAX_BYTES = 8 * 1024 * 1024
+
+export async function uploadWeddingPrivateBackground(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const cardId = clean(formData.get('cardId'), 80)
+  const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
+  const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
+  const card = await getWeddingCardForUser(cardId, userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size <= 0) return { error: 'Chọn một file ảnh.' }
+  if (!file.type.startsWith('image/')) return { error: 'File phải là ảnh.' }
+  if (file.size > PRIVATE_BACKGROUND_MAX_BYTES) return { error: 'Ảnh quá lớn. Tối đa 8 MB.' }
+  const ext = file.type.includes('png')
+    ? 'png'
+    : file.type.includes('webp')
+      ? 'webp'
+      : file.type.includes('gif')
+        ? 'gif'
+        : 'jpg'
+  const path = `uploads/${userId}/wedding_${card.id}_private_bg_${type}_${Date.now()}.${ext}`
+  const { publicUrl } = await uploadTryOnImagePublic(path, file, {
+    contentType: file.type || 'image/jpeg',
+    upsert: true,
+  })
+  const attached = await attachWeddingPrivateBackground({
+    userId,
+    cardId: card.id,
+    imageUrl: publicUrl,
+    type,
+  })
+  if (!attached) return { error: 'Không gắn được ảnh vào thiệp.' }
+  revalidatePath('/tao-thiep-moi-cuoi-ai')
+  revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
+  return { ok: true as const, imageUrl: publicUrl }
+}
+
+export async function applyWeddingBackgroundFromLibrary(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const cardId = clean(formData.get('cardId'), 80)
+  const libraryId = clean(formData.get('libraryId'), 80)
+  const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
+  const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
+  const card = await getWeddingCardForUser(cardId, userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+  const attached = await attachWeddingLibraryBackground({ userId, cardId: card.id, libraryId, type })
+  if (!attached) return { error: 'Không tìm thấy ảnh trong kho.' }
+  revalidatePath('/tao-thiep-moi-cuoi-ai')
+  revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
+  return { ok: true as const }
 }
 
 export async function publishCurrentWeddingCard(cardId: string) {
@@ -384,6 +450,21 @@ export async function polishWeddingCardText(formData: FormData) {
     return { error: `Nội dung quá dài (tối đa ${maxLen} ký tự).` }
   }
 
+  const cost = weddingPolishFieldCostsCredit(field) ? WEDDING_TEXT_POLISH_CREDIT : 0
+  let chargedAmount = 0
+  if (cost > 0) {
+    const charge = await deductUserCredits(auth.user.id, cost, 'wedding-card-text-polish')
+    if (!charge.ok) {
+      return {
+        error:
+          charge.code === 'INSUFFICIENT_CREDITS'
+            ? 'Không đủ credit. Mỗi lần cải thiện tốn 0,1 credit.'
+            : charge.error,
+      }
+    }
+    chargedAmount = charge.charged
+  }
+
   const result = await polishWeddingTextWithDeepseek({
     field,
     draft,
@@ -394,6 +475,11 @@ export async function polishWeddingCardText(formData: FormData) {
     userId: auth.user.id,
   })
 
-  if ('error' in result) return { error: result.error }
-  return { text: result.text.slice(0, maxLen) }
+  if ('error' in result) {
+    if (chargedAmount > 0) {
+      await refundUserCredits(auth.user.id, chargedAmount, 'wedding-card-text-polish').catch(() => undefined)
+    }
+    return { error: result.error }
+  }
+  return { text: result.text.slice(0, maxLen), charged: chargedAmount }
 }

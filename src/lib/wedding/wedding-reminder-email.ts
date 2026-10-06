@@ -104,8 +104,15 @@ export async function sendWeddingReminderEmail(row: WeddingReminderDueRow): Prom
   const greeting = fillTemplate(copy.greeting, vars)
   const body = fillTemplate(copy.body, vars)
   const text = `${greeting}\n\n${body}\n\n${copy.cta}: ${inviteUrl}\n\n${copy.footer}`
-  const html = `<!DOCTYPE html><html><body style="font-family:Georgia,serif;line-height:1.6;color:#333;max-width:520px;margin:0 auto;padding:24px">
-<p>${escapeHtml(greeting)}</p>
+  const guestLabel = row.guestName.trim()
+  const guestHtml = guestLabel
+    ? `<span style="font-family:'Dancing Script',Georgia,cursive;font-size:28px;font-weight:600;line-height:1.3">${escapeHtml(guestLabel)}</span>`
+    : ''
+  const greetingHtml = guestLabel
+    ? escapeHtml(greeting).replace(escapeHtml(guestLabel), guestHtml)
+    : escapeHtml(greeting)
+  const html = `<!DOCTYPE html><html><head><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&amp;display=swap"></head><body style="font-family:Georgia,serif;line-height:1.6;color:#333;max-width:520px;margin:0 auto;padding:24px">
+<p>${greetingHtml}</p>
 <p>${escapeHtml(body)}</p>
 <p style="margin:28px 0">
   <a href="${escapeHtml(inviteUrl)}" style="display:inline-block;background:#9f1239;color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:600">${escapeHtml(copy.cta)}</a>

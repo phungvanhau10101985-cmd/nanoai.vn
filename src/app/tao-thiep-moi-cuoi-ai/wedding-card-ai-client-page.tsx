@@ -14,13 +14,15 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import {
+  applyWeddingBackgroundFromLibrary,
   generateWeddingCardImage,
+  uploadWeddingPrivateBackground,
   getOrCreateWeddingCard,
   publishCurrentWeddingCard,
   saveWeddingCardBrief,
 } from './actions'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
-import type { WeddingAiImage, WeddingCard, WeddingRsvp, WeddingImageType } from '@/lib/db/wedding-cards-pg'
+import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingRsvp, WeddingImageType } from '@/lib/db/wedding-cards-pg'
 import {
   WeddingInvitationAudio,
   type WeddingInvitationAudioHandle,
@@ -327,6 +329,12 @@ export default function WeddingCardAiClientPage() {
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [card, setCard] = useState<WeddingCard>(() => emptyBrief())
   const [images, setImages] = useState<WeddingAiImage[]>([])
+  const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
+  const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
+  const [libraryTarget, setLibraryTarget] = useState<WeddingImageType>('master')
+  const [uploadingOutside, setUploadingOutside] = useState(false)
+  const outsideFileRef = useRef<HTMLInputElement | null>(null)
+  const outsideTypeRef = useRef<WeddingImageType>('master')
   const [rsvps, setRsvps] = useState<WeddingRsvp[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -425,6 +433,7 @@ export default function WeddingCardAiClientPage() {
           setCard(result.card)
         }
         setImages(result.images)
+        setLibrary(result.library)
         setRsvps(result.rsvps)
       }
       setLoading(false)
@@ -858,9 +867,13 @@ export default function WeddingCardAiClientPage() {
           weddingDate: prev.weddingDate,
         }))
         setImages(fresh.images)
+        setLibrary(fresh.library)
         setRsvps(fresh.rsvps)
       }
-      toast({ title: type === 'master' ? 'Đã tạo ảnh chính' : 'Đã tạo nền riêng', description: 'Đã trừ 1 credit.' })
+      toast({
+        title: type === 'master' ? 'Đã tạo ảnh chính' : 'Đã tạo nền riêng',
+        description: 'Đã trừ 1 credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.',
+      })
     } catch {
       toast({
         title: 'Tạo ảnh thất bại',
@@ -871,6 +884,91 @@ export default function WeddingCardAiClientPage() {
     } finally {
       setGenerating(null)
     }
+  }
+
+  const applyLibraryImage = async (libraryId: string) => {
+    if (!card.id || applyingLibraryId || generating) return
+    const type = libraryTarget
+    setApplyingLibraryId(libraryId)
+    const formData = new FormData()
+    formData.append('cardId', card.id)
+    formData.append('libraryId', libraryId)
+    formData.append('type', type)
+    try {
+      const result = await applyWeddingBackgroundFromLibrary(formData)
+      if ('error' in result && result.error) {
+        toast({ title: 'Không chọn được ảnh', description: result.error, variant: 'destructive' })
+        return
+      }
+      const fresh = await getOrCreateWeddingCard()
+      if (!('error' in fresh)) {
+        setCard((prev) => ({
+          ...fresh.card,
+          weddingDate: prev.weddingDate,
+        }))
+        setImages(fresh.images)
+        setLibrary(fresh.library)
+        setRsvps(fresh.rsvps)
+      }
+      const face = CARD_FACES.find((item) => item.type === type)
+      toast({
+        title: type === 'master' ? 'Đã chọn ảnh chính từ kho' : `Đã chọn nền ${face?.label ?? ''} từ kho`,
+        description: 'Không trừ credit.',
+      })
+      setLibraryTarget('master')
+    } catch {
+      toast({ title: 'Không chọn được ảnh', description: 'Thử lại.', variant: 'destructive' })
+    } finally {
+      setApplyingLibraryId(null)
+    }
+  }
+
+  const uploadOutsideBackground = async (file: File | null, type: WeddingImageType) => {
+    if (!file || !card.id || uploadingOutside || generating || applyingLibraryId) return
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Không dùng được file này', description: 'Chọn file ảnh.', variant: 'destructive' })
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast({ title: 'Ảnh quá lớn', description: 'Chọn ảnh tối đa 8 MB.', variant: 'destructive' })
+      return
+    }
+    setUploadingOutside(true)
+    const formData = new FormData()
+    formData.append('cardId', card.id)
+    formData.append('type', type)
+    formData.append('file', file)
+    try {
+      const result = await uploadWeddingPrivateBackground(formData)
+      if ('error' in result && result.error) {
+        toast({ title: 'Không gắn được ảnh', description: result.error, variant: 'destructive' })
+        return
+      }
+      const fresh = await getOrCreateWeddingCard()
+      if (!('error' in fresh)) {
+        setCard((prev) => ({
+          ...fresh.card,
+          weddingDate: prev.weddingDate,
+        }))
+        setImages(fresh.images)
+        setLibrary(fresh.library)
+        setRsvps(fresh.rsvps)
+      }
+      const face = CARD_FACES.find((item) => item.type === type)
+      toast({
+        title: type === 'master' ? 'Đã dùng ảnh ngoài cho thiệp này' : `Đã dùng ảnh ngoài cho ${face?.label ?? 'nền này'}`,
+        description: 'Ảnh chỉ gắn với thiệp này, không lưu kho chung. Không trừ credit.',
+      })
+    } catch {
+      toast({ title: 'Không gắn được ảnh', description: 'Thử lại.', variant: 'destructive' })
+    } finally {
+      setUploadingOutside(false)
+    }
+  }
+
+  const pickOutsideBackground = (type: WeddingImageType) => {
+    outsideTypeRef.current = type
+    outsideFileRef.current?.click()
   }
 
   const publish = async () => {
@@ -912,7 +1010,7 @@ export default function WeddingCardAiClientPage() {
               </p>
             </div>
             <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-              <b>Credit:</b> 1 ảnh AI = 1 credit. Sửa text, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+              <b>Credit:</b> Tạo ảnh mới = 1 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
             </div>
           </div>
         </div>
@@ -1426,10 +1524,78 @@ export default function WeddingCardAiClientPage() {
                       Chưa có ảnh chính. Preview nháp vẫn dùng HTML/CSS và chưa tốn credit.
                     </div>
                   )}
+                  <div id="wedding-bg-library" className="mt-4 space-y-2">
+                    <p className="text-sm font-medium">Kho ảnh nền</p>
+                    <p className="text-xs text-muted-foreground">
+                      {libraryTarget === 'master'
+                        ? 'Bấm một ảnh đã tạo để dùng làm ảnh chính. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.'
+                        : `Bấm một ảnh để dùng cho «${CARD_FACES.find((face) => face.type === libraryTarget)?.label ?? 'nền này'}». Không trừ credit.`}
+                      {libraryTarget !== 'master' ? (
+                        <button type="button" className="ml-2 underline" onClick={() => setLibraryTarget('master')}>
+                          Về ảnh chính
+                        </button>
+                      ) : null}
+                    </p>
+                    {library.length ? (
+                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                        {library.map((item) => {
+                          const currentUrl =
+                            libraryTarget === 'master'
+                              ? masterImage?.imageUrl
+                              : images.find((image) => image.type === libraryTarget && image.status === 'completed')?.imageUrl
+                          const active = Boolean(currentUrl && currentUrl === item.imageUrl)
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
+                              onClick={() => void applyLibraryImage(item.id)}
+                              className={cn(
+                                'relative overflow-hidden rounded-xl border bg-muted',
+                                active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
+                              )}
+                              title={active ? 'Đang dùng' : 'Chọn ảnh này, 0 credit'}
+                            >
+                              <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
+                              {applyingLibraryId === item.id ? (
+                                <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                                  <Loader2 className="h-5 w-5 animate-spin text-rose-600" />
+                                </span>
+                              ) : null}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-muted px-3 py-4 text-center text-xs text-muted-foreground">
+                        Kho còn trống. Tạo ảnh mới để lưu vào kho — lần sau chọn lại không mất credit.
+                      </p>
+                    )}
+                  </div>
+                  <input
+                    ref={outsideFileRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      event.target.value = ''
+                      void uploadOutsideBackground(file, outsideTypeRef.current)
+                    }}
+                  />
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button onClick={() => generateImage('master')} disabled={Boolean(generating)}>
+                    <Button onClick={() => generateImage('master')} disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}>
                       {generating === 'master' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                       {masterImage ? 'Tạo lại ảnh chính - 1 credit' : 'Tạo ảnh chính - 1 credit'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
+                      onClick={() => pickOutsideBackground('master')}
+                    >
+                      {uploadingOutside && outsideTypeRef.current === 'master' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      Chọn ảnh ngoài · 0 credit
                     </Button>
                     {masterImage?.imageUrl && (
                       <Button asChild variant="outline">
@@ -1458,16 +1624,36 @@ export default function WeddingCardAiClientPage() {
                             Chưa có ảnh chính — tạo ảnh chính để có nền mặc định hoặc tạo nền riêng.
                           </div>
                         )}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="mt-3"
-                          disabled={Boolean(generating) || !masterImage?.imageUrl}
-                          onClick={() => generateImage(face.type)}
-                        >
-                          {generating === face.type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Tạo nền riêng - 1 credit
-                        </Button>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || !masterImage?.imageUrl}
+                            onClick={() => generateImage(face.type)}
+                          >
+                            {generating === face.type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Tạo nền riêng - 1 credit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || library.length === 0}
+                            onClick={() => {
+                              setLibraryTarget(face.type)
+                              document.getElementById('wedding-bg-library')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                            }}
+                          >
+                            Chọn từ kho · 0 credit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
+                            onClick={() => pickOutsideBackground(face.type)}
+                          >
+                            Ảnh ngoài · 0 credit
+                          </Button>
+                        </div>
                       </div>
                     )
                   })}

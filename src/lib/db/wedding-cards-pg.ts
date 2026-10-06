@@ -673,6 +673,179 @@ export async function failWeddingAiImage(imageId: string, userId: string, messag
   )
 }
 
+export type WeddingBackgroundLibraryItem = {
+  id: string
+  imageUrl: string
+  imageType: WeddingImageType
+  createdAt: string
+}
+
+function mapBackgroundLibraryItem(row: Record<string, unknown>): WeddingBackgroundLibraryItem {
+  const type = String(row.image_type ?? 'master')
+  return {
+    id: String(row.id),
+    imageUrl: String(row.image_url ?? ''),
+    imageType: WEDDING_IMAGE_TYPES.includes(type as WeddingImageType) ? (type as WeddingImageType) : 'master',
+    createdAt: String(row.created_at),
+  }
+}
+
+export async function saveWeddingBackgroundToLibrary(input: {
+  imageUrl: string
+  imageType: WeddingImageType
+}): Promise<void> {
+  requirePg()
+  const imageUrl = input.imageUrl.trim()
+  if (!imageUrl || !WEDDING_IMAGE_TYPES.includes(input.imageType)) return
+  await getPgPool().query(
+    `insert into public.wedding_background_library (image_url, image_type)
+     values ($1, $2)
+     on conflict (image_url) do nothing`,
+    [imageUrl.slice(0, 2000), input.imageType],
+  )
+}
+
+export async function listWeddingBackgroundLibrary(limit = 80): Promise<WeddingBackgroundLibraryItem[]> {
+  requirePg()
+  const cap = Math.max(1, Math.min(80, Math.round(limit) || 80))
+  const res = await getPgPool().query(
+    `select id, image_url, image_type, created_at
+     from public.wedding_background_library
+     where image_url <> ''
+     order by created_at desc
+     limit $1`,
+    [cap],
+  )
+  return res.rows.map(mapBackgroundLibraryItem)
+}
+
+/** Gắn ảnh riêng của một thiệp. Không ghi kho chung, không trừ credit. */
+export async function attachWeddingPrivateBackground(input: {
+  userId: string
+  cardId: string
+  imageUrl: string
+  type: WeddingImageType
+}): Promise<boolean> {
+  requirePg()
+  const imageUrl = input.imageUrl.trim()
+  if (!imageUrl || !WEDDING_IMAGE_TYPES.includes(input.type)) return false
+  const pool = getPgPool()
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const owned = await client.query(
+      `select 1 from public.wedding_cards where id = $1::uuid and user_id = $2::uuid`,
+      [input.cardId, input.userId],
+    )
+    if (!owned.rowCount) {
+      await client.query('ROLLBACK')
+      return false
+    }
+    const inserted = await client.query<{ id: string }>(
+      `insert into public.wedding_card_ai_images
+         (user_id, wedding_card_id, type, prompt, image_url, credit_cost, status)
+       values ($1::uuid, $2::uuid, $3, '', $4, 0, 'completed')
+       returning id::text`,
+      [input.userId, input.cardId, input.type, imageUrl.slice(0, 2000)],
+    )
+    const imageId = inserted.rows[0]?.id
+    if (!imageId) {
+      await client.query('ROLLBACK')
+      return false
+    }
+    if (input.type === 'master') {
+      await client.query(
+        `update public.wedding_cards
+         set master_image_id = $1::uuid, updated_at = timezone('utc'::text, now())
+         where id = $2::uuid and user_id = $3::uuid`,
+        [imageId, input.cardId, input.userId],
+      )
+    }
+    await client.query('COMMIT')
+    return true
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
+/** Gắn ảnh kho vào thiệp. Không trừ credit. */
+export async function attachWeddingLibraryBackground(input: {
+  userId: string
+  cardId: string
+  libraryId: string
+  type: WeddingImageType
+}): Promise<boolean> {
+  requirePg()
+  if (!WEDDING_IMAGE_TYPES.includes(input.type)) return false
+  const pool = getPgPool()
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const owned = await client.query(
+      `select 1 from public.wedding_cards where id = $1::uuid and user_id = $2::uuid`,
+      [input.cardId, input.userId],
+    )
+    if (!owned.rowCount) {
+      await client.query('ROLLBACK')
+      return false
+    }
+    const lib = await client.query<{ image_url: string }>(
+      `select image_url from public.wedding_background_library where id = $1::uuid`,
+      [input.libraryId],
+    )
+    const imageUrl = String(lib.rows[0]?.image_url ?? '').trim()
+    if (!imageUrl) {
+      await client.query('ROLLBACK')
+      return false
+    }
+    const existing = await client.query<{ id: string }>(
+      `select id::text
+       from public.wedding_card_ai_images
+       where wedding_card_id = $1::uuid
+         and user_id = $2::uuid
+         and type = $3
+         and image_url = $4
+         and status = 'completed'
+       order by created_at desc
+       limit 1`,
+      [input.cardId, input.userId, input.type, imageUrl],
+    )
+    let imageId = existing.rows[0]?.id
+    if (!imageId) {
+      const inserted = await client.query<{ id: string }>(
+        `insert into public.wedding_card_ai_images
+           (user_id, wedding_card_id, type, prompt, image_url, credit_cost, status)
+         values ($1::uuid, $2::uuid, $3, '', $4, 0, 'completed')
+         returning id::text`,
+        [input.userId, input.cardId, input.type, imageUrl],
+      )
+      imageId = inserted.rows[0]?.id
+    }
+    if (!imageId) {
+      await client.query('ROLLBACK')
+      return false
+    }
+    if (input.type === 'master') {
+      await client.query(
+        `update public.wedding_cards
+         set master_image_id = $1::uuid, updated_at = timezone('utc'::text, now())
+         where id = $2::uuid and user_id = $3::uuid`,
+        [imageId, input.cardId, input.userId],
+      )
+    }
+    await client.query('COMMIT')
+    return true
+  } catch (e) {
+    await client.query('ROLLBACK').catch(() => undefined)
+    throw e
+  } finally {
+    client.release()
+  }
+}
+
 export async function listWeddingImages(cardId: string): Promise<WeddingAiImage[]> {
   requirePg()
   const res = await getPgPool().query(
@@ -882,6 +1055,77 @@ export async function createWeddingInvitedGuest(input: {
     ],
   )
   return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+}
+
+export async function createWeddingInvitedGuestsBatch(input: {
+  cardId: string
+  userId: string
+  guests: Array<{
+    guestHonorific: string
+    guestName: string
+    inviteVenue: WeddingGuestInviteVenue
+    personalInvite: string
+    status: WeddingInvitedGuestStatus
+    guestCount: number
+    wishMessage: string
+    notes: string
+  }>
+}): Promise<number> {
+  requirePg()
+  if (!input.guests.length) return 0
+  const honorifics: string[] = []
+  const names: string[] = []
+  const venues: string[] = []
+  const invites: string[] = []
+  const statuses: string[] = []
+  const confirmedBy: string[] = []
+  const counts: number[] = []
+  const wishes: string[] = []
+  const notes: string[] = []
+  for (const guest of input.guests) {
+    const name = guest.guestName.trim()
+    if (!name) continue
+    const status = guest.status === 'attending' || guest.status === 'declined' ? guest.status : 'pending'
+    honorifics.push(guest.guestHonorific.trim().slice(0, 80))
+    names.push(name.slice(0, 120))
+    venues.push(normalizeGuestInviteVenue(guest.inviteVenue))
+    invites.push(guest.personalInvite.slice(0, 1000))
+    statuses.push(status)
+    confirmedBy.push(status === 'pending' ? '' : 'host')
+    counts.push(Math.max(0, Math.min(40, Math.round(guest.guestCount) || 0)))
+    wishes.push(guest.wishMessage.slice(0, 500))
+    notes.push(guest.notes.slice(0, 500))
+  }
+  if (!names.length) return 0
+  const res = await getPgPool().query(
+    `insert into public.wedding_card_invited_guests (
+       wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite,
+       status, status_confirmed_by, guest_count, wish_message, notes
+     )
+     select $1::uuid, h, n, v, p, s, cby, gc, w, nt
+     from unnest(
+       $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::int[], $9::text[], $10::text[]
+     ) as t(h, n, v, p, s, cby, gc, w, nt)
+     where exists (
+       select 1 from public.wedding_cards c
+       where c.id = $1::uuid and c.user_id = $11::uuid
+     )
+     returning id`,
+    [
+      input.cardId,
+      honorifics,
+      names,
+      venues,
+      invites,
+      statuses,
+      confirmedBy,
+      counts,
+      wishes,
+      notes,
+      input.userId,
+    ],
+  )
+  return res.rowCount ?? 0
 }
 
 export async function updateWeddingInvitedGuest(input: {

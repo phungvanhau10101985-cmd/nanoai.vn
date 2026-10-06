@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-editor'
+import { WeddingAiPolishTextarea } from '../wedding-ai-polish-textarea'
 import { parseWeddingTimeClockAndWeekday } from '@/lib/wedding/wedding-calendar-utils'
 import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invite-settings'
 
@@ -120,14 +121,15 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
         />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Dress code / lưu ý {meta.sideLabel}</Label>
-        <Textarea
+      <div className="sm:col-span-2">
+        <WeddingAiPolishTextarea
+          label={`Dress code / lưu ý ${meta.sideLabel}`}
+          field="dressCode"
           value={settings[fieldKey(p, 'DressCode')]}
-          onChange={(e) => patch(fieldKey(p, 'DressCode'), e.target.value)}
+          onChange={(v) => patch(fieldKey(p, 'DressCode'), v)}
+          card={card}
           placeholder={card?.dressCode || 'Trang phục lịch sự…'}
-          rows={2}
-          className="resize-y text-sm"
+          className="min-h-[4.5rem] resize-y text-sm"
         />
       </div>
 
@@ -157,14 +159,15 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
         />
       </div>
 
-      <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Lời cảm ơn cuối thiệp {meta.sideLabel}</Label>
-        <Textarea
+      <div className="sm:col-span-2">
+        <WeddingAiPolishTextarea
+          label={`Lời cảm ơn cuối thiệp ${meta.sideLabel}`}
+          field="thankYouText"
           value={settings[fieldKey(p, 'ThankYouText')]}
-          onChange={(e) => patch(fieldKey(p, 'ThankYouText'), e.target.value)}
+          onChange={(v) => patch(fieldKey(p, 'ThankYouText'), v)}
+          card={card}
           placeholder={card?.thankYouText || 'Cảm ơn quý khách…'}
-          rows={2}
-          className="resize-y text-sm"
+          className="min-h-[4.5rem] resize-y text-sm"
         />
       </div>
 

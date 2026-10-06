@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from 'lucide-react'
+import { Copy, Download, ExternalLink, FileUp, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/toaster'
@@ -25,11 +25,13 @@ import {
 } from '@/lib/wedding/wedding-side-invite-settings'
 import { WeddingSideInviteSettingsPanel } from './wedding-side-invite-settings-panel'
 import {
+  confirmWeddingInvitedGuestStatus,
+  downloadWeddingGuestImportTemplate,
+  importWeddingInvitedGuests,
   loadWeddingInvitedGuestsPage,
   removeWeddingInvitedGuest,
   saveWeddingInvitedGuest,
   saveWeddingSideInviteSettings,
-  confirmWeddingInvitedGuestStatus,
 } from './actions'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 
@@ -127,6 +129,8 @@ const cellInputClass =
   'h-8 min-w-0 rounded-none border-0 bg-transparent px-2 py-1 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-ring sm:text-sm'
 const cellSelectClass =
   'h-8 w-full min-w-0 rounded-none border-0 bg-transparent px-1 py-1 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-ring sm:text-sm'
+const mobileLabelClass = 'mb-1 block text-[11px] font-semibold uppercase tracking-wide text-stone-500'
+const mobileInputClass = 'h-11 rounded-lg border-stone-200 bg-white text-base shadow-none'
 
 function guestToRow(g: WeddingInvitedGuest): GuestRow {
   return {
@@ -234,6 +238,10 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [savingSideSettings, setSavingSideSettings] = useState(false)
   const [origin, setOrigin] = useState('')
   const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
+  const [importing, setImporting] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<GuestRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const importFileRef = useRef<HTMLInputElement | null>(null)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -447,24 +455,74 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     }
   }, [])
 
-  const deleteRow = async (row: GuestRow) => {
+  const askDeleteRow = (row: GuestRow) => {
     if (!card) return
-    const index = rows.findIndex((item) => item.clientKey === row.clientKey)
-    if (index < 0) return
+    setDeleteTarget(row)
+  }
+
+  const confirmDeleteRow = async () => {
+    const row = deleteTarget
+    if (!card || !row || deleting) return
     if (row.isNew || !row.id) {
       setRows((prev) => prev.filter((item) => item.clientKey !== row.clientKey))
+      setDeleteTarget(null)
       return
     }
-    if (!window.confirm(`Xóa khách «${buildGuestDisplayName(row.guestHonorific, row.guestName)}» khỏi danh sách?`)) return
+    setDeleting(true)
     const formData = new FormData()
     formData.append('cardId', card.id)
     formData.append('guestId', row.id)
     const result = await removeWeddingInvitedGuest(formData)
+    setDeleting(false)
     if ('error' in result && result.error) {
       toast({ title: 'Xóa thất bại', description: result.error, variant: 'destructive' })
       return
     }
+    setDeleteTarget(null)
     toast({ title: 'Đã xóa khách mời' })
+    await load()
+  }
+
+  const downloadGuestTemplate = async () => {
+    const result = await downloadWeddingGuestImportTemplate()
+    if ('error' in result) {
+      toast({ title: 'Không tải được file mẫu', description: result.error, variant: 'destructive' })
+      return
+    }
+    const binary = atob(result.base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
+    const blob = new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'mau-khach-moi-thiep-cuoi.xlsx'
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const importGuestFile = async (file: File | null) => {
+    if (!file || !card || importing) return
+    setImporting(true)
+    const formData = new FormData()
+    formData.append('cardId', card.id)
+    formData.append('file', file)
+    const result = await importWeddingInvitedGuests(formData)
+    setImporting(false)
+    if (importFileRef.current) importFileRef.current.value = ''
+    if ('error' in result && result.error) {
+      toast({ title: 'Import thất bại', description: result.error, variant: 'destructive' })
+      return
+    }
+    if (!('created' in result)) return
+    const skippedNote = result.skipped ? ` Bỏ qua ${result.skipped} dòng.` : ''
+    const detail = result.errors.length ? ` ${result.errors[0]}` : ''
+    toast({
+      title: `Đã thêm ${result.created} khách`,
+      description: `${skippedNote}${detail}`.trim() || 'Khách đã vào đúng nhà trai / nhà gái theo cột Bên.',
+    })
     await load()
   }
 
@@ -551,10 +609,181 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         </div>
       ) : sideRows.length === 0 ? (
         <div className={cn('rounded-xl border border-dashed p-8 text-center text-sm', look.empty)}>
-          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» để thêm dòng mới.
+          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» hoặc Import Excel phía trên.
         </div>
       ) : (
-        <div className={cn('w-full overflow-x-auto rounded-xl border shadow-sm', look.table)}>
+        <>
+        <div className="space-y-3 md:hidden">
+          {sideRows.map((row, index) => {
+            const key = rowKey(row)
+            const personalUrl =
+              publishUrl && row.guestName.trim()
+                ? buildWeddingPersonalInviteUrl(publishUrl, {
+                    guestName: buildGuestDisplayName(row.guestHonorific, row.guestName),
+                    inviteVenue: side,
+                  })
+                : ''
+            const saving = savingKey === key
+            const displayName = [row.guestHonorific.trim(), row.guestName.trim()].filter(Boolean).join(' ') || 'Khách mới'
+            const adultCount = row.adultCount + row.childCount > 0 ? row.adultCount : Number(row.guestCount) || 0
+
+            return (
+              <article
+                key={key}
+                className={cn(
+                  'overflow-hidden rounded-2xl border shadow-sm',
+                  look.table,
+                  row.isNew ? 'bg-amber-50' : index % 2 === 1 ? look.zebra : 'bg-white',
+                )}
+              >
+                <div className={cn('flex items-center gap-2 px-3 py-2', look.index)}>
+                  <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full bg-white/80 text-xs font-semibold tabular-nums">
+                    {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : index + 1}
+                  </span>
+                  <p className="min-w-0 flex-1 truncate text-sm font-semibold">{displayName}</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-11 w-11 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => askDeleteRow(row)}
+                    title="Xóa khách"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="space-y-3 p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="min-w-0">
+                      <span className={mobileLabelClass}>Xưng hô</span>
+                      <Input
+                        value={row.guestHonorific}
+                        onChange={(e) => updateRowByKey(key, side, { guestHonorific: e.target.value })}
+                        placeholder="Bạn, Anh…"
+                        list="wedding-guest-honorific-suggestions"
+                        className={mobileInputClass}
+                      />
+                    </label>
+                    <label className="min-w-0">
+                      <span className={mobileLabelClass}>Tên</span>
+                      <Input
+                        value={row.guestName}
+                        onChange={(e) => updateRowByKey(key, side, { guestName: e.target.value })}
+                        placeholder="Tên khách"
+                        className={mobileInputClass}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-end gap-2">
+                    <div className="min-w-0">
+                      <p className={mobileLabelClass}>Trạng thái</p>
+                      {row.statusConfirmedBy === 'guest' && row.status !== 'pending' ? (
+                        <div>
+                          <span className={cn('inline-flex rounded-full px-2.5 py-1 text-sm font-medium', STATUS_PILL[row.status])}>
+                            {STATUS_OPTIONS.find((opt) => opt.value === row.status)?.label}
+                          </span>
+                          <p className="mt-1 text-xs font-semibold text-emerald-800">Khách xác nhận</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <select
+                            value={row.statusDraft ?? row.status}
+                            onChange={(e) => {
+                              const next = e.target.value as WeddingInvitedGuestStatus
+                              updateRowByKey(key, side, { statusDraft: next === row.status ? null : next })
+                            }}
+                            className={cn(
+                              'h-11 w-full rounded-full border border-stone-200 px-3 text-center text-sm font-medium',
+                              STATUS_PILL[row.statusDraft ?? row.status],
+                            )}
+                          >
+                            {STATUS_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {row.statusDraft && row.statusDraft !== row.status ? (
+                            <Button type="button" className="h-11 w-full" disabled={saving} onClick={() => void confirmStatus(row, side)}>
+                              Xác nhận
+                            </Button>
+                          ) : row.statusConfirmedBy === 'host' && row.status !== 'pending' ? (
+                            <p className="text-xs text-muted-foreground">Nhà ghi giúp</p>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className={mobileLabelClass}>Số người</p>
+                      {row.statusConfirmedBy === 'guest' ? (
+                        <div className="flex h-11 items-center justify-center rounded-lg border border-stone-200 bg-white px-2 text-center text-xs leading-tight text-stone-800">
+                          {row.status === 'attending' ? (
+                            <span>
+                              {adultCount} lớn
+                              <br />
+                              {row.childCount} trẻ
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </div>
+                      ) : (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={40}
+                          inputMode="numeric"
+                          value={row.guestCount}
+                          onChange={(e) => updateRowByKey(key, side, { guestCount: e.target.value })}
+                          className={cn(mobileInputClass, 'text-center')}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className={mobileLabelClass}>Lời mời</p>
+                    <p className="break-words rounded-lg bg-stone-50 px-3 py-2 text-sm leading-relaxed text-stone-700">
+                      {row.personalInvite || '—'}
+                    </p>
+                  </div>
+                  <label className="block">
+                    <span className={mobileLabelClass}>Lời chúc</span>
+                    <Input
+                      value={row.wishMessage}
+                      onChange={(e) => updateRowByKey(key, side, { wishMessage: e.target.value })}
+                      placeholder="Lời chúc…"
+                      className={mobileInputClass}
+                    />
+                  </label>
+                  <label className="block">
+                    <span className={mobileLabelClass}>Ghi chú</span>
+                    <Input
+                      value={row.notes}
+                      onChange={(e) => updateRowByKey(key, side, { notes: e.target.value })}
+                      placeholder="Ghi chú…"
+                      className={mobileInputClass}
+                    />
+                  </label>
+                  {personalUrl ? (
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button type="button" variant="outline" className="h-11" onClick={() => copyLink(row, side)}>
+                        <Copy className="mr-2 h-4 w-4" />
+                        Copy link
+                      </Button>
+                      <Button asChild variant="outline" className="h-11">
+                        <a href={personalUrl} target="_blank" rel="noreferrer">
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                          Mở thiệp
+                        </a>
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+        <div className={cn('hidden w-full overflow-x-auto rounded-xl border shadow-sm md:block', look.table)}>
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[2.5rem]" />
@@ -741,7 +970,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 text-destructive hover:text-destructive"
-                          onClick={() => deleteRow(row)}
+                          onClick={() => askDeleteRow(row)}
                           title="Xóa dòng"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -754,10 +983,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {!loading ? (
-        <Button type="button" size="sm" className={look.add} onClick={() => addRow(side)}>
+        <Button type="button" size="sm" className={cn(look.add, 'h-11 w-full md:h-9 md:w-auto')} onClick={() => addRow(side)}>
           <Plus className="mr-2 h-4 w-4" />
           Thêm khách {look.kicker.toLowerCase()}
         </Button>
@@ -865,20 +1095,98 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
           </a>
         </div>
 
+        <div className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            Import Excel: cột <span className="font-medium text-foreground">Tên</span> và{' '}
+            <span className="font-medium text-foreground">Bên</span> (Nhà trai / Nhà gái). Dòng mẫu trong file được bỏ qua.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <Button type="button" variant="outline" className="h-11 flex-1 sm:h-9 sm:flex-none" onClick={() => void downloadGuestTemplate()}>
+              <Download className="mr-2 h-4 w-4" />
+              Tải file mẫu
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 flex-1 sm:h-9 sm:flex-none"
+              disabled={importing || loading || !card}
+              onClick={() => importFileRef.current?.click()}
+            >
+              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
+              Import Excel
+            </Button>
+            <input
+              ref={importFileRef}
+              type="file"
+              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                void importGuestFile(file)
+              }}
+            />
+          </div>
+        </div>
+
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Chưa xuất bản link thiệp — vẫn thêm/sửa được; link cá nhân chỉ dùng sau khi xuất bản.
           </p>
         ) : (
           <p className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-foreground">
-            Gửi link thiệp cá nhân qua <span className="font-medium">Facebook hoặc Zalo</span>: bấm Copy ở cột Link
-            trong bảng rồi dán vào tin nhắn. Khách nhà trai và nhà gái nhận đúng địa chỉ, giờ tiệc của bên mình.
+            Gửi link thiệp cá nhân qua <span className="font-medium">Facebook hoặc Zalo</span>: bấm Copy link
+            rồi dán vào tin nhắn. Khách nhà trai và nhà gái nhận đúng địa chỉ, giờ tiệc của bên mình.
           </p>
         )}
 
         {renderSide(SIDE_LOOK.groom, groomRows, groomStats, card?.groomName ?? '')}
         {renderSide(SIDE_LOOK.bride, brideRows, brideStats, card?.brideName ?? '')}
       </div>
+      {deleteTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
+          role="presentation"
+          onClick={() => {
+            if (!deleting) setDeleteTarget(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="wedding-guest-delete-title"
+            className="w-full max-w-sm rounded-2xl border bg-background p-5 shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p id="wedding-guest-delete-title" className="text-base font-semibold">
+              Xóa khách mời?
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Xóa «{buildGuestDisplayName(deleteTarget.guestHonorific, deleteTarget.guestName) || 'khách này'}» khỏi danh sách.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 flex-1"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Hủy
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                className="h-11 flex-1"
+                disabled={deleting}
+                onClick={() => void confirmDeleteRow()}
+              >
+                {deleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Xác nhận xóa
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   )
 }
