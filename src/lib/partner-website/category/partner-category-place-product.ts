@@ -2,10 +2,12 @@ import { fetchPartnerAllowAutoCreateCategoriesFromPg } from '@/lib/db/messaging-
 import {
   assignInventoriesToPrimaryCategoriesFromPg,
   assignInventoryToCategoryFromPg,
+  assignPartnerCategoryRatingGroupFromPg,
   fetchPartnerCategoriesFlatFromPg,
   fetchPartnerCategoryByIdFromPg,
   insertPartnerCategoryFromPg,
 } from '@/lib/db/messaging-partner-categories-pg'
+import { patchInventoryRatingGroupsFromPg } from '@/lib/db/messaging-partner-inventory-pg'
 import { slugifyPartnerCategoryName } from '@/lib/partner-website/category/partner-category-types'
 import type { PartnerCategoryRow } from '@/lib/partner-website/category/partner-category-types'
 import {
@@ -24,6 +26,13 @@ import { shouldSkipPartnerCategoryImportName } from '@/lib/partner-website/shop/
 import type { ProductStudioJobPayload } from '@/lib/partner-website/product-studio/product-studio-types'
 import { proposeProductStudioCategoryPath } from '@/lib/partner-website/category/partner-category-taxonomy-propose'
 import { seedReviewsForNewRatingGroup } from '@/lib/partner-website/category/partner-category-seed-reviews'
+import {
+  categoryPathNames,
+  loadImportedReviewGroupIds,
+  planImportCategoryRating,
+  seedImportedRatingGroup,
+} from '@/lib/partner-website/category/import-category-rating'
+import { dedicatedRatingGroupId } from '@/lib/partner-website/category/partner-category-rating-group'
 
 export type PlaceProductCategoryHint = {
   productName: string
@@ -145,6 +154,7 @@ export function catalogInsertIdsBlockedWhenAutoCreateOff(
     categoryL1?: string | null
     categoryL2?: string | null
     categoryL3?: string | null
+    ratingGroupId?: number | null
   }>
 ): Set<string> {
   if (allowCreate) return new Set()
@@ -153,6 +163,7 @@ export function catalogInsertIdsBlockedWhenAutoCreateOff(
     if (!item.id) continue
     const l1 = (item.categoryL1 ?? '').trim()
     if (!l1) continue
+    if (dedicatedRatingGroupId(item.ratingGroupId)) continue
     if (!findReusableCategoryTripleLeaf(rows, l1, item.categoryL2 ?? '', item.categoryL3 ?? '')) {
       blocked.add(item.id)
     }
@@ -339,6 +350,7 @@ export async function placeImportedInventoryInCategoryTreeBatch(
     categoryL2?: string | null
     categoryL3?: string | null
     productName?: string
+    ratingGroupId?: number | null
   }>
 ): Promise<{ ok: true; skippedInventoryIds: string[] } | { ok: false; error: string; skippedInventoryIds: string[] }> {
   const work = items.filter((item) => item.inventoryId && (item.categoryL1 ?? '').trim())
@@ -347,13 +359,30 @@ export async function placeImportedInventoryInCategoryTreeBatch(
   if (!session) return { ok: false, error: 'db_error', skippedInventoryIds: work.map((i) => i.inventoryId) }
 
   const pathCache = new Map<string, string | null>()
+  const adoptedGroupByPath = new Map<string, number | null>()
   const samples: string[] = []
   const skippedInventoryIds: string[] = []
   const assignments: Array<{ inventoryId: string; categoryId: string }> = []
+  const ratingPatches: Array<{ inventoryId: string; ratingGroupId: number }> = []
+  const groupsWithReviews = await loadImportedReviewGroupIds()
+  const ownerByGroup = new Map<number, string>()
+  for (const row of session.rows) {
+    if (row.depth === 3 && row.ratingGroupId && row.ratingGroupId > 0) {
+      ownerByGroup.set(row.ratingGroupId, row.id)
+    }
+  }
+
+  const queueRating = (inventoryId: string, fileGroupId: number, adopted: number | null) => {
+    if (adopted && adopted > 0 && adopted !== Math.round(Number(fileGroupId) || 0)) {
+      ratingPatches.push({ inventoryId, ratingGroupId: adopted })
+    }
+  }
+
   for (const item of work) {
     const pathKey = [item.categoryL1, item.categoryL2, item.categoryL3]
       .map((v) => (v ?? '').trim().toLowerCase())
       .join('>')
+    const fileGroupId = Math.round(Number(item.ratingGroupId) || 0)
     let leafId = pathCache.get(pathKey)
     if (leafId === undefined) {
       const leaf = await resolveHintPath(session, {
@@ -363,18 +392,110 @@ export async function placeImportedInventoryInCategoryTreeBatch(
         categoryL3: item.categoryL3,
       })
       leafId = leaf?.id ?? null
-      pathCache.set(pathKey, leafId)
+      if (!leafId && dedicatedRatingGroupId(fileGroupId) && !groupsWithReviews.has(fileGroupId)) {
+        const created = await ensurePartnerCategoryTripleWithSeo({
+          partnerId,
+          categoryL1: item.categoryL1 ?? '',
+          categoryL2: item.categoryL2 ?? '',
+          categoryL3: item.categoryL3 ?? '',
+          productName: item.productName ?? '',
+          allowCreate: true,
+          preferredRatingGroupId: fileGroupId,
+        })
+        session.warnings.push(...created.warnings)
+        if (created.ok && created.categoryId) {
+          leafId = created.categoryId
+          const gid = created.ratingGroupId && created.ratingGroupId > 0 ? created.ratingGroupId : null
+          adoptedGroupByPath.set(pathKey, gid)
+          if (gid) {
+            ownerByGroup.set(gid, created.categoryId)
+            groupsWithReviews.add(gid)
+          }
+          const again = await fetchPartnerCategoriesFlatFromPg(partnerId, { activeOnly: false })
+          if (again) session.rows.splice(0, session.rows.length, ...again)
+        }
+      }
+      pathCache.set(pathKey, leafId ?? null)
     }
     if (!leafId) {
       skippedInventoryIds.push(item.inventoryId)
       continue
     }
+    if (!adoptedGroupByPath.has(pathKey)) {
+      const leaf = session.rows.find((row) => row.id === leafId && row.depth === 3) ?? null
+      let adopted: number | null = null
+      if (leaf) {
+        const names = categoryPathNames(session.rows, leaf, {
+          cat1: (item.categoryL1 ?? '').trim(),
+          cat2: (item.categoryL2 ?? '').trim(),
+          cat3: (item.categoryL3 ?? '').trim(),
+        })
+        const plan = planImportCategoryRating({
+          fileGroupId,
+          categoryId: leaf.id,
+          categoryRatingGroupId: leaf.ratingGroupId,
+          groupsWithReviews,
+          ownerCategoryId: ownerByGroup.get(dedicatedRatingGroupId(fileGroupId)) ?? null,
+        })
+        if (plan.kind === 'adopt' || plan.kind === 'assign') {
+          if (plan.kind === 'assign') {
+            const wrote = await assignPartnerCategoryRatingGroupFromPg(partnerId, leaf.id, plan.groupId)
+            if (wrote) {
+              leaf.ratingGroupId = plan.groupId
+              ownerByGroup.set(plan.groupId, leaf.id)
+              session.warnings.push(`import: danh mục «${names.cat3}» nhận nhóm đánh giá ${plan.groupId}.`)
+            }
+          }
+          const seeded = await seedImportedRatingGroup({
+            partnerId,
+            groupId: plan.groupId,
+            cat1: names.cat1,
+            cat2: names.cat2,
+            cat3: names.cat3,
+            shopName: session.shop.shopDisplayName,
+          })
+          if (seeded > 0) {
+            groupsWithReviews.add(plan.groupId)
+            session.warnings.push(
+              `import: đã tạo ${seeded} đánh giá cho nhóm ${plan.groupId} (theo «${names.cat3}»).`
+            )
+          }
+          if (fileGroupId !== plan.groupId) {
+            session.warnings.push(`import: sản phẩm nhận nhóm đánh giá ${plan.groupId} của danh mục «${names.cat3}».`)
+          }
+          adopted = plan.groupId
+        } else if (plan.kind === 'seed-owner') {
+          const owner = session.rows.find((row) => row.id === plan.ownerCategoryId)
+          const ownerNames = owner
+            ? categoryPathNames(session.rows, owner, names)
+            : names
+          const seeded = await seedImportedRatingGroup({
+            partnerId,
+            groupId: plan.groupId,
+            cat1: ownerNames.cat1,
+            cat2: ownerNames.cat2,
+            cat3: ownerNames.cat3,
+            shopName: session.shop.shopDisplayName,
+          })
+          if (seeded > 0) groupsWithReviews.add(plan.groupId)
+          adopted = plan.groupId
+        }
+      }
+      adoptedGroupByPath.set(pathKey, adopted)
+    }
     assignments.push({ inventoryId: item.inventoryId, categoryId: leafId })
+    queueRating(item.inventoryId, fileGroupId, adoptedGroupByPath.get(pathKey) ?? null)
     if (item.productName?.trim() && samples.length < 8) samples.push(item.productName.trim())
   }
   if (assignments.length > 0) {
     const assigned = await assignInventoriesToPrimaryCategoriesFromPg(partnerId, assignments)
     if (!assigned) {
+      return { ok: false, error: 'db_error', skippedInventoryIds }
+    }
+  }
+  if (ratingPatches.length > 0) {
+    const patched = await patchInventoryRatingGroupsFromPg(partnerId, ratingPatches)
+    if (!patched) {
       return { ok: false, error: 'db_error', skippedInventoryIds }
     }
   }
@@ -394,6 +515,7 @@ export async function importedInventoryInsertIdsBlockedByAutoCreate(
     categoryL1?: string | null
     categoryL2?: string | null
     categoryL3?: string | null
+    ratingGroupId?: number | null
   }>
 ): Promise<Set<string>> {
   const allowCreate = await fetchPartnerAllowAutoCreateCategoriesFromPg(partnerId)
@@ -509,6 +631,7 @@ export type EnsurePartnerCategoryTripleResult = {
   fullSlug: string
   /** Mã nhóm đánh giá của L3. Null khi L3 cũ chưa được cấp mã. */
   ratingGroupId: number | null
+  categoryId: string | null
   warnings: string[]
   error?: string
 }
@@ -524,6 +647,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
   categoryL3: string
   productName: string
   allowCreate?: boolean
+  preferredRatingGroupId?: number | null
 }): Promise<EnsurePartnerCategoryTripleResult> {
   const l1Name = input.categoryL1.trim().slice(0, 200)
   const l2Name = input.categoryL2.trim().slice(0, 200)
@@ -536,6 +660,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     cat3: l3Name,
     fullSlug: '',
     ratingGroupId: null,
+    categoryId: null,
     warnings: [] as string[],
   }
   if (!l1Name || !l2Name || !l3Name) {
@@ -577,6 +702,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
       seoTitle: buildPartnerCategorySeoTitle(name, session.shop.shopDisplayName),
       aiGenerated: true,
       allocateRatingGroup: levelTag === '3',
+      preferredRatingGroupId: levelTag === '3' ? input.preferredRatingGroupId : undefined,
     })
     if (!created.ok) {
       const again = await fetchPartnerCategoriesFlatFromPg(session.partnerId, { activeOnly: false })
@@ -625,7 +751,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     }
   }
 
-  if (createdTags.includes('3') && n3.ratingGroupId && n3.ratingGroupId > 0) {
+  if (n3.ratingGroupId && n3.ratingGroupId > 0) {
     try {
       const seeded = await seedReviewsForNewRatingGroup({
         partnerId: session.partnerId,
@@ -659,6 +785,7 @@ export async function ensurePartnerCategoryTripleWithSeo(input: {
     cat3: n3.name,
     fullSlug: (n3.path || '').replace(/^\//, ''),
     ratingGroupId: n3.ratingGroupId && n3.ratingGroupId > 0 ? n3.ratingGroupId : null,
+    categoryId: n3.id,
     warnings: session.warnings,
   }
 }

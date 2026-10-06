@@ -204,6 +204,13 @@ function formatVnd(v: number, locale: WebLocale): string {
   }).format(Math.max(0, Math.round(v || 0)))
 }
 
+function formatOrderShare(orders: number, total: number): string {
+  if (total <= 0 || orders <= 0) return '0%'
+  const pct = Math.round((orders / total) * 1000) / 10
+  const text = Number.isInteger(pct) ? String(pct) : pct.toFixed(1)
+  return `${text}%`
+}
+
 function formatDate(s: string, locale: WebLocale): string {
   const d = new Date(s)
   const tag = intlLocaleTag(locale)
@@ -1300,6 +1307,42 @@ export function PartnerMessagingOrdersClient({
                   </p>
                 </div>
               </div>
+              {(revenueReport.depositPercentStats?.length ?? 0) > 0 ? (
+                <div className="mt-4 border-t border-gray-100 pt-4 dark:border-zinc-700">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-zinc-50">{t.depositPercentStatsTitle}</h3>
+                  <p className="mt-0.5 text-xs text-gray-500">{t.depositPercentStatsHint}</p>
+                  <div className="mt-3 overflow-x-auto">
+                    <table className="min-w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b text-xs text-gray-500 dark:border-zinc-700">
+                          <th className="px-2 py-2 font-medium">{t.tableColDeposit}</th>
+                          <th className="px-2 py-2 font-medium">{t.revenueOrderCount}</th>
+                          <th className="px-2 py-2 font-medium">{t.depositPercentColShare}</th>
+                          <th className="px-2 py-2 font-medium">{t.revenueAmount}</th>
+                          <th className="px-2 py-2 font-medium">{t.depositNeed}</th>
+                          <th className="px-2 py-2 font-medium">{t.depositPaid}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {revenueReport.depositPercentStats.map((row) => (
+                          <tr key={row.percent} className="border-b border-gray-50 dark:border-zinc-700/60">
+                            <td className="px-2 py-2 font-medium text-gray-900 dark:text-zinc-50">
+                              {row.percent <= 0 ? t.depositNotRequired : `${row.percent}%`}
+                            </td>
+                            <td className="px-2 py-2 tabular-nums">{row.orders}</td>
+                            <td className="px-2 py-2 tabular-nums">
+                              {formatOrderShare(row.orders, revenueReport.totalOrders)}
+                            </td>
+                            <td className="px-2 py-2 tabular-nums">{formatVnd(row.revenue, locale)}</td>
+                            <td className="px-2 py-2 tabular-nums">{formatVnd(row.requiredAmount, locale)}</td>
+                            <td className="px-2 py-2 tabular-nums">{formatVnd(row.paidAmount, locale)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : null}
             </>
           ) : !revenueError && !revenueLoading ? (
             <p className="text-sm text-gray-500">{t.revenuePickPeriod}</p>

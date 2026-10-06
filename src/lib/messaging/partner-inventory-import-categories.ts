@@ -12,6 +12,7 @@ export async function linkImportedInventoryToCatalogCategories(input: {
   categoryL2?: string | null
   categoryL3?: string | null
   productName?: string
+  ratingGroupId?: number | null
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   return linkImportedInventoryToCatalogCategoriesBatch(input.partnerId, [input])
 }
@@ -25,6 +26,7 @@ export async function linkImportedInventoryToCatalogCategoriesBatch(
     categoryL2?: string | null
     categoryL3?: string | null
     productName?: string
+    ratingGroupId?: number | null
   }>
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   return placeImportedInventoryInCategoryTreeBatch(partnerId, items)

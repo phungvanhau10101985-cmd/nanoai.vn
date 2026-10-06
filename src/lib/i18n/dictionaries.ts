@@ -1107,6 +1107,9 @@ export type Dictionary = {
     kpiDepositedRevenue: string
     kpiDepositCollected: string
     kpiShippingNow: string
+    depositPercentStatsTitle: string
+    depositPercentStatsHint: string
+    depositPercentColShare: string
     revenueReportTitle: string
     revenueReportDesc: string
     revenueModeDay: string
@@ -4870,6 +4873,9 @@ const VI_DICTIONARY: Dictionary = {
     kpiDepositedRevenue: 'Doanh thu đơn đã cọc',
     kpiDepositCollected: 'Cọc đã thu',
     kpiShippingNow: 'Đang giao hàng',
+    depositPercentStatsTitle: 'Thống kê % đặt cọc',
+    depositPercentStatsHint: 'Số đơn theo mức cọc khách chọn (0% là không cọc). Cùng kỳ với báo cáo doanh thu.',
+    depositPercentColShare: 'Tỷ lệ đơn',
     revenueReportTitle: 'Báo cáo doanh thu',
     revenueReportDesc: 'Tổng doanh thu và số đơn theo ngày, tuần, tháng, năm hoặc khoảng ngày. Đơn trùng cùng khách, cùng tiền và cùng hàng chỉ tính một lần; trong nhóm trùng thì chỉ tính đơn đã đặt cọc.',
     revenueModeDay: 'Theo ngày',
@@ -8642,6 +8648,9 @@ const EN_DICTIONARY: Dictionary = {
     kpiDepositedRevenue: 'Deposited order revenue',
     kpiDepositCollected: 'Deposit collected',
     kpiShippingNow: 'Out for delivery',
+    depositPercentStatsTitle: 'Deposit % breakdown',
+    depositPercentStatsHint: 'Orders grouped by the deposit percent the customer chose (0% means no deposit). Same period as the revenue report.',
+    depositPercentColShare: 'Share of orders',
     revenueReportTitle: 'Revenue report',
     revenueReportDesc: 'Revenue and order counts by day, week, month, year, or a custom range. Identical orders (same customer, amount, and items) count once; if one has a deposit, only that deposited order is counted.',
     revenueModeDay: 'By day',
@@ -12390,6 +12399,9 @@ const ZH_DICTIONARY: Dictionary = {
     kpiDepositedRevenue: '已付定金订单营收',
     kpiDepositCollected: '已收定金',
     kpiShippingNow: '配送中',
+    depositPercentStatsTitle: '定金比例统计',
+    depositPercentStatsHint: '按客户选择的定金比例统计订单（0% 为无需定金）。与营收报表同一周期。',
+    depositPercentColShare: '订单占比',
     revenueReportTitle: '营收报表',
     revenueReportDesc: '按日、周、月、年或自定义日期查看营收与订单数。同一客户、同一金额、同一商品的重复订单只计一次；若其中有已付定金的订单，只计该单。',
     revenueModeDay: '按日',
@@ -16067,6 +16079,9 @@ const JA_DICTIONARY: Dictionary = {
     kpiDepositedRevenue: '手付済注文の売上',
     kpiDepositCollected: '受領手付',
     kpiShippingNow: '配送中',
+    depositPercentStatsTitle: '手付割合の内訳',
+    depositPercentStatsHint: 'お客様が選んだ手付割合ごとの注文件数（0% は手付なし）。売上レポートと同じ期間です。',
+    depositPercentColShare: '注文の割合',
     revenueReportTitle: '売上レポート',
     revenueReportDesc: '日・週・月・年または期間で売上と注文件数を表示します。同じお客様・同じ金額・同じ商品の重複注文は1件だけ集計し、入金済みがあればその注文だけを数えます。',
     revenueModeDay: '日別',
@@ -19807,6 +19822,9 @@ const KO_DICTIONARY: Dictionary = {
     kpiDepositedOrders: '계약금 완료 주문',
     kpiDepositedRevenue: '계약금 완료 주문 매출',
     kpiDepositCollected: '수령 계약금',
+    depositPercentStatsTitle: '계약금 비율 통계',
+    depositPercentStatsHint: '고객이 고른 계약금 비율별 주문 수입니다(0%는 계약금 없음). 매출 보고서와 같은 기간입니다.',
+    depositPercentColShare: '주문 비중',
     kpiShippingNow: '배송 중',
     revenueReportTitle: '매출 보고서',
     revenueReportDesc: '일·주·월·년 또는 기간으로 매출과 주문 수를 봅니다. 같은 고객·같은 금액·같은 상품의 중복 주문은 한 번만 집계하고, 입금된 주문이 있으면 그 주문만 집계합니다.',

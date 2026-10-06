@@ -9,7 +9,10 @@ import {
 } from '@/lib/cache/partner-shop-cache'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
-import { nextSharedRatingGroupId } from '@/lib/partner-website/category/partner-category-rating-group'
+import {
+  dedicatedRatingGroupId,
+  nextSharedRatingGroupId,
+} from '@/lib/partner-website/category/partner-category-rating-group'
 import {
   buildPartnerCategoryPath,
   buildPartnerCategoryTree,
@@ -251,8 +254,20 @@ export async function insertPartnerCategoryFromPg(
   try {
     await client.query('begin')
     let ratingGroupId: number | null = null
-    if (input.allocateRatingGroup) {
+    const preferred = dedicatedRatingGroupId(input.preferredRatingGroupId)
+    if (input.allocateRatingGroup || preferred) {
       await client.query('select pg_advisory_xact_lock(48188001)')
+      if (preferred) {
+        const owned = await client.query(
+          `select 1
+           from public.messaging_partner_categories
+           where rating_group_id = $1
+           limit 1`,
+          [preferred]
+        )
+        if ((owned.rowCount ?? 0) === 0) ratingGroupId = preferred
+      }
+      if (ratingGroupId == null && input.allocateRatingGroup) {
       const used = await client.query<{ max_gid: number }>(
         `select coalesce(max(gid), 0)::int as max_gid
          from (
@@ -270,6 +285,7 @@ export async function insertPartnerCategoryFromPg(
          ) u`
       )
       ratingGroupId = nextSharedRatingGroupId([Number(used.rows[0]?.max_gid) || 0])
+      }
     }
     const inserted = await client.query<CategoryDbRow>(
       `insert into public.messaging_partner_categories (
@@ -320,6 +336,35 @@ export async function insertPartnerCategoryFromPg(
     return { ok: false, error: 'db_error' }
   } finally {
     client.release()
+  }
+}
+
+/** Gắn mã nhóm đánh giá riêng vào cat3 nếu chưa có danh mục nào giữ mã đó. */
+export async function assignPartnerCategoryRatingGroupFromPg(
+  partnerId: string,
+  categoryId: string,
+  ratingGroupId: number
+): Promise<boolean> {
+  const gid = dedicatedRatingGroupId(ratingGroupId)
+  if (!isPgConfigured() || !gid) return false
+  try {
+    const res = await getPgPool().query(
+      `update public.messaging_partner_categories as c
+       set rating_group_id = $3
+       where c.id = $2::uuid
+         and c.partner_id = $1::uuid
+         and c.rating_group_id is null
+         and not exists (
+           select 1 from public.messaging_partner_categories o
+           where o.rating_group_id = $3
+         )`,
+      [partnerId, categoryId, gid]
+    )
+    if ((res.rowCount ?? 0) > 0) bumpSharedCatalogCacheLater()
+    return (res.rowCount ?? 0) > 0
+  } catch (e) {
+    console.warn('[assignPartnerCategoryRatingGroupFromPg]', e)
+    return false
   }
 }
 

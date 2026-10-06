@@ -96,6 +96,10 @@ test('auto-create off still reuses existing L1/L2/L3 and only blocks missing tri
   assert.equal(blocked.has('keep'), false)
   assert.equal(blocked.has('miss'), true)
   assert.equal(blocked.has('twelve-col'), false)
+  const dedicated = catalogInsertIdsBlockedWhenAutoCreateOff(false, rows, [
+    { id: 'new-group', categoryL1: 'Giày dép Nữ', categoryL2: 'Boot Nữ', categoryL3: 'Boot Martin', ratingGroupId: 102 },
+  ])
+  assert.equal(dedicated.has('new-group'), false)
   const none = catalogInsertIdsBlockedWhenAutoCreateOff(true, rows, [
     { id: 'miss', categoryL1: 'Thời trang Nữ', categoryL2: 'Đầm', categoryL3: 'Đầm suông' },
   ])

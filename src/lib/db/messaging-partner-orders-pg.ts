@@ -5,6 +5,8 @@ import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-
 import type { PartnerSaleDiscountBreakdown } from '@/lib/partner-website/promotions/partner-sale-pricing'
 import {
   partnerAdminDepositedOrderSql,
+  partnerAdminDepositPercentStatsSelectSql,
+  parsePartnerOrderDepositPercentStats,
   partnerAdminFulfillmentFilterSql,
   partnerAdminLifecycleSql,
   partnerAdminPaymentFilterSql,
@@ -12,6 +14,7 @@ import {
   type PartnerAdminFulfillmentFilter,
   type PartnerAdminLifecycleTab,
   type PartnerAdminPaymentFilter,
+  type PartnerOrderDepositPercentStat,
 } from '@/lib/messaging/partner-admin-orders-lifecycle'
 import {
   coreShopOrderCode,
@@ -1956,6 +1959,7 @@ export type PartnerOrderAdminRevenueReport = {
   depositedAmount: number
   cancelledOrders: number
   returnedOrders: number
+  depositPercentStats: PartnerOrderDepositPercentStat[]
 }
 
 export type PartnerOrderAdminPage = {
@@ -2041,6 +2045,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
             o.refund_status,
             o.paid_amount,
             o.required_amount,
+            o.deposit_percent,
             o.amount_after_discount,
             o.subtotal_amount,
             o.created_at,
@@ -2105,7 +2110,8 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
           coalesce(sum(${ORDER_TOTAL_EXPR}) filter (where ${partnerAdminDepositedOrderSql()}), 0)::double precision as deposited_revenue,
           coalesce(sum(coalesce(o.paid_amount, 0)) filter (where ${partnerAdminDepositedOrderSql()}), 0)::double precision as deposited_amount,
           count(*) filter (where ${partnerAdminLifecycleSql('cancelled')})::int as cancelled,
-          count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned
+          count(*) filter (where ${partnerAdminLifecycleSql('returned')})::int as returned,
+          ${partnerAdminDepositPercentStatsSelectSql()} as deposit_percent_stats
        from picked o`,
       [input.ownerUserId, partnerId || null, from, to]
     )
@@ -2123,6 +2129,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
       depositedAmount: Math.round(Number(row?.deposited_amount) || 0),
       cancelledOrders: n('cancelled'),
       returnedOrders: n('returned'),
+      depositPercentStats: parsePartnerOrderDepositPercentStats(row?.deposit_percent_stats),
     }
   } catch (e) {
     console.error('[fetchPartnerOrderAdminRevenueFromPg]', e)

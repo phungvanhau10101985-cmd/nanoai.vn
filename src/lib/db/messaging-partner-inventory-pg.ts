@@ -4383,6 +4383,40 @@ from jsonb_to_recordset($1::jsonb) as v(
 )
 where mpi.id = v.id and mpi.partner_id = $2::uuid`
 
+/** Đồng bộ nhóm đánh giá trên kho sau khi danh mục cấp 3 nhận mã riêng. */
+export async function patchInventoryRatingGroupsFromPg(
+  partnerId: string,
+  rows: Array<{ inventoryId: string; ratingGroupId: number }>
+): Promise<boolean> {
+  if (!isPgConfigured() || rows.length === 0) return true
+  const payload = rows
+    .map((row) => ({
+      id: row.inventoryId,
+      gid: Math.round(Number(row.ratingGroupId) || 0),
+    }))
+    .filter((row) => row.id && row.gid > 0)
+  if (payload.length === 0) return true
+  try {
+    await getPgPool().query(
+      `update public.messaging_partner_inventory as mpi
+       set rating_group_id = v.gid,
+           catalog_json = jsonb_set(
+             coalesce(mpi.catalog_json, '{}'::jsonb),
+             '{group_rating}',
+             to_jsonb(v.gid),
+             true
+           )
+       from jsonb_to_recordset($2::jsonb) as v(id uuid, gid int)
+       where mpi.id = v.id and mpi.partner_id = $1::uuid`,
+      [partnerId, JSON.stringify(payload)]
+    )
+    return true
+  } catch (e) {
+    console.warn('[patchInventoryRatingGroupsFromPg]', e)
+    return false
+  }
+}
+
 export async function applyPartnerInventoryCatalogPatchFromPg(
   rows: InventoryCatalogPatchRow[]
 ): Promise<boolean> {

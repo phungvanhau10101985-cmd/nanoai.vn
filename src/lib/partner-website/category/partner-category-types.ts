@@ -96,6 +96,8 @@ export type PartnerCategoryCreateInput = {
   aiGenerated?: boolean
   /** Cào listing: cấp mã nhóm đánh giá mới, không trùng mã đã có. */
   allocateRatingGroup?: boolean
+  /** Import Excel: giữ mã này nếu chưa có danh mục nào giữ, không thì cấp mã mới khi allocateRatingGroup. */
+  preferredRatingGroupId?: number | null
 }
 
 export type PartnerCategoryUpdateInput = Partial<

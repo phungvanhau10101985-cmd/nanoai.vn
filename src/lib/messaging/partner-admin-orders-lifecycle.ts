@@ -309,6 +309,65 @@ export function partnerAdminDepositedOrderSql(): string {
   )`
 }
 
+export type PartnerOrderDepositPercentStat = {
+  percent: number
+  orders: number
+  revenue: number
+  requiredAmount: number
+  paidAmount: number
+}
+
+/** Gom đơn trong CTE `picked` theo `deposit_percent` (0–100). */
+export function partnerAdminDepositPercentStatsSelectSql(): string {
+  return `coalesce((
+    select json_agg(json_build_object(
+      'percent', b.percent,
+      'orders', b.orders,
+      'revenue', b.revenue,
+      'requiredAmount', b.required_amount,
+      'paidAmount', b.paid_amount
+    ) order by b.percent)
+    from (
+      select
+        greatest(0, least(100, round(coalesce(bucket.deposit_percent, 0))))::int as percent,
+        count(*)::int as orders,
+        coalesce(sum(coalesce(nullif(bucket.amount_after_discount, 0), bucket.subtotal_amount, 0)), 0)::double precision as revenue,
+        coalesce(sum(coalesce(bucket.required_amount, 0)), 0)::double precision as required_amount,
+        coalesce(sum(coalesce(bucket.paid_amount, 0)), 0)::double precision as paid_amount
+      from picked bucket
+      group by 1
+    ) b
+  ), '[]'::json)`
+}
+
+export function parsePartnerOrderDepositPercentStats(raw: unknown): PartnerOrderDepositPercentStat[] {
+  let list: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      list = JSON.parse(raw) as unknown
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(list)) return []
+  const out: PartnerOrderDepositPercentStat[] = []
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    const orders = Math.max(0, Math.floor(Number(row.orders) || 0))
+    if (orders <= 0) continue
+    out.push({
+      percent: Math.max(0, Math.min(100, Math.round(Number(row.percent) || 0))),
+      orders,
+      revenue: Math.round(Number(row.revenue) || 0),
+      requiredAmount: Math.round(Number(row.requiredAmount ?? row.required_amount) || 0),
+      paidAmount: Math.round(Number(row.paidAmount ?? row.paid_amount) || 0),
+    })
+  }
+  out.sort((a, b) => a.percent - b.percent || b.orders - a.orders)
+  return out
+}
+
 /**
  * Trong một nhóm đơn trùng, chọn một đơn cho báo cáo doanh thu.
  * Đã cọc thắng đơn chưa cọc. Chưa cọc thì giữ đơn còn hiệu lực, bỏ bản hủy/hoàn.

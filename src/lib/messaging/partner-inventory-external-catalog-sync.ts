@@ -958,6 +958,7 @@ export async function runPartnerExternalCatalogFieldFillJob(params: {
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
         productName: p.catalog.catalog_json?.name,
+        ratingGroupId: p.catalog.rating_group_id,
       }))
     )
     if (!linked.ok) {

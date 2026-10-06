@@ -6,6 +6,8 @@ import {
   parsePartnerAdminVndDigits,
   partnerAdminAmountDueOnDelivery,
   partnerAdminAmountDueOnDeliverySql,
+  parsePartnerOrderDepositPercentStats,
+  partnerAdminDepositPercentStatsSelectSql,
   partnerAdminDepositedOrderSql,
   partnerAdminLifecycleSql,
   partnerAdminRevenueDuplicateOrderBySql,
@@ -269,6 +271,29 @@ test('revenue stats keep one duplicate and prefer the deposited order', () => {
   assert.match(orderBy, /paid_amount/)
   assert.match(orderBy, /s\.created_at desc/)
   assert.doesNotMatch(orderBy, /\$\{|`/)
+})
+
+test('deposit percent stats parse buckets and ignore empty rows', () => {
+  const sql = partnerAdminDepositPercentStatsSelectSql()
+  assert.match(sql, /deposit_percent/)
+  assert.match(sql, /from picked bucket/)
+  assert.doesNotMatch(sql, /\$\{|`/)
+
+  assert.deepEqual(
+    parsePartnerOrderDepositPercentStats([
+      { percent: 100, orders: 2, revenue: 500000, requiredAmount: 500000, paidAmount: 500000 },
+      { percent: 0, orders: 1, revenue: 100000, requiredAmount: 0, paidAmount: 0 },
+      { percent: 30, orders: 0, revenue: 0, requiredAmount: 0, paidAmount: 0 },
+      { percent: 30.4, orders: 4, revenue: 800000.2, required_amount: 240000, paid_amount: 120000 },
+    ]),
+    [
+      { percent: 0, orders: 1, revenue: 100000, requiredAmount: 0, paidAmount: 0 },
+      { percent: 30, orders: 4, revenue: 800000, requiredAmount: 240000, paidAmount: 120000 },
+      { percent: 100, orders: 2, revenue: 500000, requiredAmount: 500000, paidAmount: 500000 },
+    ]
+  )
+  assert.deepEqual(parsePartnerOrderDepositPercentStats('not-json'), [])
+  assert.deepEqual(parsePartnerOrderDepositPercentStats(null), [])
 })
 
 test('deposited order SQL counts received deposit and skips cancel or refund', () => {

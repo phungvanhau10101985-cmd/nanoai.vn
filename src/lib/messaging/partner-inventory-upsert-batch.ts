@@ -157,6 +157,7 @@ async function pruneInsertsBlockedByCategoryAutoCreate(
       categoryL1: patch.catalog.category_l1,
       categoryL2: patch.catalog.category_l2,
       categoryL3: patch.catalog.category_l3,
+      ratingGroupId: patch.catalog.rating_group_id,
     })
   }
   const blocked = await importedInventoryInsertIdsBlockedByAutoCreate(partnerId, items)
@@ -535,6 +536,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
         productName: p.catalog.catalog_json?.name,
+        ratingGroupId: p.catalog.rating_group_id,
       }))
     )
     if (!linked.ok) {
@@ -691,6 +693,7 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
         productName: p.catalog.catalog_json?.name,
+        ratingGroupId: p.catalog.rating_group_id,
       }))
     )
     if (!linked.ok) {
@@ -1022,6 +1025,7 @@ export async function upsertPartnerInventoryBatch(
         categoryL2: p.catalog.category_l2,
         categoryL3: p.catalog.category_l3,
         productName: p.catalog.catalog_json?.name,
+        ratingGroupId: p.catalog.rating_group_id,
       }))
     )
     if (!linked.ok) {
