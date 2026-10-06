@@ -21,6 +21,7 @@ export function WeddingSectionCard({ theme, title, children, id, className, cont
       theme={theme}
       strength="section"
       id={id}
+      reveal
       className={cn('rounded-[1.75rem] px-4 py-5 sm:rounded-[2rem] sm:px-5 sm:py-6 md:px-8 md:py-7', className)}
     >
       {title ? (

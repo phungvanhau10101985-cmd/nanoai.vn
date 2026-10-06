@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { CalendarDays, Heart, Loader2, MapPin, Music, Send, Sparkles, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,10 +9,18 @@ import { Textarea } from '@/components/ui/textarea'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import type { WeddingAiImage, WeddingCard, WeddingImageType, WeddingWish } from '@/lib/db/wedding-cards-pg'
+import type {
+  PublishedGuestRsvpSnapshot,
+  WeddingAiImage,
+  WeddingCard,
+  WeddingImageType,
+  WeddingWish,
+} from '@/lib/db/wedding-cards-pg'
 import { submitWeddingGuestResponse, subscribeWeddingReminder } from './actions'
 import { WeddingAlbumLightbox } from './wedding-album-lightbox'
-import { WeddingAlbumGalleryGrid, WeddingAlbumPreviewGrid } from '@/components/wedding/wedding-album-grid'
+import { WeddingAlbumGalleryGrid } from '@/components/wedding/wedding-album-grid'
+import { WeddingAlbumStage } from '@/components/wedding/wedding-album-stage'
+import { resolveWeddingAlbumLayoutId } from '@/lib/wedding/wedding-album-layouts'
 import { WeddingInvitationAudio, type WeddingInvitationAudioHandle } from '@/components/wedding/wedding-invitation-audio'
 import { WeddingMusicFabVisual } from '@/components/wedding/wedding-music-fab-visual'
 import { WeddingMapEmbed } from '@/components/wedding/wedding-map-embed'
@@ -35,6 +43,9 @@ import {
   resolveCoverPhotoUrl,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
+import { WeddingEnvelopeOpen, WEDDING_ENVELOPE_OPEN_MS } from '@/components/wedding/wedding-envelope-open'
+import { WeddingInvitationMotion } from '@/components/wedding/wedding-invitation-motion'
+import { WeddingPartyCountFields } from '@/components/wedding/wedding-party-count-fields'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import {
@@ -58,6 +69,13 @@ const CONTENT_REVEAL_DELAY_MS = 900
 const CONTENT_REVEAL_MS = 1650
 const OVERLAY_REMOVE_DELAY_MS = 2350
 
+function seedParty(rsvp: PublishedGuestRsvpSnapshot | null | undefined) {
+  if (!rsvp) return { choice: null as 'yes' | 'no' | null, adult: 1, child: 0, attending: true }
+  if (!rsvp.attending) return { choice: 'no' as const, adult: 1, child: 0, attending: false }
+  const adult = rsvp.adultCount + rsvp.childCount > 0 ? rsvp.adultCount : Math.max(1, rsvp.guestCount || 1)
+  return { choice: 'yes' as const, adult, child: rsvp.childCount, attending: true }
+}
+
 export default function WeddingPublicClient({
   card,
   wishes,
@@ -65,6 +83,7 @@ export default function WeddingPublicClient({
   initialGuestDisplayName = '',
   initialGuestInviteVenue = '',
   initialPersonalInvite = '',
+  initialGuestRsvp = null,
 }: {
   card: WeddingCard
   wishes: WeddingWish[]
@@ -72,6 +91,7 @@ export default function WeddingPublicClient({
   initialGuestDisplayName?: string
   initialGuestInviteVenue?: WeddingGuestInviteVenue
   initialPersonalInvite?: string
+  initialGuestRsvp?: PublishedGuestRsvpSnapshot | null
 }) {
   const { toast } = useToast()
   const uiLocale = readWebLocaleFromDocumentCookie()
@@ -94,6 +114,7 @@ export default function WeddingPublicClient({
   )
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const albumLayoutId = resolveWeddingAlbumLayoutId(sectionConfig.albumLayoutId)
   const coverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
@@ -105,14 +126,25 @@ export default function WeddingPublicClient({
   const [musicLoadFailed, setMusicLoadFailed] = useState(false)
   const [musicFabPlaying, setMusicFabPlaying] = useState(false)
   const [guestName, setGuestName] = useState('')
-  const [attending, setAttending] = useState(true)
-  const [guestCount, setGuestCount] = useState('1')
+  const [attending, setAttending] = useState(() => seedParty(initialGuestRsvp).attending)
+  const [partyAdult, setPartyAdult] = useState(() => seedParty(initialGuestRsvp).adult)
+  const [partyChild, setPartyChild] = useState(() => seedParty(initialGuestRsvp).child)
+  const [partyModalOpen, setPartyModalOpen] = useState(false)
+  const [draftAdult, setDraftAdult] = useState(() => seedParty(initialGuestRsvp).adult)
+  const [draftChild, setDraftChild] = useState(() => seedParty(initialGuestRsvp).child)
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [coverRsvpChoice, setCoverRsvpChoice] = useState<'yes' | 'no' | null>(
+    () => seedParty(initialGuestRsvp).choice,
+  )
+  const rsvpSeq = useRef(0)
+  const partyTimer = useRef<number | null>(null)
   const [reminderEmail, setReminderEmail] = useState('')
   const [reminderDaysBefore, setReminderDaysBefore] = useState('3')
   const [reminderSubmitting, setReminderSubmitting] = useState(false)
   const [opened, setOpened] = useState(false)
+  const [seal, setSeal] = useState<'closed' | 'opening' | 'open'>(card.effectsEnabled ? 'closed' : 'open')
+  const sealTimer = useRef<number | null>(null)
   const [unfolding, setUnfolding] = useState(false)
   const [contentVisible, setContentVisible] = useState(false)
   const [albumOpen, setAlbumOpen] = useState(false)
@@ -131,6 +163,35 @@ export default function WeddingPublicClient({
     if (typeof window === 'undefined') return
     setSharePageUrl(window.location.href)
   }, [])
+
+  useLayoutEffect(() => {
+    if (!card.effectsEnabled || window.matchMedia('(prefers-reduced-motion: reduce)').matches) setSeal('open')
+  }, [card.effectsEnabled])
+
+  useEffect(() => {
+    return () => {
+      if (sealTimer.current) window.clearTimeout(sealTimer.current)
+    }
+  }, [])
+
+  const openSeal = () => {
+    if (seal !== 'closed') return
+    setSeal('opening')
+    sealTimer.current = window.setTimeout(() => setSeal('open'), WEDDING_ENVELOPE_OPEN_MS)
+  }
+
+  useEffect(() => {
+    if (opened) return
+    const html = document.documentElement
+    const prevHtml = html.style.overflow
+    const prevBody = document.body.style.overflow
+    html.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+    return () => {
+      html.style.overflow = prevHtml
+      document.body.style.overflow = prevBody
+    }
+  }, [opened])
 
   const guestDisplayName = useMemo(
     () => initialGuestDisplayName.trim() || card.guestName.trim(),
@@ -249,12 +310,46 @@ export default function WeddingPublicClient({
     ],
   )
 
+  const saveGuestRsvp = useCallback(
+    async (willAttend: boolean, adult: number, child: number, quiet = false) => {
+      const name = (guestName.trim() || guestDisplayName).trim()
+      if (!name) return
+      const seq = ++rsvpSeq.current
+      if (!quiet) setSubmitting(true)
+      const safeAdult = willAttend ? Math.max(0, Math.min(20, adult)) : 0
+      const safeChild = willAttend ? Math.max(0, Math.min(20, child)) : 0
+      const formData = new FormData()
+      formData.append('guestName', name)
+      formData.append('attending', String(willAttend))
+      formData.append('adultCount', String(safeAdult))
+      formData.append('childCount', String(safeChild))
+      formData.append('guestCount', String(safeAdult + safeChild))
+      formData.append('message', quiet ? '' : message)
+      const result = await submitWeddingGuestResponse(card.slug, formData)
+      if (seq !== rsvpSeq.current) return
+      if (!quiet) setSubmitting(false)
+      if ('error' in result) {
+        toast({ title: tx.submitErrorTitle, description: result.error, variant: 'destructive' })
+        return
+      }
+      setGuestName(name)
+      setAttending(willAttend)
+      setCoverRsvpChoice(willAttend ? 'yes' : 'no')
+      if (!quiet) toast({ title: tx.submitSuccessTitle, description: tx.submitSuccessDesc })
+    },
+    [card.slug, guestDisplayName, guestName, message, toast, tx.submitErrorTitle, tx.submitSuccessDesc, tx.submitSuccessTitle],
+  )
+
   const submit = async () => {
+    const adult = attending ? partyAdult : 0
+    const child = attending ? partyChild : 0
     setSubmitting(true)
     const formData = new FormData()
     formData.append('guestName', guestName)
     formData.append('attending', String(attending))
-    formData.append('guestCount', guestCount)
+    formData.append('adultCount', String(adult))
+    formData.append('childCount', String(child))
+    formData.append('guestCount', String(adult + child))
     formData.append('message', message)
     const result = await submitWeddingGuestResponse(card.slug, formData)
     setSubmitting(false)
@@ -262,9 +357,48 @@ export default function WeddingPublicClient({
       toast({ title: tx.submitErrorTitle, description: result.error, variant: 'destructive' })
       return
     }
+    setCoverRsvpChoice(attending ? 'yes' : 'no')
     toast({ title: tx.submitSuccessTitle, description: tx.submitSuccessDesc })
-    setGuestName('')
     setMessage('')
+  }
+
+  const openPartyModal = () => {
+    if (submitting) return
+    const adult = partyAdult + partyChild > 0 ? partyAdult : 1
+    setDraftAdult(adult)
+    setDraftChild(partyChild)
+    setPartyModalOpen(true)
+  }
+
+  const confirmPartyModal = () => {
+    const adult = Math.max(0, Math.min(20, draftAdult))
+    const child = Math.max(0, Math.min(20, draftChild))
+    const safeAdult = adult + child > 0 ? adult : 1
+    if (partyTimer.current) window.clearTimeout(partyTimer.current)
+    setPartyAdult(safeAdult)
+    setPartyChild(child)
+    setPartyModalOpen(false)
+    setCoverRsvpChoice('yes')
+    setAttending(true)
+    void saveGuestRsvp(true, safeAdult, child)
+  }
+
+  const chooseCoverNo = () => {
+    if (coverRsvpChoice === 'no' || submitting) return
+    if (partyTimer.current) window.clearTimeout(partyTimer.current)
+    setPartyModalOpen(false)
+    setCoverRsvpChoice('no')
+    setAttending(false)
+    void saveGuestRsvp(false, 0, 0)
+  }
+
+  const changeParty = (adult: number, child: number) => {
+    setPartyAdult(adult)
+    setPartyChild(child)
+    if (partyTimer.current) window.clearTimeout(partyTimer.current)
+    partyTimer.current = window.setTimeout(() => {
+      void saveGuestRsvp(true, adult, child, true)
+    }, 450)
   }
 
   const submitReminder = async () => {
@@ -302,11 +436,60 @@ export default function WeddingPublicClient({
   return (
     <>
       <Toaster />
+      {partyModalOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/45 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-6 sm:items-center">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label={tx.coverPartyClose}
+            onClick={() => setPartyModalOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pw-party-modal-title"
+            className="relative w-full max-w-sm rounded-[1.5rem] bg-[#fff8f0] p-5 shadow-2xl"
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <p id="pw-party-modal-title" className="font-serif text-xl font-semibold text-stone-900">
+                {tx.coverAttendYes}
+              </p>
+              <button
+                type="button"
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-stone-300 bg-white text-lg text-stone-700"
+                aria-label={tx.coverPartyClose}
+                onClick={() => setPartyModalOpen(false)}
+              >
+                ×
+              </button>
+            </div>
+            <WeddingPartyCountFields
+              adultCount={draftAdult}
+              childCount={draftChild}
+              adultLabel={tx.rsvpAdultLabel}
+              childLabel={tx.rsvpChildLabel}
+              disabled={submitting}
+              onChange={(adult, child) => {
+                setDraftAdult(adult)
+                setDraftChild(child)
+              }}
+            />
+            <button
+              type="button"
+              disabled={submitting || draftAdult + draftChild < 1}
+              onClick={confirmPartyModal}
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full border-2 border-emerald-800 bg-emerald-800 font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] disabled:opacity-60"
+            >
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tx.coverPartyConfirm}
+            </button>
+          </div>
+        </div>
+      ) : null}
       <main className={cn('min-h-screen', theme.pageBg, theme.text)}>
         {!opened && (
           <section
             className={cn(
-              'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-cover bg-center px-3 py-[calc(0.75rem+env(safe-area-inset-top))] sm:items-center sm:px-4 sm:py-4',
+              'fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-cover bg-center',
               unfolding && 'pointer-events-none',
             )}
             style={weddingBackgroundStyle(
@@ -316,9 +499,10 @@ export default function WeddingPublicClient({
               { readingVignette: true },
             )}
           >
-            {/* Vỏ thiệp — nhẹ nhàng nâng lên và tan dần */}
+            {/* min-h-full + my-auto: còn chỗ thì căn giữa; cao hơn màn thì cuộn từ đỉnh, không cắt tên */}
+            <div className="flex min-h-full flex-col items-center px-3 py-[calc(0.75rem+env(safe-area-inset-top))] sm:px-4 sm:py-4">
             <div
-              className="relative z-10 w-full max-w-[min(26rem,calc(100vw-1.5rem))] transition-all sm:max-w-[min(26rem,calc(100vw-2rem))]"
+              className="relative z-10 mx-auto my-auto w-full max-w-[min(26rem,calc(100vw-1.5rem))] shrink-0 transition-all sm:max-w-[min(28rem,calc(100vw-2rem))] lg:max-w-[min(36rem,calc(100vw-4rem))]"
               style={{
                 transitionDuration: `${COVER_FADE_MS}ms`,
                 transitionTimingFunction: 'cubic-bezier(0.22, 1, 0.36, 1)',
@@ -327,7 +511,10 @@ export default function WeddingPublicClient({
                 filter: unfolding ? 'blur(10px)' : 'blur(0)',
               }}
             >
+            <div className={seal === 'open' && card.effectsEnabled ? 'wedding-cover-arrive' : undefined}>
+            {seal === 'open' ? (
             <WeddingCoverShellCard
+              breathe={card.effectsEnabled}
               presetId={coverPresetId}
               coverPhotoUrl={displayCoverPhotoUrl}
               coverPhotoObjectPosition={coverPhotoObjectPosition}
@@ -349,6 +536,20 @@ export default function WeddingPublicClient({
               openButtonLabel={tx.openInvitation}
               dateFallback={tx.dateFallback}
               photoAlt={tx.coverPhotoAlt}
+              quickRsvp={
+                card.rsvpEnabled && guestDisplayName
+                  ? {
+                      yesLabel: tx.coverAttendYes,
+                      noLabel: tx.coverAttendNo,
+                      savedYesLabel: tx.coverRsvpSavedYes,
+                      savedNoLabel: tx.coverRsvpSavedNo,
+                      busy: submitting || partyModalOpen,
+                      choice: coverRsvpChoice,
+                      onYes: openPartyModal,
+                      onNo: chooseCoverNo,
+                    }
+                  : undefined
+              }
               onOpen={() => {
                 if (unfolding) return
                 setUnfolding(true)
@@ -364,6 +565,20 @@ export default function WeddingPublicClient({
                 }, CONTENT_REVEAL_DELAY_MS)
               }}
             />
+            ) : (
+              <WeddingEnvelopeOpen
+                groomName={card.groomName}
+                brideName={card.brideName}
+                invitationLabel={tx.invitation}
+                openLabel={tx.openEnvelope}
+                ornament={theme.ornament}
+                theme={theme}
+                opening={seal === 'opening'}
+                onOpen={openSeal}
+              />
+            )}
+            </div>
+            </div>
             </div>
           </section>
         )}
@@ -377,6 +592,7 @@ export default function WeddingPublicClient({
             transform: contentVisible ? 'translateY(0) scale(1)' : 'translateY(28px) scale(0.985)',
           }}
         >
+        <WeddingInvitationMotion enabled={card.effectsEnabled}>
         <nav
           className={cn(
             'sticky top-0 z-30 border-b px-2 py-2 text-sm backdrop-blur-xl backdrop-saturate-150 sm:px-3 sm:py-2.5',
@@ -398,7 +614,7 @@ export default function WeddingPublicClient({
           <WeddingReadableGlass theme={theme} strength="hero" className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', theme.accentText, theme.textGlow)}>{tx.weddingInvitation}</p>
             <Heart className={cn('mx-auto mt-4 h-8 w-8 fill-current opacity-80 sm:mt-6 sm:h-10 sm:w-10', theme.accent, theme.textGlow)} />
-            <h1 className={cn('mt-4 break-words font-serif text-4xl font-semibold italic leading-tight sm:mt-6 sm:text-5xl md:text-7xl', theme.text, theme.textGlowHeading)}>
+            <h1 data-wedding-reveal className={cn('mt-4 break-words font-serif text-4xl font-semibold italic leading-tight sm:mt-6 sm:text-5xl md:text-7xl', theme.text, theme.textGlowHeading)}>
               {card.groomName} & {card.brideName}
             </h1>
             {card.loveQuote && (
@@ -494,7 +710,7 @@ export default function WeddingPublicClient({
           style={weddingBackgroundStyle(sectionImages.invitation, theme, WEDDING_BG_OVERLAY.section)}
         >
           <div className={PUBLIC_COLUMN}>
-            <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.familiesIntro}</p>
               <div className="mt-6 flex flex-col gap-4">
                 {(groomFamilyLine.trim() || groomHometownLine.trim()) && (
@@ -521,7 +737,7 @@ export default function WeddingPublicClient({
                 )}
               </div>
             </WeddingReadableGlass>
-            <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.coupleIntroTitle}</p>
               <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
                 {renderWeddingHighlightedText(
@@ -541,7 +757,7 @@ export default function WeddingPublicClient({
           style={weddingBackgroundStyle(sectionImages.event, theme, WEDDING_BG_OVERLAY.section)}
         >
           <div className={PUBLIC_COLUMN}>
-            <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-5">
+            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-5">
               {(displayWeddingDateIso ?? weddingDateIso) ? (
                 <WeddingEventCalendarBlock
                   weddingDateIso={(displayWeddingDateIso ?? weddingDateIso)!}
@@ -600,7 +816,7 @@ export default function WeddingPublicClient({
                 </>
               )}
             </WeddingReadableGlass>
-            <WeddingReadableGlass theme={theme} strength="section" className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('flex items-center justify-center gap-2 text-[11px] uppercase tracking-[0.22em] sm:text-xs sm:tracking-[0.3em]', theme.accentText, theme.textGlow)}>
                 <CalendarDays className="h-4 w-4" />
                 {tx.timelineTitle}
@@ -667,21 +883,15 @@ export default function WeddingPublicClient({
             </WeddingSectionCard>
           )}
           {card.albumImageUrls.length > 0 && (
-            <WeddingSectionCard theme={theme} title={tx.albumTitle}>
-              <button
-                type="button"
-                onClick={() => setActiveAlbumIndex(0)}
-                className="group w-full text-left"
-              >
-                <WeddingAlbumPreviewGrid
-                  urls={card.albumImageUrls}
-                  alt={tx.albumAlt}
-                  extraCount={Math.max(0, card.albumImageUrls.length - 2)}
-                />
-              </button>
-              <p className={cn('mt-3 text-center text-sm', theme.mutedText, theme.textGlow)}>
-                {tx.albumHint}
-              </p>
+            <WeddingSectionCard theme={theme} title={tx.albumTitle} contentClassName="-mx-1 sm:-mx-2">
+              <WeddingAlbumStage
+                urls={card.albumImageUrls}
+                alt={tx.albumAlt}
+                layoutId={albumLayoutId}
+                locale={uiLocale}
+                onExpand={(index) => setActiveAlbumIndex(index)}
+              />
+              <p className={cn('mt-3 text-center text-sm', theme.mutedText, theme.textGlow)}>{tx.albumHint}</p>
             </WeddingSectionCard>
           )}
           {card.rsvpEnabled && (
@@ -693,12 +903,24 @@ export default function WeddingPublicClient({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Button className="min-h-11" variant={attending ? 'default' : 'outline'} onClick={() => setAttending(true)}>{tx.attendYes}</Button>
-                  <Button className="min-h-11" variant={!attending ? 'default' : 'outline'} onClick={() => setAttending(false)}>{tx.attendNo}</Button>
+                  <Button className="min-h-11" variant={!attending ? 'default' : 'outline'} onClick={() => (guestDisplayName ? chooseCoverNo() : setAttending(false))}>{tx.attendNo}</Button>
                 </div>
-                <div className="space-y-2">
-                  <Label className={cn(theme.text, theme.textGlow)}>{tx.guestCountLabel}</Label>
-                  <Input className="min-h-11" type="number" min="0" max="20" value={guestCount} onChange={(e) => setGuestCount(e.target.value)} />
-                </div>
+                {attending ? (
+                  <WeddingPartyCountFields
+                    adultCount={partyAdult}
+                    childCount={partyChild}
+                    adultLabel={tx.rsvpAdultLabel}
+                    childLabel={tx.rsvpChildLabel}
+                    disabled={submitting}
+                    onChange={(adult, child) => {
+                      if (coverRsvpChoice === 'yes') changeParty(adult, child)
+                      else {
+                        setPartyAdult(adult)
+                        setPartyChild(child)
+                      }
+                    }}
+                  />
+                ) : null}
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.wishLabel}</Label>
                   <Textarea className="min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={tx.wishPlaceholder} />
@@ -785,7 +1007,7 @@ export default function WeddingPublicClient({
           className="bg-cover bg-center px-3 py-12 text-center sm:px-4 sm:py-20"
           style={weddingBackgroundStyle(sectionImages.thanks, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
         >
-          <WeddingReadableGlass theme={theme} strength="hero" className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
+          <WeddingReadableGlass theme={theme} strength="hero" reveal className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />
             <h2 className={cn('mt-4 font-serif text-3xl font-semibold italic sm:text-4xl', theme.text, theme.textGlowHeading)}>{tx.thankYouTitle}</h2>
             <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
@@ -799,6 +1021,7 @@ export default function WeddingPublicClient({
             <p className={cn('mt-6 font-serif text-2xl sm:text-3xl', theme.accent, theme.textGlow)}>{theme.ornament}</p>
           </WeddingReadableGlass>
         </section>
+        </WeddingInvitationMotion>
         </div>
         {opened && card.effectsEnabled && card.musicUrl && !musicLoadFailed && (
           <button

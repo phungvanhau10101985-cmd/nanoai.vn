@@ -9,6 +9,8 @@ export type WeddingSectionConfig = {
   coverPhotoPositionY?: number
   /** Cover photo zoom scale, 1-3. */
   coverPhotoScale?: number
+  /** Kiểu vuốt album trên thiệp. */
+  albumLayoutId?: string
 }
 
 function readPercent(value: unknown): number | undefined {
@@ -39,6 +41,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverPhotoPositionX: readPercent(obj.coverPhotoPositionX),
       coverPhotoPositionY: readPercent(obj.coverPhotoPositionY),
       coverPhotoScale: readScale(obj.coverPhotoScale),
+      albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
     }
   } catch {
     return {}
@@ -52,6 +55,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (typeof config.coverPhotoPositionX === 'number') payload.coverPhotoPositionX = readPercent(config.coverPhotoPositionX)
   if (typeof config.coverPhotoPositionY === 'number') payload.coverPhotoPositionY = readPercent(config.coverPhotoPositionY)
   if (typeof config.coverPhotoScale === 'number') payload.coverPhotoScale = readScale(config.coverPhotoScale)
+  if (config.albumLayoutId?.trim()) payload.albumLayoutId = config.albumLayoutId.trim()
   return JSON.stringify(payload)
 }
 

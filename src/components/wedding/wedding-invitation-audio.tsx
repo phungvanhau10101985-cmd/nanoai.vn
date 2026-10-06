@@ -58,7 +58,27 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     const audioRef = useRef<HTMLAudioElement>(null)
     const segmentRef = useRef({ start: 0, end: null as number | null })
     const playingChangeRef = useRef(onPlayingChange)
+    const fadeRef = useRef<number | null>(null)
     playingChangeRef.current = onPlayingChange
+
+    const cancelFade = useCallback(() => {
+      if (fadeRef.current != null) cancelAnimationFrame(fadeRef.current)
+      fadeRef.current = null
+    }, [])
+
+    const fadeVolume = useCallback((el: HTMLAudioElement, to: number, ms: number) => {
+      cancelFade()
+      const from = el.volume
+      const t0 = performance.now()
+      const step = (now: number) => {
+        const p = Math.min(1, (now - t0) / ms)
+        const eased = 1 - (1 - p) ** 3
+        el.volume = from + (to - from) * eased
+        if (p < 1) fadeRef.current = requestAnimationFrame(step)
+        else fadeRef.current = null
+      }
+      fadeRef.current = requestAnimationFrame(step)
+    }, [cancelFade])
 
     const recomputeSegment = useCallback(() => {
       const el = audioRef.current
@@ -103,15 +123,25 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
         void el.play().catch(() => {})
       }
 
+      const onPlay = () => {
+        if (el.volume < 0.98) fadeVolume(el, 1, 2000)
+      }
+      const onPause = () => cancelFade()
+
       el.addEventListener('loadedmetadata', onLoadedMetadata)
       el.addEventListener('timeupdate', onTimeUpdate)
       el.addEventListener('ended', onEnded)
+      el.addEventListener('play', onPlay)
+      el.addEventListener('pause', onPause)
       return () => {
         el.removeEventListener('loadedmetadata', onLoadedMetadata)
         el.removeEventListener('timeupdate', onTimeUpdate)
         el.removeEventListener('ended', onEnded)
+        el.removeEventListener('play', onPlay)
+        el.removeEventListener('pause', onPause)
+        cancelFade()
       }
-    }, [src, loop, recomputeSegment, playStartSec, playEndSec])
+    }, [src, loop, recomputeSegment, playStartSec, playEndSec, fadeVolume, cancelFade])
 
     useEffect(() => {
       const el = audioRef.current
@@ -137,7 +167,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
           const el = audioRef.current
           if (!el?.src?.trim()) return
 
-          const seekToSegmentStartThenPlay = () => {
+          const seekToSegmentStartThenPlay = (fromSilence: boolean) => {
             recomputeSegment()
             const { start } = segmentRef.current
             try {
@@ -145,10 +175,13 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
             } catch {
               /* ignore */
             }
-            void el.play().catch(() => {})
+            if (fromSilence) el.volume = 0
+            void el.play().catch(() => {
+              el.volume = 1
+            })
           }
 
-          seekToSegmentStartThenPlay()
+          seekToSegmentStartThenPlay(true)
 
           /** Preload/chưa buffer: play() trong gesture có thể thất bại — thử lại khi có đủ dữ liệu. */
           if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA || el.error) {
@@ -160,7 +193,8 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
           }
           const retry = () => {
             cleanup()
-            seekToSegmentStartThenPlay()
+            if (!el.paused) return
+            seekToSegmentStartThenPlay(true)
           }
           const cleanupOnErr = () => {
             cleanup()

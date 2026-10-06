@@ -1,6 +1,7 @@
 'use client'
 
 import { Loader2, MapPin, Phone } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -47,8 +48,13 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
     onChange({ ...settings, [field]: value })
   }
 
+  const tone =
+    side === 'groom'
+      ? 'border-sky-200 bg-sky-50/80'
+      : 'border-rose-200 bg-rose-50/80'
+
   return (
-    <div className="grid gap-3 rounded-xl border bg-muted/20 p-3 sm:grid-cols-2">
+    <div className={cn('grid gap-3 rounded-xl border p-3 sm:grid-cols-2 sm:p-4', tone)}>
       <div className="space-y-1.5 sm:col-span-2">
         <Label className="text-sm">Ngày tiệc {meta.sideLabel}</Label>
         <Input

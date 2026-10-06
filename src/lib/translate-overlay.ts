@@ -12,6 +12,8 @@ export interface OverlayItem {
   eraseOriginal?: boolean
   /** Vùng tô nền rộng hơn ô chữ, để phủ nét Hán OCR không đọc được trên cùng hàng. */
   eraseBox?: { x: number; y: number; width: number; height: number }
+  /** Ô OCR trước khi nới thành ô bảng — dùng để không tô trắng phần ảnh nằm ngoài chữ. */
+  sourceBbox?: { x: number; y: number; width: number; height: number }
 }
 
 function escapeSvgText(s: string): string {
@@ -112,9 +114,25 @@ function clusterSortedEdges(values: number[], gap: number): number[][] {
   return groups
 }
 
+/** Poster điểm nổi bật có ảnh sản phẩm xen giữa các dải chữ. Bảng size thì các hàng sát nhau. */
+export function overlayTextRowsHavePhotoGap(items: Array<{ bbox: { y: number } }>): boolean {
+  if (items.length < 4) return false
+  const rows = clusterSortedEdges(
+    items.map((item) => item.bbox.y),
+    18
+  )
+  if (rows.length < 2) return false
+  const centers = rows
+    .map((group) => group.reduce((sum, value) => sum + value, 0) / group.length)
+    .sort((a, b) => a - b)
+  const gaps = centers.slice(1).map((value, index) => value - centers[index]!)
+  return gaps.length > 0 && Math.max(...gaps) >= 150
+}
+
 /** Nhiều hàng × ít nhất hai cột: bảng thông số. Không phóng chữ ra hàng bên dưới. */
 export function overlayItemsLookLikeTable(items: Array<{ bbox: { x: number; y: number } }>): boolean {
   if (items.length < 6) return false
+  if (overlayTextRowsHavePhotoGap(items)) return false
   const columns = clusterSortedEdges(
     items.map((item) => item.bbox.x),
     28
@@ -380,10 +398,9 @@ export function expandTableCellBoxes<T extends OverlayItem>(
   imageWidth: number,
   obstacles: OverlayItem[] = []
 ): T[] {
+  void imageWidth
   if (!overlayItemsLookLikeTable(items)) return items
   const pool = obstacles.length ? [...items, ...obstacles] : items
-  const rightEdge = Math.min(imageWidth - 6, Math.max(...pool.map((item) => item.bbox.x + item.bbox.width)))
-  const contentBottom = Math.max(...pool.map((item) => item.bbox.y + item.bbox.height)) + 72
   const expanded = items.map((item) => {
     const contained = pool.filter((other) => {
       if (other === item) return false
@@ -396,28 +413,35 @@ export function expandTableCellBoxes<T extends OverlayItem>(
         cy < item.bbox.y + item.bbox.height - 2
       return inside && other.bbox.width * other.bbox.height < item.bbox.width * item.bbox.height * 0.5
     })
-    if (contained.length >= 2) return { ...item, translatedText: '', eraseOriginal: true }
+    const sourceBbox = item.sourceBbox ?? { ...item.bbox }
+    if (contained.length >= 2) return { ...item, translatedText: '', eraseOriginal: true, sourceBbox }
     const centerY = item.bbox.y + item.bbox.height / 2
     const itemRight = item.bbox.x + item.bbox.width
+    const itemBottom = item.bbox.y + item.bbox.height
+    const lineH = Math.max(12, item.bbox.height)
+    const maxVGap = Math.max(36, Math.trunc(lineH * 1.6))
     const toTheRight = pool
       .filter((other) => {
         if (other === item || other.bbox.x < itemRight - 4) return false
         const otherCenter = other.bbox.y + other.bbox.height / 2
-        return Math.abs(otherCenter - centerY) <= Math.max(item.bbox.height, other.bbox.height, 18)
+        return Math.abs(otherCenter - centerY) <= Math.max(lineH, other.bbox.height, 18)
       })
       .sort((a, b) => a.bbox.x - b.bbox.x)[0]
     const below = pool
-      .filter((other) => other !== item && other.bbox.y >= item.bbox.y + item.bbox.height - 2)
+      .filter((other) => {
+        if (other === item || other.bbox.y < itemBottom - 2) return false
+        if (other.bbox.y - itemBottom > maxVGap) return false
+        const overlap =
+          Math.min(itemRight, other.bbox.x + other.bbox.width) - Math.max(item.bbox.x, other.bbox.x)
+        return overlap > 4
+      })
       .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)[0]
-    let x2 = toTheRight ? toTheRight.bbox.x - 8 : rightEdge
+    let x2 = toTheRight ? toTheRight.bbox.x - 8 : itemRight
     if (toTheRight && isCompactLabel(item) && isCompactLabel(toTheRight)) {
       const gap = toTheRight.bbox.x - itemRight
       if (gap > 36) x2 = Math.min(x2, itemRight + Math.floor(gap / 2))
     }
-    let y2 = below ? below.bbox.y - 4 : item.bbox.y + item.bbox.height
-    if (!below && item.bbox.width >= imageWidth * 0.45) {
-      y2 = Math.max(y2, Math.min(contentBottom, item.bbox.y + Math.max(item.bbox.height, 64)))
-    }
+    let y2 = below ? below.bbox.y - 4 : itemBottom
     if (!below) {
       const beside = pool.filter((other) => {
         if (other === item || other.bbox.x < itemRight - 4) return false
@@ -441,6 +465,7 @@ export function expandTableCellBoxes<T extends OverlayItem>(
     if (below) y2 = Math.min(y2, below.bbox.y - 2)
     return {
       ...item,
+      sourceBbox,
       bbox: {
         x: item.bbox.x,
         y: item.bbox.y,
@@ -570,37 +595,104 @@ function centeredTextBox(
   imageHeight: number
 ) {
   if (!text) return box
-  const minFont = 14
-  const estimatedTextWidth = Math.max(minFont, [...text].length * minFont * 0.58)
-  const maxWidth = Math.min(
-    imageWidth - 8,
-    Math.max(box.width + 80, Math.trunc(box.width * (text.length > 80 ? 1.75 : 1.35)), minFont * 10)
-  )
-  const requiredWidth = Math.max(box.width, Math.min(estimatedTextWidth + 16, maxWidth))
-  const usableWidth = Math.max(10, requiredWidth - 16)
-  const lineCount = Math.max(1, Math.ceil(estimatedTextWidth / usableWidth))
-  const neededHeight = lineCount * Math.trunc(minFont * 1.42) + Math.max(0, lineCount - 1) + 16
-  const maxHeight = Math.min(
-    imageHeight - 8,
-    Math.max(box.height + 90, Math.trunc(box.height * (text.length > 80 ? 4.5 : 2.6)), minFont * 6)
-  )
-  const requiredHeight = Math.max(box.height, Math.min(neededHeight, maxHeight))
-  const centerX = box.x + box.width / 2
-  const centerY = box.y + box.height / 2
-  let left = Math.round(centerX - requiredWidth / 2)
-  let top = Math.round(centerY - requiredHeight / 2)
-  left = Math.max(0, Math.min(imageWidth - Math.round(requiredWidth), left))
-  top = Math.max(0, Math.min(imageHeight - Math.round(requiredHeight), top))
+  const x = Math.max(0, Math.min(imageWidth - 1, Math.round(box.x)))
+  const y = Math.max(0, Math.min(imageHeight - 1, Math.round(box.y)))
   return {
-    x: left,
-    y: top,
-    width: Math.max(1, Math.min(imageWidth - left, Math.round(requiredWidth))),
-    height: Math.max(1, Math.min(imageHeight - top, Math.round(requiredHeight))),
+    x,
+    y,
+    width: Math.max(1, Math.min(imageWidth - x, Math.round(box.width))),
+    height: Math.max(1, Math.min(imageHeight - y, Math.round(box.height))),
   }
 }
 
+type PixelBox = { x: number; y: number; width: number; height: number }
+
+function boxRemainder(outer: PixelBox, inner: PixelBox): PixelBox[] {
+  const ox1 = outer.x
+  const oy1 = outer.y
+  const ox2 = outer.x + outer.width
+  const oy2 = outer.y + outer.height
+  let ix1 = Math.max(ox1, inner.x)
+  let iy1 = Math.max(oy1, inner.y)
+  let ix2 = Math.min(ox2, inner.x + inner.width)
+  let iy2 = Math.min(oy2, inner.y + inner.height)
+  if (ix2 <= ix1 || iy2 <= iy1) return [outer]
+  const parts: PixelBox[] = []
+  if (oy1 < iy1) parts.push({ x: ox1, y: oy1, width: ox2 - ox1, height: iy1 - oy1 })
+  if (iy2 < oy2) parts.push({ x: ox1, y: iy2, width: ox2 - ox1, height: oy2 - iy2 })
+  if (ox1 < ix1) parts.push({ x: ox1, y: iy1, width: ix1 - ox1, height: iy2 - iy1 })
+  if (ix2 < ox2) parts.push({ x: ix2, y: iy1, width: ox2 - ix2, height: iy2 - iy1 })
+  return parts
+}
+
+/** Da / kim loại: lệch kênh màu và nhiều xám giữa. Nền bảng trắng đen thì không. */
+export async function overlayRegionIsProductPhoto(
+  imageBuffer: Buffer,
+  box: PixelBox,
+  imageWidth: number,
+  imageHeight: number
+): Promise<boolean> {
+  const left = Math.max(0, Math.min(imageWidth - 1, Math.round(box.x)))
+  const top = Math.max(0, Math.min(imageHeight - 1, Math.round(box.y)))
+  const width = Math.max(0, Math.min(imageWidth - left, Math.round(box.width)))
+  const height = Math.max(0, Math.min(imageHeight - top, Math.round(box.height)))
+  if (width < 8 || height < 8) return false
+  const extracted = await sharp(imageBuffer)
+    .extract({ left, top, width, height })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const channels = extracted.info.channels
+  const total = extracted.info.width * extracted.info.height
+  if (total < 16) return false
+  const step = Math.max(1, Math.ceil(total / 20_000))
+  let sumRG = 0
+  let sumGB = 0
+  let sum = 0
+  let sumSq = 0
+  let mid = 0
+  let n = 0
+  for (let pixel = 0; pixel < total; pixel += step) {
+    const offset = pixel * channels
+    const r = extracted.data[offset]
+    const g = extracted.data[offset + 1]
+    const b = extracted.data[offset + 2]
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b
+    sumRG += Math.abs(r - g)
+    sumGB += Math.abs(g - b)
+    sum += lum
+    sumSq += lum * lum
+    if (lum > 40 && lum < 215) mid += 1
+    n += 1
+  }
+  if (n < 8) return false
+  const colorSpread = (sumRG + sumGB) / n
+  const mean = sum / n
+  const std = Math.sqrt(Math.max(0, sumSq / n - mean * mean))
+  if (colorSpread > 12 && std > 16) return true
+  return std > 26 && mid / n > 0.4
+}
+
+async function tableExpansionCoversPhoto(
+  imageBuffer: Buffer,
+  items: OverlayItem[],
+  imageWidth: number,
+  imageHeight: number
+): Promise<boolean> {
+  for (const item of items) {
+    const src = item.sourceBbox
+    if (!src) continue
+    const outer = item.eraseBox ?? item.bbox
+    const parts = boxRemainder(outer, src)
+    for (const part of parts) {
+      if (await overlayRegionIsProductPhoto(imageBuffer, part, imageWidth, imageHeight)) return true
+    }
+  }
+  return false
+}
+
 /**
- * Overlay các đoạn chữ đã dịch lên ảnh: cover vùng cũ bằng nền trắng, vẽ chữ mới.
+ * Overlay các đoạn chữ đã dịch lên ảnh: cover vùng cũ bằng nền, vẽ chữ mới.
  */
 export async function overlayTranslatedText(
   imageBuffer: Buffer,
@@ -617,9 +709,13 @@ export async function overlayTranslatedText(
   const imageHeight = meta.height || 0
   if (!imageWidth || !imageHeight) return imageBuffer
 
-  const table = overlayItemsLookLikeTable(items)
+  let table = overlayItemsLookLikeTable(items)
   const obstacles = options?.obstacles ?? []
-  const drawItems = table ? expandTableCellBoxes(items, imageWidth, obstacles) : items
+  let drawItems = table ? expandTableCellBoxes(items, imageWidth, obstacles) : items
+  if (table && (await tableExpansionCoversPhoto(imageBuffer, drawItems, imageWidth, imageHeight))) {
+    table = false
+    drawItems = items
+  }
   const eraseNeighbors = table ? [...drawItems, ...obstacles] : items
   for (const item of drawItems) {
     const { bbox, translatedText } = item
@@ -657,6 +753,9 @@ export async function overlayTranslatedText(
       ? fitted.height
       : Math.max(1, Math.min(imageHeight - y, Math.round(bbox.height)))
     if (!translatedText.trim() && !item.eraseOriginal) continue
+    if (await overlayRegionIsProductPhoto(imageBuffer, { x, y, width: w, height: h }, imageWidth, imageHeight)) {
+      continue
+    }
     let fillColor = options?.fillColor ?? '#ffffff'
     let textColor = options?.textColor ?? '#000000'
     let strokeColor = '#ffffff'
@@ -738,7 +837,7 @@ export async function overlayTranslatedText(
       : cell
       ? cell.fontSize
       : Math.max(
-          14,
+          8,
           Math.min(
             140,
             Math.floor((drawBox.height * 0.78) / lineCount),

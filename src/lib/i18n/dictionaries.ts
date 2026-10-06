@@ -3408,6 +3408,7 @@ export type Dictionary = {
   weddingCardPublic: {
     invitation: string
     openInvitation: string
+    openEnvelope: string
     navInvitation: string
     navEvent: string
     navStory: string
@@ -3441,7 +3442,15 @@ export type Dictionary = {
     guestNamePlaceholder: string
     attendYes: string
     attendNo: string
+    coverAttendYes: string
+    coverAttendNo: string
+    coverRsvpSavedYes: string
+    coverRsvpSavedNo: string
     guestCountLabel: string
+    rsvpAdultLabel: string
+    rsvpChildLabel: string
+    coverPartyConfirm: string
+    coverPartyClose: string
     wishLabel: string
     wishPlaceholder: string
     submitResponse: string
@@ -7190,6 +7199,7 @@ const VI_DICTIONARY: Dictionary = {
   weddingCardPublic: {
     invitation: 'Thiệp mời / Invitation',
     openInvitation: 'Mở thiệp',
+    openEnvelope: 'Mở phong bì',
     navInvitation: 'Thiệp',
     navEvent: 'Sự kiện',
     navStory: 'Câu chuyện',
@@ -7216,14 +7226,22 @@ const VI_DICTIONARY: Dictionary = {
     openMaps: 'Mở Google Maps',
     storyTitle: 'Album / Story',
     albumTitle: 'Album ảnh cô dâu chú rể',
-    albumHint: 'Bấm vào ảnh để mở album và xem đầy đủ.',
+    albumHint: 'Vuốt ngang hoặc bấm mũi tên để xem từng ảnh.',
     albumAlt: 'Ảnh album cưới',
     rsvpTitle: 'Xác nhận tham dự',
     guestNameLabel: 'Họ tên',
     guestNamePlaceholder: 'Tên của bạn',
     attendYes: 'Sẽ tham dự',
     attendNo: 'Không tham dự',
+    coverAttendYes: 'Có đi',
+    coverAttendNo: 'Không đi',
+    coverRsvpSavedYes: 'Đã xác nhận có đi',
+    coverRsvpSavedNo: 'Đã xác nhận không đi',
     guestCountLabel: 'Số khách',
+    rsvpAdultLabel: 'Số người lớn đi cùng',
+    rsvpChildLabel: 'Số trẻ con đi cùng',
+    coverPartyConfirm: 'Xác nhận',
+    coverPartyClose: 'Đóng',
     wishLabel: 'Lời chúc',
     wishPlaceholder: 'Gửi lời chúc đến cô dâu chú rể...',
     submitResponse: 'Gửi phản hồi',
@@ -10965,6 +10983,7 @@ const EN_DICTIONARY: Dictionary = {
   weddingCardPublic: {
     invitation: 'Wedding Invitation',
     openInvitation: 'Open invitation',
+    openEnvelope: 'Open the envelope',
     navInvitation: 'Invitation',
     navEvent: 'Event',
     navStory: 'Story',
@@ -10991,14 +11010,22 @@ const EN_DICTIONARY: Dictionary = {
     openMaps: 'Open Google Maps',
     storyTitle: 'Album / Story',
     albumTitle: 'Wedding album',
-    albumHint: 'Tap a photo to open the full album.',
+    albumHint: 'Swipe or use the arrows to see each photo.',
     albumAlt: 'Wedding album photo',
     rsvpTitle: 'RSVP',
     guestNameLabel: 'Full name',
     guestNamePlaceholder: 'Your name',
     attendYes: 'Will attend',
     attendNo: 'Cannot attend',
+    coverAttendYes: 'Going',
+    coverAttendNo: 'Not going',
+    coverRsvpSavedYes: 'Marked as going',
+    coverRsvpSavedNo: 'Marked as not going',
     guestCountLabel: 'Guests',
+    rsvpAdultLabel: 'Adults coming along',
+    rsvpChildLabel: 'Children coming along',
+    coverPartyConfirm: 'Confirm',
+    coverPartyClose: 'Close',
     wishLabel: 'Wish',
     wishPlaceholder: 'Send a wish to the couple...',
     submitResponse: 'Send response',
@@ -14623,6 +14650,7 @@ const ZH_DICTIONARY: Dictionary = {
   weddingCardPublic: {
     invitation: '婚礼请柬',
     openInvitation: '打开请柬',
+    openEnvelope: '打开信封',
     navInvitation: '请柬',
     navEvent: '婚礼信息',
     navStory: '故事',
@@ -14649,14 +14677,22 @@ const ZH_DICTIONARY: Dictionary = {
     openMaps: '打开 Google 地图',
     storyTitle: '相册 / 故事',
     albumTitle: '婚礼相册',
-    albumHint: '点击照片查看完整相册。',
+    albumHint: '左右滑动或点箭头查看每一张照片。',
     albumAlt: '婚礼相册照片',
     rsvpTitle: '确认出席',
     guestNameLabel: '姓名',
     guestNamePlaceholder: '您的姓名',
     attendYes: '将出席',
     attendNo: '无法出席',
+    coverAttendYes: '出席',
+    coverAttendNo: '不出席',
+    coverRsvpSavedYes: '已确认出席',
+    coverRsvpSavedNo: '已确认不出席',
     guestCountLabel: '人数',
+    rsvpAdultLabel: '同行成人',
+    rsvpChildLabel: '同行儿童',
+    coverPartyConfirm: '确认',
+    coverPartyClose: '关闭',
     wishLabel: '祝福',
     wishPlaceholder: '给新人送上祝福...',
     submitResponse: '发送回复',
@@ -18364,6 +18400,7 @@ const JA_DICTIONARY: Dictionary = {
   weddingCardPublic: {
     invitation: '結婚式招待状',
     openInvitation: '招待状を開く',
+    openEnvelope: '封筒を開ける',
     navInvitation: '招待状',
     navEvent: '式の情報',
     navStory: 'ストーリー',
@@ -18390,14 +18427,22 @@ const JA_DICTIONARY: Dictionary = {
     openMaps: 'Google マップを開く',
     storyTitle: 'アルバム / ストーリー',
     albumTitle: 'ウェディングアルバム',
-    albumHint: '写真をタップするとアルバム全体を表示できます。',
+    albumHint: '横にスワイプするか矢印で一枚ずつ見られます。',
     albumAlt: 'ウェディングアルバム写真',
     rsvpTitle: '出欠のご回答',
     guestNameLabel: 'お名前',
     guestNamePlaceholder: 'お名前',
     attendYes: '出席します',
     attendNo: '欠席します',
+    coverAttendYes: '出席',
+    coverAttendNo: '欠席',
+    coverRsvpSavedYes: '出席で受け付けました',
+    coverRsvpSavedNo: '欠席で受け付けました',
     guestCountLabel: '人数',
+    rsvpAdultLabel: '一緒に来る大人',
+    rsvpChildLabel: '一緒に来る子ども',
+    coverPartyConfirm: '確定する',
+    coverPartyClose: '閉じる',
     wishLabel: 'メッセージ',
     wishPlaceholder: 'おふたりへのメッセージ...',
     submitResponse: '回答を送信',
@@ -22099,6 +22144,7 @@ const KO_DICTIONARY: Dictionary = {
   weddingCardPublic: {
     invitation: '청첩장',
     openInvitation: '청첩장 열기',
+    openEnvelope: '봉투 열기',
     navInvitation: '청첩장',
     navEvent: '예식',
     navStory: '스토리',
@@ -22125,14 +22171,22 @@ const KO_DICTIONARY: Dictionary = {
     openMaps: 'Google 지도 열기',
     storyTitle: '앨범 / 스토리',
     albumTitle: '웨딩 앨범',
-    albumHint: '사진을 눌러 전체 앨범을 보세요.',
+    albumHint: '가로로 밀거나 화살표로 사진을 넘겨 보세요.',
     albumAlt: '웨딩 앨범 사진',
     rsvpTitle: '참석 여부',
     guestNameLabel: '성함',
     guestNamePlaceholder: '성함',
     attendYes: '참석합니다',
     attendNo: '참석이 어렵습니다',
+    coverAttendYes: '참석',
+    coverAttendNo: '불참',
+    coverRsvpSavedYes: '참석으로 기록했습니다',
+    coverRsvpSavedNo: '불참으로 기록했습니다',
     guestCountLabel: '인원',
+    rsvpAdultLabel: '함께 오는 성인',
+    rsvpChildLabel: '함께 오는 아이',
+    coverPartyConfirm: '확인',
+    coverPartyClose: '닫기',
     wishLabel: '축하 메시지',
     wishPlaceholder: '신랑 신부에게 축하 메시지를 남겨주세요...',
     submitResponse: '응답 보내기',

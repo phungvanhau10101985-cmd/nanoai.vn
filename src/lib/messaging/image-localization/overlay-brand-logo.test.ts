@@ -10,6 +10,7 @@ import {
   brandLogoStampLayout,
   normalizeBrandLogoTemplate,
   overlayBrandLogoOnProcessedImage,
+  topRightCornerHasArtwork,
 } from './overlay-brand-logo'
 
 async function solidPng(width: number, height: number, color: { r: number; g: number; b: number; alpha?: number }) {
@@ -82,6 +83,37 @@ describe('image localization brand logo stamp (188)', () => {
     const offLogo = await pixelAt(out, 20, 100)
     assert.ok(onLogo[1] > 200 && onLogo[0] < 40, `expected green stamp, got ${onLogo.join(',')}`)
     assert.ok(offLogo[0] > 200 && offLogo[1] < 40, `expected red canvas, got ${offLogo.join(',')}`)
+  })
+
+  it('does not stamp the logo over a corner that already has an icon', async () => {
+    const image = await solidPng(420, 220, { r: 0, g: 0, b: 0 })
+    const logo = await solidPng(72, 36, { r: 255, g: 80, b: 0 })
+    const layout = brandLogoStampLayout(420, 220, 72, 36)
+    assert.ok(layout)
+    const icon = await sharp({
+      create: { width: layout.width, height: layout.height, channels: 3, background: { r: 255, g: 255, b: 255 } },
+    })
+      .composite([
+        {
+          input: await sharp({
+            create: { width: 8, height: layout.height - 8, channels: 3, background: { r: 0, g: 0, b: 0 } },
+          })
+            .png()
+            .toBuffer(),
+          left: 8,
+          top: 4,
+        },
+      ])
+      .png()
+      .toBuffer()
+    const busy = await sharp(image)
+      .composite([{ input: icon, left: layout.left, top: layout.top }])
+      .png()
+      .toBuffer()
+    assert.equal(await topRightCornerHasArtwork(busy, layout), true)
+    const kept = await overlayBrandLogoOnProcessedImage(busy, logo)
+    const corner = await pixelAt(kept, layout.left + 2, layout.top + 2)
+    assert.ok(corner[0] > 200 && corner[1] > 200, `expected the white icon to stay, got ${corner.join(',')}`)
   })
 
   it('leaves the image unchanged when there is no logo', async () => {

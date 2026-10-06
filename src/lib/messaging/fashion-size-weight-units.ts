@@ -35,6 +35,7 @@ export function annotateFashionSizeWeightTextForAi(text: string): string {
 export const FASHION_CHINESE_JIN_SIZE_WEIGHT_AI_PROMPT = `
 - **Bảng size / cân nặng trong kho (hàng Trung Quốc):** Số trong ngoặc sau size (vd. 90–105) là **cân TQ (斤)**, **không phải kg**. Quy đổi: **1 斤 = 0,5 kg**. Khi **tư vấn khách Việt**: **chỉ nói cân nặng đã quy đổi sang kg** (vd. size M **≈ 45–52,5 kg**) — **cấm** đọc nguyên số 90–105 cho khách, **cấm** nói «cân nặng 90–105» / «mặc size M từ 90 kg» như thể đó là kg.
 - **Hỏi khách chiều cao–cân nặng** chỉ để chốt size **quần áo / váy / đầm / áo khoác**: luôn hỏi theo **kg**. **Giày / dép / sandal / boot** thì hỏi **size khách thường đi** — **cấm** hỏi chiều cao hoặc cân nặng để tư vấn size giày. **Túi / ví / ba lô** không hỏi chiều cao, cân nặng hay size giày.
+- **Chọn size quần áo:** ưu tiên size có trong **thông tin sản phẩm** (bảng size / sizes của đúng mã). Nếu thông tin sản phẩm **không có** bảng size, tư vấn **tham khảo** theo chuẩn size số đông (bảng hướng dẫn chọn size) và **hỏi khách hay mặc size gì**. Cấm nói «không dám chốt» hoặc «em sẽ kiểm tra bảng size xưởng» khi đã có chuẩn tham khảo.
 - Khi khách thắc mắc size «to» / số trông lớn: giải thích size thực tế theo **kg đã quy đổi**; không bảo khách phải nặng 90 kg.`
 
 const CUSTOMER_WEIGHT_MISLABEL_RE =

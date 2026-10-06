@@ -1741,8 +1741,8 @@ ${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
 ${salesConversionRouterBlock}
 Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
-Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán.
-Câu hỏi fit cuối tin (tối đa một câu, đúng nhóm hàng đang tư vấn): quần áo/váy/đầm/áo khoác → **chiều cao và cân nặng (kg)**; giày/dép/sandal/boot/sneaker → **size khách thường đi**, **cấm** hỏi chiều cao hoặc cân nặng để tư vấn giày; túi/ví/ba lô → mục đích dùng hoặc kích thước cần đựng, không hỏi size giày.
+Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán: có bảng size trong thông tin sản phẩm thì dùng size đó; không có bảng thì tư vấn theo chuẩn size tham khảo số đông và hỏi khách hay mặc size gì. Không nói sẽ kiểm tra xưởng khi khối chọn size đã có size tham khảo.
+Câu hỏi fit cuối tin (tối đa một câu, đúng nhóm hàng đang tư vấn): quần áo/váy/đầm/áo khoác → **chiều cao và cân nặng (kg)**, khi đã tư vấn size thì kèm hỏi **hay mặc size gì**; giày/dép/sandal/boot/sneaker → **size khách thường đi**, **cấm** hỏi chiều cao hoặc cân nặng để tư vấn giày; túi/ví/ba lô → mục đích dùng hoặc kích thước cần đựng, không hỏi size giày.
 CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
 ${semanticMessageSectionsBlock}
 Đầu ra là một JSON đúng schema trong user prompt; message súc tích, tối đa một câu hỏi.`
@@ -1852,13 +1852,6 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
   const guestProfilePromptBlock =
     !cardConsultIsolatedThread && guestProfileBlockForAi ? `${guestProfileBlockForAi}\n\n` : ''
-  const deterministicSizeRecommendation =
-    isFashionPartner && invForContext.length === 1
-      ? resolveFashionSizeRecommendation(latestCustomerMessage, invForContext[0].sizes_json)
-      : null
-  const deterministicSizeBlock = deterministicSizeRecommendation
-    ? fashionSizeRecommendationPrompt(deterministicSizeRecommendation)
-    : ''
   const inventoryRowsForPrompt =
     effectiveFollowUpSingleProductNoVector ||
     inboundAnchoredProductConsultBranch ||
@@ -1882,6 +1875,28 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
       console.warn('[partner-ai-llm] image consult context', error)
     }
   }
+
+  const sizeRow = isFashionPartner && invForContext.length === 1 ? invForContext[0] : null
+  const deterministicSizeRecommendation = sizeRow
+    ? resolveFashionSizeRecommendation(latestCustomerMessage, sizeRow.sizes_json, {
+        name: sizeRow.name,
+        categoryL1: sizeRow.category_l1,
+        categoryL2: sizeRow.category_l2,
+        categoryL3: sizeRow.category_l3,
+        productText: [
+          sizeRow.description,
+          sizeRow.consult_note,
+          sizeRow.product_info_json ? JSON.stringify(sizeRow.product_info_json) : '',
+          imageConsultPrompt,
+        ]
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 12000),
+      })
+    : null
+  const deterministicSizeBlock = deterministicSizeRecommendation
+    ? fashionSizeRecommendationPrompt(deterministicSizeRecommendation)
+    : ''
 
   const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfilePromptBlock}${userInventoryPreamble}${formatInventoryLines(inventoryRowsForPrompt, invFmtOpts)}
 ${imageConsultPrompt}

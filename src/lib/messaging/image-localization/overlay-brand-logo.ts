@@ -75,6 +75,52 @@ export async function loadImageLocBrandLogoBytes(logoUrl?: string | null): Promi
   }
 }
 
+/** Góc đã có icon/chữ thì không dán logo đè lên điểm bán hàng. Nền phẳng vẫn nhận logo. */
+export async function topRightCornerHasArtwork(
+  imageBytes: Buffer,
+  layout: BrandLogoStampLayout
+): Promise<boolean> {
+  const extracted = await sharp(imageBytes, LARGE_IMAGE_INPUT)
+    .extract({ left: layout.left, top: layout.top, width: layout.width, height: layout.height })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const channels = extracted.info.channels
+  const width = extracted.info.width
+  const height = extracted.info.height
+  const count = width * height
+  if (count < 16) return false
+  let sum = 0
+  let sumSq = 0
+  const gray = new Float64Array(count)
+  for (let i = 0; i < count; i++) {
+    const offset = i * channels
+    const value = 0.299 * extracted.data[offset] + 0.587 * extracted.data[offset + 1] + 0.114 * extracted.data[offset + 2]
+    gray[i] = value
+    sum += value
+    sumSq += value * value
+  }
+  const mean = sum / count
+  const std = Math.sqrt(Math.max(0, sumSq / count - mean * mean))
+  let edges = 0
+  let checks = 0
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const value = gray[y * width + x]!
+      if (x + 1 < width) {
+        checks += 1
+        if (Math.abs(value - gray[y * width + x + 1]!) > 48) edges += 1
+      }
+      if (y + 1 < height) {
+        checks += 1
+        if (Math.abs(value - gray[(y + 1) * width + x]!) > 48) edges += 1
+      }
+    }
+  }
+  const edgeRatio = checks ? edges / checks : 0
+  return std >= 14 && edgeRatio >= 0.012
+}
+
 /** Dán logo đã chuẩn hóa lên góc phải trên của ảnh đã dịch. Lỗi overlay không được nuốt im lặng thành “không logo”. */
 export async function overlayBrandLogoOnProcessedImage(
   imageBytes: Buffer,
@@ -89,6 +135,7 @@ export async function overlayBrandLogoOnProcessedImage(
   const lh = logoMeta.height || 0
   const layout = brandLogoStampLayout(w, h, lw, lh)
   if (!layout) return imageBytes
+  if (await topRightCornerHasArtwork(imageBytes, layout)) return imageBytes
   const stamped =
     layout.width === lw && layout.height === lh
       ? logoPng

@@ -10,6 +10,7 @@ import {
   listWeddingInvitedGuests,
   updateWeddingCardSideInviteSettings,
   updateWeddingInvitedGuest,
+  confirmWeddingInvitedGuestStatusByHost,
   type WeddingInvitedGuestStatus,
 } from '@/lib/db/wedding-cards-pg'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
@@ -70,6 +71,34 @@ export async function saveWeddingInvitedGuest(formData: FormData) {
   revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
   revalidatePath('/tao-thiep-moi-cuoi-ai')
   return { guest }
+}
+
+export async function confirmWeddingInvitedGuestStatus(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const cardId = clean(formData.get('cardId'), 80)
+  const guestId = clean(formData.get('guestId'), 80)
+  if (!guestId) return { error: 'Lưu tên khách trước khi xác nhận trạng thái.' }
+  const card = await getWeddingCardForUser(cardId, userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+
+  const result = await confirmWeddingInvitedGuestStatusByHost({
+    guestId,
+    cardId,
+    userId,
+    status: parseStatus(formData.get('status')),
+  })
+  if ('error' in result) {
+    if (result.error === 'guest_locked') {
+      return { error: 'Khách đã tự xác nhận. Không sửa trạng thái được.' }
+    }
+    return { error: 'Không lưu được trạng thái.' }
+  }
+
+  revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
+  revalidatePath('/tao-thiep-moi-cuoi-ai')
+  return { guest: result.guest }
 }
 
 export async function removeWeddingInvitedGuest(formData: FormData) {

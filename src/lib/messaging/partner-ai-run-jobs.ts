@@ -18,7 +18,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { latestInboundTextForPartnerAi } from '@/lib/messaging/guest-chat-image'
 import { sanitizeFashionSizeWeightMessageForCustomer } from '@/lib/messaging/fashion-size-weight-units'
 import { rewriteShoeHeightWeightFitQuestion } from '@/lib/messaging/partner-ai-fit-question'
-import { enforceFashionSizeRecommendation } from '@/lib/messaging/fashion-size-recommendation'
+import { finalizeFashionSizeCustomerMessage } from '@/lib/messaging/fashion-size-recommendation'
 import {
   buildPartnerAiContext,
   deepseekPartnerChat,
@@ -617,7 +617,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           : null)
       parsed = {
         ...parsed,
-        message: enforceFashionSizeRecommendation(
+        message: finalizeFashionSizeCustomerMessage(
           sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
           deterministicSizeRecommendation
         ),

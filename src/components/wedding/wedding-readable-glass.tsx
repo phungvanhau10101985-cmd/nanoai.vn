@@ -11,6 +11,8 @@ type Props = {
   id?: string
   /** Hero / mở thiệp: vignette mạnh hơn ở vùng chữ */
   strength?: 'hero' | 'section'
+  /** Khối trượt lên một lần khi khách cuộn tới, nếu thiệp bật hiệu ứng. */
+  reveal?: boolean
 }
 
 const VIGNETTE_LIGHT: Record<NonNullable<Props['strength']>, string> = {
@@ -32,12 +34,12 @@ const EDGE_SHINE_DARK =
   'pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),inset_0_0_0_1px_rgba(255,255,255,0.06)]'
 
 /** Khối kính: nền ảnh vẫn lộ quanh viền, vùng giữa đủ ổn định để đọc chữ trên mọi loại nền AI. */
-export function WeddingReadableGlass({ theme, className, children, id, strength = 'section' }: Props) {
+export function WeddingReadableGlass({ theme, className, children, id, strength = 'section', reveal }: Props) {
   const dark = isWeddingDarkTheme(theme.id)
   const vignette = dark ? VIGNETTE_DARK[strength] : VIGNETTE_LIGHT[strength]
 
   return (
-    <div id={id} className={cn('relative isolate overflow-hidden', theme.panelGlass, className)}>
+    <div id={id} data-wedding-reveal={reveal ? '' : undefined} className={cn('relative isolate overflow-hidden', theme.panelGlass, className)}>
       <div aria-hidden className={cn('pointer-events-none absolute inset-0', vignette)} />
       <div aria-hidden className={cn(dark ? EDGE_SHINE_DARK : EDGE_SHINE)} />
       <div className="relative z-10">{children}</div>

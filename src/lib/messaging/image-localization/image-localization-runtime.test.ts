@@ -10,6 +10,7 @@ import {
   expandTableCellBoxes,
   fitTableCellText,
   overlayItemsLookLikeTable,
+  overlayRegionIsProductPhoto,
   overlayTranslatedText,
   spaceSpecPunctuation,
   splitTrailingModelCode,
@@ -397,6 +398,49 @@ describe('image localization runtime parity', () => {
     const gold = await sharp(out).extract({ left: 640, top: 750, width: 1, height: 1 }).raw().toBuffer()
     assert.ok(product[0] > 180 && product[1] < 80)
     assert.ok(gold[0] > 150 && gold[2] < 140)
+  })
+
+  it('does not treat a feature poster with photos between text bands as a table', () => {
+    const cells = [30, 290, 550].flatMap((x) =>
+      [520, 568, 616].map((y) => ({
+        bbox: { x, y, width: 200, height: 36 },
+        translatedText: `Cột ${x}`,
+      }))
+    )
+    cells.push(
+      { bbox: { x: 24, y: 24, width: 120, height: 40 }, translatedText: 'Vải bền' },
+      { bbox: { x: 190, y: 24, width: 120, height: 40 }, translatedText: 'Thợ may' },
+      { bbox: { x: 370, y: 24, width: 140, height: 40 }, translatedText: 'Kim khí' },
+      { bbox: { x: 30, y: 860, width: 240, height: 28 }, translatedText: 'Kim loại cao cấp' }
+    )
+    assert.equal(overlayItemsLookLikeTable(cells), false)
+  })
+
+  it('does not whitewash a product photo covered by an OCR box', async () => {
+    const width = 180
+    const height = 120
+    const raw = Buffer.alloc(width * height * 3)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 3
+        raw[i] = 90 + ((x * 17 + y * 13) % 120)
+        raw[i + 1] = 40 + ((x * 3 + y * 19) % 90)
+        raw[i + 2] = 20 + ((x * 11 + y * 7) % 50)
+      }
+    }
+    const source = await sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    assert.equal(
+      await overlayRegionIsProductPhoto(source, { x: 0, y: 0, width, height }, width, height),
+      true
+    )
+    const out = await overlayTranslatedText(
+      source,
+      [{ bbox: { x: 0, y: 0, width, height }, translatedText: 'Da bò lớp đầu' }],
+      { fillColor: '#ffffff', textColor: '#000000' }
+    )
+    const pixel = await sharp(out).extract({ left: 20, top: 20, width: 1, height: 1 }).raw().toBuffer()
+    assert.ok(pixel[0] > pixel[2], `expected leather, got ${[...pixel.subarray(0, 3)].join(',')}`)
+    assert.ok(pixel[0] < 230)
   })
 
   it('does not paint a table label into the row below', async () => {

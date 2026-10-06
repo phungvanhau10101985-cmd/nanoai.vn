@@ -39,12 +39,33 @@ export async function submitWeddingGuestResponse(slug: string, formData: FormDat
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   const guestName = clean(formData.get('guestName'), 120)
   const message = clean(formData.get('message'), 1000)
-  const guestCount = Math.max(0, Math.min(20, Number(formData.get('guestCount') || 1) || 1))
   const attending = formData.get('attending') !== 'false'
+  const hasParty = formData.has('adultCount') || formData.has('childCount')
+  const adultCount = attending ? Math.max(0, Math.min(20, Math.round(Number(formData.get('adultCount')) || 0))) : 0
+  const childCount = attending ? Math.max(0, Math.min(20, Math.round(Number(formData.get('childCount')) || 0))) : 0
+  const guestCount = hasParty
+    ? Math.min(40, adultCount + childCount)
+    : Math.max(0, Math.min(40, Number(formData.get('guestCount') || (attending ? 1 : 0)) || 0))
   if (!guestName) return { error: 'Vui lòng nhập tên khách mời.' }
   if (card.rsvpEnabled) {
-    await createWeddingRsvp({ cardId: card.id, guestName, attending, guestCount, message })
-    await syncInvitedGuestFromRsvp({ cardId: card.id, guestName, attending, guestCount, message })
+    await createWeddingRsvp({
+      cardId: card.id,
+      guestName,
+      attending,
+      guestCount,
+      adultCount: hasParty ? adultCount : attending ? guestCount : 0,
+      childCount: hasParty ? childCount : 0,
+      message,
+    })
+    await syncInvitedGuestFromRsvp({
+      cardId: card.id,
+      guestName,
+      attending,
+      guestCount,
+      adultCount: hasParty ? adultCount : attending ? guestCount : 0,
+      childCount: hasParty ? childCount : 0,
+      message,
+    })
   }
   if (message) {
     await createWeddingWish({ cardId: card.id, guestName, message })

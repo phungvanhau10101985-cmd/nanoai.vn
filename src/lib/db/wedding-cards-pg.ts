@@ -96,8 +96,17 @@ export type WeddingRsvp = {
   guestName: string
   attending: boolean
   guestCount: number
+  adultCount: number
+  childCount: number
   message: string
   createdAt: string
+}
+
+export type PublishedGuestRsvpSnapshot = {
+  attending: boolean
+  adultCount: number
+  childCount: number
+  guestCount: number
 }
 
 export type WeddingWish = {
@@ -109,6 +118,7 @@ export type WeddingWish = {
 }
 
 export type WeddingInvitedGuestStatus = 'pending' | 'attending' | 'declined'
+export type WeddingGuestStatusConfirmedBy = '' | 'guest' | 'host'
 
 export type WeddingReminder = {
   id: string
@@ -138,7 +148,13 @@ export type WeddingInvitedGuest = {
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
   status: WeddingInvitedGuestStatus
+  /** guest = khách tự xác nhận trên thiệp. host = nhà trai/nhà gái bấm Xác nhận. */
+  statusConfirmedBy: WeddingGuestStatusConfirmedBy
   guestCount: number
+  /** Số người lớn đi cùng. */
+  adultCount: number
+  /** Số trẻ con đi cùng. */
+  childCount: number
   wishMessage: string
   notes: string
   createdAt: string
@@ -702,13 +718,43 @@ export async function createWeddingRsvp(input: {
   guestName: string
   attending: boolean
   guestCount: number
+  adultCount: number
+  childCount: number
   message: string
 }) {
   requirePg()
   await getPgPool().query(
-    `insert into public.wedding_card_rsvps (wedding_card_id, guest_name, attending, guest_count, message)
-     values ($1::uuid, $2, $3, $4, $5)`,
-    [input.cardId, input.guestName, input.attending, input.guestCount, input.message]
+    `with updated as (
+       update public.wedding_card_rsvps
+       set attending = $3,
+           guest_count = $4,
+           adult_count = $5,
+           child_count = $6,
+           message = case when $7 <> '' then $7 else message end
+       where id = (
+         select id
+         from public.wedding_card_rsvps
+         where wedding_card_id = $1::uuid
+           and lower(trim(guest_name)) = lower(trim($2))
+         order by created_at desc
+         limit 1
+       )
+       returning id
+     )
+     insert into public.wedding_card_rsvps (
+       wedding_card_id, guest_name, attending, guest_count, adult_count, child_count, message
+     )
+     select $1::uuid, $2, $3, $4, $5, $6, $7
+     where not exists (select 1 from updated)`,
+    [
+      input.cardId,
+      input.guestName,
+      input.attending,
+      input.guestCount,
+      input.adultCount,
+      input.childCount,
+      input.message,
+    ],
   )
 }
 
@@ -736,6 +782,8 @@ export async function listWeddingRsvps(cardId: string, userId: string): Promise<
     guestName: String(row.guest_name ?? ''),
     attending: Boolean(row.attending),
     guestCount: Number(row.guest_count ?? 0),
+    adultCount: Number(row.adult_count ?? 0),
+    childCount: Number(row.child_count ?? 0),
     message: String(row.message ?? ''),
     createdAt: String(row.created_at),
   }))
@@ -764,6 +812,9 @@ function mapInvitedGuest(row: Record<string, unknown>): WeddingInvitedGuest {
   const statusRaw = String(row.status ?? 'pending')
   const status: WeddingInvitedGuestStatus =
     statusRaw === 'attending' || statusRaw === 'declined' ? statusRaw : 'pending'
+  const confirmedRaw = String(row.status_confirmed_by ?? '')
+  const statusConfirmedBy: WeddingGuestStatusConfirmedBy =
+    confirmedRaw === 'guest' || confirmedRaw === 'host' ? confirmedRaw : ''
   return {
     id: String(row.id),
     guestHonorific: String(row.guest_honorific ?? ''),
@@ -771,7 +822,10 @@ function mapInvitedGuest(row: Record<string, unknown>): WeddingInvitedGuest {
     inviteVenue: normalizeGuestInviteVenueRow(row.invite_venue),
     personalInvite: String(row.personal_invite ?? ''),
     status,
+    statusConfirmedBy: status === 'pending' && statusConfirmedBy === 'host' ? '' : statusConfirmedBy,
     guestCount: Number(row.guest_count ?? 1),
+    adultCount: Number(row.adult_count ?? 0) || 0,
+    childCount: Number(row.child_count ?? 0) || 0,
     wishMessage: String(row.wish_message ?? ''),
     notes: String(row.notes ?? ''),
     createdAt: String(row.created_at),
@@ -811,9 +865,9 @@ export async function createWeddingInvitedGuest(input: {
     `insert into public.wedding_card_invited_guests (
        wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
      )
-     select $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9
+     select $1::uuid, $2, $3, $4, $5, 'pending', $6, $7, $8
      from public.wedding_cards c
-     where c.id = $1::uuid and c.user_id = $10::uuid
+     where c.id = $1::uuid and c.user_id = $9::uuid
      returning *`,
     [
       input.cardId,
@@ -821,7 +875,6 @@ export async function createWeddingInvitedGuest(input: {
       name,
       normalizeGuestInviteVenue(input.inviteVenue),
       input.personalInvite,
-      input.status,
       input.guestCount,
       input.wishMessage,
       input.notes,
@@ -853,10 +906,9 @@ export async function updateWeddingInvitedGuest(input: {
          guest_name = $5,
          invite_venue = $6,
          personal_invite = $7,
-         status = $8,
-         guest_count = $9,
-         wish_message = $10,
-         notes = $11,
+         guest_count = case when g.status_confirmed_by = 'guest' then g.guest_count else $8 end,
+         wish_message = $9,
+         notes = $10,
          updated_at = timezone('utc'::text, now())
      from public.wedding_cards c
      where g.id = $1::uuid
@@ -872,13 +924,48 @@ export async function updateWeddingInvitedGuest(input: {
       name,
       normalizeGuestInviteVenue(input.inviteVenue),
       input.personalInvite,
-      input.status,
       input.guestCount,
       input.wishMessage,
       input.notes,
     ],
   )
   return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+}
+
+/** Nhà trai/nhà gái chốt trạng thái. Khách đã tự RSVP thì không ghi đè. */
+export async function confirmWeddingInvitedGuestStatusByHost(input: {
+  guestId: string
+  cardId: string
+  userId: string
+  status: WeddingInvitedGuestStatus
+}): Promise<{ guest: WeddingInvitedGuest } | { error: 'guest_locked' | 'not_found' }> {
+  requirePg()
+  const confirmedBy = input.status === 'pending' ? '' : 'host'
+  const res = await getPgPool().query(
+    `update public.wedding_card_invited_guests g
+     set status = $4,
+         status_confirmed_by = $5,
+         updated_at = timezone('utc'::text, now())
+     from public.wedding_cards c
+     where g.id = $1::uuid
+       and g.wedding_card_id = $2::uuid
+       and c.id = g.wedding_card_id
+       and c.user_id = $3::uuid
+       and g.status_confirmed_by is distinct from 'guest'
+     returning g.*`,
+    [input.guestId, input.cardId, input.userId, input.status, confirmedBy],
+  )
+  if (res.rows[0]) return { guest: mapInvitedGuest(res.rows[0]) }
+
+  const existing = await getPgPool().query(
+    `select g.status_confirmed_by
+     from public.wedding_card_invited_guests g
+     join public.wedding_cards c on c.id = g.wedding_card_id
+     where g.id = $1::uuid and g.wedding_card_id = $2::uuid and c.user_id = $3::uuid`,
+    [input.guestId, input.cardId, input.userId],
+  )
+  if (String(existing.rows[0]?.status_confirmed_by ?? '') === 'guest') return { error: 'guest_locked' }
+  return { error: 'not_found' }
 }
 
 export async function deleteWeddingInvitedGuest(guestId: string, cardId: string, userId: string): Promise<boolean> {
@@ -925,12 +1012,58 @@ export async function getPublishedInvitedGuestPersonalInvite(input: {
   return String(res.rows[0]?.personal_invite ?? '').trim()
 }
 
+/** RSVP khách đã lưu trên thiệp xuất bản, để mở lại link vẫn sửa Có đi / số người. */
+export async function getPublishedInvitedGuestRsvp(input: {
+  cardId: string
+  guestDisplayName: string
+  inviteVenue: WeddingGuestInviteVenue
+}): Promise<PublishedGuestRsvpSnapshot | null> {
+  requirePg()
+  const key = normalizeGuestNameKey(input.guestDisplayName)
+  if (!key) return null
+  const venue = normalizeGuestInviteVenue(input.inviteVenue)
+  const res = await getPgPool().query(
+    `select g.status, g.guest_count, g.adult_count, g.child_count
+     from public.wedding_card_invited_guests g
+     join public.wedding_cards c on c.id = g.wedding_card_id
+     where g.wedding_card_id = $1::uuid
+       and c.is_published = true
+       and lower(trim(regexp_replace(
+         case when trim(coalesce(g.guest_honorific, '')) <> ''
+           then trim(g.guest_honorific) || ' ' || trim(g.guest_name)
+           else trim(g.guest_name)
+         end,
+         '\\s+', ' ', 'g'))) = $2
+       and ($3 = '' or g.invite_venue = $3)
+     order by g.updated_at desc
+     limit 1`,
+    [input.cardId, key, venue],
+  )
+  const row = res.rows[0]
+  if (!row) return null
+  const status = String(row.status ?? 'pending')
+  if (status !== 'attending' && status !== 'declined') return null
+  const adult = Number(row.adult_count ?? 0) || 0
+  const child = Number(row.child_count ?? 0) || 0
+  const guestCount = Number(row.guest_count ?? 0) || 0
+  if (status === 'declined') {
+    return { attending: false, adultCount: 0, childCount: 0, guestCount: 0 }
+  }
+  if (adult + child <= 0) {
+    const fallbackAdult = Math.max(1, Math.min(20, guestCount || 1))
+    return { attending: true, adultCount: fallbackAdult, childCount: 0, guestCount: fallbackAdult }
+  }
+  return { attending: true, adultCount: adult, childCount: child, guestCount: adult + child }
+}
+
 /** Cập nhật khách trong danh sách mời khi có RSVP trùng tên (nếu có). */
 export async function syncInvitedGuestFromRsvp(input: {
   cardId: string
   guestName: string
   attending: boolean
   guestCount: number
+  adultCount: number
+  childCount: number
   message: string
 }) {
   requirePg()
@@ -939,8 +1072,11 @@ export async function syncInvitedGuestFromRsvp(input: {
   await getPgPool().query(
     `update public.wedding_card_invited_guests g
      set status = $3,
+         status_confirmed_by = 'guest',
          guest_count = $4,
-         wish_message = case when $5 <> '' then $5 else g.wish_message end,
+         adult_count = $5,
+         child_count = $6,
+         wish_message = case when $7 <> '' then $7 else g.wish_message end,
          updated_at = timezone('utc'::text, now())
      where g.wedding_card_id = $1::uuid
        and lower(trim(regexp_replace(
@@ -954,6 +1090,8 @@ export async function syncInvitedGuestFromRsvp(input: {
       key,
       input.attending ? 'attending' : 'declined',
       input.guestCount,
+      input.adultCount,
+      input.childCount,
       input.message,
     ],
   )

@@ -4,6 +4,7 @@ import { JsonLd } from '@/components/seo-json-ld'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import {
   getPublishedInvitedGuestPersonalInvite,
+  getPublishedInvitedGuestRsvp,
   getPublishedWeddingCardBySlug,
   listPublishedWeddingImages,
   listPublishedWeddingWishes,
@@ -57,6 +58,13 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
           inviteVenue,
         }).catch(() => '')
       : ''
+  const guestRsvp = guestDisplayName
+    ? await getPublishedInvitedGuestRsvp({
+        cardId: card.id,
+        guestDisplayName,
+        inviteVenue,
+      }).catch(() => null)
+    : null
   const [wishes, images] = await Promise.all([
     listPublishedWeddingWishes(card.id),
     listPublishedWeddingImages(card.id),
@@ -72,6 +80,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         initialGuestDisplayName={guestDisplayName}
         initialGuestInviteVenue={inviteVenue}
         initialPersonalInvite={personalInvite}
+        initialGuestRsvp={guestRsvp}
       />
     </>
   )

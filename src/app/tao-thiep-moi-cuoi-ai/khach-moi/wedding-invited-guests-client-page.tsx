@@ -4,12 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
-import type { WeddingCard, WeddingInvitedGuest, WeddingInvitedGuestStatus } from '@/lib/db/wedding-cards-pg'
+import type { WeddingCard, WeddingInvitedGuest, WeddingInvitedGuestStatus, WeddingGuestStatusConfirmedBy } from '@/lib/db/wedding-cards-pg'
 import {
   buildGuestDisplayName,
   buildPersonalWeddingInviteFromSideContext,
@@ -30,6 +29,7 @@ import {
   removeWeddingInvitedGuest,
   saveWeddingInvitedGuest,
   saveWeddingSideInviteSettings,
+  confirmWeddingInvitedGuestStatus,
 } from './actions'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 
@@ -44,7 +44,11 @@ type GuestRow = {
   inviteVenue: WeddingGuestInviteVenue
   personalInvite: string
   status: WeddingInvitedGuestStatus
+  statusConfirmedBy: WeddingGuestStatusConfirmedBy
+  statusDraft: WeddingInvitedGuestStatus | null
   guestCount: string
+  adultCount: number
+  childCount: number
   wishMessage: string
   notes: string
   isNew?: boolean
@@ -53,10 +57,71 @@ type GuestRow = {
 type SideSettings = WeddingSideInviteSettings
 
 const STATUS_OPTIONS: { value: WeddingInvitedGuestStatus; label: string }[] = [
-  { value: 'pending', label: 'Chưa PH' },
+  { value: 'pending', label: 'Chưa' },
   { value: 'attending', label: 'Có đi' },
   { value: 'declined', label: 'Không đi' },
 ]
+
+const STATUS_PILL: Record<WeddingInvitedGuestStatus, string> = {
+  pending: 'bg-amber-100 text-amber-950',
+  attending: 'bg-emerald-100 text-emerald-950',
+  declined: 'bg-rose-100 text-rose-950',
+}
+
+const SIDE_LOOK = {
+  groom: {
+    side: 'groom_home' as const,
+    panel: 'groom' as const,
+    anchor: 'nha-trai',
+    kicker: 'Nhà trai',
+    title: 'Khách mời nhà trai',
+    who: 'Chú rể',
+    hint: 'Thiệp cá nhân nhà trai: ngày, giờ, địa chỉ, lịch trình. Lời mời tự sinh theo xưng hô và tên khách.',
+    card: 'border-sky-200 bg-white shadow-md shadow-sky-100/80 ring-1 ring-sky-100',
+    header: 'bg-gradient-to-r from-sky-900 via-sky-800 to-cyan-700 text-white',
+    muted: 'text-sky-100',
+    chip: 'bg-white/15 text-white',
+    stat: 'border-sky-100 bg-sky-50',
+    statLabel: 'text-sky-800/75',
+    statValue: 'text-sky-950',
+    table: 'border-sky-200',
+    th: 'border-sky-800 bg-sky-800 text-sky-50',
+    td: 'border-sky-100',
+    index: 'bg-sky-100 text-sky-900',
+    zebra: 'bg-sky-50/70',
+    base: 'bg-white',
+    empty: 'border-sky-200 bg-sky-50/60 text-sky-950',
+    add: 'bg-sky-800 text-white shadow-sm hover:bg-sky-900',
+    jump: 'border-sky-300 bg-gradient-to-br from-sky-800 to-cyan-600 text-white shadow-sm',
+  },
+  bride: {
+    side: 'bride_home' as const,
+    panel: 'bride' as const,
+    anchor: 'nha-gai',
+    kicker: 'Nhà gái',
+    title: 'Khách mời nhà gái',
+    who: 'Cô dâu',
+    hint: 'Thiệp cá nhân nhà gái: ngày, giờ, địa chỉ, lịch trình. Lời mời tự sinh theo xưng hô và tên khách.',
+    card: 'border-rose-200 bg-white shadow-md shadow-rose-100/80 ring-1 ring-rose-100',
+    header: 'bg-gradient-to-r from-rose-900 via-rose-800 to-rose-600 text-white',
+    muted: 'text-rose-100',
+    chip: 'bg-white/15 text-white',
+    stat: 'border-rose-100 bg-rose-50',
+    statLabel: 'text-rose-800/75',
+    statValue: 'text-rose-950',
+    table: 'border-rose-200',
+    th: 'border-rose-800 bg-rose-800 text-rose-50',
+    td: 'border-rose-100',
+    index: 'bg-rose-100 text-rose-900',
+    zebra: 'bg-rose-50/70',
+    base: 'bg-white',
+    empty: 'border-rose-200 bg-rose-50/60 text-rose-950',
+    add: 'bg-rose-800 text-white shadow-sm hover:bg-rose-900',
+    jump: 'border-rose-300 bg-gradient-to-br from-rose-800 to-rose-500 text-white shadow-sm',
+  },
+} as const
+
+type SideLook = (typeof SIDE_LOOK)[keyof typeof SIDE_LOOK]
 
 const cellInputClass =
   'h-8 min-w-0 rounded-none border-0 bg-transparent px-2 py-1 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-ring sm:text-sm'
@@ -72,7 +137,11 @@ function guestToRow(g: WeddingInvitedGuest): GuestRow {
     inviteVenue: g.inviteVenue,
     personalInvite: g.personalInvite,
     status: g.status,
+    statusConfirmedBy: g.statusConfirmedBy,
+    statusDraft: null,
     guestCount: String(g.guestCount),
+    adultCount: g.adultCount,
+    childCount: g.childCount,
     wishMessage: g.wishMessage,
     notes: g.notes,
   }
@@ -104,7 +173,11 @@ function emptyRow(side: GuestSide): GuestRow {
     inviteVenue: side,
     personalInvite: '',
     status: 'pending',
+    statusConfirmedBy: '',
+    statusDraft: null,
     guestCount: '1',
+    adultCount: 0,
+    childCount: 0,
     wishMessage: '',
     notes: '',
     isNew: true,
@@ -122,6 +195,7 @@ function serializeRow(row: GuestRow, fixedSide: GuestSide): string {
     inviteVenue: fixedSide,
     personalInvite: row.personalInvite,
     status: row.status,
+    statusConfirmedBy: row.statusConfirmedBy,
     guestCount: row.guestCount,
     wishMessage: row.wishMessage,
     notes: row.notes,
@@ -159,6 +233,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [savingSideSettings, setSavingSideSettings] = useState(false)
   const [origin, setOrigin] = useState('')
+  const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -216,10 +291,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     if (loading) return
     const params = new URLSearchParams(window.location.search)
     const side = params.get('side')
-    if (side === 'groom') {
-      document.getElementById('nha-trai')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    } else if (side === 'bride') {
-      document.getElementById('nha-gai')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    if (side === 'groom' || side === 'bride') {
+      setFocusSide(side)
+      document.getElementById(side === 'groom' ? 'nha-trai' : 'nha-gai')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
   }, [loading])
 
@@ -330,6 +404,12 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             ...current,
             id: updated.id,
             inviteVenue: fixedSide,
+            status: updated.statusConfirmedBy === 'guest' ? updated.status : current.status,
+            statusConfirmedBy: updated.statusConfirmedBy,
+            statusDraft: updated.statusConfirmedBy === 'guest' ? null : current.statusDraft,
+            guestCount: updated.statusConfirmedBy === 'guest' ? updated.guestCount : current.guestCount,
+            adultCount: updated.adultCount,
+            childCount: updated.childCount,
             isNew: undefined,
           }
           savedSnapshotsRef.current.set(key, serializeRow(merged, fixedSide))
@@ -388,6 +468,58 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     await load()
   }
 
+  const confirmStatus = async (row: GuestRow, fixedSide: GuestSide) => {
+    if (!card) return
+    const next = row.statusDraft
+    if (!next || next === row.status) return
+    if (row.statusConfirmedBy === 'guest') return
+    if (!row.id || row.isNew) {
+      toast({
+        title: 'Chưa lưu khách',
+        description: 'Nhập tên và đợi dòng được lưu, rồi bấm Xác nhận.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const key = rowKey(row)
+    setSavingKey(key)
+    const formData = new FormData()
+    formData.append('cardId', card.id)
+    formData.append('guestId', row.id)
+    formData.append('status', next)
+    const result = await confirmWeddingInvitedGuestStatus(formData)
+    setSavingKey(null)
+    if ('error' in result && result.error) {
+      toast({ title: 'Không xác nhận được', description: result.error, variant: 'destructive' })
+      if (result.error.includes('đã tự xác nhận')) await load()
+      return
+    }
+    if ('guest' in result && result.guest) {
+      const saved = guestToRow(result.guest)
+      setRows((prev) =>
+        prev.map((item) =>
+          item.clientKey === row.clientKey
+            ? { ...item, status: saved.status, statusConfirmedBy: saved.statusConfirmedBy, statusDraft: null, inviteVenue: fixedSide }
+            : item,
+        ),
+      )
+      const current = rowsRef.current.find((item) => item.clientKey === row.clientKey)
+      if (current) {
+        savedSnapshotsRef.current.set(
+          key,
+          serializeRow(
+            { ...current, status: saved.status, statusConfirmedBy: saved.statusConfirmedBy, statusDraft: null, inviteVenue: fixedSide },
+            fixedSide,
+          ),
+        )
+      }
+      toast({
+        title: next === 'pending' ? 'Đã bỏ trạng thái' : 'Đã ghi trạng thái',
+        description: next === 'pending' ? 'Khách vẫn chưa tự xác nhận.' : 'Đây là ghi giúp, chưa phải khách tự xác nhận.',
+      })
+    }
+  }
+
   const copyLink = async (row: GuestRow, fixedSide: GuestSide) => {
     if (!publishUrl) {
       toast({ title: 'Chưa xuất bản thiệp', description: 'Xuất bản link thiệp trước khi copy link khách.', variant: 'destructive' })
@@ -405,53 +537,49 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     }
   }
 
-  const thClass =
-    'whitespace-nowrap border border-border bg-muted/80 px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground sm:text-xs'
-  const tdClass = 'border border-border p-0 align-middle'
+  const thClass = 'whitespace-nowrap px-2 py-2.5 text-left text-[11px] font-semibold tracking-wide sm:text-xs'
+  const tdClass = 'p-0 align-middle'
 
-  const renderGuestTable = (sideRows: GuestRow[], side: GuestSide, sideLabel: string) => (
+  const renderGuestTable = (sideRows: GuestRow[], look: SideLook) => {
+    const side = look.side
+    return (
     <>
-      <datalist id="wedding-guest-honorific-suggestions">
-        {WEDDING_GUEST_HONORIFIC_SUGGESTIONS.map((item) => (
-          <option key={item} value={item} />
-        ))}
-      </datalist>
       {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <div className={cn('flex items-center justify-center rounded-xl border py-16 text-sm', look.empty)}>
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           Đang tải…
         </div>
       ) : sideRows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-          Chưa có khách mời {sideLabel.toLowerCase()}. Bấm «Thêm khách» để thêm dòng mới.
+        <div className={cn('rounded-xl border border-dashed p-8 text-center text-sm', look.empty)}>
+          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» để thêm dòng mới.
         </div>
       ) : (
-        <div className="w-full overflow-x-auto rounded-lg border shadow-sm">
+        <div className={cn('w-full overflow-x-auto rounded-xl border shadow-sm', look.table)}>
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
               <col className="w-[2.5rem]" />
               <col className="w-[10%]" />
               <col className="w-[12%]" />
-              <col className="w-[10%]" />
+              <col className="w-[16%]" />
               <col className="w-[3.5rem]" />
-              <col className="w-[24%]" />
+              <col className="w-[18%]" />
               <col className="w-[14%]" />
               <col className="w-[12%]" />
               <col className="w-[4.5rem]" />
               <col className="w-[2.5rem]" />
             </colgroup>
-            <thead className="sticky top-0 z-10">
+            <thead>
               <tr>
-                <th className={cn(thClass, 'text-center')}>#</th>
-                <th className={thClass}>Xưng hô</th>
-                <th className={thClass}>Tên *</th>
-                <th className={thClass}>Trạng thái</th>
-                <th className={cn(thClass, 'text-center')}>SL</th>
-                <th className={thClass}>Lời mời (tự sinh)</th>
-                <th className={thClass}>Lời chúc</th>
-                <th className={thClass}>Ghi chú</th>
-                <th className={cn(thClass, 'text-center')}>Link</th>
-                <th className={cn(thClass, 'text-center')} />
+                <th className={cn(thClass, look.th, 'text-center')}>#</th>
+                <th className={cn(thClass, look.th)}>Xưng hô</th>
+                <th className={cn(thClass, look.th)}>Tên</th>
+                <th className={cn(thClass, look.th)}>Trạng thái</th>
+                <th className={cn(thClass, look.th, 'text-center')}>SL</th>
+                <th className={cn(thClass, look.th)}>Lời mời</th>
+                <th className={cn(thClass, look.th)}>Lời chúc</th>
+                <th className={cn(thClass, look.th)}>Ghi chú</th>
+                <th className={cn(thClass, look.th, 'text-center')}>Link</th>
+                <th className={cn(thClass, look.th, 'text-center')} />
               </tr>
             </thead>
             <tbody>
@@ -465,24 +593,17 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                       })
                     : ''
                 const saving = savingKey === key
-                const statusClass =
-                  row.status === 'attending'
-                    ? 'bg-emerald-50/80'
-                    : row.status === 'declined'
-                      ? 'bg-rose-50/60'
-                      : index % 2 === 1
-                        ? 'bg-muted/20'
-                        : 'bg-background'
+                const rowTone = row.isNew ? 'bg-amber-50' : index % 2 === 1 ? look.zebra : look.base
 
                 return (
-                  <tr key={key} className={cn(statusClass, row.isNew && 'bg-amber-50/50')}>
-                    <td className={cn(tdClass, 'relative bg-muted/30 text-center text-xs text-muted-foreground')}>
+                  <tr key={key} className={rowTone}>
+                    <td className={cn(tdClass, look.td, look.index, 'relative border text-center text-xs font-medium')}>
                       <span className={cn(saving && 'opacity-40')}>{index + 1}</span>
                       {saving ? (
                         <Loader2 className="absolute inset-0 m-auto h-3.5 w-3.5 animate-spin opacity-80" />
                       ) : null}
                     </td>
-                    <td className={tdClass}>
+                    <td className={cn(tdClass, 'border', look.td)}>
                       <Input
                         value={row.guestHonorific}
                         onChange={(e) => updateRowByKey(key, side, { guestHonorific: e.target.value })}
@@ -491,7 +612,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         className={cellInputClass}
                       />
                     </td>
-                    <td className={tdClass}>
+                    <td className={cn(tdClass, 'border', look.td)}>
                       <Input
                         value={row.guestName}
                         onChange={(e) => updateRowByKey(key, side, { guestName: e.target.value })}
@@ -499,32 +620,74 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         className={cellInputClass}
                       />
                     </td>
-                    <td className={tdClass}>
-                      <select
-                        value={row.status}
-                        onChange={(e) =>
-                          updateRowByKey(key, side, { status: e.target.value as WeddingInvitedGuestStatus })
-                        }
-                        className={cellSelectClass}
-                      >
-                        {STATUS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
+                    <td className={cn(tdClass, 'border', look.td)}>
+                      {row.statusConfirmedBy === 'guest' && row.status !== 'pending' ? (
+                        <div className="px-1.5 py-1.5">
+                          <span className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium', STATUS_PILL[row.status])}>
+                            {STATUS_OPTIONS.find((opt) => opt.value === row.status)?.label}
+                          </span>
+                          <p className="mt-1 text-[10px] font-semibold leading-tight text-emerald-800">Khách xác nhận</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col gap-1 px-1 py-1">
+                          <select
+                            value={row.statusDraft ?? row.status}
+                            onChange={(e) => {
+                              const next = e.target.value as WeddingInvitedGuestStatus
+                              updateRowByKey(key, side, { statusDraft: next === row.status ? null : next })
+                            }}
+                            className={cn(
+                              cellSelectClass,
+                              'h-7 rounded-full px-2 text-center text-xs font-medium',
+                              STATUS_PILL[row.statusDraft ?? row.status],
+                            )}
+                          >
+                            {STATUS_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                          {row.statusDraft && row.statusDraft !== row.status ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 px-2 text-[11px]"
+                              disabled={saving}
+                              onClick={() => void confirmStatus(row, side)}
+                            >
+                              Xác nhận
+                            </Button>
+                          ) : row.statusConfirmedBy === 'host' && row.status !== 'pending' ? (
+                            <p className="px-0.5 text-[10px] leading-tight text-muted-foreground">Nhà ghi giúp</p>
+                          ) : null}
+                        </div>
+                      )}
                     </td>
-                    <td className={tdClass}>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={20}
-                        value={row.guestCount}
-                        onChange={(e) => updateRowByKey(key, side, { guestCount: e.target.value })}
-                        className={cn(cellInputClass, 'text-center')}
-                      />
+                    <td className={cn(tdClass, 'border', look.td)}>
+                      {row.statusConfirmedBy === 'guest' ? (
+                        <div className="px-1 py-1 text-center text-[11px] leading-tight text-stone-800">
+                          {row.status === 'attending' ? (
+                            <>
+                              <div>{(row.adultCount + row.childCount > 0 ? row.adultCount : Number(row.guestCount) || 0)} lớn</div>
+                              <div>{row.childCount} trẻ</div>
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </div>
+                      ) : (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={40}
+                          value={row.guestCount}
+                          onChange={(e) => updateRowByKey(key, side, { guestCount: e.target.value })}
+                          className={cn(cellInputClass, 'text-center')}
+                        />
+                      )}
                     </td>
-                    <td className={tdClass}>
+                    <td className={cn(tdClass, 'border', look.td)}>
                       <p
                         className="px-2 py-1.5 text-xs leading-snug text-muted-foreground"
                         title={row.personalInvite}
@@ -532,7 +695,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         {row.personalInvite || '—'}
                       </p>
                     </td>
-                    <td className={tdClass}>
+                    <td className={cn(tdClass, 'border', look.td)}>
                       <Input
                         value={row.wishMessage}
                         onChange={(e) => updateRowByKey(key, side, { wishMessage: e.target.value })}
@@ -540,7 +703,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         className={cellInputClass}
                       />
                     </td>
-                    <td className={tdClass}>
+                    <td className={cn(tdClass, 'border', look.td)}>
                       <Input
                         value={row.notes}
                         onChange={(e) => updateRowByKey(key, side, { notes: e.target.value })}
@@ -548,7 +711,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         className={cellInputClass}
                       />
                     </td>
-                    <td className={cn(tdClass, 'px-1')}>
+                    <td className={cn(tdClass, 'border px-1', look.td)}>
                       {personalUrl ? (
                         <div className="flex items-center justify-center gap-0.5">
                           <Button
@@ -571,7 +734,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         <span className="block px-2 text-center text-xs text-muted-foreground">—</span>
                       )}
                     </td>
-                    <td className={cn(tdClass, 'px-1')}>
+                    <td className={cn(tdClass, 'border px-1', look.td)}>
                       <div className="flex items-center justify-center">
                         <Button
                           type="button"
@@ -594,111 +757,127 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       )}
 
       {!loading ? (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => addRow(side)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Thêm khách
-          </Button>
-        </div>
+        <Button type="button" size="sm" className={look.add} onClick={() => addRow(side)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Thêm khách {look.kicker.toLowerCase()}
+        </Button>
       ) : null}
     </>
-  )
+    )
+  }
 
-  const renderSideStats = (stats: ReturnType<typeof statsForRows>) => (
-    <div className="grid gap-2 text-sm sm:grid-cols-4">
-      <div className="rounded-xl border p-3">
-        <p className="text-muted-foreground">Tổng khách</p>
-        <p className="text-2xl font-semibold">{stats.total}</p>
-      </div>
-      <div className="rounded-xl border p-3">
-        <p className="text-muted-foreground">Có đi</p>
-        <p className="text-2xl font-semibold text-emerald-700">{stats.attending}</p>
-      </div>
-      <div className="rounded-xl border p-3">
-        <p className="text-muted-foreground">Không đi</p>
-        <p className="text-2xl font-semibold text-rose-700">{stats.declined}</p>
-      </div>
-      <div className="rounded-xl border p-3">
-        <p className="text-muted-foreground">Tổng người</p>
-        <p className="text-2xl font-semibold">{stats.totalGuests}</p>
-      </div>
+  const renderSideStats = (stats: ReturnType<typeof statsForRows>, look: SideLook) => (
+    <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+      {(
+        [
+          ['Khách', stats.total, look.statValue],
+          ['Có đi', stats.attending, 'text-emerald-700'],
+          ['Chưa phản hồi', stats.pending, 'text-amber-800'],
+          ['Không đi', stats.declined, 'text-rose-700'],
+          ['Số người', stats.totalGuests, look.statValue],
+        ] as const
+      ).map(([label, value, valueClass]) => (
+        <div key={label} className={cn('rounded-xl border px-3 py-2.5', look.stat)}>
+          <p className={cn('text-xs', look.statLabel)}>{label}</p>
+          <p className={cn('text-2xl font-semibold tabular-nums', valueClass)}>{value}</p>
+        </div>
+      ))}
     </div>
   )
+
+  const renderSide = (
+    look: SideLook,
+    sideRows: GuestRow[],
+    stats: ReturnType<typeof statsForRows>,
+    personName: string,
+  ) => {
+    const focused = focusSide === (look.panel === 'groom' ? 'groom' : 'bride')
+    return (
+      <section
+        id={look.anchor}
+        className={cn(
+          'scroll-mt-28 overflow-hidden rounded-2xl border',
+          look.card,
+          focused &&
+            (look.panel === 'groom'
+              ? 'ring-2 ring-sky-600 ring-offset-2'
+              : 'ring-2 ring-rose-600 ring-offset-2'),
+        )}
+      >
+        <header className={cn('flex flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-5', look.header)}>
+          <div className="min-w-0">
+            <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', look.muted)}>{look.kicker}</p>
+            <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">
+              <Users className="h-5 w-5 shrink-0" />
+              {look.title}
+            </h2>
+            <p className={cn('mt-1 text-sm', look.muted)}>
+              {look.who}: {personName || '…'}
+            </p>
+          </div>
+          <p className={cn('rounded-full px-3 py-1 text-sm font-medium', look.chip)}>
+            {stats.total} khách · {stats.totalGuests} người
+          </p>
+        </header>
+        <div className="space-y-4 p-3 sm:p-5">
+          <p className="text-sm text-muted-foreground">{look.hint}</p>
+          <WeddingSideInviteSettingsPanel
+            side={look.panel}
+            card={card}
+            settings={sideSettings}
+            saving={savingSideSettings}
+            onChange={setSideSettings}
+          />
+          {renderSideStats(stats, look)}
+          {renderGuestTable(sideRows, look)}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <>
       <Toaster />
+      <datalist id="wedding-guest-honorific-suggestions">
+        {WEDDING_GUEST_HONORIFIC_SUGGESTIONS.map((item) => (
+          <option key={item} value={item} />
+        ))}
+      </datalist>
       <div className="w-full space-y-4 pb-2 sm:pb-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <a
+            href="#nha-trai"
+            onClick={() => setFocusSide('groom')}
+            className={cn('rounded-2xl border px-4 py-3 transition', SIDE_LOOK.groom.jump, focusSide === 'bride' && 'opacity-80')}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Nhà trai</p>
+            <p className="mt-0.5 text-lg font-semibold">{card?.groomName || 'Khách mời nhà trai'}</p>
+            <p className="text-sm text-white/85">{groomStats.total} khách · {groomStats.attending} có đi</p>
+          </a>
+          <a
+            href="#nha-gai"
+            onClick={() => setFocusSide('bride')}
+            className={cn('rounded-2xl border px-4 py-3 transition', SIDE_LOOK.bride.jump, focusSide === 'groom' && 'opacity-80')}
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Nhà gái</p>
+            <p className="mt-0.5 text-lg font-semibold">{card?.brideName || 'Khách mời nhà gái'}</p>
+            <p className="text-sm text-white/85">{brideStats.total} khách · {brideStats.attending} có đi</p>
+          </a>
+        </div>
+
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Chưa xuất bản link thiệp — vẫn thêm/sửa được; link cá nhân chỉ dùng sau khi xuất bản.
           </p>
         ) : (
-          <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          <p className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-foreground">
             Gửi link thiệp cá nhân qua <span className="font-medium">Facebook hoặc Zalo</span>: bấm Copy ở cột Link
-            trong bảng rồi dán vào tin nhắn. Khách nhà trai/gái nhận đúng địa chỉ và giờ tiệc của bên tương ứng.
+            trong bảng rồi dán vào tin nhắn. Khách nhà trai và nhà gái nhận đúng địa chỉ, giờ tiệc của bên mình.
           </p>
         )}
 
-        <Card id="nha-trai" className="scroll-mt-24 border-0 shadow-none sm:border sm:shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Danh sách khách mời nhà trai
-            </CardTitle>
-            <CardDescription>
-              Cài đặt thiệp cá nhân nhà trai (ngày, giờ, địa chỉ, lịch trình, dress code, liên hệ, ảnh bìa…).
-              Lời mời tự sinh theo xưng hô + tên từng khách.
-              {card ? (
-                <>
-                  {' '}
-                  · Nhà {card.groomName || '…'}
-                </>
-              ) : null}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <WeddingSideInviteSettingsPanel
-              side="groom"
-              card={card}
-              settings={sideSettings}
-              saving={savingSideSettings}
-              onChange={setSideSettings}
-            />
-            {renderSideStats(groomStats)}
-            {renderGuestTable(groomRows, 'groom_home', 'nhà trai')}
-          </CardContent>
-        </Card>
-
-        <Card id="nha-gai" className="scroll-mt-24 border-0 shadow-none sm:border sm:shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Danh sách khách mời nhà gái
-            </CardTitle>
-            <CardDescription>
-              Cài đặt thiệp cá nhân nhà gái (ngày, giờ, địa chỉ, lịch trình, dress code, liên hệ, ảnh bìa…).
-              Lời mời tự sinh theo xưng hô + tên từng khách.
-              {card ? (
-                <>
-                  {' '}
-                  · Nhà {card.brideName || '…'}
-                </>
-              ) : null}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <WeddingSideInviteSettingsPanel
-              side="bride"
-              card={card}
-              settings={sideSettings}
-              saving={savingSideSettings}
-              onChange={setSideSettings}
-            />
-            {renderSideStats(brideStats)}
-            {renderGuestTable(brideRows, 'bride_home', 'nhà gái')}
-          </CardContent>
-        </Card>
+        {renderSide(SIDE_LOOK.groom, groomRows, groomStats, card?.groomName ?? '')}
+        {renderSide(SIDE_LOOK.bride, brideRows, brideStats, card?.brideName ?? '')}
       </div>
     </>
   )

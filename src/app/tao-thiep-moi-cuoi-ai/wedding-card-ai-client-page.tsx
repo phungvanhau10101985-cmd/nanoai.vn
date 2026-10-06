@@ -57,6 +57,7 @@ import {
   resolveCoverPhotoUrl,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
+import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-preset-picker'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
@@ -486,6 +487,10 @@ export default function WeddingCardAiClientPage() {
     () => resolveGuestInviteLocation(card, card.guestInviteVenue),
     [card],
   )
+
+  const selectAlbumLayout = (albumLayoutId: string) => {
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { albumLayoutId }))
+  }
 
   const selectCoverPreset = (presetId: string) => {
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverPresetId: presetId }))
@@ -1214,6 +1219,16 @@ export default function WeddingCardAiClientPage() {
                       ))}
                     </div>
                   )}
+                  <div className="space-y-2">
+                    <Label>Kiểu xem album trên thiệp</Label>
+                    <p className="text-xs text-muted-foreground">Ảnh hiện lớn ngay trên thiệp. Khách vuốt để xem từng ảnh.</p>
+                    <WeddingAlbumLayoutPicker
+                      locale={uiLocale}
+                      selectedId={sectionConfig.albumLayoutId}
+                      previewUrls={card.albumImageUrls}
+                      onSelect={selectAlbumLayout}
+                    />
+                  </div>
                   <Textarea
                     value={card.albumImageUrls.join('\n')}
                     onChange={(e) => update('albumImageUrls', e.target.value.split('\n').map((url) => url.trim()).filter(Boolean))}
