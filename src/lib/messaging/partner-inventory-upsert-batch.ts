@@ -607,7 +607,7 @@ export async function applyPartnerInventoryExternalCatalogGetBatch(
       }))
     )
     if (!linked.ok) {
-      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+      return { ok: false, error: `Category link failed (${linked.error}). Import stopped.` }
     }
   }
 
@@ -764,7 +764,7 @@ export async function upsertPartnerInventoryRemarketingIncrementalBatch(
       }))
     )
     if (!linked.ok) {
-      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+      return { ok: false, error: `Category link failed (${linked.error}). Import stopped.` }
     }
   }
 
@@ -1104,7 +1104,7 @@ export async function upsertPartnerInventoryBatch(
       }))
     )
     if (!linked.ok) {
-      return { ok: false, error: `Category SEO AI failed (${linked.error}). Import stopped.` }
+      return { ok: false, error: `Category link failed (${linked.error}). Import stopped.` }
     }
   }
 

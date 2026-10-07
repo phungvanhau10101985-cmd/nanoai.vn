@@ -56,6 +56,12 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
   const pinchRef = useRef<{ dist: number; scale: number } | null>(null)
   const swipeRef = useRef<{ x: number; y: number; t: number } | null>(null)
   const posRef = useRef({ tx: 0, ty: 0 })
+  const indexRef = useRef(index)
+  const urlsLenRef = useRef(urls.length)
+  const onIndexChangeRef = useRef(onIndexChange)
+  indexRef.current = index
+  urlsLenRef.current = urls.length
+  onIndexChangeRef.current = onIndexChange
 
   useEffect(() => {
     carouselShiftXRef.current = carouselShiftX
@@ -107,6 +113,88 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
   }, [index])
 
   useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    let tracking = false
+    let gesture: 'unset' | 'x' | 'y' = 'unset'
+    let startX = 0
+    let startY = 0
+    let startT = 0
+    let lastX = 0
+
+    const damp = (dx: number, i: number, len: number) => {
+      if (len <= 1) return dx * 0.35
+      if (i <= 0 && dx > 0) return dx * 0.35
+      if (i >= len - 1 && dx < 0) return dx * 0.35
+      return dx
+    }
+
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) {
+        tracking = false
+        return
+      }
+      const touch = event.touches[0]
+      tracking = true
+      gesture = 'unset'
+      startX = lastX = touch.clientX
+      startY = touch.clientY
+      startT = Date.now()
+    }
+
+    const onMove = (event: TouchEvent) => {
+      if (!tracking || event.touches.length !== 1 || userScaleRef.current > 1.05) return
+      const touch = event.touches[0]
+      const dx = touch.clientX - startX
+      const dy = touch.clientY - startY
+      lastX = touch.clientX
+      if (gesture === 'unset' && dx * dx + dy * dy > 36) {
+        gesture = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+      }
+      if (gesture !== 'x') return
+      if (event.cancelable) event.preventDefault()
+      const next = damp(dx, indexRef.current, urlsLenRef.current)
+      carouselShiftXRef.current = next
+      setCarouselShiftX(next)
+      setTx(0)
+      setTy(0)
+    }
+
+    const onEnd = () => {
+      if (!tracking) return
+      const wasHorizontal = gesture === 'x'
+      tracking = false
+      gesture = 'unset'
+      if (!wasHorizontal) return
+      const len = urlsLenRef.current
+      const current = indexRef.current
+      const shift = carouselShiftXRef.current
+      carouselShiftXRef.current = 0
+      setCarouselShiftX(0)
+      if (userScaleRef.current > 1.05 || len <= 1) return
+      const distTh = Math.max(52, Math.min(140, (el.clientWidth || 360) * 0.12))
+      const dt = Math.max(1, Date.now() - startT)
+      const vx = ((lastX - startX) / dt) * 1000
+      let go: -1 | 0 | 1 = 0
+      if (shift < -distTh || vx < -620) go = 1
+      else if (shift > distTh || vx > 620) go = -1
+      if (go === 1) onIndexChangeRef.current((current + 1) % len)
+      else if (go === -1) onIndexChangeRef.current((current - 1 + len) % len)
+    }
+
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [])
+
+  useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => {
       document.body.style.overflow = ''
@@ -121,17 +209,21 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0) return
-    const t = e.nativeEvent
-    containerRef.current?.setPointerCapture(e.pointerId)
+    if (e.pointerType === 'touch' && userScaleRef.current <= 1.05) return
+    try {
+      containerRef.current?.setPointerCapture(e.pointerId)
+    } catch {
+      /* chuột đã nhả */
+    }
     dragRef.current = {
       pointerId: e.pointerId,
-      startX: t.clientX,
-      startY: t.clientY,
+      startX: e.clientX,
+      startY: e.clientY,
       startTx: posRef.current.tx,
       startTy: posRef.current.ty,
       gesture: 'unset',
     }
-    swipeRef.current = { x: t.clientX, y: t.clientY, t: Date.now() }
+    swipeRef.current = { x: e.clientX, y: e.clientY, t: Date.now() }
   }
 
   const dampHorizontal = (dx: number, i: number) => {
@@ -144,6 +236,7 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
   }
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' && userScaleRef.current <= 1.05) return
     if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return
     const t = e.nativeEvent
     const dx = t.clientX - dragRef.current.startX
@@ -175,6 +268,7 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
   }
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' && userScaleRef.current <= 1.05) return
     if (dragRef.current?.pointerId !== e.pointerId) return
     const gesture = dragRef.current.gesture
 
@@ -327,7 +421,7 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
               src={url}
               alt=""
               draggable={false}
-              className="mx-auto block max-h-[calc(100dvh-13rem)] w-full select-none object-contain sm:max-h-[calc(100dvh-14rem)]"
+              className="pointer-events-none mx-auto block max-h-[calc(100dvh-13rem)] w-full select-none object-contain touch-none sm:max-h-[calc(100dvh-14rem)]"
               style={{
                 transform:
                   userScale <= 1.05

@@ -39,6 +39,8 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import {
   INVITATION_OCCASION_GROUPS,
+  applyInvitationCoverSectionDescription,
+  invitationCoverPhotoCopy,
   invitationEditorCopy,
   invitationOccasionShape,
   invitationOccasionShapeChangeNote,
@@ -415,7 +417,18 @@ export default function WeddingCardAiClientPage() {
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
   const tImage = useMemo(() => getDictionary(uiLocale).weddingCardAiImage, [uiLocale])
   const txStyle = useMemo(() => getDictionary(uiLocale).weddingCardAiStyle, [uiLocale])
-  const txCover = useMemo(() => getDictionary(uiLocale).weddingCardAiCover, [uiLocale])
+  const coverPhotoCopy = useMemo(
+    () => invitationCoverPhotoCopy(card.occasionKey, uiLocale),
+    [card.occasionKey, uiLocale],
+  )
+  const txCover = useMemo(() => {
+    const base = getDictionary(uiLocale).weddingCardAiCover
+    return {
+      ...base,
+      sectionDescription: applyInvitationCoverSectionDescription(base.sectionDescription, card.occasionKey, uiLocale),
+      uploadLabel: coverPhotoCopy.uploadLabel,
+    }
+  }, [card.occasionKey, coverPhotoCopy.uploadLabel, uiLocale])
   const txPublic = useMemo(() => getDictionary(uiLocale).weddingCardPublic, [uiLocale])
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
@@ -1493,6 +1506,7 @@ export default function WeddingCardAiClientPage() {
               <CardContent className="space-y-4">
                 <WeddingCoverPresetPicker
                   locale={uiLocale}
+                  occasionKey={occasionKey}
                   selectedId={coverPresetId}
                   onSelect={selectCoverPreset}
                   tagNewLabel={txCover.tagNew}
@@ -1523,7 +1537,7 @@ export default function WeddingCardAiClientPage() {
                       cordiallyInvitesLabel={txCover.previewGuestPrefix}
                       openButtonLabel={txCover.previewOpenButton}
                       dateFallback={txPublic.dateFallback}
-                      photoAlt={txPublic.coverPhotoAlt}
+                      photoAlt={coverPhotoCopy.alt}
                       compact
                     />
                   </div>
@@ -1540,7 +1554,7 @@ export default function WeddingCardAiClientPage() {
                 {coverPhotoPreviewUrl ? (
                   <CoverPhotoCropEditor
                     imageUrl={coverPhotoPreviewUrl}
-                    alt={txPublic.coverPhotoAlt}
+                    alt={coverPhotoCopy.alt}
                     positionX={coverPhotoPositionX}
                     positionY={coverPhotoPositionY}
                     scale={coverPhotoScale}
@@ -2284,6 +2298,7 @@ export default function WeddingCardAiClientPage() {
                   Lưu và xuất bản link thiệp
                 </Button>
                 {card.id ? (
+                  <>
                   <div className={singleOccasion ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                     <Button asChild variant="outline" className="w-full border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=groom`}>
@@ -2300,6 +2315,12 @@ export default function WeddingCardAiClientPage() {
                     </Button>
                     )}
                   </div>
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(card.id)}`}>
+                      Kết quả khách đi / không đi
+                    </Link>
+                  </Button>
+                  </>
                 ) : null}
                 {publishUrl && (
                   <div className="rounded-2xl bg-muted p-3 text-sm">

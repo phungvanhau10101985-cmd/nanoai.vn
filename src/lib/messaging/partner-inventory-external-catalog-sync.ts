@@ -962,7 +962,7 @@ export async function runPartnerExternalCatalogFieldFillJob(params: {
       }))
     )
     if (!linked.ok) {
-      return { ok: false, code: 'UPSERT_FAILED', detail: `Category SEO AI failed (${linked.error}). Sync stopped.` }
+      return { ok: false, code: 'UPSERT_FAILED', detail: `Category link failed (${linked.error}). Sync stopped.` }
     }
     const priceIds: string[] = []
     const priceAmounts: number[] = []

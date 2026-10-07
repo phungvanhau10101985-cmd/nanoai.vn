@@ -138,6 +138,8 @@ export async function fillPartnerCategoriesSeoIfEmpty(input: {
   shop: PartnerCategoryShopSeoContext
   sampleProductNames?: string[]
   concurrency?: number
+  /** Một danh mục lỗi không dừng các danh mục còn lại (SEO nền sau import). */
+  continueOnError?: boolean
 }): Promise<{ ok: true } | { ok: false; error: CategorySeoAiError | 'not_found' | 'db_error' }> {
   const unique = [...new Set(input.categoryIds.filter(Boolean))]
   if (unique.length === 0) return { ok: true }
@@ -160,6 +162,10 @@ export async function fillPartnerCategoriesSeoIfEmpty(input: {
         flat,
       })
       if (!filled.ok) {
+        if (input.continueOnError) {
+          console.warn('[fillPartnerCategoriesSeoIfEmpty]', categoryId, filled.error)
+          continue
+        }
         stopped = filled.error
         return
       }

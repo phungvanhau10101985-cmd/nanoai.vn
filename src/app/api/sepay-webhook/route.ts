@@ -17,6 +17,11 @@ import {
   sepayFindPendingByokPaymentMatch,
 } from '@/lib/db/user-ai-api-key-billing-pg'
 import {
+  completeWeddingGuestPackPayment,
+  sepayFindPendingWeddingGuestPackPaymentMatch,
+  sepayFindWeddingGuestPackPaymentByTransactionId,
+} from '@/lib/db/wedding-guest-pack-pg'
+import {
   fetchPartnerOrderByIdForPartnerFromPg,
   fetchPartnerOrderByPaymentReferenceFromPg,
   fetchPartnerPaymentSettingsFromPg,
@@ -216,6 +221,18 @@ export async function POST(request: NextRequest) {
           data: { paymentId: existing.id },
         })
       }
+      try {
+        const existingGuestPack = await sepayFindWeddingGuestPackPaymentByTransactionId(transactionId)
+        if (existingGuestPack?.status === 'completed') {
+          return NextResponse.json({
+            success: true,
+            message: 'Wedding guest pack payment already processed',
+            data: { paymentId: existingGuestPack.id, paymentType: 'wedding_guest_pack' },
+          })
+        }
+      } catch (guestPackLookupError) {
+        console.error('Wedding guest pack transaction lookup skipped:', guestPackLookupError)
+      }
     }
 
     const pendingByok = await sepayFindPendingByokPaymentMatch(normalizedContent, amountIn)
@@ -240,6 +257,34 @@ export async function POST(request: NextRequest) {
           paymentType: 'byok_plan',
         },
       })
+    }
+
+    try {
+      const pendingGuestPack = await sepayFindPendingWeddingGuestPackPaymentMatch(normalizedContent, amountIn)
+      if (pendingGuestPack) {
+        const completed = await completeWeddingGuestPackPayment({
+          paymentId: pendingGuestPack.id,
+          transactionId: transactionId || null,
+          normalizedContent,
+          sepayData: body as Record<string, unknown>,
+        })
+        if ('error' in completed) {
+          console.error('Failed to complete wedding guest pack payment:', completed.error)
+          return NextResponse.json({ error: completed.error }, { status: 500 })
+        }
+        return NextResponse.json({
+          success: true,
+          message: 'Wedding guest pack payment processed successfully',
+          data: {
+            paymentId: pendingGuestPack.id,
+            userId: pendingGuestPack.user_id,
+            packId: pendingGuestPack.pack_id,
+            paymentType: 'wedding_guest_pack',
+          },
+        })
+      }
+    } catch (guestPackMatchError) {
+      console.error('Wedding guest pack match skipped:', guestPackMatchError)
     }
 
     const pending = await sepayFindPendingPaymentMatch(normalizedContent, amountIn)

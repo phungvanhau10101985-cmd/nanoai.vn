@@ -20,12 +20,12 @@ const MOTION_CSS = `
 }
 [data-wedding-motion-ready='1'] [data-wedding-reveal]:not([data-wedding-shown]) {
   opacity: 0;
-  transform: translateY(18px);
+  transform: translate3d(0, 12px, 0);
 }
 [data-wedding-motion-ready='1'] [data-wedding-reveal][data-wedding-shown='1'] {
   opacity: 1;
   transform: none;
-  transition: opacity 760ms cubic-bezier(0.22, 1, 0.36, 1), transform 760ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 1400ms cubic-bezier(0.16, 1, 0.3, 1), transform 1400ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 @media (prefers-reduced-motion: reduce) {
   .wedding-cover-breathe,
@@ -60,7 +60,7 @@ export function WeddingInvitationMotion(props: { enabled: boolean; children: Rea
           io.unobserve(entry.target)
         }
       },
-      { threshold: 0.16, rootMargin: '0px 0px -8% 0px' },
+      { threshold: 0, rootMargin: '0px 0px 12% 0px' },
     )
     for (const node of nodes) {
       if (node.dataset.weddingShown !== '1') io.observe(node)

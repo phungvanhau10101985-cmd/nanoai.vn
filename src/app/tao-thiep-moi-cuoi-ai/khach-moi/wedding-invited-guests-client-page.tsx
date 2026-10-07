@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -26,6 +27,8 @@ import {
 } from '@/lib/wedding/wedding-side-invite-settings'
 import { WeddingSideInviteSettingsPanel } from './wedding-side-invite-settings-panel'
 import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
+import { WeddingGuestPackPanel } from './wedding-guest-pack-panel'
+import type { WeddingGuestPackQuota } from '@/lib/wedding/wedding-guest-pack'
 import {
   confirmWeddingInvitedGuestStatus,
   loadWeddingInvitedGuestsPage,
@@ -248,6 +251,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GuestRow | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [quota, setQuota] = useState<WeddingGuestPackQuota | null>(null)
+  const [packOpen, setPackOpen] = useState(false)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -291,6 +296,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       const nextRows = result.guests.map(guestToRow)
       setRows(nextRows)
       syncSavedSnapshots(nextRows)
+      if ('quota' in result) setQuota(result.quota ?? null)
     }
   }, [cardId, syncSavedSnapshots, toast])
 
@@ -355,6 +361,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   }
 
   const addRow = (side: GuestSide) => {
+    const cap = quota?.guestCap
+    if (cap != null && rowsRef.current.length >= cap) {
+      setPackOpen(true)
+      return
+    }
     setRows((prev) => [...prev, emptyRow(side)])
   }
 
@@ -429,6 +440,12 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       formData.append('notes', row.notes)
       const result = await saveWeddingInvitedGuest(formData)
       setSavingKey(null)
+      if ('code' in result && result.code === 'guest_pack_limit') {
+        if (result.quota) setQuota(result.quota)
+        setPackOpen(true)
+        toast({ title: 'Hết chỗ khách', description: result.error })
+        return
+      }
       if ('error' in result && result.error) {
         toast({ title: 'Lưu thất bại', description: result.error, variant: 'destructive' })
         return
@@ -976,7 +993,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       {!loading ? (
         <Button type="button" size="sm" className={cn(look.add, 'h-11 w-full md:h-9 md:w-auto')} onClick={() => addRow(side)}>
           <Plus className="mr-2 h-4 w-4" />
-          Thêm khách {look.kicker.toLowerCase()}
+          {quota?.guestCap != null && rows.length >= quota.guestCap
+            ? 'Chọn gói để thêm khách'
+            : `Thêm khách ${look.kicker.toLowerCase()}`}
         </Button>
       ) : null}
     </>
@@ -1054,6 +1073,10 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             side={look.panel}
             disabled={loading || !card}
             onImported={load}
+            onNeedPack={(nextQuota) => {
+              if (nextQuota) setQuota(nextQuota)
+              setPackOpen(true)
+            }}
           />
           {renderSideStats(stats, look)}
           {renderGuestTable(sideRows, look)}
@@ -1071,6 +1094,12 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         ))}
       </datalist>
       <div className="w-full space-y-4 pb-2 sm:pb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted-foreground">Tổng khách đi, số người và người không đi.</p>
+          <Button asChild variant="outline">
+            <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(cardId)}`}>Xem kết quả</Link>
+          </Button>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <a
             href="#nha-trai"
@@ -1091,6 +1120,17 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             <p className="text-sm text-white/85">{brideStats.total} khách · {brideStats.attending} có đi</p>
           </a>
         </div>
+
+        <WeddingGuestPackPanel
+          cardId={cardId}
+          quota={quota}
+          open={packOpen}
+          onOpenChange={setPackOpen}
+          onPaid={(nextQuota) => {
+            if (nextQuota) setQuota(nextQuota)
+            void load(true)
+          }}
+        />
 
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

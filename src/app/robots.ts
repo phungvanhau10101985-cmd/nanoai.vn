@@ -33,6 +33,7 @@ export default function robots(): MetadataRoute.Robots {
     '/messaging/my-chats',
     '/messaging/my-orders',
     '/tao-thiep-moi-cuoi-ai/khach-moi',
+    '/tao-thiep-moi-cuoi-ai/ket-qua',
   ]
 
   return {

@@ -68,6 +68,19 @@ const SELECT_COLS = `id::text, partner_id::text, parent_id::text, name, name_i18
   coalesce(size_guide_image_url, '') as size_guide_image_url, coalesce(ai_generated, false) as ai_generated,
   rating_group_id, created_at, updated_at`
 
+/**
+ * Cập nhật một danh mục theo id. `$1` là id danh mục.
+ * Bind thừa phía trước (partner id không dùng trong WHERE) làm Postgres 42P18
+ * `could not determine data type of parameter $1` và import trả 500 sau khi hàng đã lưu.
+ * Cây danh mục dùng chung nên không lọc `partner_id`.
+ */
+export function partnerCategoryUpdateByIdSql(assignmentsSql: string): string {
+  return `update public.messaging_partner_categories
+       set ${assignmentsSql}
+       where id = $1::uuid
+       returning ${SELECT_COLS}`
+}
+
 function mapCategoryRow(r: CategoryDbRow): PartnerCategoryRow {
   return {
     id: r.id,
@@ -706,8 +719,8 @@ export async function updatePartnerCategoryFieldsFromPg(
 ): Promise<PartnerCategoryRow | null> {
   if (!isPgConfigured()) return null
   const sets: string[] = []
-  const params: unknown[] = [partnerId, categoryId]
-  let p = 3
+  const params: unknown[] = [categoryId]
+  let p = 2
 
   if (patch.name !== undefined) {
     const name = patch.name.trim().slice(0, 200)
@@ -762,13 +775,7 @@ export async function updatePartnerCategoryFieldsFromPg(
   if (!sets.length) return fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
 
   try {
-    const row = await pgQueryOne<CategoryDbRow>(
-      `update public.messaging_partner_categories
-       set ${sets.join(', ')}
-       where id = $2::uuid and $1::uuid is not null
-       returning ${SELECT_COLS}`,
-      params
-    )
+    const row = await pgQueryOne<CategoryDbRow>(partnerCategoryUpdateByIdSql(sets.join(', ')), params)
     bumpSharedCatalogCacheLater()
     return row ? mapCategoryRow(row) : null
   } catch (e) {
@@ -1020,8 +1027,8 @@ export async function setPartnerCategoryGeneratedSeoFromPg(
 ): Promise<PartnerCategoryRow | null> {
   if (!isPgConfigured()) return null
   const sets: string[] = []
-  const params: unknown[] = [partnerId, categoryId]
-  let p = 3
+  const params: unknown[] = [categoryId]
+  let p = 2
   if (input.seoTitle !== undefined) {
     sets.push(`seo_title = $${p++}`)
     params.push(input.seoTitle.trim().slice(0, 200))
@@ -1039,15 +1046,7 @@ export async function setPartnerCategoryGeneratedSeoFromPg(
   }
   if (sets.length === 0) return fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
   try {
-    // $1 phải nằm trong câu: Postgres 42P18 nếu bind không được tham chiếu.
-    // Cây danh mục dùng chung nên không lọc theo partner_id.
-    const row = await pgQueryOne<CategoryDbRow>(
-      `update public.messaging_partner_categories
-       set ${sets.join(', ')}
-       where id = $2::uuid and $1::uuid is not null
-       returning ${SELECT_COLS}`,
-      params
-    )
+    const row = await pgQueryOne<CategoryDbRow>(partnerCategoryUpdateByIdSql(sets.join(', ')), params)
     bumpSharedCatalogCacheLater()
     return row ? mapCategoryRow(row) : null
   } catch (e) {

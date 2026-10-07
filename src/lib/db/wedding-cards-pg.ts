@@ -9,6 +9,13 @@ import {
   type SideWishMessage,
   type WeddingSideWishGroups,
 } from '@/lib/wedding/wedding-side-wishes'
+import { canAddWeddingGuests, parseWeddingGuestPackId, type WeddingGuestPackId } from '@/lib/wedding/wedding-guest-pack'
+import {
+  isWeddingCardExpired,
+  latestWeddingCeremonyIso,
+  todayIsoInVietnam,
+  WEDDING_CARD_RETENTION_DAYS,
+} from '@/lib/wedding/wedding-card-retention'
 
 export type WeddingCard = {
   id: string
@@ -85,6 +92,7 @@ export type WeddingCard = {
   publishedAt: string | null
   masterImageUrl: string | null
   effectsEnabled: boolean
+  guestPack?: WeddingGuestPackId | null
 }
 
 export type WeddingAiImage = {
@@ -312,7 +320,42 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     publishedAt: row.published_at ? String(row.published_at) : null,
     masterImageUrl: row.master_image_url ? String(row.master_image_url) : null,
     effectsEnabled: row.effects_enabled == null ? true : Boolean(row.effects_enabled),
+    guestPack: parseWeddingGuestPackId(row.guest_pack),
   }
+}
+
+type WeddingGuestRoomClient = {
+  query: (
+    text: string,
+    values?: unknown[],
+  ) => Promise<{ rows: Record<string, unknown>[]; rowCount: number | null }>
+}
+
+async function assertWeddingGuestRoom(
+  client: WeddingGuestRoomClient,
+  cardId: string,
+  userId: string,
+  adding: number,
+): Promise<'ok' | 'missing' | 'guest_pack_limit'> {
+  const card = await client.query(
+    `select guest_pack
+     from public.wedding_cards
+     where id = $1::uuid and user_id = $2::uuid
+     for update`,
+    [cardId, userId],
+  )
+  if (!card.rows[0]) return 'missing'
+  const count = await client.query(
+    `select count(*)::int as n
+     from public.wedding_card_invited_guests
+     where wedding_card_id = $1::uuid`,
+    [cardId],
+  )
+  const used = Number(count.rows[0]?.n ?? 0)
+  if (!canAddWeddingGuests(used, adding, parseWeddingGuestPackId(card.rows[0].guest_pack))) {
+    return 'guest_pack_limit'
+  }
+  return 'ok'
 }
 
 function mapImage(row: Record<string, unknown>): WeddingAiImage {
@@ -425,7 +468,91 @@ export async function getPublishedWeddingCardBySlug(slug: string): Promise<Weddi
      limit 1`,
     [slug]
   )
-  return res.rows[0] ? mapCard(res.rows[0]) : null
+  const card = res.rows[0] ? mapCard(res.rows[0]) : null
+  if (!card) return null
+  const ceremonyIso = latestWeddingCeremonyIso([
+    card.weddingDate,
+    card.groomInviteWeddingDate,
+    card.brideInviteWeddingDate,
+  ])
+  if (isWeddingCardExpired(ceremonyIso, todayIsoInVietnam())) return null
+  return card
+}
+
+export type ExpiredWeddingCard = {
+  id: string
+  userId: string
+  groomName: string
+  brideName: string
+  ceremonyIso: string | null
+}
+
+/** Gỡ thiệp đã qua 18 ngày sau ngày lễ muộn nhất. Ảnh nền và nhạc dùng chung được ghi vào kho trước khi xóa dòng. */
+export async function purgeExpiredWeddingCardsFromPg(now = new Date()): Promise<ExpiredWeddingCard[]> {
+  requirePg()
+  const todayIso = todayIsoInVietnam(now)
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    const removed = await client.query<{
+      id: string
+      user_id: string
+      groom_name: string | null
+      bride_name: string | null
+      ceremony_date: unknown
+    }>(
+      `with expired as (
+         select c.id, c.user_id, c.groom_name, c.bride_name, c.music_url,
+                greatest(c.wedding_date, c.groom_invite_wedding_date, c.bride_invite_wedding_date) as ceremony_date
+         from public.wedding_cards c
+         where greatest(c.wedding_date, c.groom_invite_wedding_date, c.bride_invite_wedding_date) is not null
+           and greatest(c.wedding_date, c.groom_invite_wedding_date, c.bride_invite_wedding_date) + $1::int
+               <= $2::date
+       ),
+       kept_music as (
+         insert into public.wedding_music_library (title, audio_url, source)
+         select 'Nhạc thiệp', e.music_url, 'upload'
+         from expired e
+         where e.music_url <> ''
+           and e.music_url not ilike '%private_bg%'
+         on conflict (audio_url) do nothing
+         returning audio_url
+       ),
+       kept_backgrounds as (
+         insert into public.wedding_background_library (image_url, image_type)
+         select distinct on (i.image_url) i.image_url, i.type
+         from public.wedding_card_ai_images i
+         join expired e on e.id = i.wedding_card_id
+         where i.status = 'completed'
+           and i.image_url <> ''
+           and i.image_url not ilike '%private_bg%'
+           and i.type in ('master', 'cover', 'invitation', 'event', 'rsvp', 'album', 'gift_qr', 'thanks')
+         order by i.image_url, i.created_at asc
+         on conflict (image_url) do nothing
+         returning image_url
+       )
+       delete from public.wedding_cards c
+       using expired e
+       where c.id = e.id
+         and (select count(*) from kept_music) >= 0
+         and (select count(*) from kept_backgrounds) >= 0
+       returning c.id::text, c.user_id::text, e.groom_name, e.bride_name, e.ceremony_date`,
+      [WEDDING_CARD_RETENTION_DAYS, todayIso],
+    )
+    await client.query('commit')
+    return removed.rows.map((row) => ({
+      id: row.id,
+      userId: row.user_id,
+      groomName: row.groom_name ?? '',
+      brideName: row.bride_name ?? '',
+      ceremonyIso: weddingDateFromPg(row.ceremony_date),
+    }))
+  } catch (error) {
+    await client.query('rollback').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function updateWeddingCardBrief(input: {
@@ -1197,31 +1324,43 @@ export async function createWeddingInvitedGuest(input: {
   guestCount: number
   wishMessage: string
   notes: string
-}): Promise<WeddingInvitedGuest | null> {
+}): Promise<WeddingInvitedGuest | 'guest_pack_limit' | null> {
   requirePg()
   const name = input.guestName.trim()
   if (!name) return null
-  const res = await getPgPool().query(
-    `insert into public.wedding_card_invited_guests (
-       wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
-     )
-     select $1::uuid, $2, $3, $4, $5, 'pending', $6, $7, $8
-     from public.wedding_cards c
-     where c.id = $1::uuid and c.user_id = $9::uuid
-     returning *`,
-    [
-      input.cardId,
-      input.guestHonorific.trim().slice(0, 80),
-      name,
-      normalizeGuestInviteVenue(input.inviteVenue),
-      input.personalInvite,
-      input.guestCount,
-      input.wishMessage,
-      input.notes,
-      input.userId,
-    ],
-  )
-  return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    const room = await assertWeddingGuestRoom(client, input.cardId, input.userId, 1)
+    if (room !== 'ok') {
+      await client.query('rollback')
+      return room === 'guest_pack_limit' ? 'guest_pack_limit' : null
+    }
+    const res = await client.query(
+      `insert into public.wedding_card_invited_guests (
+         wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite, status, guest_count, wish_message, notes
+       )
+       values ($1::uuid, $2, $3, $4, $5, 'pending', $6, $7, $8)
+       returning *`,
+      [
+        input.cardId,
+        input.guestHonorific.trim().slice(0, 80),
+        name,
+        normalizeGuestInviteVenue(input.inviteVenue),
+        input.personalInvite,
+        input.guestCount,
+        input.wishMessage,
+        input.notes,
+      ],
+    )
+    await client.query('commit')
+    return res.rows[0] ? mapInvitedGuest(res.rows[0]) : null
+  } catch (error) {
+    await client.query('rollback').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function createWeddingInvitedGuestsBatch(input: {
@@ -1237,7 +1376,7 @@ export async function createWeddingInvitedGuestsBatch(input: {
     wishMessage: string
     notes: string
   }>
-}): Promise<number> {
+}): Promise<number | 'guest_pack_limit'> {
   requirePg()
   if (!input.guests.length) return 0
   const honorifics: string[] = []
@@ -1264,35 +1403,45 @@ export async function createWeddingInvitedGuestsBatch(input: {
     notes.push(guest.notes.slice(0, 500))
   }
   if (!names.length) return 0
-  const res = await getPgPool().query(
-    `insert into public.wedding_card_invited_guests (
-       wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite,
-       status, status_confirmed_by, guest_count, wish_message, notes
-     )
-     select $1::uuid, h, n, v, p, s, cby, gc, w, nt
-     from unnest(
-       $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::int[], $9::text[], $10::text[]
-     ) as t(h, n, v, p, s, cby, gc, w, nt)
-     where exists (
-       select 1 from public.wedding_cards c
-       where c.id = $1::uuid and c.user_id = $11::uuid
-     )
-     returning id`,
-    [
-      input.cardId,
-      honorifics,
-      names,
-      venues,
-      invites,
-      statuses,
-      confirmedBy,
-      counts,
-      wishes,
-      notes,
-      input.userId,
-    ],
-  )
-  return res.rowCount ?? 0
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    const room = await assertWeddingGuestRoom(client, input.cardId, input.userId, names.length)
+    if (room !== 'ok') {
+      await client.query('rollback')
+      return room === 'guest_pack_limit' ? 'guest_pack_limit' : 0
+    }
+    const res = await client.query(
+      `insert into public.wedding_card_invited_guests (
+         wedding_card_id, guest_honorific, guest_name, invite_venue, personal_invite,
+         status, status_confirmed_by, guest_count, wish_message, notes
+       )
+       select $1::uuid, h, n, v, p, s, cby, gc, w, nt
+       from unnest(
+         $2::text[], $3::text[], $4::text[], $5::text[], $6::text[], $7::text[], $8::int[], $9::text[], $10::text[]
+       ) as t(h, n, v, p, s, cby, gc, w, nt)
+       returning id`,
+      [
+        input.cardId,
+        honorifics,
+        names,
+        venues,
+        invites,
+        statuses,
+        confirmedBy,
+        counts,
+        wishes,
+        notes,
+      ],
+    )
+    await client.query('commit')
+    return res.rowCount ?? 0
+  } catch (error) {
+    await client.query('rollback').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function updateWeddingInvitedGuest(input: {
@@ -1486,9 +1635,9 @@ export async function syncInvitedGuestFromRsvp(input: {
     `update public.wedding_card_invited_guests g
      set status = $3,
          status_confirmed_by = 'guest',
-         guest_count = $4,
-         adult_count = $5,
-         child_count = $6,
+         guest_count = case when $3 = 'attending' then $4 else greatest(g.guest_count, 1) end,
+         adult_count = case when $3 = 'attending' then $5 else g.adult_count end,
+         child_count = case when $3 = 'attending' then $6 else g.child_count end,
          wish_message = case when $7 <> '' then $7 else g.wish_message end,
          updated_at = timezone('utc'::text, now())
      where g.wedding_card_id = $1::uuid
@@ -1635,4 +1784,249 @@ export async function markWeddingReminderSent(reminderId: string): Promise<void>
      where id = $1::uuid and sent_at is null`,
     [reminderId],
   )
+}
+
+export type WeddingRsvpNotifySettings = {
+  groomEmail: string
+  brideEmail: string
+  daily: boolean
+  onIncrease: boolean
+  lastPeople: number
+  baselineSet: boolean
+  lastDailyOn: string | null
+}
+
+export type WeddingRsvpNotifyRow = WeddingRsvpNotifySettings & {
+  cardId: string
+  slug: string
+  occasionKey: InvitationOccasionKey
+  groomName: string
+  brideName: string
+}
+
+export type WeddingAttendanceGuestRow = {
+  guestHonorific: string
+  guestName: string
+  inviteVenue: string
+  status: WeddingInvitedGuestStatus
+  guestCount: number
+  adultCount: number
+  childCount: number
+}
+
+export type WeddingAttendanceRsvpRow = {
+  guestName: string
+  attending: boolean
+  guestCount: number
+  adultCount: number
+  childCount: number
+}
+
+function mapRsvpNotifyRow(row: Record<string, unknown>): WeddingRsvpNotifyRow {
+  const dailyOn = row.rsvp_notify_last_daily_on
+  return {
+    cardId: String(row.id),
+    slug: String(row.slug ?? ''),
+    occasionKey: normalizeInvitationOccasion(row.occasion_key),
+    groomName: String(row.groom_name ?? ''),
+    brideName: String(row.bride_name ?? ''),
+    groomEmail: String(row.rsvp_notify_groom_email ?? ''),
+    brideEmail: String(row.rsvp_notify_bride_email ?? ''),
+    daily: Boolean(row.rsvp_notify_daily),
+    onIncrease: Boolean(row.rsvp_notify_on_increase),
+    lastPeople: Number(row.rsvp_notify_last_people ?? 0) || 0,
+    baselineSet: Boolean(row.rsvp_notify_baseline_set),
+    lastDailyOn: dailyOn ? String(dailyOn).slice(0, 10) : null,
+  }
+}
+
+const RSVP_NOTIFY_SELECT = `id, slug, occasion_key, groom_name, bride_name,
+  rsvp_notify_groom_email, rsvp_notify_bride_email, rsvp_notify_daily, rsvp_notify_on_increase,
+  rsvp_notify_last_people, rsvp_notify_baseline_set, rsvp_notify_last_daily_on`
+
+export async function getWeddingRsvpNotifyRowForOwner(
+  cardId: string,
+  userId: string,
+): Promise<WeddingRsvpNotifyRow | null> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select ${RSVP_NOTIFY_SELECT}
+     from public.wedding_cards
+     where id = $1::uuid and user_id = $2::uuid`,
+    [cardId, userId],
+  )
+  return res.rows[0] ? mapRsvpNotifyRow(res.rows[0]) : null
+}
+
+export async function saveWeddingRsvpNotifySettings(input: {
+  cardId: string
+  userId: string
+  groomEmail: string
+  brideEmail: string
+  daily: boolean
+  onIncrease: boolean
+  currentPeople: number
+}): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set rsvp_notify_groom_email = $3,
+         rsvp_notify_bride_email = $4,
+         rsvp_notify_daily = $5,
+         rsvp_notify_on_increase = $6,
+         rsvp_notify_last_people = case when $5 or $6 then $7 else rsvp_notify_last_people end,
+         rsvp_notify_baseline_set = case when $5 or $6 then true else rsvp_notify_baseline_set end
+     where id = $1::uuid and user_id = $2::uuid`,
+    [
+      input.cardId,
+      input.userId,
+      input.groomEmail.trim().slice(0, 180),
+      input.brideEmail.trim().slice(0, 180),
+      input.daily,
+      input.onIncrease,
+      Math.max(0, Math.round(input.currentPeople) || 0),
+    ],
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
+export async function loadWeddingAttendanceSources(
+  cardId: string,
+  userId?: string | null,
+): Promise<{ guests: WeddingAttendanceGuestRow[]; rsvps: WeddingAttendanceRsvpRow[] } | null> {
+  requirePg()
+  const owner = userId?.trim() || null
+  const card = await getPgPool().query(
+    `select id from public.wedding_cards
+     where id = $1::uuid and ($2::uuid is null or user_id = $2::uuid)`,
+    [cardId, owner],
+  )
+  if (!card.rows[0]) return null
+  const guests = await getPgPool().query(
+    `select guest_honorific, guest_name, invite_venue, status, guest_count, adult_count, child_count
+     from public.wedding_card_invited_guests
+     where wedding_card_id = $1::uuid`,
+    [cardId],
+  )
+  const rsvps = await getPgPool().query(
+    `select guest_name, attending, guest_count, adult_count, child_count
+     from public.wedding_card_rsvps
+     where wedding_card_id = $1::uuid`,
+    [cardId],
+  )
+  return {
+    guests: guests.rows.map((row) => {
+      const statusRaw = String(row.status ?? 'pending')
+      const status: WeddingInvitedGuestStatus =
+        statusRaw === 'attending' || statusRaw === 'declined' ? statusRaw : 'pending'
+      return {
+        guestHonorific: String(row.guest_honorific ?? ''),
+        guestName: String(row.guest_name ?? ''),
+        inviteVenue: String(row.invite_venue ?? ''),
+        status,
+        guestCount: Number(row.guest_count ?? 0) || 0,
+        adultCount: Number(row.adult_count ?? 0) || 0,
+        childCount: Number(row.child_count ?? 0) || 0,
+      }
+    }),
+    rsvps: rsvps.rows.map((row) => ({
+      guestName: String(row.guest_name ?? ''),
+      attending: Boolean(row.attending),
+      guestCount: Number(row.guest_count ?? 0) || 0,
+      adultCount: Number(row.adult_count ?? 0) || 0,
+      childCount: Number(row.child_count ?? 0) || 0,
+    })),
+  }
+}
+
+export async function seedWeddingAttendanceBaseline(cardId: string, people: number): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set rsvp_notify_last_people = $2,
+         rsvp_notify_baseline_set = true
+     where id = $1::uuid
+       and (rsvp_notify_daily = true or rsvp_notify_on_increase = true)
+       and rsvp_notify_baseline_set = false`,
+    [cardId, Math.max(0, Math.round(people) || 0)],
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
+export async function lowerWeddingAttendanceBaseline(input: {
+  cardId: string
+  expectedPeople: number
+  nextPeople: number
+}): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set rsvp_notify_last_people = $3
+     where id = $1::uuid
+       and (rsvp_notify_daily = true or rsvp_notify_on_increase = true)
+       and rsvp_notify_baseline_set = true
+       and rsvp_notify_last_people = $2
+       and $3 < $2`,
+    [input.cardId, input.expectedPeople, input.nextPeople],
+  )
+  return (res.rowCount ?? 0) > 0
+}
+
+export async function listWeddingAttendanceDailyDue(): Promise<WeddingRsvpNotifyRow[]> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select ${RSVP_NOTIFY_SELECT}
+     from public.wedding_cards
+     where (rsvp_notify_daily = true or rsvp_notify_on_increase = true)
+       and (
+         btrim(rsvp_notify_groom_email) <> ''
+         or btrim(rsvp_notify_bride_email) <> ''
+       )
+       and (
+         rsvp_notify_last_daily_on is null
+         or rsvp_notify_last_daily_on < (timezone('Asia/Ho_Chi_Minh', now()))::date
+       )`,
+  )
+  return res.rows.map((row) => mapRsvpNotifyRow(row))
+}
+
+export async function releaseWeddingAttendanceDailyClaim(input: {
+  cardId: string
+  restorePeople: number
+  claimedPeople: number
+}): Promise<void> {
+  requirePg()
+  await getPgPool().query(
+    `update public.wedding_cards
+     set rsvp_notify_last_daily_on = null,
+         rsvp_notify_last_people = $2
+     where id = $1::uuid
+       and rsvp_notify_last_daily_on = (timezone('Asia/Ho_Chi_Minh', now()))::date
+       and rsvp_notify_last_people = $3`,
+    [input.cardId, input.restorePeople, input.claimedPeople],
+  )
+}
+
+export async function claimWeddingAttendanceDailySend(input: {
+  cardId: string
+  expectedPeople: number
+  nextPeople: number
+}): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set rsvp_notify_last_daily_on = (timezone('Asia/Ho_Chi_Minh', now()))::date,
+         rsvp_notify_last_people = $3,
+         rsvp_notify_baseline_set = true
+     where id = $1::uuid
+       and (rsvp_notify_daily = true or rsvp_notify_on_increase = true)
+       and (
+         rsvp_notify_last_daily_on is null
+         or rsvp_notify_last_daily_on < (timezone('Asia/Ho_Chi_Minh', now()))::date
+       )
+       and rsvp_notify_last_people = $2
+       and $3 > $2`,
+    [input.cardId, input.expectedPeople, input.nextPeople],
+  )
+  return (res.rowCount ?? 0) > 0
 }

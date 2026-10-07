@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
+import { invitationCoverPhotoCopy } from '@/lib/wedding/invitation-occasion'
 import {
   DEFAULT_WEDDING_COVER_PRESET_ID,
   labelForWeddingCoverPreset,
@@ -11,6 +12,7 @@ import {
 
 type WeddingCoverPresetPickerProps = {
   locale: WebLocale
+  occasionKey?: unknown
   selectedId: string
   onSelect: (id: string) => void
   tagNewLabel: string
@@ -66,6 +68,7 @@ function TagBadge(props: { tag: WeddingCoverPresetTag; label: string }) {
 
 export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
   const selectedId = props.selectedId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const redPresetLabel = invitationCoverPhotoCopy(props.occasionKey, props.locale).redPresetLabel
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
       {WEDDING_COVER_PRESETS.map((preset) => {
@@ -83,7 +86,7 @@ export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
               <CoverPresetThumbnail preset={preset} selected={selected} />
             </div>
             <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
-              {labelForWeddingCoverPreset(props.locale, preset)}
+              {preset.id === 'red_photo_arch' ? redPresetLabel : labelForWeddingCoverPreset(props.locale, preset)}
             </p>
           </button>
         )

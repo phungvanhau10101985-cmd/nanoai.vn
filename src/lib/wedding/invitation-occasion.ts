@@ -824,6 +824,174 @@ export function invitationSeoCopy(raw: unknown): InvitationSeoCopy {
   return SEO[normalizeInvitationOccasion(raw)]
 }
 
+type CoverPhotoPack = {
+  /** Cụm thay vào câu mô tả vỏ («thêm … vào giữa»). */
+  sectionPhrase: Five
+  uploadLabel: Five
+  alt: Five
+  redPreset: Five
+}
+
+const COUPLE_COVER: CoverPhotoPack = {
+  sectionPhrase: ['ảnh cặp đôi', 'a couple photo', '情侣照片', 'カップル写真', '커플 사진'],
+  uploadLabel: [
+    'Ảnh cặp đôi trên vỏ thiệp',
+    'Couple photo on cover card',
+    '封面卡片情侣照',
+    '表紙カードのカップル写真',
+    '표지 카드 커플 사진',
+  ],
+  alt: [
+    'Ảnh cặp đôi trên vỏ thiệp',
+    'Couple photo on invitation cover',
+    '请柬封面情侣照',
+    '表紙カードのカップル写真',
+    '표지 카드 커플 사진',
+  ],
+  redPreset: ['Đỏ ảnh cặp đôi', 'Red couple photo', '红色情侣照', '赤・カップル写真', '레드 커플 사진'],
+}
+
+function coverOf(
+  sectionPhrase: Five,
+  uploadLabel: Five,
+  alt: Five,
+  redPreset: Five,
+): CoverPhotoPack {
+  return { sectionPhrase, uploadLabel, alt, redPreset }
+}
+
+const BABY_COVER = coverOf(
+  ['ảnh bé', 'a baby photo', '宝宝照片', '赤ちゃんの写真', '아기 사진'],
+  ['Ảnh bé trên vỏ thiệp', 'Baby photo on cover card', '封面卡片宝宝照', '表紙カードの赤ちゃん写真', '표지 카드 아기 사진'],
+  ['Ảnh bé trên vỏ thiệp', 'Baby photo on invitation cover', '请柬封面宝宝照', '表紙カードの赤ちゃん写真', '표지 카드 아기 사진'],
+  ['Đỏ ảnh bé', 'Red baby photo', '红色宝宝照', '赤・赤ちゃん写真', '레드 아기 사진'],
+)
+
+const BIRTHDAY_COVER = coverOf(
+  ['ảnh nhân vật chính', 'a photo of the guest of honor', '主角照片', '主役の写真', '주인공 사진'],
+  [
+    'Ảnh nhân vật chính trên vỏ thiệp',
+    'Guest of honor photo on cover card',
+    '封面卡片主角照',
+    '表紙カードの主役写真',
+    '표지 카드 주인공 사진',
+  ],
+  [
+    'Ảnh nhân vật chính trên vỏ thiệp',
+    'Guest of honor photo on invitation cover',
+    '请柬封面主角照',
+    '表紙カードの主役写真',
+    '표지 카드 주인공 사진',
+  ],
+  ['Đỏ ảnh nhân vật chính', 'Red guest-of-honor photo', '红色主角照', '赤・主役写真', '레드 주인공 사진'],
+)
+
+const LONGEVITY_COVER = coverOf(
+  ['ảnh người mừng thọ', 'a photo of the honoree', '寿星照片', '寿星の写真', '어르신 사진'],
+  [
+    'Ảnh người mừng thọ trên vỏ thiệp',
+    'Honoree photo on cover card',
+    '封面卡片寿星照',
+    '表紙カードの寿星写真',
+    '표지 카드 어르신 사진',
+  ],
+  [
+    'Ảnh người mừng thọ trên vỏ thiệp',
+    'Honoree photo on invitation cover',
+    '请柬封面寿星照',
+    '表紙カードの寿星写真',
+    '표지 카드 어르신 사진',
+  ],
+  ['Đỏ ảnh người mừng thọ', 'Red honoree photo', '红色寿星照', '赤・寿星写真', '레드 어르신 사진'],
+)
+
+const OPENING_COVER = coverOf(
+  ['ảnh cửa hàng', 'a shop photo', '店铺照片', 'お店の写真', '가게 사진'],
+  ['Ảnh cửa hàng trên vỏ thiệp', 'Shop photo on cover card', '封面卡片店铺照', '表紙カードのお店写真', '표지 카드 가게 사진'],
+  ['Ảnh cửa hàng trên vỏ thiệp', 'Shop photo on invitation cover', '请柬封面店铺照', '表紙カードのお店写真', '표지 카드 가게 사진'],
+  ['Đỏ ảnh cửa hàng', 'Red shop photo', '红色店铺照', '赤・お店写真', '레드 가게 사진'],
+)
+
+const HOUSE_COVER = coverOf(
+  ['ảnh chủ nhà', 'a photo of the host', '主人照片', 'ご主人の写真', '주인 사진'],
+  ['Ảnh chủ nhà trên vỏ thiệp', 'Host photo on cover card', '封面卡片主人照', '表紙カードのご主人写真', '표지 카드 주인 사진'],
+  ['Ảnh chủ nhà trên vỏ thiệp', 'Host photo on invitation cover', '请柬封面主人照', '表紙カードのご主人写真', '표지 카드 주인 사진'],
+  ['Đỏ ảnh chủ nhà', 'Red host photo', '红色主人照', '赤・ご主人写真', '레드 주인 사진'],
+)
+
+const GATHERING_COVER = coverOf(
+  ['ảnh buổi tiệc', 'an event photo', '聚会照片', '宴会の写真', '모임 사진'],
+  ['Ảnh buổi tiệc trên vỏ thiệp', 'Event photo on cover card', '封面卡片聚会照', '表紙カードの宴会写真', '표지 카드 모임 사진'],
+  ['Ảnh buổi tiệc trên vỏ thiệp', 'Event photo on invitation cover', '请柬封面聚会照', '表紙カードの宴会写真', '표지 카드 모임 사진'],
+  ['Đỏ ảnh buổi tiệc', 'Red event photo', '红色聚会照', '赤・宴会写真', '레드 모임 사진'],
+)
+
+const GRADUATION_COVER = coverOf(
+  ['ảnh tân cử nhân', 'a graduate photo', '毕业生照片', '卒業生の写真', '졸업생 사진'],
+  [
+    'Ảnh tân cử nhân trên vỏ thiệp',
+    'Graduate photo on cover card',
+    '封面卡片毕业生照',
+    '表紙カードの卒業生写真',
+    '표지 카드 졸업생 사진',
+  ],
+  [
+    'Ảnh tân cử nhân trên vỏ thiệp',
+    'Graduate photo on invitation cover',
+    '请柬封面毕业生照',
+    '表紙カードの卒業生写真',
+    '표지 카드 졸업생 사진',
+  ],
+  ['Đỏ ảnh tân cử nhân', 'Red graduate photo', '红色毕业生照', '赤・卒業生写真', '레드 졸업생 사진'],
+)
+
+const CEREMONY_COVER = coverOf(
+  ['ảnh sự kiện', 'an event photo', '活动照片', '式典の写真', '행사 사진'],
+  ['Ảnh sự kiện trên vỏ thiệp', 'Event photo on cover card', '封面卡片活动照', '表紙カードの式典写真', '표지 카드 행사 사진'],
+  ['Ảnh sự kiện trên vỏ thiệp', 'Event photo on invitation cover', '请柬封面活动照', '表紙カードの式典写真', '표지 카드 행사 사진'],
+  ['Đỏ ảnh sự kiện', 'Red event photo', '红色活动照', '赤・式典写真', '레드 행사 사진'],
+)
+
+const COVER_PHOTO: Record<InvitationOccasionKey, CoverPhotoPack> = {
+  wedding: COUPLE_COVER,
+  engagement: COUPLE_COVER,
+  anniversary: COUPLE_COVER,
+  full_month: BABY_COVER,
+  first_birthday: BABY_COVER,
+  birthday: BIRTHDAY_COVER,
+  longevity: LONGEVITY_COVER,
+  grand_opening: OPENING_COVER,
+  housewarming: HOUSE_COVER,
+  gathering: GATHERING_COVER,
+  graduation: GRADUATION_COVER,
+  ceremony: CEREMONY_COVER,
+}
+
+export type InvitationCoverPhotoCopy = {
+  sectionPhrase: string
+  uploadLabel: string
+  alt: string
+  redPresetLabel: string
+}
+
+export function invitationCoverPhotoCopy(raw: unknown, locale: string): InvitationCoverPhotoCopy {
+  const pack = COVER_PHOTO[normalizeInvitationOccasion(raw)]
+  return {
+    sectionPhrase: at(pack.sectionPhrase, locale),
+    uploadLabel: at(pack.uploadLabel, locale),
+    alt: at(pack.alt, locale),
+    redPresetLabel: at(pack.redPreset, locale),
+  }
+}
+
+/** Đổi cụm «ảnh cặp đôi» trong câu mô tả vỏ cho đúng loại thiệp. Cưới giữ nguyên câu gốc. */
+export function applyInvitationCoverSectionDescription(description: string, raw: unknown, locale: string): string {
+  const from = at(COUPLE_COVER.sectionPhrase, locale)
+  const to = invitationCoverPhotoCopy(raw, locale).sectionPhrase
+  if (from === to || !description.includes(from)) return description
+  return description.split(from).join(to)
+}
+
 export function invitationSeal(raw: unknown): string {
   const key = normalizeInvitationOccasion(raw)
   if (key === 'wedding' || key === 'engagement') return '囍'
@@ -861,6 +1029,7 @@ export function applyInvitationOccasionPublicCopy<T extends object>(tx: T, occas
     albumAlt: at(bits.albumAlt, locale),
     wishPlaceholder: at(bits.wishPlaceholder, locale),
     wishPresetList: at(bits.wishPresetList, locale),
+    coverPhotoAlt: invitationCoverPhotoCopy(occasionKey, locale).alt,
     guestInviteVenueGroom: at(bits.venueGroom, locale),
     guestInviteVenueBride: at(bits.venueBride, locale),
   }

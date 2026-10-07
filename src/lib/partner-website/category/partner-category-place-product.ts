@@ -321,6 +321,27 @@ async function finishSession(
   return { ok: true }
 }
 
+/** Import Excel / Open Catalog: hàng và gán danh mục đã lưu. SEO Gemini chạy nền, không giữ request. */
+function scheduleImportedCategorySeo(session: PlaceSession, sampleProductNames: string[]) {
+  const categoryIds = [...session.needsSeoIds]
+  if (categoryIds.length === 0) return
+  const partnerId = session.partnerId
+  void fillPartnerCategoriesSeoIfEmpty({
+    partnerId,
+    categoryIds,
+    shop: session.shop,
+    sampleProductNames,
+    concurrency: 2,
+    continueOnError: true,
+  })
+    .then((result) => {
+      if (!result.ok) console.warn('[import-category-seo]', partnerId, result.error)
+    })
+    .catch((error: unknown) => {
+      console.warn('[import-category-seo]', partnerId, error)
+    })
+}
+
 function toResult(
   session: PlaceSession,
   categoryId: string | null,
@@ -499,8 +520,7 @@ export async function placeImportedInventoryInCategoryTreeBatch(
       return { ok: false, error: 'db_error', skippedInventoryIds }
     }
   }
-  const finished = await finishSession(session, samples)
-  if (!finished.ok) return { ok: false, error: finished.error, skippedInventoryIds }
+  scheduleImportedCategorySeo(session, samples)
   return { ok: true, skippedInventoryIds }
 }
 

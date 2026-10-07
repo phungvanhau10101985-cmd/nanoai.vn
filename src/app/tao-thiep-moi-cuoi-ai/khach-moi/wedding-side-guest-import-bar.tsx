@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Download, FileUp, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import type { WeddingGuestPackQuota } from '@/lib/wedding/wedding-guest-pack'
 import { downloadWeddingGuestImportTemplate, importWeddingInvitedGuests } from './actions'
 
 type Side = 'groom' | 'bride'
@@ -13,9 +14,10 @@ type Props = {
   side: Side
   disabled?: boolean
   onImported?: () => void | Promise<void>
+  onNeedPack?: (quota: WeddingGuestPackQuota | null) => void
 }
 
-export function WeddingSideGuestImportBar({ cardId, side, disabled, onImported }: Props) {
+export function WeddingSideGuestImportBar({ cardId, side, disabled, onImported, onNeedPack }: Props) {
   const { toast } = useToast()
   const fileRef = useRef<HTMLInputElement | null>(null)
   const [importing, setImporting] = useState(false)
@@ -53,11 +55,16 @@ export function WeddingSideGuestImportBar({ cardId, side, disabled, onImported }
     const result = await importWeddingInvitedGuests(formData)
     setImporting(false)
     if (fileRef.current) fileRef.current.value = ''
+    if ('code' in result && result.code === 'guest_pack_limit') {
+      onNeedPack?.(result.quota)
+      toast({ title: 'Hết chỗ khách', description: result.error })
+      return
+    }
     if ('error' in result && result.error) {
       toast({ title: 'Import thất bại', description: result.error, variant: 'destructive' })
       return
     }
-    if (!('created' in result)) return
+    if (!('created' in result) || !Array.isArray(result.errors)) return
     const skippedNote = result.skipped ? ` Bỏ qua ${result.skipped} dòng.` : ''
     const detail = result.errors.length ? ` ${result.errors[0]}` : ''
     toast({

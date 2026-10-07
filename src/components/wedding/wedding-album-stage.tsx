@@ -44,7 +44,7 @@ function AlbumPhoto(props: { url: string; alt: string; className?: string; frame
       src={props.url}
       alt={props.alt}
       draggable={false}
-      className={cn('h-full w-full object-cover', props.className)}
+      className={cn('pointer-events-none h-full w-full object-cover', props.className)}
       style={albumPhotoFrameStyle(props.frame)}
     />
   )
@@ -60,6 +60,7 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
         event.stopPropagation()
         props.onClick()
       }}
+      data-album-chrome=""
       className={cn(
         'absolute top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.dir < 0 ? 'left-1 sm:left-2' : 'right-1 sm:right-2',
@@ -94,6 +95,8 @@ export function WeddingAlbumStage(props: {
   const indexRef = useRef(0)
   const settling = useRef(false)
   const timer = useRef<number | null>(null)
+  const swipeRootRef = useRef<HTMLDivElement>(null)
+  const suppressClick = useRef(false)
   const safeIndex = wrap(index, count)
 
   useEffect(() => {
@@ -133,6 +136,87 @@ export function WeddingAlbumStage(props: {
   }
 
   const nudge = (dir: -1 | 1) => commitGlide(dir < 0 ? 1 : -1)
+  const commitGlideRef = useRef(commitGlide)
+  commitGlideRef.current = commitGlide
+
+  useEffect(() => {
+    const el = swipeRootRef.current
+    if (!el || count < 2) return
+
+    let active = false
+    let locked: 'unset' | 'x' | 'y' = 'unset'
+    let startX = 0
+    let startY = 0
+
+    const isChrome = (target: EventTarget | null) =>
+      target instanceof Element && Boolean(target.closest('[data-album-chrome]'))
+
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1 || settling.current) return
+      if (isChrome(event.target)) return
+      if (event.target instanceof Element && event.target.closest('[data-album-film-strip]')) return
+      const touch = event.touches[0]
+      active = true
+      locked = 'unset'
+      startX = touch.clientX
+      startY = touch.clientY
+    }
+
+    const onMove = (event: TouchEvent) => {
+      if (!active || event.touches.length !== 1) return
+      const touch = event.touches[0]
+      const dx = touch.clientX - startX
+      const dy = touch.clientY - startY
+      if (locked === 'unset') {
+        if (dx * dx + dy * dy < 64) return
+        locked = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+        if (locked === 'y') {
+          active = false
+          return
+        }
+        setSmooth(false)
+      }
+      if (locked !== 'x') return
+      if (event.cancelable) event.preventDefault()
+      const next = Math.max(-1.15, Math.min(1.15, dx / 200))
+      glideRef.current = next
+      setGlide(next)
+    }
+
+    const onEnd = () => {
+      if (!active) return
+      active = false
+      if (locked !== 'x') return
+      const g = glideRef.current
+      if (Math.abs(g) > 0.04) suppressClick.current = true
+      if (g > 0.18) commitGlideRef.current(1)
+      else if (g < -0.18) commitGlideRef.current(-1)
+      else {
+        setSmooth(true)
+        window.requestAnimationFrame(() => setGlide(0))
+      }
+    }
+
+    const blockClick = (event: Event) => {
+      if (!suppressClick.current) return
+      suppressClick.current = false
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    el.addEventListener('click', blockClick, true)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+      el.removeEventListener('click', blockClick, true)
+    }
+  }, [count])
 
   const jumpTo = (target: number) => {
     const d = wrappedDelta(target, indexRef.current, count)
@@ -155,23 +239,29 @@ export function WeddingAlbumStage(props: {
   if (count === 0) return null
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') return
     if (count < 2 || settling.current) return
-    if ((event.target as HTMLElement).closest('button')) return
+    if ((event.target as HTMLElement).closest('[data-album-chrome]')) return
     drag.current = { active: true, startX: event.clientX }
     setSmooth(false)
-    event.currentTarget.setPointerCapture(event.pointerId)
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      /* chuột đã nhả */
+    }
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag.current.active) return
+    if (event.pointerType === 'touch' || !drag.current.active) return
     const dx = event.clientX - drag.current.startX
     const next = Math.max(-1.15, Math.min(1.15, dx / 200))
     glideRef.current = next
     setGlide(next)
   }
-  const onPointerUp = () => {
-    if (!drag.current.active) return
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch' || !drag.current.active) return
     drag.current.active = false
     const g = glideRef.current
+    if (Math.abs(g) > 0.04) suppressClick.current = true
     if (g > 0.18) commitGlide(1)
     else if (g < -0.18) commitGlide(-1)
     else {
@@ -194,7 +284,9 @@ export function WeddingAlbumStage(props: {
   return (
     <div className={cn('relative', props.className)}>
       <div
-        className="relative touch-pan-y select-none"
+        ref={swipeRootRef}
+        className="relative select-none"
+        style={{ touchAction: 'pan-y' }}
         tabIndex={count > 1 ? 0 : undefined}
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft') nudge(-1)
@@ -229,6 +321,7 @@ export function WeddingAlbumStage(props: {
           <button
             type="button"
             aria-label={expandLabel}
+            data-album-chrome=""
             onClick={() => props.onExpand?.(safeIndex)}
             className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white shadow"
           >
@@ -281,12 +374,15 @@ function AlbumFrame(props: {
           const ad = Math.abs(d)
           if (ad > 2.6) return null
           return (
-            <button
+            <div
               key={`${url}-${i}`}
-              type="button"
+              role="button"
+              tabIndex={0}
               aria-label={alt}
+              data-album-photo=""
               className="absolute left-1/2 top-0 h-full w-[72%] overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
               style={{
+                touchAction: 'pan-y',
                 zIndex: 24 - Math.round(ad * 8),
                 opacity: ad > 1.2 ? Math.max(0, (1.8 - ad) / 0.6) : 1,
                 transform: `translateX(calc(-50% + ${d * 46}%)) rotateY(${d * -28}deg) scale(${1 - Math.min(ad, 1.15) * 0.12})`,
@@ -296,10 +392,16 @@ function AlbumFrame(props: {
                 if (ad < 0.35) return
                 props.onNudge(d > 0 ? 1 : -1)
               }}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                if (ad < 0.35) return
+                props.onNudge(d > 0 ? 1 : -1)
+              }}
             >
               <AlbumPhoto url={url} alt={i === index ? alt : ''} frame={props.frameOf(i)} />
               <span className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: Math.min(0.38, ad * 0.32), transition }} />
-            </button>
+            </div>
           )
         })}
       </div>
@@ -322,8 +424,8 @@ function AlbumFrame(props: {
         {urls.map((url, i) => (
           <div
             key={`${url}-${i}`}
-            className={vertical ? 'w-full' : 'h-full'}
-            style={vertical ? { height: `${100 / count}%` } : { width: `${100 / count}%` }}
+            className={vertical ? 'w-full touch-pan-y' : 'h-full touch-pan-y'}
+            style={vertical ? { height: `${100 / count}%`, touchAction: 'pan-y' } : { width: `${100 / count}%`, touchAction: 'pan-y' }}
           >
             <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
           </div>
@@ -364,8 +466,9 @@ function AlbumFrame(props: {
           return (
             <div
               key={`${url}-${i}`}
-              className="absolute inset-0"
+              className="absolute inset-0 touch-pan-y"
               style={{
+                touchAction: 'pan-y',
                 opacity: Math.max(0, 1 - ad),
                 transform: `scale(${1 + Math.min(ad, 1) * 0.045})`,
                 transition,
@@ -381,7 +484,7 @@ function AlbumFrame(props: {
       return (
         <div className="space-y-3">
           {hero}
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1" data-album-film-strip="">
             {urls.map((url, i) => {
               const ad = Math.abs(wrappedDelta(i, focus, count))
               const on = ad < 0.45
@@ -418,8 +521,9 @@ function AlbumFrame(props: {
           return (
             <div
               key={`${url}-${i}`}
-              className="absolute left-1/2 top-0 h-[92%] w-[82%] max-w-[26rem] overflow-hidden rounded-2xl shadow-2xl"
+              className="absolute left-1/2 top-0 h-[92%] w-[82%] max-w-[26rem] touch-pan-y overflow-hidden rounded-2xl shadow-2xl"
               style={{
+                touchAction: 'pan-y',
                 zIndex: away ? 30 : 16 - Math.round(lift * 5),
                 opacity: d > 1.7 ? Math.max(0, (2.4 - d) / 0.7) : 1,
                 transform: `translateX(calc(-50% + ${Math.min(0, d) * 86}%)) translateY(${lift * 16}px) rotate(${Math.min(0, d) * 9}deg) scale(${1 - lift * 0.055})`,
@@ -443,8 +547,9 @@ function AlbumFrame(props: {
           return (
             <div
               key={`${url}-${i}`}
-              className="absolute left-1/2 top-1/2 w-[min(78%,20rem)] -translate-x-1/2 -translate-y-1/2 bg-white p-3 pb-10 shadow-2xl"
+              className="absolute left-1/2 top-1/2 w-[min(78%,20rem)] -translate-x-1/2 -translate-y-1/2 touch-pan-y bg-white p-3 pb-10 shadow-2xl"
               style={{
+                touchAction: 'pan-y',
                 zIndex: 20 - Math.round(Math.abs(d) * 6),
                 opacity: Math.max(0, 1 - Math.max(0, Math.abs(d) - 0.08) * 1.05),
                 transform: `translateX(calc(-50% + ${d * 108}%)) translateY(-50%) rotate(${d * 6 - 1.2}deg)`,
@@ -467,12 +572,13 @@ function AlbumFrame(props: {
   const under = wrap(index + (glide >= 0 ? -1 : 1), count)
   return (
     <div className={cn(frame, 'overflow-hidden')} style={{ perspective: '1600px' }}>
-      <div className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] -translate-x-1/2 overflow-hidden rounded-2xl shadow-md">
+      <div className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] -translate-x-1/2 overflow-hidden rounded-2xl shadow-md" style={{ touchAction: 'pan-y' }}>
         <AlbumPhoto url={urls[under] ?? ''} alt={alt} frame={props.frameOf(under)} />
       </div>
       <div
         className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] overflow-hidden rounded-2xl shadow-2xl"
         style={{
+          touchAction: 'pan-y',
           opacity: Math.max(0, 1 - Math.abs(glide) * 1.05),
           transform: `translateX(calc(-50% + ${glide * -36}%)) rotateY(${glide * 46}deg)`,
           transformOrigin: 'center center',

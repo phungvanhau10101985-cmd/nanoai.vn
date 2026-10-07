@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -64,7 +64,7 @@ import { resolveGuestInviteLocation, isSideSpecificGuestInvite } from '@/lib/wed
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
-import { startWeddingInvitationAutoScroll } from '@/hooks/use-wedding-invitation-auto-scroll'
+import { primeWeddingPageScroll, startWeddingInvitationAutoScroll } from '@/hooks/use-wedding-invitation-auto-scroll'
 
 const PUBLIC_COLUMN = 'mx-auto flex w-full max-w-2xl flex-col gap-5 sm:gap-7'
 
@@ -228,6 +228,7 @@ export default function WeddingPublicClient({
   const openInvitation = () => {
     if (doorStarted.current || opened) return
     doorStarted.current = true
+    primeWeddingPageScroll()
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (card.effectsEnabled) void weddingMusicAudioRef.current?.playFromUserGesture()
     setContentVisible(true)
@@ -240,8 +241,12 @@ export default function WeddingPublicClient({
     scrollTimer.current = window.setTimeout(() => startWeddingInvitationAutoScroll(), 5600)
   }
 
-  useEffect(() => {
-    if (opened) return
+  useLayoutEffect(() => {
+    if (opened) {
+      // Cùng lượt chạm Mở thiệp: gỡ khóa cuộn rồi nudge, iOS mới nhận scrollTo sau đó.
+      primeWeddingPageScroll()
+      return
+    }
     const html = document.documentElement
     const prevHtml = html.style.overflow
     const prevBody = document.body.style.overflow
