@@ -13,6 +13,7 @@ type SaleIconDbRow = {
   status: 'generating' | 'ready' | 'failed'
   attempt_count?: number | string | null
   error_message?: string | null
+  prompt?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -35,11 +36,16 @@ export async function findPartnerSaleIconFromPg(input: {
   partnerId: string
   day: number
   month: number
-}): Promise<(PartnerSaleIconAsset & { createdAt?: string; attemptCount: number; errorMessage: string | null }) | null> {
+}): Promise<(PartnerSaleIconAsset & {
+  createdAt?: string
+  attemptCount: number
+  errorMessage: string | null
+  prompt: string | null
+}) | null> {
   if (!isPgConfigured()) return null
   const row = await pgQueryOne<SaleIconDbRow>(
     `select id::text, day, month, discount_percent, image_url, source_favicon_url,
-            source_pwa_icon_url, status, attempt_count, error_message,
+            source_pwa_icon_url, status, attempt_count, error_message, prompt,
             created_at::text, updated_at::text
      from public.messaging_partner_sale_icons
      where partner_id = $1::uuid and day = $2 and month = $3
@@ -53,6 +59,7 @@ export async function findPartnerSaleIconFromPg(input: {
     createdAt: row?.created_at,
     attemptCount: Number(row?.attempt_count) || 0,
     errorMessage: row?.error_message ? String(row.error_message) : null,
+    prompt: row?.prompt ? String(row.prompt) : null,
   }
 }
 

@@ -77,7 +77,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     discountPercent,
     force: Boolean(body?.force),
     actorUserId: access.actorId,
-    chargeCredits: true,
+    chargeCredits: false,
   })
   if (!created.ok) {
     return NextResponse.json({ error: created.error }, { status: created.status ?? 500 })

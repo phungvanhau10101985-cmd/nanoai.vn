@@ -18,10 +18,14 @@ import {
   insertWeddingAiImageProcessing,
   listWeddingBackgroundLibrary,
   listWeddingImages,
+  listWeddingMusicLibrary,
   listWeddingRsvps,
   saveWeddingBackgroundToLibrary,
+  saveWeddingMusicToLibrary,
+  weddingMusicLibraryHasUrl,
   publishWeddingCard,
   updateWeddingCardBrief,
+  updateWeddingCardSideInviteSettings,
   WEDDING_IMAGE_TYPES,
   type WeddingCard,
   type WeddingImageType,
@@ -31,6 +35,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildWeddingPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
+import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
@@ -123,7 +128,8 @@ export async function getOrCreateWeddingCard() {
   const images = await listWeddingImages(card.id)
   const rsvps = await listWeddingRsvps(card.id, ownerUserId)
   const library = await listWeddingBackgroundLibrary()
-  return { card, images, rsvps, library }
+  const musicLibrary = await listWeddingMusicLibrary()
+  return { card, images, rsvps, library, musicLibrary }
 }
 
 export async function saveWeddingCardBrief(formData: FormData) {
@@ -136,21 +142,33 @@ export async function saveWeddingCardBrief(formData: FormData) {
   let groomImageUrl = clean(formData.get('groomImageUrl'), 1000) || existing.groomImageUrl
   let brideImageUrl = clean(formData.get('brideImageUrl'), 1000) || existing.brideImageUrl
   let musicUrl = existing.musicUrl
-  let albumImageUrls = clean(formData.get('albumImageUrls'), 5000)
-    .split('\n')
-    .map((url) => url.trim())
-    .filter(Boolean)
-  if (albumImageUrls.length === 0) albumImageUrls = existing.albumImageUrls
+  const albumField = formData.get('albumImageUrls')
+  let albumImageUrls =
+    typeof albumField === 'string'
+      ? clean(albumField, 5000)
+          .split('\n')
+          .map((url) => url.trim())
+          .filter(Boolean)
+      : existing.albumImageUrls
   let uploadedCover: string | null = null
   try {
-    groomImageUrl = (await uploadWeddingReferenceImage(ownerUserId, cardId, 'groom', formData.get('groomImage'))) ?? groomImageUrl
-    brideImageUrl = (await uploadWeddingReferenceImage(ownerUserId, cardId, 'bride', formData.get('brideImage'))) ?? brideImageUrl
     uploadedCover = await uploadWeddingReferenceImage(ownerUserId, cardId, 'cover', formData.get('coverImage'))
-    const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, formData.get('musicFile'))
+    const uploadedFile = formData.get('musicFile')
+    const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, uploadedFile)
     if (uploadedMusic) {
       musicUrl = uploadedMusic
+      const rawTitle = clean(formData.get('musicTitle'), 120)
+      const title = weddingMusicTitleFromFileName(
+        rawTitle || (uploadedFile instanceof File ? uploadedFile.name : 'Nhạc thiệp'),
+      )
+      await saveWeddingMusicToLibrary({ title, audioUrl: uploadedMusic })
     } else if (boolValue(formData.get('musicClear'))) {
       musicUrl = ''
+    } else {
+      const libraryPick = clean(formData.get('musicLibraryUrl'), 2000)
+      if (libraryPick && (isWeddingMusicSeedUrl(libraryPick) || (await weddingMusicLibraryHasUrl(libraryPick)))) {
+        musicUrl = libraryPick
+      }
     }
     const uploadedAlbum = await uploadWeddingAlbumImages(ownerUserId, cardId, formData.getAll('albumImages'))
     albumImageUrls = [...albumImageUrls, ...uploadedAlbum].slice(0, 30)
@@ -258,11 +276,48 @@ export async function saveWeddingCardBrief(formData: FormData) {
     }
   }
 
-  const card = await updateWeddingCardBrief(draftForGift)
-  if (!card) return { error: 'Không tìm thấy thiệp.' }
+  const briefCard = await updateWeddingCardBrief(draftForGift)
+  if (!briefCard) return { error: 'Không tìm thấy thiệp.' }
+  const card = formData.has('groomInviteAddress')
+    ? await updateWeddingCardSideInviteSettings({
+        cardId,
+        userId: ownerUserId,
+        groomInviteAddress: clean(formData.get('groomInviteAddress'), 500),
+        groomInviteMapUrl: clean(formData.get('groomInviteMapUrl'), 500),
+        groomInviteReceptionTime: clean(formData.get('groomInviteReceptionTime'), 80),
+        groomInvitePartyStartTime: clean(formData.get('groomInvitePartyStartTime'), 80),
+        groomInviteWeddingDate: clean(formData.get('groomInviteWeddingDate'), 20),
+        groomInviteText: clean(formData.get('groomInviteText'), 4000),
+        groomInviteTextEn: clean(formData.get('groomInviteTextEn'), 4000),
+        groomInviteEventTimeline: clean(formData.get('groomInviteEventTimeline'), 4000),
+        groomInviteDressCode: clean(formData.get('groomInviteDressCode'), 600),
+        groomInviteContact: clean(formData.get('groomInviteContact'), 120),
+        groomInviteCoverImageUrl: clean(formData.get('groomInviteCoverImageUrl'), 1000),
+        groomInviteDefaultPersonalMessage: clean(formData.get('groomInviteDefaultPersonalMessage'), 1000),
+        groomInviteThankYouText: clean(formData.get('groomInviteThankYouText'), 2000),
+        brideInviteAddress: clean(formData.get('brideInviteAddress'), 500),
+        brideInviteMapUrl: clean(formData.get('brideInviteMapUrl'), 500),
+        brideInviteReceptionTime: clean(formData.get('brideInviteReceptionTime'), 80),
+        brideInvitePartyStartTime: clean(formData.get('brideInvitePartyStartTime'), 80),
+        brideInviteWeddingDate: clean(formData.get('brideInviteWeddingDate'), 20),
+        brideInviteText: clean(formData.get('brideInviteText'), 4000),
+        brideInviteTextEn: clean(formData.get('brideInviteTextEn'), 4000),
+        brideInviteEventTimeline: clean(formData.get('brideInviteEventTimeline'), 4000),
+        brideInviteDressCode: clean(formData.get('brideInviteDressCode'), 600),
+        brideInviteContact: clean(formData.get('brideInviteContact'), 120),
+        brideInviteCoverImageUrl: clean(formData.get('brideInviteCoverImageUrl'), 1000),
+        brideInviteDefaultPersonalMessage: clean(formData.get('brideInviteDefaultPersonalMessage'), 1000),
+        brideInviteThankYouText: clean(formData.get('brideInviteThankYouText'), 2000),
+        groomParents: briefCard.groomParents,
+        brideParents: briefCard.brideParents,
+      })
+    : briefCard
+  if (!card) return { error: 'Không lưu được phần nhà trai / nhà gái.' }
   revalidatePath('/tao-thiep-moi-cuoi-ai')
+  revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
   revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
-  return { card }
+  const musicLibrary = await listWeddingMusicLibrary()
+  return { card, musicLibrary }
 }
 
 export async function generateWeddingCardImage(formData: FormData) {
@@ -295,7 +350,6 @@ export async function generateWeddingCardImage(formData: FormData) {
     extraPrompt,
     hasReference:
       (type !== 'master' && Boolean(card.masterImageUrl)) ||
-      Boolean(card.groomImageUrl || card.brideImageUrl) ||
       hasCustomReference,
     hasCustomReference,
   })
@@ -326,8 +380,6 @@ export async function generateWeddingCardImage(formData: FormData) {
     const parts: (string | object)[] = [prompt]
     const referenceParts = await Promise.all([
       type !== 'master' ? getReferenceImagePart(card.masterImageUrl) : null,
-      getReferenceImagePart(card.groomImageUrl || null),
-      getReferenceImagePart(card.brideImageUrl || null),
       getReferenceImagePart(customReferenceImageUrl || null),
       getReferenceImagePartFromFile(customReferenceImageFile),
     ])

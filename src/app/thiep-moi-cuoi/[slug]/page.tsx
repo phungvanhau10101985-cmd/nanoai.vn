@@ -7,7 +7,7 @@ import {
   getPublishedInvitedGuestRsvp,
   getPublishedWeddingCardBySlug,
   listPublishedWeddingImages,
-  listPublishedWeddingWishes,
+  listPublishedSideGuestWishes,
 } from '@/lib/db/wedding-cards-pg'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import {
@@ -19,7 +19,16 @@ import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
   params: { slug: string }
-  searchParams?: { guest?: string; venue?: string }
+  searchParams?: { guest?: string; venue?: string; view?: string }
+}
+
+function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typeof normalizeGuestInviteVenue>) {
+  if (venue === 'groom_home') return 'groom' as const
+  if (venue === 'bride_home') return 'bride' as const
+  const view = String(viewRaw ?? '').trim().toLowerCase()
+  if (view === 'groom' || view === 'nha-trai') return 'groom' as const
+  if (view === 'bride' || view === 'nha-gai') return 'bride' as const
+  return null
 }
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
@@ -50,6 +59,9 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   if (!card) notFound()
   const guestDisplayName = String(searchParams?.guest ?? '').trim()
   const inviteVenue = normalizeGuestInviteVenue(searchParams?.venue)
+  const letterView = letterViewFromSearch(searchParams?.view, inviteVenue)
+  const displayVenue =
+    inviteVenue || (letterView === 'groom' ? 'groom_home' : letterView === 'bride' ? 'bride_home' : '')
   const personalInvite =
     guestDisplayName && inviteVenue
       ? await getPublishedInvitedGuestPersonalInvite({
@@ -65,8 +77,8 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         inviteVenue,
       }).catch(() => null)
     : null
-  const [wishes, images] = await Promise.all([
-    listPublishedWeddingWishes(card.id),
+  const [sideWishes, images] = await Promise.all([
+    listPublishedSideGuestWishes(card.id),
     listPublishedWeddingImages(card.id),
   ])
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
@@ -75,10 +87,12 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       <JsonLd data={jsonLd} />
       <WeddingPublicClient
         card={card}
-        wishes={wishes}
+        sideWishes={sideWishes}
         images={images}
         initialGuestDisplayName={guestDisplayName}
-        initialGuestInviteVenue={inviteVenue}
+        initialGuestInviteVenue={displayVenue}
+        initialLetterView={letterView ?? 'groom'}
+        askLetterView={letterView == null}
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
       />

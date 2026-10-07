@@ -2,6 +2,12 @@ import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { weddingDateFromPg } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { normalizeGuestNameKey } from '@/lib/wedding/wedding-guest-invite-link'
+import {
+  mergePublishedGuestWishesBySide,
+  type SideWishGuest,
+  type SideWishMessage,
+  type WeddingSideWishGroups,
+} from '@/lib/wedding/wedding-side-wishes'
 
 export type WeddingCard = {
   id: string
@@ -539,6 +545,9 @@ export async function updateWeddingCardSideInviteSettings(input: {
   brideInviteCoverImageUrl: string
   brideInviteDefaultPersonalMessage: string
   brideInviteThankYouText: string
+  groomParents: string
+  brideParents: string
+  sectionConfig?: string
 }): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -569,6 +578,10 @@ export async function updateWeddingCardSideInviteSettings(input: {
          bride_invite_cover_image_url = $26,
          bride_invite_default_personal_message = $27,
          bride_invite_thank_you_text = $28,
+         groom_parents = $29,
+         bride_parents = $30,
+         wedding_date = coalesce(nullif($7, '')::date, nullif($20, '')::date, wedding_date),
+         section_config = case when $31 = '' then section_config else $31::jsonb end,
          updated_at = timezone('utc'::text, now())
      where id = $1::uuid and user_id = $2::uuid
      returning *, (select image_url from public.wedding_card_ai_images where id = wedding_cards.master_image_id) as master_image_url`,
@@ -601,6 +614,9 @@ export async function updateWeddingCardSideInviteSettings(input: {
       input.brideInviteCoverImageUrl.slice(0, 1000),
       input.brideInviteDefaultPersonalMessage.slice(0, 1000),
       input.brideInviteThankYouText.slice(0, 2000),
+      input.groomParents.slice(0, 500),
+      input.brideParents.slice(0, 500),
+      (input.sectionConfig ?? '').slice(0, 8000),
     ]
   )
   return res.rows[0] ? mapCard(res.rows[0]) : null
@@ -703,6 +719,66 @@ export async function saveWeddingBackgroundToLibrary(input: {
      on conflict (image_url) do nothing`,
     [imageUrl.slice(0, 2000), input.imageType],
   )
+}
+
+export type WeddingMusicLibraryRow = {
+  id: string
+  title: string
+  audioUrl: string
+  source: 'seed' | 'upload'
+  credit: string
+}
+
+function mapMusicLibraryItem(row: Record<string, unknown>): WeddingMusicLibraryRow {
+  const source = String(row.source ?? 'upload') === 'seed' ? 'seed' : 'upload'
+  return {
+    id: String(row.id),
+    title: String(row.title ?? '').trim() || 'Nhạc thiệp',
+    audioUrl: String(row.audio_url ?? ''),
+    source,
+    credit: String(row.credit ?? ''),
+  }
+}
+
+export async function listWeddingMusicLibrary(limit = 200): Promise<WeddingMusicLibraryRow[]> {
+  requirePg()
+  const cap = Math.max(1, Math.min(200, Math.round(limit) || 120))
+  const res = await getPgPool().query(
+    `select id, title, audio_url, source, credit
+     from public.wedding_music_library
+     where audio_url <> ''
+     order by case when source = 'seed' then 0 else 1 end, created_at desc
+     limit $1`,
+    [cap],
+  )
+  return res.rows.map(mapMusicLibraryItem)
+}
+
+export async function saveWeddingMusicToLibrary(input: {
+  title: string
+  audioUrl: string
+}): Promise<void> {
+  requirePg()
+  const audioUrl = input.audioUrl.trim()
+  const title = input.title.trim().slice(0, 80) || 'Nhạc thiệp'
+  if (!audioUrl) return
+  await getPgPool().query(
+    `insert into public.wedding_music_library (title, audio_url, source)
+     values ($1, $2, 'upload')
+     on conflict (audio_url) do nothing`,
+    [title, audioUrl.slice(0, 2000)],
+  )
+}
+
+export async function weddingMusicLibraryHasUrl(audioUrl: string): Promise<boolean> {
+  requirePg()
+  const url = audioUrl.trim()
+  if (!url) return false
+  const res = await getPgPool().query(
+    `select 1 from public.wedding_music_library where audio_url = $1 limit 1`,
+    [url.slice(0, 2000)],
+  )
+  return res.rowCount != null && res.rowCount > 0
 }
 
 export async function listWeddingBackgroundLibrary(limit = 80): Promise<WeddingBackgroundLibraryItem[]> {
@@ -979,6 +1055,44 @@ export async function listPublishedWeddingWishes(cardId: string): Promise<Weddin
     isApproved: Boolean(row.is_approved),
     createdAt: String(row.created_at),
   }))
+}
+
+/** Lời chúc đã gửi, gom theo nhà trai / nhà gái của khách mời. */
+export async function listPublishedSideGuestWishes(cardId: string): Promise<WeddingSideWishGroups> {
+  requirePg()
+  const [guestRes, wishRes] = await Promise.all([
+    getPgPool().query(
+      `select id, guest_honorific, guest_name, invite_venue, wish_message
+       from public.wedding_card_invited_guests
+       where wedding_card_id = $1::uuid
+         and invite_venue in ('groom_home', 'bride_home')
+       order by updated_at desc`,
+      [cardId],
+    ),
+    getPgPool().query(
+      `select id, guest_name, message
+       from public.wedding_card_wishes
+       where wedding_card_id = $1::uuid
+         and is_approved = true
+         and trim(message) <> ''
+       order by created_at desc
+       limit 200`,
+      [cardId],
+    ),
+  ])
+  const guests: SideWishGuest[] = guestRes.rows.map((row) => ({
+    id: String(row.id),
+    guestHonorific: String(row.guest_honorific ?? ''),
+    guestName: String(row.guest_name ?? ''),
+    inviteVenue: normalizeGuestInviteVenue(row.invite_venue),
+    wishMessage: String(row.wish_message ?? ''),
+  }))
+  const wishes: SideWishMessage[] = wishRes.rows.map((row) => ({
+    id: String(row.id),
+    guestName: String(row.guest_name ?? ''),
+    message: String(row.message ?? ''),
+  }))
+  return mergePublishedGuestWishesBySide(guests, wishes)
 }
 
 function mapInvitedGuest(row: Record<string, unknown>): WeddingInvitedGuest {
@@ -1309,10 +1423,12 @@ export async function syncInvitedGuestFromRsvp(input: {
   adultCount: number
   childCount: number
   message: string
+  inviteVenue?: WeddingGuestInviteVenue
 }) {
   requirePg()
   const key = normalizeGuestNameKey(input.guestName)
   if (!key) return
+  const inviteVenue = normalizeGuestInviteVenue(input.inviteVenue)
   await getPgPool().query(
     `update public.wedding_card_invited_guests g
      set status = $3,
@@ -1328,7 +1444,8 @@ export async function syncInvitedGuestFromRsvp(input: {
            then trim(g.guest_honorific) || ' ' || trim(g.guest_name)
            else trim(g.guest_name)
          end,
-         '\\s+', ' ', 'g'))) = $2`,
+         '\\s+', ' ', 'g'))) = $2
+       and ($8::text = '' or g.invite_venue = $8)`,
     [
       input.cardId,
       key,
@@ -1337,7 +1454,36 @@ export async function syncInvitedGuestFromRsvp(input: {
       input.adultCount,
       input.childCount,
       input.message,
+      inviteVenue,
     ],
+  )
+}
+
+/** Gắn lời chúc vào đúng khách nhà trai hoặc nhà gái, không đổi trạng thái tham dự. */
+export async function attachInvitedGuestWish(input: {
+  cardId: string
+  guestName: string
+  message: string
+  inviteVenue?: WeddingGuestInviteVenue
+}) {
+  requirePg()
+  const key = normalizeGuestNameKey(input.guestName)
+  const message = input.message.trim()
+  if (!key || !message) return
+  const inviteVenue = normalizeGuestInviteVenue(input.inviteVenue)
+  await getPgPool().query(
+    `update public.wedding_card_invited_guests g
+     set wish_message = $3,
+         updated_at = timezone('utc'::text, now())
+     where g.wedding_card_id = $1::uuid
+       and lower(trim(regexp_replace(
+         case when trim(coalesce(g.guest_honorific, '')) <> ''
+           then trim(g.guest_honorific) || ' ' || trim(g.guest_name)
+           else trim(g.guest_name)
+         end,
+         '\\s+', ' ', 'g'))) = $2
+       and ($4::text = '' or g.invite_venue = $4)`,
+    [input.cardId, key, message, inviteVenue],
   )
 }
 

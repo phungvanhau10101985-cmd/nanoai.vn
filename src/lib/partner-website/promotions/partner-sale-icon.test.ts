@@ -2,11 +2,13 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   applyPartnerSaleIconToTheme,
-  buildPartnerSaleIconPrompt,
   isPartnerSaleIconSameDayMonth,
   parsePartnerSaleIconYmd,
   partnerSaleIconCacheToken,
   partnerSaleIconDateKey,
+  partnerSaleIconDateLabel,
+  partnerSaleIconLayoutIsCurrent,
+  PARTNER_SALE_ICON_LAYOUT_ID,
   partnerShopSaleIconSourceUrls,
   shouldUsePartnerSaleIcon,
 } from '@/lib/partner-website/promotions/partner-sale-icon'
@@ -53,20 +55,13 @@ test('sale icon overlay writes both favicon and PWA avatar', () => {
   assert.match(partnerSaleIconCacheToken('https://cdn.example/sale-9-9.png'), /^on-/)
 })
 
-test('sale icon prompt keeps shop mark and asks for a square badge', () => {
-  const prompt = buildPartnerSaleIconPrompt({
-    shopName: '188',
-    day: 9,
-    month: 9,
-    discountPercent: 6,
-    primaryColor: '#0f766e',
-    hasReference: true,
-  })
-  assert.match(prompt, /Square 1:1/)
-  assert.match(prompt, /9\/9/)
-  assert.match(prompt, /favicon/)
-  assert.match(prompt, /web-app avatar/)
-  assert.match(prompt, /Not a 21:9 banner/)
+test('sale icon date label is day/month and layout id rejects the old AI prompt', () => {
+  assert.equal(partnerSaleIconDateLabel(10, 10), '10/10')
+  assert.equal(partnerSaleIconLayoutIsCurrent(PARTNER_SALE_ICON_LAYOUT_ID), true)
+  assert.equal(
+    partnerSaleIconLayoutIsCurrent('Square 1:1 app icon and favicon. Add one compact SALE badge.'),
+    false
+  )
   assert.deepEqual(
     partnerShopSaleIconSourceUrls({
       faviconUrl: 'https://cdn.example/fav.png',

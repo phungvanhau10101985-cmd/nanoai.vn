@@ -22,6 +22,42 @@ export type PartnerShippingOpsCopy = {
   searchPlaceholder: string
   searchButton: string
   searchClear: string
+  searchCard: {
+    loading: string
+    checkingEms: string
+    empty: string
+    resultCount: string
+    previewNote: string
+    moreBelow: string
+    fieldEmsCode: string
+    fieldSavedTracking: string
+    fieldCod: string
+    fieldCodPaid: string
+    fieldFreight: string
+    fieldEmsStatus: string
+    fieldShopStatus: string
+    fieldRecipient: string
+    fieldTimeline: string
+    noShopOrder: string
+    viewShopStatus: string
+    refreshing: string
+    codNone: string
+    codPaidOn: string
+    codCollectedPending: string
+    shopDelivering: string
+    shopSentEms: string
+    shopReceived: string
+    shopReviewed: string
+    timelineDeposit: string
+    timelinePreparing: string
+    timelineTqWarehouse: string
+    timelineIntl: string
+    timelineCustoms: string
+    timelineDomestic: string
+    timelinePicking: string
+    timelinePacked: string
+    timelineAwaiting: string
+  }
   opsTitle: string
   opsRefresh: string
   timelineTitle: string
@@ -124,10 +160,47 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     emsHint:
       'Import file gửi EMS: cột A mã vận đơn, I mã đơn shop (DHxxx/DCxxx), G COD, D tên khách. Khi khớp đơn shop, timeline ghi «Shop đã gửi EMS giao hàng».',
     searchTitle: 'Tra cứu vận đơn',
-    searchHint: 'Tìm theo mã đơn shop (DH/DC), số điện thoại, mã tham chiếu, mã EMS hoặc mã vận đã lưu trên đơn.',
-    searchPlaceholder: 'VD: 0369597965, DH033, EE123456789VN…',
+    searchHint:
+      'Tìm theo mã đơn shop (DH/DC), số điện thoại (có hoặc không số 0 đầu), mã tham chiếu (cột A file EMS), mã EMS hoặc mã vận đơn đã lưu trên đơn shop. Nếu đơn chưa giao / chưa thu COD xong, hệ thống tự tra EMS ngay.',
+    searchPlaceholder: 'VD: 0369597965, DH033, H19052609, EH044086535VN…',
     searchButton: 'Tra cứu',
-    searchClear: 'Xóa tìm',
+    searchClear: 'Xóa lọc',
+    searchCard: {
+      loading: 'Đang tra cứu «{q}»',
+      checkingEms: ' và kiểm tra EMS mới nhất…',
+      empty: 'Không tìm thấy dòng nào khớp',
+      resultCount: '{n} kết quả cho',
+      previewNote: '· hiển thị {n} dòng đầu',
+      moreBelow: 'Còn {n} dòng — xem trong bảng vận chuyển bên dưới.',
+      fieldEmsCode: 'Mã EMS',
+      fieldSavedTracking: 'Mã vận đơn shop (đã lưu)',
+      fieldCod: 'Thu hộ (COD)',
+      fieldCodPaid: 'COD EMS trả shop',
+      fieldFreight: 'Cước EMS',
+      fieldEmsStatus: 'Trạng thái EMS',
+      fieldShopStatus: 'Trạng thái đơn shop',
+      fieldRecipient: 'Người nhận',
+      fieldTimeline: 'Timeline shop',
+      noShopOrder: 'Chưa có mã đơn shop',
+      viewShopStatus: 'Xem chi tiết trạng thái đơn shop →',
+      refreshing: 'Đang tra EMS…',
+      codNone: 'Không thu hộ (0 đ)',
+      codPaidOn: 'EMS trả shop: {date}',
+      codCollectedPending: 'EMS đã thu COD từ khách — chưa trả shop (chờ file đối soát)',
+      shopDelivering: 'EMS đang giao tới bạn',
+      shopSentEms: 'Đã gửi EMS',
+      shopReceived: 'Đã nhận hàng',
+      shopReviewed: 'Đã đánh giá',
+      timelineDeposit: 'Đã xác nhận đơn',
+      timelinePreparing: 'TQ chuẩn bị & đóng gói',
+      timelineTqWarehouse: 'Hàng về kho TQ',
+      timelineIntl: 'Vận chuyển quốc tế (TQ → VN)',
+      timelineCustoms: 'Thủ tục cửa khẩu',
+      timelineDomestic: 'Hàng về shop đóng gói',
+      timelinePicking: 'Shop soạn hàng',
+      timelinePacked: 'Shop đã đóng gói',
+      timelineAwaiting: 'EMS đang giao — chờ bạn nhận hàng',
+    },
     opsTitle: 'Tổng quan vận hành',
     opsRefresh: 'Làm mới',
     timelineTitle: 'Theo dõi theo đơn nhập',
@@ -227,10 +300,47 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     emsTitle: 'EMS shipping management',
     emsHint: 'Import EMS handover Excel: column A tracking, I shop order (DHxxx/DCxxx), G COD, D customer name.',
     searchTitle: 'Look up shipment',
-    searchHint: 'Search by shop order code, phone, reference, EMS code, or saved tracking.',
-    searchPlaceholder: 'e.g. 0369597965, DH033, EE123456789VN…',
+    searchHint:
+      'Search by shop order (DH/DC), phone (with or without a leading 0), EMS reference (column A), EMS code, or the tracking code saved on the shop order. If the parcel is not delivered or COD is not settled, EMS is checked immediately.',
+    searchPlaceholder: 'e.g. 0369597965, DH033, H19052609, EH044086535VN…',
     searchButton: 'Search',
-    searchClear: 'Clear',
+    searchClear: 'Clear filter',
+    searchCard: {
+      loading: 'Looking up «{q}»',
+      checkingEms: ' and checking the latest EMS status…',
+      empty: 'No shipment matches',
+      resultCount: '{n} results for',
+      previewNote: '· showing the first {n}',
+      moreBelow: '{n} more — see the shipment table below.',
+      fieldEmsCode: 'EMS code',
+      fieldSavedTracking: 'Tracking saved on the shop order',
+      fieldCod: 'COD',
+      fieldCodPaid: 'COD paid to the shop',
+      fieldFreight: 'EMS freight',
+      fieldEmsStatus: 'EMS status',
+      fieldShopStatus: 'Shop order status',
+      fieldRecipient: 'Recipient',
+      fieldTimeline: 'Shop timeline',
+      noShopOrder: 'No shop order code yet',
+      viewShopStatus: 'View shop order status →',
+      refreshing: 'Checking EMS…',
+      codNone: 'No COD (0)',
+      codPaidOn: 'EMS paid the shop: {date}',
+      codCollectedPending: 'EMS collected COD from the customer — not yet paid to the shop',
+      shopDelivering: 'EMS is delivering to you',
+      shopSentEms: 'Handed to EMS',
+      shopReceived: 'Received',
+      shopReviewed: 'Reviewed',
+      timelineDeposit: 'Order confirmed',
+      timelinePreparing: 'China packing',
+      timelineTqWarehouse: 'Arrived at China warehouse',
+      timelineIntl: 'International shipping (CN → VN)',
+      timelineCustoms: 'Customs',
+      timelineDomestic: 'Arrived at the shop for packing',
+      timelinePicking: 'Shop is picking',
+      timelinePacked: 'Shop packed the order',
+      timelineAwaiting: 'EMS is delivering — waiting for you to receive it',
+    },
     opsTitle: 'Operations overview',
     opsRefresh: 'Refresh',
     timelineTitle: 'By import date',
@@ -326,10 +436,47 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     emsTitle: 'EMS 物流管理',
     emsHint: '导入 EMS 交接表：A 运单、I 店铺订单、G COD、D 客户名。',
     searchTitle: '查询运单',
-    searchHint: '按店铺订单号、电话、参考号、EMS 或已保存运单号查询。',
-    searchPlaceholder: '例如 0369597965、DH033、EE123456789VN…',
+    searchHint:
+      '按店铺订单号（DH/DC）、电话（可带或不带开头 0）、EMS 参考号（Excel A 列）、EMS 单号或订单上已保存的运单号查询。未签收或 COD 未结清时会立即向 EMS 查询。',
+    searchPlaceholder: '例如 0369597965、DH033、H19052609、EH044086535VN…',
     searchButton: '查询',
-    searchClear: '清除',
+    searchClear: '清除筛选',
+    searchCard: {
+      loading: '正在查询「{q}」',
+      checkingEms: '，并核对最新 EMS 状态…',
+      empty: '没有匹配的运单',
+      resultCount: '{n} 条结果：',
+      previewNote: '· 显示前 {n} 条',
+      moreBelow: '还有 {n} 条 — 请看下方运单表。',
+      fieldEmsCode: 'EMS 单号',
+      fieldSavedTracking: '店铺已保存运单号',
+      fieldCod: '代收（COD）',
+      fieldCodPaid: 'EMS 已付给店铺的 COD',
+      fieldFreight: 'EMS 运费',
+      fieldEmsStatus: 'EMS 状态',
+      fieldShopStatus: '店铺订单状态',
+      fieldRecipient: '收件人',
+      fieldTimeline: '店铺进度',
+      noShopOrder: '还没有店铺订单号',
+      viewShopStatus: '查看店铺订单状态 →',
+      refreshing: '正在查询 EMS…',
+      codNone: '不代收（0）',
+      codPaidOn: 'EMS 付给店铺：{date}',
+      codCollectedPending: 'EMS 已向客户收 COD — 尚未付给店铺',
+      shopDelivering: 'EMS 正在配送',
+      shopSentEms: '已交给 EMS',
+      shopReceived: '已签收',
+      shopReviewed: '已评价',
+      timelineDeposit: '已确认订单',
+      timelinePreparing: '中国仓打包',
+      timelineTqWarehouse: '到达中国仓',
+      timelineIntl: '国际运输（中国 → 越南）',
+      timelineCustoms: '清关',
+      timelineDomestic: '到店打包',
+      timelinePicking: '店铺拣货',
+      timelinePacked: '店铺已打包',
+      timelineAwaiting: 'EMS 配送中 — 等待签收',
+    },
     opsTitle: '运营概览',
     opsRefresh: '刷新',
     timelineTitle: '按导入日期',
@@ -426,10 +573,47 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     emsTitle: 'EMS 配送管理',
     emsHint: 'EMS 引渡し Excel：A 追跡番号、I 店舗注文、G 代引、D 氏名。',
     searchTitle: '追跡照会',
-    searchHint: '店舗注文番号、電話、参照番号、EMS、保存済み追跡番号で検索。',
-    searchPlaceholder: '例: 0369597965, DH033, EE123456789VN…',
+    searchHint:
+      '店舗注文（DH/DC）、電話（先頭 0 の有無どちらも）、EMS 参照番号（Excel A 列）、EMS 番号、または注文に保存した追跡番号で検索します。未配達または COD 未精算なら、すぐ EMS を照会します。',
+    searchPlaceholder: '例: 0369597965, DH033, H19052609, EH044086535VN…',
     searchButton: '検索',
-    searchClear: 'クリア',
+    searchClear: '絞り込み解除',
+    searchCard: {
+      loading: '「{q}」を照会中',
+      checkingEms: '。最新の EMS 状態も確認しています…',
+      empty: '一致する運送記録がありません',
+      resultCount: '{n} 件：',
+      previewNote: '· 先頭 {n} 件を表示',
+      moreBelow: '残り {n} 件 — 下の運送表を見てください。',
+      fieldEmsCode: 'EMS 番号',
+      fieldSavedTracking: '店舗注文に保存した追跡番号',
+      fieldCod: '代引（COD）',
+      fieldCodPaid: '店舗へ支払済みの COD',
+      fieldFreight: 'EMS 運賃',
+      fieldEmsStatus: 'EMS 状態',
+      fieldShopStatus: '店舗注文の状態',
+      fieldRecipient: '受取人',
+      fieldTimeline: '店舗の進捗',
+      noShopOrder: '店舗注文番号はまだありません',
+      viewShopStatus: '店舗注文の状態を見る →',
+      refreshing: 'EMS を照会中…',
+      codNone: '代引なし（0）',
+      codPaidOn: 'EMS が店舗へ支払: {date}',
+      codCollectedPending: 'EMS は顧客から COD を回収済み — 店舗への支払いは未了',
+      shopDelivering: 'EMS が配達中です',
+      shopSentEms: 'EMS に引き渡し済み',
+      shopReceived: '受取済み',
+      shopReviewed: '評価済み',
+      timelineDeposit: '注文を確認済み',
+      timelinePreparing: '中国で梱包中',
+      timelineTqWarehouse: '中国倉庫に到着',
+      timelineIntl: '国際配送（中国 → ベトナム）',
+      timelineCustoms: '通関',
+      timelineDomestic: '店舗で梱包のため到着',
+      timelinePicking: '店舗がピッキング中',
+      timelinePacked: '店舗が梱包済み',
+      timelineAwaiting: 'EMS 配達中 — 受取待ち',
+    },
     opsTitle: '運用概要',
     opsRefresh: '更新',
     timelineTitle: '取込日別',
@@ -526,10 +710,47 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     emsTitle: 'EMS 배송 관리',
     emsHint: 'EMS 인계 엑셀: A 운송장, I 샵 주문, G COD, D 고객명.',
     searchTitle: '운송장 조회',
-    searchHint: '샵 주문번호, 전화, 참조번호, EMS, 저장된 운송장으로 검색.',
-    searchPlaceholder: '예: 0369597965, DH033, EE123456789VN…',
+    searchHint:
+      '매장 주문(DH/DC), 전화(앞자리 0 유무 모두), EMS 참조번호(엑셀 A열), EMS 번호 또는 주문에 저장된 운송장으로 찾습니다. 미배송이거나 COD가 정산되지 않았으면 EMS를 바로 조회합니다.',
+    searchPlaceholder: '예: 0369597965, DH033, H19052609, EH044086535VN…',
     searchButton: '조회',
-    searchClear: '지우기',
+    searchClear: '필터 지우기',
+    searchCard: {
+      loading: '「{q}」 조회 중',
+      checkingEms: ' 그리고 최신 EMS 상태를 확인하는 중…',
+      empty: '일치하는 운송장이 없습니다',
+      resultCount: '{n}건:',
+      previewNote: '· 앞 {n}건 표시',
+      moreBelow: '{n}건 더 있음 — 아래 운송 표를 보세요.',
+      fieldEmsCode: 'EMS 번호',
+      fieldSavedTracking: '매장 주문에 저장된 운송장',
+      fieldCod: '착불 (COD)',
+      fieldCodPaid: '매장에 지급된 COD',
+      fieldFreight: 'EMS 운임',
+      fieldEmsStatus: 'EMS 상태',
+      fieldShopStatus: '매장 주문 상태',
+      fieldRecipient: '수취인',
+      fieldTimeline: '매장 진행',
+      noShopOrder: '매장 주문번호가 없습니다',
+      viewShopStatus: '매장 주문 상태 보기 →',
+      refreshing: 'EMS 조회 중…',
+      codNone: '착불 없음 (0)',
+      codPaidOn: 'EMS가 매장에 지급: {date}',
+      codCollectedPending: 'EMS가 고객에게 COD를 받았으나 매장 지급은 대기 중',
+      shopDelivering: 'EMS가 배송 중입니다',
+      shopSentEms: 'EMS에 인계됨',
+      shopReceived: '수령 완료',
+      shopReviewed: '리뷰 완료',
+      timelineDeposit: '주문 확인됨',
+      timelinePreparing: '중국에서 포장',
+      timelineTqWarehouse: '중국 창고 도착',
+      timelineIntl: '국제 운송 (중국 → 베트남)',
+      timelineCustoms: '통관',
+      timelineDomestic: '매장 포장을 위해 도착',
+      timelinePicking: '매장 피킹',
+      timelinePacked: '매장 포장 완료',
+      timelineAwaiting: 'EMS 배송 중 — 수령 대기',
+    },
     opsTitle: '운영 개요',
     opsRefresh: '새로고침',
     timelineTitle: '가져오기 날짜별',

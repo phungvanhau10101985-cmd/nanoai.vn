@@ -206,14 +206,25 @@ export async function listPartnerEmsRecordsFromPg(input: {
   return { rows: rows.map(mapEmsRecord), total: Number(countRow?.c || 0) }
 }
 
+const NON_TERMINAL_EMS_SQL = ` and (
+  r.ems_phase is null
+  or btrim(coalesce(r.ems_phase, '')) = ''
+  or lower(r.ems_phase) = 'unknown'
+  or lower(coalesce(r.ems_phase, '')) not in ('delivered', 'cod_collected', 'cod_settled')
+  or nullif(btrim(coalesce(r.ems_error, '')), '') is not null
+)`
+
 export async function listPartnerEmsRecordIdsFromPg(input: {
   partnerId: string
   search?: string
   syncStatus?: string
+  /** Chỉ dòng chưa giao / chưa thu COD xong — cùng cửa 188 khi bấm Tra cứu. */
+  nonTerminalOnly?: boolean
 }): Promise<string[]> {
   if (!isPgConfigured()) return []
   const params: unknown[] = [input.partnerId]
-  const where = appendEmsSearchAndSync('where r.partner_id = $1::uuid', params, input.search, input.syncStatus)
+  let where = appendEmsSearchAndSync('where r.partner_id = $1::uuid', params, input.search, input.syncStatus)
+  if (input.nonTerminalOnly) where += NON_TERMINAL_EMS_SQL
   const rows = await pgQuery<{ id: string }>(
     `select r.id::text as id ${FROM_JOIN} ${where} order by r.updated_at desc, r.created_at desc`,
     params,

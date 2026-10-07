@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Copy, Download, ExternalLink, FileUp, Loader2, Plus, Trash2, Users } from 'lucide-react'
+import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/toaster'
@@ -19,15 +19,15 @@ import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite
 import {
   appendWeddingSideInviteSettingsToFormData,
   EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
+  ownSidePartyFields,
   serializeWeddingSideInviteSettings,
   weddingSideInviteSettingsFromCard,
   type WeddingSideInviteSettings,
 } from '@/lib/wedding/wedding-side-invite-settings'
 import { WeddingSideInviteSettingsPanel } from './wedding-side-invite-settings-panel'
+import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
 import {
   confirmWeddingInvitedGuestStatus,
-  downloadWeddingGuestImportTemplate,
-  importWeddingInvitedGuests,
   loadWeddingInvitedGuestsPage,
   removeWeddingInvitedGuest,
   saveWeddingInvitedGuest,
@@ -78,7 +78,7 @@ const SIDE_LOOK = {
     kicker: 'Nhà trai',
     title: 'Khách mời nhà trai',
     who: 'Chú rể',
-    hint: 'Thiệp cá nhân nhà trai: ngày, giờ, địa chỉ, lịch trình. Lời mời tự sinh theo xưng hô và tên khách.',
+    hint: 'Điền bố mẹ, ngày, giờ, địa chỉ và lịch trình của nhà trai. Lời mời tự sinh theo xưng hô và tên khách.',
     card: 'border-sky-200 bg-white shadow-md shadow-sky-100/80 ring-1 ring-sky-100',
     header: 'bg-gradient-to-r from-sky-900 via-sky-800 to-cyan-700 text-white',
     muted: 'text-sky-100',
@@ -103,7 +103,7 @@ const SIDE_LOOK = {
     kicker: 'Nhà gái',
     title: 'Khách mời nhà gái',
     who: 'Cô dâu',
-    hint: 'Thiệp cá nhân nhà gái: ngày, giờ, địa chỉ, lịch trình. Lời mời tự sinh theo xưng hô và tên khách.',
+    hint: 'Điền bố mẹ, ngày, giờ, địa chỉ và lịch trình của nhà gái. Lời mời tự sinh theo xưng hô và tên khách.',
     card: 'border-rose-200 bg-white shadow-md shadow-rose-100/80 ring-1 ring-rose-100',
     header: 'bg-gradient-to-r from-rose-900 via-rose-800 to-rose-600 text-white',
     muted: 'text-rose-100',
@@ -206,8 +206,16 @@ function serializeRow(row: GuestRow, fixedSide: GuestSide): string {
   })
 }
 
-function serializeSideSettings(settings: SideSettings): string {
-  return serializeWeddingSideInviteSettings(settings)
+function serializeSideBundle(
+  settings: SideSettings,
+  parents: { groomParents?: string; brideParents?: string; sectionConfig?: string } | null,
+): string {
+  return JSON.stringify({
+    settings: serializeWeddingSideInviteSettings(settings),
+    groomParents: parents?.groomParents ?? '',
+    brideParents: parents?.brideParents ?? '',
+    sectionConfig: parents?.sectionConfig ?? '',
+  })
 }
 
 function sideSettingsFromCard(card: WeddingCard): SideSettings {
@@ -238,10 +246,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [savingSideSettings, setSavingSideSettings] = useState(false)
   const [origin, setOrigin] = useState('')
   const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
-  const [importing, setImporting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GuestRow | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const importFileRef = useRef<HTMLInputElement | null>(null)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -268,19 +274,20 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     })
   }, [])
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     const result = await loadWeddingInvitedGuestsPage(cardId)
-    setLoading(false)
+    if (!silent) setLoading(false)
     if ('error' in result && result.error) {
       toast({ title: 'Không tải được danh sách', description: result.error, variant: 'destructive' })
       return
     }
     if ('card' in result && result.card) {
-      setCard(result.card)
-      const settings = sideSettingsFromCard(result.card)
+      const owned = ownSidePartyFields(result.card)
+      setCard(owned)
+      const settings = sideSettingsFromCard(owned)
       setSideSettings(settings)
-      sideSettingsSnapshotRef.current = serializeSideSettings(settings)
+      sideSettingsSnapshotRef.current = serializeSideBundle(sideSettingsFromCard(result.card), result.card)
       const nextRows = result.guests.map(guestToRow)
       setRows(nextRows)
       syncSavedSnapshots(nextRows)
@@ -289,6 +296,24 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
 
   useEffect(() => {
     void load()
+  }, [load])
+
+  useEffect(() => {
+    const refreshFromSharedCard = () => {
+      if (document.visibilityState === 'hidden') return
+      if (serializeSideBundle(sideSettingsRef.current, cardRef.current) !== sideSettingsSnapshotRef.current) return
+      if (sideSettingsTimerRef.current || saveTimersRef.current.size > 0) return
+      void load(true)
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refreshFromSharedCard()
+    }
+    document.addEventListener('visibilitychange', refreshFromSharedCard)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', refreshFromSharedCard)
+      window.removeEventListener('pageshow', onPageShow)
+    }
   }, [load])
 
   useEffect(() => {
@@ -350,11 +375,14 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     const currentCard = cardRef.current
     const settings = sideSettingsRef.current
     if (!currentCard) return
-    const snap = serializeSideSettings(settings)
+    const snap = serializeSideBundle(settings, currentCard)
     if (sideSettingsSnapshotRef.current === snap) return
     setSavingSideSettings(true)
     const formData = new FormData()
     formData.append('cardId', currentCard.id)
+    formData.append('groomParents', currentCard.groomParents)
+    formData.append('brideParents', currentCard.brideParents)
+    formData.append('sectionConfig', currentCard.sectionConfig || '')
     appendWeddingSideInviteSettingsToFormData(formData, settings)
     const result = await saveWeddingSideInviteSettings(formData)
     setSavingSideSettings(false)
@@ -363,14 +391,16 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       return
     }
     if ('card' in result && result.card) {
+      const savedSettings = sideSettingsFromCard(result.card)
       setCard(result.card)
-      sideSettingsSnapshotRef.current = snap
+      setSideSettings(savedSettings)
+      sideSettingsSnapshotRef.current = serializeSideBundle(savedSettings, result.card)
     }
   }, [toast])
 
   useEffect(() => {
     if (!card || loading) return
-    const snap = serializeSideSettings(sideSettings)
+    const snap = serializeSideBundle(sideSettings, card)
     if (sideSettingsSnapshotRef.current === snap) return
     if (sideSettingsTimerRef.current) clearTimeout(sideSettingsTimerRef.current)
     sideSettingsTimerRef.current = setTimeout(() => {
@@ -480,49 +510,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     }
     setDeleteTarget(null)
     toast({ title: 'Đã xóa khách mời' })
-    await load()
-  }
-
-  const downloadGuestTemplate = async () => {
-    const result = await downloadWeddingGuestImportTemplate()
-    if ('error' in result) {
-      toast({ title: 'Không tải được file mẫu', description: result.error, variant: 'destructive' })
-      return
-    }
-    const binary = atob(result.base64)
-    const bytes = new Uint8Array(binary.length)
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i)
-    const blob = new Blob([bytes], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = 'mau-khach-moi-thiep-cuoi.xlsx'
-    link.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const importGuestFile = async (file: File | null) => {
-    if (!file || !card || importing) return
-    setImporting(true)
-    const formData = new FormData()
-    formData.append('cardId', card.id)
-    formData.append('file', file)
-    const result = await importWeddingInvitedGuests(formData)
-    setImporting(false)
-    if (importFileRef.current) importFileRef.current.value = ''
-    if ('error' in result && result.error) {
-      toast({ title: 'Import thất bại', description: result.error, variant: 'destructive' })
-      return
-    }
-    if (!('created' in result)) return
-    const skippedNote = result.skipped ? ` Bỏ qua ${result.skipped} dòng.` : ''
-    const detail = result.errors.length ? ` ${result.errors[0]}` : ''
-    toast({
-      title: `Đã thêm ${result.created} khách`,
-      description: `${skippedNote}${detail}`.trim() || 'Khách đã vào đúng nhà trai / nhà gái theo cột Bên.',
-    })
     await load()
   }
 
@@ -1057,6 +1044,16 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             settings={sideSettings}
             saving={savingSideSettings}
             onChange={setSideSettings}
+            onParentsChange={(value) => {
+              const key = look.panel === 'groom' ? 'groomParents' : 'brideParents'
+              setCard((prev) => (prev ? { ...prev, [key]: value } : prev))
+            }}
+          />
+          <WeddingSideGuestImportBar
+            cardId={card?.id ?? ''}
+            side={look.panel}
+            disabled={loading || !card}
+            onImported={load}
           />
           {renderSideStats(stats, look)}
           {renderGuestTable(sideRows, look)}
@@ -1093,39 +1090,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             <p className="mt-0.5 text-lg font-semibold">{card?.brideName || 'Khách mời nhà gái'}</p>
             <p className="text-sm text-white/85">{brideStats.total} khách · {brideStats.attending} có đi</p>
           </a>
-        </div>
-
-        <div className="flex flex-col gap-2 rounded-xl border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Import Excel: cột <span className="font-medium text-foreground">Tên</span> và{' '}
-            <span className="font-medium text-foreground">Bên</span> (Nhà trai / Nhà gái). Dòng mẫu trong file được bỏ qua.
-          </p>
-          <div className="flex shrink-0 gap-2">
-            <Button type="button" variant="outline" className="h-11 flex-1 sm:h-9 sm:flex-none" onClick={() => void downloadGuestTemplate()}>
-              <Download className="mr-2 h-4 w-4" />
-              Tải file mẫu
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 flex-1 sm:h-9 sm:flex-none"
-              disabled={importing || loading || !card}
-              onClick={() => importFileRef.current?.click()}
-            >
-              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileUp className="mr-2 h-4 w-4" />}
-              Import Excel
-            </Button>
-            <input
-              ref={importFileRef}
-              type="file"
-              accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null
-                void importGuestFile(file)
-              }}
-            />
-          </div>
         </div>
 
         {!publishUrl ? (

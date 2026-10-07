@@ -2,15 +2,15 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarDays, Download, ExternalLink, Heart, Loader2, MapPin, QrCode, Sparkles, Upload, Users, X } from 'lucide-react'
+import { Download, ExternalLink, Heart, Loader2, MapPin, QrCode, Sparkles, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Toaster } from '@/components/ui/toaster'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import {
@@ -22,7 +22,8 @@ import {
   saveWeddingCardBrief,
 } from './actions'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
-import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingRsvp, WeddingImageType } from '@/lib/db/wedding-cards-pg'
+import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingMusicLibraryRow, WeddingRsvp, WeddingImageType } from '@/lib/db/wedding-cards-pg'
+import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import {
   WeddingInvitationAudio,
   type WeddingInvitationAudioHandle,
@@ -36,21 +37,18 @@ import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } fro
 import { isLegacySingleGiftImage, isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
 import { countWeddingEventTimelineItems } from '@/lib/wedding/wedding-event-timeline'
-import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-editor'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
-import {
-  buildMonthCells,
-  pad2,
-  parseWeddingTimeClockAndWeekday,
-  parseIsoDateLocal,
-  syncWeddingTimeWeekday,
-  weekdayIndexFromIsoDate,
-  WEDDING_WEEKDAY_LABELS,
-} from '@/lib/wedding/wedding-calendar-utils'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
-import { EMPTY_WEDDING_SIDE_INVITE_SETTINGS } from '@/lib/wedding/wedding-side-invite-settings'
+import {
+  appendWeddingSideInviteSettingsToFormData,
+  EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
+  ownSidePartyFields,
+  weddingSideInviteSettingsFromCard,
+  type WeddingSideInviteSettings,
+} from '@/lib/wedding/wedding-side-invite-settings'
+import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-settings-panel'
 import {
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
@@ -64,11 +62,7 @@ import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-pre
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
-import {
-  guestInviteVenueLabel,
-  guestInviteVenueOptions,
-  normalizeGuestInviteVenue,
-} from '@/lib/wedding/wedding-guest-invite-venue'
+import { guestInviteVenueLabel } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
 
@@ -158,9 +152,7 @@ function mergeCardMediaAfterSave(prev: WeddingCard, server: WeddingCard): Weddin
   if (server.brideImageUrl) assignIfChanged('brideImageUrl', server.brideImageUrl)
   if (server.musicUrl) assignIfChanged('musicUrl', server.musicUrl)
   if (server.giftQrImageUrl) assignIfChanged('giftQrImageUrl', server.giftQrImageUrl)
-  if (server.albumImageUrls.length > 0) {
-    assignIfChanged('albumImageUrls', server.albumImageUrls)
-  }
+  assignIfChanged('albumImageUrls', server.albumImageUrls)
   if (server.sectionConfig) assignIfChanged('sectionConfig', server.sectionConfig)
   assignIfChanged('isPublished', server.isPublished)
   assignIfChanged('publishedAt', server.publishedAt)
@@ -177,8 +169,6 @@ function buildSavedSnapshotForCard(card: WeddingCard) {
     musicStartInput: fmt(card.musicPlayStartSec),
     musicEndInput: fmt(card.musicPlayEndSec),
     musicClearOnSave: false,
-    groomImageFile: null,
-    brideImageFile: null,
     coverImageFile: null,
     coverClearOnSave: false,
     musicFile: null,
@@ -192,8 +182,6 @@ function buildPersistSnapshot(input: {
   musicStartInput: string
   musicEndInput: string
   musicClearOnSave: boolean
-  groomImageFile: File | null
-  brideImageFile: File | null
   coverImageFile: File | null
   coverClearOnSave: boolean
   musicFile: File | null
@@ -226,6 +214,7 @@ function buildPersistSnapshot(input: {
     brideParents: card.brideParents,
     groomHometown: card.groomHometown,
     brideHometown: card.brideHometown,
+    sideInvite: weddingSideInviteSettingsFromCard(card),
     groomImageUrl: card.groomImageUrl,
     brideImageUrl: card.brideImageUrl,
     selectedStyleId: card.selectedStyleId,
@@ -246,8 +235,6 @@ function buildPersistSnapshot(input: {
     musicPlayEndSec: card.musicPlayEndSec,
     musicStartInput,
     musicEndInput,
-    groomFk: fk(input.groomImageFile),
-    brideFk: fk(input.brideImageFile),
     coverFk: fk(input.coverImageFile),
     coverClearOnSave: input.coverClearOnSave,
     musicFk: fk(input.musicFile),
@@ -330,6 +317,7 @@ export default function WeddingCardAiClientPage() {
   const [card, setCard] = useState<WeddingCard>(() => emptyBrief())
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
+  const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [libraryTarget, setLibraryTarget] = useState<WeddingImageType>('master')
   const [uploadingOutside, setUploadingOutside] = useState(false)
@@ -338,19 +326,20 @@ export default function WeddingCardAiClientPage() {
   const [rsvps, setRsvps] = useState<WeddingRsvp[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
+  const [letterAskOpen, setLetterAskOpen] = useState(false)
   const [generating, setGenerating] = useState<WeddingImageType | null>(null)
   const [extraPrompt, setExtraPrompt] = useState('')
   const [styleReferenceFile, setStyleReferenceFile] = useState<File | null>(null)
   const [styleReferenceUrl, setStyleReferenceUrl] = useState('')
   const [origin, setOrigin] = useState('')
-  const [groomImageFile, setGroomImageFile] = useState<File | null>(null)
-  const [brideImageFile, setBrideImageFile] = useState<File | null>(null)
   const [musicFile, setMusicFile] = useState<File | null>(null)
   const [musicClearOnSave, setMusicClearOnSave] = useState(false)
   const [musicStartInput, setMusicStartInput] = useState('')
   const [musicEndInput, setMusicEndInput] = useState('')
   const [pickedMusicPreviewUrl, setPickedMusicPreviewUrl] = useState<string | null>(null)
   const [albumImageFiles, setAlbumImageFiles] = useState<File[]>([])
+  const [albumPendingPreviews, setAlbumPendingPreviews] = useState<string[]>([])
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
   const [coverClearOnSave, setCoverClearOnSave] = useState(false)
   const musicPreviewAudioRef = useRef<WeddingInvitationAudioHandle>(null)
@@ -359,6 +348,11 @@ export default function WeddingCardAiClientPage() {
   useEffect(() => {
     setUiLocale(readWebLocaleFromDocumentCookie())
   }, [])
+  useEffect(() => {
+    const urls = albumImageFiles.map((file) => URL.createObjectURL(file))
+    setAlbumPendingPreviews(urls)
+    return () => urls.forEach((url) => URL.revokeObjectURL(url))
+  }, [albumImageFiles])
   const tMu = useMemo(() => getDictionary(uiLocale).weddingCardAiMusic, [uiLocale])
   const txCal = useMemo(() => getDictionary(uiLocale).weddingCardCalendar, [uiLocale])
   const txGift = useMemo(() => getDictionary(uiLocale).weddingGiftBox, [uiLocale])
@@ -424,16 +418,17 @@ export default function WeddingCardAiClientPage() {
         baselineHydratedRef.current = true
         const localDraft = readWeddingLocalDraft(result.card.id)
         if (localDraft) {
-          setCard(mergeServerCardWithLocalDraft(result.card, localDraft.card))
+          setCard(ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card)))
           setMusicStartInput(localDraft.musicStartInput)
           setMusicEndInput(localDraft.musicEndInput)
           setMusicClearOnSave(localDraft.musicClearOnSave)
           setAutosaveBanner({ message: 'Đã khôi phục bản nháp chưa kịp lưu. Hệ thống sẽ tự lưu lại.', variant: 'success' })
         } else {
-          setCard(result.card)
+          setCard(ownSidePartyFields(result.card))
         }
         setImages(result.images)
         setLibrary(result.library)
+        setMusicLibrary(result.musicLibrary)
         setRsvps(result.rsvps)
       }
       setLoading(false)
@@ -467,20 +462,29 @@ export default function WeddingCardAiClientPage() {
   const missing = useMemo(() => {
     const items = []
     if (!card.groomName || !card.brideName) items.push('tên cô dâu/chú rể')
-    if (!weddingDateIso) items.push('ngày cưới')
-    if (!card.venue) items.push('địa điểm')
+    const hasPartyDate = Boolean(weddingDateIso || card.groomInviteWeddingDate || card.brideInviteWeddingDate)
+    const hasPartyPlace = Boolean(
+      card.venue ||
+        card.groomInviteAddress ||
+        card.brideInviteAddress ||
+        card.groomHometown ||
+        card.brideHometown,
+    )
+    if (!hasPartyDate) items.push('ngày tiệc')
+    if (!hasPartyPlace) items.push('địa chỉ tiệc')
     if (!masterImage?.imageUrl) items.push('ảnh chính')
-    if (!card.mapUrl) items.push('Google Maps')
+    if (!card.mapUrl && !card.groomInviteMapUrl && !card.brideInviteMapUrl) items.push('Google Maps')
     return items
   }, [card, masterImage, weddingDateIso])
 
   const update = <K extends keyof WeddingCard>(key: K, value: WeddingCard[K]) => setCard((prev) => ({ ...prev, [key]: value }))
-
-  const handleWeddingDateChange = (iso: string) => {
+  const applySideSettings = (next: WeddingSideInviteSettings) => {
     setCard((prev) => ({
       ...prev,
-      weddingDate: iso,
-      weddingTime: syncWeddingTimeWeekday(iso, prev.weddingTime, uiLocale),
+      ...next,
+      groomInviteWeddingDate: next.groomInviteWeddingDate || null,
+      brideInviteWeddingDate: next.brideInviteWeddingDate || null,
+      weddingDate: next.groomInviteWeddingDate || next.brideInviteWeddingDate || prev.weddingDate,
     }))
   }
 
@@ -492,10 +496,17 @@ export default function WeddingCardAiClientPage() {
     () => guestInviteVenueLabel(card.guestInviteVenue, txPublic),
     [card.guestInviteVenue, txPublic],
   )
-  const guestInviteLocationPreview = useMemo(
-    () => resolveGuestInviteLocation(card, card.guestInviteVenue),
-    [card],
-  )
+  const groomLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'groom_home'), [card])
+  const brideLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'bride_home'), [card])
+  const guestInviteLocationPreview = previewLetterView === 'bride' ? brideLetterPreview : groomLetterPreview
+  const openLetterView = (view: 'groom' | 'bride') => {
+    setPreviewLetterView(view)
+    setLetterAskOpen(false)
+    if (!publishUrl) return
+    const url = new URL(publishUrl)
+    url.searchParams.set('view', view)
+    window.open(url.toString(), '_blank', 'noopener,noreferrer')
+  }
 
   const selectAlbumLayout = (albumLayoutId: string) => {
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { albumLayoutId }))
@@ -536,21 +547,62 @@ export default function WeddingCardAiClientPage() {
     musicStartInput,
     musicEndInput,
     musicClearOnSave,
-    groomImageFile,
-    brideImageFile,
     coverImageFile,
     coverClearOnSave,
     musicFile,
     albumImageFiles,
   })
+  useEffect(() => {
+    let pulling = false
+    const pullSideSettings = () => {
+      if (document.visibilityState === 'hidden' || pulling) return
+      const local = persistInputsRef.current
+      if (!local.card.id || !baselineHydratedRef.current || persistInFlightRef.current) return
+      if (autosaveTimerRef.current) return
+      const localSide = JSON.stringify(weddingSideInviteSettingsFromCard(local.card))
+      let savedSide = ''
+      try {
+        savedSide = JSON.stringify(JSON.parse(lastSavedPersistRef.current).sideInvite ?? null)
+      } catch {
+        return
+      }
+      if (localSide !== savedSide) return
+      pulling = true
+      void getOrCreateWeddingCard().then((result) => {
+        pulling = false
+        if ('error' in result || persistInFlightRef.current) return
+        const current = persistInputsRef.current
+        const currentSide = JSON.stringify(weddingSideInviteSettingsFromCard(current.card))
+        if (currentSide !== savedSide) return
+        const serverSide = weddingSideInviteSettingsFromCard(result.card)
+        if (JSON.stringify(serverSide) === currentSide) return
+        const nextCard: WeddingCard = {
+          ...current.card,
+          ...serverSide,
+          groomInviteWeddingDate: serverSide.groomInviteWeddingDate || null,
+          brideInviteWeddingDate: serverSide.brideInviteWeddingDate || null,
+        }
+        lastSavedPersistRef.current = buildPersistSnapshot({ ...current, card: nextCard })
+        setCard(nextCard)
+      })
+    }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) pullSideSettings()
+    }
+    document.addEventListener('visibilitychange', pullSideSettings)
+    window.addEventListener('pageshow', onPageShow)
+    return () => {
+      document.removeEventListener('visibilitychange', pullSideSettings)
+      window.removeEventListener('pageshow', onPageShow)
+    }
+  }, [])
+
   persistInputsRef.current = {
     card,
     weddingDateIso,
     musicStartInput,
     musicEndInput,
     musicClearOnSave,
-    groomImageFile,
-    brideImageFile,
     coverImageFile,
     coverClearOnSave,
     musicFile,
@@ -565,8 +617,6 @@ export default function WeddingCardAiClientPage() {
         musicStartInput,
         musicEndInput,
         musicClearOnSave,
-        groomImageFile,
-        brideImageFile,
         coverImageFile,
         coverClearOnSave,
         musicFile,
@@ -578,8 +628,6 @@ export default function WeddingCardAiClientPage() {
       musicStartInput,
       musicEndInput,
       musicClearOnSave,
-      groomImageFile,
-      brideImageFile,
       coverImageFile,
       coverClearOnSave,
       musicFile,
@@ -698,13 +746,17 @@ export default function WeddingCardAiClientPage() {
         brideGiftAccountName: c.brideGiftAccountName,
         effectsEnabled: String(c.effectsEnabled),
       }).forEach(([key, value]) => formData.append(key, value))
+      appendWeddingSideInviteSettingsToFormData(formData, weddingSideInviteSettingsFromCard(c))
       formData.append('musicPlayStartSec', p.musicStartInput.trim())
       formData.append('musicPlayEndSec', p.musicEndInput.trim())
-      if (p.groomImageFile) formData.append('groomImage', p.groomImageFile)
-      if (p.brideImageFile) formData.append('brideImage', p.brideImageFile)
       if (p.coverImageFile) formData.append('coverImage', p.coverImageFile)
       if (p.coverClearOnSave) formData.append('coverClear', 'true')
-      if (p.musicFile) formData.append('musicFile', p.musicFile)
+      if (p.musicFile) {
+        formData.append('musicFile', p.musicFile)
+        formData.append('musicTitle', p.musicFile.name)
+      } else if (!p.musicClearOnSave && c.musicUrl) {
+        formData.append('musicLibraryUrl', c.musicUrl)
+      }
       if (p.musicClearOnSave) formData.append('musicClear', 'true')
       p.albumImageFiles.forEach((file) => formData.append('albumImages', file))
 
@@ -733,6 +785,7 @@ export default function WeddingCardAiClientPage() {
       const hasNewerLocalChanges = latestFingerprint !== submittedFingerprint
       lastSavedPersistRef.current = hasNewerLocalChanges ? submittedFingerprint : buildSavedSnapshotForCard(result.card)
       if (hasNewerLocalChanges) {
+        setMusicLibrary(result.musicLibrary)
         if (silent) {
           setAutosaveBanner({ message: tBrief.autoSavedLabel, variant: 'success' })
         } else {
@@ -746,12 +799,11 @@ export default function WeddingCardAiClientPage() {
       }
       clearWeddingLocalDraft(result.card.id)
       setCard((prev) => mergeCardMediaAfterSave(prev, result.card))
-      setGroomImageFile(null)
-      setBrideImageFile(null)
       setCoverImageFile(null)
       setCoverClearOnSave(false)
       setMusicFile(null)
       setMusicClearOnSave(false)
+      setMusicLibrary(result.musicLibrary)
       setAlbumImageFiles([])
 
       window.setTimeout(() => {
@@ -868,6 +920,7 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
       }
       toast({
@@ -908,6 +961,7 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
       }
       const face = CARD_FACES.find((item) => item.type === type)
@@ -952,6 +1006,7 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
       }
       const face = CARD_FACES.find((item) => item.type === type)
@@ -1132,88 +1187,10 @@ export default function WeddingCardAiClientPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Tên chú rể" value={card.groomName} onChange={(v) => update('groomName', v)} />
                   <Field label="Tên cô dâu" value={card.brideName} onChange={(v) => update('brideName', v)} />
-                  <div className="space-y-2">
-                    <WeddingDateField
-                      label="Ngày cưới"
-                      isoValue={weddingDateIso}
-                      onChange={handleWeddingDateChange}
-                    />
-                    <p className="text-xs text-muted-foreground">{tBrief.dateFormatHint}</p>
-                  </div>
-                  <WeddingTimePicker
-                    label="Giờ đón khách"
-                    value={card.weddingTime}
-                    weddingDateIso={weddingDateIso}
-                    locale={uiLocale}
-                    onChange={(v) => update('weddingTime', v)}
-                  />
-                  <WeddingClockOnlyPicker
-                    label="Giờ khai tiệc"
-                    value={card.partyStartTime}
-                    onChange={(v) => update('partyStartTime', v)}
-                    hint="Hiển thị ở mục «Khai tiệc», tiêu đề lớn và đếm ngược."
-                  />
-                </div>
-                <Field label="Địa điểm" value={card.venue} onChange={(v) => update('venue', v)} />
-                <Field label="Google Maps link" value={card.mapUrl} onChange={(v) => update('mapUrl', v)} placeholder="https://maps.google.com/..." />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Tên bố mẹ nhà trai" value={card.groomParents} onChange={(v) => update('groomParents', v)} />
-                  <Field label="Tên bố mẹ nhà gái" value={card.brideParents} onChange={(v) => update('brideParents', v)} />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field
-                    label="Địa chỉ quê nhà trai"
-                    value={card.groomHometown}
-                    onChange={(v) => update('groomHometown', v)}
-                    placeholder="Xóm Buổi, Vật Lại, Ba Vì, Hà Nội"
-                  />
-                  <Field
-                    label="Địa chỉ quê nhà gái"
-                    value={card.brideHometown}
-                    onChange={(v) => update('brideHometown', v)}
-                    placeholder="Xóm …, Huyện …, Tỉnh …"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <ImageUploadField
-                    label="Ảnh chú rể tham chiếu"
-                    currentUrl={card.groomImageUrl}
-                    file={groomImageFile}
-                    onFileChange={setGroomImageFile}
-                  />
-                  <ImageUploadField
-                    label="Ảnh cô dâu tham chiếu"
-                    currentUrl={card.brideImageUrl}
-                    file={brideImageFile}
-                    onFileChange={setBrideImageFile}
-                  />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Ảnh cô dâu/chú rể chỉ dùng làm tham chiếu khi tạo ảnh AI; upload/lưu ảnh tham chiếu không tốn credit.
+                  Phần này dùng cho cả nhà trai và nhà gái. Ngày tiệc, giờ, địa chỉ, bản đồ và lịch trình điền ở đúng nhà bên dưới.
                 </p>
-                <div className="space-y-2">
-                  <Label>Tên khách mời trên thiệp (tuỳ chọn)</Label>
-                  <Input
-                    value={card.guestName}
-                    onChange={(e) => update('guestName', e.target.value)}
-                    placeholder="Anh Chị Minh - Thanh"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>{tBrief.guestInviteVenueLabel}</Label>
-                  <select
-                    value={card.guestInviteVenue}
-                    onChange={(e) => update('guestInviteVenue', normalizeGuestInviteVenue(e.target.value) as WeddingCard['guestInviteVenue'])}
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    {guestInviteVenueOptions({ ...txPublic, guestInviteVenueNone: txPublic.guestInviteVenueNone }).map((opt) => (
-                      <option key={opt.value || 'none'} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">{tBrief.guestInviteVenueHint}</p>
-                </div>
                 <div className="space-y-2">
                   <Label>Lời mời</Label>
                   <Textarea
@@ -1254,25 +1231,16 @@ export default function WeddingCardAiClientPage() {
                     className="min-h-28"
                   />
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <WeddingTimelineEditor
-                    label="Lịch trình chi tiết"
-                    value={card.eventTimeline}
-                    onChange={(v) => update('eventTimeline', v)}
-                    className="sm:col-span-2"
-                    hint="Mỗi dòng một mốc: chọn giờ và nhập nội dung bên cạnh (có thể thêm ghi chú sau dấu « - »)."
-                  />
-                  <WeddingAiPolishTextarea
-                    label="Dress code / lưu ý khách mời"
-                    field="dressCode"
-                    value={card.dressCode}
-                    onChange={(v) => update('dressCode', v)}
-                    card={card}
-                    weddingDateLabel={weddingDateDisplay}
-                    placeholder="Ví dụ: Tông màu kem, be, nâu nhạt. Vui lòng đến trước giờ làm lễ 15 phút."
-                    className="min-h-32"
-                  />
-                </div>
+                <WeddingAiPolishTextarea
+                  label="Dress code / lưu ý khách mời"
+                  field="dressCode"
+                  value={card.dressCode}
+                  onChange={(v) => update('dressCode', v)}
+                  card={card}
+                  weddingDateLabel={weddingDateDisplay}
+                  placeholder="Ví dụ: Tông màu kem, be, nâu nhạt. Vui lòng đến trước giờ làm lễ 15 phút."
+                  className="min-h-32"
+                />
                 <WeddingAiPolishTextarea
                   label="Câu chuyện / album ngắn"
                   field="storyText"
@@ -1294,6 +1262,36 @@ export default function WeddingCardAiClientPage() {
                   hint={WEDDING_CARD_TEXT_TOKEN_HINT}
                   className="min-h-24"
                 />
+                <div className="space-y-3 border-t pt-4">
+                  <div className="space-y-1">
+                    <Label>Nhà trai và nhà gái</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Mỗi nhà điền một lần. Trang khách mời dùng cùng các ô này.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-sky-800">Nhà trai</p>
+                    <WeddingSideInviteSettingsPanel
+                      side="groom"
+                      card={card}
+                      settings={weddingSideInviteSettingsFromCard(card)}
+                      saving={saving}
+                      onChange={applySideSettings}
+                      onParentsChange={(value) => update('groomParents', value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-rose-700">Nhà gái</p>
+                    <WeddingSideInviteSettingsPanel
+                      side="bride"
+                      card={card}
+                      settings={weddingSideInviteSettingsFromCard(card)}
+                      saving={saving}
+                      onChange={applySideSettings}
+                      onParentsChange={(value) => update('brideParents', value)}
+                    />
+                  </div>
+                </div>
                 <div className="space-y-3 rounded-2xl border p-3">
                   <Label>Album ảnh cô dâu chú rể</Label>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
@@ -1304,16 +1302,49 @@ export default function WeddingCardAiClientPage() {
                       accept="image/*"
                       multiple
                       className="sr-only"
-                      onChange={(event) => setAlbumImageFiles(Array.from(event.target.files ?? []))}
+                      onChange={(event) => {
+                        const picked = Array.from(event.target.files ?? [])
+                        event.target.value = ''
+                        if (picked.length === 0) return
+                        setAlbumImageFiles((prev) => {
+                          const room = Math.max(0, 30 - card.albumImageUrls.length - prev.length)
+                          return room > 0 ? [...prev, ...picked.slice(0, room)] : prev
+                        })
+                      }}
                     />
                   </label>
-                  {(card.albumImageUrls.length > 0 || albumImageFiles.length > 0) && (
+                  {(card.albumImageUrls.length > 0 || albumPendingPreviews.length > 0) && (
                     <div className="grid grid-cols-3 gap-2">
-                      {card.albumImageUrls.map((url) => (
-                        <img key={url} src={url} alt="Ảnh album đã lưu" className="h-24 rounded-xl object-cover" />
+                      {card.albumImageUrls.map((url, index) => (
+                        <div key={`${url}-${index}`} className="relative">
+                          <img src={url} alt="Ảnh album đã lưu" className="h-24 w-full rounded-xl object-cover" />
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                            aria-label={tImage.customReferenceRemove}
+                            onClick={() =>
+                              update(
+                                'albumImageUrls',
+                                card.albumImageUrls.filter((_, photoIndex) => photoIndex !== index),
+                              )
+                            }
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       ))}
-                      {albumImageFiles.map((file) => (
-                        <img key={`${file.name}-${file.size}`} src={URL.createObjectURL(file)} alt="Ảnh album mới" className="h-24 rounded-xl object-cover" />
+                      {albumPendingPreviews.map((url, index) => (
+                        <div key={url} className="relative">
+                          <img src={url} alt="Ảnh album mới" className="h-24 w-full rounded-xl object-cover" />
+                          <button
+                            type="button"
+                            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                            aria-label={tImage.customReferenceRemove}
+                            onClick={() => setAlbumImageFiles((prev) => prev.filter((_, photoIndex) => photoIndex !== index))}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1337,10 +1368,21 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 <Field label="Bảng màu AI" value={card.colorPalette} onChange={(v) => update('colorPalette', v)} />
                 <div className="space-y-3 rounded-2xl border p-3">
-                  <Label>Nhạc nền thiệp — tải file lên</Label>
+                  <Label>{tMu.libraryHeading}</Label>
+                  <p className="text-xs text-muted-foreground">{tMu.libraryHint}</p>
+                  <WeddingMusicLibraryPicker
+                    items={musicLibrary}
+                    selectedUrl={!musicClearOnSave && !musicFile ? card.musicUrl : ''}
+                    credit={tMu.seedCredit}
+                    onSelect={(audioUrl) => {
+                      update('musicUrl', audioUrl)
+                      setMusicFile(null)
+                      setMusicClearOnSave(false)
+                    }}
+                  />
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
                     <Upload className="h-4 w-4" />
-                    Chọn file nhạc (.mp3, .m4a, .wav…)
+                    {tMu.uploadLabel}
                     <input
                       type="file"
                       accept="audio/*"
@@ -1352,6 +1394,7 @@ export default function WeddingCardAiClientPage() {
                       }}
                     />
                   </label>
+                  <p className="text-xs text-muted-foreground">{tMu.sharedUploadNote}</p>
                   {!musicClearOnSave && !musicFile && !card.musicUrl ? (
                     <p className="text-xs text-muted-foreground">Chưa có nhạc. Chọn file để có nhạc nền trên thiệp sau khi lưu.</p>
                   ) : null}
@@ -1424,7 +1467,7 @@ export default function WeddingCardAiClientPage() {
                     </div>
                   )}
                   <p className="text-xs text-muted-foreground">
-                    Chỉ hỗ trợ nhạc tải lên; không nhập link Zing / Spotify. Thêm / đổi / nghe thử không tốn credit.
+                    Chọn trong kho hoặc tải file. Không nhập link Zing / Spotify. Thêm / đổi / nghe thử không tốn credit.
                   </p>
                 </div>
                 <div className="space-y-4 border-t pt-4">
@@ -1515,6 +1558,47 @@ export default function WeddingCardAiClientPage() {
                     className="mt-3"
                   />
                 </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={() => generateImage('master')} disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}>
+                    {generating === 'master' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {masterImage ? 'Tạo lại ảnh chính - 1 credit' : 'Tạo ảnh chính - 1 credit'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
+                    onClick={() => pickOutsideBackground('master')}
+                  >
+                    {uploadingOutside && outsideTypeRef.current === 'master' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    Chọn ảnh ngoài · 0 credit
+                  </Button>
+                  {masterImage?.imageUrl && (
+                    <Button asChild variant="outline">
+                      <a href={masterImage.imageUrl} download target="_blank" rel="noreferrer">
+                        <Download className="mr-2 h-4 w-4" />
+                        Tải ảnh đã tạo
+                      </a>
+                    </Button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Tạo nền riêng dùng prompt và ảnh tham khảo ngay phía trên.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {CARD_FACES.map((face) => (
+                      <Button
+                        key={face.type}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || !masterImage?.imageUrl}
+                        onClick={() => generateImage(face.type)}
+                      >
+                        {generating === face.type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Tạo nền {face.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 <div className="rounded-2xl border border-dashed p-4">
                   {masterImage?.imageUrl ? (
                     <img src={masterImage.imageUrl} alt="Ảnh chính thiệp cưới" className="max-h-96 w-full rounded-xl object-cover" />
@@ -1583,29 +1667,6 @@ export default function WeddingCardAiClientPage() {
                       void uploadOutsideBackground(file, outsideTypeRef.current)
                     }}
                   />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Button onClick={() => generateImage('master')} disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}>
-                      {generating === 'master' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      {masterImage ? 'Tạo lại ảnh chính - 1 credit' : 'Tạo ảnh chính - 1 credit'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
-                      onClick={() => pickOutsideBackground('master')}
-                    >
-                      {uploadingOutside && outsideTypeRef.current === 'master' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                      Chọn ảnh ngoài · 0 credit
-                    </Button>
-                    {masterImage?.imageUrl && (
-                      <Button asChild variant="outline">
-                        <a href={masterImage.imageUrl} download target="_blank" rel="noreferrer">
-                          <Download className="mr-2 h-4 w-4" />
-                          Tải ảnh đã tạo
-                        </a>
-                      </Button>
-                    )}
-                  </div>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {CARD_FACES.map((face) => {
@@ -1625,15 +1686,6 @@ export default function WeddingCardAiClientPage() {
                           </div>
                         )}
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || !masterImage?.imageUrl}
-                            onClick={() => generateImage(face.type)}
-                          >
-                            {generating === face.type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Tạo nền riêng - 1 credit
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1664,9 +1716,16 @@ export default function WeddingCardAiClientPage() {
 
           <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             <Card>
-              <CardHeader>
-                <CardTitle>3 & 8. Preview nháp</CardTitle>
-                <CardDescription>Mobile/desktop đều render text thật bằng hệ thống, không tốn credit.</CardDescription>
+              <CardHeader className="gap-2">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1.5">
+                    <CardTitle>3 & 8. Preview nháp</CardTitle>
+                    <CardDescription>Mobile/desktop đều render text thật bằng hệ thống, không tốn credit.</CardDescription>
+                  </div>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setLetterAskOpen(true)}>
+                    Xem thiệp
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 {missing.length > 0 && (
@@ -1674,99 +1733,112 @@ export default function WeddingCardAiClientPage() {
                     Cần kiểm tra thêm: {missing.join(', ')}.
                   </div>
                 )}
-                <div className="mx-auto max-w-sm overflow-hidden rounded-[2rem] border border-white/50 shadow-xl backdrop-blur-sm">
+                <div className="mx-auto w-full max-w-[300px] overflow-hidden rounded-[1.65rem] border border-white/60 shadow-lg">
                   <div
-                    className={cn('relative min-h-[640px] bg-cover bg-center p-6 text-center', selectedTheme.text)}
+                    className={cn(
+                      'max-h-[min(28rem,calc(100dvh-20rem))] overflow-y-auto overscroll-contain bg-cover bg-center px-3 py-3 text-center [scrollbar-width:thin]',
+                      selectedTheme.text,
+                    )}
                     style={weddingBackgroundStyle(masterImage?.imageUrl, selectedTheme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
                   >
-                    <div className={cn('absolute inset-5 rounded-[1.5rem] border border-white/35', selectedTheme.ring)} />
                     <WeddingReadableGlass
                       theme={selectedTheme}
                       strength="hero"
-                      className="relative z-10 mx-auto flex min-h-[590px] w-full flex-col items-center justify-center gap-5 rounded-[1.5rem] p-4"
+                      className="w-full rounded-2xl px-3 py-3.5"
                     >
-                      <p className={cn('text-xs uppercase tracking-[0.35em]', selectedTheme.accentText, selectedTheme.textGlow)}>Wedding Invitation</p>
-                      <Heart className={cn('h-8 w-8 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
-                      <div>
-                        <h2 className={cn('font-serif text-4xl font-semibold italic', selectedTheme.textGlowHeading)}>{card.groomName || 'Chú rể'}</h2>
-                        <p className={cn('my-2 text-lg', selectedTheme.textGlow)}>&</p>
-                        <h2 className={cn('font-serif text-4xl font-semibold italic', selectedTheme.textGlowHeading)}>{card.brideName || 'Cô dâu'}</h2>
-                      </div>
-                      {card.loveQuote ? (
-                        <p className={cn('max-w-xs font-serif text-base italic leading-7', selectedTheme.accentText, selectedTheme.textGlow)}>
-                          “{card.loveQuote}”
+                      <div className="flex w-full min-w-0 flex-col items-stretch gap-2 text-center">
+                        <p className={cn('w-full text-[10px] uppercase tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                          Wedding Invitation
                         </p>
-                      ) : null}
-                      <p className={cn('max-w-xs text-sm leading-6', selectedTheme.mutedText, selectedTheme.textGlow)}>
-                        {card.invitationText || 'Trân trọng kính mời quý khách đến dự lễ thành hôn của chúng tôi.'}
-                      </p>
-                      {(card.coupleIntro || card.eventTimeline || card.dressCode) && (
-                        <div className={cn('w-full rounded-2xl px-4 py-3 text-left text-xs', selectedTheme.panelStrong)}>
-                          {card.coupleIntro ? (
-                            <p className={cn('line-clamp-3 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.coupleIntro}</p>
-                          ) : null}
-                          {card.eventTimeline ? (
-                            <p className={cn('mt-2 font-semibold', selectedTheme.accentText, selectedTheme.textGlow)}>
-                              Lịch trình: {countWeddingEventTimelineItems(card.eventTimeline)} mốc
-                            </p>
-                          ) : null}
-                          {card.dressCode ? (
-                            <p className={cn('mt-1 line-clamp-2', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.dressCode}</p>
-                          ) : null}
+                        <Heart className={cn('mx-auto h-5 w-5 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
+                        <div className="w-full min-w-0">
+                          <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
+                            {card.groomName || 'Chú rể'}
+                          </h2>
+                          <p className={cn('my-0.5 text-sm', selectedTheme.textGlow)}>&</p>
+                          <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
+                            {card.brideName || 'Cô dâu'}
+                          </h2>
                         </div>
-                      )}
-                      {card.guestName && (
-                        <WeddingGuestInviteBlock
-                          guestName={card.guestName}
-                          inviteVenue={card.guestInviteVenue}
-                          cordiallyInvitesLabel="Thân mời / Cordially invites"
-                          venueLabel={guestInviteVenueDisplay}
-                          weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
-                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
-                          addressText={guestInviteLocationPreview.address}
-                          mapUrl={guestInviteLocationPreview.mapUrl}
-                          viewMapLabel={txPublic.guestInviteViewMap}
-                          panelClassName={selectedTheme.panelStrong}
-                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
-                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          weddingThemeId={selectedTheme.id}
-                          compact
-                        />
-                      )}
-                      <div className={cn('w-full rounded-2xl px-1 py-1 text-sm', selectedTheme.panelGlass)}>
-                        {weddingDateIso ? (
-                          <WeddingEventCalendarBlock
-                            weddingDateIso={weddingDateIso}
-                            weddingTimeText={card.weddingTime}
-                            partyStartTime={card.partyStartTime}
-                            locale={uiLocale}
-                            tx={txCal}
-                            textGlow={selectedTheme.textGlow}
-                            compact
-                            countdownLive={false}
-                            className="mx-auto mb-3 max-w-[260px]"
-                          />
-                        ) : (
-                          <p className={cn('font-semibold', selectedTheme.textGlow)}>{card.weddingDate || 'Ngày cưới'} · {card.weddingTime || 'Giờ cưới'}</p>
-                        )}
-                        <p className={cn('mt-1 flex items-center justify-center gap-1', selectedTheme.textGlow)}>
-                          <MapPin className="h-4 w-4" />
-                          {card.venue || 'Địa điểm tổ chức'}
+                        {card.loveQuote ? (
+                          <p className={cn('w-full text-balance font-serif text-[0.92rem] italic leading-6', selectedTheme.accentText, selectedTheme.textGlow)}>
+                            “{card.loveQuote}”
+                          </p>
+                        ) : null}
+                        <p className={cn('w-full whitespace-pre-line text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
+                          {card.invitationText || 'Trân trọng kính mời quý khách đến dự lễ thành hôn của chúng tôi.'}
                         </p>
-                      </div>
-                      <div className="flex flex-wrap justify-center gap-2 text-xs">
-                        {card.rsvpEnabled && <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>RSVP bật</span>}
-                        {(card.giftQrEnabled && (isTwinVietGiftReady(card) || card.giftQrImageUrl.trim())) ? (
-                          <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>{txGift.boxTitle}</span>
+                        {(card.coupleIntro || groomLetterPreview.eventTimeline || brideLetterPreview.eventTimeline || card.dressCode) && (
+                          <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
+                            {card.coupleIntro ? (
+                              <p className={cn('line-clamp-3 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.coupleIntro}</p>
+                            ) : null}
+                            {(previewLetterView === 'bride' ? brideLetterPreview.eventTimeline : groomLetterPreview.eventTimeline) ? (
+                              <p className={cn('mt-1.5 font-semibold', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                Lịch trình: {countWeddingEventTimelineItems(previewLetterView === 'bride' ? brideLetterPreview.eventTimeline : groomLetterPreview.eventTimeline)} mốc
+                              </p>
+                            ) : null}
+                            {card.dressCode ? (
+                              <p className={cn('mt-1 line-clamp-2 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.dressCode}</p>
+                            ) : null}
+                          </div>
+                        )}
+                        {card.guestName ? (
+                          <WeddingGuestInviteBlock
+                            className="w-full min-w-0"
+                            guestName={card.guestName}
+                            inviteVenue={card.guestInviteVenue}
+                            cordiallyInvitesLabel="Thân mời / Cordially invites"
+                            venueLabel={guestInviteVenueDisplay}
+                            weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
+                            weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
+                            addressText={guestInviteLocationPreview.address}
+                            mapUrl={guestInviteLocationPreview.mapUrl}
+                            viewMapLabel={txPublic.guestInviteViewMap}
+                            panelClassName={selectedTheme.panelStrong}
+                            cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                            nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
+                            venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
+                            addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                            weddingThemeId={selectedTheme.id}
+                            compact
+                          />
                         ) : null}
-                        {(card.musicUrl || musicFile) && !musicClearOnSave ? (
-                          <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>Có nhạc nền</span>
-                        ) : null}
-                        <span className={cn('rounded-full px-3 py-1', selectedTheme.panelStrong)}>
-                          {labelForWeddingStylePreset(uiLocale, selectedStylePreset)}
-                        </span>
+                        <div className={cn('w-full min-w-0 rounded-xl px-2 py-2 text-xs', selectedTheme.panelGlass)}>
+                          {resolveWeddingDateIso(guestInviteLocationPreview.weddingDate) ? (
+                            <WeddingEventCalendarBlock
+                              weddingDateIso={resolveWeddingDateIso(guestInviteLocationPreview.weddingDate)!}
+                              weddingTimeText={guestInviteLocationPreview.receptionTime || card.weddingTime}
+                              partyStartTime={guestInviteLocationPreview.partyStartTime || card.partyStartTime}
+                              locale={uiLocale}
+                              tx={txCal}
+                              textGlow={selectedTheme.textGlow}
+                              compact
+                              countdownLive={false}
+                              className="mx-auto mb-2 w-full max-w-[240px]"
+                            />
+                          ) : (
+                            <p className={cn('font-semibold', selectedTheme.textGlow)}>
+                              {guestInviteLocationPreview.weddingDate || 'Ngày tiệc'} · {guestInviteLocationPreview.displayTime || 'Giờ tiệc'}
+                            </p>
+                          )}
+                          <p className={cn('mt-1 flex items-start justify-center gap-1 text-balance leading-5', selectedTheme.textGlow)}>
+                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span className="min-w-0">{guestInviteLocationPreview.address || 'Địa chỉ tiệc'}</span>
+                          </p>
+                        </div>
+                        <div className="flex w-full flex-wrap justify-center gap-1.5 text-[10px]">
+                          {card.rsvpEnabled ? <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>RSVP bật</span> : null}
+                          {card.giftQrEnabled && (isTwinVietGiftReady(card) || card.giftQrImageUrl.trim()) ? (
+                            <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>{txGift.boxTitle}</span>
+                          ) : null}
+                          {(card.musicUrl || musicFile) && !musicClearOnSave ? (
+                            <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>Có nhạc nền</span>
+                          ) : null}
+                          <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>
+                            {labelForWeddingStylePreset(uiLocale, selectedStylePreset)}
+                          </span>
+                        </div>
                       </div>
                     </WeddingReadableGlass>
                   </div>
@@ -1785,13 +1857,13 @@ export default function WeddingCardAiClientPage() {
                 </Button>
                 {card.id ? (
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <Button asChild variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=groom`}>
                         <Users className="mr-2 h-4 w-4" />
                         Khách mời nhà trai
                       </Link>
                     </Button>
-                    <Button asChild variant="outline" className="w-full">
+                    <Button asChild variant="outline" className="w-full border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=bride`}>
                         <Users className="mr-2 h-4 w-4" />
                         Khách mời nhà gái
@@ -1803,11 +1875,9 @@ export default function WeddingCardAiClientPage() {
                   <div className="rounded-2xl bg-muted p-3 text-sm">
                     <p className="break-all font-medium">{publishUrl}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button asChild variant="outline" size="sm">
-                        <a href={publishUrl} target="_blank" rel="noreferrer">
-                          <ExternalLink className="mr-2 h-4 w-4" />
-                          Mở link
-                        </a>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setLetterAskOpen(true)}>
+                        <ExternalLink className="mr-2 h-4 w-4" />
+                        Xem thiệp
                       </Button>
                       <Button asChild variant="outline" size="sm">
                         <a href={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(publishUrl)}`} target="_blank" rel="noreferrer">
@@ -1829,6 +1899,26 @@ export default function WeddingCardAiClientPage() {
           </div>
         </div>
       </div>
+      <Dialog open={letterAskOpen} onOpenChange={setLetterAskOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xem thiệp</DialogTitle>
+            <DialogDescription>
+              {publishUrl
+                ? 'Chọn nhà trai hoặc nhà gái.'
+                : 'Thiệp chưa xuất bản. Bản nháp bên cạnh sẽ đổi theo lựa chọn này.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button type="button" variant="outline" className="border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300" onClick={() => openLetterView('groom')}>
+              Nhà trai
+            </Button>
+            <Button type="button" variant="outline" className="border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300" onClick={() => openLetterView('bride')}>
+              Nhà gái
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
@@ -1844,170 +1934,6 @@ function Field(props: {
     <div className="space-y-2">
       <Label>{props.label}</Label>
       <Input type={props.type ?? 'text'} value={props.value} onChange={(e) => props.onChange(e.target.value)} placeholder={props.placeholder} />
-    </div>
-  )
-}
-
-function WeddingDateField(props: {
-  label: string
-  isoValue: string | null
-  onChange: (iso: string) => void
-}) {
-  const selectedDate = parseIsoDateLocal(props.isoValue)
-  const today = new Date()
-  const initialMonth = selectedDate ?? new Date(today.getFullYear(), today.getMonth(), 1)
-  const [open, setOpen] = useState(false)
-  const [viewYear, setViewYear] = useState(initialMonth.getFullYear())
-  const [viewMonth, setViewMonth] = useState(initialMonth.getMonth())
-
-  useEffect(() => {
-    if (open || !selectedDate) return
-    setViewYear(selectedDate.getFullYear())
-    setViewMonth(selectedDate.getMonth())
-  }, [open, selectedDate])
-
-  const display = selectedDate
-    ? `${pad2(selectedDate.getDate())}/${pad2(selectedDate.getMonth() + 1)}/${selectedDate.getFullYear()}`
-    : 'Chọn ngày cưới'
-  const cells = buildMonthCells(viewYear, viewMonth)
-  const monthLabel = `Tháng ${viewMonth + 1} / ${viewYear}`
-  const weekLabels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
-
-  const moveMonth = (delta: number) => {
-    const next = new Date(viewYear, viewMonth + delta, 1)
-    setViewYear(next.getFullYear())
-    setViewMonth(next.getMonth())
-  }
-
-  const selectDay = (day: number) => {
-    props.onChange(`${viewYear}-${pad2(viewMonth + 1)}-${pad2(day)}`)
-    setOpen(false)
-  }
-
-  return (
-    <div className="space-y-2">
-      <Label>{props.label}</Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-10 w-full justify-start gap-2 px-3 text-left font-normal"
-          >
-            <CalendarDays className="h-4 w-4 shrink-0" />
-            <span>{display}</span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="w-[18rem] p-3">
-          <div className="flex items-center justify-between gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => moveMonth(-1)}>
-              Trước
-            </Button>
-            <p className="text-sm font-semibold">{monthLabel}</p>
-            <Button type="button" variant="outline" size="sm" onClick={() => moveMonth(1)}>
-              Sau
-            </Button>
-          </div>
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground">
-            {weekLabels.map((label) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {cells.map((day, index) => {
-              if (day == null) return <div key={`empty-${index}`} className="h-9" aria-hidden />
-              const iso = `${viewYear}-${pad2(viewMonth + 1)}-${pad2(day)}`
-              const selected = iso === props.isoValue
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  className={cn(
-                    'flex h-9 items-center justify-center rounded-md text-sm transition hover:bg-rose-50',
-                    selected ? 'bg-rose-600 font-semibold text-white hover:bg-rose-600' : 'text-foreground',
-                  )}
-                  onClick={() => selectDay(day)}
-                >
-                  {day}
-                </button>
-              )
-            })}
-          </div>
-        </PopoverContent>
-      </Popover>
-    </div>
-  )
-}
-
-const WEEKDAY_PLACEHOLDER: Record<WebLocale, string> = {
-  vi: 'Chọn thứ',
-  en: 'Choose day',
-  zh: '选择星期',
-  ja: '曜日を選択',
-  ko: '요일 선택',
-}
-
-function WeddingClockOnlyPicker(props: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  hint?: string
-}) {
-  const parsed = parseWeddingTimeClockAndWeekday(props.value)
-  return (
-    <div className="space-y-2">
-      <Label>{props.label}</Label>
-      <Input
-        type="time"
-        value={parsed.time}
-        onChange={(e) => props.onChange(e.target.value)}
-        aria-label={props.label}
-      />
-      {props.hint ? <p className="text-xs text-muted-foreground">{props.hint}</p> : null}
-    </div>
-  )
-}
-
-function WeddingTimePicker(props: {
-  label: string
-  value: string
-  weddingDateIso: string | null
-  locale: WebLocale
-  onChange: (value: string) => void
-}) {
-  const parsed = parseWeddingTimeClockAndWeekday(props.value)
-  const selectedWeekday = weekdayIndexFromIsoDate(props.weddingDateIso) || parsed.weekdayIndex
-  const labels = WEDDING_WEEKDAY_LABELS[props.locale] ?? WEDDING_WEEKDAY_LABELS.vi
-  const placeholder = WEEKDAY_PLACEHOLDER[props.locale] ?? WEEKDAY_PLACEHOLDER.vi
-  const commit = (nextTime: string, nextWeekday: string) => {
-    const parts = [nextTime, nextWeekday ? labels[Number(nextWeekday)] : ''].filter(Boolean)
-    props.onChange(parts.join(', '))
-  }
-  return (
-    <div className="space-y-2">
-      <Label>{props.label}</Label>
-      <div className="grid gap-2 sm:grid-cols-[1fr_1.05fr]">
-        <Input
-          type="time"
-          value={parsed.time}
-          onChange={(e) => commit(e.target.value, selectedWeekday)}
-          aria-label={props.label}
-        />
-        <select
-          value={selectedWeekday}
-          onChange={(e) => commit(parsed.time, e.target.value)}
-          disabled={Boolean(props.weddingDateIso)}
-          className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-          aria-label={`${props.label} - ${placeholder}`}
-        >
-          <option value="">{placeholder}</option>
-          {labels.map((label, index) => (
-            <option key={label} value={String(index)}>
-              {label}
-            </option>
-          ))}
-        </select>
-      </div>
     </div>
   )
 }

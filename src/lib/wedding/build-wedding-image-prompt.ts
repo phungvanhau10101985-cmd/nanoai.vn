@@ -47,7 +47,7 @@ export function buildWeddingPrompt(input: {
   brideName: string
   venue: string
   extraPrompt: string
-  /** true khi có master URL hoặc ảnh tham chiếu cặp đôi / ảnh tùy chỉnh để căn chỉnh tông/khối ảnh */
+  /** true khi có master URL hoặc ảnh tham chiếu tùy chỉnh để căn chỉnh tông/khối ảnh */
   hasReference: boolean
   /** Ảnh tham khảo phong cách do người dùng chọn trong mục tạo ảnh nền */
   hasCustomReference?: boolean
@@ -55,8 +55,8 @@ export function buildWeddingPrompt(input: {
   const faceWord = input.type === 'master' ? 'PRIMARY master hero invitation visual' : `secondary "${input.type}" invitation face background`
   const ref = input.hasReference
     ? input.type === 'master'
-      ? 'Optional couple/custom reference uploads (if supplied): color harmony ornament mood lighting only — NEVER render readable glyphs or copy exact layout from references.'
-      : 'REFERENCE (master/couple/custom uploads when supplied): color harmony ornament lineage lighting mood ONLY — forbid copying composition from references.'
+      ? 'Optional custom reference upload (if supplied): color harmony ornament mood lighting only — NEVER render readable glyphs or copy exact layout from references.'
+      : 'REFERENCE (master/custom uploads when supplied): color harmony ornament lineage lighting mood ONLY — forbid copying composition from references.'
     : ''
 
   const customRef = input.hasCustomReference

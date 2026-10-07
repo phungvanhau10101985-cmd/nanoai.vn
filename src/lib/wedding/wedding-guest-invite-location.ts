@@ -1,6 +1,7 @@
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
+import { parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 
 export type GuestInviteSide = 'groom' | 'bride'
 
@@ -48,6 +49,7 @@ type GuestInviteCardFields = Pick<
   | 'brideInviteCoverImageUrl'
   | 'brideInviteDefaultPersonalMessage'
   | 'brideInviteThankYouText'
+  | 'sectionConfig'
 >
 
 export type GuestInviteContext = {
@@ -75,42 +77,37 @@ function buildSideContext(
   side: GuestInviteSide,
 ): GuestInviteContext {
   const isGroom = side === 'groom'
-  const receptionTime = (
-    isGroom ? card.groomInviteReceptionTime : card.brideInviteReceptionTime
-  ).trim() || card.weddingTime.trim()
-  const partyStartTime = (
-    isGroom ? card.groomInvitePartyStartTime : card.brideInvitePartyStartTime
-  ).trim() || card.partyStartTime.trim()
+  const owned = parseWeddingSectionConfig(card.sectionConfig).sidePartyOwned === true
+  const receptionTime = (isGroom ? card.groomInviteReceptionTime : card.brideInviteReceptionTime).trim()
+  const partyStartTime = (isGroom ? card.groomInvitePartyStartTime : card.brideInvitePartyStartTime).trim()
+  const sideAddress = (isGroom ? card.groomInviteAddress : card.brideInviteAddress).trim()
+  const sideMap = (isGroom ? card.groomInviteMapUrl : card.brideInviteMapUrl).trim()
+  const sideDate = (isGroom ? card.groomInviteWeddingDate : card.brideInviteWeddingDate) ?? ''
+  const sideTimeline = (isGroom ? card.groomInviteEventTimeline : card.brideInviteEventTimeline).trim()
 
   return {
     side,
-    address:
-      (isGroom ? card.groomInviteAddress : card.brideInviteAddress).trim() ||
-      (isGroom ? card.groomHometown : card.brideHometown).trim() ||
-      card.venue.trim(),
-    mapUrl:
-      (isGroom ? card.groomInviteMapUrl : card.brideInviteMapUrl).trim() || card.mapUrl.trim(),
-    receptionTime,
-    partyStartTime,
-    displayTime: resolveWeddingDisplayTime(receptionTime, partyStartTime) || receptionTime,
-    weddingDate: (isGroom ? card.groomInviteWeddingDate : card.brideInviteWeddingDate) ?? card.weddingDate,
-    invitationText:
-      (isGroom ? card.groomInviteText : card.brideInviteText).trim() || card.invitationText.trim(),
-    invitationTextEn:
-      (isGroom ? card.groomInviteTextEn : card.brideInviteTextEn).trim() || card.invitationTextEn.trim(),
-    eventTimeline:
-      (isGroom ? card.groomInviteEventTimeline : card.brideInviteEventTimeline).trim() ||
-      card.eventTimeline.trim(),
-    dressCode:
-      (isGroom ? card.groomInviteDressCode : card.brideInviteDressCode).trim() || card.dressCode.trim(),
+    address: owned
+      ? sideAddress
+      : sideAddress || (isGroom ? card.groomHometown : card.brideHometown).trim() || card.venue.trim(),
+    mapUrl: owned ? sideMap : sideMap || card.mapUrl.trim(),
+    receptionTime: owned ? receptionTime : receptionTime || card.weddingTime.trim(),
+    partyStartTime: owned ? partyStartTime : partyStartTime || card.partyStartTime.trim(),
+    displayTime: resolveWeddingDisplayTime(
+      owned ? receptionTime : receptionTime || card.weddingTime.trim(),
+      owned ? partyStartTime : partyStartTime || card.partyStartTime.trim(),
+    ) || (owned ? receptionTime : receptionTime || card.weddingTime.trim()),
+    weddingDate: owned ? sideDate || null : sideDate || card.weddingDate,
+    invitationText: card.invitationText.trim(),
+    invitationTextEn: card.invitationTextEn.trim(),
+    eventTimeline: owned ? sideTimeline : sideTimeline || card.eventTimeline.trim(),
+    dressCode: card.dressCode.trim(),
     contact: (isGroom ? card.groomInviteContact : card.brideInviteContact).trim(),
     coverImageUrl: (isGroom ? card.groomInviteCoverImageUrl : card.brideInviteCoverImageUrl).trim(),
     defaultPersonalInvite: (
       isGroom ? card.groomInviteDefaultPersonalMessage : card.brideInviteDefaultPersonalMessage
     ).trim(),
-    thankYouText:
-      (isGroom ? card.groomInviteThankYouText : card.brideInviteThankYouText).trim() ||
-      card.thankYouText.trim(),
+    thankYouText: card.thankYouText.trim(),
     parents:
       (isGroom ? card.groomParents : card.brideParents).trim() ||
       (isGroom ? card.groomName : card.brideName).trim(),

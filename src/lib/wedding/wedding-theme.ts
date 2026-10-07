@@ -47,22 +47,22 @@ const TEXT_GLOW_HEADING_DARK =
 
 /** Kính mờ trung tính — ổn định trên mọi ảnh nền AI */
 const GLASS_SHELL =
-  'backdrop-blur-2xl backdrop-saturate-[1.14] shadow-[0_10px_44px_rgba(0,0,0,0.09)] ring-1'
+  'backdrop-blur-2xl backdrop-saturate-[1.14] shadow-[0_10px_44px_rgba(0,0,0,0.09),0_0_0_1px_rgba(255,255,255,0.48)]'
 const PANEL_FROST =
-  'bg-[#fffdf8]/70 backdrop-blur-xl backdrop-saturate-[1.1] shadow-[0_6px_32px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.5)] ring-1 ring-white/42'
+  'bg-[#fffdf8]/70 backdrop-blur-xl backdrop-saturate-[1.1] shadow-[0_6px_32px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.5),0_0_0_1px_rgba(255,255,255,0.42)]'
 const PANEL_FROST_INNER =
-  'bg-[#fffcf7]/62 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-white/32'
+  'bg-[#fffcf7]/62 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_0_0_1px_rgba(255,255,255,0.32)]'
 const PANEL_UI_LIGHT =
-  'bg-[#fffcf7]/78 backdrop-blur-lg backdrop-saturate-[1.08] ring-1 ring-white/48 shadow-[0_4px_20px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.45)]'
+  'bg-[#fffcf7]/78 backdrop-blur-lg backdrop-saturate-[1.08] shadow-[0_4px_20px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.45),0_0_0_1px_rgba(255,255,255,0.48)]'
 
 const GLASS_SHELL_DARK =
-  'bg-black/22 backdrop-blur-2xl backdrop-saturate-[1.08] shadow-[0_10px_44px_rgba(0,0,0,0.32)] ring-1 ring-white/14'
+  'bg-black/22 backdrop-blur-2xl backdrop-saturate-[1.08] shadow-[0_10px_44px_rgba(0,0,0,0.32),0_0_0_1px_rgba(255,255,255,0.14)]'
 const PANEL_FROST_DARK =
-  'bg-slate-950/56 backdrop-blur-xl shadow-[0_6px_32px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07)] ring-1 ring-white/12'
+  'bg-slate-950/56 backdrop-blur-xl shadow-[0_6px_32px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(255,255,255,0.12)]'
 const PANEL_FROST_INNER_DARK =
-  'bg-slate-950/48 backdrop-blur-md ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'
+  'bg-slate-950/48 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_0_1px_rgba(255,255,255,0.1)]'
 const PANEL_UI_DARK =
-  'bg-slate-950/64 backdrop-blur-lg ring-1 ring-white/12 shadow-[0_4px_20px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)]'
+  'bg-slate-950/64 backdrop-blur-lg shadow-[0_4px_20px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(255,255,255,0.12)]'
 
 const WEDDING_THEMES: Record<string, WeddingTheme> = {
   luxury: {
@@ -74,7 +74,7 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     softGradient: 'bg-gradient-to-br from-amber-50 via-white to-rose-50',
     panel: `${PANEL_FROST}`,
     panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/14 ${GLASS_SHELL} ring-white/48`,
+    panelGlass: `bg-white/14 ${GLASS_SHELL}`,
     panelUi: PANEL_UI_LIGHT,
     text: 'text-[#2f241f]',
     mutedText: 'text-[#4a3a32]',
@@ -96,7 +96,7 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     softGradient: 'bg-gradient-to-br from-stone-50 via-white to-emerald-50',
     panel: `${PANEL_FROST}`,
     panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/15 ${GLASS_SHELL} ring-white/50`,
+    panelGlass: `bg-white/15 ${GLASS_SHELL}`,
     panelUi: PANEL_UI_LIGHT,
     text: 'text-stone-950',
     mutedText: 'text-stone-800',
@@ -118,7 +118,7 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     softGradient: 'bg-gradient-to-br from-red-50 via-rose-50 to-amber-50',
     panel: `${PANEL_FROST}`,
     panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-[#fff8ec]/18 ${GLASS_SHELL} ring-amber-50/55`,
+    panelGlass: `bg-[#fff8ec]/18 ${GLASS_SHELL}`,
     panelUi: PANEL_UI_LIGHT,
     text: 'text-[#2a1210]',
     mutedText: 'text-[#4a2018]',
@@ -140,7 +140,7 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     softGradient: 'bg-gradient-to-br from-pink-50 via-white to-emerald-50',
     panel: `${PANEL_FROST}`,
     panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/14 ${GLASS_SHELL} ring-rose-100/48`,
+    panelGlass: `bg-white/14 ${GLASS_SHELL}`,
     panelUi: PANEL_UI_LIGHT,
     text: 'text-[#2d3824]',
     mutedText: 'text-[#445538]',
@@ -162,7 +162,7 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     softGradient: 'bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100',
     panel: `${PANEL_FROST}`,
     panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-[#fff8ec]/16 ${GLASS_SHELL} ring-orange-100/48`,
+    panelGlass: `bg-[#fff8ec]/16 ${GLASS_SHELL}`,
     panelUi: PANEL_UI_LIGHT,
     text: 'text-[#3b2618]',
     mutedText: 'text-[#523820]',

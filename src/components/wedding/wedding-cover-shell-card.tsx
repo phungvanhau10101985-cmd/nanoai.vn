@@ -1,5 +1,6 @@
 'use client'
 
+import { useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 import { getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
@@ -48,6 +49,42 @@ type WeddingCoverShellCardProps = {
     onYes: () => void
     onNo: () => void
   }
+}
+
+const COVER_INTRO_NODES =
+  '.wedding-couple-from-left, .wedding-couple-from-right, .wedding-couple-amp, .wedding-couple-ornament, .wedding-invite-body-join, .wedding-cover-photo-open'
+
+type CoverIntroWindow = Window & { __weddingCoverIntroAt?: number }
+
+/** Hiệu ứng vỏ chỉ chạy sau khi hydrate, và lần gắn DOM sau vẫn nối tiếp đúng thời điểm — không mở lại từ đầu. */
+function useCoverIntroOnce(enabled: boolean) {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [play, setPlay] = useState(() => {
+    if (!enabled) return true
+    if (typeof window === 'undefined') return false
+    return (window as CoverIntroWindow).__weddingCoverIntroAt != null
+  })
+
+  useLayoutEffect(() => {
+    if (!enabled) return
+    const w = window as CoverIntroWindow
+    if (w.__weddingCoverIntroAt == null) w.__weddingCoverIntroAt = performance.now()
+    setPlay(true)
+  }, [enabled])
+
+  useLayoutEffect(() => {
+    if (!enabled || !play) return
+    const started = (window as CoverIntroWindow).__weddingCoverIntroAt
+    if (started == null) return
+    const elapsed = performance.now() - started
+    const root = rootRef.current
+    if (!root) return
+    root.querySelectorAll<HTMLElement>(COVER_INTRO_NODES).forEach((node) => {
+      for (const anim of node.getAnimations()) anim.currentTime = elapsed
+    })
+  }, [enabled, play])
+
+  return { rootRef, hold: enabled && !play }
 }
 
 function CoverActions(props: {
@@ -139,6 +176,8 @@ function CoverPhoto(props: {
   objectPosition?: string
   scale?: number
   breathe?: boolean
+  /** Ảnh vỏ hiện từ từ lúc thiệp mở, cùng nhịp tên bay vào. */
+  openSlowly?: boolean
 }) {
   if (!props.url.trim()) return null
   const objectPosition = props.objectPosition ?? '50% 50%'
@@ -148,6 +187,7 @@ function CoverPhoto(props: {
       className={cn(
         'mx-auto w-full overflow-hidden shadow-md ring-1 ring-black/5',
         props.compact ? 'h-24 rounded-lg' : 'h-[clamp(11rem,32dvh,15rem)] rounded-2xl lg:h-[clamp(13rem,38dvh,17rem)]',
+        props.openSlowly && 'wedding-cover-photo-open',
         props.className,
       )}
     >
@@ -169,6 +209,7 @@ function CoverPhoto(props: {
 
 function GlassCoverCard(props: WeddingCoverShellCardProps) {
   const { compact, theme } = props
+  const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
   return (
     <WeddingReadableGlass
       theme={theme}
@@ -177,8 +218,10 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
         'w-full text-center',
         compact ? 'max-w-[200px] rounded-[1.2rem] p-3' : 'rounded-[1.5rem] p-4 sm:rounded-[2rem] sm:p-6 lg:p-5',
         props.namesFlyIn && !compact && 'overflow-visible',
+        intro.hold && 'wedding-cover-hold',
       )}
     >
+      <div ref={intro.rootRef}>
       <p className={cn('uppercase tracking-[0.28em] sm:tracking-[0.35em]', compact ? 'text-[8px]' : 'text-[11px] sm:text-xs', theme.accentText, theme.textGlow)}>
         {props.invitationLabel}
       </p>
@@ -186,7 +229,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
         groomName={props.groomName}
         brideName={props.brideName}
         flyIn={props.namesFlyIn && !compact}
-        className={cn('font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-2 text-3xl leading-tight sm:mt-3 sm:text-4xl lg:text-[2.65rem] lg:leading-[1.12]', theme.text, theme.textGlowHeading)}
+        className={cn('font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-2 text-[clamp(1.05rem,8cqi,2.65rem)] leading-none sm:mt-3', theme.text, theme.textGlowHeading)}
       />
       <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
       {props.coverPhotoUrl ? (
@@ -198,6 +241,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
             objectPosition={props.coverPhotoObjectPosition}
             scale={props.coverPhotoScale}
             breathe={props.breathe}
+            openSlowly={props.namesFlyIn && !compact}
           />
         </div>
       ) : null}
@@ -208,7 +252,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       ) : null}
       {props.guestName ? (
         <WeddingGuestInviteBlock
-          className={compact ? 'mt-2' : 'mt-2 sm:mt-3 lg:mt-2'}
+          className={cn(compact ? 'mt-2' : 'mt-2 sm:mt-3 lg:mt-2', props.namesFlyIn && !compact && 'wedding-invite-body-join')}
           guestName={props.guestName}
           inviteVenue={props.guestInviteVenue ?? ''}
           cordiallyInvitesLabel={props.cordiallyInvitesLabel}
@@ -237,6 +281,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
         onOpen={props.onOpen}
         quickRsvp={props.quickRsvp}
       />
+      </div>
     </WeddingReadableGlass>
   )
 }
@@ -244,12 +289,15 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
 function RedArchCoverCard(props: WeddingCoverShellCardProps) {
   const { compact, theme } = props
   const preset = getWeddingCoverPreset(props.presetId)
+  const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
   return (
     <div
+      ref={intro.rootRef}
       className={cn(
-        'w-full text-center shadow-2xl ring-1 ring-black/10',
+        'w-full text-center shadow-2xl ring-1 ring-black/10 [container-type:inline-size]',
         props.namesFlyIn && !compact ? 'overflow-visible' : 'overflow-hidden',
         compact ? 'max-w-[200px] rounded-[1.2rem]' : 'max-w-md rounded-[1.5rem] sm:rounded-[2rem]',
+        intro.hold && 'wedding-cover-hold',
       )}
     >
       <div
@@ -263,7 +311,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
           groomName={props.groomName}
           brideName={props.brideName}
           flyIn={props.namesFlyIn && !compact}
-          className={cn('font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-xl leading-tight sm:mt-3 sm:text-3xl')}
+          className={cn('font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-[clamp(1.05rem,8cqi,2.35rem)] leading-none sm:mt-3')}
         />
         <div className={cn('text-amber-300', compact ? 'my-1 text-base' : 'my-2 text-xl sm:my-3 sm:text-2xl', props.namesFlyIn && !compact && 'wedding-couple-ornament')}>{preset.ornament}</div>
       </div>
@@ -281,6 +329,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
             objectPosition={props.coverPhotoObjectPosition}
             scale={props.coverPhotoScale}
             breathe={props.breathe}
+            openSlowly={props.namesFlyIn && !compact}
           />
         ) : props.compact ? (
           <div
@@ -299,7 +348,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
         ) : null}
         {props.guestName ? (
           <WeddingGuestInviteBlock
-            className="mt-2 lg:mt-2"
+            className={cn('mt-2 lg:mt-2', props.namesFlyIn && !compact && 'wedding-invite-body-join')}
             guestName={props.guestName}
             inviteVenue={props.guestInviteVenue ?? ''}
             cordiallyInvitesLabel={props.cordiallyInvitesLabel}

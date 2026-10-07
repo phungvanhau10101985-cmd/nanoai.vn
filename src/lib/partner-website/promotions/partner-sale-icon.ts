@@ -2,7 +2,10 @@ import type { PartnerWebsiteTheme } from '@/lib/partner-website/template/partner
 import type { PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
 
 export const PARTNER_SALE_ICON_ASPECT = '1:1'
-export const PARTNER_SALE_ICON_CREDIT_COST = 1.5
+/** Composite of the real favicon plus a date band. No paid image model. */
+export const PARTNER_SALE_ICON_CREDIT_COST = 0
+export const PARTNER_SALE_ICON_LAYOUT_ID = 'sale-icon-date-band-v1'
+export const PARTNER_SALE_ICON_PX = 512
 
 export type PartnerSaleIconSources = {
   faviconUrl: string | null
@@ -74,30 +77,10 @@ export function partnerSaleIconCacheToken(imageUrl?: string | null): string {
   return url ? `on-${url.slice(-24)}` : 'off'
 }
 
-export function buildPartnerSaleIconPrompt(input: {
-  shopName?: string | null
-  day: number
-  month: number
-  discountPercent: number
-  primaryColor?: string | null
-  hasReference: boolean
-}): string {
-  const shop = String(input.shopName || 'Shop').trim() || 'Shop'
-  const label = `${input.day}/${input.month}`
-  const pct = Math.max(0, Math.min(100, Math.round(Number(input.discountPercent) || 0)))
-  const color = String(input.primaryColor || '').trim()
-  const parts = [
-    `Square 1:1 app icon and favicon for "${shop}" same-day-same-month sale ${label}`,
-    pct > 0 ? `(${pct}% off).` : '.',
-    'Fill the entire square frame. High-contrast shop mark, readable at 16px, 32px, and 180px home-screen size.',
-    `Add one compact SALE or ${label} badge — no paragraphs, no extra slogans, no photo collage.`,
-    'Flat or simple icon style. Not a 21:9 banner. Not a circular stamp unless the reference already is square-cropped.',
-  ]
-  if (color) parts.push(`Keep brand hue close to ${color}.`)
-  if (input.hasReference) {
-    parts.push(
-      'Attached references: the current browser favicon and the mobile web-app avatar. Keep the same mark, colors, and composition; only add the sale badge. Do not invent a new logo.'
-    )
-  }
-  return parts.join(' ')
+export function partnerSaleIconDateLabel(day: number, month: number): string {
+  return `${day}/${month}`
+}
+
+export function partnerSaleIconLayoutIsCurrent(prompt: string | null | undefined): boolean {
+  return String(prompt || '') === PARTNER_SALE_ICON_LAYOUT_ID
 }

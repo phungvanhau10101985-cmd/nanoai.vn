@@ -29,6 +29,8 @@ type Props = {
   personalInviteText?: string
   personalInviteClassName?: string
   compact?: boolean
+  /** Trong thiệp đã mở: từng dòng hiện lần lượt sau tên cô dâu chú rể. */
+  scriptLines?: boolean
 }
 
 export function WeddingGuestInviteBlock(props: Props) {
@@ -45,13 +47,14 @@ export function WeddingGuestInviteBlock(props: Props) {
   return (
     <div className={cn(props.className)}>
       <WeddingGuestNameFontLink />
-      <div className={cn('rounded-2xl p-3 ring-1 ring-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:rounded-3xl sm:p-4', props.panelClassName)}>
-        <p className={cn('text-xs sm:text-sm', props.cordiallyClassName)}>{props.cordiallyInvitesLabel}</p>
+      <div className={cn('rounded-2xl p-3 ring-1 ring-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:rounded-3xl sm:p-4', props.scriptLines && 'wedding-open-line wedding-open-guest', props.panelClassName)}>
+        <p className={cn('text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-cordial', props.cordiallyClassName)}>{props.cordiallyInvitesLabel}</p>
         <p
           className={cn(
             WEDDING_GUEST_NAME_CLASS,
             'mt-1 break-words',
             props.compact ? 'text-[1.65rem]' : 'text-[2.15rem] sm:text-[2.55rem]',
+            props.scriptLines && 'wedding-open-guest-name',
             props.nameClassName,
           )}
         >
@@ -59,7 +62,7 @@ export function WeddingGuestInviteBlock(props: Props) {
         </p>
         {venue ? (
           <>
-            <p className={cn('mt-1 font-medium sm:mt-2', props.compact ? 'text-xs' : 'text-xs sm:text-sm', props.venueClassName)}>
+            <p className={cn('mt-1 font-medium sm:mt-2', props.compact ? 'text-xs' : 'text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-venue', props.venueClassName)}>
               {venue}
             </p>
             {venueDateTime ? (
@@ -67,6 +70,7 @@ export function WeddingGuestInviteBlock(props: Props) {
                 className={cn(
                   'mt-0.5 font-medium',
                   props.compact ? 'text-[11px]' : 'text-xs sm:text-sm',
+                  props.scriptLines && 'wedding-open-line wedding-open-when',
                   props.venueDateTimeClassName ?? props.venueClassName,
                 )}
               >
@@ -80,6 +84,7 @@ export function WeddingGuestInviteBlock(props: Props) {
             className={cn(
               'mt-1 flex items-start justify-center gap-1.5 text-left leading-relaxed sm:mt-2',
               props.compact ? 'text-xs' : 'text-xs sm:text-sm',
+              props.scriptLines && 'wedding-open-line wedding-open-address',
               props.addressClassName,
             )}
           >
@@ -108,6 +113,7 @@ export function WeddingGuestInviteBlock(props: Props) {
               'relative z-20 mx-auto mt-2 inline-flex w-fit max-w-full items-center justify-center gap-1.5 rounded-full border-2 px-3 py-1.5 font-bold tracking-wide',
               'no-underline antialiased shadow-[0_6px_18px_rgba(0,0,0,0.28)] transition-all hover:shadow-md active:scale-[0.98]',
               props.compact ? 'min-h-8 text-[11px] leading-snug' : 'min-h-9 text-xs leading-snug sm:text-sm',
+              props.scriptLines && 'wedding-open-line wedding-open-map',
             )}
           >
             <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: mapColors.text }} aria-hidden />
@@ -118,6 +124,7 @@ export function WeddingGuestInviteBlock(props: Props) {
           <p
             className={cn(
               'mt-3 whitespace-pre-line border-t border-white/20 pt-3 text-left text-xs leading-relaxed sm:text-sm',
+              props.scriptLines && 'wedding-open-line wedding-open-note',
               props.personalInviteClassName ?? props.cordiallyClassName,
             )}
           >

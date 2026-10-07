@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -188,6 +188,165 @@ function syncBadgeClass(status: string): string {
   return 'border-border bg-muted text-muted-foreground'
 }
 
+const EMS_SEARCH_PREVIEW = 5
+
+function formatCodAmount(amount: number | null | undefined, noneLabel: string): string {
+  if (amount == null || !Number.isFinite(amount)) return '—'
+  if (amount === 0) return noneLabel
+  return vnd(amount)
+}
+
+function formatCodPaidDate(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw.trim())
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`
+  return raw.trim()
+}
+
+function emsShopStatusText(t: PartnerShippingOpsCopy, row: PartnerEmsRecord): string {
+  if (row.return_to_shop_label) return row.return_to_shop_label
+  const st = (row.shop_order_status || row.order_status || '').toLowerCase()
+  if (!st) return '—'
+  const linked = Boolean(row.order_id && (row.reference_code || row.ems_reference_code))
+  if (linked && st === 'shipping') return t.searchCard.shopDelivering
+  if (st === 'delivered') return t.searchCard.shopReceived
+  if (st === 'completed') return t.searchCard.shopReviewed
+  if (linked && ['deposit_paid', 'confirmed', 'processing', 'paid_verified'].includes(st)) return t.searchCard.shopSentEms
+  return st
+}
+
+function emsTimelineText(t: PartnerShippingOpsCopy, step: string | null | undefined): string {
+  if (!step) return '—'
+  const map: Record<string, string> = {
+    deposit_confirmed: t.searchCard.timelineDeposit,
+    confirmed: t.searchCard.timelineDeposit,
+    tq_preparing: t.searchCard.timelinePreparing,
+    tq_warehouse: t.searchCard.timelineTqWarehouse,
+    international_shipping: t.searchCard.timelineIntl,
+    at_customs: t.searchCard.timelineCustoms,
+    domestic_shipping: t.searchCard.timelineDomestic,
+    vn_picking: t.searchCard.timelinePicking,
+    vn_packed: t.searchCard.timelinePacked,
+    awaiting_confirm: t.searchCard.timelineAwaiting,
+  }
+  return map[step] || step
+}
+
+function codCollectedPending(row: PartnerEmsRecord): boolean {
+  if ((row.cod_settlement_status || '').trim().toLowerCase() === 'matched') return false
+  if (!row.cod_amount || row.cod_amount <= 0) return false
+  const phase = (row.ems_phase || '').trim().toLowerCase()
+  const status = (row.ems_status || '').toLowerCase()
+  return (
+    phase === 'cod_collected' ||
+    phase === 'delivered' ||
+    status.includes('phát thành công') ||
+    status.includes('[cod]đã thu tiền') ||
+    status.includes('đã thu tiền bưu tá')
+  )
+}
+
+function SearchDetail({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div>
+      <dt className="text-xs text-gray-500">{label}</dt>
+      <dd className="mt-0.5 text-sm text-gray-900">{children}</dd>
+    </div>
+  )
+}
+
+function EmsSearchResultCard({
+  partnerId,
+  row,
+  t,
+  refreshing,
+  onViewStatus,
+  onRefresh,
+}: {
+  partnerId: string
+  row: PartnerEmsRecord
+  t: PartnerShippingOpsCopy
+  refreshing: boolean
+  onViewStatus: (row: PartnerEmsRecord) => void
+  onRefresh: (id: string) => void
+}) {
+  const c = t.searchCard
+  const paidDate = (row.cod_settlement_status || '').trim().toLowerCase() === 'matched' ? formatCodPaidDate(row.cod_paid_date) : null
+  const paidAmount = (row.cod_settlement_status || '').trim().toLowerCase() === 'matched' ? row.cod_paid_amount ?? row.cod_amount : null
+  return (
+    <article className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <div className="font-mono font-semibold text-gray-900">{row.reference_code || '—'}</div>
+          <div className="mt-0.5 text-sm text-gray-600">
+            {row.order_code ? (
+              row.order_id ? (
+                <Link
+                  href={messagingSettingsSectionHref('hub-orders', partnerId, { q: row.order_code })}
+                  className="font-medium text-emerald-700 hover:underline"
+                >
+                  {row.order_code}
+                </Link>
+              ) : (
+                <span className="font-medium">{row.order_code}</span>
+              )
+            ) : (
+              <span className="text-gray-500">{c.noShopOrder}</span>
+            )}
+          </div>
+        </div>
+        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${syncBadgeClass(row.sync_status)}`}>
+          {syncLabel(t, row.sync_status)}
+        </span>
+      </div>
+      <dl className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        <SearchDetail label={c.fieldEmsCode}>{row.ems_tracking_code || '—'}</SearchDetail>
+        <SearchDetail label={c.fieldSavedTracking}>{row.tracking_number_saved || '—'}</SearchDetail>
+        <SearchDetail label={c.fieldCod}>{formatCodAmount(row.cod_amount, c.codNone)}</SearchDetail>
+        <SearchDetail label={c.fieldCodPaid}>
+          {paidAmount == null && !paidDate ? '—' : (
+            <>
+              <span>{paidAmount == null ? '—' : vnd(paidAmount)}</span>
+              {paidDate ? <span className="mt-0.5 block text-xs font-medium text-emerald-700">{c.codPaidOn.replace('{date}', paidDate)}</span> : null}
+            </>
+          )}
+          {codCollectedPending(row) ? (
+            <span className="mt-0.5 block text-xs font-medium text-amber-800">{c.codCollectedPending}</span>
+          ) : null}
+        </SearchDetail>
+        <SearchDetail label={c.fieldFreight}>{row.freight_amount == null ? '—' : vnd(row.freight_amount)}</SearchDetail>
+        <SearchDetail label={c.fieldEmsStatus}>
+          {row.ems_status || row.ems_error || '—'}
+          {row.ems_phase ? ` (${row.ems_phase})` : ''}
+        </SearchDetail>
+        <SearchDetail label={c.fieldShopStatus}>{emsShopStatusText(t, row)}</SearchDetail>
+        <SearchDetail label={c.fieldRecipient}>
+          <span className="line-clamp-2">{row.recipient_label || row.shop_customer_name || '—'}</span>
+        </SearchDetail>
+        {row.current_step_key ? <SearchDetail label={c.fieldTimeline}>{emsTimelineText(t, row.current_step_key)}</SearchDetail> : null}
+      </dl>
+      {row.sync_message ? (
+        <p className="rounded-lg border border-emerald-100 bg-white/70 px-3 py-2 text-xs text-gray-600">{row.sync_message}</p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-3">
+        {row.order_code ? (
+          <button type="button" className="text-sm font-medium text-emerald-700 hover:text-emerald-900 hover:underline" onClick={() => onViewStatus(row)}>
+            {c.viewShopStatus}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="text-sm font-medium text-indigo-700 hover:text-indigo-900 hover:underline disabled:opacity-50"
+          disabled={refreshing}
+          onClick={() => onRefresh(row.id)}
+        >
+          {refreshing ? c.refreshing : t.trackingRefresh}
+        </button>
+      </div>
+    </article>
+  )
+}
+
 function formatEmsEventAt(raw: string | null | undefined): string {
   if (!raw) return ''
   const d = new Date(raw)
@@ -261,6 +420,7 @@ export function PartnerShopShippingOpsPanel({
 
   const [searchInput, setSearchInput] = useState('')
   const [appliedSearch, setAppliedSearch] = useState('')
+  const [loadedQuery, setLoadedQuery] = useState('')
   const [rows, setRows] = useState<PartnerEmsRecord[]>([])
   const [total, setTotal] = useState(0)
   const [skip, setSkip] = useState(0)
@@ -355,7 +515,11 @@ export function PartnerShopShippingOpsPanel({
       setRows((data.rows as PartnerEmsRecord[]) || [])
       setTotal(Number((data.pagination as { total?: number } | undefined)?.total || 0))
       setListSummary((data.summary as EmsImportSummary) || null)
+      setLoadedQuery(appliedSearch)
     } catch (err) {
+      setRows([])
+      setTotal(0)
+      setLoadedQuery(appliedSearch)
       toast({ title: err instanceof Error ? err.message : t.loadError, variant: 'destructive' })
     } finally {
       setListLoading(false)
@@ -455,8 +619,10 @@ export function PartnerShopShippingOpsPanel({
 
   const submitSearch = (e: FormEvent) => {
     e.preventDefault()
+    const next = searchInput.trim()
     setSkip(0)
-    setAppliedSearch(searchInput.trim())
+    setAppliedSearch(next)
+    if (next) void refreshTracking(undefined, { q: next, nonTerminalOnly: true, quietEmpty: true })
   }
 
   const openRecords = async (opts: {
@@ -686,9 +852,13 @@ export function PartnerShopShippingOpsPanel({
     }
   }
 
-  const refreshTracking = async (ids?: string[]) => {
+  const refreshTracking = async (
+    ids?: string[],
+    extra?: { q?: string; nonTerminalOnly?: boolean; quietEmpty?: boolean },
+  ) => {
     const picked = ids?.length ? ids : []
-    const useFilter = !picked.length && Boolean(appliedSearch || syncStatus)
+    const query = extra?.q ?? appliedSearch
+    const useFilter = !picked.length && Boolean(query || syncStatus)
     if (!picked.length && !useFilter) {
       toast({ title: t.selectRowsToTrack, variant: 'destructive' })
       return
@@ -701,15 +871,27 @@ export function PartnerShopShippingOpsPanel({
         body: JSON.stringify(
           picked.length
             ? { record_ids: picked, source: 'manual' }
-            : { q: appliedSearch || '', sync_status: syncStatus || undefined, source: 'manual' },
+            : {
+                q: query || '',
+                sync_status: extra?.q ? undefined : syncStatus || undefined,
+                non_terminal_only: extra?.nonTerminalOnly ? true : undefined,
+                source: extra?.nonTerminalOnly ? 'search' : 'manual',
+              },
         ),
       })
-      const data = (await res.json().catch(() => null)) as TrackingJob | { detail?: string; error?: string }
-      if (!res.ok || !('job_id' in data)) {
-        throw new Error(('detail' in data && data.detail) || ('error' in data && data.error) || t.loadError)
+      const data = (await res.json().catch(() => null)) as
+        | (TrackingJob & { queued?: number })
+        | { detail?: string; error?: string; job_id?: string | null; queued?: number }
+        | null
+      const jobId = data && 'job_id' in data ? data.job_id : null
+      if (!res.ok || !jobId) {
+        if (extra?.quietEmpty && res.ok) return
+        const detail = data && 'detail' in data ? data.detail : undefined
+        const errText = data && 'error' in data ? data.error : undefined
+        throw new Error(detail || errText || t.loadError)
       }
-      setJob(data)
-      await pollJob(data.job_id)
+      setJob(data as TrackingJob)
+      await pollJob(jobId)
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : t.loadError, variant: 'destructive' })
     } finally {
@@ -757,6 +939,9 @@ export function PartnerShopShippingOpsPanel({
   const inv = warehouseLookup?.inventory
   const warehouseSizes = inv?.sizes?.length ? inv.sizes : inv?.parsed_size ? [inv.parsed_size] : []
   const warehouseColors = inv?.colors?.length ? inv.colors : inv?.parsed_color ? [inv.parsed_color] : []
+  const searchPending = Boolean(appliedSearch) && (listLoading || loadedQuery !== appliedSearch)
+  const searchReady = Boolean(appliedSearch) && loadedQuery === appliedSearch && !listLoading
+  const previewRows = searchReady && skip === 0 ? rows.slice(0, EMS_SEARCH_PREVIEW) : []
 
   const composeWarehouseSku = (size: string, color: string) => {
     const raw = String(warehouseLookup?.sku || warehouseCode).trim()
@@ -793,9 +978,27 @@ export function PartnerShopShippingOpsPanel({
               placeholder={t.searchPlaceholder}
               className="h-9 text-sm"
             />
-            <div className="flex gap-2 shrink-0">
-              <Button type="submit" size="sm" disabled={listLoading}>
-                {listLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t.searchButton}
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <Button
+                type="submit"
+                size="sm"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                disabled={listLoading || busy === 'tracking'}
+              >
+                {busy === 'tracking' && appliedSearch === searchInput.trim()
+                  ? t.searchCard.refreshing
+                  : listLoading
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : t.searchButton}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={!appliedSearch || busy === 'tracking'}
+                onClick={() => void refreshTracking(undefined, { q: appliedSearch })}
+              >
+                {t.trackingRefresh}
               </Button>
               {appliedSearch ? (
                 <Button
@@ -805,6 +1008,7 @@ export function PartnerShopShippingOpsPanel({
                   onClick={() => {
                     setSearchInput('')
                     setAppliedSearch('')
+                    setLoadedQuery('')
                     setSkip(0)
                   }}
                 >
@@ -813,6 +1017,44 @@ export function PartnerShopShippingOpsPanel({
               ) : null}
             </div>
           </form>
+          {appliedSearch ? (
+            <div className="mt-4 space-y-3">
+              {searchPending ? (
+                <p className="text-sm text-muted-foreground">
+                  {t.searchCard.loading.replace('{q}', appliedSearch)}
+                  {busy === 'tracking' ? t.searchCard.checkingEms : '…'}
+                </p>
+              ) : searchReady && total === 0 ? (
+                <p className="text-sm text-muted-foreground">{t.searchCard.empty}</p>
+              ) : searchReady ? (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {t.searchCard.resultCount.replace('{n}', String(total))}
+                    </span>{' '}
+                    <span className="font-mono">{appliedSearch}</span>
+                    {total > EMS_SEARCH_PREVIEW ? t.searchCard.previewNote.replace('{n}', String(EMS_SEARCH_PREVIEW)) : ''}
+                  </p>
+                  {previewRows.map((row) => (
+                    <EmsSearchResultCard
+                      key={row.id}
+                      partnerId={partnerId}
+                      row={row}
+                      t={t}
+                      refreshing={busy === 'tracking'}
+                      onViewStatus={(item) => void viewStatus(item)}
+                      onRefresh={(id) => void refreshOne(id)}
+                    />
+                  ))}
+                  {total > EMS_SEARCH_PREVIEW || skip > 0 ? (
+                    <a href="#pw-ems-shipping-table" className="text-sm font-medium text-emerald-700 hover:underline">
+                      {t.searchCard.moreBelow.replace('{n}', String(Math.max(0, total - (skip === 0 ? EMS_SEARCH_PREVIEW : 0))))}
+                    </a>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -1443,7 +1685,7 @@ export function PartnerShopShippingOpsPanel({
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 shadow-sm">
+      <Card id="pw-ems-shipping-table" className="border-border/70 shadow-sm">
         <CardHeader className="px-4 py-3 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-sm font-medium">{t.tableTitle}</CardTitle>

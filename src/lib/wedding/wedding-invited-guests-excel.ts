@@ -102,7 +102,10 @@ function isSampleNote(notes: string): boolean {
   return fold(notes).includes('dong mau')
 }
 
-export function parseWeddingGuestImportSheet(bytes: Buffer | Uint8Array): WeddingGuestImportParseResult | { error: string } {
+export function parseWeddingGuestImportSheet(
+  bytes: Buffer | Uint8Array,
+  options?: { forceSide?: 'groom_home' | 'bride_home' },
+): WeddingGuestImportParseResult | { error: string } {
   let matrix: unknown[][]
   try {
     const workbook = XLSX.read(bytes, { type: 'buffer' })
@@ -117,6 +120,7 @@ export function parseWeddingGuestImportSheet(bytes: Buffer | Uint8Array): Weddin
     return { error: 'Không đọc được file. Hãy dùng file .xlsx tải từ nút Tải file mẫu.' }
   }
 
+  const forceSide = options?.forceSide
   let headerIndex = -1
   const columns: Partial<Record<keyof typeof HEADER_ALIASES, number>> = {}
   const scan = Math.min(matrix.length, 8)
@@ -127,14 +131,19 @@ export function parseWeddingGuestImportSheet(bytes: Buffer | Uint8Array): Weddin
       const key = headerKey(cellText(cell))
       if (key && found[key] == null) found[key] = index
     })
-    if (found.name != null && found.side != null) {
+    const headerReady = forceSide ? found.name != null : found.name != null && found.side != null
+    if (headerReady) {
       headerIndex = i
       Object.assign(columns, found)
       break
     }
   }
-  if (headerIndex < 0 || columns.name == null || columns.side == null) {
-    return { error: 'File thiếu cột Tên hoặc Bên. Tải file mẫu rồi điền đúng các cột đó.' }
+  if (headerIndex < 0 || columns.name == null || (!forceSide && columns.side == null)) {
+    return {
+      error: forceSide
+        ? 'File thiếu cột Tên. Tải file mẫu của đúng nhà trai hoặc nhà gái rồi điền tên khách.'
+        : 'File thiếu cột Tên hoặc Bên. Tải file mẫu rồi điền đúng các cột đó.',
+    }
   }
 
   const rows: WeddingGuestImportDraft[] = []
@@ -167,7 +176,16 @@ export function parseWeddingGuestImportSheet(bytes: Buffer | Uint8Array): Weddin
       errors.push(`Dòng ${rowNumber}: thiếu tên.`)
       continue
     }
-    const inviteVenue = parseWeddingGuestSide(sideRaw)
+    let inviteVenue = forceSide || parseWeddingGuestSide(sideRaw)
+    if (forceSide && sideRaw) {
+      const marked = parseWeddingGuestSide(sideRaw)
+      if (marked && marked !== forceSide) {
+        const here = forceSide === 'bride_home' ? 'nhà gái' : 'nhà trai'
+        errors.push(`Dòng ${rowNumber}: cột Bên không phải ${here}, nên bỏ qua.`)
+        continue
+      }
+      inviteVenue = forceSide
+    }
     if (!inviteVenue) {
       errors.push(`Dòng ${rowNumber}: cột Bên phải là «Nhà trai» hoặc «Nhà gái».`)
       continue
@@ -197,14 +215,21 @@ export function parseWeddingGuestImportSheet(bytes: Buffer | Uint8Array): Weddin
   return { rows, skippedSample, errors: errors.slice(0, 8) }
 }
 
-export function buildWeddingGuestImportTemplate(): Buffer {
-  const headers = ['Xưng hô', 'Tên', 'Bên', 'Số người', 'Lời chúc', 'Ghi chú', 'Trạng thái']
-  const sample = ['Bạn', 'Đồng', 'Nhà trai', 1, '', SAMPLE_NOTE, 'Chưa']
+export function buildWeddingGuestImportTemplate(side?: 'groom' | 'bride'): Buffer {
+  const sideLabel = side === 'bride' ? 'Nhà gái' : side === 'groom' ? 'Nhà trai' : ''
+  const headers = side
+    ? ['Xưng hô', 'Tên', 'Số người', 'Lời chúc', 'Ghi chú', 'Trạng thái']
+    : ['Xưng hô', 'Tên', 'Bên', 'Số người', 'Lời chúc', 'Ghi chú', 'Trạng thái']
+  const sample = side
+    ? ['Bạn', 'Đồng', 1, '', SAMPLE_NOTE, 'Chưa']
+    : ['Bạn', 'Đồng', 'Nhà trai', 1, '', SAMPLE_NOTE, 'Chưa']
   const guide = [
     ['Cột', 'Cách điền'],
     ['Xưng hô', 'Bạn, Anh, Chị, Em, Cô, Chú, Ông, Bà… Có thể để trống.'],
     ['Tên', 'Bắt buộc. Không gồm xưng hô.'],
-    ['Bên', 'Nhà trai hoặc Nhà gái.'],
+    ...(side
+      ? [['Bên', `File này chỉ nhập khách ${sideLabel}. Mọi dòng hợp lệ vào đúng bên đó.`]]
+      : [['Bên', 'Nhà trai hoặc Nhà gái.']]),
     ['Số người', '0–40. Để trống = 1.'],
     ['Lời chúc', 'Tuỳ chọn.'],
     ['Ghi chú', 'Tuỳ chọn. Dòng có chữ «Dòng mẫu» sẽ được bỏ qua khi import.'],

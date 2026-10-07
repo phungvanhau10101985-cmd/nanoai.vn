@@ -329,11 +329,11 @@ export async function updatePartnerGoogleCustomerReviewsMerchantIdForOwnerFromPg
   try {
     const row = await pgQueryOne<{ id: string }>(
       `update public.messaging_partners
-       set google_customer_reviews_merchant_id = $3,
+       set google_customer_reviews_merchant_id = $3::bigint,
            updated_at = now()
        where id = $1::uuid and owner_user_id = $2::uuid and coalesce(is_active, true) = true
        returning id::text`,
-      [pid, uid, id]
+      [pid, uid, id == null ? null : String(id)]
     )
     return Boolean(row?.id)
   } catch (e) {

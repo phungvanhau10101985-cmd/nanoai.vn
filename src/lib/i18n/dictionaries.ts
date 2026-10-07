@@ -3324,6 +3324,11 @@ export type Dictionary = {
     publicFabPlayAria: string
     /** Thiệp công khai: tiêu đề iframe bản đồ (trợ năng) */
     publicMapEmbedTitle: string
+    libraryHeading: string
+    libraryHint: string
+    uploadLabel: string
+    sharedUploadNote: string
+    seedCredit: string
   }
   /** Thiệp công khai / preview: khối lịch & giờ tiệc (save-the-date) */
   weddingCardCalendar: {
@@ -3426,6 +3431,8 @@ export type Dictionary = {
     familiesIntro: string
     groomFamily: string
     brideFamily: string
+    letterViewAsk: string
+    letterViewBoth: string
     hometownLabel: string
     coupleIntroTitle: string
     timelineTitle: string
@@ -7111,6 +7118,11 @@ const VI_DICTIONARY: Dictionary = {
     publicFabPauseAria: 'Tắt nhạc nền thiệp',
     publicFabPlayAria: 'Bật nhạc nền thiệp',
     publicMapEmbedTitle: 'Bản đồ địa điểm tiệc cưới',
+    libraryHeading: 'Kho nhạc nền',
+    libraryHint: 'Chọn một bài trong kho, hoặc tải file của bạn. Bài tải lên được lưu vào kho để mọi người cùng chọn.',
+    uploadLabel: 'Tải nhạc lên',
+    sharedUploadNote: 'File bạn tải sẽ vào kho dùng chung. Người tạo thiệp khác cũng chọn được bài này.',
+    seedCredit: 'Bài có sẵn: Kevin MacLeod (incompetech.com), giấy phép CC BY 4.0.',
   },
   weddingCardCalendar: {
     sectionTitle: 'THÔNG TIN TIỆC CƯỚI',
@@ -7217,6 +7229,8 @@ const VI_DICTIONARY: Dictionary = {
     familiesIntro: 'Gia đình hai bên',
     groomFamily: 'Nhà trai',
     brideFamily: 'Nhà gái',
+    letterViewAsk: 'Xem thiệp nhà nào?',
+    letterViewBoth: 'Gộp 2 nhà',
     hometownLabel: 'Quê quán',
     coupleIntroTitle: 'Câu chuyện của chúng tôi',
     timelineTitle: 'Lịch trình buổi tiệc',
@@ -10896,6 +10910,11 @@ const EN_DICTIONARY: Dictionary = {
     publicFabPauseAria: 'Turn off invitation background music',
     publicFabPlayAria: 'Turn on invitation background music',
     publicMapEmbedTitle: 'Wedding venue map',
+    libraryHeading: 'Music library',
+    libraryHint: 'Pick a track from the library, or upload your own. Uploads are saved to the shared library for everyone.',
+    uploadLabel: 'Upload music',
+    sharedUploadNote: 'Your file is added to the shared library. Other invitation hosts can choose it too.',
+    seedCredit: 'Included tracks: Kevin MacLeod (incompetech.com), CC BY 4.0.',
   },
   weddingCardCalendar: {
     sectionTitle: 'WEDDING DETAILS',
@@ -11001,6 +11020,8 @@ const EN_DICTIONARY: Dictionary = {
     familiesIntro: 'Our families',
     groomFamily: 'Groom family',
     brideFamily: 'Bride family',
+    letterViewAsk: 'Which side should this letter show?',
+    letterViewBoth: 'Both families',
     hometownLabel: 'Hometown',
     coupleIntroTitle: 'Our story',
     timelineTitle: 'Celebration timeline',
@@ -14565,6 +14586,11 @@ const ZH_DICTIONARY: Dictionary = {
     publicFabPauseAria: '关闭请柬背景音乐',
     publicFabPlayAria: '播放请柬背景音乐',
     publicMapEmbedTitle: '婚礼场地地图',
+    libraryHeading: '背景音乐库',
+    libraryHint: '从曲库选择，或上传自己的音乐。上传的曲目会进入共用曲库，供所有人选用。',
+    uploadLabel: '上传音乐',
+    sharedUploadNote: '你上传的文件会进入共用曲库，其他请柬主人也可以选用。',
+    seedCredit: '内置曲目：Kevin MacLeod (incompetech.com)，许可 CC BY 4.0。',
   },
   weddingCardCalendar: {
     sectionTitle: '婚礼信息',
@@ -14668,6 +14694,8 @@ const ZH_DICTIONARY: Dictionary = {
     familiesIntro: '双方家庭',
     groomFamily: '新郎家庭',
     brideFamily: '新娘家庭',
+    letterViewAsk: '查看哪一方的请柬？',
+    letterViewBoth: '两家合看',
     hometownLabel: '籍贯',
     coupleIntroTitle: '我们的故事',
     timelineTitle: '婚礼流程',
@@ -18313,6 +18341,11 @@ const JA_DICTIONARY: Dictionary = {
     publicFabPauseAria: 'BGMを停止',
     publicFabPlayAria: 'BGMを再生',
     publicMapEmbedTitle: '披露宴会場の地図',
+    libraryHeading: 'BGMライブラリ',
+    libraryHint: 'ライブラリから選ぶか、自分の音源をアップロードします。アップロードした曲は共有ライブラリに入り、誰でも選べます。',
+    uploadLabel: '音楽をアップロード',
+    sharedUploadNote: 'アップロードしたファイルは共有ライブラリに追加され、他の招待状でも選べます。',
+    seedCredit: '収録曲: Kevin MacLeod (incompetech.com)、ライセンス CC BY 4.0。',
   },
   weddingCardCalendar: {
     sectionTitle: '披露宴のご案内',
@@ -18418,6 +18451,8 @@ const JA_DICTIONARY: Dictionary = {
     familiesIntro: '両家のご案内',
     groomFamily: '新郎側',
     brideFamily: '新婦側',
+    letterViewAsk: 'どちらの招待状を見ますか？',
+    letterViewBoth: '両家をまとめて見る',
     hometownLabel: '出身地',
     coupleIntroTitle: 'ふたりのストーリー',
     timelineTitle: '当日の流れ',
@@ -22058,6 +22093,11 @@ const KO_DICTIONARY: Dictionary = {
     publicFabPauseAria: '배경음 끄기',
     publicFabPlayAria: '배경음 켜기',
     publicMapEmbedTitle: '예식 장소 지도',
+    libraryHeading: '배경음 보관함',
+    libraryHint: '보관함에서 고르거나 직접 올립니다. 올린 곡은 공유 보관함에 저장되어 다른 사람도 고를 수 있습니다.',
+    uploadLabel: '음악 올리기',
+    sharedUploadNote: '올린 파일은 공유 보관함에 들어가며, 다른 청첩장에서도 선택할 수 있습니다.',
+    seedCredit: '기본 곡: Kevin MacLeod (incompetech.com), 라이선스 CC BY 4.0.',
   },
   weddingCardCalendar: {
     sectionTitle: '예식 정보',
@@ -22162,6 +22202,8 @@ const KO_DICTIONARY: Dictionary = {
     familiesIntro: '양가 가족',
     groomFamily: '신랑 측',
     brideFamily: '신부 측',
+    letterViewAsk: '어느 쪽 청첩장을 볼까요?',
+    letterViewBoth: '양가 함께 보기',
     hometownLabel: '고향',
     coupleIntroTitle: '우리의 이야기',
     timelineTitle: '예식 일정',

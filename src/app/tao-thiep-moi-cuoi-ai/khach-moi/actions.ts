@@ -38,10 +38,12 @@ function parseGuestCount(raw: FormDataEntryValue | null): number {
   return Math.max(0, Math.min(20, Number(raw ?? 1) || 1))
 }
 
-export async function downloadWeddingGuestImportTemplate(): Promise<{ base64: string } | { error: string }> {
+export async function downloadWeddingGuestImportTemplate(
+  side?: 'groom' | 'bride',
+): Promise<{ base64: string } | { error: string }> {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
-  const buffer = buildWeddingGuestImportTemplate()
+  const buffer = buildWeddingGuestImportTemplate(side === 'bride' || side === 'groom' ? side : undefined)
   return { base64: buffer.toString('base64') }
 }
 
@@ -55,7 +57,9 @@ export async function importWeddingInvitedGuests(formData: FormData) {
   const file = formData.get('file')
   if (!(file instanceof File) || file.size <= 0) return { error: 'Chọn file Excel khách mời.' }
   if (file.size > WEDDING_GUEST_IMPORT_MAX_BYTES) return { error: 'File quá lớn. Tối đa 1,5 MB.' }
-  const parsed = parseWeddingGuestImportSheet(Buffer.from(await file.arrayBuffer()))
+  const forceRaw = clean(formData.get('forceSide'), 20)
+  const forceSide = forceRaw === 'groom_home' || forceRaw === 'bride_home' ? forceRaw : undefined
+  const parsed = parseWeddingGuestImportSheet(Buffer.from(await file.arrayBuffer()), { forceSide })
   if ('error' in parsed) return { error: parsed.error }
   if (!parsed.rows.length) {
     return {
@@ -219,7 +223,10 @@ export async function saveWeddingSideInviteSettings(formData: FormData) {
     brideInviteContact: clean(formData.get('brideInviteContact'), 120),
     brideInviteCoverImageUrl: clean(formData.get('brideInviteCoverImageUrl'), 1000),
     brideInviteDefaultPersonalMessage: card.brideInviteDefaultPersonalMessage,
-    brideInviteThankYouText: clean(formData.get('brideInviteThankYouText'), 2000),
+    brideInviteThankYouText: clean(formData.get('brideInviteThankYouText'), 2000) || card.brideInviteThankYouText,
+    groomParents: formData.has('groomParents') ? clean(formData.get('groomParents'), 500) : card.groomParents,
+    brideParents: formData.has('brideParents') ? clean(formData.get('brideParents'), 500) : card.brideParents,
+    sectionConfig: formData.has('sectionConfig') ? clean(formData.get('sectionConfig'), 8000) : '',
   })
 
   if (!updated) return { error: 'Không lưu được địa chỉ mời.' }

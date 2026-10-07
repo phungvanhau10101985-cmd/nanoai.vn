@@ -1,7 +1,3 @@
-import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
-import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
-import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
-import { fetchMessagingPartnerOwnerUserIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   completePartnerSaleIconFromPg,
   failPartnerSaleIconFromPg,
@@ -18,91 +14,38 @@ import {
   PARTNER_MARKETING_IMAGE_SHOP_NOT_LIVE_ERROR,
   partnerMarketingImageAttemptsExhausted,
 } from '@/lib/partner-website/promotions/partner-marketing-image-guard'
-import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
-import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { composePartnerSaleIconPng } from '@/lib/partner-website/promotions/partner-sale-icon-compose'
 import { normalizeTemplateTheme } from '@/lib/partner-website/template/default-landing-v1'
 import { resolveShopThemeColors } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
-  buildPartnerSaleIconPrompt,
   isPartnerSaleIconSameDayMonth,
-  PARTNER_SALE_ICON_ASPECT,
-  PARTNER_SALE_ICON_CREDIT_COST,
+  PARTNER_SALE_ICON_LAYOUT_ID,
+  partnerSaleIconLayoutIsCurrent,
   partnerShopSaleIconSourceUrls,
 } from '@/lib/partner-website/promotions/partner-sale-icon'
-import { probePartnerBunnyStorageWrite, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-
-const SAFETY = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-]
-
-function toTenths(value: number): number {
-  return Math.round(value * 10)
-}
+import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 
 function isHttpUrl(value: string): boolean {
   return /^https?:\/\//i.test(value.trim())
 }
 
-async function fetchImagePart(url: string): Promise<{ inlineData: { mimeType: string; data: string } } | null> {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 8000)
-  try {
-    const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' })
-    if (!res.ok) return null
-    const buf = Buffer.from(await res.arrayBuffer())
-    if (buf.length < 32 || buf.length > 4 * 1024 * 1024) return null
-    const mime = (res.headers.get('content-type') || 'image/png').split(';')[0].trim()
-    return {
-      inlineData: {
-        mimeType: mime.startsWith('image/') ? mime : 'image/png',
-        data: buf.toString('base64'),
-      },
+async function fetchMarkBuffer(urls: string[]): Promise<Buffer | null> {
+  for (const url of urls) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), 8000)
+    try {
+      const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' })
+      if (!res.ok) continue
+      const buf = Buffer.from(await res.arrayBuffer())
+      if (buf.length < 32 || buf.length > 4 * 1024 * 1024) continue
+      return buf
+    } catch {
+      continue
+    } finally {
+      clearTimeout(timer)
     }
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
   }
-}
-
-async function generateSaleIconBytes(input: {
-  prompt: string
-  apiKey: string
-  userId?: string | null
-  referenceUrls: string[]
-}): Promise<Buffer> {
-  const genAI = new GoogleGenerativeAI(input.apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '1K', aspectRatio: PARTNER_SALE_ICON_ASPECT },
-    },
-  })
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
-    { text: input.prompt },
-  ]
-  for (const url of input.referenceUrls.slice(0, 3)) {
-    const part = await fetchImagePart(url)
-    if (part) parts.push(part)
-  }
-  const result = await model.generateContent(parts, { safetySettings: SAFETY } as never)
-  trackFromUsageMetadata(
-    result.response.usageMetadata,
-    GEMINI_3_PRO_IMAGE.model,
-    'partner-sale-icon',
-    input.userId,
-    '2K'
-  )
-  const imagePart = result.response.candidates?.[0]?.content?.parts?.find((part) => 'inlineData' in part)
-  if (!imagePart || !('inlineData' in imagePart) || !imagePart.inlineData?.data) {
-    throw new Error('AI không trả về icon vuông hợp lệ.')
-  }
-  return Buffer.from(imagePart.inlineData.data, 'base64')
+  return null
 }
 
 export async function loadPartnerSaleIconSources(partnerId: string): Promise<{
@@ -151,6 +94,7 @@ export async function generatePartnerSaleIcon(input: {
     !input.force &&
     existing?.status === 'ready' &&
     existing.imageUrl &&
+    partnerSaleIconLayoutIsCurrent(existing.prompt) &&
     existing.sourceFaviconUrl === sourceFav &&
     existing.sourcePwaIconUrl === sourcePwa
   ) {
@@ -178,37 +122,6 @@ export async function generatePartnerSaleIcon(input: {
     if (!stale) return { ok: false, error: 'Icon sale đang được tạo.', status: 409 }
   }
 
-  const storage = await probePartnerBunnyStorageWrite(input.partnerId)
-  if (!storage.ok) {
-    const probeRow = await insertGeneratingPartnerSaleIconFromPg({
-      partnerId: input.partnerId,
-      day: input.day,
-      month: input.month,
-      discountPercent: input.discountPercent,
-      prompt: 'storage-probe',
-      model: 'storage-probe',
-      sourceFaviconUrl: sourceFav,
-      sourcePwaIconUrl: sourcePwa,
-    })
-    if (probeRow) await failPartnerSaleIconFromPg({ id: probeRow.id, errorMessage: storage.error })
-    return { ok: false, error: storage.error, status: 500 }
-  }
-
-  const actorUserId = input.actorUserId ?? (await fetchMessagingPartnerOwnerUserIdFromPg(input.partnerId))
-  if (input.chargeCredits) {
-    if (!actorUserId) {
-      return { ok: false, error: 'Không trừ được credit vì shop chưa có chủ tài khoản.', status: 402 }
-    }
-    try {
-      const balance = await getCreditBalanceByUserId(actorUserId)
-      if (toTenths(balance) < toTenths(PARTNER_SALE_ICON_CREDIT_COST)) {
-        return { ok: false, error: 'Không đủ credits để tạo icon sale.', status: 402 }
-      }
-    } catch {
-      return { ok: false, error: 'Không đọc được số dư credits.', status: 402 }
-    }
-  }
-
   const refs = partnerShopSaleIconSourceUrls({
     faviconUrl: sourceFav,
     pwaIconUrl: sourcePwa,
@@ -217,34 +130,22 @@ export async function generatePartnerSaleIcon(input: {
   if (!refs.length) {
     return { ok: false, error: 'Cần favicon hoặc ảnh đại diện web app trước.', status: 400 }
   }
-  const prompt = buildPartnerSaleIconPrompt({
-    shopName: sources.shopName,
-    day: input.day,
-    month: input.month,
-    discountPercent: input.discountPercent,
-    primaryColor: sources.primaryColor,
-    hasReference: refs.length > 0,
-  })
   const row = await insertGeneratingPartnerSaleIconFromPg({
     partnerId: input.partnerId,
     day: input.day,
     month: input.month,
     discountPercent: input.discountPercent,
-    prompt,
-    model: GEMINI_3_PRO_IMAGE.model,
+    prompt: PARTNER_SALE_ICON_LAYOUT_ID,
+    model: 'sale-icon-composite',
     sourceFaviconUrl: sourceFav,
     sourcePwaIconUrl: sourcePwa,
   })
   if (!row) return { ok: false, error: 'Không tạo được bản ghi icon sale.', status: 500 }
 
   try {
-    const { apiKey } = await requireGoogleApiKeyForUser(actorUserId)
-    const bytes = await generateSaleIconBytes({
-      prompt,
-      apiKey,
-      userId: actorUserId,
-      referenceUrls: refs,
-    })
+    const mark = await fetchMarkBuffer(refs)
+    if (!mark) throw new Error('Không đọc được favicon hoặc ảnh đại diện web app.')
+    const bytes = await composePartnerSaleIconPng({ mark, day: input.day, month: input.month })
     const digest = bytes.subarray(0, 12).toString('hex')
     const path = `partners/${input.partnerId}/sale-icons/${input.month}-${input.day}-${Date.now()}-${digest}.png`
     const { publicUrl } = await uploadPartnerBunnyObject(input.partnerId, path, bytes, 'image/png')
@@ -256,20 +157,6 @@ export async function generatePartnerSaleIcon(input: {
       sourcePwaIconUrl: sourcePwa,
     })
     if (!ready) return { ok: false, error: 'Không lưu được icon sale.', status: 500 }
-    if (input.chargeCredits && actorUserId) {
-      const deducted = await deductUserCredits(
-        actorUserId,
-        PARTNER_SALE_ICON_CREDIT_COST,
-        'partner-sale-icon'
-      )
-      if (!deducted.ok) {
-        return {
-          ok: false,
-          error: deducted.error,
-          status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500,
-        }
-      }
-    }
     return { ok: true, asset: ready }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

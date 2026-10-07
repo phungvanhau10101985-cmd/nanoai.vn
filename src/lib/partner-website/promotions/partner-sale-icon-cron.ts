@@ -1,12 +1,15 @@
 import { bumpSiteCacheLater } from '@/lib/cache/partner-shop-cache'
 import { fetchMessagingPartnerOwnerUserIdFromPg } from '@/lib/db/messaging-partners-pg'
 import { fetchPartnerSaleCalendarConfigFromPg } from '@/lib/db/messaging-partner-sale-calendar-pg'
-import { findReadyPartnerSaleIconFromPg } from '@/lib/db/messaging-partner-sale-icon-pg'
+import { findPartnerSaleIconFromPg } from '@/lib/db/messaging-partner-sale-icon-pg'
 import { listWebsitePartnerIdsForMarketingBannersFromPg } from '@/lib/db/messaging-partner-marketing-banner-pg'
 import { fetchPartnerWebsitePublishMetaFromPg } from '@/lib/db/messaging-partner-websites-pg'
 import { listUpcomingPartnerSaleEvents } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import { generatePartnerSaleIcon, loadPartnerSaleIconSources } from '@/lib/partner-website/promotions/partner-sale-icon-generate'
-import { partnerShopSaleIconSourceUrls } from '@/lib/partner-website/promotions/partner-sale-icon'
+import {
+  partnerSaleIconLayoutIsCurrent,
+  partnerShopSaleIconSourceUrls,
+} from '@/lib/partner-website/promotions/partner-sale-icon'
 
 export type PartnerSaleIconCronResult = {
   partners: number
@@ -58,14 +61,16 @@ export async function ensureDailyPartnerSaleIcons(input?: {
       result.skipped += 1
       continue
     }
-    const existing = await findReadyPartnerSaleIconFromPg({
+    const existing = await findPartnerSaleIconFromPg({
       partnerId,
       day: saleEvent.day,
       month: saleEvent.month,
     })
     const sourcePwa = sources.pwaIconUrl || sources.faviconUrl
     if (
-      existing?.imageUrl &&
+      existing?.status === 'ready' &&
+      existing.imageUrl &&
+      partnerSaleIconLayoutIsCurrent(existing.prompt) &&
       existing.sourceFaviconUrl === sources.faviconUrl &&
       existing.sourcePwaIconUrl === sourcePwa
     ) {
@@ -79,7 +84,7 @@ export async function ensureDailyPartnerSaleIcons(input?: {
       month: saleEvent.month,
       discountPercent: saleEvent.discountPercent,
       actorUserId: ownerUserId,
-      chargeCredits: true,
+      chargeCredits: false,
     })
     if (created.ok) {
       if (existing?.imageUrl && created.asset.imageUrl === existing.imageUrl) {

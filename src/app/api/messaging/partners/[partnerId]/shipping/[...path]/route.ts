@@ -371,16 +371,22 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         q?: string
         sync_status?: string
         source?: string
+        non_terminal_only?: boolean
       } | null
+      const nonTerminalOnly = Boolean(body?.non_terminal_only)
       let ids = (body?.record_ids || []).map(String).filter(Boolean)
       if (!ids.length) {
         ids = await listPartnerEmsRecordIdsFromPg({
           partnerId,
           search: body?.q || '',
           syncStatus: body?.sync_status || undefined,
+          nonTerminalOnly,
         })
       }
-      if (!ids.length) return jsonError('Chưa chọn dòng để tra EMS.', 400)
+      if (!ids.length) {
+        if (nonTerminalOnly) return NextResponse.json({ ok: true, job_id: null, queued: 0 })
+        return jsonError('Chưa chọn dòng để tra EMS.', 400)
+      }
       const job = await createPartnerEmsTrackingJobFromPg({
         partnerId,
         recordIds: ids,

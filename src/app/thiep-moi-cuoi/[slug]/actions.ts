@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import {
+  attachInvitedGuestWish,
   createWeddingRsvp,
   createWeddingWish,
   getPublishedWeddingCardBySlug,
@@ -39,6 +40,7 @@ export async function submitWeddingGuestResponse(slug: string, formData: FormDat
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   const guestName = clean(formData.get('guestName'), 120)
   const message = clean(formData.get('message'), 1000)
+  const inviteVenue = normalizeGuestInviteVenue(formData.get('inviteVenue'))
   const attending = formData.get('attending') !== 'false'
   const hasParty = formData.has('adultCount') || formData.has('childCount')
   const adultCount = attending ? Math.max(0, Math.min(20, Math.round(Number(formData.get('adultCount')) || 0))) : 0
@@ -65,10 +67,14 @@ export async function submitWeddingGuestResponse(slug: string, formData: FormDat
       adultCount: hasParty ? adultCount : attending ? guestCount : 0,
       childCount: hasParty ? childCount : 0,
       message,
+      inviteVenue,
     })
   }
   if (message) {
     await createWeddingWish({ cardId: card.id, guestName, message })
+    if (!card.rsvpEnabled) {
+      await attachInvitedGuestWish({ cardId: card.id, guestName, message, inviteVenue })
+    }
   }
   revalidatePath(`/thiep-moi-cuoi/${slug}`)
   return { success: true }

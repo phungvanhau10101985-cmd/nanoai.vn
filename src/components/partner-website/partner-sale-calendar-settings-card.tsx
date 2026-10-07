@@ -98,9 +98,9 @@ const COPY: Record<
     flashError: 'Không lưu được Flash sale.',
     iconTitle: 'Favicon / ảnh đại diện web app khi sale',
     iconHint:
-      'AI lấy favicon và ảnh đại diện web app (mobile) để tạo icon vuông sale cùng ngày cùng tháng. Teaser/active tự đổi tab Chrome và icon PWA.',
+      'Giữ nguyên favicon và ảnh đại diện web app. Ngày sale (vd. 10/10) nằm dải đáy, chữ trắng nền đen, đọc được khi thu thành icon tab. Teaser/active tự đổi tab Chrome và icon PWA.',
     iconAuto: 'Tự đổi favicon và ảnh đại diện web app khi sale trùng tháng',
-    iconGenerate: 'Tạo icon sale bằng AI',
+    iconGenerate: 'Tạo icon sale',
     iconGenerated: 'Đã tạo icon sale vuông.',
     iconNeedSource: 'Cần favicon hoặc ảnh đại diện web app trước.',
     iconNeedEvent: 'Chưa có ngày sale trùng tháng sắp tới.',
@@ -148,9 +148,9 @@ const COPY: Record<
     flashError: 'Could not save Flash sale.',
     iconTitle: 'Sale favicon / web-app avatar',
     iconHint:
-      'AI uses the current favicon and mobile web-app avatar to make a square same-day-same-month sale icon. Teaser/active swaps the Chrome tab and PWA icon.',
+      'Keeps the current favicon and web-app avatar. The sale date (e.g. 10/10) sits in a black bottom band with large white digits so it stays readable as a tab icon. Teaser/active swaps the Chrome tab and PWA icon.',
     iconAuto: 'Auto-swap favicon and web-app avatar on same-day-same-month sale',
-    iconGenerate: 'Create sale icon with AI',
+    iconGenerate: 'Create sale icon',
     iconGenerated: 'Square sale icon created.',
     iconNeedSource: 'Add a favicon or web-app avatar first.',
     iconNeedEvent: 'No upcoming same-day-same-month sale.',
@@ -197,9 +197,9 @@ const COPY: Record<
     flashSavedOff: '已关闭限时抢购',
     flashError: '无法保存限时抢购。',
     iconTitle: '促销 Favicon / Web App 头像',
-    iconHint: 'AI 根据当前 Favicon 和手机 Web App 头像生成正方形同日同月促销图标。预告/进行中会替换浏览器标签和 PWA 图标。',
+    iconHint: '保留当前 Favicon 和 Web App 头像。促销日期（如 10/10）用白字放在底部黑条上，缩成标签图标仍能看清。预告/进行中会替换浏览器标签和 PWA 图标。',
     iconAuto: '同日同月促销时自动更换 Favicon 和 Web App 头像',
-    iconGenerate: '用 AI 生成促销图标',
+    iconGenerate: '生成促销图标',
     iconGenerated: '已生成正方形促销图标。',
     iconNeedSource: '请先上传 Favicon 或 Web App 头像。',
     iconNeedEvent: '暂无即将到来的同日同月促销。',
@@ -247,9 +247,9 @@ const COPY: Record<
     flashError: 'フラッシュセールを保存できませんでした。',
     iconTitle: 'セール用ファビコン / ウェブアプリアイコン',
     iconHint:
-      'AI が現行ファビコンとモバイル用ウェブアプリアイコンから、同日同月セール用の四角アイコンを作ります。予告／開催中はタブと PWA アイコンを差し替えます。',
+      '現行のファビコンとウェブアプリアイコンはそのまま使います。セール日（例 10/10）は下の黒帯に大きな白文字で置き、タブサイズでも読めます。予告／開催中はタブと PWA アイコンを差し替えます。',
     iconAuto: '同日同月セールでファビコンとウェブアプリアイコンを自動切替',
-    iconGenerate: 'AI でセールアイコンを作成',
+    iconGenerate: 'セールアイコンを作成',
     iconGenerated: '四角のセールアイコンを作成しました。',
     iconNeedSource: '先にファビコンかウェブアプリアイコンを追加してください。',
     iconNeedEvent: '近日の同日同月セールがありません。',
@@ -297,9 +297,9 @@ const COPY: Record<
     flashError: '플래시 세일을 저장하지 못했습니다.',
     iconTitle: '세일 파비콘 / 웹앱 아이콘',
     iconHint:
-      'AI가 현재 파비콘과 모바일 웹앱 아이콘으로 같은 날짜·월 세일용 정사각 아이콘을 만듭니다. 예고/진행 중이면 탭과 PWA 아이콘이 바뀝니다.',
+      '현재 파비콘과 웹앱 아이콘은 그대로 둡니다. 세일 날짜(예: 10/10)는 아래 검은 띠에 큰 흰 숫자로 넣어 탭 아이콘에서도 읽힙니다. 예고/진행 중이면 탭과 PWA 아이콘이 바뀝니다.',
     iconAuto: '같은 날짜·월 세일 때 파비콘과 웹앱 아이콘 자동 교체',
-    iconGenerate: 'AI로 세일 아이콘 만들기',
+    iconGenerate: '세일 아이콘 만들기',
     iconGenerated: '정사각 세일 아이콘을 만들었습니다.',
     iconNeedSource: '먼저 파비콘 또는 웹앱 아이콘을 추가하세요.',
     iconNeedEvent: '다가오는 같은 날짜·월 세일이 없습니다.',
@@ -482,8 +482,8 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
       onToast?.(t.iconNeedSource, 'destructive')
       return
     }
-    const credits = saleIcon.creditCost || 1.5
-    if (!window.confirm(t.iconConfirm.replace('{credits}', String(credits)))) return
+    const credits = saleIcon.creditCost ?? 0
+    if (credits > 0 && !window.confirm(t.iconConfirm.replace('{credits}', String(credits)))) return
     setIconWorking(true)
     try {
       const res = await fetch(iconsApi, {

@@ -1,0 +1,137 @@
+@keyframes wedding-couple-from-left {
+  0% { opacity: 0; transform: translateX(calc(-1 * clamp(8rem, 30vw, 16rem))); }
+  16% { opacity: 1; }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes wedding-couple-from-right {
+  0% { opacity: 0; transform: translateX(clamp(8rem, 30vw, 16rem)); }
+  16% { opacity: 1; }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes wedding-couple-amp {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes wedding-couple-ornament {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.wedding-couple-from-left {
+  animation: wedding-couple-from-left 2.8s cubic-bezier(0.22, 0.45, 0.2, 1) 0.35s both;
+}
+.wedding-couple-from-right {
+  animation: wedding-couple-from-right 2.8s cubic-bezier(0.22, 0.45, 0.2, 1) 0.35s both;
+}
+.wedding-couple-amp {
+  animation: wedding-couple-amp 0.9s cubic-bezier(0.22, 1, 0.36, 1) 1.35s both;
+}
+.wedding-couple-ornament {
+  animation: wedding-couple-ornament 0.85s cubic-bezier(0.22, 1, 0.36, 1) 1.7s both;
+}
+@keyframes wedding-invite-body-join {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+.wedding-invite-body-join {
+  animation: wedding-invite-body-join 0.85s cubic-bezier(0.22, 1, 0.36, 1) 1.85s both;
+}
+@keyframes wedding-cover-photo-open {
+  from { opacity: 0; transform: translateY(22px) scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+.wedding-cover-photo-open {
+  animation: wedding-cover-photo-open 2.2s cubic-bezier(0.22, 0.45, 0.2, 1) 0.7s both;
+  transform-origin: center center;
+}
+/* Giữ khung đầu đến khi trang hydrate xong, tránh CSS chạy trên HTML rồi chạy lại. */
+.wedding-cover-hold .wedding-couple-from-left {
+  animation: none;
+  opacity: 0;
+  transform: translateX(calc(-1 * clamp(8rem, 30vw, 16rem)));
+}
+.wedding-cover-hold .wedding-couple-from-right {
+  animation: none;
+  opacity: 0;
+  transform: translateX(clamp(8rem, 30vw, 16rem));
+}
+.wedding-cover-hold .wedding-couple-amp {
+  animation: none;
+  opacity: 0;
+  transform: scale(0.72);
+}
+.wedding-cover-hold .wedding-couple-ornament {
+  animation: none;
+  opacity: 0;
+  transform: translateY(8px);
+}
+.wedding-cover-hold .wedding-invite-body-join {
+  animation: none;
+  opacity: 0;
+  transform: translateY(16px);
+}
+.wedding-cover-hold .wedding-cover-photo-open {
+  animation: none;
+  opacity: 0;
+  transform: translateY(22px) scale(0.9);
+}
+.wedding-couple-pace-reveal .wedding-couple-from-left,
+.wedding-couple-pace-reveal .wedding-couple-from-right {
+  animation-delay: 1.55s;
+}
+.wedding-couple-pace-reveal .wedding-couple-amp {
+  animation-delay: 2.55s;
+}
+.wedding-couple-pace-opened .wedding-couple-from-left,
+.wedding-couple-pace-opened .wedding-couple-from-right {
+  animation-duration: 1.7s;
+  animation-delay: 0.2s;
+}
+.wedding-couple-pace-opened .wedding-couple-amp {
+  animation-delay: 0.85s;
+}
+@keyframes wedding-open-line {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wedding-open-guest-name {
+  from { opacity: 0; transform: translateY(12px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+.wedding-open-line {
+  animation: wedding-open-line 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.wedding-open-kicker { animation-delay: 0.05s; }
+.wedding-open-ornament { animation-delay: 1.7s; }
+.wedding-open-quote { animation-delay: 2.15s; }
+.wedding-open-invite { animation-delay: 2.65s; }
+.wedding-open-invite-en { animation-delay: 3.1s; }
+.wedding-open-guest { animation-delay: 3.35s; }
+.wedding-open-cordial { animation-delay: 3.4s; }
+.wedding-open-guest-name {
+  animation: wedding-open-guest-name 0.8s cubic-bezier(0.22, 1, 0.36, 1) 3.7s both;
+}
+.wedding-open-venue { animation-delay: 4.05s; }
+.wedding-open-when { animation-delay: 4.35s; }
+.wedding-open-address { animation-delay: 4.6s; }
+.wedding-open-map { animation-delay: 4.9s; }
+.wedding-open-note { animation-delay: 5.15s; }
+.wedding-open-after { animation-delay: 5.3s; }
+@media (prefers-reduced-motion: reduce) {
+  .wedding-couple-from-left,
+  .wedding-couple-from-right,
+  .wedding-couple-amp,
+  .wedding-couple-ornament,
+  .wedding-invite-body-join,
+  .wedding-cover-photo-open,
+  .wedding-open-line,
+  .wedding-open-guest-name { animation: none; }
+  .wedding-cover-hold .wedding-couple-from-left,
+  .wedding-cover-hold .wedding-couple-from-right,
+  .wedding-cover-hold .wedding-couple-amp,
+  .wedding-cover-hold .wedding-couple-ornament,
+  .wedding-cover-hold .wedding-invite-body-join,
+  .wedding-cover-hold .wedding-cover-photo-open {
+    opacity: 1;
+    transform: none;
+  }
+}

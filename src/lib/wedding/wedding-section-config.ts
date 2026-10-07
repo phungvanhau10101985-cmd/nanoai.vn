@@ -11,6 +11,8 @@ export type WeddingSectionConfig = {
   coverPhotoScale?: number
   /** Kiểu vuốt album trên thiệp. */
   albumLayoutId?: string
+  /** Ngày, giờ, địa điểm đã tách sang từng nhà — không sao chép lại từ thiệp cũ. */
+  sidePartyOwned?: boolean
 }
 
 function readPercent(value: unknown): number | undefined {
@@ -42,6 +44,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverPhotoPositionY: readPercent(obj.coverPhotoPositionY),
       coverPhotoScale: readScale(obj.coverPhotoScale),
       albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
+      sidePartyOwned: obj.sidePartyOwned === true,
     }
   } catch {
     return {}
@@ -56,6 +59,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (typeof config.coverPhotoPositionY === 'number') payload.coverPhotoPositionY = readPercent(config.coverPhotoPositionY)
   if (typeof config.coverPhotoScale === 'number') payload.coverPhotoScale = readScale(config.coverPhotoScale)
   if (config.albumLayoutId?.trim()) payload.albumLayoutId = config.albumLayoutId.trim()
+  if (config.sidePartyOwned) payload.sidePartyOwned = true
   return JSON.stringify(payload)
 }
 

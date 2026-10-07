@@ -39,10 +39,23 @@ export function WeddingReadableGlass({ theme, className, children, id, strength 
   const vignette = dark ? VIGNETTE_DARK[strength] : VIGNETTE_LIGHT[strength]
 
   return (
-    <div id={id} data-wedding-reveal={reveal ? '' : undefined} className={cn('relative isolate overflow-hidden', theme.panelGlass, className)}>
-      <div aria-hidden className={cn('pointer-events-none absolute inset-0', vignette)} />
+    <div
+      id={id}
+      data-wedding-reveal={reveal ? '' : undefined}
+      className={cn('relative isolate overflow-hidden', theme.panelGlass, className, 'overflow-hidden')}
+      style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+    >
+      {/* Lớp mờ nằm trong bo góc. Blur cùng phần tử với bán kính sẽ hở một viền lệch ở góc. */}
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 rounded-[inherit] backdrop-blur-2xl',
+          dark ? 'backdrop-saturate-[1.08]' : 'backdrop-saturate-[1.14]',
+        )}
+      />
+      <div aria-hidden className={cn('pointer-events-none absolute inset-0 rounded-[inherit]', vignette)} />
       <div aria-hidden className={cn(dark ? EDGE_SHINE_DARK : EDGE_SHINE)} />
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 w-full min-w-0 [container-type:inline-size]">{children}</div>
     </div>
   )
 }
