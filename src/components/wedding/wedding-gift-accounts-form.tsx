@@ -6,7 +6,7 @@ import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import type { VietQrBankItem } from '@/hooks/use-vietqr-banks'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import Image from 'next/image'
-import { buildVietQrCompactImageUrl, isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { buildVietQrCompactImageUrl, isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 
 type Tx = Dictionary['weddingGiftBox']
 
@@ -15,23 +15,29 @@ type Props = {
   banks: VietQrBankItem[]
   tx: Tx
   update: <K extends keyof WeddingCard>(key: K, value: WeddingCard[K]) => void
+  hideSecondary?: boolean
+  primaryTitle?: string
+  secondaryTitle?: string
+  hint?: string
 }
 
-export function WeddingGiftAccountsForm({ card, banks, tx, update }: Props) {
+export function WeddingGiftAccountsForm({ card, banks, tx, update, hideSecondary, primaryTitle, secondaryTitle, hint }: Props) {
   const groomQr = buildVietQrCompactImageUrl(card.groomGiftBankId, card.groomGiftAccountNo, {
     accountName: card.groomGiftAccountName,
   })
   const brideQr = buildVietQrCompactImageUrl(card.brideGiftBankId, card.brideGiftAccountNo, {
     accountName: card.brideGiftAccountName,
   })
-  const previewOk = isTwinVietGiftReady(card)
+  const previewOk = isInvitationGiftReady(card)
+  const groomTitle = primaryTitle || tx.groomSection
+  const brideTitle = secondaryTitle || tx.brideSection
 
   return (
     <div className="space-y-6 rounded-2xl border border-dashed border-rose-200 bg-rose-50/40 p-4">
-      <p className="text-sm text-muted-foreground">{tx.editorHint}</p>
-      <div className="grid gap-6 md:grid-cols-2">
+      <p className="text-sm text-muted-foreground">{hint || tx.editorHint}</p>
+      <div className={hideSecondary ? 'grid gap-6' : 'grid gap-6 md:grid-cols-2'}>
         <div className="space-y-3">
-          <p className="font-semibold text-rose-900">{tx.groomSection}</p>
+          <p className="font-semibold text-rose-900">{groomTitle}</p>
           <div className="space-y-1">
             <Label className="text-xs">{tx.bankSelectPlaceholder}</Label>
             <select
@@ -58,8 +64,9 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update }: Props) {
             onChange={(v) => update('groomGiftAccountName', v)}
           />
         </div>
+        {hideSecondary ? null : (
         <div className="space-y-3">
-          <p className="font-semibold text-rose-900">{tx.brideSection}</p>
+          <p className="font-semibold text-rose-900">{brideTitle}</p>
           <div className="space-y-1">
             <Label className="text-xs">{tx.bankSelectPlaceholder}</Label>
             <select
@@ -86,19 +93,29 @@ export function WeddingGiftAccountsForm({ card, banks, tx, update }: Props) {
             onChange={(v) => update('brideGiftAccountName', v)}
           />
         </div>
+        )}
       </div>
-      {previewOk && groomQr && brideQr && (
+      {previewOk && groomQr && (hideSecondary || brideQr) ? (
+        hideSecondary ? (
+          <div className="border-t border-rose-100 pt-4 text-center">
+            <div className="text-xs text-muted-foreground">{groomTitle}</div>
+            <div className="relative mx-auto mt-2 flex w-fit justify-center rounded-lg bg-white p-2 shadow-inner">
+              <Image src={groomQr} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
+            </div>
+          </div>
+        ) : (
         <div className="grid grid-cols-2 gap-3 border-t border-rose-100 pt-4">
-          <div className="text-center text-xs text-muted-foreground">{tx.groomSection}</div>
-          <div className="text-center text-xs text-muted-foreground">{tx.brideSection}</div>
+          <div className="text-center text-xs text-muted-foreground">{groomTitle}</div>
+          <div className="text-center text-xs text-muted-foreground">{brideTitle}</div>
           <div className="relative flex justify-center rounded-lg bg-white p-2 shadow-inner">
             <Image src={groomQr} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
           </div>
           <div className="relative flex justify-center rounded-lg bg-white p-2 shadow-inner">
-            <Image src={brideQr} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
+            <Image src={brideQr || ''} alt="" width={120} height={120} className="h-28 w-28 object-contain" unoptimized />
           </div>
         </div>
-      )}
+        )
+      ) : null}
     </div>
   )
 }

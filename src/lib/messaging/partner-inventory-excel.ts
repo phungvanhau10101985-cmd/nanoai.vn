@@ -724,7 +724,15 @@ function parseCatalog188Workbook(
 export function parseInventoryWorkbook(buffer: Buffer): { ok: true; rows: InventoryExcelInsert[]; warnings: InventoryImportWarning[] } | { ok: false; error: string } {
   let wb: XLSX.WorkBook
   try {
-    wb = XLSX.read(buffer, { type: 'buffer' })
+    wb = XLSX.read(buffer, {
+      type: 'buffer',
+      dense: true,
+      cellStyles: false,
+      cellNF: false,
+      cellHTML: false,
+      cellFormula: false,
+      bookVBA: false,
+    })
   } catch {
     return { ok: false, error: 'INVALID_XLSX' }
   }

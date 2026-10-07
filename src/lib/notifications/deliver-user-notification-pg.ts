@@ -11,6 +11,11 @@ export function notificationSkipsPlatformWebPush(meta?: Record<string, unknown> 
   return meta?.skip_platform_push === true
 }
 
+/** Shop owner alerts email one inbox themselves; the bell insert must not SMTP every dashboard user. */
+export function notificationSkipsAccountEmail(meta?: Record<string, unknown> | null): boolean {
+  return meta?.skip_email === true
+}
+
 /** Thông báo + email SMTP + Web Push — chỉ Postgres (insert notifications, đọc email từ auth.users). */
 export async function deliverUserNotificationPg(payload: UserNotificationPayload): Promise<boolean> {
   const ins = await insertNotificationPg({
@@ -32,11 +37,13 @@ export async function deliverUserNotificationPg(payload: UserNotificationPayload
       ? payload.meta.push_url
       : '/'
 
-  void sendAccountNotificationEmailByUserIdPg(payload.user_id, {
-    title: payload.title,
-    body: payload.body,
-    fromName: accountNotificationFromNameFromMeta(payload.meta),
-  }).catch((e) => console.warn('[deliverUserNotificationPg] email', e))
+  if (!notificationSkipsAccountEmail(payload.meta)) {
+    void sendAccountNotificationEmailByUserIdPg(payload.user_id, {
+      title: payload.title,
+      body: payload.body,
+      fromName: accountNotificationFromNameFromMeta(payload.meta),
+    }).catch((e) => console.warn('[deliverUserNotificationPg] email', e))
+  }
 
   if (notificationSkipsPlatformWebPush(payload.meta)) return true
 

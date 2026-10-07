@@ -15,6 +15,15 @@ export type WeddingSectionConfig = {
   albumPhotoCrops?: WeddingAlbumPhotoCrop[]
   /** Ngày, giờ, địa điểm đã tách sang từng nhà — không sao chép lại từ thiệp cũ. */
   sidePartyOwned?: boolean
+  /** Điểm neo ngang ảnh chú rể, 0–100. */
+  groomPhotoPositionX?: number
+  /** Điểm neo dọc ảnh chú rể, 0–100. */
+  groomPhotoPositionY?: number
+  /** Zoom ảnh chú rể, 1–3. */
+  groomPhotoScale?: number
+  bridePhotoPositionX?: number
+  bridePhotoPositionY?: number
+  bridePhotoScale?: number
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -91,6 +100,12 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
       albumPhotoCrops: readAlbumPhotoCrops(obj.albumPhotoCrops),
       sidePartyOwned: obj.sidePartyOwned === true,
+      groomPhotoPositionX: readPercent(obj.groomPhotoPositionX),
+      groomPhotoPositionY: readPercent(obj.groomPhotoPositionY),
+      groomPhotoScale: readScale(obj.groomPhotoScale),
+      bridePhotoPositionX: readPercent(obj.bridePhotoPositionX),
+      bridePhotoPositionY: readPercent(obj.bridePhotoPositionY),
+      bridePhotoScale: readScale(obj.bridePhotoScale),
     }
   } catch {
     return {}
@@ -116,7 +131,52 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
     .slice(0, 30)
   if (albumPhotoCrops.length > 0) payload.albumPhotoCrops = albumPhotoCrops
   if (config.sidePartyOwned) payload.sidePartyOwned = true
+  writePortraitCrop(payload, 'groom', config)
+  writePortraitCrop(payload, 'bride', config)
   return JSON.stringify(payload)
+}
+
+const PORTRAIT_PHOTO_DEFAULT: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
+
+function portraitCropKeys(side: 'groom' | 'bride') {
+  return side === 'groom'
+    ? (['groomPhotoPositionX', 'groomPhotoPositionY', 'groomPhotoScale'] as const)
+    : (['bridePhotoPositionX', 'bridePhotoPositionY', 'bridePhotoScale'] as const)
+}
+
+function isDefaultPortraitFrame(frame: WeddingAlbumPhotoFrame) {
+  return (
+    frame.x === PORTRAIT_PHOTO_DEFAULT.x &&
+    frame.y === PORTRAIT_PHOTO_DEFAULT.y &&
+    frame.scale === PORTRAIT_PHOTO_DEFAULT.scale
+  )
+}
+
+function writePortraitCrop(payload: WeddingSectionConfig, side: 'groom' | 'bride', config: WeddingSectionConfig) {
+  const [xKey, yKey, scaleKey] = portraitCropKeys(side)
+  if (config[xKey] === undefined && config[yKey] === undefined && config[scaleKey] === undefined) return
+  const frame: WeddingAlbumPhotoFrame = {
+    x: readPercent(config[xKey]) ?? PORTRAIT_PHOTO_DEFAULT.x,
+    y: readPercent(config[yKey]) ?? PORTRAIT_PHOTO_DEFAULT.y,
+    scale: readScale(config[scaleKey]) ?? PORTRAIT_PHOTO_DEFAULT.scale,
+  }
+  if (isDefaultPortraitFrame(frame)) return
+  payload[xKey] = frame.x
+  payload[yKey] = frame.y
+  payload[scaleKey] = frame.scale
+}
+
+/** Ảnh chân dung chưa căn: mặt ở khoảng 18% từ mép trên, zoom 1. */
+export function resolvePortraitPhotoFrame(
+  config: WeddingSectionConfig,
+  side: 'groom' | 'bride',
+): WeddingAlbumPhotoFrame {
+  const [xKey, yKey, scaleKey] = portraitCropKeys(side)
+  return {
+    x: readPercent(config[xKey]) ?? PORTRAIT_PHOTO_DEFAULT.x,
+    y: readPercent(config[yKey]) ?? PORTRAIT_PHOTO_DEFAULT.y,
+    scale: readScale(config[scaleKey]) ?? PORTRAIT_PHOTO_DEFAULT.scale,
+  }
 }
 
 export function mergeWeddingSectionConfig(

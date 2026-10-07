@@ -4,7 +4,10 @@ import {
   fetchMessagingPartnersByIdsFromPg,
   listMessagingPartnerNotifyUserIdsFromPg,
 } from '@/lib/db/messaging-partners-pg'
-import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
+import {
+  fetchPartnerPaymentSettingsFromPg,
+  type PartnerOrderRow,
+} from '@/lib/db/messaging-partner-orders-pg'
 import { partnerShopEmailBrandName, shopEmailSubject } from '@/lib/messaging/partner-shop-email-brand'
 import { hasRecentUserNotificationFromPg } from '@/lib/db/notifications-repo'
 import type { PartnerWebsiteLeadRow } from '@/lib/db/partner-website-leads-pg'
@@ -12,9 +15,12 @@ import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { findGuestAccountIdByEmailPg } from '@/lib/db/messaging-guest-pg'
 import { sendPartnerCustomerWebPush } from '@/lib/messaging/partner-customer-notification-push'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import { isSmtpConfigured, sendSmtpMail } from '@/lib/email/smtp'
 import {
   partnerOrderNotifyIdempotencyKey,
+  partnerOwnerAlertSendsEmail,
   type PartnerOrderNotifyEvent,
+  type PartnerOwnerAlertKind,
 } from '@/lib/messaging/partner-order-notify-ui'
 
 /**
@@ -30,12 +36,33 @@ function ownerOrdersUrl(partnerId: string): string {
   return `/dashboard/messaging/settings?section=hub-orders&partner=${partnerId}`
 }
 
+function isMailbox(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value)
+}
+
+/** Một hộp thư quản trị: notify_email nếu có, không thì email chủ shop. */
+async function resolvePartnerOwnerAlertEmail(partnerId: string): Promise<string | null> {
+  const settings = await fetchPartnerPaymentSettingsFromPg(partnerId)
+  const notify = String(settings?.notify_email || '').trim().toLowerCase()
+  if (isMailbox(notify)) return notify
+  const ownerId = await fetchMessagingPartnerOwnerUserIdFromPg(partnerId)
+  if (!ownerId) return null
+  const owner = (await getAuthUserEmailFromPg(ownerId))?.trim().toLowerCase() || ''
+  return isMailbox(owner) ? owner : null
+}
+
+async function shopNotifyInboxConfigured(partnerId: string): Promise<boolean> {
+  const settings = await fetchPartnerPaymentSettingsFromPg(partnerId)
+  return isMailbox(String(settings?.notify_email || '').trim().toLowerCase())
+}
+
 async function notifyPartnerOwner(input: {
   partnerId: string
   type: string
   title: string
   body: string
   pushUrl: string
+  alertKind: PartnerOwnerAlertKind
   extraMeta?: Record<string, unknown>
   excludeUserId?: string | null
   idempotencyKey?: string
@@ -56,6 +83,7 @@ async function notifyPartnerOwner(input: {
       ? input.pushUrl
       : `${platformOrigin}${input.pushUrl.startsWith('/') ? input.pushUrl : `/${input.pushUrl}`}`
     const phoneTitle = shopEmailSubject(shopName, input.title)
+    let insertedAny = false
     await Promise.all(
       userIds.map(async (user_id) => {
         if (input.idempotencyKey) {
@@ -78,11 +106,13 @@ async function notifyPartnerOwner(input: {
             partner_id: input.partnerId,
             shop_display_name: shopName,
             skip_platform_push: true,
+            skip_email: true,
             ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
             ...(input.extraMeta ?? {}),
           },
         })
         if (!inserted) return
+        insertedAny = true
         const email = (await getAuthUserEmailFromPg(user_id))?.trim().toLowerCase() || ''
         const guestAccountId = email ? await findGuestAccountIdByEmailPg(input.partnerId, email) : null
         if (!guestAccountId) return
@@ -96,6 +126,23 @@ async function notifyPartnerOwner(input: {
         })
       })
     )
+    if (!insertedAny) return
+    const sendEmail = partnerOwnerAlertSendsEmail(input.alertKind, {
+      shopNotifyInboxConfigured: await shopNotifyInboxConfigured(input.partnerId),
+    })
+    if (!sendEmail || !isSmtpConfigured()) return
+    const to = await resolvePartnerOwnerAlertEmail(input.partnerId)
+    if (!to) return
+    if (input.excludeUserId) {
+      const actor = (await getAuthUserEmailFromPg(input.excludeUserId))?.trim().toLowerCase() || ''
+      if (actor && actor === to) return
+    }
+    await sendSmtpMail({
+      to,
+      subject: phoneTitle,
+      text: [input.title, '', input.body, '', '—', `Thông báo từ ${shopName}.`].join('\n'),
+      fromName: shopName,
+    })
   } catch (e) {
     console.warn('[notifyPartnerOwner]', input.type, e)
   }
@@ -109,6 +156,7 @@ export async function notifyPartnerOwnerNewOrder(partnerId: string, order: Partn
     title: 'Đơn hàng mới',
     body: `${order.customer_name || 'Khách hàng'} vừa đặt đơn ${toVnd(amount)}${order.product_name ? ` — ${order.product_name}` : ''}.`,
     pushUrl: ownerOrdersUrl(partnerId),
+    alertKind: 'new_order',
     extraMeta: { order_id: order.id },
     idempotencyKey: partnerOrderNotifyIdempotencyKey({
       partnerId,
@@ -131,6 +179,7 @@ export async function notifyPartnerOwnerPaymentVerified(
     title: 'Đã nhận cọc / thanh toán',
     body: `Đơn ${ref}: đã xác nhận ${toVnd(order.paid_amount || 0)} từ ${order.customer_name || 'khách'}.`,
     pushUrl: ownerOrdersUrl(partnerId),
+    alertKind: 'payment_verified',
     extraMeta: { order_id: order.id },
     excludeUserId: opts?.excludeUserId,
     idempotencyKey: partnerOrderNotifyIdempotencyKey({
@@ -150,6 +199,7 @@ export async function notifyPartnerOwnerPaymentNeedsReview(partnerId: string, or
     title: 'Cần duyệt thanh toán tay',
     body: `Đơn ${ref} có chứng từ cần bạn xác nhận (${order.customer_name || 'khách'}).`,
     pushUrl: ownerOrdersUrl(partnerId),
+    alertKind: 'payment_review',
     extraMeta: { order_id: order.id },
     idempotencyKey: partnerOrderNotifyIdempotencyKey({
       partnerId,
@@ -171,6 +221,7 @@ export async function notifyPartnerOwnerNewQuestion(input: {
     title: 'Khách hỏi sản phẩm mới',
     body: `${input.askerName || 'Khách hàng'}: "${input.content.slice(0, 140)}"`,
     pushUrl: `/dashboard/messaging/website?partner=${input.partnerId}`,
+    alertKind: 'new_question',
   })
 }
 
@@ -188,6 +239,7 @@ export async function notifyPartnerOwnerOrderCustomerAction(input: {
     title: input.title,
     body: input.body,
     pushUrl: ownerOrdersUrl(input.partnerId),
+    alertKind: input.event === 'customer_cancelled' ? 'customer_cancelled' : 'customer_received',
     idempotencyKey: input.event
       ? partnerOrderNotifyIdempotencyKey({
           partnerId: input.partnerId,
@@ -212,6 +264,7 @@ export async function notifyPartnerOwnerNewReview(input: {
     title: `Đánh giá mới (${input.rating}★)`,
     body: `${input.reviewerName || 'Khách hàng'}: "${input.content.slice(0, 140)}"`,
     pushUrl: `/dashboard/messaging/website?partner=${input.partnerId}`,
+    alertKind: 'new_review',
   })
 }
 
@@ -227,6 +280,7 @@ export async function notifyPartnerOwnerNewLead(input: {
     title: 'Form liên hệ mới',
     body: preview ? `${bits}: "${preview}"` : bits || 'Khách vừa gửi form liên hệ.',
     pushUrl: `/dashboard/messaging/website?partner=${input.partnerId}#partner-website-leads`,
+    alertKind: 'new_lead',
     extraMeta: { lead_id: input.lead.id },
   })
 }
@@ -241,6 +295,7 @@ export async function notifyPartnerOwnerAffiliateApplication(input: {
     title: 'Hồ sơ CTV mới',
     body: `${input.email?.trim() || 'Khách'} vừa đăng ký cộng tác viên — cần duyệt.`,
     pushUrl: `/dashboard/messaging/settings?section=hub-marketing&partner=${input.partnerId}`,
+    alertKind: 'affiliate_apply',
   })
 }
 
@@ -255,6 +310,7 @@ export async function notifyPartnerOwnerAffiliateWithdrawal(input: {
     title: 'Yêu cầu rút ví affiliate',
     body: `${input.email?.trim() || 'CTV'} yêu cầu rút ${toVnd(input.amount)}.`,
     pushUrl: `/dashboard/messaging/settings?section=hub-marketing&partner=${input.partnerId}`,
+    alertKind: 'affiliate_withdraw',
   })
 }
 
@@ -287,6 +343,7 @@ export async function notifyPartnerOwnerChatNeedsReply(input: {
         ? `${input.customerName || 'Khách'}: "${preview}"`
         : `${input.customerName || 'Khách'} vừa nhắn — AI đang tắt.`,
       pushUrl: `/dashboard/messaging?partner=${input.partnerId}`,
+      alertKind: 'chat_needs_reply',
       extraMeta: { conversation_id: input.conversationId },
       idempotencyKey: partnerOrderNotifyIdempotencyKey({
         partnerId: input.partnerId,

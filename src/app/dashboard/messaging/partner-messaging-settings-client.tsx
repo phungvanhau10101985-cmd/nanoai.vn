@@ -4645,6 +4645,7 @@ export function PartnerMessagingSettingsClient({
                 locale={locale}
                 lockedPartnerId={selectedPartnerId}
                 hidePartnerPicker
+                websitePublicUrl={websitePublicUrl}
               />
             </div>
           ) : null}

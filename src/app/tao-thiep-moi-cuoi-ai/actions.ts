@@ -11,10 +11,12 @@ import {
   attachWeddingPrivateBackground,
   completeWeddingAiImage,
   createWeddingCardDraft,
+  deleteWeddingCardForUser,
   ensureWeddingCardOwnerProfile,
   failWeddingAiImage,
   getLatestWeddingCardForUser,
   getWeddingCardForUser,
+  listWeddingCardSummariesForUser,
   insertWeddingAiImageProcessing,
   listWeddingBackgroundLibrary,
   listWeddingImages,
@@ -26,7 +28,6 @@ import {
   publishWeddingCard,
   updateWeddingCardBrief,
   updateWeddingCardSideInviteSettings,
-  WEDDING_IMAGE_TYPES,
   type WeddingCard,
   type WeddingImageType,
 } from '@/lib/db/wedding-cards-pg'
@@ -38,7 +39,8 @@ import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-t
 import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
-import { isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { invitationGiftBlockedMessage, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
@@ -119,17 +121,51 @@ async function getReferenceImagePartFromFile(file: FormDataEntryValue | null) {
   return { inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/png' } }
 }
 
-export async function getOrCreateWeddingCard() {
+async function weddingCardWorkspace(ownerUserId: string, card: WeddingCard) {
+  const [images, rsvps, library, musicLibrary, cards] = await Promise.all([
+    listWeddingImages(card.id),
+    listWeddingRsvps(card.id, ownerUserId),
+    listWeddingBackgroundLibrary(),
+    listWeddingMusicLibrary(),
+    listWeddingCardSummariesForUser(ownerUserId),
+  ])
+  return { card, images, rsvps, library, musicLibrary, cards }
+}
+
+export async function loadWeddingCardWorkspace(cardId?: string) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
-  const existing = await getLatestWeddingCardForUser(ownerUserId)
-  const card = existing ?? (await createWeddingCardDraft(ownerUserId))
-  const images = await listWeddingImages(card.id)
-  const rsvps = await listWeddingRsvps(card.id, ownerUserId)
-  const library = await listWeddingBackgroundLibrary()
-  const musicLibrary = await listWeddingMusicLibrary()
-  return { card, images, rsvps, library, musicLibrary }
+  const requested = String(cardId || '').trim()
+  let card = requested ? await getWeddingCardForUser(requested, ownerUserId) : null
+  if (!card) card = await getLatestWeddingCardForUser(ownerUserId)
+  if (!card) card = await createWeddingCardDraft(ownerUserId)
+  return weddingCardWorkspace(ownerUserId, card)
+}
+
+export async function getOrCreateWeddingCard() {
+  return loadWeddingCardWorkspace()
+}
+
+export async function createNewWeddingCard(occasionKey?: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const card = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
+  return weddingCardWorkspace(ownerUserId, card)
+}
+
+export async function deleteWeddingCard(cardId: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const existing = await getWeddingCardForUser(cardId, ownerUserId)
+  if (!existing) return { error: 'Không tìm thấy thiệp.' }
+  const deleted = await deleteWeddingCardForUser(cardId, ownerUserId)
+  if (!deleted) return { error: 'Không xóa được thiệp.' }
+  if (existing.slug) revalidatePath(`/thiep-moi-cuoi/${existing.slug}`)
+  const cards = await listWeddingCardSummariesForUser(ownerUserId)
+  return { cards }
 }
 
 export async function saveWeddingCardBrief(formData: FormData) {
@@ -153,6 +189,12 @@ export async function saveWeddingCardBrief(formData: FormData) {
   let uploadedCover: string | null = null
   try {
     uploadedCover = await uploadWeddingReferenceImage(ownerUserId, cardId, 'cover', formData.get('coverImage'))
+    const uploadedGroom = await uploadWeddingReferenceImage(ownerUserId, cardId, 'groom', formData.get('groomImage'))
+    const uploadedBride = await uploadWeddingReferenceImage(ownerUserId, cardId, 'bride', formData.get('brideImage'))
+    if (uploadedGroom) groomImageUrl = uploadedGroom
+    else if (boolValue(formData.get('groomImageClear'))) groomImageUrl = ''
+    if (uploadedBride) brideImageUrl = uploadedBride
+    else if (boolValue(formData.get('brideImageClear'))) brideImageUrl = ''
     const uploadedFile = formData.get('musicFile')
     const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, uploadedFile)
     if (uploadedMusic) {
@@ -257,9 +299,11 @@ export async function saveWeddingCardBrief(formData: FormData) {
     brideGiftAccountNo,
     brideGiftAccountName,
     effectsEnabled: formData.has('effectsEnabled') ? boolValue(formData.get('effectsEnabled')) : true,
+    occasionKey: normalizeInvitationOccasion(formData.get('occasionKey') ?? existing.occasionKey),
   }
   const giftCheckCard: WeddingCard = {
     ...existing,
+    occasionKey: draftForGift.occasionKey,
     giftQrEnabled,
     giftQrImageUrl,
     groomGiftBankId,
@@ -269,11 +313,8 @@ export async function saveWeddingCardBrief(formData: FormData) {
     brideGiftAccountNo,
     brideGiftAccountName,
   }
-  if (giftQrEnabled && !isTwinVietGiftReady(giftCheckCard) && !giftQrImageUrl.trim()) {
-    return {
-      error:
-        'Đã bật QR mừng cưới: nhập đủ thông tin VietQR cho cả chú rể và cô dâu (ngân hàng, STK, tên chủ TK), hoặc nhập URL ảnh QR.',
-    }
+  if (giftQrEnabled && !isInvitationGiftReady(giftCheckCard) && !giftQrImageUrl.trim()) {
+    return { error: invitationGiftBlockedMessage(giftCheckCard.occasionKey) }
   }
 
   const briefCard = await updateWeddingCardBrief(draftForGift)
@@ -326,7 +367,8 @@ export async function generateWeddingCardImage(formData: FormData) {
   const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const cardId = clean(formData.get('cardId'), 80)
   const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
-  const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
+  if (typeRaw !== 'master') return { error: 'Chỉ tạo một ảnh nền chính cho cả thiệp.' }
+  const type = 'master' as const
   const extraPrompt = clean(formData.get('extraPrompt'), 800)
   const customReferenceImageUrl = clean(formData.get('customReferenceImageUrl'), 1000)
   const customReferenceImageFile = formData.get('customReferenceImage')
@@ -426,7 +468,8 @@ export async function uploadWeddingPrivateBackground(formData: FormData) {
   const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const cardId = clean(formData.get('cardId'), 80)
   const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
-  const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
+  if (typeRaw !== 'master') return { error: 'Chỉ gắn ảnh nền chính cho cả thiệp.' }
+  const type = 'master' as const
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   const file = formData.get('file')
@@ -464,7 +507,8 @@ export async function applyWeddingBackgroundFromLibrary(formData: FormData) {
   const cardId = clean(formData.get('cardId'), 80)
   const libraryId = clean(formData.get('libraryId'), 80)
   const typeRaw = clean(formData.get('type'), 40) as WeddingImageType
-  const type = WEDDING_IMAGE_TYPES.includes(typeRaw) ? typeRaw : 'master'
+  if (typeRaw !== 'master') return { error: 'Kho chỉ gắn vào ảnh nền chính.' }
+  const type = 'master' as const
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   const attached = await attachWeddingLibraryBackground({ userId, cardId: card.id, libraryId, type })

@@ -1,4 +1,5 @@
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
+import { invitationOccasionShape } from '@/lib/wedding/invitation-occasion'
 
 /** URL ảnh QR VietQR (compact2), tương thích app tạo mã vạch. */
 export function buildVietQrCompactImageUrl(
@@ -17,6 +18,21 @@ export function buildVietQrCompactImageUrl(
 
 export function isVietGiftSideComplete(bankId: string, accountNo: string, accountName: string): boolean {
   return Boolean(bankId.trim() && accountNo.trim() && accountName.trim())
+}
+
+export function isInvitationGiftReady(card: Pick<
+  WeddingCard,
+  | 'occasionKey'
+  | 'groomGiftBankId'
+  | 'groomGiftAccountNo'
+  | 'groomGiftAccountName'
+  | 'brideGiftBankId'
+  | 'brideGiftAccountNo'
+  | 'brideGiftAccountName'
+>): boolean {
+  const groom = isVietGiftSideComplete(card.groomGiftBankId, card.groomGiftAccountNo, card.groomGiftAccountName)
+  if (invitationOccasionShape(card.occasionKey) === 'single') return groom
+  return groom && isVietGiftSideComplete(card.brideGiftBankId, card.brideGiftAccountNo, card.brideGiftAccountName)
 }
 
 export function isTwinVietGiftReady(card: WeddingCard): boolean {

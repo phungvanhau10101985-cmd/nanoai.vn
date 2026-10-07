@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { WeddingTimelineEditor } from '@/components/wedding/wedding-timeline-editor'
+import { WeddingTimeField } from '@/components/wedding/wedding-time-field'
 import { parseWeddingTimeClockAndWeekday } from '@/lib/wedding/wedding-calendar-utils'
 import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invite-settings'
 
@@ -19,15 +20,35 @@ type Props = {
   saving: boolean
   onChange: (next: WeddingSideInviteSettings) => void
   onParentsChange: (value: string) => void
+  placeNoun?: string
+  parentsLabel?: string
+  dateLabel?: string
+  hint?: string
 }
 
 function fieldKey(prefix: 'groomInvite' | 'brideInvite', name: string): keyof WeddingSideInviteSettings {
   return `${prefix}${name}` as keyof WeddingSideInviteSettings
 }
 
-export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, onChange, onParentsChange }: Props) {
+export function WeddingSideInviteSettingsPanel({
+  side,
+  card,
+  settings,
+  saving,
+  onChange,
+  onParentsChange,
+  placeNoun,
+  parentsLabel,
+  dateLabel,
+  hint,
+}: Props) {
   const groom = side === 'groom'
-  const sideLabel = groom ? 'nhà trai' : 'nhà gái'
+  const sideLabel = placeNoun ?? (groom ? 'nhà trai' : 'nhà gái')
+  const parentsText = parentsLabel ?? `Bố mẹ ${sideLabel}`
+  const dateText = dateLabel ?? `Ngày tiệc ${sideLabel}`
+  const hintText =
+    hint ??
+    `Chỉ điền thông tin riêng của ${sideLabel}. Tên cô dâu chú rể, lời mời, dress code và lời cảm ơn nằm ở phần chung.`
   const prefix = groom ? 'groomInvite' : 'brideInvite'
   const tone = groom
     ? 'border-2 border-sky-600 bg-sky-200'
@@ -55,17 +76,15 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
 
   return (
     <div className={cn('grid gap-3 rounded-xl border p-3 sm:grid-cols-2 sm:p-4', tone)}>
-      <p className="text-xs text-muted-foreground sm:col-span-2">
-        Chỉ điền thông tin riêng của {sideLabel}. Tên cô dâu chú rể, lời mời, dress code và lời cảm ơn nằm ở phần chung.
-      </p>
+      <p className="text-xs text-muted-foreground sm:col-span-2">{hintText}</p>
 
       <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Bố mẹ {sideLabel}</Label>
+        <Label className="text-sm">{parentsText}</Label>
         <Input value={parents} onChange={(e) => onParentsChange(e.target.value)} className="text-sm" />
       </div>
 
       <div className="space-y-1.5 sm:col-span-2">
-        <Label className="text-sm">Ngày tiệc {sideLabel}</Label>
+        <Label className="text-sm">{dateText}</Label>
         <Input
           type="date"
           value={dateShown}
@@ -76,20 +95,18 @@ export function WeddingSideInviteSettingsPanel({ side, card, settings, saving, o
 
       <div className="space-y-1.5">
         <Label className="text-sm">Giờ đón khách</Label>
-        <Input
-          type="time"
+        <WeddingTimeField
+          ariaLabel="Giờ đón khách"
           value={parseWeddingTimeClockAndWeekday(receptionShown).time || receptionShown}
-          onChange={(e) => patch(receptionKey, e.target.value)}
-          className="text-sm"
+          onChange={(value) => patch(receptionKey, value)}
         />
       </div>
       <div className="space-y-1.5">
         <Label className="text-sm">Giờ khai tiệc</Label>
-        <Input
-          type="time"
+        <WeddingTimeField
+          ariaLabel="Giờ khai tiệc"
           value={parseWeddingTimeClockAndWeekday(partyShown).time || partyShown}
-          onChange={(e) => patch(partyKey, e.target.value)}
-          className="text-sm"
+          onChange={(value) => patch(partyKey, value)}
         />
       </div>
 

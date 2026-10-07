@@ -11,6 +11,11 @@ import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { parsePartnerOrderVariantImageUrls } from '@/lib/messaging/partner-order-variant-images'
 import {
+  orderLineChinaSourceUrl,
+  orderLineDisplaySku,
+  orderLineShopHref,
+} from '@/lib/messaging/partner-admin-order-line-meta'
+import {
   PARTNER_ADMIN_LIFECYCLE_TABS,
   PARTNER_ADMIN_ORDERS_DEFAULT_PAGE_SIZE,
   monthInputToDateRange,
@@ -269,6 +274,18 @@ function tabCount(counts: PartnerOrderAdminTabCounts | null, key: PartnerAdminLi
 function lineImage(line: PartnerOrderLineRow, fallback: string): string {
   const fromVariant = parsePartnerOrderVariantImageUrls(line.variant_image_urls)[0]
   return (fromVariant || line.product_image_url || fallback || '').trim()
+}
+
+function OrderMetaLink({ label, href, full = false }: { label: string; href: string; full?: boolean }) {
+  const text = full ? href : href.replace(/^https?:\/\//, '')
+  return (
+    <p className="break-words" title={href}>
+      <span className="text-gray-500">{label}: </span>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="break-all text-blue-700 hover:underline">
+        {text}
+      </a>
+    </p>
+  )
 }
 
 /** Thanh cuộn ngang trên đỉnh bảng + khung bảng khít viewport (không phải cuối 100 dòng). */
@@ -566,12 +583,14 @@ export function PartnerMessagingOrdersClient({
   locale,
   lockedPartnerId,
   hidePartnerPicker,
+  websitePublicUrl = null,
 }: {
   initialPartners: PartnerRow[]
   ordersT: OrdersT
   locale: WebLocale
   lockedPartnerId?: string
   hidePartnerPicker?: boolean
+  websitePublicUrl?: string | null
 }) {
   const { toast } = useToast()
   const [pending, startTransition] = useTransition()
@@ -1663,54 +1682,74 @@ export function PartnerMessagingOrdersClient({
                   <tbody>
                     {productLines.map((item) => {
                       const img = lineImage(item, selectedOrder.product_image_url)
-                      const href = item.product_url?.trim() || ''
+                      const siteSlug =
+                        initialPartners.find((partner) => partner.id === selectedOrder.partner_id)?.slug?.trim() || ''
+                      const shopHref = orderLineShopHref({
+                        siteSlug,
+                        websitePublicUrl:
+                          selectedOrder.partner_id === partnerIdArg ? websitePublicUrl : null,
+                        inventoryId: item.product_inventory_id,
+                        productName: item.product_name,
+                        productUrl: item.product_url,
+                      })
+                      const sku = orderLineDisplaySku(item)
+                      const chinaUrl = orderLineChinaSourceUrl(item)
+                      const size = item.variant_size?.trim() || ''
+                      const color = item.variant_color?.trim() || ''
                       return (
                         <tr key={item.id} className="border-b align-top">
                           <td className="py-2 pr-2 align-middle">
                             {img ? (
-                              <a href={img} target="_blank" rel="noopener noreferrer" className="inline-block rounded-lg">
+                              <a
+                                href={img}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={t.modalOpenVariantImage}
+                                className="inline-block rounded-lg ring-offset-2 hover:ring-2 hover:ring-blue-300"
+                              >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                   src={resolveExternalImageDisplayUrl(img)}
                                   alt=""
-                                  className="block h-32 w-32 shrink-0 rounded-lg border border-gray-100 bg-gray-50 object-cover"
+                                  className="block aspect-square h-32 w-32 shrink-0 rounded-lg border border-gray-100 bg-gray-50 object-cover"
                                   width={128}
                                   height={128}
+                                  referrerPolicy="no-referrer"
                                 />
                               </a>
                             ) : (
                               <div className="h-32 w-32 rounded-lg border border-dashed border-gray-200 bg-gray-50" />
                             )}
                           </td>
-                          <td className="min-w-0 py-2 pr-2">
-                            <div className="font-medium leading-snug text-gray-900">
-                              {href ? (
-                                <a href={href} target="_blank" rel="noopener noreferrer" className="text-[#ea580c] hover:underline">
+                          <td className="min-w-0 whitespace-normal py-2 pr-2">
+                            <div className="break-words font-medium leading-snug text-gray-900">
+                              {shopHref ? (
+                                <a href={shopHref} target="_blank" rel="noopener noreferrer" className="text-[#ea580c] hover:underline">
                                   {item.product_name}
                                 </a>
                               ) : (
                                 item.product_name
                               )}
                             </div>
-                            <div className="mt-1.5 space-y-0.5 text-xs text-gray-600">
-                              {item.product_inventory_id ? <p>{t.skuLabel.replace('{sku}', item.product_inventory_id)}</p> : null}
-                              {item.variant_color?.trim() ? (
+                            <div className="mt-1.5 space-y-0.5 break-words text-xs text-gray-600">
+                              {sku ? <p>{t.skuLabel.replace('{sku}', sku)}</p> : null}
+                              {size ? (
                                 <p>
-                                  {t.modalColor}: {item.variant_color}
+                                  {t.modalSize}: {size}
                                 </p>
                               ) : null}
-                              {item.variant_size?.trim() ? (
+                              {color ? (
                                 <p>
-                                  {t.modalSize}: {item.variant_size}
+                                  {t.modalColor}: {color}
                                 </p>
                               ) : null}
-                              {href ? (
-                                <p className="break-all">
-                                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
-                                    {href.replace(/^https?:\/\//, '')}
-                                  </a>
-                                </p>
-                              ) : null}
+                              {img ? <OrderMetaLink label={t.modalImageLink} href={img} full /> : null}
+                              {chinaUrl ? <OrderMetaLink label={t.modalChinaLink} href={chinaUrl} /> : null}
+                              {shopHref ? (
+                                <OrderMetaLink label={t.modalShopLink} href={shopHref} />
+                              ) : (
+                                <p className="italic text-gray-400">{t.modalNoShopSlug}</p>
+                              )}
                             </div>
                           </td>
                           <td className="whitespace-nowrap py-2 text-right">{item.quantity}</td>

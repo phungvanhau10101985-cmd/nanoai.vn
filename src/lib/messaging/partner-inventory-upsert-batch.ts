@@ -5,6 +5,7 @@ import {
   deletePartnerInventoryByIdsForPartnerFromPg,
   fetchPartnerInventoryFullListOrderedCreatedFromPg,
   fetchPartnerInventoryImportMatchListFromPg,
+  fetchPartnerInventoryWriteCompareFromPg,
   type PartnerInventoryImportMatchRow,
   insertPartnerInventoryChunkFromPg,
   upsertPartnerInventoryChunkFromPg,
@@ -291,14 +292,14 @@ function importMatchToInventoryRow(row: PartnerInventoryImportMatchRow): Invento
     {
       name: row.name,
       sku: row.sku,
-      description: row.description,
-      stock_note: row.stock_note,
+      description: '',
+      stock_note: '',
       stock_qty: Number(row.stock_qty) || 0,
       price_hint: row.price_hint,
-      image_url: row.image_url,
-      product_url: row.product_url,
-      product_video_url: row.product_video_url,
-      consult_note: row.consult_note,
+      image_url: '',
+      product_url: '',
+      product_video_url: '',
+      consult_note: '',
       remarketing_id: row.remarketing_id,
       sort_order: Number(row.sort_order) || 0,
       is_active: row.is_active !== false,
@@ -308,7 +309,7 @@ function importMatchToInventoryRow(row: PartnerInventoryImportMatchRow): Invento
   )
 }
 
-/** Khớp import: chỉ cột so SKU/tên, không kéo vector/gallery. */
+/** Khớp import: khóa SKU/tên. Thân dòng (mô tả/ảnh) chỉ đọc lại cho id sắp sửa. */
 async function listPartnerInventoryRowsForUpsert(
   partnerId: string
 ): Promise<{ ok: true; rows: InventoryRow[] } | { ok: false; error: string }> {
@@ -320,6 +321,72 @@ async function listPartnerInventoryRowsForUpsert(
     return { ok: false, error: 'Could not load inventory from Postgres.' }
   }
   return { ok: true, rows: fromPg.map(importMatchToInventoryRow) }
+}
+
+async function dropUnchangedCoreUpdates(
+  partnerId: string,
+  plannedUpdates: Map<string, InventoryInsert>,
+  catalogPatches: Map<string, InventoryCatalogPatchRow>,
+  changedIds: Set<string>
+): Promise<number> {
+  const ids: string[] = []
+  for (const id of plannedUpdates.keys()) {
+    if (!catalogPatches.has(id)) ids.push(id)
+  }
+  if (ids.length === 0) return 0
+  const bodies = await fetchPartnerInventoryWriteCompareFromPg(partnerId, ids)
+  if (!bodies) return 0
+  const byId = new Map(bodies.map((row) => [row.id, row]))
+  let skipped = 0
+  for (const id of ids) {
+    const planned = plannedUpdates.get(id)
+    const current = byId.get(id)
+    if (!planned || !current) continue
+    if (
+      sameInventoryData(
+        {
+          id,
+          partner_id: partnerId,
+          name: current.name,
+          sku: current.sku,
+          description: current.description,
+          stock_note: current.stock_note,
+          stock_qty: current.stock_qty,
+          price_hint: current.price_hint,
+          image_url: current.image_url,
+          product_url: current.product_url,
+          product_video_url: current.product_video_url,
+          consult_note: current.consult_note,
+          remarketing_id: current.remarketing_id,
+          sort_order: current.sort_order,
+          is_active: current.is_active,
+          created_at: '',
+          updated_at: '',
+        } as InventoryRow,
+        {
+          name: planned.name,
+          sku: planned.sku ?? null,
+          description: planned.description ?? '',
+          stock_note: planned.stock_note ?? '',
+          stock_qty: planned.stock_qty ?? 0,
+          price_hint: planned.price_hint ?? '',
+          image_url: planned.image_url ?? '',
+          product_url: planned.product_url ?? '',
+          product_video_url: planned.product_video_url ?? '',
+          consult_note: planned.consult_note ?? '',
+          remarketing_id: planned.remarketing_id ?? '',
+          sort_order: planned.sort_order ?? 0,
+          is_active: planned.is_active !== false,
+          updated_at: planned.updated_at ?? '',
+        }
+      )
+    ) {
+      plannedUpdates.delete(id)
+      changedIds.delete(id)
+      skipped += 1
+    }
+  }
+  return skipped
 }
 
 /**
@@ -981,6 +1048,14 @@ export async function upsertPartnerInventoryBatch(
       }
     }
   }
+
+  const unchangedSkipped = await dropUnchangedCoreUpdates(
+    partnerId,
+    plannedUpdates,
+    catalogPatches,
+    changedIds
+  )
+  updated = Math.max(0, updated - unchangedSkipped)
 
   for (const ids of chunked(Array.from(plannedDeletes), WRITE_CHUNK_SIZE)) {
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids)

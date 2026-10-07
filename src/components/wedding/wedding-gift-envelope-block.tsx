@@ -29,10 +29,11 @@ type Props = {
   tx: Tx
   className?: string
   sideFilter?: 'groom' | 'bride' | null
+  seal?: string
 }
 
 /** Hộp lì xì rung nhẹ; mở dialog hiển thị VietQR cô dâu / chú rể (hoặc ảnh QR cũ). */
-export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null }: Props) {
+export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null, seal = '囍' }: Props) {
   const [open, setOpen] = useState(false)
   const twin = isTwinVietGiftReady(card)
   const legacyOnly = !twin && isLegacySingleGiftImage(card)
@@ -90,7 +91,7 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = nul
             <span className="pointer-events-none absolute bottom-1 left-1 h-5 w-5 border-b-2 border-l-2 border-amber-400/80" aria-hidden />
             <span className="pointer-events-none absolute bottom-1 right-1 h-5 w-5 border-b-2 border-r-2 border-amber-400/80" aria-hidden />
             <span className="flex h-[4.75rem] w-[4.75rem] shrink-0 items-center justify-center rounded-full border-[3px] border-amber-400 bg-gradient-to-br from-amber-200 via-amber-100 to-yellow-400 shadow-inner">
-              <span className="select-none font-serif text-3xl font-bold text-red-800 drop-shadow-sm">囍</span>
+              <span className="select-none font-serif text-3xl font-bold text-red-800 drop-shadow-sm">{seal}</span>
             </span>
           </span>
         </button>

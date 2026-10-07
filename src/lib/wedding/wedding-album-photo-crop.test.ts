@@ -6,6 +6,7 @@ import {
   parseWeddingSectionConfig,
   remapAlbumPhotoCrops,
   resolveAlbumPhotoFrame,
+  resolvePortraitPhotoFrame,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
 } from './wedding-section-config'
@@ -37,4 +38,21 @@ test('removing and reordering album photos keeps each crop with its url', () => 
     { index: 0, x: 80, y: 30, scale: 2 },
     { index: 1, x: 10, y: 20, scale: 1.2 },
   ])
+})
+
+test('portrait crop defaults to the upper face and round-trips zoom', () => {
+  assert.deepEqual(resolvePortraitPhotoFrame({}, 'bride'), { x: 50, y: 18, scale: 1 })
+  const raw = mergeWeddingSectionConfig('{}', {
+    groomPhotoPositionX: 40,
+    groomPhotoPositionY: 12,
+    groomPhotoScale: 1.6,
+  })
+  assert.deepEqual(resolvePortraitPhotoFrame(parseWeddingSectionConfig(raw), 'groom'), { x: 40, y: 12, scale: 1.6 })
+  assert.deepEqual(resolvePortraitPhotoFrame(parseWeddingSectionConfig(raw), 'bride'), { x: 50, y: 18, scale: 1 })
+  const reset = mergeWeddingSectionConfig(raw, {
+    groomPhotoPositionX: 50,
+    groomPhotoPositionY: 18,
+    groomPhotoScale: 1,
+  })
+  assert.equal(parseWeddingSectionConfig(reset).groomPhotoScale, undefined)
 })

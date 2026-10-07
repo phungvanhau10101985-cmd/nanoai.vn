@@ -67,8 +67,8 @@ export async function fetchInventoryCategorySignalsFromPg(
       `select pic.inventory_id::text, pic.category_id::text, pic.is_primary, coalesce(c.name, '') as category_name
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where pic.inventory_id = any($2::uuid[])`,
-      [partnerId, ids]
+       where pic.inventory_id = any($1::uuid[])`,
+      [ids]
     )
     const best = new Map<
       string,

@@ -1187,6 +1187,11 @@ export type Dictionary = {
     colUnitPrice: string
     colLineTotal: string
     skuLabel: string
+    modalImageLink: string
+    modalChinaLink: string
+    modalShopLink: string
+    modalNoShopSlug: string
+    modalOpenVariantImage: string
     timelineHeading: string
     timelineEmpty: string
     filterFulfillmentAll: string
@@ -3431,6 +3436,8 @@ export type Dictionary = {
     familiesIntro: string
     groomFamily: string
     brideFamily: string
+    groomRole: string
+    brideRole: string
     letterViewAsk: string
     letterViewBoth: string
     hometownLabel: string
@@ -3460,6 +3467,8 @@ export type Dictionary = {
     coverPartyClose: string
     wishLabel: string
     wishPlaceholder: string
+    wishPresetOpen: string
+    wishPresetList: string
     submitResponse: string
     submitErrorTitle: string
     submitSuccessTitle: string
@@ -4969,6 +4978,11 @@ const VI_DICTIONARY: Dictionary = {
     colUnitPrice: 'Đơn giá',
     colLineTotal: 'Thành tiền',
     skuLabel: 'Mã SP (SKU): {sku}',
+    modalImageLink: 'Link ảnh',
+    modalChinaLink: 'Link Trung Quốc',
+    modalShopLink: 'Link shop',
+    modalNoShopSlug: 'Không có slug — không tạo link trang SP',
+    modalOpenVariantImage: 'Mở ảnh biến thể',
     timelineHeading: 'Lịch trình đơn hàng',
     timelineEmpty: 'Chưa có lịch trình.',
     filterFulfillmentAll: 'Mọi nguồn',
@@ -5944,7 +5958,7 @@ const VI_DICTIONARY: Dictionary = {
     inventoryErrNoRows:
       'Không có dòng dữ liệu hợp lệ (cần tên hoặc id để thêm/cập nhật; listed=0 cần id, SKU hoặc tên để xóa).',
     inventoryErrNoFile: 'Chưa chọn file.',
-    inventoryErrFileTooLarge: 'File quá lớn (tối đa ~20 MB).',
+    inventoryErrFileTooLarge: 'File quá lớn (tối đa 80 MB).',
     inventoryErrTooManyRows: 'File có quá nhiều dòng. Tối đa {max} dòng mỗi lần import.',
     inventoryLoadMore: 'Tải thêm ({shown}/{total})',
     inventoryVectorSearchPlaceholder: 'Gõ mô tả (vd áo len, giày da…) — tìm ngữ nghĩa',
@@ -7183,7 +7197,7 @@ const VI_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',
     customReferenceHint:
-      'AI lấy tông màu, họa tiết và không khí từ ảnh này — không sao chép bố cục hay chữ. Dùng khi tạo ảnh chính và các nền riêng. Không tốn credit cho việc chọn ảnh.',
+      'AI lấy tông màu, họa tiết và không khí từ ảnh này — không sao chép bố cục hay chữ. Dùng khi tạo ảnh nền chính cho cả thiệp. Không tốn credit cho việc chọn ảnh.',
     customReferenceChoose: 'Chọn ảnh tham khảo',
     customReferenceRemove: 'Gỡ ảnh',
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
@@ -7197,7 +7211,7 @@ const VI_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. Chọn vỏ thiệp',
     sectionDescription:
-      'Chọn kiểu khung thiệp giữa màn «Mở thiệp» và thêm ảnh cặp đôi vào giữa — miễn phí, không tốn credit. Ảnh nền full màn vẫn dùng nền AI «Bìa chính».',
+      'Chọn kiểu khung thiệp giữa màn «Mở thiệp» và thêm ảnh cặp đôi vào giữa — miễn phí, không tốn credit. Ảnh nền full màn dùng chung một ảnh nền chính.',
     tagNew: 'Mới',
     tagHot: 'Hot',
     previewLabel: 'Thiệp mời',
@@ -7206,7 +7220,7 @@ const VI_DICTIONARY: Dictionary = {
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     uploadHint: 'Ảnh hiển thị trong khung giữa thiệp (không thay nền phía sau). Upload/lưu không tốn credit.',
     removeCustomCover: 'Gỡ ảnh giữa thiệp',
-    aiCoverHint: 'Nền phía sau khung thiệp lấy từ ảnh AI «Bìa chính» (hoặc ảnh chính). Tạo nền ở bước «Tạo ảnh AI».',
+    aiCoverHint: 'Nền phía sau khung thiệp là ảnh nền chính, dùng chung cả thiệp. Tạo ở bước «Tạo ảnh AI».',
   },
   weddingCardPublic: {
     invitation: 'Thiệp mời / Invitation',
@@ -7229,6 +7243,8 @@ const VI_DICTIONARY: Dictionary = {
     familiesIntro: 'Gia đình hai bên',
     groomFamily: 'Nhà trai',
     brideFamily: 'Nhà gái',
+    groomRole: 'Chú rể',
+    brideRole: 'Cô dâu',
     letterViewAsk: 'Xem thiệp nhà nào?',
     letterViewBoth: 'Gộp 2 nhà',
     hometownLabel: 'Quê quán',
@@ -7258,6 +7274,9 @@ const VI_DICTIONARY: Dictionary = {
     coverPartyClose: 'Đóng',
     wishLabel: 'Lời chúc',
     wishPlaceholder: 'Gửi lời chúc đến cô dâu chú rể...',
+    wishPresetOpen: 'Câu chúc có sẵn',
+    wishPresetList:
+      'Chúc hai bạn trăm năm hạnh phúc, luôn bên nhau thật lâu.\nChúc cô dâu chú rể sớm có tổ ấm bình an và đủ đầy.\nChúc mừng ngày trọng đại. Mong hai bạn luôn cười thật tươi.\nChúc hai bạn sức khỏe, bình an và hạnh phúc mãi mãi.\nCảm ơn lời mời. Chúc ngày cưới thật trọn vẹn và đáng nhớ.\nChúc hai bạn luôn đồng lòng, cùng đi hết những ngày đẹp nhất.',
     submitResponse: 'Gửi phản hồi',
     submitErrorTitle: 'Chưa gửi được',
     submitSuccessTitle: 'Cảm ơn bạn!',
@@ -8760,6 +8779,11 @@ const EN_DICTIONARY: Dictionary = {
     colUnitPrice: 'Unit price',
     colLineTotal: 'Line total',
     skuLabel: 'SKU: {sku}',
+    modalImageLink: 'Image link',
+    modalChinaLink: 'China source link',
+    modalShopLink: 'Shop link',
+    modalNoShopSlug: 'No product slug — shop page link is unavailable',
+    modalOpenVariantImage: 'Open variant image',
     timelineHeading: 'Order timeline',
     timelineEmpty: 'No timeline yet.',
     filterFulfillmentAll: 'All sources',
@@ -9736,7 +9760,7 @@ const EN_DICTIONARY: Dictionary = {
     inventoryErrNoRows:
       'No valid rows (need at least one row with a product name to add/update, or Status = 0 with SKU or name to delete).',
     inventoryErrNoFile: 'No file selected.',
-    inventoryErrFileTooLarge: 'File is too large (max ~20 MB).',
+    inventoryErrFileTooLarge: 'File is too large (max 80 MB).',
     inventoryErrTooManyRows: 'File has too many rows. Maximum {max} rows per import.',
     inventoryLoadMore: 'Load more ({shown}/{total})',
     inventoryVectorSearchPlaceholder: 'Describe the product (e.g. wool sweater, leather shoes) — semantic search',
@@ -10974,7 +10998,7 @@ const EN_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: 'Custom reference image (optional)',
     customReferenceHint:
-      'AI picks palette, motifs, and mood from this image — not the exact layout or text. Used for the main image and each section background. Choosing an image costs no credits.',
+      'AI picks palette, motifs, and mood from this image — not the exact layout or text. Used when creating the one main background for the whole invitation. Choosing an image costs no credits.',
     customReferenceChoose: 'Choose reference image',
     customReferenceRemove: 'Remove image',
     customReferenceUrlPlaceholder: 'Or paste a reference image URL (https://...)',
@@ -10988,7 +11012,7 @@ const EN_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. Choose cover shell',
     sectionDescription:
-      'Pick the inner card layout on the “Open invitation” screen and add a couple photo in the center — free, no credits. The full-screen background still uses AI “Main cover”.',
+      'Pick the inner card layout on the “Open invitation” screen and add a couple photo in the center — free, no credits. The full-screen background is the same main image throughout the invitation.',
     tagNew: 'New',
     tagHot: 'Hot',
     previewLabel: 'Invitation',
@@ -10997,7 +11021,7 @@ const EN_DICTIONARY: Dictionary = {
     uploadLabel: 'Couple photo on cover card',
     uploadHint: 'Photo shown inside the center card frame (does not replace the background). Upload/save costs no credits.',
     removeCustomCover: 'Remove center photo',
-    aiCoverHint: 'The background behind the card uses AI “Main cover” (or master image). Generate it in “Create AI images”.',
+    aiCoverHint: 'The background behind the card is the main image, shared across the invitation. Generate it in “Create AI images”.',
   },
   weddingCardPublic: {
     invitation: 'Wedding Invitation',
@@ -11020,6 +11044,8 @@ const EN_DICTIONARY: Dictionary = {
     familiesIntro: 'Our families',
     groomFamily: 'Groom family',
     brideFamily: 'Bride family',
+    groomRole: 'Groom',
+    brideRole: 'Bride',
     letterViewAsk: 'Which side should this letter show?',
     letterViewBoth: 'Both families',
     hometownLabel: 'Hometown',
@@ -11049,6 +11075,9 @@ const EN_DICTIONARY: Dictionary = {
     coverPartyClose: 'Close',
     wishLabel: 'Wish',
     wishPlaceholder: 'Send a wish to the couple...',
+    wishPresetOpen: 'Ready-made wishes',
+    wishPresetList:
+      'Wishing you a lifetime of happiness, side by side.\nMay your new home be peaceful, full of love, and complete.\nCongratulations on your wedding day. May you keep smiling on this new journey.\nWishing you health, peace, and happiness always.\nThank you for the invitation. May your wedding day be complete and memorable.\nMay you stay of one heart and walk through your best days together.',
     submitResponse: 'Send response',
     submitErrorTitle: 'Could not send',
     submitSuccessTitle: 'Thank you!',
@@ -12527,6 +12556,11 @@ const ZH_DICTIONARY: Dictionary = {
     colUnitPrice: '单价',
     colLineTotal: '小计',
     skuLabel: 'SKU：{sku}',
+    modalImageLink: '图片链接',
+    modalChinaLink: '中国货源链接',
+    modalShopLink: '店铺链接',
+    modalNoShopSlug: '没有商品路径，无法生成店铺商品页链接',
+    modalOpenVariantImage: '打开规格图片',
     timelineHeading: '订单进度',
     timelineEmpty: '暂无进度。',
     filterFulfillmentAll: '全部来源',
@@ -13477,7 +13511,7 @@ const ZH_DICTIONARY: Dictionary = {
     inventoryErrMissingName: '缺少商品名称列（name）。请使用模板文件。',
     inventoryErrNoRows: '没有有效数据行（至少需一行填写商品名称以新增/更新，或状态=0并填写 SKU 或名称以删除）。',
     inventoryErrNoFile: '未选择文件。',
-    inventoryErrFileTooLarge: '文件过大（最大约 20 MB）。',
+    inventoryErrFileTooLarge: '文件过大（最大 80 MB）。',
     inventoryErrTooManyRows: '文件行数过多。每次导入最多 {max} 行。',
     inventoryLoadMore: '加载更多（{shown}/{total}）',
     inventoryVectorSearchPlaceholder: '输入描述（如羊毛衫、皮鞋）— 语义搜索',
@@ -14648,7 +14682,7 @@ const ZH_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: '自定义参考图（可选）',
     customReferenceHint:
-      'AI 参考此图的色调、纹样与氛围——不复制版式或文字。用于主图与各分区背景。选择图片不消耗积分。',
+      'AI 参考此图的色调、纹样与氛围——不复制版式或文字。用于生成整张请柬共用的主背景。选择图片不消耗积分。',
     customReferenceChoose: '选择参考图',
     customReferenceRemove: '移除图片',
     customReferenceUrlPlaceholder: '或粘贴参考图 URL（https://...）',
@@ -14662,7 +14696,7 @@ const ZH_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 选择请柬封面',
     sectionDescription:
-      '选择「打开请柬」屏幕中间的卡片样式，并在中间添加情侣照片——免费、不消耗积分。全屏背景仍使用 AI「主封面」。',
+      '选择「打开请柬」屏幕中间的卡片样式，并在中间添加情侣照片——免费、不消耗积分。全屏背景整张请柬共用一张主图。',
     tagNew: '新',
     tagHot: '热',
     previewLabel: '请柬',
@@ -14671,7 +14705,7 @@ const ZH_DICTIONARY: Dictionary = {
     uploadLabel: '封面卡片情侣照',
     uploadHint: '照片显示在中间卡片内（不替换后方背景）。上传/保存不消耗积分。',
     removeCustomCover: '移除中间照片',
-    aiCoverHint: '卡片后方背景来自 AI「主封面」（或主图）。请在「创建 AI 图片」步骤生成。',
+    aiCoverHint: '卡片后方背景是整张请柬共用的主图。请在「创建 AI 图片」步骤生成。',
   },
   weddingCardPublic: {
     invitation: '婚礼请柬',
@@ -14694,6 +14728,8 @@ const ZH_DICTIONARY: Dictionary = {
     familiesIntro: '双方家庭',
     groomFamily: '新郎家庭',
     brideFamily: '新娘家庭',
+    groomRole: '新郎',
+    brideRole: '新娘',
     letterViewAsk: '查看哪一方的请柬？',
     letterViewBoth: '两家合看',
     hometownLabel: '籍贯',
@@ -14723,6 +14759,9 @@ const ZH_DICTIONARY: Dictionary = {
     coverPartyClose: '关闭',
     wishLabel: '祝福',
     wishPlaceholder: '给新人送上祝福...',
+    wishPresetOpen: '现成祝福',
+    wishPresetList:
+      '祝二位百年好合，长久相伴。\n祝新郎新娘早日安家，生活美满。\n恭贺大喜。愿二位一路笑容常在。\n祝二位健康、平安、幸福长久。\n感谢邀请。祝婚礼圆满、值得铭记。\n祝二位同心同行，走过最美的日子。',
     submitResponse: '发送回复',
     submitErrorTitle: '发送失败',
     submitSuccessTitle: '谢谢您！',
@@ -16223,6 +16262,11 @@ const JA_DICTIONARY: Dictionary = {
     colUnitPrice: '単価',
     colLineTotal: '小計',
     skuLabel: 'SKU: {sku}',
+    modalImageLink: '画像リンク',
+    modalChinaLink: '中国仕入れリンク',
+    modalShopLink: 'ショップリンク',
+    modalNoShopSlug: '商品スラッグがないため、ショップの商品ページを作れません',
+    modalOpenVariantImage: 'バリエーション画像を開く',
     timelineHeading: '注文の進捗',
     timelineEmpty: '進捗はまだありません。',
     filterFulfillmentAll: 'すべての調達元',
@@ -17196,7 +17240,7 @@ const JA_DICTIONARY: Dictionary = {
     inventoryErrNoRows:
       '有効なデータ行がありません（追加/更新には商品名が必要。削除は状態=0かつ SKU または商品名が必要）。',
     inventoryErrNoFile: 'ファイルが選ばれていません。',
-    inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大約20MB）。',
+    inventoryErrFileTooLarge: 'ファイルが大きすぎます（最大80MB）。',
     inventoryErrTooManyRows: '行数が多すぎます。1回のインポートは最大 {max} 行です。',
     inventoryLoadMore: 'さらに読み込む（{shown}/{total}）',
     inventoryVectorSearchPlaceholder: '説明を入力（例：ニット、革靴）— 意味検索',
@@ -18405,7 +18449,7 @@ const JA_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: 'カスタム参考画像（任意）',
     customReferenceHint:
-      'AIはこの画像から色調・モチーフ・雰囲気を参考にします（レイアウトや文字はコピーしません）。メイン画像と各セクション背景に使用。画像選択にクレジットは不要です。',
+      'AIはこの画像から色調・モチーフ・雰囲気を参考にします（レイアウトや文字はコピーしません）。招待状全体のメイン背景を作るときに使います。画像選択にクレジットは不要です。',
     customReferenceChoose: '参考画像を選択',
     customReferenceRemove: '画像を削除',
     customReferenceUrlPlaceholder: 'または参考画像の URL を貼り付け（https://...）',
@@ -18419,7 +18463,7 @@ const JA_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 表紙を選ぶ',
     sectionDescription:
-      '「招待状を開く」画面の中央カードのレイアウトを選び、中央にカップル写真を追加（無料・クレジット不要）。全画面の背景は AI「メイン表紙」のままです。',
+      '「招待状を開く」画面の中央カードのレイアウトを選び、中央にカップル写真を追加（無料・クレジット不要）。全画面の背景は招待状全体で同じメイン画像です。',
     tagNew: '新着',
     tagHot: '人気',
     previewLabel: '招待状',
@@ -18428,7 +18472,7 @@ const JA_DICTIONARY: Dictionary = {
     uploadLabel: '表紙カードのカップル写真',
     uploadHint: '中央カード内に表示（背景は置き換えません）。アップロード/保存は無料です。',
     removeCustomCover: '中央写真を削除',
-    aiCoverHint: 'カード背後の背景は AI「メイン表紙」（またはメイン画像）です。「AI 画像作成」で生成してください。',
+    aiCoverHint: 'カード背後の背景は招待状全体で使うメイン画像です。「AI 画像作成」で生成してください。',
   },
   weddingCardPublic: {
     invitation: '結婚式招待状',
@@ -18451,6 +18495,8 @@ const JA_DICTIONARY: Dictionary = {
     familiesIntro: '両家のご案内',
     groomFamily: '新郎側',
     brideFamily: '新婦側',
+    groomRole: '新郎',
+    brideRole: '新婦',
     letterViewAsk: 'どちらの招待状を見ますか？',
     letterViewBoth: '両家をまとめて見る',
     hometownLabel: '出身地',
@@ -18480,6 +18526,9 @@ const JA_DICTIONARY: Dictionary = {
     coverPartyClose: '閉じる',
     wishLabel: 'メッセージ',
     wishPlaceholder: 'おふたりへのメッセージ...',
+    wishPresetOpen: '定型メッセージ',
+    wishPresetList:
+      'おふたりの末永い幸せと、ずっとそばにいられる日々をお祈りします。\n新郎新婦のお二人が、安らかで満ち足りた家庭を築けますように。\nご結婚おめでとうございます。これから先も笑顔が続きますように。\n健康と平安、そしていつまでも幸せでありますように。\nご招待ありがとうございます。結婚式が満ち足りた思い出になりますように。\nお二人が心をひとつに、いちばん美しい日々を歩けますように。',
     submitResponse: '回答を送信',
     submitErrorTitle: '送信できませんでした',
     submitSuccessTitle: 'ありがとうございます！',
@@ -19983,6 +20032,11 @@ const KO_DICTIONARY: Dictionary = {
     colUnitPrice: '단가',
     colLineTotal: '합계',
     skuLabel: 'SKU: {sku}',
+    modalImageLink: '이미지 링크',
+    modalChinaLink: '중국 소싱 링크',
+    modalShopLink: '샵 링크',
+    modalNoShopSlug: '상품 경로가 없어 샵 상품 링크를 만들 수 없습니다',
+    modalOpenVariantImage: '옵션 이미지 열기',
     timelineHeading: '주문 진행',
     timelineEmpty: '진행 내역이 없습니다.',
     filterFulfillmentAll: '모든 출처',
@@ -20953,7 +21007,7 @@ const KO_DICTIONARY: Dictionary = {
     inventoryErrNoRows:
       '유효한 데이터 행이 없습니다(추가/업데이트에는 상품명이 필요하고, 삭제는 상태=0과 SKU 또는 상품명이 필요합니다).',
     inventoryErrNoFile: '파일을 선택하지 않았습니다.',
-    inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 약 20MB).',
+    inventoryErrFileTooLarge: '파일이 너무 큽니다(최대 80MB).',
     inventoryErrTooManyRows: '행 수가 너무 많습니다. 한 번에 최대 {max}행까지 가져올 수 있습니다.',
     inventoryLoadMore: '더 불러오기 ({shown}/{total})',
     inventoryVectorSearchPlaceholder: '설명 입력(예: 니트, 가죽 신발) — 의미 검색',
@@ -22156,7 +22210,7 @@ const KO_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: '맞춤 참조 이미지 (선택)',
     customReferenceHint:
-      'AI가 이 이미지의 색감, 문양, 분위기를 참고합니다 — 레이아웃이나 글자는 복사하지 않습니다. 메인 이미지와 각 섹션 배경 생성에 사용됩니다. 이미지 선택은 크레딧을 사용하지 않습니다.',
+      'AI가 이 이미지의 색감, 문양, 분위기를 참고합니다 — 레이아웃이나 글자는 복사하지 않습니다. 청첩장 전체의 메인 배경을 만들 때 사용합니다. 이미지 선택은 크레딧을 사용하지 않습니다.',
     customReferenceChoose: '참조 이미지 선택',
     customReferenceRemove: '이미지 제거',
     customReferenceUrlPlaceholder: '또는 참조 이미지 URL 붙여넣기 (https://...)',
@@ -22170,7 +22224,7 @@ const KO_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 표지 선택',
     sectionDescription:
-      '«청첩장 열기» 화면 가운데 카드 레이아웃을 고르고 중앙에 커플 사진을 추가합니다(무료·크레딧 없음). 전체 화면 배경은 AI «메인 표지»를 그대로 사용합니다.',
+      '«청첩장 열기» 화면 가운데 카드 레이아웃을 고르고 중앙에 커플 사진을 추가합니다(무료·크레딧 없음). 전체 화면 배경은 청첩장 전체가 같은 메인 이미지를 씁니다.',
     tagNew: '신규',
     tagHot: '인기',
     previewLabel: '청첩장',
@@ -22179,7 +22233,7 @@ const KO_DICTIONARY: Dictionary = {
     uploadLabel: '표지 카드 커플 사진',
     uploadHint: '가운데 카드 안에 표시됩니다(뒤 배경은 바꾸지 않음). 업로드/저장은 크레딧이 들지 않습니다.',
     removeCustomCover: '중앙 사진 제거',
-    aiCoverHint: '카드 뒤 배경은 AI «메인 표지»(또는 메인 이미지)입니다. «AI 이미지 생성» 단계에서 만드세요.',
+    aiCoverHint: '카드 뒤 배경은 청첩장 전체가 쓰는 메인 이미지입니다. «AI 이미지 생성» 단계에서 만드세요.',
   },
   weddingCardPublic: {
     invitation: '청첩장',
@@ -22202,6 +22256,8 @@ const KO_DICTIONARY: Dictionary = {
     familiesIntro: '양가 가족',
     groomFamily: '신랑 측',
     brideFamily: '신부 측',
+    groomRole: '신랑',
+    brideRole: '신부',
     letterViewAsk: '어느 쪽 청첩장을 볼까요?',
     letterViewBoth: '양가 함께 보기',
     hometownLabel: '고향',
@@ -22231,6 +22287,9 @@ const KO_DICTIONARY: Dictionary = {
     coverPartyClose: '닫기',
     wishLabel: '축하 메시지',
     wishPlaceholder: '신랑 신부에게 축하 메시지를 남겨주세요...',
+    wishPresetOpen: '미리 쓴 축하 문구',
+    wishPresetList:
+      '두 분의 백년해로와 오래오래 함께하는 날을 기원합니다.\n신랑 신부께서 평안하고 가득한 보금자리를 이루시길 바랍니다.\n결혼 축하드립니다. 앞으로도 늘 환하게 웃으시길.\n건강과 평안, 그리고 영원한 행복을 기원합니다.\n초대해 주셔서 감사합니다. 결혼식이 온전하고 기억에 남기를.\n두 분이 한마음으로 가장 아름다운 날들을 함께 걸어가시길.',
     submitResponse: '응답 보내기',
     submitErrorTitle: '보내지 못했습니다',
     submitSuccessTitle: '감사합니다!',

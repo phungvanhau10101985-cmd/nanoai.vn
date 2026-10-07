@@ -39,6 +39,7 @@ import {
   resolveDepositQrForEmail,
 } from '@/lib/messaging/partner-order-deposit-email'
 import { type DepositRemindHour } from '@/lib/messaging/fulfillment/deposit-sla'
+import { customerShippingStatusSendsEmail } from '@/lib/messaging/partner-order-notify-ui'
 
 function trim(s: string, max = 240): string {
   return String(s || '')
@@ -435,6 +436,11 @@ export async function emailCustomerShippingStatusChanged(input: {
   const meta = await fetchPartnerEmailMeta(input.order.partner_id)
   const shopLabel = meta.displayName
   const locale = await resolveOrderCustomerLocale(input.order, input.customerLocale)
+  const shippingStatus = String(input.order.shipping_status || '').trim().toLowerCase()
+  if (!customerShippingStatusSendsEmail(shippingStatus)) {
+    await notifyCustomerShippingWebApp(input.order, locale)
+    return
+  }
   const copy = formatShippingStatusEmailContentForCustomer({
     locale,
     shopLabel,

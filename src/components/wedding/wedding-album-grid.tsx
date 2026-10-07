@@ -1,6 +1,18 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import {
+  albumPhotoFrameStyle,
+  defaultAlbumPhotoFrame,
+  resolveAlbumPhotoFrame,
+  type WeddingAlbumPhotoCrop,
+  type WeddingAlbumPhotoFrame,
+} from '@/lib/wedding/wedding-section-config'
+
+function albumFrameIsCustom(frame: WeddingAlbumPhotoFrame) {
+  const base = defaultAlbumPhotoFrame()
+  return frame.x !== base.x || frame.y !== base.y || frame.scale !== base.scale
+}
 
 type WeddingAlbumThumbProps = {
   url: string
@@ -9,6 +21,8 @@ type WeddingAlbumThumbProps = {
   fit?: 'cover' | 'contain'
   className?: string
   imgClassName?: string
+  /** Khung zoom/kéo đã lưu. Có thì hiện đúng góc trên thiệp. */
+  frame?: WeddingAlbumPhotoFrame
 }
 
 /** Khung ảnh album dọc 3:4 — phù hợp ảnh cưới chân dung, ưu tiên giữ phần trên (mặt). */
@@ -18,18 +32,23 @@ export function WeddingAlbumThumb({
   fit = 'cover',
   className,
   imgClassName,
+  frame,
 }: WeddingAlbumThumbProps) {
+  const frameStyle = frame ? albumPhotoFrameStyle(frame) : undefined
   return (
     <div className={cn('relative aspect-[3/4] overflow-hidden rounded-2xl bg-[#fffcf7]/35 shadow-sm ring-1 ring-white/30', className)}>
       {/* eslint-disable-next-line @next/next/no-img-element -- external wedding album URLs */}
       <img
         src={url}
         alt={alt}
+        draggable={false}
         className={cn(
-          'h-full w-full transition duration-300',
-          fit === 'cover' ? 'object-cover object-top' : 'object-contain',
-          imgClassName,
+          'h-full w-full',
+          frameStyle ? 'object-cover' : 'transition duration-300',
+          !frameStyle && (fit === 'cover' ? 'object-cover object-top' : 'object-contain'),
+          !frameStyle && imgClassName,
         )}
+        style={frameStyle}
       />
     </div>
   )
@@ -73,22 +92,33 @@ type WeddingAlbumGalleryGridProps = {
   alt: string
   onSelect: (index: number) => void
   className?: string
+  crops?: WeddingAlbumPhotoCrop[]
 }
 
 /** Lưới album đầy đủ — 2 cột mobile, 3 cột desktop, tỷ lệ 3:4. */
-export function WeddingAlbumGalleryGrid({ urls, alt, onSelect, className }: WeddingAlbumGalleryGridProps) {
+export function WeddingAlbumGalleryGrid({ urls, alt, onSelect, className, crops }: WeddingAlbumGalleryGridProps) {
   return (
     <div className={cn('grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-3', className)}>
-      {urls.map((url, index) => (
-        <button
-          key={`${url}-${index}`}
-          type="button"
-          onClick={() => onSelect(index)}
-          className="overflow-hidden rounded-2xl text-left transition hover:opacity-95"
-        >
-          <WeddingAlbumThumb url={url} alt={alt} fit="contain" imgClassName="hover:scale-[1.02]" />
-        </button>
-      ))}
+      {urls.map((url, index) => {
+        const frame = resolveAlbumPhotoFrame(crops, index)
+        const shaped = albumFrameIsCustom(frame)
+        return (
+          <button
+            key={`${url}-${index}`}
+            type="button"
+            onClick={() => onSelect(index)}
+            className="overflow-hidden rounded-2xl text-left transition hover:opacity-95"
+          >
+            <WeddingAlbumThumb
+              url={url}
+              alt={alt}
+              fit={shaped ? 'cover' : 'contain'}
+              frame={shaped ? frame : undefined}
+              imgClassName={shaped ? undefined : 'hover:scale-[1.02]'}
+            />
+          </button>
+        )
+      })}
     </div>
   )
 }

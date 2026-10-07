@@ -6,8 +6,10 @@ import { fileURLToPath } from 'node:url'
 import {
   PARTNER_ORDER_NOTIFY_EVENT_MATRIX,
   buyerOrderActions,
+  customerShippingStatusSendsEmail,
   orderWaitingState,
   partnerOrderNotifyIdempotencyKey,
+  partnerOwnerAlertSendsEmail,
   publicOrderShipmentEvents,
   stripInternalOrderSource,
 } from './partner-order-notify-ui'
@@ -19,11 +21,23 @@ test('event matrix keeps customer and owner channels explicit', () => {
     'push',
     'chat',
   ])
-  assert.deepEqual(PARTNER_ORDER_NOTIFY_EVENT_MATRIX.customer_received.owner, [
-    'email',
-    'in_app',
-    'push',
-  ])
+  assert.deepEqual(PARTNER_ORDER_NOTIFY_EVENT_MATRIX.customer_received.owner, ['in_app', 'push'])
+  assert.deepEqual(PARTNER_ORDER_NOTIFY_EVENT_MATRIX.chat_needs_reply.owner, ['in_app', 'push'])
+  assert.equal(partnerOwnerAlertSendsEmail('new_order', { shopNotifyInboxConfigured: true }), false)
+  assert.equal(partnerOwnerAlertSendsEmail('new_order', { shopNotifyInboxConfigured: false }), true)
+  assert.equal(partnerOwnerAlertSendsEmail('payment_verified', { shopNotifyInboxConfigured: true }), false)
+  assert.equal(partnerOwnerAlertSendsEmail('payment_review'), true)
+  assert.equal(partnerOwnerAlertSendsEmail('customer_cancelled'), true)
+  assert.equal(partnerOwnerAlertSendsEmail('customer_received'), false)
+  assert.equal(partnerOwnerAlertSendsEmail('new_question'), false)
+  assert.equal(partnerOwnerAlertSendsEmail('new_review'), false)
+  assert.equal(partnerOwnerAlertSendsEmail('chat_needs_reply'), false)
+  assert.equal(partnerOwnerAlertSendsEmail('new_lead'), true)
+  assert.equal(customerShippingStatusSendsEmail('shipping'), true)
+  assert.equal(customerShippingStatusSendsEmail('returned'), true)
+  assert.equal(customerShippingStatusSendsEmail('cancelled'), true)
+  assert.equal(customerShippingStatusSendsEmail('confirmed'), false)
+  assert.equal(customerShippingStatusSendsEmail('packing'), false)
   assert.deepEqual(PARTNER_ORDER_NOTIFY_EVENT_MATRIX.chat_needs_reply.customer, [])
 })
 

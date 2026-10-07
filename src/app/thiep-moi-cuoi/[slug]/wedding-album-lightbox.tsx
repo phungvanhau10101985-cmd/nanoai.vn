@@ -4,6 +4,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import {
+  albumPhotoFrameStyle,
+  defaultAlbumPhotoFrame,
+  resolveAlbumPhotoFrame,
+  type WeddingAlbumPhotoCrop,
+} from '@/lib/wedding/wedding-section-config'
 
 type Props = {
   urls: string[]
@@ -13,9 +19,10 @@ type Props = {
   onCloseToInvitation: () => void
   /** Chỉ về lưới ảnh (album vẫn mở) */
   onOpenGallery: () => void
+  crops?: WeddingAlbumPhotoCrop[]
 }
 
-export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvitation }: Props) {
+export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvitation, crops }: Props) {
   const locale = readWebLocaleFromDocumentCookie()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (locale === 'en') return en
@@ -357,6 +364,9 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
               <div className="mx-auto flex w-max max-w-full gap-2">
                 {urls.map((thumbUrl, i) => {
                 const active = i === index
+                const frame = resolveAlbumPhotoFrame(crops, i)
+                const base = defaultAlbumPhotoFrame()
+                const shaped = frame.x !== base.x || frame.y !== base.y || frame.scale !== base.scale
                 return (
                   <button
                     key={`${thumbUrl}-${i}`}
@@ -386,6 +396,7 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
                       alt=""
                       className="block h-16 w-16 object-cover sm:h-[4.5rem] sm:w-[4.5rem]"
                       draggable={false}
+                      style={shaped ? albumPhotoFrameStyle(frame) : undefined}
                     />
                   </button>
                 )

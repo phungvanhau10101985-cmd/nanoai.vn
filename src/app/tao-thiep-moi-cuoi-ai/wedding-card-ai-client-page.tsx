@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Crop, Download, ExternalLink, Heart, Loader2, MapPin, QrCode, Sparkles, Upload, Users, X } from 'lucide-react'
+import { Download, ExternalLink, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,12 +17,15 @@ import {
   applyWeddingBackgroundFromLibrary,
   generateWeddingCardImage,
   uploadWeddingPrivateBackground,
-  getOrCreateWeddingCard,
+  createNewWeddingCard,
+  deleteWeddingCard,
+  loadWeddingCardWorkspace,
   publishCurrentWeddingCard,
   saveWeddingCardBrief,
 } from './actions'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
-import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingMusicLibraryRow, WeddingRsvp, WeddingImageType } from '@/lib/db/wedding-cards-pg'
+import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
+import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
 import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import {
   WeddingInvitationAudio,
@@ -34,7 +37,15 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
-import { isLegacySingleGiftImage, isTwinVietGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import {
+  INVITATION_OCCASION_GROUPS,
+  invitationEditorCopy,
+  invitationOccasionShape,
+  invitationOccasionShapeChangeNote,
+  normalizeInvitationOccasion,
+  type InvitationOccasionKey,
+} from '@/lib/wedding/invitation-occasion'
+import { isInvitationGiftReady, isLegacySingleGiftImage } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
 import { countWeddingEventTimelineItems } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
@@ -50,7 +61,6 @@ import {
 } from '@/lib/wedding/wedding-side-invite-settings'
 import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-settings-panel'
 import {
-  albumPhotoFrameStyle,
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
   remapAlbumPhotoCrops,
@@ -58,11 +68,13 @@ import {
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoScale,
   resolveCoverPhotoUrl,
+  resolvePortraitPhotoFrame,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
+import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-preset-picker'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
@@ -153,8 +165,8 @@ function mergeCardMediaAfterSave(prev: WeddingCard, server: WeddingCard): Weddin
       changed = true
     }
   }
-  if (server.groomImageUrl) assignIfChanged('groomImageUrl', server.groomImageUrl)
-  if (server.brideImageUrl) assignIfChanged('brideImageUrl', server.brideImageUrl)
+  assignIfChanged('groomImageUrl', server.groomImageUrl)
+  assignIfChanged('brideImageUrl', server.brideImageUrl)
   if (server.musicUrl) assignIfChanged('musicUrl', server.musicUrl)
   if (server.giftQrImageUrl) assignIfChanged('giftQrImageUrl', server.giftQrImageUrl)
   assignIfChanged('albumImageUrls', server.albumImageUrls)
@@ -176,6 +188,10 @@ function buildSavedSnapshotForCard(card: WeddingCard) {
     musicClearOnSave: false,
     coverImageFile: null,
     coverClearOnSave: false,
+    groomPortraitFile: null,
+    bridePortraitFile: null,
+    groomPortraitClear: false,
+    bridePortraitClear: false,
     musicFile: null,
     albumImageFiles: [],
   })
@@ -189,6 +205,10 @@ function buildPersistSnapshot(input: {
   musicClearOnSave: boolean
   coverImageFile: File | null
   coverClearOnSave: boolean
+  groomPortraitFile: File | null
+  bridePortraitFile: File | null
+  groomPortraitClear: boolean
+  bridePortraitClear: boolean
   musicFile: File | null
   albumImageFiles: File[]
 }): string {
@@ -196,6 +216,7 @@ function buildPersistSnapshot(input: {
   const fk = (f: File | null) => (f ? `${f.name}:${f.size}:${f.lastModified}` : '')
   const albumKeys = input.albumImageFiles.map((f) => `${f.name}:${f.size}:${f.lastModified}`).join('|')
   return JSON.stringify({
+    occasionKey: normalizeInvitationOccasion(card.occasionKey),
     groomName: card.groomName,
     brideName: card.brideName,
     weddingDate: weddingDateIso ?? '',
@@ -242,26 +263,49 @@ function buildPersistSnapshot(input: {
     musicEndInput,
     coverFk: fk(input.coverImageFile),
     coverClearOnSave: input.coverClearOnSave,
+    groomPortraitFk: fk(input.groomPortraitFile),
+    bridePortraitFk: fk(input.bridePortraitFile),
+    groomPortraitClear: input.groomPortraitClear,
+    bridePortraitClear: input.bridePortraitClear,
     musicFk: fk(input.musicFile),
     albumKeys,
   })
 }
 
-const CARD_FACES: Array<{ type: WeddingImageType; label: string; hint: string }> = [
-  { type: 'cover', label: 'Bìa chính', hint: 'Dùng ở màn mở thiệp và hero đầu trang.' },
-  { type: 'invitation', label: 'Gia đình / lời mời', hint: 'Dùng cho phần gia đình hai bên và câu chuyện mở đầu.' },
-  { type: 'event', label: 'Lịch trình / địa điểm', hint: 'Dùng sau lịch tháng, timeline, dress code và bản đồ.' },
-  { type: 'rsvp', label: 'RSVP', hint: 'Dùng quanh form xác nhận tham dự và lời chúc.' },
-  { type: 'album', label: 'Album / Story', hint: 'Dùng làm nền cho câu chuyện và album ảnh cưới.' },
-  { type: 'gift_qr', label: 'QR mừng cưới', hint: 'Dùng cho section hộp mừng cưới; giữ vùng QR thoáng.' },
-  { type: 'thanks', label: 'Lời cảm ơn', hint: 'Dùng cho đoạn kết thiệp trang trọng.' },
-]
+function weddingCardListTitle(row: Pick<WeddingCardSummary, 'occasionKey' | 'groomName' | 'brideName'>) {
+  const groom = row.groomName.trim()
+  const bride = row.brideName.trim()
+  if (invitationOccasionShape(row.occasionKey) === 'single') return groom || 'Thiệp mới'
+  if (groom && bride) return `${groom} & ${bride}`
+  return groom || bride || 'Thiệp mới'
+}
+
+function summaryFromCard(card: WeddingCard): WeddingCardSummary {
+  return {
+    id: card.id,
+    slug: card.slug,
+    occasionKey: normalizeInvitationOccasion(card.occasionKey),
+    groomName: card.groomName,
+    brideName: card.brideName,
+    isPublished: card.isPublished,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function rememberCardInUrl(cardId: string) {
+  if (typeof window === 'undefined' || !cardId) return
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('cardId') === cardId) return
+  url.searchParams.set('cardId', cardId)
+  window.history.replaceState(null, '', `${url.pathname}${url.search}`)
+}
 
 function emptyBrief(styleId = 'luxury'): WeddingCard {
   return {
     id: '',
     userId: '',
     slug: '',
+    occasionKey: 'wedding',
     groomName: '',
     brideName: '',
     weddingDate: '',
@@ -320,20 +364,23 @@ export default function WeddingCardAiClientPage() {
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [card, setCard] = useState<WeddingCard>(() => emptyBrief())
+  const [savedCards, setSavedCards] = useState<WeddingCardSummary[]>([])
+  const [switchingCard, setSwitchingCard] = useState(false)
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
-  const [libraryTarget, setLibraryTarget] = useState<WeddingImageType>('master')
   const [uploadingOutside, setUploadingOutside] = useState(false)
   const outsideFileRef = useRef<HTMLInputElement | null>(null)
-  const outsideTypeRef = useRef<WeddingImageType>('master')
   const [rsvps, setRsvps] = useState<WeddingRsvp[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
   const [letterAskOpen, setLetterAskOpen] = useState(false)
-  const [generating, setGenerating] = useState<WeddingImageType | null>(null)
+  const [occasionPickerOpen, setOccasionPickerOpen] = useState(false)
+  const [pickedOccasion, setPickedOccasion] = useState<InvitationOccasionKey>('wedding')
+  const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
+  const [generating, setGenerating] = useState(false)
   const [extraPrompt, setExtraPrompt] = useState('')
   const [styleReferenceFile, setStyleReferenceFile] = useState<File | null>(null)
   const [styleReferenceUrl, setStyleReferenceUrl] = useState('')
@@ -345,9 +392,12 @@ export default function WeddingCardAiClientPage() {
   const [pickedMusicPreviewUrl, setPickedMusicPreviewUrl] = useState<string | null>(null)
   const [albumImageFiles, setAlbumImageFiles] = useState<File[]>([])
   const [albumPendingPreviews, setAlbumPendingPreviews] = useState<string[]>([])
-  const [albumCropIndex, setAlbumCropIndex] = useState<number | null>(null)
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
   const [coverClearOnSave, setCoverClearOnSave] = useState(false)
+  const [groomPortraitFile, setGroomPortraitFile] = useState<File | null>(null)
+  const [bridePortraitFile, setBridePortraitFile] = useState<File | null>(null)
+  const [groomPortraitClear, setGroomPortraitClear] = useState(false)
+  const [bridePortraitClear, setBridePortraitClear] = useState(false)
   const musicPreviewAudioRef = useRef<WeddingInvitationAudioHandle>(null)
   const vietBanks = useVietQrBanks()
 
@@ -386,6 +436,8 @@ export default function WeddingCardAiClientPage() {
   }, [musicFile])
 
   const [pickedCoverPreviewUrl, setPickedCoverPreviewUrl] = useState<string | null>(null)
+  const [pickedGroomPortraitUrl, setPickedGroomPortraitUrl] = useState<string | null>(null)
+  const [pickedBridePortraitUrl, setPickedBridePortraitUrl] = useState<string | null>(null)
   useEffect(() => {
     if (!coverImageFile) {
       setPickedCoverPreviewUrl(null)
@@ -395,6 +447,24 @@ export default function WeddingCardAiClientPage() {
     setPickedCoverPreviewUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [coverImageFile])
+  useEffect(() => {
+    if (!groomPortraitFile) {
+      setPickedGroomPortraitUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(groomPortraitFile)
+    setPickedGroomPortraitUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [groomPortraitFile])
+  useEffect(() => {
+    if (!bridePortraitFile) {
+      setPickedBridePortraitUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(bridePortraitFile)
+    setPickedBridePortraitUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [bridePortraitFile])
 
   const styleReferencePreviewUrl = useMemo(() => {
     if (styleReferenceFile) return URL.createObjectURL(styleReferenceFile)
@@ -415,11 +485,14 @@ export default function WeddingCardAiClientPage() {
   useEffect(() => {
     setOrigin(window.location.origin)
     let mounted = true
-    getOrCreateWeddingCard().then((result) => {
-      if (!mounted) return
-      if ('error' in result) {
-        toast({ title: 'Không mở được thiệp', description: result.error, variant: 'destructive' })
-      } else {
+    const requestedId = new URLSearchParams(window.location.search).get('cardId')?.trim() || ''
+    loadWeddingCardWorkspace(requestedId)
+      .then((result) => {
+        if (!mounted) return
+        if ('error' in result) {
+          toast({ title: 'Không mở được thiệp', description: result.error, variant: 'destructive' })
+          return
+        }
         lastSavedPersistRef.current = buildSavedSnapshotForCard(result.card)
         baselineHydratedRef.current = true
         const localDraft = readWeddingLocalDraft(result.card.id)
@@ -436,9 +509,20 @@ export default function WeddingCardAiClientPage() {
         setLibrary(result.library)
         setMusicLibrary(result.musicLibrary)
         setRsvps(result.rsvps)
-      }
-      setLoading(false)
-    })
+        setSavedCards(result.cards)
+        rememberCardInUrl(result.card.id)
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return
+        toast({
+          title: 'Không mở được thiệp',
+          description: error instanceof Error ? error.message : 'Không tải được danh sách thiệp.',
+          variant: 'destructive',
+        })
+      })
+      .finally(() => {
+        if (mounted) setLoading(false)
+      })
     return () => {
       mounted = false
     }
@@ -453,13 +537,12 @@ export default function WeddingCardAiClientPage() {
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
-  const coverAiImage = images.find((image) => image.type === 'cover' && image.status === 'completed')
   const coverPhotoPreviewUrl = coverClearOnSave
     ? ''
     : pickedCoverPreviewUrl || resolveCoverPhotoUrl(sectionConfig)
-  const coverBackgroundUrl =
-    (coverAiImage?.imageUrl?.trim() ? coverAiImage.imageUrl : '') ||
-    (masterImage?.imageUrl?.trim() ? masterImage.imageUrl : '')
+  const groomPortraitPreviewUrl = groomPortraitClear ? '' : pickedGroomPortraitUrl || card.groomImageUrl
+  const bridePortraitPreviewUrl = bridePortraitClear ? '' : pickedBridePortraitUrl || card.brideImageUrl
+  const coverBackgroundUrl = masterImage?.imageUrl?.trim() || ''
   const publishUrl = card.isPublished && card.slug && origin ? `${origin}/thiep-moi-cuoi/${card.slug}` : ''
   const weddingDateIso = useMemo(
     () => resolveWeddingDateIso(card.weddingDate),
@@ -467,7 +550,10 @@ export default function WeddingCardAiClientPage() {
   )
   const missing = useMemo(() => {
     const items = []
-    if (!card.groomName || !card.brideName) items.push('tên cô dâu/chú rể')
+    const singleOccasion = invitationOccasionShape(card.occasionKey) === 'single'
+    if (singleOccasion) {
+      if (!card.groomName.trim()) items.push('tên')
+    } else if (!card.groomName || !card.brideName) items.push('tên cô dâu/chú rể')
     const hasPartyDate = Boolean(weddingDateIso || card.groomInviteWeddingDate || card.brideInviteWeddingDate)
     const hasPartyPlace = Boolean(
       card.venue ||
@@ -482,8 +568,20 @@ export default function WeddingCardAiClientPage() {
     if (!card.mapUrl && !card.groomInviteMapUrl && !card.brideInviteMapUrl) items.push('Google Maps')
     return items
   }, [card, masterImage, weddingDateIso])
+  const occasionKey = normalizeInvitationOccasion(card.occasionKey)
+  const occasionCopy = invitationEditorCopy(occasionKey)
+  const singleOccasion = invitationOccasionShape(occasionKey) === 'single'
 
   const update = <K extends keyof WeddingCard>(key: K, value: WeddingCard[K]) => setCard((prev) => ({ ...prev, [key]: value }))
+
+  const requestOccasionChange = (next: InvitationOccasionKey) => {
+    if (next === occasionKey) return
+    if (invitationOccasionShape(next) !== invitationOccasionShape(occasionKey)) {
+      setOccasionShapePrompt(next)
+      return
+    }
+    update('occasionKey', next)
+  }
   const applySideSettings = (next: WeddingSideInviteSettings) => {
     setCard((prev) => ({
       ...prev,
@@ -556,10 +654,32 @@ export default function WeddingCardAiClientPage() {
         }),
       }
     })
-    setAlbumCropIndex((current) => {
-      if (current === null) return null
-      if (current === index) return null
-      return current > index ? current - 1 : current
+  }
+
+  const groomPortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'groom')
+  const bridePortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'bride')
+
+  const updatePortraitCrop = (
+    side: 'groom' | 'bride',
+    patch: { positionX?: number; positionY?: number; scale?: number },
+  ) => {
+    setCard((prev) => {
+      const config = parseWeddingSectionConfig(prev.sectionConfig)
+      const current = resolvePortraitPhotoFrame(config, side)
+      const next = {
+        x: patch.positionX ?? current.x,
+        y: patch.positionY ?? current.y,
+        scale: patch.scale ?? current.scale,
+      }
+      return {
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(
+          prev.sectionConfig,
+          side === 'groom'
+            ? { groomPhotoPositionX: next.x, groomPhotoPositionY: next.y, groomPhotoScale: next.scale }
+            : { bridePhotoPositionX: next.x, bridePhotoPositionY: next.y, bridePhotoScale: next.scale },
+        ),
+      }
     })
   }
 
@@ -590,6 +710,10 @@ export default function WeddingCardAiClientPage() {
     musicClearOnSave,
     coverImageFile,
     coverClearOnSave,
+    groomPortraitFile,
+    bridePortraitFile,
+    groomPortraitClear,
+    bridePortraitClear,
     musicFile,
     albumImageFiles,
   })
@@ -609,7 +733,7 @@ export default function WeddingCardAiClientPage() {
       }
       if (localSide !== savedSide) return
       pulling = true
-      void getOrCreateWeddingCard().then((result) => {
+      void loadWeddingCardWorkspace(local.card.id).then((result) => {
         pulling = false
         if ('error' in result || persistInFlightRef.current) return
         const current = persistInputsRef.current
@@ -646,6 +770,10 @@ export default function WeddingCardAiClientPage() {
     musicClearOnSave,
     coverImageFile,
     coverClearOnSave,
+    groomPortraitFile,
+    bridePortraitFile,
+    groomPortraitClear,
+    bridePortraitClear,
     musicFile,
     albumImageFiles,
   }
@@ -660,6 +788,10 @@ export default function WeddingCardAiClientPage() {
         musicClearOnSave,
         coverImageFile,
         coverClearOnSave,
+        groomPortraitFile,
+        bridePortraitFile,
+        groomPortraitClear,
+        bridePortraitClear,
         musicFile,
         albumImageFiles,
       }),
@@ -671,6 +803,10 @@ export default function WeddingCardAiClientPage() {
       musicClearOnSave,
       coverImageFile,
       coverClearOnSave,
+      groomPortraitFile,
+      bridePortraitFile,
+      groomPortraitClear,
+      bridePortraitClear,
       musicFile,
       albumImageFiles,
     ],
@@ -715,12 +851,12 @@ export default function WeddingCardAiClientPage() {
 
   const SAVE_BRIEF_TIMEOUT_MS = 5 * 60 * 1000
 
-  const commitSaveBrief = async (silent: boolean): Promise<boolean> => {
+  const commitSaveBrief = async (silent: boolean, options?: { hideSuccess?: boolean }): Promise<boolean> => {
     const p = persistInputsRef.current
     if (!p.card.id) return false
 
     const giftInvalid =
-      p.card.giftQrEnabled && !isTwinVietGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
+      p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
     if (giftInvalid) {
       if (!silent) {
         toast({
@@ -749,6 +885,7 @@ export default function WeddingCardAiClientPage() {
       const formData = new FormData()
       Object.entries({
         cardId: c.id,
+        occasionKey: normalizeInvitationOccasion(c.occasionKey),
         groomName: c.groomName,
         brideName: c.brideName,
         weddingDate: p.weddingDateIso ?? '',
@@ -792,6 +929,10 @@ export default function WeddingCardAiClientPage() {
       formData.append('musicPlayEndSec', p.musicEndInput.trim())
       if (p.coverImageFile) formData.append('coverImage', p.coverImageFile)
       if (p.coverClearOnSave) formData.append('coverClear', 'true')
+      if (p.groomPortraitFile) formData.append('groomImage', p.groomPortraitFile)
+      if (p.bridePortraitFile) formData.append('brideImage', p.bridePortraitFile)
+      if (p.groomPortraitClear) formData.append('groomImageClear', 'true')
+      if (p.bridePortraitClear) formData.append('brideImageClear', 'true')
       if (p.musicFile) {
         formData.append('musicFile', p.musicFile)
         formData.append('musicTitle', p.musicFile.name)
@@ -829,9 +970,10 @@ export default function WeddingCardAiClientPage() {
         setMusicLibrary(result.musicLibrary)
         if (silent) {
           setAutosaveBanner({ message: tBrief.autoSavedLabel, variant: 'success' })
-        } else {
+        } else if (!options?.hideSuccess) {
           toast({ title: 'Đã lưu nội dung thiệp' })
         }
+        setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
         window.setTimeout(() => {
           const latest = buildPersistSnapshot(persistInputsRef.current)
           if (latest !== lastSavedPersistRef.current) void commitSaveBrief(true)
@@ -842,10 +984,15 @@ export default function WeddingCardAiClientPage() {
       setCard((prev) => mergeCardMediaAfterSave(prev, result.card))
       setCoverImageFile(null)
       setCoverClearOnSave(false)
+      setGroomPortraitFile(null)
+      setBridePortraitFile(null)
+      setGroomPortraitClear(false)
+      setBridePortraitClear(false)
       setMusicFile(null)
       setMusicClearOnSave(false)
       setMusicLibrary(result.musicLibrary)
       setAlbumImageFiles([])
+      setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
 
       window.setTimeout(() => {
         lastSavedPersistRef.current = buildPersistSnapshot(persistInputsRef.current)
@@ -854,7 +1001,7 @@ export default function WeddingCardAiClientPage() {
 
       if (silent) {
         setAutosaveBanner({ message: tBrief.autoSavedLabel, variant: 'success' })
-      } else {
+      } else if (!options?.hideSuccess) {
         toast({ title: 'Đã lưu nội dung thiệp' })
       }
       return true
@@ -880,7 +1027,7 @@ export default function WeddingCardAiClientPage() {
     if (loading || !card.id) return
     if (persistFingerprint === lastSavedPersistRef.current) return
     const giftBlocked =
-      card.giftQrEnabled && !isTwinVietGiftReady(card) && !isLegacySingleGiftImage(card)
+      card.giftQrEnabled && !isInvitationGiftReady(card) && !isLegacySingleGiftImage(card)
     if (giftBlocked) return
 
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current)
@@ -892,7 +1039,7 @@ export default function WeddingCardAiClientPage() {
       if (latest === lastSavedPersistRef.current) return
 
       const blocked =
-        p.card.giftQrEnabled && !isTwinVietGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
+        p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
       if (blocked) return
 
       await commitSaveBrief(true)
@@ -906,10 +1053,6 @@ export default function WeddingCardAiClientPage() {
     }
   }, [loading, persistFingerprint, card.id]) // eslint-disable-line react-hooks/exhaustive-deps -- debounce theo fingerprint; commitSaveBrief đọc persistInputsRef
 
-  const saveBrief = async (): Promise<boolean> => {
-    return commitSaveBrief(false)
-  }
-
   useEffect(() => {
     if (loading || !card.id) return
     const flushPendingSave = () => {
@@ -918,7 +1061,7 @@ export default function WeddingCardAiClientPage() {
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
       const blocked =
-        p.card.giftQrEnabled && !isTwinVietGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
+        p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
       if (blocked || persistInFlightRef.current) return
       if (autosaveTimerRef.current) {
         window.clearTimeout(autosaveTimerRef.current)
@@ -937,13 +1080,13 @@ export default function WeddingCardAiClientPage() {
     }
   }, [card.id, loading, persistFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps -- flush reads latest refs
 
-  const generateImage = async (type: WeddingImageType) => {
+  const generateImage = async () => {
     if (!card.id || generating) return
-    setGenerating(type)
+    setGenerating(true)
     await waitForNextPaint()
     const formData = new FormData()
     formData.append('cardId', card.id)
-    formData.append('type', type)
+    formData.append('type', 'master')
     formData.append('extraPrompt', extraPrompt)
     if (styleReferenceFile) formData.append('customReferenceImage', styleReferenceFile)
     if (styleReferenceUrl.trim()) formData.append('customReferenceImageUrl', styleReferenceUrl.trim())
@@ -953,7 +1096,7 @@ export default function WeddingCardAiClientPage() {
         toast({ title: 'Tạo ảnh thất bại', description: result.error, variant: 'destructive', duration: 6000 })
         return
       }
-      const fresh = await getOrCreateWeddingCard()
+      const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
           ...fresh.card,
@@ -963,9 +1106,10 @@ export default function WeddingCardAiClientPage() {
         setLibrary(fresh.library)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
+        setSavedCards(fresh.cards)
       }
       toast({
-        title: type === 'master' ? 'Đã tạo ảnh chính' : 'Đã tạo nền riêng',
+        title: 'Đã tạo ảnh chính',
         description: 'Đã trừ 1 credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.',
       })
     } catch {
@@ -976,25 +1120,24 @@ export default function WeddingCardAiClientPage() {
         duration: 6000,
       })
     } finally {
-      setGenerating(null)
+      setGenerating(false)
     }
   }
 
   const applyLibraryImage = async (libraryId: string) => {
     if (!card.id || applyingLibraryId || generating) return
-    const type = libraryTarget
     setApplyingLibraryId(libraryId)
     const formData = new FormData()
     formData.append('cardId', card.id)
     formData.append('libraryId', libraryId)
-    formData.append('type', type)
+    formData.append('type', 'master')
     try {
       const result = await applyWeddingBackgroundFromLibrary(formData)
       if ('error' in result && result.error) {
         toast({ title: 'Không chọn được ảnh', description: result.error, variant: 'destructive' })
         return
       }
-      const fresh = await getOrCreateWeddingCard()
+      const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
           ...fresh.card,
@@ -1004,13 +1147,12 @@ export default function WeddingCardAiClientPage() {
         setLibrary(fresh.library)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
+        setSavedCards(fresh.cards)
       }
-      const face = CARD_FACES.find((item) => item.type === type)
       toast({
-        title: type === 'master' ? 'Đã chọn ảnh chính từ kho' : `Đã chọn nền ${face?.label ?? ''} từ kho`,
+        title: 'Đã chọn ảnh chính từ kho',
         description: 'Không trừ credit.',
       })
-      setLibraryTarget('master')
     } catch {
       toast({ title: 'Không chọn được ảnh', description: 'Thử lại.', variant: 'destructive' })
     } finally {
@@ -1018,7 +1160,7 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
-  const uploadOutsideBackground = async (file: File | null, type: WeddingImageType) => {
+  const uploadOutsideBackground = async (file: File | null) => {
     if (!file || !card.id || uploadingOutside || generating || applyingLibraryId) return
     if (!file.type.startsWith('image/')) {
       toast({ title: 'Không dùng được file này', description: 'Chọn file ảnh.', variant: 'destructive' })
@@ -1031,7 +1173,7 @@ export default function WeddingCardAiClientPage() {
     setUploadingOutside(true)
     const formData = new FormData()
     formData.append('cardId', card.id)
-    formData.append('type', type)
+    formData.append('type', 'master')
     formData.append('file', file)
     try {
       const result = await uploadWeddingPrivateBackground(formData)
@@ -1039,7 +1181,7 @@ export default function WeddingCardAiClientPage() {
         toast({ title: 'Không gắn được ảnh', description: result.error, variant: 'destructive' })
         return
       }
-      const fresh = await getOrCreateWeddingCard()
+      const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
           ...fresh.card,
@@ -1049,10 +1191,10 @@ export default function WeddingCardAiClientPage() {
         setLibrary(fresh.library)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
+        setSavedCards(fresh.cards)
       }
-      const face = CARD_FACES.find((item) => item.type === type)
       toast({
-        title: type === 'master' ? 'Đã dùng ảnh ngoài cho thiệp này' : `Đã dùng ảnh ngoài cho ${face?.label ?? 'nền này'}`,
+        title: 'Đã dùng ảnh ngoài cho thiệp này',
         description: 'Ảnh chỉ gắn với thiệp này, không lưu kho chung. Không trừ credit.',
       })
     } catch {
@@ -1062,25 +1204,161 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
-  const pickOutsideBackground = (type: WeddingImageType) => {
-    outsideTypeRef.current = type
+  const pickOutsideBackground = () => {
     outsideFileRef.current?.click()
   }
 
   const publish = async () => {
-    const saved = await saveBrief()
+    const saved = await commitSaveBrief(false, { hideSuccess: true })
     if (!saved) return
     const cardId = persistInputsRef.current.card.id
     if (!cardId) return
     const result = await publishCurrentWeddingCard(cardId)
     if ('error' in result) {
-      toast({ title: 'Xuất bản thất bại', description: result.error, variant: 'destructive' })
+      toast({ title: 'Lưu thất bại', description: result.error, variant: 'destructive' })
     } else {
       setCard((prev) => ({
         ...result.card,
         weddingDate: prev.weddingDate,
       }))
-      toast({ title: 'Đã xuất bản link thiệp', description: 'Xuất bản không tốn credit.' })
+      setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
+      toast({ title: 'Đã lưu và xuất bản link thiệp', description: 'Không tốn credit.' })
+    }
+  }
+
+  const showWorkspace = (
+    result: {
+      card: WeddingCard
+      images: WeddingAiImage[]
+      rsvps: WeddingRsvp[]
+      library: WeddingBackgroundLibraryItem[]
+      musicLibrary: WeddingMusicLibraryRow[]
+      cards: WeddingCardSummary[]
+    },
+    options?: { restoreLocalDraft?: boolean },
+  ) => {
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    setMusicFile(null)
+    setMusicClearOnSave(false)
+    setAlbumImageFiles([])
+    setCoverImageFile(null)
+    setCoverClearOnSave(false)
+    setGroomPortraitFile(null)
+    setBridePortraitFile(null)
+    setGroomPortraitClear(false)
+    setBridePortraitClear(false)
+    setExtraPrompt('')
+    setStyleReferenceFile(null)
+    setStyleReferenceUrl('')
+    setPreviewLetterView('groom')
+    setLetterAskOpen(false)
+    const localDraft = options?.restoreLocalDraft ? readWeddingLocalDraft(result.card.id) : null
+    const nextCard = localDraft
+      ? ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card))
+      : ownSidePartyFields(result.card)
+    lastSavedPersistRef.current = buildSavedSnapshotForCard(nextCard)
+    baselineHydratedRef.current = true
+    if (localDraft) {
+      setMusicStartInput(localDraft.musicStartInput)
+      setMusicEndInput(localDraft.musicEndInput)
+      setMusicClearOnSave(localDraft.musicClearOnSave)
+      setAutosaveBanner({ message: 'Đã khôi phục bản nháp chưa kịp lưu. Hệ thống sẽ tự lưu lại.', variant: 'success' })
+    }
+    setCard(nextCard)
+    setImages(result.images)
+    setLibrary(result.library)
+    setMusicLibrary(result.musicLibrary)
+    setRsvps(result.rsvps)
+    setSavedCards(result.cards)
+    rememberCardInUrl(result.card.id)
+  }
+
+  const openSavedCard = async (cardId: string) => {
+    if (!cardId || cardId === persistInputsRef.current.card.id || switchingCard) return
+    setSwitchingCard(true)
+    try {
+      const current = persistInputsRef.current
+      const unchanged = Boolean(current.card.id) && buildPersistSnapshot(current) === lastSavedPersistRef.current
+      if (!unchanged) {
+        const saved = await commitSaveBrief(false, { hideSuccess: true })
+        if (!saved) return
+      }
+      const result = await loadWeddingCardWorkspace(cardId)
+      if ('error' in result) {
+        toast({ title: 'Không mở được thiệp', description: result.error, variant: 'destructive' })
+        return
+      }
+      showWorkspace(result, { restoreLocalDraft: true })
+      document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } finally {
+      setSwitchingCard(false)
+    }
+  }
+
+  const createFreshCard = async (nextOccasion: InvitationOccasionKey) => {
+    if (switchingCard) return
+    setSwitchingCard(true)
+    try {
+      const current = persistInputsRef.current
+      const unchanged = Boolean(current.card.id) && buildPersistSnapshot(current) === lastSavedPersistRef.current
+      if (current.card.id && !unchanged) {
+        const saved = await commitSaveBrief(false, { hideSuccess: true })
+        if (!saved) return
+      }
+      const result = await createNewWeddingCard(nextOccasion)
+      if ('error' in result) {
+        toast({ title: 'Không tạo được thiệp mới', description: result.error, variant: 'destructive' })
+        return
+      }
+      showWorkspace(result)
+      setOccasionPickerOpen(false)
+      toast({ title: 'Đã lưu thiệp và mở thiệp mới', description: 'Thiệp vừa rồi vẫn nằm trong danh sách.' })
+      document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    } finally {
+      setSwitchingCard(false)
+    }
+  }
+
+  const removeSavedCard = async (cardId: string) => {
+    const row = savedCards.find((item) => item.id === cardId)
+    const title = row ? weddingCardListTitle(row) : 'thiệp này'
+    if (!window.confirm(`Xóa «${title}»? Link đã xuất bản và khách mời của thiệp này cũng mất.`)) return
+    setSwitchingCard(true)
+    try {
+      const result = await deleteWeddingCard(cardId)
+      if ('error' in result) {
+        toast({ title: 'Không xóa được thiệp', description: result.error, variant: 'destructive' })
+        return
+      }
+      clearWeddingLocalDraft(cardId)
+      if (cardId !== persistInputsRef.current.card.id) {
+        setSavedCards(result.cards)
+        toast({ title: 'Đã xóa thiệp' })
+        return
+      }
+      const next = result.cards[0]
+      if (!next) {
+        const created = await createNewWeddingCard()
+        if ('error' in created) {
+          toast({ title: 'Đã xóa thiệp', description: created.error, variant: 'destructive' })
+          return
+        }
+        showWorkspace(created)
+      } else {
+        const loaded = await loadWeddingCardWorkspace(next.id)
+        if ('error' in loaded) {
+          setSavedCards(result.cards)
+          toast({ title: 'Đã xóa thiệp', description: loaded.error, variant: 'destructive' })
+          return
+        }
+        showWorkspace(loaded)
+      }
+      toast({ title: 'Đã xóa thiệp' })
+    } finally {
+      setSwitchingCard(false)
     }
   }
 
@@ -1105,13 +1383,90 @@ export default function WeddingCardAiClientPage() {
                 Chọn phong cách miễn phí, xem trước nội dung, chỉ tốn credit khi AI sinh ảnh mới. Chữ tiếng Việt do hệ thống render riêng.
               </p>
             </div>
-            <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-              <b>Credit:</b> Tạo ảnh mới = 1 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+            <div className="flex flex-col gap-3">
+              <Button
+                type="button"
+                onClick={() => {
+                  setPickedOccasion('wedding')
+                  setOccasionPickerOpen(true)
+                }}
+                disabled={switchingCard || saving}
+              >
+                {switchingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                Tạo thiệp mới
+              </Button>
+              <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
+                <b>Credit:</b> Tạo ảnh mới = 1 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <Card>
+          <CardHeader className="gap-1">
+            <CardTitle>Thiệp đã lưu</CardTitle>
+            <CardDescription>Mỗi thiệp giữ riêng. Bấm Sửa để mở lại thiệp đó, hoặc Xóa thiệp không dùng.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {savedCards.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Chưa có thiệp nào.</p>
+            ) : (
+              savedCards.map((item) => {
+                const active = item.id === card.id
+                return (
+                  <div
+                    key={item.id}
+                    className={cn(
+                      'flex flex-col gap-2 rounded-2xl border px-3 py-2 sm:flex-row sm:items-center sm:justify-between',
+                      active ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white',
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-950">{weddingCardListTitle(item)}</p>
+                      <p className="text-xs text-slate-500">
+                        {invitationEditorCopy(item.occasionKey).label}
+                        {' · '}
+                        {item.isPublished ? 'Đã xuất bản' : 'Nháp'}
+                        {active ? ' · Đang sửa' : ''}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={switchingCard}
+                        onClick={() => {
+                          if (active) {
+                            document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                            return
+                          }
+                          void openSavedCard(item.id)
+                        }}
+                      >
+                        <Pencil className="mr-1 h-3.5 w-3.5" />
+                        Sửa
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="text-rose-700"
+                        disabled={switchingCard}
+                        onClick={() => void removeSavedCard(item.id)}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        Xóa
+                      </Button>
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        <div id="wedding-card-editor" className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-6">
             <Card>
               <CardHeader>
@@ -1206,7 +1561,7 @@ export default function WeddingCardAiClientPage() {
               <CardHeader className="gap-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <CardTitle>2. Nhập thông tin cưới</CardTitle>
+                    <CardTitle>{occasionCopy.stepTitle}</CardTitle>
                     <CardDescription>{tBrief.step2Description}</CardDescription>
                   </div>
                   <div className="flex min-h-[1.25rem] shrink-0 items-start sm:max-w-[240px] sm:justify-end">
@@ -1225,14 +1580,75 @@ export default function WeddingCardAiClientPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Tên chú rể" value={card.groomName} onChange={(v) => update('groomName', v)} />
-                  <Field label="Tên cô dâu" value={card.brideName} onChange={(v) => update('brideName', v)} />
+                <div className="space-y-1">
+                  <Label>Loại thiệp</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={occasionKey}
+                    onChange={(e) => requestOccasionChange(normalizeInvitationOccasion(e.target.value))}
+                  >
+                    {(['wedding', 'engagement', 'full_month', 'first_birthday', 'birthday', 'longevity', 'grand_opening', 'housewarming', 'gathering', 'graduation', 'anniversary', 'ceremony'] as const).map((key) => (
+                      <option key={key} value={key}>{invitationEditorCopy(key).label}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">{occasionCopy.blurb}</p>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Phần này dùng cho cả nhà trai và nhà gái. Ngày tiệc, giờ, địa chỉ, bản đồ và lịch trình điền ở đúng nhà bên dưới.
-                  Lời mời tiếng Việt tự viết theo xưng hô và tên từng khách.
-                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label={occasionCopy.primaryName} value={card.groomName} onChange={(v) => update('groomName', v)} />
+                  <Field label={occasionCopy.secondaryName} value={card.brideName} onChange={(v) => update('brideName', v)} />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ImageUploadField
+                    label={occasionCopy.primaryPhoto}
+                    currentUrl={groomPortraitPreviewUrl}
+                    frame="portrait"
+                    crop={{
+                      positionX: groomPortraitFrame.x,
+                      positionY: groomPortraitFrame.y,
+                      scale: groomPortraitFrame.scale,
+                      onChange: (patch) => updatePortraitCrop('groom', patch),
+                    }}
+                    onFileChange={(file) => {
+                      setGroomPortraitFile(file)
+                      if (file) setGroomPortraitClear(false)
+                    }}
+                    onRemove={
+                      groomPortraitPreviewUrl
+                        ? () => {
+                            setGroomPortraitFile(null)
+                            setGroomPortraitClear(true)
+                            update('groomImageUrl', '')
+                          }
+                        : undefined
+                    }
+                  />
+                  <ImageUploadField
+                    label={occasionCopy.secondaryPhoto}
+                    currentUrl={bridePortraitPreviewUrl}
+                    frame="portrait"
+                    crop={{
+                      positionX: bridePortraitFrame.x,
+                      positionY: bridePortraitFrame.y,
+                      scale: bridePortraitFrame.scale,
+                      onChange: (patch) => updatePortraitCrop('bride', patch),
+                    }}
+                    onFileChange={(file) => {
+                      setBridePortraitFile(file)
+                      if (file) setBridePortraitClear(false)
+                    }}
+                    onRemove={
+                      bridePortraitPreviewUrl
+                        ? () => {
+                            setBridePortraitFile(null)
+                            setBridePortraitClear(true)
+                            update('brideImageUrl', '')
+                          }
+                        : undefined
+                    }
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>
+                <p className="text-xs text-muted-foreground">{occasionCopy.sharedHint}</p>
                 <div className="space-y-2">
                   <Label>Lời mời tiếng Anh (tùy chọn)</Label>
                   <Textarea
@@ -1245,23 +1661,23 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <WeddingAiPolishTextarea
-                    label="Intro cặp đôi / câu chuyện mở đầu"
+                    label={occasionCopy.introLabel}
                     field="coupleIntro"
                     value={card.coupleIntro}
                     onChange={(v) => update('coupleIntro', v)}
                     card={card}
                     weddingDateLabel={weddingDateDisplay}
-                    placeholder="Một đoạn mở đầu tinh tế về cô dâu chú rể, gia đình hoặc lời nhắn riêng..."
+                    placeholder={occasionCopy.introPlaceholder}
                     className="min-h-28"
                   />
                   <WeddingAiPolishTextarea
-                    label="Quote tình yêu"
+                    label={occasionCopy.quoteLabel}
                     field="loveQuote"
                     value={card.loveQuote}
                     onChange={(v) => update('loveQuote', v)}
                     card={card}
                     weddingDateLabel={weddingDateDisplay}
-                    placeholder="Ví dụ: Và rồi chúng ta chọn cùng nhau đi hết những ngày bình yên..."
+                    placeholder={occasionCopy.quotePlaceholder}
                     className="min-h-28"
                   />
                 </div>
@@ -1276,13 +1692,13 @@ export default function WeddingCardAiClientPage() {
                   className="min-h-32"
                 />
                 <WeddingAiPolishTextarea
-                  label="Câu chuyện / album ngắn"
+                  label={occasionCopy.storyLabel}
                   field="storyText"
                   value={card.storyText}
                   onChange={(v) => update('storyText', v)}
                   card={card}
                   weddingDateLabel={weddingDateDisplay}
-                  placeholder="Một đoạn ngắn về hành trình yêu thương, lời nhắn gửi hoặc album/story..."
+                  placeholder={occasionCopy.storyPlaceholder}
                   className="min-h-24"
                 />
                 <WeddingAiPolishTextarea
@@ -1292,19 +1708,17 @@ export default function WeddingCardAiClientPage() {
                   onChange={(v) => update('thankYouText', v)}
                   card={card}
                   weddingDateLabel={weddingDateDisplay}
-                  placeholder="{couple} xin chân thành cảm ơn quý khách đã đến chung vui trong ngày trọng đại của chúng tôi."
+                  placeholder={occasionCopy.thanksPlaceholder}
                   hint={WEDDING_CARD_TEXT_TOKEN_HINT}
                   className="min-h-24"
                 />
                 <div className="space-y-3 border-t pt-4">
                   <div className="space-y-1">
-                    <Label>Nhà trai và nhà gái</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Mỗi nhà điền một lần. Trang khách mời dùng cùng các ô này.
-                    </p>
+                    <Label>{occasionCopy.venueTitle}</Label>
+                    <p className="text-xs text-muted-foreground">{occasionCopy.venueNote}</p>
                   </div>
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-sky-800">Nhà trai</p>
+                    <p className="text-sm font-semibold text-sky-800">{occasionCopy.primaryFamily}</p>
                     <WeddingSideInviteSettingsPanel
                       side="groom"
                       card={card}
@@ -1312,10 +1726,15 @@ export default function WeddingCardAiClientPage() {
                       saving={saving}
                       onChange={applySideSettings}
                       onParentsChange={(value) => update('groomParents', value)}
+                      placeNoun={occasionCopy.placeNounPrimary}
+                      parentsLabel={occasionCopy.parentsLabel}
+                      dateLabel={occasionCopy.dateLabel}
+                      hint={occasionCopy.panelHint}
                     />
                   </div>
+                  {singleOccasion ? null : (
                   <div className="space-y-2">
-                    <p className="text-sm font-semibold text-rose-700">Nhà gái</p>
+                    <p className="text-sm font-semibold text-rose-700">{occasionCopy.secondaryFamily}</p>
                     <WeddingSideInviteSettingsPanel
                       side="bride"
                       card={card}
@@ -1323,13 +1742,15 @@ export default function WeddingCardAiClientPage() {
                       saving={saving}
                       onChange={applySideSettings}
                       onParentsChange={(value) => update('brideParents', value)}
+                      placeNoun={occasionCopy.placeNounSecondary}
                     />
                   </div>
+                  )}
                 </div>
                 <div className="space-y-3 rounded-2xl border p-3">
-                  <Label>Album ảnh cô dâu chú rể</Label>
+                  <Label>{occasionCopy.albumLabel}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Bấm từng ảnh đã lưu để kéo và zoom, chọn góc nhìn đẹp trên thiệp. Ảnh mới cần lưu thiệp trước khi căn.
+                    Kéo từng ảnh để chọn góc. Thanh zoom dưới ảnh để phóng phần muốn khách thấy. Nhấp đúp ảnh để về vị trí ban đầu. Ảnh mới cần lưu thiệp trước khi căn.
                   </p>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
                     <Upload className="h-4 w-4" />
@@ -1355,34 +1776,16 @@ export default function WeddingCardAiClientPage() {
                       {card.albumImageUrls.map((url, index) => {
                         const frame = resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, index)
                         return (
-                          <div key={`${url}-${index}`} className="relative">
-                            <button
-                              type="button"
-                              className="block w-full overflow-hidden rounded-xl text-left"
-                              aria-label={`Căn ảnh album ${index + 1}`}
-                              onClick={() => setAlbumCropIndex(index)}
-                            >
-                              <img
-                                src={url}
-                                alt="Ảnh album đã lưu"
-                                draggable={false}
-                                className="aspect-[3/4] w-full object-cover"
-                                style={albumPhotoFrameStyle(frame)}
-                              />
-                              <span className="pointer-events-none absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
-                                <Crop className="h-3 w-3" />
-                                Căn ảnh
-                              </span>
-                            </button>
-                            <button
-                              type="button"
-                              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
-                              aria-label={tImage.customReferenceRemove}
-                              onClick={() => removeSavedAlbumPhoto(index)}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
+                          <WeddingAlbumPhotoCropThumb
+                            key={`${url}-${index}`}
+                            imageUrl={url}
+                            positionX={frame.x}
+                            positionY={frame.y}
+                            scale={frame.scale}
+                            removeLabel={tImage.customReferenceRemove}
+                            onRemove={() => removeSavedAlbumPhoto(index)}
+                            onChange={(patch) => updateAlbumPhotoCrop(index, patch)}
+                          />
                         )
                       })}
                       {albumPendingPreviews.map((url, index) => (
@@ -1425,36 +1828,12 @@ export default function WeddingCardAiClientPage() {
                           }),
                         }
                       })
-                      setAlbumCropIndex(null)
                     }}
                     placeholder="Hoặc dán URL ảnh album, mỗi dòng một ảnh"
                     className="min-h-20"
                   />
                   <p className="text-xs text-muted-foreground">Thêm/sửa album ảnh không tốn credit. Căn góc ảnh cũng không tốn credit — nhớ bấm Lưu thiệp.</p>
                 </div>
-                <Dialog open={albumCropIndex !== null} onOpenChange={(open) => { if (!open) setAlbumCropIndex(null) }}>
-                  <DialogContent className="max-w-md">
-                    <DialogHeader className="sr-only">
-                      <DialogTitle>Căn ảnh album</DialogTitle>
-                      <DialogDescription>Kéo và zoom từng ảnh album để chọn góc hiển thị trên thiệp.</DialogDescription>
-                    </DialogHeader>
-                    {albumCropIndex !== null && card.albumImageUrls[albumCropIndex] ? (
-                      <CoverPhotoCropEditor
-                        key={albumCropIndex}
-                        imageUrl={card.albumImageUrls[albumCropIndex]}
-                        alt="Ảnh album"
-                        positionX={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).x}
-                        positionY={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).y}
-                        scale={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).scale}
-                        title="Căn ảnh album"
-                        hint="Kéo ảnh để đổi góc. Zoom để phóng phần muốn khách thấy. Khung dọc 3:4 giống lúc hiện trên thiệp."
-                        ariaLabel="Căn ảnh album"
-                        frameClassName="relative mx-auto aspect-[3/4] w-full max-w-[16rem] cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing"
-                        onChange={(patch) => updateAlbumPhotoCrop(albumCropIndex, patch)}
-                      />
-                    ) : null}
-                  </DialogContent>
-                </Dialog>
                 <Field label="Bảng màu AI" value={card.colorPalette} onChange={(v) => update('colorPalette', v)} />
                 <div className="space-y-3 rounded-2xl border p-3">
                   <Label>{tMu.libraryHeading}</Label>
@@ -1485,11 +1864,11 @@ export default function WeddingCardAiClientPage() {
                   </label>
                   <p className="text-xs text-muted-foreground">{tMu.sharedUploadNote}</p>
                   {!musicClearOnSave && !musicFile && !card.musicUrl ? (
-                    <p className="text-xs text-muted-foreground">Chưa có nhạc. Chọn file để có nhạc nền trên thiệp sau khi lưu.</p>
+                    <p className="text-xs text-muted-foreground">Chưa có nhạc. Chọn file để có nhạc nền trên thiệp.</p>
                   ) : null}
                   {musicClearOnSave && card.musicUrl && !musicFile && (
                     <p className="text-xs text-amber-800 dark:text-amber-200">
-                      Đánh dấu gỡ nhạc đã lưu — nhấn «Lưu nội dung» để xóa file nhạc trên thiệp.
+                      Đã đánh dấu gỡ nhạc. Thiệp tự lưu sẽ xóa file nhạc.
                       <button
                         type="button"
                         className="ml-2 underline"
@@ -1574,7 +1953,20 @@ export default function WeddingCardAiClientPage() {
                   />
                   {card.giftQrEnabled && (
                     <>
-                      <WeddingGiftAccountsForm card={card} banks={vietBanks} tx={txGift} update={update} />
+                      <WeddingGiftAccountsForm
+                        card={card}
+                        banks={vietBanks}
+                        tx={txGift}
+                        update={update}
+                        hideSecondary={singleOccasion}
+                        primaryTitle={occasionKey === 'wedding' ? undefined : occasionCopy.primaryRole || occasionCopy.label}
+                        secondaryTitle={occasionKey === 'wedding' ? undefined : occasionCopy.secondaryRole}
+                        hint={
+                          singleOccasion
+                            ? 'Bật hộp mừng: điền đủ ngân hàng, số TK và tên chủ TK để tạo mã VietQR. Hoặc dán một URL ảnh QR.'
+                            : undefined
+                        }
+                      />
                       <div className="space-y-1">
                         <Field
                           label={txGift.legacyImageLabel}
@@ -1586,10 +1978,6 @@ export default function WeddingCardAiClientPage() {
                     </>
                   )}
                 </div>
-                <Button onClick={saveBrief} disabled={saving} className="w-full sm:w-auto">
-                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Lưu nội dung / cập nhật preview
-                </Button>
               </CardContent>
             </Card>
 
@@ -1648,17 +2036,17 @@ export default function WeddingCardAiClientPage() {
                   />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => generateImage('master')} disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}>
-                    {generating === 'master' && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  <Button onClick={() => void generateImage()} disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}>
+                    {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {masterImage ? 'Tạo lại ảnh chính - 1 credit' : 'Tạo ảnh chính - 1 credit'}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
-                    onClick={() => pickOutsideBackground('master')}
+                    disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
+                    onClick={pickOutsideBackground}
                   >
-                    {uploadingOutside && outsideTypeRef.current === 'master' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                    {uploadingOutside ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
                     Chọn ảnh ngoài · 0 credit
                   </Button>
                   {masterImage?.imageUrl && (
@@ -1669,24 +2057,6 @@ export default function WeddingCardAiClientPage() {
                       </a>
                     </Button>
                   )}
-                </div>
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Tạo nền riêng dùng prompt và ảnh tham khảo ngay phía trên.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {CARD_FACES.map((face) => (
-                      <Button
-                        key={face.type}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || !masterImage?.imageUrl}
-                        onClick={() => generateImage(face.type)}
-                      >
-                        {generating === face.type && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Tạo nền {face.label}
-                      </Button>
-                    ))}
-                  </div>
                 </div>
                 <div className="rounded-2xl border border-dashed p-4">
                   {masterImage?.imageUrl ? (
@@ -1700,28 +2070,17 @@ export default function WeddingCardAiClientPage() {
                   <div id="wedding-bg-library" className="mt-4 space-y-2">
                     <p className="text-sm font-medium">Kho ảnh nền</p>
                     <p className="text-xs text-muted-foreground">
-                      {libraryTarget === 'master'
-                        ? 'Bấm một ảnh đã tạo để dùng làm ảnh chính. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.'
-                        : `Bấm một ảnh để dùng cho «${CARD_FACES.find((face) => face.type === libraryTarget)?.label ?? 'nền này'}». Không trừ credit.`}
-                      {libraryTarget !== 'master' ? (
-                        <button type="button" className="ml-2 underline" onClick={() => setLibraryTarget('master')}>
-                          Về ảnh chính
-                        </button>
-                      ) : null}
+                      Bấm một ảnh đã tạo để dùng làm ảnh chính cho cả thiệp. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.
                     </p>
                     {library.length ? (
                       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                         {library.map((item) => {
-                          const currentUrl =
-                            libraryTarget === 'master'
-                              ? masterImage?.imageUrl
-                              : images.find((image) => image.type === libraryTarget && image.status === 'completed')?.imageUrl
-                          const active = Boolean(currentUrl && currentUrl === item.imageUrl)
+                          const active = Boolean(masterImage?.imageUrl && masterImage.imageUrl === item.imageUrl)
                           return (
                             <button
                               key={item.id}
                               type="button"
-                              disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
+                              disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
                               onClick={() => void applyLibraryImage(item.id)}
                               className={cn(
                                 'relative overflow-hidden rounded-xl border bg-muted',
@@ -1753,51 +2112,9 @@ export default function WeddingCardAiClientPage() {
                     onChange={(event) => {
                       const file = event.target.files?.[0] ?? null
                       event.target.value = ''
-                      void uploadOutsideBackground(file, outsideTypeRef.current)
+                      void uploadOutsideBackground(file)
                     }}
                   />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {CARD_FACES.map((face) => {
-                    const faceImage = images.find((image) => image.type === face.type && image.status === 'completed')
-                    const masterBg = masterImage?.imageUrl?.trim() ? masterImage.imageUrl : ''
-                    const displayBgUrl =
-                      (faceImage?.imageUrl?.trim() ? faceImage.imageUrl : '') || masterBg
-                    return (
-                      <div key={face.type} className="rounded-2xl border p-4">
-                        <p className="font-semibold">{face.label}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{face.hint}</p>
-                        {displayBgUrl ? (
-                          <img src={displayBgUrl} alt={face.label} className="mt-3 h-32 w-full rounded-xl object-cover" />
-                        ) : (
-                          <div className="mt-3 flex h-32 items-center justify-center rounded-xl bg-muted text-center text-xs text-muted-foreground">
-                            Chưa có ảnh chính — tạo ảnh chính để có nền mặc định hoặc tạo nền riêng.
-                          </div>
-                        )}
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside || library.length === 0}
-                            onClick={() => {
-                              setLibraryTarget(face.type)
-                              document.getElementById('wedding-bg-library')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-                            }}
-                          >
-                            Chọn từ kho · 0 credit
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={Boolean(generating) || Boolean(applyingLibraryId) || uploadingOutside}
-                            onClick={() => pickOutsideBackground(face.type)}
-                          >
-                            Ảnh ngoài · 0 credit
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  })}
                 </div>
               </CardContent>
             </Card>
@@ -1811,7 +2128,12 @@ export default function WeddingCardAiClientPage() {
                     <CardTitle>3 & 8. Preview nháp</CardTitle>
                     <CardDescription>Mobile/desktop đều render text thật bằng hệ thống, không tốn credit.</CardDescription>
                   </div>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setLetterAskOpen(true)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => (singleOccasion ? openLetterView('groom') : setLetterAskOpen(true))}
+                  >
                     Xem thiệp
                   </Button>
                 </div>
@@ -1837,17 +2159,33 @@ export default function WeddingCardAiClientPage() {
                     >
                       <div className="flex w-full min-w-0 flex-col items-stretch gap-2 text-center">
                         <p className={cn('w-full text-[10px] uppercase tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
-                          Wedding Invitation
+                          {occasionCopy.previewEyebrow}
                         </p>
                         <Heart className={cn('mx-auto h-5 w-5 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
+                        <WeddingCouplePortraits
+                          groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
+                          brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
+                          groomImageUrl={groomPortraitPreviewUrl}
+                          brideImageUrl={bridePortraitPreviewUrl}
+                          groomLabel={occasionKey === 'wedding' ? txPublic.groomRole : occasionCopy.primaryRole}
+                          brideLabel={occasionKey === 'wedding' ? txPublic.brideRole : occasionCopy.secondaryRole}
+                          groomFrame={groomPortraitFrame}
+                          brideFrame={bridePortraitFrame}
+                          theme={selectedTheme}
+                          compact
+                        />
                         <div className="w-full min-w-0">
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
-                            {card.groomName || 'Chú rể'}
+                            {card.groomName || occasionCopy.primaryRole || occasionCopy.label}
                           </h2>
+                          {singleOccasion && !card.brideName.trim() ? null : (
+                            <>
                           <p className={cn('my-0.5 text-sm', selectedTheme.textGlow)}>&</p>
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
-                            {card.brideName || 'Cô dâu'}
+                            {card.brideName || occasionCopy.secondaryRole}
                           </h2>
+                            </>
+                          )}
                         </div>
                         {card.loveQuote ? (
                           <p className={cn('w-full text-balance font-serif text-[0.92rem] italic leading-6', selectedTheme.accentText, selectedTheme.textGlow)}>
@@ -1855,7 +2193,7 @@ export default function WeddingCardAiClientPage() {
                           </p>
                         ) : null}
                         <p className={cn('w-full whitespace-pre-line text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
-                          {card.invitationText || 'Trân trọng kính mời quý khách đến dự lễ thành hôn của chúng tôi.'}
+                          {card.invitationText || occasionCopy.previewInviteFallback}
                         </p>
                         {(card.coupleIntro || groomLetterPreview.eventTimeline || brideLetterPreview.eventTimeline || card.dressCode) && (
                           <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
@@ -1918,7 +2256,7 @@ export default function WeddingCardAiClientPage() {
                         </div>
                         <div className="flex w-full flex-wrap justify-center gap-1.5 text-[10px]">
                           {card.rsvpEnabled ? <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>RSVP bật</span> : null}
-                          {card.giftQrEnabled && (isTwinVietGiftReady(card) || card.giftQrImageUrl.trim()) ? (
+                          {card.giftQrEnabled && (isInvitationGiftReady(card) || card.giftQrImageUrl.trim()) ? (
                             <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>{txGift.boxTitle}</span>
                           ) : null}
                           {(card.musicUrl || musicFile) && !musicClearOnSave ? (
@@ -1937,34 +2275,37 @@ export default function WeddingCardAiClientPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>9. Xuất bản</CardTitle>
-                <CardDescription>Tạo link thiệp, RSVP, lời chúc, QR link thiệp: 0 credit.</CardDescription>
+                <CardTitle>9. Lưu và xuất bản</CardTitle>
+                <CardDescription>Một lần lưu nội dung và tạo link thiệp, RSVP, lời chúc, QR: 0 credit.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button onClick={publish} disabled={!card.id || missing.includes('ảnh chính')} className="w-full">
-                  Xuất bản link thiệp - 0 credit
+                <Button onClick={publish} disabled={!card.id || saving || missing.includes('ảnh chính')} className="w-full">
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Lưu và xuất bản link thiệp
                 </Button>
                 {card.id ? (
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className={singleOccasion ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-2'}>
                     <Button asChild variant="outline" className="w-full border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=groom`}>
                         <Users className="mr-2 h-4 w-4" />
-                        Khách mời nhà trai
+                        {occasionCopy.guestPrimary}
                       </Link>
                     </Button>
+                    {singleOccasion ? null : (
                     <Button asChild variant="outline" className="w-full border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300">
                       <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(card.id)}&side=bride`}>
                         <Users className="mr-2 h-4 w-4" />
-                        Khách mời nhà gái
+                        {occasionCopy.guestSecondary}
                       </Link>
                     </Button>
+                    )}
                   </div>
                 ) : null}
                 {publishUrl && (
                   <div className="rounded-2xl bg-muted p-3 text-sm">
                     <p className="break-all font-medium">{publishUrl}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Button type="button" variant="outline" size="sm" onClick={() => setLetterAskOpen(true)}>
+                      <Button type="button" variant="outline" size="sm" onClick={() => (singleOccasion ? openLetterView('groom') : setLetterAskOpen(true))}>
                         <ExternalLink className="mr-2 h-4 w-4" />
                         Xem thiệp
                       </Button>
@@ -1988,22 +2329,103 @@ export default function WeddingCardAiClientPage() {
           </div>
         </div>
       </div>
+      <Dialog
+        open={occasionPickerOpen}
+        onOpenChange={(open) => {
+          if (switchingCard) return
+          setOccasionPickerOpen(open)
+        }}
+      >
+        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Thiệp này dùng cho dịp nào?</DialogTitle>
+            <DialogDescription>
+              Chọn một dịp rồi tạo. Form mở ra đúng tên và địa điểm của dịp đó. Thiệp đã lưu không hỏi lại.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {INVITATION_OCCASION_GROUPS.map((group) => (
+              <div key={group.id} className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.title}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {group.keys.map((key) => {
+                    const copy = invitationEditorCopy(key)
+                    const selected = pickedOccasion === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={selected}
+                        className={cn(
+                          'rounded-xl border px-3 py-2 text-left',
+                          selected ? 'border-rose-400 bg-rose-50 ring-2 ring-rose-200' : 'border-slate-200 bg-white hover:bg-slate-50',
+                        )}
+                        onClick={() => setPickedOccasion(key)}
+                      >
+                        <span className="block text-sm font-medium text-slate-950">{copy.label}</span>
+                        <span className="mt-0.5 block text-xs text-slate-500">{copy.blurb}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" disabled={switchingCard} onClick={() => setOccasionPickerOpen(false)}>
+              Hủy
+            </Button>
+            <Button type="button" disabled={switchingCard || saving} onClick={() => void createFreshCard(pickedOccasion)}>
+              {switchingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Tạo thiệp
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={occasionShapePrompt != null} onOpenChange={(open) => { if (!open) setOccasionShapePrompt(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Đổi loại thiệp?</DialogTitle>
+            <DialogDescription>
+              {occasionShapePrompt
+                ? `Từ «${invitationEditorCopy(occasionKey).label}» sang «${invitationEditorCopy(occasionShapePrompt).label}». ${invitationOccasionShapeChangeNote(occasionKey, occasionShapePrompt) ?? ''}`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOccasionShapePrompt(null)}>
+              Giữ loại hiện tại
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (occasionShapePrompt) update('occasionKey', occasionShapePrompt)
+                setOccasionShapePrompt(null)
+              }}
+            >
+              Đổi loại thiệp
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={letterAskOpen} onOpenChange={setLetterAskOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Xem thiệp</DialogTitle>
             <DialogDescription>
               {publishUrl
-                ? 'Chọn nhà trai hoặc nhà gái.'
+                ? occasionKey === 'wedding'
+                  ? 'Chọn nhà trai hoặc nhà gái.'
+                  : `Chọn ${occasionCopy.letterPrimary} hoặc ${occasionCopy.letterSecondary}.`
                 : 'Thiệp chưa xuất bản. Bản nháp bên cạnh sẽ đổi theo lựa chọn này.'}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
             <Button type="button" variant="outline" className="border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300" onClick={() => openLetterView('groom')}>
-              Nhà trai
+              {occasionCopy.letterPrimary}
             </Button>
             <Button type="button" variant="outline" className="border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300" onClick={() => openLetterView('bride')}>
-              Nhà gái
+              {occasionCopy.letterSecondary}
             </Button>
           </div>
         </DialogContent>
@@ -2039,30 +2461,76 @@ function Toggle(props: { label: string; checked: boolean; onChange: (checked: bo
 function ImageUploadField(props: {
   label: string
   currentUrl: string
-  file: File | null
+  file?: File | null
+  frame?: 'wide' | 'portrait'
+  crop?: {
+    positionX: number
+    positionY: number
+    scale: number
+    onChange: (patch: { positionX?: number; positionY?: number; scale?: number }) => void
+  }
   onFileChange: (file: File | null) => void
+  onRemove?: () => void
 }) {
   const previewUrl = props.file ? URL.createObjectURL(props.file) : props.currentUrl
+  const portrait = props.frame === 'portrait'
   return (
     <div className="space-y-2 rounded-2xl border p-3">
       <Label>{props.label}</Label>
-      {previewUrl ? (
-        <img src={previewUrl} alt={props.label} className="h-36 w-full rounded-xl object-cover" />
+      {previewUrl && props.crop ? (
+        <CoverPhotoCropEditor
+          bare
+          imageUrl={previewUrl}
+          alt={props.label}
+          positionX={props.crop.positionX}
+          positionY={props.crop.positionY}
+          scale={props.crop.scale}
+          onChange={props.crop.onChange}
+          title="Kéo và zoom"
+          hint="Kéo ảnh để đổi vị trí. Thanh zoom để phóng to hoặc thu nhỏ."
+          ariaLabel={`Căn ${props.label}`}
+          resetFrame={{ positionX: 50, positionY: 18, scale: 1 }}
+          frameClassName="relative mx-auto aspect-[3/4] max-h-72 w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing"
+        />
+      ) : previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={props.label}
+          className={cn(
+            'w-full rounded-xl object-cover',
+            portrait ? 'mx-auto aspect-[3/4] max-h-72 object-[center_18%]' : 'h-36',
+          )}
+        />
       ) : (
-        <div className="flex h-36 items-center justify-center rounded-xl bg-muted text-sm text-muted-foreground">
+        <div
+          className={cn(
+            'flex w-full items-center justify-center rounded-xl bg-muted text-sm text-muted-foreground',
+            portrait ? 'mx-auto aspect-[3/4] max-h-72' : 'h-36',
+          )}
+        >
           Chưa có ảnh
         </div>
       )}
-      <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
-        <Upload className="h-4 w-4" />
-        Chọn ảnh
-        <input
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          onChange={(event) => props.onFileChange(event.target.files?.[0] ?? null)}
-        />
-      </label>
+      <div className="flex flex-wrap gap-2">
+        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
+          <Upload className="h-4 w-4" />
+          Chọn ảnh
+          <input
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={(event) => {
+              props.onFileChange(event.target.files?.[0] ?? null)
+              event.target.value = ''
+            }}
+          />
+        </label>
+        {props.onRemove && previewUrl ? (
+          <Button type="button" variant="outline" size="sm" onClick={props.onRemove}>
+            Gỡ ảnh
+          </Button>
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -2078,6 +2546,8 @@ function CoverPhotoCropEditor(props: {
   hint?: string
   frameClassName?: string
   ariaLabel?: string
+  bare?: boolean
+  resetFrame?: { positionX: number; positionY: number; scale: number }
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
@@ -2094,8 +2564,10 @@ function CoverPhotoCropEditor(props: {
 
   const setScale = (value: number) => props.onChange({ scale: clampScale(value) })
 
+  const resetFrame = props.resetFrame ?? { positionX: 50, positionY: 50, scale: 1 }
+
   return (
-    <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
+    <div className={props.bare ? 'space-y-3' : 'space-y-3 rounded-2xl border bg-muted/20 p-3'}>
       <div>
         <Label className="text-sm">{props.title ?? 'Căn ảnh trực tiếp trên vỏ thiệp'}</Label>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -2114,13 +2586,17 @@ function CoverPhotoCropEditor(props: {
         role="application"
         aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId)
           dragRef.current = {
             pointerId: event.pointerId,
             startX: event.clientX,
             startY: event.clientY,
             positionX: props.positionX,
             positionY: props.positionY,
+          }
+          try {
+            event.currentTarget.setPointerCapture(event.pointerId)
+          } catch {
+            /* kéo vẫn cập nhật vị trí khi trình duyệt không giữ pointer */
           }
         }}
         onPointerMove={(event) => {
@@ -2198,7 +2674,7 @@ function CoverPhotoCropEditor(props: {
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => props.onChange({ positionX: 50, positionY: 50, scale: 1 })}
+          onClick={() => props.onChange(resetFrame)}
         >
           Đưa về giữa ảnh
         </Button>

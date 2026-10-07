@@ -6,15 +6,12 @@ import {
   getPublishedInvitedGuestPersonalInvite,
   getPublishedInvitedGuestRsvp,
   getPublishedWeddingCardBySlug,
-  listPublishedWeddingImages,
   listPublishedSideGuestWishes,
 } from '@/lib/db/wedding-cards-pg'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
-import {
-  buildWeddingPublicDescription,
-  buildWeddingPublicJsonLd,
-  weddingPublicOgImage,
-} from '@/lib/wedding/wedding-public-seo'
+import { invitationOccasionShape, invitationSeoCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPublicTitle } from '@/lib/wedding/wedding-public-seo'
+import { weddingPublicShareImageUrl } from '@/lib/wedding/wedding-share-preview'
 import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
@@ -43,13 +40,15 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       noIndex: true,
     })
   }
-  const couple = `${card.groomName} & ${card.brideName}`.trim()
   return buildMetadata({
-    title: `Thiệp mời cưới ${couple}`,
+    title: buildWeddingPublicTitle(card),
     description: buildWeddingPublicDescription(card),
     path,
-    keywords: ['thiệp mời cưới', 'thiệp cưới online', 'thiệp cưới điện tử', card.groomName, card.brideName].filter(Boolean),
-    ogImage: weddingPublicOgImage(card),
+    keywords: (normalizeInvitationOccasion(card.occasionKey) === 'wedding'
+      ? ['thiệp mời cưới', 'thiệp cưới online', 'thiệp cưới điện tử', card.groomName, card.brideName]
+      : [invitationSeoCopy(card.occasionKey).title, card.groomName, card.brideName]
+    ).filter(Boolean),
+    ogImage: weddingPublicShareImageUrl(SITE_URL, card, searchParams?.guest),
     noIndex: personalized,
   })
 }
@@ -60,6 +59,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   const guestDisplayName = String(searchParams?.guest ?? '').trim()
   const inviteVenue = normalizeGuestInviteVenue(searchParams?.venue)
   const letterView = letterViewFromSearch(searchParams?.view, inviteVenue)
+  const singleOccasion = invitationOccasionShape(card.occasionKey) === 'single'
   const displayVenue =
     inviteVenue || (letterView === 'groom' ? 'groom_home' : letterView === 'bride' ? 'bride_home' : '')
   const personalInvite =
@@ -77,10 +77,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         inviteVenue,
       }).catch(() => null)
     : null
-  const [sideWishes, images] = await Promise.all([
-    listPublishedSideGuestWishes(card.id),
-    listPublishedWeddingImages(card.id),
-  ])
+  const sideWishes = await listPublishedSideGuestWishes(card.id)
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
   return (
     <>
@@ -88,11 +85,10 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       <WeddingPublicClient
         card={card}
         sideWishes={sideWishes}
-        images={images}
         initialGuestDisplayName={guestDisplayName}
         initialGuestInviteVenue={displayVenue}
-        initialLetterView={letterView ?? 'groom'}
-        askLetterView={letterView == null}
+        initialLetterView={singleOccasion ? 'groom' : letterView ?? 'groom'}
+        askLetterView={!singleOccasion && letterView == null}
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
       />

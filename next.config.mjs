@@ -103,7 +103,7 @@ const nextConfig = {
     /** Sourcemap không build cho client (giảm dung lượng tải); chỉ build server-side khi bật flag. */
     productionBrowserSourceMaps: false,
     experimental: {
-        serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push'],
+        serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push', '@resvg/resvg-js'],
         serverActions: {
             bodySizeLimit: '10mb',
             /**

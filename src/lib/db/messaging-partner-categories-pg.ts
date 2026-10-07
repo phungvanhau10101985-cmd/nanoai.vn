@@ -765,7 +765,7 @@ export async function updatePartnerCategoryFieldsFromPg(
     const row = await pgQueryOne<CategoryDbRow>(
       `update public.messaging_partner_categories
        set ${sets.join(', ')}
-       where id = $2::uuid
+       where id = $2::uuid and $1::uuid is not null
        returning ${SELECT_COLS}`,
       params
     )
@@ -1039,10 +1039,12 @@ export async function setPartnerCategoryGeneratedSeoFromPg(
   }
   if (sets.length === 0) return fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
   try {
+    // $1 phải nằm trong câu: Postgres 42P18 nếu bind không được tham chiếu.
+    // Cây danh mục dùng chung nên không lọc theo partner_id.
     const row = await pgQueryOne<CategoryDbRow>(
       `update public.messaging_partner_categories
        set ${sets.join(', ')}
-       where id = $2::uuid
+       where id = $2::uuid and $1::uuid is not null
        returning ${SELECT_COLS}`,
       params
     )

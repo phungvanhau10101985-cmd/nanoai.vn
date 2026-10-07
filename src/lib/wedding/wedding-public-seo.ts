@@ -1,4 +1,5 @@
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
+import { invitationSeoCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 
 export type WeddingPublicSeoCard = Pick<
   WeddingCard,
@@ -12,6 +13,7 @@ export type WeddingPublicSeoCard = Pick<
   | 'masterImageUrl'
   | 'groomImageUrl'
   | 'brideImageUrl'
+  | 'occasionKey'
 >
 
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/
@@ -62,21 +64,55 @@ export function weddingPublicOgImage(
   return undefined
 }
 
+function invitationWho(groomName: string, brideName: string, joiner: string): string {
+  return [String(groomName || '').trim(), String(brideName || '').trim()].filter(Boolean).join(joiner)
+}
+
+export function buildWeddingPublicTitle(
+  card: Pick<WeddingPublicSeoCard, 'groomName' | 'brideName' | 'occasionKey'>,
+): string {
+  const key = normalizeInvitationOccasion(card.occasionKey)
+  if (key === 'wedding') return `Thiệp mời cưới ${card.groomName} & ${card.brideName}`.trim()
+  const names = invitationWho(card.groomName, card.brideName, ' & ')
+  return `${invitationSeoCopy(key).title} ${names}`.trim()
+}
+
 export function buildWeddingPublicDescription(
-  card: Pick<WeddingPublicSeoCard, 'groomName' | 'brideName' | 'weddingDate' | 'venue' | 'invitationText'>,
+  card: Pick<WeddingPublicSeoCard, 'groomName' | 'brideName' | 'weddingDate' | 'venue' | 'invitationText' | 'occasionKey'>,
 ): string {
   const fromInvite = weddingPlainText(card.invitationText, 140)
   if (fromInvite) return fromInvite
-  const couple = `${card.groomName} và ${card.brideName}`.trim()
+  const key = normalizeInvitationOccasion(card.occasionKey)
   const dateIso = weddingDateIso(card.weddingDate)
   const datePart = dateIso ? ` vào ${formatViDate(dateIso)}` : ''
   const venue = String(card.venue || '').trim()
   const venuePart = venue ? ` tại ${venue}` : ''
-  return weddingPlainText(`Trân trọng kính mời bạn đến dự lễ cưới của ${couple}${datePart}${venuePart}.`, 160)
+  if (key === 'wedding') {
+    const couple = `${card.groomName} và ${card.brideName}`.trim()
+    return weddingPlainText(`Trân trọng kính mời bạn đến dự lễ cưới của ${couple}${datePart}${venuePart}.`, 160)
+  }
+  const who = invitationWho(card.groomName, card.brideName, ' và ')
+  return weddingPlainText(
+    `Trân trọng kính mời bạn đến dự ${invitationSeoCopy(key).eventNoun} của ${who}${datePart}${venuePart}.`,
+    160,
+  )
 }
 
 export function buildWeddingPublicJsonLd(card: WeddingPublicSeoCard, url: string): Record<string, unknown> {
-  const name = `Lễ cưới ${card.groomName} & ${card.brideName}`.trim()
+  const key = normalizeInvitationOccasion(card.occasionKey)
+  const seo = invitationSeoCopy(key)
+  const name =
+    key === 'wedding'
+      ? `Lễ cưới ${card.groomName} & ${card.brideName}`.trim()
+      : `${seo.title} ${invitationWho(card.groomName, card.brideName, ' & ')}`.trim()
+  const pageName =
+    key === 'wedding'
+      ? `Thiệp mời cưới ${card.groomName} & ${card.brideName}`.trim()
+      : name
+  const organizer =
+    key === 'wedding'
+      ? `${card.groomName} & ${card.brideName}`.trim()
+      : invitationWho(card.groomName, card.brideName, ' & ')
   const description = buildWeddingPublicDescription(card)
   const image = weddingPublicOgImage(card)
   const dateIso = weddingDateIso(card.weddingDate)
@@ -88,7 +124,7 @@ export function buildWeddingPublicJsonLd(card: WeddingPublicSeoCard, url: string
     return {
       '@context': 'https://schema.org',
       '@type': 'WebPage',
-      name: `Thiệp mời cưới ${card.groomName} & ${card.brideName}`.trim(),
+      name: pageName,
       description,
       url,
       ...(image ? { primaryImageOfPage: { '@type': 'ImageObject', url: image } } : {}),
@@ -106,7 +142,7 @@ export function buildWeddingPublicJsonLd(card: WeddingPublicSeoCard, url: string
     eventStatus: 'https://schema.org/EventScheduled',
     organizer: {
       '@type': 'Person',
-      name: `${card.groomName} & ${card.brideName}`.trim(),
+      name: organizer,
     },
     ...(image ? { image: [image] } : {}),
     ...(venue

@@ -3884,14 +3884,8 @@ export type PartnerInventoryImportMatchRow = {
   partner_id: string
   sku: string | null
   name: string
-  description: string
-  stock_note: string
   stock_qty: number
   price_hint: string
-  image_url: string
-  product_url: string
-  product_video_url: string
-  consult_note: string
   remarketing_id: string
   sort_order: number
   is_active: boolean
@@ -3899,10 +3893,10 @@ export type PartnerInventoryImportMatchRow = {
   updated_at: string
 }
 
-const INVENTORY_IMPORT_MATCH_PAGE = 4000
+const INVENTORY_IMPORT_MATCH_PAGE = 8000
 
 /**
- * Khớp SKU/tên lúc import Excel. Không kéo embedding, gallery, catalog_json.
+ * Khóa để khớp SKU/tên lúc import. Không kéo mô tả, ảnh, gallery, catalog, embedding.
  */
 export async function fetchPartnerInventoryImportMatchListFromPg(
   partnerId: string
@@ -3918,14 +3912,8 @@ export async function fetchPartnerInventoryImportMatchListFromPg(
            mpi.partner_id::text as partner_id,
            mpi.sku,
            coalesce(mpi.name, '') as name,
-           coalesce(mpi.description, '') as description,
-           coalesce(mpi.stock_note, '') as stock_note,
            coalesce(mpi.stock_qty, 0)::int as stock_qty,
            coalesce(mpi.price_hint, '') as price_hint,
-           coalesce(mpi.image_url, '') as image_url,
-           coalesce(mpi.product_url, '') as product_url,
-           coalesce(mpi.product_video_url, '') as product_video_url,
-           coalesce(mpi.consult_note, '') as consult_note,
            coalesce(mpi.remarketing_id, '') as remarketing_id,
            coalesce(mpi.sort_order, 0)::int as sort_order,
            coalesce(mpi.is_active, true) as is_active,
@@ -3945,6 +3933,64 @@ export async function fetchPartnerInventoryImportMatchListFromPg(
     return all
   } catch (e) {
     console.warn('[fetchPartnerInventoryImportMatchListFromPg]', e)
+    return null
+  }
+}
+
+export type PartnerInventoryWriteCompareRow = {
+  id: string
+  name: string
+  sku: string | null
+  description: string
+  stock_note: string
+  stock_qty: number
+  price_hint: string
+  image_url: string
+  product_url: string
+  product_video_url: string
+  consult_note: string
+  remarketing_id: string
+  sort_order: number
+  is_active: boolean
+}
+
+/** Cột thân dòng chỉ cho id sắp ghi đè — bỏ dòng không đổi trước khi UPDATE. */
+export async function fetchPartnerInventoryWriteCompareFromPg(
+  partnerId: string,
+  ids: string[]
+): Promise<PartnerInventoryWriteCompareRow[] | null> {
+  if (!isPgConfigured()) return null
+  if (ids.length === 0) return []
+  const out: PartnerInventoryWriteCompareRow[] = []
+  try {
+    for (let i = 0; i < ids.length; i += 200) {
+      const chunk = ids.slice(i, i + 200)
+      const rows = await pgQuery<PartnerInventoryWriteCompareRow>(
+        `select
+           mpi.id::text as id,
+           coalesce(mpi.name, '') as name,
+           mpi.sku,
+           coalesce(mpi.description, '') as description,
+           coalesce(mpi.stock_note, '') as stock_note,
+           coalesce(mpi.stock_qty, 0)::int as stock_qty,
+           coalesce(mpi.price_hint, '') as price_hint,
+           coalesce(mpi.image_url, '') as image_url,
+           coalesce(mpi.product_url, '') as product_url,
+           coalesce(mpi.product_video_url, '') as product_video_url,
+           coalesce(mpi.consult_note, '') as consult_note,
+           coalesce(mpi.remarketing_id, '') as remarketing_id,
+           coalesce(mpi.sort_order, 0)::int as sort_order,
+           coalesce(mpi.is_active, true) as is_active
+         from public.messaging_partner_inventory mpi
+         where mpi.partner_id = $1::uuid
+           and mpi.id = any($2::uuid[])`,
+        [partnerId, chunk]
+      )
+      out.push(...rows)
+    }
+    return out
+  } catch (e) {
+    console.warn('[fetchPartnerInventoryWriteCompareFromPg]', e)
     return null
   }
 }
@@ -4254,7 +4300,7 @@ export type InventoryCatalogPatchRow = {
 }
 
 /** Ghi cột catalog 188 + sizes/colors/gallery có cấu trúc sau upsert core. */
-const CATALOG_PATCH_CHUNK = 40
+const CATALOG_PATCH_CHUNK = 200
 
 function finiteIntOrNull(value: unknown): number | null {
   const n = Number(value)

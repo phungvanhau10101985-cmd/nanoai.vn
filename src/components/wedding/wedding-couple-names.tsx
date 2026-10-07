@@ -12,6 +12,22 @@ export function WeddingCoupleNames(props: {
   pace?: 'cover' | 'reveal' | 'opened'
   className?: string
 }) {
+  const groomName = props.groomName.trim()
+  const brideName = props.brideName.trim()
+  if (!brideName) {
+    return (
+      <h1
+        className={cn(
+          'flex items-baseline justify-center',
+          props.flyIn && props.pace === 'reveal' && 'wedding-couple-pace-reveal',
+          props.flyIn && props.pace === 'opened' && 'wedding-couple-pace-opened',
+          props.className,
+        )}
+      >
+        <span className={cn('inline-block max-w-full', props.flyIn ? 'whitespace-nowrap' : 'break-words', props.flyIn && 'wedding-couple-from-left')}>{groomName}</span>
+      </h1>
+    )
+  }
   return (
     <h1
       className={cn(

@@ -3,13 +3,19 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { notificationSkipsPlatformWebPush } from '@/lib/notifications/deliver-user-notification-pg'
+import {
+  notificationSkipsAccountEmail,
+  notificationSkipsPlatformWebPush,
+} from '@/lib/notifications/deliver-user-notification-pg'
 import { partnerShopPushClickPath } from '@/lib/messaging/partner-shop-push-click-path'
 
 test('shop owner alerts skip the NanoAI platform Web Push channel', () => {
   assert.equal(notificationSkipsPlatformWebPush({ skip_platform_push: true }), true)
   assert.equal(notificationSkipsPlatformWebPush({}), false)
   assert.equal(notificationSkipsPlatformWebPush(null), false)
+  assert.equal(notificationSkipsAccountEmail({ skip_email: true }), true)
+  assert.equal(notificationSkipsAccountEmail({}), false)
+  assert.equal(notificationSkipsAccountEmail(null), false)
 })
 
 test('shop PWA click keeps absolute dashboard and shop URLs', () => {
@@ -37,6 +43,8 @@ test('owner shop events push to shop PWA, not NanoAI SW', () => {
     'utf8'
   )
   assert.match(src, /skip_platform_push:\s*true/)
+  assert.match(src, /skip_email:\s*true/)
+  assert.match(src, /partnerOwnerAlertSendsEmail/)
   assert.match(src, /sendPartnerCustomerWebPush/)
   assert.match(src, /findGuestAccountIdByEmailPg/)
   assert.doesNotMatch(src, /sendPushNotificationsToUser/)

@@ -36,8 +36,48 @@ export const PARTNER_ORDER_NOTIFY_EVENT_MATRIX: Readonly<
   cancelled: { customer: ['email', 'in_app', 'push', 'chat'], owner: [] },
   refunded: { customer: ['email', 'in_app', 'push', 'chat'], owner: [] },
   customer_cancelled: { customer: [], owner: ['email', 'in_app', 'push'] },
-  customer_received: { customer: [], owner: ['email', 'in_app', 'push'] },
-  chat_needs_reply: { customer: [], owner: ['email', 'in_app', 'push'] },
+  customer_received: { customer: [], owner: ['in_app', 'push'] },
+  chat_needs_reply: { customer: [], owner: ['in_app', 'push'] },
+}
+
+export type PartnerOwnerAlertKind =
+  | 'new_order'
+  | 'payment_verified'
+  | 'payment_review'
+  | 'customer_cancelled'
+  | 'customer_received'
+  | 'new_question'
+  | 'new_review'
+  | 'new_lead'
+  | 'affiliate_apply'
+  | 'affiliate_withdraw'
+  | 'chat_needs_reply'
+
+/**
+ * SMTP chủ shop = một hộp thư.
+ * Đơn mới và đã cọc đã có mail «Thông báo shop» khi payment settings có notify_email — không gửi thêm.
+ * Hỏi SP, đánh giá, khách đã nhận, chat: chỉ chuông + push.
+ */
+export function partnerOwnerAlertSendsEmail(
+  kind: PartnerOwnerAlertKind,
+  opts?: { shopNotifyInboxConfigured?: boolean }
+): boolean {
+  if (kind === 'new_order' || kind === 'payment_verified') {
+    return !opts?.shopNotifyInboxConfigured
+  }
+  return (
+    kind === 'payment_review' ||
+    kind === 'customer_cancelled' ||
+    kind === 'new_lead' ||
+    kind === 'affiliate_apply' ||
+    kind === 'affiliate_withdraw'
+  )
+}
+
+/** Mail khách khi đổi giao hàng: gửi shipper, hoàn, hủy. Soạn hàng / đã xác nhận chỉ ở chat. */
+export function customerShippingStatusSendsEmail(status: string): boolean {
+  const value = status.trim().toLowerCase()
+  return value === 'shipping' || value === 'returned' || value === 'cancelled'
 }
 
 export function partnerOrderNotifyIdempotencyKey(input: {

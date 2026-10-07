@@ -162,6 +162,9 @@ export type PartnerOrderLineRow = {
   source_platform: string | null
   source_url: string
   product_sku_snapshot: string
+  /** SKU kho lúc đọc đơn. Không ghi vào dòng đơn. */
+  inventory_sku?: string
+  inventory_remarketing_id?: string
   is_warehouse_item: boolean
   warehouse_stock_reserved_at: string | null
   warehouse_stock_deducted_at: string | null
@@ -324,6 +327,8 @@ function mapOrderLineRow(r: Record<string, unknown>): PartnerOrderLineRow {
     source_platform: r.source_platform ? String(r.source_platform) : null,
     source_url: String(r.source_url ?? ''),
     product_sku_snapshot: String(r.product_sku_snapshot ?? ''),
+    inventory_sku: String(r.inventory_sku ?? ''),
+    inventory_remarketing_id: String(r.inventory_remarketing_id ?? ''),
     is_warehouse_item: r.is_warehouse_item === true || String(r.is_warehouse_item) === 'true',
     warehouse_stock_reserved_at: r.warehouse_stock_reserved_at ? String(r.warehouse_stock_reserved_at) : null,
     warehouse_stock_deducted_at: r.warehouse_stock_deducted_at ? String(r.warehouse_stock_deducted_at) : null,
@@ -538,22 +543,24 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   }
 }
 
-const ORDER_LINE_RETURNING = `id::text, order_id::text, product_inventory_id::text, product_name, product_image_url,
-       product_url, unit_price, quantity, line_subtotal, variant_color, variant_size, variant_image_urls,
-       note, sort_order, created_at, updated_at,
-       coalesce(fulfillment_source, 'vietnam') as fulfillment_source, source_platform,
-       coalesce(source_url, '') as source_url, coalesce(product_sku_snapshot, '') as product_sku_snapshot,
-       coalesce(is_warehouse_item, false) as is_warehouse_item,
-       warehouse_stock_reserved_at, warehouse_stock_deducted_at`
+const ORDER_LINE_RETURNING = `l.id::text, l.order_id::text, l.product_inventory_id::text, l.product_name, l.product_image_url,
+       l.product_url, l.unit_price, l.quantity, l.line_subtotal, l.variant_color, l.variant_size, l.variant_image_urls,
+       l.note, l.sort_order, l.created_at, l.updated_at,
+       coalesce(l.fulfillment_source, 'vietnam') as fulfillment_source, l.source_platform,
+       coalesce(l.source_url, '') as source_url, coalesce(l.product_sku_snapshot, '') as product_sku_snapshot,
+       coalesce(l.is_warehouse_item, false) as is_warehouse_item,
+       l.warehouse_stock_reserved_at, l.warehouse_stock_deducted_at,
+       coalesce(i.sku, '') as inventory_sku, coalesce(i.remarketing_id, '') as inventory_remarketing_id`
 
 export async function fetchPartnerOrderLinesFromPg(orderId: string): Promise<PartnerOrderLineRow[]> {
   if (!isPgConfigured()) return []
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select ${ORDER_LINE_RETURNING}
-       from public.messaging_partner_order_lines
-       where order_id = $1::uuid
-       order by sort_order asc, created_at asc, id asc`,
+       from public.messaging_partner_order_lines l
+       left join public.messaging_partner_inventory i on i.id = l.product_inventory_id
+       where l.order_id = $1::uuid
+       order by l.sort_order asc, l.created_at asc, l.id asc`,
       [orderId]
     )
     return rows.map(mapOrderLineRow)

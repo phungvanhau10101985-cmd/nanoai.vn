@@ -1,4 +1,5 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { normalizeInvitationOccasion, type InvitationOccasionKey } from '@/lib/wedding/invitation-occasion'
 import { weddingDateFromPg } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { normalizeGuestNameKey } from '@/lib/wedding/wedding-guest-invite-link'
@@ -13,6 +14,7 @@ export type WeddingCard = {
   id: string
   userId: string
   slug: string
+  occasionKey: InvitationOccasionKey
   groomName: string
   brideName: string
   weddingDate: string | null
@@ -224,6 +226,7 @@ function mapCard(row: Record<string, unknown>): WeddingCard {
     id: String(row.id),
     userId: String(row.user_id),
     slug: String(row.slug),
+    occasionKey: normalizeInvitationOccasion(row.occasion_key),
     groomName: String(row.groom_name ?? ''),
     brideName: String(row.bride_name ?? ''),
     weddingDate: weddingDateFromPg(row.wedding_date),
@@ -326,14 +329,19 @@ function mapImage(row: Record<string, unknown>): WeddingAiImage {
   }
 }
 
-export async function createWeddingCardDraft(userId: string, styleId = 'luxury'): Promise<WeddingCard> {
+export async function createWeddingCardDraft(
+  userId: string,
+  styleId = 'luxury',
+  occasionKey: unknown = 'wedding',
+): Promise<WeddingCard> {
   requirePg()
   const slug = `thiep-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+  const occasion = normalizeInvitationOccasion(occasionKey)
   const res = await getPgPool().query(
-    `insert into public.wedding_cards (user_id, slug, selected_style_id)
-     values ($1::uuid, $2, $3)
+    `insert into public.wedding_cards (user_id, slug, selected_style_id, occasion_key)
+     values ($1::uuid, $2, $3, $4)
      returning *, null::text as master_image_url`,
-    [userId, slug, styleId]
+    [userId, slug, styleId, occasion],
   )
   return mapCard(res.rows[0])
 }
@@ -350,6 +358,48 @@ export async function getLatestWeddingCardForUser(userId: string): Promise<Weddi
     [userId]
   )
   return res.rows[0] ? mapCard(res.rows[0]) : null
+}
+
+export type WeddingCardSummary = {
+  id: string
+  slug: string
+  occasionKey: InvitationOccasionKey
+  groomName: string
+  brideName: string
+  isPublished: boolean
+  updatedAt: string
+}
+
+export async function listWeddingCardSummariesForUser(userId: string): Promise<WeddingCardSummary[]> {
+  requirePg()
+  const res = await getPgPool().query(
+    `select id, slug, occasion_key, groom_name, bride_name, is_published, updated_at
+     from public.wedding_cards
+     where user_id = $1::uuid
+     order by updated_at desc
+     limit 80`,
+    [userId],
+  )
+  return res.rows.map((row) => ({
+    id: String(row.id),
+    slug: String(row.slug ?? ''),
+    occasionKey: normalizeInvitationOccasion(row.occasion_key),
+    groomName: String(row.groom_name ?? ''),
+    brideName: String(row.bride_name ?? ''),
+    isPublished: Boolean(row.is_published),
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
+  }))
+}
+
+export async function deleteWeddingCardForUser(cardId: string, userId: string): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `delete from public.wedding_cards
+     where id = $1::uuid and user_id = $2::uuid
+     returning id`,
+    [cardId, userId],
+  )
+  return res.rowCount === 1
 }
 
 export async function getWeddingCardForUser(cardId: string, userId: string): Promise<WeddingCard | null> {
@@ -421,6 +471,7 @@ export async function updateWeddingCardBrief(input: {
   brideGiftAccountNo: string
   brideGiftAccountName: string
   effectsEnabled: boolean
+  occasionKey: InvitationOccasionKey
 }): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -465,6 +516,7 @@ export async function updateWeddingCardBrief(input: {
          effects_enabled = $40,
          groom_hometown = $41,
          bride_hometown = $42,
+         occasion_key = $43,
          updated_at = timezone('utc'::text, now())
      where id = $1::uuid and user_id = $2::uuid
      returning *, (select image_url from public.wedding_card_ai_images where id = wedding_cards.master_image_id) as master_image_url`,
@@ -511,6 +563,7 @@ export async function updateWeddingCardBrief(input: {
       input.effectsEnabled,
       input.groomHometown,
       input.brideHometown,
+      normalizeInvitationOccasion(input.occasionKey),
     ]
   )
   return res.rows[0] ? mapCard(res.rows[0]) : null

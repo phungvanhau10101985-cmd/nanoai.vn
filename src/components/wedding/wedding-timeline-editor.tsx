@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
+import { WeddingTimeField } from '@/components/wedding/wedding-time-field'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -73,12 +74,11 @@ export function WeddingTimelineEditor({ label, value, onChange, hint, className 
       <div className="space-y-2 rounded-2xl border p-3">
         {rows.map((row, index) => (
           <div key={`timeline-row-${index}`} className="flex items-center gap-2">
-            <Input
-              type="time"
+            <WeddingTimeField
               value={row.time}
-              onChange={(event) => updateRow(index, { time: event.target.value })}
-              className="w-[7.25rem] shrink-0 tabular-nums"
-              aria-label={`Giờ mốc ${index + 1}`}
+              onChange={(time) => updateRow(index, { time })}
+              className="w-[7.25rem] shrink-0"
+              ariaLabel={`Giờ mốc ${index + 1}`}
             />
             <Input
               value={timelineRowContent(row)}

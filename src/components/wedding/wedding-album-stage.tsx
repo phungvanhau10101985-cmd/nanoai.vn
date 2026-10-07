@@ -60,7 +60,6 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
         event.stopPropagation()
         props.onClick()
       }}
-      data-album-chrome="1"
       className={cn(
         'absolute top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.dir < 0 ? 'left-1 sm:left-2' : 'right-1 sm:right-2',
@@ -90,14 +89,7 @@ export function WeddingAlbumStage(props: {
   const [glide, setGlide] = useState(0)
   const [smooth, setSmooth] = useState(true)
   const [revealed, setRevealed] = useState(true)
-  const drag = useRef({
-    pointerId: -1,
-    startX: 0,
-    startY: 0,
-    active: false,
-    axis: 'none' as 'none' | 'x' | 'y',
-  })
-  const swallowClick = useRef(false)
+  const drag = useRef({ active: false, startX: 0 })
   const glideRef = useRef(0)
   const indexRef = useRef(0)
   const settling = useRef(false)
@@ -128,8 +120,6 @@ export function WeddingAlbumStage(props: {
     if (count < 2 || settling.current) return
     settling.current = true
     drag.current.active = false
-    drag.current.axis = 'none'
-    drag.current.pointerId = -1
     setSmooth(true)
     window.requestAnimationFrame(() => setGlide(target))
     if (timer.current) window.clearTimeout(timer.current)
@@ -166,54 +156,24 @@ export function WeddingAlbumStage(props: {
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (count < 2 || settling.current) return
-    if (event.pointerType === 'mouse' && event.button !== 0) return
-    const target = event.target as HTMLElement
-    if (target.closest('[data-album-chrome],[data-album-ignore-swipe]')) return
-    drag.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startY: event.clientY,
-      active: true,
-      axis: 'none',
-    }
+    if ((event.target as HTMLElement).closest('button')) return
+    drag.current = { active: true, startX: event.clientX }
+    setSmooth(false)
+    event.currentTarget.setPointerCapture(event.pointerId)
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const gesture = drag.current
-    if (!gesture.active || gesture.pointerId !== event.pointerId) return
-    const dx = event.clientX - gesture.startX
-    const dy = event.clientY - gesture.startY
-    if (gesture.axis === 'none') {
-      if (dx * dx + dy * dy < 36) return
-      gesture.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
-      if (gesture.axis === 'y') {
-        gesture.active = false
-        return
-      }
-      setSmooth(false)
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId)
-      } catch {
-        /* ignore */
-      }
-    }
-    if (gesture.axis !== 'x') return
-    const width = event.currentTarget.getBoundingClientRect().width || 240
-    const next = Math.max(-1.15, Math.min(1.15, dx / Math.max(120, width * 0.38)))
+    if (!drag.current.active) return
+    const dx = event.clientX - drag.current.startX
+    const next = Math.max(-1.15, Math.min(1.15, dx / 200))
     glideRef.current = next
     setGlide(next)
   }
-  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const gesture = drag.current
-    if (gesture.pointerId !== event.pointerId) return
-    const wasSwipe = gesture.axis === 'x'
-    gesture.active = false
-    gesture.axis = 'none'
-    gesture.pointerId = -1
-    if (!wasSwipe) return
-    swallowClick.current = true
+  const onPointerUp = () => {
+    if (!drag.current.active) return
+    drag.current.active = false
     const g = glideRef.current
-    if (g > 0.14) commitGlide(1)
-    else if (g < -0.14) commitGlide(-1)
+    if (g > 0.18) commitGlide(1)
+    else if (g < -0.18) commitGlide(-1)
     else {
       setSmooth(true)
       window.requestAnimationFrame(() => setGlide(0))
@@ -235,14 +195,7 @@ export function WeddingAlbumStage(props: {
     <div className={cn('relative', props.className)}>
       <div
         className="relative touch-pan-y select-none"
-        style={{ touchAction: 'pan-y' }}
         tabIndex={count > 1 ? 0 : undefined}
-        onClickCapture={(event) => {
-          if (!swallowClick.current) return
-          swallowClick.current = false
-          event.preventDefault()
-          event.stopPropagation()
-        }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft') nudge(-1)
           if (event.key === 'ArrowRight') nudge(1)
@@ -277,7 +230,6 @@ export function WeddingAlbumStage(props: {
             type="button"
             aria-label={expandLabel}
             onClick={() => props.onExpand?.(safeIndex)}
-            data-album-chrome="1"
             className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white shadow"
           >
             <Maximize2 className="h-4 w-4" />
@@ -333,7 +285,7 @@ function AlbumFrame(props: {
               key={`${url}-${i}`}
               type="button"
               aria-label={alt}
-              className="absolute left-1/2 top-0 h-full w-[72%] touch-pan-y overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
+              className="absolute left-1/2 top-0 h-full w-[72%] overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
               style={{
                 zIndex: 24 - Math.round(ad * 8),
                 opacity: ad > 1.2 ? Math.max(0, (1.8 - ad) / 0.6) : 1,
@@ -429,7 +381,7 @@ function AlbumFrame(props: {
       return (
         <div className="space-y-3">
           {hero}
-          <div className="flex gap-2 overflow-x-auto pb-1" data-album-ignore-swipe="1">
+          <div className="flex gap-2 overflow-x-auto pb-1">
             {urls.map((url, i) => {
               const ad = Math.abs(wrappedDelta(i, focus, count))
               const on = ad < 0.45

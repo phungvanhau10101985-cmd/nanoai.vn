@@ -14,7 +14,8 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 600
 
-const MAX_BYTES = 20 * 1024 * 1024
+/** Dưới trần nginx location import (100M) để multipart không bị 413. */
+const MAX_BYTES = 80 * 1024 * 1024
 
 export async function POST(req: Request, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
