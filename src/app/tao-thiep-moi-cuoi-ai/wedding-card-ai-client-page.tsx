@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, ExternalLink, Heart, Loader2, MapPin, QrCode, Sparkles, Upload, Users, X } from 'lucide-react'
+import { Crop, Download, ExternalLink, Heart, Loader2, MapPin, QrCode, Sparkles, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -50,11 +50,16 @@ import {
 } from '@/lib/wedding/wedding-side-invite-settings'
 import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-settings-panel'
 import {
+  albumPhotoFrameStyle,
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
+  remapAlbumPhotoCrops,
+  resolveAlbumPhotoFrame,
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoScale,
   resolveCoverPhotoUrl,
+  shiftAlbumPhotoCropsAfterRemove,
+  upsertAlbumPhotoCrop,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
@@ -340,6 +345,7 @@ export default function WeddingCardAiClientPage() {
   const [pickedMusicPreviewUrl, setPickedMusicPreviewUrl] = useState<string | null>(null)
   const [albumImageFiles, setAlbumImageFiles] = useState<File[]>([])
   const [albumPendingPreviews, setAlbumPendingPreviews] = useState<string[]>([])
+  const [albumCropIndex, setAlbumCropIndex] = useState<number | null>(null)
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
   const [coverClearOnSave, setCoverClearOnSave] = useState(false)
   const musicPreviewAudioRef = useRef<WeddingInvitationAudioHandle>(null)
@@ -520,6 +526,41 @@ export default function WeddingCardAiClientPage() {
       update('selectedStyleId', mapped.styleId)
       update('colorPalette', mapped.palette)
     }
+  }
+
+  const updateAlbumPhotoCrop = (index: number, patch: { positionX?: number; positionY?: number; scale?: number }) => {
+    setCard((prev) => {
+      const config = parseWeddingSectionConfig(prev.sectionConfig)
+      const current = resolveAlbumPhotoFrame(config.albumPhotoCrops, index)
+      return {
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+          albumPhotoCrops: upsertAlbumPhotoCrop(config.albumPhotoCrops, index, {
+            x: patch.positionX ?? current.x,
+            y: patch.positionY ?? current.y,
+            scale: patch.scale ?? current.scale,
+          }),
+        }),
+      }
+    })
+  }
+
+  const removeSavedAlbumPhoto = (index: number) => {
+    setCard((prev) => {
+      const config = parseWeddingSectionConfig(prev.sectionConfig)
+      return {
+        ...prev,
+        albumImageUrls: prev.albumImageUrls.filter((_, photoIndex) => photoIndex !== index),
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+          albumPhotoCrops: shiftAlbumPhotoCropsAfterRemove(config.albumPhotoCrops, index),
+        }),
+      }
+    })
+    setAlbumCropIndex((current) => {
+      if (current === null) return null
+      if (current === index) return null
+      return current > index ? current - 1 : current
+    })
   }
 
   const updateCoverPhotoCrop = (patch: {
@@ -1190,24 +1231,17 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Phần này dùng cho cả nhà trai và nhà gái. Ngày tiệc, giờ, địa chỉ, bản đồ và lịch trình điền ở đúng nhà bên dưới.
+                  Lời mời tiếng Việt tự viết theo xưng hô và tên từng khách.
                 </p>
                 <div className="space-y-2">
-                  <Label>Lời mời</Label>
-                  <Textarea
-                    value={card.invitationText}
-                    onChange={(e) => update('invitationText', e.target.value)}
-                    placeholder="Trân trọng kính mời quý khách đến dự lễ thành hôn..."
-                    className="min-h-28"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Lời mời tiếng Anh</Label>
+                  <Label>Lời mời tiếng Anh (tùy chọn)</Label>
                   <Textarea
                     value={card.invitationTextEn}
                     onChange={(e) => update('invitationTextEn', e.target.value)}
                     placeholder="Cordially invites you to celebrate with our family..."
                     className="min-h-24"
                   />
+                  <p className="text-xs text-muted-foreground">Để trống thì thiệp không hiện câu tiếng Anh.</p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <WeddingAiPolishTextarea
@@ -1294,6 +1328,9 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 <div className="space-y-3 rounded-2xl border p-3">
                   <Label>Album ảnh cô dâu chú rể</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Bấm từng ảnh đã lưu để kéo và zoom, chọn góc nhìn đẹp trên thiệp. Ảnh mới cần lưu thiệp trước khi căn.
+                  </p>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
                     <Upload className="h-4 w-4" />
                     Chọn nhiều ảnh album
@@ -1315,24 +1352,39 @@ export default function WeddingCardAiClientPage() {
                   </label>
                   {(card.albumImageUrls.length > 0 || albumPendingPreviews.length > 0) && (
                     <div className="grid grid-cols-3 gap-2">
-                      {card.albumImageUrls.map((url, index) => (
-                        <div key={`${url}-${index}`} className="relative">
-                          <img src={url} alt="Ảnh album đã lưu" className="h-24 w-full rounded-xl object-cover" />
-                          <button
-                            type="button"
-                            className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
-                            aria-label={tImage.customReferenceRemove}
-                            onClick={() =>
-                              update(
-                                'albumImageUrls',
-                                card.albumImageUrls.filter((_, photoIndex) => photoIndex !== index),
-                              )
-                            }
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
+                      {card.albumImageUrls.map((url, index) => {
+                        const frame = resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, index)
+                        return (
+                          <div key={`${url}-${index}`} className="relative">
+                            <button
+                              type="button"
+                              className="block w-full overflow-hidden rounded-xl text-left"
+                              aria-label={`Căn ảnh album ${index + 1}`}
+                              onClick={() => setAlbumCropIndex(index)}
+                            >
+                              <img
+                                src={url}
+                                alt="Ảnh album đã lưu"
+                                draggable={false}
+                                className="aspect-[3/4] w-full object-cover"
+                                style={albumPhotoFrameStyle(frame)}
+                              />
+                              <span className="pointer-events-none absolute bottom-1 left-1 inline-flex items-center gap-1 rounded-full bg-black/65 px-1.5 py-0.5 text-[10px] text-white">
+                                <Crop className="h-3 w-3" />
+                                Căn ảnh
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
+                              aria-label={tImage.customReferenceRemove}
+                              onClick={() => removeSavedAlbumPhoto(index)}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        )
+                      })}
                       {albumPendingPreviews.map((url, index) => (
                         <div key={url} className="relative">
                           <img src={url} alt="Ảnh album mới" className="h-24 w-full rounded-xl object-cover" />
@@ -1355,17 +1407,54 @@ export default function WeddingCardAiClientPage() {
                       locale={uiLocale}
                       selectedId={sectionConfig.albumLayoutId}
                       previewUrls={card.albumImageUrls}
+                      crops={sectionConfig.albumPhotoCrops}
                       onSelect={selectAlbumLayout}
                     />
                   </div>
                   <Textarea
                     value={card.albumImageUrls.join('\n')}
-                    onChange={(e) => update('albumImageUrls', e.target.value.split('\n').map((url) => url.trim()).filter(Boolean))}
+                    onChange={(e) => {
+                      const albumImageUrls = e.target.value.split('\n').map((url) => url.trim()).filter(Boolean)
+                      setCard((prev) => {
+                        const config = parseWeddingSectionConfig(prev.sectionConfig)
+                        return {
+                          ...prev,
+                          albumImageUrls,
+                          sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+                            albumPhotoCrops: remapAlbumPhotoCrops(prev.albumImageUrls, config.albumPhotoCrops, albumImageUrls),
+                          }),
+                        }
+                      })
+                      setAlbumCropIndex(null)
+                    }}
                     placeholder="Hoặc dán URL ảnh album, mỗi dòng một ảnh"
                     className="min-h-20"
                   />
-                  <p className="text-xs text-muted-foreground">Thêm/sửa album ảnh không tốn credit.</p>
+                  <p className="text-xs text-muted-foreground">Thêm/sửa album ảnh không tốn credit. Căn góc ảnh cũng không tốn credit — nhớ bấm Lưu thiệp.</p>
                 </div>
+                <Dialog open={albumCropIndex !== null} onOpenChange={(open) => { if (!open) setAlbumCropIndex(null) }}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader className="sr-only">
+                      <DialogTitle>Căn ảnh album</DialogTitle>
+                      <DialogDescription>Kéo và zoom từng ảnh album để chọn góc hiển thị trên thiệp.</DialogDescription>
+                    </DialogHeader>
+                    {albumCropIndex !== null && card.albumImageUrls[albumCropIndex] ? (
+                      <CoverPhotoCropEditor
+                        key={albumCropIndex}
+                        imageUrl={card.albumImageUrls[albumCropIndex]}
+                        alt="Ảnh album"
+                        positionX={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).x}
+                        positionY={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).y}
+                        scale={resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, albumCropIndex).scale}
+                        title="Căn ảnh album"
+                        hint="Kéo ảnh để đổi góc. Zoom để phóng phần muốn khách thấy. Khung dọc 3:4 giống lúc hiện trên thiệp."
+                        ariaLabel="Căn ảnh album"
+                        frameClassName="relative mx-auto aspect-[3/4] w-full max-w-[16rem] cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing"
+                        onChange={(patch) => updateAlbumPhotoCrop(albumCropIndex, patch)}
+                      />
+                    ) : null}
+                  </DialogContent>
+                </Dialog>
                 <Field label="Bảng màu AI" value={card.colorPalette} onChange={(v) => update('colorPalette', v)} />
                 <div className="space-y-3 rounded-2xl border p-3">
                   <Label>{tMu.libraryHeading}</Label>
@@ -1985,6 +2074,10 @@ function CoverPhotoCropEditor(props: {
   positionY: number
   scale: number
   onChange: (patch: { positionX?: number; positionY?: number; scale?: number }) => void
+  title?: string
+  hint?: string
+  frameClassName?: string
+  ariaLabel?: string
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
@@ -2004,18 +2097,22 @@ function CoverPhotoCropEditor(props: {
   return (
     <div className="space-y-3 rounded-2xl border bg-muted/20 p-3">
       <div>
-        <Label className="text-sm">Căn ảnh trực tiếp trên vỏ thiệp</Label>
+        <Label className="text-sm">{props.title ?? 'Căn ảnh trực tiếp trên vỏ thiệp'}</Label>
         <p className="mt-1 text-xs text-muted-foreground">
-          Kéo ảnh để đổi vị trí. Lăn chuột hoặc dùng thanh zoom để phóng to/thu nhỏ. Double click để zoom nhanh.
+          {props.hint ??
+            'Kéo ảnh để đổi vị trí. Lăn chuột hoặc dùng thanh zoom để phóng to/thu nhỏ. Double click để zoom nhanh.'}
         </p>
       </div>
 
       <div
         ref={frameRef}
-        className="relative h-40 cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing sm:h-48"
+        className={
+          props.frameClassName ??
+          'relative h-40 cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing sm:h-48'
+        }
         style={{ touchAction: 'none' }}
         role="application"
-        aria-label="Căn ảnh vỏ thiệp"
+        aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {
           event.currentTarget.setPointerCapture(event.pointerId)
           dragRef.current = {

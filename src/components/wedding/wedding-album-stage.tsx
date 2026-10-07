@@ -10,6 +10,12 @@ import {
   WEDDING_ALBUM_LAYOUTS,
   type WeddingAlbumLayoutId,
 } from '@/lib/wedding/wedding-album-layouts'
+import {
+  albumPhotoFrameStyle,
+  resolveAlbumPhotoFrame,
+  type WeddingAlbumPhotoCrop,
+  type WeddingAlbumPhotoFrame,
+} from '@/lib/wedding/wedding-section-config'
 
 const MOTION_MS = 880
 const MOTION_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)'
@@ -31,10 +37,16 @@ function motionTransition(smooth: boolean) {
   return smooth ? `transform ${MOTION_MS}ms ${MOTION_EASE}, opacity ${MOTION_MS}ms ${MOTION_EASE}` : 'none'
 }
 
-function AlbumPhoto(props: { url: string; alt: string; className?: string }) {
+function AlbumPhoto(props: { url: string; alt: string; className?: string; frame: WeddingAlbumPhotoFrame }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element -- album URLs are external CDN
-    <img src={props.url} alt={props.alt} draggable={false} className={cn('h-full w-full object-cover object-top', props.className)} />
+    <img
+      src={props.url}
+      alt={props.alt}
+      draggable={false}
+      className={cn('h-full w-full object-cover', props.className)}
+      style={albumPhotoFrameStyle(props.frame)}
+    />
   )
 }
 
@@ -48,6 +60,7 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
         event.stopPropagation()
         props.onClick()
       }}
+      data-album-chrome="1"
       className={cn(
         'absolute top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.dir < 0 ? 'left-1 sm:left-2' : 'right-1 sm:right-2',
@@ -66,6 +79,7 @@ export function WeddingAlbumStage(props: {
   locale?: WebLocale
   className?: string
   compact?: boolean
+  crops?: WeddingAlbumPhotoCrop[]
   onExpand?: (index: number) => void
 }) {
   const urls = props.urls.filter(Boolean)
@@ -76,7 +90,14 @@ export function WeddingAlbumStage(props: {
   const [glide, setGlide] = useState(0)
   const [smooth, setSmooth] = useState(true)
   const [revealed, setRevealed] = useState(true)
-  const drag = useRef({ active: false, startX: 0 })
+  const drag = useRef({
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    active: false,
+    axis: 'none' as 'none' | 'x' | 'y',
+  })
+  const swallowClick = useRef(false)
   const glideRef = useRef(0)
   const indexRef = useRef(0)
   const settling = useRef(false)
@@ -107,6 +128,8 @@ export function WeddingAlbumStage(props: {
     if (count < 2 || settling.current) return
     settling.current = true
     drag.current.active = false
+    drag.current.axis = 'none'
+    drag.current.pointerId = -1
     setSmooth(true)
     window.requestAnimationFrame(() => setGlide(target))
     if (timer.current) window.clearTimeout(timer.current)
@@ -143,24 +166,54 @@ export function WeddingAlbumStage(props: {
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (count < 2 || settling.current) return
-    if ((event.target as HTMLElement).closest('button')) return
-    drag.current = { active: true, startX: event.clientX }
-    setSmooth(false)
-    event.currentTarget.setPointerCapture(event.pointerId)
+    if (event.pointerType === 'mouse' && event.button !== 0) return
+    const target = event.target as HTMLElement
+    if (target.closest('[data-album-chrome],[data-album-ignore-swipe]')) return
+    drag.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: true,
+      axis: 'none',
+    }
   }
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!drag.current.active) return
-    const dx = event.clientX - drag.current.startX
-    const next = Math.max(-1.15, Math.min(1.15, dx / 200))
+    const gesture = drag.current
+    if (!gesture.active || gesture.pointerId !== event.pointerId) return
+    const dx = event.clientX - gesture.startX
+    const dy = event.clientY - gesture.startY
+    if (gesture.axis === 'none') {
+      if (dx * dx + dy * dy < 36) return
+      gesture.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+      if (gesture.axis === 'y') {
+        gesture.active = false
+        return
+      }
+      setSmooth(false)
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
+    if (gesture.axis !== 'x') return
+    const width = event.currentTarget.getBoundingClientRect().width || 240
+    const next = Math.max(-1.15, Math.min(1.15, dx / Math.max(120, width * 0.38)))
     glideRef.current = next
     setGlide(next)
   }
-  const onPointerUp = () => {
-    if (!drag.current.active) return
-    drag.current.active = false
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const gesture = drag.current
+    if (gesture.pointerId !== event.pointerId) return
+    const wasSwipe = gesture.axis === 'x'
+    gesture.active = false
+    gesture.axis = 'none'
+    gesture.pointerId = -1
+    if (!wasSwipe) return
+    swallowClick.current = true
     const g = glideRef.current
-    if (g > 0.18) commitGlide(1)
-    else if (g < -0.18) commitGlide(-1)
+    if (g > 0.14) commitGlide(1)
+    else if (g < -0.14) commitGlide(-1)
     else {
       setSmooth(true)
       window.requestAnimationFrame(() => setGlide(0))
@@ -182,7 +235,14 @@ export function WeddingAlbumStage(props: {
     <div className={cn('relative', props.className)}>
       <div
         className="relative touch-pan-y select-none"
+        style={{ touchAction: 'pan-y' }}
         tabIndex={count > 1 ? 0 : undefined}
+        onClickCapture={(event) => {
+          if (!swallowClick.current) return
+          swallowClick.current = false
+          event.preventDefault()
+          event.stopPropagation()
+        }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft') nudge(-1)
           if (event.key === 'ArrowRight') nudge(1)
@@ -201,6 +261,7 @@ export function WeddingAlbumStage(props: {
             glide={glide}
             smooth={smooth}
             compact={props.compact}
+            frameOf={(photoIndex) => resolveAlbumPhotoFrame(props.crops, photoIndex)}
             onNudge={nudge}
             onJump={jumpTo}
           />
@@ -216,6 +277,7 @@ export function WeddingAlbumStage(props: {
             type="button"
             aria-label={expandLabel}
             onClick={() => props.onExpand?.(safeIndex)}
+            data-album-chrome="1"
             className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white shadow"
           >
             <Maximize2 className="h-4 w-4" />
@@ -247,6 +309,7 @@ function AlbumFrame(props: {
   glide: number
   smooth: boolean
   compact?: boolean
+  frameOf: (index: number) => WeddingAlbumPhotoFrame
   onNudge: (dir: -1 | 1) => void
   onJump: (index: number) => void
 }) {
@@ -270,7 +333,7 @@ function AlbumFrame(props: {
               key={`${url}-${i}`}
               type="button"
               aria-label={alt}
-              className="absolute left-1/2 top-0 h-full w-[72%] overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
+              className="absolute left-1/2 top-0 h-full w-[72%] touch-pan-y overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
               style={{
                 zIndex: 24 - Math.round(ad * 8),
                 opacity: ad > 1.2 ? Math.max(0, (1.8 - ad) / 0.6) : 1,
@@ -282,7 +345,7 @@ function AlbumFrame(props: {
                 props.onNudge(d > 0 ? 1 : -1)
               }}
             >
-              <AlbumPhoto url={url} alt={i === index ? alt : ''} />
+              <AlbumPhoto url={url} alt={i === index ? alt : ''} frame={props.frameOf(i)} />
               <span className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: Math.min(0.38, ad * 0.32), transition }} />
             </button>
           )
@@ -310,7 +373,7 @@ function AlbumFrame(props: {
             className={vertical ? 'w-full' : 'h-full'}
             style={vertical ? { height: `${100 / count}%` } : { width: `${100 / count}%` }}
           >
-            <AlbumPhoto url={url} alt={alt} />
+            <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
           </div>
         ))}
       </div>
@@ -356,7 +419,7 @@ function AlbumFrame(props: {
                 transition,
               }}
             >
-              <AlbumPhoto url={url} alt={alt} />
+              <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
             </div>
           )
         })}
@@ -366,7 +429,7 @@ function AlbumFrame(props: {
       return (
         <div className="space-y-3">
           {hero}
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <div className="flex gap-2 overflow-x-auto pb-1" data-album-ignore-swipe="1">
             {urls.map((url, i) => {
               const ad = Math.abs(wrappedDelta(i, focus, count))
               const on = ad < 0.45
@@ -381,7 +444,7 @@ function AlbumFrame(props: {
                     transition,
                   }}
                 >
-                  <AlbumPhoto url={url} alt={alt} />
+                  <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
                 </button>
               )
             })}
@@ -411,7 +474,7 @@ function AlbumFrame(props: {
                 transition,
               }}
             >
-              <AlbumPhoto url={url} alt={alt} />
+              <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
             </div>
           )
         })}
@@ -437,7 +500,7 @@ function AlbumFrame(props: {
               }}
             >
               <div className="aspect-[3/4] overflow-hidden bg-stone-100">
-                <AlbumPhoto url={url} alt={alt} />
+                <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
               </div>
               <p className="mt-3 text-center font-serif text-sm text-stone-500">
                 {String(i + 1).padStart(2, '0')} / {String(count).padStart(2, '0')}
@@ -453,7 +516,7 @@ function AlbumFrame(props: {
   return (
     <div className={cn(frame, 'overflow-hidden')} style={{ perspective: '1600px' }}>
       <div className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] -translate-x-1/2 overflow-hidden rounded-2xl shadow-md">
-        <AlbumPhoto url={urls[under]} alt={alt} />
+        <AlbumPhoto url={urls[under] ?? ''} alt={alt} frame={props.frameOf(under)} />
       </div>
       <div
         className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] overflow-hidden rounded-2xl shadow-2xl"
@@ -464,7 +527,7 @@ function AlbumFrame(props: {
           transition,
         }}
       >
-        <AlbumPhoto url={urls[index]} alt={alt} />
+        <AlbumPhoto url={urls[index] ?? ''} alt={alt} frame={props.frameOf(index)} />
       </div>
     </div>
   )
@@ -474,6 +537,7 @@ export function WeddingAlbumLayoutPicker(props: {
   locale: WebLocale
   selectedId?: string | null
   previewUrls?: string[]
+  crops?: WeddingAlbumPhotoCrop[]
   onSelect: (id: WeddingAlbumLayoutId) => void
 }) {
   const selected = resolveWeddingAlbumLayoutId(props.selectedId || DEFAULT_WEDDING_ALBUM_LAYOUT_ID)
@@ -499,7 +563,7 @@ export function WeddingAlbumLayoutPicker(props: {
         })}
       </div>
       {urls.length > 0 ? (
-        <WeddingAlbumStage urls={urls} alt="" layoutId={selected} locale={props.locale} compact />
+        <WeddingAlbumStage urls={urls} alt="" layoutId={selected} locale={props.locale} crops={props.crops} compact />
       ) : null}
     </div>
   )

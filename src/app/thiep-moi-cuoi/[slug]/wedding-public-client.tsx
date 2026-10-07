@@ -821,6 +821,7 @@ export default function WeddingPublicClient({
                   alt={tx.albumAlt}
                   layoutId={albumLayoutId}
                   locale={uiLocale}
+                  crops={sectionConfig.albumPhotoCrops}
                   onExpand={(index) => setActiveAlbumIndex(index)}
                 />
                 <p className={cn('mt-3 text-center text-sm', theme.mutedText, theme.textGlow)}>{tx.albumHint}</p>

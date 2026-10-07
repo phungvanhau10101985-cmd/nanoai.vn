@@ -204,7 +204,7 @@ export async function saveWeddingCardBrief(formData: FormData) {
   const brideGiftAccountNo = clean(formData.get('brideGiftAccountNo'), 40)
   const brideGiftAccountName = clean(formData.get('brideGiftAccountName'), 120)
 
-  let sectionConfig = clean(formData.get('sectionConfig'), 3000) || '{}'
+  let sectionConfig = clean(formData.get('sectionConfig'), 8000) || '{}'
   if (uploadedCover) {
     sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: uploadedCover })
   } else if (boolValue(formData.get('coverClear'))) {

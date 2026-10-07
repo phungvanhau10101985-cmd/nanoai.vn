@@ -45,13 +45,26 @@ type OpsStats = {
 type TimelineItem = {
   period_key: string
   period_label: string
+  period_start?: string
+  period_end?: string
   total?: number
   in_transit_count?: number
+  in_transit_cod_total?: number
   delivered_count?: number
+  delivered_cod_total?: number
   returned_count?: number
+  returned_cod_total?: number
   return_shop_received_count?: number
+  return_shop_received_cod_total?: number
   pending_status_count?: number
+  pending_cod_total?: number
   total_cod_sum?: number
+  total_with_cod?: number
+  cod_delivered_unpaid_count?: number
+  cod_delivered_unpaid_total?: number
+  cod_paid_count?: number
+  cod_paid_total?: number
+  total_cod_amount?: number
   cod_received_count?: number
   cod_received_total?: number
   return_received_count?: number
@@ -78,6 +91,8 @@ type ReturnRow = {
   ems_tracking_code?: string | null
   ems_status?: string | null
   product_code?: string | null
+  order_id?: string | null
+  order_status?: string | null
 }
 
 type WarehouseInv = {
@@ -127,37 +142,68 @@ function OrderCodeLink({ partnerId, code }: { partnerId: string; code?: string |
   return (
     <Link
       href={messagingSettingsSectionHref('hub-orders', partnerId, { q: value })}
-      className="text-[#ea580c] underline-offset-2 hover:underline"
+      className="font-medium text-emerald-700 underline-offset-2 hover:underline"
     >
       {value}
     </Link>
   )
 }
 
-function statusTone(status: string): string {
-  if (['matched', 'settled', 'confirmed', 'ready_to_confirm', 'created', 'in_progress'].includes(status)) {
-    return 'text-emerald-700'
-  }
-  if (['amount_mismatch', 'not_ready', 'already_settled', 'already_returned', 'updated'].includes(status)) {
-    return 'text-amber-800'
-  }
-  if (['record_not_found', 'parse_error', 'not_found', 'error'].includes(status)) return 'text-destructive'
-  return 'text-muted-foreground'
-}
-
 function CountBtn({
   n,
   onClick,
+  className,
 }: {
   n: number
   onClick: () => void
+  className?: string
 }) {
-  if (!n) return <span className="tabular-nums text-muted-foreground">0</span>
+  const tone = className || 'text-primary'
+  if (!n) return <span className={`tabular-nums text-muted-foreground ${tone}`}>0</span>
   return (
-    <button type="button" className="tabular-nums text-primary hover:underline" onClick={onClick}>
+    <button
+      type="button"
+      className={`tabular-nums font-medium underline decoration-dotted underline-offset-2 hover:decoration-solid ${tone}`}
+      onClick={onClick}
+    >
       {n.toLocaleString('vi-VN')}
     </button>
   )
+}
+
+function TimelineMoney({
+  n,
+  amount,
+  onClick,
+  countClass,
+  amountClass,
+}: {
+  n: number
+  amount: number | null | undefined
+  onClick: () => void
+  countClass?: string
+  amountClass?: string
+}) {
+  const money = Number(amount || 0)
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      <CountBtn n={n} onClick={onClick} className={countClass} />
+      <span className={`whitespace-nowrap text-[10px] tabular-nums ${money > 0 ? amountClass || 'text-muted-foreground' : 'text-muted-foreground'}`}>
+        {vnd(money)}
+      </span>
+    </div>
+  )
+}
+
+function periodRangeLabel(start?: string, end?: string): string | null {
+  if (!start || !end || start === end) return null
+  const day = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+  return `${day(start)} – ${day(end)}/${end.slice(0, 4)}`
+}
+
+function moneyOrDash(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(Number(n))) return '—'
+  return vnd(n)
 }
 function syncLabel(t: PartnerShippingOpsCopy, status: string): string {
   switch (status) {
@@ -184,7 +230,8 @@ function syncBadgeClass(status: string): string {
   if (status === 'in_progress') return 'border-blue-200 bg-blue-100 text-blue-800'
   if (status === 'mismatch') return 'border-amber-200 bg-amber-100 text-amber-900'
   if (status === 'unlinked' || status === 'order_not_found') return 'border-slate-200 bg-slate-100 text-slate-800'
-  if (status === 'ems_not_found' || status === 'parse_error') return 'border-red-200 bg-red-100 text-red-800'
+  if (status === 'ems_not_found') return 'border-orange-200 bg-orange-100 text-orange-900'
+  if (status === 'parse_error') return 'border-gray-200 bg-gray-100 text-gray-800'
   return 'border-border bg-muted text-muted-foreground'
 }
 
@@ -203,16 +250,97 @@ function formatCodPaidDate(raw: string | null | undefined): string | null {
   return raw.trim()
 }
 
+function shopOrderStatusText(t: PartnerShippingOpsCopy, status: string | null | undefined): string {
+  const key = (status || '').trim().toLowerCase()
+  if (!key) return '—'
+  const g = t.grid
+  const map: Record<string, string> = {
+    pending: g.stPending,
+    waiting_deposit: g.stDeposit,
+    deposit_paid: g.stAwaitShip,
+    confirmed: g.stAwaitShip,
+    processing: g.stAwaitShip,
+    paid_verified: g.stAwaitShip,
+    shipping: g.stShipping,
+    delivered: g.stReceived,
+    completed: g.stReviewed,
+    returned: g.stReturned,
+    cancelled: g.stCancelled,
+  }
+  return map[key] || status || '—'
+}
+
+function shopStatusBadgeClass(status: string | null | undefined): string {
+  const key = (status || '').trim().toLowerCase()
+  if (key === 'shipping') return 'border-indigo-200 bg-indigo-100 text-indigo-900'
+  if (key === 'delivered' || key === 'completed') return 'border-emerald-200 bg-emerald-100 text-emerald-800'
+  if (key === 'cancelled') return 'border-red-200 bg-red-100 text-red-800'
+  if (key === 'waiting_deposit') return 'border-amber-200 bg-amber-100 text-amber-900'
+  if (['deposit_paid', 'confirmed', 'processing', 'paid_verified'].includes(key)) return 'border-blue-200 bg-blue-100 text-blue-800'
+  if (key === 'returned') return 'border-orange-200 bg-orange-100 text-orange-900'
+  return 'border-gray-200 bg-gray-100 text-gray-800'
+}
+
 function emsShopStatusText(t: PartnerShippingOpsCopy, row: PartnerEmsRecord): string {
   if (row.return_to_shop_label) return row.return_to_shop_label
   const st = (row.shop_order_status || row.order_status || '').toLowerCase()
-  if (!st) return '—'
+  if (!st) return row.order_code && !row.order_id ? t.grid.unlinkedOrder : '—'
   const linked = Boolean(row.order_id && (row.reference_code || row.ems_reference_code))
   if (linked && st === 'shipping') return t.searchCard.shopDelivering
   if (st === 'delivered') return t.searchCard.shopReceived
   if (st === 'completed') return t.searchCard.shopReviewed
   if (linked && ['deposit_paid', 'confirmed', 'processing', 'paid_verified'].includes(st)) return t.searchCard.shopSentEms
-  return st
+  return shopOrderStatusText(t, st)
+}
+
+function codReconcileLabel(t: PartnerShippingOpsCopy, status: string | null | undefined): string {
+  const g = t.grid
+  if (status === 'matched') return g.codMatch
+  if (status === 'amount_mismatch') return g.codMismatch
+  if (status === 'record_not_found') return g.codMissing
+  if (status === 'parse_error') return g.codParse
+  return status || '—'
+}
+
+function codReconcileBadge(status: string | null | undefined): string {
+  if (status === 'matched') return 'border-emerald-200 bg-emerald-100 text-emerald-800'
+  if (status === 'amount_mismatch') return 'border-amber-200 bg-amber-100 text-amber-900'
+  if (status === 'record_not_found') return 'border-red-200 bg-red-100 text-red-800'
+  return 'border-gray-200 bg-gray-100 text-gray-800'
+}
+
+function freightReconcileLabel(t: PartnerShippingOpsCopy, status: string | null | undefined): string {
+  const g = t.grid
+  if (status === 'settled') return g.freightDone
+  if (status === 'already_settled') return g.freightAlready
+  if (status === 'record_not_found') return g.codMissing
+  if (status === 'parse_error') return g.codParse
+  return status || '—'
+}
+
+function freightReconcileBadge(status: string | null | undefined): string {
+  if (status === 'settled') return 'border-emerald-200 bg-emerald-100 text-emerald-800'
+  if (status === 'already_settled') return 'border-orange-200 bg-orange-100 text-orange-900'
+  if (status === 'record_not_found') return 'border-red-200 bg-red-100 text-red-800'
+  return 'border-gray-200 bg-gray-100 text-gray-800'
+}
+
+function returnResultBadge(t: PartnerShippingOpsCopy, status: string): { label: string; badge: string } {
+  const g = t.grid
+  if (status === 'ready_to_confirm') return { label: g.returnReady, badge: 'border-emerald-200 bg-emerald-50 text-emerald-800' }
+  if (status === 'confirmed' || status === 'already_returned') return { label: g.returnDone, badge: 'border-amber-200 bg-amber-100 text-amber-900' }
+  if (status === 'duplicate') return { label: g.returnDup, badge: 'border-slate-200 bg-slate-100 text-slate-700' }
+  return { label: g.returnNotReady, badge: 'border-slate-200 bg-slate-100 text-slate-800' }
+}
+
+function importActionBadge(t: PartnerShippingOpsCopy, action: string): { label: string; badge: string } | null {
+  if (action === 'created') return { label: t.grid.importCreated, badge: 'border-emerald-200 bg-emerald-100 text-emerald-800' }
+  if (action === 'updated') return { label: t.grid.importUpdated, badge: 'border-blue-200 bg-blue-100 text-blue-800' }
+  return null
+}
+
+function highFeeOn(flag: string | null | undefined): boolean {
+  return flag === '1' || flag === 'yes'
 }
 
 function emsTimelineText(t: PartnerShippingOpsCopy, step: string | null | undefined): string {
@@ -480,6 +608,7 @@ export function PartnerShopShippingOpsPanel({
   const [codFilter, setCodFilter] = useState('')
   const [freightFilter, setFreightFilter] = useState('')
   const [syncStatus, setSyncStatus] = useState('')
+  const [emsTableExpanded, setEmsTableExpanded] = useState(false)
   const [returnCounts, setReturnCounts] = useState<{ confirmable: number; already: number; error: number } | null>(null)
   const [warehouseLookup, setWarehouseLookup] = useState<{ sku: string | null; error?: string | null; inventory?: WarehouseInv | null } | null>(null)
   const [warehouseSize, setWarehouseSize] = useState('')
@@ -899,8 +1028,7 @@ export function PartnerShopShippingOpsPanel({
     }
   }
 
-  const deleteSelected = async () => {
-    const ids = Object.entries(selected).filter(([, v]) => v).map(([id]) => id)
+  const deleteIds = async (ids: string[]) => {
     if (!ids.length) return
     if (!window.confirm(t.confirmDelete)) return
     setBusy('delete')
@@ -912,7 +1040,11 @@ export function PartnerShopShippingOpsPanel({
       })
       const data = (await res.json().catch(() => null)) as { deleted?: number; detail?: string }
       if (!res.ok) throw new Error(data?.detail || t.loadError)
-      setSelected({})
+      setSelected((prev) => {
+        const next = { ...prev }
+        for (const id of ids) delete next[id]
+        return next
+      })
       toast({ title: t.deletedCount.replace('{n}', String(data.deleted || 0)) })
       await loadList()
       await loadOps()
@@ -933,7 +1065,7 @@ export function PartnerShopShippingOpsPanel({
   const codRows = ((codBatch?.rows as CodRow[]) || []).filter((r) => !codFilter || r.reconcile_status === codFilter)
   const freightRows = ((freightBatch?.rows as FreightRow[]) || []).filter((r) => {
     if (!freightFilter) return true
-    if (freightFilter === 'high_fee') return r.high_fee_warning === '1'
+    if (freightFilter === 'high_fee') return highFeeOn(r.high_fee_warning)
     return r.reconcile_status === freightFilter
   })
   const inv = warehouseLookup?.inventory
@@ -942,6 +1074,19 @@ export function PartnerShopShippingOpsPanel({
   const searchPending = Boolean(appliedSearch) && (listLoading || loadedQuery !== appliedSearch)
   const searchReady = Boolean(appliedSearch) && loadedQuery === appliedSearch && !listLoading
   const previewRows = searchReady && skip === 0 ? rows.slice(0, EMS_SEARCH_PREVIEW) : []
+  const applySyncFilter = (key: string) => {
+    setSyncStatus(key === 'order_not_found' ? 'unlinked' : key)
+    setSkip(0)
+    setEmsTableExpanded(true)
+  }
+  const granLabel = {
+    year: t.grid.granYear,
+    month: t.grid.granMonth,
+    week: t.grid.granWeek,
+    day: t.grid.granDay,
+  }[granularity]
+  const displayFrom = total ? skip + 1 : 0
+  const displayTo = Math.min(skip + rows.length, total)
 
   const composeWarehouseSku = (size: string, color: string) => {
     const raw = String(warehouseLookup?.sku || warehouseCode).trim()
@@ -1108,10 +1253,10 @@ export function PartnerShopShippingOpsPanel({
               value={granularity}
               onChange={(e) => setGranularity(e.target.value as typeof granularity)}
             >
-              <option value="year">Năm</option>
-              <option value="month">Tháng</option>
-              <option value="week">Tuần</option>
-              <option value="day">Ngày</option>
+              <option value="year">{t.grid.granYear}</option>
+              <option value="month">{t.grid.granMonth}</option>
+              <option value="week">{t.grid.granWeek}</option>
+              <option value="day">{t.grid.granDay}</option>
             </select>
             <select
               className="h-8 rounded-md border border-input bg-background px-2 text-xs"
@@ -1151,118 +1296,118 @@ export function PartnerShopShippingOpsPanel({
           </div>
         </CardHeader>
         <CardContent className="overflow-x-auto px-4 pb-4 pt-0">
-          <table className="w-full text-xs">
+          <table className="w-full min-w-[1100px] text-xs">
             <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 pr-2">Kỳ</th>
-                <th className="py-1 pr-2">Tổng</th>
-                <th className="py-1 pr-2">Đang giao</th>
-                <th className="py-1 pr-2">Giao OK</th>
-                <th className="py-1 pr-2">Hoàn chưa trả</th>
-                <th className="py-1 pr-2">Hoàn đã trả</th>
-                <th className="py-1">COD</th>
+              <tr className="text-right text-muted-foreground">
+                <th className="py-1 pr-2 text-left">{granLabel}</th>
+                <th className="py-1 pr-2">{t.grid.tlTotal}</th>
+                <th className="py-1 pr-2">{t.grid.tlInTransit}</th>
+                <th className="py-1 pr-2">{t.grid.tlDelivered}</th>
+                <th className="py-1 pr-2">{t.grid.tlReturnPending}</th>
+                <th className="py-1 pr-2">{t.grid.tlReturnDone}</th>
+                <th className="py-1 pr-2">{t.grid.tlPending}</th>
+                <th className="py-1 pr-2">{t.grid.tlHasCod}</th>
+                <th className="py-1 pr-2">{t.grid.tlDeliveredUnpaid}</th>
+                <th className="py-1">{t.grid.tlCodPaid}</th>
               </tr>
             </thead>
             <tbody>
-              {(timeline?.items || []).map((it) => (
-                <tr key={it.period_key} className="border-t border-border/60">
-                  <td className="py-1.5 pr-2">{it.period_label}</td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.total ?? 0} onClick={() => void openRecords({ key: 'total', label: `${it.period_label} · Tổng`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.in_transit_count ?? 0} onClick={() => void openRecords({ key: 'in_transit', label: `${it.period_label} · Đang giao`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.delivered_count ?? 0} onClick={() => void openRecords({ key: 'delivered', label: `${it.period_label} · Giao OK`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.returned_count ?? 0} onClick={() => void openRecords({ key: 'returned', label: `${it.period_label} · Hoàn chưa trả`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.return_shop_received_count ?? 0} onClick={() => void openRecords({ key: 'shop_return_received', label: `${it.period_label} · Hoàn đã trả`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 tabular-nums">{vnd(it.total_cod_sum)}</td>
-                </tr>
-              ))}
+              {(timeline?.items || []).map((it) => {
+                const range = periodRangeLabel(it.period_start, it.period_end)
+                const open = (key: OpsBucketKey, label: string) => void openRecords({ key, label: `${it.period_label} · ${label}`, axis: 'import', periodKey: it.period_key, periodLabel: it.period_label })
+                return (
+                  <tr key={it.period_key} className="border-t border-border/60">
+                    <td className="py-1.5 pr-2 text-left">
+                      <div className="font-medium">{it.period_label}</div>
+                      {range ? <div className="text-[10px] text-muted-foreground">{range}</div> : null}
+                    </td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.total ?? 0} amount={it.total_cod_sum} onClick={() => open('total', t.grid.tlTotal)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.in_transit_count ?? 0} amount={it.in_transit_cod_total} countClass="text-blue-800" amountClass="text-blue-700/90" onClick={() => open('in_transit', t.grid.tlInTransit)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.delivered_count ?? 0} amount={it.delivered_cod_total} countClass="text-emerald-800" amountClass="text-emerald-700/90" onClick={() => open('delivered', t.grid.tlDelivered)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.returned_count ?? 0} amount={it.returned_cod_total} countClass="text-orange-800" amountClass="text-orange-700/90" onClick={() => open('returned', t.grid.tlReturnPending)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.return_shop_received_count ?? 0} amount={it.return_shop_received_cod_total} countClass="text-orange-900" amountClass="text-orange-800/90" onClick={() => open('shop_return_received', t.grid.tlReturnDone)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.pending_status_count ?? 0} amount={it.pending_cod_total} countClass="text-slate-600" amountClass="text-slate-500" onClick={() => open('pending', t.grid.tlPending)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.total_with_cod ?? 0} amount={it.total_cod_amount} onClick={() => open('has_cod', t.grid.tlHasCod)} /></td>
+                    <td className="py-1.5 pr-2"><TimelineMoney n={it.cod_delivered_unpaid_count ?? 0} amount={it.cod_delivered_unpaid_total} countClass="text-amber-800" amountClass="text-amber-700/90" onClick={() => open('cod_delivered_unpaid', t.grid.tlDeliveredUnpaid)} /></td>
+                    <td className="py-1.5"><TimelineMoney n={it.cod_paid_count ?? 0} amount={it.cod_paid_total} countClass="text-emerald-800" amountClass="text-emerald-700/90" onClick={() => open('cod_paid', t.grid.tlCodPaid)} /></td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
           {!timeline?.items.length ? <p className="py-3 text-sm text-muted-foreground">{t.noRows}</p> : null}
           <h3 className="mt-4 text-sm font-medium">{t.receivedTitle}</h3>
           <table className="mt-1 w-full text-xs">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 pr-2">Kỳ</th>
-                <th className="py-1 pr-2">COD nhận</th>
-                <th className="py-1 pr-2">Tiền COD</th>
-                <th className="py-1 pr-2">Hoàn shop nhận</th>
-                <th className="py-1">COD hoàn</th>
+            <thead className="bg-teal-50/80 text-teal-900">
+              <tr>
+                <th className="py-1 pr-2 text-left font-medium">{granLabel}</th>
+                <th className="py-1 pr-2 text-right font-medium">{t.grid.receivedCod}</th>
+                <th className="py-1 text-right font-medium">{t.grid.receivedReturn}</th>
               </tr>
             </thead>
             <tbody>
-              {(received?.items || []).map((it) => (
-                <tr key={`r-${it.period_key}`} className="border-t border-border/60">
-                  <td className="py-1.5 pr-2">{it.period_label}</td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.cod_received_count ?? 0} onClick={() => void openRecords({ key: 'cod_received_in_period', label: `${it.period_label} · COD nhận`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 pr-2 tabular-nums">{vnd(it.cod_received_total)}</td>
-                  <td className="py-1.5 pr-2">
-                    <CountBtn n={it.return_received_count ?? 0} onClick={() => void openRecords({ key: 'shop_return_received', label: `${it.period_label} · Hoàn shop nhận`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
-                  </td>
-                  <td className="py-1.5 tabular-nums">{vnd(it.return_received_cod_total)}</td>
-                </tr>
-              ))}
+              {(received?.items || []).map((it) => {
+                const range = periodRangeLabel(it.period_start, it.period_end)
+                return (
+                  <tr key={`r-${it.period_key}`} className="border-t border-border/60">
+                    <td className="py-1.5 pr-2">
+                      <div className="font-medium">{it.period_label}</div>
+                      {range ? <div className="text-[10px] text-muted-foreground">{range}</div> : null}
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <TimelineMoney n={it.cod_received_count ?? 0} amount={it.cod_received_total} countClass="text-teal-800" amountClass="text-teal-700/90" onClick={() => void openRecords({ key: 'cod_received_in_period', label: `${it.period_label} · ${t.grid.receivedCod}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
+                    </td>
+                    <td className="py-1.5">
+                      <TimelineMoney n={it.return_received_count ?? 0} amount={it.return_received_cod_total} countClass="text-orange-900" amountClass="text-orange-800/90" onClick={() => void openRecords({ key: 'shop_return_received', label: `${it.period_label} · ${t.grid.receivedReturn}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </CardContent>
       </Card>
 
       {activeBucket ? (
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between px-4 py-3 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {activeBucket.label}
-              {bucketTotal ? ` · ${bucketTotal.toLocaleString('vi-VN')}` : ''}
-            </CardTitle>
-            <Button type="button" size="sm" variant="ghost" onClick={() => { setActiveBucket(null); setBucketRows([]) }}>{t.closePanel}</Button>
-          </CardHeader>
-          <CardContent className="overflow-x-auto px-4 pb-4 pt-0">
-            {bucketLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            <table className="w-full min-w-[640px] text-xs">
-              <tbody>
-                {bucketRows.map((r) => (
-                  <tr key={r.id} className="border-t border-border/60 align-top">
-                    <td className="py-1.5 pr-2 font-medium">{r.ems_tracking_code || r.reference_code}</td>
-                    <td className="py-1.5 pr-2"><OrderCodeLink partnerId={partnerId} code={r.order_code} /></td>
-                    <td className="py-1.5 pr-2 tabular-nums">{r.cod_amount != null ? vnd(r.cod_amount) : '—'}</td>
-                    <td className="py-1.5 pr-2">{r.ems_status || '—'}</td>
-                    <td className="py-1.5">
-                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncBadgeClass(r.sync_status)}`}>
-                        {syncLabel(t, r.sync_status)}
-                      </span>
-                    </td>
-                    <td className="py-1.5">
-                      <div className="flex flex-wrap gap-1">
-                        <Button type="button" size="sm" variant="outline" disabled={busy === `one-${r.id}`} onClick={() => void refreshOne(r.id)}>
-                          {busy === `one-${r.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : t.refreshOne}
-                        </Button>
-                        <Button type="button" size="sm" variant="ghost" onClick={() => void viewStatus(r)}>{t.viewStatus}</Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="mt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{bucketTotal.toLocaleString('vi-VN')} dòng</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => { setActiveBucket(null); setBucketRows([]) }}>
+          <div className="max-h-[85vh] w-full max-w-3xl overflow-auto rounded-xl border bg-background p-4 shadow-lg" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold">{activeBucket.label}{bucketTotal ? ` · ${bucketTotal.toLocaleString('vi-VN')}` : ''}</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t.grid.bucketCodes.replace('{n}', String(bucketRows.length)).replace('{total}', String(bucketTotal))}
+                </p>
+              </div>
+              <Button type="button" size="sm" variant="ghost" onClick={() => { setActiveBucket(null); setBucketRows([]) }}>{t.closePanel}</Button>
+            </div>
+            {bucketLoading ? <Loader2 className="mb-2 h-4 w-4 animate-spin" /> : null}
+            <ul className="mb-3 space-y-0.5 text-xs text-muted-foreground">
+              {bucketRows.map((r) => (
+                <li key={`code-${r.id}`}>{[r.order_code, r.ems_tracking_code, r.reference_code].filter(Boolean).join(' · ') || '—'}</li>
+              ))}
+            </ul>
+            <div className="space-y-3">
+              {bucketRows.map((r) => (
+                <EmsSearchResultCard
+                  key={r.id}
+                  partnerId={partnerId}
+                  row={r}
+                  t={t}
+                  refreshing={busy === `one-${r.id}`}
+                  onViewStatus={(row) => void viewStatus(row)}
+                  onRefresh={(id) => void refreshOne(id)}
+                />
+              ))}
+            </div>
+            <div className="mt-3 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">{bucketTotal.toLocaleString('vi-VN')}</span>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant="outline" disabled={bucketSkip <= 0 || bucketLoading} onClick={() => void openRecords({ ...activeBucket, skip: Math.max(0, bucketSkip - 25) })}>{t.prevPage}</Button>
                 <Button type="button" size="sm" variant="outline" disabled={bucketSkip + 25 >= bucketTotal || bucketLoading} onClick={() => void openRecords({ ...activeBucket, skip: bucketSkip + 25 })}>{t.nextPage}</Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : null}
 
       <Card className="border-border/70 shadow-sm">
@@ -1297,31 +1442,60 @@ export function PartnerShopShippingOpsPanel({
           ) : null}
           {emsReportRows.length ? (
             <div className="overflow-x-auto rounded-md border border-border/60">
-              <p className="px-2 py-1.5 text-[11px] font-medium">{t.importReport}</p>
-              <table className="w-full min-w-[640px] text-xs">
+              <p className="px-2 py-1.5 text-[11px] font-medium">{t.grid.importListTitle}</p>
+              <table className="w-full min-w-[760px] text-xs">
                 <thead>
                   <tr className="border-t border-border/60 text-left text-muted-foreground">
-                    <th className="px-2 py-1">#</th>
-                    <th className="px-2 py-1">EMS</th>
-                    <th className="px-2 py-1">Đơn</th>
-                    <th className="px-2 py-1">COD</th>
-                    <th className="px-2 py-1">{t.importReport}</th>
+                    <th className="px-2 py-1">{t.grid.colIndex}</th>
+                    <th className="px-2 py-1">{t.grid.colReference}</th>
+                    <th className="px-2 py-1">{t.grid.colShopOrder}</th>
+                    <th className="px-2 py-1">{t.grid.colCustomer}</th>
+                    <th className="px-2 py-1 text-right">{t.colCod}</th>
+                    <th className="px-2 py-1">{t.grid.colActions}</th>
+                    <th className="px-2 py-1">{t.grid.colSync}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {emsReportRows.map((row, i) => (
-                    <tr key={`${String(row.reference_code || i)}-${i}`} className="border-t border-border/50">
-                      <td className="px-2 py-1 tabular-nums">{String(row.row_number || i + 1)}</td>
-                      <td className="px-2 py-1 font-medium">{String(row.reference_code || '')}</td>
-                      <td className="px-2 py-1"><OrderCodeLink partnerId={partnerId} code={String(row.order_code || '')} /></td>
-                      <td className="px-2 py-1 tabular-nums">{vnd(Number(row.cod_amount || 0))}</td>
-                      <td className={`px-2 py-1 ${statusTone(String(row.import_action || row.sync_status || ''))}`}>
-                        {String(row.import_action || '')} · {String(row.sync_status || '')}
-                        {row.sync_message ? ` — ${String(row.sync_message)}` : ''}
-                      </td>
-                    </tr>
-                  ))}
+                  {emsReportRows.map((row, i) => {
+                    const action = importActionBadge(t, String(row.import_action || ''))
+                    const cod = row.cod_amount == null || row.cod_amount === '' ? null : Number(row.cod_amount)
+                    return (
+                      <tr key={`${String(row.reference_code || i)}-${i}`} className="border-t border-border/50">
+                        <td className="px-2 py-1 tabular-nums text-muted-foreground">{String(row.row_number || i + 1)}</td>
+                        <td className="px-2 py-1 font-medium">{String(row.reference_code || '—')}</td>
+                        <td className="px-2 py-1">
+                          {row.order_id ? (
+                            <OrderCodeLink partnerId={partnerId} code={String(row.order_code || '')} />
+                          ) : (
+                            <span>{String(row.order_code || '—')}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1">{String(row.recipient_label || '—')}</td>
+                        <td className="px-2 py-1 text-right tabular-nums">{moneyOrDash(Number.isFinite(cod) ? cod : null)}</td>
+                        <td className="px-2 py-1">
+                          {action ? (
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${action.badge}`}>{action.label}</span>
+                          ) : '—'}
+                        </td>
+                        <td className="px-2 py-1">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncBadgeClass(String(row.sync_status || ''))}`}>
+                            {syncLabel(t, String(row.sync_status || ''))}
+                          </span>
+                          {row.sync_message ? <p className="mt-1 text-[10px] text-muted-foreground">{String(row.sync_message)}</p> : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-border bg-muted/40 font-medium">
+                    <td className="px-2 py-1.5" colSpan={4}>{t.grid.breakdownGrand}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      {vnd(emsReportRows.reduce((sum, row) => sum + (Number(row.cod_amount) || 0), 0))}
+                    </td>
+                    <td className="px-2 py-1.5" colSpan={2}>{emsReportRows.length}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           ) : null}
@@ -1373,27 +1547,33 @@ export function PartnerShopShippingOpsPanel({
               </div>
               {codRows.length ? (
                 <div className="overflow-x-auto rounded-md border border-border/60">
-                  <table className="w-full min-w-[720px] text-xs">
+                  <p className="px-2 py-1.5 text-[11px] font-medium">{t.grid.codTableTitle}</p>
+                  <table className="w-full min-w-[760px] text-xs">
                     <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-2 py-1">EMS</th>
-                        <th className="px-2 py-1">Ref</th>
-                        <th className="px-2 py-1">{t.totalPaid}</th>
-                        <th className="px-2 py-1">COD DB</th>
-                        <th className="px-2 py-1">{t.difference}</th>
-                        <th className="px-2 py-1">{t.syncStatsTitle}</th>
+                      <tr className="border-t border-border/60 text-left text-muted-foreground">
+                        <th className="px-2 py-1">{t.grid.colIndex}</th>
+                        <th className="px-2 py-1">{t.grid.colEmsCode}</th>
+                        <th className="px-2 py-1">{t.grid.colReference}</th>
+                        <th className="px-2 py-1 text-right">{t.grid.colPaidFile}</th>
+                        <th className="px-2 py-1 text-right">{t.grid.colDbCod}</th>
+                        <th className="px-2 py-1 text-right">{t.grid.colDiff}</th>
+                        <th className="px-2 py-1">{t.grid.colResult}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {codRows.map((row, i) => (
-                        <tr key={`${row.ems_tracking_code || i}`} className="border-t border-border/50">
-                          <td className="px-2 py-1 font-medium">{row.ems_tracking_code || ''}</td>
-                          <td className="px-2 py-1">{row.ems_reference_code || ''}</td>
-                          <td className="px-2 py-1 tabular-nums">{vnd(row.paid_amount)}</td>
-                          <td className="px-2 py-1 tabular-nums">{vnd(row.db_cod_amount)}</td>
-                          <td className="px-2 py-1 tabular-nums">{vnd(row.amount_difference)}</td>
-                          <td className={`px-2 py-1 ${statusTone(row.reconcile_status || '')}`}>
-                            {row.reconcile_status} {row.reconcile_message ? `— ${row.reconcile_message}` : ''}
+                        <tr key={`${row.ems_tracking_code || i}-${i}`} className="border-t border-border/50">
+                          <td className="px-2 py-1 tabular-nums text-muted-foreground">{row.row_number || i + 1}</td>
+                          <td className="px-2 py-1 font-medium">{row.ems_tracking_code || '—'}</td>
+                          <td className="px-2 py-1">{row.ems_reference_code || '—'}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{moneyOrDash(row.paid_amount)}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{moneyOrDash(row.db_cod_amount)}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{moneyOrDash(row.amount_difference)}</td>
+                          <td className="px-2 py-1">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${codReconcileBadge(row.reconcile_status)}`}>
+                              {codReconcileLabel(t, row.reconcile_status)}
+                            </span>
+                            {row.reconcile_message ? <p className="mt-1 text-[10px] text-muted-foreground">{row.reconcile_message}</p> : null}
                           </td>
                         </tr>
                       ))}
@@ -1461,27 +1641,41 @@ export function PartnerShopShippingOpsPanel({
           ) : null}
           {returnPreview.length ? (
             <div className="overflow-x-auto rounded-md border border-border/60">
-              <table className="w-full min-w-[640px] text-xs">
+              <table className="w-full min-w-[860px] text-xs">
                 <thead>
                   <tr className="text-left text-muted-foreground">
-                    <th className="px-2 py-1">Mã nhập</th>
-                    <th className="px-2 py-1">Đơn</th>
-                    <th className="px-2 py-1">EMS</th>
-                    <th className="px-2 py-1">Kết quả</th>
+                    <th className="px-2 py-1">{t.grid.colIndex}</th>
+                    <th className="px-2 py-1">{t.grid.colInputCode}</th>
+                    <th className="px-2 py-1">{t.grid.colViewOrder}</th>
+                    <th className="px-2 py-1">{t.grid.colEmsStatus}</th>
+                    <th className="px-2 py-1">{t.grid.colShopStatus}</th>
+                    <th className="px-2 py-1">{t.grid.colResult}</th>
+                    <th className="px-2 py-1">{t.grid.colNote}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {returnPreview.map((row) => (
-                    <tr key={row.input} className="border-t border-border/50">
-                      <td className="px-2 py-1 font-medium">{row.input}</td>
-                      <td className="px-2 py-1"><OrderCodeLink partnerId={partnerId} code={row.order_code || ''} /></td>
-                      <td className="px-2 py-1">{row.ems_tracking_code || ''}</td>
-                      <td className={`px-2 py-1 ${statusTone(row.status)}`}>
-                        {row.status} — {row.message}
-                        {row.ems_status ? ` (${row.ems_status})` : ''}
-                      </td>
-                    </tr>
-                  ))}
+                  {returnPreview.map((row, i) => {
+                    const result = returnResultBadge(t, row.status)
+                    return (
+                      <tr key={`${row.input}-${i}`} className="border-t border-border/50">
+                        <td className="px-2 py-1 tabular-nums text-muted-foreground">{i + 1}</td>
+                        <td className="px-2 py-1 font-medium">{row.input}</td>
+                        <td className="px-2 py-1">
+                          {row.order_id ? (
+                            <OrderCodeLink partnerId={partnerId} code={row.order_code || ''} />
+                          ) : (
+                            <span>{row.order_code || '—'}</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1">{row.ems_status || row.ems_tracking_code || '—'}</td>
+                        <td className="px-2 py-1">{row.order_status ? shopOrderStatusText(t, row.order_status) : '—'}</td>
+                        <td className="px-2 py-1">
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${result.badge}`}>{result.label}</span>
+                        </td>
+                        <td className="px-2 py-1 text-muted-foreground">{row.message || '—'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1656,23 +1850,33 @@ export function PartnerShopShippingOpsPanel({
               </div>
               {freightRows.length ? (
                 <div className="overflow-x-auto rounded-md border border-border/60">
+                  <p className="px-2 py-1.5 text-[11px] font-medium">{t.grid.freightTableTitle}</p>
                   <table className="w-full min-w-[640px] text-xs">
                     <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-2 py-1">EMS</th>
-                        <th className="px-2 py-1">Cước</th>
-                        <th className="px-2 py-1">{t.highFee}</th>
-                        <th className="px-2 py-1">{t.syncStatsTitle}</th>
+                      <tr className="border-t border-border/60 text-left text-muted-foreground">
+                        <th className="px-2 py-1">{t.grid.colIndex}</th>
+                        <th className="px-2 py-1">{t.grid.colEmsCode}</th>
+                        <th className="px-2 py-1 text-right">{t.grid.colFreightFee}</th>
+                        <th className="px-2 py-1">{t.grid.colWarning}</th>
+                        <th className="px-2 py-1">{t.grid.colResult}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {freightRows.map((row, i) => (
-                        <tr key={`${row.ems_tracking_code || i}`} className={`border-t border-border/50 ${row.high_fee_warning === '1' ? 'bg-amber-50/80' : ''}`}>
-                          <td className="px-2 py-1 font-medium">{row.ems_tracking_code || ''}</td>
-                          <td className="px-2 py-1 tabular-nums">{vnd(row.freight_amount)}</td>
-                          <td className="px-2 py-1">{row.high_fee_warning === '1' ? t.highFee : ''}</td>
-                          <td className={`px-2 py-1 ${statusTone(row.reconcile_status || '')}`}>
-                            {row.reconcile_status} {row.reconcile_message ? `— ${row.reconcile_message}` : ''}
+                        <tr key={`${row.ems_tracking_code || i}-${i}`} className={`border-t border-border/50 ${highFeeOn(row.high_fee_warning) ? 'bg-amber-50/80' : ''}`}>
+                          <td className="px-2 py-1 tabular-nums text-muted-foreground">{row.row_number || i + 1}</td>
+                          <td className="px-2 py-1 font-medium">{row.ems_tracking_code || '—'}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{moneyOrDash(row.freight_amount)}</td>
+                          <td className="px-2 py-1">
+                            {highFeeOn(row.high_fee_warning) ? (
+                              <span className="inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">{t.grid.highFeeLong}</span>
+                            ) : '—'}
+                          </td>
+                          <td className="px-2 py-1">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${freightReconcileBadge(row.reconcile_status)}`}>
+                              {freightReconcileLabel(t, row.reconcile_status)}
+                            </span>
+                            {row.reconcile_message ? <p className="mt-1 text-[10px] text-muted-foreground">{row.reconcile_message}</p> : null}
                           </td>
                         </tr>
                       ))}
@@ -1685,55 +1889,128 @@ export function PartnerShopShippingOpsPanel({
         </CardContent>
       </Card>
 
+      {listSummary ? (
+        <>
+          <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {([
+              ['', t.filterAll, listSummary.total_rows],
+              ['matched', t.syncMatched, listSummary.matched],
+              ['in_progress', t.syncInProgress, listSummary.in_progress],
+              ['mismatch', t.syncMismatch, listSummary.mismatch],
+              ['unlinked', t.syncUnlinked, listSummary.unlinked],
+              ['ems_not_found', t.syncEmsMissing, listSummary.ems_not_found],
+              ['parse_error', t.syncParseError, listSummary.parse_error],
+            ] as const).map(([key, label, count]) => (
+              <button
+                key={key || 'all'}
+                type="button"
+                onClick={() => applySyncFilter(key)}
+                className={`rounded-xl border px-3 py-3 text-left ${syncStatus === key ? 'border-emerald-500 bg-white ring-2 ring-emerald-100' : 'border-border bg-white'}`}
+              >
+                <div className="text-xs text-muted-foreground">{label}</div>
+                <div className="text-xl font-semibold tabular-nums">{Number(count || 0).toLocaleString('vi-VN')}</div>
+              </button>
+            ))}
+          </section>
+          {listSummary.breakdown?.length ? (
+            <Card className="border-border/70 shadow-sm">
+              <CardHeader className="px-4 py-3 pb-2">
+                <CardTitle className="text-sm font-medium">{t.grid.breakdownTitle}</CardTitle>
+                <p className="text-[11px] text-muted-foreground">{t.grid.breakdownHint}</p>
+              </CardHeader>
+              <CardContent className="overflow-x-auto px-0 pb-0 pt-0">
+                <table className="w-full text-xs">
+                  <thead className="bg-muted/50 text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-2 text-left font-medium">{t.grid.breakdownStatus}</th>
+                      <th className="px-4 py-2 text-right font-medium">{t.grid.breakdownCount}</th>
+                      <th className="px-4 py-2 text-right font-medium">{t.grid.breakdownCod}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {listSummary.breakdown.map((item) => {
+                      const active = syncStatus === item.key || (item.key === 'order_not_found' && syncStatus === 'unlinked')
+                      return (
+                        <tr
+                          key={item.key}
+                          className={`cursor-pointer border-t border-border/60 hover:bg-muted/40 ${active ? 'bg-emerald-50/50' : ''}`}
+                          onClick={() => applySyncFilter(item.key)}
+                        >
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncBadgeClass(item.key)}`}>
+                              {syncLabel(t, item.key)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-right font-medium tabular-nums">{item.count.toLocaleString('vi-VN')}</td>
+                          <td className="px-4 py-2 text-right tabular-nums">{vnd(item.cod_total)}</td>
+                        </tr>
+                      )
+                    })}
+                    <tr className="border-t border-border bg-muted/40 font-semibold">
+                      <td className="px-4 py-2.5">{t.grid.breakdownGrand}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums">{listSummary.total_rows.toLocaleString('vi-VN')}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-emerald-800">{vnd(listSummary.total_cod_amount)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
+
       <Card id="pw-ems-shipping-table" className="border-border/70 shadow-sm">
         <CardHeader className="px-4 py-3 pb-2">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-sm font-medium">{t.tableTitle}</CardTitle>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="outline" disabled={busy === 'tracking'} onClick={() => void refreshTracking(selectedIds.length ? selectedIds : undefined)}>
-                {busy === 'tracking' ? <Loader2 className="h-4 w-4 animate-spin" /> : t.trackingRefresh}
-              </Button>
-              <Button type="button" size="sm" variant="destructive" disabled={!selectedIds.length || busy === 'delete'} onClick={() => void deleteSelected()}>
-                {t.deleteSelected}
-              </Button>
-              <select
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
-                  setSkip(0)
-                }}
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>{n}{t.perPage}</option>
-                ))}
-              </select>
+            <button type="button" className="flex min-w-0 items-start gap-2 text-left" aria-expanded={emsTableExpanded} onClick={() => setEmsTableExpanded((v) => !v)}>
+              <span className={`mt-0.5 inline-flex text-muted-foreground transition-transform ${emsTableExpanded ? 'rotate-90' : ''}`} aria-hidden>▶</span>
+              <span>
+                <span className="block text-sm font-medium">{t.tableTitle}</span>
+                <span className="text-xs text-muted-foreground">
+                  {appliedSearch
+                    ? `${t.grid.searchNote.replace('{q}', appliedSearch).replace('{n}', String(total))}${syncStatus ? t.grid.filteredNote : ''}`
+                    : syncStatus
+                      ? `${total.toLocaleString('vi-VN')} / ${(listSummary?.total_rows ?? total).toLocaleString('vi-VN')}`
+                      : total.toLocaleString('vi-VN')}
+                  {emsTableExpanded && total > 0 ? t.grid.showingNote.replace('{from}', String(displayFrom)).replace('{to}', String(displayTo)) : ''}
+                  {selectedIds.length ? t.grid.selectedNote.replace('{n}', String(selectedIds.length)) : ''}
+                </span>
+              </span>
+            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" className="text-sm font-medium text-emerald-700 hover:underline" onClick={() => setEmsTableExpanded((v) => !v)}>
+                {emsTableExpanded ? t.grid.collapse : t.grid.expand}
+              </button>
+              {emsTableExpanded ? (
+                <>
+                  <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="whitespace-nowrap">{t.grid.rowsPerPage}</span>
+                    <select
+                      className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
+                        setSkip(0)
+                        setSelected({})
+                      }}
+                    >
+                      {PAGE_SIZES.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Button type="button" size="sm" variant="outline" disabled={busy === 'tracking'} onClick={() => void refreshTracking(selectedIds.length ? selectedIds : undefined)}>
+                    {busy === 'tracking' ? <Loader2 className="h-4 w-4 animate-spin" /> : t.trackingRefresh}
+                  </Button>
+                  {selectedIds.length ? (
+                    <Button type="button" size="sm" variant="destructive" disabled={busy === 'delete'} onClick={() => void deleteIds(selectedIds)}>
+                      {t.deleteSelected}
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           </div>
-          {listSummary ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {([
-                ['', t.filterAll, listSummary.total_rows],
-                ['matched', t.syncMatched, listSummary.matched],
-                ['in_progress', t.syncInProgress, listSummary.in_progress],
-                ['mismatch', t.syncMismatch, listSummary.mismatch],
-                ['unlinked', t.syncUnlinked, listSummary.unlinked],
-                ['ems_not_found', t.syncEmsMissing, listSummary.ems_not_found],
-                ['parse_error', t.syncParseError, listSummary.parse_error],
-              ] as const).map(([key, label, count]) => (
-                <FilterChip
-                  key={key || 'all'}
-                  label={label}
-                  count={count}
-                  active={syncStatus === key}
-                  onClick={() => {
-                    setSyncStatus(key)
-                    setSkip(0)
-                  }}
-                />
-              ))}
-            </div>
-          ) : null}
           {job ? (
             <div className="mt-2 space-y-1">
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -1751,11 +2028,16 @@ export function PartnerShopShippingOpsPanel({
             </div>
           ) : null}
         </CardHeader>
-        <CardContent className="overflow-x-auto px-4 pb-4 pt-0">
-          <table className="w-full min-w-[880px] text-xs">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="py-1 pr-2">
+        {emsTableExpanded ? null : (
+          <p className="border-t border-border/60 px-4 py-3 text-sm text-muted-foreground">{t.grid.collapsedHint}</p>
+        )}
+        {emsTableExpanded ? (
+        <CardContent className="px-0 pb-0 pt-0">
+          <div className="max-h-[min(70vh,720px)] overflow-auto">
+          <table className="w-full min-w-[1280px] text-xs">
+            <thead className="sticky top-0 z-10 bg-muted/80 text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))]">
+              <tr>
+                <th className="bg-muted/80 px-2 py-2">
                   <input
                     type="checkbox"
                     checked={rows.length > 0 && rows.every((r) => selected[r.id])}
@@ -1766,117 +2048,192 @@ export function PartnerShopShippingOpsPanel({
                     }}
                   />
                 </th>
-                <th className="py-1 pr-2">{t.colTracking}</th>
-                <th className="py-1 pr-2">{t.colOrder}</th>
-                <th className="py-1 pr-2">{t.colCustomer}</th>
-                <th className="py-1 pr-2">{t.colEmsStatus}</th>
-                <th className="py-1 pr-2">{t.colCod}</th>
-                <th className="py-1 pr-2">{t.colFreight}</th>
-                <th className="py-1 pr-2">{t.colSync}</th>
-                <th className="py-1">{t.colActions}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colIndex}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colReference}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colShopOrder}</th>
+                <th className="bg-muted/80 px-2 py-2 text-right font-medium">{t.grid.colCodCollect}</th>
+                <th className="bg-muted/80 px-2 py-2 text-right font-medium">{t.grid.colCodPaid}</th>
+                <th className="bg-muted/80 px-2 py-2 text-right font-medium">{t.grid.colFreight}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colEmsCode}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colEmsStatus}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colShopStatus}</th>
+                <th className="bg-muted/80 px-2 py-2 text-left font-medium">{t.grid.colSync}</th>
+                <th className="bg-muted/80 px-2 py-2 text-right font-medium">{t.grid.colActions}</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id} className="border-t border-border/60 align-top">
-                  <td className="py-1.5 pr-2">
-                    <input type="checkbox" checked={Boolean(selected[r.id])} onChange={(e) => setSelected((s) => ({ ...s, [r.id]: e.target.checked }))} />
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <div className="font-medium">{r.ems_tracking_code || r.reference_code}</div>
-                    <div className="text-muted-foreground">{r.product_code}</div>
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <OrderCodeLink partnerId={partnerId} code={r.order_code} />
-                    <div className="text-muted-foreground">{r.shop_order_status || r.order_status || ''}</div>
-                  </td>
-                  <td className="py-1.5 pr-2">{r.recipient_label || r.shop_customer_name || r.shop_customer_phone || '—'}</td>
-                  <td className="py-1.5 pr-2 max-w-[220px]">
-                    <div>{r.ems_status || '—'}</div>
-                    {r.return_to_shop_label ? <div className="text-orange-700">{r.return_to_shop_label}</div> : null}
-                  </td>
-                  <td className="py-1.5 pr-2 tabular-nums">
-                    {r.cod_amount != null ? vnd(r.cod_amount) : '—'}
-                    {r.cod_settlement_status ? <div className="text-muted-foreground">{r.cod_settlement_status}</div> : null}
-                  </td>
-                  <td className="py-1.5 pr-2 tabular-nums">
-                    {r.freight_amount != null ? vnd(r.freight_amount) : '—'}
-                    {r.freight_settlement_status ? <div className="text-muted-foreground">{r.freight_settlement_status}</div> : null}
-                    {r.freight_high_fee_warning === '1' || r.freight_high_fee_warning === 'yes' ? (
-                      <div className="text-amber-800">{t.highFee}</div>
-                    ) : null}
-                  </td>
-                  <td className="py-1.5 pr-2">
-                    <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncBadgeClass(r.sync_status)}`}>
-                      {syncLabel(t, r.sync_status)}
-                    </span>
-                    {r.sync_message ? <p className="mt-1 max-w-[180px] text-[10px] text-muted-foreground">{r.sync_message}</p> : null}
-                  </td>
-                  <td className="py-1.5">
-                    <div className="flex flex-col items-start gap-1">
-                      <Button type="button" size="sm" variant="outline" disabled={busy === `one-${r.id}`} onClick={() => void refreshOne(r.id)}>
-                        {busy === `one-${r.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : t.refreshOne}
-                      </Button>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => void viewStatus(r)}>{t.viewStatus}</Button>
-                    </div>
+              {!rows.length ? (
+                <tr>
+                  <td colSpan={12} className="px-4 py-8 text-center text-muted-foreground">
+                    {listLoading
+                      ? t.loadingStats
+                      : !appliedSearch && !syncStatus && (listSummary?.total_rows ?? 0) === 0
+                        ? t.grid.emptyUpload
+                        : appliedSearch
+                          ? t.searchCard.empty
+                          : t.grid.noFilterMatch}
                   </td>
                 </tr>
-              ))}
+              ) : rows.map((r) => {
+                const paidMatched = (r.cod_settlement_status || '').trim().toLowerCase() === 'matched'
+                const paidDate = paidMatched ? formatCodPaidDate(r.cod_paid_date) : null
+                const paidAmount = paidMatched ? r.cod_paid_amount ?? r.cod_amount : null
+                const rawShop = r.shop_order_status || r.order_status
+                const freightSettled = r.freight_settlement_status === 'settled' || r.freight_settlement_status === 'already_settled'
+                return (
+                  <tr key={r.id} className={`border-t border-border/60 align-top ${selected[r.id] ? 'bg-emerald-50/40' : ''}`}>
+                    <td className="px-2 py-2">
+                      <input type="checkbox" checked={Boolean(selected[r.id])} onChange={(e) => setSelected((s) => ({ ...s, [r.id]: e.target.checked }))} />
+                    </td>
+                    <td className="px-2 py-2 tabular-nums text-muted-foreground">{r.excel_row_number ?? '—'}</td>
+                    <td className="px-2 py-2">
+                      <div className="font-medium">{r.reference_code || '—'}</div>
+                      {r.recipient_label ? <div className="mt-0.5 line-clamp-2 text-[11px] text-muted-foreground">{r.recipient_label}</div> : null}
+                    </td>
+                    <td className="px-2 py-2">
+                      {r.order_code ? (
+                        r.order_id ? <OrderCodeLink partnerId={partnerId} code={r.order_code} /> : <span className="font-medium">{r.order_code}</span>
+                      ) : '—'}
+                      {r.tracking_number_saved ? (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">{t.grid.savedTracking.replace('{code}', r.tracking_number_saved)}</div>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">{formatCodAmount(r.cod_amount, t.searchCard.codNone)}</td>
+                    <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
+                      {paidAmount == null && !paidDate ? '—' : (
+                        <>
+                          <div>{moneyOrDash(paidAmount)}</div>
+                          {paidDate ? <div className="mt-0.5 text-[11px] font-medium text-emerald-700">{t.searchCard.codPaidOn.replace('{date}', paidDate)}</div> : null}
+                        </>
+                      )}
+                      {codCollectedPending(r) ? <div className="mt-0.5 max-w-[180px] text-[11px] font-medium text-amber-800">{t.searchCard.codCollectedPending}</div> : null}
+                      {r.cod_settlement_status ? (
+                        <span className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${codReconcileBadge(r.cod_settlement_status)}`}>
+                          {codReconcileLabel(t, r.cod_settlement_status)}
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums whitespace-nowrap">
+                      <div>{moneyOrDash(r.freight_amount)}</div>
+                      {highFeeOn(r.freight_high_fee_warning) ? (
+                        <span className="mt-1 inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-900">{t.grid.highFeeShort}</span>
+                      ) : null}
+                      {freightSettled ? (
+                        <span className="mt-1 inline-flex rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-800">{t.grid.freightSettled}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-2">{r.ems_tracking_code || '—'}</td>
+                    <td className="max-w-[220px] px-2 py-2">
+                      <div>{r.ems_status || r.ems_error || '—'}</div>
+                      {r.ems_phase ? <div className="mt-0.5 text-[11px] text-muted-foreground">{r.ems_phase}</div> : null}
+                    </td>
+                    <td className="px-2 py-2">
+                      {rawShop || r.return_to_shop_label ? (
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${shopStatusBadgeClass(rawShop)}`}>
+                          {emsShopStatusText(t, r)}
+                        </span>
+                      ) : r.order_code ? (
+                        <span className="text-[11px] text-amber-700">{t.grid.unlinkedOrder}</span>
+                      ) : '—'}
+                      {r.current_step_key ? <div className="mt-1 text-[11px] text-muted-foreground">{emsTimelineText(t, r.current_step_key)}</div> : null}
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-medium ${syncBadgeClass(r.sync_status)}`}>
+                        {syncLabel(t, r.sync_status)}
+                      </span>
+                      {r.sync_message ? <p className="mt-1 max-w-[180px] text-[11px] text-muted-foreground">{r.sync_message}</p> : null}
+                    </td>
+                    <td className="px-2 py-2 text-right">
+                      <div className="flex flex-col items-end gap-1">
+                        <button type="button" className="text-[11px] font-medium text-indigo-700 hover:underline disabled:opacity-50" disabled={busy === `one-${r.id}`} onClick={() => void refreshOne(r.id)}>
+                          {busy === `one-${r.id}` ? t.searchCard.refreshing : t.trackingRefresh}
+                        </button>
+                        <button type="button" className="text-[11px] font-medium text-emerald-700 hover:underline" onClick={() => void viewStatus(r)}>{t.viewStatus}</button>
+                        <button type="button" className="text-[11px] font-medium text-red-600 hover:underline disabled:opacity-50" disabled={busy === 'delete'} onClick={() => void deleteIds([r.id])}>{t.grid.deleteOne}</button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-          {!rows.length && !listLoading ? <p className="py-4 text-sm text-muted-foreground">{t.noRows}</p> : null}
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">{total.toLocaleString('vi-VN')}</span>
-            <div className="flex gap-2">
-              <Button type="button" size="sm" variant="outline" disabled={page <= 1} onClick={() => setSkip(Math.max(0, skip - pageSize))}>{t.prevPage}</Button>
-              <span className="self-center">{page}/{pages}</span>
-              <Button type="button" size="sm" variant="outline" disabled={page >= pages} onClick={() => setSkip(skip + pageSize)}>{t.nextPage}</Button>
-            </div>
           </div>
+          {total > 0 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 px-4 py-3 text-xs text-muted-foreground">
+              <span>
+                {t.grid.pageSummary.replace('{page}', String(page)).replace('{pages}', String(pages)).replace('{n}', total.toLocaleString('vi-VN'))}
+                {syncStatus ? t.grid.filteredNote : ''}
+                {appliedSearch ? ` · ${appliedSearch}` : ''}
+              </span>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" disabled={page <= 1} onClick={() => setSkip(0)}>{t.grid.pageFirst}</Button>
+                <Button type="button" size="sm" variant="outline" disabled={page <= 1} onClick={() => setSkip(Math.max(0, skip - pageSize))}>{t.prevPage}</Button>
+                <Button type="button" size="sm" variant="outline" disabled={page >= pages} onClick={() => setSkip(skip + pageSize)}>{t.nextPage}</Button>
+                <Button type="button" size="sm" variant="outline" disabled={page >= pages} onClick={() => setSkip((pages - 1) * pageSize)}>{t.grid.pageLast}</Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
+        ) : null}
       </Card>
 
-      {opsStats ? (
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader className="px-4 py-3 pb-2">
-            <CardTitle className="text-sm font-medium">{t.syncStatsTitle}</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 pt-0 text-xs lg:grid-cols-4">
-            <StatCard label="Ghép đơn shop" count={opsStats.shop_linked_count} onClick={() => void openBucket('shop_linked', 'Ghép đơn shop')} />
-            <StatCard label="Đơn shop đang giao" count={opsStats.shop_shipping_orders} onClick={() => void openBucket('shop_shipping', 'Đơn shop đang giao')} />
-            <StatCard label="Chưa đối soát cước" count={opsStats.freight_unsettled_count} onClick={() => void openBucket('freight_unsettled', 'Chưa đối soát cước')} />
-            <StatCard label="Có COD" count={opsStats.total_with_cod} onClick={() => void openBucket('has_cod', 'Có COD')} />
-          </CardContent>
-        </Card>
-      ) : null}
-
       {statusModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setStatusModal(null)}>
-          <div className="max-h-[80vh] w-full max-w-lg overflow-auto rounded-lg border bg-background p-4 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => setStatusModal(null)} role="dialog" aria-modal="true">
+          <div className="max-h-[90vh] w-full max-w-lg space-y-4 overflow-auto rounded-xl border bg-background p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold">{t.emsEvents}</h3>
-                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                  {statusModal.row.ems_tracking_code || statusModal.row.reference_code}
+                <h3 className="text-base font-semibold">{t.grid.statusTitle}</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {statusModal.row.order_code || '—'} · {statusModal.row.reference_code || '—'}
                 </p>
-                {statusModal.current ? <p className="mt-1 text-sm">{statusModal.current}</p> : null}
               </div>
               <Button type="button" size="sm" variant="ghost" onClick={() => setStatusModal(null)}>{t.closePanel}</Button>
             </div>
-            {statusModal.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {statusModal.error ? <p className="text-sm text-destructive">{statusModal.error}</p> : null}
-            <ul className="space-y-2 text-xs">
-              {statusModal.events.map((ev, i) => (
-                <li key={`${ev.traced_at || i}-${ev.description}`} className="rounded-md border border-border/70 px-3 py-2">
-                  {ev.traced_at ? <div className="text-muted-foreground">{formatEmsEventAt(ev.traced_at)}</div> : null}
-                  <div className="font-medium">{ev.description}</div>
-                  {ev.address ? <div className="text-muted-foreground">{ev.address}</div> : null}
-                </li>
-              ))}
-            </ul>
-            {!statusModal.loading && !statusModal.events.length && !statusModal.error ? (
-              <p className="text-sm text-muted-foreground">{t.noRows}</p>
-            ) : null}
+            {statusModal.row.order_code && !statusModal.row.order_id ? (
+              <div className="space-y-1 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                <p className="font-medium">{t.grid.statusUnlinked}</p>
+                {statusModal.row.ems_status || statusModal.row.ems_error ? (
+                  <p className="border-t border-amber-200 pt-1 text-xs">EMS: {statusModal.row.ems_status || statusModal.row.ems_error}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-lg border bg-muted/40 px-4 py-3">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="text-muted-foreground">{t.grid.statusCurrent}</span>
+                  <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${shopStatusBadgeClass(statusModal.row.shop_order_status || statusModal.row.order_status)}`}>
+                    {emsShopStatusText(t, statusModal.row)}
+                  </span>
+                </div>
+                {statusModal.row.current_step_key ? (
+                  <p className="text-sm">
+                    {t.grid.statusStep}: <strong>{emsTimelineText(t, statusModal.row.current_step_key)}</strong>
+                  </p>
+                ) : null}
+              </div>
+            )}
+            <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 p-4">
+              <h4 className="mb-2 text-sm font-semibold text-indigo-950">{t.grid.emsJourney}</h4>
+              {statusModal.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {statusModal.error ? <p className="text-sm text-destructive">{statusModal.error}</p> : null}
+              {statusModal.current ? (
+                <p className="mb-2 text-xs text-indigo-800">{t.grid.emsLatest}: <strong>{statusModal.current}</strong></p>
+              ) : null}
+              <ul className="space-y-2 text-sm">
+                {statusModal.events.map((ev, i) => (
+                  <li key={`${ev.traced_at || i}-${ev.description}`} className="flex items-start gap-2">
+                    <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${i === 0 ? 'bg-indigo-600' : 'bg-indigo-300'}`} />
+                    <span className={i === 0 ? 'font-medium text-indigo-900' : ''}>
+                      {ev.description}
+                      {ev.traced_at ? <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{formatEmsEventAt(ev.traced_at)}</span> : null}
+                      {ev.address ? <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{ev.address}</span> : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {!statusModal.loading && !statusModal.events.length && !statusModal.error ? (
+                <p className="text-sm text-muted-foreground">{statusModal.row.ems_status || t.noRows}</p>
+              ) : null}
+            </div>
           </div>
         </div>
       ) : null}
