@@ -603,13 +603,14 @@ export default function WeddingPublicClient({
                 backgroundColor: isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8',
               }}
             >
-              <div className="flex min-h-full justify-center px-3 py-[calc(0.75rem+env(safe-area-inset-top))] sm:px-4 sm:py-4">
+              <div className="flex min-h-full flex-col items-center justify-start px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-[max(0.35rem,env(safe-area-inset-top))] sm:px-4 sm:pb-4 sm:pt-3">
                 <div
                   className={cn(
-                    'm-auto w-full max-w-[min(26rem,calc(100vw-1.5rem))] sm:max-w-[min(28rem,calc(100vw-2rem))] lg:max-w-[min(36rem,calc(100vw-4rem))]',
+                    'w-full max-w-[min(26rem,calc(100vw-1.5rem))] sm:max-w-[min(28rem,calc(100vw-2rem))] lg:max-w-[min(36rem,calc(100vw-4rem))]',
                   )}
                 >
                   <WeddingCoverShellCard
+                    fitViewport
                     breathe={false}
                     namesFlyIn={card.effectsEnabled}
                     presetId={coverPresetId}

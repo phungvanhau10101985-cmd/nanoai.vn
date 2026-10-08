@@ -22,7 +22,9 @@ test('frame covers keep a transparent hole and the two original shells', async (
     const hole = frame.hole
     assert.ok(hole.w > 20 && hole.h > 20, preset.id)
     assert.ok(hole.x >= 0 && hole.y >= 0 && hole.x + hole.w <= 100.2 && hole.y + hole.h <= 100.2, preset.id)
-    const file = path.join(process.cwd(), 'public', frame.src)
+    const name = frame.src.split('/').pop()
+    assert.match(frame.src, /^https:\/\/cdn\.nanoai\.vn\/wedding\/covers\//, frame.src)
+    const file = path.join(process.cwd(), 'public', 'wedding', 'covers', name ?? '')
     assert.equal(existsSync(file), true, frame.src)
     const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
     assert.equal(info.width, 900)

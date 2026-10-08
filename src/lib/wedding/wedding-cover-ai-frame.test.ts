@@ -144,7 +144,7 @@ test('bride and groom portraits keep their own frame choice', () => {
     bridePortraitShellPanel: '#fffaf2',
   })
   const parsed = parseWeddingSectionConfig(saved)
-  assert.equal(resolvePortraitShell(parsed, 'groom')?.src, '/wedding/covers/classic-red.webp')
+  assert.equal(resolvePortraitShell(parsed, 'groom')?.src, 'https://cdn.nanoai.vn/wedding/covers/classic-red.webp')
   assert.equal(resolvePortraitShell(parsed, 'bride')?.src, 'https://cdn.example/heart.png')
   const cleared = mergeWeddingSectionConfig(saved, { groomPortraitShellMode: undefined })
   assert.equal(resolvePortraitShell(parseWeddingSectionConfig(cleared), 'groom'), null)

@@ -484,7 +484,7 @@ for (const frame of frames) {
   const buf = await sharp(Buffer.from(picture)).webp({ lossless: true, effort: 4 }).toBuffer()
   writeFileSync(filePath, buf)
   assets[frame.id] = {
-    src: `/wedding/covers/${frame.file}`,
+    src: `https://cdn.nanoai.vn/wedding/covers/${frame.file}`,
     hole: holePct(frame.hole),
     panel: frame.panel,
     ink: frame.ink,

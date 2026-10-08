@@ -8,7 +8,7 @@ export type WeddingCoverFrameAsset = {
 
 export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> = {
   "classic_red": {
-    "src": "/wedding/covers/classic-red.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/classic-red.webp",
     "hole": {
       "x": 16.67,
       "y": 17.5,
@@ -19,7 +19,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "blush_floral": {
-    "src": "/wedding/covers/blush-floral.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/blush-floral.webp",
     "hole": {
       "x": 14.44,
       "y": 12.5,
@@ -30,7 +30,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "sage_garden": {
-    "src": "/wedding/covers/sage-garden.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/sage-garden.webp",
     "hole": {
       "x": 14.44,
       "y": 12.5,
@@ -41,7 +41,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "gold_luxury": {
-    "src": "/wedding/covers/gold-luxury.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/gold-luxury.webp",
     "hole": {
       "x": 15.56,
       "y": 13.33,
@@ -52,7 +52,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "night_modern": {
-    "src": "/wedding/covers/night-modern.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/night-modern.webp",
     "hole": {
       "x": 13.33,
       "y": 11.67,
@@ -63,7 +63,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "light"
   },
   "lotus_viet": {
-    "src": "/wedding/covers/lotus-viet.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/lotus-viet.webp",
     "hole": {
       "x": 16.67,
       "y": 16.67,
@@ -74,7 +74,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "envelope_wax": {
-    "src": "/wedding/covers/envelope-wax.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/envelope-wax.webp",
     "hole": {
       "x": 23.33,
       "y": 35.83,
@@ -85,7 +85,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "polaroid": {
-    "src": "/wedding/covers/polaroid.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/polaroid.webp",
     "hole": {
       "x": 8.67,
       "y": 5.83,
@@ -96,7 +96,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "phoenix_pair": {
-    "src": "/wedding/covers/phoenix-pair.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/phoenix-pair.webp",
     "hole": {
       "x": 18.89,
       "y": 15,
@@ -107,7 +107,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "calla": {
-    "src": "/wedding/covers/calla.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/calla.webp",
     "hole": {
       "x": 10,
       "y": 13.33,
@@ -118,7 +118,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "dried_flowers": {
-    "src": "/wedding/covers/dried-flowers.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/dried-flowers.webp",
     "hole": {
       "x": 14.44,
       "y": 12.5,
@@ -129,7 +129,7 @@ export const WEDDING_COVER_FRAME_ASSETS: Record<string, WeddingCoverFrameAsset> 
     "ink": "dark"
   },
   "crest_seal": {
-    "src": "/wedding/covers/crest-seal.webp",
+    "src": "https://cdn.nanoai.vn/wedding/covers/crest-seal.webp",
     "hole": {
       "x": 17.78,
       "y": 19.17,
