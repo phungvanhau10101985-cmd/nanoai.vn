@@ -2,7 +2,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
-import { resolveProductStudioGeminiImage } from '@/lib/partner-website/product-studio/product-studio-image-model'
+import {
+  productStudioGeminiImageCredit,
+  productStudioSlotImageCredit,
+  resolveProductStudioGeminiImage,
+} from '@/lib/partner-website/product-studio/product-studio-image-model'
 import {
   composeLadipageDescription,
   shouldAdoptLadipageDescription,
@@ -27,6 +31,15 @@ test('studio image model: material stays Pro 2K, flash 2.5 omits size', () => {
     model: GEMINI_3_PRO_IMAGE.model,
     imageSize: '2K',
   })
+})
+
+test('studio image credit follows the gemini model of that slot', () => {
+  assert.equal(productStudioSlotImageCredit('material', 'flash'), 1.5)
+  assert.equal(productStudioSlotImageCredit('gallery', 'flash'), 0.4)
+  assert.equal(productStudioSlotImageCredit('color', 'flash3'), 1.1)
+  assert.equal(productStudioSlotImageCredit('detail', 'pro'), 1.5)
+  assert.equal(productStudioGeminiImageCredit(undefined), 1.5)
+  assert.equal(productStudioGeminiImageCredit('gemini-2.5-flash-image'), 0.4)
 })
 
 test('question group follows gender, then the product name', () => {

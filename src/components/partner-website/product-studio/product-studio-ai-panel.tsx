@@ -15,6 +15,7 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, RefreshCw, ThumbsUp, Upload, X } from 'lucide-react'
 import type { ProductStudioExportUi } from '@/lib/catalog-photo/catalog-photo-copy'
+import { productStudioSlotImageCredit } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   PRODUCT_STUDIO_PRODUCT_TYPES,
@@ -176,6 +177,12 @@ function typeLabel(t: T, pt: string): string {
   return t.productStudioTypeOther
 }
 
+function creditText(template: string, amount: number): string {
+  const text = Number.isInteger(amount) ? String(amount) : amount.toFixed(1)
+  const shown = template.includes('/ảnh') ? text.replace('.', ',') : text
+  return template.replace('{n}', shown)
+}
+
 function shotLabel(t: T, s: string): string {
   if (s === 'lifestyle') return t.productStudioShotLifestyle
   if (s === 'outdoor') return t.productStudioShotOutdoor
@@ -248,6 +255,13 @@ export function ProductStudioAiPanel({
   const canPublish = studio ? studioCanPublish(studio) : false
   const awaitingApproval = job?.status === 'ready_for_review' && Boolean(currentSlot)
   const generating = job?.status === 'generating' || job?.status === 'publishing'
+  const billingChoice: ProductStudioImageModel =
+    job?.payload.imageModel === 'flash' || job?.payload.imageModel === 'flash3'
+      ? job.payload.imageModel
+      : job
+        ? 'pro'
+        : imageModel
+  const slotCredit = (kind: ProductStudioSlotKind) => productStudioSlotImageCredit(kind, billingChoice)
 
   const loadSessions = useCallback(async () => {
     const res = await fetch(`${base}/jobs?active=true`)
@@ -797,11 +811,20 @@ export function ProductStudioAiPanel({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pro">{t.productStudioImageModelPro}</SelectItem>
-                <SelectItem value="flash">{t.productStudioImageModelFlash}</SelectItem>
-                <SelectItem value="flash3">{t.productStudioImageModelFlash3}</SelectItem>
+                <SelectItem value="pro">
+                  {t.productStudioImageModelPro} · {creditText(t.productStudioCreditPerImage, productStudioSlotImageCredit('color', 'pro'))}
+                </SelectItem>
+                <SelectItem value="flash">
+                  {t.productStudioImageModelFlash} · {creditText(t.productStudioCreditPerImage, productStudioSlotImageCredit('color', 'flash'))}
+                </SelectItem>
+                <SelectItem value="flash3">
+                  {t.productStudioImageModelFlash3} · {creditText(t.productStudioCreditPerImage, productStudioSlotImageCredit('color', 'flash3'))}
+                </SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {creditText(t.productStudioMaterialCreditNote, productStudioSlotImageCredit('material', imageModel))}
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label>{t.productStudioFieldNotes}</Label>
@@ -893,7 +916,7 @@ export function ProductStudioAiPanel({
                 </Button>
                 <Button type="button" variant="outline" disabled={studioBusy} onClick={() => void regenerate()}>
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                  {t.productStudioRegenerate}
+                  {t.productStudioRegenerate} · {creditText(t.productStudioCreditPerImage, slotCredit(currentSlot.kind))}
                 </Button>
               </div>
             </div>
@@ -932,6 +955,7 @@ export function ProductStudioAiPanel({
                     }}
                   >
                     {label}
+                    <span className="ml-1 opacity-70">· {creditText(t.productStudioCreditPerImage, slotCredit(k))}</span>
                     {k === 'detail' ? <span className="ml-1 opacity-70">({t.productStudioTabDetailOptional})</span> : null}
                   </Button>
                 ))}
@@ -983,7 +1007,7 @@ export function ProductStudioAiPanel({
               ) : null}
               <Button type="button" disabled={studioBusy || uploading} onClick={() => void submitGenerate()}>
                 {studioBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                {t.productStudioGenerate}
+                {t.productStudioGenerate} · {creditText(t.productStudioCreditPerImage, slotCredit(formKind))}
               </Button>
             </div>
           ) : null}

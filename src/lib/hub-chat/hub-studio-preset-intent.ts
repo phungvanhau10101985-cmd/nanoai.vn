@@ -26,7 +26,7 @@ export function isValidStudioPresetId(presetId: string | null | undefined): bool
 
 /** Rich preset list for Studio brain — AI picks suggestedPresetId from this catalog. */
 export function buildPresetCatalogForBrain(locale: WebLocale): string {
-  return STUDIO_PRESETS.map((p) => {
+  return STUDIO_PRESETS.filter((p) => p.id !== 'product_listing' && p.id !== 'catalog_photo_pack').map((p) => {
     const title = presetTitle(locale, p.id)
     const upload = p.needsUpload ? ' | needs_upload=true' : ''
     let routeHint = ''

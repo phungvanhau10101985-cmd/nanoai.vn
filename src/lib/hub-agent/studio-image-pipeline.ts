@@ -8,6 +8,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
+import { productStudioGeminiImageCredit } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
@@ -315,10 +316,12 @@ export async function runStudioImagePipeline(input: {
   }
   const stripLogoBackground =
     input.kind === 'logo' ? parseLogoStripBackgroundFlag(input.stripBackground) : false
+  const imageCredit =
+    input.kind === 'logo' ? UI_MOCKUP_CREDIT : productStudioGeminiImageCredit(input.imageModel)
   const requiredCredits =
     input.kind === 'logo'
       ? requiredCreditsForLogoCreate(UI_MOCKUP_CREDIT, stripLogoBackground)
-      : UI_MOCKUP_CREDIT
+      : imageCredit
   if (toTenths(balance) < toTenths(requiredCredits)) {
     return { ok: false, error: `Không đủ credits (cần ${requiredCredits}).` }
   }
@@ -461,7 +464,7 @@ export async function runStudioImagePipeline(input: {
             )
           : resultBufferRaw
         let resultBuffer = normalizedBuffer
-        let charged = UI_MOCKUP_CREDIT
+        let charged = input.kind === 'logo' ? UI_MOCKUP_CREDIT : imageCredit
         if (input.kind === 'logo' && stripLogoBackground) {
           const stripped = await stripLogoBackgroundToTransparentPng({
             apiKey,

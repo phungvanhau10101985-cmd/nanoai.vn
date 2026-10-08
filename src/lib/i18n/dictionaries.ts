@@ -2048,6 +2048,8 @@ export type Dictionary = {
     productStudioImageModelPro: string
     productStudioImageModelFlash: string
     productStudioImageModelFlash3: string
+    productStudioCreditPerImage: string
+    productStudioMaterialCreditNote: string
     productStudioGalleryCountLabel: string
     productStudioDetailCountLabel: string
     productStudioStartStudio: string
@@ -5922,6 +5924,8 @@ const VI_DICTIONARY: Dictionary = {
     productStudioImageModelPro: 'Pro (chất lượng cao)',
     productStudioImageModelFlash: 'Flash 2.5 (nhanh)',
     productStudioImageModelFlash3: 'Flash 3',
+    productStudioCreditPerImage: '{n} credit/ảnh',
+    productStudioMaterialCreditNote: 'Chất liệu luôn dùng Gemini Pro: {n} credit/ảnh',
     productStudioGalleryCountLabel: 'Số ảnh gallery',
     productStudioDetailCountLabel: 'Số ảnh chi tiết',
     productStudioStartStudio: 'Bắt đầu tạo ảnh bằng AI',
@@ -9796,6 +9800,8 @@ const EN_DICTIONARY: Dictionary = {
     productStudioImageModelPro: 'Pro (highest quality)',
     productStudioImageModelFlash: 'Flash 2.5 (faster)',
     productStudioImageModelFlash3: 'Flash 3',
+    productStudioCreditPerImage: '{n} credits/image',
+    productStudioMaterialCreditNote: 'Material shots always use Gemini Pro: {n} credits/image',
     productStudioGalleryCountLabel: 'Gallery photo count',
     productStudioDetailCountLabel: 'Detail photo count',
     productStudioStartStudio: 'Start AI image studio',
@@ -13623,6 +13629,8 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioImageModelPro: 'Pro（高质量）',
     productStudioImageModelFlash: 'Flash 2.5（更快）',
     productStudioImageModelFlash3: 'Flash 3',
+    productStudioCreditPerImage: '{n} 积分/张',
+    productStudioMaterialCreditNote: '材质图始终使用 Gemini Pro：{n} 积分/张',
     productStudioGalleryCountLabel: '图库图片数量',
     productStudioDetailCountLabel: '细节图片数量',
     productStudioStartStudio: '开始 AI 生成图片',
@@ -17421,6 +17429,8 @@ const JA_DICTIONARY: Dictionary = {
     productStudioImageModelPro: 'Pro（高品質）',
     productStudioImageModelFlash: 'Flash 2.5（高速）',
     productStudioImageModelFlash3: 'Flash 3',
+    productStudioCreditPerImage: '{n} クレジット/枚',
+    productStudioMaterialCreditNote: '素材画像は常に Gemini Pro：{n} クレジット/枚',
     productStudioGalleryCountLabel: 'ギャラリー画像枚数',
     productStudioDetailCountLabel: '詳細画像枚数',
     productStudioStartStudio: 'AI画像生成を開始',
@@ -21259,6 +21269,8 @@ const KO_DICTIONARY: Dictionary = {
     productStudioImageModelPro: 'Pro (고품질)',
     productStudioImageModelFlash: 'Flash 2.5 (더 빠름)',
     productStudioImageModelFlash3: 'Flash 3',
+    productStudioCreditPerImage: '{n} 크레딧/장',
+    productStudioMaterialCreditNote: '소재 이미지는 항상 Gemini Pro: {n} 크레딧/장',
     productStudioGalleryCountLabel: '갤러리 이미지 수',
     productStudioDetailCountLabel: '디테일 이미지 수',
     productStudioStartStudio: 'AI 이미지 생성 시작',

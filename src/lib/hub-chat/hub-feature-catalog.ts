@@ -2,6 +2,7 @@ import { buildHubToolCatalog } from '@/lib/hub-chat/hub-chat-catalog'
 import {
   buildStandaloneFeatureEntries,
   isStandaloneReplacedByStudio,
+  isCatalogPhotoHubPreset,
   matchCatalogPhotoExportFlow,
   type HubFeatureFlowKind,
   type HubFeatureFlowMatch,
@@ -39,7 +40,7 @@ export function buildHubFeatureCatalog(locale: WebLocale): HubFeatureCatalogEntr
   const out: HubFeatureCatalogEntry[] = []
 
   for (const preset of STUDIO_PRESETS) {
-    if (preset.id === 'catalog_photo_pack') continue
+    if (isCatalogPhotoHubPreset(preset.id)) continue
     out.push({
       key: studioFeatureKey(preset.id),
       kind: 'studio',
@@ -85,7 +86,8 @@ export function resolveHubFeatureSelection(
   key: string,
   locale: WebLocale
 ): HubFeatureFlowMatch | null {
-  if (key.trim() === studioFeatureKey('catalog_photo_pack')) {
+  const presetFromKey = key.trim().startsWith('studio:') ? key.trim().slice('studio:'.length) : ''
+  if (isCatalogPhotoHubPreset(presetFromKey)) {
     return matchCatalogPhotoExportFlow(locale)
   }
   const entry = getHubFeatureCatalogEntry(locale, key)

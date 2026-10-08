@@ -178,18 +178,28 @@ test('amateur product photos for Facebook open the photo page', () => {
   if (match?.kind === 'standalone') assert.equal(match.href, '/tao-anh-ban-hang')
 })
 
-test('hub catalog lists the facebook photo page and not the chat preset', () => {
+test('hub catalog lists the facebook photo page and not the chat presets', () => {
   const catalog = buildHubFeatureCatalog('vi')
   assert.ok(catalog.some((entry) => entry.href === '/tao-anh-ban-hang' && entry.kind === 'standalone'))
   assert.equal(catalog.some((entry) => entry.presetId === 'catalog_photo_pack'), false)
-  const picked = catalog.find((entry) => entry.key === studioFeatureKey('catalog_photo_pack'))
-  assert.equal(picked, undefined)
+  assert.equal(catalog.some((entry) => entry.presetId === 'product_listing'), false)
+  assert.equal(catalog.find((entry) => entry.key === studioFeatureKey('catalog_photo_pack')), undefined)
+  assert.equal(catalog.find((entry) => entry.key === studioFeatureKey('product_listing')), undefined)
 })
 
-test('shopee listing photos stay on the shop listing preset', () => {
-  const match = matchFeatureFlowByMessage('ảnh sản phẩm shopee nền trắng', 'vi')
-  assert.equal(match?.kind, 'studio')
-  if (match?.kind === 'studio') assert.equal(match.presetId, 'product_listing')
+test('every product photo phrase opens the photo page', () => {
+  for (const phrase of [
+    'ảnh sản phẩm',
+    'TẠO ẢNH SẢN PHẨM',
+    'ảnh sản phẩm shopee nền trắng',
+    'sản phẩm shopee',
+    'product photo white background',
+    '产品图',
+  ]) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/tao-anh-ban-hang', phrase)
+  }
 })
 
 test('tagWorkflowFlowMeta marks catalog hrefs as requiring confirm', () => {

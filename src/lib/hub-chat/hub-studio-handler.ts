@@ -92,7 +92,12 @@ import {
   isHighConfidenceFlowSwitch,
 } from '@/lib/hub-chat/hub-studio-flow-classifier'
 import { classifyFeatureIntentWithAi } from '@/lib/hub-chat/hub-feature-intent-classifier'
-import { matchFeatureFlowByMessage, resolveIdleFeatureMatch, isShortAffirmativeReply } from '@/lib/hub-chat/hub-feature-flow-registry'
+import {
+  isCatalogPhotoHubPreset,
+  matchFeatureFlowByMessage,
+  resolveIdleFeatureMatch,
+  isShortAffirmativeReply,
+} from '@/lib/hub-chat/hub-feature-flow-registry'
 import {
   buildFullFeatureCatalogForBrain,
   getHubFeatureCatalogEntry,
@@ -1375,7 +1380,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset). Amateur self-shot product photos to sell on Facebook or another platform when the customer has no NanoAI shop website → suggestedPresetId catalog_photo_pack (inline chat, NOT fashion_campaign, NOT product_listing, NOT a separate page). product_listing stays for Shopee / Lazada / TikTok Shop listing photos.
+- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset). ANY product photo set (Facebook, Shopee, Lazada, TikTok Shop, white background, lifestyle, amateur self-shot, "tạo ảnh sản phẩm", "ảnh sản phẩm") → hubRoute "workflow" + href /tao-anh-ban-hang. NEVER suggestedPresetId product_listing or catalog_photo_pack. NOT fashion_campaign.
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -3665,6 +3670,40 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const featureKey = String(input.featureKey ?? '').trim()
     const catalogEntry = getHubFeatureCatalogEntry(input.locale, featureKey)
     const selection = resolveHubFeatureSelection(featureKey, input.locale)
+    if (selection?.kind === 'standalone' && selection.href === '/tao-anh-ban-hang') {
+      const copy = catalogPhotoCopy(input.locale)
+      const workflow: HubChatWorkflowSuggestion = {
+        href: '/tao-anh-ban-hang',
+        labelKey: 'catalog_photo_pack',
+        label: copy.title,
+        reason: copy.intro,
+        prefillPrompt: '',
+        confidence: 1,
+        flowKind: 'standalone',
+        requiresOpenConfirm: true,
+      }
+      reply = copy.intro
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'user',
+        content: catalogEntry?.label || copy.title,
+      })
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        workflows: [workflow],
+      })
+      return {
+        ok: true,
+        reply,
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        workflows: [workflow],
+        hubRoute: 'workflow',
+      }
+    }
     if (!catalogEntry || !selection) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
     }
@@ -3761,7 +3800,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
   if (action === 'start_preset') {
     const presetId = String(input.presetId ?? '').trim()
-    if (presetId === 'catalog_photo_pack') {
+    if (presetId === 'catalog_photo_pack' || presetId === 'product_listing') {
       const copy = catalogPhotoCopy(input.locale)
       const workflow: HubChatWorkflowSuggestion = {
         href: '/tao-anh-ban-hang',
@@ -7442,7 +7481,14 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         })()
       : null
 
-    if (idleFeatureMatch?.kind === 'standalone' && idleFeatureMatch.href === '/tao-thiep-moi-cuoi-ai') {
+    if (
+      idleFeatureMatch?.kind === 'standalone' &&
+      (idleFeatureMatch.href === '/tao-thiep-moi-cuoi-ai' || idleFeatureMatch.href === '/tao-anh-ban-hang')
+    ) {
+      ai.suggestedPresetId = undefined
+      ai.hubRoute = 'workflow'
+    }
+    if (isCatalogPhotoHubPreset(ai.suggestedPresetId)) {
       ai.suggestedPresetId = undefined
       ai.hubRoute = 'workflow'
     }
@@ -7463,7 +7509,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         if (
           ai.suggestedPresetId &&
           isValidStudioPresetId(ai.suggestedPresetId) &&
+          !isCatalogPhotoHubPreset(ai.suggestedPresetId) &&
           studioFallback &&
+          !isCatalogPhotoHubPreset(studioFallback.preset.id) &&
           studioFallback.score >= 10
         ) {
           ai.hubRoute = 'design'

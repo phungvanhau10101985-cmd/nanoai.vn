@@ -170,6 +170,13 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
     'đăng facebook',
     'bộ ảnh bán hàng',
     'amateur product photo',
+    'ảnh sản phẩm',
+    'anh san pham',
+    'tạo ảnh sản phẩm',
+    'tao anh san pham',
+    'sản phẩm shopee',
+    'product photo',
+    'product listing photo',
   ],
 }
 
@@ -252,16 +259,21 @@ const STANDALONE_VERB_HINTS: Partial<
   '/tao-anh-ban-hang': { create: true },
 }
 
-/** Ảnh tự chụp để bán nền tảng khác — không mở preset ảnh Shopee / campaign lookbook. */
-const CATALOG_PHOTO_SHOP_MARKERS =
-  /shopee|lazada|tiktok\s*shop|web shop|shop saas|đăng lên shop|dang len shop|đăng sản phẩm|dang san pham/i
+/** Hub chat presets that only created product photos. New intents open the page. */
+export const CATALOG_PHOTO_HUB_PRESET_IDS = ['product_listing', 'catalog_photo_pack'] as const
 
+export function isCatalogPhotoHubPreset(presetId: string | null | undefined): boolean {
+  const id = String(presetId ?? '').trim()
+  return (CATALOG_PHOTO_HUB_PRESET_IDS as readonly string[]).includes(id)
+}
+
+/** Mọi ý định tạo bộ ảnh sản phẩm (Facebook, sàn, nền trắng) — không mở chat Hub. */
 const CATALOG_PHOTO_EXPORT_MARKERS =
-  /ảnh tự chụp|anh tu chup|chụp nghiệp dư|chup nghiep du|không có web|khong co web|nền tảng khác|nen tang khac|đăng facebook|dang facebook|đăng face\b|dang face\b|facebook bán|facebook ban|bộ ảnh bán|bo anh ban|tao-anh-ban-hang|sell photos from|amateur product|没有网站|自拍照|自分で撮|페이스북/i
+  /ảnh tự chụp|anh tu chup|chụp nghiệp dư|chup nghiep du|không có web|khong co web|nền tảng khác|nen tang khac|đăng facebook|dang facebook|đăng face\b|dang face\b|facebook bán|facebook ban|bộ ảnh bán|bo anh ban|tao-anh-ban-hang|sell photos from|amateur product|ảnh sản phẩm|anh san pham|tạo ảnh sản phẩm|tao anh san pham|sản phẩm shopee|san pham shopee|product photo|product listing|đăng bán|dang ban|nền trắng sản phẩm|nen trang san pham|white background product photo|没有网站|自拍照|自分で撮|페이스북|产品图|商品画像|상품 사진/i
 
 export function isCatalogPhotoExportIntent(message: string): boolean {
   const text = message.trim()
-  if (!text || CATALOG_PHOTO_SHOP_MARKERS.test(text)) return false
+  if (!text) return false
   return CATALOG_PHOTO_EXPORT_MARKERS.test(text)
 }
 
@@ -415,7 +427,7 @@ export function matchFeatureFlowByMessage(
   }
 
   if (studio && studioScore >= MIN_STUDIO_MATCH_SCORE) {
-    if (studio.preset.id === 'catalog_photo_pack') return matchCatalogPhotoExportFlow(locale)
+    if (isCatalogPhotoHubPreset(studio.preset.id)) return matchCatalogPhotoExportFlow(locale)
     return { kind: 'studio', presetId: studio.preset.id, score: studioScore }
   }
 
@@ -433,7 +445,7 @@ export function matchFeatureFlowByMessage(
 }
 
 export function buildFeatureFlowCatalogForBrain(locale: WebLocale): string {
-  const studioLines = STUDIO_PRESETS.filter((p) => p.id !== 'catalog_photo_pack').map((p) => {
+  const studioLines = STUDIO_PRESETS.filter((p) => !isCatalogPhotoHubPreset(p.id)).map((p) => {
     const title = presetTitle(locale, p.id)
     if (p.id === 'mobile_shop') {
       return `${p.id}: ${title} | flow=studio_complete | use_for=tạo web, giao diện web, thiết kế web app`
