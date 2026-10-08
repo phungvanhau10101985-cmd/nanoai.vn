@@ -20,6 +20,7 @@ import {
 import {
   findGuestAccountIdByEmailPg,
   findLatestEmailChallengeInCooldownPg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   insertGuestEmailChallengePg,
   updateGuestAccountLastLoginPg,
@@ -94,6 +95,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const signupSource = inferGuestSignupSource(request, body?.accountOrigin)
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
+  }
+  if (await guestShopAccountIsLockedPg(partnerId, email)) {
+    return NextResponse.json({ error: 'ACCOUNT_LOCKED' }, { status: 403 })
   }
 
   const existingSessionId = readGuestSessionIdFromRequest(request)

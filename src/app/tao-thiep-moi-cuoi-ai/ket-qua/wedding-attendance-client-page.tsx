@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Mail } from 'lucide-react'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
@@ -108,27 +108,75 @@ export default function WeddingAttendanceClientPage({
   const [bride, setBride] = useState(brideEmail)
   const [sendNotify, setSendNotify] = useState(notify)
   const [saving, setSaving] = useState(false)
+  const [savedNote, setSavedNote] = useState('')
+  const savedSnapshotRef = useRef(`${groomEmail}\n${brideEmail}\n${notify ? '1' : '0'}`)
+  const saveTimerRef = useRef<number | null>(null)
 
   const backToEditor = useCallback(() => {
     router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
   }, [cardId, router])
   useSetCreationToolBackHandler(backToEditor)
 
-  async function save() {
+  const persistNotify = useCallback(async (next: { groom: string; bride: string; notify: boolean }) => {
+    const snap = `${next.groom.trim()}\n${next.bride.trim()}\n${next.notify ? '1' : '0'}`
+    if (savedSnapshotRef.current === snap) return
     setSaving(true)
     const form = new FormData()
     form.set('cardId', cardId)
-    form.set('groomEmail', groom)
-    form.set('brideEmail', coupleShape ? bride : '')
-    form.set('notify', sendNotify ? 'true' : 'false')
+    form.set('groomEmail', next.groom.trim())
+    form.set('brideEmail', coupleShape ? next.bride.trim() : '')
+    form.set('notify', next.notify ? 'true' : 'false')
     const result = await saveWeddingAttendanceNotifySettings(form)
     setSaving(false)
     if ('error' in result && result.error) {
+      setSavedNote('')
       toast({ title: 'Chưa lưu', description: result.error, variant: 'destructive' })
       return
     }
-    toast({ title: 'Đã lưu cách nhận email' })
-  }
+    savedSnapshotRef.current = snap
+    setSavedNote('Đã lưu tự động')
+  }, [cardId, coupleShape, toast])
+
+  useEffect(() => {
+    const groomTrim = groom.trim()
+    const brideTrim = coupleShape ? bride.trim() : ''
+    const emailOk = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value)
+    if (!emailOk(groomTrim) || !emailOk(brideTrim)) return
+    if (sendNotify && !groomTrim && !brideTrim) return
+    const snap = `${groomTrim}\n${brideTrim}\n${sendNotify ? '1' : '0'}`
+    if (savedSnapshotRef.current === snap) return
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null
+      void persistNotify({ groom: groomTrim, bride: brideTrim, notify: sendNotify })
+    }, 800)
+    return () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+    }
+  }, [bride, coupleShape, groom, persistNotify, sendNotify])
+
+  const draftRef = useRef({ groom, bride, notify: sendNotify })
+  draftRef.current = { groom, bride, notify: sendNotify }
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimerRef.current) {
+        window.clearTimeout(saveTimerRef.current)
+        saveTimerRef.current = null
+      }
+      const next = draftRef.current
+      const groomTrim = next.groom.trim()
+      const brideTrim = coupleShape ? next.bride.trim() : ''
+      const emailOk = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value)
+      if (!emailOk(groomTrim) || !emailOk(brideTrim)) return
+      if (next.notify && !groomTrim && !brideTrim) return
+      void persistNotify({ groom: groomTrim, bride: brideTrim, notify: next.notify })
+    }
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [coupleShape, persistNotify])
 
   return (
     <>
@@ -196,15 +244,17 @@ export default function WeddingAttendanceClientPage({
             <label htmlFor="rsvp-notify-daily-increase">
               <span className="font-medium">Gửi khi số người đi tăng — mỗi ngày một thư</span>
               <span className="mt-0.5 block text-muted-foreground">
-                Nhiều khách xác nhận trong cùng ngày vẫn gộp một thư. Ngày không có người tăng thì không gửi. Lưu cài đặt không gửi lại số hiện tại.
+                Nhiều khách xác nhận trong cùng ngày vẫn gộp một thư. Ngày không có người tăng thì không gửi. Đổi email hoặc bật gửi thì tự lưu, không gửi lại số hiện tại.
               </span>
             </label>
           </div>
 
-          <Button type="button" onClick={() => void save()} disabled={saving}>
-            {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Lưu cài đặt email
-          </Button>
+          {saving || savedNote ? (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {saving ? 'Đang lưu…' : savedNote}
+            </p>
+          ) : null}
         </section>
       </div>
     </>

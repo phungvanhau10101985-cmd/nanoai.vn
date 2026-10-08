@@ -12,6 +12,7 @@ import {
   consumeEmailChallengePg,
   findActiveOtpChallengePg,
   findGuestAccountIdByEmailPg,
+  guestShopAccountIsLockedPg,
   incrementOtpChallengeAttemptsPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
@@ -114,6 +115,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const consumed = await consumeEmailChallengePg(challenge.id, nowIso)
   if (!consumed) {
     return NextResponse.json({ error: 'Could not verify OTP.' }, { status: 500 })
+  }
+  if (await guestShopAccountIsLockedPg(partnerId, email)) {
+    return NextResponse.json({ error: 'ACCOUNT_LOCKED' }, { status: 403 })
   }
 
   let accountId: string | undefined

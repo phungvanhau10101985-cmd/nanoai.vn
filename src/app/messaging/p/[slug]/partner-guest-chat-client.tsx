@@ -5603,7 +5603,10 @@ export function PartnerGuestChatClient({
           })
           return
         }
-        toast({ title: data.error || t.sendError, variant: 'destructive' })
+        toast({
+          title: data.error === 'ACCOUNT_LOCKED' ? t.guestAuthAccountLocked : data.error || t.sendError,
+          variant: 'destructive',
+        })
         return
       }
       if (data.autoSignedIn) {
@@ -5664,7 +5667,10 @@ export function PartnerGuestChatClient({
           })
           return
         }
-        toast({ title: t.guestAuthOtpInvalid, variant: 'destructive' })
+        toast({
+          title: data.error === 'ACCOUNT_LOCKED' ? t.guestAuthAccountLocked : t.guestAuthOtpInvalid,
+          variant: 'destructive',
+        })
         return
       }
       setAuthMode('account')
@@ -5704,6 +5710,7 @@ export function PartnerGuestChatClient({
     load,
     refreshAuthAndReload,
     slug,
+    t.guestAuthAccountLocked,
     t.guestAuthOtpInvalid,
     t.guestAuthRateLimited,
     toast,

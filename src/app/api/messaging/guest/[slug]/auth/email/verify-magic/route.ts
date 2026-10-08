@@ -13,6 +13,7 @@ import {
   consumeEmailChallengePg,
   findGuestAccountIdByEmailPg,
   findMagicLinkChallengePg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
@@ -111,6 +112,9 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   const consumed = await consumeEmailChallengePg(row.id, nowIso)
   if (!consumed) {
     return NextResponse.redirect(new URL(`${guestChatUrl}?auth=failed`))
+  }
+  if (await guestShopAccountIsLockedPg(partnerId, email)) {
+    return NextResponse.redirect(new URL(`${guestChatUrl}?auth=locked`))
   }
 
   let accountId: string | undefined

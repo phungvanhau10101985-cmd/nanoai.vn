@@ -100,6 +100,8 @@ export function PartnerSiteShopAuthPanel({
   initialReturnDest,
 }: Props) {
   const t = getPartnerSiteShopCopy(locale)
+  const authErrorMessage = (error: string | undefined) =>
+    error === 'ACCOUNT_LOCKED' ? t.authAccountLocked : error || t.authFailed
   const onCustomDomain = usePartnerSiteCustomDomain()
   const { authResolved, isAuthenticated, authHeaders, captureFromResponse } = usePartnerSiteGuestSession(siteSlug)
   const [email, setEmail] = useState('')
@@ -256,7 +258,7 @@ export function PartnerSiteShopAuthPanel({
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; autoSignedIn?: boolean }
       if (!res.ok || !json.ok) {
-        setMessage(json.error || t.authFailed)
+        setMessage(authErrorMessage(json.error))
         return
       }
       if (json.autoSignedIn) {
@@ -302,7 +304,7 @@ export function PartnerSiteShopAuthPanel({
       captureFromResponse(res)
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (!res.ok || !json.ok) {
-        setMessage(json.error || t.authFailed)
+        setMessage(authErrorMessage(json.error))
         return
       }
       setMessage(t.authSuccess)

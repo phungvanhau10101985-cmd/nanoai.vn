@@ -43,6 +43,7 @@ function Portrait(props: {
             alt={`${props.label} ${nameText}`}
             objectPosition={frameStyle.objectPosition}
             scale={props.frame.scale}
+            className="w-full max-w-none"
           />
           <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
             <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>

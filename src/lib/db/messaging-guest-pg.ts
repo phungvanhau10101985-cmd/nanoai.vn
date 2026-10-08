@@ -4,6 +4,28 @@ import { pgQueryOne } from '@/lib/db/pg-query'
 
 export type GuestProfileGender = 'male' | 'female'
 
+/** true khi admin shop đã khóa tài khoản. Thiếu cột is_active = chưa khóa. */
+export async function guestShopAccountIsLockedPg(partnerId: string, emailNormalized: string): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const email = emailNormalized.trim().toLowerCase()
+  if (!email) return false
+  try {
+    const row = await pgQueryOne<{ is_active: boolean | null }>(
+      `select is_active from public.messaging_guest_accounts
+       where partner_id = $1::uuid and email_normalized = $2
+       limit 1`,
+      [partnerId, email]
+    )
+    if (!row) return false
+    return row.is_active === false
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/is_active/i.test(msg)) return false
+    console.warn('[guestShopAccountIsLockedPg]', e)
+    return false
+  }
+}
+
 export async function findGuestAccountIdByEmailPg(
   partnerId: string,
   emailNormalized: string

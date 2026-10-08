@@ -925,7 +925,7 @@ export default function WeddingPublicClient({
               </p>
             </WeddingReadableGlass>
             {card.albumImageUrls.length > 0 && (
-              <WeddingSectionCard theme={theme} title={tx.albumTitle} contentClassName="-mx-1 sm:-mx-2">
+              <WeddingSectionCard theme={theme} title={tx.albumTitle} className="min-w-0" contentClassName="min-w-0 -mx-1 sm:-mx-2">
                 <WeddingAlbumStage
                   urls={card.albumImageUrls}
                   alt={tx.albumAlt}

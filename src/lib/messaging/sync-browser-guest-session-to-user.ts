@@ -4,6 +4,7 @@ import {
 } from '@/lib/db/customer-care-pg'
 import {
   findGuestAccountIdByEmailPg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
@@ -44,6 +45,7 @@ export async function syncBrowserGuestSessionToUser(params: {
   let synced = 0
   for (const partnerId of partnerIds) {
     try {
+      if (await guestShopAccountIsLockedPg(partnerId, email)) continue
       let accountId = await findGuestAccountIdByEmailPg(partnerId, email)
       if (!accountId) {
         accountId = await insertGuestAccountPg({

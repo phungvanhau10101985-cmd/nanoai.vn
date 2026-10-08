@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForCreditAction } from '@/lib/auth'
 import { fetchPartnerCustomersForAdminFromPg } from '@/lib/db/messaging-partner-customers-pg'
+import { isMessagingPartnerOwnerFromPg } from '@/lib/db/messaging-partner-members-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 
-/** M2.1 — danh sách khách đã đăng ký tài khoản shop (CRM nhẹ), kèm thống kê đơn. Gate: quyền `orders`. */
+/** Danh sách thành viên shop — mặt quản trị giống 188 /admin/members. */
 export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: string }> }) {
   const { partnerId } = await ctx.params
   if (!isPgConfigured()) return NextResponse.json({ error: 'Database not configured' }, { status: 503 })
@@ -20,7 +21,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   const pageSize = Math.min(100, Math.max(1, Number(url.searchParams.get('pageSize') ?? 20) || 20))
   const search = url.searchParams.get('search') || undefined
 
-  const result = await fetchPartnerCustomersForAdminFromPg({ partnerId: pid, page, pageSize, search })
+  const [result, canManageLinkedStaff] = await Promise.all([
+    fetchPartnerCustomersForAdminFromPg({ partnerId: pid, page, pageSize, search }),
+    isMessagingPartnerOwnerFromPg(pid, auth.user.id),
+  ])
   if (result === null) return NextResponse.json({ error: 'Could not load customers' }, { status: 500 })
-  return NextResponse.json({ customers: result.rows, total: result.total, page, pageSize })
+  return NextResponse.json({
+    customers: result.rows,
+    total: result.total,
+    page,
+    pageSize,
+    canManageLinkedStaff,
+  })
 }

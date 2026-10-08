@@ -301,6 +301,7 @@ export type PartnerSiteShopCopy = {
   authVerifyOtp: string
   authSuccess: string
   authFailed: string
+  authAccountLocked: string
   authOtpSent: string
   authCheckEmailSpamTrashHint: string
   authOpenGmail: string
@@ -1014,6 +1015,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authVerifyOtp: 'Xác minh',
     authSuccess: 'Đã xác minh email — có thể thanh toán.',
     authFailed: 'Không xác minh được. Thử lại.',
+    authAccountLocked: 'Tài khoản đã bị khóa.',
     authOtpSent: 'Đã gửi mã OTP tới email.',
     authCheckEmailSpamTrashHint:
       'Vui lòng kiểm tra mã OTP trong Hộp thư đến, Thư rác (Spam) hoặc Thùng rác (Trash). Email có thể bị chuyển vào Thư rác hoặc Thùng rác, hãy tìm mã cả ở Thùng rác.',
@@ -1723,6 +1725,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authVerifyOtp: 'Verify',
     authSuccess: 'Email verified — you can checkout.',
     authFailed: 'Verification failed. Try again.',
+    authAccountLocked: 'This account is locked.',
     authOtpSent: 'OTP sent to your email.',
     authCheckEmailSpamTrashHint:
       'Please check your OTP in Inbox, Spam/Junk, or Trash folder. The email might be filtered into Spam or Trash, please check Trash as well.',
@@ -2430,6 +2433,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authVerifyOtp: '验证',
     authSuccess: '邮箱已验证 — 可以结账。',
     authFailed: '验证失败，请重试。',
+    authAccountLocked: '该账户已锁定。',
     authOtpSent: '验证码已发送到邮箱。',
     authCheckEmailSpamTrashHint:
       '请在收件箱、垃圾邮件或已删除邮件（废纸篓/垃圾箱）中查看 OTP 验证码。邮件可能被分类至垃圾箱，请一并在废纸篓中查找。',
@@ -3134,6 +3138,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authVerifyOtp: '確認',
     authSuccess: 'メール確認済み — 決済できます。',
     authFailed: '確認に失敗しました。',
+    authAccountLocked: 'このアカウントはロックされています。',
     authOtpSent: 'OTPをメールに送信しました。',
     authCheckEmailSpamTrashHint:
       '受信トレイ、迷惑メール、またはゴミ箱フォルダでOTPコードをご確認ください。メールがゴミ箱に振り分けられている可能性もあるため、ゴミ箱もご確認ください。',
@@ -3840,6 +3845,7 @@ const COPY: Record<WebLocale, PartnerSiteShopCopy> = {
     authVerifyOtp: '인증',
     authSuccess: '이메일 인증 완료 — 결제 가능합니다.',
     authFailed: '인증 실패. 다시 시도하세요.',
+    authAccountLocked: '이 계정은 잠겨 있습니다.',
     authOtpSent: 'OTP가 이메일로 전송되었습니다.',
     authCheckEmailSpamTrashHint:
       '받은편지함, 스팸함 또는 휴지통에서 OTP 코드를 확인해 주세요. 이메일이 휴지통으로 이동되었을 수 있으니 휴지통에서도 코드를 확인해 보세요.',

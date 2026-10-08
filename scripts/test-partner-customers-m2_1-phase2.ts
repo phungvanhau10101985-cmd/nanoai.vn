@@ -33,6 +33,11 @@ async function main() {
   )
   const email = `khach-p2-${tag}@example.com`
   await pool.query(
+    `insert into public.messaging_guest_accounts (partner_id, email_raw, email_normalized)
+     values ($1::uuid, $2, $2)`,
+    [partnerId, email]
+  )
+  await pool.query(
     `insert into public.messaging_partner_orders (
       partner_id, conversation_id, status, shipping_status, customer_email, customer_name, customer_phone,
       subtotal_amount, amount_after_discount

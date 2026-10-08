@@ -5,6 +5,7 @@ import { getEmailSessionCookieOptions } from '@/lib/auth/email-session-token'
 import type { NextResponse } from 'next/server'
 import {
   findGuestAccountIdByEmailPg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
@@ -143,6 +144,9 @@ export async function authenticatePartnerSiteCustomer(params: {
   }
   const { email, name, phone } = verified.payload
   const partnerId = params.partnerId
+  if (await guestShopAccountIsLockedPg(partnerId, email)) {
+    return { ok: false, status: 403, error: 'ACCOUNT_LOCKED' }
+  }
   const sessionId = readGuestSessionIdFromRequestStrictOrLoose(params.request)
   const nowIso = new Date().toISOString()
 

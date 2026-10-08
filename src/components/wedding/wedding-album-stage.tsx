@@ -38,14 +38,18 @@ function motionTransition(smooth: boolean) {
 }
 
 function AlbumPhoto(props: { url: string; alt: string; className?: string; frame: WeddingAlbumPhotoFrame }) {
+  const fill = props.className?.includes('absolute')
   return (
     // eslint-disable-next-line @next/next/no-img-element -- album URLs are external CDN
     <img
       src={props.url}
       alt={props.alt}
       draggable={false}
-      className={cn('pointer-events-none h-full w-full object-cover', props.className)}
-      style={albumPhotoFrameStyle(props.frame)}
+      className={cn('pointer-events-none h-full w-full object-cover', fill && 'max-w-none', props.className)}
+      style={{
+        ...albumPhotoFrameStyle(props.frame),
+        ...(fill ? { width: '100%', height: '100%', maxWidth: 'none' } : null),
+      }}
     />
   )
 }
@@ -282,7 +286,7 @@ export function WeddingAlbumStage(props: {
   const expandLabel = navCopy.expand
 
   return (
-    <div className={cn('relative', props.className)}>
+    <div className={cn('relative w-full min-w-0 max-w-full', props.className)}>
       <div
         ref={swipeRootRef}
         className="relative select-none"
@@ -466,7 +470,7 @@ function AlbumFrame(props: {
           return (
             <div
               key={`${url}-${i}`}
-              className="absolute inset-0 touch-pan-y"
+              className="absolute inset-0 overflow-hidden touch-pan-y"
               style={{
                 touchAction: 'pan-y',
                 opacity: Math.max(0, 1 - ad),
@@ -474,7 +478,7 @@ function AlbumFrame(props: {
                 transition,
               }}
             >
-              <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
+              <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
             </div>
           )
         })}
@@ -482,9 +486,12 @@ function AlbumFrame(props: {
     )
     if (props.layout === 'film') {
       return (
-        <div className="space-y-3">
+        <div className="w-full min-w-0 max-w-full space-y-3">
           {hero}
-          <div className="flex gap-2 overflow-x-auto pb-1" data-album-film-strip="">
+          <div
+            className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1"
+            data-album-film-strip=""
+          >
             {urls.map((url, i) => {
               const ad = Math.abs(wrappedDelta(i, focus, count))
               const on = ad < 0.45
@@ -493,13 +500,16 @@ function AlbumFrame(props: {
                   key={`${url}-${i}`}
                   type="button"
                   onClick={() => props.onJump(i)}
-                  className={cn('h-16 w-12 shrink-0 overflow-hidden rounded-lg ring-2 ring-offset-1', on ? 'ring-stone-800' : 'ring-transparent')}
+                  className={cn(
+                    'relative h-16 w-12 min-h-16 min-w-12 max-h-16 max-w-12 shrink-0 overflow-hidden rounded-lg ring-2 ring-offset-1',
+                    on ? 'ring-stone-800' : 'ring-transparent',
+                  )}
                   style={{
                     opacity: on ? 1 : 0.7,
                     transition,
                   }}
                 >
-                  <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
+                  <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
                 </button>
               )
             })}
@@ -601,7 +611,7 @@ export function WeddingAlbumLayoutPicker(props: {
   const selected = resolveWeddingAlbumLayoutId(props.selectedId || DEFAULT_WEDDING_ALBUM_LAYOUT_ID)
   const urls = (props.previewUrls ?? []).filter(Boolean)
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 max-w-full space-y-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {WEDDING_ALBUM_LAYOUTS.map((layout) => {
           const on = layout.id === selected

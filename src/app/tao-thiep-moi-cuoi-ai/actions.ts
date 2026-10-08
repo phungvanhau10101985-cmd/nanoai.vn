@@ -50,8 +50,7 @@ import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-t
 import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
-import { invitationGiftBlockedMessage, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
-import { isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
+import { normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
@@ -312,21 +311,6 @@ export async function saveWeddingCardBrief(formData: FormData) {
     brideGiftAccountName,
     effectsEnabled: formData.has('effectsEnabled') ? boolValue(formData.get('effectsEnabled')) : true,
     occasionKey: normalizeInvitationOccasion(formData.get('occasionKey') ?? existing.occasionKey),
-  }
-  const giftCheckCard: WeddingCard = {
-    ...existing,
-    occasionKey: draftForGift.occasionKey,
-    giftQrEnabled,
-    giftQrImageUrl,
-    groomGiftBankId,
-    groomGiftAccountNo,
-    groomGiftAccountName,
-    brideGiftBankId,
-    brideGiftAccountNo,
-    brideGiftAccountName,
-  }
-  if (giftQrEnabled && !isInvitationGiftReady(giftCheckCard) && !giftQrImageUrl.trim()) {
-    return { error: invitationGiftBlockedMessage(giftCheckCard.occasionKey) }
   }
 
   const briefCard = await updateWeddingCardBrief(draftForGift)

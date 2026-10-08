@@ -11,6 +11,7 @@ import { mergeGuestSessionConversationToAccount } from '@/lib/messaging/guest-ac
 import { completeGuestEmailAuth } from '@/lib/messaging/complete-guest-email-auth'
 import {
   findGuestAccountIdByEmailPg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
@@ -75,6 +76,7 @@ export async function upsertGuestAccountForGoogleIdentity(
   if (!user?.email) return null
   if (!isPgConfigured()) return null
   const email = normalizeEmail(user.email)
+  if (await guestShopAccountIsLockedPg(partnerId, email)) return null
   const nowIso = new Date().toISOString()
   let accountId: string | undefined
 

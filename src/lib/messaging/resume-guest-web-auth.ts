@@ -8,6 +8,7 @@ import {
 } from '@/lib/auth/email-trusted-device'
 import {
   findGuestAccountIdByEmailPg,
+  guestShopAccountIsLockedPg,
   insertGuestAccountPg,
   updateGuestAccountLastLoginPg,
   upsertGuestIdentityPg,
@@ -57,6 +58,7 @@ async function signInGuestAccountForEmail(input: {
   partnerSlug?: string | null
 }): Promise<string | null> {
   const email = normalizeEmail(input.email)
+  if (await guestShopAccountIsLockedPg(input.partnerId, email)) return null
   const nowIso = new Date().toISOString()
   let accountId = input.existingAccountId?.trim() || null
 

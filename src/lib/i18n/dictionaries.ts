@@ -2488,6 +2488,7 @@ export type Dictionary = {
     guestAuthOpenGmail: string
     guestAuthOpenMailbox: string
     guestAuthOtpInvalid: string
+    guestAuthAccountLocked: string
     guestAuthRateLimited: string
     /** Checkbox «tin cậy thiết bị» (OTP guest). */
     guestAuthRememberDeviceHint: string
@@ -3393,6 +3394,7 @@ export type Dictionary = {
   /** /tao-thiep-moi-cuoi-ai — mô tả nội dung brief & auto-save */
   weddingCardAiBrief: {
     step2Description: string
+    autoSavingLabel: string
     autoSavedLabel: string
     autoSaveFailedLabel: string
     dateFormatHint: string
@@ -6382,6 +6384,7 @@ const VI_DICTIONARY: Dictionary = {
     guestAuthOpenGmail: 'Mở Gmail kiểm tra mã',
     guestAuthOpenMailbox: 'Mở hộp thư kiểm tra mã',
     guestAuthOtpInvalid: 'Mã OTP không hợp lệ hoặc đã hết hạn.',
+    guestAuthAccountLocked: 'Tài khoản đã bị khóa.',
     guestAuthRateLimited: 'Bạn thao tác quá nhanh. Vui lòng thử lại sau {seconds} giây.',
     guestAuthRememberDeviceHint:
       'Tin cậy thiết bị/trình duyệt này lâu dài (đăng nhập lại cùng email sẽ bỏ qua OTP).',
@@ -7267,9 +7270,10 @@ const VI_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      'Sửa nội dung và xem preview đều miễn phí. Thay đổi tự động lưu gần như ngay lập tức; có thể vẫn nhấn «Lưu nội dung thiệp» để lưu ngay.',
+      'Sửa nội dung và xem preview đều miễn phí. Mọi thay đổi tự lưu, không cần bấm Lưu.',
+    autoSavingLabel: 'Đang lưu…',
     autoSavedLabel: 'Đã lưu tự động',
-    autoSaveFailedLabel: 'Chưa lưu được. Kiểm tra mạng hoặc nhấn «Lưu nội dung thiệp».',
+    autoSaveFailedLabel: 'Chưa lưu được. Kiểm tra mạng rồi sửa lại một chỗ để lưu tiếp.',
     dateFormatHint:
       'Chọn ngày cưới trên lịch. «Giờ đón khách» và «Giờ khai tiệc» hiển thị trên khối thông tin tiệc.',
     dateSelectedPrefix: 'Đã chọn:',
@@ -10258,6 +10262,7 @@ const EN_DICTIONARY: Dictionary = {
     guestAuthOpenGmail: 'Open Gmail to check code',
     guestAuthOpenMailbox: 'Open mailbox to check code',
     guestAuthOtpInvalid: 'OTP is invalid or expired.',
+    guestAuthAccountLocked: 'This account is locked.',
     guestAuthRateLimited: 'You are doing this too quickly. Please try again in {seconds} seconds.',
     guestAuthRememberDeviceHint:
       'Trust this device/browser long term (signing in again with the same email may skip OTP).',
@@ -11141,9 +11146,10 @@ const EN_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      'Editing content and preview is free. Changes auto-save almost immediately; you can still press Save to persist immediately.',
+      'Editing content and preview is free. Every change saves itself. There is no Save button.',
+    autoSavingLabel: 'Saving…',
     autoSavedLabel: 'Auto-saved',
-    autoSaveFailedLabel: 'Could not auto-save. Check your connection or press Save.',
+    autoSaveFailedLabel: 'Could not auto-save. Check your connection, then edit once more to save again.',
     dateFormatHint:
       'Pick the wedding date on the calendar. Set the event time in the Wedding time field next to it.',
     dateSelectedPrefix: 'Selected:',
@@ -14070,6 +14076,7 @@ const ZH_DICTIONARY: Dictionary = {
     guestAuthOpenGmail: '打开 Gmail 查看验证码',
     guestAuthOpenMailbox: '打开邮箱查看验证码',
     guestAuthOtpInvalid: 'OTP 无效或已过期。',
+    guestAuthAccountLocked: '该账户已锁定。',
     guestAuthRateLimited: '操作过于频繁，请在 {seconds} 秒后重试。',
     guestAuthRememberDeviceHint: '长期信任此设备/浏览器（同一邮箱再次登录可能免去 OTP）。',
     guestAuthVerifyingProgress: '正在登录，请稍候...',
@@ -14900,9 +14907,10 @@ const ZH_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '编辑内容与预览均为免费。更改会几乎立即自动保存；您仍可手动按「保存」立即保存。',
+      '编辑内容与预览均为免费。任何更改都会自动保存，无需按保存。',
+    autoSavingLabel: '正在保存…',
     autoSavedLabel: '已自动保存',
-    autoSaveFailedLabel: '未能自动保存。请检查网络或按下「保存」。',
+    autoSaveFailedLabel: '未能自动保存。请检查网络，然后再改一处以继续保存。',
     dateFormatHint: '在日历中选择婚礼日期。活动时间请在旁边的“婚礼时间”字段中设置。',
     dateSelectedPrefix: '已选择：',
     guestInviteVenueLabel: '邀请至',
@@ -17882,6 +17890,7 @@ const JA_DICTIONARY: Dictionary = {
     guestAuthOpenGmail: 'Gmailを開いて確認',
     guestAuthOpenMailbox: 'メールボックスを開いて確認',
     guestAuthOtpInvalid: 'OTPが無効か期限切れです。',
+    guestAuthAccountLocked: 'このアカウントはロックされています。',
     guestAuthRateLimited: '操作が速すぎます。{seconds}秒後に再試行してください。',
     guestAuthRememberDeviceHint:
       'この端末/ブラウザを長期間信頼する（同じメールで再ログイン時にOTPを省略する場合があります）。',
@@ -18739,9 +18748,10 @@ const JA_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '内容の編集とプレビューは無料です。変更はほぼすぐに自動保存されます。「保存」を押してすぐ保存することもできます。',
+      '内容の編集とプレビューは無料です。変更はすべて自動保存され、保存ボタンは不要です。',
+    autoSavingLabel: '保存中…',
     autoSavedLabel: '自動保存しました',
-    autoSaveFailedLabel: '自動保存できませんでした。接続を確認するか「保存」を押してください。',
+    autoSaveFailedLabel: '自動保存できませんでした。接続を確認し、もう一度編集すると保存を再開します。',
     dateFormatHint:
       'カレンダーで結婚日を選択します。時間は隣の「婚礼時間」欄で設定してください。',
     dateSelectedPrefix: '選択:',
@@ -21722,6 +21732,7 @@ const KO_DICTIONARY: Dictionary = {
     guestAuthOpenGmail: 'Gmail 열어 확인하기',
     guestAuthOpenMailbox: '메일함 열어 확인하기',
     guestAuthOtpInvalid: 'OTP가 유효하지 않거나 만료되었습니다.',
+    guestAuthAccountLocked: '이 계정은 잠겨 있습니다.',
     guestAuthRateLimited: '요청이 너무 빠릅니다. {seconds}초 후 다시 시도해 주세요.',
     guestAuthRememberDeviceHint:
       '이 기기/브라우저를 장기간 신뢰(동일 이메일로 다시 로그인하면 OTP를 생략할 수 있음).',
@@ -22573,9 +22584,10 @@ const KO_DICTIONARY: Dictionary = {
   },
   weddingCardAiBrief: {
     step2Description:
-      '내용 수정과 미리보기는 무료입니다. 변경 사항은 거의 즉시 자동 저장되며, «저장»을 눌러 바로 저장할 수 있습니다.',
+      '내용 수정과 미리보기는 무료입니다. 모든 변경은 자동 저장되며 저장 버튼이 필요 없습니다.',
+    autoSavingLabel: '저장 중…',
     autoSavedLabel: '자동 저장됨',
-    autoSaveFailedLabel: '자동 저장에 실패했습니다. 네트워크를 확인하거나 «저장»을 누르세요.',
+    autoSaveFailedLabel: '자동 저장에 실패했습니다. 네트워크를 확인한 뒤 한 곳만 더 수정하면 다시 저장됩니다.',
     dateFormatHint:
       '달력에서 예식일을 선택합니다. 시간은 옆의 결혼 시간 입력란에서 설정하세요.',
     dateSelectedPrefix: '선택:',

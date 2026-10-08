@@ -81,12 +81,13 @@ import {
   resolvePortraitShell,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
+  type WeddingPortraitShellFrame,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-preset-picker'
-import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
+import { WeddingCoverShellCard, WeddingFramedPhoto } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
@@ -269,6 +270,15 @@ function buildPersistSnapshot(input: {
     musicFk: fk(input.musicFile),
     albumKeys,
   })
+}
+
+function weddingQuickViewHref(slug: string) {
+  const params = new URLSearchParams({
+    demo: '1',
+    view: 'groom',
+    venue: 'groom_home',
+  })
+  return `/thiep-moi-cuoi/${encodeURIComponent(slug)}?${params.toString()}`
 }
 
 function weddingCardListTitle(row: Pick<WeddingCardSummary, 'occasionKey' | 'groomName' | 'brideName'>) {
@@ -891,6 +901,8 @@ export default function WeddingCardAiClientPage() {
   const baselineHydratedRef = useRef(false)
   const autosaveTimerRef = useRef<number | null>(null)
   const persistInFlightRef = useRef(false)
+  const persistQueuedRef = useRef(false)
+  const [autoSaving, setAutoSaving] = useState(false)
   const [autosaveBanner, setAutosaveBanner] = useState<
     null | { message: string; variant: 'success' | 'destructive' }
   >(null)
@@ -930,19 +942,6 @@ export default function WeddingCardAiClientPage() {
     const p = persistInputsRef.current
     if (!p.card.id) return false
 
-    const giftInvalid =
-      p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
-    if (giftInvalid) {
-      if (!silent) {
-        toast({
-          title: 'Chưa đủ thông tin mừng cưới',
-          description: txGift.saveNeedConfig,
-          variant: 'destructive',
-        })
-      }
-      return false
-    }
-
     if (!silent) {
       if (autosaveTimerRef.current) {
         window.clearTimeout(autosaveTimerRef.current)
@@ -950,9 +949,13 @@ export default function WeddingCardAiClientPage() {
       }
     }
 
-    if (persistInFlightRef.current) return false
+    if (persistInFlightRef.current) {
+      persistQueuedRef.current = true
+      return false
+    }
     persistInFlightRef.current = true
-    if (!silent) setSaving(true)
+    if (silent) setAutoSaving(true)
+    else setSaving(true)
 
     try {
       const c = p.card
@@ -1094,16 +1097,21 @@ export default function WeddingCardAiClientPage() {
       return false
     } finally {
       persistInFlightRef.current = false
-      if (!silent) setSaving(false)
+      if (silent) setAutoSaving(false)
+      else setSaving(false)
+      if (persistQueuedRef.current) {
+        persistQueuedRef.current = false
+        window.setTimeout(() => {
+          const latest = buildPersistSnapshot(persistInputsRef.current)
+          if (latest !== lastSavedPersistRef.current) void commitSaveBrief(true)
+        }, AUTO_SAVE_DEBOUNCE_MS)
+      }
     }
   }
 
   useEffect(() => {
     if (loading || !card.id) return
     if (persistFingerprint === lastSavedPersistRef.current) return
-    const giftBlocked =
-      card.giftQrEnabled && !isInvitationGiftReady(card) && !isLegacySingleGiftImage(card)
-    if (giftBlocked) return
 
     if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current)
     autosaveTimerRef.current = window.setTimeout(async () => {
@@ -1112,10 +1120,6 @@ export default function WeddingCardAiClientPage() {
       if (!p.card.id) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
-
-      const blocked =
-        p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
-      if (blocked) return
 
       await commitSaveBrief(true)
     }, AUTO_SAVE_DEBOUNCE_MS)
@@ -1135,9 +1139,10 @@ export default function WeddingCardAiClientPage() {
       if (!p.card.id) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
-      const blocked =
-        p.card.giftQrEnabled && !isInvitationGiftReady(p.card) && !isLegacySingleGiftImage(p.card)
-      if (blocked || persistInFlightRef.current) return
+      if (persistInFlightRef.current) {
+        persistQueuedRef.current = true
+        return
+      }
       if (autosaveTimerRef.current) {
         window.clearTimeout(autosaveTimerRef.current)
         autosaveTimerRef.current = null
@@ -1412,7 +1417,7 @@ export default function WeddingCardAiClientPage() {
       }))
       setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
       trackWeddingAddToCart(result.card.id)
-      toast({ title: 'Đã lưu và xuất bản link thiệp', description: 'Không tốn credit.' })
+      toast({ title: 'Đã xuất bản link thiệp', description: 'Nội dung đã tự lưu. Không tốn credit.' })
     }
   }
 
@@ -1667,7 +1672,7 @@ export default function WeddingCardAiClientPage() {
                       </Button>
                       {item.isPublished && item.slug ? (
                         <Button asChild variant="outline" size="sm">
-                          <a href={`/thiep-moi-cuoi/${encodeURIComponent(item.slug)}`} target="_blank" rel="noreferrer">
+                          <a href={weddingQuickViewHref(item.slug)} target="_blank" rel="noreferrer">
                             <Eye className="mr-1 h-3.5 w-3.5" />
                             Xem nhanh
                           </a>
@@ -2054,15 +2059,15 @@ export default function WeddingCardAiClientPage() {
                     <CardDescription>{tBrief.step2Description}</CardDescription>
                   </div>
                   <div className="flex min-h-[1.25rem] shrink-0 items-start sm:max-w-[240px] sm:justify-end">
-                    {autosaveBanner ? (
+                    {autoSaving || autosaveBanner ? (
                       <p
                         role="status"
                         className={cn(
                           'text-xs sm:text-right sm:text-sm',
-                          autosaveBanner.variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground',
+                          !autoSaving && autosaveBanner?.variant === 'destructive' ? 'text-destructive' : 'text-muted-foreground',
                         )}
                       >
-                        {autosaveBanner.message}
+                        {autoSaving ? tBrief.autoSavingLabel : autosaveBanner?.message}
                       </p>
                     ) : null}
                   </div>
@@ -2113,6 +2118,7 @@ export default function WeddingCardAiClientPage() {
                     }
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('groom')}
+                    shell={groomPortraitShell}
                   />
                   <ImageUploadField
                     label={occasionCopy.secondaryPhoto}
@@ -2140,6 +2146,7 @@ export default function WeddingCardAiClientPage() {
                     }
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('bride')}
+                    shell={bridePortraitShell}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>
@@ -2245,7 +2252,7 @@ export default function WeddingCardAiClientPage() {
                 <div className="space-y-3 rounded-2xl border p-3">
                   <Label>{occasionCopy.albumLabel}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Kéo từng ảnh để chọn góc. Thanh zoom dưới ảnh để phóng phần muốn khách thấy. Nhấp đúp ảnh để về vị trí ban đầu. Ảnh mới cần lưu thiệp trước khi căn.
+                    Kéo từng ảnh để chọn góc. Thanh zoom dưới ảnh để phóng phần muốn khách thấy. Nhấp đúp ảnh để về vị trí ban đầu. Ảnh mới tự lưu, căn góc sau khi ảnh đã lên thiệp.
                   </p>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
                     <Upload className="h-4 w-4" />
@@ -2327,7 +2334,7 @@ export default function WeddingCardAiClientPage() {
                     placeholder="Hoặc dán URL ảnh album, mỗi dòng một ảnh"
                     className="min-h-20"
                   />
-                  <p className="text-xs text-muted-foreground">Thêm/sửa album ảnh không tốn credit. Căn góc ảnh cũng không tốn credit — nhớ bấm Lưu thiệp.</p>
+                  <p className="text-xs text-muted-foreground">Thêm, sửa và căn góc ảnh album không tốn credit. Mọi thay đổi tự lưu, không cần bấm Lưu.</p>
                 </div>
                 <Field label="Bảng màu AI" value={card.colorPalette} onChange={(v) => update('colorPalette', v)} />
                 <div className="space-y-3 rounded-2xl border p-3">
@@ -2526,20 +2533,6 @@ export default function WeddingCardAiClientPage() {
                           {occasionCopy.previewEyebrow}
                         </p>
                         <Heart className={cn('mx-auto h-5 w-5 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
-                        <WeddingCouplePortraits
-                          groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
-                          brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
-                          groomImageUrl={groomPortraitPreviewUrl}
-                          brideImageUrl={bridePortraitPreviewUrl}
-                          groomLabel={occasionKey === 'wedding' ? txPublic.groomRole : occasionCopy.primaryRole}
-                          brideLabel={occasionKey === 'wedding' ? txPublic.brideRole : occasionCopy.secondaryRole}
-                          groomFrame={groomPortraitFrame}
-                          brideFrame={bridePortraitFrame}
-                          groomShell={groomPortraitShell}
-                          brideShell={bridePortraitShell}
-                          theme={selectedTheme}
-                          compact
-                        />
                         <Dialog open={portraitFrameSide !== null} onOpenChange={(open) => { if (!open) setPortraitFrameSide(null) }}>
                           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                             <DialogHeader>
@@ -2744,6 +2737,20 @@ export default function WeddingCardAiClientPage() {
                         <p className={cn('w-full whitespace-pre-line text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
                           {previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
                         </p>
+                        <WeddingCouplePortraits
+                          groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
+                          brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
+                          groomImageUrl={groomPortraitPreviewUrl}
+                          brideImageUrl={bridePortraitPreviewUrl}
+                          groomLabel={occasionKey === 'wedding' ? txPublic.groomRole : occasionCopy.primaryRole}
+                          brideLabel={occasionKey === 'wedding' ? txPublic.brideRole : occasionCopy.secondaryRole}
+                          groomFrame={groomPortraitFrame}
+                          brideFrame={bridePortraitFrame}
+                          groomShell={groomPortraitShell}
+                          brideShell={bridePortraitShell}
+                          theme={selectedTheme}
+                          compact
+                        />
                         {(card.coupleIntro || groomLetterPreview.eventTimeline || brideLetterPreview.eventTimeline || card.dressCode) && (
                           <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
                             {card.coupleIntro ? (
@@ -2822,13 +2829,13 @@ export default function WeddingCardAiClientPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>9. Lưu và xuất bản</CardTitle>
-                <CardDescription>Một lần lưu nội dung và tạo link thiệp, RSVP, lời chúc, QR: 0 credit.</CardDescription>
+                <CardTitle>9. Xuất bản</CardTitle>
+                <CardDescription>Nội dung đã tự lưu. Bấm để tạo link thiệp công khai. RSVP, lời chúc, QR: 0 credit.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <Button onClick={publish} disabled={!card.id || saving || missing.includes('ảnh chính')} className="w-full">
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Lưu và xuất bản link thiệp
+                  Xuất bản link thiệp
                 </Button>
                 {card.id ? (
                   <>
@@ -3028,9 +3035,11 @@ function ImageUploadField(props: {
   onRemove?: () => void
   chooseFrameLabel?: string
   onChooseFrame?: () => void
+  shell?: WeddingPortraitShellFrame | null
 }) {
   const previewUrl = props.file ? URL.createObjectURL(props.file) : props.currentUrl
   const portrait = props.frame === 'portrait'
+  const shell = props.shell ?? null
   const photoActions = (
     <div className="absolute inset-x-0 bottom-2 z-[2] flex justify-center gap-1.5 px-2">
       <label
@@ -3061,6 +3070,7 @@ function ImageUploadField(props: {
       ) : null}
     </div>
   )
+  const framedClass = 'relative mx-auto w-full max-w-sm cursor-grab touch-none active:cursor-grabbing'
   return (
     <div className="space-y-2 rounded-2xl border p-3">
       <Label>{props.label}</Label>
@@ -3077,9 +3087,25 @@ function ImageUploadField(props: {
           hint="Kéo ảnh để đổi vị trí. Thanh zoom để phóng to hoặc thu nhỏ."
           ariaLabel={`Căn ${props.label}`}
           resetFrame={{ positionX: 50, positionY: 18, scale: 1 }}
-          frameClassName="relative mx-auto aspect-[3/4] max-h-72 w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing"
+          shell={shell}
+          frameClassName={
+            shell
+              ? framedClass
+              : 'relative mx-auto aspect-[3/4] max-h-72 w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing'
+          }
           frameActions={photoActions}
         />
+      ) : shell ? (
+        <div className="relative mx-auto w-full max-w-sm">
+          <WeddingFramedPhoto
+            frameSrc={shell.src}
+            hole={shell.hole}
+            photoUrl={previewUrl}
+            alt={props.label}
+            className="w-full max-w-none"
+          />
+          {photoActions}
+        </div>
       ) : (
         <div
           className={cn(
@@ -3124,6 +3150,7 @@ function CoverPhotoCropEditor(props: {
   bare?: boolean
   resetFrame?: { positionX: number; positionY: number; scale: number }
   frameActions?: ReactNode
+  shell?: WeddingPortraitShellFrame | null
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
@@ -3205,20 +3232,34 @@ function CoverPhotoCropEditor(props: {
         }}
         onDoubleClick={() => setScale(props.scale >= 1.8 ? 1 : 2)}
       >
-        <img
-          src={props.imageUrl}
-          alt={props.alt}
-          draggable={false}
-          className="h-full w-full select-none object-cover"
-          style={{
-            objectPosition,
-            transform: `scale(${props.scale})`,
-            transformOrigin: objectPosition,
-          }}
-        />
-        <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-white/70" aria-hidden />
-        <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/65" aria-hidden />
-        <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/65" aria-hidden />
+        {props.shell ? (
+          <WeddingFramedPhoto
+            frameSrc={props.shell.src}
+            hole={props.shell.hole}
+            photoUrl={props.imageUrl}
+            alt={props.alt}
+            objectPosition={objectPosition}
+            scale={props.scale}
+            className="pointer-events-none w-full max-w-none"
+          />
+        ) : (
+          <>
+            <img
+              src={props.imageUrl}
+              alt={props.alt}
+              draggable={false}
+              className="h-full w-full select-none object-cover"
+              style={{
+                objectPosition,
+                transform: `scale(${props.scale})`,
+                transformOrigin: objectPosition,
+              }}
+            />
+            <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-white/70" aria-hidden />
+            <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/65" aria-hidden />
+            <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/65" aria-hidden />
+          </>
+        )}
         {props.frameActions}
       </div>
 
