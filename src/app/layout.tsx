@@ -24,6 +24,7 @@ import {
 } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
+import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { parseSiteChatEmbed } from '@/lib/messaging/parse-site-chat-embed'
 import { isReservedMessagingGuestSlug } from '@/lib/messaging/reserved-guest-slugs'
 import { PlatformServiceWorkerRegistration } from '@/components/pwa/platform-service-worker-registration'
@@ -755,8 +756,10 @@ export default async function RootLayout({
                   languageSelectAriaLabel={widgetText.languageSelectAriaLabel}
                   ordersLabel={widgetText.ordersLabel}
                   cartLabel={widgetText.cartLabel}
+                  leaveRoomBelowLauncher
                 />
               ) : null}
+              <ScrollTopButton />
             </DepositCreditProvider>
           </>
         )}

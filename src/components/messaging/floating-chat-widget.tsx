@@ -130,6 +130,8 @@ type Props = {
   resolveOpenUrl?: () => string | undefined
   /** Ẩn icon nổi; vẫn mở được khi `externalOpenRequest` (nút Tư vấn trên trang). */
   hideLauncher?: boolean
+  /** Chừa chỗ phía dưới icon cho nút Top trên site NanoAI. Shop không bật. */
+  leaveRoomBelowLauncher?: boolean
 }
 
 export function FloatingChatWidget({
@@ -148,6 +150,7 @@ export function FloatingChatWidget({
   externalOpenRequest,
   resolveOpenUrl,
   hideLauncher = false,
+  leaveRoomBelowLauncher = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [duplicateMount, setDuplicateMount] = useState(false)
@@ -160,7 +163,9 @@ export function FloatingChatWidget({
   const [loyaltyTierLabel, setLoyaltyTierLabel] = useState('')
   const [cartCount, setCartCount] = useState(0)
   // Keep NanoAI widget above common social/contact bubbles (e.g. Zalo).
-  const launcherAnchorClass = 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
+  const launcherAnchorClass = leaveRoomBelowLauncher
+    ? 'bottom-[10.5rem] right-3 md:bottom-[4.75rem] md:right-4'
+    : 'bottom-[10.5rem] right-3 md:bottom-6 md:right-4'
   const topLayerClass = 'z-[2147483000]'
   /** Khớp `nanoai-chat-widget.js`: mobile full-screen 100dvh; desktop góc 340×560. */
   const openPanelClass = [
