@@ -61,4 +61,30 @@ export const NEW_PRESETS_KO = {
       barcode_label: '실제 바코드: brief 제품명 사용. 제품코드(예 SKU: 188-SRM-001). 기본 Code128 — EAN-13/QR 가능.',
     },
   },
+  catalog_photo_pack: {
+    title: '직접 찍은 사진으로 판매 이미지',
+    kickoff:
+      '직접 찍은 상품 사진을 올리세요(휴대폰 사진도 됩니다). 소재와 스타일을 물은 뒤, 이 채팅에서 한 장씩 만들고 확인받습니다. 마지막에 이름과 분류를 드리니 Facebook이나 다른 사이트에 복사하면 됩니다. NanoAI 샵에는 올리지 않습니다.',
+    uploadHint: '직접 찍은 상품 사진 (1–4장)',
+    steps: {
+      material: 'Brief: 소재',
+      product_kind: 'Brief: 상품 유형',
+      shot_look: 'Brief: 촬영 스타일',
+      color_main: '메인 컬러 사진',
+      gallery_2: '앵글 2',
+      gallery_3: '앵글 3',
+      detail_close: '디테일',
+      material_card: '소재 카드',
+    },
+    asks: {
+      material: '① 소재는? (필수 — 예: 면, 가죽, 실크)',
+      product_kind: '② 상품 유형과 성별은? (예: 여성 티셔츠, 남성 신발, 가방)',
+      shot_look: '③ 스타일: 스튜디오 / 라이프스타일 / 야외 — 모델이 있나요? (예: 스튜디오, 상품만)',
+      color_main: '**생성** 을 입력하면 올린 사진으로 메인 이미지를 만듭니다. 요청을 덧붙여도 됩니다(흰 배경, 더 밝게…).',
+      gallery_2: '**생성** 으로 앵글 2. 각도를 적어도 됩니다(옆, 뒤…).',
+      gallery_3: '**생성** 으로 앵글 3.',
+      detail_close: '**생성** 으로 클로즈업(단추, 봉제, 로고…).',
+      material_card: '**생성** 으로 소재 카드. 승인하면 복사할 이름과 분류를 보냅니다.',
+    },
+  },
 } as const

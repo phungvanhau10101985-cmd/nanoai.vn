@@ -6,7 +6,17 @@ export const dynamic = 'force-dynamic'
 const INTEGRATIONS_KEY = 'admin_integrations_config'
 const GRAPH_VERSION = 'v21.0'
 
-type MetaStandardEventName = 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent'
+type MetaStandardEventName =
+  | 'CompleteRegistration'
+  | 'StartTrial'
+  | 'Subscribe'
+  | 'ViewContent'
+  | 'AddToCart'
+  | 'InitiateCheckout'
+  | 'Purchase'
+
+type CustomScalar = string | number | boolean
+type CustomValue = CustomScalar | CustomScalar[] | Array<Record<string, CustomScalar>>
 
 type AdminIntegrationsSettings = {
   facebookPixelId?: string
@@ -26,35 +36,47 @@ function clientIpFromRequest(request: NextRequest): string | null {
   return null
 }
 
-function sanitizeCustomData(input: unknown): Record<string, string | number | boolean | Array<string | number | boolean>> {
+function sanitizeScalar(raw: unknown, maxLen: number): CustomScalar | null {
+  if (typeof raw === 'string') return raw.slice(0, maxLen)
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'boolean') return raw
+  return null
+}
+
+function sanitizeCustomData(input: unknown): Record<string, CustomValue> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {}
-  const out: Record<string, string | number | boolean | Array<string | number | boolean>> = {}
+  const out: Record<string, CustomValue> = {}
   for (const [key, raw] of Object.entries(input as Record<string, unknown>)) {
     const k = key.trim().slice(0, 80)
     if (!k) continue
-    if (typeof raw === 'string') {
-      out[k] = raw.slice(0, 1000)
+    const scalar = sanitizeScalar(raw, 1000)
+    if (scalar !== null && !Array.isArray(raw)) {
+      out[k] = scalar
       continue
     }
-    if (typeof raw === 'number' && Number.isFinite(raw)) {
-      out[k] = raw
-      continue
-    }
-    if (typeof raw === 'boolean') {
-      out[k] = raw
-      continue
-    }
-    if (Array.isArray(raw)) {
-      const arr = raw
-        .filter((x): x is string | number | boolean => {
-          if (typeof x === 'string') return true
-          if (typeof x === 'boolean') return true
-          return typeof x === 'number' && Number.isFinite(x)
+    if (!Array.isArray(raw)) continue
+    const objectRows = raw.filter((item) => item && typeof item === 'object' && !Array.isArray(item))
+    if (objectRows.length > 0 && objectRows.length === raw.length) {
+      const rows = objectRows
+        .slice(0, 20)
+        .map((item) => {
+          const row: Record<string, CustomScalar> = {}
+          for (const [innerKey, innerRaw] of Object.entries(item as Record<string, unknown>)) {
+            const ik = innerKey.trim().slice(0, 40)
+            const iv = sanitizeScalar(innerRaw, 200)
+            if (ik && iv !== null) row[ik] = iv
+          }
+          return row
         })
-        .slice(0, 50)
-        .map((x) => (typeof x === 'string' ? x.slice(0, 200) : x))
-      if (arr.length > 0) out[k] = arr
+        .filter((row) => Object.keys(row).length > 0)
+      if (rows.length > 0) out[k] = rows
+      continue
     }
+    const arr = raw
+      .map((item) => sanitizeScalar(item, 200))
+      .filter((item): item is CustomScalar => item !== null)
+      .slice(0, 50)
+    if (arr.length > 0) out[k] = arr
   }
   return out
 }
@@ -76,7 +98,15 @@ export async function POST(request: NextRequest) {
   const eventSourceUrl = readString(body, 'eventSourceUrl').slice(0, 2000)
   const fbc = readString(body, 'fbc')
   const fbp = readString(body, 'fbp')
-  const allowedEvents: MetaStandardEventName[] = ['CompleteRegistration', 'StartTrial', 'Subscribe', 'ViewContent']
+  const allowedEvents: MetaStandardEventName[] = [
+    'CompleteRegistration',
+    'StartTrial',
+    'Subscribe',
+    'ViewContent',
+    'AddToCart',
+    'InitiateCheckout',
+    'Purchase',
+  ]
   if (!allowedEvents.includes(eventNameRaw as MetaStandardEventName)) {
     return NextResponse.json({ ok: false, error: 'invalid_event_name' }, { status: 400 })
   }

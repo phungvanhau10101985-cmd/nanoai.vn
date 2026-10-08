@@ -24,6 +24,10 @@ import {
 } from '@/lib/wedding/wedding-guest-pack'
 import { WEDDING_CARD_RETENTION_NOTICE } from '@/lib/wedding/wedding-card-retention'
 import {
+  trackWeddingGuestPackCheckout,
+  trackWeddingGuestPackPurchase,
+} from '@/lib/tracking/wedding-commerce-client'
+import {
   confirmWeddingGuestPackPaymentLocal,
   readWeddingGuestPackPayment,
   startWeddingGuestPackPayment,
@@ -75,6 +79,11 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
       if ('error' in result && result.error) return
       if (!('payment' in result) || !result.payment) return
       if (result.payment.status !== 'completed') return
+      trackWeddingGuestPackPurchase({
+        packId: result.payment.packId,
+        amountVnd: result.payment.amount,
+        paymentId: result.payment.id,
+      })
       setPayment(null)
       onOpenChange(false)
       onPaidRef.current(result.quotas ?? null)
@@ -95,7 +104,14 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
       toast({ title: 'Chưa tạo được mã chuyển khoản', description: result.error, variant: 'destructive' })
       return
     }
-    if ('payment' in result && result.payment) setPayment(result.payment)
+    if ('payment' in result && result.payment) {
+      setPayment(result.payment)
+      trackWeddingGuestPackCheckout({
+        packId: result.payment.packId,
+        amountVnd: result.payment.amount,
+        paymentId: result.payment.id,
+      })
+    }
   }
 
   const confirmLocal = async () => {
@@ -107,6 +123,11 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
       toast({ title: 'Chưa ghi được gói', description: result.error, variant: 'destructive' })
       return
     }
+    trackWeddingGuestPackPurchase({
+      packId: payment.packId,
+      amountVnd: payment.amount,
+      paymentId: payment.id,
+    })
     setPayment(null)
     onOpenChange(false)
     onPaid(('quotas' in result ? result.quotas : null) ?? null)
@@ -156,7 +177,24 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
                 Chuyển đúng <span className="font-semibold">{formatWeddingPackVnd(payment.amount)}</span> với nội dung bên dưới.
               </p>
               {payment.qrUrl ? (
-                <img src={payment.qrUrl} alt="Mã QR chuyển khoản" className="mx-auto h-52 w-52 rounded-lg border" />
+                <div className="flex flex-col items-center gap-2">
+                  <img src={payment.qrUrl} alt="Mã QR chuyển khoản" className="h-52 w-52 rounded-lg border" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-52"
+                    onClick={() => {
+                      const link = document.createElement('a')
+                      link.href = sepayQrUrlForDownload(payment.qrUrl)
+                      link.download = `qr-${payment.transactionContent}.png`
+                      link.target = '_blank'
+                      link.rel = 'noreferrer'
+                      link.click()
+                    }}
+                  >
+                    Tải mã QR
+                  </Button>
+                </div>
               ) : null}
               <div className="space-y-2 rounded-lg border bg-stone-50 p-3 text-sm">
                 <Row label="Ngân hàng" value={payment.bankName} />
@@ -173,20 +211,6 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Đang chờ ngân hàng báo tiền về.
               </p>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  const link = document.createElement('a')
-                  link.href = sepayQrUrlForDownload(payment.qrUrl)
-                  link.download = `qr-${payment.transactionContent}.png`
-                  link.target = '_blank'
-                  link.rel = 'noreferrer'
-                  link.click()
-                }}
-              >
-                Tải mã QR
-              </Button>
               {localDev ? (
                 <Button type="button" variant="secondary" disabled={confirmingLocal} onClick={() => void confirmLocal()}>
                   {confirmingLocal ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}

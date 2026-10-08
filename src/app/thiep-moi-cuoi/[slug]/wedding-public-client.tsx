@@ -186,6 +186,7 @@ export default function WeddingPublicClient({
   const [reminderEmail, setReminderEmail] = useState('')
   const [reminderDaysBefore, setReminderDaysBefore] = useState('3')
   const [reminderSubmitting, setReminderSubmitting] = useState(false)
+  const [coverReminderOn, setCoverReminderOn] = useState(false)
   const [letterView, setLetterView] = useState<'groom' | 'bride' | 'both' | null>(
     () => (askLetterView ? null : initialLetterView),
   )
@@ -457,10 +458,14 @@ export default function WeddingPublicClient({
     setPartyModalOpen(true)
   }
 
-  const confirmPartyModal = () => {
+  const confirmPartyModal = async () => {
     const adult = Math.max(0, Math.min(20, draftAdult))
     const child = Math.max(0, Math.min(20, draftChild))
     const safeAdult = adult + child > 0 ? adult : 1
+    if (coverReminderOn && displayWeddingDateIso) {
+      const reminded = await submitReminder()
+      if (!reminded) return
+    }
     if (partyTimer.current) window.clearTimeout(partyTimer.current)
     setPartyAdult(safeAdult)
     setPartyChild(child)
@@ -488,11 +493,11 @@ export default function WeddingPublicClient({
     }, 450)
   }
 
-  const submitReminder = async () => {
+  const submitReminder = async (): Promise<boolean> => {
     setReminderSubmitting(true)
     const formData = new FormData()
     formData.append('guestEmail', reminderEmail)
-    formData.append('guestName', guestName)
+    formData.append('guestName', guestName.trim() || guestDisplayName)
     formData.append('daysBefore', reminderDaysBefore)
     formData.append('inviteVenue', guestDisplayVenue)
     formData.append('locale', uiLocale)
@@ -512,12 +517,13 @@ export default function WeddingPublicClient({
                   ? tx.reminderErrorDaysTooLarge
                   : tx.reminderErrorGeneric
       toast({ title: tx.reminderErrorTitle, description: desc, variant: 'destructive' })
-      return
+      return false
     }
     toast({
       title: tx.reminderSuccessTitle,
       description: tx.reminderSuccessDesc.replace('{days}', String(result.daysBefore ?? reminderDaysBefore)),
     })
+    return true
   }
 
   return (
@@ -536,7 +542,7 @@ export default function WeddingPublicClient({
             role="dialog"
             aria-modal="true"
             aria-labelledby="pw-party-modal-title"
-            className="relative w-full max-w-sm rounded-[1.5rem] bg-[#fff8f0] p-5 shadow-2xl"
+            className="relative max-h-[min(36rem,calc(100dvh-2rem))] w-full max-w-sm overflow-y-auto rounded-[1.5rem] bg-[#fff8f0] p-5 shadow-2xl"
           >
             <div className="mb-4 flex items-start justify-between gap-3">
               <p id="pw-party-modal-title" className="font-serif text-xl font-semibold text-stone-900">
@@ -556,19 +562,65 @@ export default function WeddingPublicClient({
               childCount={draftChild}
               adultLabel={tx.rsvpAdultLabel}
               childLabel={tx.rsvpChildLabel}
-              disabled={submitting}
+              disabled={submitting || reminderSubmitting}
               onChange={(adult, child) => {
                 setDraftAdult(adult)
                 setDraftChild(child)
               }}
             />
+            {displayWeddingDateIso ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-3">
+                <label className="flex items-start gap-2 text-left text-sm font-semibold text-stone-800">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-800"
+                    checked={coverReminderOn}
+                    disabled={submitting || reminderSubmitting}
+                    onChange={(event) => setCoverReminderOn(event.target.checked)}
+                  />
+                  <span>{tx.coverReminderOptIn}</span>
+                </label>
+                {coverReminderOn ? (
+                  <div className="mt-3 space-y-3">
+                    <label className="block text-left">
+                      <span className="text-xs font-semibold text-stone-800">{tx.reminderEmailLabel}</span>
+                      <input
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        value={reminderEmail}
+                        disabled={submitting || reminderSubmitting}
+                        onChange={(event) => setReminderEmail(event.target.value)}
+                        placeholder={tx.reminderEmailPlaceholder}
+                        className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-sm text-stone-900"
+                      />
+                    </label>
+                    <label className="block text-left">
+                      <span className="text-xs font-semibold text-stone-800">{tx.reminderDaysLabel}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={90}
+                        inputMode="numeric"
+                        value={reminderDaysBefore}
+                        disabled={submitting || reminderSubmitting}
+                        onChange={(event) => setReminderDaysBefore(event.target.value)}
+                        placeholder={tx.reminderDaysPlaceholder}
+                        className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-center text-sm text-stone-900"
+                      />
+                      <span className="mt-1 block text-[11px] leading-4 text-stone-500">{tx.reminderDaysHint}</span>
+                    </label>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <button
               type="button"
-              disabled={submitting || draftAdult + draftChild < 1}
-              onClick={confirmPartyModal}
+              disabled={submitting || reminderSubmitting || draftAdult + draftChild < 1}
+              onClick={() => void confirmPartyModal()}
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full border-2 border-emerald-800 bg-emerald-800 font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] disabled:opacity-60"
             >
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tx.coverPartyConfirm}
+              {submitting || reminderSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tx.coverPartyConfirm}
             </button>
           </div>
         </div>

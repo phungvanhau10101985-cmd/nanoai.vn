@@ -315,6 +315,18 @@ export const DESIGN_RECREATE_FLOW: StudioFlowStepDef[] = [
   },
 ]
 
+/** Ảnh tự chụp → bộ ảnh bán nền tảng khác. Không hỏi tên/loại — AI đặt sau ảnh cuối. */
+export const CATALOG_PHOTO_PACK_FLOW: StudioFlowStepDef[] = [
+  { key: 'material', labelKey: 'material', phase: 'discovery' },
+  { key: 'product_kind', labelKey: 'product_kind', phase: 'discovery' },
+  { key: 'shot_look', labelKey: 'shot_look', phase: 'discovery' },
+  { key: 'color_main', labelKey: 'color_main', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'gallery_2', labelKey: 'gallery_2', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'gallery_3', labelKey: 'gallery_3', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'detail_close', labelKey: 'detail_close', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
+  { key: 'material_card', labelKey: 'material_card', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
+]
+
 export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   mobile_shop: MOBILE_SHOP_FLOW,
   sale_banner: SALE_BANNER_FLOW,
@@ -333,6 +345,7 @@ export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   food_menu: FOOD_MENU_FLOW,
   bag_kit: BAG_KIT_FLOW,
   design_recreate: DESIGN_RECREATE_FLOW,
+  catalog_photo_pack: CATALOG_PHOTO_PACK_FLOW,
 }
 
 export function getFlowSteps(presetId: string): StudioFlowStepDef[] {

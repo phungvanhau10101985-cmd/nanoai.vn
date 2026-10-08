@@ -334,4 +334,30 @@ export const NEW_PRESETS_ZH = {
       logo: '金色字母组合标志，透明背景',
     },
   },
+  catalog_photo_pack: {
+    title: '用自拍照做卖货图',
+    kickoff:
+      '上传你自己拍的商品图（手机随拍也可以）。我先问材质和风格，再在这段对话里逐张生成、等你确认。最后给你可复制的名称和分类，发到 Facebook 或其他网站 — 不会发布到 NanoAI 店铺。',
+    uploadHint: '上传自拍商品图（1–4 张）',
+    steps: {
+      material: 'Brief：材质',
+      product_kind: 'Brief：商品类型',
+      shot_look: 'Brief：拍摄风格',
+      color_main: '主色图',
+      gallery_2: '角度 2',
+      gallery_3: '角度 3',
+      detail_close: '细节特写',
+      material_card: '材质卡',
+    },
+    asks: {
+      material: '① 材质是什么？（必填 — 如棉、皮、真丝）',
+      product_kind: '② 商品类型和性别？（如女T恤、男鞋、包）',
+      shot_look: '③ 风格：棚拍 / 生活 / 户外 — 要模特吗？（如：棚拍，只要商品）',
+      color_main: '输入 **创建** 从你上传的照片生成主色图。可补充要求（白底、更亮…）。',
+      gallery_2: '输入 **创建** 生成角度 2。可以写角度（侧面、背面…）。',
+      gallery_3: '输入 **创建** 生成角度 3。',
+      detail_close: '输入 **创建** 生成细节特写（纽扣、车线、标志…）。',
+      material_card: '输入 **创建** 生成材质卡。确认后我会给出可复制的名称和分类。',
+    },
+  },
 } as const

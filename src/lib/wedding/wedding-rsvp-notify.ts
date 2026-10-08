@@ -8,7 +8,7 @@ import {
   seedWeddingAttendanceBaseline,
   type WeddingRsvpNotifyRow,
 } from '@/lib/db/wedding-cards-pg'
-import { invitationEditorCopy } from '@/lib/wedding/invitation-occasion'
+import { invitationEditorCopy, invitationOccasionShape } from '@/lib/wedding/invitation-occasion'
 import {
   planDailyAttendanceMail,
   summarizeWeddingAttendanceSources,
@@ -93,6 +93,7 @@ export async function sendDueWeddingAttendanceDailyDigests(): Promise<{ due: num
       previousPeople: row.lastPeople,
       resultsUrl: resultsUrl(row.cardId),
       to: recipients,
+      includeSecondary: invitationOccasionShape(row.occasionKey) === 'couple',
       ...sideLabels(row.occasionKey),
     })
     if (result.ok) sent += 1

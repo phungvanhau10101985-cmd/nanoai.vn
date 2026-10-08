@@ -1,3 +1,4 @@
+import { catalogPhotoCopy } from '@/lib/catalog-photo/catalog-photo-copy'
 import { buildHubToolCatalog } from '@/lib/hub-chat/hub-chat-catalog'
 import { hubStudioLaunchHref } from '@/lib/hub-chat/hub-studio-launch'
 import {
@@ -162,6 +163,14 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/thu-do-online/5-nguoi': ['thử đồ 5 người'],
   [hubStudioLaunchHref('packaging_kit')]: ['bao bì', 'packaging', 'hộp sản phẩm', 'design package'],
   [hubStudioLaunchHref('bag_kit')]: ['túi đựng', 'paper bag', 'shopping bag', 'thiết kế túi'],
+  '/tao-anh-ban-hang': [
+    'ảnh tự chụp',
+    'chụp nghiệp dư',
+    'không có web',
+    'đăng facebook',
+    'bộ ảnh bán hàng',
+    'amateur product photo',
+  ],
 }
 
 type StandaloneFeatureEntry = {
@@ -240,6 +249,33 @@ const STANDALONE_VERB_HINTS: Partial<
   '/tao-bai-thi': { create: true },
   '/tao-bai-tap-ve-nha': { create: true },
   '/tao-thiep-moi-cuoi-ai': { create: true },
+  '/tao-anh-ban-hang': { create: true },
+}
+
+/** Ảnh tự chụp để bán nền tảng khác — không mở preset ảnh Shopee / campaign lookbook. */
+const CATALOG_PHOTO_SHOP_MARKERS =
+  /shopee|lazada|tiktok\s*shop|web shop|shop saas|đăng lên shop|dang len shop|đăng sản phẩm|dang san pham/i
+
+const CATALOG_PHOTO_EXPORT_MARKERS =
+  /ảnh tự chụp|anh tu chup|chụp nghiệp dư|chup nghiep du|không có web|khong co web|nền tảng khác|nen tang khac|đăng facebook|dang facebook|đăng face\b|dang face\b|facebook bán|facebook ban|bộ ảnh bán|bo anh ban|tao-anh-ban-hang|sell photos from|amateur product|没有网站|自拍照|自分で撮|페이스북/i
+
+export function isCatalogPhotoExportIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CATALOG_PHOTO_SHOP_MARKERS.test(text)) return false
+  return CATALOG_PHOTO_EXPORT_MARKERS.test(text)
+}
+
+export function matchCatalogPhotoExportFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> {
+  const entry = getStandaloneFeatureByHref(locale, '/tao-anh-ban-hang')
+  return {
+    kind: 'standalone',
+    href: '/tao-anh-ban-hang',
+    labelKey: (entry?.labelKey ?? 'catalog_photo_pack') as ToolKey,
+    label: entry?.label ?? catalogPhotoCopy(locale).title,
+    score: 100,
+  }
 }
 
 /** Teaching / curriculum topics — standalone «Tạo giáo trình» must match one of these (not bare «tạo …»). */
@@ -341,6 +377,10 @@ export function matchFeatureFlowByMessage(
     return matchInvitationToolFlow(locale)
   }
 
+  if (isCatalogPhotoExportIntent(trimmed)) {
+    return matchCatalogPhotoExportFlow(locale)
+  }
+
   if (matchesLandingPageIntent(trimmed)) {
     return { kind: 'studio', presetId: 'landing_page', score: 56 }
   }
@@ -375,6 +415,7 @@ export function matchFeatureFlowByMessage(
   }
 
   if (studio && studioScore >= MIN_STUDIO_MATCH_SCORE) {
+    if (studio.preset.id === 'catalog_photo_pack') return matchCatalogPhotoExportFlow(locale)
     return { kind: 'studio', presetId: studio.preset.id, score: studioScore }
   }
 
@@ -392,7 +433,7 @@ export function matchFeatureFlowByMessage(
 }
 
 export function buildFeatureFlowCatalogForBrain(locale: WebLocale): string {
-  const studioLines = STUDIO_PRESETS.map((p) => {
+  const studioLines = STUDIO_PRESETS.filter((p) => p.id !== 'catalog_photo_pack').map((p) => {
     const title = presetTitle(locale, p.id)
     if (p.id === 'mobile_shop') {
       return `${p.id}: ${title} | flow=studio_complete | use_for=tạo web, giao diện web, thiết kế web app`

@@ -674,6 +674,7 @@ export async function applyListingImportTaxonomy(
   if (placed.ratingGroupId && placed.ratingGroupId > 0) {
     productData._l3_rating_group_id = placed.ratingGroupId
   }
+  if (placed.categoryId) productData._category_id = placed.categoryId
   if (placed.fullSlug) productData.slug_seo = placed.fullSlug
 
   const canon: Triple = {

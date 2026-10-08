@@ -63,6 +63,7 @@ export type ToolKey =
   | 'try_on_4'
   | 'try_on_5'
   | 'image_result_display'
+  | 'catalog_photo_pack'
   | 'admin'
 
 export type Dictionary = {
@@ -273,6 +274,7 @@ export type Dictionary = {
     chatHistoryDelete: string
     chatHistoryDeleted: string
     chatHistoryDeleteFailed: string
+    chatHistoryClose: string
     autoRunTitle: string
     autoRunEstimate: string
     autoRunUpload: string
@@ -2042,6 +2044,10 @@ export type Dictionary = {
     productStudioModelPresenceLabel: string
     productStudioShotStyleLabel: string
     productStudioAspectRatioLabel: string
+    productStudioImageModelLabel: string
+    productStudioImageModelPro: string
+    productStudioImageModelFlash: string
+    productStudioImageModelFlash3: string
     productStudioGalleryCountLabel: string
     productStudioDetailCountLabel: string
     productStudioStartStudio: string
@@ -3334,6 +3340,12 @@ export type Dictionary = {
     uploadLabel: string
     sharedUploadNote: string
     seedCredit: string
+    chooseMusic: string
+    chooseAgain: string
+    previewListen: string
+    stopPreview: string
+    confirmPick: string
+    pickerTitle: string
   }
   /** Thiệp công khai / preview: khối lịch & giờ tiệc (save-the-date) */
   weddingCardCalendar: {
@@ -3374,6 +3386,7 @@ export type Dictionary = {
     qrAltBride: string
     qrAltGroom: string
     qrAltLegacy: string
+    downloadQr: string
   }
   /** /tao-thiep-moi-cuoi-ai — mô tả nội dung brief & auto-save */
   weddingCardAiBrief: {
@@ -3398,6 +3411,9 @@ export type Dictionary = {
     customReferenceUrlPlaceholder: string
     customReferenceEmpty: string
     chooseBackground: string
+    chooseBackgroundAgain: string
+    backgroundPickedOk: string
+    backgroundPickedTitle: string
     backgroundSectionTitle: string
     backgroundSectionHint: string
     backgroundLibraryTitle: string
@@ -3519,6 +3535,7 @@ export type Dictionary = {
     rsvpChildLabel: string
     coverPartyConfirm: string
     coverPartyClose: string
+    coverReminderOptIn: string
     wishLabel: string
     wishPlaceholder: string
     wishPresetOpen: string
@@ -4039,6 +4056,7 @@ const VI_DICTIONARY: Dictionary = {
     chatHistoryDelete: 'Xóa hội thoại',
     chatHistoryDeleted: 'Đã xóa hội thoại.',
     chatHistoryDeleteFailed: 'Không xóa được hội thoại.',
+    chatHistoryClose: 'Đóng danh sách chat',
     autoRunTitle: 'Chạy tự động (NanoAI Agent)',
     autoRunEstimate: 'Ước tính ~{n} credits cho toàn bộ kế hoạch',
     autoRunUpload: 'Chọn ảnh sản phẩm',
@@ -5900,6 +5918,10 @@ const VI_DICTIONARY: Dictionary = {
     productStudioModelPresenceLabel: 'Có người mẫu trong ảnh',
     productStudioShotStyleLabel: 'Bối cảnh chụp',
     productStudioAspectRatioLabel: 'Tỉ lệ ảnh',
+    productStudioImageModelLabel: 'Model tạo ảnh',
+    productStudioImageModelPro: 'Pro (chất lượng cao)',
+    productStudioImageModelFlash: 'Flash 2.5 (nhanh)',
+    productStudioImageModelFlash3: 'Flash 3',
     productStudioGalleryCountLabel: 'Số ảnh gallery',
     productStudioDetailCountLabel: 'Số ảnh chi tiết',
     productStudioStartStudio: 'Bắt đầu tạo ảnh bằng AI',
@@ -6561,6 +6583,7 @@ const VI_DICTIONARY: Dictionary = {
     try_on_4: 'Thử đồ 4 người',
     try_on_5: 'Thử đồ 5 người',
     image_result_display: 'Hiển thị kết quả ảnh',
+    catalog_photo_pack: 'Tạo ảnh đăng Facebook',
     admin: 'Quản trị',
   },
   creationSidebar: {
@@ -7187,10 +7210,16 @@ const VI_DICTIONARY: Dictionary = {
     publicFabPlayAria: 'Bật nhạc nền thiệp',
     publicMapEmbedTitle: 'Bản đồ địa điểm tiệc cưới',
     libraryHeading: 'Kho nhạc nền',
-    libraryHint: 'Chọn một bài trong kho, hoặc tải file của bạn. Bài tải lên được lưu vào kho để mọi người cùng chọn.',
+    libraryHint: 'Bấm «Chọn nhạc» để mở kho. Hoặc tải file của bạn. Bài tải lên được lưu vào kho để mọi người cùng chọn.',
     uploadLabel: 'Tải nhạc lên',
     sharedUploadNote: 'File bạn tải sẽ vào kho dùng chung. Người tạo thiệp khác cũng chọn được bài này.',
     seedCredit: 'Bài có sẵn: Kevin MacLeod (incompetech.com), giấy phép CC BY 4.0.',
+    chooseMusic: 'Chọn nhạc',
+    chooseAgain: 'Chọn lại',
+    previewListen: 'Nghe thử',
+    stopPreview: 'Dừng',
+    confirmPick: 'OK',
+    pickerTitle: 'Chọn nhạc nền',
   },
   weddingCardCalendar: {
     sectionTitle: 'THÔNG TIN TIỆC CƯỚI',
@@ -7230,6 +7259,7 @@ const VI_DICTIONARY: Dictionary = {
     qrAltBride: 'VietQR chuyển khoản — cô dâu',
     qrAltGroom: 'VietQR chuyển khoản — chú rể',
     qrAltLegacy: 'Mã QR mừng cưới',
+    downloadQr: 'Tải mã QR',
   },
   weddingCardAiBrief: {
     step2Description:
@@ -7257,6 +7287,9 @@ const VI_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
     customReferenceEmpty: 'Chưa chọn ảnh tham khảo',
     chooseBackground: 'Chọn nền',
+    chooseBackgroundAgain: 'Chọn lại',
+    backgroundPickedOk: 'OK',
+    backgroundPickedTitle: 'Đã chọn nền',
     backgroundSectionTitle: 'Nền thiệp',
     backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Bấm Chọn nền để xem kho, hoặc tạo nền mới bằng AI.',
     backgroundLibraryTitle: 'Kho ảnh nền',
@@ -7380,6 +7413,7 @@ const VI_DICTIONARY: Dictionary = {
     rsvpChildLabel: 'Số trẻ con đi cùng',
     coverPartyConfirm: 'Xác nhận',
     coverPartyClose: 'Đóng',
+    coverReminderOptIn: 'Nhắc lịch cưới (tùy chọn)',
     wishLabel: 'Lời chúc',
     wishPlaceholder: 'Gửi lời chúc đến cô dâu chú rể...',
     wishPresetOpen: 'Câu chúc có sẵn',
@@ -7848,6 +7882,7 @@ const EN_DICTIONARY: Dictionary = {
     chatHistoryDelete: 'Delete conversation',
     chatHistoryDeleted: 'Conversation deleted.',
     chatHistoryDeleteFailed: 'Could not delete conversation.',
+    chatHistoryClose: 'Close chat history',
     autoRunTitle: 'Run automatically (NanoAI Agent)',
     autoRunEstimate: 'Estimated ~{n} credits for the full plan',
     autoRunUpload: 'Choose product images',
@@ -9757,6 +9792,10 @@ const EN_DICTIONARY: Dictionary = {
     productStudioModelPresenceLabel: 'Include a model in photos',
     productStudioShotStyleLabel: 'Shot style',
     productStudioAspectRatioLabel: 'Aspect ratio',
+    productStudioImageModelLabel: 'Image model',
+    productStudioImageModelPro: 'Pro (highest quality)',
+    productStudioImageModelFlash: 'Flash 2.5 (faster)',
+    productStudioImageModelFlash3: 'Flash 3',
     productStudioGalleryCountLabel: 'Gallery photo count',
     productStudioDetailCountLabel: 'Detail photo count',
     productStudioStartStudio: 'Start AI image studio',
@@ -10418,6 +10457,7 @@ const EN_DICTIONARY: Dictionary = {
     try_on_4: 'Try-on 4 People',
     try_on_5: 'Try-on 5 People',
     image_result_display: 'Image result display',
+    catalog_photo_pack: 'Create Facebook listing photos',
     admin: 'Admin',
   },
   creationSidebar: {
@@ -11043,10 +11083,16 @@ const EN_DICTIONARY: Dictionary = {
     publicFabPlayAria: 'Turn on invitation background music',
     publicMapEmbedTitle: 'Wedding venue map',
     libraryHeading: 'Music library',
-    libraryHint: 'Pick a track from the library, or upload your own. Uploads are saved to the shared library for everyone.',
+    libraryHint: 'Tap Choose music to open the library, or upload your own. Uploads are saved to the shared library for everyone.',
     uploadLabel: 'Upload music',
     sharedUploadNote: 'Your file is added to the shared library. Other invitation hosts can choose it too.',
     seedCredit: 'Included tracks: Kevin MacLeod (incompetech.com), CC BY 4.0.',
+    chooseMusic: 'Choose music',
+    chooseAgain: 'Choose again',
+    previewListen: 'Preview',
+    stopPreview: 'Stop',
+    confirmPick: 'OK',
+    pickerTitle: 'Choose background music',
   },
   weddingCardCalendar: {
     sectionTitle: 'WEDDING DETAILS',
@@ -11085,6 +11131,7 @@ const EN_DICTIONARY: Dictionary = {
     qrAltBride: 'Bank transfer QR — bride',
     qrAltGroom: 'Bank transfer QR — groom',
     qrAltLegacy: 'Wedding gift QR',
+    downloadQr: 'Download QR',
   },
   weddingCardAiBrief: {
     step2Description:
@@ -11112,6 +11159,9 @@ const EN_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'Or paste a reference image URL (https://...)',
     customReferenceEmpty: 'No reference image selected',
     chooseBackground: 'Choose background',
+    chooseBackgroundAgain: 'Choose again',
+    backgroundPickedOk: 'OK',
+    backgroundPickedTitle: 'Background selected',
     backgroundSectionTitle: 'Invitation background',
     backgroundSectionHint: 'One background is shared across the invitation. Open Choose background to browse the library or create a new AI background.',
     backgroundLibraryTitle: 'Background library',
@@ -11235,6 +11285,7 @@ const EN_DICTIONARY: Dictionary = {
     rsvpChildLabel: 'Children coming along',
     coverPartyConfirm: 'Confirm',
     coverPartyClose: 'Close',
+    coverReminderOptIn: 'Wedding reminder (optional)',
     wishLabel: 'Wish',
     wishPlaceholder: 'Send a wish to the couple...',
     wishPresetOpen: 'Ready-made wishes',
@@ -11700,6 +11751,7 @@ const ZH_DICTIONARY: Dictionary = {
     chatHistoryDelete: '删除对话',
     chatHistoryDeleted: '已删除对话。',
     chatHistoryDeleteFailed: '无法删除对话。',
+    chatHistoryClose: '关闭聊天记录',
     autoRunTitle: '自动运行（NanoAI Agent）',
     autoRunEstimate: '预计全程约 {n} 积分',
     autoRunUpload: '选择产品图片',
@@ -13567,6 +13619,10 @@ const ZH_DICTIONARY: Dictionary = {
     productStudioModelPresenceLabel: '图片中包含模特',
     productStudioShotStyleLabel: '拍摄风格',
     productStudioAspectRatioLabel: '图片比例',
+    productStudioImageModelLabel: '生图模型',
+    productStudioImageModelPro: 'Pro（高质量）',
+    productStudioImageModelFlash: 'Flash 2.5（更快）',
+    productStudioImageModelFlash3: 'Flash 3',
     productStudioGalleryCountLabel: '图库图片数量',
     productStudioDetailCountLabel: '细节图片数量',
     productStudioStartStudio: '开始 AI 生成图片',
@@ -14352,6 +14408,7 @@ const ZH_DICTIONARY: Dictionary = {
     try_on_4: '4 人试衣',
     try_on_5: '5 人试衣',
     image_result_display: '图片结果显示方式',
+    catalog_photo_pack: '制作 Facebook 卖货图',
     admin: '管理',
   },
   creationSidebar: {
@@ -14783,10 +14840,16 @@ const ZH_DICTIONARY: Dictionary = {
     publicFabPlayAria: '播放请柬背景音乐',
     publicMapEmbedTitle: '婚礼场地地图',
     libraryHeading: '背景音乐库',
-    libraryHint: '从曲库选择，或上传自己的音乐。上传的曲目会进入共用曲库，供所有人选用。',
+    libraryHint: '点「选择音乐」打开曲库，或上传自己的音乐。上传的曲目会进入共用曲库，供所有人选用。',
     uploadLabel: '上传音乐',
     sharedUploadNote: '你上传的文件会进入共用曲库，其他请柬主人也可以选用。',
     seedCredit: '内置曲目：Kevin MacLeod (incompetech.com)，许可 CC BY 4.0。',
+    chooseMusic: '选择音乐',
+    chooseAgain: '重新选择',
+    previewListen: '试听',
+    stopPreview: '停止',
+    confirmPick: '确定',
+    pickerTitle: '选择背景音乐',
   },
   weddingCardCalendar: {
     sectionTitle: '婚礼信息',
@@ -14825,6 +14888,7 @@ const ZH_DICTIONARY: Dictionary = {
     qrAltBride: '转账 QR — 新娘',
     qrAltGroom: '转账 QR — 新郎',
     qrAltLegacy: '贺礼 QR',
+    downloadQr: '下载二维码',
   },
   weddingCardAiBrief: {
     step2Description:
@@ -14850,6 +14914,9 @@ const ZH_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: '或粘贴参考图 URL（https://...）',
     customReferenceEmpty: '尚未选择参考图',
     chooseBackground: '选择背景',
+    chooseBackgroundAgain: '重新选择',
+    backgroundPickedOk: 'OK',
+    backgroundPickedTitle: '已选择背景',
     backgroundSectionTitle: '请柬背景',
     backgroundSectionHint: '整张请柬共用一张背景。点「选择背景」查看图库，或用 AI 新建背景。',
     backgroundLibraryTitle: '背景图库',
@@ -14973,6 +15040,7 @@ const ZH_DICTIONARY: Dictionary = {
     rsvpChildLabel: '同行儿童',
     coverPartyConfirm: '确认',
     coverPartyClose: '关闭',
+    coverReminderOptIn: '婚礼提醒（可选）',
     wishLabel: '祝福',
     wishPlaceholder: '给新人送上祝福...',
     wishPresetOpen: '现成祝福',
@@ -15434,6 +15502,7 @@ const JA_DICTIONARY: Dictionary = {
     chatHistoryDelete: '会話を削除',
     chatHistoryDeleted: '会話を削除しました。',
     chatHistoryDeleteFailed: '会話を削除できませんでした。',
+    chatHistoryClose: 'チャット履歴を閉じる',
     autoRunTitle: '自動実行（NanoAI Agent）',
     autoRunEstimate: 'プラン全体の目安 ~{n} クレジット',
     autoRunUpload: '商品画像を選択',
@@ -17348,6 +17417,10 @@ const JA_DICTIONARY: Dictionary = {
     productStudioModelPresenceLabel: '画像にモデルを含める',
     productStudioShotStyleLabel: '撮影スタイル',
     productStudioAspectRatioLabel: 'アスペクト比',
+    productStudioImageModelLabel: '画像モデル',
+    productStudioImageModelPro: 'Pro（高品質）',
+    productStudioImageModelFlash: 'Flash 2.5（高速）',
+    productStudioImageModelFlash3: 'Flash 3',
     productStudioGalleryCountLabel: 'ギャラリー画像枚数',
     productStudioDetailCountLabel: '詳細画像枚数',
     productStudioStartStudio: 'AI画像生成を開始',
@@ -17989,6 +18062,7 @@ const JA_DICTIONARY: Dictionary = {
     try_on_4: '4人試着',
     try_on_5: '5人試着',
     image_result_display: '画像結果の表示',
+    catalog_photo_pack: 'Facebook用の販売画像を作る',
     admin: '管理',
   },
   creationSidebar: {
@@ -18602,10 +18676,16 @@ const JA_DICTIONARY: Dictionary = {
     publicFabPlayAria: 'BGMを再生',
     publicMapEmbedTitle: '披露宴会場の地図',
     libraryHeading: 'BGMライブラリ',
-    libraryHint: 'ライブラリから選ぶか、自分の音源をアップロードします。アップロードした曲は共有ライブラリに入り、誰でも選べます。',
+    libraryHint: '「曲を選ぶ」でライブラリを開くか、自分の音源をアップロードします。アップロードした曲は共有ライブラリに入り、誰でも選べます。',
     uploadLabel: '音楽をアップロード',
     sharedUploadNote: 'アップロードしたファイルは共有ライブラリに追加され、他の招待状でも選べます。',
     seedCredit: '収録曲: Kevin MacLeod (incompetech.com)、ライセンス CC BY 4.0。',
+    chooseMusic: '曲を選ぶ',
+    chooseAgain: '選び直す',
+    previewListen: '試聴',
+    stopPreview: '停止',
+    confirmPick: 'OK',
+    pickerTitle: 'BGMを選ぶ',
   },
   weddingCardCalendar: {
     sectionTitle: '披露宴のご案内',
@@ -18645,6 +18725,7 @@ const JA_DICTIONARY: Dictionary = {
     qrAltBride: '振込用QR — 新婦',
     qrAltGroom: '振込用QR — 新郎',
     qrAltLegacy: 'ご祝儀QR',
+    downloadQr: 'QRを保存',
   },
   weddingCardAiBrief: {
     step2Description:
@@ -18671,6 +18752,9 @@ const JA_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: 'または参考画像の URL を貼り付け（https://...）',
     customReferenceEmpty: '参考画像が未選択です',
     chooseBackground: '背景を選ぶ',
+    chooseBackgroundAgain: '選び直す',
+    backgroundPickedOk: 'OK',
+    backgroundPickedTitle: '背景を選択しました',
     backgroundSectionTitle: '招待状の背景',
     backgroundSectionHint: '招待状全体で一つの背景を使います。「背景を選ぶ」で庫を開き、AI で新しい背景も作れます。',
     backgroundLibraryTitle: '背景ライブラリ',
@@ -18794,6 +18878,7 @@ const JA_DICTIONARY: Dictionary = {
     rsvpChildLabel: '一緒に来る子ども',
     coverPartyConfirm: '確定する',
     coverPartyClose: '閉じる',
+    coverReminderOptIn: '結婚式リマインダー（任意）',
     wishLabel: 'メッセージ',
     wishPlaceholder: 'おふたりへのメッセージ...',
     wishPresetOpen: '定型メッセージ',
@@ -19260,6 +19345,7 @@ const KO_DICTIONARY: Dictionary = {
     chatHistoryDelete: '대화 삭제',
     chatHistoryDeleted: '대화를 삭제했습니다.',
     chatHistoryDeleteFailed: '대화를 삭제할 수 없습니다.',
+    chatHistoryClose: '채팅 기록 닫기',
     autoRunTitle: '자동 실행 (NanoAI Agent)',
     autoRunEstimate: '전체 계획 예상 ~{n} 크레딧',
     autoRunUpload: '제품 이미지 선택',
@@ -21169,6 +21255,10 @@ const KO_DICTIONARY: Dictionary = {
     productStudioModelPresenceLabel: '이미지에 모델 포함',
     productStudioShotStyleLabel: '촬영 스타일',
     productStudioAspectRatioLabel: '이미지 비율',
+    productStudioImageModelLabel: '이미지 모델',
+    productStudioImageModelPro: 'Pro (고품질)',
+    productStudioImageModelFlash: 'Flash 2.5 (더 빠름)',
+    productStudioImageModelFlash3: 'Flash 3',
     productStudioGalleryCountLabel: '갤러리 이미지 수',
     productStudioDetailCountLabel: '디테일 이미지 수',
     productStudioStartStudio: 'AI 이미지 생성 시작',
@@ -21810,6 +21900,7 @@ const KO_DICTIONARY: Dictionary = {
     try_on_4: '4인 피팅',
     try_on_5: '5인 피팅',
     image_result_display: '이미지 결과 표시',
+    catalog_photo_pack: '페이스북 판매 이미지 만들기',
     admin: '관리',
   },
   creationSidebar: {
@@ -22418,10 +22509,16 @@ const KO_DICTIONARY: Dictionary = {
     publicFabPlayAria: '배경음 켜기',
     publicMapEmbedTitle: '예식 장소 지도',
     libraryHeading: '배경음 보관함',
-    libraryHint: '보관함에서 고르거나 직접 올립니다. 올린 곡은 공유 보관함에 저장되어 다른 사람도 고를 수 있습니다.',
+    libraryHint: '「음악 선택」으로 보관함을 열거나 직접 올립니다. 올린 곡은 공유 보관함에 저장되어 다른 사람도 고를 수 있습니다.',
     uploadLabel: '음악 올리기',
     sharedUploadNote: '올린 파일은 공유 보관함에 들어가며, 다른 청첩장에서도 선택할 수 있습니다.',
     seedCredit: '기본 곡: Kevin MacLeod (incompetech.com), 라이선스 CC BY 4.0.',
+    chooseMusic: '음악 선택',
+    chooseAgain: '다시 선택',
+    previewListen: '미리 듣기',
+    stopPreview: '중지',
+    confirmPick: '확인',
+    pickerTitle: '배경음 선택',
   },
   weddingCardCalendar: {
     sectionTitle: '예식 정보',
@@ -22460,6 +22557,7 @@ const KO_DICTIONARY: Dictionary = {
     qrAltBride: '이체 QR — 신부',
     qrAltGroom: '이체 QR — 신랑',
     qrAltLegacy: '축의 QR',
+    downloadQr: 'QR 저장',
   },
   weddingCardAiBrief: {
     step2Description:
@@ -22486,6 +22584,9 @@ const KO_DICTIONARY: Dictionary = {
     customReferenceUrlPlaceholder: '또는 참조 이미지 URL 붙여넣기 (https://...)',
     customReferenceEmpty: '참조 이미지가 선택되지 않았습니다',
     chooseBackground: '배경 선택',
+    chooseBackgroundAgain: '다시 선택',
+    backgroundPickedOk: 'OK',
+    backgroundPickedTitle: '배경을 선택했습니다',
     backgroundSectionTitle: '청첩장 배경',
     backgroundSectionHint: '청첩장 전체가 배경 하나를 씁니다. 배경 선택으로 보관함을 열고, AI로 새 배경을 만들 수 있습니다.',
     backgroundLibraryTitle: '배경 보관함',
@@ -22609,6 +22710,7 @@ const KO_DICTIONARY: Dictionary = {
     rsvpChildLabel: '함께 오는 아이',
     coverPartyConfirm: '확인',
     coverPartyClose: '닫기',
+    coverReminderOptIn: '결혼식 알림 (선택)',
     wishLabel: '축하 메시지',
     wishPlaceholder: '신랑 신부에게 축하 메시지를 남겨주세요...',
     wishPresetOpen: '미리 쓴 축하 문구',

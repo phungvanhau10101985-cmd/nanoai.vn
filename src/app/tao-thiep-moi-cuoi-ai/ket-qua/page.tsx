@@ -17,7 +17,7 @@ import WeddingAttendanceClientPage from './wedding-attendance-client-page'
 
 export const metadata: Metadata = buildMetadata({
   title: 'Kết quả khách đi thiệp cưới',
-  description: 'Xem tổng khách đi, số người đi, số người không đi và nhận email thông báo.',
+  description: 'Xem số khách đi, số người đi và số người không đi riêng từng nhà, và nhận email thông báo.',
   path: '/tao-thiep-moi-cuoi-ai/ket-qua',
   noIndex: true,
 })

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
   Circle,
+  History,
   ImagePlus,
   Loader2,
   MessageSquarePlus,
@@ -525,6 +526,7 @@ export function HomeHubChatBar() {
   const [threadsLoading, setThreadsLoading] = useState(false)
   const [threadsLoginRequired, setThreadsLoginRequired] = useState(false)
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const studioFileRef = useRef<HTMLInputElement>(null)
   const studioLogoFileRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
@@ -749,6 +751,7 @@ export function HomeHubChatBar() {
 
   const switchThread = useCallback(
     async (id: string) => {
+      setHistoryOpen(false)
       if (busy || id === threadId) return
       setEditingLineId(null)
       setEditingStepKey(null)
@@ -806,6 +809,15 @@ export function HomeHubChatBar() {
   useEffect(() => {
     void fetchThreadList()
   }, [fetchThreadList])
+
+  useEffect(() => {
+    if (!historyOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setHistoryOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [historyOpen])
 
   const modelLabel = getHubChatFooterModelLabel(uiLocale)
 
@@ -3124,6 +3136,10 @@ export function HomeHubChatBar() {
       (typeof window !== 'undefined'
         ? parseHubStudioLaunchId(new URLSearchParams(window.location.search).get(HUB_STUDIO_LAUNCH_QUERY))
         : null)
+    if (fromQuery === 'catalog_photo_pack') {
+      router.replace('/tao-anh-ban-hang')
+      return
+    }
     if (fromQuery) {
       studioLaunchStartedRef.current = false
       saveHubStudioLaunch(fromQuery)
@@ -3132,6 +3148,10 @@ export function HomeHubChatBar() {
     }
 
     const launchId = consumeHubStudioLaunch()
+    if (launchId === 'catalog_photo_pack') {
+      router.replace('/tao-anh-ban-hang')
+      return
+    }
     if (!launchId || studioLaunchStartedRef.current || busy || postInFlightRef.current) return
     if (isActiveStudioFlow(studioSession)) {
       toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
@@ -3241,21 +3261,112 @@ export function HomeHubChatBar() {
     )
   }
 
+  const renderChatHistoryPanel = () => {
+    if (threadsLoginRequired) return null
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+        <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+          <p className="text-xs font-medium text-indigo-900 dark:text-indigo-100">
+            {hc.chatHistory}
+            {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
+          </p>
+          <button
+            type="button"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-100 lg:hidden dark:hover:bg-indigo-950/50"
+            aria-label={hc.chatHistoryClose}
+            onClick={() => setHistoryOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        {threadsLoading ? (
+          <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {hc.thinking}
+          </div>
+        ) : chatThreads.length === 0 ? (
+          <p className="py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
+        ) : (
+          <ul className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+            {chatThreads.map((thread) => {
+              const active = thread.id === threadId
+              const subtitle =
+                thread.presetId && thread.projectTitle
+                  ? presetTitle(uiLocale, thread.presetId)
+                  : thread.lastMessagePreview?.slice(0, 100) ?? null
+              return (
+                <li key={thread.id} className="flex items-stretch gap-0.5">
+                  <button
+                    type="button"
+                    disabled={busy || deletingThreadId === thread.id}
+                    onClick={() => void switchThread(thread.id)}
+                    className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
+                      active
+                        ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
+                        : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
+                    }`}
+                  >
+                    <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
+                    <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
+                      {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
+                      {subtitle ? ` · ${subtitle}` : null}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={hc.chatHistoryDelete}
+                    title={hc.chatHistoryDelete}
+                    disabled={busy || deletingThreadId === thread.id}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      void deleteThread(thread.id)
+                    }}
+                    className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
+                  >
+                    {deletingThreadId === thread.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3.5 w-3.5" />
+                    )}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="surface-card border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
+    <div className="surface-card relative border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
       <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
-        <div>
-          <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
-            <Sparkles className="h-5 w-5 text-indigo-600" />
-            {hc.title}
-          </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{hc.studioSubtitle}</p>
+        <div className="flex items-start gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="mt-0.5 h-9 w-9 shrink-0 border-indigo-200 text-indigo-700 hover:bg-indigo-50 lg:hidden dark:border-indigo-800 dark:text-indigo-200"
+            aria-expanded={historyOpen}
+            aria-controls="hub-chat-history-drawer"
+            aria-label={hc.chatHistory}
+            onClick={() => setHistoryOpen((open) => !open)}
+          >
+            <History className="h-4 w-4" />
+          </Button>
+          <div className="min-w-0">
+            <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
+              <Sparkles className="h-5 w-5 text-indigo-600" />
+              {hc.title}
+            </h2>
+            <p className="mt-0.5 text-xs text-muted-foreground sm:text-sm">{hc.studioSubtitle}</p>
+          </div>
         </div>
       </div>
 
       <div className="flex min-h-0 flex-col lg:max-h-[calc(100dvh-13rem)] lg:flex-row lg:items-stretch">
         <aside className="flex shrink-0 flex-col border-b border-indigo-100 bg-indigo-50/40 dark:border-indigo-900/50 dark:bg-indigo-950/20 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-5.5rem)] lg:w-64 lg:overflow-hidden lg:self-start lg:border-b-0 lg:border-r xl:w-72">
-          <div className="shrink-0 border-b border-indigo-100/80 p-3 dark:border-indigo-900/50">
+          <div className="shrink-0 p-3 lg:border-b lg:border-indigo-100/80 dark:lg:border-indigo-900/50">
             <Button
               type="button"
               size="sm"
@@ -3272,72 +3383,29 @@ export function HomeHubChatBar() {
             ) : null}
           </div>
 
-          {!threadsLoginRequired ? (
-            <div className="flex min-h-0 flex-1 flex-col p-3 lg:overflow-hidden">
-              <p className="mb-2 shrink-0 text-xs font-medium text-indigo-900 dark:text-indigo-100">
-                {hc.chatHistory}
-                {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
-              </p>
-              {threadsLoading ? (
-                <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  {hc.thinking}
-                </div>
-              ) : chatThreads.length === 0 ? (
-                <p className="py-2 text-xs text-muted-foreground">{hc.chatHistoryEmpty}</p>
-              ) : (
-                <ul className="max-h-40 space-y-1 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
-                  {chatThreads.map((thread) => {
-                    const active = thread.id === threadId
-                    const subtitle =
-                      thread.presetId && thread.projectTitle
-                        ? presetTitle(uiLocale, thread.presetId)
-                        : thread.lastMessagePreview?.slice(0, 100) ?? null
-                    return (
-                      <li key={thread.id} className="flex items-stretch gap-0.5">
-                        <button
-                          type="button"
-                          disabled={busy || deletingThreadId === thread.id}
-                          onClick={() => void switchThread(thread.id)}
-                          className={`flex min-w-0 flex-1 flex-col rounded-md px-2 py-1.5 text-left text-xs transition-colors disabled:opacity-60 ${
-                            active
-                              ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-100'
-                              : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
-                          }`}
-                        >
-                          <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
-                          <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-                            {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
-                            {subtitle ? ` · ${subtitle}` : null}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={hc.chatHistoryDelete}
-                          title={hc.chatHistoryDelete}
-                          disabled={busy || deletingThreadId === thread.id}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            void deleteThread(thread.id)
-                          }}
-                          className="flex shrink-0 items-center justify-center rounded-md px-2 text-muted-foreground transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-950/30 dark:hover:text-red-400"
-                        >
-                          {deletingThreadId === thread.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-            </div>
-          ) : null}
+          <div className="hidden min-h-0 flex-1 flex-col lg:flex">{renderChatHistoryPanel()}</div>
         </aside>
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto">
+          {historyOpen ? (
+            <button
+              type="button"
+              className="absolute inset-0 z-20 bg-slate-900/20 lg:hidden"
+              aria-label={hc.chatHistoryClose}
+              onClick={() => setHistoryOpen(false)}
+            />
+          ) : null}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-30 h-[min(18rem,50vh)] overflow-hidden lg:hidden">
+            <div
+              id="hub-chat-history-drawer"
+              className={`flex h-full w-[min(19rem,88%)] flex-col overflow-hidden rounded-br-xl border border-indigo-100 bg-white shadow-xl transition-transform duration-300 ease-out dark:border-indigo-900 dark:bg-slate-950 ${
+                historyOpen ? 'pointer-events-auto translate-x-0' : 'pointer-events-none -translate-x-full'
+              }`}
+              aria-hidden={historyOpen ? undefined : true}
+            >
+              {renderChatHistoryPanel()}
+            </div>
+          </div>
           <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
         {studioSession?.processSteps?.length ? (
           <div className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 dark:border-violet-900 dark:bg-violet-950/20">

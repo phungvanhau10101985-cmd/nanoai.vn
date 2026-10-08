@@ -4,6 +4,7 @@ import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
 import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import imageOverridesRaw from '@/lib/catalog/nanoai-catalog-feature-image-overrides.json'
 import { toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
+import { WEDDING_ADD_TO_CART_VALUE_VND, WEDDING_COMMERCE_PATH } from '@/lib/wedding/wedding-commerce-events'
 
 export type NanoAiFacebookCatalogItem = {
   id: string
@@ -182,7 +183,7 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
       description,
       availability: 'in stock',
       condition: 'new',
-      priceVnd: DEFAULT_FEATURE_PRICE_VND,
+      priceVnd: href === WEDDING_COMMERCE_PATH ? WEDDING_ADD_TO_CART_VALUE_VND : DEFAULT_FEATURE_PRICE_VND,
       linkPath: href,
       imagePath: pickImagePathForToolHref(href),
       brand: 'NanoAI',

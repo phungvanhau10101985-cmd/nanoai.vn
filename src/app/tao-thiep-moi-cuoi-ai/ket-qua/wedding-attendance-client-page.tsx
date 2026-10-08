@@ -48,13 +48,44 @@ function StatCard({
   )
 }
 
-function SideLine({ label, bucket }: { label: string; bucket: WeddingAttendanceBucket }) {
+function sideHasOutside(bucket: WeddingAttendanceBucket) {
   return (
-    <p className="text-sm">
-      <span className="font-medium">{label}:</span> {bucket.guestsAttending} khách đi · {bucket.peopleAttending} người ·{' '}
-      {bucket.peopleDeclined} người không đi
-      {bucket.guestsPending > 0 ? ` · ${bucket.guestsPending} chưa phản hồi` : ''}
-    </p>
+    bucket.guestsAttending > 0 ||
+    bucket.peopleAttending > 0 ||
+    bucket.guestsDeclined > 0 ||
+    bucket.peopleDeclined > 0 ||
+    bucket.guestsPending > 0
+  )
+}
+
+function SideStats({ label, bucket }: { label: string; bucket: WeddingAttendanceBucket }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold">{label}</h2>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard
+          label="Khách đi"
+          value={bucket.guestsAttending}
+          hint="Số khách đã xác nhận có đi"
+          tone="border-emerald-200 bg-emerald-50"
+        />
+        <StatCard
+          label="Người đi"
+          value={bucket.peopleAttending}
+          hint="Cộng người lớn và trẻ em"
+          tone="border-emerald-200 bg-white"
+        />
+        <StatCard
+          label="Người không đi"
+          value={bucket.peopleDeclined}
+          hint={`${bucket.guestsDeclined} khách báo không đi`}
+          tone="border-rose-200 bg-rose-50"
+        />
+      </div>
+      {bucket.guestsPending > 0 ? (
+        <p className="text-sm text-muted-foreground">Chưa phản hồi: {bucket.guestsPending} khách.</p>
+      ) : null}
+    </section>
   )
 }
 
@@ -99,8 +130,6 @@ export default function WeddingAttendanceClientPage({
     toast({ title: 'Đã lưu cách nhận email' })
   }
 
-  const total = summary.total
-
   return (
     <>
       <Toaster />
@@ -115,34 +144,10 @@ export default function WeddingAttendanceClientPage({
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            label="Khách đi"
-            value={total.guestsAttending}
-            hint="Số khách đã xác nhận có đi"
-            tone="border-emerald-200 bg-emerald-50"
-          />
-          <StatCard
-            label="Người đi"
-            value={total.peopleAttending}
-            hint="Cộng người lớn và trẻ em"
-            tone="border-emerald-200 bg-white"
-          />
-          <StatCard
-            label="Người không đi"
-            value={total.peopleDeclined}
-            hint={`${total.guestsDeclined} khách báo không đi`}
-            tone="border-rose-200 bg-rose-50"
-          />
-        </div>
-
-        <div className="space-y-1 rounded-2xl border bg-muted/30 px-4 py-3">
-          <SideLine label={primaryLabel} bucket={summary.groom} />
-          {coupleShape ? <SideLine label={secondaryLabel} bucket={summary.bride} /> : null}
-          {summary.outside.guestsAttending > 0 || summary.outside.guestsDeclined > 0 ? (
-            <SideLine label="Ngoài danh sách mời" bucket={summary.outside} />
-          ) : null}
-          <p className="text-sm text-muted-foreground">Chưa phản hồi: {total.guestsPending} khách.</p>
+        <div className="space-y-6">
+          <SideStats label={primaryLabel} bucket={summary.groom} />
+          {coupleShape ? <SideStats label={secondaryLabel} bucket={summary.bride} /> : null}
+          {sideHasOutside(summary.outside) ? <SideStats label="Ngoài danh sách mời" bucket={summary.outside} /> : null}
         </div>
 
         <section className="space-y-4 rounded-2xl border p-4 sm:p-5">
@@ -151,7 +156,7 @@ export default function WeddingAttendanceClientPage({
             <div>
               <h2 className="text-lg font-semibold">Email cho cô dâu và chú rể</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Thư ghi số khách đi, số người đi và số người không đi. Mỗi ngày chỉ một thư, và chỉ khi số người đi đã tăng.
+                Thư ghi riêng số khách đi, số người đi và số người không đi của từng nhà. Mỗi ngày chỉ một thư, và chỉ khi số người đi đã tăng.
               </p>
             </div>
           </div>

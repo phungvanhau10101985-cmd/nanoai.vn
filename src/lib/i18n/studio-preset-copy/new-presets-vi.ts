@@ -369,4 +369,31 @@ export const NEW_PRESETS_VI = {
       logo: 'Logo chữ cái monogram vàng kim trên nền trong suốt',
     },
   },
+  catalog_photo_pack: {
+    title: 'Ảnh bán hàng từ ảnh tự chụp',
+    kickoff:
+      'Tải ảnh sản phẩm bạn tự chụp (nghiệp dư cũng được). Mình hỏi chất liệu và kiểu ảnh, rồi dựng từng ảnh trong chat để bạn duyệt. Cuối cùng có tên và loại để copy đăng Facebook hoặc web khác — không đăng lên shop NanoAI.',
+    uploadHint: 'Tải ảnh sản phẩm tự chụp (1–4 ảnh)',
+    steps: {
+      material: 'Brief: Chất liệu',
+      product_kind: 'Brief: Loại hàng',
+      shot_look: 'Brief: Kiểu ảnh',
+      color_main: 'Ảnh màu chính',
+      gallery_2: 'Ảnh góc 2',
+      gallery_3: 'Ảnh góc 3',
+      detail_close: 'Ảnh chi tiết',
+      material_card: 'Ảnh chất liệu',
+    },
+    asks: {
+      material: '① Chất liệu là gì? (bắt buộc — vd: cotton, da, lụa)',
+      product_kind: '② Loại hàng và giới tính? (vd: áo thun nữ, giày nam, túi)',
+      shot_look: '③ Kiểu ảnh: studio / lifestyle / ngoài trời — có người mẫu không? (vd: studio, chỉ sản phẩm)',
+      color_main:
+        'Gõ **tạo** để dựng ảnh màu chính từ ảnh bạn đã tải. Có thể thêm ý (nền trắng, sáng hơn…).',
+      gallery_2: 'Gõ **tạo** để dựng ảnh góc 2. Có thể mô tả góc (nghiêng, sau lưng…).',
+      gallery_3: 'Gõ **tạo** để dựng ảnh góc 3.',
+      detail_close: 'Gõ **tạo** để dựng ảnh cận chi tiết (cúc, đường may, logo…).',
+      material_card: 'Gõ **tạo** để dựng thẻ chất liệu. Duyệt xong mình gửi tên và loại để bạn copy.',
+    },
+  },
 } as const

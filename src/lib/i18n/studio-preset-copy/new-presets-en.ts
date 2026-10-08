@@ -367,4 +367,30 @@ export const NEW_PRESETS_EN = {
       logo: 'Gold monogram lettermark on transparent background',
     },
   },
+  catalog_photo_pack: {
+    title: 'Sell photos from your own shots',
+    kickoff:
+      'Upload the product photos you took yourself (phone shots are fine). I ask about material and look, then build each photo in this chat for you to approve. At the end you get a name and category to copy onto Facebook or another site — nothing is published to a NanoAI shop.',
+    uploadHint: 'Upload your own product photos (1–4 images)',
+    steps: {
+      material: 'Brief: Material',
+      product_kind: 'Brief: Product type',
+      shot_look: 'Brief: Photo look',
+      color_main: 'Main color photo',
+      gallery_2: 'Angle 2',
+      gallery_3: 'Angle 3',
+      detail_close: 'Detail close-up',
+      material_card: 'Material card',
+    },
+    asks: {
+      material: '① What is the material? (required — e.g. cotton, leather, silk)',
+      product_kind: '② Product type and gender? (e.g. women t-shirt, men shoes, bag)',
+      shot_look: '③ Look: studio / lifestyle / outdoor — with a model? (e.g. studio, product only)',
+      color_main: 'Type **create** to build the main color photo from your upload. Add a note if you want (white background, brighter…).',
+      gallery_2: 'Type **create** for angle 2. You can name the angle (side, back…).',
+      gallery_3: 'Type **create** for angle 3.',
+      detail_close: 'Type **create** for a close-up (button, stitch, logo…).',
+      material_card: 'Type **create** for the material card. After you approve it, I send a name and category to copy.',
+    },
+  },
 } as const

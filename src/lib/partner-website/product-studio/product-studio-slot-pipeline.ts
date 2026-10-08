@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { runStudioImagePipeline } from '@/lib/hub-agent/studio-image-pipeline'
+import { resolveProductStudioGeminiImage } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import {
   fetchProductStudioJobByIdPg,
   updateProductStudioJobPg,
@@ -174,6 +175,24 @@ export type GenerateStudioSlotOpts = {
   aspectRatio?: string
 }
 
+export type ProductStudioJobPatch = {
+  status?: ProductStudioJobRow['status']
+  step?: string | null
+  message?: string | null
+  progress?: number
+  payload?: ProductStudioJobPayload
+  studio?: ProductStudioState
+  visionProductName?: string | null
+  visionAnalysis?: string | null
+  visionColors?: string[]
+  result?: ProductStudioJobRow['result']
+  errorMessage?: string | null
+  warnings?: string[]
+}
+
+export type ProductStudioJobSave = (patch: ProductStudioJobPatch) => Promise<ProductStudioJobRow | null>
+
+/** Shop SaaS: job theo partner, rồi cùng engine ảnh. */
 export async function generateProductStudioSlot(
   partnerId: string,
   jobId: string,
@@ -181,6 +200,20 @@ export async function generateProductStudioSlot(
 ): Promise<{ ok: true; job: ProductStudioJobRow } | { ok: false; error: string }> {
   const job = await fetchProductStudioJobByIdPg(partnerId, jobId)
   if (!job) return { ok: false, error: 'job_not_found' }
+  const website = await fetchPartnerWebsiteByPartnerIdPg(partnerId)
+  const locale = (website?.locale as WebLocale) || 'vi'
+  return generateProductStudioSlotOnJob(job, opts, locale, (patch) =>
+    updateProductStudioJobPg({ partnerId, jobId, ...patch })
+  )
+}
+
+/** Cùng cách dựng ảnh Đăng sản phẩm AI — shop hoặc bộ ảnh xuất ra (không ghi kho). */
+export async function generateProductStudioSlotOnJob(
+  job: ProductStudioJobRow,
+  opts: GenerateStudioSlotOpts,
+  locale: WebLocale,
+  save: ProductStudioJobSave
+): Promise<{ ok: true; job: ProductStudioJobRow } | { ok: false; error: string }> {
   if (job.mode !== 'ai') return { ok: false, error: 'not_ai_mode' }
   if (!job.createdBy) return { ok: false, error: 'missing_created_by' }
   if (job.status === 'generating' || job.status === 'publishing') {
@@ -225,8 +258,6 @@ export async function generateProductStudioSlot(
     addToRefPool(studio, attach, kind === 'color' ? `sample ${colorIndex + 1}` : 'sample', 'ref')
   }
 
-  const website = await fetchPartnerWebsiteByPartnerIdPg(partnerId)
-  const locale = (website?.locale as WebLocale) || 'vi'
   const warnings = [...job.warnings]
   let visionProductName = job.visionProductName
   let visionAnalysis = job.visionAnalysis
@@ -284,9 +315,7 @@ export async function generateProductStudioSlot(
   studio.currentSlot = slot
   studio.phase = kind
 
-  await updateProductStudioJobPg({
-    partnerId,
-    jobId,
+  await save({
     status: 'generating',
     step: `ai_${kind}`,
     message: 'generating',
@@ -300,6 +329,7 @@ export async function generateProductStudioSlot(
     errorMessage: null,
   })
 
+  const imageChoice = resolveProductStudioGeminiImage(kind, payload.imageModel)
   const gen = await runStudioImagePipeline({
     userId: job.createdBy,
     kind: 'product_photo',
@@ -308,12 +338,12 @@ export async function generateProductStudioSlot(
     referenceImageUrls: refs,
     aspectRatio,
     verbatimPrompt: true,
+    imageModel: imageChoice.model,
+    imageSize: imageChoice.imageSize,
   })
 
   if (!gen.ok) {
-    const updated = await updateProductStudioJobPg({
-      partnerId,
-      jobId,
+    const updated = await save({
       status: 'ready_for_review',
       step: 'awaiting_approval',
       errorMessage: gen.error,
@@ -325,9 +355,7 @@ export async function generateProductStudioSlot(
     return updated ? { ok: true, job: updated } : { ok: false, error: gen.error }
   }
 
-  const updated = await updateProductStudioJobPg({
-    partnerId,
-    jobId,
+  const updated = await save({
     status: 'ready_for_review',
     step: 'awaiting_approval',
     message: null,
@@ -353,6 +381,13 @@ export async function approveProductStudioSlot(
 ): Promise<{ ok: true; job: ProductStudioJobRow; done: boolean } | { ok: false; error: string }> {
   const job = await fetchProductStudioJobByIdPg(partnerId, jobId)
   if (!job) return { ok: false, error: 'job_not_found' }
+  return approveProductStudioSlotOnJob(job, (patch) => updateProductStudioJobPg({ partnerId, jobId, ...patch }))
+}
+
+export async function approveProductStudioSlotOnJob(
+  job: ProductStudioJobRow,
+  save: ProductStudioJobSave
+): Promise<{ ok: true; job: ProductStudioJobRow; done: boolean } | { ok: false; error: string }> {
   const slot = job.studio.currentSlot
   if (!slot?.candidateUrl) return { ok: false, error: 'no_candidate_to_approve' }
 
@@ -389,9 +424,7 @@ export async function approveProductStudioSlot(
   }
   studio.canPublish = studioCanPublish(studio)
 
-  const updated = await updateProductStudioJobPg({
-    partnerId,
-    jobId,
+  const updated = await save({
     status: 'draft',
     step: 'awaiting_input',
     message: studio.canPublish ? 'ready_to_publish' : null,
@@ -411,6 +444,17 @@ export async function selectProductStudioImages(
 ): Promise<{ ok: true; job: ProductStudioJobRow } | { ok: false; error: string }> {
   const job = await fetchProductStudioJobByIdPg(partnerId, jobId)
   if (!job) return { ok: false, error: 'job_not_found' }
+  return selectProductStudioImagesOnJob(job, kind, urls, (patch) =>
+    updateProductStudioJobPg({ partnerId, jobId, ...patch })
+  )
+}
+
+export async function selectProductStudioImagesOnJob(
+  job: ProductStudioJobRow,
+  kind: 'gallery' | 'detail',
+  urls: string[],
+  save: ProductStudioJobSave
+): Promise<{ ok: true; job: ProductStudioJobRow } | { ok: false; error: string }> {
   if (job.mode !== 'ai') return { ok: false, error: 'not_ai_mode' }
   if (job.status === 'generating' || job.status === 'publishing' || job.status === 'ready_for_review') {
     return { ok: false, error: 'job_busy' }
@@ -434,9 +478,7 @@ export async function selectProductStudioImages(
   }
   studio.canPublish = studioCanPublish(studio)
 
-  const updated = await updateProductStudioJobPg({
-    partnerId,
-    jobId,
+  const updated = await save({
     status: 'draft',
     step: 'awaiting_input',
     studio,

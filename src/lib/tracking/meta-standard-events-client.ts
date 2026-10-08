@@ -36,8 +36,17 @@ function readCookie(name: string): string {
   return ''
 }
 
+export type MetaStandardEventName =
+  | 'CompleteRegistration'
+  | 'StartTrial'
+  | 'Subscribe'
+  | 'ViewContent'
+  | 'AddToCart'
+  | 'InitiateCheckout'
+  | 'Purchase'
+
 function sendMetaStandardEventToServer(params: {
-  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent'
+  eventName: MetaStandardEventName
   eventId: string
   customData?: Record<string, unknown>
 }): void {
@@ -94,11 +103,12 @@ function markSentEvent(dedupeKey: string): void {
  * Uses an explicit dedupe key so we can prevent repeated fires in one session.
  */
 export function fireMetaStandardEvent(
-  eventName: 'CompleteRegistration' | 'StartTrial' | 'Subscribe' | 'ViewContent',
+  eventName: MetaStandardEventName,
   options?: {
     dedupeKey?: string
     customData?: Record<string, unknown>
     skipDedupe?: boolean
+    eventId?: string
   }
 ): boolean {
   if (!canUseDom()) return false
@@ -111,7 +121,8 @@ export function fireMetaStandardEvent(
   const customData = options?.customData && Object.keys(options.customData).length > 0
     ? options.customData
     : undefined
-  const eventId = createEventId()
+  const requestedId = String(options?.eventId || '').trim()
+  const eventId = /^[A-Za-z0-9._:-]{8,128}$/.test(requestedId) ? requestedId : createEventId()
   if (hasFbq()) {
     window.fbq!('track', eventName, customData ?? {}, { eventID: eventId })
   }

@@ -14,10 +14,12 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, RefreshCw, ThumbsUp, Upload, X } from 'lucide-react'
+import type { ProductStudioExportUi } from '@/lib/catalog-photo/catalog-photo-copy'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
   PRODUCT_STUDIO_PRODUCT_TYPES,
   PRODUCT_STUDIO_SHOT_STYLES,
+  STUDIO_MATERIAL_ASPECT_RATIO,
   STUDIO_MIN_COLOR_IMAGES,
   STUDIO_MIN_GALLERY_IMAGES,
   STUDIO_MIN_MATERIAL_IMAGES,
@@ -27,6 +29,7 @@ import {
   isWearableProductType,
   studioCanPublish,
   studioColorCount,
+  type ProductStudioImageModel,
   type ProductStudioJobRow,
   type ProductStudioProductType,
   type ProductStudioRefPoolItem,
@@ -179,21 +182,32 @@ function shotLabel(t: T, s: string): string {
   return t.productStudioShotStudio
 }
 
+export type { ProductStudioExportUi }
+
 export function ProductStudioAiPanel({
   partnerId,
+  apiBase,
+  variant = 'shop',
   t,
   onPublished,
+  exportUi,
 }: {
-  partnerId: string
+  partnerId?: string
+  apiBase?: string
+  variant?: 'shop' | 'export'
   t: T
   onPublished: () => void
+  exportUi?: ProductStudioExportUi
 }) {
   const { toast } = useToast()
-  const base = `/api/messaging/partners/${encodeURIComponent(partnerId)}/product-studio`
+  const exportMode = variant === 'export'
+  const base =
+    apiBase || `/api/messaging/partners/${encodeURIComponent(partnerId || '')}/product-studio`
 
   const [step, setStep] = useState<WizardStep>(1)
   const [job, setJob] = useState<ProductStudioJobRow | null>(null)
   const [sessions, setSessions] = useState<ProductStudioJobRow[]>([])
+  const [finished, setFinished] = useState<ProductStudioJobRow[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [studioBusy, setStudioBusy] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -213,6 +227,7 @@ export function ProductStudioAiPanel({
   const [modelEthnicity, setModelEthnicity] = useState('')
   const [shotStyle, setShotStyle] = useState('studio')
   const [aspectRatio, setAspectRatio] = useState('1:1')
+  const [imageModel, setImageModel] = useState<ProductStudioImageModel>('pro')
 
   const [formKind, setFormKind] = useState<ProductStudioSlotKind>('color')
   const [formPrompt, setFormPrompt] = useState('')
@@ -237,8 +252,13 @@ export function ProductStudioAiPanel({
   const loadSessions = useCallback(async () => {
     const res = await fetch(`${base}/jobs?active=true`)
     const data = (await res.json().catch(() => ({}))) as { jobs?: ProductStudioJobRow[] }
-    setSessions((data.jobs || []).filter((j) => j.mode === 'ai' && j.status !== 'done'))
-  }, [base])
+    const active = (data.jobs || []).filter((j) => j.mode === 'ai' && j.status !== 'done')
+    setSessions(active)
+    if (!exportMode) return
+    const doneRes = await fetch(`${base}/jobs?status=done`)
+    const done = (await doneRes.json().catch(() => ({}))) as { jobs?: ProductStudioJobRow[] }
+    setFinished((done.jobs || []).filter((j) => j.status === 'done'))
+  }, [base, exportMode])
 
   useEffect(() => {
     void loadSessions()
@@ -259,6 +279,7 @@ export function ProductStudioAiPanel({
 
   function validateAttrs(): string {
     if (!material.trim()) return t.productStudioRequiredMaterial
+    if (exportMode) return ''
     const p = Number(price.replace(/[^\d.]/g, ''))
     if (!Number.isFinite(p) || p <= 0) return t.productStudioRequiredPrice
     return ''
@@ -301,7 +322,7 @@ export function ProductStudioAiPanel({
     try {
       const payload = {
         mode: 'ai' as const,
-        price: Number(price.replace(/[^\d.]/g, '')),
+        price: exportMode ? 0 : Number(price.replace(/[^\d.]/g, '')),
         material: material.trim(),
         productName: '',
         productType,
@@ -310,7 +331,7 @@ export function ProductStudioAiPanel({
         sizes: noSize ? [] : sizes,
         noSize,
         colors: [],
-        available: Math.max(0, Number(available) || 500),
+        available: exportMode ? 0 : Math.max(0, Number(available) || 500),
         notes: notes.trim(),
         refImageUrls: [],
         aspectRatio,
@@ -319,6 +340,7 @@ export function ProductStudioAiPanel({
         modelAgeGroup: wearable && modelPresence === 'model' ? modelAgeGroup : '',
         modelEthnicity: wearable && modelPresence === 'model' ? modelEthnicity : '',
         shotStyle,
+        imageModel,
       }
       const res = await fetch(`${base}/jobs`, {
         method: 'POST',
@@ -361,6 +383,7 @@ export function ProductStudioAiPanel({
     setModelEthnicity(data.job.payload.modelEthnicity || '')
     setShotStyle(data.job.payload.shotStyle || 'studio')
     setAspectRatio(data.job.payload.aspectRatio || '1:1')
+    setImageModel(data.job.payload.imageModel === 'flash' || data.job.payload.imageModel === 'flash3' ? data.job.payload.imageModel : 'pro')
     setFormKind(data.job.studio.phase || 'color')
     setStep(3)
   }
@@ -399,7 +422,7 @@ export function ProductStudioAiPanel({
           prompt: formKind === 'color' ? formPrompt : '',
           refUrls: formRefUrls,
           attachUrl: formAttachUrl,
-          aspectRatio: formKind === 'material' ? '4:3' : aspectRatio,
+          aspectRatio: formKind === 'material' ? STUDIO_MATERIAL_ASPECT_RATIO : aspectRatio,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { job?: ProductStudioJobRow; error?: string }
@@ -496,13 +519,19 @@ export function ProductStudioAiPanel({
     }
     setSubmitting(true)
     try {
-      const res = await fetch(`${base}/jobs/${encodeURIComponent(job.id)}/publish`, {
+      const res = await fetch(`${base}/jobs/${encodeURIComponent(job.id)}/${exportMode ? 'pack' : 'publish'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
-      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      const data = (await res.json().catch(() => ({}))) as { error?: string; job?: ProductStudioJobRow }
       if (!res.ok) throw new Error(data.error || 'publish_failed')
+      if (exportMode && data.job) {
+        setJob(data.job)
+        toast({ title: exportUi?.readyTitle || t.productStudioSuccess })
+        void loadSessions()
+        return
+      }
       toast({ title: t.productStudioSuccess })
       onPublished()
     } catch (e) {
@@ -529,6 +558,37 @@ export function ProductStudioAiPanel({
           </li>
         ))}
       </ol>
+
+      {step === 1 && exportMode && finished.length > 0 && !job ? (
+        <div className="space-y-2 rounded-lg border p-3">
+          <p className="text-sm font-medium">{exportUi?.libraryTitle}</p>
+          <ul className="space-y-2">
+            {finished.map((item) => {
+              const name = item.result?.name || item.visionProductName || item.payload.material
+              const thumb = catalogPackImages(item)[0]?.url
+              return (
+                <li key={item.id} className="flex items-center gap-3 rounded-md border px-2 py-1.5">
+                  {thumb ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={thumb} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover" />
+                  ) : (
+                    <span className="h-12 w-12 shrink-0 rounded-md bg-muted" />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{name}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.result?.categoryPath || item.payload.material}
+                    </span>
+                  </span>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => void resumeJob(item.id)}>
+                    {exportUi?.libraryOpen}
+                  </Button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ) : null}
 
       {step === 1 && sessions.length > 0 && !job ? (
         <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950">
@@ -600,7 +660,8 @@ export function ProductStudioAiPanel({
             <Label>{t.productStudioFieldMaterial}</Label>
             <Input value={material} onChange={(e) => setMaterial(e.target.value)} />
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
+          {exportMode ? <p className="text-xs text-muted-foreground">{exportUi?.intro}</p> : null}
+          {exportMode ? null : <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>{t.productStudioFieldPrice}</Label>
               <Input value={price} onChange={(e) => setPrice(e.target.value)} inputMode="numeric" />
@@ -609,7 +670,7 @@ export function ProductStudioAiPanel({
               <Label>{t.productStudioFieldStock}</Label>
               <Input value={available} onChange={(e) => setAvailable(e.target.value)} inputMode="numeric" />
             </div>
-          </div>
+          </div>}
         </div>
       ) : null}
 
@@ -730,13 +791,40 @@ export function ProductStudioAiPanel({
             </Select>
           </div>
           <div className="space-y-1.5">
+            <Label>{t.productStudioImageModelLabel}</Label>
+            <Select value={imageModel} onValueChange={(value) => setImageModel(value as ProductStudioImageModel)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pro">{t.productStudioImageModelPro}</SelectItem>
+                <SelectItem value="flash">{t.productStudioImageModelFlash}</SelectItem>
+                <SelectItem value="flash3">{t.productStudioImageModelFlash3}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label>{t.productStudioFieldNotes}</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
           </div>
         </div>
       ) : null}
 
-      {step === 3 ? (
+      {step === 3 && exportMode && job?.status === 'done' ? (
+        <CatalogPhotoPackCard
+          job={job}
+          ui={exportUi}
+          onAnother={() => {
+            setJob(null)
+            setStep(1)
+            setGalleryConfirmed(false)
+            setSelectorOpen(false)
+            void loadSessions()
+          }}
+        />
+      ) : null}
+
+      {step === 3 && !(exportMode && job?.status === 'done') ? (
         <div className="space-y-4">
           <input
             ref={attachInputRef}
@@ -969,10 +1057,10 @@ export function ProductStudioAiPanel({
                   </div>
                 </div>
               ) : null}
-              <p className="text-xs text-muted-foreground">{t.productStudioMinPublishHint}</p>
+              <p className="text-xs text-muted-foreground">{exportMode ? exportUi?.hint : t.productStudioMinPublishHint}</p>
               <Button type="button" className="w-full" disabled={submitting || studioBusy || !canPublish} onClick={() => void onPublish()}>
                 {submitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-                {t.productStudioSubmit}
+                {exportMode ? exportUi?.finish || t.productStudioSubmit : t.productStudioSubmit}
               </Button>
             </div>
           ) : null}
@@ -989,7 +1077,7 @@ export function ProductStudioAiPanel({
             {step === 2 ? t.productStudioStartStudio : t.productStudioNext}
           </Button>
         </div>
-      ) : (
+      ) : exportMode && job?.status === 'done' ? null : (
         <div className="flex justify-start">
           <Button
             type="button"
@@ -1004,6 +1092,78 @@ export function ProductStudioAiPanel({
           </Button>
         </div>
       )}
+    </div>
+  )
+}
+
+function catalogPackImages(job: ProductStudioJobRow): { url: string; label: string }[] {
+  const out: { url: string; label: string }[] = []
+  for (const color of job.studio.colors) {
+    if (color.img) out.push({ url: color.img, label: color.name || 'color' })
+  }
+  job.studio.gallery.forEach((url, i) => out.push({ url, label: `gallery-${i + 1}` }))
+  job.studio.detail.forEach((url, i) => out.push({ url, label: `detail-${i + 1}` }))
+  if (job.studio.materialImage) out.push({ url: job.studio.materialImage, label: 'material' })
+  return out
+}
+
+function CatalogPhotoPackCard({
+  job,
+  ui,
+  onAnother,
+}: {
+  job: ProductStudioJobRow
+  ui?: ProductStudioExportUi
+  onAnother: () => void
+}) {
+  const { toast } = useToast()
+  const name = job.result?.name || job.visionProductName || job.payload.productName
+  const category = job.result?.categoryPath || ''
+  const images = catalogPackImages(job)
+
+  async function copy(text: string) {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      toast({ title: ui?.copied || 'Copied' })
+    } catch {
+      toast({ title: text })
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border p-4">
+      <h2 className="text-base font-semibold">{ui?.readyTitle}</h2>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">{ui?.nameLabel}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-medium">{name}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void copy(name)}>
+            {ui?.copy}
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">{ui?.categoryLabel}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p>{category}</p>
+          <Button type="button" size="sm" variant="outline" onClick={() => void copy(category)}>
+            {ui?.copy}
+          </Button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {images.map((item) => (
+          <a key={item.url} href={item.url} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg border">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={item.url} alt={item.label} className="aspect-square w-full object-cover" />
+          </a>
+        ))}
+      </div>
+      <Button type="button" variant="outline" onClick={() => void copy(images.map((item) => item.url).join('\n'))}>
+        {ui?.copy}
+      </Button>
+      <Button type="button" className="w-full" onClick={onAnother}>
+        {ui?.another}
+      </Button>
     </div>
   )
 }

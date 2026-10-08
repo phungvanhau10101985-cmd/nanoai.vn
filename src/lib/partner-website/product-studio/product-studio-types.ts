@@ -61,6 +61,8 @@ export function isWearableProductType(t: string | undefined | null): boolean {
   return PRODUCT_STUDIO_WEARABLE_TYPES.includes((t || '').trim() as ProductStudioProductType)
 }
 
+export type ProductStudioImageModel = 'pro' | 'flash' | 'flash3'
+
 export type ProductStudioJobPayload = {
   mode: ProductStudioMode
   price: number
@@ -86,7 +88,7 @@ export type ProductStudioJobPayload = {
   refImageUrls?: string[]
   galleryCount?: number
   detailCount?: number
-  imageModel?: string
+  imageModel?: ProductStudioImageModel
   aspectRatio?: string
   modelPresence?: ProductStudioModelPresence
   modelGender?: string
@@ -263,7 +265,7 @@ export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
       : [],
     galleryCount: Number(o.galleryCount ?? 5) || 5,
     detailCount: Number(o.detailCount ?? 3) || 3,
-    imageModel: String(o.imageModel ?? 'pro').trim() || 'pro',
+    imageModel: o.imageModel === 'flash' || o.imageModel === 'flash3' ? o.imageModel : 'pro',
     aspectRatio: String(o.aspectRatio ?? '1:1').trim() || '1:1',
     modelPresence: o.modelPresence === 'model' ? 'model' : 'none',
     modelGender: String(o.modelGender ?? '').trim(),

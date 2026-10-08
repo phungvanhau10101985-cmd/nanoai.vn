@@ -133,6 +133,8 @@ import {
   stepSupportsGenerationRefPicker,
   hasPrimaryFaceStyleReference,
 } from '@/lib/hub-chat/hub-studio-generation-refs'
+import { catalogPhotoSlotPrompt, appendCatalogPhotoPackReply } from '@/lib/catalog-photo/catalog-photo-chat'
+import { catalogPhotoCopy } from '@/lib/catalog-photo/catalog-photo-copy'
 import { runStudioImagePipeline, uploadStudioImages } from '@/lib/hub-agent/studio-image-pipeline'
 import { runLyriaPipeline } from '@/lib/hub-agent/lyria-pipeline'
 import {
@@ -1373,7 +1375,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset).
+- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset). Amateur self-shot product photos to sell on Facebook or another platform when the customer has no NanoAI shop website → suggestedPresetId catalog_photo_pack (inline chat, NOT fashion_campaign, NOT product_listing, NOT a separate page). product_listing stays for Shopee / Lazada / TikTok Shop listing photos.
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -1887,6 +1889,15 @@ async function generateAsset(
       hasProductRefs: productUrls.length > 0,
     }
   )
+  if (workSession.presetId === 'catalog_photo_pack' && generator === 'product_photo') {
+    const slotPrompt = catalogPhotoSlotPrompt({
+      briefNotes: workSession.briefNotes,
+      stepKey: effectiveScreenKey,
+      customNote: generationPrompt,
+      locale,
+    })
+    if (slotPrompt) fullPrompt = slotPrompt
+  }
   let aspectRatio = workSession.presetId
     ? getStepAspectRatio(workSession.presetId, effectiveScreenKey)
     : undefined
@@ -3750,6 +3761,35 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
 
   if (action === 'start_preset') {
     const presetId = String(input.presetId ?? '').trim()
+    if (presetId === 'catalog_photo_pack') {
+      const copy = catalogPhotoCopy(input.locale)
+      const workflow: HubChatWorkflowSuggestion = {
+        href: '/tao-anh-ban-hang',
+        labelKey: 'catalog_photo_pack',
+        label: copy.title,
+        reason: copy.intro,
+        prefillPrompt: '',
+        confidence: 1,
+        flowKind: 'standalone',
+        requiresOpenConfirm: true,
+      }
+      reply = copy.intro
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        workflows: [workflow],
+      })
+      return {
+        ok: true,
+        reply,
+        session,
+        threadId: input.threadId,
+        chargedChat: 0,
+        workflows: [workflow],
+        hubRoute: 'workflow',
+      }
+    }
     const preset = getStudioPreset(presetId)
     if (!preset) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.errorGeneric }
@@ -6360,6 +6400,19 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       const asked = buildAskForNextStep(session, input.locale, approvedLabel, approvedKey)
       reply = asked.reply
       studio = asked.studio
+      if (session.presetId === 'catalog_photo_pack' && !session.currentStepKey) {
+        const imageUrl =
+          session.uploadImages[0] ||
+          session.referenceImages.find((r) => r.screenKey === 'color_main')?.url ||
+          ''
+        reply = await appendCatalogPhotoPackReply({
+          userId: input.userId,
+          briefNotes: session.briefNotes,
+          imageUrl,
+          locale: input.locale,
+          reply,
+        })
+      }
     }
 
     if (session.packaging?.mockupUrl && approvedKey === 'box_mockup_3d') {

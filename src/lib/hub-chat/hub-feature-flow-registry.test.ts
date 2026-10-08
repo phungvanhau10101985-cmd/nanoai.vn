@@ -172,6 +172,26 @@ test('buildAdvisoryPayload injects wedding tool for generic invitation design re
   assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
 })
 
+test('amateur product photos for Facebook open the photo page', () => {
+  const match = matchFeatureFlowByMessage('ảnh tự chụp nghiệp dư đăng facebook, không có web', 'vi')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-anh-ban-hang')
+})
+
+test('hub catalog lists the facebook photo page and not the chat preset', () => {
+  const catalog = buildHubFeatureCatalog('vi')
+  assert.ok(catalog.some((entry) => entry.href === '/tao-anh-ban-hang' && entry.kind === 'standalone'))
+  assert.equal(catalog.some((entry) => entry.presetId === 'catalog_photo_pack'), false)
+  const picked = catalog.find((entry) => entry.key === studioFeatureKey('catalog_photo_pack'))
+  assert.equal(picked, undefined)
+})
+
+test('shopee listing photos stay on the shop listing preset', () => {
+  const match = matchFeatureFlowByMessage('ảnh sản phẩm shopee nền trắng', 'vi')
+  assert.equal(match?.kind, 'studio')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'product_listing')
+})
+
 test('tagWorkflowFlowMeta marks catalog hrefs as requiring confirm', () => {
   const tagged = tagWorkflowFlowMeta(
     [

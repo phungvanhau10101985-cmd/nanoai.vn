@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { trackWeddingViewContent } from '@/lib/tracking/wedding-commerce-client'
+import { WEDDING_COMMERCE_PATH } from '@/lib/wedding/wedding-commerce-events'
 import { isPathMatchedByFeatureRoute, toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 
 declare global {
@@ -28,6 +30,7 @@ const FEATURE_ROUTES = [
   '/lam-dep-anh',
   '/ghep-anh',
   '/tao-banner',
+  '/tao-thiep-moi-cuoi-ai',
   '/tao-anh-tu-chu',
   '/du-anh-tu-phac-thao',
   '/tao-infographic-tu-sach',
@@ -88,6 +91,12 @@ function fireMetaFeatureViewContent() {
   if (prevKey === viewKey && now - prevAt < 5000) return
   window.__nanoMetaLastViewContentKey = viewKey
   window.__nanoMetaLastViewContentAt = now
+  if (matched === WEDDING_COMMERCE_PATH) {
+    const path = window.location.pathname || '/'
+    if (path !== WEDDING_COMMERCE_PATH) return
+    trackWeddingViewContent()
+    return
+  }
   const contentId = toNanoAiFeatureCatalogIdFromHref(matched)
   const contentName = document.title?.trim().slice(0, 200) || matched
   fireMetaStandardEvent('ViewContent', {

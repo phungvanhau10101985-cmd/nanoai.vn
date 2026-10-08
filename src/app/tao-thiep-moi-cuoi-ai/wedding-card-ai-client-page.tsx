@@ -38,6 +38,7 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
+import { trackWeddingAddToCart } from '@/lib/tracking/wedding-commerce-client'
 import { WEDDING_COVER_FRAME_OPENINGS, type WeddingCoverFrameOpening } from '@/lib/wedding/build-wedding-cover-frame-prompt'
 import {
   INVITATION_OCCASION_GROUPS,
@@ -370,6 +371,12 @@ export default function WeddingCardAiClientPage() {
   const [coverPhotoPickerOpen, setCoverPhotoPickerOpen] = useState(false)
   const [backgroundPageOpen, setBackgroundPageOpen] = useState(false)
   const [backgroundCreateOpen, setBackgroundCreateOpen] = useState(false)
+  const [backgroundNotice, setBackgroundNotice] = useState<{
+    title: string
+    description?: string
+    error?: boolean
+  } | null>(null)
+  const [backgroundConfirmOpen, setBackgroundConfirmOpen] = useState(false)
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [uploadingOutside, setUploadingOutside] = useState(false)
@@ -1263,10 +1270,11 @@ export default function WeddingCardAiClientPage() {
     formData.append('extraPrompt', extraPrompt)
     if (styleReferenceFile) formData.append('customReferenceImage', styleReferenceFile)
     if (styleReferenceUrl.trim()) formData.append('customReferenceImageUrl', styleReferenceUrl.trim())
+    setBackgroundNotice(null)
     try {
       const result = await generateWeddingCardImage(formData)
       if ('error' in result) {
-        toast({ title: 'Tạo ảnh thất bại', description: result.error, variant: 'destructive', duration: 6000 })
+        setBackgroundNotice({ title: 'Tạo ảnh thất bại', description: result.error, error: true })
         return
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
@@ -1283,16 +1291,16 @@ export default function WeddingCardAiClientPage() {
         setSavedCards(fresh.cards)
       }
       setBackgroundCreateOpen(false)
-      toast({
+      setBackgroundConfirmOpen(true)
+      setBackgroundNotice({
         title: 'Đã tạo ảnh chính',
         description: 'Đã trừ 1 credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.',
       })
     } catch {
-      toast({
+      setBackgroundNotice({
         title: 'Tạo ảnh thất bại',
         description: genClient.clientFault,
-        variant: 'destructive',
-        duration: 6000,
+        error: true,
       })
     } finally {
       setGenerating(false)
@@ -1306,10 +1314,11 @@ export default function WeddingCardAiClientPage() {
     formData.append('cardId', card.id)
     formData.append('libraryId', libraryId)
     formData.append('type', 'master')
+    setBackgroundNotice(null)
     try {
       const result = await applyWeddingBackgroundFromLibrary(formData)
       if ('error' in result && result.error) {
-        toast({ title: 'Không chọn được ảnh', description: result.error, variant: 'destructive' })
+        setBackgroundNotice({ title: 'Không chọn được ảnh', description: result.error, error: true })
         return
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
@@ -1325,12 +1334,13 @@ export default function WeddingCardAiClientPage() {
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
       }
-      toast({
+      setBackgroundConfirmOpen(true)
+      setBackgroundNotice({
         title: 'Đã chọn ảnh chính từ kho',
         description: 'Không trừ credit.',
       })
     } catch {
-      toast({ title: 'Không chọn được ảnh', description: 'Thử lại.', variant: 'destructive' })
+      setBackgroundNotice({ title: 'Không chọn được ảnh', description: 'Thử lại.', error: true })
     } finally {
       setApplyingLibraryId(null)
     }
@@ -1339,11 +1349,11 @@ export default function WeddingCardAiClientPage() {
   const uploadOutsideBackground = async (file: File | null) => {
     if (!file || !card.id || uploadingOutside || generating || applyingLibraryId) return
     if (!file.type.startsWith('image/')) {
-      toast({ title: 'Không dùng được file này', description: 'Chọn file ảnh.', variant: 'destructive' })
+      setBackgroundNotice({ title: 'Không dùng được file này', description: 'Chọn file ảnh.', error: true })
       return
     }
     if (file.size > 8 * 1024 * 1024) {
-      toast({ title: 'Ảnh quá lớn', description: 'Chọn ảnh tối đa 8 MB.', variant: 'destructive' })
+      setBackgroundNotice({ title: 'Ảnh quá lớn', description: 'Chọn ảnh tối đa 8 MB.', error: true })
       return
     }
     setUploadingOutside(true)
@@ -1351,10 +1361,11 @@ export default function WeddingCardAiClientPage() {
     formData.append('cardId', card.id)
     formData.append('type', 'master')
     formData.append('file', file)
+    setBackgroundNotice(null)
     try {
       const result = await uploadWeddingPrivateBackground(formData)
       if ('error' in result && result.error) {
-        toast({ title: 'Không gắn được ảnh', description: result.error, variant: 'destructive' })
+        setBackgroundNotice({ title: 'Không gắn được ảnh', description: result.error, error: true })
         return
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
@@ -1370,12 +1381,13 @@ export default function WeddingCardAiClientPage() {
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
       }
-      toast({
+      setBackgroundConfirmOpen(true)
+      setBackgroundNotice({
         title: 'Đã dùng ảnh ngoài cho thiệp này',
         description: 'Ảnh chỉ gắn với thiệp này, không lưu kho chung. Không trừ credit.',
       })
     } catch {
-      toast({ title: 'Không gắn được ảnh', description: 'Thử lại.', variant: 'destructive' })
+      setBackgroundNotice({ title: 'Không gắn được ảnh', description: 'Thử lại.', error: true })
     } finally {
       setUploadingOutside(false)
     }
@@ -1399,6 +1411,7 @@ export default function WeddingCardAiClientPage() {
         weddingDate: prev.weddingDate,
       }))
       setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
+      trackWeddingAddToCart(result.card.id)
       toast({ title: 'Đã lưu và xuất bản link thiệp', description: 'Không tốn credit.' })
     }
   }
@@ -1541,6 +1554,36 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
+  const closeBackgroundPicker = () => {
+    setBackgroundPageOpen(false)
+    setBackgroundCreateOpen(false)
+    setBackgroundConfirmOpen(false)
+    setBackgroundNotice(null)
+  }
+
+  const openBackgroundPicker = () => {
+    setBackgroundConfirmOpen(false)
+    setBackgroundNotice(null)
+    setBackgroundPageOpen(true)
+  }
+
+  const backgroundPicked = backgroundConfirmOpen && !backgroundNotice?.error
+
+  const backgroundNoticeBlock = backgroundNotice ? (
+    <div
+      role="status"
+      className={cn(
+        'rounded-xl px-3 py-2 text-sm',
+        backgroundNotice.error ? 'bg-rose-50 text-rose-800' : 'bg-emerald-50 text-emerald-900',
+      )}
+    >
+      <p className="font-medium">{backgroundNotice.title}</p>
+      {backgroundNotice.description ? (
+        <p className="mt-0.5 text-xs leading-relaxed">{backgroundNotice.description}</p>
+      ) : null}
+    </div>
+  ) : null
+
   if (loading) {
     return (
       <div className="flex min-h-[420px] items-center justify-center">
@@ -1672,12 +1715,38 @@ export default function WeddingCardAiClientPage() {
           </CardContent>
         </Card>
 
-        <Dialog open={backgroundPageOpen} onOpenChange={setBackgroundPageOpen}>
-          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-            <DialogHeader>
-              <DialogTitle>{tImage.backgroundLibraryTitle}</DialogTitle>
-              <DialogDescription>{tImage.backgroundLibraryHint}</DialogDescription>
+        <Dialog
+          open={backgroundPageOpen}
+          onOpenChange={(open) => {
+            if (!open) closeBackgroundPicker()
+          }}
+        >
+          <DialogContent
+            overlayClassName="z-[200]"
+            showCloseButton={!backgroundPicked}
+            className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg"
+          >
+            <DialogHeader className={backgroundPicked ? 'shrink-0' : 'shrink-0 pr-10'}>
+              <DialogTitle>{backgroundPicked ? tImage.backgroundPickedTitle : tImage.backgroundLibraryTitle}</DialogTitle>
+              <DialogDescription className={backgroundPicked ? 'sr-only' : undefined}>
+                {backgroundPicked
+                  ? backgroundNotice?.description || tImage.backgroundPickedTitle
+                  : tImage.backgroundLibraryHint}
+              </DialogDescription>
             </DialogHeader>
+            {backgroundPicked ? (
+              <div className="space-y-4">
+                {masterImage?.imageUrl ? (
+                  <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full rounded-2xl object-cover" />
+                ) : null}
+                {backgroundNoticeBlock}
+                <Button type="button" className="w-full" onClick={closeBackgroundPicker}>
+                  {tImage.backgroundPickedOk}
+                </Button>
+              </div>
+            ) : (
+            <div className="min-h-0 space-y-4 overflow-y-auto">
+            {backgroundNotice?.error ? backgroundNoticeBlock : null}
             <div className="overflow-hidden rounded-2xl border bg-muted">
               {masterImage?.imageUrl ? (
                 <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full object-cover" />
@@ -1751,14 +1820,21 @@ export default function WeddingCardAiClientPage() {
                 void uploadOutsideBackground(file)
               }}
             />
+            </div>
+            )}
           </DialogContent>
         </Dialog>
         <Dialog open={backgroundCreateOpen} onOpenChange={setBackgroundCreateOpen}>
-          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-            <DialogHeader>
+          <DialogContent
+            overlayClassName="z-[200]"
+            className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg"
+          >
+            <DialogHeader className="shrink-0 pr-10">
               <DialogTitle>{tImage.createBackgroundModalTitle}</DialogTitle>
               <DialogDescription>{tImage.backgroundSectionHint}</DialogDescription>
             </DialogHeader>
+            {backgroundNoticeBlock}
+            <div className="min-h-0 space-y-4 overflow-y-auto">
                 <Textarea value={extraPrompt} onChange={(e) => setExtraPrompt(e.target.value)} placeholder="Prompt chỉnh thêm nếu cần, ví dụ: thêm hoa sen, ánh sáng vàng nhẹ..." />
                 <div className="rounded-2xl border border-dashed p-4">
                   <Label>{tImage.customReferenceLabel}</Label>
@@ -1811,6 +1887,7 @@ export default function WeddingCardAiClientPage() {
                   {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton}
                 </Button>
+            </div>
               </DialogContent>
             </Dialog>
         <div id="wedding-card-editor" className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -1844,8 +1921,8 @@ export default function WeddingCardAiClientPage() {
                     {tImage.backgroundEmptyPreview}
                   </div>
                 )}
-                <Button type="button" onClick={() => setBackgroundPageOpen(true)}>
-                  {tImage.chooseBackground}
+                <Button type="button" className="w-full sm:w-auto" onClick={openBackgroundPicker}>
+                  {masterImage?.imageUrl ? tImage.chooseBackgroundAgain : tImage.chooseBackground}
                 </Button>
               </CardContent>
             </Card>
@@ -2260,6 +2337,12 @@ export default function WeddingCardAiClientPage() {
                     items={musicLibrary}
                     selectedUrl={!musicClearOnSave && !musicFile ? card.musicUrl : ''}
                     credit={tMu.seedCredit}
+                    chooseLabel={tMu.chooseMusic}
+                    chooseAgainLabel={tMu.chooseAgain}
+                    previewLabel={tMu.previewListen}
+                    stopPreviewLabel={tMu.stopPreview}
+                    okLabel={tMu.confirmPick}
+                    title={tMu.pickerTitle}
                     onSelect={(audioUrl) => {
                       update('musicUrl', audioUrl)
                       setMusicFile(null)
@@ -2282,7 +2365,7 @@ export default function WeddingCardAiClientPage() {
                   </label>
                   <p className="text-xs text-muted-foreground">{tMu.sharedUploadNote}</p>
                   {!musicClearOnSave && !musicFile && !card.musicUrl ? (
-                    <p className="text-xs text-muted-foreground">Chưa có nhạc. Chọn file để có nhạc nền trên thiệp.</p>
+                    <p className="text-xs text-muted-foreground">Chưa có nhạc. Bấm «Chọn nhạc» hoặc tải file để có nhạc nền trên thiệp.</p>
                   ) : null}
                   {musicClearOnSave && card.musicUrl && !musicFile && (
                     <p className="text-xs text-amber-800 dark:text-amber-200">

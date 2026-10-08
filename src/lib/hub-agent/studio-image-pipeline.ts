@@ -278,6 +278,10 @@ export async function runStudioImagePipeline(input: {
   verbatimPrompt?: boolean
   /** Logo only: checkbox «Xóa nền». Default true. */
   stripBackground?: boolean
+  /** Product Studio: Pro / Flash. Callers khác giữ Pro. */
+  imageModel?: string | null
+  /** `null` = không gửi imageSize (Flash 2.5). Bỏ trống = spec 2K. */
+  imageSize?: string | null
 }): Promise<StudioImageResult> {
   const refUrls = input.referenceImageUrls ?? []
   const productUrls = input.productImageUrls ?? []
@@ -414,22 +418,26 @@ export async function runStudioImagePipeline(input: {
 
   try {
     let lastError = 'AI không trả về ảnh.'
+    const modelId = (input.imageModel || GEMINI_3_PRO_IMAGE.model).trim() || GEMINI_3_PRO_IMAGE.model
+    const omitImageSize = input.imageSize === null
     for (const aspectRatio of aspectRatioAttempts) {
+      const imageConfig: { aspectRatio: string; imageSize?: '2K' | '4K' } = { aspectRatio }
+      if (!omitImageSize) imageConfig.imageSize = input.imageSize === '4K' ? '4K' : spec.imageSize === '4K' ? '4K' : '2K'
       const model = genAI.getGenerativeModel({
-        model: GEMINI_3_PRO_IMAGE.model,
+        model: modelId,
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: { imageSize: spec.imageSize, aspectRatio },
+          imageConfig,
         },
       })
       try {
         const result = await model.generateContent(parts as never, { safetySettings } as never)
         trackFromUsageMetadata(
           result.response.usageMetadata,
-          GEMINI_3_PRO_IMAGE.model,
+          modelId,
           `hub-studio-${input.kind}`,
           input.userId,
-          spec.imageSize
+          imageConfig.imageSize || spec.imageSize
         )
         const imagePartRes = result.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
         if (!imagePartRes || !('inlineData' in imagePartRes)) {

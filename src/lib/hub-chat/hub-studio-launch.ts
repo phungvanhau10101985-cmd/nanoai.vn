@@ -1,6 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
 
-export type HubStudioLaunchId = 'packaging_kit' | 'bag_kit'
+export type HubStudioLaunchId = 'packaging_kit' | 'bag_kit' | 'catalog_photo_pack'
 
 export const HUB_STUDIO_LAUNCH_QUERY = 'hubStudio'
 
@@ -19,6 +19,13 @@ export const HUB_STUDIO_LAUNCH_PROMPTS: Record<HubStudioLaunchId, Record<WebLoca
     ja: '紙袋をデザイン',
     ko: '종이 쇼핑백 디자인',
   },
+  catalog_photo_pack: {
+    vi: 'ảnh tự chụp nghiệp dư đăng facebook, không có web',
+    en: 'amateur product photos for facebook, no website',
+    zh: '用自拍照发到 Facebook，没有网站',
+    ja: '自分で撮った写真を Facebook に出品、サイトなし',
+    ko: '직접 찍은 사진으로 페이스북에 판매, 웹사이트 없음',
+  },
 }
 
 export function hubStudioLaunchHref(launchId: HubStudioLaunchId): string {
@@ -31,7 +38,7 @@ export function hubStudioLaunchPrompt(launchId: HubStudioLaunchId, locale: WebLo
 
 export function parseHubStudioLaunchId(value: string | null | undefined): HubStudioLaunchId | null {
   const id = String(value ?? '').trim()
-  if (id === 'packaging_kit' || id === 'bag_kit') return id
+  if (id === 'packaging_kit' || id === 'bag_kit' || id === 'catalog_photo_pack') return id
   return null
 }
 

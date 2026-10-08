@@ -62,4 +62,30 @@ export const NEW_PRESETS_JA = {
       barcode_label: '実バーコード：briefの品名を使用。商品コード（例 SKU: 188-SRM-001）。既定 Code128 — EAN-13/QR も可。',
     },
   },
+  catalog_photo_pack: {
+    title: '自分で撮った写真から販売画像',
+    kickoff:
+      '自分で撮った商品写真をアップロード（スマホ撮影で大丈夫）。素材と雰囲気を聞いてから、このチャットで1枚ずつ作って確認します。最後に名前とカテゴリを渡すので、Facebook や別サイトにコピーできます。NanoAI ショップには公開しません。',
+    uploadHint: '自分で撮った商品写真（1–4枚）',
+    steps: {
+      material: 'Brief：素材',
+      product_kind: 'Brief：商品タイプ',
+      shot_look: 'Brief：撮影スタイル',
+      color_main: 'メインカラー写真',
+      gallery_2: 'アングル 2',
+      gallery_3: 'アングル 3',
+      detail_close: 'ディテール',
+      material_card: '素材カード',
+    },
+    asks: {
+      material: '① 素材は？（必須 — 例: コットン、革、シルク）',
+      product_kind: '② 商品タイプと性別は？（例: レディースTシャツ、メンズ靴、バッグ）',
+      shot_look: '③ 雰囲気: スタジオ / ライフスタイル / 屋外 — モデルはいる？（例: スタジオ、商品のみ）',
+      color_main: '**作成** と入力すると、アップロード写真からメイン画像を作ります。希望があれば追加（白背景、明るく…）。',
+      gallery_2: '**作成** でアングル 2。角度を書いてもよい（横、後ろ…）。',
+      gallery_3: '**作成** でアングル 3。',
+      detail_close: '**作成** で寄り（ボタン、縫い、ロゴ…）。',
+      material_card: '**作成** で素材カード。承認後、コピーできる名前とカテゴリを送ります。',
+    },
+  },
 } as const

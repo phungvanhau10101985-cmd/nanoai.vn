@@ -392,6 +392,29 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '다시 디자인',
     ],
   },
+  {
+    id: 'catalog_photo_pack',
+    labelKey: 'catalog_photo_pack',
+    needsUpload: true,
+    uploadHintKey: 'catalog_photo_pack',
+    intents: [
+      'ảnh tự chụp',
+      'anh tu chup',
+      'chụp nghiệp dư',
+      'chup nghiep du',
+      'bộ ảnh bán hàng',
+      'bo anh ban',
+      'đăng facebook',
+      'dang facebook',
+      'không có web',
+      'khong co web',
+      'amateur product photo',
+      'sell photos from',
+      '自拍照卖货',
+      '自分で撮った',
+      '직접 찍은 사진',
+    ],
+  },
 ]
 
 type PresetCopy = {

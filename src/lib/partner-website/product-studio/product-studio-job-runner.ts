@@ -1,7 +1,16 @@
-import { fetchPartnerCategoryByIdFromPg } from '@/lib/db/messaging-partner-categories-pg'
 import {
+  assignInventoryToCategoryFromPg,
+  fetchPartnerCategoryByIdFromPg,
+} from '@/lib/db/messaging-partner-categories-pg'
+import { listLandingSectionsPg } from '@/lib/db/messaging-partner-landing-sections-pg'
+import {
+  applyPartnerInventoryCatalogPatchFromPg,
   deletePartnerInventoryItemForPartnerFromPg,
+  fetchPartnerInventoryByStudioJobFromPg,
   insertPartnerInventoryFromProductStudioFromPg,
+  listPartnerInventorySkuCodesFromPg,
+  updatePartnerInventoryDescriptionFromPg,
+  updatePartnerInventoryFromProductStudioFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
 import {
   fetchProductStudioJobByIdPg,
@@ -12,10 +21,17 @@ import {
   fetchPartnerWebsiteByPartnerIdPg,
 } from '@/lib/db/messaging-partner-websites-pg'
 import { generateProductStudioDescription } from '@/lib/partner-website/product-studio/product-studio-description-ai'
+import {
+  LADIPAGE_REQUIRED_MESSAGE,
+  STUDIO_SEO_NAME_MISSING,
+  buildStudioInventoryCatalog,
+  classifyStudioProductForPublish,
+  composeLadipageDescription,
+  shouldAdoptLadipageDescription,
+} from '@/lib/partner-website/product-studio/product-studio-finalize'
 import { bootstrapSingleProductLandingForStudio } from '@/lib/partner-website/product-studio/product-studio-ladipage-bridge'
-import { placeProductStudioInventoryInCategoryTree } from '@/lib/partner-website/product-studio/product-studio-taxonomy-ai'
-import { CATEGORY_AUTO_CREATE_DISABLED } from '@/lib/partner-website/category/partner-category-place-product'
-import { CATEGORY_AUTO_CREATE_DISABLED_MESSAGE } from '@/lib/partner-website/category/partner-category-auto-create-copy'
+import { ensurePartnerInventorySkuPrefix, listOtherShopInternalSkusForPrefix } from '@/lib/messaging/partner-inventory-sku-prefix-pg'
+import { resolvePartnerImportSku, skuBlockKey } from '@/lib/messaging/partner-inventory-internal-sku'
 import {
   studioPublishMissing,
   type ProductStudioJobPayload,
@@ -24,9 +40,7 @@ import {
 } from '@/lib/partner-website/product-studio/product-studio-types'
 
 /**
- * PS.2/PS.3 — job runner cho Product Studio. Mode thủ công publish gần như đồng bộ (không cần AI).
- * PS.7-PS.9 (Phase E) sẽ mở rộng `resolveProductDescription`/gán danh mục AI/bridge Ladipage — giữ
- * đúng seam ở đây để không phải viết lại luồng publish.
+ * Product Studio publish: taxonomy 14 khóa, catalog, SKU SaaS, Ladipage bắt buộc để job `done`.
  */
 
 export type ProductStudioValidationError = { field: string; message: string }
@@ -131,17 +145,16 @@ export async function publishProductStudioJob(
   })
 
   const payload = job.payload
-  const name = payload.productName.trim() || job.visionProductName?.trim() || 'Sản phẩm mới'
+  const lockedName = payload.productName.trim() || job.visionProductName?.trim() || ''
+  if (!lockedName) {
+    const message = payload.mode === 'ai' ? STUDIO_SEO_NAME_MISSING : 'name_required_manual'
+    await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: message })
+    return { ok: false, error: message }
+  }
+
   const website = await fetchPartnerWebsiteByPartnerIdPg(partnerId)
   const partner = await fetchPartnerProfileForWebsitePg(partnerId)
-  const brandName = partner?.brandName?.trim() || partner?.displayName?.trim() || name
-
-  // PS.7 — DeepSeek viết mô tả khi merchant để trống (cả 2 mode) — không hardcode tiếng Việt/brand 188.
-  let description = (payload.description ?? '').trim()
-  if (!description) {
-    const aiDescription = await generateProductStudioDescription(payload, name, website?.locale ?? 'vi', brandName)
-    description = aiDescription || resolveFallbackProductDescription(payload, name)
-  }
+  const shopName = partner?.brandName?.trim() || partner?.displayName?.trim() || lockedName
 
   const { mainImage, gallery, detail, colors, materialImage } =
     payload.mode === 'ai'
@@ -153,91 +166,159 @@ export async function publishProductStudioJob(
     return { ok: false, error: 'missing_main_image' }
   }
 
-  const inventoryId = await insertPartnerInventoryFromProductStudioFromPg(partnerId, {
+  const sizes = payload.noSize ? [] : payload.sizes ?? []
+  const existing = await fetchPartnerInventoryByStudioJobFromPg(partnerId, jobId)
+  const classified = await classifyStudioProductForPublish({
+    partnerId,
+    payload,
+    lockedName,
+    colors,
+    sizes,
+  })
+  if (!classified.ok) {
+    if (existing?.id) await deletePartnerInventoryItemForPartnerFromPg(partnerId, existing.id)
+    const message = classified.error || 'taxonomy_failed'
+    await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: message, warnings: classified.warnings })
+    return { ok: false, error: message }
+  }
+
+  let description = classified.description
+  if (!description) {
+    const aiDescription = await generateProductStudioDescription(payload, lockedName, website?.locale ?? 'vi', shopName)
+    description = aiDescription || resolveFallbackProductDescription(payload, lockedName)
+  }
+  classified.productData.description = description
+  const name = classified.name
+  const warnings = [...classified.warnings]
+
+  const shopPrefix = await ensurePartnerInventorySkuPrefix(partnerId)
+  const blocked = new Set<string>()
+  for (const code of await listPartnerInventorySkuCodesFromPg(partnerId)) {
+    const key = skuBlockKey(code)
+    if (key) blocked.add(key)
+  }
+  for (const code of await listOtherShopInternalSkusForPrefix(partnerId, shopPrefix)) {
+    const key = skuBlockKey(code)
+    if (key) blocked.add(key)
+  }
+  const sku =
+    resolvePartnerImportSku({
+      proposed: '',
+      existingSku: existing?.sku || '',
+      assignIfEmpty: true,
+      shopPrefix,
+      blocked,
+    }) || ''
+  const remarketingId = existing?.remarketingId || `ps-${jobId}`
+  const creationOrigin = payload.mode === 'ai' ? 'manual_ai' : 'manual'
+  const studioMeta = {
+    mode: payload.mode,
+    productType: payload.productType,
+    gender: payload.gender,
+    shotStyle: payload.shotStyle,
+    modelPresence: payload.modelPresence,
+    imageModel: payload.imageModel,
+    visionProductName: job.visionProductName,
+    visionAnalysis: job.visionAnalysis,
+    createdAt: new Date().toISOString(),
+  }
+  const core = {
     name,
     description,
     priceAmount: payload.price,
     colors,
-    sizes: payload.noSize ? [] : payload.sizes ?? [],
+    sizes,
     mainImage,
     galleryUrls: gallery,
     detailImageUrls: detail,
     material: payload.material ?? '',
     materialDetailImageUrl: materialImage || null,
     stockQty: payload.available ?? 0,
-    origin: payload.mode === 'ai' ? 'manual_ai' : 'manual',
-    productStudioJobId: jobId,
-    productStudioMeta: {
-      mode: payload.mode,
-      productType: payload.productType,
-      gender: payload.gender,
-      shotStyle: payload.shotStyle,
-      modelPresence: payload.modelPresence,
-      imageModel: payload.imageModel,
-      visionProductName: job.visionProductName,
-      visionAnalysis: job.visionAnalysis,
-      createdAt: new Date().toISOString(),
-    },
-  })
-
+    origin: creationOrigin as 'manual' | 'manual_ai',
+    productStudioMeta: studioMeta,
+    sku,
+    remarketingId,
+  }
+  const inventoryId = existing
+    ? await updatePartnerInventoryFromProductStudioFromPg(partnerId, existing.id, core)
+    : await insertPartnerInventoryFromProductStudioFromPg(partnerId, { ...core, productStudioJobId: jobId })
   if (!inventoryId) {
     await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: 'insert_failed' })
     return { ok: false, error: 'insert_failed' }
   }
 
-  const warnings: string[] = []
-
-  // PS.8 — AI 100% và đăng thủ công: khớp cây / tạo L1-L2-L3 không trùng ý định SEO + sinh SEO trang.
-  const taxonomy = await placeProductStudioInventoryInCategoryTree({
-    partnerId,
-    inventoryId,
-    payload,
-    productName: name,
-    preferredCategoryId: payload.categoryId ?? null,
+  const catalog = buildStudioInventoryCatalog({
+    productData: classified.productData,
+    remarketingId,
+    sku,
+    name,
+    description,
+    price: payload.price,
+    shopName,
+    mainImage,
+    gallery,
+    detail,
+    colors,
+    sizes,
+    stockQty: payload.available ?? 0,
+    materialFallback: payload.material ?? '',
+    gender: payload.gender,
   })
-  warnings.push(...taxonomy.warnings)
-  if (!taxonomy.ok) {
-    const seoError = taxonomy.error || 'gemini_seo_failed'
-    if (seoError === CATEGORY_AUTO_CREATE_DISABLED) {
-      await deletePartnerInventoryItemForPartnerFromPg(partnerId, inventoryId)
+  const patched = await applyPartnerInventoryCatalogPatchFromPg([
+    { id: inventoryId, partnerId, catalog, materialNote: catalog.material_note || payload.material || undefined },
+  ])
+  if (!patched) {
+    await updateProductStudioJobPg({ partnerId, jobId, status: 'failed', errorMessage: 'catalog_patch_failed' })
+    return { ok: false, error: 'catalog_patch_failed' }
+  }
+
+  const categoryId = classified.categoryId
+  let categoryPath: string | null = null
+  if (categoryId) {
+    const assigned = await assignInventoryToCategoryFromPg(partnerId, inventoryId, categoryId, true)
+    if (!assigned && payload.mode === 'ai') {
       await updateProductStudioJobPg({
         partnerId,
         jobId,
         status: 'failed',
-        errorMessage: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE,
+        errorMessage: 'category_assign_failed',
+        result: {
+          inventoryId,
+          name,
+          categoryId,
+          categoryPath: null,
+          landingId: null,
+          landingSlug: null,
+          warnings,
+        },
       })
-      return { ok: false, error: CATEGORY_AUTO_CREATE_DISABLED_MESSAGE }
+      return { ok: false, error: 'category_assign_failed' }
     }
-    await updateProductStudioJobPg({
-      partnerId,
-      jobId,
-      status: 'failed',
-      errorMessage: seoError,
-    })
-    return { ok: false, error: seoError }
-  }
-  const categoryId = taxonomy.categoryId
-  let categoryPath: string | null = null
-  if (categoryId) {
+    if (!assigned) warnings.push('category_assign_failed')
     const cat = await fetchPartnerCategoryByIdFromPg(partnerId, categoryId)
     categoryPath = cat?.path ?? null
   }
 
-  // PS.9 — bridge: tự tạo + publish 1 Ladipage AI riêng cho sản phẩm này (kết hợp 2 tính năng).
   let landingId: string | null = null
   let landingSlug: string | null = null
+  let landingPublished = false
   try {
-    const bridged = await bootstrapSingleProductLandingForStudio(partnerId, inventoryId, name)
+    const bridged = await bootstrapSingleProductLandingForStudio(partnerId, inventoryId, name, {
+      materialImageUrl: materialImage || null,
+      materialCallouts: job.studio.materialCallouts || [],
+      materialBody: payload.material || null,
+    })
     if (bridged) {
       landingId = bridged.landingId
       landingSlug = bridged.landingSlug
+      landingPublished = bridged.published
       warnings.push(...bridged.warnings)
     }
   } catch (e) {
     warnings.push(`ladipage_bridge: ${e instanceof Error ? e.message : String(e)}`)
   }
 
-  const result: ProductStudioPublishResult = {
+  const partial: ProductStudioPublishResult = {
     inventoryId,
     name,
     categoryId,
@@ -246,6 +327,54 @@ export async function publishProductStudioJob(
     landingSlug,
     warnings,
   }
+  if (!landingPublished) {
+    await updateProductStudioJobPg({
+      partnerId,
+      jobId,
+      status: 'failed',
+      errorMessage: LADIPAGE_REQUIRED_MESSAGE,
+      warnings,
+      result: partial,
+    })
+    return { ok: false, error: LADIPAGE_REQUIRED_MESSAGE }
+  }
+
+  if (landingId) {
+    const sections = await listLandingSectionsPg(landingId)
+    const composed = composeLadipageDescription(
+      sections.map((section) => ({
+        sectionType: section.sectionType,
+        data: (section.data || {}) as Record<string, unknown>,
+      }))
+    )
+    if (shouldAdoptLadipageDescription(description, composed)) {
+      description = composed
+      await updatePartnerInventoryDescriptionFromPg(partnerId, inventoryId, description)
+      const synced = buildStudioInventoryCatalog({
+        productData: { ...classified.productData, description },
+        remarketingId,
+        sku,
+        name,
+        description,
+        price: payload.price,
+        shopName,
+        mainImage,
+        gallery,
+        detail,
+        colors,
+        sizes,
+        stockQty: payload.available ?? 0,
+        materialFallback: payload.material ?? '',
+        gender: payload.gender,
+      })
+      await applyPartnerInventoryCatalogPatchFromPg([
+        { id: inventoryId, partnerId, catalog: synced, materialNote: synced.material_note || payload.material || undefined },
+      ])
+      partial.warnings = warnings
+    }
+  }
+
+  const result: ProductStudioPublishResult = { ...partial, name, warnings }
 
   await updateProductStudioJobPg({
     partnerId,

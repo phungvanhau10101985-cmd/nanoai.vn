@@ -5153,6 +5153,8 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
     origin: 'manual' | 'manual_ai'
     productStudioJobId: string | null
     productStudioMeta: Record<string, unknown> | null
+    sku?: string | null
+    remarketingId?: string | null
   }
 ): Promise<string | null> {
   if (!isPgConfigured()) return null
@@ -5169,11 +5171,11 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
          partner_id, name, description, stock_note, stock_qty, price_hint, image_url, material_note,
          material_detail_image_url,
          sort_order, is_active, price_amount, colors_json, sizes_json, gallery_urls, detail_image_urls,
-         product_studio_meta, origin, product_studio_job_id, created_at, updated_at
+         product_studio_meta, origin, product_studio_job_id, sku, remarketing_id, created_at, updated_at
        ) values (
          $1::uuid, $2, $3, '', $4::int, $5, $6, $7, $8,
          $9::int, true, $10::numeric, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb,
-         $15::jsonb, $16, $17::uuid, $18::timestamptz, $18::timestamptz
+         $15::jsonb, $16, $17::uuid, $19, $20, $18::timestamptz, $18::timestamptz
        )
        returning id::text as id`,
       [
@@ -5195,6 +5197,8 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
         fields.origin,
         fields.productStudioJobId,
         now,
+        (fields.sku || '').trim() || null,
+        (fields.remarketingId || '').trim() || null,
       ]
     )
     if (row?.id) bumpInventoryCacheLater(partnerId)
@@ -5203,6 +5207,124 @@ export async function insertPartnerInventoryFromProductStudioFromPg(
     console.error('[insertPartnerInventoryFromProductStudioFromPg]', e)
     return null
   }
+}
+
+export async function fetchPartnerInventoryByStudioJobFromPg(
+  partnerId: string,
+  jobId: string
+): Promise<{ id: string; sku: string; remarketingId: string } | null> {
+  if (!isPgConfigured()) return null
+  const row = await pgQueryOne<{ id: string; sku: string | null; remarketing_id: string | null }>(
+    `select id::text as id, sku, remarketing_id
+     from public.messaging_partner_inventory
+     where partner_id = $1::uuid and product_studio_job_id = $2::uuid
+     limit 1`,
+    [partnerId, jobId]
+  )
+  if (!row?.id) return null
+  return { id: row.id, sku: (row.sku || '').trim(), remarketingId: (row.remarketing_id || '').trim() }
+}
+
+export async function listPartnerInventorySkuCodesFromPg(partnerId: string): Promise<string[]> {
+  if (!isPgConfigured()) return []
+  const rows = await pgQuery<{ sku: string | null }>(
+    `select sku from public.messaging_partner_inventory
+     where partner_id = $1::uuid and coalesce(sku, '') <> ''`,
+    [partnerId]
+  )
+  return rows.map((row) => (row.sku || '').trim()).filter(Boolean)
+}
+
+export async function updatePartnerInventoryFromProductStudioFromPg(
+  partnerId: string,
+  inventoryId: string,
+  fields: {
+    name: string
+    description: string
+    priceAmount: number
+    colors: { name: string; img: string }[]
+    sizes: string[]
+    mainImage: string
+    galleryUrls: string[]
+    detailImageUrls: string[]
+    material: string
+    materialDetailImageUrl?: string | null
+    stockQty: number
+    origin: 'manual' | 'manual_ai'
+    productStudioMeta: Record<string, unknown> | null
+    sku?: string | null
+    remarketingId?: string | null
+  }
+): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const now = new Date().toISOString()
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.messaging_partner_inventory set
+         name = $3,
+         description = $4,
+         stock_qty = $5::int,
+         price_hint = $6,
+         image_url = $7,
+         material_note = $8,
+         material_detail_image_url = $9,
+         price_amount = $10::numeric,
+         colors_json = $11::jsonb,
+         sizes_json = $12::jsonb,
+         gallery_urls = $13::jsonb,
+         detail_image_urls = $14::jsonb,
+         product_studio_meta = $15::jsonb,
+         origin = $16,
+         sku = coalesce($17, sku),
+         remarketing_id = coalesce($18, remarketing_id),
+         updated_at = $19::timestamptz
+       where partner_id = $1::uuid and id = $2::uuid
+       returning id::text as id`,
+      [
+        partnerId,
+        inventoryId,
+        fields.name.trim().slice(0, 500),
+        fields.description.trim(),
+        Math.max(0, Math.round(fields.stockQty)),
+        formatVndForInventoryWrite(fields.priceAmount),
+        fields.mainImage.trim(),
+        fields.material.trim().slice(0, 2000),
+        (fields.materialDetailImageUrl || '').trim() || null,
+        fields.priceAmount > 0 ? fields.priceAmount : null,
+        JSON.stringify(fields.colors),
+        JSON.stringify(fields.sizes),
+        JSON.stringify(fields.galleryUrls),
+        JSON.stringify(fields.detailImageUrls),
+        fields.productStudioMeta ? JSON.stringify(fields.productStudioMeta) : null,
+        fields.origin,
+        (fields.sku || '').trim() || null,
+        (fields.remarketingId || '').trim() || null,
+        now,
+      ]
+    )
+    if (row?.id) bumpInventoryCacheLater(partnerId)
+    return row?.id ?? null
+  } catch (e) {
+    console.error('[updatePartnerInventoryFromProductStudioFromPg]', e)
+    return null
+  }
+}
+
+export async function updatePartnerInventoryDescriptionFromPg(
+  partnerId: string,
+  inventoryId: string,
+  description: string
+): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  const row = await pgQueryOne<{ id: string }>(
+    `update public.messaging_partner_inventory
+     set description = $3, updated_at = now()
+     where partner_id = $1::uuid and id = $2::uuid
+     returning id::text as id`,
+    [partnerId, inventoryId, description.trim()]
+  )
+  if (row?.id) bumpInventoryCacheLater(partnerId)
+  return Boolean(row?.id)
 }
 
 function formatVndForInventoryWrite(amount: number): string {

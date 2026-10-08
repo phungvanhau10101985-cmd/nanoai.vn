@@ -100,6 +100,7 @@ export const AI_TOOLS = [
   { href: '/xoa-vat-the', labelKey: 'remove_object' as ToolKey, icon: XoaVatTheIcon },
   { href: '/xoa-nen-png', labelKey: 'remove_bg_png' as ToolKey, icon: XoaNenPngIcon },
   { href: '/thay-nen-san-pham', labelKey: 'replace_product_bg' as ToolKey, icon: ThayNenSanPhamIcon },
+  { href: '/tao-anh-ban-hang', labelKey: 'catalog_photo_pack' as ToolKey, icon: ThayNenSanPhamIcon },
   { href: '/sua-anh-theo-yeu-cau', labelKey: 'edit_image_by_request' as ToolKey, icon: SuaAnhTheoYeuCauIcon },
   { href: '/tao-anh-3d', labelKey: 'product_3d_sample' as ToolKey, icon: TaoAnh3DIcon },
   { href: '/tao-mo-hinh-3d-tu-anh', labelKey: 'model_3d_from_image' as ToolKey, icon: TaoMoHinh3DTuAnhIcon },
@@ -176,6 +177,7 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
     titleKey: 'design_creative' as NavGroupKey,
     links: [
       { href: '/tao-banner', labelKey: 'create_banner' as ToolKey, icon: TaoBannerIcon },
+      { href: '/tao-anh-ban-hang', labelKey: 'catalog_photo_pack' as ToolKey, icon: ThayNenSanPhamIcon },
       { href: '/tao-thiep-moi-cuoi-ai', labelKey: 'wedding_invitation_ai' as ToolKey, icon: TaoThiepMoiCuoiAiIcon },
       { href: '/tao-anh-tu-chu', labelKey: 'text_to_image' as ToolKey, icon: TaoAnhTuChuIcon },
       { href: '/du-anh-tu-phac-thao', labelKey: 'sketch_to_image' as ToolKey, icon: DuAnhTuPhacThaoIcon },

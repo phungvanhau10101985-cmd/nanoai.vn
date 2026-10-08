@@ -11,6 +11,7 @@ import {
   isLegacySingleGiftImage,
   isTwinVietGiftReady,
 } from '@/lib/wedding/wedding-gift-vietqr'
+import { fetchVietQRImage } from '@/app/tao-ma-vach/actions'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -24,6 +25,32 @@ import { cn } from '@/lib/utils'
 
 type Tx = Dictionary['weddingGiftBox']
 
+async function downloadGiftQrPng(src: string, filename: string) {
+  let href = src
+  let revoke = false
+  if (src.startsWith('https://img.vietqr.io/image')) {
+    const result = await fetchVietQRImage(src)
+    if (!result.dataUrl) return
+    href = result.dataUrl
+  } else {
+    try {
+      const res = await fetch(src)
+      if (res.ok) {
+        href = URL.createObjectURL(await res.blob())
+        revoke = true
+      }
+    } catch {
+      // Ảnh ngoài origin: trình duyệt mở link tải trực tiếp.
+    }
+  }
+  const link = document.createElement('a')
+  link.href = href
+  link.download = filename
+  link.rel = 'noreferrer'
+  link.click()
+  if (revoke) URL.revokeObjectURL(href)
+}
+
 type Props = {
   card: WeddingCard
   tx: Tx
@@ -35,6 +62,13 @@ type Props = {
 /** Hộp lì xì rung nhẹ; mở dialog hiển thị VietQR cô dâu / chú rể (hoặc ảnh QR cũ). */
 export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null, seal = '囍' }: Props) {
   const [open, setOpen] = useState(false)
+  const [downloading, setDownloading] = useState<string | null>(null)
+
+  const saveQr = (src: string, filename: string) => {
+    if (downloading) return
+    setDownloading(src)
+    void downloadGiftQrPng(src, filename).finally(() => setDownloading(null))
+  }
   const twin = isTwinVietGiftReady(card)
   const legacyOnly = !twin && isLegacySingleGiftImage(card)
   const showBride = !sideFilter || sideFilter === 'bride'
@@ -120,6 +154,16 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = nul
                       unoptimized
                     />
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full max-w-[13rem]"
+                    disabled={downloading === brideSrc}
+                    onClick={() => saveQr(brideSrc, `vietqr-${card.brideGiftAccountNo || 'co-dau'}.png`)}
+                  >
+                    {tx.downloadQr}
+                  </Button>
                   <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
                     {card.brideGiftAccountName}
                     <span className="mt-1 block font-mono text-xs text-slate-600">{card.brideGiftAccountNo}</span>
@@ -139,6 +183,16 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = nul
                       unoptimized
                     />
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2 w-full max-w-[13rem]"
+                    disabled={downloading === groomSrc}
+                    onClick={() => saveQr(groomSrc, `vietqr-${card.groomGiftAccountNo || 'chu-re'}.png`)}
+                  >
+                    {tx.downloadQr}
+                  </Button>
                   <p className="mt-2 max-w-[13rem] text-center text-sm text-muted-foreground">
                     {card.groomGiftAccountName}
                     <span className="mt-1 block font-mono text-xs text-slate-600">{card.groomGiftAccountNo}</span>
@@ -154,6 +208,16 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = nul
                 {/* eslint-disable-next-line @next/next/no-img-element -- URL tùy chỉnh chủ thiệp */}
                 <img src={card.giftQrImageUrl} alt={tx.qrAltLegacy} className="mx-auto max-h-[17rem] w-auto object-contain" />
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2 w-full max-w-xs"
+                disabled={downloading === card.giftQrImageUrl}
+                onClick={() => saveQr(card.giftQrImageUrl.trim(), 'qr-mung-cuoi.png')}
+              >
+                {tx.downloadQr}
+              </Button>
             </div>
           )}
 
