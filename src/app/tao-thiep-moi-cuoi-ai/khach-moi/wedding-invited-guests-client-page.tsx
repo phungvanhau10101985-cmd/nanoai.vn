@@ -28,7 +28,7 @@ import {
 import { WeddingSideInviteSettingsPanel } from './wedding-side-invite-settings-panel'
 import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
 import { WeddingGuestPackPanel } from './wedding-guest-pack-panel'
-import type { WeddingGuestPackQuota } from '@/lib/wedding/wedding-guest-pack'
+import type { WeddingGuestPackSide, WeddingGuestSideQuotas } from '@/lib/wedding/wedding-guest-pack'
 import {
   confirmWeddingInvitedGuestStatus,
   loadWeddingInvitedGuestsPage,
@@ -251,8 +251,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GuestRow | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [quota, setQuota] = useState<WeddingGuestPackQuota | null>(null)
-  const [packOpen, setPackOpen] = useState(false)
+  const [quotas, setQuotas] = useState<WeddingGuestSideQuotas | null>(null)
+  const [packSide, setPackSide] = useState<WeddingGuestPackSide | null>(null)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -296,7 +296,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       const nextRows = result.guests.map(guestToRow)
       setRows(nextRows)
       syncSavedSnapshots(nextRows)
-      if ('quota' in result) setQuota(result.quota ?? null)
+      if ('quotas' in result) setQuotas(result.quotas ?? null)
     }
   }, [cardId, syncSavedSnapshots, toast])
 
@@ -361,9 +361,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   }
 
   const addRow = (side: GuestSide) => {
-    const cap = quota?.guestCap
-    if (cap != null && rowsRef.current.length >= cap) {
-      setPackOpen(true)
+    const pack = side === 'bride_home' ? 'bride' : 'groom'
+    const cap = quotas?.[pack]?.guestCap
+    const count = rowsRef.current.filter((row) => rowBelongsToSide(row, side)).length
+    if (cap != null && count >= cap) {
+      setPackSide(pack)
       return
     }
     setRows((prev) => [...prev, emptyRow(side)])
@@ -441,8 +443,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       const result = await saveWeddingInvitedGuest(formData)
       setSavingKey(null)
       if ('code' in result && result.code === 'guest_pack_limit') {
-        if (result.quota) setQuota(result.quota)
-        setPackOpen(true)
+        if (result.quotas) setQuotas(result.quotas)
+        setPackSide(result.side === 'bride' ? 'bride' : fixedSide === 'bride_home' ? 'bride' : 'groom')
         toast({ title: 'Hết chỗ khách', description: result.error })
         return
       }
@@ -993,8 +995,8 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       {!loading ? (
         <Button type="button" size="sm" className={cn(look.add, 'h-11 w-full md:h-9 md:w-auto')} onClick={() => addRow(side)}>
           <Plus className="mr-2 h-4 w-4" />
-          {quota?.guestCap != null && rows.length >= quota.guestCap
-            ? 'Chọn gói để thêm khách'
+          {quotas?.[look.panel]?.guestCap != null && sideRows.length >= (quotas[look.panel]?.guestCap ?? 0)
+            ? `Chọn gói ${look.kicker.toLowerCase()}`
             : `Thêm khách ${look.kicker.toLowerCase()}`}
         </Button>
       ) : null}
@@ -1068,14 +1070,25 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               setCard((prev) => (prev ? { ...prev, [key]: value } : prev))
             }}
           />
+          <WeddingGuestPackPanel
+            cardId={card?.id ?? cardId}
+            side={look.panel}
+            quota={quotas?.[look.panel] ?? null}
+            open={packSide === look.panel}
+            onOpenChange={(open) => setPackSide(open ? look.panel : null)}
+            onPaid={(next) => {
+              if (next) setQuotas(next)
+              void load(true)
+            }}
+          />
           <WeddingSideGuestImportBar
             cardId={card?.id ?? ''}
             side={look.panel}
             disabled={loading || !card}
             onImported={load}
-            onNeedPack={(nextQuota) => {
-              if (nextQuota) setQuota(nextQuota)
-              setPackOpen(true)
+            onNeedPack={(side, nextQuotas) => {
+              if (nextQuotas) setQuotas(nextQuotas)
+              setPackSide(side)
             }}
           />
           {renderSideStats(stats, look)}
@@ -1120,17 +1133,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             <p className="text-sm text-white/85">{brideStats.total} khách · {brideStats.attending} có đi</p>
           </a>
         </div>
-
-        <WeddingGuestPackPanel
-          cardId={cardId}
-          quota={quota}
-          open={packOpen}
-          onOpenChange={setPackOpen}
-          onPaid={(nextQuota) => {
-            if (nextQuota) setQuota(nextQuota)
-            void load(true)
-          }}
-        />
 
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

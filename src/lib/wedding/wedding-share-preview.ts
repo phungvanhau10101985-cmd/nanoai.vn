@@ -1,5 +1,6 @@
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { invitationEditorCopy, invitationOccasionShape } from '@/lib/wedding/invitation-occasion'
+import { findWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import { parseWeddingSectionConfig, resolveCoverPhotoUrl } from '@/lib/wedding/wedding-section-config'
 
 export type WeddingShareLook = {
@@ -83,17 +84,6 @@ const LOOKS: Record<string, WeddingShareLook> = {
   },
 }
 
-const PRESET_STYLE: Record<string, string> = {
-  classic_red: 'traditional_vietnamese',
-  red_photo_arch: 'traditional_vietnamese',
-  lotus_viet: 'traditional_vietnamese',
-  blush_floral: 'floral',
-  sage_garden: 'minimal',
-  gold_luxury: 'luxury',
-  night_modern: 'modern',
-  dragon_phoenix: 'luxury',
-}
-
 const DATE_ISO = /^\d{4}-\d{2}-\d{2}$/
 
 export type WeddingSharePreviewModel = {
@@ -146,8 +136,8 @@ function dateLabel(raw: string | null | undefined) {
 }
 
 export function weddingShareLook(styleId: string | null | undefined, coverPresetId?: string | null): WeddingShareLook {
-  const preset = String(coverPresetId || '').trim()
-  const fromPreset = preset ? PRESET_STYLE[preset] : ''
+  const known = findWeddingCoverPreset(coverPresetId)
+  const fromPreset = known ? known.shareStyleId || known.styleId : ''
   const id = fromPreset || String(styleId || '').trim() || 'luxury'
   return LOOKS[id] ?? LOOKS.luxury
 }

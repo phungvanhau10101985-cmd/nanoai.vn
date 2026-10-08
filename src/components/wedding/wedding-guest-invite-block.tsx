@@ -5,7 +5,7 @@ import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CL
 import { cn } from '@/lib/utils'
 import { resolveGuestInviteMapUrl } from '@/lib/wedding/google-maps-embed-url'
 import { formatGuestInviteVenueDateTime } from '@/lib/wedding/wedding-calendar-utils'
-import { getWeddingMapButtonColors } from '@/lib/wedding/wedding-theme'
+import { getWeddingMapButtonColors, isWeddingDarkTheme } from '@/lib/wedding/wedding-theme'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 
 type Props = {
@@ -47,7 +47,20 @@ export function WeddingGuestInviteBlock(props: Props) {
   return (
     <div className={cn(props.className)}>
       <WeddingGuestNameFontLink />
-      <div className={cn('rounded-2xl p-3 ring-1 ring-white/28 shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] sm:rounded-3xl sm:p-4', props.scriptLines && 'wedding-open-line wedding-open-guest', props.panelClassName)}>
+      <div
+        className={cn(
+          'rounded-2xl p-3 shadow-none ring-0 sm:rounded-3xl sm:p-4',
+          props.scriptLines && 'wedding-open-line wedding-open-guest',
+          props.panelClassName,
+          'bg-transparent shadow-none ring-0',
+        )}
+        style={{
+          background: isWeddingDarkTheme(props.weddingThemeId)
+            ? 'radial-gradient(ellipse 40% 46% at 50% 48%, rgba(15,23,42,0.64) 0%, rgba(15,23,42,0.24) 64%, transparent 100%)'
+            : 'radial-gradient(ellipse 40% 46% at 50% 48%, rgba(255,252,247,0.8) 0%, rgba(255,248,236,0.36) 64%, transparent 100%)',
+          boxShadow: 'none',
+        }}
+      >
         <p className={cn('text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-cordial', props.cordiallyClassName)}>{props.cordiallyInvitesLabel}</p>
         <p
           className={cn(
@@ -60,6 +73,18 @@ export function WeddingGuestInviteBlock(props: Props) {
         >
           {name}
         </p>
+        {props.personalInviteText?.trim() ? (
+          <p
+            className={cn(
+              'mx-auto mt-3 max-w-prose whitespace-pre-line text-center leading-relaxed',
+              props.compact ? 'text-[11px]' : 'text-xs leading-6 sm:text-sm',
+              props.scriptLines && 'wedding-open-line wedding-open-invite',
+              props.personalInviteClassName ?? props.cordiallyClassName,
+            )}
+          >
+            {renderWeddingGuestName(props.personalInviteText.trim(), name, guestNameClass)}
+          </p>
+        ) : null}
         {venue ? (
           <>
             <p className={cn('mt-1 font-medium sm:mt-2', props.compact ? 'text-xs' : 'text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-venue', props.venueClassName)}>
@@ -119,17 +144,6 @@ export function WeddingGuestInviteBlock(props: Props) {
             <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: mapColors.text }} aria-hidden />
             <span className="text-center">{props.viewMapLabel}</span>
           </a>
-        ) : null}
-        {props.personalInviteText?.trim() ? (
-          <p
-            className={cn(
-              'mt-3 whitespace-pre-line border-t border-white/20 pt-3 text-left text-xs leading-relaxed sm:text-sm',
-              props.scriptLines && 'wedding-open-line wedding-open-note',
-              props.personalInviteClassName ?? props.cordiallyClassName,
-            )}
-          >
-            {renderWeddingGuestName(props.personalInviteText.trim(), name, guestNameClass)}
-          </p>
         ) : null}
       </div>
     </div>

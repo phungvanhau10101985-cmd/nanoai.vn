@@ -1,6 +1,10 @@
-/** Một dòng khách mời = một link. Nhà trai và nhà gái dùng chung một gói của thiệp. */
+/** Một dòng khách mời = một link. Nhà trai và nhà gái mỗi bên một gói, cùng bảng giá. */
 
 export const WEDDING_GUEST_FREE_CAP = 3
+
+export type WeddingGuestPackSide = 'groom' | 'bride'
+
+export type WeddingGuestPackLimitCode = 'guest_pack_limit_groom' | 'guest_pack_limit_bride'
 
 export const WEDDING_GUEST_PACKS = [
   { id: 'p50', label: 'Tối đa 50 khách', cap: 50, priceVnd: 149_000 },
@@ -113,30 +117,67 @@ export function buildWeddingGuestPackQuota(
   }
 }
 
+export type WeddingGuestSideQuotas = {
+  groom: WeddingGuestPackQuota
+  bride: WeddingGuestPackQuota
+}
+
+export function weddingGuestPackSideLabel(side: WeddingGuestPackSide): string {
+  return side === 'bride' ? 'nhà gái' : 'nhà trai'
+}
+
+export function weddingGuestPackLimitSide(code: string): WeddingGuestPackSide | null {
+  if (code === 'guest_pack_limit_bride') return 'bride'
+  if (code === 'guest_pack_limit_groom') return 'groom'
+  return null
+}
+
+export function buildWeddingGuestSideQuotas(input: {
+  groomPack: WeddingGuestPackId | null
+  bridePack: WeddingGuestPackId | null
+  groomCount: number
+  brideCount: number
+}): WeddingGuestSideQuotas {
+  return {
+    groom: buildWeddingGuestPackQuota(input.groomPack, input.groomCount),
+    bride: buildWeddingGuestPackQuota(input.bridePack, input.brideCount),
+  }
+}
+
 export function formatWeddingPackVnd(amount: number): string {
   return `${new Intl.NumberFormat('vi-VN').format(Math.max(0, Math.round(amount)))}đ`
 }
 
-export function weddingGuestPackBlockedMessage(quota: WeddingGuestPackQuota): string {
+export function weddingGuestPackBlockedMessage(
+  quota: WeddingGuestPackQuota,
+  side?: WeddingGuestPackSide,
+): string {
+  const label = side ? weddingGuestPackSideLabel(side) : ''
+  const titled = label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : ''
   if (!quota.packId) {
-    return 'Đã dùng 3 khách miễn phí. Chọn gói để thêm từ khách thứ 4.'
+    if (titled) {
+      return `${titled} đã dùng 3 khách dùng thử. Chọn gói ${label} để thêm từ khách thứ 4.`
+    }
+    return 'Đã dùng 3 khách dùng thử. Chọn gói để thêm từ khách thứ 4.'
   }
   if (quota.guestCap == null) return 'Không thêm được khách.'
+  if (label) return `Gói ${label} tối đa ${quota.guestCap} khách. Nâng gói ${label} để thêm tiếp.`
   return `Gói này tối đa ${quota.guestCap} khách. Nâng gói để thêm tiếp.`
 }
 
-export function weddingGuestPackBanner(quota: WeddingGuestPackQuota): string {
+export function weddingGuestPackBanner(quota: WeddingGuestPackQuota, side?: WeddingGuestPackSide): string {
+  const label = side ? ` ${weddingGuestPackSideLabel(side)}` : ''
   if (quota.guestCap == null) {
-    return `Gói không giới hạn · ${quota.guestCount} khách`
+    return `Gói${label} không giới hạn · ${quota.guestCount} khách`
   }
   if (!quota.packId && quota.guestCount > WEDDING_GUEST_FREE_CAP) {
-    return `Đã thêm ${quota.guestCount} khách. Bản miễn phí là 3 khách. Chọn gói để thêm tiếp.`
+    return `Đã thêm ${quota.guestCount} khách${label}. Bản dùng thử là 3 khách. Chọn gói để thêm tiếp.`
   }
   if (!quota.packId) {
-    return `Còn ${quota.remaining ?? 0} khách miễn phí · đã thêm ${quota.guestCount}`
+    return `Còn ${quota.remaining ?? 0} khách dùng thử${label} · đã thêm ${quota.guestCount}`
   }
   if ((quota.remaining ?? 0) === 0) {
-    return `Gói tối đa ${quota.guestCap} khách · đã đủ ${quota.guestCount}. Nâng gói để thêm tiếp.`
+    return `Gói${label} tối đa ${quota.guestCap} khách · đã đủ ${quota.guestCount}. Nâng gói để thêm tiếp.`
   }
-  return `Gói tối đa ${quota.guestCap} khách · đã thêm ${quota.guestCount}`
+  return `Gói${label} tối đa ${quota.guestCap} khách · đã thêm ${quota.guestCount}`
 }

@@ -43,6 +43,53 @@
   animation: wedding-cover-photo-open 2.2s cubic-bezier(0.22, 0.45, 0.2, 1) 0.7s both;
   transform-origin: center center;
 }
+@keyframes wedding-cover-photo-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wedding-cover-photo-zoom {
+  from { opacity: 0; transform: scale(0.72); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wedding-cover-photo-assemble {
+  from { opacity: 0; transform: scale(1.08); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.wedding-cover-photo-fade {
+  animation: wedding-cover-photo-fade 1.15s ease 0.55s both;
+}
+.wedding-cover-photo-zoom {
+  animation: wedding-cover-photo-zoom 1.25s cubic-bezier(0.22, 1, 0.36, 1) 0.45s both;
+  transform-origin: center center;
+}
+.wedding-cover-photo-assemble {
+  animation: wedding-cover-photo-assemble 1.35s cubic-bezier(0.22, 0.45, 0.2, 1) 0.7s both;
+  transform-origin: center center;
+}
+@keyframes wedding-cover-frame-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes wedding-cover-frame-bloom {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes wedding-cover-frame-assemble {
+  from { opacity: 0; transform: scale(1.05); filter: blur(7px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.wedding-cover-frame-fade,
+.wedding-cover-frame-settle {
+  animation: wedding-cover-frame-fade 0.85s ease 0.08s both;
+}
+.wedding-cover-frame-bloom {
+  animation: wedding-cover-frame-bloom 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  transform-origin: center center;
+}
+.wedding-cover-frame-assemble {
+  animation: wedding-cover-frame-assemble 1.4s cubic-bezier(0.22, 0.45, 0.2, 1) 0.08s both;
+  transform-origin: center center;
+}
 /* Giữ khung đầu đến khi trang hydrate xong, tránh CSS chạy trên HTML rồi chạy lại. */
 .wedding-cover-hold .wedding-couple-from-left {
   animation: none;
@@ -73,6 +120,28 @@
   animation: none;
   opacity: 0;
   transform: translateY(22px) scale(0.9);
+}
+.wedding-cover-hold .wedding-cover-photo-fade,
+.wedding-cover-hold .wedding-cover-frame-fade,
+.wedding-cover-hold .wedding-cover-frame-settle {
+  animation: none;
+  opacity: 0;
+}
+.wedding-cover-hold .wedding-cover-photo-zoom {
+  animation: none;
+  opacity: 0;
+  transform: scale(0.72);
+}
+.wedding-cover-hold .wedding-cover-photo-assemble,
+.wedding-cover-hold .wedding-cover-frame-assemble {
+  animation: none;
+  opacity: 0;
+  filter: blur(7px);
+}
+.wedding-cover-hold .wedding-cover-frame-bloom {
+  animation: none;
+  opacity: 0;
+  transform: scale(0.9);
 }
 .wedding-couple-pace-reveal .wedding-couple-from-left,
 .wedding-couple-pace-reveal .wedding-couple-from-right {
@@ -123,6 +192,13 @@
   .wedding-couple-ornament,
   .wedding-invite-body-join,
   .wedding-cover-photo-open,
+  .wedding-cover-photo-fade,
+  .wedding-cover-photo-zoom,
+  .wedding-cover-photo-assemble,
+  .wedding-cover-frame-fade,
+  .wedding-cover-frame-settle,
+  .wedding-cover-frame-bloom,
+  .wedding-cover-frame-assemble,
   .wedding-open-line,
   .wedding-open-guest-name { animation: none; }
   .wedding-cover-hold .wedding-couple-from-left,
@@ -130,8 +206,16 @@
   .wedding-cover-hold .wedding-couple-amp,
   .wedding-cover-hold .wedding-couple-ornament,
   .wedding-cover-hold .wedding-invite-body-join,
-  .wedding-cover-hold .wedding-cover-photo-open {
+  .wedding-cover-hold .wedding-cover-photo-open,
+  .wedding-cover-hold .wedding-cover-photo-fade,
+  .wedding-cover-hold .wedding-cover-photo-zoom,
+  .wedding-cover-hold .wedding-cover-photo-assemble,
+  .wedding-cover-hold .wedding-cover-frame-fade,
+  .wedding-cover-hold .wedding-cover-frame-settle,
+  .wedding-cover-hold .wedding-cover-frame-bloom,
+  .wedding-cover-hold .wedding-cover-frame-assemble {
     opacity: 1;
     transform: none;
+    filter: none;
   }
 }

@@ -1,7 +1,8 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame } from '@/lib/wedding/wedding-section-config'
+import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame } from '@/lib/wedding/wedding-section-config'
+import { WeddingFramedPhoto } from '@/components/wedding/wedding-cover-shell-card'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 
 const PORTRAIT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
@@ -18,39 +19,93 @@ function Portrait(props: {
   label: string
   theme: WeddingTheme
   frame: WeddingAlbumPhotoFrame
+  shell?: WeddingPortraitShellFrame | null
   compact?: boolean
+  choosePhotoLabel?: string
+  chooseFrameLabel?: string
+  onChoosePhoto?: () => void
+  onChooseFrame?: () => void
 }) {
   const nameText = props.name.trim() || props.label
   const frameStyle = albumPhotoFrameStyle(props.frame)
+  const editable = Boolean(props.onChoosePhoto && props.onChooseFrame)
   return (
-    <figure className="min-w-0">
-      <div
-        className={cn(
-          'relative w-full overflow-hidden bg-white/35 shadow-[0_14px_32px_rgba(70,36,16,0.16)] ring-1 ring-white/75',
-          props.compact ? 'aspect-[3/4] rounded-2xl' : 'aspect-[3/4] rounded-[1.65rem] sm:rounded-[1.85rem]',
-        )}
-      >
-        {props.imageUrl ? (
-          <img
-            src={props.imageUrl}
+    <figure
+      className="group relative min-w-0"
+      onClick={editable ? () => props.onChooseFrame?.() : undefined}
+    >
+      {props.shell ? (
+        <>
+          <WeddingFramedPhoto
+            frameSrc={props.shell.src}
+            hole={props.shell.hole}
+            photoUrl={props.imageUrl}
             alt={`${props.label} ${nameText}`}
-            className="absolute inset-0 h-full w-full object-cover"
-            style={frameStyle}
+            objectPosition={frameStyle.objectPosition}
+            scale={props.frame.scale}
           />
-        ) : (
-          <div className={cn('flex h-full w-full items-center justify-center font-serif', props.theme.accentText, props.theme.textGlow)}>
-            <span className={props.compact ? 'text-2xl' : 'text-5xl sm:text-6xl'}>{initialOf(nameText)}</span>
-          </div>
-        )}
-        <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-2 pb-2.5 pt-8 text-center text-white sm:px-3 sm:pb-3.5 sm:pt-12">
-          <p className={cn('uppercase tracking-[0.18em]', props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
-            {props.label}
-          </p>
-          <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
-            {nameText}
-          </p>
-        </figcaption>
-      </div>
+          <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
+            <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
+              {props.label}
+            </p>
+            <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
+              {nameText}
+            </p>
+          </figcaption>
+        </>
+      ) : (
+        <div
+          className={cn(
+            'relative w-full overflow-hidden bg-white/35 shadow-[0_14px_32px_rgba(70,36,16,0.16)] ring-1 ring-white/75',
+            props.compact ? 'aspect-[3/4] rounded-2xl' : 'aspect-[3/4] rounded-[1.65rem] sm:rounded-[1.85rem]',
+          )}
+        >
+          {props.imageUrl ? (
+            <img
+              src={props.imageUrl}
+              alt={`${props.label} ${nameText}`}
+              className="absolute inset-0 h-full w-full object-cover"
+              style={frameStyle}
+            />
+          ) : (
+            <div className={cn('flex h-full w-full items-center justify-center font-serif', props.theme.accentText, props.theme.textGlow)}>
+              <span className={props.compact ? 'text-2xl' : 'text-5xl sm:text-6xl'}>{initialOf(nameText)}</span>
+            </div>
+          )}
+          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-2 pb-2.5 pt-8 text-center text-white sm:px-3 sm:pb-3.5 sm:pt-12">
+            <p className={cn('uppercase tracking-[0.18em]', props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
+              {props.label}
+            </p>
+            <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
+              {nameText}
+            </p>
+          </figcaption>
+        </div>
+      )}
+      {editable ? (
+        <div className="pointer-events-none absolute inset-0 z-[4] flex items-end justify-center gap-1.5 bg-gradient-to-t from-black/50 via-black/10 to-transparent p-2 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+          <button
+            type="button"
+            className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onChoosePhoto?.()
+            }}
+          >
+            {props.choosePhotoLabel}
+          </button>
+          <button
+            type="button"
+            className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
+            onClick={(event) => {
+              event.stopPropagation()
+              props.onChooseFrame?.()
+            }}
+          >
+            {props.chooseFrameLabel}
+          </button>
+        </div>
+      ) : null}
     </figure>
   )
 }
@@ -65,9 +120,15 @@ export function WeddingCouplePortraits(props: {
   brideLabel: string
   groomFrame?: WeddingAlbumPhotoFrame
   brideFrame?: WeddingAlbumPhotoFrame
+  groomShell?: WeddingPortraitShellFrame | null
+  brideShell?: WeddingPortraitShellFrame | null
   theme: WeddingTheme
   compact?: boolean
   className?: string
+  choosePhotoLabel?: string
+  chooseFrameLabel?: string
+  onChoosePhoto?: (side: 'groom' | 'bride') => void
+  onChooseFrame?: (side: 'groom' | 'bride') => void
 }) {
   const groomImageUrl = props.groomImageUrl.trim()
   const brideImageUrl = props.brideImageUrl.trim()
@@ -81,8 +142,13 @@ export function WeddingCouplePortraits(props: {
           name={props.groomName}
           label={props.groomLabel}
           frame={props.groomFrame ?? PORTRAIT_FRAME}
+          shell={props.groomShell}
           theme={props.theme}
           compact={props.compact}
+          choosePhotoLabel={props.choosePhotoLabel}
+          chooseFrameLabel={props.chooseFrameLabel}
+          onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
         />
       </div>
     )
@@ -96,8 +162,13 @@ export function WeddingCouplePortraits(props: {
           name={props.groomName}
           label={props.groomLabel}
           frame={props.groomFrame ?? PORTRAIT_FRAME}
+          shell={props.groomShell}
           theme={props.theme}
           compact={props.compact}
+          choosePhotoLabel={props.choosePhotoLabel}
+          chooseFrameLabel={props.chooseFrameLabel}
+          onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
         />
         <span
           className={cn(
@@ -115,8 +186,13 @@ export function WeddingCouplePortraits(props: {
           name={props.brideName}
           label={props.brideLabel}
           frame={props.brideFrame ?? PORTRAIT_FRAME}
+          shell={props.brideShell}
           theme={props.theme}
           compact={props.compact}
+          choosePhotoLabel={props.choosePhotoLabel}
+          chooseFrameLabel={props.chooseFrameLabel}
+          onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
+          onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
         />
       </div>
     </div>

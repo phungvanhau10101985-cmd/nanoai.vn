@@ -101,6 +101,24 @@ export function normalizeHonorificText(honorific: string): string {
   return stripQuyHonorificPrefix(honorific).toLocaleLowerCase('vi').replace(/\s+/g, ' ')
 }
 
+const HONORIFIC_PREFIXES = [...WEDDING_GUEST_HONORIFIC_SUGGESTIONS].sort((a, b) => b.length - a.length)
+
+/** Tách «Anh Thanh» / «Ông nội Phong» thành danh xưng và tên. Không khớp thì cả chuỗi là tên. */
+export function splitGuestDisplayName(displayName: string): { honorific: string; givenName: string } {
+  const compact = displayName.trim().replace(/\s+/g, ' ')
+  if (!compact) return { honorific: '', givenName: '' }
+  const withoutQuy = compact.replace(/^quý\s+/iu, '').trim()
+  const lower = withoutQuy.toLocaleLowerCase('vi')
+  for (const phrase of HONORIFIC_PREFIXES) {
+    const key = phrase.toLocaleLowerCase('vi')
+    if (lower === key) return { honorific: phrase, givenName: '' }
+    if (lower.startsWith(`${key} `)) {
+      return { honorific: phrase, givenName: withoutQuy.slice(phrase.length).trim() }
+    }
+  }
+  return { honorific: '', givenName: compact }
+}
+
 /** Phân loại xưng hô khách (ưu tiên cụm dài: «Ông nội», «Anh rể»…). */
 export function classifyGuestHonorific(honorific: string): HonorificCategory {
   const normalized = normalizeHonorificText(honorific)

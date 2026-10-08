@@ -1,5 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
+import { formatWeddingDateForDisplay, resolveWeddingDateIso } from '@/lib/wedding/wedding-date-normalize'
 import {
   firstClockTime,
   resolveWeddingDisplayTime,
@@ -9,6 +9,7 @@ import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invit
 import type { GuestInviteSide } from '@/lib/wedding/wedding-guest-invite-location'
 import {
   resolveHostReferenceStyle,
+  splitGuestDisplayName,
   stripQuyHonorificPrefix,
   type HostReferenceStyle,
 } from '@/lib/wedding/wedding-guest-honorific-map'
@@ -126,6 +127,13 @@ export function formatGuestInviteLabel(honorific: string, name: string): string 
   return `${lowerHonorific} ${n}`
 }
 
+/** Xưng hô khi nói về sự có mặt của khách (anh, chú, bà ngoại…). */
+function guestPresenceRef(honorific: string): string {
+  const h = stripQuyHonorificPrefix(honorific).trim()
+  if (!h) return 'bạn'
+  return h.charAt(0).toLocaleLowerCase('vi') + h.slice(1)
+}
+
 function formatVietnameseClockTime(clock: string): string {
   const trimmed = clock.trim()
   const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed)
@@ -136,13 +144,63 @@ function formatVietnameseClockTime(clock: string): string {
   return `${hour} giờ ${minute}`
 }
 
+/** Khách mẫu trên preview nháp / Xem thiệp, khi chưa mở link một khách thật. */
+export const WEDDING_DEMO_GUEST_HONORIFIC = 'Anh'
+export const WEDDING_DEMO_GUEST_GIVEN_NAME = 'Minh'
+
+export function weddingDemoGuestDisplayName(locale: WebLocale = 'vi'): string {
+  if (locale === 'vi') return buildGuestDisplayName(WEDDING_DEMO_GUEST_HONORIFIC, WEDDING_DEMO_GUEST_GIVEN_NAME)
+  return WEDDING_DEMO_GUEST_GIVEN_NAME
+}
+
+/** Lời mời cá nhân mẫu — cùng câu thiệp khách nhận khi mở link nhà trai / nhà gái. */
+export function buildWeddingDemoPersonalInvite(input: {
+  side: GuestInviteSide
+  groomName: string
+  brideName: string
+  groomParents: string
+  brideParents: string
+  weddingDate: string | null
+  receptionTime: string
+  partyStartTime: string
+  address: string
+  guestName?: string
+  locale?: WebLocale
+}): { guestDisplayName: string; personalInvite: string } {
+  const locale = input.locale ?? 'vi'
+  const customGuest = (input.guestName ?? '').trim()
+  const honorific = !customGuest && locale === 'vi' ? WEDDING_DEMO_GUEST_HONORIFIC : ''
+  const givenName = customGuest || WEDDING_DEMO_GUEST_GIVEN_NAME
+  const guestDisplayName = customGuest || weddingDemoGuestDisplayName(locale)
+  const personalInvite = buildPersonalWeddingInvite({
+    side: input.side,
+    groomName: input.groomName.trim() || 'An',
+    brideName: input.brideName.trim() || 'Lan',
+    groomParents: input.groomParents,
+    brideParents: input.brideParents,
+    guestHonorific: honorific,
+    guestName: givenName,
+    weddingDateIso: resolveWeddingDateIso(input.weddingDate) || input.weddingDate,
+    receptionTime: input.receptionTime,
+    partyStartTime: input.partyStartTime,
+    address: input.address,
+    locale,
+  })
+  return { guestDisplayName, personalInvite }
+}
+
 export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): string {
   const locale = input.locale ?? 'vi'
   const isGroom = input.side === 'groom'
   const childName = (isGroom ? input.groomName : input.brideName).trim()
   const spouseName = (isGroom ? input.brideName : input.groomName).trim()
   const parents = (isGroom ? input.groomParents : input.brideParents).trim()
-  const guestLabel = formatGuestInviteLabel(input.guestHonorific, input.guestName)
+  const splitGuest = input.guestHonorific.trim()
+    ? null
+    : splitGuestDisplayName(input.guestName)
+  const guestHonorific = input.guestHonorific.trim() || splitGuest?.honorific || ''
+  const guestName = splitGuest ? splitGuest.givenName : input.guestName
+  const guestLabel = formatGuestInviteLabel(guestHonorific, guestName)
 
   if (!childName || !guestLabel) return ''
 
@@ -152,7 +210,7 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
   const timeLabel = locale === 'vi' ? formatVietnameseClockTime(clock) : clock
 
   if (locale === 'vi') {
-    const hostStyle = resolveHostReferenceStyle(input.guestHonorific, input.side)
+    const hostStyle = resolveHostReferenceStyle(guestHonorific, input.side)
     const hostPart = buildHostInviteLine({
       style: hostStyle,
       hostFullName: childName,
@@ -162,7 +220,9 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
     if (timeLabel) whenParts.push(`vào lúc ${timeLabel}`)
     if (dateLabel) whenParts.push(`ngày ${dateLabel}`)
     const whenPart = whenParts.length ? ` ${whenParts.join(' ')}` : ''
-    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự bữa cơm thân mật cùng gia đình.`
+    const presence = guestPresenceRef(guestHonorific)
+    const hostVoice = hostStyle.pronoun || 'Em'
+    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự bữa cơm thân mật cùng gia đình. Sự có mặt của ${presence} là điều vinh dự của gia đình. ${hostVoice} trân trọng mà mong đợi sự có mặt của ${presence}.`
   }
 
   const hostPart = parents ? `${childName} and family (${parents})` : childName
@@ -170,7 +230,7 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
   if (timeLabel) whenParts.push(`at ${timeLabel}`)
   if (dateLabel) whenParts.push(`on ${dateLabel}`)
   const whenPart = whenParts.length ? ` ${whenParts.join(' ')}` : ''
-  return `${hostPart} cordially invite ${guestLabel}${whenPart} to an intimate celebration together with our family.`
+  return `${hostPart} cordially invite ${guestLabel}${whenPart} to an intimate family meal. Your presence is an honor for our family. We respectfully look forward to your presence.`
 }
 
 export function buildPersonalWeddingInviteFromSideContext(input: {

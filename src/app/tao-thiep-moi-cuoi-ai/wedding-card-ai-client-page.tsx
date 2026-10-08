@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Download, ExternalLink, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { BarChart3, Download, ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import {
   applyWeddingBackgroundFromLibrary,
   generateWeddingCardImage,
+  generateWeddingCoverFrame,
   uploadWeddingPrivateBackground,
   createNewWeddingCard,
   deleteWeddingCard,
@@ -24,7 +25,7 @@ import {
   saveWeddingCardBrief,
 } from './actions'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
-import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
+import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
 import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import {
@@ -37,6 +38,7 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
+import { WEDDING_COVER_FRAME_OPENINGS, type WeddingCoverFrameOpening } from '@/lib/wedding/build-wedding-cover-frame-prompt'
 import {
   INVITATION_OCCASION_GROUPS,
   applyInvitationCoverSectionDescription,
@@ -53,7 +55,7 @@ import { countWeddingEventTimelineItems } from '@/lib/wedding/wedding-event-time
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
-import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
+import { DEFAULT_WEDDING_COVER_PRESET_ID, findWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import {
   appendWeddingSideInviteSettingsToFormData,
   EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
@@ -65,12 +67,17 @@ import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-
 import {
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
+  resolveCoverAiFrame,
   remapAlbumPhotoCrops,
   resolveAlbumPhotoFrame,
+  resolveCoverFrameMode,
+  resolveCoverFrameOpen,
   resolveCoverPhotoObjectPosition,
+  resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
+  resolvePortraitShell,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
 } from '@/lib/wedding/wedding-section-config'
@@ -81,21 +88,10 @@ import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-pre
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
-import { guestInviteVenueLabel } from '@/lib/wedding/wedding-guest-invite-venue'
+import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
+import { guestInviteVenueLabel, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
-
-/** Bản đồ từng preset vỏ thiệp → style AI + bảng màu, để chọn vỏ cũng đồng bộ phong cách sinh ảnh. */
-const COVER_PRESET_STYLE_MAP: Record<string, { styleId: string; palette: string }> = {
-  dragon_phoenix: { styleId: 'traditional_vietnamese', palette: 'red, gold, lotus pink' },
-  red_photo_arch: { styleId: 'traditional_vietnamese', palette: 'red, gold, lotus pink' },
-  classic_red: { styleId: 'traditional_vietnamese', palette: 'red, gold, lotus pink' },
-  blush_floral: { styleId: 'floral', palette: 'rose, cream, eucalyptus green' },
-  sage_garden: { styleId: 'minimal', palette: 'warm white, sage, charcoal' },
-  gold_luxury: { styleId: 'luxury', palette: 'champagne gold, ivory, blush pink' },
-  night_modern: { styleId: 'modern', palette: 'white, black, metallic gold' },
-  lotus_viet: { styleId: 'traditional_vietnamese', palette: 'red, gold, lotus pink' },
-}
 
 const AUTO_SAVE_DEBOUNCE_MS = 800
 const LOCAL_DRAFT_VERSION = 1
@@ -370,6 +366,10 @@ export default function WeddingCardAiClientPage() {
   const [switchingCard, setSwitchingCard] = useState(false)
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
+  const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
+  const [coverPhotoPickerOpen, setCoverPhotoPickerOpen] = useState(false)
+  const [backgroundPageOpen, setBackgroundPageOpen] = useState(false)
+  const [backgroundCreateOpen, setBackgroundCreateOpen] = useState(false)
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [uploadingOutside, setUploadingOutside] = useState(false)
@@ -383,6 +383,10 @@ export default function WeddingCardAiClientPage() {
   const [pickedOccasion, setPickedOccasion] = useState<InvitationOccasionKey>('wedding')
   const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [frameGenerating, setFrameGenerating] = useState(false)
+  const [framePrompt, setFramePrompt] = useState('')
+  const [frameOpening, setFrameOpening] = useState<WeddingCoverFrameOpening>('ellipse')
+  const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | null>(null)
   const [extraPrompt, setExtraPrompt] = useState('')
   const [styleReferenceFile, setStyleReferenceFile] = useState<File | null>(null)
   const [styleReferenceUrl, setStyleReferenceUrl] = useState('')
@@ -520,6 +524,7 @@ export default function WeddingCardAiClientPage() {
         }
         setImages(result.images)
         setLibrary(result.library)
+        setFrameLibrary(result.frameLibrary)
         setMusicLibrary(result.musicLibrary)
         setRsvps(result.rsvps)
         setSavedCards(result.cards)
@@ -546,6 +551,10 @@ export default function WeddingCardAiClientPage() {
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
+  const coverFrameMode = resolveCoverFrameMode(sectionConfig)
+  const coverPhotoOpen = resolveCoverPhotoOpen(sectionConfig)
+  const coverFrameOpen = resolveCoverFrameOpen(sectionConfig)
   const coverPhotoPositionX = sectionConfig.coverPhotoPositionX ?? 50
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -609,19 +618,53 @@ export default function WeddingCardAiClientPage() {
     () => (weddingDateIso ? formatWeddingDateForDisplay(weddingDateIso, uiLocale) : ''),
     [weddingDateIso, uiLocale],
   )
-  const guestInviteVenueDisplay = useMemo(
-    () => guestInviteVenueLabel(card.guestInviteVenue, txPublic),
-    [card.guestInviteVenue, txPublic],
-  )
   const groomLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'groom_home'), [card])
   const brideLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'bride_home'), [card])
   const guestInviteLocationPreview = previewLetterView === 'bride' ? brideLetterPreview : groomLetterPreview
+  const previewDemoVenue: WeddingGuestInviteVenue =
+    card.guestInviteVenue || (previewLetterView === 'bride' ? 'bride_home' : 'groom_home')
+  const previewDemo = useMemo(
+    () =>
+      buildWeddingDemoPersonalInvite({
+        side: previewDemoVenue === 'bride_home' ? 'bride' : 'groom',
+        groomName: card.groomName,
+        brideName: card.brideName,
+        groomParents: card.groomParents,
+        brideParents: card.brideParents,
+        weddingDate: guestInviteLocationPreview.weddingDate,
+        receptionTime: guestInviteLocationPreview.receptionTime,
+        partyStartTime: guestInviteLocationPreview.partyStartTime,
+        address: guestInviteLocationPreview.address,
+        guestName: card.guestName,
+        locale: uiLocale,
+      }),
+    [
+      card.brideName,
+      card.brideParents,
+      card.groomName,
+      card.groomParents,
+      card.guestName,
+      guestInviteLocationPreview.address,
+      guestInviteLocationPreview.partyStartTime,
+      guestInviteLocationPreview.receptionTime,
+      guestInviteLocationPreview.weddingDate,
+      previewDemoVenue,
+      uiLocale,
+    ],
+  )
+  const previewDemoVenueLabel = useMemo(
+    () => guestInviteVenueLabel(previewDemoVenue, txPublic),
+    [previewDemoVenue, txPublic],
+  )
   const openLetterView = (view: 'groom' | 'bride') => {
     setPreviewLetterView(view)
     setLetterAskOpen(false)
     if (!publishUrl) return
     const url = new URL(publishUrl)
     url.searchParams.set('view', view)
+    url.searchParams.set('demo', '1')
+    url.searchParams.set('venue', view === 'bride' ? 'bride_home' : 'groom_home')
+    url.searchParams.set('guest', previewDemo.guestDisplayName)
     window.open(url.toString(), '_blank', 'noopener,noreferrer')
   }
 
@@ -630,12 +673,19 @@ export default function WeddingCardAiClientPage() {
   }
 
   const selectCoverPreset = (presetId: string) => {
-    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverPresetId: presetId }))
+    const preset = findWeddingCoverPreset(presetId)
+    update(
+      'sectionConfig',
+      mergeWeddingSectionConfig(card.sectionConfig, {
+        coverPresetId: presetId,
+        coverFrameMode: 'preset',
+      }),
+    )
     setCoverClearOnSave(false)
-    const mapped = COVER_PRESET_STYLE_MAP[presetId]
-    if (mapped) {
-      update('selectedStyleId', mapped.styleId)
-      update('colorPalette', mapped.palette)
+    if (preset) {
+      const style = getWeddingStylePreset(preset.styleId)
+      update('selectedStyleId', style.id)
+      update('colorPalette', style.palette)
     }
   }
 
@@ -671,6 +721,8 @@ export default function WeddingCardAiClientPage() {
 
   const groomPortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'groom')
   const bridePortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'bride')
+  const groomPortraitShell = resolvePortraitShell(sectionConfig, 'groom')
+  const bridePortraitShell = resolvePortraitShell(sectionConfig, 'bride')
 
   const updatePortraitCrop = (
     side: 'groom' | 'bride',
@@ -701,14 +753,17 @@ export default function WeddingCardAiClientPage() {
     positionY?: number
     scale?: number
   }) => {
-    update(
-      'sectionConfig',
-      mergeWeddingSectionConfig(card.sectionConfig, {
-        coverPhotoPositionX: patch.positionX ?? coverPhotoPositionX,
-        coverPhotoPositionY: patch.positionY ?? coverPhotoPositionY,
-        coverPhotoScale: patch.scale ?? coverPhotoScale,
-      }),
-    )
+    setCard((prev) => {
+      const current = parseWeddingSectionConfig(prev.sectionConfig)
+      return {
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+          coverPhotoPositionX: patch.positionX ?? current.coverPhotoPositionX ?? 50,
+          coverPhotoPositionY: patch.positionY ?? current.coverPhotoPositionY ?? 50,
+          coverPhotoScale: patch.scale ?? resolveCoverPhotoScale(current),
+        }),
+      }
+    })
   }
 
   const previewMusicStartSec = useMemo(() => parseWeddingMusicTimeToSeconds(musicStartInput.trim()) ?? null, [musicStartInput])
@@ -1093,6 +1148,111 @@ export default function WeddingCardAiClientPage() {
     }
   }, [card.id, loading, persistFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps -- flush reads latest refs
 
+  const selectNoCoverFrame = () => {
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverFrameMode: 'none' }))
+  }
+
+  const savePortraitShell = (
+    side: 'groom' | 'bride',
+    shell:
+      | { mode: 'preset'; presetId: string }
+      | { mode: 'library'; url: string; hole: { x: number; y: number; w: number; h: number }; panel: string }
+      | null,
+  ) => {
+    const patch =
+      side === 'groom'
+        ? {
+            groomPortraitShellMode: shell?.mode,
+            groomPortraitShellPresetId: shell?.mode === 'preset' ? shell.presetId : undefined,
+            groomPortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
+            groomPortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
+            groomPortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
+          }
+        : {
+            bridePortraitShellMode: shell?.mode,
+            bridePortraitShellPresetId: shell?.mode === 'preset' ? shell.presetId : undefined,
+            bridePortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
+            bridePortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
+            bridePortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
+          }
+    setCard((prev) => ({
+      ...prev,
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, patch),
+    }))
+    setPortraitFrameSide(null)
+  }
+
+  const setCoverOpenEffect = (patch: { coverPhotoOpen?: 'none' | 'rise' | 'fade' | 'zoom' | 'assemble'; coverFrameOpen?: 'none' | 'fade' | 'bloom' | 'assemble' }) => {
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
+  }
+
+  const pickCoverFromLibrary = (imageUrl: string) => {
+    const url = imageUrl.trim()
+    if (!library.some((item) => item.imageUrl === url)) return
+    setCoverImageFile(null)
+    setCoverClearOnSave(false)
+    setCoverPhotoPickerOpen(false)
+    setCard((prev) => ({
+      ...prev,
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, { coverPhotoUrl: url }),
+    }))
+  }
+
+  const applyCoverFrameFromLibrary = (item: WeddingCoverFrameLibraryItem) => {
+    setCard((prev) => ({
+      ...prev,
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+        coverAiFrameUrl: item.imageUrl,
+        coverAiFrameHole: item.hole,
+        coverAiFramePanel: item.panel,
+        coverAiFrameInk: item.ink,
+        coverFrameMode: 'library',
+      }),
+    }))
+    toast({ title: txCover.aiFrameLibraryApplied })
+  }
+
+  const generateCoverFrame = async () => {
+    if (!card.id || frameGenerating || generating) return
+    setFrameGenerating(true)
+    await waitForNextPaint()
+    const formData = new FormData()
+    formData.append('cardId', card.id)
+    formData.append('extraPrompt', framePrompt)
+    formData.append('openingShape', frameOpening)
+    formData.append('sectionConfig', persistInputsRef.current.card.sectionConfig || '{}')
+    try {
+      const result = await generateWeddingCoverFrame(formData)
+      if ('error' in result) {
+        toast({ title: txCover.aiFrameButton, description: result.error, variant: 'destructive', duration: 6000 })
+        return
+      }
+      setCard((prev) => ({
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+          coverAiFrameUrl: result.imageUrl,
+          coverAiFrameHole: result.hole,
+          coverAiFramePanel: result.panel,
+          coverAiFrameInk: result.ink,
+          coverFrameMode: 'library',
+        }),
+      }))
+      if (result.libraryItem) {
+        setFrameLibrary((prev) => [result.libraryItem!, ...prev.filter((item) => item.imageUrl !== result.libraryItem!.imageUrl)])
+      }
+      toast({ title: txCover.aiFrameDone, description: txCover.aiFrameDoneDetail })
+    } catch {
+      toast({
+        title: txCover.aiFrameButton,
+        description: genClient.clientFault,
+        variant: 'destructive',
+        duration: 6000,
+      })
+    } finally {
+      setFrameGenerating(false)
+    }
+  }
+
   const generateImage = async () => {
     if (!card.id || generating) return
     setGenerating(true)
@@ -1117,10 +1277,12 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setFrameLibrary(fresh.frameLibrary)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
       }
+      setBackgroundCreateOpen(false)
       toast({
         title: 'Đã tạo ảnh chính',
         description: 'Đã trừ 1 credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.',
@@ -1158,6 +1320,7 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setFrameLibrary(fresh.frameLibrary)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
@@ -1202,6 +1365,7 @@ export default function WeddingCardAiClientPage() {
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setFrameLibrary(fresh.frameLibrary)
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
@@ -1245,6 +1409,7 @@ export default function WeddingCardAiClientPage() {
       images: WeddingAiImage[]
       rsvps: WeddingRsvp[]
       library: WeddingBackgroundLibraryItem[]
+      frameLibrary: WeddingCoverFrameLibraryItem[]
       musicLibrary: WeddingMusicLibraryRow[]
       cards: WeddingCardSummary[]
     },
@@ -1283,6 +1448,7 @@ export default function WeddingCardAiClientPage() {
     setCard(nextCard)
     setImages(result.images)
     setLibrary(result.library)
+    setFrameLibrary(result.frameLibrary)
     setMusicLibrary(result.musicLibrary)
     setRsvps(result.rsvps)
     setSavedCards(result.cards)
@@ -1418,7 +1584,7 @@ export default function WeddingCardAiClientPage() {
         <Card>
           <CardHeader className="gap-1">
             <CardTitle>Thiệp đã lưu</CardTitle>
-            <CardDescription>Mỗi thiệp giữ riêng. Bấm Sửa để mở lại thiệp đó, hoặc Xóa thiệp không dùng.</CardDescription>
+            <CardDescription>Mỗi thiệp giữ riêng. Khách mời, Thống kê và Xem nhanh mở đúng thiệp đó. Sửa để chỉnh nội dung, Xóa khi không dùng.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {savedCards.length === 0 ? (
@@ -1434,7 +1600,7 @@ export default function WeddingCardAiClientPage() {
                       active ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white',
                     )}
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 sm:max-w-[16rem]">
                       <p className="truncate text-sm font-medium text-slate-950">{weddingCardListTitle(item)}</p>
                       <p className="text-xs text-slate-500">
                         {invitationEditorCopy(item.occasionKey).label}
@@ -1442,6 +1608,33 @@ export default function WeddingCardAiClientPage() {
                         {item.isPublished ? 'Đã xuất bản' : 'Nháp'}
                         {active ? ' · Đang sửa' : ''}
                       </p>
+                    </div>
+                    <div className="flex flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(item.id)}`}>
+                          <Users className="mr-1 h-3.5 w-3.5" />
+                          Khách mời
+                        </Link>
+                      </Button>
+                      <Button asChild variant="outline" size="sm">
+                        <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(item.id)}`}>
+                          <BarChart3 className="mr-1 h-3.5 w-3.5" />
+                          Thống kê
+                        </Link>
+                      </Button>
+                      {item.isPublished && item.slug ? (
+                        <Button asChild variant="outline" size="sm">
+                          <a href={`/thiep-moi-cuoi/${encodeURIComponent(item.slug)}`} target="_blank" rel="noreferrer">
+                            <Eye className="mr-1 h-3.5 w-3.5" />
+                            Xem nhanh
+                          </a>
+                        </Button>
+                      ) : (
+                        <Button type="button" variant="outline" size="sm" disabled title="Xuất bản thiệp để xem link">
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          Xem nhanh
+                        </Button>
+                      )}
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button
@@ -1479,6 +1672,147 @@ export default function WeddingCardAiClientPage() {
           </CardContent>
         </Card>
 
+        <Dialog open={backgroundPageOpen} onOpenChange={setBackgroundPageOpen}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{tImage.backgroundLibraryTitle}</DialogTitle>
+              <DialogDescription>{tImage.backgroundLibraryHint}</DialogDescription>
+            </DialogHeader>
+            <div className="overflow-hidden rounded-2xl border bg-muted">
+              {masterImage?.imageUrl ? (
+                <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full object-cover" />
+              ) : (
+                <div className="flex min-h-28 items-center justify-center px-6 text-center text-sm text-muted-foreground">
+                  {tImage.backgroundEmptyPreview}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" disabled={!card.id} onClick={() => setBackgroundCreateOpen(true)}>
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                {tImage.createBackgroundAi}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
+                onClick={pickOutsideBackground}
+              >
+                {uploadingOutside ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+                {tImage.pickOutsideBackground}
+              </Button>
+              {masterImage?.imageUrl ? (
+                <Button asChild variant="outline" size="sm">
+                  <a href={masterImage.imageUrl} download target="_blank" rel="noreferrer">
+                    <Download className="mr-1.5 h-3.5 w-3.5" />
+                    {tImage.downloadCreated}
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+            {library.length ? (
+              <div className="grid grid-cols-3 gap-2">
+                {library.map((item) => {
+                  const active = Boolean(masterImage?.imageUrl && masterImage.imageUrl === item.imageUrl)
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
+                      onClick={() => void applyLibraryImage(item.id)}
+                      className={cn(
+                        'relative overflow-hidden rounded-xl border bg-muted',
+                        active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
+                      )}
+                      title={active ? 'Đang dùng' : 'Chọn ảnh này, 0 credit'}
+                    >
+                      <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
+                      {applyingLibraryId === item.id ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                          <Loader2 className="h-5 w-5 animate-spin text-rose-600" />
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="rounded-xl bg-muted px-3 py-4 text-center text-xs text-muted-foreground">{tImage.backgroundLibraryEmpty}</p>
+            )}
+            <input
+              ref={outsideFileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null
+                event.target.value = ''
+                void uploadOutsideBackground(file)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+        <Dialog open={backgroundCreateOpen} onOpenChange={setBackgroundCreateOpen}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{tImage.createBackgroundModalTitle}</DialogTitle>
+              <DialogDescription>{tImage.backgroundSectionHint}</DialogDescription>
+            </DialogHeader>
+                <Textarea value={extraPrompt} onChange={(e) => setExtraPrompt(e.target.value)} placeholder="Prompt chỉnh thêm nếu cần, ví dụ: thêm hoa sen, ánh sáng vàng nhẹ..." />
+                <div className="rounded-2xl border border-dashed p-4">
+                  <Label>{tImage.customReferenceLabel}</Label>
+                  <p className="mt-1 text-xs text-muted-foreground">{tImage.customReferenceHint}</p>
+                  {styleReferencePreviewUrl ? (
+                    <img
+                      src={styleReferencePreviewUrl}
+                      alt={tImage.customReferenceLabel}
+                      className="mt-3 max-h-48 w-full rounded-xl object-contain bg-muted"
+                    />
+                  ) : (
+                    <div className="mt-3 flex min-h-32 items-center justify-center rounded-xl bg-muted text-sm text-muted-foreground">
+                      {tImage.customReferenceEmpty}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
+                      <Upload className="h-4 w-4" />
+                      {tImage.customReferenceChoose}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null
+                          setStyleReferenceFile(file)
+                          if (file) setStyleReferenceUrl('')
+                          event.target.value = ''
+                        }}
+                      />
+                    </label>
+                    {(styleReferenceFile || styleReferenceUrl.trim()) && (
+                      <Button type="button" variant="outline" size="sm" onClick={clearStyleReference}>
+                        <X className="mr-2 h-4 w-4" />
+                        {tImage.customReferenceRemove}
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    value={styleReferenceUrl}
+                    onChange={(e) => {
+                      setStyleReferenceUrl(e.target.value)
+                      if (e.target.value.trim()) setStyleReferenceFile(null)
+                    }}
+                    placeholder={tImage.customReferenceUrlPlaceholder}
+                    className="mt-3"
+                  />
+                </div>
+                <Button onClick={() => void generateImage()} disabled={generating || Boolean(applyingLibraryId) || uploadingOutside || !card.id}>
+                  {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton}
+                </Button>
+              </DialogContent>
+            </Dialog>
         <div id="wedding-card-editor" className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="space-y-6">
             <Card>
@@ -1497,6 +1831,24 @@ export default function WeddingCardAiClientPage() {
                 />
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{tImage.backgroundSectionTitle}</CardTitle>
+                <CardDescription>{tImage.backgroundSectionHint}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {masterImage?.imageUrl ? (
+                  <img src={masterImage.imageUrl} alt="" className="max-h-40 w-full rounded-xl object-cover" />
+                ) : (
+                  <div className="flex min-h-24 items-center justify-center rounded-xl bg-muted px-4 text-center text-sm text-muted-foreground">
+                    {tImage.backgroundEmptyPreview}
+                  </div>
+                )}
+                <Button type="button" onClick={() => setBackgroundPageOpen(true)}>
+                  {tImage.chooseBackground}
+                </Button>
+              </CardContent>
+            </Card>
 
             <Card>
               <CardHeader>
@@ -1504,63 +1856,109 @@ export default function WeddingCardAiClientPage() {
                 <CardDescription>{txCover.sectionDescription}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <WeddingCoverPresetPicker
-                  locale={uiLocale}
-                  occasionKey={occasionKey}
-                  selectedId={coverPresetId}
-                  onSelect={selectCoverPreset}
-                  tagNewLabel={txCover.tagNew}
-                  tagHotLabel={txCover.tagHot}
-                />
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
-                    className="relative flex min-h-[360px] items-center justify-center overflow-hidden rounded-[1.5rem] bg-cover bg-center p-4"
+                    className="relative flex min-h-[360px] items-center justify-center overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
                     style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover)}
                   >
                     <WeddingCoverShellCard
+                      key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
                       presetId={coverPresetId}
+                      aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                      frameMode={coverFrameMode}
+                      photoOpen={coverPhotoOpen}
+                      frameOpen={coverFrameOpen}
+                      openMotion
+                      motionKey={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
                       coverPhotoUrl={coverPhotoPreviewUrl}
                       coverPhotoObjectPosition={coverPhotoObjectPosition}
                       coverPhotoScale={coverPhotoScale}
+                      coverPhotoEdit={
+                        coverPhotoPreviewUrl
+                          ? {
+                              x: coverPhotoPositionX,
+                              y: coverPhotoPositionY,
+                              scale: coverPhotoScale,
+                              onChange: updateCoverPhotoCrop,
+                              zoomOutLabel: txCover.coverPhotoZoomOut,
+                              zoomInLabel: txCover.coverPhotoZoomIn,
+                            }
+                          : undefined
+                      }
                       groomName={card.groomName || '—'}
                       brideName={card.brideName || '—'}
                       weddingDate={weddingDateDisplay || card.weddingDate}
                       weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
-                      guestName={card.guestName || undefined}
-                      guestInviteVenue={card.guestInviteVenue}
-                      guestInviteVenueLabel={guestInviteVenueDisplay || undefined}
+                      guestName={previewDemo.guestDisplayName}
+                      guestInviteVenue={previewDemoVenue}
+                      guestInviteVenueLabel={previewDemoVenueLabel || undefined}
                       addressText={guestInviteLocationPreview.address || undefined}
                       mapUrl={guestInviteLocationPreview.mapUrl || undefined}
                       viewMapLabel={txPublic.guestInviteViewMap}
+                      personalInviteText={previewDemo.personalInvite}
                       theme={selectedTheme}
                       invitationLabel={txCover.previewLabel}
                       cordiallyInvitesLabel={txCover.previewGuestPrefix}
                       openButtonLabel={txCover.previewOpenButton}
                       dateFallback={txPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
+                      choosePhotoLabel={txCover.choosePhoto}
+                      changePhotoLabel={txCover.changePhoto}
+                      chooseFrameLabel={txCover.chooseFrame}
+                      onChoosePhoto={() => setCoverPhotoPickerOpen(true)}
+                      onChooseFrame={() => setPortraitFrameSide('cover')}
                       compact
                     />
                   </div>
                 </div>
-                <ImageUploadField
-                  label={txCover.uploadLabel}
-                  currentUrl={coverPhotoPreviewUrl}
-                  file={coverImageFile}
-                  onFileChange={(file) => {
+                <input
+                  id="wedding-cover-frame-photo"
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null
+                    event.target.value = ''
+                    if (!file) return
                     setCoverImageFile(file)
-                    if (file) setCoverClearOnSave(false)
+                    setCoverClearOnSave(false)
+                    setCoverPhotoPickerOpen(false)
                   }}
                 />
-                {coverPhotoPreviewUrl ? (
-                  <CoverPhotoCropEditor
-                    imageUrl={coverPhotoPreviewUrl}
-                    alt={coverPhotoCopy.alt}
-                    positionX={coverPhotoPositionX}
-                    positionY={coverPhotoPositionY}
-                    scale={coverPhotoScale}
-                    onChange={updateCoverPhotoCrop}
-                  />
-                ) : null}
+                <Dialog open={coverPhotoPickerOpen} onOpenChange={setCoverPhotoPickerOpen}>
+                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>{coverPhotoPreviewUrl ? txCover.changePhoto : txCover.choosePhoto}</DialogTitle>
+                      <DialogDescription>{txCover.coverLibraryHint}</DialogDescription>
+                    </DialogHeader>
+                    <Button type="button" variant="outline" onClick={() => document.getElementById('wedding-cover-frame-photo')?.click()}>
+                      <Upload className="mr-2 h-4 w-4" />
+                      {txCover.coverUploadDevice}
+                    </Button>
+                    {library.length ? (
+                      <div className="grid grid-cols-3 gap-2">
+                        {library.map((item) => {
+                          const active = resolveCoverPhotoUrl(sectionConfig) === item.imageUrl && !coverImageFile
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => pickCoverFromLibrary(item.imageUrl)}
+                              className={cn(
+                                'overflow-hidden rounded-xl border bg-muted',
+                                active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
+                              )}
+                            >
+                              <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl bg-muted px-3 py-4 text-center text-xs text-muted-foreground">{txCover.coverLibraryEmpty}</p>
+                    )}
+                  </DialogContent>
+                </Dialog>
                 <p className="text-xs text-muted-foreground">{txCover.uploadHint}</p>
                 {!coverImageFile && resolveCoverPhotoUrl(sectionConfig) ? (
                   <Button type="button" variant="outline" size="sm" onClick={() => setCoverClearOnSave(true)}>
@@ -1614,6 +2012,7 @@ export default function WeddingCardAiClientPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ImageUploadField
                     label={occasionCopy.primaryPhoto}
+                    inputId="wedding-groom-portrait-file"
                     currentUrl={groomPortraitPreviewUrl}
                     frame="portrait"
                     crop={{
@@ -1635,9 +2034,12 @@ export default function WeddingCardAiClientPage() {
                           }
                         : undefined
                     }
+                    chooseFrameLabel={txCover.chooseFrame}
+                    onChooseFrame={() => setPortraitFrameSide('groom')}
                   />
                   <ImageUploadField
                     label={occasionCopy.secondaryPhoto}
+                    inputId="wedding-bride-portrait-file"
                     currentUrl={bridePortraitPreviewUrl}
                     frame="portrait"
                     crop={{
@@ -1659,6 +2061,8 @@ export default function WeddingCardAiClientPage() {
                           }
                         : undefined
                     }
+                    chooseFrameLabel={txCover.chooseFrame}
+                    onChooseFrame={() => setPortraitFrameSide('bride')}
                   />
                 </div>
                 <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>
@@ -1995,143 +2399,6 @@ export default function WeddingCardAiClientPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>4-7. Tạo ảnh AI</CardTitle>
-                <CardDescription>AI chỉ tạo visual/background. Chữ tiếng Việt được render bằng hệ thống.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Textarea value={extraPrompt} onChange={(e) => setExtraPrompt(e.target.value)} placeholder="Prompt chỉnh thêm nếu cần, ví dụ: thêm hoa sen, ánh sáng vàng nhẹ..." />
-                <div className="rounded-2xl border border-dashed p-4">
-                  <Label>{tImage.customReferenceLabel}</Label>
-                  <p className="mt-1 text-xs text-muted-foreground">{tImage.customReferenceHint}</p>
-                  {styleReferencePreviewUrl ? (
-                    <img
-                      src={styleReferencePreviewUrl}
-                      alt={tImage.customReferenceLabel}
-                      className="mt-3 max-h-48 w-full rounded-xl object-contain bg-muted"
-                    />
-                  ) : (
-                    <div className="mt-3 flex min-h-32 items-center justify-center rounded-xl bg-muted text-sm text-muted-foreground">
-                      {tImage.customReferenceEmpty}
-                    </div>
-                  )}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
-                      <Upload className="h-4 w-4" />
-                      {tImage.customReferenceChoose}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0] ?? null
-                          setStyleReferenceFile(file)
-                          if (file) setStyleReferenceUrl('')
-                          event.target.value = ''
-                        }}
-                      />
-                    </label>
-                    {(styleReferenceFile || styleReferenceUrl.trim()) && (
-                      <Button type="button" variant="outline" size="sm" onClick={clearStyleReference}>
-                        <X className="mr-2 h-4 w-4" />
-                        {tImage.customReferenceRemove}
-                      </Button>
-                    )}
-                  </div>
-                  <Input
-                    value={styleReferenceUrl}
-                    onChange={(e) => {
-                      setStyleReferenceUrl(e.target.value)
-                      if (e.target.value.trim()) setStyleReferenceFile(null)
-                    }}
-                    placeholder={tImage.customReferenceUrlPlaceholder}
-                    className="mt-3"
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button onClick={() => void generateImage()} disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}>
-                    {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {masterImage ? 'Tạo lại ảnh chính - 1 credit' : 'Tạo ảnh chính - 1 credit'}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
-                    onClick={pickOutsideBackground}
-                  >
-                    {uploadingOutside ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    Chọn ảnh ngoài · 0 credit
-                  </Button>
-                  {masterImage?.imageUrl && (
-                    <Button asChild variant="outline">
-                      <a href={masterImage.imageUrl} download target="_blank" rel="noreferrer">
-                        <Download className="mr-2 h-4 w-4" />
-                        Tải ảnh đã tạo
-                      </a>
-                    </Button>
-                  )}
-                </div>
-                <div className="rounded-2xl border border-dashed p-4">
-                  {masterImage?.imageUrl ? (
-                    <img src={masterImage.imageUrl} alt="Ảnh chính thiệp cưới" className="max-h-96 w-full rounded-xl object-cover" />
-                  ) : (
-                    <div className="flex min-h-56 flex-col items-center justify-center rounded-xl bg-muted text-center text-sm text-muted-foreground">
-                      <Sparkles className="mb-2 h-8 w-8 text-rose-500" />
-                      Chưa có ảnh chính. Preview nháp vẫn dùng HTML/CSS và chưa tốn credit.
-                    </div>
-                  )}
-                  <div id="wedding-bg-library" className="mt-4 space-y-2">
-                    <p className="text-sm font-medium">Kho ảnh nền</p>
-                    <p className="text-xs text-muted-foreground">
-                      Bấm một ảnh đã tạo để dùng làm ảnh chính cho cả thiệp. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.
-                    </p>
-                    {library.length ? (
-                      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                        {library.map((item) => {
-                          const active = Boolean(masterImage?.imageUrl && masterImage.imageUrl === item.imageUrl)
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
-                              onClick={() => void applyLibraryImage(item.id)}
-                              className={cn(
-                                'relative overflow-hidden rounded-xl border bg-muted',
-                                active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
-                              )}
-                              title={active ? 'Đang dùng' : 'Chọn ảnh này, 0 credit'}
-                            >
-                              <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
-                              {applyingLibraryId === item.id ? (
-                                <span className="absolute inset-0 flex items-center justify-center bg-white/70">
-                                  <Loader2 className="h-5 w-5 animate-spin text-rose-600" />
-                                </span>
-                              ) : null}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="rounded-xl bg-muted px-3 py-4 text-center text-xs text-muted-foreground">
-                        Kho còn trống. Tạo ảnh mới để lưu vào kho — lần sau chọn lại không mất credit.
-                      </p>
-                    )}
-                  </div>
-                  <input
-                    ref={outsideFileRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="hidden"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0] ?? null
-                      event.target.value = ''
-                      void uploadOutsideBackground(file)
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
@@ -2185,9 +2452,173 @@ export default function WeddingCardAiClientPage() {
                           brideLabel={occasionKey === 'wedding' ? txPublic.brideRole : occasionCopy.secondaryRole}
                           groomFrame={groomPortraitFrame}
                           brideFrame={bridePortraitFrame}
+                          groomShell={groomPortraitShell}
+                          brideShell={bridePortraitShell}
                           theme={selectedTheme}
                           compact
                         />
+                        <Dialog open={portraitFrameSide !== null} onOpenChange={(open) => { if (!open) setPortraitFrameSide(null) }}>
+                          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+                            <DialogHeader>
+                              <DialogTitle>{txCover.chooseFrame}</DialogTitle>
+                            </DialogHeader>
+                            {portraitFrameSide === 'cover' ? (
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <label className="block text-xs text-muted-foreground">
+                                  {txCover.photoOpenLabel}
+                                  <select
+                                    className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                                    value={coverPhotoOpen}
+                                    onChange={(event) =>
+                                      setCoverOpenEffect({
+                                        coverPhotoOpen: event.target.value as 'none' | 'rise' | 'fade' | 'zoom' | 'assemble',
+                                      })
+                                    }
+                                  >
+                                    <option value="rise">{txCover.photoOpenRise}</option>
+                                    <option value="fade">{txCover.photoOpenFade}</option>
+                                    <option value="zoom">{txCover.photoOpenZoom}</option>
+                                    <option value="assemble">{txCover.photoOpenAssemble}</option>
+                                    <option value="none">{txCover.photoOpenNone}</option>
+                                  </select>
+                                </label>
+                                <label className="block text-xs text-muted-foreground">
+                                  {txCover.frameOpenLabel}
+                                  <select
+                                    className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                                    value={coverFrameOpen}
+                                    onChange={(event) =>
+                                      setCoverOpenEffect({
+                                        coverFrameOpen: event.target.value as 'none' | 'fade' | 'bloom' | 'assemble',
+                                      })
+                                    }
+                                  >
+                                    <option value="bloom">{txCover.frameOpenBloom}</option>
+                                    <option value="fade">{txCover.frameOpenFade}</option>
+                                    <option value="assemble">{txCover.frameOpenAssemble}</option>
+                                    <option value="none">{txCover.frameOpenNone}</option>
+                                  </select>
+                                </label>
+                              </div>
+                            ) : null}
+                            <WeddingCoverPresetPicker
+                              locale={uiLocale}
+                              occasionKey={occasionKey}
+                              selectedId={
+                                portraitFrameSide === 'cover'
+                                  ? coverFrameMode === 'preset' || coverFrameMode === undefined
+                                    ? coverPresetId
+                                    : ''
+                                  : (portraitFrameSide === 'bride' ? sectionConfig.bridePortraitShellMode : sectionConfig.groomPortraitShellMode) === 'preset'
+                                    ? (portraitFrameSide === 'bride' ? sectionConfig.bridePortraitShellPresetId : sectionConfig.groomPortraitShellPresetId) ?? ''
+                                    : ''
+                              }
+                              onSelect={(id) => {
+                                if (portraitFrameSide === 'cover') {
+                                  selectCoverPreset(id)
+                                  setPortraitFrameSide(null)
+                                  return
+                                }
+                                if (portraitFrameSide !== 'groom' && portraitFrameSide !== 'bride') return
+                                if (!findWeddingCoverPreset(id)?.frame) {
+                                  savePortraitShell(portraitFrameSide, null)
+                                  return
+                                }
+                                savePortraitShell(portraitFrameSide, { mode: 'preset', presetId: id })
+                              }}
+                              tagNewLabel={txCover.tagNew}
+                              tagHotLabel={txCover.tagHot}
+                              noneLabel={txCover.frameModeNone}
+                              noneSelected={
+                                portraitFrameSide === 'cover'
+                                  ? coverFrameMode === 'none'
+                                  : (portraitFrameSide === 'bride' ? sectionConfig.bridePortraitShellMode : sectionConfig.groomPortraitShellMode) == null
+                              }
+                              onSelectNone={() => {
+                                if (portraitFrameSide === 'cover') {
+                                  selectNoCoverFrame()
+                                  setPortraitFrameSide(null)
+                                  return
+                                }
+                                if (portraitFrameSide) savePortraitShell(portraitFrameSide, null)
+                              }}
+                              libraryItems={frameLibrary.map((item) => ({ id: item.id, imageUrl: item.imageUrl }))}
+                              libraryLabel={txCover.aiFrameLibraryHeading}
+                              librarySelectedUrl={
+                                portraitFrameSide === 'cover'
+                                  ? coverFrameMode === 'library' || coverFrameMode === 'ai'
+                                    ? coverAiFrame?.src
+                                    : undefined
+                                  : (portraitFrameSide === 'bride' ? sectionConfig.bridePortraitShellMode : sectionConfig.groomPortraitShellMode) === 'library'
+                                    ? portraitFrameSide === 'bride'
+                                      ? sectionConfig.bridePortraitShellUrl
+                                      : sectionConfig.groomPortraitShellUrl
+                                    : undefined
+                              }
+                              onSelectLibrary={(choice) => {
+                                const item = frameLibrary.find((row) => row.id === choice.id)
+                                if (!item) return
+                                if (portraitFrameSide === 'cover') {
+                                  applyCoverFrameFromLibrary(item)
+                                  setPortraitFrameSide(null)
+                                  return
+                                }
+                                if (portraitFrameSide !== 'groom' && portraitFrameSide !== 'bride') return
+                                savePortraitShell(portraitFrameSide, {
+                                  mode: 'library',
+                                  url: item.imageUrl,
+                                  hole: item.hole,
+                                  panel: item.panel,
+                                })
+                              }}
+                            />
+                            {portraitFrameSide === 'cover' ? (
+                            <div className="space-y-2 border-t pt-3">
+                              <p className="text-xs text-muted-foreground">{txCover.frameShapeLabel}</p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {WEDDING_COVER_FRAME_OPENINGS.map((shape) => {
+                                  const label = {
+                                    circle: txCover.frameShapeCircle,
+                                    ellipse: txCover.frameShapeEllipse,
+                                    heart: txCover.frameShapeHeart,
+                                    arch: txCover.frameShapeArch,
+                                    diamond: txCover.frameShapeDiamond,
+                                    rounded: txCover.frameShapeRounded,
+                                  }[shape]
+                                  const selected = frameOpening === shape
+                                  return (
+                                    <button
+                                      key={shape}
+                                      type="button"
+                                      disabled={frameGenerating}
+                                      aria-pressed={selected}
+                                      onClick={() => setFrameOpening(shape)}
+                                      className={cn(
+                                        'rounded-full border px-3 py-1 text-xs',
+                                        selected ? 'border-primary bg-primary/10 text-foreground' : 'border-border text-muted-foreground',
+                                      )}
+                                    >
+                                      {label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                              <Input
+                                value={framePrompt}
+                                onChange={(e) => setFramePrompt(e.target.value)}
+                                placeholder={txCover.aiFramePromptPlaceholder}
+                                maxLength={800}
+                                disabled={frameGenerating}
+                              />
+                              <Button type="button" size="sm" disabled={frameGenerating || generating || !card.id} onClick={() => void generateCoverFrame()}>
+                                {frameGenerating ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
+                                {txCover.aiFrameButton}
+                              </Button>
+                              <p className="text-xs text-muted-foreground">{txCover.aiFrameHint}</p>
+                            </div>
+                            ) : null}
+                          </DialogContent>
+                        </Dialog>
                         <div className="w-full min-w-0">
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
                             {card.groomName || occasionCopy.primaryRole || occasionCopy.label}
@@ -2206,8 +2637,29 @@ export default function WeddingCardAiClientPage() {
                             “{card.loveQuote}”
                           </p>
                         ) : null}
+                        {coverFrameMode === 'none' && !coverPhotoPreviewUrl ? null : (
+                          <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
+                            <WeddingCoverShellCard
+                              frameOnly
+                              presetId={coverPresetId}
+                              aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                              frameMode={coverFrameMode}
+                              coverPhotoUrl={coverPhotoPreviewUrl}
+                              coverPhotoObjectPosition={coverPhotoObjectPosition}
+                              coverPhotoScale={coverPhotoScale}
+                              groomName={card.groomName || '—'}
+                              brideName={card.brideName || '—'}
+                              theme={selectedTheme}
+                              invitationLabel={txCover.previewLabel}
+                              cordiallyInvitesLabel={txCover.previewGuestPrefix}
+                              openButtonLabel={txCover.previewOpenButton}
+                              dateFallback={txPublic.dateFallback}
+                              photoAlt={coverPhotoCopy.alt}
+                            />
+                          </div>
+                        )}
                         <p className={cn('w-full whitespace-pre-line text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
-                          {card.invitationText || occasionCopy.previewInviteFallback}
+                          {previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
                         </p>
                         {(card.coupleIntro || groomLetterPreview.eventTimeline || brideLetterPreview.eventTimeline || card.dressCode) && (
                           <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
@@ -2224,27 +2676,25 @@ export default function WeddingCardAiClientPage() {
                             ) : null}
                           </div>
                         )}
-                        {card.guestName ? (
-                          <WeddingGuestInviteBlock
-                            className="w-full min-w-0"
-                            guestName={card.guestName}
-                            inviteVenue={card.guestInviteVenue}
-                            cordiallyInvitesLabel="Thân mời / Cordially invites"
-                            venueLabel={guestInviteVenueDisplay}
-                            weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
-                            weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
-                            addressText={guestInviteLocationPreview.address}
-                            mapUrl={guestInviteLocationPreview.mapUrl}
-                            viewMapLabel={txPublic.guestInviteViewMap}
-                            panelClassName={selectedTheme.panelStrong}
-                            cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                            nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                            venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
-                            addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                            weddingThemeId={selectedTheme.id}
-                            compact
-                          />
-                        ) : null}
+                        <WeddingGuestInviteBlock
+                          className="w-full min-w-0"
+                          guestName={previewDemo.guestDisplayName}
+                          inviteVenue={previewDemoVenue}
+                          cordiallyInvitesLabel={txCover.previewGuestPrefix}
+                          venueLabel={previewDemoVenueLabel}
+                          weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
+                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
+                          addressText={guestInviteLocationPreview.address}
+                          mapUrl={guestInviteLocationPreview.mapUrl}
+                          viewMapLabel={txPublic.guestInviteViewMap}
+                          panelClassName={selectedTheme.panelStrong}
+                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
+                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
+                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          weddingThemeId={selectedTheme.id}
+                          compact
+                        />
                         <div className={cn('w-full min-w-0 rounded-xl px-2 py-2 text-xs', selectedTheme.panelGlass)}>
                           {resolveWeddingDateIso(guestInviteLocationPreview.weddingDate) ? (
                             <WeddingEventCalendarBlock
@@ -2481,6 +2931,7 @@ function Toggle(props: { label: string; checked: boolean; onChange: (checked: bo
 
 function ImageUploadField(props: {
   label: string
+  inputId?: string
   currentUrl: string
   file?: File | null
   frame?: 'wide' | 'portrait'
@@ -2492,9 +2943,41 @@ function ImageUploadField(props: {
   }
   onFileChange: (file: File | null) => void
   onRemove?: () => void
+  chooseFrameLabel?: string
+  onChooseFrame?: () => void
 }) {
   const previewUrl = props.file ? URL.createObjectURL(props.file) : props.currentUrl
   const portrait = props.frame === 'portrait'
+  const photoActions = (
+    <div className="absolute inset-x-0 bottom-2 z-[2] flex justify-center gap-1.5 px-2">
+      <label
+        className="cursor-pointer rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        Chọn ảnh
+        <input
+          id={props.inputId}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          onChange={(event) => {
+            props.onFileChange(event.target.files?.[0] ?? null)
+            event.target.value = ''
+          }}
+        />
+      </label>
+      {props.onChooseFrame ? (
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={props.onChooseFrame}
+          className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
+        >
+          {props.chooseFrameLabel}
+        </button>
+      ) : null}
+    </div>
+  )
   return (
     <div className="space-y-2 rounded-2xl border p-3">
       <Label>{props.label}</Label>
@@ -2512,46 +2995,34 @@ function ImageUploadField(props: {
           ariaLabel={`Căn ${props.label}`}
           resetFrame={{ positionX: 50, positionY: 18, scale: 1 }}
           frameClassName="relative mx-auto aspect-[3/4] max-h-72 w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing"
-        />
-      ) : previewUrl ? (
-        <img
-          src={previewUrl}
-          alt={props.label}
-          className={cn(
-            'w-full rounded-xl object-cover',
-            portrait ? 'mx-auto aspect-[3/4] max-h-72 object-[center_18%]' : 'h-36',
-          )}
+          frameActions={photoActions}
         />
       ) : (
         <div
           className={cn(
-            'flex w-full items-center justify-center rounded-xl bg-muted text-sm text-muted-foreground',
+            'relative w-full overflow-hidden rounded-xl',
             portrait ? 'mx-auto aspect-[3/4] max-h-72' : 'h-36',
           )}
         >
-          Chưa có ảnh
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={props.label}
+              className={cn('h-full w-full object-cover', portrait && 'object-[center_18%]')}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-muted text-sm text-muted-foreground">
+              Chưa có ảnh
+            </div>
+          )}
+          {photoActions}
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
-        <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
-          <Upload className="h-4 w-4" />
-          Chọn ảnh
-          <input
-            type="file"
-            accept="image/*"
-            className="sr-only"
-            onChange={(event) => {
-              props.onFileChange(event.target.files?.[0] ?? null)
-              event.target.value = ''
-            }}
-          />
-        </label>
-        {props.onRemove && previewUrl ? (
-          <Button type="button" variant="outline" size="sm" onClick={props.onRemove}>
-            Gỡ ảnh
-          </Button>
-        ) : null}
-      </div>
+      {props.onRemove && previewUrl ? (
+        <Button type="button" variant="outline" size="sm" onClick={props.onRemove}>
+          Gỡ ảnh
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -2569,6 +3040,7 @@ function CoverPhotoCropEditor(props: {
   ariaLabel?: string
   bare?: boolean
   resetFrame?: { positionX: number; positionY: number; scale: number }
+  frameActions?: ReactNode
 }) {
   const frameRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
@@ -2664,9 +3136,7 @@ function CoverPhotoCropEditor(props: {
         <div className="pointer-events-none absolute inset-0 ring-2 ring-inset ring-white/70" aria-hidden />
         <div className="pointer-events-none absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-white/65" aria-hidden />
         <div className="pointer-events-none absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-white/65" aria-hidden />
-        <div className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-1 text-[11px] text-white">
-          Kéo ảnh để căn
-        </div>
+        {props.frameActions}
       </div>
 
       <div className="space-y-2">

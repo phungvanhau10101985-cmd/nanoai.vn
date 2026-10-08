@@ -9,9 +9,8 @@ import {
   type SideWishMessage,
   type WeddingSideWishGroups,
 } from '@/lib/wedding/wedding-side-wishes'
-import { canAddWeddingGuests, parseWeddingGuestPackId, type WeddingGuestPackId } from '@/lib/wedding/wedding-guest-pack'
+import { canAddWeddingGuests, parseWeddingGuestPackId, type WeddingGuestPackId, type WeddingGuestPackLimitCode } from '@/lib/wedding/wedding-guest-pack'
 import {
-  isWeddingCardExpired,
   latestWeddingCeremonyIso,
   todayIsoInVietnam,
   WEDDING_CARD_RETENTION_DAYS,
@@ -335,25 +334,38 @@ async function assertWeddingGuestRoom(
   client: WeddingGuestRoomClient,
   cardId: string,
   userId: string,
-  adding: number,
-): Promise<'ok' | 'missing' | 'guest_pack_limit'> {
+  addingGroom: number,
+  addingBride: number,
+): Promise<'ok' | 'missing' | WeddingGuestPackLimitCode> {
   const card = await client.query(
-    `select guest_pack
-     from public.wedding_cards
-     where id = $1::uuid and user_id = $2::uuid
+    `select c.groom_guest_pack,
+            c.bride_guest_pack,
+            (select count(*)::int
+               from public.wedding_card_invited_guests g
+              where g.wedding_card_id = c.id
+                and g.invite_venue is distinct from 'bride_home') as groom_count,
+            (select count(*)::int
+               from public.wedding_card_invited_guests g
+              where g.wedding_card_id = c.id
+                and g.invite_venue = 'bride_home') as bride_count
+     from public.wedding_cards c
+     where c.id = $1::uuid and c.user_id = $2::uuid
      for update`,
     [cardId, userId],
   )
-  if (!card.rows[0]) return 'missing'
-  const count = await client.query(
-    `select count(*)::int as n
-     from public.wedding_card_invited_guests
-     where wedding_card_id = $1::uuid`,
-    [cardId],
-  )
-  const used = Number(count.rows[0]?.n ?? 0)
-  if (!canAddWeddingGuests(used, adding, parseWeddingGuestPackId(card.rows[0].guest_pack))) {
-    return 'guest_pack_limit'
+  const row = card.rows[0]
+  if (!row) return 'missing'
+  if (
+    addingGroom > 0 &&
+    !canAddWeddingGuests(Number(row.groom_count ?? 0), addingGroom, parseWeddingGuestPackId(row.groom_guest_pack))
+  ) {
+    return 'guest_pack_limit_groom'
+  }
+  if (
+    addingBride > 0 &&
+    !canAddWeddingGuests(Number(row.bride_count ?? 0), addingBride, parseWeddingGuestPackId(row.bride_guest_pack))
+  ) {
+    return 'guest_pack_limit_bride'
   }
   return 'ok'
 }
@@ -458,6 +470,24 @@ export async function getWeddingCardForUser(cardId: string, userId: string): Pro
   return res.rows[0] ? mapCard(res.rows[0]) : null
 }
 
+export async function saveWeddingCardSectionConfig(
+  cardId: string,
+  userId: string,
+  sectionConfigJson: string,
+): Promise<WeddingCard | null> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set section_config = coalesce(nullif($3, '')::jsonb, '{}'::jsonb),
+         updated_at = timezone('utc'::text, now())
+     where id = $1::uuid and user_id = $2::uuid
+     returning id`,
+    [cardId, userId, sectionConfigJson],
+  )
+  if (res.rowCount !== 1) return null
+  return getWeddingCardForUser(cardId, userId)
+}
+
 export async function getPublishedWeddingCardBySlug(slug: string): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -468,15 +498,7 @@ export async function getPublishedWeddingCardBySlug(slug: string): Promise<Weddi
      limit 1`,
     [slug]
   )
-  const card = res.rows[0] ? mapCard(res.rows[0]) : null
-  if (!card) return null
-  const ceremonyIso = latestWeddingCeremonyIso([
-    card.weddingDate,
-    card.groomInviteWeddingDate,
-    card.brideInviteWeddingDate,
-  ])
-  if (isWeddingCardExpired(ceremonyIso, todayIsoInVietnam())) return null
-  return card
+  return res.rows[0] ? mapCard(res.rows[0]) : null
 }
 
 export type ExpiredWeddingCard = {
@@ -961,6 +983,86 @@ export async function weddingMusicLibraryHasUrl(audioUrl: string): Promise<boole
   return res.rowCount != null && res.rowCount > 0
 }
 
+export type WeddingCoverFrameLibraryItem = {
+  id: string
+  imageUrl: string
+  hole: { x: number; y: number; w: number; h: number }
+  panel: string
+  ink: 'dark' | 'light'
+  createdAt: string
+}
+
+function mapCoverFrameLibraryItem(row: Record<string, unknown>): WeddingCoverFrameLibraryItem | null {
+  const holeRaw = row.hole
+  const hole = holeRaw && typeof holeRaw === 'object' ? (holeRaw as Record<string, unknown>) : null
+  const x = Number(hole?.x)
+  const y = Number(hole?.y)
+  const w = Number(hole?.w)
+  const h = Number(hole?.h)
+  if (![x, y, w, h].every((n) => Number.isFinite(n))) return null
+  if (w < 18 || h < 18 || x < 0 || y < 0 || x + w > 100.5 || y + h > 100.5) return null
+  const panelRaw = String(row.panel ?? '')
+  const panel = /^#[0-9a-fA-F]{6}$/.test(panelRaw) ? panelRaw : '#fffaf2'
+  return {
+    id: String(row.id),
+    imageUrl: String(row.image_url ?? ''),
+    hole: {
+      x: Math.round(x * 100) / 100,
+      y: Math.round(y * 100) / 100,
+      w: Math.round(w * 100) / 100,
+      h: Math.round(h * 100) / 100,
+    },
+    panel,
+    ink: row.ink === 'light' ? 'light' : 'dark',
+    createdAt: String(row.created_at ?? ''),
+  }
+}
+
+export async function saveWeddingCoverFrameToLibrary(input: {
+  imageUrl: string
+  hole: { x: number; y: number; w: number; h: number }
+  panel: string
+  ink: 'dark' | 'light'
+}): Promise<WeddingCoverFrameLibraryItem | null> {
+  requirePg()
+  const imageUrl = input.imageUrl.trim()
+  if (!imageUrl) return null
+  const mapped = mapCoverFrameLibraryItem({
+    id: '00000000-0000-0000-0000-000000000000',
+    image_url: imageUrl,
+    hole: input.hole,
+    panel: input.panel,
+    ink: input.ink,
+    created_at: '',
+  })
+  if (!mapped) return null
+  const res = await getPgPool().query(
+    `insert into public.wedding_cover_frame_library (image_url, hole, panel, ink)
+     values ($1, $2::jsonb, $3, $4)
+     on conflict (image_url) do update set image_url = excluded.image_url
+     returning id, image_url, hole, panel, ink, created_at`,
+    [imageUrl.slice(0, 2000), JSON.stringify(mapped.hole), mapped.panel, mapped.ink],
+  )
+  return res.rows[0] ? mapCoverFrameLibraryItem(res.rows[0]) : null
+}
+
+export async function listWeddingCoverFrameLibrary(limit = 80): Promise<WeddingCoverFrameLibraryItem[]> {
+  requirePg()
+  const cap = Math.max(1, Math.min(80, Math.round(limit) || 80))
+  const res = await getPgPool().query(
+    `select id, image_url, hole, panel, ink, created_at
+     from public.wedding_cover_frame_library
+     where image_url <> ''
+     order by created_at desc
+     limit $1`,
+    [cap],
+  )
+  return res.rows.flatMap((row) => {
+    const item = mapCoverFrameLibraryItem(row)
+    return item?.imageUrl ? [item] : []
+  })
+}
+
 export async function listWeddingBackgroundLibrary(limit = 80): Promise<WeddingBackgroundLibraryItem[]> {
   requirePg()
   const cap = Math.max(1, Math.min(80, Math.round(limit) || 80))
@@ -1324,17 +1426,24 @@ export async function createWeddingInvitedGuest(input: {
   guestCount: number
   wishMessage: string
   notes: string
-}): Promise<WeddingInvitedGuest | 'guest_pack_limit' | null> {
+}): Promise<WeddingInvitedGuest | WeddingGuestPackLimitCode | null> {
   requirePg()
   const name = input.guestName.trim()
   if (!name) return null
+  const venue = normalizeGuestInviteVenue(input.inviteVenue)
   const client = await getPgPool().connect()
   try {
     await client.query('begin')
-    const room = await assertWeddingGuestRoom(client, input.cardId, input.userId, 1)
+    const room = await assertWeddingGuestRoom(
+      client,
+      input.cardId,
+      input.userId,
+      venue === 'bride_home' ? 0 : 1,
+      venue === 'bride_home' ? 1 : 0,
+    )
     if (room !== 'ok') {
       await client.query('rollback')
-      return room === 'guest_pack_limit' ? 'guest_pack_limit' : null
+      return room === 'missing' ? null : room
     }
     const res = await client.query(
       `insert into public.wedding_card_invited_guests (
@@ -1376,7 +1485,7 @@ export async function createWeddingInvitedGuestsBatch(input: {
     wishMessage: string
     notes: string
   }>
-}): Promise<number | 'guest_pack_limit'> {
+}): Promise<number | WeddingGuestPackLimitCode> {
   requirePg()
   if (!input.guests.length) return 0
   const honorifics: string[] = []
@@ -1388,9 +1497,13 @@ export async function createWeddingInvitedGuestsBatch(input: {
   const counts: number[] = []
   const wishes: string[] = []
   const notes: string[] = []
+  let addingGroom = 0
+  let addingBride = 0
   for (const guest of input.guests) {
     const name = guest.guestName.trim()
     if (!name) continue
+    if (normalizeGuestInviteVenue(guest.inviteVenue) === 'bride_home') addingBride += 1
+    else addingGroom += 1
     const status = guest.status === 'attending' || guest.status === 'declined' ? guest.status : 'pending'
     honorifics.push(guest.guestHonorific.trim().slice(0, 80))
     names.push(name.slice(0, 120))
@@ -1406,10 +1519,10 @@ export async function createWeddingInvitedGuestsBatch(input: {
   const client = await getPgPool().connect()
   try {
     await client.query('begin')
-    const room = await assertWeddingGuestRoom(client, input.cardId, input.userId, names.length)
+    const room = await assertWeddingGuestRoom(client, input.cardId, input.userId, addingGroom, addingBride)
     if (room !== 'ok') {
       await client.query('rollback')
-      return room === 'guest_pack_limit' ? 'guest_pack_limit' : 0
+      return room === 'missing' ? 0 : room
     }
     const res = await client.query(
       `insert into public.wedding_card_invited_guests (
@@ -1542,18 +1655,18 @@ export async function deleteWeddingInvitedGuest(guestId: string, cardId: string,
   return (res.rowCount ?? 0) > 0
 }
 
-/** Lấy lời mời cá nhân đã lưu cho khách trên thiệp đã xuất bản (theo tên hiển thị + venue). */
+/** Lời mời cá nhân đã lưu cho khách trên thiệp đã xuất bản (theo tên hiển thị + venue). */
 export async function getPublishedInvitedGuestPersonalInvite(input: {
   cardId: string
   guestDisplayName: string
   inviteVenue: WeddingGuestInviteVenue
-}): Promise<string> {
+}): Promise<{ guestHonorific: string; guestName: string; personalInvite: string } | null> {
   requirePg()
   const key = normalizeGuestNameKey(input.guestDisplayName)
-  if (!key) return ''
+  if (!key) return null
   const venue = normalizeGuestInviteVenue(input.inviteVenue)
   const res = await getPgPool().query(
-    `select g.personal_invite
+    `select g.guest_honorific, g.guest_name, g.personal_invite
      from public.wedding_card_invited_guests g
      join public.wedding_cards c on c.id = g.wedding_card_id
      where g.wedding_card_id = $1::uuid
@@ -1569,7 +1682,13 @@ export async function getPublishedInvitedGuestPersonalInvite(input: {
      limit 1`,
     [input.cardId, key, venue],
   )
-  return String(res.rows[0]?.personal_invite ?? '').trim()
+  const row = res.rows[0]
+  if (!row) return null
+  return {
+    guestHonorific: String(row.guest_honorific ?? '').trim(),
+    guestName: String(row.guest_name ?? '').trim(),
+    personalInvite: String(row.personal_invite ?? '').trim(),
+  }
 }
 
 /** RSVP khách đã lưu trên thiệp xuất bản, để mở lại link vẫn sửa Có đi / số người. */

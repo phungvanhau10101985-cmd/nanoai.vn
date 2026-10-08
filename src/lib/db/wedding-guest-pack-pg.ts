@@ -5,15 +5,17 @@ import { listActivePaymentConfigs } from '@/lib/db/payments-repo'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
 import { notifyWeddingGuestPackPurchased } from '@/lib/wedding/wedding-card-retention-notify'
 import {
-  buildWeddingGuestPackQuota,
+  buildWeddingGuestSideQuotas,
   parseWeddingGuestPackId,
   weddingGuestCap,
   weddingGuestPackById,
   weddingGuestPackListPriceVnd,
   weddingGuestPackRank,
+  weddingGuestPackSideLabel,
   weddingGuestPackUpgradeVnd,
   type WeddingGuestPackId,
-  type WeddingGuestPackQuota,
+  type WeddingGuestPackSide,
+  type WeddingGuestSideQuotas,
 } from '@/lib/wedding/wedding-guest-pack'
 
 export type WeddingGuestPackPaymentRow = {
@@ -35,36 +37,57 @@ function requirePg() {
   if (!isPgConfigured()) throw new Error('DATABASE_URL is not set')
 }
 
-export async function loadWeddingGuestPackQuota(
+export async function loadWeddingGuestPackQuotas(
   cardId: string,
   userId: string,
-): Promise<WeddingGuestPackQuota | null> {
+): Promise<WeddingGuestSideQuotas | null> {
   requirePg()
-  const row = await pgQueryOne<{ guest_pack: string | null; guest_count: number }>(
-    `select c.guest_pack,
-            (select count(*)::int from public.wedding_card_invited_guests g where g.wedding_card_id = c.id) as guest_count
+  const row = await pgQueryOne<{
+    groom_guest_pack: string | null
+    bride_guest_pack: string | null
+    groom_count: number
+    bride_count: number
+  }>(
+    `select c.groom_guest_pack,
+            c.bride_guest_pack,
+            (select count(*)::int
+               from public.wedding_card_invited_guests g
+              where g.wedding_card_id = c.id
+                and g.invite_venue is distinct from 'bride_home') as groom_count,
+            (select count(*)::int
+               from public.wedding_card_invited_guests g
+              where g.wedding_card_id = c.id
+                and g.invite_venue = 'bride_home') as bride_count
      from public.wedding_cards c
      where c.id = $1::uuid and c.user_id = $2::uuid
      limit 1`,
     [cardId, userId],
   )
   if (!row) return null
-  return buildWeddingGuestPackQuota(parseWeddingGuestPackId(row.guest_pack), Number(row.guest_count ?? 0))
+  return buildWeddingGuestSideQuotas({
+    groomPack: parseWeddingGuestPackId(row.groom_guest_pack),
+    bridePack: parseWeddingGuestPackId(row.bride_guest_pack),
+    groomCount: Number(row.groom_count ?? 0),
+    brideCount: Number(row.bride_count ?? 0),
+  })
 }
 
 export async function createWeddingGuestPackPayment(input: {
   userId: string
   cardId: string
   packId: WeddingGuestPackId
+  side: WeddingGuestPackSide
 }): Promise<WeddingGuestPackPaymentRow | { error: string }> {
   requirePg()
-  const quota = await loadWeddingGuestPackQuota(input.cardId, input.userId)
-  if (!quota) return { error: 'Không tìm thấy thiệp.' }
+  const quotas = await loadWeddingGuestPackQuotas(input.cardId, input.userId)
+  if (!quotas) return { error: 'Không tìm thấy thiệp.' }
+  const quota = quotas[input.side]
+  const sideLabel = weddingGuestPackSideLabel(input.side)
   const offer = quota.offers.find((item) => item.id === input.packId)
   if (!offer?.available) {
     const cap = weddingGuestCap(input.packId)
     if (cap != null && quota.guestCount > cap) {
-      return { error: `Danh sách đang có ${quota.guestCount} khách, gói này tối đa ${cap}.` }
+      return { error: `Danh sách ${sideLabel} đang có ${quota.guestCount} khách, gói này tối đa ${cap}.` }
     }
     return { error: 'Gói này không cần thanh toán thêm.' }
   }
@@ -92,21 +115,22 @@ export async function createWeddingGuestPackPayment(input: {
     await client.query(
       `update public.wedding_guest_pack_payments
        set status = 'cancelled', updated_at = now()
-       where wedding_card_id = $1::uuid and user_id = $2::uuid and status = 'pending'`,
-      [input.cardId, input.userId],
+       where wedding_card_id = $1::uuid and user_id = $2::uuid and status = 'pending' and side = $3`,
+      [input.cardId, input.userId, input.side],
     )
     const inserted = await client.query(
       `insert into public.wedding_guest_pack_payments (
-         user_id, wedding_card_id, pack_id, amount, list_price, prior_pack,
+         user_id, wedding_card_id, side, pack_id, amount, list_price, prior_pack,
          transaction_content, bank_account, bank_name, account_holder_name, qr_url, status
        ) values (
-         $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending'
+         $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'pending'
        )
        returning id::text, user_id::text, wedding_card_id::text, pack_id, amount::int, list_price::int,
                  transaction_content, bank_account, bank_name, account_holder_name, qr_url, status`,
       [
         input.userId,
         input.cardId,
+        input.side,
         input.packId,
         amount,
         listPrice,
@@ -125,8 +149,13 @@ export async function createWeddingGuestPackPayment(input: {
   } catch (error) {
     await client.query('rollback').catch(() => {})
     const message = error instanceof Error ? error.message : String(error)
-    if (message.includes('wedding_guest_pack_payments') && message.includes('does not exist')) {
-      return { error: 'Chưa có bảng gói khách mời. Chạy migration rồi thử lại.' }
+    if (
+      (message.includes('wedding_guest_pack_payments') && message.includes('does not exist')) ||
+      message.includes('groom_guest_pack') ||
+      message.includes('bride_guest_pack') ||
+      (message.includes('side') && message.includes('wedding_guest_pack_payments'))
+    ) {
+      return { error: 'Chưa có gói riêng nhà trai / nhà gái. Chạy migration rồi thử lại.' }
     }
     return { error: 'Không tạo được mã thanh toán.' }
   } finally {
@@ -198,6 +227,7 @@ export async function completeWeddingGuestPackPayment(input: {
       user_id: string
       wedding_card_id: string
       pack_id: string
+      side: string
     }>(
       `update public.wedding_guest_pack_payments
        set status = 'completed',
@@ -207,23 +237,25 @@ export async function completeWeddingGuestPackPayment(input: {
            completed_at = now(),
            updated_at = now()
        where id = $1::uuid and status = 'pending'
-       returning user_id::text, wedding_card_id::text, pack_id`,
+       returning user_id::text, wedding_card_id::text, pack_id, side`,
       [input.paymentId, input.transactionId, input.normalizedContent, JSON.stringify(input.sepayData)],
     )
     const payment = paymentRes.rows[0]
     const packId = parseWeddingGuestPackId(payment?.pack_id)
+    const side: WeddingGuestPackSide = payment?.side === 'bride' ? 'bride' : 'groom'
     if (!payment || !packId) {
       await client.query('rollback')
       return { error: 'payment_not_pending_or_not_found' }
     }
     const nextRank = weddingGuestPackRank(packId)
+    const column = side === 'bride' ? 'bride_guest_pack' : 'groom_guest_pack'
     await client.query(
       `update public.wedding_cards
-       set guest_pack = $3, updated_at = now()
+       set ${column} = $3, updated_at = now()
        where id = $1::uuid
          and user_id = $2::uuid
          and (
-           case coalesce(guest_pack, '')
+           case coalesce(${column}, '')
              when 'p50' then 1
              when 'p100' then 2
              when 'unlimited' then 3
@@ -236,6 +268,7 @@ export async function completeWeddingGuestPackPayment(input: {
     await notifyWeddingGuestPackPurchased({
       userId: payment.user_id,
       cardId: payment.wedding_card_id,
+      side,
     }).catch((error) => {
       console.error('[wedding-guest-pack] notify', error)
     })

@@ -34,12 +34,17 @@ async function loadCardNotice(cardId: string, userId: string) {
   }
 }
 
-export async function notifyWeddingGuestPackPurchased(input: { userId: string; cardId: string }): Promise<void> {
+export async function notifyWeddingGuestPackPurchased(input: {
+  userId: string
+  cardId: string
+  side?: 'groom' | 'bride'
+}): Promise<void> {
   const card = await loadCardNotice(input.cardId, input.userId)
+  const sideLabel = input.side === 'bride' ? 'nhà gái' : input.side === 'groom' ? 'nhà trai' : ''
   await deliverUserNotificationPg({
     user_id: input.userId,
     type: 'wedding_guest_pack',
-    title: 'Đã mở gói khách mời',
+    title: sideLabel ? `Đã mở gói khách mời ${sideLabel}` : 'Đã mở gói khách mời',
     body: weddingGuestPackPurchaseBody(card),
     meta: {
       push_url: CARD_HREF,

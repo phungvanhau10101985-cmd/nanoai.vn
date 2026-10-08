@@ -16,24 +16,22 @@ type Props = {
 }
 
 const VIGNETTE_LIGHT: Record<NonNullable<Props['strength']>, string> = {
-  hero: 'bg-[radial-gradient(ellipse_94%_86%_at_50%_38%,rgba(255,253,248,0.84)_0%,rgba(255,248,236,0.56)_44%,rgba(255,242,225,0.2)_74%,transparent_100%)]',
+  hero: 'bg-[radial-gradient(ellipse_72%_88%_at_50%_40%,rgba(255,253,248,0.82)_0%,rgba(255,248,236,0.42)_42%,transparent_72%)]',
   section:
-    'bg-[radial-gradient(ellipse_98%_90%_at_50%_36%,rgba(255,253,248,0.72)_0%,rgba(255,247,232,0.46)_50%,rgba(255,242,225,0.14)_100%)]',
+    'bg-[radial-gradient(ellipse_76%_90%_at_50%_40%,rgba(255,253,248,0.7)_0%,rgba(255,247,232,0.34)_48%,transparent_76%)]',
 }
 
 const VIGNETTE_DARK: Record<NonNullable<Props['strength']>, string> = {
-  hero: 'bg-[radial-gradient(ellipse_94%_86%_at_50%_38%,rgba(15,23,42,0.72)_0%,rgba(15,23,42,0.48)_44%,rgba(15,23,42,0.16)_74%,transparent_100%)]',
+  hero: 'bg-[radial-gradient(ellipse_72%_88%_at_50%_40%,rgba(15,23,42,0.7)_0%,rgba(15,23,42,0.36)_42%,transparent_72%)]',
   section:
-    'bg-[radial-gradient(ellipse_98%_90%_at_50%_36%,rgba(15,23,42,0.62)_0%,rgba(15,23,42,0.38)_50%,rgba(15,23,42,0.12)_100%)]',
+    'bg-[radial-gradient(ellipse_76%_90%_at_50%_40%,rgba(15,23,42,0.58)_0%,rgba(15,23,42,0.28)_48%,transparent_76%)]',
 }
 
-/** Viền sáng mỏng — tách khối khỏi nền ảnh rối mà không che hoa văn. */
-const EDGE_SHINE =
-  'pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.42),inset_0_0_0_1px_rgba(255,255,255,0.12)]'
-const EDGE_SHINE_DARK =
-  'pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_1px_0_rgba(255,255,255,0.1),inset_0_0_0_1px_rgba(255,255,255,0.06)]'
+/** Mờ dần hai bên để hoa văn nền lộ ra, không còn cột trắng cắt cạnh. */
+const EDGE_FADE =
+  '[mask-image:linear-gradient(90deg,transparent_0%,#000_16%,#000_84%,transparent_100%)] [-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_16%,#000_84%,transparent_100%)]'
 
-/** Khối kính: nền ảnh vẫn lộ quanh viền, vùng giữa đủ ổn định để đọc chữ trên mọi loại nền AI. */
+/** Khối kính: nền ảnh lộ hai bên, vùng giữa đủ ổn định để đọc chữ trên mọi loại nền AI. */
 export function WeddingReadableGlass({ theme, className, children, id, strength = 'section', reveal }: Props) {
   const dark = isWeddingDarkTheme(theme.id)
   const vignette = dark ? VIGNETTE_DARK[strength] : VIGNETTE_LIGHT[strength]
@@ -42,19 +40,19 @@ export function WeddingReadableGlass({ theme, className, children, id, strength 
     <div
       id={id}
       data-wedding-reveal={reveal ? '' : undefined}
-      className={cn('relative isolate overflow-hidden', theme.panelGlass, className, 'overflow-hidden')}
+      className={cn('relative isolate bg-transparent shadow-none', className)}
       style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      {/* Lớp mờ nằm trong bo góc. Blur cùng phần tử với bán kính sẽ hở một viền lệch ở góc. */}
       <div
         aria-hidden
         className={cn(
-          'pointer-events-none absolute inset-0 rounded-[inherit] backdrop-blur-2xl',
-          dark ? 'backdrop-saturate-[1.08]' : 'backdrop-saturate-[1.14]',
+          'pointer-events-none absolute inset-0',
+          EDGE_FADE,
+          'backdrop-blur-xl',
+          dark ? 'backdrop-saturate-[1.08]' : 'backdrop-saturate-[1.12]',
         )}
       />
-      <div aria-hidden className={cn('pointer-events-none absolute inset-0 rounded-[inherit]', vignette)} />
-      <div aria-hidden className={cn(dark ? EDGE_SHINE_DARK : EDGE_SHINE)} />
+      <div aria-hidden className={cn('pointer-events-none absolute inset-0', EDGE_FADE, vignette)} />
       <div className="relative z-10 w-full min-w-0 [container-type:inline-size]">{children}</div>
     </div>
   )

@@ -17,12 +17,15 @@ import {
   getLatestWeddingCardForUser,
   getWeddingCardForUser,
   listWeddingCardSummariesForUser,
+  saveWeddingCardSectionConfig,
   insertWeddingAiImageProcessing,
   listWeddingBackgroundLibrary,
+  listWeddingCoverFrameLibrary,
   listWeddingImages,
   listWeddingMusicLibrary,
   listWeddingRsvps,
   saveWeddingBackgroundToLibrary,
+  saveWeddingCoverFrameToLibrary,
   saveWeddingMusicToLibrary,
   weddingMusicLibraryHasUrl,
   publishWeddingCard,
@@ -35,6 +38,14 @@ import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-cr
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { buildWeddingPrompt } from '@/lib/wedding/build-wedding-image-prompt'
+import { buildWeddingCoverFramePrompt, readWeddingCoverFrameOpening } from '@/lib/wedding/build-wedding-cover-frame-prompt'
+import { measureCoverFrameHole } from '@/lib/wedding/measure-cover-frame-hole'
+import { getWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
+import {
+  chargedCreditsForLogoCreate,
+  requiredCreditsForLogoCreate,
+  stripLogoBackgroundToTransparentPng,
+} from '@/lib/remove-background-png'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
@@ -122,14 +133,15 @@ async function getReferenceImagePartFromFile(file: FormDataEntryValue | null) {
 }
 
 async function weddingCardWorkspace(ownerUserId: string, card: WeddingCard) {
-  const [images, rsvps, library, musicLibrary, cards] = await Promise.all([
+  const [images, rsvps, library, frameLibrary, musicLibrary, cards] = await Promise.all([
     listWeddingImages(card.id),
     listWeddingRsvps(card.id, ownerUserId),
     listWeddingBackgroundLibrary(),
+    listWeddingCoverFrameLibrary(),
     listWeddingMusicLibrary(),
     listWeddingCardSummariesForUser(ownerUserId),
   ])
-  return { card, images, rsvps, library, musicLibrary, cards }
+  return { card, images, rsvps, library, frameLibrary, musicLibrary, cards }
 }
 
 export async function loadWeddingCardWorkspace(cardId?: string) {
@@ -457,6 +469,125 @@ export async function generateWeddingCardImage(formData: FormData) {
     }
     await failWeddingAiImage(imageId, userId, message).catch(() => undefined)
     return { error: `Tạo ảnh thất bại, credit chưa bị trừ nếu AI chưa ra ảnh: ${message}` }
+  }
+}
+
+const COVER_AI_FRAME_PANEL = '#fffaf2'
+
+export async function generateWeddingCoverFrame(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const cardId = clean(formData.get('cardId'), 80)
+  const extraPrompt = clean(formData.get('extraPrompt'), 800)
+  const openingShape = readWeddingCoverFrameOpening(formData.get('openingShape'))
+  const card = await getWeddingCardForUser(cardId, userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+
+  const frameCost = requiredCreditsForLogoCreate(COST, true)
+  const balance = await getCreditBalanceByUserId(userId)
+  if (balance < frameCost) {
+    return { error: `Không đủ credit. Cần ${frameCost} credit để tạo khung và xóa nền.` }
+  }
+
+  const style = getWeddingStylePreset(card.selectedStyleId)
+  const prompt = buildWeddingCoverFramePrompt({
+    styleLabel: style.label.en,
+    palette: card.colorPalette.trim() || style.palette,
+    extraPrompt,
+    openingShape,
+  })
+  const clientConfig = String(formData.get('sectionConfig') ?? '').trim()
+  let baseConfig = card.sectionConfig
+  if (clientConfig.startsWith('{')) {
+    try {
+      JSON.parse(clientConfig)
+      baseConfig = clientConfig
+    } catch {
+      baseConfig = card.sectionConfig
+    }
+  }
+
+  let charged = false
+  try {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
+      },
+    })
+    const safetySettings = [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    ]
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) throw new Error(bunnyReady.error)
+    const genResult = await model.generateContent([prompt] as never, { safetySettings } as never)
+    const response = genResult.response
+    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')
+    const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+    if (!imagePartRes || !('inlineData' in imagePartRes)) {
+      throw new Error('AI không trả về ảnh hợp lệ.')
+    }
+    const drawn = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
+    const stripped = await stripLogoBackgroundToTransparentPng({
+      apiKey: (await requireGoogleApiKeyForUser(userId)).apiKey,
+      userId,
+      feature: 'tao-thiep-moi-cuoi-ai',
+      imageBuffer: drawn,
+    })
+    if (!stripped.removed) {
+      return { error: 'Xóa nền không ra khung trong suốt. Credit chưa bị trừ.' }
+    }
+    const hole = await measureCoverFrameHole(stripped.buffer)
+    if (!hole) {
+      return { error: 'Khung không có lỗ giữa đủ lớn để đặt ảnh. Credit chưa bị trừ.' }
+    }
+    const resultPath = `results/${userId}/wedding_${cardId}_cover_frame_${Date.now()}.png`
+    const { publicUrl } = await uploadTryOnImagePublic(resultPath, stripped.buffer, {
+      contentType: 'image/png',
+      upsert: true,
+    })
+    const chargeAmount = chargedCreditsForLogoCreate(COST, true)
+    const charge = await deductUserCredits(userId, chargeAmount, 'tao-thiep-moi-cuoi-ai')
+    if (!charge.ok) {
+      throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
+    }
+    charged = true
+    const sectionConfig = mergeWeddingSectionConfig(baseConfig, {
+      coverAiFrameUrl: publicUrl,
+      coverAiFrameHole: hole,
+      coverAiFramePanel: COVER_AI_FRAME_PANEL,
+      coverAiFrameInk: 'dark',
+    })
+    const saved = await saveWeddingCardSectionConfig(cardId, userId, sectionConfig)
+    if (!saved) throw new Error('Không lưu được khung vào thiệp.')
+    const libraryItem = await saveWeddingCoverFrameToLibrary({
+      imageUrl: publicUrl,
+      hole,
+      panel: COVER_AI_FRAME_PANEL,
+      ink: 'dark',
+    }).catch(() => null)
+    revalidatePath('/tao-thiep-moi-cuoi-ai')
+    revalidatePath(`/thiep-moi-cuoi/${saved.slug}`)
+    return {
+      success: true as const,
+      imageUrl: publicUrl,
+      hole,
+      panel: COVER_AI_FRAME_PANEL,
+      ink: 'dark' as const,
+      libraryItem,
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e)
+    if (charged) {
+      await refundUserCredits(userId, chargedCreditsForLogoCreate(COST, true), 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
+    }
+    return { error: `Tạo khung thất bại, credit chưa bị trừ: ${message}` }
   }
 }
 

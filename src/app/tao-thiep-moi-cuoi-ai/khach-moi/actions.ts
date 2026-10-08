@@ -23,23 +23,37 @@ import {
   parseWeddingGuestImportSheet,
   WEDDING_GUEST_IMPORT_MAX_BYTES,
 } from '@/lib/wedding/wedding-invited-guests-excel'
-import { weddingGuestPackBlockedMessage, type WeddingGuestPackId, type WeddingGuestPackQuota } from '@/lib/wedding/wedding-guest-pack'
+import {
+  weddingGuestPackBlockedMessage,
+  weddingGuestPackLimitSide,
+  type WeddingGuestPackId,
+  type WeddingGuestPackSide,
+  type WeddingGuestSideQuotas,
+} from '@/lib/wedding/wedding-guest-pack'
 import {
   completeWeddingGuestPackPayment,
   createWeddingGuestPackPayment,
   getWeddingGuestPackPaymentForUser,
-  loadWeddingGuestPackQuota,
+  loadWeddingGuestPackQuotas,
 } from '@/lib/db/wedding-guest-pack-pg'
 
 async function guestPackLimitResult(
   cardId: string,
   userId: string,
-): Promise<{ error: string; code: 'guest_pack_limit'; quota: WeddingGuestPackQuota | null }> {
-  const quota = await loadWeddingGuestPackQuota(cardId, userId)
+  side: WeddingGuestPackSide,
+): Promise<{
+  error: string
+  code: 'guest_pack_limit'
+  side: WeddingGuestPackSide
+  quotas: WeddingGuestSideQuotas | null
+}> {
+  const quotas = await loadWeddingGuestPackQuotas(cardId, userId)
+  const quota = quotas?.[side] ?? null
   return {
-    error: quota ? weddingGuestPackBlockedMessage(quota) : 'Đã hết chỗ khách. Chọn gói để thêm tiếp.',
+    error: quota ? weddingGuestPackBlockedMessage(quota, side) : 'Đã hết chỗ khách. Chọn gói để thêm tiếp.',
     code: 'guest_pack_limit' as const,
-    quota,
+    side,
+    quotas,
   }
 }
 
@@ -112,7 +126,8 @@ export async function importWeddingInvitedGuests(formData: FormData) {
       }
     }),
   })
-  if (created === 'guest_pack_limit') return guestPackLimitResult(card.id, userId)
+  const importLimit = weddingGuestPackLimitSide(String(created))
+  if (importLimit) return guestPackLimitResult(card.id, userId, importLimit)
   if (!created) return { error: 'Không thêm được khách. Thử lại.' }
   revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
   revalidatePath('/tao-thiep-moi-cuoi-ai/ket-qua')
@@ -130,8 +145,8 @@ export async function loadWeddingInvitedGuestsPage(cardId: string) {
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
   const guests = await listWeddingInvitedGuests(card.id, userId)
-  const quota = await loadWeddingGuestPackQuota(card.id, userId)
-  return { card, guests, quota }
+  const quotas = await loadWeddingGuestPackQuotas(card.id, userId)
+  return { card, guests, quotas }
 }
 
 export async function saveWeddingInvitedGuest(formData: FormData) {
@@ -160,7 +175,8 @@ export async function saveWeddingInvitedGuest(formData: FormData) {
     ? await updateWeddingInvitedGuest({ guestId, ...payload })
     : await createWeddingInvitedGuest(payload)
 
-  if (guest === 'guest_pack_limit') return guestPackLimitResult(cardId, userId)
+  const saveLimit = weddingGuestPackLimitSide(String(guest))
+  if (saveLimit) return guestPackLimitResult(cardId, userId, saveLimit)
   if (!guest) return { error: 'Không lưu được khách mời. Kiểm tra tên khách.' }
 
   revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
@@ -213,13 +229,18 @@ export async function removeWeddingInvitedGuest(formData: FormData) {
   return { success: true }
 }
 
-export async function startWeddingGuestPackPayment(cardId: string, packId: WeddingGuestPackId) {
+export async function startWeddingGuestPackPayment(
+  cardId: string,
+  packId: WeddingGuestPackId,
+  side: WeddingGuestPackSide,
+) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
+  if (side !== 'groom' && side !== 'bride') return { error: 'Chọn nhà trai hoặc nhà gái.' }
   const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
-  const payment = await createWeddingGuestPackPayment({ userId, cardId: card.id, packId })
+  const payment = await createWeddingGuestPackPayment({ userId, cardId: card.id, packId, side })
   if ('error' in payment) return { error: payment.error }
   return { payment }
 }
@@ -230,8 +251,8 @@ export async function readWeddingGuestPackPayment(paymentId: string) {
   const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const payment = await getWeddingGuestPackPaymentForUser(paymentId, userId)
   if (!payment) return { error: 'Không thấy giao dịch.' }
-  const quota = payment.status === 'completed' ? await loadWeddingGuestPackQuota(payment.cardId, userId) : null
-  return { payment, quota }
+  const quotas = payment.status === 'completed' ? await loadWeddingGuestPackQuotas(payment.cardId, userId) : null
+  return { payment, quotas }
 }
 
 export async function confirmWeddingGuestPackPaymentLocal(paymentId: string) {
@@ -242,8 +263,8 @@ export async function confirmWeddingGuestPackPaymentLocal(paymentId: string) {
   const payment = await getWeddingGuestPackPaymentForUser(paymentId, userId)
   if (!payment) return { error: 'Không thấy giao dịch.' }
   if (payment.status === 'completed') {
-    const quota = await loadWeddingGuestPackQuota(payment.cardId, userId)
-    return { payment, quota }
+    const quotas = await loadWeddingGuestPackQuotas(payment.cardId, userId)
+    return { payment, quotas }
   }
   const completed = await completeWeddingGuestPackPayment({
     paymentId: payment.id,
@@ -252,9 +273,9 @@ export async function confirmWeddingGuestPackPaymentLocal(paymentId: string) {
     sepayData: { source: 'local-dev' },
   })
   if ('error' in completed) return { error: 'Chưa ghi được gói.' }
-  const quota = await loadWeddingGuestPackQuota(payment.cardId, userId)
+  const quotas = await loadWeddingGuestPackQuotas(payment.cardId, userId)
   const next = await getWeddingGuestPackPaymentForUser(paymentId, userId)
-  return { payment: next, quota }
+  return { payment: next, quotas }
 }
 
 export async function saveWeddingSideInviteSettings(formData: FormData) {

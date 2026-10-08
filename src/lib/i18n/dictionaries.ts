@@ -3397,6 +3397,20 @@ export type Dictionary = {
     customReferenceRemove: string
     customReferenceUrlPlaceholder: string
     customReferenceEmpty: string
+    chooseBackground: string
+    backgroundSectionTitle: string
+    backgroundSectionHint: string
+    backgroundLibraryTitle: string
+    backgroundLibraryHint: string
+    backgroundLibraryEmpty: string
+    createBackgroundAi: string
+    createBackgroundModalTitle: string
+    createBackgroundButton: string
+    createBackgroundAgain: string
+    pickOutsideBackground: string
+    backgroundEmptyPreview: string
+    downloadCreated: string
+    back: string
   }
   weddingCardAiStyle: {
     sectionTitle: string
@@ -3411,9 +3425,49 @@ export type Dictionary = {
     previewGuestPrefix: string
     previewOpenButton: string
     uploadLabel: string
+    choosePhoto: string
+    chooseFrame: string
+    changePhoto: string
+    coverPhotoZoomOut: string
+    coverPhotoZoomIn: string
     uploadHint: string
     removeCustomCover: string
     aiCoverHint: string
+    aiFrameButton: string
+    aiFrameHint: string
+    aiFramePromptPlaceholder: string
+    aiFrameDone: string
+    aiFrameDoneDetail: string
+    aiFrameUsing: string
+    aiFrameUseStock: string
+    coverLibraryHint: string
+    coverUploadDevice: string
+    coverLibraryEmpty: string
+    aiFrameLibraryHeading: string
+    aiFrameLibraryHint: string
+    aiFrameLibraryEmpty: string
+    aiFrameLibraryApplied: string
+    frameModeNone: string
+    frameModePick: string
+    frameModeAi: string
+    photoOpenLabel: string
+    frameOpenLabel: string
+    photoOpenNone: string
+    photoOpenRise: string
+    photoOpenFade: string
+    photoOpenZoom: string
+    photoOpenAssemble: string
+    frameOpenNone: string
+    frameOpenFade: string
+    frameOpenBloom: string
+    frameOpenAssemble: string
+    frameShapeLabel: string
+    frameShapeCircle: string
+    frameShapeEllipse: string
+    frameShapeHeart: string
+    frameShapeArch: string
+    frameShapeDiamond: string
+    frameShapeRounded: string
   }
   weddingCardPublic: {
     invitation: string
@@ -7202,6 +7256,20 @@ const VI_DICTIONARY: Dictionary = {
     customReferenceRemove: 'Gỡ ảnh',
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
     customReferenceEmpty: 'Chưa chọn ảnh tham khảo',
+    chooseBackground: 'Chọn nền',
+    backgroundSectionTitle: 'Nền thiệp',
+    backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Bấm Chọn nền để xem kho, hoặc tạo nền mới bằng AI.',
+    backgroundLibraryTitle: 'Kho ảnh nền',
+    backgroundLibraryHint: 'Bấm một ảnh đã tạo để dùng làm ảnh chính cho cả thiệp. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
+    backgroundLibraryEmpty: 'Kho còn trống. Tạo nền mới để lưu vào kho — lần sau chọn lại không mất credit.',
+    createBackgroundAi: 'Tạo nền mới AI',
+    createBackgroundModalTitle: 'Tạo nền mới bằng AI',
+    createBackgroundButton: 'Tạo ảnh nền - 1 credit',
+    createBackgroundAgain: 'Tạo lại ảnh nền - 1 credit',
+    pickOutsideBackground: 'Chọn ảnh ngoài · 0 credit',
+    backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn trong kho hoặc tạo nền mới.',
+    downloadCreated: 'Tải ảnh đã tạo',
+    back: 'Quay lại',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. Chọn phong cách',
@@ -7211,16 +7279,56 @@ const VI_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. Chọn vỏ thiệp',
     sectionDescription:
-      'Chọn kiểu khung thiệp giữa màn «Mở thiệp» và thêm ảnh cặp đôi vào giữa — miễn phí, không tốn credit. Ảnh nền full màn dùng chung một ảnh nền chính.',
+      'Mỗi vỏ là một khung khác nhau, lỗ giữa để ảnh — miễn phí, không tốn credit. Ảnh nền full màn vẫn dùng chung một ảnh nền chính.',
     tagNew: 'Mới',
     tagHot: 'Hot',
     previewLabel: 'Thiệp mời',
     previewGuestPrefix: 'Thân mời',
     previewOpenButton: 'Mở thiệp',
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
-    uploadHint: 'Ảnh hiển thị trong khung giữa thiệp (không thay nền phía sau). Upload/lưu không tốn credit.',
+    choosePhoto: 'Chọn ảnh',
+    chooseFrame: 'Chọn khung',
+    changePhoto: 'Đổi ảnh',
+    coverPhotoZoomOut: 'Thu nhỏ',
+    coverPhotoZoomIn: 'Phóng to',
+    uploadHint: 'Chưa có ảnh thì bấm Chọn ảnh. Đã có ảnh thì bấm Đổi ảnh, kéo trong khung để đổi vị trí, nút zoom để phóng hoặc thu nhỏ. Ảnh AI nằm trong kho chung — khách khác chọn lại không tốn credit. Ảnh tải từ máy chỉ của thiệp này.',
     removeCustomCover: 'Gỡ ảnh giữa thiệp',
-    aiCoverHint: 'Nền phía sau khung thiệp là ảnh nền chính, dùng chung cả thiệp. Tạo ở bước «Tạo ảnh AI».',
+    aiCoverHint: 'Nền phía sau khung thiệp là ảnh nền chính, dùng chung cả thiệp. Bấm Chọn nền ở trên.',
+    aiFrameButton: 'Tạo khung AI',
+    aiFrameHint: 'AI vẽ khung rồi xóa nền bằng công cụ có sẵn, lỗ giữa trong suốt để đặt ảnh. Chỉ trừ 2,5 credit khi khung dùng được.',
+    aiFramePromptPlaceholder: 'Gợi ý thêm (tùy chọn): hoa mẫu đơn, viền vàng…',
+    aiFrameDone: 'Đã tạo khung AI',
+    aiFrameDoneDetail: 'Đã trừ 2,5 credit. Khung vào kho chung — khách sau chọn lại không tốn credit.',
+    aiFrameUsing: 'Đang dùng khung AI. Chọn một vỏ có sẵn để trở lại khung mẫu.',
+    aiFrameUseStock: 'Dùng khung có sẵn',
+    coverLibraryHint: 'Chọn ảnh AI trong kho chung, hoặc tải ảnh từ máy. Ảnh kho không tốn credit. Ảnh từ máy chỉ gắn thiệp này.',
+    coverUploadDevice: 'Tải từ máy',
+    coverLibraryEmpty: 'Kho ảnh AI còn trống. Tạo ảnh chính ở bước sau — ảnh đó vào kho cho mọi khách.',
+    aiFrameLibraryHeading: 'Kho khung AI',
+    aiFrameLibraryHint: 'Bấm một khung đã tạo để dùng. Không trừ credit. Tạo mới vẫn 2,5 credit và khung mới vào kho chung.',
+    aiFrameLibraryEmpty: 'Kho khung còn trống. Tạo khung AI để lưu — khách sau chọn lại không mất credit.',
+    aiFrameLibraryApplied: 'Đã chọn khung từ kho. Không trừ credit.',
+    frameModeNone: 'Không khung',
+    frameModePick: 'Chọn khung',
+    frameModeAi: 'Tạo khung AI',
+    photoOpenLabel: 'Hiệu ứng mở ảnh',
+    frameOpenLabel: 'Hiệu ứng mở khung',
+    photoOpenNone: 'Hiện nhẹ',
+    photoOpenRise: 'Trượt lên',
+    photoOpenFade: 'Hiện dần',
+    photoOpenZoom: 'Phóng từ trong',
+    photoOpenAssemble: 'Ghép lại',
+    frameOpenNone: 'Hiện nhẹ',
+    frameOpenFade: 'Hiện dần',
+    frameOpenBloom: 'Nở ra',
+    frameOpenAssemble: 'Ghép lại',
+    frameShapeLabel: 'Hình lỗ khung',
+    frameShapeCircle: 'Tròn',
+    frameShapeEllipse: 'Elip',
+    frameShapeHeart: 'Trái tim',
+    frameShapeArch: 'Vòm',
+    frameShapeDiamond: 'Thoi',
+    frameShapeRounded: 'Chữ nhật',
   },
   weddingCardPublic: {
     invitation: 'Thiệp mời / Invitation',
@@ -11003,6 +11111,20 @@ const EN_DICTIONARY: Dictionary = {
     customReferenceRemove: 'Remove image',
     customReferenceUrlPlaceholder: 'Or paste a reference image URL (https://...)',
     customReferenceEmpty: 'No reference image selected',
+    chooseBackground: 'Choose background',
+    backgroundSectionTitle: 'Invitation background',
+    backgroundSectionHint: 'One background is shared across the invitation. Open Choose background to browse the library or create a new AI background.',
+    backgroundLibraryTitle: 'Background library',
+    backgroundLibraryHint: 'Tap a saved image to use it as the main background. No credit. A new image costs 1 credit and is saved to the library. A photo from your device stays on this invitation only.',
+    backgroundLibraryEmpty: 'The library is empty. Create a background to save it — picking it later costs no credit.',
+    createBackgroundAi: 'Create AI background',
+    createBackgroundModalTitle: 'Create a new AI background',
+    createBackgroundButton: 'Create background - 1 credit',
+    createBackgroundAgain: 'Regenerate background - 1 credit',
+    pickOutsideBackground: 'Upload your photo · 0 credit',
+    backgroundEmptyPreview: 'No background yet. Pick one from the library or create a new one.',
+    downloadCreated: 'Download created image',
+    back: 'Back',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. Choose style',
@@ -11012,16 +11134,56 @@ const EN_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. Choose cover shell',
     sectionDescription:
-      'Pick the inner card layout on the “Open invitation” screen and add a couple photo in the center — free, no credits. The full-screen background is the same main image throughout the invitation.',
+      'Each shell is a different frame with a center hole for the photo — free, no credits. The full-screen background stays the same main image.',
     tagNew: 'New',
     tagHot: 'Hot',
     previewLabel: 'Invitation',
     previewGuestPrefix: 'Cordially invites',
     previewOpenButton: 'Open invitation',
     uploadLabel: 'Couple photo on cover card',
-    uploadHint: 'Photo shown inside the center card frame (does not replace the background). Upload/save costs no credits.',
+    choosePhoto: 'Choose photo',
+    chooseFrame: 'Choose frame',
+    changePhoto: 'Change photo',
+    coverPhotoZoomOut: 'Zoom out',
+    coverPhotoZoomIn: 'Zoom in',
+    uploadHint: 'With no photo, tap Choose photo. With a photo, tap Change photo, drag inside the frame to move it, and use the zoom buttons to zoom. AI images stay in the shared library — later customers can reuse them at no credit cost. A photo from this device stays on this invitation only.',
     removeCustomCover: 'Remove center photo',
-    aiCoverHint: 'The background behind the card is the main image, shared across the invitation. Generate it in “Create AI images”.',
+    aiCoverHint: 'The background behind the card is the main image, shared across the invitation. Use Choose background above.',
+    aiFrameButton: 'Create AI frame',
+    aiFrameHint: 'AI draws the frame, then the existing background remover makes the center hole transparent for the photo. 2.5 credits are charged only when the frame is usable.',
+    aiFramePromptPlaceholder: 'Optional note: peonies, gold linework…',
+    aiFrameDone: 'AI frame created',
+    aiFrameDoneDetail: '2.5 credits charged. The frame is in the shared library — later customers can reuse it at no credit cost.',
+    aiFrameUsing: 'Using the AI frame. Pick a ready-made shell to switch back.',
+    aiFrameUseStock: 'Use a ready-made frame',
+    coverLibraryHint: 'Pick an AI image from the shared library, or upload from this device. Library picks cost no credits. A device photo stays on this invitation only.',
+    coverUploadDevice: 'Upload from device',
+    coverLibraryEmpty: 'The AI image library is empty. Create a main image in the next step — it is saved for every customer.',
+    aiFrameLibraryHeading: 'AI frame library',
+    aiFrameLibraryHint: 'Tap a saved frame to use it. No credits. Creating a new one still costs 2.5 credits and adds it to the shared library.',
+    aiFrameLibraryEmpty: 'The frame library is empty. Create an AI frame to save it — later customers can reuse it at no credit cost.',
+    aiFrameLibraryApplied: 'Frame picked from the library. No credits charged.',
+    frameModeNone: 'No frame',
+    frameModePick: 'Choose a frame',
+    frameModeAi: 'Create with AI',
+    photoOpenLabel: 'Photo open effect',
+    frameOpenLabel: 'Frame open effect',
+    photoOpenNone: 'Soft appear',
+    photoOpenRise: 'Rise',
+    photoOpenFade: 'Fade in',
+    photoOpenZoom: 'Zoom out',
+    photoOpenAssemble: 'Assemble',
+    frameOpenNone: 'Soft appear',
+    frameOpenFade: 'Fade in',
+    frameOpenBloom: 'Bloom',
+    frameOpenAssemble: 'Assemble',
+    frameShapeLabel: 'Opening shape',
+    frameShapeCircle: 'Circle',
+    frameShapeEllipse: 'Ellipse',
+    frameShapeHeart: 'Heart',
+    frameShapeArch: 'Arch',
+    frameShapeDiamond: 'Diamond',
+    frameShapeRounded: 'Rounded',
   },
   weddingCardPublic: {
     invitation: 'Wedding Invitation',
@@ -14687,6 +14849,20 @@ const ZH_DICTIONARY: Dictionary = {
     customReferenceRemove: '移除图片',
     customReferenceUrlPlaceholder: '或粘贴参考图 URL（https://...）',
     customReferenceEmpty: '尚未选择参考图',
+    chooseBackground: '选择背景',
+    backgroundSectionTitle: '请柬背景',
+    backgroundSectionHint: '整张请柬共用一张背景。点「选择背景」查看图库，或用 AI 新建背景。',
+    backgroundLibraryTitle: '背景图库',
+    backgroundLibraryHint: '点已有图片即可用作主背景，不扣积分。新建仍扣 1 积分并收入图库。从设备选择的图片只用于这张请柬，不进图库。',
+    backgroundLibraryEmpty: '图库还是空的。新建一张背景后会保存，下次选用不再扣积分。',
+    createBackgroundAi: 'AI 新建背景',
+    createBackgroundModalTitle: '用 AI 新建背景',
+    createBackgroundButton: '生成背景 - 1 积分',
+    createBackgroundAgain: '重新生成背景 - 1 积分',
+    pickOutsideBackground: '从设备选择 · 0 积分',
+    backgroundEmptyPreview: '还没有背景。从图库选择，或新建一张。',
+    downloadCreated: '下载已生成的图片',
+    back: '返回',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. 选择风格',
@@ -14696,16 +14872,56 @@ const ZH_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 选择请柬封面',
     sectionDescription:
-      '选择「打开请柬」屏幕中间的卡片样式，并在中间添加情侣照片——免费、不消耗积分。全屏背景整张请柬共用一张主图。',
+      '每种封面是不同的透明框，中间留空放照片——免费、不消耗积分。全屏背景仍共用一张主图。',
     tagNew: '新',
     tagHot: '热',
     previewLabel: '请柬',
     previewGuestPrefix: '敬邀',
     previewOpenButton: '打开请柬',
     uploadLabel: '封面卡片情侣照',
-    uploadHint: '照片显示在中间卡片内（不替换后方背景）。上传/保存不消耗积分。',
+    choosePhoto: '选择照片',
+    chooseFrame: '选择画框',
+    changePhoto: '更换照片',
+    coverPhotoZoomOut: '缩小',
+    coverPhotoZoomIn: '放大',
+    uploadHint: '还没有照片时点「选择照片」。已有照片时点「更换照片」，在画框里拖动可改位置，用缩放按钮放大或缩小。AI 图片进入共用图库，之后的客户再选不扣积分。从本机上传的照片只属于这张请柬。',
     removeCustomCover: '移除中间照片',
-    aiCoverHint: '卡片后方背景是整张请柬共用的主图。请在「创建 AI 图片」步骤生成。',
+    aiCoverHint: '卡片后方背景是整张请柬共用的主图。请使用上方的「选择背景」。',
+    aiFrameButton: '生成 AI 画框',
+    aiFrameHint: 'AI 绘制画框后，用现有去背景工具把中间镂空变透明以放照片。只有画框可用时才扣 2.5 积分。',
+    aiFramePromptPlaceholder: '补充说明（可选）：牡丹、金线…',
+    aiFrameDone: '已生成 AI 画框',
+    aiFrameDoneDetail: '已扣除 2.5 积分。画框已进入共用图库，之后的客户再选不扣积分。',
+    aiFrameUsing: '正在使用 AI 画框。选择一个现成封面即可回到样框。',
+    aiFrameUseStock: '改用现成画框',
+    coverLibraryHint: '从共用图库选一张 AI 图片，或从本机上传。图库不扣积分。本机照片只属于这张请柬。',
+    coverUploadDevice: '从本机上传',
+    coverLibraryEmpty: 'AI 图库还是空的。在后面的步骤生成主图后，该图会进入图库供所有客户使用。',
+    aiFrameLibraryHeading: 'AI 画框图库',
+    aiFrameLibraryHint: '点一张已有画框即可使用，不扣积分。新生成仍扣 2.5 积分，并写入共用图库。',
+    aiFrameLibraryEmpty: '画框图库还是空的。生成 AI 画框后会保存，之后的客户再选不扣积分。',
+    aiFrameLibraryApplied: '已从图库选用画框，未扣积分。',
+    frameModeNone: '不用画框',
+    frameModePick: '选择画框',
+    frameModeAi: 'AI 生成画框',
+    photoOpenLabel: '照片开场',
+    frameOpenLabel: '画框开场',
+    photoOpenNone: '轻柔出现',
+    photoOpenRise: '上移',
+    photoOpenFade: '淡入',
+    photoOpenZoom: '由内放大',
+    photoOpenAssemble: '叠合',
+    frameOpenNone: '轻柔出现',
+    frameOpenFade: '淡入',
+    frameOpenBloom: '绽开',
+    frameOpenAssemble: '叠合',
+    frameShapeLabel: '镂空形状',
+    frameShapeCircle: '圆形',
+    frameShapeEllipse: '椭圆',
+    frameShapeHeart: '心形',
+    frameShapeArch: '拱门',
+    frameShapeDiamond: '菱形',
+    frameShapeRounded: '圆角矩形',
   },
   weddingCardPublic: {
     invitation: '婚礼请柬',
@@ -18454,6 +18670,20 @@ const JA_DICTIONARY: Dictionary = {
     customReferenceRemove: '画像を削除',
     customReferenceUrlPlaceholder: 'または参考画像の URL を貼り付け（https://...）',
     customReferenceEmpty: '参考画像が未選択です',
+    chooseBackground: '背景を選ぶ',
+    backgroundSectionTitle: '招待状の背景',
+    backgroundSectionHint: '招待状全体で一つの背景を使います。「背景を選ぶ」で庫を開き、AI で新しい背景も作れます。',
+    backgroundLibraryTitle: '背景ライブラリ',
+    backgroundLibraryHint: '保存済みの画像をタップするとメイン背景になります。クレジットはかかりません。新規作成は 1 クレジットで、庫に保存されます。端末から選んだ写真はこの招待状だけに使います。',
+    backgroundLibraryEmpty: '庫は空です。背景を作ると保存され、次回の選択はクレジット不要です。',
+    createBackgroundAi: 'AI で背景を作る',
+    createBackgroundModalTitle: 'AI で新しい背景を作る',
+    createBackgroundButton: '背景を作成 - 1 クレジット',
+    createBackgroundAgain: '背景を作り直す - 1 クレジット',
+    pickOutsideBackground: '端末の写真 · 0 クレジット',
+    backgroundEmptyPreview: '背景がありません。庫から選ぶか、新しく作ってください。',
+    downloadCreated: '作成した画像をダウンロード',
+    back: '戻る',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. スタイルを選ぶ',
@@ -18463,16 +18693,56 @@ const JA_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 表紙を選ぶ',
     sectionDescription:
-      '「招待状を開く」画面の中央カードのレイアウトを選び、中央にカップル写真を追加（無料・クレジット不要）。全画面の背景は招待状全体で同じメイン画像です。',
+      '表紙ごとに違う透明フレームで、中央の穴に写真を入れます（無料・クレジット不要）。全画面の背景は同じメイン画像のままです。',
     tagNew: '新着',
     tagHot: '人気',
     previewLabel: '招待状',
     previewGuestPrefix: '謹んでご招待',
     previewOpenButton: '招待状を開く',
     uploadLabel: '表紙カードのカップル写真',
-    uploadHint: '中央カード内に表示（背景は置き換えません）。アップロード/保存は無料です。',
+    choosePhoto: '写真を選ぶ',
+    chooseFrame: '枠を選ぶ',
+    changePhoto: '写真を変える',
+    coverPhotoZoomOut: '縮小',
+    coverPhotoZoomIn: '拡大',
+    uploadHint: '写真が無いときは「写真を選ぶ」。あるときは「写真を変える」。枠の中でドラッグして位置を変え、ズームボタンで拡大・縮小します。AI画像は共有ライブラリに残り、後のお客様が選んでもクレジットはかかりません。端末からの写真はこの招待状だけです。',
     removeCustomCover: '中央写真を削除',
-    aiCoverHint: 'カード背後の背景は招待状全体で使うメイン画像です。「AI 画像作成」で生成してください。',
+    aiCoverHint: 'カード背後の背景は招待状全体で使うメイン画像です。上の「背景を選ぶ」から選べます。',
+    aiFrameButton: 'AIフレームを作る',
+    aiFrameHint: 'AIが枠を描き、既存の背景除去で中央の穴を透明にして写真を置きます。使える枠ができたときだけ 2.5 クレジットです。',
+    aiFramePromptPlaceholder: '追加の希望（任意）：牡丹、金の線…',
+    aiFrameDone: 'AIフレームを作成しました',
+    aiFrameDoneDetail: '2.5 クレジットを使いました。枠は共有ライブラリに入り、後のお客様が選んでもクレジットはかかりません。',
+    aiFrameUsing: 'AIフレームを使用中です。用意された表紙を選ぶと見本の枠に戻ります。',
+    aiFrameUseStock: '見本の枠に戻す',
+    coverLibraryHint: '共有ライブラリの AI 画像を選ぶか、端末からアップロードします。ライブラリは無料です。端末の写真はこの招待状だけです。',
+    coverUploadDevice: '端末からアップロード',
+    coverLibraryEmpty: 'AI画像ライブラリは空です。次の手順でメイン画像を作ると、全員が使えるライブラリに入ります。',
+    aiFrameLibraryHeading: 'AIフレームライブラリ',
+    aiFrameLibraryHint: '保存済みの枠をタップして使います。クレジット不要。新規作成は 2.5 クレジットで、共有ライブラリに追加されます。',
+    aiFrameLibraryEmpty: 'フレームライブラリは空です。AIフレームを作ると保存され、後のお客様が無料で選べます。',
+    aiFrameLibraryApplied: 'ライブラリの枠を選びました。クレジットは使いません。',
+    frameModeNone: '枠なし',
+    frameModePick: '枠を選ぶ',
+    frameModeAi: 'AIで枠を作る',
+    photoOpenLabel: '写真の開き方',
+    frameOpenLabel: '枠の開き方',
+    photoOpenNone: 'そっと表示',
+    photoOpenRise: '上がる',
+    photoOpenFade: 'フェード',
+    photoOpenZoom: '内側から拡大',
+    photoOpenAssemble: '組み合わさる',
+    frameOpenNone: 'そっと表示',
+    frameOpenFade: 'フェード',
+    frameOpenBloom: '咲く',
+    frameOpenAssemble: '組み合わさる',
+    frameShapeLabel: '穴の形',
+    frameShapeCircle: '円',
+    frameShapeEllipse: '楕円',
+    frameShapeHeart: 'ハート',
+    frameShapeArch: 'アーチ',
+    frameShapeDiamond: 'ひし形',
+    frameShapeRounded: '角丸',
   },
   weddingCardPublic: {
     invitation: '結婚式招待状',
@@ -22215,6 +22485,20 @@ const KO_DICTIONARY: Dictionary = {
     customReferenceRemove: '이미지 제거',
     customReferenceUrlPlaceholder: '또는 참조 이미지 URL 붙여넣기 (https://...)',
     customReferenceEmpty: '참조 이미지가 선택되지 않았습니다',
+    chooseBackground: '배경 선택',
+    backgroundSectionTitle: '청첩장 배경',
+    backgroundSectionHint: '청첩장 전체가 배경 하나를 씁니다. 배경 선택으로 보관함을 열고, AI로 새 배경을 만들 수 있습니다.',
+    backgroundLibraryTitle: '배경 보관함',
+    backgroundLibraryHint: '만든 이미지를 누르면 메인 배경으로 씁니다. 크레딧이 들지 않습니다. 새로 만들면 1 크레딧이며 보관함에 저장됩니다. 기기에서 고른 사진은 이 청첩장에만 씁니다.',
+    backgroundLibraryEmpty: '보관함이 비어 있습니다. 배경을 만들면 저장되고, 다음에 고르면 크레딧이 들지 않습니다.',
+    createBackgroundAi: 'AI로 배경 만들기',
+    createBackgroundModalTitle: 'AI로 새 배경 만들기',
+    createBackgroundButton: '배경 만들기 - 1 크레딧',
+    createBackgroundAgain: '배경 다시 만들기 - 1 크레딧',
+    pickOutsideBackground: '기기 사진 선택 · 0 크레딧',
+    backgroundEmptyPreview: '배경이 없습니다. 보관함에서 고르거나 새로 만드세요.',
+    downloadCreated: '만든 이미지 다운로드',
+    back: '뒤로',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. 스타일 선택',
@@ -22224,16 +22508,56 @@ const KO_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1b. 표지 선택',
     sectionDescription:
-      '«청첩장 열기» 화면 가운데 카드 레이아웃을 고르고 중앙에 커플 사진을 추가합니다(무료·크레딧 없음). 전체 화면 배경은 청첩장 전체가 같은 메인 이미지를 씁니다.',
+      '표지마다 다른 투명 프레임이고, 가운데 구멍에 사진을 넣습니다(무료·크레딧 없음). 전체 화면 배경은 같은 메인 이미지를 씁니다.',
     tagNew: '신규',
     tagHot: '인기',
     previewLabel: '청첩장',
     previewGuestPrefix: '정중히 초대',
     previewOpenButton: '청첩장 열기',
     uploadLabel: '표지 카드 커플 사진',
-    uploadHint: '가운데 카드 안에 표시됩니다(뒤 배경은 바꾸지 않음). 업로드/저장은 크레딧이 들지 않습니다.',
+    choosePhoto: '사진 선택',
+    chooseFrame: '프레임 선택',
+    changePhoto: '사진 변경',
+    coverPhotoZoomOut: '축소',
+    coverPhotoZoomIn: '확대',
+    uploadHint: '사진이 없으면 사진 선택을 누르세요. 있으면 사진 변경을 누르고, 프레임 안에서 끌어 위치를 바꾸고 확대 버튼으로 크기를 조절하세요. AI 이미지는 공용 보관함에 남아 이후 고객이 고르면 크레딧이 들지 않습니다. 기기에서 올린 사진은 이 청첩장만 씁니다.',
     removeCustomCover: '중앙 사진 제거',
-    aiCoverHint: '카드 뒤 배경은 청첩장 전체가 쓰는 메인 이미지입니다. «AI 이미지 생성» 단계에서 만드세요.',
+    aiCoverHint: '카드 뒤 배경은 청첩장 전체가 쓰는 메인 이미지입니다. 위의 «배경 선택»을 사용하세요.',
+    aiFrameButton: 'AI 프레임 만들기',
+    aiFrameHint: 'AI가 프레임을 그린 뒤, 있는 배경 제거로 가운데 구멍을 투명하게 해 사진을 넣습니다. 쓸 수 있는 프레임일 때만 2.5 크레딧입니다.',
+    aiFramePromptPlaceholder: '추가 설명(선택): 모란, 금색 선…',
+    aiFrameDone: 'AI 프레임을 만들었습니다',
+    aiFrameDoneDetail: '2.5 크레딧이 차감되었습니다. 프레임은 공용 보관함에 들어가 이후 고객이 고르면 크레딧이 들지 않습니다.',
+    aiFrameUsing: 'AI 프레임을 쓰는 중입니다. 준비된 표지를 고르면 기본 프레임으로 돌아갑니다.',
+    aiFrameUseStock: '기본 프레임 쓰기',
+    coverLibraryHint: '공용 보관함의 AI 이미지를 고르거나 기기에서 올리세요. 보관함은 크레딧이 들지 않습니다. 기기 사진은 이 청첩장만 씁니다.',
+    coverUploadDevice: '기기에서 올리기',
+    coverLibraryEmpty: 'AI 이미지 보관함이 비어 있습니다. 다음 단계에서 메인 이미지를 만들면 모든 고객이 쓸 수 있게 저장됩니다.',
+    aiFrameLibraryHeading: 'AI 프레임 보관함',
+    aiFrameLibraryHint: '저장된 프레임을 누르면 씁니다. 크레딧 없음. 새로 만들면 2.5 크레딧이며 공용 보관함에 추가됩니다.',
+    aiFrameLibraryEmpty: '프레임 보관함이 비어 있습니다. AI 프레임을 만들면 저장되어 이후 고객이 무료로 고릅니다.',
+    aiFrameLibraryApplied: '보관함에서 프레임을 골랐습니다. 크레딧이 들지 않습니다.',
+    frameModeNone: '프레임 없음',
+    frameModePick: '프레임 고르기',
+    frameModeAi: 'AI로 프레임 만들기',
+    photoOpenLabel: '사진 열림 효과',
+    frameOpenLabel: '프레임 열림 효과',
+    photoOpenNone: '부드럽게',
+    photoOpenRise: '올라오기',
+    photoOpenFade: '서서히',
+    photoOpenZoom: '안에서 확대',
+    photoOpenAssemble: '맞물리기',
+    frameOpenNone: '부드럽게',
+    frameOpenFade: '서서히',
+    frameOpenBloom: '피어나기',
+    frameOpenAssemble: '맞물리기',
+    frameShapeLabel: '구멍 모양',
+    frameShapeCircle: '원',
+    frameShapeEllipse: '타원',
+    frameShapeHeart: '하트',
+    frameShapeArch: '아치',
+    frameShapeDiamond: '마름모',
+    frameShapeRounded: '둥근 사각형',
   },
   weddingCardPublic: {
     invitation: '청첩장',

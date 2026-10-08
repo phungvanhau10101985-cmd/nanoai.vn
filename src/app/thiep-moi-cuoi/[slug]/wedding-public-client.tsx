@@ -41,10 +41,15 @@ import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
 import {
   parseWeddingSectionConfig,
+  resolveCoverAiFrame,
+  resolveCoverFrameMode,
+  resolveCoverFrameOpen,
   resolveCoverPhotoObjectPosition,
+  resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
+  resolvePortraitShell,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingInvitationMotion } from '@/components/wedding/wedding-invitation-motion'
@@ -60,7 +65,7 @@ import {
   normalizeGuestInviteVenue,
   type WeddingGuestInviteVenue,
 } from '@/lib/wedding/wedding-guest-invite-venue'
-import { resolveGuestInviteLocation, isSideSpecificGuestInvite } from '@/lib/wedding/wedding-guest-invite-location'
+import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
@@ -143,6 +148,10 @@ export default function WeddingPublicClient({
   const pageBackground = card.masterImageUrl?.trim() || ''
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
+  const coverFrameMode = useMemo(() => resolveCoverFrameMode(sectionConfig), [sectionConfig])
+  const coverPhotoOpen = useMemo(() => resolveCoverPhotoOpen(sectionConfig), [sectionConfig])
+  const coverFrameOpen = useMemo(() => resolveCoverFrameOpen(sectionConfig), [sectionConfig])
   const albumLayoutId = resolveWeddingAlbumLayoutId(sectionConfig.albumLayoutId)
   const coverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -340,8 +349,6 @@ export default function WeddingPublicClient({
     [card.weddingDate, displayWeddingDateIso, guestInviteLocation.weddingDate, uiLocale],
   )
   const displayPersonalInvite = initialPersonalInvite.trim()
-  const showPersonalInviteOnly =
-    Boolean(displayPersonalInvite) && isSideSpecificGuestInvite(guestDisplayVenue)
   const displayCoverPhotoUrl = guestInviteLocation.coverImageUrl || coverPhotoUrl
   const displayInvitationText = guestInviteLocation.invitationText || card.invitationText
   const displayInvitationTextEn = guestInviteLocation.invitationTextEn || card.invitationTextEn
@@ -606,6 +613,11 @@ export default function WeddingPublicClient({
                     breathe={false}
                     namesFlyIn={card.effectsEnabled}
                     presetId={coverPresetId}
+                    aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                    frameMode={coverFrameMode}
+                    photoOpen={coverPhotoOpen}
+                    frameOpen={coverFrameOpen}
+                    openMotion={card.effectsEnabled}
                     coverPhotoUrl={displayCoverPhotoUrl}
                     coverPhotoObjectPosition={coverPhotoObjectPosition}
                     coverPhotoScale={coverPhotoScale}
@@ -622,7 +634,7 @@ export default function WeddingPublicClient({
                     theme={theme}
                     invitationLabel={tx.invitation}
                     cordiallyInvitesLabel={tx.cordiallyInvites}
-                    personalInviteText={showPersonalInviteOnly ? displayPersonalInvite : undefined}
+                    personalInviteText={displayPersonalInvite || undefined}
                     openButtonLabel={tx.openInvitation}
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
@@ -677,16 +689,41 @@ export default function WeddingPublicClient({
               pace="opened"
               className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.text, theme.textGlowHeading)}
             />
-            <div className={cn('my-3 text-3xl sm:my-4 sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
+            <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
             <div>
             {card.loveQuote && (
               <p className={cn('mx-auto mt-4 max-w-lg font-serif text-lg italic leading-7 sm:mt-5 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
                 “{writeGuestName(personalize(card.loveQuote))}”
               </p>
             )}
-            {showPersonalInviteOnly ? null : (
+            {coverFrameMode === 'none' && !displayCoverPhotoUrl ? null : (
+              <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[32rem]' : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
+                <WeddingCoverShellCard
+                  frameOnly
+                  presetId={coverPresetId}
+                  aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                  frameMode={coverFrameMode}
+                  coverPhotoUrl={displayCoverPhotoUrl}
+                  coverPhotoObjectPosition={coverPhotoObjectPosition}
+                  coverPhotoScale={coverPhotoScale}
+                  groomName={card.groomName}
+                  brideName={card.brideName}
+                  theme={theme}
+                  invitationLabel={tx.invitation}
+                  cordiallyInvitesLabel={tx.cordiallyInvites}
+                  openButtonLabel={tx.openInvitation}
+                  dateFallback={tx.dateFallback}
+                  photoAlt={tx.coverPhotoAlt}
+                />
+              </div>
+            )}
+            {displayPersonalInvite ? (
+              <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
+                {writeGuestName(displayPersonalInvite)}
+              </p>
+            ) : guestDisplayName ? null : (
               <>
-                <p className={cn('mx-auto mt-5 max-w-xl whitespace-pre-line text-sm leading-7 sm:mt-6 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
+                <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
                   {writeGuestName(personalize(displayInvitationText || tx.defaultInvitation))}
                 </p>
                 {displayInvitationTextEn && (
@@ -698,7 +735,7 @@ export default function WeddingPublicClient({
             )}
             {guestDisplayName && (
               <WeddingGuestInviteBlock
-                className="mx-auto mt-6 max-w-md"
+                className="mx-auto mt-1 max-w-md"
                 guestName={guestDisplayName}
                 inviteVenue={guestBlockVenue}
                 cordiallyInvitesLabel={tx.cordiallyInvites}
@@ -709,8 +746,6 @@ export default function WeddingPublicClient({
                 mapUrl={guestBlockLocation.mapUrl}
                 viewMapLabel={tx.guestInviteViewMap}
                 scriptLines={contentVisible && card.effectsEnabled}
-                personalInviteText={showPersonalInviteOnly ? displayPersonalInvite : undefined}
-                personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
                 panelClassName={theme.panelStrong}
                 cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
                 nameClassName={cn(theme.text, theme.textGlowHeading)}
@@ -818,6 +853,8 @@ export default function WeddingPublicClient({
                   brideLabel={tx.brideRole}
                   groomFrame={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
                   brideFrame={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
+                  groomShell={resolvePortraitShell(sectionConfig, 'groom')}
+                  brideShell={resolvePortraitShell(sectionConfig, 'bride')}
                   theme={theme}
                 />
               </WeddingReadableGlass>

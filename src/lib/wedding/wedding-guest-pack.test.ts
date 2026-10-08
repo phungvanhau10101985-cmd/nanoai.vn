@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   buildWeddingGuestPackQuota,
+  buildWeddingGuestSideQuotas,
   canAddWeddingGuests,
   weddingGuestPackBlockedMessage,
   weddingGuestPackUpgradeVnd,
@@ -46,8 +47,33 @@ describe('wedding guest packs', () => {
   })
 
   it('tells the free tier to pick a pack from guest four', () => {
-    const message = weddingGuestPackBlockedMessage(buildWeddingGuestPackQuota(null, 3))
-    assert.match(message, /3 khách miễn phí/)
+    const message = weddingGuestPackBlockedMessage(buildWeddingGuestPackQuota(null, 3), 'groom')
+    assert.match(message, /Nhà trai đã dùng 3 khách dùng thử/)
+    assert.match(message, /gói nhà trai/)
     assert.match(message, /khách thứ 4/)
+  })
+
+  it('keeps groom and bride trials and upgrades on separate packs', () => {
+    const trial = buildWeddingGuestSideQuotas({
+      groomPack: null,
+      bridePack: null,
+      groomCount: 3,
+      brideCount: 0,
+    })
+    assert.equal(canAddWeddingGuests(trial.groom.guestCount, 1, trial.groom.packId), false)
+    assert.equal(canAddWeddingGuests(trial.bride.guestCount, 3, trial.bride.packId), true)
+    assert.equal(canAddWeddingGuests(trial.bride.guestCount, 1, trial.bride.packId), true)
+
+    const paid = buildWeddingGuestSideQuotas({
+      groomPack: 'p50',
+      bridePack: null,
+      groomCount: 10,
+      brideCount: 3,
+    })
+    assert.equal(paid.groom.offers.find((offer) => offer.id === 'p100')?.payVnd, 50_000)
+    assert.equal(paid.bride.offers.find((offer) => offer.id === 'p50')?.payVnd, 149_000)
+    assert.equal(paid.bride.offers.find((offer) => offer.id === 'p100')?.payVnd, 199_000)
+    assert.equal(canAddWeddingGuests(paid.bride.guestCount, 1, paid.bride.packId), false)
+    assert.equal(canAddWeddingGuests(paid.groom.guestCount, 1, paid.groom.packId), true)
   })
 })

@@ -3,6 +3,7 @@ import {
   buildGuestDisplayName,
   buildHostInviteLine,
   buildPersonalWeddingInvite,
+  buildWeddingDemoPersonalInvite,
   extractGivenName,
   formatGuestInviteLabel,
   resolveHostReferenceStyle,
@@ -80,6 +81,7 @@ describe('buildPersonalWeddingInvite', () => {
       guestName: 'Đông',
     })
     expect(text).toContain('Bạn Hậu mời bạn Đông')
+    expect(text).toContain('Bạn trân trọng mà mong đợi sự có mặt của bạn.')
   })
 
   it('Chú ↔ Cháu', () => {
@@ -99,6 +101,7 @@ describe('buildPersonalWeddingInvite', () => {
       guestName: 'Tuấn',
     })
     expect(text).toContain('Con Hậu và Lan Anh mời ba Tuấn')
+    expect(text).toContain('Con trân trọng mà mong đợi sự có mặt của ba.')
   })
 
   it('Mẹ ↔ Con on bride side', () => {
@@ -121,6 +124,8 @@ describe('buildPersonalWeddingInvite', () => {
     expect(text).toContain('mời anh Hưởng')
     expect(text).toContain('vào lúc 17 giờ')
     expect(text).toContain('đến tham dự bữa cơm thân mật cùng gia đình.')
+    expect(text).toContain('Sự có mặt của anh là điều vinh dự của gia đình. Em trân trọng mà mong đợi sự có mặt của anh.')
+    expect(text).not.toContain('Chúng tôi')
     expect(text).not.toContain('tại ')
   })
 
@@ -167,6 +172,51 @@ describe('buildPersonalWeddingInvite', () => {
         guestName: 'Vy',
       }),
     ).toContain('Chị Lan Anh mời em Vy')
+    expect(
+      buildPersonalWeddingInvite({
+        ...base,
+        side: 'bride',
+        guestHonorific: 'Em',
+        guestName: 'Vy',
+      }),
+    ).toContain('Chị trân trọng mà mong đợi sự có mặt của em.')
+  })
+
+  it('demo letter splits Anh Thanh into Em ↔ anh', () => {
+    const demo = buildWeddingDemoPersonalInvite({
+      side: 'groom',
+      groomName: 'Phùng Hậu',
+      brideName: 'Lan Anh',
+      groomParents: 'Bà Yên',
+      brideParents: '',
+      weddingDate: '2026-09-10',
+      receptionTime: '17:00',
+      partyStartTime: '',
+      address: 'Vật Lại',
+      guestName: 'Anh Thanh',
+    })
+    expect(demo.guestDisplayName).toBe('Anh Thanh')
+    expect(demo.personalInvite).toContain('Em Phùng Hậu và gia đình mời anh Thanh')
+    expect(demo.personalInvite).toContain('Sự có mặt của anh là điều vinh dự của gia đình. Em trân trọng mà mong đợi sự có mặt của anh.')
+    expect(demo.personalInvite).not.toContain('Cháu')
+    expect(demo.personalInvite).not.toContain('của bạn')
+  })
+
+  it('demo preview uses Anh Minh and the host name', () => {
+    const demo = buildWeddingDemoPersonalInvite({
+      side: 'groom',
+      groomName: 'Phùng Hậu',
+      brideName: 'Lan Anh',
+      groomParents: 'Bà Yên',
+      brideParents: '',
+      weddingDate: '2026-09-10',
+      receptionTime: '17:00',
+      partyStartTime: '',
+      address: 'Vật Lại',
+    })
+    expect(demo.guestDisplayName).toBe('Anh Minh')
+    expect(demo.personalInvite).toContain('mời anh Minh')
+    expect(demo.personalInvite).toContain('Phùng Hậu')
   })
 
   it('returns empty when missing guest or child name', () => {

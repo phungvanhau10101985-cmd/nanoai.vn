@@ -1,8 +1,29 @@
+import { findWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
+
+export type WeddingCoverAiFrameHole = { x: number; y: number; w: number; h: number }
+
+export type WeddingCoverFrameMode = 'none' | 'preset' | 'library' | 'ai'
+
+export type WeddingCoverPhotoOpen = 'none' | 'rise' | 'fade' | 'zoom' | 'assemble'
+
+export type WeddingCoverFrameOpen = 'none' | 'fade' | 'bloom' | 'assemble'
+
 export type WeddingSectionConfig = {
   /** Layout preset for the inner cover card (not page background). */
   coverPresetId?: string
   /** Photo displayed inside the cover card center. */
   coverPhotoUrl?: string
+  /** Khung AI đã xóa nền. Lỗ giữa tính từ alpha. */
+  coverAiFrameUrl?: string
+  coverAiFrameHole?: WeddingCoverAiFrameHole
+  coverAiFramePanel?: string
+  coverAiFrameInk?: 'dark' | 'light'
+  /** none = chỉ ảnh. preset = khung mẫu. library / ai = khung đã lưu, lồng trên chữ Thân mời. */
+  coverFrameMode?: WeddingCoverFrameMode
+  /** Cách ảnh trong khung hiện ra. */
+  coverPhotoOpen?: WeddingCoverPhotoOpen
+  /** Cách khung hiện ra. */
+  coverFrameOpen?: WeddingCoverFrameOpen
   /** Horizontal focal point for the cover photo crop, 0-100. */
   coverPhotoPositionX?: number
   /** Vertical focal point for the cover photo crop, 0-100. */
@@ -24,6 +45,17 @@ export type WeddingSectionConfig = {
   bridePhotoPositionX?: number
   bridePhotoPositionY?: number
   bridePhotoScale?: number
+  /** Khung trang trí quanh ảnh chân dung. preset = khung mẫu. library = khung AI đã lưu. */
+  groomPortraitShellMode?: 'preset' | 'library'
+  groomPortraitShellPresetId?: string
+  groomPortraitShellUrl?: string
+  groomPortraitShellHole?: WeddingCoverAiFrameHole
+  groomPortraitShellPanel?: string
+  bridePortraitShellMode?: 'preset' | 'library'
+  bridePortraitShellPresetId?: string
+  bridePortraitShellUrl?: string
+  bridePortraitShellHole?: WeddingCoverAiFrameHole
+  bridePortraitShellPanel?: string
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -53,6 +85,53 @@ function readScale(value: unknown): number | undefined {
   const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
   if (!Number.isFinite(num)) return undefined
   return Math.max(1, Math.min(3, Math.round(num * 100) / 100))
+}
+
+function readHoleNumber(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(num)) return undefined
+  return Math.max(0, Math.min(100, Math.round(num * 100) / 100))
+}
+
+const COVER_FRAME_MODES = new Set<WeddingCoverFrameMode>(['none', 'preset', 'library', 'ai'])
+const COVER_PHOTO_OPENS = new Set<WeddingCoverPhotoOpen>(['none', 'rise', 'fade', 'zoom', 'assemble'])
+const COVER_FRAME_OPENS = new Set<WeddingCoverFrameOpen>(['none', 'fade', 'bloom', 'assemble'])
+
+function readCoverFrameMode(value: unknown): WeddingCoverFrameMode | undefined {
+  return typeof value === 'string' && COVER_FRAME_MODES.has(value as WeddingCoverFrameMode)
+    ? (value as WeddingCoverFrameMode)
+    : undefined
+}
+
+function readCoverPhotoOpen(value: unknown): WeddingCoverPhotoOpen | undefined {
+  return typeof value === 'string' && COVER_PHOTO_OPENS.has(value as WeddingCoverPhotoOpen)
+    ? (value as WeddingCoverPhotoOpen)
+    : undefined
+}
+
+function readCoverFrameOpen(value: unknown): WeddingCoverFrameOpen | undefined {
+  return typeof value === 'string' && COVER_FRAME_OPENS.has(value as WeddingCoverFrameOpen)
+    ? (value as WeddingCoverFrameOpen)
+    : undefined
+}
+
+function readCoverAiFrameHole(value: unknown): WeddingCoverAiFrameHole | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Record<string, unknown>
+  const x = readHoleNumber(row.x)
+  const y = readHoleNumber(row.y)
+  const w = readHoleNumber(row.w)
+  const h = readHoleNumber(row.h)
+  if (x === undefined || y === undefined || w === undefined || h === undefined) return undefined
+  if (w < 18 || h < 18) return undefined
+  if (x + w > 100.5 || y + h > 100.5) return undefined
+  return { x, y, w, h }
+}
+
+function readCoverAiFramePanel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const color = value.trim()
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color.toLowerCase() : undefined
 }
 
 function readAlbumIndex(value: unknown): number | undefined {
@@ -97,6 +176,13 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverPhotoPositionX: readPercent(obj.coverPhotoPositionX),
       coverPhotoPositionY: readPercent(obj.coverPhotoPositionY),
       coverPhotoScale: readScale(obj.coverPhotoScale),
+      coverAiFrameUrl: typeof obj.coverAiFrameUrl === 'string' ? obj.coverAiFrameUrl.trim() || undefined : undefined,
+      coverAiFrameHole: readCoverAiFrameHole(obj.coverAiFrameHole),
+      coverAiFramePanel: readCoverAiFramePanel(obj.coverAiFramePanel),
+      coverAiFrameInk: obj.coverAiFrameInk === 'light' || obj.coverAiFrameInk === 'dark' ? obj.coverAiFrameInk : undefined,
+      coverFrameMode: readCoverFrameMode(obj.coverFrameMode),
+      coverPhotoOpen: readCoverPhotoOpen(obj.coverPhotoOpen),
+      coverFrameOpen: readCoverFrameOpen(obj.coverFrameOpen),
       albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
       albumPhotoCrops: readAlbumPhotoCrops(obj.albumPhotoCrops),
       sidePartyOwned: obj.sidePartyOwned === true,
@@ -106,6 +192,8 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       bridePhotoPositionX: readPercent(obj.bridePhotoPositionX),
       bridePhotoPositionY: readPercent(obj.bridePhotoPositionY),
       bridePhotoScale: readScale(obj.bridePhotoScale),
+      ...readPortraitShell(obj, 'groom'),
+      ...readPortraitShell(obj, 'bride'),
     }
   } catch {
     return {}
@@ -119,6 +207,20 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (typeof config.coverPhotoPositionX === 'number') payload.coverPhotoPositionX = readPercent(config.coverPhotoPositionX)
   if (typeof config.coverPhotoPositionY === 'number') payload.coverPhotoPositionY = readPercent(config.coverPhotoPositionY)
   if (typeof config.coverPhotoScale === 'number') payload.coverPhotoScale = readScale(config.coverPhotoScale)
+  const aiFrameUrl = config.coverAiFrameUrl?.trim()
+  const aiFrameHole = readCoverAiFrameHole(config.coverAiFrameHole)
+  if (aiFrameUrl && aiFrameHole) {
+    payload.coverAiFrameUrl = aiFrameUrl
+    payload.coverAiFrameHole = aiFrameHole
+    payload.coverAiFramePanel = readCoverAiFramePanel(config.coverAiFramePanel) || '#fffaf2'
+    payload.coverAiFrameInk = config.coverAiFrameInk === 'light' ? 'light' : 'dark'
+  }
+  const frameMode = readCoverFrameMode(config.coverFrameMode)
+  if (frameMode) payload.coverFrameMode = frameMode
+  const photoOpen = readCoverPhotoOpen(config.coverPhotoOpen)
+  if (photoOpen) payload.coverPhotoOpen = photoOpen
+  const frameOpen = readCoverFrameOpen(config.coverFrameOpen)
+  if (frameOpen) payload.coverFrameOpen = frameOpen
   if (config.albumLayoutId?.trim()) payload.albumLayoutId = config.albumLayoutId.trim()
   const albumPhotoCrops = (config.albumPhotoCrops ?? [])
     .map((item) => ({
@@ -133,6 +235,8 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (config.sidePartyOwned) payload.sidePartyOwned = true
   writePortraitCrop(payload, 'groom', config)
   writePortraitCrop(payload, 'bride', config)
+  writePortraitShell(payload, 'groom', config)
+  writePortraitShell(payload, 'bride', config)
   return JSON.stringify(payload)
 }
 
@@ -179,6 +283,86 @@ export function resolvePortraitPhotoFrame(
   }
 }
 
+export type WeddingPortraitShellFrame = {
+  src: string
+  hole: WeddingCoverAiFrameHole
+  panel: string
+}
+
+function portraitShellKeys(side: 'groom' | 'bride') {
+  return side === 'groom'
+    ? (['groomPortraitShellMode', 'groomPortraitShellPresetId', 'groomPortraitShellUrl', 'groomPortraitShellHole', 'groomPortraitShellPanel'] as const)
+    : (['bridePortraitShellMode', 'bridePortraitShellPresetId', 'bridePortraitShellUrl', 'bridePortraitShellHole', 'bridePortraitShellPanel'] as const)
+}
+
+function readPortraitShellMode(value: unknown): 'preset' | 'library' | undefined {
+  return value === 'preset' || value === 'library' ? value : undefined
+}
+
+function readPortraitShell(obj: Record<string, unknown>, side: 'groom' | 'bride'): Partial<WeddingSectionConfig> {
+  const [modeKey, presetKey, urlKey, holeKey, panelKey] = portraitShellKeys(side)
+  const mode = readPortraitShellMode(obj[modeKey])
+  if (mode === 'preset') {
+    const presetId = typeof obj[presetKey] === 'string' ? obj[presetKey].trim() : ''
+    if (!presetId || !findWeddingCoverPreset(presetId)?.frame) return {}
+    return { [modeKey]: 'preset', [presetKey]: presetId }
+  }
+  if (mode === 'library') {
+    const url = typeof obj[urlKey] === 'string' ? obj[urlKey].trim() : ''
+    const hole = readCoverAiFrameHole(obj[holeKey])
+    if (!url || !hole) return {}
+    return {
+      [modeKey]: 'library',
+      [urlKey]: url,
+      [holeKey]: hole,
+      [panelKey]: readCoverAiFramePanel(obj[panelKey]) || '#fffaf2',
+    }
+  }
+  return {}
+}
+
+function writePortraitShell(payload: WeddingSectionConfig, side: 'groom' | 'bride', config: WeddingSectionConfig) {
+  const [modeKey, presetKey, urlKey, holeKey, panelKey] = portraitShellKeys(side)
+  const mode = readPortraitShellMode(config[modeKey])
+  if (mode === 'preset') {
+    const presetId = config[presetKey]?.trim()
+    if (!presetId || !findWeddingCoverPreset(presetId)?.frame) return
+    payload[modeKey] = 'preset'
+    payload[presetKey] = presetId
+    return
+  }
+  if (mode === 'library') {
+    const url = config[urlKey]?.trim()
+    const hole = readCoverAiFrameHole(config[holeKey])
+    if (!url || !hole) return
+    payload[modeKey] = 'library'
+    payload[urlKey] = url
+    payload[holeKey] = hole
+    payload[panelKey] = readCoverAiFramePanel(config[panelKey]) || '#fffaf2'
+  }
+}
+
+/** Khung trang trí của ảnh chú rể hoặc cô dâu. Không có thì ảnh đứng trần. */
+export function resolvePortraitShell(
+  config: WeddingSectionConfig,
+  side: 'groom' | 'bride',
+): WeddingPortraitShellFrame | null {
+  const [modeKey, presetKey, urlKey, holeKey, panelKey] = portraitShellKeys(side)
+  const mode = readPortraitShellMode(config[modeKey])
+  if (mode === 'preset') {
+    const frame = findWeddingCoverPreset(config[presetKey] ?? '')?.frame
+    if (!frame) return null
+    return { src: frame.src, hole: frame.hole, panel: frame.panel }
+  }
+  if (mode === 'library') {
+    const src = config[urlKey]?.trim()
+    const hole = readCoverAiFrameHole(config[holeKey])
+    if (!src || !hole) return null
+    return { src, hole, panel: readCoverAiFramePanel(config[panelKey]) || '#fffaf2' }
+  }
+  return null
+}
+
 export function mergeWeddingSectionConfig(
   raw: string | null | undefined,
   patch: Partial<WeddingSectionConfig>,
@@ -189,6 +373,39 @@ export function mergeWeddingSectionConfig(
 
 export function resolveCoverPhotoUrl(config: WeddingSectionConfig): string {
   return config.coverPhotoUrl?.trim() || ''
+}
+
+/** Khung AI đã lưu. Thiếu URL hoặc lỗ thì vỏ mẫu thắng. */
+export function resolveCoverAiFrame(config: WeddingSectionConfig): {
+  src: string
+  hole: WeddingCoverAiFrameHole
+  panel: string
+  ink: 'dark' | 'light'
+} | null {
+  const src = config.coverAiFrameUrl?.trim()
+  const hole = readCoverAiFrameHole(config.coverAiFrameHole)
+  if (!src || !hole) return null
+  return {
+    src,
+    hole,
+    panel: readCoverAiFramePanel(config.coverAiFramePanel) || '#fffaf2',
+    ink: config.coverAiFrameInk === 'light' ? 'light' : 'dark',
+  }
+}
+
+export function resolveCoverFrameMode(config: WeddingSectionConfig): WeddingCoverFrameMode | undefined {
+  const mode = readCoverFrameMode(config.coverFrameMode)
+  if (mode) return mode
+  if (config.coverAiFrameUrl?.trim() && readCoverAiFrameHole(config.coverAiFrameHole)) return 'ai'
+  return undefined
+}
+
+export function resolveCoverPhotoOpen(config: WeddingSectionConfig): WeddingCoverPhotoOpen {
+  return readCoverPhotoOpen(config.coverPhotoOpen) ?? 'rise'
+}
+
+export function resolveCoverFrameOpen(config: WeddingSectionConfig): WeddingCoverFrameOpen {
+  return readCoverFrameOpen(config.coverFrameOpen) ?? 'bloom'
 }
 
 export function resolveCoverPhotoObjectPosition(config: WeddingSectionConfig): string {

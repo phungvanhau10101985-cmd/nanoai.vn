@@ -1,11 +1,16 @@
 import type { WebLocale } from '@/lib/i18n/config'
+import { WEDDING_COVER_FRAME_ASSETS, type WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
 
 export type WeddingCoverPresetTag = 'new' | 'hot'
-export type WeddingCoverLayout = 'glass' | 'red_arch'
+export type WeddingCoverLayout = 'glass' | 'red_arch' | 'frame'
 
 export type WeddingCoverPreset = {
   id: string
   layout: WeddingCoverLayout
+  /** Phong cách AI khi khách chọn vỏ này. */
+  styleId: string
+  /** Ảnh chia sẻ. Thiếu thì dùng styleId. */
+  shareStyleId?: string
   tags?: WeddingCoverPresetTag[]
   ornament: string
   thumbnail: {
@@ -15,12 +20,16 @@ export type WeddingCoverPreset = {
     textClass: string
   }
   label: Record<WebLocale, string>
+  /** Khung WebP trong suốt. Lỗ giữa là chỗ ảnh. */
+  frame?: WeddingCoverFrameAsset
 }
 
 export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   {
     id: 'dragon_phoenix',
     layout: 'glass',
+    styleId: 'traditional_vietnamese',
+    shareStyleId: 'luxury',
     tags: ['hot'],
     ornament: '囍',
     thumbnail: {
@@ -38,8 +47,135 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
     },
   },
   {
+    id: 'envelope_wax',
+    layout: 'frame',
+    styleId: 'vintage',
+    tags: ['new'],
+    ornament: '❦',
+    frame: WEDDING_COVER_FRAME_ASSETS.envelope_wax,
+    thumbnail: {
+      topBg: 'linear-gradient(180deg, #e7d7bc 0%, #f3ead7 100%)',
+      bottomBg: '#f3ead7',
+      accent: '#9f1239',
+      textClass: 'text-stone-800',
+    },
+    label: {
+      vi: 'Phong bì dấu sáp',
+      en: 'Wax-seal envelope',
+      zh: '火漆信封',
+      ja: '封蝋の封筒',
+      ko: '실링 왁스 봉투',
+    },
+  },
+  {
+    id: 'polaroid',
+    layout: 'frame',
+    styleId: 'minimal',
+    tags: ['new'],
+    ornament: '▢',
+    frame: WEDDING_COVER_FRAME_ASSETS.polaroid,
+    thumbnail: {
+      topBg: '#ffffff',
+      bottomBg: '#fafaf9',
+      accent: '#44403c',
+      textClass: 'text-stone-800',
+    },
+    label: {
+      vi: 'Ảnh polaroid',
+      en: 'Polaroid',
+      zh: '拍立得',
+      ja: 'ポラロイド',
+      ko: '폴라로이드',
+    },
+  },
+  {
+    id: 'phoenix_pair',
+    layout: 'frame',
+    styleId: 'traditional_vietnamese',
+    tags: ['new'],
+    ornament: '囍',
+    frame: WEDDING_COVER_FRAME_ASSETS.phoenix_pair,
+    thumbnail: {
+      topBg: 'linear-gradient(180deg, #fff7f4 0%, #fecdd3 100%)',
+      bottomBg: '#fff7f4',
+      accent: '#9f1239',
+      textClass: 'text-red-900',
+    },
+    label: {
+      vi: 'Đôi phượng',
+      en: 'Phoenix pair',
+      zh: '双凤',
+      ja: '双鳳',
+      ko: '쌍봉',
+    },
+  },
+  {
+    id: 'calla',
+    layout: 'frame',
+    styleId: 'floral',
+    tags: ['new'],
+    ornament: '❀',
+    frame: WEDDING_COVER_FRAME_ASSETS.calla,
+    thumbnail: {
+      topBg: '#f7f7f5',
+      bottomBg: '#ffffff',
+      accent: '#65a30d',
+      textClass: 'text-stone-800',
+    },
+    label: {
+      vi: 'Hoa loa kèn',
+      en: 'Calla lily',
+      zh: '马蹄莲',
+      ja: 'カラー',
+      ko: '카라 백합',
+    },
+  },
+  {
+    id: 'dried_flowers',
+    layout: 'frame',
+    styleId: 'vintage',
+    tags: ['new'],
+    ornament: '—',
+    frame: WEDDING_COVER_FRAME_ASSETS.dried_flowers,
+    thumbnail: {
+      topBg: 'linear-gradient(160deg, #f6efe6 0%, #e7d7bc 100%)',
+      bottomBg: '#f6efe6',
+      accent: '#92400e',
+      textClass: 'text-stone-800',
+    },
+    label: {
+      vi: 'Hoa khô',
+      en: 'Dried flowers',
+      zh: '干花',
+      ja: 'ドライフラワー',
+      ko: '드라이플라워',
+    },
+  },
+  {
+    id: 'crest_seal',
+    layout: 'frame',
+    styleId: 'luxury',
+    tags: ['new'],
+    ornament: '✦',
+    frame: WEDDING_COVER_FRAME_ASSETS.crest_seal,
+    thumbnail: {
+      topBg: 'linear-gradient(160deg, #fffaf3 0%, #fde68a 100%)',
+      bottomBg: '#fffaf3',
+      accent: '#a16207',
+      textClass: 'text-amber-950',
+    },
+    label: {
+      vi: 'Huy hiệu',
+      en: 'Crest seal',
+      zh: '纹章',
+      ja: 'クレスト',
+      ko: '크레스트',
+    },
+  },
+  {
     id: 'red_photo_arch',
     layout: 'red_arch',
+    styleId: 'traditional_vietnamese',
     tags: ['new'],
     ornament: '囍',
     thumbnail: {
@@ -58,7 +194,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'classic_red',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'traditional_vietnamese',
+    frame: WEDDING_COVER_FRAME_ASSETS.classic_red,
     ornament: '囍',
     thumbnail: {
       topBg: 'linear-gradient(145deg, #991b1b 0%, #dc2626 100%)',
@@ -76,7 +214,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'blush_floral',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'floral',
+    frame: WEDDING_COVER_FRAME_ASSETS.blush_floral,
     ornament: '❀',
     thumbnail: {
       topBg: 'linear-gradient(160deg, #fecdd3 0%, #fff1f2 100%)',
@@ -94,7 +234,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'sage_garden',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'minimal',
+    frame: WEDDING_COVER_FRAME_ASSETS.sage_garden,
     ornament: '—',
     thumbnail: {
       topBg: 'linear-gradient(160deg, #a7f3d0 0%, #ecfdf5 100%)',
@@ -112,7 +254,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'gold_luxury',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'luxury',
+    frame: WEDDING_COVER_FRAME_ASSETS.gold_luxury,
     ornament: '✦',
     thumbnail: {
       topBg: 'linear-gradient(145deg, #fde68a 0%, #fff7ed 100%)',
@@ -130,7 +274,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'night_modern',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'modern',
+    frame: WEDDING_COVER_FRAME_ASSETS.night_modern,
     ornament: '◇',
     thumbnail: {
       topBg: 'linear-gradient(160deg, #0f172a 0%, #475569 100%)',
@@ -148,7 +294,9 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
   },
   {
     id: 'lotus_viet',
-    layout: 'glass',
+    layout: 'frame',
+    styleId: 'traditional_vietnamese',
+    frame: WEDDING_COVER_FRAME_ASSETS.lotus_viet,
     ornament: '囍',
     thumbnail: {
       topBg: 'linear-gradient(160deg, #fb7185 0%, #fff7ed 100%)',
@@ -168,8 +316,14 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
 
 export const DEFAULT_WEDDING_COVER_PRESET_ID = WEDDING_COVER_PRESETS[0]?.id ?? 'dragon_phoenix'
 
+export function findWeddingCoverPreset(id: string | null | undefined): WeddingCoverPreset | undefined {
+  const key = String(id || '').trim()
+  if (!key) return undefined
+  return WEDDING_COVER_PRESETS.find((preset) => preset.id === key)
+}
+
 export function getWeddingCoverPreset(id: string | null | undefined): WeddingCoverPreset {
-  return WEDDING_COVER_PRESETS.find((preset) => preset.id === id) ?? WEDDING_COVER_PRESETS[0]
+  return findWeddingCoverPreset(id) ?? WEDDING_COVER_PRESETS[0]
 }
 
 export function labelForWeddingCoverPreset(locale: WebLocale, preset: WeddingCoverPreset): string {

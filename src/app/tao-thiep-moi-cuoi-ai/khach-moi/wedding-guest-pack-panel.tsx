@@ -16,8 +16,11 @@ import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
 import {
   formatWeddingPackVnd,
   weddingGuestPackBanner,
+  weddingGuestPackSideLabel,
   type WeddingGuestPackId,
   type WeddingGuestPackQuota,
+  type WeddingGuestPackSide,
+  type WeddingGuestSideQuotas,
 } from '@/lib/wedding/wedding-guest-pack'
 import { WEDDING_CARD_RETENTION_NOTICE } from '@/lib/wedding/wedding-card-retention'
 import {
@@ -40,13 +43,14 @@ type PaymentView = {
 
 type Props = {
   cardId: string
+  side: WeddingGuestPackSide
   quota: WeddingGuestPackQuota | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onPaid: (quota: WeddingGuestPackQuota | null) => void
+  onPaid: (quotas: WeddingGuestSideQuotas | null) => void
 }
 
-export function WeddingGuestPackPanel({ cardId, quota, open, onOpenChange, onPaid }: Props) {
+export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange, onPaid }: Props) {
   const { toast } = useToast()
   const [payment, setPayment] = useState<PaymentView | null>(null)
   const [buying, setBuying] = useState<WeddingGuestPackId | null>(null)
@@ -73,16 +77,19 @@ export function WeddingGuestPackPanel({ cardId, quota, open, onOpenChange, onPai
       if (result.payment.status !== 'completed') return
       setPayment(null)
       onOpenChange(false)
-      onPaidRef.current(result.quota ?? null)
-      toast({ title: 'Đã mở gói khách mời', description: `Có thể thêm khách tiếp. ${WEDDING_CARD_RETENTION_NOTICE}` })
+      onPaidRef.current(result.quotas ?? null)
+      toast({
+        title: `Đã mở gói khách mời ${weddingGuestPackSideLabel(side)}`,
+        description: `Có thể thêm khách ${weddingGuestPackSideLabel(side)} tiếp. ${WEDDING_CARD_RETENTION_NOTICE}`,
+      })
     }, 2000)
     return () => window.clearInterval(timer)
-  }, [onOpenChange, open, payment, toast])
+  }, [onOpenChange, open, payment, side, toast])
 
   const buy = async (packId: WeddingGuestPackId) => {
     if (buying) return
     setBuying(packId)
-    const result = await startWeddingGuestPackPayment(cardId, packId)
+    const result = await startWeddingGuestPackPayment(cardId, packId, side)
     setBuying(null)
     if ('error' in result && result.error) {
       toast({ title: 'Chưa tạo được mã chuyển khoản', description: result.error, variant: 'destructive' })
@@ -102,8 +109,11 @@ export function WeddingGuestPackPanel({ cardId, quota, open, onOpenChange, onPai
     }
     setPayment(null)
     onOpenChange(false)
-    onPaid(('quota' in result ? result.quota : null) ?? null)
-    toast({ title: 'Đã mở gói khách mời', description: `Có thể thêm khách tiếp. ${WEDDING_CARD_RETENTION_NOTICE}` })
+    onPaid(('quotas' in result ? result.quotas : null) ?? null)
+    toast({
+      title: `Đã mở gói khách mời ${weddingGuestPackSideLabel(side)}`,
+      description: `Có thể thêm khách ${weddingGuestPackSideLabel(side)} tiếp. ${WEDDING_CARD_RETENTION_NOTICE}`,
+    })
   }
 
   const copyText = async (value: string, label: string) => {
@@ -113,18 +123,20 @@ export function WeddingGuestPackPanel({ cardId, quota, open, onOpenChange, onPai
 
   if (!quota) return null
   const canUpgrade = quota.offers.some((offer) => offer.available)
+  const sideLabel = weddingGuestPackSideLabel(side)
+  const otherLabel = weddingGuestPackSideLabel(side === 'bride' ? 'groom' : 'bride')
 
   return (
     <>
       <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-stone-800">
-        <p className="font-medium">{weddingGuestPackBanner(quota)}</p>
+        <p className="font-medium">{weddingGuestPackBanner(quota, side)}</p>
         <p className="mt-1 text-stone-600">
-          Một khách là một dòng, một link mời. Nhà trai và nhà gái dùng chung một gói. Nâng gói tính phần chênh.
+          {`3 khách đầu của ${sideLabel} là dùng thử. Từ khách thứ 4 chọn gói ${sideLabel}. ${otherLabel.charAt(0).toUpperCase()}${otherLabel.slice(1)} tính gói riêng, cùng mức giá. Nâng gói trả phần chênh của ${sideLabel}.`}
         </p>
         <p className="mt-1 text-stone-600">{WEDDING_CARD_RETENTION_NOTICE}</p>
         {canUpgrade ? (
           <Button type="button" size="sm" className="mt-3 h-9" onClick={() => onOpenChange(true)}>
-            {quota.packId ? 'Nâng gói' : 'Chọn gói'}
+            {quota.packId ? `Nâng gói ${sideLabel}` : `Chọn gói ${sideLabel}`}
           </Button>
         ) : null}
       </div>
@@ -132,10 +144,9 @@ export function WeddingGuestPackPanel({ cardId, quota, open, onOpenChange, onPai
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Gói khách mời</DialogTitle>
+            <DialogTitle>{`Gói khách mời ${sideLabel}`}</DialogTitle>
             <DialogDescription>
-              3 khách đầu miễn phí. Gói 50 khách 149.000đ, gói 100 khách 199.000đ, từ 101 khách 299.000đ.
-              Cô dâu chú rể tự gửi link. {WEDDING_CARD_RETENTION_NOTICE}
+              {`3 khách đầu của ${sideLabel} dùng thử. Gói 50 khách 149.000đ, gói 100 khách 199.000đ, từ 101 khách 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
             </DialogDescription>
           </DialogHeader>
 

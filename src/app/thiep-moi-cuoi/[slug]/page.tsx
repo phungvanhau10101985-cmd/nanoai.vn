@@ -8,6 +8,8 @@ import {
   getPublishedWeddingCardBySlug,
   listPublishedSideGuestWishes,
 } from '@/lib/db/wedding-cards-pg'
+import { buildPersonalWeddingInvite, buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
+import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { invitationOccasionShape, invitationSeoCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPublicTitle } from '@/lib/wedding/wedding-public-seo'
@@ -16,7 +18,7 @@ import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
   params: { slug: string }
-  searchParams?: { guest?: string; venue?: string; view?: string }
+  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string }
 }
 
 function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typeof normalizeGuestInviteVenue>) {
@@ -30,7 +32,7 @@ function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typ
 
 export async function generateMetadata({ params, searchParams }: Props): Promise<Metadata> {
   const path = `/thiep-moi-cuoi/${params.slug}`
-  const personalized = Boolean(String(searchParams?.guest ?? '').trim())
+  const personalized = Boolean(String(searchParams?.guest ?? '').trim()) || String(searchParams?.demo ?? '') === '1'
   const card = await getPublishedWeddingCardBySlug(params.slug).catch(() => null)
   if (!card) {
     return buildMetadata({
@@ -56,20 +58,63 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
 export default async function WeddingPublicPage({ params, searchParams }: Props) {
   const card = await getPublishedWeddingCardBySlug(params.slug).catch(() => null)
   if (!card) notFound()
-  const guestDisplayName = String(searchParams?.guest ?? '').trim()
-  const inviteVenue = normalizeGuestInviteVenue(searchParams?.venue)
-  const letterView = letterViewFromSearch(searchParams?.view, inviteVenue)
+  const demoPreview = String(searchParams?.demo ?? '') === '1'
+  const letterView = letterViewFromSearch(searchParams?.view, normalizeGuestInviteVenue(searchParams?.venue))
   const singleOccasion = invitationOccasionShape(card.occasionKey) === 'single'
+  let inviteVenue = normalizeGuestInviteVenue(searchParams?.venue)
+  let guestDisplayName = String(searchParams?.guest ?? '').trim()
+  if (demoPreview && !inviteVenue) {
+    inviteVenue = letterView === 'bride' ? 'bride_home' : 'groom_home'
+  }
+  const demoSide = inviteVenue === 'bride_home' ? 'bride' : inviteVenue === 'groom_home' ? 'groom' : letterView
+  const demoLocation = demoSide ? resolveGuestInviteLocation(card, demoSide === 'bride' ? 'bride_home' : 'groom_home') : null
+  const demoInvite =
+    demoPreview && demoSide && demoLocation
+      ? buildWeddingDemoPersonalInvite({
+          side: demoSide,
+          groomName: card.groomName,
+          brideName: card.brideName,
+          groomParents: card.groomParents,
+          brideParents: card.brideParents,
+          weddingDate: demoLocation.weddingDate,
+          receptionTime: demoLocation.receptionTime,
+          partyStartTime: demoLocation.partyStartTime,
+          address: demoLocation.address,
+          guestName: guestDisplayName,
+        })
+      : null
+  if (demoPreview && !guestDisplayName && demoInvite) guestDisplayName = demoInvite.guestDisplayName
   const displayVenue =
     inviteVenue || (letterView === 'groom' ? 'groom_home' : letterView === 'bride' ? 'bride_home' : '')
-  const personalInvite =
+  const savedGuest =
     guestDisplayName && inviteVenue
       ? await getPublishedInvitedGuestPersonalInvite({
           cardId: card.id,
           guestDisplayName,
           inviteVenue,
-        }).catch(() => '')
+        }).catch(() => null)
+      : null
+  const inviteSide = inviteVenue === 'bride_home' ? 'bride' : inviteVenue === 'groom_home' ? 'groom' : demoSide
+  const inviteLocation = inviteSide
+    ? resolveGuestInviteLocation(card, inviteSide === 'bride' ? 'bride_home' : 'groom_home')
+    : demoLocation
+  const builtPersonalInvite =
+    inviteSide && inviteLocation && savedGuest?.guestName
+      ? buildPersonalWeddingInvite({
+          side: inviteSide,
+          groomName: card.groomName,
+          brideName: card.brideName,
+          groomParents: card.groomParents,
+          brideParents: card.brideParents,
+          guestHonorific: savedGuest.guestHonorific,
+          guestName: savedGuest.guestName,
+          weddingDateIso: inviteLocation.weddingDate,
+          receptionTime: inviteLocation.receptionTime,
+          partyStartTime: inviteLocation.partyStartTime,
+          address: inviteLocation.address,
+        })
       : ''
+  const personalInvite = builtPersonalInvite || savedGuest?.personalInvite || (demoPreview ? demoInvite?.personalInvite ?? '' : '')
   const guestRsvp = guestDisplayName
     ? await getPublishedInvitedGuestRsvp({
         cardId: card.id,

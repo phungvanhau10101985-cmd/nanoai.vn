@@ -10,6 +10,11 @@ import {
   type WeddingCoverPresetTag,
 } from '@/lib/wedding/wedding-cover-presets'
 
+export type WeddingCoverFrameLibraryChoice = {
+  id: string
+  imageUrl: string
+}
+
 type WeddingCoverPresetPickerProps = {
   locale: WebLocale
   occasionKey?: unknown
@@ -17,10 +22,38 @@ type WeddingCoverPresetPickerProps = {
   onSelect: (id: string) => void
   tagNewLabel: string
   tagHotLabel: string
+  /** Ô «Không khung» đứng đầu lưới, cùng chỗ với khung mẫu. */
+  noneLabel?: string
+  noneSelected?: boolean
+  onSelectNone?: () => void
+  /** Khung AI đã lưu, cùng lưới với khung có sẵn. */
+  libraryItems?: WeddingCoverFrameLibraryChoice[]
+  libraryLabel?: string
+  librarySelectedUrl?: string
+  onSelectLibrary?: (item: WeddingCoverFrameLibraryChoice) => void
 }
 
 function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRESETS)[number]; selected: boolean }) {
   const { preset, selected } = props
+  if (preset.layout === 'frame' && preset.frame) {
+    const hole = preset.frame.hole
+    return (
+      <div
+        className={cn(
+          'relative aspect-[3/4] overflow-hidden rounded-xl border bg-stone-100 shadow-sm transition',
+          selected ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300',
+        )}
+      >
+        <div
+          className="absolute overflow-hidden"
+          style={{ left: `${hole.x}%`, top: `${hole.y}%`, width: `${hole.w}%`, height: `${hole.h}%` }}
+        >
+          <div className="h-full w-full bg-[linear-gradient(160deg,#fecdd3_0%,#fff7ed_48%,#d1fae5_100%)]" />
+        </div>
+        <img src={preset.frame.src} alt="" draggable={false} className="absolute inset-0 h-full w-full" />
+      </div>
+    )
+  }
   return (
     <div
       className={cn(
@@ -67,10 +100,26 @@ function TagBadge(props: { tag: WeddingCoverPresetTag; label: string }) {
 }
 
 export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
-  const selectedId = props.selectedId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const selectedId = props.selectedId ?? DEFAULT_WEDDING_COVER_PRESET_ID
   const redPresetLabel = invitationCoverPhotoCopy(props.occasionKey, props.locale).redPresetLabel
+  const tileClass = 'group rounded-2xl p-1 text-left transition hover:bg-rose-50/70'
+  const thumbClass = (selected: boolean) =>
+    cn(
+      'relative aspect-[3/4] overflow-hidden rounded-xl border bg-[#fffaf2] shadow-sm transition',
+      selected ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300',
+    )
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+      {props.onSelectNone ? (
+        <button type="button" onClick={props.onSelectNone} className={tileClass}>
+          <div className={thumbClass(Boolean(props.noneSelected))}>
+            <div className="absolute inset-[16%] rounded-md border border-dashed border-stone-300 bg-white" />
+          </div>
+          <p className={cn('mt-2 line-clamp-2 text-xs font-medium', props.noneSelected ? 'text-rose-700' : 'text-slate-700')}>
+            {props.noneLabel}
+          </p>
+        </button>
+      ) : null}
       {WEDDING_COVER_PRESETS.map((preset) => {
         const selected = preset.id === selectedId
         return (
@@ -87,6 +136,19 @@ export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
             </div>
             <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
               {preset.id === 'red_photo_arch' ? redPresetLabel : labelForWeddingCoverPreset(props.locale, preset)}
+            </p>
+          </button>
+        )
+      })}
+      {(props.libraryItems ?? []).map((item) => {
+        const selected = props.librarySelectedUrl === item.imageUrl
+        return (
+          <button key={item.id} type="button" onClick={() => props.onSelectLibrary?.(item)} className={tileClass}>
+            <div className={thumbClass(selected)}>
+              <img src={item.imageUrl} alt="" draggable={false} className="h-full w-full object-contain" />
+            </div>
+            <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
+              {props.libraryLabel}
             </p>
           </button>
         )

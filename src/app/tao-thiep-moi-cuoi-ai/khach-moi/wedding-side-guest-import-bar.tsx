@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { Download, FileUp, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import type { WeddingGuestPackQuota } from '@/lib/wedding/wedding-guest-pack'
+import type { WeddingGuestPackSide, WeddingGuestSideQuotas } from '@/lib/wedding/wedding-guest-pack'
 import { downloadWeddingGuestImportTemplate, importWeddingInvitedGuests } from './actions'
 
 type Side = 'groom' | 'bride'
@@ -14,7 +14,7 @@ type Props = {
   side: Side
   disabled?: boolean
   onImported?: () => void | Promise<void>
-  onNeedPack?: (quota: WeddingGuestPackQuota | null) => void
+  onNeedPack?: (side: WeddingGuestPackSide, quotas: WeddingGuestSideQuotas | null) => void
 }
 
 export function WeddingSideGuestImportBar({ cardId, side, disabled, onImported, onNeedPack }: Props) {
@@ -56,7 +56,7 @@ export function WeddingSideGuestImportBar({ cardId, side, disabled, onImported, 
     setImporting(false)
     if (fileRef.current) fileRef.current.value = ''
     if ('code' in result && result.code === 'guest_pack_limit') {
-      onNeedPack?.(result.quota)
+      onNeedPack?.(result.side === 'bride' ? 'bride' : side, result.quotas ?? null)
       toast({ title: 'Hết chỗ khách', description: result.error })
       return
     }
