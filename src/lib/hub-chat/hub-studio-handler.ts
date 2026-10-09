@@ -152,6 +152,10 @@ import {
   type HubRouteKind,
 } from '@/lib/hub-chat/hub-advisory'
 import {
+  notifyNanoAiAdminsHubFeatureRequest,
+  shouldAutoForwardMissingHubFeature,
+} from '@/lib/hub-chat/hub-feature-request-admin'
+import {
   pgDeleteHubMessagesAfter,
   pgGetHubChatThread,
   pgGetHubThreadSession,
@@ -1147,6 +1151,7 @@ function parseAiStudio(raw: unknown): {
   hubRoute?: HubRouteKind
   workflows?: unknown
   plan?: unknown
+  missingFeature?: boolean
 } {
   const row = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
   const intent = String(row.intent ?? 'chat') as HubStudioIntent
@@ -1188,6 +1193,7 @@ function parseAiStudio(raw: unknown): {
     hubRoute: normalizeHubRoute(row.hubRoute),
     workflows: row.workflows,
     plan: row.plan,
+    missingFeature: row.missingFeature === true,
   }
 }
 
@@ -1357,7 +1363,8 @@ Respond with ONLY valid JSON:
   "retryIntent": "none" | "create" | "regenerate" | "recover_flow" | "continue_next",
   "retryStepKey": "exact key from designSteps catalog, or empty string",
   "workflows": [{ "href": "/from-catalog", "labelKey": "...", "label": "...", "reason": "...", "prefillPrompt": "...", "confidence": 0.0-1.0 }],
-  "plan": { "title": "...", "steps": [{ "href": "...", "labelKey": "...", "label": "...", "prefillPrompt": "...", "reason": "..." }] }
+  "plan": { "title": "...", "steps": [{ "href": "...", "labelKey": "...", "label": "...", "prefillPrompt": "...", "reason": "..." }] },
+  "missingFeature": true/false
 }
 
 HUB ROUTE (classify first — mandatory):
@@ -1370,7 +1377,8 @@ HUB ROUTE (classify first — mandatory):
 - Tư vấn / consultation is a valid intent — use hubRoute "consultation", not a separate UI mode.
 - FEATURE FLOW: If intent matches flow=studio_complete → hubRoute "design" + suggestedPresetId. If intent matches flow=standalone_open_tool only → hubRoute "workflow" (or "consultation" with workflows) and href from catalog; NEVER suggestedPresetId.
 - Standalone tools without a complete inline flow MUST appear in workflows so the user can confirm opening the tool page.
-- AMBIGUOUS INTENT: If you cannot pick exactly ONE featureKey with high confidence, set intent "clarify", hubRoute "consultation", suggestedPresetId empty, workflows empty. Reply briefly and tell the user to tap the matching feature chip below (list 3-6 closest labels from FULL FEATURE CATALOG). Server shows all feature chips — do NOT invent featureKey values.
+- AMBIGUOUS INTENT: If the request could be one of several EXISTING catalog features but you cannot pick exactly ONE, set intent "clarify", hubRoute "consultation", suggestedPresetId empty, workflows empty, missingFeature false. Reply briefly and tell the user to tap the matching feature chip below (list 3-6 closest labels from FULL FEATURE CATALOG). Server shows all feature chips — do NOT invent featureKey values.
+- MISSING FEATURE: If the user asks NanoAI to do a job that is NOT in FULL FEATURE CATALOG, set missingFeature true, suggestedPresetId "", workflows [], plan empty, hubRoute "consultation", intent "chat". Do NOT map that job onto the nearest existing feature. Reply briefly that this capability is not available yet. Greetings, thanks, and questions about a feature that DOES exist: missingFeature false.
 - When user message is only a feature name matching one catalog label exactly, you MAY set the matching suggestedPresetId or workflow href — but chip tap uses server programmatic routing without you.
 
 PRESET / PROJECT INTENT (hubRoute "design"):
@@ -7529,7 +7537,20 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
 
+    if (!activeDesign && ai.missingFeature && !idleFeatureMatch) {
+      ai.suggestedPresetId = undefined
+      ai.workflows = []
+      ai.plan = undefined
+      ai.hubRoute = 'consultation'
+      if (ai.intent !== 'clarify') ai.intent = 'chat'
+    }
+
     const hubRoute: HubRouteKind = ai.hubRoute ?? 'design'
+    const forwardMissingFeature = shouldAutoForwardMissingHubFeature({
+      activeDesign,
+      matchedFeature: Boolean(idleFeatureMatch),
+      shortAffirmative: isShortAffirmativeReply(message),
+    })
     const useAdvisory =
       !activeDesign &&
       !ai.suggestedPresetId &&
@@ -7550,6 +7571,19 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           ? buildStandaloneFeatureAdvisoryReply(input.locale, idleFeatureMatch)
           : '...'
       reply = sanitizeAssistantReply(ai.reply?.trim() || fallbackReply)
+      if (forwardMissingFeature) {
+        const sent = await notifyNanoAiAdminsHubFeatureRequest({
+          userId: input.userId,
+          message,
+          kind: 'unmatched',
+        })
+        if (sent) {
+          const note = t.unmatchedSentToAdmin
+          const base = reply.trim() === '...' ? '' : reply.trim()
+          if (!base) reply = note
+          else if (!base.includes(note)) reply = `${base}\n\n${note}`
+        }
+      }
       await pgInsertHubChatMessage({
         threadId: input.threadId,
         role: 'assistant',
@@ -7566,7 +7600,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         workflows: advisory.workflows,
         plan: advisory.plan,
         hubRoute,
-        showFeaturePicker: advisory.workflows.length === 0 && ai.intent === 'clarify',
+        showFeaturePicker:
+          forwardMissingFeature || (advisory.workflows.length === 0 && ai.intent === 'clarify'),
       }
     }
 
@@ -8235,6 +8270,21 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       advisoryPlan = advisory.plan
     }
 
+    const startedPresetThisTurn = !hadPreset && Boolean(session.presetId)
+    if (forwardMissingFeature) {
+      const sent = await notifyNanoAiAdminsHubFeatureRequest({
+        userId: input.userId,
+        message,
+        kind: 'unmatched',
+      })
+      if (sent && !startedPresetThisTurn) {
+        const note = t.unmatchedSentToAdmin
+        const base = reply.trim() === '...' ? '' : reply.trim()
+        if (!base) reply = note
+        else if (!base.includes(note)) reply = `${base}\n\n${note}`
+      }
+    }
+
     await upsertHubStudioImageMessage({
       threadId: input.threadId,
       content: reply,
@@ -8269,6 +8319,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       hubRoute,
       threadMessages,
       userMessageId,
+      showFeaturePicker: forwardMissingFeature && !startedPresetThisTurn ? true : undefined,
     }
   } catch (e) {
     await refundUserCredits(input.userId, HUB_CHAT_CREDIT, 'hub-chat')

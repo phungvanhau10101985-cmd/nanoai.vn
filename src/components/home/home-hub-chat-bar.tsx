@@ -511,6 +511,10 @@ export function HomeHubChatBar() {
     label: string
   } | null>(null)
   const [showFeaturePicker, setShowFeaturePicker] = useState(true)
+  const [featureFeedbackOpen, setFeatureFeedbackOpen] = useState(false)
+  const [featureFeedbackDraft, setFeatureFeedbackDraft] = useState('')
+  const [featureFeedbackBusy, setFeatureFeedbackBusy] = useState(false)
+  const featureFeedbackRef = useRef<HTMLTextAreaElement>(null)
   const [reenteringBoxSize, setReenteringBoxSize] = useState(false)
   const [reenteringBagSize, setReenteringBagSize] = useState(false)
   const [faceUploadConfirmOpen, setFaceUploadConfirmOpen] = useState(false)
@@ -3165,6 +3169,114 @@ export function HomeHubChatBar() {
     ]
   )
 
+  const openFeatureFeedback = useCallback(() => {
+    setFeatureFeedbackOpen(true)
+    setFeatureFeedbackDraft((prev) => (prev.trim() ? prev : message.trim()))
+    window.setTimeout(() => featureFeedbackRef.current?.focus(), 0)
+  }, [message])
+
+  const submitFeatureFeedback = useCallback(async () => {
+    const text = featureFeedbackDraft.trim()
+    if (text.length < 2) {
+      toast({ title: hc.featureFeedbackNeedText, variant: 'default' })
+      featureFeedbackRef.current?.focus()
+      return
+    }
+    if (featureFeedbackBusy) return
+    setFeatureFeedbackBusy(true)
+    try {
+      const res = await fetch('/api/hub-chat/feature-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+      if (res.status === 401) {
+        toast({ title: hc.loginRequired, variant: 'destructive' })
+        return
+      }
+      if (!res.ok) {
+        toast({ title: hc.errorGeneric, variant: 'destructive' })
+        return
+      }
+      setFeatureFeedbackDraft('')
+      setFeatureFeedbackOpen(false)
+      toast({ title: hc.featureFeedbackSent })
+    } catch {
+      toast({ title: hc.errorGeneric, variant: 'destructive' })
+    } finally {
+      setFeatureFeedbackBusy(false)
+    }
+  }, [featureFeedbackBusy, featureFeedbackDraft, hc.errorGeneric, hc.featureFeedbackNeedText, hc.featureFeedbackSent, hc.loginRequired, toast])
+
+  const featureFeedbackControl = (
+    <div className="flex flex-col gap-2">
+      {featureFeedbackOpen ? (
+        <div className="rounded-xl border border-indigo-200 bg-white p-3 shadow-sm dark:border-indigo-800 dark:bg-slate-950">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-indigo-950 dark:text-indigo-100">{hc.featureFeedbackTitle}</p>
+              <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{hc.featureFeedbackHint}</p>
+            </div>
+            <button
+              type="button"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+              aria-label={hc.featureFeedbackClose}
+              onClick={() => setFeatureFeedbackOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <Textarea
+            ref={featureFeedbackRef}
+            value={featureFeedbackDraft}
+            onChange={(e) => setFeatureFeedbackDraft(e.target.value)}
+            placeholder={hc.featureFeedbackPlaceholder}
+            aria-label={hc.featureFeedbackTitle}
+            rows={3}
+            maxLength={800}
+            disabled={featureFeedbackBusy}
+            className="mt-2 min-h-[72px] resize-y text-sm"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                void submitFeatureFeedback()
+              }
+            }}
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              className="h-9 bg-indigo-600 hover:bg-indigo-700"
+              disabled={featureFeedbackBusy || featureFeedbackDraft.trim().length < 2}
+              onClick={() => void submitFeatureFeedback()}
+            >
+              {featureFeedbackBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquarePlus className="h-4 w-4" />}
+              {hc.featureFeedbackSend}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-9"
+              disabled={featureFeedbackBusy}
+              onClick={() => setFeatureFeedbackOpen(false)}
+            >
+              {hc.featureFeedbackClose}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="inline-flex w-fit items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/80 px-3 py-1.5 text-xs font-medium text-indigo-800 transition-colors hover:border-indigo-400 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100 dark:hover:border-indigo-500"
+          onClick={openFeatureFeedback}
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5" />
+          {hc.featureFeedbackOpen}
+        </button>
+      )}
+    </div>
+  )
+
   useEffect(() => {
     const fromQuery =
       parseHubStudioLaunchId(searchParams.get(HUB_STUDIO_LAUNCH_QUERY)) ??
@@ -4282,8 +4394,11 @@ export function HomeHubChatBar() {
                   {busy ? hc.thinking : hc.send}
                 </Button>
               </div>
+              {featureFeedbackControl}
             </div>
-          ) : null}
+          ) : (
+            featureFeedbackControl
+          )}
         </div>
 
         {showGenerateCurrentStep ? (
