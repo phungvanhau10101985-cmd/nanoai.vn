@@ -93,6 +93,7 @@ import {
 } from '@/lib/hub-chat/hub-studio-flow-classifier'
 import { classifyFeatureIntentWithAi } from '@/lib/hub-chat/hub-feature-intent-classifier'
 import {
+  catalogSurfaceForHubTurn,
   isCatalogPhotoHubPreset,
   matchFeatureFlowByMessage,
   resolveIdleFeatureMatch,
@@ -1378,7 +1379,7 @@ HUB ROUTE (classify first — mandatory):
 - FEATURE FLOW: If intent matches flow=studio_complete → hubRoute "design" + suggestedPresetId. If intent matches flow=standalone_open_tool only → hubRoute "workflow" (or "consultation" with workflows) and href from catalog; NEVER suggestedPresetId.
 - Standalone tools without a complete inline flow MUST appear in workflows so the user can confirm opening the tool page.
 - AMBIGUOUS INTENT: If the request could be one of several EXISTING catalog features but you cannot pick exactly ONE, set intent "clarify", hubRoute "consultation", suggestedPresetId empty, workflows empty, missingFeature false. Reply briefly and tell the user to tap the matching feature chip below (list 3-6 closest labels from FULL FEATURE CATALOG). Server shows all feature chips — do NOT invent featureKey values.
-- MISSING FEATURE: If the user asks NanoAI to do a job that is NOT in FULL FEATURE CATALOG, set missingFeature true, suggestedPresetId "", workflows [], plan empty, hubRoute "consultation", intent "chat". Do NOT map that job onto the nearest existing feature. Reply briefly that this capability is not available yet. Greetings, thanks, and questions about a feature that DOES exist: missingFeature false.
+- MISSING FEATURE: If the user asks NanoAI to do a job that is NOT in FULL FEATURE CATALOG, set missingFeature true, suggestedPresetId "", workflows [], plan empty, hubRoute "consultation", intent "chat". Do NOT map that job onto the nearest existing feature. A catalog label, including the same name without a trailing "AI", is an existing feature: missingFeature false, and either hubRoute "design" or a workflow href. Reply briefly that this capability is not available yet only when nothing in the catalog matches. Greetings, thanks, and questions about a feature that DOES exist: missingFeature false.
 - When user message is only a feature name matching one catalog label exactly, you MAY set the matching suggestedPresetId or workflow href — but chip tap uses server programmatic routing without you.
 
 PRESET / PROJECT INTENT (hubRoute "design"):
@@ -7488,6 +7489,12 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           return resolveIdleFeatureMatch(message, input.locale, recentContext)
         })()
       : null
+    const catalogSurface = catalogSurfaceForHubTurn({
+      locale: input.locale,
+      match: idleFeatureMatch,
+      suggestedPresetId: ai.suggestedPresetId,
+      workflowsRaw: ai.workflows,
+    })
 
     if (
       idleFeatureMatch?.kind === 'standalone' &&
@@ -7515,6 +7522,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       if (idleFeatureMatch.kind === 'standalone') {
         const studioFallback = matchStudioPresetWithScore(message)
         if (
+          idleFeatureMatch.href !== '/hoc-tieng-anh-ai' &&
           ai.suggestedPresetId &&
           isValidStudioPresetId(ai.suggestedPresetId) &&
           !isCatalogPhotoHubPreset(ai.suggestedPresetId) &&
@@ -7537,7 +7545,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       }
     }
 
-    if (!activeDesign && ai.missingFeature && !idleFeatureMatch) {
+    if (!activeDesign && ai.missingFeature && !catalogSurface.hasOwnPage && !catalogSurface.hasHubFlow) {
       ai.suggestedPresetId = undefined
       ai.workflows = []
       ai.plan = undefined
@@ -7548,8 +7556,9 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const hubRoute: HubRouteKind = ai.hubRoute ?? 'design'
     const forwardMissingFeature = shouldAutoForwardMissingHubFeature({
       activeDesign,
-      matchedFeature: Boolean(idleFeatureMatch),
+      matchedFeature: catalogSurface.hasOwnPage || catalogSurface.hasHubFlow,
       shortAffirmative: isShortAffirmativeReply(message),
+      reportedMissing: ai.missingFeature === true,
     })
     const useAdvisory =
       !activeDesign &&

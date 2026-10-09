@@ -6,15 +6,18 @@ import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-noti
 
 const TYPE = 'hub_feature_request'
 
-/** Việc khách hỏi không nằm trong catalog thì gửi admin, kể cả khi model đoán công cụ gần. */
+/** Chỉ gửi admin khi câu không có trang công cụ riêng và cũng không có flow Hub. */
 export function shouldAutoForwardMissingHubFeature(input: {
   activeDesign: boolean
   matchedFeature: boolean
   shortAffirmative?: boolean
+  /** Model báo việc này không có trong catalog. Câu chat thường không gửi. */
+  reportedMissing?: boolean
 }): boolean {
   if (input.activeDesign) return false
   if (input.matchedFeature) return false
   if (input.shortAffirmative) return false
+  if (!input.reportedMissing) return false
   return true
 }
 

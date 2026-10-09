@@ -141,7 +141,7 @@ export function WeddingAlbumStage(props: {
   }
 
   const nudge = (dir: -1 | 1) => {
-    if (layout === 'slide') {
+    if (layout === 'slide' || layout === 'film') {
       setGlide(0)
       glideRef.current = 0
       setIndex((current) => wrap(current + dir, count))
@@ -307,7 +307,7 @@ export function WeddingAlbumStage(props: {
         ref={swipeRootRef}
         className="relative w-full min-w-0 max-w-full select-none overflow-hidden"
         style={{
-          touchAction: layout === 'slide' ? 'pan-x pan-y' : 'pan-y',
+          touchAction: layout === 'slide' || layout === 'film' ? 'pan-x pan-y' : 'pan-y',
           overscrollBehaviorX: 'contain',
         }}
         tabIndex={count > 1 ? 0 : undefined}
@@ -375,11 +375,6 @@ export function WeddingAlbumStage(props: {
   )
 }
 
-function filmCellSize(compact: boolean | undefined) {
-  if (compact) return { width: '84px', height: '112px' }
-  return { width: 'clamp(152px, 42vw, 204px)', height: 'clamp(202px, 56vw, 272px)' }
-}
-
 function FilmSprockets(props: { compact?: boolean }) {
   const compact = props.compact
   return (
@@ -398,85 +393,104 @@ function FilmSprockets(props: { compact?: boolean }) {
   )
 }
 
-/** Dải phim: phong cách cuộn phim điện ảnh vintage, ảnh lớn rõ nét và cuộn ngang mượt mà. */
+/** Dải phim: một ảnh màu lớn trong khung phim, vuốt ngang từng ảnh. */
 function FilmStrip(props: {
   urls: string[]
   alt: string
   index: number
-  focus: number
-  count: number
-  transition: string
   compact?: boolean
   frameOf: (index: number) => WeddingAlbumPhotoFrame
-  onJump: (index: number) => void
+  onIndex: (index: number) => void
   onExpand?: (index: number) => void
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const cell = filmCellSize(props.compact)
+  const fromScroll = useRef(false)
+  const programmatic = useRef(false)
+  const onIndexRef = useRef(props.onIndex)
+  const indexRef = useRef(props.index)
+  onIndexRef.current = props.onIndex
+  indexRef.current = props.index
+  const count = props.urls.length
+
+  useEffect(() => {
+    if (fromScroll.current) {
+      fromScroll.current = false
+      return
+    }
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const width = scroller.clientWidth
+    if (width <= 0) return
+    const left = props.index * width
+    if (Math.abs(scroller.scrollLeft - left) < 2) return
+    programmatic.current = true
+    scroller.scrollTo({ left, behavior: 'smooth' })
+  }, [props.index, count])
 
   useEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller) return
-    const active = scroller.querySelector<HTMLElement>('[data-album-film-on="1"]')
-    if (!active) return
-    const scrollerRect = scroller.getBoundingClientRect()
-    const activeRect = active.getBoundingClientRect()
-    const delta = activeRect.left - scrollerRect.left - (scrollerRect.width - activeRect.width) / 2
-    if (Math.abs(delta) > 1) {
-      scroller.scrollBy({ left: delta, behavior: 'smooth' })
+    if (!scroller || count < 2) return
+    let timer: number | null = null
+    const sync = () => {
+      const width = scroller.clientWidth || 1
+      const next = Math.max(0, Math.min(count - 1, Math.round(scroller.scrollLeft / width)))
+      if (programmatic.current) {
+        if (next === indexRef.current) programmatic.current = false
+        return
+      }
+      if (next === indexRef.current) return
+      fromScroll.current = true
+      onIndexRef.current(next)
     }
-  }, [props.index, props.urls.length])
+    const onScroll = () => {
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(sync, 90)
+    }
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    scroller.addEventListener('scrollend', sync)
+    return () => {
+      if (timer) window.clearTimeout(timer)
+      scroller.removeEventListener('scroll', onScroll)
+      scroller.removeEventListener('scrollend', sync)
+    }
+  }, [count])
 
   return (
     <div
       className={cn(
         'w-full min-w-0 max-w-full overflow-hidden rounded-2xl bg-stone-950 shadow-xl',
-        props.compact ? 'py-2' : 'py-3 sm:py-3.5',
+        props.compact ? 'py-2' : 'py-2.5 sm:py-3',
       )}
     >
       <FilmSprockets compact={props.compact} />
       <div
         ref={scrollerRef}
         className={cn(
-          'w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] [scrollbar-color:#78716c_transparent]',
-          props.compact ? 'mt-1.5' : 'mt-2.5',
+          'flex w-full min-w-0 max-w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+          props.compact ? 'mt-1.5' : 'mt-2',
         )}
         data-album-film-strip=""
+        style={{ touchAction: 'pan-x pan-y' }}
       >
-        <div
-          className={cn(
-            'flex w-max items-center',
-            props.compact ? 'gap-2 px-2' : 'gap-3 px-3 sm:gap-4 sm:px-5',
-          )}
-          style={{ minWidth: '100%', justifyContent: 'safe center' }}
-        >
-          {props.urls.map((url, i) => {
-            const ad = Math.abs(wrappedDelta(i, props.focus, props.count))
-            const on = ad < 0.45
-            return (
+        {props.urls.map((url, i) => {
+          const on = i === props.index
+          return (
+            <div
+              key={`${url}-${i}`}
+              data-album-film-index={i}
+              data-album-film-on={on ? '1' : '0'}
+              className={cn('shrink-0 snap-center snap-always', props.compact ? 'px-2' : 'px-3 sm:px-4')}
+              style={{ flex: '0 0 100%', scrollSnapStop: 'always' }}
+            >
               <button
-                key={`${url}-${i}`}
                 type="button"
-                data-album-film-on={on ? '1' : '0'}
                 onClick={() => {
-                  if (on && props.onExpand) {
-                    props.onExpand(i)
-                  } else {
-                    props.onJump(i)
-                  }
+                  if (on && props.onExpand) props.onExpand(i)
                 }}
-                className="relative shrink-0 overflow-hidden rounded-md bg-stone-900"
+                className="relative block w-full overflow-hidden rounded-md bg-stone-900"
                 style={{
-                  width: cell.width,
-                  height: cell.height,
-                  minWidth: cell.width,
-                  maxWidth: cell.width,
-                  minHeight: cell.height,
-                  maxHeight: cell.height,
-                  opacity: on ? 1 : 0.65,
-                  transform: on ? 'scale(1)' : 'scale(0.96)',
-                  boxShadow: on ? 'inset 0 0 0 2.5px #fff, 0 4px 16px rgba(0,0,0,0.5)' : undefined,
-                  transition: props.transition,
+                  height: props.compact ? '148px' : 'min(72vw, 26rem)',
+                  boxShadow: 'inset 0 0 0 2.5px #fff, 0 8px 24px rgba(0,0,0,0.45)',
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- album URLs are external CDN */}
@@ -492,15 +506,17 @@ function FilmStrip(props: {
                     height: '100%',
                     maxWidth: '100%',
                     maxHeight: '100%',
+                    opacity: 1,
+                    filter: 'saturate(1.12) brightness(1.05)',
                     ...albumPhotoFrameStyle(props.frameOf(i)),
                   }}
                 />
               </button>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
       </div>
-      <div className={props.compact ? 'mt-1.5' : 'mt-2.5'}>
+      <div className={props.compact ? 'mt-1.5' : 'mt-2'}>
         <FilmSprockets compact={props.compact} />
       </div>
     </div>
@@ -754,12 +770,9 @@ function AlbumFrame(props: {
         urls={urls}
         alt={alt}
         index={index}
-        focus={focus}
-        count={count}
-        transition={transition}
         compact={props.compact}
         frameOf={props.frameOf}
-        onJump={props.onJump}
+        onIndex={props.onIndex}
         onExpand={props.onExpand}
       />
     )

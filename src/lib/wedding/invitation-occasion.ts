@@ -99,7 +99,7 @@ const WEDDING_EDITOR: InvitationEditorCopy = {
   introLabel: 'Intro cặp đôi / câu chuyện mở đầu',
   introPlaceholder: 'Một đoạn mở đầu tinh tế về cô dâu chú rể, gia đình hoặc lời nhắn riêng...',
   quoteLabel: 'Quote tình yêu',
-  quotePlaceholder: 'Ví dụ: Và rồi chúng ta chọn cùng nhau đi hết những ngày bình yên...',
+  quotePlaceholder: 'Ví dụ: Bên nhau, năm tháng hóa một miền thơ.',
   storyLabel: 'Câu chuyện / album ngắn',
   storyPlaceholder: 'Một đoạn ngắn về hành trình yêu thương, lời nhắn gửi hoặc album/story...',
   thanksPlaceholder: '{couple} xin chân thành cảm ơn quý khách đã đến chung vui trong ngày trọng đại của chúng tôi.',

@@ -33,7 +33,7 @@ function fieldInstruction(field: WeddingPolishField): string {
     case 'coupleIntro':
       return 'Loại: Đoạn mở đầu thiệp cưới giới thiệu cặp đôi / duyên hạnh ngộ. 2–4 câu ngắn gọn nhưng giàu chất thơ, tinh tế, đong đầy niềm hạnh phúc và sự trân trọng khi hai người tìm thấy nhau giữa biển người mênh mông.'
     case 'loveQuote':
-      return 'Loại: Quote tình yêu in trang trọng trên thiệp cưới (1–2 câu). Yêu cầu đặc biệt: Phải thật THI VỊ, lãng mạn, ngọt ngào, giàu hình ảnh gợi cảm và đong đầy xúc cảm lứa đôi (như bến đỗ bình yên, duyên lành nhân gian, ánh mắt tìm thấy tương lai, cùng nhau đi qua năm tháng bình yên...). CẤM văn phong khô cứng, giáo điều, triết lý nhạt nhòa (như "tình yêu là khởi đầu cuộc sống..."). Không đặt dấu ngoặc kép ở hai đầu.'
+      return 'Loại: Quote tình yêu in trang trọng trên thiệp cưới. Đúng MỘT câu ngắn, khoảng 8–14 từ, đọc một hơi là hết. Thi vị, ngọt, chỉ một hình ảnh (ánh mắt, bến đỗ, miền thơ…). CẤM nối nhiều vế, CẤM lặp ý (đừng viết kiểu "đi qua năm tháng… như đi qua…"), CẤM đoạn văn. Nếu bản nháp dài thì rút còn một câu thơ ngắn; giữ tên khách nếu có trong nháp. CẤM văn khô, giáo điều, triết lý nhạt (như "tình yêu là khởi đầu cuộc sống..."). Không đặt dấu ngoặc kép ở hai đầu.'
     case 'eventTimeline':
       return 'Loại: Lịch trình tiệc cưới. Giữ chuẩn cấu trúc mỗi mốc một dòng: HH:MM | Tiêu đề - Ghi chú. Chỉnh câu chữ cho trang trọng, rõ ràng. TUYỆT ĐỐI không thay đổi mốc thời gian hoặc thứ tự sự kiện.'
     case 'dressCode':
@@ -126,7 +126,7 @@ export async function polishWeddingTextWithDeepseek(input: {
             { role: 'system', content: SYSTEM_PROMPT },
             { role: 'user', content: userPrompt },
           ],
-          max_tokens: 1200,
+          max_tokens: input.field === 'loveQuote' ? 120 : 1200,
           temperature,
         })
       ),

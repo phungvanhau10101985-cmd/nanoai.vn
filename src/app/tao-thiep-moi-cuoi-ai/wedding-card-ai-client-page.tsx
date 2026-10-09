@@ -44,6 +44,7 @@ import {
   INVITATION_OCCASION_GROUPS,
   applyInvitationCoverSectionDescription,
   invitationCoverPhotoCopy,
+  applyInvitationOccasionPublicCopy,
   invitationEditorCopy,
   invitationOccasionShape,
   invitationOccasionShapeChangeNote,
@@ -52,7 +53,7 @@ import {
 } from '@/lib/wedding/invitation-occasion'
 import { isInvitationGiftReady, isLegacySingleGiftImage } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
-import { countWeddingEventTimelineItems } from '@/lib/wedding/wedding-event-timeline'
+import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
@@ -109,6 +110,10 @@ type WeddingLocalDraft = {
 
 function weddingLocalDraftKey(cardId: string) {
   return `nanoai:wedding-card-draft:${cardId}`
+}
+
+function previewTimelineItems(raw: string) {
+  return parseWeddingEventTimeline(raw).filter((item) => item.time.trim() || weddingTimelineItemContent(item).trim())
 }
 
 function readWeddingLocalDraft(cardId: string): WeddingLocalDraft | null {
@@ -673,6 +678,38 @@ export default function WeddingCardAiClientPage() {
     () => guestInviteVenueLabel(previewDemoVenue, txPublic),
     [previewDemoVenue, txPublic],
   )
+  const previewPublic = useMemo(
+    () => applyInvitationOccasionPublicCopy(txPublic, occasionKey, uiLocale),
+    [occasionKey, txPublic, uiLocale],
+  )
+  const previewFamilies = useMemo(() => {
+    const groomParents = card.groomParents.trim()
+    const brideParents = singleOccasion ? '' : card.brideParents.trim()
+    const groomHometown = card.groomHometown.trim()
+    const brideHometown = singleOccasion ? '' : card.brideHometown.trim()
+    return {
+      groomParents,
+      brideParents,
+      groomHometown,
+      brideHometown,
+      visible: Boolean(groomParents || brideParents || groomHometown || brideHometown),
+    }
+  }, [card.brideHometown, card.brideParents, card.groomHometown, card.groomParents, singleOccasion])
+  const previewEvents = useMemo(() => {
+    const groom = { id: 'groom' as const, label: previewPublic.groomFamily, loc: groomLetterPreview }
+    if (singleOccasion) return [groom]
+    const bride = { id: 'bride' as const, label: previewPublic.brideFamily, loc: brideLetterPreview }
+    const signature = (loc: typeof groomLetterPreview) =>
+      [loc.address, loc.weddingDate ?? '', loc.displayTime, loc.eventTimeline, loc.contact].join('\n')
+    if (signature(groom.loc) === signature(bride.loc)) {
+      return [previewLetterView === 'bride' ? bride : groom]
+    }
+    return [groom, bride]
+  }, [brideLetterPreview, groomLetterPreview, previewLetterView, previewPublic.brideFamily, previewPublic.groomFamily, singleOccasion])
+  const previewStory = card.storyText.trim()
+  const previewIntro = card.coupleIntro.trim()
+  const previewThanks = card.thankYouText.trim()
+  const previewDress = card.dressCode.trim()
   const openLetterView = (view: 'groom' | 'bride') => {
     setPreviewLetterView(view)
     setLetterAskOpen(false)
@@ -2713,6 +2750,35 @@ export default function WeddingCardAiClientPage() {
                             “{card.loveQuote}”
                           </p>
                         ) : null}
+                        {previewFamilies.visible ? (
+                          <div className={cn('w-full rounded-xl px-2.5 py-2 text-center', selectedTheme.panelStrong)}>
+                            <p className={cn('text-[10px] uppercase tracking-[0.18em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                              {previewPublic.familiesIntro}
+                            </p>
+                            <div className="mt-2 grid gap-1.5">
+                              {([
+                                { label: previewPublic.groomFamily, parents: previewFamilies.groomParents, hometown: previewFamilies.groomHometown },
+                                { label: previewPublic.brideFamily, parents: previewFamilies.brideParents, hometown: previewFamilies.brideHometown },
+                              ] as const).map((side) =>
+                                side.parents || side.hometown ? (
+                                  <div key={side.label} className={cn('rounded-lg px-2 py-1.5', selectedTheme.panelGlass)}>
+                                    <p className={cn('text-[10px]', selectedTheme.mutedText, selectedTheme.textGlow)}>{side.label}</p>
+                                    {side.parents ? (
+                                      <p className={cn('mt-0.5 whitespace-pre-line break-words font-serif text-sm leading-5', selectedTheme.text, selectedTheme.textGlow)}>
+                                        {side.parents}
+                                      </p>
+                                    ) : null}
+                                    {side.hometown ? (
+                                      <p className={cn('mt-0.5 whitespace-pre-line break-words text-[11px] leading-4', selectedTheme.mutedText, selectedTheme.textGlow)}>
+                                        {previewPublic.hometownLabel}: {side.hometown}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                ) : null,
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
                         {coverFrameMode === 'none' && !coverPhotoPreviewUrl ? null : (
                           <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
                             <WeddingCoverShellCard
@@ -2760,8 +2826,8 @@ export default function WeddingCardAiClientPage() {
                           brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
                           groomImageUrl={groomPortraitPreviewUrl}
                           brideImageUrl={bridePortraitPreviewUrl}
-                          groomLabel={occasionKey === 'wedding' ? txPublic.groomRole : occasionCopy.primaryRole}
-                          brideLabel={occasionKey === 'wedding' ? txPublic.brideRole : occasionCopy.secondaryRole}
+                          groomLabel={occasionKey === 'wedding' ? previewPublic.groomRole : occasionCopy.primaryRole}
+                          brideLabel={occasionKey === 'wedding' ? previewPublic.brideRole : occasionCopy.secondaryRole}
                           groomFrame={groomPortraitFrame}
                           brideFrame={bridePortraitFrame}
                           groomShell={groomPortraitShell}
@@ -2769,44 +2835,124 @@ export default function WeddingCardAiClientPage() {
                           theme={selectedTheme}
                           compact
                         />
-                        {(card.coupleIntro || groomLetterPreview.eventTimeline || brideLetterPreview.eventTimeline || card.dressCode) && (
+                        {previewIntro || previewStory ? (
                           <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
-                            {card.coupleIntro ? (
-                              <p className={cn('line-clamp-3 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.coupleIntro}</p>
+                            {previewIntro ? (
+                              <>
+                                <p className={cn('text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                  {previewPublic.coupleIntroTitle}
+                                </p>
+                                <p className={cn('mt-1 whitespace-pre-line leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{previewIntro}</p>
+                              </>
                             ) : null}
-                            {(previewLetterView === 'bride' ? brideLetterPreview.eventTimeline : groomLetterPreview.eventTimeline) ? (
-                              <p className={cn('mt-1.5 font-semibold', selectedTheme.accentText, selectedTheme.textGlow)}>
-                                Lịch trình: {countWeddingEventTimelineItems(previewLetterView === 'bride' ? brideLetterPreview.eventTimeline : groomLetterPreview.eventTimeline)} mốc
-                              </p>
-                            ) : null}
-                            {card.dressCode ? (
-                              <p className={cn('mt-1 line-clamp-2 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{card.dressCode}</p>
+                            {previewStory && previewStory !== previewIntro ? (
+                              <>
+                                <p className={cn('text-[10px] uppercase tracking-[0.16em]', previewIntro ? 'mt-2' : '', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                  {previewPublic.storyTitle}
+                                </p>
+                                <p className={cn('mt-1 whitespace-pre-line leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{previewStory}</p>
+                              </>
                             ) : null}
                           </div>
-                        )}
-                        <div className={cn('w-full min-w-0 rounded-xl px-2 py-2 text-xs', selectedTheme.panelGlass)}>
-                          {resolveWeddingDateIso(guestInviteLocationPreview.weddingDate) ? (
-                            <WeddingEventCalendarBlock
-                              weddingDateIso={resolveWeddingDateIso(guestInviteLocationPreview.weddingDate)!}
-                              weddingTimeText={guestInviteLocationPreview.receptionTime || card.weddingTime}
-                              partyStartTime={guestInviteLocationPreview.partyStartTime || card.partyStartTime}
-                              locale={uiLocale}
-                              tx={txCal}
-                              textGlow={selectedTheme.textGlow}
-                              compact
-                              countdownLive={false}
-                              className="mx-auto mb-2 w-full max-w-[240px]"
-                            />
-                          ) : (
-                            <p className={cn('font-semibold', selectedTheme.textGlow)}>
-                              {guestInviteLocationPreview.weddingDate || 'Ngày tiệc'} · {guestInviteLocationPreview.displayTime || 'Giờ tiệc'}
+                        ) : null}
+                        {card.albumImageUrls.length > 0 ? (
+                          <div className="w-full">
+                            <p className={cn('mb-1 text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                              {previewPublic.albumTitle}
                             </p>
-                          )}
-                          <p className={cn('mt-1 flex items-start justify-center gap-1 text-balance leading-5', selectedTheme.textGlow)}>
-                            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                            <span className="min-w-0">{guestInviteLocationPreview.address || 'Địa chỉ tiệc'}</span>
-                          </p>
-                        </div>
+                            <div className="flex gap-1 overflow-x-auto pb-1">
+                              {card.albumImageUrls.map((url, index) => (
+                                <img
+                                  key={`${url}-${index}`}
+                                  src={url}
+                                  alt=""
+                                  className="h-14 w-11 shrink-0 rounded-md object-cover"
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {previewEvents.map((event) => {
+                          const dateIso = resolveWeddingDateIso(event.loc.weddingDate)
+                          const timeline = previewTimelineItems(event.loc.eventTimeline)
+                          const hasDate = Boolean(dateIso || event.loc.weddingDate?.trim() || event.loc.displayTime.trim())
+                          const hasPlace = Boolean(event.loc.address.trim() || event.loc.contact.trim())
+                          if (!hasDate && !hasPlace && timeline.length === 0) return null
+                          return (
+                            <div key={event.id} className={cn('w-full min-w-0 rounded-xl px-2 py-2 text-xs', selectedTheme.panelGlass)}>
+                              {previewEvents.length > 1 ? (
+                                <p className={cn('mb-1 text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                  {event.label}
+                                </p>
+                              ) : null}
+                              {dateIso ? (
+                                <WeddingEventCalendarBlock
+                                  weddingDateIso={dateIso}
+                                  weddingTimeText={event.loc.receptionTime || card.weddingTime}
+                                  partyStartTime={event.loc.partyStartTime || card.partyStartTime}
+                                  locale={uiLocale}
+                                  tx={txCal}
+                                  textGlow={selectedTheme.textGlow}
+                                  compact
+                                  countdownLive={false}
+                                  className="mx-auto mb-2 w-full max-w-[240px]"
+                                />
+                              ) : hasDate ? (
+                                <p className={cn('font-semibold', selectedTheme.textGlow)}>
+                                  {[event.loc.weddingDate, event.loc.displayTime].filter(Boolean).join(' · ')}
+                                </p>
+                              ) : null}
+                              {event.loc.address.trim() ? (
+                                <p className={cn('mt-1 flex items-start justify-center gap-1 text-balance leading-5', selectedTheme.textGlow)}>
+                                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                                  <span className="min-w-0">{event.loc.address}</span>
+                                </p>
+                              ) : null}
+                              {event.loc.contact.trim() ? (
+                                <p className={cn('mt-1 leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
+                                  {previewPublic.contactLabel}: {event.loc.contact}
+                                </p>
+                              ) : null}
+                              {timeline.length > 0 ? (
+                                <div className="mt-2 space-y-1 text-left">
+                                  <p className={cn('text-center text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                    {previewPublic.timelineTitle}
+                                  </p>
+                                  {timeline.map((item, index) => {
+                                    const content = weddingTimelineItemContent(item)
+                                    return (
+                                      <p key={`${event.label}-${item.time}-${index}`} className={cn('leading-5', selectedTheme.text, selectedTheme.textGlow)}>
+                                        {item.time ? <span className={cn('font-semibold', selectedTheme.accentText)}>{item.time}</span> : null}
+                                        {item.time && content ? <span className={cn('mx-1', selectedTheme.mutedText)}>·</span> : null}
+                                        {content ? <span>{content}</span> : null}
+                                      </p>
+                                    )
+                                  })}
+                                </div>
+                              ) : null}
+                            </div>
+                          )
+                        })}
+                        {previewDress || previewThanks ? (
+                          <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
+                            {previewDress ? (
+                              <>
+                                <p className={cn('text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                  {previewPublic.dressCodeTitle}
+                                </p>
+                                <p className={cn('mt-1 whitespace-pre-line leading-5', selectedTheme.text, selectedTheme.textGlow)}>{previewDress}</p>
+                              </>
+                            ) : null}
+                            {previewThanks ? (
+                              <>
+                                <p className={cn('text-[10px] uppercase tracking-[0.16em]', previewDress ? 'mt-2' : '', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                  {previewPublic.thankYouTitle}
+                                </p>
+                                <p className={cn('mt-1 whitespace-pre-line leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>{previewThanks}</p>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : null}
                         <div className="flex w-full flex-wrap justify-center gap-1.5 text-[10px]">
                           {card.rsvpEnabled ? <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>RSVP bật</span> : null}
                           {card.giftQrEnabled && (isInvitationGiftReady(card) || card.giftQrImageUrl.trim()) ? (

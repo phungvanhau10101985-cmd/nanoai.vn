@@ -3,21 +3,34 @@ import test from 'node:test'
 
 import { shouldAutoForwardMissingHubFeature } from '@/lib/hub-chat/hub-feature-request-admin'
 
-test('an ask that matches no catalog feature is forwarded even if the model guessed a nearby tool', () => {
+test('only a request with no tool page and no hub flow is forwarded', () => {
   assert.equal(
     shouldAutoForwardMissingHubFeature({
       activeDesign: false,
       matchedFeature: false,
+      reportedMissing: true,
     }),
     true
   )
 })
 
-test('a matched feature, an in-progress design, or a short yes is not forwarded', () => {
-  assert.equal(shouldAutoForwardMissingHubFeature({ activeDesign: true, matchedFeature: false }), false)
-  assert.equal(shouldAutoForwardMissingHubFeature({ activeDesign: false, matchedFeature: true }), false)
+test('a catalog page, a hub flow, an in-progress design, or a short yes is not forwarded', () => {
   assert.equal(
-    shouldAutoForwardMissingHubFeature({ activeDesign: false, matchedFeature: false, shortAffirmative: true }),
+    shouldAutoForwardMissingHubFeature({ activeDesign: false, matchedFeature: true, reportedMissing: true }),
+    false
+  )
+  assert.equal(shouldAutoForwardMissingHubFeature({ activeDesign: true, matchedFeature: false, reportedMissing: true }), false)
+  assert.equal(
+    shouldAutoForwardMissingHubFeature({
+      activeDesign: false,
+      matchedFeature: false,
+      reportedMissing: true,
+      shortAffirmative: true,
+    }),
+    false
+  )
+  assert.equal(
+    shouldAutoForwardMissingHubFeature({ activeDesign: false, matchedFeature: false, reportedMissing: false }),
     false
   )
 })

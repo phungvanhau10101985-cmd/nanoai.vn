@@ -4,6 +4,7 @@ import test from 'node:test'
 import { buildAdvisoryPayload, tagWorkflowFlowMeta } from '@/lib/hub-chat/hub-advisory'
 import {
   buildStandaloneFeatureEntries,
+  catalogSurfaceForHubTurn,
   matchFeatureFlowByMessage,
   resolveIdleFeatureMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
@@ -170,6 +171,72 @@ test('buildAdvisoryPayload injects wedding tool for generic invitation design re
   })
   assert.equal(result.workflows[0]?.href, '/tao-thiep-moi-cuoi-ai')
   assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
+})
+
+test('học ngoại ngữ opens the language learning page', () => {
+  for (const phrase of ['Học ngoại ngữ', 'hoc ngoai ngu', 'học tiếng anh', 'learn a language']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/hoc-tieng-anh-ai', phrase)
+  }
+})
+
+test('curriculum and preset lessons stay on their own pages', () => {
+  const curriculum = matchFeatureFlowByMessage('tạo giáo trình học tiếng anh', 'vi')
+  assert.equal(curriculum?.kind, 'standalone')
+  if (curriculum?.kind === 'standalone') assert.equal(curriculum.href, '/tao-giao-trinh')
+
+  const preset = matchFeatureFlowByMessage('bài học có sẵn', 'vi')
+  assert.equal(preset?.kind, 'standalone')
+  if (preset?.kind === 'standalone') assert.equal(preset.href, '/hoc-bai-hoc-co-san')
+})
+
+test('buildAdvisoryPayload sends an open button for học ngoại ngữ', async () => {
+  const result = await buildAdvisoryPayload({
+    locale: 'vi',
+    userId: 'user-1',
+    threadId: 'thread-1',
+    message: 'Học ngoại ngữ',
+    hubRoute: 'consultation',
+    workflowsRaw: [],
+    planRaw: null,
+  })
+  assert.equal(result.workflows[0]?.href, '/hoc-tieng-anh-ai')
+  assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
+})
+
+test('a feature name without the AI suffix still opens that tool page', () => {
+  const video = matchFeatureFlowByMessage('Tạo video', 'vi')
+  assert.equal(video?.kind, 'standalone')
+  if (video?.kind === 'standalone') assert.equal(video.href, '/tao-video-tu-anh')
+
+  const music = matchFeatureFlowByMessage('Video âm nhạc', 'vi')
+  assert.equal(music?.kind, 'standalone')
+  if (music?.kind === 'standalone') assert.equal(music.href, '/flow-nhac-video-veo')
+})
+
+test('an existing hub title is a hub flow, not a missing feature', () => {
+  const match = matchFeatureFlowByMessage('App bán hàng', 'vi')
+  assert.equal(match?.kind, 'studio')
+  if (match?.kind === 'studio') assert.equal(match.presetId, 'mobile_shop')
+})
+
+test('a catalog page or hub preset means the ask already has a surface', () => {
+  const page = catalogSurfaceForHubTurn({
+    locale: 'vi',
+    match: null,
+    workflowsRaw: [{ href: '/lam-net-anh' }],
+  })
+  assert.equal(page.hasOwnPage, true)
+  assert.equal(page.hasHubFlow, false)
+
+  const hub = catalogSurfaceForHubTurn({
+    locale: 'vi',
+    match: null,
+    suggestedPresetId: 'sale_banner',
+  })
+  assert.equal(hub.hasOwnPage, false)
+  assert.equal(hub.hasHubFlow, true)
 })
 
 test('amateur product photos for Facebook open the photo page', () => {

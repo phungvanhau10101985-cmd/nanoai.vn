@@ -3,6 +3,7 @@ import { buildHubToolCatalog } from '@/lib/hub-chat/hub-chat-catalog'
 import { hubStudioLaunchHref } from '@/lib/hub-chat/hub-studio-launch'
 import {
   STUDIO_PRESETS,
+  featureNameCore,
   matchStudioPresetWithScore,
   matchesLandingPageIntent,
   matchesWebAppDesignIntent,
@@ -57,12 +58,12 @@ export const HUB_ADVISORY_EXTRA_TOOLS: {
   },
   {
     href: '/tao-video-tu-anh',
-    labelKey: 'text_to_image',
+    labelKey: 'create_video_from_image',
     intents: ['tạo video từ ảnh', 'video from image', 'ảnh thành video'],
   },
   {
     href: '/flow-nhac-video-veo',
-    labelKey: 'lyria3_instrumental_song',
+    labelKey: 'flow_music_veo_video',
     intents: ['video veo', 'nhạc video', 'music video veo', 'veo flow'],
   },
   {
@@ -120,7 +121,22 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/tao-bai-thi': ['bài thi', 'online exam', 'quiz'],
   '/tao-bai-tap-ve-nha': ['bài tập về nhà', 'homework'],
   '/lop': ['lớp học', 'classroom'],
-  '/hoc-tieng-anh-ai': ['học tiếng anh', 'english coach', 'language learning'],
+  '/hoc-tieng-anh-ai': [
+    'học tiếng anh',
+    'hoc tieng anh',
+    'học ngoại ngữ',
+    'hoc ngoai ngu',
+    'học ngoại ngữ ai',
+    'english coach',
+    'language learning',
+    'learn a language',
+    'foreign language',
+    '学外语',
+    '外语学习',
+    '外国語',
+    '語学学習',
+    '외국어',
+  ],
   '/ghi-am-bao-cao-cuoc-hop': ['ghi âm cuộc họp', 'meeting report'],
   '/dich-anh-tai-lieu': ['dịch ảnh', 'translate document image'],
   '/tao-bai-hat-lyria-3': ['tạo nhạc', 'lyria', 'jingle', 'advertising music'],
@@ -294,6 +310,32 @@ export function matchCatalogPhotoExportFlow(
 const CURRICULUM_TOPIC_MARKERS =
   /giáo trình|giao trinh|giảng dạy|giang day|dạy học|day hoc|bài giảng|bai giang|lesson plan|curriculum|sgk|sách giáo khoa|sach giao khoa|môn học|mon hoc|tiết học|tiet hoc|phiếu bài tập|phieu bai tap|bài tập về nhà|bai tap ve nha|lớp học|lop hoc|worksheet|slide bài|slide bai/i
 
+/** Câu «học ngoại ngữ» / học tiếng Anh → mở trang Học ngoại ngữ AI, không báo thiếu tính năng. */
+export const LANGUAGE_LEARNING_TOPIC_MARKERS =
+  /học ngoại ngữ|hoc ngoai ngu|học tiếng anh|hoc tieng anh|english coach|language learning|learn a language|foreign language|学外语|外语学习|外国語|語学学習|외국어/i
+
+const PRESET_LESSON_MARKERS = /bài học có sẵn|bai hoc co san|preset lesson|completed lesson/i
+
+export function isLanguageLearningIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || CURRICULUM_TOPIC_MARKERS.test(text) || PRESET_LESSON_MARKERS.test(text)) return false
+  return LANGUAGE_LEARNING_TOPIC_MARKERS.test(text)
+}
+
+export function matchLanguageLearningFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/hoc-tieng-anh-ai')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
 /** Mọi ý định tạo / thiết kế thiệp mời → mở trang Tạo thiệp cưới AI. */
 export const INVITATION_TOPIC_MARKERS =
   /thiệp mời|thiep moi|thiệp cưới|thiep cuoi|tạo thiệp|tao thiep|thiết kế thiệp|thiet ke thiep|làm thiệp|lam thiep|design invitation|invitation card|wedding invitation|wedding invite|wedding card|event invitation|rsvp|mời cưới|moi cuoi|婚礼|请柬|招待状|청첩장/i
@@ -345,14 +387,44 @@ export function resolveIdleFeatureMatch(
   return null
 }
 
+/** Trang công cụ riêng hoặc flow Hub — câu này không phải tính năng còn thiếu. */
+export function catalogSurfaceForHubTurn(input: {
+  locale: WebLocale
+  match: HubFeatureFlowMatch | null
+  suggestedPresetId?: string | null
+  workflowsRaw?: unknown
+}): { hasOwnPage: boolean; hasHubFlow: boolean } {
+  const hrefs = new Set(buildStandaloneFeatureEntries(input.locale).map((entry) => entry.href))
+  let hasOwnPage = input.match?.kind === 'standalone'
+  let hasHubFlow = input.match?.kind === 'studio'
+  const presetId = String(input.suggestedPresetId ?? '').trim()
+  if (presetId && isCatalogPhotoHubPreset(presetId)) hasOwnPage = true
+  else if (presetId && STUDIO_PRESETS.some((preset) => preset.id === presetId)) hasHubFlow = true
+  if (Array.isArray(input.workflowsRaw)) {
+    for (const item of input.workflowsRaw) {
+      if (!item || typeof item !== 'object') continue
+      const href = String((item as { href?: unknown }).href ?? '').trim()
+      if (href && hrefs.has(href)) hasOwnPage = true
+    }
+  }
+  return { hasOwnPage, hasHubFlow }
+}
+
 function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): number {
   const lower = message.toLowerCase().trim()
+  const messageCore = featureNameCore(message)
   let score = 0
   for (const intent of entry.intents) {
     const token = intent.toLowerCase().trim()
-    if (!token) continue
-    if (lower === token) score += token.length * 2
-    else if (lower.includes(token)) score += token.length
+    const tokenCore = featureNameCore(intent)
+    if (!token && !tokenCore) continue
+    if (token && (lower === token || (messageCore.length > 0 && messageCore === tokenCore))) {
+      score += Math.max(token.length, tokenCore.length) * 2
+    } else if (token.length >= 4 && lower.includes(token)) {
+      score += token.length
+    } else if (tokenCore.length >= 4 && messageCore.includes(tokenCore)) {
+      score += tokenCore.length
+    }
   }
 
   if (entry.href === '/tao-giao-trinh' && !CURRICULUM_TOPIC_MARKERS.test(lower)) {
@@ -391,6 +463,10 @@ export function matchFeatureFlowByMessage(
 
   if (isCatalogPhotoExportIntent(trimmed)) {
     return matchCatalogPhotoExportFlow(locale)
+  }
+
+  if (isLanguageLearningIntent(trimmed)) {
+    return matchLanguageLearningFlow(locale)
   }
 
   if (matchesLandingPageIntent(trimmed)) {

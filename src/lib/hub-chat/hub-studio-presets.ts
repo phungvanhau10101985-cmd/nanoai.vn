@@ -1,4 +1,4 @@
-import type { WebLocale } from '@/lib/i18n/config'
+import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
 import type { HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 import {
@@ -446,6 +446,12 @@ function foldHubIntentText(text: string): string {
     .trim()
 }
 
+/** Tên tính năng khách nói: bỏ chú thích trong ngoặc và hậu tố «AI». */
+export function featureNameCore(text: string): string {
+  const withoutNotes = text.replace(/\([^)]*\)/g, ' ')
+  return foldHubIntentText(withoutNotes).replace(/\s+ai$/g, '').trim()
+}
+
 /**
  * "tạo lại / dựng lại / làm lại … thiết kế" (có cả "lại" + "thiết kế") → design_recreate.
  * Ví dụ: "tạo lại bản thiết kế", "dựng lại thiết kế", "thiết kế lại từ mẫu".
@@ -519,9 +525,20 @@ export function matchesDesignRecreateAgainIntent(message: string): boolean {
 
 export function scoreStudioPresetMatch(message: string, preset: StudioPresetDef): number {
   const lower = message.toLowerCase()
+  const messageCore = featureNameCore(message)
   let score = 0
   for (const intent of preset.intents) {
     if (lower.includes(intent.toLowerCase())) score += intent.length
+    const intentCore = featureNameCore(intent)
+    if (intentCore.length >= 4 && messageCore.includes(intentCore) && !lower.includes(intent.toLowerCase())) {
+      score += intentCore.length
+    }
+  }
+  for (const locale of WEB_LOCALES) {
+    const titleCore = featureNameCore(presetTitle(locale, preset.id))
+    if (titleCore.length < 4 || !messageCore) continue
+    if (messageCore === titleCore) score += titleCore.length * 2
+    else if (messageCore.includes(titleCore)) score += titleCore.length
   }
   if (preset.id === 'design_recreate' && matchesDesignRecreateAgainIntent(message)) {
     // Strong enough to win over weak standalone / other studio keyword hits.
