@@ -682,7 +682,6 @@ export async function polishWeddingCardText(formData: FormData) {
     groomName: clean(formData.get('groomName'), 200),
     brideName: clean(formData.get('brideName'), 200),
     weddingDate: clean(formData.get('weddingDate'), 120),
-    venue: clean(formData.get('venue'), 500),
     userId: auth.user.id,
   })
 

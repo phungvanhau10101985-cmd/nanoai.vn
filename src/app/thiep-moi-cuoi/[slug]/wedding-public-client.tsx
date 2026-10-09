@@ -66,6 +66,7 @@ import {
   type WeddingGuestInviteVenue,
 } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
+import { omitWeddingAddressesFromSharedCopy, weddingSharedCopyAddresses } from '@/lib/wedding/wedding-shared-copy'
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
 import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
@@ -436,16 +437,21 @@ export default function WeddingPublicClient({
       ),
     [card.weddingDate, displayWeddingDateIso, guestInviteLocation.weddingDate, uiLocale],
   )
+  const sharedCopyAddresses = useMemo(() => weddingSharedCopyAddresses(card), [card])
+  const withoutPartyAddress = useCallback(
+    (text: string) => omitWeddingAddressesFromSharedCopy(text, sharedCopyAddresses),
+    [sharedCopyAddresses],
+  )
   const displayPersonalInvite = initialPersonalInvite.trim()
   const displayCoverPhotoUrl = guestInviteLocation.coverImageUrl || coverPhotoUrl
-  const displayInvitationText = guestInviteLocation.invitationText || card.invitationText
-  const displayInvitationTextEn = guestInviteLocation.invitationTextEn || card.invitationTextEn
+  const displayInvitationText = withoutPartyAddress(guestInviteLocation.invitationText || card.invitationText)
+  const displayInvitationTextEn = withoutPartyAddress(guestInviteLocation.invitationTextEn || card.invitationTextEn)
   const displayTimeline = useMemo(
     () => parseWeddingEventTimeline(guestInviteLocation.eventTimeline || card.eventTimeline),
     [card.eventTimeline, guestInviteLocation.eventTimeline],
   )
-  const displayDressCode = guestInviteLocation.dressCode || card.dressCode
-  const displayThankYou = guestInviteLocation.thankYouText || card.thankYouText
+  const displayDressCode = withoutPartyAddress(guestInviteLocation.dressCode || card.dressCode)
+  const displayThankYou = withoutPartyAddress(guestInviteLocation.thankYouText || card.thankYouText)
   const displayVenue = guestInviteLocation.address || card.venue
   const displayMapUrl = guestInviteLocation.mapUrl || card.mapUrl
   const groomFamilyLine = card.groomParents || card.groomName
@@ -832,9 +838,9 @@ export default function WeddingPublicClient({
             />
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
             <div>
-            {card.loveQuote && (
+            {withoutPartyAddress(card.loveQuote) && (
               <p className={cn('mx-auto mt-4 max-w-lg font-serif text-lg italic leading-7 sm:mt-5 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
-                “{writeGuestName(personalize(card.loveQuote))}”
+                “{writeGuestName(personalize(withoutPartyAddress(card.loveQuote)))}”
               </p>
             )}
             {coverFrameMode === 'none' && !displayCoverPhotoUrl ? null : (
@@ -1001,7 +1007,7 @@ export default function WeddingPublicClient({
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.coupleIntroTitle}</p>
               <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
                 {renderWeddingHighlightedText(
-                  card.coupleIntro || card.storyText || tx.defaultCoupleIntro,
+                  withoutPartyAddress(card.coupleIntro) || withoutPartyAddress(card.storyText) || tx.defaultCoupleIntro,
                   textTokens,
                   uiLocale,
                   nameHighlightClass,
@@ -1235,10 +1241,10 @@ export default function WeddingPublicClient({
           style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section)}
         >
           <div className={PUBLIC_COLUMN}>
-          {card.storyText && card.storyText.trim() !== card.coupleIntro.trim() && (
+          {withoutPartyAddress(card.storyText) && withoutPartyAddress(card.storyText).trim() !== withoutPartyAddress(card.coupleIntro).trim() && (
             <WeddingSectionCard theme={theme} title={tx.storyTitle}>
               <p className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)}>
-                {renderWeddingHighlightedText(card.storyText, textTokens, uiLocale, nameHighlightClass, guestNameScriptClass)}
+                {renderWeddingHighlightedText(withoutPartyAddress(card.storyText), textTokens, uiLocale, nameHighlightClass, guestNameScriptClass)}
               </p>
             </WeddingSectionCard>
           )}

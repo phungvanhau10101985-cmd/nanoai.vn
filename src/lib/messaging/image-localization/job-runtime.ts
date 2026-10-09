@@ -9,13 +9,13 @@ import {
   listResumableImageLocJobsFromPg,
   resetStaleImageLocProcessingFromPg,
   updateImageLocJobFromPg,
+  applyImageLocProductResultFromPg,
 } from '@/lib/db/messaging-partner-image-localization-pg'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   imageLocAiExplicitOnly,
   imageLocAiJobsAllowed,
   imageLocBatchLimit,
-  imageLocDefaultGeminiMode,
   imageLocJobQueueIdsMax,
   imageLocMaxAutoResumeCount,
   imageLocMaxConsecutiveProductFailures,
@@ -24,8 +24,9 @@ import {
 import { isDeepseekPeakUtc, offPeakWaitMessageVi, secondsUntilDeepseekOffPeak } from './deepseek-pricing'
 import { processInventoryProduct } from './process-product'
 import { loadImageLocBrandLogoBytes } from './overlay-brand-logo'
-import { geminiApiAuth, ImageLocalizationError, isImageLocalizationFatalDependencyError } from './gemini-adapter'
-import { openaiApiAuth } from './openai-adapter'
+import { ImageLocalizationError, isImageLocalizationFatalDependencyError } from './gemini-adapter'
+import { isImageLocalizationGptStopError, openaiApiAuth } from './openai-adapter'
+import { notifyNanoAiAdminsImageLocGptStopped } from './gpt-stop-notify'
 import {
   IMAGE_LOC_LANGUAGES,
   type ImageLocJob,
@@ -206,7 +207,7 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
   const logoBytes = await loadImageLocBrandLogoBytes(logoUrl)
 
   const allowsAi = payload.allow_ai_image_models === true ? true : payload.allow_ai_image_models === false ? false : !imageLocAiExplicitOnly()
-  const geminiMode = payload.gemini_mode === 'openai' ? 'openai' : 'api'
+  const geminiMode = 'openai' as const
   let consecutiveFails = 0
 
   if (!(await waitOffPeak(partnerId, { ...job, done, failed, skipped, total }, epoch))) {
@@ -326,6 +327,50 @@ async function runJob(partnerId: string, jobId: string, resume: boolean, epoch: 
         return
       }
     } catch (e) {
+      if (isImageLocalizationGptStopError(e)) {
+        const detail = e instanceof Error ? e.message : String(e)
+        failed += 1
+        processedSet.add(inventoryId)
+        processed.push(inventoryId)
+        recent.push({
+          product_id: inventoryId,
+          status: 'error',
+          message: clip(`GPT Image lỗi — dừng job — ${detail}`, 400),
+        })
+        if (recent.length > 40) recent.splice(0, recent.length - 40)
+        const pStop = progress(done, failed, skipped, total)
+        const stopMessage = `Dừng job: GPT Image lỗi ở ${inventoryId}. ${detail}`
+        await applyImageLocProductResultFromPg({
+          partnerId,
+          inventoryId,
+          language: payload.language || 'vi',
+          status: 'failed',
+          error: clip(stopMessage, 2000),
+        }).catch((error) => {
+          console.warn('[image-localization] không lưu được trạng thái SP khi GPT dừng:', error)
+        })
+        await updateImageLocJobFromPg(partnerId, jobId, {
+          status: 'error',
+          phase: 'stopped',
+          done,
+          failed,
+          skipped,
+          current: pStop.current,
+          percent: pStop.percent,
+          processed_product_ids: processed,
+          recent_results: recent,
+          current_product_id: null,
+          message: clip(stopMessage),
+          finished_at: new Date().toISOString(),
+        })
+        await notifyNanoAiAdminsImageLocGptStopped({
+          partnerId,
+          jobId,
+          inventoryId,
+          detail,
+        })
+        return
+      }
       if (isImageLocalizationFatalDependencyError(e)) {
         await updateImageLocJobFromPg(partnerId, jobId, {
           status: 'error',
@@ -459,21 +504,12 @@ export async function startImageLocalizationJob(
   payload.language = lang as ImageLocStartPayload['language']
   if (!imageLocAiJobsAllowed() && payload.allow_ai_image_models !== false) {
     throw new ImageLocalizationError(
-      'Server đang giới hạn chỉ pipeline OCR + DeepSeek + vẽ local — gửi allow_ai_image_models=false. Bật lại Gemini/GPT ảnh: IMAGE_LOCALIZATION_AI_IMAGE_JOBS_ALLOWED=true.'
+      'Server đang giới hạn chỉ pipeline OCR + DeepSeek + vẽ local — gửi allow_ai_image_models=false. Bật lại GPT ảnh: IMAGE_LOCALIZATION_AI_IMAGE_JOBS_ALLOWED=true.'
     )
   }
   const skipAi = payload.allow_ai_image_models === false
-  const mode = payload.gemini_mode === 'openai' ? 'openai' : imageLocDefaultGeminiMode()
-  if (!skipAi) {
-    if ((payload.gemini_mode || mode) === 'openai') {
-      if (!openaiApiAuth(payload.openai_image_model).ready) {
-        throw new ImageLocalizationError('Chế độ OpenAI GPT Image: thiếu OPENAI_API_KEY trong cấu hình backend.')
-      }
-    } else if (payload.gemini_mode === 'api' || payload.allow_ai_image_models === true) {
-      if (!geminiApiAuth(payload.gemini_image_model).ready) {
-        throw new ImageLocalizationError('Chế độ Gemini API: thiếu GEMINI_API_KEY trong cấu hình backend.')
-      }
-    }
+  if (!skipAi && !openaiApiAuth(payload.openai_image_model).ready) {
+    throw new ImageLocalizationError('Chế độ GPT Image: thiếu OPENAI_API_KEY trong cấu hình backend.')
   }
   void createdBy
   const jobId = randomUUID()
@@ -511,7 +547,7 @@ export async function startImageLocalizationJob(
     language: payload.language,
     force: Boolean(payload.force),
     dry_run: Boolean(payload.dry_run),
-    gemini_mode: payload.gemini_mode || imageLocDefaultGeminiMode(),
+    gemini_mode: payload.allow_ai_image_models === false ? null : 'openai',
     local_image_only: payload.allow_ai_image_models === false,
     resume_count: 0,
     created_at: new Date().toISOString(),

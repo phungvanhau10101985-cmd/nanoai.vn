@@ -173,7 +173,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
           dry_run: Boolean(body.dry_run),
           product_ids: productIds?.length ? productIds : null,
           limit: body.limit ?? null,
-          gemini_mode: body.gemini_mode === 'openai' ? 'openai' : body.gemini_mode === 'api' ? 'api' : null,
+          gemini_mode: body.allow_ai_image_models === false ? null : 'openai',
           gemini_image_model: body.gemini_image_model ?? null,
           gemini_image_size: body.gemini_image_size ?? null,
           openai_image_model: body.openai_image_model ?? null,

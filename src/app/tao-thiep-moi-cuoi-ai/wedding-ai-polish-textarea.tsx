@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
+import { omitWeddingAddressesFromSharedCopy } from '@/lib/wedding/wedding-shared-copy'
 import type { WeddingPolishField } from '@/lib/wedding/wedding-text-polish-deepseek'
 import { weddingPolishFieldCostsCredit } from '@/lib/wedding/wedding-text-polish-credit'
 import { polishWeddingCardText } from './actions'
@@ -16,7 +17,8 @@ type Props = {
   field: WeddingPolishField
   value: string
   onChange: (value: string) => void
-  card?: Pick<WeddingCard, 'groomName' | 'brideName' | 'weddingDate' | 'venue'> | null
+  card?: Pick<WeddingCard, 'groomName' | 'brideName' | 'weddingDate'> | null
+  omitAddresses?: Array<string | null | undefined>
   weddingDateLabel?: string
   placeholder?: string
   className?: string
@@ -29,6 +31,7 @@ export function WeddingAiPolishTextarea({
   value,
   onChange,
   card,
+  omitAddresses,
   weddingDateLabel,
   placeholder,
   className,
@@ -54,7 +57,6 @@ export function WeddingAiPolishTextarea({
     formData.append('groomName', card?.groomName || '')
     formData.append('brideName', card?.brideName || '')
     formData.append('weddingDate', weddingDateLabel || card?.weddingDate || '')
-    formData.append('venue', card?.venue || '')
     const result = await polishWeddingCardText(formData)
     setPolishing(false)
     if ('error' in result && result.error) {
@@ -62,7 +64,7 @@ export function WeddingAiPolishTextarea({
       return
     }
     if ('text' in result && result.text) {
-      onChange(result.text)
+      onChange(omitWeddingAddressesFromSharedCopy(result.text, omitAddresses ?? []))
       const charged = 'charged' in result ? Number(result.charged) || 0 : 0
       toast({
         title: costsCredit ? 'Đã cải thiện bằng AI' : 'Đã tối ưu bằng AI',

@@ -1,5 +1,6 @@
 import {
   imageLocGeminiApiTimeoutMs,
+  imageLocGeminiDefaultImageSize,
   imageLocGeminiImageModel,
   languagePrompt,
   mimeForImageFilename,
@@ -87,8 +88,12 @@ function extractFirstImageBytes(data: Record<string, unknown>): Buffer | null {
   return null
 }
 
+function geminiApiKey(): string {
+  return (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '').trim()
+}
+
 export function geminiApiAuth(model?: string | null) {
-  const key = (process.env.GEMINI_API_KEY || '').trim()
+  const key = geminiApiKey()
   return {
     ready: key.length >= 10,
     key_configured: Boolean(key),
@@ -102,15 +107,16 @@ export async function geminiProcessImage(opts: {
   language: string
   imageModel?: string | null
   imageSize?: string | null
+  removeModel?: boolean
 }): Promise<{ status: 'processed'; bytes: Buffer; message: string }> {
-  const apiKey = (process.env.GEMINI_API_KEY || '').trim()
+  const apiKey = geminiApiKey()
   if (apiKey.length < 10) throw new ImageLocalizationError('Thiếu GEMINI_API_KEY cho chế độ Gemini API.')
   const model = sanitizeModelId(opts.imageModel, imageLocGeminiImageModel())
   const timeout = imageLocGeminiApiTimeoutMs()
   const url = `${GEMINI_GENERATE_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
-  const prompt = languagePrompt(opts.language)
+  const prompt = languagePrompt(opts.language, { removeModel: opts.removeModel })
   const mime = mimeForImageFilename(opts.filename)
-  const size = normalizeGeminiImageSize(opts.imageSize) || undefined
+  const size = normalizeGeminiImageSize(opts.imageSize) || imageLocGeminiDefaultImageSize()
   const genCfg: Record<string, unknown> = { responseModalities: ['TEXT', 'IMAGE'] }
   if (size) genCfg.imageConfig = { imageSize: size }
   const payload = {

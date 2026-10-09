@@ -89,6 +89,13 @@ export function hasSizeOrLaundryContext(blocks: ImageLocOcrBlock[]): boolean {
   return hasSizeTableContext(blocks) || hasLaundryCareContext(blocks)
 }
 
+export function isLaundryInstructionImage(blocks: ImageLocOcrBlock[]): boolean {
+  if (hasLaundryCareContext(blocks)) return true
+  return blocks.some((block) =>
+    IMAGE_LOC_LAUNDRY_KEYWORDS.some((keyword) => (block.text || '').includes(keyword))
+  )
+}
+
 function urgentDeleteHit(text: string): string | null {
   const t = text || ''
   for (const kw of IMAGE_LOC_URGENT_DELETE_KEYWORDS) {
@@ -224,7 +231,9 @@ export function localBlocksNeedDraw(
   }
   for (const b of blocks) {
     const hit = urgentDeleteHit(b.text || '')
-    if (hit) return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
+    if (hit) {
+      return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
+    }
   }
 
   const draw: ImageLocOcrBlock[] = []

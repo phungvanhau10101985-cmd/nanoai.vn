@@ -582,4 +582,59 @@ export async function fetchLocalizedIdsInQueueFromPg(partnerId: string, ids: str
   return rows.map((r) => r.id)
 }
 
+export async function fetchImageLocSheetsFromPg(opts: {
+  partnerId: string
+  shopNameChinese: string
+  categoryL2: string
+  language: string
+  kinds: Array<'size' | 'laundry'>
+}): Promise<Partial<Record<'size' | 'laundry', string>>> {
+  if (!isPgConfigured() || !opts.kinds.length) return {}
+  try {
+    const rows = await pgQuery<{ kind: string; image_url: string }>(
+      `select kind, image_url
+       from public.messaging_partner_image_localization_sheets
+       where partner_id = $1::uuid
+         and shop_name_chinese = $2
+         and category_l2 = $3
+         and language = $4
+         and kind = any($5::text[])`,
+      [opts.partnerId, opts.shopNameChinese, opts.categoryL2, opts.language, opts.kinds]
+    )
+    const stored: Partial<Record<'size' | 'laundry', string>> = {}
+    for (const row of rows) {
+      if (row.kind === 'size' || row.kind === 'laundry') stored[row.kind] = row.image_url
+    }
+    return stored
+  } catch (error) {
+    console.warn('[image-localization] đọc ảnh size/giặt đã lưu thất bại:', error)
+    return {}
+  }
+}
+
+export async function saveImageLocSheetsToPg(opts: {
+  partnerId: string
+  shopNameChinese: string
+  categoryL2: string
+  language: string
+  kinds: Array<'size' | 'laundry'>
+  imageUrl: string
+}): Promise<void> {
+  if (!isPgConfigured() || !opts.kinds.length || !opts.imageUrl.trim()) return
+  try {
+    for (const kind of opts.kinds) {
+      await pgQuery(
+        `insert into public.messaging_partner_image_localization_sheets
+           (partner_id, shop_name_chinese, category_l2, language, kind, image_url, updated_at)
+         values ($1::uuid, $2, $3, $4, $5, $6, now())
+         on conflict (partner_id, shop_name_chinese, category_l2, language, kind)
+         do update set image_url = excluded.image_url, updated_at = now()`,
+        [opts.partnerId, opts.shopNameChinese, opts.categoryL2, opts.language, kind, opts.imageUrl.trim()]
+      )
+    }
+  } catch (error) {
+    console.warn('[image-localization] lưu ảnh size/giặt thất bại:', error)
+  }
+}
+
 export { getPgPool }

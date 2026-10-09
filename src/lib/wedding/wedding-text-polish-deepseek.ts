@@ -24,41 +24,43 @@ const SYSTEM_PROMPT = `Bạn là nhà văn, biên tập viên thiệp cưới ti
 Nhiệm vụ: trau chuốt, nâng tầm bản nháp của cô dâu chú rể thành những câu chữ đong đầy xúc cảm, thi vị, tinh tế và rung động lòng người.
 Quy tắc bắt buộc:
 - Thổi hồn chất thơ, sự lãng mạn, thi vị và ngọt ngào vào câu từ. Tránh tuyệt đối giọng văn khẩu hiệu, lý thuyết khô khan, giáo điều hay sáo rỗng.
-- Giữ trọn thông điệp cốt lõi và các dữ kiện thực tế nếu có (tên cặp đôi, ngày giờ, địa điểm, quy định trang phục...).
+- Giữ tên cặp đôi, ngày cưới và quy định trang phục nếu bản nháp đã có.
+- Không viết địa chỉ, tên đường, tên nhà hàng, thôn xã, quận huyện hay cụm «tại …». Địa chỉ nằm ở ô địa điểm từng bên, không thuộc đoạn văn chung. Nếu bản nháp có địa chỉ thì bỏ và viết lại cho câu vẫn trọn ý.
 - Ngôn từ trong sáng, giàu nhạc điệu, gợi cảm giác bình yên, ấm áp và gắn kết trăm năm.
 - Không giải thích, không dẫn dắt rườm rà, không markdown, không bọc dấu ngoặc kép ở hai đầu văn bản — chỉ trả về chính xác đoạn văn bản đã hoàn thiện.`
+
+const NO_SHARED_ADDRESS =
+  'Không viết địa chỉ, tên đường, tên nhà hàng hay cụm «tại …». Nếu bản nháp có địa chỉ thì bỏ. Giữ ngày cưới nếu bản nháp đã có.'
 
 function fieldInstruction(field: WeddingPolishField): string {
   switch (field) {
     case 'coupleIntro':
-      return 'Loại: Đoạn mở đầu thiệp cưới giới thiệu cặp đôi / duyên hạnh ngộ. 2–4 câu ngắn gọn nhưng giàu chất thơ, tinh tế, đong đầy niềm hạnh phúc và sự trân trọng khi hai người tìm thấy nhau giữa biển người mênh mông.'
+      return `Loại: Đoạn mở đầu thiệp cưới giới thiệu cặp đôi / duyên hạnh ngộ. 2–4 câu ngắn gọn nhưng giàu chất thơ, tinh tế, đong đầy niềm hạnh phúc và sự trân trọng khi hai người tìm thấy nhau giữa biển người mênh mông. ${NO_SHARED_ADDRESS}`
     case 'loveQuote':
-      return 'Loại: Quote tình yêu in trang trọng trên thiệp cưới. Đúng MỘT câu ngắn, khoảng 8–14 từ, đọc một hơi là hết. Thi vị, ngọt, chỉ một hình ảnh (ánh mắt, bến đỗ, miền thơ…). CẤM nối nhiều vế, CẤM lặp ý (đừng viết kiểu "đi qua năm tháng… như đi qua…"), CẤM đoạn văn. Nếu bản nháp dài thì rút còn một câu thơ ngắn; giữ tên khách nếu có trong nháp. CẤM văn khô, giáo điều, triết lý nhạt (như "tình yêu là khởi đầu cuộc sống..."). Không đặt dấu ngoặc kép ở hai đầu.'
+      return `Loại: Quote tình yêu in trang trọng trên thiệp cưới. Đúng MỘT câu ngắn, khoảng 8–14 từ, đọc một hơi là hết. Thi vị, ngọt, chỉ một hình ảnh (ánh mắt, bến đỗ, miền thơ…). CẤM nối nhiều vế, CẤM lặp ý (đừng viết kiểu "đi qua năm tháng… như đi qua…"), CẤM đoạn văn. Nếu bản nháp dài thì rút còn một câu thơ ngắn; giữ tên khách nếu có trong nháp. CẤM văn khô, giáo điều, triết lý nhạt (như "tình yêu là khởi đầu cuộc sống..."). Không đặt dấu ngoặc kép ở hai đầu. ${NO_SHARED_ADDRESS}`
     case 'eventTimeline':
-      return 'Loại: Lịch trình tiệc cưới. Giữ chuẩn cấu trúc mỗi mốc một dòng: HH:MM | Tiêu đề - Ghi chú. Chỉnh câu chữ cho trang trọng, rõ ràng. TUYỆT ĐỐI không thay đổi mốc thời gian hoặc thứ tự sự kiện.'
+      return 'Loại: Lịch trình tiệc cưới. Giữ chuẩn cấu trúc mỗi mốc một dòng: HH:MM | Tiêu đề - Ghi chú. Chỉnh câu chữ cho trang trọng, rõ ràng. TUYỆT ĐỐI không thay đổi mốc thời gian hoặc thứ tự sự kiện. Không ghi địa chỉ nhà, tên đường hay «tại …» vào ghi chú.'
     case 'dressCode':
-      return 'Loại: Dress code / lưu ý trang phục cho khách mời. Lời nhắn nhã nhặn, thanh lịch, tinh tế, khéo léo để khách cảm thấy thoải mái và vui vẻ hưởng ứng.'
+      return `Loại: Dress code / lưu ý trang phục cho khách mời. Lời nhắn nhã nhặn, thanh lịch, tinh tế, khéo léo để khách cảm thấy thoải mái và vui vẻ hưởng ứng. ${NO_SHARED_ADDRESS}`
     case 'storyText':
-      return 'Loại: Câu chuyện tình yêu / kỷ niệm album cưới. 2–4 câu mang phong vị lãng mạn, êm đềm như một thước phim thanh xuân, diễn tả hành trình từ những rung động đầu tiên cho đến ngày chung đôi bền chặt.'
+      return `Loại: Câu chuyện tình yêu / kỷ niệm album cưới. 2–4 câu mang phong vị lãng mạn, êm đềm như một thước phim thanh xuân, diễn tả hành trình từ những rung động đầu tiên cho đến ngày chung đôi bền chặt. ${NO_SHARED_ADDRESS}`
     case 'thankYouText':
-      return 'Loại: Lời cảm ơn cuối thiệp cưới. 1–2 câu trang nhã, ấm áp, bày tỏ lòng tri ân chân thành tới những người thân thương đã đến chung vui và chúc phúc cho tình yêu đôi lứa.'
+      return `Loại: Lời cảm ơn cuối thiệp cưới. 1–2 câu trang nhã, ấm áp, bày tỏ lòng tri ân chân thành tới những người thân thương đã đến chung vui và chúc phúc cho tình yêu đôi lứa. ${NO_SHARED_ADDRESS}`
   }
 }
 
-function buildUserPrompt(input: {
+export function buildWeddingPolishUserPrompt(input: {
   field: WeddingPolishField
   draft: string
   groomName?: string
   brideName?: string
   weddingDate?: string
-  venue?: string
 }): string {
   const contextLines: string[] = []
   if (input.groomName?.trim() || input.brideName?.trim()) {
     contextLines.push(`Cặp đôi: ${input.groomName?.trim() || '…'} & ${input.brideName?.trim() || '…'}`)
   }
   if (input.weddingDate?.trim()) contextLines.push(`Ngày cưới: ${input.weddingDate.trim()}`)
-  if (input.venue?.trim()) contextLines.push(`Địa điểm: ${input.venue.trim()}`)
 
   return [
     fieldInstruction(input.field),
@@ -93,7 +95,6 @@ export async function polishWeddingTextWithDeepseek(input: {
   groomName?: string
   brideName?: string
   weddingDate?: string
-  venue?: string
   userId?: string | null
 }): Promise<{ text: string } | { error: string }> {
   const key = process.env.DEEPSEEK_API_KEY?.trim()
@@ -103,7 +104,7 @@ export async function polishWeddingTextWithDeepseek(input: {
   if (!draft) return { error: 'Nội dung trống.' }
 
   const model = resolveDeepSeekChatModel()
-  const userPrompt = buildUserPrompt(input)
+  const userPrompt = buildWeddingPolishUserPrompt(input)
   const temperature =
     input.field === 'loveQuote'
       ? 0.85

@@ -83,6 +83,62 @@ interface BlockWithParagraphs {
 const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
 const CM_DIMENSION_RE = /^\d+(?:[.,]\d+)?cm$/i
 
+function splitParagraphIntoLines(
+  words: NonNullable<NonNullable<BlockWithParagraphs['paragraphs']>[number]['words']>,
+  imgW: number,
+  imgH: number,
+  fallback: TextWithBbox
+): TextWithBbox[] {
+  const ordered = words
+    .map((word) => {
+      const text = getWordText(word).trim()
+      const vertices = (word.boundingBox ?? word.bounding_box)?.vertices
+      return vertices?.length ? { text, bbox: visionVerticesToPixelRect(vertices, imgW, imgH) } : null
+    })
+    .filter((item): item is NonNullable<typeof item> => Boolean(item && item.text))
+
+  if (ordered.length <= 1) return [fallback]
+
+  const lines: Array<{ items: typeof ordered; y1: number; y2: number }> = []
+  const sorted = [...ordered].sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)
+  for (const item of sorted) {
+    const itemH = Math.max(1, item.bbox.height)
+    const itemMidY = item.bbox.y + itemH / 2
+    const targetLine = lines.find((l) => {
+      const lineH = Math.max(1, l.y2 - l.y1)
+      const lineMidY = (l.y1 + l.y2) / 2
+      const maxH = Math.max(itemH, lineH)
+      return Math.abs(itemMidY - lineMidY) < maxH * 0.55
+    })
+    if (targetLine) {
+      targetLine.items.push(item)
+      targetLine.y1 = Math.min(targetLine.y1, item.bbox.y)
+      targetLine.y2 = Math.max(targetLine.y2, item.bbox.y + item.bbox.height)
+    } else {
+      lines.push({
+        items: [item],
+        y1: item.bbox.y,
+        y2: item.bbox.y + item.bbox.height,
+      })
+    }
+  }
+
+  if (lines.length <= 1) return [fallback]
+
+  return lines.map((l) => {
+    l.items.sort((a, b) => a.bbox.x - b.bbox.x)
+    const x1 = Math.min(...l.items.map((w) => w.bbox.x))
+    const y1 = Math.min(...l.items.map((w) => w.bbox.y))
+    const x2 = Math.max(...l.items.map((w) => w.bbox.x + w.bbox.width))
+    const y2 = Math.max(...l.items.map((w) => w.bbox.y + w.bbox.height))
+    const hasCjk = l.items.some((w) => CJK_RE.test(w.text))
+    return {
+      text: l.items.map((w) => w.text).join(hasCjk ? '' : ' '),
+      bbox: { x: x1, y: y1, width: Math.max(1, x2 - x1), height: Math.max(1, y2 - y1) },
+    }
+  })
+}
+
 function splitParagraphCmCjk(
   words: NonNullable<NonNullable<BlockWithParagraphs['paragraphs']>[number]['words']>,
   paragraphText: string,
@@ -90,7 +146,7 @@ function splitParagraphCmCjk(
   imgW: number,
   imgH: number
 ): TextWithBbox[] {
-  if (!/\d+(?:[.,]\d+)?\s*cm(?!\w)/i.test(paragraphText.normalize('NFKC'))) return [fallback]
+  if (!/\d+(?:[.,]\d+)?\s*cm(?!\w)/i.test(paragraphText.normalize('NFKC'))) return splitParagraphIntoLines(words, imgW, imgH, fallback)
   const ordered = words
     .map((word) => {
       const text = getWordText(word)

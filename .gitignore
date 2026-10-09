@@ -70,7 +70,11 @@ next-env.d.ts
 gcp-credentials.json
 google-credentials.json
 *.key.json
+*service-account*.json
 thu-do-online-*.json
+
+# local image-localization scratch (ảnh thử + key Vision)
+/runtime/
 
 # local tooling state
 /.cache/

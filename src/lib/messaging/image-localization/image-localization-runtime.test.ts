@@ -12,7 +12,9 @@ import {
   overlayItemsLookLikeTable,
   overlayRegionIsProductPhoto,
   overlayTranslatedText,
+  clampTextBoxToSources,
   spaceSpecPunctuation,
+  splitOverlayVerticalBands,
   splitTrailingModelCode,
   stripInventedLeadingModelCode,
 } from '@/lib/translate-overlay'
@@ -284,9 +286,32 @@ describe('image localization runtime parity', () => {
     assert.equal(text.endsWith('˙'), false)
   })
 
+  it('keeps a size chart separate from the warning above it', () => {
+    const warning = { bbox: { x: 20, y: 360, width: 360, height: 16 }, translatedText: 'Sai số đo thủ công là hiện tượng bình thường' }
+    const table = [0, 1, 2, 3].flatMap((row) =>
+      [0, 1].map((column) => ({
+        bbox: { x: 20 + column * 160, y: 430 + row * 24, width: 70, height: 14 },
+        translatedText: `Ô ${row}-${column}`,
+      }))
+    )
+    const bands = splitOverlayVerticalBands([warning, ...table])
+    assert.equal(bands.length, 2)
+    assert.equal(overlayItemsLookLikeTable(bands[0]!), false)
+    assert.equal(overlayItemsLookLikeTable(bands[1]!), true)
+    const clamped = clampTextBoxToSources(
+      { x: 20, y: 360, width: 360, height: 90 },
+      warning.bbox,
+      table,
+      420,
+      700
+    )
+    assert.ok(clamped.y + clamped.height <= 430)
+  })
+
   it('fits a long Vietnamese label inside the table row', () => {
     const fitted = fitTableCellText('Phạm vi áp suất làm việc', 130, 28)
     assert.ok(fitted.lines.length * fitted.lineHeight <= 30)
+    assert.ok(fitted.fontSize >= 10)
     assert.ok(fitted.fontSize <= 15)
   })
 
@@ -300,6 +325,16 @@ describe('image localization runtime parity', () => {
     assert.ok((attached.items[0]?.bbox.width || 0) >= 50)
     const fitted = fitTableCellText('Vòng ngực 82cm', 72, 16)
     assert.deepEqual(fitted.lines, ['Vòng ngực 82cm'])
+    assert.ok(fitted.fontSize >= 10)
+  })
+
+  it('never shrinks translated table text below 10px', () => {
+    const fitted = fitTableCellText('Nhãn thông số rất dài trong một ô hẹp', 54, 18)
+    assert.equal(fitted.fontSize, 10)
+    assert.ok(fitted.lines.length * fitted.lineHeight <= 18)
+    for (const line of fitted.lines) {
+      assert.ok(line.length > 0)
+    }
   })
 
   it('stops a short scale label at the midpoint before the next short label', () => {

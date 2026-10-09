@@ -14,8 +14,7 @@ export function imageLocEnabled(): boolean {
 }
 
 export function imageLocDefaultGeminiMode(): 'api' | 'openai' {
-  const m = (process.env.IMAGE_LOCALIZATION_GEMINI_MODE || 'api').trim().toLowerCase()
-  return m === 'openai' ? 'openai' : 'api'
+  return 'openai'
 }
 
 export function imageLocGeminiImageModel(): string {
@@ -48,6 +47,17 @@ export function imageLocBatchLimit(): number {
 
 export function imageLocMaxConsecutiveProductFailures(): number {
   return 3
+}
+
+/** Số lần hậu kiểm sau GPT. Lần 2 vẫn mực loang hoặc còn chữ Trung thì dừng job và báo admin. */
+export function imageLocGptVerifyAttempts(): number {
+  const n = Number(process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS || '2')
+  if (!Number.isFinite(n)) return 2
+  return Math.max(1, Math.min(5, Math.floor(n)))
+}
+
+export function imageLocInkBleedModel(): string {
+  return (process.env.IMAGE_LOCALIZATION_INK_BLEED_MODEL || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite'
 }
 
 export function imageLocJobQueueIdsMax(): number {
@@ -152,11 +162,14 @@ export const LANGUAGE_LABELS: Record<string, string> = {
   id: 'Indonesian',
 }
 
-export function languagePrompt(language: string): string {
+export function languagePrompt(language: string, opts?: { removeModel?: boolean }): string {
   const target = LANGUAGE_LABELS[language] || language || 'Vietnamese'
+  const removeModel = opts?.removeModel
+    ? ' Erase only the fashion model photograph: face, hair, body, and clothing. Fill only that photo area with the surrounding plain background. Replace each Chinese text string with its translation in the same position and size. Do not keep the original Chinese beside, above, or under the translation. Do not add a second copy of any line. Do not change centimeter measurements or bust, waist, and hip numbers. Still convert 斤 body weight to kilograms as instructed.'
+    : ''
   return `ROLE: E-commerce Image Localization Agent
 
-Translate every Chinese text element in the attached product image into ${target}. Preserve product details, layout, dimensions, aspect ratio, text placement, original colors, and image quality. Remove website URLs and domains from the image. Convert Chinese weight units to metric during translation. Return only the processed image file, with no explanation.`
+Translate every Chinese text element in the attached product image into ${target}. Preserve product details, layout, dimensions, aspect ratio, text placement, original colors, and image quality. Remove website URLs and domains from the image. Convert every Chinese weight to kilograms: 1 斤 = 0.5 kg. A 体重 column on a Chinese size chart or try-on table is in 斤 when the cell has no kg label; replace each of those numbers with kilograms and write kg. Example: 94 斤 becomes 47 kg. Do not convert centimeters or bust, waist, and hip measurements.${removeModel} Return only the processed image file, with no explanation.`
 }
 
 export function mimeForImageFilename(filename: string): string {

@@ -9,6 +9,18 @@ import {
 } from './image-localization-config'
 import { ImageLocalizationError } from './gemini-adapter'
 
+/** GPT Image lỗi: job phải dừng, không xử lý sản phẩm phía sau. */
+export class ImageLocalizationGptStopError extends ImageLocalizationError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ImageLocalizationGptStopError'
+  }
+}
+
+export function isImageLocalizationGptStopError(exc: unknown): boolean {
+  return exc instanceof ImageLocalizationGptStopError || (exc instanceof Error && exc.name === 'ImageLocalizationGptStopError')
+}
+
 export function openaiApiAuth(model?: string | null) {
   const key = (process.env.OPENAI_API_KEY || '').trim()
   return {
@@ -25,6 +37,7 @@ export async function openaiProcessImage(opts: {
   imageModel?: string | null
   imageQuality?: string | null
   imageSize?: string | null
+  removeModel?: boolean
 }): Promise<{ status: 'processed'; bytes: Buffer; message: string }> {
   const key = (process.env.OPENAI_API_KEY || '').trim()
   if (key.length < 10) throw new ImageLocalizationError('Thiếu OPENAI_API_KEY cho chế độ GPT Image.')
@@ -33,7 +46,7 @@ export async function openaiProcessImage(opts: {
   const mime = mimeForImageFilename(opts.filename)
   let safeName = (opts.filename.split(/[/\\]/).pop() || 'product.jpg').trim()
   if (!safeName.includes('.')) safeName = `${safeName}.jpg`
-  const prompt = languagePrompt(opts.language)
+  const prompt = languagePrompt(opts.language, { removeModel: opts.removeModel })
   const form = new FormData()
   form.set('model', model)
   form.set('prompt', prompt)

@@ -5,6 +5,8 @@
 
 import sharp from 'sharp'
 
+const MIN_LOCALIZED_FONT_SIZE = 10
+
 export interface OverlayItem {
   bbox: { x: number; y: number; width: number; height: number }
   translatedText: string
@@ -127,6 +129,65 @@ export function overlayTextRowsHavePhotoGap(items: Array<{ bbox: { y: number } }
     .sort((a, b) => a - b)
   const gaps = centers.slice(1).map((value, index) => value - centers[index]!)
   return gaps.length > 0 && Math.max(...gaps) >= 150
+}
+
+/**
+ * Tách ảnh thông tin (mẫu + thang đo + bảng size + giặt) thành từng cụm.
+ * Một khoảng trống dọc lớn là ranh giới cụm, không phải một ô của cùng bảng.
+ */
+export function splitOverlayVerticalBands<T extends { bbox: { y: number; height: number } }>(items: T[]): T[][] {
+  const sorted = [...items].sort((a, b) => a.bbox.y - b.bbox.y)
+  const bands: T[][] = []
+  let current: T[] = []
+  for (const item of sorted) {
+    if (current.length) {
+      const previousBottom = Math.max(...current.map((entry) => entry.bbox.y + entry.bbox.height))
+      if (item.bbox.y - previousBottom >= 32) {
+        bands.push(current)
+        current = []
+      }
+    }
+    current.push(item)
+  }
+  if (current.length) bands.push(current)
+  return bands
+}
+
+type PixelBox = { x: number; y: number; width: number; height: number }
+
+/** Chữ dịch được nới khung nhưng phải dừng trước cụm chữ gốc bên phải và bên dưới. */
+export function clampTextBoxToSources(
+  box: PixelBox,
+  source: PixelBox,
+  items: Array<{ bbox: PixelBox }>,
+  imageWidth: number,
+  imageHeight: number
+): PixelBox {
+  let width = box.width
+  let height = box.height
+  const x = Math.max(0, Math.min(imageWidth - 1, box.x))
+  const y = Math.max(0, Math.min(imageHeight - 1, box.y))
+  for (const item of items) {
+    const other = item.bbox
+    if (other === source) continue
+    const sameRow =
+      Math.min(source.y + source.height, other.y + other.height) - Math.max(source.y, other.y) >
+      Math.min(source.height, other.height) * 0.4
+    if (sameRow && other.x >= source.x + source.width - 2) {
+      width = Math.min(width, Math.max(source.width, other.x - 4 - x))
+    }
+    const below = other.y >= source.y + source.height - 2
+    const horizontalOverlap = Math.min(x + width, other.x + other.width) - Math.max(x, other.x) > 4
+    if (below && horizontalOverlap) {
+      height = Math.min(height, Math.max(source.height, other.y - 3 - y))
+    }
+  }
+  return {
+    x,
+    y,
+    width: Math.max(1, Math.min(width, imageWidth - x)),
+    height: Math.max(1, Math.min(height, imageHeight - y)),
+  }
 }
 
 /** Nhiều hàng × ít nhất hai cột: bảng thông số. Không phóng chữ ra hàng bên dưới. */
@@ -507,7 +568,9 @@ export function expandTableCellBoxes<T extends OverlayItem>(
 }
 
 function textWidthAt(fontSize: number, line: string): number {
-  return [...line].length * fontSize * 0.56
+  // Arial tiếng Việt trung bình gần 0,5em; 0,56 làm co chữ xuống dưới ngưỡng
+  // đọc được dù chuỗi thực tế vẫn vừa ô.
+  return [...line].length * fontSize * 0.5
 }
 
 /** Co cỡ chữ để cả cụm nằm trong ô, không cắt giữa một từ. */
@@ -523,14 +586,14 @@ export function fitTableCellText(
   const parts = text.split('\n').map((line) => line.trim()).filter(Boolean)
   const single = parts.length <= 1
   if (single) {
-    for (let fontSize = Math.min(14, innerH); fontSize >= 6; fontSize--) {
+    for (let fontSize = Math.max(MIN_LOCALIZED_FONT_SIZE, Math.min(14, innerH)); fontSize >= MIN_LOCALIZED_FONT_SIZE; fontSize--) {
       if (textWidthAt(fontSize, text) <= innerW + 1) {
         return { fontSize, lines: [text], lineHeight: Math.max(fontSize, Math.round(fontSize * 1.05)), padX }
       }
     }
   }
-  for (let fontSize = Math.min(13, innerH); fontSize >= 6; fontSize--) {
-    const maxChars = Math.max(1, Math.floor(innerW / (fontSize * 0.56)))
+  for (let fontSize = Math.max(MIN_LOCALIZED_FONT_SIZE, Math.min(13, innerH)); fontSize >= MIN_LOCALIZED_FONT_SIZE; fontSize--) {
+    const maxChars = Math.max(1, Math.floor(innerW / (fontSize * 0.5)))
     const lines = parts.length > 1 ? parts : wrapOverlayWords(text, maxChars)
     const lineHeight = Math.max(fontSize, Math.round(fontSize * 1.12))
     const widest = Math.max(...lines.map((line) => textWidthAt(fontSize, line)))
@@ -538,9 +601,9 @@ export function fitTableCellText(
       return { fontSize, lines, lineHeight, padX }
     }
   }
-  const fontSize = 6
+  const fontSize = MIN_LOCALIZED_FONT_SIZE
   const lineHeight = Math.round(fontSize * 1.12)
-  const maxChars = Math.max(1, Math.floor(innerW / (fontSize * 0.56)))
+  const maxChars = Math.max(1, Math.floor(innerW / (fontSize * 0.5)))
   const wrapped = parts.length > 1 ? parts : wrapOverlayWords(text, maxChars)
   const maxLines = Math.max(1, Math.floor(innerH / lineHeight))
   const lines = wrapped.slice(0, maxLines).map((line) => clipLineToWidth(line, fontSize, innerW))
@@ -588,24 +651,66 @@ function tableEraseBox(
   return { x: x1, y: y1, width: Math.max(1, x2 - x1), height: Math.max(1, y2 - y1) }
 }
 
-function centeredTextBox(
+/**
+ * Câu dịch trên poster thường dài hơn câu Hán nhưng bbox OCR chỉ cao đúng một dòng.
+ * Mở vùng vẽ (không mở vùng xóa nền) để giữ cỡ chữ tương đương ảnh 188/Gemini.
+ */
+export function fitPosterParagraphText(
   text: string,
-  box: { x: number; y: number; width: number; height: number },
+  box: PixelBox,
   imageWidth: number,
   imageHeight: number
-) {
-  if (!text) return box
-  const x = Math.max(0, Math.min(imageWidth - 1, Math.round(box.x)))
-  const y = Math.max(0, Math.min(imageHeight - 1, Math.round(box.y)))
-  return {
-    x,
-    y,
-    width: Math.max(1, Math.min(imageWidth - x, Math.round(box.width))),
-    height: Math.max(1, Math.min(imageHeight - y, Math.round(box.height))),
-  }
+): { box: PixelBox; lines: string[]; fontSize: number; lineHeight: number } | null {
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  if (words.length < 4 || box.width < imageWidth * 0.2 || box.height > imageHeight * 0.06) return null
+
+  // 188 dùng MIN_FONT_SIZE=14 cho câu trên poster. Thấp hơn mức này rất khó đọc
+  // khi ảnh 700–750px được thu về chiều rộng màn hình điện thoại.
+  const fontSize = Math.max(14, Math.min(18, Math.round(box.height * 0.82)))
+  const desiredWidth =
+    box.width < imageWidth * 0.35
+      ? Math.min(imageWidth * 0.48, Math.max(box.width, text.length * box.height * 0.42))
+      : box.width
+  const width = Math.max(1, Math.min(imageWidth, Math.round(desiredWidth)))
+  const maxChars = Math.max(8, Math.floor(width / Math.max(1, fontSize * 0.5)))
+  const lines = wrapOverlayWords(text, maxChars)
+  const lineHeight = Math.max(fontSize + 1, Math.round(fontSize * 1.12))
+  const height = Math.max(Math.round(box.height), lines.length * lineHeight + 4)
+  const centerX = box.x + box.width / 2
+  const centerY = box.y + box.height / 2
+  const x = Math.max(0, Math.min(imageWidth - width, Math.round(centerX - width / 2)))
+  const y = Math.max(0, Math.min(imageHeight - height, Math.round(centerY - height / 2)))
+  return { box: { x, y, width, height }, lines, fontSize, lineHeight }
 }
 
-type PixelBox = { x: number; y: number; width: number; height: number }
+/** Nhãn ngắn: nới khung vẽ quanh tâm OCR để giữ đủ chữ ở cỡ tối thiểu 10px. */
+export function fitLocalizedLabelText(
+  text: string,
+  box: PixelBox,
+  imageWidth: number,
+  imageHeight: number
+): { box: PixelBox; lines: string[]; fontSize: number; lineHeight: number } | null {
+  const value = text.trim()
+  if (!value) return null
+  const fontSize = Math.max(
+    MIN_LOCALIZED_FONT_SIZE,
+    Math.min(18, Math.round(box.height * 0.72))
+  )
+  const maxWidth = Math.max(box.width, Math.round(imageWidth * 0.2))
+  const desiredWidth = Math.max(box.width, textWidthAt(fontSize, value) + 6)
+  const width = Math.max(1, Math.min(imageWidth, maxWidth, Math.round(desiredWidth)))
+  const maxChars = Math.max(1, Math.floor((width - 4) / (fontSize * 0.5)))
+  const lineHeight = Math.max(fontSize + 1, Math.round(fontSize * 1.12))
+  const wrapped = wrapOverlayWords(value, maxChars)
+  const height = Math.max(1, Math.min(imageHeight, Math.max(box.height, wrapped.length * lineHeight + 2)))
+  const maxLines = Math.max(1, Math.floor(Math.max(1, height - 2) / lineHeight))
+  const lines = wrapped.slice(0, maxLines)
+  const centerX = box.x + box.width / 2
+  const centerY = box.y + box.height / 2
+  const x = Math.max(0, Math.min(imageWidth - width, Math.round(centerX - width / 2)))
+  const y = Math.max(0, Math.min(imageHeight - height, Math.round(centerY - height / 2)))
+  return { box: { x, y, width, height }, lines, fontSize, lineHeight }
+}
 
 function boxRemainder(outer: PixelBox, inner: PixelBox): PixelBox[] {
   const ox1 = outer.x
@@ -669,6 +774,11 @@ export async function overlayRegionIsProductPhoto(
   const colorSpread = (sumRG + sumGB) / n
   const mean = sum / n
   const std = Math.sqrt(Math.max(0, sumSq / n - mean * mean))
+  // Chữ trên nền sáng (trắng, kem, be): mean sáng cao (>180) và độ lệch màu vừa phải -> không phải da/kim loại thật
+  if (mean > 180 && colorSpread < 20) return false
+  // Nhãn đen trên bảng/sơ đồ xám trung tính: phần chữ làm std cao nhưng gần như
+  // không có độ lệch màu. Không được nhầm các nhãn 尺码 / 脚围 / 脚长 là ảnh sản phẩm.
+  if (mean > 145 && colorSpread < 8) return false
   if (colorSpread > 12 && std > 16) return true
   return std > 26 && mid / n > 0.4
 }
@@ -709,16 +819,21 @@ export async function overlayTranslatedText(
   const imageHeight = meta.height || 0
   if (!imageWidth || !imageHeight) return imageBuffer
 
-  let table = overlayItemsLookLikeTable(items)
   const obstacles = options?.obstacles ?? []
-  let drawItems = table ? expandTableCellBoxes(items, imageWidth, obstacles) : items
-  if (table && (await tableExpansionCoversPhoto(imageBuffer, drawItems, imageWidth, imageHeight))) {
-    table = false
-    drawItems = items
+  const drawItems: Array<OverlayItem & { tableCell?: boolean }> = []
+  for (const band of splitOverlayVerticalBands(items)) {
+    let bandIsTable = overlayItemsLookLikeTable(band)
+    let expanded = bandIsTable ? expandTableCellBoxes(band, imageWidth, obstacles) : band
+    if (bandIsTable && (await tableExpansionCoversPhoto(imageBuffer, expanded, imageWidth, imageHeight))) {
+      bandIsTable = false
+      expanded = band
+    }
+    for (const item of expanded) drawItems.push({ ...item, tableCell: bandIsTable })
   }
-  const eraseNeighbors = table ? [...drawItems, ...obstacles] : items
+  const eraseNeighbors = [...drawItems, ...obstacles]
   for (const item of drawItems) {
     const { bbox, translatedText } = item
+    const table = Boolean(item.tableCell)
     const banner =
       !table && overlayItemLooksLikeEdgeBanner(item, imageWidth, imageHeight)
         ? await snapBannerClearOfBadge(
@@ -794,24 +909,26 @@ export async function overlayTranslatedText(
     if (!translatedText.trim()) continue
 
     const bannerFit = banner ? fitBannerText(translatedText.trim(), banner.width, banner.height) : null
-    const cell = table
-      ? fitTableCellText(translatedText.trim(), Math.max(1, Math.round(bbox.width)), Math.max(1, Math.round(bbox.height)))
-      : null
-    const drawBox = banner
-      ? banner
-      : cell
-      ? {
-          x: Math.max(0, Math.min(imageWidth - 1, Math.round(bbox.x))),
-          y: Math.max(0, Math.min(imageHeight - 1, Math.round(bbox.y))),
-          width: Math.max(1, Math.min(imageWidth - Math.round(bbox.x), Math.round(bbox.width))),
-          height: Math.max(1, Math.min(imageHeight - Math.round(bbox.y), Math.round(bbox.height))),
-        }
-      : centeredTextBox(
-          translatedText.trim(),
-          { x: Math.max(0, Math.round(bbox.x)), y: Math.max(0, Math.round(bbox.y)), width: Math.max(1, Math.round(bbox.width)), height: Math.max(1, Math.round(bbox.height)) },
-          imageWidth,
-          imageHeight
-        )
+    // 188 giữ chữ dịch trong hộp OCR hoặc ô bảng đã khóa, không phóng poster/nhãn đè ảnh.
+    const cell = !banner ? fitTableCellText(translatedText.trim(), Math.max(1, w), Math.max(1, h)) : null
+    const posterFit = null
+    const labelFit = null
+    const drawBox = banner ? banner : { x, y, width: w, height: h }
+    const textOutsideErase =
+      !table &&
+      !banner &&
+      (drawBox.x < x || drawBox.y < y || drawBox.x + drawBox.width > x + w || drawBox.y + drawBox.height > y + h)
+    if (
+      textOutsideErase &&
+      !(await overlayRegionIsProductPhoto(imageBuffer, drawBox, imageWidth, imageHeight))
+    ) {
+      const extra = Buffer.from(
+        `<svg width="${drawBox.width}" height="${drawBox.height}" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="100%" height="100%" fill="${fillColor}"/>
+        </svg>`
+      )
+      backgrounds.push({ input: extra, top: drawBox.y, left: drawBox.x })
+    }
     const rawWords = translatedText.trim().split(/\s+/).filter(Boolean)
     const maxChars = cell
       ? 0
@@ -819,8 +936,16 @@ export async function overlayTranslatedText(
           4,
           Math.floor(drawBox.width / Math.max(6, Math.min(18, drawBox.height * 0.28)))
         )
-    const lines = bannerFit ? bannerFit.lines : cell ? cell.lines : []
-    if (!cell && !bannerFit) {
+    const lines = bannerFit
+      ? bannerFit.lines
+      : cell
+      ? cell.lines
+      : posterFit
+      ? posterFit.lines
+      : labelFit
+      ? labelFit.lines
+      : []
+    if (!cell && !bannerFit && !posterFit && !labelFit) {
       for (const word of rawWords) {
         const candidate = lines.length ? `${lines[lines.length - 1]} ${word}` : word
         if (candidate.length <= maxChars || !lines.length) {
@@ -836,8 +961,12 @@ export async function overlayTranslatedText(
       ? bannerFit.fontSize
       : cell
       ? cell.fontSize
+      : posterFit
+      ? posterFit.fontSize
+      : labelFit
+      ? labelFit.fontSize
       : Math.max(
-          8,
+          MIN_LOCALIZED_FONT_SIZE,
           Math.min(
             140,
             Math.floor((drawBox.height * 0.78) / lineCount),
@@ -848,6 +977,10 @@ export async function overlayTranslatedText(
       ? bannerFit.lineHeight
       : cell
         ? cell.lineHeight
+        : posterFit
+          ? posterFit.lineHeight
+          : labelFit
+            ? labelFit.lineHeight
         : Math.max(9, Math.round(fontSize * 1.12))
     const blockHeight = lineHeight * lineCount
     const startY = bannerFit || cell

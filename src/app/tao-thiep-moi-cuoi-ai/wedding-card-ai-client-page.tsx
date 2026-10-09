@@ -53,6 +53,7 @@ import {
 } from '@/lib/wedding/invitation-occasion'
 import { isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
+import { stripSharedWeddingCopy, weddingSharedCopyAddresses } from '@/lib/wedding/wedding-shared-copy'
 import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
@@ -538,13 +539,13 @@ export default function WeddingCardAiClientPage() {
         baselineHydratedRef.current = true
         const localDraft = readWeddingLocalDraft(result.card.id)
         if (localDraft) {
-          setCard(ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card)))
+          setCard(stripSharedWeddingCopy(ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card))))
           setMusicStartInput(localDraft.musicStartInput)
           setMusicEndInput(localDraft.musicEndInput)
           setMusicClearOnSave(localDraft.musicClearOnSave)
           setAutosaveBanner({ message: 'Đã khôi phục bản nháp chưa kịp lưu. Hệ thống sẽ tự lưu lại.', variant: 'success' })
         } else {
-          setCard(ownSidePartyFields(result.card))
+          setCard(stripSharedWeddingCopy(ownSidePartyFields(result.card)))
         }
         setImages(result.images)
         setLibrary(result.library)
@@ -570,6 +571,10 @@ export default function WeddingCardAiClientPage() {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps -- chỉ hydrate thiệp một lần khi mở trang
 
+  const sharedCopyAddresses = useMemo(
+    () => weddingSharedCopyAddresses(card),
+    [card.venue, card.groomHometown, card.brideHometown, card.groomInviteAddress, card.brideInviteAddress],
+  )
   const selectedStylePreset = useMemo(() => getWeddingStylePreset(card.selectedStyleId), [card.selectedStyleId])
   const selectedTheme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
@@ -1503,10 +1508,11 @@ export default function WeddingCardAiClientPage() {
     setPreviewLetterView('groom')
     setLetterAskOpen(false)
     const localDraft = options?.restoreLocalDraft ? readWeddingLocalDraft(result.card.id) : null
-    const nextCard = localDraft
+    const loadedCard = localDraft
       ? ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card))
       : ownSidePartyFields(result.card)
-    lastSavedPersistRef.current = buildSavedSnapshotForCard(nextCard)
+    const nextCard = stripSharedWeddingCopy(loadedCard)
+    lastSavedPersistRef.current = buildSavedSnapshotForCard(loadedCard)
     baselineHydratedRef.current = true
     if (localDraft) {
       setMusicStartInput(localDraft.musicStartInput)
@@ -2213,6 +2219,7 @@ export default function WeddingCardAiClientPage() {
                     value={card.coupleIntro}
                     onChange={(v) => update('coupleIntro', v)}
                     card={card}
+                    omitAddresses={sharedCopyAddresses}
                     weddingDateLabel={weddingDateDisplay}
                     placeholder={occasionCopy.introPlaceholder}
                     className="min-h-28"
@@ -2223,6 +2230,7 @@ export default function WeddingCardAiClientPage() {
                     value={card.loveQuote}
                     onChange={(v) => update('loveQuote', v)}
                     card={card}
+                    omitAddresses={sharedCopyAddresses}
                     weddingDateLabel={weddingDateDisplay}
                     placeholder={occasionCopy.quotePlaceholder}
                     className="min-h-28"
@@ -2234,6 +2242,7 @@ export default function WeddingCardAiClientPage() {
                   value={card.dressCode}
                   onChange={(v) => update('dressCode', v)}
                   card={card}
+                  omitAddresses={sharedCopyAddresses}
                   weddingDateLabel={weddingDateDisplay}
                   placeholder="Ví dụ: Tông màu kem, be, nâu nhạt. Vui lòng đến trước giờ làm lễ 15 phút."
                   className="min-h-32"
@@ -2244,6 +2253,7 @@ export default function WeddingCardAiClientPage() {
                   value={card.storyText}
                   onChange={(v) => update('storyText', v)}
                   card={card}
+                  omitAddresses={sharedCopyAddresses}
                   weddingDateLabel={weddingDateDisplay}
                   placeholder={occasionCopy.storyPlaceholder}
                   className="min-h-24"
@@ -2254,6 +2264,7 @@ export default function WeddingCardAiClientPage() {
                   value={card.thankYouText}
                   onChange={(v) => update('thankYouText', v)}
                   card={card}
+                  omitAddresses={sharedCopyAddresses}
                   weddingDateLabel={weddingDateDisplay}
                   placeholder={occasionCopy.thanksPlaceholder}
                   hint={WEDDING_CARD_TEXT_TOKEN_HINT}

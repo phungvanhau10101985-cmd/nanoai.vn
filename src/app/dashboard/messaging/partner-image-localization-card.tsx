@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { imageLocalizationClient } from '@/lib/messaging/image-localization/image-localization-client'
 import {
-  IMAGE_LOC_GEMINI_MODEL_PRESETS,
   IMAGE_LOC_OPENAI_MODEL_PRESETS,
   IMAGE_LOC_OPENAI_OUTPUT_PRESETS,
   imageLocalizationJobProgress,
@@ -38,11 +37,6 @@ function writeTrackedJobIds(partnerId: string, ids: string[]) {
   }
 }
 
-function resolveGeminiPreset(model: string): string {
-  const hit = IMAGE_LOC_GEMINI_MODEL_PRESETS.find((p) => p.model === model.trim())
-  return hit?.id ?? (model.trim() ? 'custom' : IMAGE_LOC_GEMINI_MODEL_PRESETS[0].id)
-}
-
 function resolveOpenaiPreset(model: string): string {
   const hit = IMAGE_LOC_OPENAI_MODEL_PRESETS.find((p) => p.model === model.trim())
   return hit?.id ?? (model.trim() ? 'custom' : IMAGE_LOC_OPENAI_MODEL_PRESETS[0].id)
@@ -65,8 +59,6 @@ export function PartnerImageLocalizationCard({
   const externalSelectedIds = selectedInventoryIds ?? new Set<string>()
   const [language, setLanguage] = useState<ImageLocLanguage>('vi')
   const [geminiMode, setGeminiMode] = useState<ImageLocGeminiMode>('local_only')
-  const [geminiModel, setGeminiModel] = useState('')
-  const [geminiSize, setGeminiSize] = useState('2K')
   const [openaiModel, setOpenaiModel] = useState('')
   const [openaiQuality, setOpenaiQuality] = useState('high')
   const [openaiSize, setOpenaiSize] = useState('auto')
@@ -89,9 +81,7 @@ export function PartnerImageLocalizationCard({
 
   const aiModesSelectable = selectedCount > 0 && auth?.ai_image_jobs_allowed !== false
   const geminiReady =
-    geminiMode === 'local_only' ||
-    (geminiMode === 'api' && Boolean(auth?.api?.ready)) ||
-    (geminiMode === 'openai' && Boolean(auth?.openai?.ready))
+    geminiMode === 'local_only' || (geminiMode === 'openai' && Boolean(auth?.openai?.ready))
 
   const showToast = (type: 'ok' | 'err', msg: string) => {
     setToast({ type, msg })
@@ -164,14 +154,8 @@ export function PartnerImageLocalizationCard({
         force,
         dry_run: false,
         product_ids: productIds ?? null,
-        gemini_mode: geminiMode === 'local_only' ? 'api' : geminiMode,
+        gemini_mode: geminiMode === 'local_only' ? 'api' : 'openai',
         allow_ai_image_models: geminiMode === 'local_only' ? false : null,
-        ...(geminiMode === 'api'
-          ? {
-              gemini_image_model: geminiModel.trim() || null,
-              gemini_image_size: geminiSize.trim() || null,
-            }
-          : {}),
         ...(geminiMode === 'openai'
           ? {
               openai_image_model: openaiModel.trim() || null,
@@ -218,7 +202,6 @@ export function PartnerImageLocalizationCard({
     }
   }
 
-  const geminiPreset = useMemo(() => resolveGeminiPreset(geminiModel), [geminiModel])
   const openaiPreset = useMemo(() => resolveOpenaiPreset(openaiModel), [openaiModel])
   const openaiOutPreset = useMemo(
     () => resolveOpenaiOutputPreset(openaiQuality, openaiSize),
@@ -288,24 +271,6 @@ export function PartnerImageLocalizationCard({
                   <input
                     type="radio"
                     className="mt-1"
-                    checked={geminiMode === 'api'}
-                    onChange={() => setGeminiMode('api')}
-                    disabled={startBusy || !aiModesSelectable}
-                  />
-                  <span>
-                    <span className="font-medium">{t.imageLocModeGemini}</span>
-                    {auth?.ai_image_jobs_allowed === false ? (
-                      <span className="ml-1 text-xs text-muted-foreground">({t.imageLocAiOff})</span>
-                    ) : selectedCount === 0 ? (
-                      <span className="ml-1 text-xs text-muted-foreground">({t.imageLocNeedSelect})</span>
-                    ) : null}
-                    <span className="mt-0.5 block text-xs text-muted-foreground">{t.imageLocModeGeminiHint}</span>
-                  </span>
-                </label>
-                <label className={`flex items-start gap-2 ${aiModesSelectable ? 'cursor-pointer' : 'cursor-not-allowed opacity-55'}`}>
-                  <input
-                    type="radio"
-                    className="mt-1"
                     checked={geminiMode === 'openai'}
                     onChange={() => setGeminiMode('openai')}
                     disabled={startBusy || !aiModesSelectable}
@@ -321,56 +286,6 @@ export function PartnerImageLocalizationCard({
                   </span>
                 </label>
               </div>
-              {geminiMode === 'api' ? (
-                <div className="mt-3 space-y-3 border-t border-border pt-3">
-                  <label className="block text-sm">
-                    <span className="mb-1 block font-medium">{t.imageLocGeminiModel}</span>
-                    <select
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      value={geminiPreset}
-                      disabled={startBusy}
-                      onChange={(e) => {
-                        const id = e.target.value
-                        if (id === 'custom') return
-                        const row = IMAGE_LOC_GEMINI_MODEL_PRESETS.find((x) => x.id === id)
-                        setGeminiModel(row?.model ?? '')
-                      }}
-                    >
-                      {IMAGE_LOC_GEMINI_MODEL_PRESETS.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.label}
-                        </option>
-                      ))}
-                      <option value="custom">{t.imageLocCustomModel}</option>
-                    </select>
-                  </label>
-                  <input
-                    className="w-full rounded-lg border border-border px-3 py-2 text-sm font-mono"
-                    value={geminiModel}
-                    onChange={(e) => setGeminiModel(e.target.value)}
-                    disabled={startBusy}
-                    placeholder={auth?.image_model || 'gemini-3-pro-image-preview'}
-                  />
-                  <p className="text-xs text-muted-foreground">{t.imageLocGeminiModelHint}</p>
-                  <label className="block text-sm">
-                    <span className="mb-1 block font-medium">{t.imageLocGeminiSize}</span>
-                    <select
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
-                      value={geminiSize}
-                      disabled={startBusy}
-                      onChange={(e) => setGeminiSize(e.target.value)}
-                    >
-                      <option value="">{t.imageLocEnvDefault}</option>
-                      {(auth?.gemini_api_image_sizes ?? ['2K', '4K']).map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="mt-1 block text-xs text-muted-foreground">{t.imageLocGeminiSizeHint}</span>
-                  </label>
-                </div>
-              ) : null}
               {geminiMode === 'openai' ? (
                 <div className="mt-3 space-y-3 border-t border-border pt-3">
                   <label className="block text-sm">

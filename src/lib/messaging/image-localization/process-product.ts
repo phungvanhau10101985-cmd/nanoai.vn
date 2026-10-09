@@ -12,7 +12,10 @@ import { fillImageConsultTranslations, mergeImageConsultContext } from './image-
 import { translateImageLocTexts } from './local-pipeline'
 import { processPreparedImage, type ProcessImageContext } from './process-one'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
+import { isImageLocalizationGptStopError } from './openai-adapter'
 import { partnerBunnyHostname } from '@/lib/storage/partner-bunny-cdn'
+import { imageLocSheetKinds, normalizeImageLocSheetKey, resolveStoredImageLocSheet } from './sheet-cache'
+import { fetchImageLocSheetsFromPg, saveImageLocSheetsToPg } from '@/lib/db/messaging-partner-image-localization-pg'
 
 export function isTransientImageLocDbError(error: unknown): boolean {
   const code = String((error as { code?: unknown })?.code || '').toUpperCase()
@@ -149,6 +152,9 @@ export async function processInventoryProduct(opts: {
     cdnHosts: partnerHost ? [partnerHost] : undefined,
   }
   const results: Record<string, ImageProcessResult> = {}
+  const shopNameChinese = normalizeImageLocSheetKey(row.source_shop_name_chinese)
+  const categoryL2 = normalizeImageLocSheetKey(row.category_l2)
+  const reuseSheets = Boolean(ctx.allowsAi && shopNameChinese && categoryL2 && !dryRun)
   opts.progressCb?.(`tải/ghép ${urls.length} ảnh`)
   const batchOcr = await prepareImageLocBatchOcr({
     urls,
@@ -167,6 +173,26 @@ export async function processInventoryProduct(opts: {
     opts.progressCb?.(`ảnh ${i + 1}/${urls.length}`)
     try {
       const prepared = batchOcr.prepared.get(normalized)
+      const kinds = prepared ? imageLocSheetKinds(prepared.blocks) : []
+      if (reuseSheets && kinds.length) {
+        const stored = await fetchImageLocSheetsFromPg({
+          partnerId: opts.partnerId,
+          shopNameChinese,
+          categoryL2,
+          language: ctx.language,
+          kinds,
+        })
+        const storedUrl = resolveStoredImageLocSheet(kinds, stored)
+        if (storedUrl) {
+          results[normalized] = {
+            original_url: normalized,
+            final_url: storedUrl,
+            status: 'processed',
+            message: 'Dùng ảnh size/giặt đã lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2',
+          }
+          continue
+        }
+      }
       results[normalized] = prepared
         ? await processPreparedImage(ctx, prepared)
         : {
@@ -175,8 +201,20 @@ export async function processInventoryProduct(opts: {
             status: 'kept',
             message: 'Không cần xử lý',
           }
+      const savedUrl = results[normalized]?.final_url
+      if (reuseSheets && kinds.length && results[normalized]?.status === 'processed' && savedUrl) {
+        await saveImageLocSheetsToPg({
+          partnerId: opts.partnerId,
+          shopNameChinese,
+          categoryL2,
+          language: ctx.language,
+          kinds,
+          imageUrl: savedUrl,
+        })
+      }
     } catch (e) {
       if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
+      if (isImageLocalizationGptStopError(e)) throw e
       raiseIfFatalDependency(e)
       results[normalized] = {
         original_url: normalized,
