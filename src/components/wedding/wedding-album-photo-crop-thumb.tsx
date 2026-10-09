@@ -90,11 +90,11 @@ export function WeddingAlbumPhotoCropThumb(props: {
   const setScale = (value: number) => props.onChange({ scale: clampScale(value) })
 
   return (
-    <div className="space-y-1">
-      <div className="relative">
+    <div className="w-full min-w-0 max-w-full space-y-1">
+      <div className="relative w-full min-w-0 max-w-full">
         <div
           ref={frameRef}
-          className="relative aspect-[3/4] cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 ring-1 ring-black/10 active:cursor-grabbing"
+          className="relative aspect-[3/4] w-full min-w-0 max-w-full cursor-grab touch-none overflow-hidden rounded-xl bg-black/5 ring-1 ring-black/10 active:cursor-grabbing"
           style={{ touchAction: 'none' }}
           tabIndex={0}
           role="application"

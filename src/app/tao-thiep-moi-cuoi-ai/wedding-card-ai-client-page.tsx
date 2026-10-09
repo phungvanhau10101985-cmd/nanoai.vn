@@ -1895,8 +1895,8 @@ export default function WeddingCardAiClientPage() {
             </div>
               </DialogContent>
             </Dialog>
-        <div id="wedding-card-editor" className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="space-y-6">
+        <div id="wedding-card-editor" className="grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <div className="w-full min-w-0 max-w-full space-y-6">
             <Card>
               <CardHeader>
                 <CardTitle>{txStyle.sectionTitle}</CardTitle>
@@ -2249,7 +2249,7 @@ export default function WeddingCardAiClientPage() {
                   </div>
                   )}
                 </div>
-                <div className="space-y-3 rounded-2xl border p-3">
+                <div className="w-full min-w-0 max-w-full space-y-3 overflow-hidden rounded-2xl border p-3">
                   <Label>{occasionCopy.albumLabel}</Label>
                   <p className="text-xs text-muted-foreground">
                     Kéo từng ảnh để chọn góc. Thanh zoom dưới ảnh để phóng phần muốn khách thấy. Nhấp đúp ảnh để về vị trí ban đầu. Ảnh mới tự lưu, căn góc sau khi ảnh đã lên thiệp.
@@ -2274,7 +2274,7 @@ export default function WeddingCardAiClientPage() {
                     />
                   </label>
                   {(card.albumImageUrls.length > 0 || albumPendingPreviews.length > 0) && (
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid w-full min-w-0 max-w-full grid-cols-3 gap-2 sm:gap-3">
                       {card.albumImageUrls.map((url, index) => {
                         const frame = resolveAlbumPhotoFrame(sectionConfig.albumPhotoCrops, index)
                         return (
@@ -2291,8 +2291,8 @@ export default function WeddingCardAiClientPage() {
                         )
                       })}
                       {albumPendingPreviews.map((url, index) => (
-                        <div key={url} className="relative">
-                          <img src={url} alt="Ảnh album mới" className="h-24 w-full rounded-xl object-cover" />
+                        <div key={url} className="relative aspect-[3/4] w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-black/5">
+                          <img src={url} alt="Ảnh album mới" className="h-full w-full object-cover" />
                           <button
                             type="button"
                             className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-white"
@@ -2305,7 +2305,7 @@ export default function WeddingCardAiClientPage() {
                       ))}
                     </div>
                   )}
-                  <div className="space-y-2">
+                  <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                     <Label>Kiểu xem album trên thiệp</Label>
                     <p className="text-xs text-muted-foreground">Ảnh hiện lớn ngay trên thiệp. Khách vuốt để xem từng ảnh.</p>
                     <WeddingAlbumLayoutPicker
@@ -2491,7 +2491,7 @@ export default function WeddingCardAiClientPage() {
 
           </div>
 
-          <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
+          <div className="w-full min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start">
             <Card>
               <CardHeader className="gap-2">
                 <div className="flex items-start justify-between gap-3">

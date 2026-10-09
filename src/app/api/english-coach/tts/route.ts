@@ -31,6 +31,8 @@ type Payload = {
   forceEngine?: 'auto' | 'gemini-only' | 'openai-only'
   targetLanguage?: string
   nativeLanguage?: string
+  /** Ngôn ngữ phải đọc đúng giọng ở clip này (ví dụ Vietnamese khi Ý 1 giải thích). */
+  readingLanguage?: string
   /** Bỏ qua cache, tạo âm thanh mới (dùng khi user báo phát âm sai) */
   skipCache?: boolean
 }
@@ -281,6 +283,7 @@ export async function POST(request: NextRequest) {
     const locale = String(payload.locale || '').trim()
     const targetLanguage = String(payload.targetLanguage || '').trim()
     const nativeLanguage = String(payload.nativeLanguage || '').trim()
+    const readingLanguage = String(payload.readingLanguage || '').trim()
     const requestedEngine =
       payload.forceEngine === 'gemini-only' || payload.forceEngine === 'openai-only'
         ? payload.forceEngine
@@ -336,7 +339,23 @@ export async function POST(request: NextRequest) {
     console.info(`[TTS][${requestId}] cache-miss key=${cacheKey.slice(0, 12)}`)
 
     let extracted: TtsExtracted = null
-    const strictReadPrompt = `${voiceStyle ? `${voiceStyle}\n` : ''}You are the selected teacher voice for this lesson.
+    const strictReadPrompt = readingLanguage
+      ? `${voiceStyle ? `${voiceStyle}\n` : ''}You are reading one short lesson clip aloud.
+Reading language: ${readingLanguage}.
+Locale/accent: ${normalizedLocale}.
+Selected voice: ${voiceName}.
+Selected gender: ${teacherGender || 'unspecified'}.
+
+Reading rules (strict):
+1) Read EXACTLY the provided text in original order.
+2) Do not translate, explain, paraphrase, summarize, or add/remove any words.
+3) Pronounce every word as a native ${readingLanguage} speaker (${normalizedLocale}). Do not use another language's accent.
+4) If the reading language is Vietnamese, use standard Vietnamese tones and syllables (sắc, huyền, hỏi, ngã, nặng). Do not read it with a Chinese accent.
+5) Keep teacher-like pacing and natural punctuation pauses.
+
+Text:
+${speechInput.text}`
+      : `${voiceStyle ? `${voiceStyle}\n` : ''}You are the selected teacher voice for this lesson.
 Teacher profile:
 - Selected voice: ${voiceName}
 - Selected gender: ${teacherGender || 'unspecified'}

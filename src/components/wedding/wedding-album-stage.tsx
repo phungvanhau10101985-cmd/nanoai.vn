@@ -54,7 +54,7 @@ function AlbumPhoto(props: { url: string; alt: string; className?: string; frame
   )
 }
 
-function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; className?: string }) {
+function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; className?: string; compact?: boolean }) {
   const Icon = props.dir < 0 ? ChevronLeft : ChevronRight
   return (
     <button
@@ -66,12 +66,13 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
       }}
       data-album-chrome=""
       className={cn(
-        'absolute top-1/2 z-20 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
-        props.dir < 0 ? 'left-1 sm:left-2' : 'right-1 sm:right-2',
+        'absolute top-1/2 z-20 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
+        props.compact ? 'h-7 w-7' : 'h-9 w-9 sm:h-10 sm:w-10',
+        props.dir < 0 ? (props.compact ? 'left-1' : 'left-1.5 sm:left-3') : (props.compact ? 'right-1' : 'right-1.5 sm:right-3'),
         props.className,
       )}
     >
-      <Icon className="h-5 w-5" />
+      <Icon className={props.compact ? 'h-4 w-4' : 'h-5 w-5'} />
     </button>
   )
 }
@@ -259,7 +260,7 @@ export function WeddingAlbumStage(props: {
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') return
     if (count < 2 || settling.current) return
-    if ((event.target as HTMLElement).closest('[data-album-chrome], [data-album-slide-scroller]')) return
+    if ((event.target as HTMLElement).closest('[data-album-chrome], [data-album-slide-scroller], [data-album-film-strip]')) return
     drag.current = { active: true, startX: event.clientX }
     setSmooth(false)
     try {
@@ -301,10 +302,10 @@ export function WeddingAlbumStage(props: {
   const expandLabel = navCopy.expand
 
   return (
-    <div className={cn('relative w-full min-w-0 max-w-full', layout === 'film' && 'overflow-x-clip', props.className)}>
+    <div className={cn('relative w-full min-w-0 max-w-full overflow-hidden', props.className)}>
       <div
         ref={swipeRootRef}
-        className="relative select-none"
+        className="relative w-full min-w-0 max-w-full select-none overflow-hidden"
         style={{
           touchAction: layout === 'slide' ? 'pan-x pan-y' : 'pan-y',
           overscrollBehaviorX: 'contain',
@@ -319,7 +320,7 @@ export function WeddingAlbumStage(props: {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="transition-opacity duration-300 ease-out" style={{ opacity: revealed ? 1 : 0 }}>
+        <div className="w-full min-w-0 max-w-full overflow-hidden transition-opacity duration-300 ease-out" style={{ opacity: revealed ? 1 : 0 }}>
           <AlbumFrame
             layout={layout}
             urls={urls}
@@ -331,6 +332,7 @@ export function WeddingAlbumStage(props: {
             frameOf={(photoIndex) => resolveAlbumPhotoFrame(props.crops, photoIndex)}
             onNudge={nudge}
             onJump={jumpTo}
+            onExpand={props.onExpand}
             onIndex={(next) => {
               setGlide(0)
               glideRef.current = 0
@@ -340,8 +342,8 @@ export function WeddingAlbumStage(props: {
         </div>
         {count > 1 ? (
           <>
-            <Arrow dir={-1} label={prevLabel} onClick={() => nudge(-1)} />
-            <Arrow dir={1} label={nextLabel} onClick={() => nudge(1)} />
+            <Arrow dir={-1} label={prevLabel} onClick={() => nudge(-1)} compact={props.compact} />
+            <Arrow dir={1} label={nextLabel} onClick={() => nudge(1)} compact={props.compact} />
           </>
         ) : null}
         {props.onExpand ? (
@@ -374,18 +376,21 @@ export function WeddingAlbumStage(props: {
 }
 
 function filmCellSize(compact: boolean | undefined) {
-  if (compact) return { width: '72px', height: '96px' }
-  return { width: 'clamp(64px, 18vw, 96px)', height: 'clamp(88px, 22vw, 120px)' }
+  if (compact) return { width: '84px', height: '112px' }
+  return { width: 'clamp(152px, 42vw, 204px)', height: 'clamp(202px, 56vw, 272px)' }
 }
 
-function FilmSprockets() {
+function FilmSprockets(props: { compact?: boolean }) {
+  const compact = props.compact
   return (
     <div
       aria-hidden
-      className="mx-2 h-2 shrink-0"
+      className={cn('mx-2 shrink-0', compact ? 'h-2' : 'h-3 sm:h-3.5')}
       style={{
-        backgroundImage: 'radial-gradient(circle, #d6d3d1 1.5px, transparent 1.7px)',
-        backgroundSize: '14px 8px',
+        backgroundImage: compact
+          ? 'radial-gradient(circle, #d6d3d1 1.5px, transparent 1.7px)'
+          : 'radial-gradient(circle, #f5f5f4 2.2px, transparent 2.4px)',
+        backgroundSize: compact ? '14px 8px' : '18px 12px',
         backgroundRepeat: 'repeat-x',
         backgroundPosition: 'center',
       }}
@@ -393,7 +398,7 @@ function FilmSprockets() {
   )
 }
 
-/** Dải phim: chỉ một hàng khung nhỏ, không ảnh hero full khung. */
+/** Dải phim: phong cách cuộn phim điện ảnh vintage, ảnh lớn rõ nét và cuộn ngang mượt mà. */
 function FilmStrip(props: {
   urls: string[]
   alt: string
@@ -404,6 +409,7 @@ function FilmStrip(props: {
   compact?: boolean
   frameOf: (index: number) => WeddingAlbumPhotoFrame
   onJump: (index: number) => void
+  onExpand?: (index: number) => void
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const cell = filmCellSize(props.compact)
@@ -416,19 +422,34 @@ function FilmStrip(props: {
     const scrollerRect = scroller.getBoundingClientRect()
     const activeRect = active.getBoundingClientRect()
     const delta = activeRect.left - scrollerRect.left - (scrollerRect.width - activeRect.width) / 2
-    scroller.scrollBy({ left: delta, behavior: 'auto' })
+    if (Math.abs(delta) > 1) {
+      scroller.scrollBy({ left: delta, behavior: 'smooth' })
+    }
   }, [props.index, props.urls.length])
 
   return (
-    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-stone-950 py-2">
-      <FilmSprockets />
+    <div
+      className={cn(
+        'w-full min-w-0 max-w-full overflow-hidden rounded-2xl bg-stone-950 shadow-xl',
+        props.compact ? 'py-2' : 'py-3 sm:py-3.5',
+      )}
+    >
+      <FilmSprockets compact={props.compact} />
       <div
         ref={scrollerRef}
-        className="mt-1.5 flex w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin]"
-        style={{ justifyContent: 'safe center' }}
+        className={cn(
+          'w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin] [scrollbar-color:#78716c_transparent]',
+          props.compact ? 'mt-1.5' : 'mt-2.5',
+        )}
         data-album-film-strip=""
       >
-        <div className="flex w-max max-w-none gap-2 px-2">
+        <div
+          className={cn(
+            'flex w-max items-center',
+            props.compact ? 'gap-2 px-2' : 'gap-3 px-3 sm:gap-4 sm:px-5',
+          )}
+          style={{ minWidth: '100%', justifyContent: 'safe center' }}
+        >
           {props.urls.map((url, i) => {
             const ad = Math.abs(wrappedDelta(i, props.focus, props.count))
             const on = ad < 0.45
@@ -437,8 +458,14 @@ function FilmStrip(props: {
                 key={`${url}-${i}`}
                 type="button"
                 data-album-film-on={on ? '1' : '0'}
-                onClick={() => props.onJump(i)}
-                className="relative shrink-0 overflow-hidden rounded-sm bg-black"
+                onClick={() => {
+                  if (on && props.onExpand) {
+                    props.onExpand(i)
+                  } else {
+                    props.onJump(i)
+                  }
+                }}
+                className="relative shrink-0 overflow-hidden rounded-md bg-stone-900"
                 style={{
                   width: cell.width,
                   height: cell.height,
@@ -446,8 +473,9 @@ function FilmStrip(props: {
                   maxWidth: cell.width,
                   minHeight: cell.height,
                   maxHeight: cell.height,
-                  opacity: on ? 1 : 0.72,
-                  boxShadow: on ? 'inset 0 0 0 2px #fff' : undefined,
+                  opacity: on ? 1 : 0.65,
+                  transform: on ? 'scale(1)' : 'scale(0.96)',
+                  boxShadow: on ? 'inset 0 0 0 2.5px #fff, 0 4px 16px rgba(0,0,0,0.5)' : undefined,
                   transition: props.transition,
                 }}
               >
@@ -472,8 +500,8 @@ function FilmStrip(props: {
           })}
         </div>
       </div>
-      <div className="mt-1.5">
-        <FilmSprockets />
+      <div className={props.compact ? 'mt-1.5' : 'mt-2.5'}>
+        <FilmSprockets compact={props.compact} />
       </div>
     </div>
   )
@@ -610,6 +638,7 @@ function AlbumFrame(props: {
   frameOf: (index: number) => WeddingAlbumPhotoFrame
   onNudge: (dir: -1 | 1) => void
   onJump: (index: number) => void
+  onExpand?: (index: number) => void
   onIndex: (index: number) => void
 }) {
   const { urls, alt, index, glide, smooth } = props
@@ -731,6 +760,7 @@ function AlbumFrame(props: {
         compact={props.compact}
         frameOf={props.frameOf}
         onJump={props.onJump}
+        onExpand={props.onExpand}
       />
     )
   }
@@ -850,8 +880,8 @@ export function WeddingAlbumLayoutPicker(props: {
   const selected = resolveWeddingAlbumLayoutId(props.selectedId || DEFAULT_WEDDING_ALBUM_LAYOUT_ID)
   const urls = (props.previewUrls ?? []).filter(Boolean)
   return (
-    <div className="w-full min-w-0 max-w-full space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <div className="w-full min-w-0 max-w-full space-y-3 overflow-hidden">
+      <div className="grid w-full min-w-0 max-w-full grid-cols-2 gap-2 sm:grid-cols-4">
         {WEDDING_ALBUM_LAYOUTS.map((layout) => {
           const on = layout.id === selected
           return (
@@ -860,7 +890,7 @@ export function WeddingAlbumLayoutPicker(props: {
               type="button"
               onClick={() => props.onSelect(layout.id)}
               className={cn(
-                'rounded-xl border px-2 py-2 text-left text-xs font-medium transition',
+                'min-w-0 truncate rounded-xl border px-2 py-2 text-left text-xs font-medium transition',
                 on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white text-stone-700 hover:border-stone-400',
               )}
             >
@@ -870,7 +900,9 @@ export function WeddingAlbumLayoutPicker(props: {
         })}
       </div>
       {urls.length > 0 ? (
-        <WeddingAlbumStage urls={urls} alt="" layoutId={selected} locale={props.locale} crops={props.crops} compact />
+        <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50/50 p-2 sm:p-2.5">
+          <WeddingAlbumStage urls={urls} alt="" layoutId={selected} locale={props.locale} crops={props.crops} compact />
+        </div>
       ) : null}
     </div>
   )

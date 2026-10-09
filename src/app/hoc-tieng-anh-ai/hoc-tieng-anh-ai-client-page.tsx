@@ -1712,6 +1712,99 @@ function stripPinyinInParentheses(text: string): string {
     .trim()
 }
 
+const CJK_SPEECH_PUNCT = /[，。！？、；：「」『』（）【】《》〈〉]/u
+
+function targetScriptCharPattern(targetCode: LanguageCode): RegExp | null {
+  if (targetCode === 'zh' || targetCode === 'ja') return /[\u3040-\u30FF\u4E00-\u9FFF]/u
+  if (targetCode === 'ko') return /[\uAC00-\uD7AF]/u
+  if (targetCode === 'th') return /[\u0E00-\u0E7F]/u
+  if (targetCode === 'hi') return /[\u0900-\u097F]/u
+  return null
+}
+
+function tidySpeechSpan(text: string): string {
+  return String(text || '')
+    .replace(/[“”«»"]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([,.;:!?，。！？、])/g, '$1')
+    .trim()
+}
+
+/**
+ * Câu giải thích đọc cả hai ngôn ngữ: tiếng mẹ đẻ và tiếng đang học.
+ * Giữ nguyên câu tiếng Việt (kể cả dấu ấ/ế/ệ). Chỉ bỏ pinyin trong ngoặc.
+ * Chữ Hán/Kana/Hangul đọc bằng giọng ngôn ngữ đích; phần còn lại bằng giọng mẹ đẻ.
+ */
+function splitExplanationSpeechSpans(
+  text: string,
+  targetCode: LanguageCode
+): Array<{ text: string; kind: 'target' | 'native' }> {
+  const cleaned = stripPinyinInParentheses(String(text || '')).replace(/\s+/g, ' ').trim()
+  if (!cleaned) return []
+  const script = targetScriptCharPattern(targetCode)
+  if (!script || !script.test(cleaned)) {
+    const nativeText = tidySpeechSpan(cleaned)
+    return nativeText ? [{ text: nativeText, kind: 'native' }] : []
+  }
+  const spans: Array<{ text: string; kind: 'target' | 'native' }> = []
+  let buf = ''
+  let kind: 'target' | 'native' | null = null
+  const flush = () => {
+    if (!kind) {
+      buf = ''
+      return
+    }
+    const tidy = tidySpeechSpan(buf)
+    buf = ''
+    const flushedKind = kind
+    if (!tidy || !/[\p{L}\p{N}]/u.test(tidy)) return
+    const last = spans[spans.length - 1]
+    if (last && last.kind === flushedKind) {
+      last.text = `${last.text} ${tidy}`.replace(/\s+/g, ' ').trim()
+      return
+    }
+    spans.push({ text: tidy, kind: flushedKind })
+  }
+  for (const ch of Array.from(cleaned)) {
+    const nextKind: 'target' | 'native' = script.test(ch) || CJK_SPEECH_PUNCT.test(ch) ? 'target' : 'native'
+    if (kind === null) {
+      kind = nextKind
+      buf = ch
+      continue
+    }
+    if (nextKind === kind) {
+      buf += ch
+      continue
+    }
+    flush()
+    kind = nextKind
+    buf = ch
+  }
+  flush()
+  return spans
+}
+
+function expandTeacherSpeechClips(
+  segments: Array<{ key: string; text: string }>,
+  targetCode: LanguageCode
+): Array<{ key: string; text: string; kind: 'target' | 'native' }> {
+  const out: Array<{ key: string; text: string; kind: 'target' | 'native' }> = []
+  for (const seg of segments) {
+    const raw = String(seg.text || '').trim()
+    if (!raw) continue
+    const isTargetSentence = seg.key.endsWith('__main')
+    if (!isTargetSentence) {
+      splitExplanationSpeechSpans(raw, targetCode).forEach((span, index) => {
+        out.push({ key: `${seg.key}__sp${index}`, text: span.text, kind: span.kind })
+      })
+      continue
+    }
+    const text = stripPhoneticForTts(raw, targetCode)
+    if (text) out.push({ key: seg.key, text, kind: 'target' })
+  }
+  return out
+}
+
 /** Bỏ phiên âm Latin (pinyin, romaji, v.v.) trước khi gửi TTS – tránh đọc 2 lần. Áp dụng đa ngôn ngữ. */
 function stripPhoneticForTts(text: string, targetCode: LanguageCode): string {
   const s = String(text || '').trim()
@@ -3778,7 +3871,13 @@ export default function HocTiengAnhAiClientPage() {
 
   const createTtsAudioData = async (
     text: string,
-    opts?: { locale?: string; languageLabel?: string; forceEngine?: 'auto' | 'gemini-only' | 'openai-only'; skipCache?: boolean }
+    opts?: {
+      locale?: string
+      languageLabel?: string
+      readingLanguage?: string
+      forceEngine?: 'auto' | 'gemini-only' | 'openai-only'
+      skipCache?: boolean
+    }
   ) => {
     const normalizedText = String(text || '').trim()
     if (!normalizedText) {
@@ -3826,6 +3925,7 @@ export default function HocTiengAnhAiClientPage() {
       skipCache: opts?.skipCache,
       targetLanguage: activeTeacher.languageLabel,
       nativeLanguage: selectedNativeLanguage.apiLabel,
+      readingLanguage: String(opts?.readingLanguage || '').trim(),
       voiceStyle:
         activeTeacher.gender === 'male'
           ? `Speak with a clearly masculine native ${labelToUse} teacher voice. Calm, warm, and natural.`
@@ -3905,13 +4005,13 @@ export default function HocTiengAnhAiClientPage() {
     })
   }
 
-  const tryLoadCachedTtsAudio = async (text: string) => {
+  const tryLoadCachedTtsAudio = async (text: string, localeOverride?: string) => {
     const normalized = String(text || '').trim()
     if (!normalized) return null
     const { ok, data } = await getTtsCache({
       text: normalized,
       voiceName: selectedVoice,
-      locale: activeTeacher.locale,
+      locale: String(localeOverride || activeTeacher.locale || '').trim() || 'en-US',
     })
     const payload = data as {
       found?: boolean
@@ -4040,21 +4140,28 @@ export default function HocTiengAnhAiClientPage() {
       }
     }
 
+    const correctionItems = correctionsByMessageId[messageId] || []
     const correctionNote = String(correctionNoteByMessageId[messageId] || '').trim()
+    const explanationText =
+      correctionItems.length > 0
+        ? buildCorrectionDisplayText(correctionItems, correctionLabels.original, correctionLabels.fixed)
+        : correctionNote
     const mainSentence = String(mainSentenceByMessageId[messageId] || '').trim()
     const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
     const segmentSeed = (
       learningMode === 'reflex'
         ? [{ key: `${messageId}__main`, text: String(mainSentence || text || '').trim() }]
         : [
-          { key: `${messageId}__correction_note`, text: correctionNote },
+          { key: `${messageId}__correction_note`, text: explanationText },
           { key: `${messageId}__main`, text: mainSentence },
           { key: `${messageId}__intent_answer`, text: intentAnswer },
         ]
     )
-    const segments = (Array.isArray(segmentSeed) ? segmentSeed : [])
-      .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(String(seg.text || '').trim(), languageCode) }))
-      .filter((seg) => Boolean(seg.text))
+    let segments = expandTeacherSpeechClips(Array.isArray(segmentSeed) ? segmentSeed : [], languageCode)
+    if (segments.length === 0 && learningMode !== 'reflex') {
+      const raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
+      segments = expandTeacherSpeechClips([{ key: `${messageId}__correction_note`, text: raw }], languageCode)
+    }
 
     if (segments.length === 0) {
       let raw = String(teacherSpeakTextByMessageId[messageId] || text || '').trim()
@@ -4097,15 +4204,18 @@ export default function HocTiengAnhAiClientPage() {
       const urls: string[] = []
       const nextCache: Record<string, string> = {}
       for (const seg of segments) {
+        const voice = voiceForSpeechKind(seg.kind)
         let url = String(teacherAudioByMessageIdRef.current[seg.key] || '').trim()
         if (!url) {
-          const cachedDb = await tryLoadCachedTtsAudio(seg.text)
+          const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale)
           if (cachedDb?.url) url = cachedDb.url
         }
         if (!url && !busy) {
-          const single = await createConsistentTeacherTtsAudioData(seg.text, {
-            locale: activeTeacher.locale,
-            languageLabel: activeTeacher.languageLabel,
+          const single = await createTtsAudioData(seg.text, {
+            locale: voice.locale,
+            languageLabel: voice.languageLabel,
+            readingLanguage: voice.readingLanguage,
+            forceEngine: 'auto',
           })
           url = String(single?.url || '').trim()
         }
@@ -4194,8 +4304,9 @@ export default function HocTiengAnhAiClientPage() {
         ? buildCorrectionDisplayText(items, correctionLabels.original, correctionLabels.fixed)
         : correctionNote
     if (!textForDisplay) return
-    const textForTts = stripPhoneticForTts(textForDisplay, languageCode)
     const key = `${messageId}__correction_note`
+    const clips = expandTeacherSpeechClips([{ key, text: textForDisplay }], languageCode)
+    if (clips.length === 0) return
     if (ttsLoadingByKey[key]) return
     if (listening) {
       try {
@@ -4204,20 +4315,46 @@ export default function HocTiengAnhAiClientPage() {
         // continue replay flow even if mic stop fails
       }
     }
-    const cached = teacherAudioByMessageIdRef.current[key]
-    if (cached) {
-      await playAudioUrl(cached)
+    const cachedUrls = clips
+      .map((clip) => String(teacherAudioByMessageIdRef.current[clip.key] || '').trim())
+      .filter(Boolean)
+    if (cachedUrls.length === clips.length) {
+      for (const url of cachedUrls) await playAudioUrl(url)
       return
     }
     if (busy) return
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(textForTts)
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [key]: generated[0]?.url || '',
+      const urls: string[] = []
+      const nextCache: Record<string, string> = {}
+      for (const clip of clips) {
+        const voice = voiceForSpeechKind(clip.kind)
+        let url = String(teacherAudioByMessageIdRef.current[clip.key] || '').trim()
+        if (!url) {
+          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale)
+          if (cachedDb?.url) url = cachedDb.url
+        }
+        if (!url) {
+          const single = await createTtsAudioData(clip.text, {
+            locale: voice.locale,
+            languageLabel: voice.languageLabel,
+            readingLanguage: voice.readingLanguage,
+            forceEngine: 'auto',
+          })
+          url = String(single?.url || '').trim()
+        }
+        if (!url) continue
+        nextCache[clip.key] = url
+        urls.push(url)
       }
-      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: generated[0]?.url || '' }))
+      if (Object.keys(nextCache).length > 0) {
+        teacherAudioByMessageIdRef.current = {
+          ...teacherAudioByMessageIdRef.current,
+          ...nextCache,
+        }
+        setTeacherAudioByMessageId((prev) => ({ ...prev, ...nextCache }))
+      }
+      for (const url of urls) await playAudioUrl(url)
     } finally {
       setTtsLoadingByKey((prev) => ({ ...prev, [key]: false }))
     }
@@ -4226,8 +4363,9 @@ export default function HocTiengAnhAiClientPage() {
   const replayTeacherIntentAnswer = async (messageId: string) => {
     const intentAnswer = String(intentAnswerByMessageId[messageId] || '').trim()
     if (!intentAnswer) return
-    const textForTts = stripPhoneticForTts(intentAnswer, languageCode)
     const key = `${messageId}__intent_answer`
+    const clips = expandTeacherSpeechClips([{ key, text: intentAnswer }], languageCode)
+    if (clips.length === 0) return
     if (ttsLoadingByKey[key]) return
     if (listening) {
       try {
@@ -4236,35 +4374,54 @@ export default function HocTiengAnhAiClientPage() {
         // continue replay flow even if mic stop fails
       }
     }
-    const cached = teacherAudioByMessageIdRef.current[key]
-    if (cached) {
-      await playAudioUrl(cached)
+    const cachedUrls = clips
+      .map((clip) => String(teacherAudioByMessageIdRef.current[clip.key] || '').trim())
+      .filter(Boolean)
+    if (cachedUrls.length === clips.length) {
+      for (const url of cachedUrls) await playAudioUrl(url)
       return
     }
-    if (busy || listening) {
-      const cachedDb = await tryLoadCachedTtsAudio(textForTts)
-      if (!cachedDb) return
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [key]: cachedDb.url,
-      }
-      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: cachedDb.url }))
-      await playAudioUrl(cachedDb.url)
-      return
-    }
+    if (busy || listening) return
     setTtsLoadingByKey((prev) => ({ ...prev, [key]: true }))
     try {
-      const generated = await playBestEffortTts(textForTts)
-      teacherAudioByMessageIdRef.current = {
-        ...teacherAudioByMessageIdRef.current,
-        [key]: generated[0]?.url || '',
+      const urls: string[] = []
+      const nextCache: Record<string, string> = {}
+      let firstAudio: { url: string; blob: Blob; blobType: string } | null = null
+      for (const clip of clips) {
+        const voice = voiceForSpeechKind(clip.kind)
+        let url = String(teacherAudioByMessageIdRef.current[clip.key] || '').trim()
+        if (!url) {
+          const cachedDb = await tryLoadCachedTtsAudio(clip.text, voice.locale)
+          if (cachedDb?.url) {
+            url = cachedDb.url
+            if (!firstAudio) firstAudio = cachedDb
+          }
+        }
+        if (!url) {
+          const single = await createTtsAudioData(clip.text, {
+            locale: voice.locale,
+            languageLabel: voice.languageLabel,
+            readingLanguage: voice.readingLanguage,
+            forceEngine: 'auto',
+          })
+          url = String(single?.url || '').trim()
+          if (!firstAudio && single?.url) firstAudio = single
+        }
+        if (!url) continue
+        nextCache[clip.key] = url
+        urls.push(url)
       }
-      setTeacherAudioByMessageId((prev) => ({ ...prev, [key]: generated[0]?.url || '' }))
-      // Preset lessons: when idea-3 audio is missing, persist generated audio
-      // so current session and next sessions can reuse it.
-      if (isPresetPageSession && generated[0]) {
+      if (Object.keys(nextCache).length > 0) {
+        teacherAudioByMessageIdRef.current = {
+          ...teacherAudioByMessageIdRef.current,
+          ...nextCache,
+        }
+        setTeacherAudioByMessageId((prev) => ({ ...prev, ...nextCache }))
+      }
+      for (const url of urls) await playAudioUrl(url)
+      if (isPresetPageSession && firstAudio) {
         try {
-          const uploadedAudioUrl = await uploadTeacherAudio(messageId, generated[0].blob, generated[0].blobType)
+          const uploadedAudioUrl = await uploadTeacherAudio(messageId, firstAudio.blob, firstAudio.blobType)
           if (uploadedAudioUrl) {
             teacherAudioByMessageIdRef.current = {
               ...teacherAudioByMessageIdRef.current,
@@ -4639,12 +4796,20 @@ export default function HocTiengAnhAiClientPage() {
     const fromRef = String(teacherAudioByMessageIdRef.current[key] || '').trim()
     const fromState = String(teacherAudioByMessageId[key] || '').trim()
     if (fromRef || fromState) return true
+    if (key.endsWith('__correction_note') || key.endsWith('__intent_answer')) {
+      const spanKey = `${key}__sp0`
+      const spanRef = String(teacherAudioByMessageIdRef.current[spanKey] || '').trim()
+      const spanState = String(teacherAudioByMessageId[spanKey] || '').trim()
+      if (spanRef || spanState) return true
+    }
     if (!key.includes('__')) {
       const segKeys = [`${key}__correction_note`, `${key}__main`, `${key}__intent_answer`]
       return segKeys.some((k) => {
         const r = String(teacherAudioByMessageIdRef.current[k] || '').trim()
         const s = String(teacherAudioByMessageId[k] || '').trim()
-        return Boolean(r || s)
+        const spanRef = String(teacherAudioByMessageIdRef.current[`${k}__sp0`] || '').trim()
+        const spanState = String(teacherAudioByMessageId[`${k}__sp0`] || '').trim()
+        return Boolean(r || s || spanRef || spanState)
       })
     }
     return false
@@ -4674,34 +4839,44 @@ export default function HocTiengAnhAiClientPage() {
           { key: `${messageId}__intent_answer`, text: String(opts?.intentAnswer || '').trim() },
         ]
     )
-    const segments = (Array.isArray(segmentSeed) ? segmentSeed : [])
-      .map((seg) => ({ key: seg.key, text: stripPhoneticForTts(seg.text, languageCode) }))
-      .filter((seg) => Boolean(seg.text))
+    const segments = expandTeacherSpeechClips(Array.isArray(segmentSeed) ? segmentSeed : [], languageCode)
 
     if (segments.length === 0) {
-      const fallback = stripPhoneticForTts(String(text || '').trim(), languageCode)
-      if (!fallback) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
-      segments.push({ key: `${messageId}__main`, text: fallback })
+      if (learningMode === 'reflex') {
+        const fallback = stripPhoneticForTts(String(text || '').trim(), languageCode)
+        if (!fallback) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
+        segments.push({ key: `${messageId}__main`, text: fallback, kind: 'target' })
+      } else {
+        const bilingual = expandTeacherSpeechClips(
+          [{ key: `${messageId}__correction_note`, text: String(text || '').trim() }],
+          languageCode
+        )
+        if (bilingual.length === 0) throw new Error(localText('Không tạo được âm thanh.', 'Unable to create audio.'))
+        segments.push(...bilingual)
+      }
     }
 
     const nextCache: Record<string, string> = {}
     let firstPart: { url: string; blob: Blob; blobType: string } | null = null
     for (const seg of segments) {
+      const voice = voiceForSpeechKind(seg.kind)
       const existing = String(teacherAudioByMessageIdRef.current[seg.key] || '').trim()
       if (existing) {
         nextCache[seg.key] = existing
         continue
       }
-      const cachedDb = await tryLoadCachedTtsAudio(seg.text)
+      const cachedDb = await tryLoadCachedTtsAudio(seg.text, voice.locale)
       if (cachedDb?.url) {
         nextCache[seg.key] = cachedDb.url
         if (!firstPart) firstPart = cachedDb
         continue
       }
       try {
-        const single = await createConsistentTeacherTtsAudioData(seg.text, {
-          locale: activeTeacher.locale,
-          languageLabel: activeTeacher.languageLabel,
+        const single = await createTtsAudioData(seg.text, {
+          locale: voice.locale,
+          languageLabel: voice.languageLabel,
+          readingLanguage: voice.readingLanguage,
+          forceEngine: 'auto',
         })
         if (single?.url) {
           nextCache[seg.key] = single.url
@@ -5064,6 +5239,18 @@ export default function HocTiengAnhAiClientPage() {
       hi: 'hi-IN',
     }
     return map[code] || 'vi-VN'
+  }
+
+  const voiceForSpeechKind = (kind: 'target' | 'native') => {
+    if (kind === 'native') {
+      const label = String(selectedNativeLanguage?.apiLabel || 'Vietnamese').trim() || 'Vietnamese'
+      return { locale: getNativeTtsLocale(), languageLabel: label, readingLanguage: label }
+    }
+    return {
+      locale: String(activeTeacher.locale || '').trim() || 'en-US',
+      languageLabel: String(activeTeacher.languageLabel || '').trim() || 'English',
+      readingLanguage: '',
+    }
   }
 
   const playMeaningInNativeLanguage = async (meaningText: string) => {

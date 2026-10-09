@@ -20,28 +20,28 @@ export function isWeddingPolishField(value: string): value is WeddingPolishField
   return (WEDDING_POLISH_FIELDS as readonly string[]).includes(value)
 }
 
-const SYSTEM_PROMPT = `Bạn là biên tập viên thiệp cưới tiếng Việt chuyên nghiệp.
-Nhiệm vụ: viết lại bản nháp của khách cho hay, mượt, trang trọng và ấm áp.
+const SYSTEM_PROMPT = `Bạn là nhà văn, biên tập viên thiệp cưới tiếng Việt cao cấp, có văn phong thi vị, lãng mạn, sâu lắng và giàu chất thơ.
+Nhiệm vụ: trau chuốt, nâng tầm bản nháp của cô dâu chú rể thành những câu chữ đong đầy xúc cảm, thi vị, tinh tế và rung động lòng người.
 Quy tắc bắt buộc:
-- Giữ nguyên ý chính và mọi chi tiết quan trọng khách đã nêu (tên, giờ, địa điểm, yêu cầu trang phục…).
-- Không bịa thêm thông tin.
-- Không giải thích, không markdown, không dấu ngoặc kép bọc ngoài — chỉ trả văn bản đã chỉnh.
-- Dùng tiếng Việt tự nhiên, phù hợp thiệp mời cưới.`
+- Thổi hồn chất thơ, sự lãng mạn, thi vị và ngọt ngào vào câu từ. Tránh tuyệt đối giọng văn khẩu hiệu, lý thuyết khô khan, giáo điều hay sáo rỗng.
+- Giữ trọn thông điệp cốt lõi và các dữ kiện thực tế nếu có (tên cặp đôi, ngày giờ, địa điểm, quy định trang phục...).
+- Ngôn từ trong sáng, giàu nhạc điệu, gợi cảm giác bình yên, ấm áp và gắn kết trăm năm.
+- Không giải thích, không dẫn dắt rườm rà, không markdown, không bọc dấu ngoặc kép ở hai đầu văn bản — chỉ trả về chính xác đoạn văn bản đã hoàn thiện.`
 
 function fieldInstruction(field: WeddingPolishField): string {
   switch (field) {
     case 'coupleIntro':
-      return 'Loại: đoạn mở đầu giới thiệu cặp đôi / gia đình. 2–4 câu, cảm xúc chân thành, không sáo rỗng.'
+      return 'Loại: Đoạn mở đầu thiệp cưới giới thiệu cặp đôi / duyên hạnh ngộ. 2–4 câu ngắn gọn nhưng giàu chất thơ, tinh tế, đong đầy niềm hạnh phúc và sự trân trọng khi hai người tìm thấy nhau giữa biển người mênh mông.'
     case 'loveQuote':
-      return 'Loại: quote tình yêu ngắn (1–2 câu). Có thể giữ dấu ngoặc kép quanh câu quote nếu phù hợp.'
+      return 'Loại: Quote tình yêu in trang trọng trên thiệp cưới (1–2 câu). Yêu cầu đặc biệt: Phải thật THI VỊ, lãng mạn, ngọt ngào, giàu hình ảnh gợi cảm và đong đầy xúc cảm lứa đôi (như bến đỗ bình yên, duyên lành nhân gian, ánh mắt tìm thấy tương lai, cùng nhau đi qua năm tháng bình yên...). CẤM văn phong khô cứng, giáo điều, triết lý nhạt nhòa (như "tình yêu là khởi đầu cuộc sống..."). Không đặt dấu ngoặc kép ở hai đầu.'
     case 'eventTimeline':
-      return 'Loại: lịch trình tiệc cưới. Mỗi mốc một dòng, giữ dạng: HH:MM | Tiêu đề - Ghi chú. Chỉnh từ ngữ cho rõ ràng, không đổi giờ hoặc thứ tự mốc.'
+      return 'Loại: Lịch trình tiệc cưới. Giữ chuẩn cấu trúc mỗi mốc một dòng: HH:MM | Tiêu đề - Ghi chú. Chỉnh câu chữ cho trang trọng, rõ ràng. TUYỆT ĐỐI không thay đổi mốc thời gian hoặc thứ tự sự kiện.'
     case 'dressCode':
-      return 'Loại: dress code / lưu ý khách mời. Ngắn gọn, lịch sự, dễ làm theo.'
+      return 'Loại: Dress code / lưu ý trang phục cho khách mời. Lời nhắn nhã nhặn, thanh lịch, tinh tế, khéo léo để khách cảm thấy thoải mái và vui vẻ hưởng ứng.'
     case 'storyText':
-      return 'Loại: câu chuyện tình yêu hoặc đoạn album ngắn. 2–5 câu, mạch lạc, có cảm xúc.'
+      return 'Loại: Câu chuyện tình yêu / kỷ niệm album cưới. 2–4 câu mang phong vị lãng mạn, êm đềm như một thước phim thanh xuân, diễn tả hành trình từ những rung động đầu tiên cho đến ngày chung đôi bền chặt.'
     case 'thankYouText':
-      return 'Loại: lời cảm ơn cuối thiệp. 1–3 câu, tri ân chân thành.'
+      return 'Loại: Lời cảm ơn cuối thiệp cưới. 1–2 câu trang nhã, ấm áp, bày tỏ lòng tri ân chân thành tới những người thân thương đã đến chung vui và chúc phúc cho tình yêu đôi lứa.'
   }
 }
 
@@ -77,6 +77,9 @@ function stripModelWrapping(text: string): string {
   }
   if (
     (out.startsWith('"') && out.endsWith('"')) ||
+    (out.startsWith('“') && out.endsWith('”')) ||
+    (out.startsWith('”') && out.endsWith('”')) ||
+    (out.startsWith('\'') && out.endsWith('\'')) ||
     (out.startsWith('「') && out.endsWith('」'))
   ) {
     out = out.slice(1, -1).trim()
@@ -101,6 +104,14 @@ export async function polishWeddingTextWithDeepseek(input: {
 
   const model = resolveDeepSeekChatModel()
   const userPrompt = buildUserPrompt(input)
+  const temperature =
+    input.field === 'loveQuote'
+      ? 0.85
+      : input.field === 'coupleIntro' || input.field === 'storyText'
+        ? 0.75
+        : input.field === 'eventTimeline'
+          ? 0.2
+          : 0.5
 
   try {
     const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
@@ -116,7 +127,7 @@ export async function polishWeddingTextWithDeepseek(input: {
             { role: 'user', content: userPrompt },
           ],
           max_tokens: 1200,
-          temperature: 0.45,
+          temperature,
         })
       ),
     })
