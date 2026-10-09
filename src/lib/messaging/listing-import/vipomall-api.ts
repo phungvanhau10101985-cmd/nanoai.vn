@@ -256,7 +256,7 @@ export function vipomallApiDetailToProductData(
     if (galleryKeys.has(u.split('?')[0])) return false
     return keepListingDetailImageUrl(u)
   })
-  let mainImage = cheapest?.img || gallery[0] || ''
+  const mainImage = cheapest?.img || gallery[0] || ''
   if (!gallery.length && mainImage) gallery.push(mainImage)
 
   let title = cleanText(detail.product_name, 500)

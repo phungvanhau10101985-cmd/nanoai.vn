@@ -112,9 +112,9 @@ describe('listing sell price per code', () => {
       ]
     )
     assert.equal(merged[0]?.price, 940_000)
-    assert.equal(merged[0]?.sku, '2W31-15GBN-AC220V')
+    assert.equal((merged[0] as { sku?: unknown })?.sku, '2W31-15GBN-AC220V')
     assert.equal(merged[1]?.price, 1_240_000)
-    assert.equal(merged[1]?.sku, undefined)
+    assert.equal((merged[1] as { sku?: unknown })?.sku, undefined)
     assert.deepEqual(mergeColorPriceFields([], [{ name: '2W31-25GBN-AC220V', price: 1_240_000 }]), [])
     const priced = shopProductForSelectedColor(
       { priceAmount: 940_000, salePriceAmount: 940_000, colors: merged },

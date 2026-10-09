@@ -200,7 +200,7 @@ export function clipEdgeBannerBox(
     x2 = Math.min(x2, other.bbox.x - 8)
   }
   const x = box.x <= 48 ? 0 : Math.max(0, Math.round(box.x) - 12)
-  let y = Math.max(0, Math.round(box.y) - 2)
+  const y = Math.max(0, Math.round(box.y) - 2)
   let bottom = Math.round(box.y + box.height)
   if (bottom >= imageHeight * 0.9) bottom = imageHeight
   bottom = Math.min(imageHeight, Math.max(y + 1, bottom))
@@ -612,10 +612,10 @@ function boxRemainder(outer: PixelBox, inner: PixelBox): PixelBox[] {
   const oy1 = outer.y
   const ox2 = outer.x + outer.width
   const oy2 = outer.y + outer.height
-  let ix1 = Math.max(ox1, inner.x)
-  let iy1 = Math.max(oy1, inner.y)
-  let ix2 = Math.min(ox2, inner.x + inner.width)
-  let iy2 = Math.min(oy2, inner.y + inner.height)
+  const ix1 = Math.max(ox1, inner.x)
+  const iy1 = Math.max(oy1, inner.y)
+  const ix2 = Math.min(ox2, inner.x + inner.width)
+  const iy2 = Math.min(oy2, inner.y + inner.height)
   if (ix2 <= ix1 || iy2 <= iy1) return [outer]
   const parts: PixelBox[] = []
   if (oy1 < iy1) parts.push({ x: ox1, y: oy1, width: ox2 - ox1, height: iy1 - oy1 })

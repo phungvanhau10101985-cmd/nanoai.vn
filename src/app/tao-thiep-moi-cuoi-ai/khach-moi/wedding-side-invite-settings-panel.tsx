@@ -139,7 +139,7 @@ export function WeddingSideInviteSettingsPanel({
           label={`Lịch trình ${sideLabel}`}
           value={timelineShown}
           onChange={(value) => patch(timelineKey, value)}
-          hint="Mỗi dòng một mốc: chọn giờ và nhập nội dung bên cạnh."
+          hint="Mỗi mốc: chọn giờ, rồi nhập nội dung. Trên điện thoại bấm ô nội dung, gõ hết câu và bấm OK."
         />
       </div>
 

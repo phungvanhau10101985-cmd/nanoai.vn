@@ -115,6 +115,7 @@ export async function fetchPartnerTaxonomyInfoFromPg(partnerId: string): Promise
 }
 
 export async function fetchPartnerTaxonomyFormTreeFromPg(partnerId: string): Promise<TaxonomyFormTreeNode[]> {
+  void partnerId
   if (!isPgConfigured()) return []
   try {
     const rows = await getPgPool().query<{
@@ -167,6 +168,7 @@ export async function fetchPartnerTaxonomyFormTreeFromPg(partnerId: string): Pro
 }
 
 export async function fetchPartnerTaxonomyClustersFromPg(partnerId: string): Promise<TaxonomyClusterOption[]> {
+  void partnerId
   if (!isPgConfigured()) return []
   try {
     const rows = await getPgPool().query<TaxonomyClusterOption>(

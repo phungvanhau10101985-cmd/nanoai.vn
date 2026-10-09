@@ -129,7 +129,8 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       <JsonLd data={jsonLd} />
       <script
         dangerouslySetInnerHTML={{
-          __html: "try{history.scrollRestoration='manual';window.scrollTo(0,0)}catch(e){}",
+          __html:
+            "try{history.scrollRestoration='manual';var pin=function(){if(window.__pwWeddingScrollFree)return;var y=window.scrollY||document.documentElement.scrollTop||0;if(y)window.scrollTo(0,0)};pin();window.addEventListener('scroll',pin,{passive:true});window.addEventListener('pageshow',pin)}catch(e){}",
         }}
       />
       <WeddingPublicClient

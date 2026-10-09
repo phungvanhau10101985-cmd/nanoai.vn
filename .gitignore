@@ -42,8 +42,11 @@ yarn-error.log*
 
 # build logs / scratch output
 .next-build-log.txt
+/tmp/
 /tmp-*
 /tmp-chat-analysis/
+_tmp*
+scripts/_tmp*
 
 # vercel
 .vercel

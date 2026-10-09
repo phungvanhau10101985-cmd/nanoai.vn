@@ -255,8 +255,10 @@ export async function processInventoryProduct(opts: {
           merged = { ...merged, context: fillImageConsultTranslations(merged.context, bySource) }
         } catch (error) {
           console.warn('[image-localization] dịch chữ tư vấn thất bại, giữ chữ gốc', error)
-          const bySource = new Map(merged.pendingSources.map((src) => [src, src] as const))
-          merged = { ...merged, context: fillImageConsultTranslations(merged.context, bySource) }
+          if (merged.context) {
+            const bySource = new Map(merged.pendingSources.map((src) => [src, src] as const))
+            merged = { ...merged, context: fillImageConsultTranslations(merged.context, bySource) }
+          }
         }
       }
       if (merged.context) {

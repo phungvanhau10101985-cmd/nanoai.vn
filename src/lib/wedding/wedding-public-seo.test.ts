@@ -19,6 +19,7 @@ const base = {
   groomImageUrl: '',
   brideImageUrl: '',
   slug: 'hau-lan',
+  occasionKey: 'wedding' as const,
 }
 
 function card(partial: Partial<typeof base> = {}) {

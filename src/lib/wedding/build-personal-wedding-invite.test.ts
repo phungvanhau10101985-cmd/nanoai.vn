@@ -81,7 +81,8 @@ describe('buildPersonalWeddingInvite', () => {
       guestName: 'Đông',
     })
     expect(text).toContain('Bạn Hậu mời bạn Đông')
-    expect(text).toContain('Bạn trân trọng mà mong đợi sự có mặt của bạn.')
+    expect(text).toContain('Sự có mặt của bạn là điều vinh dự của gia đình mình.')
+    expect(text).toContain('Bạn trân trọng và mong đợi sự có mặt của bạn.')
   })
 
   it('Chú ↔ Cháu', () => {
@@ -92,6 +93,7 @@ describe('buildPersonalWeddingInvite', () => {
     })
     expect(text).toContain('Cháu Phùng Hậu và gia đình')
     expect(text).toContain('mời chú Công')
+    expect(text).toContain('Sự có mặt của chú là điều vinh dự của gia đình cháu.')
   })
 
   it('Ba ↔ Con (+ vợ/chồng)', () => {
@@ -101,7 +103,8 @@ describe('buildPersonalWeddingInvite', () => {
       guestName: 'Tuấn',
     })
     expect(text).toContain('Con Hậu và Lan Anh mời ba Tuấn')
-    expect(text).toContain('Con trân trọng mà mong đợi sự có mặt của ba.')
+    expect(text).toContain('Sự có mặt của ba là điều vinh dự của gia đình con.')
+    expect(text).toContain('Con trân trọng và mong đợi sự có mặt của ba.')
   })
 
   it('Mẹ ↔ Con on bride side', () => {
@@ -124,7 +127,7 @@ describe('buildPersonalWeddingInvite', () => {
     expect(text).toContain('mời anh Hưởng')
     expect(text).toContain('vào lúc 17 giờ')
     expect(text).toContain('đến tham dự bữa cơm thân mật cùng gia đình.')
-    expect(text).toContain('Sự có mặt của anh là điều vinh dự của gia đình. Em trân trọng mà mong đợi sự có mặt của anh.')
+    expect(text).toContain('Sự có mặt của anh là điều vinh dự của gia đình em. Em trân trọng và mong đợi sự có mặt của anh.')
     expect(text).not.toContain('Chúng tôi')
     expect(text).not.toContain('tại ')
   })
@@ -137,6 +140,7 @@ describe('buildPersonalWeddingInvite', () => {
     })
     expect(text).toContain('Cháu Phùng Hậu và gia đình')
     expect(text).toContain('mời ông Thọ')
+    expect(text).toContain('Sự có mặt của ông là điều vinh dự của gia đình cháu.')
     expect(text).not.toContain('quý')
   })
 
@@ -179,7 +183,18 @@ describe('buildPersonalWeddingInvite', () => {
         guestHonorific: 'Em',
         guestName: 'Vy',
       }),
-    ).toContain('Chị trân trọng mà mong đợi sự có mặt của em.')
+    ).toContain('Chị trân trọng và mong đợi sự có mặt của em.')
+    expect(
+      buildPersonalWeddingInvite({ ...base, guestHonorific: 'Em', guestName: 'Vy' }),
+    ).toContain('Sự có mặt của em là điều vinh dự của gia đình anh.')
+    expect(
+      buildPersonalWeddingInvite({
+        ...base,
+        side: 'bride',
+        guestHonorific: 'Em',
+        guestName: 'Vy',
+      }),
+    ).toContain('Sự có mặt của em là điều vinh dự của gia đình chị.')
   })
 
   it('demo letter splits Anh Thanh into Em ↔ anh', () => {
@@ -197,7 +212,7 @@ describe('buildPersonalWeddingInvite', () => {
     })
     expect(demo.guestDisplayName).toBe('Anh Thanh')
     expect(demo.personalInvite).toContain('Em Phùng Hậu và gia đình mời anh Thanh')
-    expect(demo.personalInvite).toContain('Sự có mặt của anh là điều vinh dự của gia đình. Em trân trọng mà mong đợi sự có mặt của anh.')
+    expect(demo.personalInvite).toContain('Sự có mặt của anh là điều vinh dự của gia đình em. Em trân trọng và mong đợi sự có mặt của anh.')
     expect(demo.personalInvite).not.toContain('Cháu')
     expect(demo.personalInvite).not.toContain('của bạn')
   })

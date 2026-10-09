@@ -11,7 +11,6 @@ import {
 } from '@/lib/wedding/wedding-side-wishes'
 import { canAddWeddingGuests, parseWeddingGuestPackId, type WeddingGuestPackId, type WeddingGuestPackLimitCode } from '@/lib/wedding/wedding-guest-pack'
 import {
-  latestWeddingCeremonyIso,
   todayIsoInVietnam,
   WEDDING_CARD_RETENTION_DAYS,
 } from '@/lib/wedding/wedding-card-retention'
@@ -2028,9 +2027,10 @@ export async function loadWeddingAttendanceSources(
     [cardId],
   )
   const rsvps = await getPgPool().query(
-    `select guest_name, attending, guest_count, adult_count, child_count
+    `select guest_name, attending, guest_count, adult_count, child_count, coalesce(message, '') as message, created_at
      from public.wedding_card_rsvps
-     where wedding_card_id = $1::uuid`,
+     where wedding_card_id = $1::uuid
+     order by created_at desc`,
     [cardId],
   )
   return {
@@ -2054,6 +2054,8 @@ export async function loadWeddingAttendanceSources(
       guestCount: Number(row.guest_count ?? 0) || 0,
       adultCount: Number(row.adult_count ?? 0) || 0,
       childCount: Number(row.child_count ?? 0) || 0,
+      message: String(row.message ?? ''),
+      createdAt: row.created_at ? String(row.created_at) : undefined,
     })),
   }
 }

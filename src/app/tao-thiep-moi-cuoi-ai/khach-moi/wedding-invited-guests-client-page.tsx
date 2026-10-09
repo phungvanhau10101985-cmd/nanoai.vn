@@ -1,10 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Copy, ExternalLink, Loader2, Plus, Trash2, Users } from 'lucide-react'
+import {
+  Copy,
+  ExternalLink,
+  Loader2,
+  Mail,
+  MessageSquare,
+  Plus,
+  Trash2,
+  UserPlus,
+  Users,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/hooks/use-toast'
@@ -28,9 +38,15 @@ import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
 import { WeddingGuestPackPanel } from './wedding-guest-pack-panel'
 import type { WeddingGuestPackSide, WeddingGuestSideQuotas } from '@/lib/wedding/wedding-guest-pack'
 import {
+  weddingResponseHeadcount,
+  type WeddingAttendanceRsvpSource,
+} from '@/lib/wedding/wedding-attendance-summary'
+import { invitationEditorCopy, invitationOccasionShape } from '@/lib/wedding/invitation-occasion'
+import {
   confirmWeddingInvitedGuestStatus,
   loadWeddingInvitedGuestsPage,
   removeWeddingInvitedGuest,
+  saveWeddingAttendanceNotifySettings,
   saveWeddingInvitedGuest,
 } from './actions'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
@@ -228,11 +244,39 @@ function rowBelongsToSide(row: GuestRow, side: GuestSide): boolean {
 }
 
 function statsForRows(rows: GuestRow[]) {
-  const attending = rows.filter((r) => r.status === 'attending').length
-  const declined = rows.filter((r) => r.status === 'declined').length
-  const pending = rows.filter((r) => r.status === 'pending').length
-  const totalGuests = rows.reduce((sum, r) => sum + (Number(r.guestCount) || 0), 0)
-  return { attending, declined, pending, totalGuests, total: rows.length }
+  const attendingRows = rows.filter((r) => r.status === 'attending')
+  const declinedRows = rows.filter((r) => r.status === 'declined')
+  const pendingRows = rows.filter((r) => r.status === 'pending')
+
+  const attending = attendingRows.length
+  const declined = declinedRows.length
+  const pending = pendingRows.length
+
+  const attendingPeople = attendingRows.reduce(
+    (sum, r) =>
+      sum +
+      weddingResponseHeadcount({
+        status: r.status,
+        guestCount: Number(r.guestCount) || 0,
+        adultCount: r.adultCount,
+        childCount: r.childCount,
+      }),
+    0,
+  )
+
+  const declinedPeople = declinedRows.reduce(
+    (sum, r) =>
+      sum +
+      weddingResponseHeadcount({
+        status: r.status,
+        guestCount: Number(r.guestCount) || 0,
+        adultCount: r.adultCount,
+        childCount: r.childCount,
+      }),
+    0,
+  )
+
+  return { attending, attendingPeople, declined, declinedPeople, pending, total: rows.length }
 }
 
 export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: string }) {
@@ -249,6 +293,14 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [deleting, setDeleting] = useState(false)
   const [quotas, setQuotas] = useState<WeddingGuestSideQuotas | null>(null)
   const [packSide, setPackSide] = useState<WeddingGuestPackSide | null>(null)
+  const [outsideRsvps, setOutsideRsvps] = useState<WeddingAttendanceRsvpSource[]>([])
+  const [groomEmail, setGroomEmail] = useState('')
+  const [brideEmail, setBrideEmail] = useState('')
+  const [sendNotify, setSendNotify] = useState(false)
+  const [notifySaving, setNotifySaving] = useState(false)
+  const [notifySavedNote, setNotifySavedNote] = useState('')
+  const savedNotifySnapshotRef = useRef('')
+  const notifySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
@@ -258,6 +310,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   cardRef.current = card
   rowsRef.current = rows
   sideSettingsRef.current = sideSettings
+
+  const singleOccasion = useMemo(() => invitationOccasionShape(card?.occasionKey) === 'single', [card?.occasionKey])
+  const occasionCopy = useMemo(() => invitationEditorCopy(card?.occasionKey), [card?.occasionKey])
 
   const backToEditor = useCallback(() => {
     router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(cardId)}`)
@@ -292,6 +347,15 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       setRows(nextRows)
       syncSavedSnapshots(nextRows)
       if ('quotas' in result) setQuotas(result.quotas ?? null)
+      if ('outsideRsvps' in result && result.outsideRsvps) {
+        setOutsideRsvps(result.outsideRsvps)
+      }
+      if ('notifySettings' in result && result.notifySettings) {
+        setGroomEmail(result.notifySettings.groomEmail || '')
+        setBrideEmail(result.notifySettings.brideEmail || '')
+        setSendNotify(result.notifySettings.notify)
+        savedNotifySnapshotRef.current = `${result.notifySettings.groomEmail?.trim() || ''}\n${result.notifySettings.brideEmail?.trim() || ''}\n${result.notifySettings.notify ? '1' : '0'}`
+      }
     }
   }, [cardId, syncSavedSnapshots, toast])
 
@@ -364,6 +428,110 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       return
     }
     setRows((prev) => [...prev, emptyRow(side)])
+  }
+
+  const persistNotify = useCallback(
+    async (next: { groom: string; bride: string; notify: boolean }) => {
+      const snap = `${next.groom.trim()}\n${next.bride.trim()}\n${next.notify ? '1' : '0'}`
+      if (savedNotifySnapshotRef.current === snap) return
+      setNotifySaving(true)
+      const form = new FormData()
+      form.set('cardId', cardId)
+      form.set('groomEmail', next.groom.trim())
+      form.set('brideEmail', !singleOccasion ? next.bride.trim() : '')
+      form.set('notify', next.notify ? 'true' : 'false')
+      const result = await saveWeddingAttendanceNotifySettings(form)
+      setNotifySaving(false)
+      if ('error' in result && result.error) {
+        setNotifySavedNote('')
+        toast({ title: 'Chưa lưu email thông báo', description: result.error, variant: 'destructive' })
+        return
+      }
+      savedNotifySnapshotRef.current = snap
+      setNotifySavedNote('Đã lưu tự động')
+    },
+    [cardId, singleOccasion, toast],
+  )
+
+  useEffect(() => {
+    const groomTrim = groomEmail.trim()
+    const brideTrim = singleOccasion ? '' : brideEmail.trim()
+    const emailOk = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value)
+    if (!emailOk(groomTrim) || !emailOk(brideTrim)) return
+    if (sendNotify && !groomTrim && !brideTrim) return
+    const snap = `${groomTrim}\n${brideTrim}\n${sendNotify ? '1' : '0'}`
+    if (savedNotifySnapshotRef.current === snap) return
+    if (notifySaveTimerRef.current) clearTimeout(notifySaveTimerRef.current)
+    notifySaveTimerRef.current = setTimeout(() => {
+      notifySaveTimerRef.current = null
+      void persistNotify({ groom: groomTrim, bride: brideTrim, notify: sendNotify })
+    }, 800)
+    return () => {
+      if (notifySaveTimerRef.current) {
+        clearTimeout(notifySaveTimerRef.current)
+        notifySaveTimerRef.current = null
+      }
+    }
+  }, [brideEmail, groomEmail, persistNotify, sendNotify, singleOccasion])
+
+  const notifyDraftRef = useRef({ groom: groomEmail, bride: brideEmail, notify: sendNotify })
+  notifyDraftRef.current = { groom: groomEmail, bride: brideEmail, notify: sendNotify }
+  useEffect(() => {
+    const flush = () => {
+      if (notifySaveTimerRef.current) {
+        clearTimeout(notifySaveTimerRef.current)
+        notifySaveTimerRef.current = null
+      }
+      const next = notifyDraftRef.current
+      const groomTrim = next.groom.trim()
+      const brideTrim = singleOccasion ? '' : next.bride.trim()
+      const emailOk = (value: string) => !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(value)
+      if (!emailOk(groomTrim) || !emailOk(brideTrim)) return
+      if (next.notify && !groomTrim && !brideTrim) return
+      void persistNotify({ groom: groomTrim, bride: brideTrim, notify: next.notify })
+    }
+    window.addEventListener('pagehide', flush)
+    return () => window.removeEventListener('pagehide', flush)
+  }, [persistNotify, singleOccasion])
+
+  const addOutsideToSide = async (rsvp: WeddingAttendanceRsvpSource, targetSide: GuestSide) => {
+    if (!card) return
+    const sidePack: WeddingGuestPackSide = targetSide === 'bride_home' ? 'bride' : 'groom'
+    const cap = quotas?.[sidePack]?.guestCap
+    const sideCount = targetSide === 'bride_home' ? brideRows.length : groomRows.length
+    if (cap != null && sideCount >= cap) {
+      setPackSide(sidePack)
+      toast({
+        title: 'Cần nâng gói khách mời',
+        description: `Bên ${targetSide === 'bride_home' ? 'nhà gái' : 'nhà trai'} đã đạt giới hạn ${cap} khách.`,
+      })
+      return
+    }
+
+    const form = new FormData()
+    form.set('cardId', card.id)
+    form.set('guestName', rsvp.guestName)
+    form.set('guestHonorific', '')
+    form.set('inviteVenue', targetSide)
+    form.set('personalInvite', '')
+    form.set('status', rsvp.attending ? 'attending' : 'declined')
+    form.set('statusConfirmedBy', 'guest')
+    form.set('guestCount', String(rsvp.guestCount || 1))
+    form.set('adultCount', String(rsvp.adultCount || 0))
+    form.set('childCount', String(rsvp.childCount || 0))
+    form.set('wishMessage', rsvp.message || '')
+    form.set('notes', 'Gửi xác nhận qua link thiệp công khai')
+
+    const res = await saveWeddingInvitedGuest(form)
+    if ('error' in res && res.error) {
+      toast({ title: 'Lỗi', description: res.error, variant: 'destructive' })
+      return
+    }
+    toast({
+      title: 'Đã thêm vào danh sách',
+      description: `Đã đưa ${rsvp.guestName} vào danh sách khách ${targetSide === 'bride_home' ? (occasionCopy.secondaryFamily || 'nhà gái') : (occasionCopy.primaryFamily || 'nhà trai')}.`,
+    })
+    void load(true)
   }
 
   useEffect(() => {
@@ -963,20 +1131,33 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
 
   const renderSideStats = (stats: ReturnType<typeof statsForRows>, look: SideLook) => (
     <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-      {(
-        [
-          ['Khách', stats.total, look.statValue],
-          ['Có đi', stats.attending, 'text-emerald-700'],
-          ['Chưa phản hồi', stats.pending, 'text-amber-800'],
-          ['Không đi', stats.declined, 'text-rose-700'],
-          ['Số người', stats.totalGuests, look.statValue],
-        ] as const
-      ).map(([label, value, valueClass]) => (
-        <div key={label} className={cn('rounded-xl border px-3 py-2.5', look.stat)}>
-          <p className={cn('text-xs', look.statLabel)}>{label}</p>
-          <p className={cn('text-2xl font-semibold tabular-nums', valueClass)}>{value}</p>
-        </div>
-      ))}
+      <div className={cn('rounded-xl border px-3 py-2.5', look.stat)}>
+        <p className={cn('text-xs', look.statLabel)}>Khách mời</p>
+        <p className={cn('text-2xl font-semibold tabular-nums', look.statValue)}>{stats.total}</p>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">Trong danh sách</p>
+      </div>
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
+        <p className="text-xs text-emerald-800 font-medium">Khách đi</p>
+        <p className="text-2xl font-semibold tabular-nums text-emerald-700">{stats.attending}</p>
+        <p className="mt-0.5 text-[11px] text-emerald-600">Xác nhận có đi</p>
+      </div>
+      <div className="rounded-xl border border-emerald-300 bg-emerald-100/70 px-3 py-2.5">
+        <p className="text-xs text-emerald-900 font-medium">Số người đi</p>
+        <p className="text-2xl font-bold tabular-nums text-emerald-800">{stats.attendingPeople}</p>
+        <p className="mt-0.5 text-[11px] text-emerald-700">Người lớn & trẻ em</p>
+      </div>
+      <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2.5">
+        <p className="text-xs text-rose-800 font-medium">Không đi</p>
+        <p className="text-2xl font-semibold tabular-nums text-rose-700">{stats.declined}</p>
+        <p className="mt-0.5 text-[11px] text-rose-600">
+          {stats.declinedPeople > 0 ? `${stats.declinedPeople} người báo bận` : 'Báo không đến'}
+        </p>
+      </div>
+      <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5">
+        <p className="text-xs text-amber-800 font-medium">Chưa phản hồi</p>
+        <p className="text-2xl font-semibold tabular-nums text-amber-700">{stats.pending}</p>
+        <p className="mt-0.5 text-[11px] text-amber-600">Chờ xác nhận</p>
+      </div>
     </div>
   )
 
@@ -986,6 +1167,10 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     stats: ReturnType<typeof statsForRows>,
     personName: string,
   ) => {
+    const isBride = look.panel === 'bride'
+    const sideKicker = isBride ? occasionCopy.secondaryFamily || look.kicker : occasionCopy.primaryFamily || look.kicker
+    const sideTitle = isBride ? occasionCopy.guestSecondary || look.title : occasionCopy.guestPrimary || look.title
+    const sideWho = isBride ? occasionCopy.secondaryRole || look.who : occasionCopy.primaryRole || look.who
     const focused = focusSide === (look.panel === 'groom' ? 'groom' : 'bride')
     return (
       <section
@@ -1001,18 +1186,22 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       >
         <header className={cn('flex flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-5', look.header)}>
           <div className="min-w-0">
-            <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', look.muted)}>{look.kicker}</p>
+            <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', look.muted)}>{sideKicker}</p>
             <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">
               <Users className="h-5 w-5 shrink-0" />
-              {look.title}
+              {sideTitle}
             </h2>
             <p className={cn('mt-1 text-sm', look.muted)}>
-              {look.who}: {personName || '…'}
+              {sideWho}: {personName || '…'}
             </p>
           </div>
-          <p className={cn('rounded-full px-3 py-1 text-sm font-medium', look.chip)}>
-            {stats.total} khách · {stats.totalGuests} người
-          </p>
+          <div className={cn('flex flex-wrap items-center gap-2 rounded-full px-3 py-1 text-xs sm:text-sm font-medium', look.chip)}>
+            <span>{stats.total} khách mời</span>
+            <span>•</span>
+            <span className="font-semibold">{stats.attending} có đi ({stats.attendingPeople} người)</span>
+            <span>•</span>
+            <span>{stats.declined} không đi</span>
+          </div>
         </header>
         <div className="space-y-4 p-3 sm:p-5">
           <p className="text-sm text-muted-foreground">{look.hint}</p>
@@ -1053,32 +1242,94 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         ))}
       </datalist>
       <div className="w-full space-y-4 pb-2 sm:pb-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-muted-foreground">Tổng khách đi, số người và người không đi.</p>
-          <Button asChild variant="outline">
-            <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(cardId)}`}>Xem kết quả</Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Quản lý khách mời & kết quả tham dự
+            </h1>
+            <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground">
+              Quản lý danh sách khách, gửi thiệp cá nhân và theo dõi kết quả khách đi / không đi của từng nhà.
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={backToEditor}>
+            Quay lại sửa thiệp
           </Button>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={cn('grid gap-3', singleOccasion ? 'sm:grid-cols-1' : 'sm:grid-cols-2')}>
           <a
             href="#nha-trai"
             onClick={() => setFocusSide('groom')}
-            className={cn('rounded-2xl border px-4 py-3 transition', SIDE_LOOK.groom.jump, focusSide === 'bride' && 'opacity-80')}
+            className={cn('rounded-2xl border px-4 py-3.5 transition', SIDE_LOOK.groom.jump, focusSide === 'bride' && 'opacity-80')}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Nhà trai</p>
-            <p className="mt-0.5 text-lg font-semibold">{card?.groomName || 'Khách mời nhà trai'}</p>
-            <p className="text-sm text-white/85">{groomStats.total} khách · {groomStats.attending} có đi</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">{occasionCopy.primaryFamily || 'Nhà trai'}</p>
+            <p className="mt-0.5 text-lg font-semibold">{card?.groomName || occasionCopy.guestPrimary}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-white/90">
+              <span className="font-semibold">{groomStats.total} khách mời</span>
+              <span>•</span>
+              <span className="font-bold text-emerald-200">{groomStats.attending} có đi ({groomStats.attendingPeople} người)</span>
+              <span>•</span>
+              <span className="text-rose-200">{groomStats.declined} không đi</span>
+              {groomStats.pending > 0 ? (
+                <>
+                  <span>•</span>
+                  <span className="text-amber-200">{groomStats.pending} chưa trả lời</span>
+                </>
+              ) : null}
+            </div>
           </a>
-          <a
-            href="#nha-gai"
-            onClick={() => setFocusSide('bride')}
-            className={cn('rounded-2xl border px-4 py-3 transition', SIDE_LOOK.bride.jump, focusSide === 'groom' && 'opacity-80')}
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">Nhà gái</p>
-            <p className="mt-0.5 text-lg font-semibold">{card?.brideName || 'Khách mời nhà gái'}</p>
-            <p className="text-sm text-white/85">{brideStats.total} khách · {brideStats.attending} có đi</p>
-          </a>
+          {!singleOccasion ? (
+            <a
+              href="#nha-gai"
+              onClick={() => setFocusSide('bride')}
+              className={cn('rounded-2xl border px-4 py-3.5 transition', SIDE_LOOK.bride.jump, focusSide === 'groom' && 'opacity-80')}
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">{occasionCopy.secondaryFamily || 'Nhà gái'}</p>
+              <p className="mt-0.5 text-lg font-semibold">{card?.brideName || occasionCopy.guestSecondary}</p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-white/90">
+                <span className="font-semibold">{brideStats.total} khách mời</span>
+                <span>•</span>
+                <span className="font-bold text-emerald-200">{brideStats.attending} có đi ({brideStats.attendingPeople} người)</span>
+                <span>•</span>
+                <span className="text-rose-200">{brideStats.declined} không đi</span>
+                {brideStats.pending > 0 ? (
+                  <>
+                    <span>•</span>
+                    <span className="text-amber-200">{brideStats.pending} chưa trả lời</span>
+                  </>
+                ) : null}
+              </div>
+            </a>
+          ) : null}
         </div>
+
+        {!singleOccasion ? (
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/90 p-3 sm:p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 pb-2 mb-2.5">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">Tổng hợp cả hai nhà</span>
+              <span className="text-xs text-muted-foreground">
+                Tổng cộng {groomStats.total + brideStats.total} khách mời
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
+              <div className="rounded-xl bg-white border border-stone-200 p-2.5 shadow-xs">
+                <p className="text-xs text-muted-foreground font-medium">Tổng khách mời</p>
+                <p className="mt-0.5 text-2xl font-bold text-stone-900">{groomStats.total + brideStats.total}</p>
+              </div>
+              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 shadow-xs">
+                <p className="text-xs text-emerald-800 font-medium">Có đi ({groomStats.attendingPeople + brideStats.attendingPeople} người)</p>
+                <p className="mt-0.5 text-2xl font-bold text-emerald-700">{groomStats.attending + brideStats.attending} khách</p>
+              </div>
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 shadow-xs">
+                <p className="text-xs text-rose-800 font-medium">Không đi</p>
+                <p className="mt-0.5 text-2xl font-bold text-rose-700">{groomStats.declined + brideStats.declined} khách</p>
+              </div>
+              <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 shadow-xs">
+                <p className="text-xs text-amber-800 font-medium">Chưa phản hồi</p>
+                <p className="mt-0.5 text-2xl font-bold text-amber-700">{groomStats.pending + brideStats.pending} khách</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -1092,7 +1343,141 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         )}
 
         {renderSide(SIDE_LOOK.groom, groomRows, groomStats, card?.groomName ?? '')}
-        {renderSide(SIDE_LOOK.bride, brideRows, brideStats, card?.brideName ?? '')}
+        {!singleOccasion ? renderSide(SIDE_LOOK.bride, brideRows, brideStats, card?.brideName ?? '') : null}
+
+        {outsideRsvps.length > 0 ? (
+          <section className="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
+            <header className="flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-violet-900 via-purple-800 to-indigo-800 px-4 py-3 text-white sm:px-5">
+              <div>
+                <h3 className="flex items-center gap-2 text-base font-semibold">
+                  <UserPlus className="h-4 w-4" />
+                  Khách phản hồi ngoài danh sách mời ({outsideRsvps.length})
+                </h3>
+                <p className="mt-0.5 text-xs text-violet-200">
+                  Khách gửi xác nhận qua link thiệp công khai chưa nằm trong danh sách khách nhà trai hay nhà gái.
+                </p>
+              </div>
+            </header>
+            <div className="divide-y divide-violet-100 p-3 sm:p-5">
+              {outsideRsvps.map((rsvp, idx) => (
+                <div key={`${rsvp.guestName}-${idx}`} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between first:pt-1 last:pb-1">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-stone-900">{rsvp.guestName}</span>
+                      <span
+                        className={cn(
+                          'rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                          rsvp.attending ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800',
+                        )}
+                      >
+                        {rsvp.attending ? (
+                          <>
+                            Có đi • {rsvp.adultCount + rsvp.childCount > 0 ? `${rsvp.adultCount} lớn, ${rsvp.childCount} trẻ` : `${rsvp.guestCount || 1} người`}
+                          </>
+                        ) : (
+                          'Không đi'
+                        )}
+                      </span>
+                      {rsvp.createdAt ? (
+                        <span className="text-[11px] text-muted-foreground">
+                          {new Date(rsvp.createdAt).toLocaleDateString('vi-VN')}
+                        </span>
+                      ) : null}
+                    </div>
+                    {rsvp.message ? (
+                      <p className="mt-1 flex items-start gap-1.5 text-xs text-stone-600 italic">
+                        <MessageSquare className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-500" />
+                        «{rsvp.message}»
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1 sm:pt-0">
+                    <span className="text-xs text-muted-foreground mr-1">Thêm vào:</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 border-sky-300 bg-sky-50 text-xs font-medium text-sky-900 hover:bg-sky-100"
+                      onClick={() => void addOutsideToSide(rsvp, 'groom_home')}
+                    >
+                      {occasionCopy.primaryFamily || 'Nhà trai'}
+                    </Button>
+                    {!singleOccasion ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 border-rose-300 bg-rose-50 text-xs font-medium text-rose-900 hover:bg-rose-100"
+                        onClick={() => void addOutsideToSide(rsvp, 'bride_home')}
+                      >
+                        {occasionCopy.secondaryFamily || 'Nhà gái'}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex items-start gap-2.5">
+            <Mail className="mt-0.5 h-5 w-5 shrink-0 text-rose-700" />
+            <div>
+              <h3 className="text-base font-semibold text-stone-900">Email nhận thông báo khi có người xác nhận đi</h3>
+              <p className="mt-0.5 text-xs sm:text-sm text-muted-foreground">
+                Thư cập nhật số khách đi, số người đi và số người không đi của từng nhà. Mỗi ngày tối đa một thư khi có người mới xác nhận đi.
+              </p>
+            </div>
+          </div>
+
+          <div className={cn('grid gap-3', !singleOccasion && 'sm:grid-cols-2')}>
+            <label className="space-y-1.5 text-sm">
+              <span className="font-medium text-stone-700">Email {occasionCopy.primaryRole.toLowerCase()}</span>
+              <Input
+                type="email"
+                autoComplete="email"
+                value={groomEmail}
+                placeholder="email@example.com"
+                onChange={(event) => setGroomEmail(event.target.value)}
+              />
+            </label>
+            {!singleOccasion ? (
+              <label className="space-y-1.5 text-sm">
+                <span className="font-medium text-stone-700">Email {occasionCopy.secondaryRole.toLowerCase()}</span>
+                <Input
+                  type="email"
+                  autoComplete="email"
+                  value={brideEmail}
+                  placeholder="email@example.com"
+                  onChange={(event) => setBrideEmail(event.target.value)}
+                />
+              </label>
+            ) : null}
+          </div>
+
+          <div className="flex items-start gap-3 text-sm">
+            <Checkbox
+              id="rsvp-notify-daily-increase"
+              checked={sendNotify}
+              onCheckedChange={(value) => setSendNotify(value === true)}
+              className="mt-0.5"
+            />
+            <label htmlFor="rsvp-notify-daily-increase" className="cursor-pointer">
+              <span className="font-medium text-stone-800">Gửi email khi số người đi tăng — mỗi ngày một thư</span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                Nhiều khách xác nhận trong cùng một ngày vẫn gộp làm một thư. Ngày không có thêm người đi thì không gửi.
+              </span>
+            </label>
+          </div>
+
+          {notifySaving || notifySavedNote ? (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {notifySaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+              {notifySaving ? 'Đang lưu…' : notifySavedNote}
+            </p>
+          ) : null}
+        </section>
       </div>
       {deleteTarget ? (
         <div

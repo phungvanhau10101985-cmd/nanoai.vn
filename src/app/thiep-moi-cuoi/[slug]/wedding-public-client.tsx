@@ -68,8 +68,10 @@ import {
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
+import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import {
+  allowWeddingPageScroll,
   primeWeddingPageScroll,
   scrollWeddingPageToTop,
   startWeddingInvitationAutoScroll,
@@ -227,46 +229,70 @@ export default function WeddingPublicClient({
   useLayoutEffect(() => {
     const previousRestoration = window.history.scrollRestoration
     window.history.scrollRestoration = 'manual'
-    let raf = 0
-    let until = 0
-
-    const pinTop = () => {
-      scrollWeddingPageToTop()
-      if (coverScrollRef.current) coverScrollRef.current.scrollTop = 0
-      if (performance.now() < until) raf = window.requestAnimationFrame(pinTop)
-    }
-
-    const arm = () => {
-      window.cancelAnimationFrame(raf)
+    const html = document.documentElement
+    const previousAnchor = html.style.overflowAnchor
+    html.style.overflowAnchor = 'none'
+    const onHide = () => {
+      if (scrollTimer.current) {
+        window.clearTimeout(scrollTimer.current)
+        scrollTimer.current = null
+      }
       stopWeddingInvitationAutoScroll()
-      until = performance.now() + 480
-      pinTop()
     }
-
-    const release = () => {
-      until = 0
-      window.cancelAnimationFrame(raf)
+    let snapTimer = 0
+    let snap: (() => void) | null = null
+    const clearSnap = () => {
+      if (snapTimer) window.clearTimeout(snapTimer)
+      snapTimer = 0
+      if (snap) window.removeEventListener('scroll', snap)
+      snap = null
     }
-
-    arm()
     const onShow = (event: PageTransitionEvent) => {
-      if (event.persisted) arm()
+      if (!event.persisted) return
+      onHide()
+      scrollWeddingPageToTop()
+      clearSnap()
+      const until = performance.now() + 900
+      let last = 0
+      snap = () => {
+        const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+        const jumped = y - last > 180
+        last = y
+        if (performance.now() < until && jumped) scrollWeddingPageToTop()
+      }
+      window.addEventListener('scroll', snap, { passive: true })
+      snapTimer = window.setTimeout(clearSnap, 900)
     }
+    window.addEventListener('pagehide', onHide)
     window.addEventListener('pageshow', onShow)
-    window.addEventListener('pagehide', stopWeddingInvitationAutoScroll)
-    window.addEventListener('wheel', release, { passive: true })
-    window.addEventListener('touchstart', release, { passive: true })
-    window.addEventListener('keydown', release)
     return () => {
-      release()
+      clearSnap()
+      window.removeEventListener('pagehide', onHide)
       window.removeEventListener('pageshow', onShow)
-      window.removeEventListener('pagehide', stopWeddingInvitationAutoScroll)
-      window.removeEventListener('wheel', release)
-      window.removeEventListener('touchstart', release)
-      window.removeEventListener('keydown', release)
+      html.style.overflowAnchor = previousAnchor
       window.history.scrollRestoration = previousRestoration
     }
   }, [])
+
+  useLayoutEffect(() => {
+    if (opened) return
+    stopWeddingInvitationAutoScroll()
+    const pin = () => {
+      const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+      if (y > 0) scrollWeddingPageToTop()
+    }
+    pin()
+    const onShow = () => {
+      stopWeddingInvitationAutoScroll()
+      scrollWeddingPageToTop()
+    }
+    window.addEventListener('scroll', pin, { passive: true })
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      window.removeEventListener('scroll', pin)
+      window.removeEventListener('pageshow', onShow)
+    }
+  }, [opened])
 
   const chooseLetterHouse = (view: 'groom' | 'bride' | 'both') => {
     setLetterView(view)
@@ -288,6 +314,7 @@ export default function WeddingPublicClient({
   const openInvitation = () => {
     if (doorStarted.current || opened) return
     doorStarted.current = true
+    allowWeddingPageScroll()
     primeWeddingPageScroll()
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (card.effectsEnabled) void weddingMusicAudioRef.current?.playFromUserGesture()
@@ -304,8 +331,18 @@ export default function WeddingPublicClient({
   useLayoutEffect(() => {
     if (opened) {
       // Cùng lượt chạm Mở thiệp: gỡ khóa cuộn rồi nudge, iOS mới nhận scrollTo sau đó.
+      allowWeddingPageScroll()
       primeWeddingPageScroll()
-      return
+      const until = performance.now() + 900
+      let last = 0
+      const snapRestorationJump = () => {
+        const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+        const jumped = y - last > 180
+        last = y
+        if (performance.now() < until && jumped) scrollWeddingPageToTop()
+      }
+      window.addEventListener('scroll', snapRestorationJump, { passive: true })
+      return () => window.removeEventListener('scroll', snapRestorationJump)
     }
     const html = document.documentElement
     const prevHtml = html.style.overflow
@@ -1057,26 +1094,22 @@ export default function WeddingPublicClient({
                         </>
                       ) : null}
                       {timeline.length > 0 ? (
-                        <div className="mt-5 space-y-3 text-left">
-                          {timeline.map((item, index) => {
+                        <WeddingTimelineList
+                          className="mt-5"
+                          items={timeline.map((item, index) => {
                             const content = weddingTimelineItemContent(item)
-                            return (
-                              <div key={`${side}-${item.time}-${index}`} className={cn('rounded-3xl p-4 text-center sm:text-left', theme.panelStrong)}>
-                                <p className={cn('leading-relaxed', theme.text, theme.textGlow)}>
-                                  {item.time ? (
-                                    <span className={cn('font-serif font-semibold tabular-nums', theme.accentText, theme.textGlow)}>
-                                      {item.time}
-                                    </span>
-                                  ) : null}
-                                  {item.time && content ? (
-                                    <span className={cn('mx-2 font-normal', theme.mutedText, theme.textGlow)}>·</span>
-                                  ) : null}
-                                  {content ? <span className={cn(item.time ? 'font-medium' : 'font-semibold')}>{writeGuestName(personalize(content))}</span> : null}
-                                </p>
-                              </div>
-                            )
+                            return {
+                              key: `${side}-${item.time}-${index}`,
+                              time: item.time,
+                              content: content ? writeGuestName(personalize(content)) : null,
+                            }
                           })}
-                        </div>
+                          panelClassName={theme.panelStrong}
+                          textClassName={theme.text}
+                          mutedClassName={theme.mutedText}
+                          accentTextClassName={theme.accentText}
+                          textGlow={theme.textGlow}
+                        />
                       ) : null}
                     </WeddingReadableGlass>
                   )
@@ -1152,31 +1185,21 @@ export default function WeddingPublicClient({
                 {tx.timelineTitle}
               </p>
               {displayTimeline.length > 0 ? (
-                <div className="mt-6 space-y-3">
-                  {displayTimeline.map((item, index) => {
+                <WeddingTimelineList
+                  items={displayTimeline.map((item, index) => {
                     const content = weddingTimelineItemContent(item)
-                    return (
-                      <div
-                        key={`${item.time}-${item.title}-${index}`}
-                        className={cn('rounded-3xl p-4 text-center sm:text-left', theme.panelStrong)}
-                      >
-                        <p className={cn('leading-relaxed', theme.text, theme.textGlow)}>
-                          {item.time ? (
-                            <span className={cn('font-serif font-semibold tabular-nums', theme.accentText, theme.textGlow)}>
-                              {item.time}
-                            </span>
-                          ) : null}
-                          {item.time && content ? (
-                            <span className={cn('mx-2 font-normal', theme.mutedText, theme.textGlow)}>·</span>
-                          ) : null}
-                          {content ? (
-                            <span className={cn(item.time ? 'font-medium' : 'font-semibold')}>{writeGuestName(personalize(content))}</span>
-                          ) : null}
-                        </p>
-                      </div>
-                    )
+                    return {
+                      key: `${item.time}-${item.title}-${index}`,
+                      time: item.time,
+                      content: content ? writeGuestName(personalize(content)) : null,
+                    }
                   })}
-                </div>
+                  panelClassName={theme.panelStrong}
+                  textClassName={theme.text}
+                  mutedClassName={theme.mutedText}
+                  accentTextClassName={theme.accentText}
+                  textGlow={theme.textGlow}
+                />
               ) : (
                 <p className={cn('mt-5 leading-8', theme.mutedText, theme.textGlow)}>{writeGuestName(personalize(tx.defaultTimeline))}</p>
               )}

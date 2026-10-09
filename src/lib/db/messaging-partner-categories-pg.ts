@@ -169,6 +169,7 @@ async function fetchPartnerCategoriesFlatFromPgUncached(
 
 /** `true` nếu shop đã có ít nhất 1 danh mục — dùng để quyết định fallback /products phẳng (W4.3). */
 export async function hasAnyPartnerCategoriesFromPg(partnerId: string): Promise<boolean> {
+  void partnerId
   if (!isPgConfigured()) return false
   try {
     const row = await pgQueryOne<{ exists: boolean }>(

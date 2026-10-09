@@ -1052,7 +1052,7 @@ export function PartnerSiteShopProductClient({
             <div className="pw-pdp-price-card">
               <span className="pw-shop-urgency-badge" data-pw-el={PW_EL.badge}>{t.flashSaleBadge}</span>
               <p className="pw-shop-price" data-pw-el={PW_EL.price}>
-                {fromPrefix}{formatPartnerShopMoneyVnd(priced.salePriceAmount)}
+                {fromPrefix}{formatPartnerShopMoneyVnd(priced.salePriceAmount ?? product.salePriceAmount ?? 0)}
                 {comparePrice != null ? (
                   <span className="pw-pdp-compare" data-pw-el={PW_EL.comparePrice}>
                     {formatPartnerShopMoneyVnd(comparePrice)}

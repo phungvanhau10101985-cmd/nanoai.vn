@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { invitationCoverPhotoCopy } from '@/lib/wedding/invitation-occasion'
@@ -13,6 +14,8 @@ import {
 export type WeddingCoverFrameLibraryChoice = {
   id: string
   imageUrl: string
+  label?: string
+  hole?: { x: number; y: number; w: number; h: number }
 }
 
 type WeddingCoverPresetPickerProps = {
@@ -22,11 +25,12 @@ type WeddingCoverPresetPickerProps = {
   onSelect: (id: string) => void
   tagNewLabel: string
   tagHotLabel: string
+  tagAiLabel?: string
   /** Ô «Không khung» đứng đầu lưới, cùng chỗ với khung mẫu. */
   noneLabel?: string
   noneSelected?: boolean
   onSelectNone?: () => void
-  /** Khung AI đã lưu, cùng lưới với khung có sẵn. */
+  /** Khung AI đã lưu, đưa lên trên khung mẫu có sẵn. */
   libraryItems?: WeddingCoverFrameLibraryChoice[]
   libraryLabel?: string
   librarySelectedUrl?: string
@@ -87,11 +91,13 @@ function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRESETS)[nu
   )
 }
 
-function TagBadge(props: { tag: WeddingCoverPresetTag; label: string }) {
+function TagBadge(props: { tag: WeddingCoverPresetTag | 'ai'; label: string }) {
   const cls =
     props.tag === 'new'
       ? 'bg-pink-500 text-white'
-      : 'bg-red-600 text-white'
+      : props.tag === 'hot'
+        ? 'bg-red-600 text-white'
+        : 'bg-violet-600 text-white'
   return (
     <span className={cn('absolute right-1.5 top-1.5 z-10 rounded-full px-1.5 py-0.5 text-[9px] font-semibold shadow', cls)}>
       {props.label}
@@ -102,6 +108,20 @@ function TagBadge(props: { tag: WeddingCoverPresetTag; label: string }) {
 export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
   const selectedId = props.selectedId ?? DEFAULT_WEDDING_COVER_PRESET_ID
   const redPresetLabel = invitationCoverPhotoCopy(props.occasionKey, props.locale).redPresetLabel
+  const aiDefaultLabel = useMemo(() => {
+    switch (props.locale) {
+      case 'en':
+        return 'AI Frame'
+      case 'zh':
+        return 'AI 边框'
+      case 'ja':
+        return 'AI フレーム'
+      case 'ko':
+        return 'AI 프레임'
+      default:
+        return 'Khung AI'
+    }
+  }, [props.locale])
   const tileClass = 'group rounded-2xl p-1 text-left transition hover:bg-rose-50/70'
   const thumbClass = (selected: boolean) =>
     cn(
@@ -120,6 +140,36 @@ export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
           </p>
         </button>
       ) : null}
+      {(props.libraryItems ?? []).map((item, index) => {
+        const selected = props.librarySelectedUrl === item.imageUrl
+        const baseLabel = props.libraryLabel ?? aiDefaultLabel
+        const label =
+          item.label ??
+          (props.libraryItems && props.libraryItems.length > 1
+            ? `${baseLabel} ${index + 1}`
+            : baseLabel)
+        return (
+          <button key={item.id} type="button" onClick={() => props.onSelectLibrary?.(item)} className={tileClass}>
+            <div className="relative">
+              <TagBadge tag="ai" label={props.tagAiLabel ?? 'AI'} />
+              <div className={thumbClass(selected)}>
+                {item.hole ? (
+                  <div
+                    className="absolute overflow-hidden"
+                    style={{ left: `${item.hole.x}%`, top: `${item.hole.y}%`, width: `${item.hole.w}%`, height: `${item.hole.h}%` }}
+                  >
+                    <div className="h-full w-full bg-[linear-gradient(160deg,#fecdd3_0%,#fff7ed_48%,#d1fae5_100%)]" />
+                  </div>
+                ) : null}
+                <img src={item.imageUrl} alt="" draggable={false} className="absolute inset-0 h-full w-full object-contain" />
+              </div>
+            </div>
+            <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
+              {label}
+            </p>
+          </button>
+        )
+      })}
       {WEDDING_COVER_PRESETS.map((preset) => {
         const selected = preset.id === selectedId
         return (
@@ -136,19 +186,6 @@ export function WeddingCoverPresetPicker(props: WeddingCoverPresetPickerProps) {
             </div>
             <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
               {preset.id === 'red_photo_arch' ? redPresetLabel : labelForWeddingCoverPreset(props.locale, preset)}
-            </p>
-          </button>
-        )
-      })}
-      {(props.libraryItems ?? []).map((item) => {
-        const selected = props.librarySelectedUrl === item.imageUrl
-        return (
-          <button key={item.id} type="button" onClick={() => props.onSelectLibrary?.(item)} className={tileClass}>
-            <div className={thumbClass(selected)}>
-              <img src={item.imageUrl} alt="" draggable={false} className="h-full w-full object-contain" />
-            </div>
-            <p className={cn('mt-2 line-clamp-2 text-xs font-medium', selected ? 'text-rose-700' : 'text-slate-700')}>
-              {props.libraryLabel}
             </p>
           </button>
         )

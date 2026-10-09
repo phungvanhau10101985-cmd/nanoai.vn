@@ -33,6 +33,8 @@ export type WeddingAttendanceRsvpSource = {
   guestCount: number
   adultCount: number
   childCount: number
+  message?: string
+  createdAt?: string
 }
 
 type AttendancePerson = {
@@ -145,6 +147,30 @@ export function summarizeWeddingAttendanceSources(
   rsvps: WeddingAttendanceRsvpSource[],
 ): WeddingAttendanceSummary {
   return summarizeWeddingAttendance(buildAttendancePeople(guests, rsvps))
+}
+
+export function findOutsideRsvps(
+  guests: WeddingAttendanceGuestSource[],
+  rsvps: WeddingAttendanceRsvpSource[],
+): WeddingAttendanceRsvpSource[] {
+  const keys = new Set<string>()
+  for (const guest of guests) {
+    const name = guest.guestName.trim()
+    if (!name) continue
+    const key = normalizeGuestNameKey(name)
+    if (key) keys.add(key)
+    const full = normalizeGuestNameKey([guest.guestHonorific, name].filter(Boolean).join(' '))
+    if (full) keys.add(full)
+  }
+  const outside: WeddingAttendanceRsvpSource[] = []
+  const seenOutside = new Set<string>()
+  for (const rsvp of rsvps) {
+    const key = normalizeGuestNameKey(rsvp.guestName)
+    if (!key || keys.has(key) || seenOutside.has(key)) continue
+    seenOutside.add(key)
+    outside.push(rsvp)
+  }
+  return outside
 }
 
 /** Một thư mỗi ngày, chỉ khi số người đi tăng. Nhiều khách trong ngày vẫn một lần gửi. */

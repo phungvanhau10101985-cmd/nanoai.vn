@@ -34,7 +34,7 @@ async function summaryForCard(cardId: string): Promise<WeddingAttendanceSummary 
 
 function resultsUrl(cardId: string): string {
   const origin = getPublicAppUrlForServer().replace(/\/$/, '')
-  return `${origin}/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(cardId)}`
+  return `${origin}/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(cardId)}`
 }
 
 /** Một thư mỗi ngày, chỉ khi số người đi đã tăng so với thư trước. */

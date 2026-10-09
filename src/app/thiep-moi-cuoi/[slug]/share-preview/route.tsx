@@ -76,7 +76,7 @@ export async function GET(request: Request, context: { params: { slug: string } 
   )
   const art = await loadArtDataUrl(model.backgroundUrl)
   const png = renderSharePng(buildWeddingSharePreviewSvg(model, art))
-  return new Response(png, {
+  return new Response(new Uint8Array(png), {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'public, max-age=86400',

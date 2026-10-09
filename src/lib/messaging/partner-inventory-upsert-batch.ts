@@ -150,6 +150,7 @@ async function pruneInsertsBlockedByCategoryAutoCreate(
     categoryL1?: string | null
     categoryL2?: string | null
     categoryL3?: string | null
+    ratingGroupId?: number | null
   }> = []
   for (const [id, patch] of catalogPatches) {
     if (!insertIds.has(id)) continue

@@ -157,7 +157,8 @@ export type CategorySeoAiResult =
 
 /** Title trang danh mục (~60 ký tự) — không tốn thêm lời gọi AI. */
 /** Tiêu đề danh mục dùng chung mọi shop — không gắn tên một shop. */
-export function buildPartnerCategorySeoTitle(categoryName: string, _shopDisplayName = ''): string {
+export function buildPartnerCategorySeoTitle(categoryName: string, _shopDisplayName?: string): string {
+  void _shopDisplayName
   return categoryName.trim().slice(0, 60)
 }
 

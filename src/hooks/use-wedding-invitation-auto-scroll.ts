@@ -60,6 +60,18 @@ export function stopWeddingInvitationAutoScroll() {
   activeSession?.stop()
 }
 
+declare global {
+  interface Window {
+    /** Inline script giữ scroll ở 0 cho đến khi khách bấm Mở thiệp. */
+    __pwWeddingScrollFree?: boolean
+  }
+}
+
+/** Bìa đã mở — script đầu trang thôi kéo scroll về 0. */
+export function allowWeddingPageScroll() {
+  window.__pwWeddingScrollFree = true
+}
+
 /** Về đầu trang, không gỡ khóa cuộn của bìa. */
 export function scrollWeddingPageToTop() {
   const html = document.documentElement

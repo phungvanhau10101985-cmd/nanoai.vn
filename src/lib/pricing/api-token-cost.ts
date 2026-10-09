@@ -254,7 +254,7 @@ export type PartnerAiTokenUsageStatRowForCost = {
 export function partnerAiAggregatedModelRowsEstimatedCostVnd<T extends PartnerAiTokenUsageStatRowForCost>(
   rows: T[],
   usdToVnd = getPartnerAiTokenCostUsdToVnd()
-): { totalVnd: number; rows: Array<T & { estimated_cost_vnd: number }> } {
+): { totalVnd: number; rows: Array<T & { estimated_cost_vnd: number; estimated_input_vnd: number; estimated_output_vnd: number }> } {
   const out = rows.map((r) => {
     const split = calcCostVndSplit(r.sum_prompt_tokens, r.sum_completion_tokens, r.model, null, {
       usdToVnd,

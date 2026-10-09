@@ -381,7 +381,7 @@ async function assertPartnerOwner(userId: string, partnerId: string) {
   return { error: 'Forbidden.' }
 }
 
-async function assertPartnerAnyStaffCapability(
+export async function assertPartnerAnyStaffCapability(
   userId: string,
   partnerId: string,
   caps: PartnerStaffPermKey[]

@@ -134,6 +134,18 @@ function guestPresenceRef(honorific: string): string {
   return h.charAt(0).toLocaleLowerCase('vi') + h.slice(1)
 }
 
+/**
+ * Chủ ngữ của «gia đình …» trong câu vinh dự.
+ * Khớp cách người mời tự xưng với từng khách (em / cháu / con / anh / chị).
+ * Với bạn bè, «bạn» trùng đại từ khách nên dùng «mình».
+ */
+function familyHonorOwner(hostPronoun: string): string {
+  const voice = hostPronoun.trim()
+  const lower = voice ? voice.charAt(0).toLocaleLowerCase('vi') + voice.slice(1) : ''
+  if (!lower || lower === 'bạn') return 'mình'
+  return lower
+}
+
 function formatVietnameseClockTime(clock: string): string {
   const trimmed = clock.trim()
   const match = /^(\d{1,2}):(\d{2})$/.exec(trimmed)
@@ -222,7 +234,8 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
     const whenPart = whenParts.length ? ` ${whenParts.join(' ')}` : ''
     const presence = guestPresenceRef(guestHonorific)
     const hostVoice = hostStyle.pronoun || 'Em'
-    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự bữa cơm thân mật cùng gia đình. Sự có mặt của ${presence} là điều vinh dự của gia đình. ${hostVoice} trân trọng mà mong đợi sự có mặt của ${presence}.`
+    const familyOwner = familyHonorOwner(hostVoice)
+    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự bữa cơm thân mật cùng gia đình. Sự có mặt của ${presence} là điều vinh dự của gia đình ${familyOwner}. ${hostVoice} trân trọng và mong đợi sự có mặt của ${presence}.`
   }
 
   const hostPart = parents ? `${childName} and family (${parents})` : childName

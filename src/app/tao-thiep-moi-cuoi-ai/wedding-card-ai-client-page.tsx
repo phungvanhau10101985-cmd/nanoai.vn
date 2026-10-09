@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { BarChart3, Download, ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
+import { Download, ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -51,8 +51,9 @@ import {
   normalizeInvitationOccasion,
   type InvitationOccasionKey,
 } from '@/lib/wedding/invitation-occasion'
-import { isInvitationGiftReady, isLegacySingleGiftImage } from '@/lib/wedding/wedding-gift-vietqr'
+import { isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
+import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
@@ -91,6 +92,7 @@ import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-pre
 import { WeddingCoverShellCard, WeddingFramedPhoto } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
+import { WeddingCountdownBlock } from '@/components/wedding/wedding-countdown-block'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { guestInviteVenueLabel, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
@@ -643,6 +645,18 @@ export default function WeddingCardAiClientPage() {
   const groomLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'groom_home'), [card])
   const brideLetterPreview = useMemo(() => resolveGuestInviteLocation(card, 'bride_home'), [card])
   const guestInviteLocationPreview = previewLetterView === 'bride' ? brideLetterPreview : groomLetterPreview
+  const previewDateIso = useMemo(
+    () => resolveWeddingDateIso(guestInviteLocationPreview.weddingDate) ?? weddingDateIso,
+    [guestInviteLocationPreview.weddingDate, weddingDateIso],
+  )
+  const previewWeddingDateLabel = useMemo(
+    () =>
+      formatWeddingDateForDisplay(
+        previewDateIso ?? guestInviteLocationPreview.weddingDate ?? card.weddingDate,
+        uiLocale,
+      ),
+    [card.weddingDate, guestInviteLocationPreview.weddingDate, previewDateIso, uiLocale],
+  )
   const previewDemoVenue: WeddingGuestInviteVenue =
     card.guestInviteVenue || (previewLetterView === 'bride' ? 'bride_home' : 'groom_home')
   const previewDemo = useMemo(
@@ -1701,12 +1715,6 @@ export default function WeddingCardAiClientPage() {
                           Khách mời
                         </Link>
                       </Button>
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(item.id)}`}>
-                          <BarChart3 className="mr-1 h-3.5 w-3.5" />
-                          Thống kê
-                        </Link>
-                      </Button>
                       {item.isPublished && item.slug ? (
                         <Button asChild variant="outline" size="sm">
                           <a href={weddingQuickViewHref(item.slug)} target="_blank" rel="noreferrer">
@@ -2569,7 +2577,6 @@ export default function WeddingCardAiClientPage() {
                         <p className={cn('w-full text-[10px] uppercase tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
                           {occasionCopy.previewEyebrow}
                         </p>
-                        <Heart className={cn('mx-auto h-5 w-5 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
                         <Dialog open={portraitFrameSide !== null} onOpenChange={(open) => { if (!open) setPortraitFrameSide(null) }}>
                           <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                             <DialogHeader>
@@ -2655,8 +2662,11 @@ export default function WeddingCardAiClientPage() {
                                 }
                                 if (portraitFrameSide) savePortraitShell(portraitFrameSide, null)
                               }}
-                              libraryItems={frameLibrary.map((item) => ({ id: item.id, imageUrl: item.imageUrl }))}
-                              libraryLabel={txCover.aiFrameLibraryHeading}
+                              libraryItems={frameLibrary.map((item) => ({
+                                id: item.id,
+                                imageUrl: item.imageUrl,
+                                hole: item.hole,
+                              }))}
                               librarySelectedUrl={
                                 portraitFrameSide === 'cover'
                                   ? coverFrameMode === 'library' || coverFrameMode === 'ai'
@@ -2745,10 +2755,73 @@ export default function WeddingCardAiClientPage() {
                             </>
                           )}
                         </div>
+                        {selectedTheme.ornament ? (
+                          <div className={cn('text-xl leading-none', selectedTheme.accent, selectedTheme.textGlow)}>
+                            {selectedTheme.ornament}
+                          </div>
+                        ) : (
+                          <Heart className={cn('mx-auto h-4 w-4 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
+                        )}
                         {card.loveQuote ? (
                           <p className={cn('w-full text-balance font-serif text-[0.92rem] italic leading-6', selectedTheme.accentText, selectedTheme.textGlow)}>
                             “{card.loveQuote}”
                           </p>
+                        ) : null}
+                        {coverFrameMode === 'none' && !coverPhotoPreviewUrl ? null : (
+                          <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
+                            <WeddingCoverShellCard
+                              frameOnly
+                              presetId={coverPresetId}
+                              aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                              frameMode={coverFrameMode}
+                              coverPhotoUrl={coverPhotoPreviewUrl}
+                              coverPhotoObjectPosition={coverPhotoObjectPosition}
+                              coverPhotoScale={coverPhotoScale}
+                              groomName={card.groomName || '—'}
+                              brideName={card.brideName || '—'}
+                              theme={selectedTheme}
+                              invitationLabel={txCover.previewLabel}
+                              cordiallyInvitesLabel={txCover.previewGuestPrefix}
+                              openButtonLabel={txCover.previewOpenButton}
+                              dateFallback={txPublic.dateFallback}
+                              photoAlt={coverPhotoCopy.alt}
+                            />
+                          </div>
+                        )}
+                        <WeddingGuestInviteBlock
+                          className="w-full min-w-0"
+                          guestName={previewDemo.guestDisplayName}
+                          inviteVenue={previewDemoVenue}
+                          cordiallyInvitesLabel={txCover.previewGuestPrefix}
+                          venueLabel={previewDemoVenueLabel}
+                          weddingDateLabel={previewWeddingDateLabel || weddingDateDisplay || card.weddingDate || undefined}
+                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
+                          addressText={guestInviteLocationPreview.address}
+                          mapUrl={guestInviteLocationPreview.mapUrl}
+                          viewMapLabel={txPublic.guestInviteViewMap}
+                          personalInviteText={previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
+                          personalInviteClassName={cn('text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}
+                          panelClassName={selectedTheme.panelStrong}
+                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
+                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
+                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          weddingThemeId={selectedTheme.id}
+                          compact
+                        />
+                        {previewDateIso ? (
+                          <div className="w-full pt-0.5">
+                            <WeddingCountdownBlock
+                              weddingDateIso={previewDateIso}
+                              weddingTimeText={guestInviteLocationPreview.receptionTime || card.weddingTime}
+                              partyStartTime={guestInviteLocationPreview.partyStartTime || card.partyStartTime}
+                              locale={uiLocale}
+                              tx={txCal}
+                              compact
+                              live={false}
+                              className={cn(selectedTheme.textGlow, 'font-medium')}
+                            />
+                          </div>
                         ) : null}
                         {previewFamilies.visible ? (
                           <div className={cn('w-full rounded-xl px-2.5 py-2 text-center', selectedTheme.panelStrong)}>
@@ -2779,48 +2852,6 @@ export default function WeddingCardAiClientPage() {
                             </div>
                           </div>
                         ) : null}
-                        {coverFrameMode === 'none' && !coverPhotoPreviewUrl ? null : (
-                          <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
-                            <WeddingCoverShellCard
-                              frameOnly
-                              presetId={coverPresetId}
-                              aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
-                              frameMode={coverFrameMode}
-                              coverPhotoUrl={coverPhotoPreviewUrl}
-                              coverPhotoObjectPosition={coverPhotoObjectPosition}
-                              coverPhotoScale={coverPhotoScale}
-                              groomName={card.groomName || '—'}
-                              brideName={card.brideName || '—'}
-                              theme={selectedTheme}
-                              invitationLabel={txCover.previewLabel}
-                              cordiallyInvitesLabel={txCover.previewGuestPrefix}
-                              openButtonLabel={txCover.previewOpenButton}
-                              dateFallback={txPublic.dateFallback}
-                              photoAlt={coverPhotoCopy.alt}
-                            />
-                          </div>
-                        )}
-                        <WeddingGuestInviteBlock
-                          className="w-full min-w-0"
-                          guestName={previewDemo.guestDisplayName}
-                          inviteVenue={previewDemoVenue}
-                          cordiallyInvitesLabel={txCover.previewGuestPrefix}
-                          venueLabel={previewDemoVenueLabel}
-                          weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
-                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
-                          addressText={guestInviteLocationPreview.address}
-                          mapUrl={guestInviteLocationPreview.mapUrl}
-                          viewMapLabel={txPublic.guestInviteViewMap}
-                          personalInviteText={previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
-                          personalInviteClassName={cn('text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}
-                          panelClassName={selectedTheme.panelStrong}
-                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
-                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          weddingThemeId={selectedTheme.id}
-                          compact
-                        />
                         <WeddingCouplePortraits
                           groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
                           brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
@@ -2914,21 +2945,28 @@ export default function WeddingCardAiClientPage() {
                                 </p>
                               ) : null}
                               {timeline.length > 0 ? (
-                                <div className="mt-2 space-y-1 text-left">
-                                  <p className={cn('text-center text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                                <>
+                                  <p className={cn('mt-2 text-center text-[10px] uppercase tracking-[0.16em]', selectedTheme.accentText, selectedTheme.textGlow)}>
                                     {previewPublic.timelineTitle}
                                   </p>
-                                  {timeline.map((item, index) => {
-                                    const content = weddingTimelineItemContent(item)
-                                    return (
-                                      <p key={`${event.label}-${item.time}-${index}`} className={cn('leading-5', selectedTheme.text, selectedTheme.textGlow)}>
-                                        {item.time ? <span className={cn('font-semibold', selectedTheme.accentText)}>{item.time}</span> : null}
-                                        {item.time && content ? <span className={cn('mx-1', selectedTheme.mutedText)}>·</span> : null}
-                                        {content ? <span>{content}</span> : null}
-                                      </p>
-                                    )
-                                  })}
-                                </div>
+                                  <WeddingTimelineList
+                                    compact
+                                    className="mt-1"
+                                    items={timeline.map((item, index) => {
+                                      const content = weddingTimelineItemContent(item)
+                                      return {
+                                        key: `${event.label}-${item.time}-${index}`,
+                                        time: item.time,
+                                        content: content || null,
+                                      }
+                                    })}
+                                    panelClassName={selectedTheme.panelStrong}
+                                    textClassName={selectedTheme.text}
+                                    mutedClassName={selectedTheme.mutedText}
+                                    accentTextClassName={selectedTheme.accentText}
+                                    textGlow={selectedTheme.textGlow}
+                                  />
+                                </>
                               ) : null}
                             </div>
                           )
@@ -3000,11 +3038,6 @@ export default function WeddingCardAiClientPage() {
                     </Button>
                     )}
                   </div>
-                  <Button asChild variant="outline" className="w-full">
-                    <Link href={`/tao-thiep-moi-cuoi-ai/ket-qua?cardId=${encodeURIComponent(card.id)}`}>
-                      Kết quả khách đi / không đi
-                    </Link>
-                  </Button>
                   </>
                 ) : null}
                 {publishUrl && (

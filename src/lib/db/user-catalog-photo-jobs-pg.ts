@@ -8,7 +8,6 @@ import {
   type ProductStudioJobRow,
   type ProductStudioJobStatus,
   type ProductStudioPublishResult,
-  type ProductStudioState,
 } from '@/lib/partner-website/product-studio/product-studio-types'
 import type { Json } from '@/types/database.types'
 import type { ProductStudioJobPatch } from '@/lib/partner-website/product-studio/product-studio-slot-pipeline'
