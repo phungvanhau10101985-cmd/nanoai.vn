@@ -2734,9 +2734,27 @@ export default function WeddingCardAiClientPage() {
                             />
                           </div>
                         )}
-                        <p className={cn('w-full whitespace-pre-line text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}>
-                          {previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
-                        </p>
+                        <WeddingGuestInviteBlock
+                          className="w-full min-w-0"
+                          guestName={previewDemo.guestDisplayName}
+                          inviteVenue={previewDemoVenue}
+                          cordiallyInvitesLabel={txCover.previewGuestPrefix}
+                          venueLabel={previewDemoVenueLabel}
+                          weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
+                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
+                          addressText={guestInviteLocationPreview.address}
+                          mapUrl={guestInviteLocationPreview.mapUrl}
+                          viewMapLabel={txPublic.guestInviteViewMap}
+                          personalInviteText={previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
+                          personalInviteClassName={cn('text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}
+                          panelClassName={selectedTheme.panelStrong}
+                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
+                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
+                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          weddingThemeId={selectedTheme.id}
+                          compact
+                        />
                         <WeddingCouplePortraits
                           groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
                           brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
@@ -2766,25 +2784,6 @@ export default function WeddingCardAiClientPage() {
                             ) : null}
                           </div>
                         )}
-                        <WeddingGuestInviteBlock
-                          className="w-full min-w-0"
-                          guestName={previewDemo.guestDisplayName}
-                          inviteVenue={previewDemoVenue}
-                          cordiallyInvitesLabel={txCover.previewGuestPrefix}
-                          venueLabel={previewDemoVenueLabel}
-                          weddingDateLabel={weddingDateDisplay || card.weddingDate || undefined}
-                          weddingTimeText={guestInviteLocationPreview.displayTime || card.weddingTime}
-                          addressText={guestInviteLocationPreview.address}
-                          mapUrl={guestInviteLocationPreview.mapUrl}
-                          viewMapLabel={txPublic.guestInviteViewMap}
-                          panelClassName={selectedTheme.panelStrong}
-                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                          venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
-                          addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
-                          weddingThemeId={selectedTheme.id}
-                          compact
-                        />
                         <div className={cn('w-full min-w-0 rounded-xl px-2 py-2 text-xs', selectedTheme.panelGlass)}>
                           {resolveWeddingDateIso(guestInviteLocationPreview.weddingDate) ? (
                             <WeddingEventCalendarBlock

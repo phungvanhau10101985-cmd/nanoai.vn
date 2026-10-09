@@ -18,14 +18,12 @@ import {
 import { buildWeddingPersonalInviteUrl } from '@/lib/wedding/wedding-guest-invite-link'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import {
-  appendWeddingSideInviteSettingsToFormData,
   EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
   ownSidePartyFields,
   serializeWeddingSideInviteSettings,
   weddingSideInviteSettingsFromCard,
   type WeddingSideInviteSettings,
 } from '@/lib/wedding/wedding-side-invite-settings'
-import { WeddingSideInviteSettingsPanel } from './wedding-side-invite-settings-panel'
 import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
 import { WeddingGuestPackPanel } from './wedding-guest-pack-panel'
 import type { WeddingGuestPackSide, WeddingGuestSideQuotas } from '@/lib/wedding/wedding-guest-pack'
@@ -34,7 +32,6 @@ import {
   loadWeddingInvitedGuestsPage,
   removeWeddingInvitedGuest,
   saveWeddingInvitedGuest,
-  saveWeddingSideInviteSettings,
 } from './actions'
 import { useSetCreationToolBackHandler } from '@/components/navigation/creation-tool-shell-back'
 
@@ -81,7 +78,7 @@ const SIDE_LOOK = {
     kicker: 'Nhà trai',
     title: 'Khách mời nhà trai',
     who: 'Chú rể',
-    hint: 'Điền bố mẹ, ngày, giờ, địa chỉ và lịch trình của nhà trai. Lời mời tự sinh theo xưng hô và tên khách.',
+    hint: 'Lời mời tự sinh theo xưng hô và tên khách, dùng thông tin nhà trai đã điền lúc tạo thiệp.',
     card: 'border-sky-200 bg-white shadow-md shadow-sky-100/80 ring-1 ring-sky-100',
     header: 'bg-gradient-to-r from-sky-900 via-sky-800 to-cyan-700 text-white',
     muted: 'text-sky-100',
@@ -106,7 +103,7 @@ const SIDE_LOOK = {
     kicker: 'Nhà gái',
     title: 'Khách mời nhà gái',
     who: 'Cô dâu',
-    hint: 'Điền bố mẹ, ngày, giờ, địa chỉ và lịch trình của nhà gái. Lời mời tự sinh theo xưng hô và tên khách.',
+    hint: 'Lời mời tự sinh theo xưng hô và tên khách, dùng thông tin nhà gái đã điền lúc tạo thiệp.',
     card: 'border-rose-200 bg-white shadow-md shadow-rose-100/80 ring-1 ring-rose-100',
     header: 'bg-gradient-to-r from-rose-900 via-rose-800 to-rose-600 text-white',
     muted: 'text-rose-100',
@@ -246,7 +243,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const [rows, setRows] = useState<GuestRow[]>([])
   const [sideSettings, setSideSettings] = useState<SideSettings>(EMPTY_WEDDING_SIDE_INVITE_SETTINGS)
   const [savingKey, setSavingKey] = useState<string | null>(null)
-  const [savingSideSettings, setSavingSideSettings] = useState(false)
   const [origin, setOrigin] = useState('')
   const [focusSide, setFocusSide] = useState<'groom' | 'bride' | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GuestRow | null>(null)
@@ -256,7 +252,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const savedSnapshotsRef = useRef<Map<string, string>>(new Map())
   const saveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
   const sideSettingsSnapshotRef = useRef('')
-  const sideSettingsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const rowsRef = useRef<GuestRow[]>([])
   const cardRef = useRef<WeddingCard | null>(null)
   const sideSettingsRef = useRef<SideSettings>(sideSettings)
@@ -308,7 +303,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     const refreshFromSharedCard = () => {
       if (document.visibilityState === 'hidden') return
       if (serializeSideBundle(sideSettingsRef.current, cardRef.current) !== sideSettingsSnapshotRef.current) return
-      if (sideSettingsTimerRef.current || saveTimersRef.current.size > 0) return
+      if (saveTimersRef.current.size > 0) return
       void load(true)
     }
     const onPageShow = (event: PageTransitionEvent) => {
@@ -383,43 +378,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       }),
     )
   }, [card, loading, sideSettings])
-
-  const persistSideSettings = useCallback(async () => {
-    const currentCard = cardRef.current
-    const settings = sideSettingsRef.current
-    if (!currentCard) return
-    const snap = serializeSideBundle(settings, currentCard)
-    if (sideSettingsSnapshotRef.current === snap) return
-    setSavingSideSettings(true)
-    const formData = new FormData()
-    formData.append('cardId', currentCard.id)
-    formData.append('groomParents', currentCard.groomParents)
-    formData.append('brideParents', currentCard.brideParents)
-    formData.append('sectionConfig', currentCard.sectionConfig || '')
-    appendWeddingSideInviteSettingsToFormData(formData, settings)
-    const result = await saveWeddingSideInviteSettings(formData)
-    setSavingSideSettings(false)
-    if ('error' in result && result.error) {
-      toast({ title: 'Lưu cài đặt thất bại', description: result.error, variant: 'destructive' })
-      return
-    }
-    if ('card' in result && result.card) {
-      const savedSettings = sideSettingsFromCard(result.card)
-      setCard(result.card)
-      setSideSettings(savedSettings)
-      sideSettingsSnapshotRef.current = serializeSideBundle(savedSettings, result.card)
-    }
-  }, [toast])
-
-  useEffect(() => {
-    if (!card || loading) return
-    const snap = serializeSideBundle(sideSettings, card)
-    if (sideSettingsSnapshotRef.current === snap) return
-    if (sideSettingsTimerRef.current) clearTimeout(sideSettingsTimerRef.current)
-    sideSettingsTimerRef.current = setTimeout(() => {
-      void persistSideSettings()
-    }, AUTO_SAVE_DEBOUNCE_MS)
-  }, [card, loading, persistSideSettings, sideSettings])
 
   const persistRowByKey = useCallback(
     async (clientKey: string, fixedSide: GuestSide) => {
@@ -500,7 +458,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     const timers = saveTimersRef.current
     return () => {
       timers.forEach((timer) => clearTimeout(timer))
-      if (sideSettingsTimerRef.current) clearTimeout(sideSettingsTimerRef.current)
     }
   }, [])
 
@@ -1059,17 +1016,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         </header>
         <div className="space-y-4 p-3 sm:p-5">
           <p className="text-sm text-muted-foreground">{look.hint}</p>
-          <WeddingSideInviteSettingsPanel
-            side={look.panel}
-            card={card}
-            settings={sideSettings}
-            saving={savingSideSettings}
-            onChange={setSideSettings}
-            onParentsChange={(value) => {
-              const key = look.panel === 'groom' ? 'groomParents' : 'brideParents'
-              setCard((prev) => (prev ? { ...prev, [key]: value } : prev))
-            }}
-          />
           <WeddingGuestPackPanel
             cardId={card?.id ?? cardId}
             side={look.panel}

@@ -82,7 +82,7 @@ export function WeddingGuestInviteBlock(props: Props) {
               'mx-auto max-w-prose whitespace-pre-line text-center',
               props.dense ? 'mt-1.5' : 'mt-3',
               props.compact ? 'text-[11px] leading-relaxed' : props.dense ? 'text-[13px] leading-5' : 'text-xs leading-6 sm:text-sm',
-              props.scriptLines && 'wedding-open-line wedding-open-invite',
+              props.scriptLines && 'wedding-open-line wedding-open-invite-body',
               props.personalInviteClassName ?? props.cordiallyClassName,
             )}
           >

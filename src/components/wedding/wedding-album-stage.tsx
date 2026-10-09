@@ -139,7 +139,15 @@ export function WeddingAlbumStage(props: {
     }, MOTION_MS + 40)
   }
 
-  const nudge = (dir: -1 | 1) => commitGlide(dir < 0 ? 1 : -1)
+  const nudge = (dir: -1 | 1) => {
+    if (layout === 'slide') {
+      setGlide(0)
+      glideRef.current = 0
+      setIndex((current) => wrap(current + dir, count))
+      return
+    }
+    commitGlide(dir < 0 ? 1 : -1)
+  }
   const commitGlideRef = useRef(commitGlide)
   commitGlideRef.current = commitGlide
 
@@ -158,7 +166,7 @@ export function WeddingAlbumStage(props: {
     const onStart = (event: TouchEvent) => {
       if (event.touches.length !== 1 || settling.current) return
       if (isChrome(event.target)) return
-      if (event.target instanceof Element && event.target.closest('[data-album-film-strip]')) return
+      if (event.target instanceof Element && event.target.closest('[data-album-film-strip], [data-album-slide-scroller]')) return
       const touch = event.touches[0]
       active = true
       locked = 'unset'
@@ -223,6 +231,12 @@ export function WeddingAlbumStage(props: {
   }, [count])
 
   const jumpTo = (target: number) => {
+    if (layout === 'slide') {
+      setGlide(0)
+      glideRef.current = 0
+      setIndex(wrap(target, count))
+      return
+    }
     const d = wrappedDelta(target, indexRef.current, count)
     if (Math.abs(d) < 0.01) return
     if (Math.abs(Math.abs(d) - 1) < 0.05) {
@@ -245,7 +259,7 @@ export function WeddingAlbumStage(props: {
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch') return
     if (count < 2 || settling.current) return
-    if ((event.target as HTMLElement).closest('[data-album-chrome]')) return
+    if ((event.target as HTMLElement).closest('[data-album-chrome], [data-album-slide-scroller]')) return
     drag.current = { active: true, startX: event.clientX }
     setSmooth(false)
     try {
@@ -257,7 +271,8 @@ export function WeddingAlbumStage(props: {
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.pointerType === 'touch' || !drag.current.active) return
     const dx = event.clientX - drag.current.startX
-    const next = Math.max(-1.15, Math.min(1.15, dx / 200))
+    const span = layout === 'slide' ? Math.max(1, event.currentTarget.getBoundingClientRect().width) : 200
+    const next = Math.max(-1.15, Math.min(1.15, dx / span))
     glideRef.current = next
     setGlide(next)
   }
@@ -286,11 +301,14 @@ export function WeddingAlbumStage(props: {
   const expandLabel = navCopy.expand
 
   return (
-    <div className={cn('relative w-full min-w-0 max-w-full', props.className)}>
+    <div className={cn('relative w-full min-w-0 max-w-full', layout === 'film' && 'overflow-x-clip', props.className)}>
       <div
         ref={swipeRootRef}
         className="relative select-none"
-        style={{ touchAction: 'pan-y' }}
+        style={{
+          touchAction: layout === 'slide' ? 'pan-x pan-y' : 'pan-y',
+          overscrollBehaviorX: 'contain',
+        }}
         tabIndex={count > 1 ? 0 : undefined}
         onKeyDown={(event) => {
           if (event.key === 'ArrowLeft') nudge(-1)
@@ -313,6 +331,11 @@ export function WeddingAlbumStage(props: {
             frameOf={(photoIndex) => resolveAlbumPhotoFrame(props.crops, photoIndex)}
             onNudge={nudge}
             onJump={jumpTo}
+            onIndex={(next) => {
+              setGlide(0)
+              glideRef.current = 0
+              setIndex(wrap(next, count))
+            }}
           />
         </div>
         {count > 1 ? (
@@ -350,6 +373,232 @@ export function WeddingAlbumStage(props: {
   )
 }
 
+function filmCellSize(compact: boolean | undefined) {
+  if (compact) return { width: '72px', height: '96px' }
+  return { width: 'clamp(64px, 18vw, 96px)', height: 'clamp(88px, 22vw, 120px)' }
+}
+
+function FilmSprockets() {
+  return (
+    <div
+      aria-hidden
+      className="mx-2 h-2 shrink-0"
+      style={{
+        backgroundImage: 'radial-gradient(circle, #d6d3d1 1.5px, transparent 1.7px)',
+        backgroundSize: '14px 8px',
+        backgroundRepeat: 'repeat-x',
+        backgroundPosition: 'center',
+      }}
+    />
+  )
+}
+
+/** Dải phim: chỉ một hàng khung nhỏ, không ảnh hero full khung. */
+function FilmStrip(props: {
+  urls: string[]
+  alt: string
+  index: number
+  focus: number
+  count: number
+  transition: string
+  compact?: boolean
+  frameOf: (index: number) => WeddingAlbumPhotoFrame
+  onJump: (index: number) => void
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const cell = filmCellSize(props.compact)
+
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const active = scroller.querySelector<HTMLElement>('[data-album-film-on="1"]')
+    if (!active) return
+    const scrollerRect = scroller.getBoundingClientRect()
+    const activeRect = active.getBoundingClientRect()
+    const delta = activeRect.left - scrollerRect.left - (scrollerRect.width - activeRect.width) / 2
+    scroller.scrollBy({ left: delta, behavior: 'auto' })
+  }, [props.index, props.urls.length])
+
+  return (
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl bg-stone-950 py-2">
+      <FilmSprockets />
+      <div
+        ref={scrollerRef}
+        className="mt-1.5 flex w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain [scrollbar-width:thin]"
+        style={{ justifyContent: 'safe center' }}
+        data-album-film-strip=""
+      >
+        <div className="flex w-max max-w-none gap-2 px-2">
+          {props.urls.map((url, i) => {
+            const ad = Math.abs(wrappedDelta(i, props.focus, props.count))
+            const on = ad < 0.45
+            return (
+              <button
+                key={`${url}-${i}`}
+                type="button"
+                data-album-film-on={on ? '1' : '0'}
+                onClick={() => props.onJump(i)}
+                className="relative shrink-0 overflow-hidden rounded-sm bg-black"
+                style={{
+                  width: cell.width,
+                  height: cell.height,
+                  minWidth: cell.width,
+                  maxWidth: cell.width,
+                  minHeight: cell.height,
+                  maxHeight: cell.height,
+                  opacity: on ? 1 : 0.72,
+                  boxShadow: on ? 'inset 0 0 0 2px #fff' : undefined,
+                  transition: props.transition,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- album URLs are external CDN */}
+                <img
+                  src={url}
+                  alt={i === props.index ? props.alt : ''}
+                  draggable={false}
+                  className="pointer-events-none object-cover"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    ...albumPhotoFrameStyle(props.frameOf(i)),
+                  }}
+                />
+              </button>
+            )
+          })}
+        </div>
+      </div>
+      <div className="mt-1.5">
+        <FilmSprockets />
+      </div>
+    </div>
+  )
+}
+
+function SlideScroller(props: {
+  urls: string[]
+  alt: string
+  index: number
+  className: string
+  frameOf: (index: number) => WeddingAlbumPhotoFrame
+  onIndex: (index: number) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const drag = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, startLeft: 0, delta: 0, axis: 'unset' as 'unset' | 'x' | 'y' })
+  const indexRef = useRef(props.index)
+  const onIndexRef = useRef(props.onIndex)
+  indexRef.current = props.index
+  onIndexRef.current = props.onIndex
+
+  useEffect(() => {
+    if (drag.current.active) return
+    const el = ref.current
+    if (!el) return
+    const slide = el.firstElementChild
+    const width = slide instanceof HTMLElement && slide.offsetWidth > 0 ? slide.offsetWidth : el.clientWidth
+    if (width <= 0) return
+    const left = props.index * width
+    if (Math.abs(el.scrollLeft - left) < 2) return
+    el.scrollTo({ left, behavior: 'auto' })
+  }, [props.index, props.urls.length])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || props.urls.length < 2) return
+
+    const finish = (event: PointerEvent) => {
+      const d = drag.current
+      if (!d.active || event.pointerId !== d.pointerId) return
+      d.active = false
+      if (d.axis !== 'x') return
+      const width = (el.firstElementChild instanceof HTMLElement && el.firstElementChild.offsetWidth) || el.clientWidth || 1
+      const step = d.delta > 0.18 ? 1 : d.delta < -0.18 ? -1 : 0
+      const next = wrap(indexRef.current + step, props.urls.length)
+      el.scrollLeft = next * width
+      if (next !== indexRef.current) onIndexRef.current(next)
+    }
+
+    const onDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return
+      drag.current = {
+        active: true,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startLeft: el.scrollLeft,
+        delta: 0,
+        axis: 'unset',
+      }
+      event.stopPropagation()
+      try {
+        el.setPointerCapture(event.pointerId)
+      } catch {
+        /* pointer đã nhả */
+      }
+    }
+    const onMove = (event: PointerEvent) => {
+      const d = drag.current
+      if (!d.active || event.pointerId !== d.pointerId) return
+      const dx = event.clientX - d.startX
+      const dy = event.clientY - d.startY
+      if (d.axis === 'unset') {
+        if (dx * dx + dy * dy < 64) return
+        d.axis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y'
+        if (d.axis === 'y') {
+          d.active = false
+          try {
+            el.releasePointerCapture(event.pointerId)
+          } catch {
+            /* pointer đã nhả */
+          }
+          return
+        }
+      }
+      if (d.axis !== 'x') return
+      const width = (el.firstElementChild instanceof HTMLElement && el.firstElementChild.offsetWidth) || el.clientWidth || 1
+      d.delta = -dx / width
+      el.scrollLeft = d.startLeft - dx
+      if (event.cancelable) event.preventDefault()
+    }
+
+    el.addEventListener('pointerdown', onDown)
+    el.addEventListener('pointermove', onMove, { passive: false })
+    el.addEventListener('pointerup', finish)
+    el.addEventListener('pointercancel', finish)
+    return () => {
+      el.removeEventListener('pointerdown', onDown)
+      el.removeEventListener('pointermove', onMove)
+      el.removeEventListener('pointerup', finish)
+      el.removeEventListener('pointercancel', finish)
+    }
+  }, [props.urls.length])
+
+  return (
+    <div className={props.className}>
+      <div
+        ref={ref}
+        data-album-slide-scroller=""
+        className="flex h-full w-full min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ touchAction: 'pan-y' }}
+      >
+        {props.urls.map((url, i) => (
+          <div
+            key={`${url}-${i}`}
+            className="relative h-full w-full shrink-0 overflow-hidden"
+            style={{ flex: '0 0 100%', minWidth: 0 }}
+          >
+            <AlbumPhoto url={url} alt={props.alt} frame={props.frameOf(i)} className="absolute inset-0" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AlbumFrame(props: {
   layout: WeddingAlbumLayoutId
   urls: string[]
@@ -361,6 +610,7 @@ function AlbumFrame(props: {
   frameOf: (index: number) => WeddingAlbumPhotoFrame
   onNudge: (dir: -1 | 1) => void
   onJump: (index: number) => void
+  onIndex: (index: number) => void
 }) {
   const { urls, alt, index, glide, smooth } = props
   const count = urls.length
@@ -412,59 +662,82 @@ function AlbumFrame(props: {
     )
   }
 
-  if (props.layout === 'slide' || props.layout === 'story') {
-    const vertical = props.layout === 'story'
+  if (props.layout === 'slide') {
+    return (
+      <SlideScroller
+        urls={urls}
+        alt={alt}
+        index={index}
+        className={cn(frame, 'overflow-hidden rounded-2xl shadow-xl')}
+        frameOf={props.frameOf}
+        onIndex={props.onIndex}
+      />
+    )
+  }
+
+  if (props.layout === 'story') {
+    const offset = (glide - index) * 100
     const track = (
       <div
-        className={vertical ? 'w-full' : 'flex h-full'}
+        className="absolute inset-0 flex flex-col"
         style={{
-          [vertical ? 'height' : 'width']: `${count * 100}%`,
-          transform: vertical
-            ? `translateY(${(-(index - glide) * 100) / count}%)`
-            : `translateX(${(-(index - glide) * 100) / count}%)`,
+          transform: `translateY(${offset}%)`,
           transition,
         }}
       >
         {urls.map((url, i) => (
           <div
             key={`${url}-${i}`}
-            className={vertical ? 'w-full touch-pan-y' : 'h-full touch-pan-y'}
-            style={vertical ? { height: `${100 / count}%`, touchAction: 'pan-y' } : { width: `${100 / count}%`, touchAction: 'pan-y' }}
+            className="relative h-full w-full shrink-0 overflow-hidden"
+            style={{ flex: '0 0 100%', minWidth: 0, minHeight: 0, touchAction: 'pan-y' }}
           >
-            <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} />
+            <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
           </div>
         ))}
       </div>
     )
-    if (vertical) {
-      return (
-        <div className="mx-auto w-full max-w-[20rem]">
-          <div className="mb-2 flex gap-1">
-            {urls.map((url, i) => (
+    return (
+      <div className="mx-auto w-full max-w-[20rem]">
+        <div className="mb-2 flex gap-1">
+          {urls.map((url, i) => (
+            <span
+              key={`${url}-bar-${i}`}
+              className="h-1 flex-1 rounded-full bg-stone-300"
+            >
               <span
-                key={`${url}-bar-${i}`}
-                className="h-1 flex-1 rounded-full bg-stone-300"
-              >
-                <span
-                  className="block h-full rounded-full bg-stone-800"
-                  style={{
-                    opacity: Math.max(0, 1 - Math.abs(wrappedDelta(i, focus, count))),
-                    transition,
-                  }}
-                />
-              </span>
-            ))}
-          </div>
-          <div className="relative aspect-[3/4] overflow-hidden rounded-2xl shadow-xl">{track}</div>
+                className="block h-full rounded-full bg-stone-800"
+                style={{
+                  opacity: Math.max(0, 1 - Math.abs(wrappedDelta(i, focus, count))),
+                  transition,
+                }}
+              />
+            </span>
+          ))}
         </div>
-      )
-    }
-    return <div className={cn(frame, 'overflow-hidden rounded-2xl shadow-xl')}>{track}</div>
+        <div className="relative aspect-[3/4] overflow-hidden rounded-2xl shadow-xl">{track}</div>
+      </div>
+    )
   }
 
-  if (props.layout === 'fade' || props.layout === 'film') {
-    const hero = (
-      <div className={cn(props.layout === 'film' ? frame : frame, 'overflow-hidden rounded-2xl shadow-xl')}>
+  if (props.layout === 'film') {
+    return (
+      <FilmStrip
+        urls={urls}
+        alt={alt}
+        index={index}
+        focus={focus}
+        count={count}
+        transition={transition}
+        compact={props.compact}
+        frameOf={props.frameOf}
+        onJump={props.onJump}
+      />
+    )
+  }
+
+  if (props.layout === 'fade') {
+    return (
+      <div className={cn(frame, 'overflow-hidden rounded-2xl shadow-xl')}>
         {urls.map((url, i) => {
           const ad = Math.abs(wrappedDelta(i, focus, count))
           return (
@@ -484,40 +757,6 @@ function AlbumFrame(props: {
         })}
       </div>
     )
-    if (props.layout === 'film') {
-      return (
-        <div className="w-full min-w-0 max-w-full space-y-3">
-          {hero}
-          <div
-            className="flex w-full min-w-0 max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1"
-            data-album-film-strip=""
-          >
-            {urls.map((url, i) => {
-              const ad = Math.abs(wrappedDelta(i, focus, count))
-              const on = ad < 0.45
-              return (
-                <button
-                  key={`${url}-${i}`}
-                  type="button"
-                  onClick={() => props.onJump(i)}
-                  className={cn(
-                    'relative h-16 w-12 min-h-16 min-w-12 max-h-16 max-w-12 shrink-0 overflow-hidden rounded-lg ring-2 ring-offset-1',
-                    on ? 'ring-stone-800' : 'ring-transparent',
-                  )}
-                  style={{
-                    opacity: on ? 1 : 0.7,
-                    transition,
-                  }}
-                >
-                  <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )
-    }
-    return hero
   }
 
   if (props.layout === 'stack') {

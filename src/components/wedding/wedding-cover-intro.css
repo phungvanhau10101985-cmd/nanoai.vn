@@ -174,11 +174,12 @@
 .wedding-open-quote { animation-delay: 2.15s; }
 .wedding-open-invite { animation-delay: 2.65s; }
 .wedding-open-invite-en { animation-delay: 3.1s; }
-.wedding-open-guest { animation-delay: 3.35s; }
-.wedding-open-cordial { animation-delay: 3.4s; }
+.wedding-open-guest { animation-delay: 2.85s; }
+.wedding-open-cordial { animation-delay: 2.9s; }
 .wedding-open-guest-name {
-  animation: wedding-open-guest-name 0.8s cubic-bezier(0.22, 1, 0.36, 1) 3.7s both;
+  animation: wedding-open-guest-name 0.8s cubic-bezier(0.22, 1, 0.36, 1) 3.15s both;
 }
+.wedding-open-invite-body { animation-delay: 3.55s; }
 .wedding-open-venue { animation-delay: 4.05s; }
 .wedding-open-when { animation-delay: 4.35s; }
 .wedding-open-address { animation-delay: 4.6s; }

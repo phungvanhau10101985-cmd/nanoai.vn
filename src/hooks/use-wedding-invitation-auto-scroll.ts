@@ -55,6 +55,23 @@ function writeScrollTop(y: number) {
   if (delta !== 0) window.scrollBy(0, delta)
 }
 
+/** Dừng cuộn tự động đang chạy (kể cả khi trang được khôi phục từ bộ nhớ). */
+export function stopWeddingInvitationAutoScroll() {
+  activeSession?.stop()
+}
+
+/** Về đầu trang, không gỡ khóa cuộn của bìa. */
+export function scrollWeddingPageToTop() {
+  const html = document.documentElement
+  const prev = html.style.scrollBehavior
+  html.style.scrollBehavior = 'auto'
+  const root = scrollingRoot()
+  root.scrollTop = 0
+  window.scrollTo(0, 0)
+  if (document.body && document.body !== root) document.body.scrollTop = 0
+  html.style.scrollBehavior = prev
+}
+
 /** Gỡ overflow:hidden trên html/body. iOS không nhận scrollTo nếu khóa còn dính. */
 export function releaseWeddingPageScrollLock() {
   document.documentElement.style.overflow = ''

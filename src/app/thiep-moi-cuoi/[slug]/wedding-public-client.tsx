@@ -69,7 +69,12 @@ import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-l
 import { resolveWeddingCardDisplayText } from '@/lib/wedding/wedding-card-text-interpolate'
 import { renderWeddingHighlightedText } from '@/lib/wedding/wedding-card-text-highlight'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
-import { primeWeddingPageScroll, startWeddingInvitationAutoScroll } from '@/hooks/use-wedding-invitation-auto-scroll'
+import {
+  primeWeddingPageScroll,
+  scrollWeddingPageToTop,
+  startWeddingInvitationAutoScroll,
+  stopWeddingInvitationAutoScroll,
+} from '@/hooks/use-wedding-invitation-auto-scroll'
 
 const PUBLIC_COLUMN = 'mx-auto flex w-full max-w-2xl flex-col gap-5 sm:gap-7'
 
@@ -193,6 +198,7 @@ export default function WeddingPublicClient({
   const [houseAskOpen, setHouseAskOpen] = useState(false)
   const [opened, setOpened] = useState(false)
   const scrollTimer = useRef<number | null>(null)
+  const coverScrollRef = useRef<HTMLDivElement>(null)
   const doorStarted = useRef(false)
   const [contentVisible, setContentVisible] = useState(false)
   const [albumOpen, setAlbumOpen] = useState(false)
@@ -215,6 +221,50 @@ export default function WeddingPublicClient({
   useEffect(() => {
     return () => {
       if (scrollTimer.current) window.clearTimeout(scrollTimer.current)
+    }
+  }, [])
+
+  useLayoutEffect(() => {
+    const previousRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    let raf = 0
+    let until = 0
+
+    const pinTop = () => {
+      scrollWeddingPageToTop()
+      if (coverScrollRef.current) coverScrollRef.current.scrollTop = 0
+      if (performance.now() < until) raf = window.requestAnimationFrame(pinTop)
+    }
+
+    const arm = () => {
+      window.cancelAnimationFrame(raf)
+      stopWeddingInvitationAutoScroll()
+      until = performance.now() + 480
+      pinTop()
+    }
+
+    const release = () => {
+      until = 0
+      window.cancelAnimationFrame(raf)
+    }
+
+    arm()
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) arm()
+    }
+    window.addEventListener('pageshow', onShow)
+    window.addEventListener('pagehide', stopWeddingInvitationAutoScroll)
+    window.addEventListener('wheel', release, { passive: true })
+    window.addEventListener('touchstart', release, { passive: true })
+    window.addEventListener('keydown', release)
+    return () => {
+      release()
+      window.removeEventListener('pageshow', onShow)
+      window.removeEventListener('pagehide', stopWeddingInvitationAutoScroll)
+      window.removeEventListener('wheel', release)
+      window.removeEventListener('touchstart', release)
+      window.removeEventListener('keydown', release)
+      window.history.scrollRestoration = previousRestoration
     }
   }, [])
 
@@ -644,6 +694,7 @@ export default function WeddingPublicClient({
         {!opened && (
           <>
             <div
+              ref={coverScrollRef}
               className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-cover bg-center"
               style={{
                 ...weddingBackgroundStyle(
@@ -770,25 +821,9 @@ export default function WeddingPublicClient({
                 />
               </div>
             )}
-            {displayPersonalInvite ? (
-              <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
-                {writeGuestName(displayPersonalInvite)}
-              </p>
-            ) : guestDisplayName ? null : (
-              <>
-                <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
-                  {writeGuestName(personalize(displayInvitationText || tx.defaultInvitation))}
-                </p>
-                {displayInvitationTextEn && (
-                  <p className={cn('mx-auto mt-3 max-w-xl whitespace-pre-line text-sm leading-7', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite-en', theme.mutedText, theme.textGlow)}>
-                    {writeGuestName(personalize(displayInvitationTextEn))}
-                  </p>
-                )}
-              </>
-            )}
-            {guestDisplayName && (
+            {guestDisplayName ? (
               <WeddingGuestInviteBlock
-                className="mx-auto mt-1 max-w-md"
+                className="mx-auto mt-1 max-w-xl"
                 guestName={guestDisplayName}
                 inviteVenue={guestBlockVenue}
                 cordiallyInvitesLabel={tx.cordiallyInvites}
@@ -798,6 +833,8 @@ export default function WeddingPublicClient({
                 addressText={guestBlockLocation.address}
                 mapUrl={guestBlockLocation.mapUrl}
                 viewMapLabel={tx.guestInviteViewMap}
+                personalInviteText={displayPersonalInvite || undefined}
+                personalInviteClassName={cn('max-w-xl text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}
                 scriptLines={contentVisible && card.effectsEnabled}
                 panelClassName={theme.panelStrong}
                 cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
@@ -806,6 +843,17 @@ export default function WeddingPublicClient({
                 addressClassName={cn(theme.mutedText, theme.textGlow)}
                 weddingThemeId={theme.id}
               />
+            ) : (
+              <>
+                <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
+                  {writeGuestName(personalize(displayPersonalInvite || displayInvitationText || tx.defaultInvitation))}
+                </p>
+                {displayInvitationTextEn && !displayPersonalInvite ? (
+                  <p className={cn('mx-auto mt-3 max-w-xl whitespace-pre-line text-sm leading-7', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite-en', theme.mutedText, theme.textGlow)}>
+                    {writeGuestName(personalize(displayInvitationTextEn))}
+                  </p>
+                ) : null}
+              </>
             )}
             {(displayWeddingDateIso ?? weddingDateIso) ? (
               <div className={cn('mx-auto mt-6 max-w-lg', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-after')}>

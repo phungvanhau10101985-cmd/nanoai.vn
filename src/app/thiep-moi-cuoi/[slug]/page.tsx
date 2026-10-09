@@ -127,6 +127,11 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   return (
     <>
       <JsonLd data={jsonLd} />
+      <script
+        dangerouslySetInnerHTML={{
+          __html: "try{history.scrollRestoration='manual';window.scrollTo(0,0)}catch(e){}",
+        }}
+      />
       <WeddingPublicClient
         card={card}
         sideWishes={sideWishes}
