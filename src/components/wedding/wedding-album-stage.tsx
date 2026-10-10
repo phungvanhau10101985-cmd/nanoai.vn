@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { ChevronLeft, ChevronRight, Maximize2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
@@ -54,6 +54,219 @@ function AlbumPhoto(props: { url: string; alt: string; className?: string; frame
   )
 }
 
+type AlbumCropPatch = { positionX?: number; positionY?: number; scale?: number }
+
+export type WeddingAlbumStageEdit = {
+  onChange: (index: number, patch: AlbumCropPatch) => void
+  onRemove: (index: number) => void
+  removeLabel: string
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function clampScale(value: number) {
+  return Math.max(1, Math.min(3, Math.round(value * 100) / 100))
+}
+
+const ALBUM_EDIT_COPY = {
+  vi: { zoomOut: 'Thu nhỏ', zoomIn: 'Phóng to', zoom: 'Zoom ảnh album', remove: 'Xóa ảnh', drag: 'Kéo ảnh để căn góc. Lăn chuột hoặc thanh zoom để phóng. Nút mũi tên vẫn chuyển ảnh.' },
+  en: { zoomOut: 'Zoom out', zoomIn: 'Zoom in', zoom: 'Album photo zoom', remove: 'Remove photo', drag: 'Drag to reframe. Scroll or use the zoom bar to enlarge. Arrow buttons still change photos.' },
+  zh: { zoomOut: '缩小', zoomIn: '放大', zoom: '相册照片缩放', remove: '删除照片', drag: '拖动调整取景。滚轮或缩放条可放大。箭头按钮仍可切换照片。' },
+  ja: { zoomOut: '縮小', zoomIn: '拡大', zoom: 'アルバム写真のズーム', remove: '写真を削除', drag: 'ドラッグで位置を調整。ホイールかズームバーで拡大。矢印ボタンで写真は切り替わります。' },
+  ko: { zoomOut: '축소', zoomIn: '확대', zoom: '앨범 사진 확대', remove: '사진 삭제', drag: '끌어 구도를 맞추세요. 휠이나 확대 막대로 키웁니다. 화살표 버튼은 그대로 사진을 바꿉니다.' },
+} as const
+
+/** Lớp chỉnh trên khung đang xem: kéo căn góc, zoom, xóa. Không gắn vào thiệp khách mời. */
+function AlbumStageEditor(props: {
+  index: number
+  frame: WeddingAlbumPhotoFrame
+  locale?: WebLocale
+  edit: WeddingAlbumStageEdit
+}) {
+  const frameRef = useRef<HTMLDivElement>(null)
+  const pointers = useRef(new Map<number, { x: number; y: number }>())
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    positionX: number
+    positionY: number
+  } | null>(null)
+  const pinchRef = useRef<{ dist: number; scale: number } | null>(null)
+  const live = useRef({
+    x: props.frame.x,
+    y: props.frame.y,
+    scale: props.frame.scale,
+    index: props.index,
+    onChange: props.edit.onChange,
+  })
+  live.current = {
+    x: props.frame.x,
+    y: props.frame.y,
+    scale: props.frame.scale,
+    index: props.index,
+    onChange: props.edit.onChange,
+  }
+  const copy = ALBUM_EDIT_COPY[props.locale || 'vi']
+
+  useEffect(() => {
+    const el = frameRef.current
+    if (!el) return
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault()
+      event.stopPropagation()
+      live.current.onChange(live.current.index, {
+        scale: clampScale(live.current.scale + (event.deltaY > 0 ? -0.08 : 0.08)),
+      })
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
+  const pointerDistance = () => {
+    const pts = [...pointers.current.values()]
+    if (pts.length < 2) return 0
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)
+  }
+
+  const endPointer = (target: HTMLDivElement, pointerId: number) => {
+    pointers.current.delete(pointerId)
+    if (dragRef.current?.pointerId === pointerId) dragRef.current = null
+    if (pointers.current.size < 2) pinchRef.current = null
+    if (pointers.current.size === 1) {
+      const [id, point] = [...pointers.current.entries()][0]
+      dragRef.current = {
+        pointerId: id,
+        startX: point.x,
+        startY: point.y,
+        positionX: live.current.x,
+        positionY: live.current.y,
+      }
+    }
+    try {
+      target.releasePointerCapture(pointerId)
+    } catch {
+      /* pointer already released */
+    }
+  }
+
+  const setScale = (value: number) => {
+    props.edit.onChange(props.index, { scale: clampScale(value) })
+  }
+
+  return (
+    <div
+      ref={frameRef}
+      data-album-edit=""
+      className="absolute inset-0 z-10 cursor-grab touch-none active:cursor-grabbing"
+      style={{ touchAction: 'none' }}
+      role="application"
+      aria-label={copy.drag}
+      onPointerDown={(event) => {
+        if (event.button !== 0) return
+        event.stopPropagation()
+        try {
+          event.currentTarget.setPointerCapture(event.pointerId)
+        } catch {
+          /* synthetic or already released */
+        }
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+        if (pointers.current.size >= 2) {
+          dragRef.current = null
+          pinchRef.current = { dist: Math.max(1, pointerDistance()), scale: live.current.scale }
+          return
+        }
+        pinchRef.current = null
+        dragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          positionX: live.current.x,
+          positionY: live.current.y,
+        }
+      }}
+      onPointerMove={(event) => {
+        if (!pointers.current.has(event.pointerId)) return
+        event.stopPropagation()
+        pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY })
+        if (pinchRef.current && pointers.current.size >= 2) {
+          const dist = Math.max(1, pointerDistance())
+          live.current.onChange(live.current.index, {
+            scale: clampScale(pinchRef.current.scale * (dist / pinchRef.current.dist)),
+          })
+          return
+        }
+        const drag = dragRef.current
+        const frame = frameRef.current
+        if (!drag || drag.pointerId !== event.pointerId || !frame) return
+        const rect = frame.getBoundingClientRect()
+        const sensitivity = 100 / Math.max(1, live.current.scale)
+        const dx = ((event.clientX - drag.startX) / Math.max(1, rect.width)) * sensitivity
+        const dy = ((event.clientY - drag.startY) / Math.max(1, rect.height)) * sensitivity
+        live.current.onChange(live.current.index, {
+          positionX: clampPercent(drag.positionX - dx),
+          positionY: clampPercent(drag.positionY - dy),
+        })
+      }}
+      onPointerUp={(event) => endPointer(event.currentTarget, event.pointerId)}
+      onPointerCancel={(event) => endPointer(event.currentTarget, event.pointerId)}
+      onDoubleClick={() => props.edit.onChange(props.index, { positionX: 50, positionY: 0, scale: 1 })}
+    >
+      <span className="pointer-events-none absolute bottom-10 left-2 rounded-full bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+        {Math.round(props.frame.scale * 100)}%
+      </span>
+      <button
+        type="button"
+        data-album-chrome=""
+        className="absolute right-2 top-2 z-20 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white shadow"
+        aria-label={props.edit.removeLabel}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          props.edit.onRemove(props.index)
+        }}
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+      <div
+        data-album-chrome=""
+        className="absolute bottom-2 left-10 right-10 z-20 flex items-center gap-1 rounded-full bg-black/55 px-1.5 py-1"
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-white"
+          aria-label={copy.zoomOut}
+          onClick={() => setScale(props.frame.scale - 0.1)}
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={1}
+          max={3}
+          step={0.01}
+          aria-label={copy.zoom}
+          aria-valuetext={`${Math.round(props.frame.scale * 100)}%`}
+          value={props.frame.scale}
+          onChange={(event) => setScale(Number(event.target.value))}
+          className="h-7 min-w-0 flex-1 accent-white"
+        />
+        <button
+          type="button"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm leading-none text-white"
+          aria-label={copy.zoomIn}
+          onClick={() => setScale(props.frame.scale + 0.1)}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; className?: string; compact?: boolean }) {
   const Icon = props.dir < 0 ? ChevronLeft : ChevronRight
   return (
@@ -66,7 +279,7 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
       }}
       data-album-chrome=""
       className={cn(
-        'absolute top-1/2 z-20 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
+        'absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.compact ? 'h-7 w-7' : 'h-9 w-9 sm:h-10 sm:w-10',
         props.dir < 0 ? (props.compact ? 'left-1' : 'left-1.5 sm:left-3') : (props.compact ? 'right-1' : 'right-1.5 sm:right-3'),
         props.className,
@@ -86,6 +299,8 @@ export function WeddingAlbumStage(props: {
   compact?: boolean
   crops?: WeddingAlbumPhotoCrop[]
   onExpand?: (index: number) => void
+  /** Chỉ bật ở màn tạo thiệp. Thiệp khách mời không truyền prop này. */
+  edit?: WeddingAlbumStageEdit
 }) {
   const urls = props.urls.filter(Boolean)
   const count = urls.length
@@ -102,6 +317,8 @@ export function WeddingAlbumStage(props: {
   const timer = useRef<number | null>(null)
   const swipeRootRef = useRef<HTMLDivElement>(null)
   const suppressClick = useRef(false)
+  const editActiveRef = useRef(Boolean(props.edit))
+  editActiveRef.current = Boolean(props.edit)
   const safeIndex = wrap(index, count)
 
   useEffect(() => {
@@ -165,6 +382,7 @@ export function WeddingAlbumStage(props: {
       target instanceof Element && Boolean(target.closest('[data-album-chrome]'))
 
     const onStart = (event: TouchEvent) => {
+      if (editActiveRef.current) return
       if (event.touches.length !== 1 || settling.current) return
       if (isChrome(event.target)) return
       if (event.target instanceof Element && event.target.closest('[data-album-film-strip], [data-album-slide-scroller]')) return
@@ -258,6 +476,7 @@ export function WeddingAlbumStage(props: {
   if (count === 0) return null
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (props.edit) return
     if (event.pointerType === 'touch') return
     if (count < 2 || settling.current) return
     if ((event.target as HTMLElement).closest('[data-album-chrome], [data-album-slide-scroller], [data-album-film-strip]')) return
@@ -320,7 +539,13 @@ export function WeddingAlbumStage(props: {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <div className="w-full min-w-0 max-w-full overflow-hidden transition-opacity duration-300 ease-out" style={{ opacity: revealed ? 1 : 0 }}>
+        <div
+          className={cn(
+            'w-full min-w-0 max-w-full overflow-hidden transition-opacity duration-300 ease-out',
+            props.edit && 'pointer-events-none',
+          )}
+          style={{ opacity: revealed ? 1 : 0 }}
+        >
           <AlbumFrame
             layout={layout}
             urls={urls}
@@ -338,6 +563,7 @@ export function WeddingAlbumStage(props: {
               glideRef.current = 0
               setIndex(wrap(next, count))
             }}
+            locked={Boolean(props.edit)}
           />
         </div>
         {count > 1 ? (
@@ -346,7 +572,7 @@ export function WeddingAlbumStage(props: {
             <Arrow dir={1} label={nextLabel} onClick={() => nudge(1)} compact={props.compact} />
           </>
         ) : null}
-        {props.onExpand ? (
+        {props.onExpand && !props.edit ? (
           <button
             type="button"
             aria-label={expandLabel}
@@ -356,6 +582,14 @@ export function WeddingAlbumStage(props: {
           >
             <Maximize2 className="h-4 w-4" />
           </button>
+        ) : null}
+        {props.edit ? (
+          <AlbumStageEditor
+            index={safeIndex}
+            frame={resolveAlbumPhotoFrame(props.crops, safeIndex)}
+            locale={props.locale}
+            edit={props.edit}
+          />
         ) : null}
       </div>
       {count > 1 && layout !== 'film' && layout !== 'story' ? (
@@ -402,6 +636,7 @@ function FilmStrip(props: {
   frameOf: (index: number) => WeddingAlbumPhotoFrame
   onIndex: (index: number) => void
   onExpand?: (index: number) => void
+  locked?: boolean
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const fromScroll = useRef(false)
@@ -429,7 +664,7 @@ function FilmStrip(props: {
 
   useEffect(() => {
     const scroller = scrollerRef.current
-    if (!scroller || count < 2) return
+    if (!scroller || props.locked || count < 2) return
     let timer: number | null = null
     const sync = () => {
       const width = scroller.clientWidth || 1
@@ -453,7 +688,7 @@ function FilmStrip(props: {
       scroller.removeEventListener('scroll', onScroll)
       scroller.removeEventListener('scrollend', sync)
     }
-  }, [count])
+  }, [count, props.locked])
 
   return (
     <div
@@ -470,7 +705,7 @@ function FilmStrip(props: {
           props.compact ? 'mt-1.5' : 'mt-2',
         )}
         data-album-film-strip=""
-        style={{ touchAction: 'pan-x pan-y' }}
+        style={{ touchAction: props.locked ? 'none' : 'pan-x pan-y' }}
       >
         {props.urls.map((url, i) => {
           const on = i === props.index
@@ -530,6 +765,8 @@ function SlideScroller(props: {
   className: string
   frameOf: (index: number) => WeddingAlbumPhotoFrame
   onIndex: (index: number) => void
+  /** Màn sửa: chỉ nút mũi tên đổi ảnh, không vuốt ngang. */
+  locked?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const drag = useRef({ active: false, pointerId: -1, startX: 0, startY: 0, startLeft: 0, delta: 0, axis: 'unset' as 'unset' | 'x' | 'y' })
@@ -552,7 +789,7 @@ function SlideScroller(props: {
 
   useEffect(() => {
     const el = ref.current
-    if (!el || props.urls.length < 2) return
+    if (!el || props.locked || props.urls.length < 2) return
 
     const finish = (event: PointerEvent) => {
       const d = drag.current
@@ -619,7 +856,7 @@ function SlideScroller(props: {
       el.removeEventListener('pointerup', finish)
       el.removeEventListener('pointercancel', finish)
     }
-  }, [props.urls.length])
+  }, [props.locked, props.urls.length])
 
   return (
     <div className={props.className}>
@@ -627,7 +864,7 @@ function SlideScroller(props: {
         ref={ref}
         data-album-slide-scroller=""
         className="flex h-full w-full min-w-0 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ touchAction: 'pan-y' }}
+        style={{ touchAction: props.locked ? 'none' : 'pan-y' }}
       >
         {props.urls.map((url, i) => (
           <div
@@ -656,6 +893,7 @@ function AlbumFrame(props: {
   onJump: (index: number) => void
   onExpand?: (index: number) => void
   onIndex: (index: number) => void
+  locked?: boolean
 }) {
   const { urls, alt, index, glide, smooth } = props
   const count = urls.length
@@ -716,6 +954,7 @@ function AlbumFrame(props: {
         className={cn(frame, 'overflow-hidden rounded-2xl shadow-xl')}
         frameOf={props.frameOf}
         onIndex={props.onIndex}
+        locked={props.locked}
       />
     )
   }
@@ -774,6 +1013,7 @@ function AlbumFrame(props: {
         frameOf={props.frameOf}
         onIndex={props.onIndex}
         onExpand={props.onExpand}
+        locked={props.locked}
       />
     )
   }
@@ -889,6 +1129,9 @@ export function WeddingAlbumLayoutPicker(props: {
   previewUrls?: string[]
   crops?: WeddingAlbumPhotoCrop[]
   onSelect: (id: WeddingAlbumLayoutId) => void
+  onCropChange?: WeddingAlbumStageEdit['onChange']
+  onRemove?: WeddingAlbumStageEdit['onRemove']
+  removeLabel?: string
 }) {
   const selected = resolveWeddingAlbumLayoutId(props.selectedId || DEFAULT_WEDDING_ALBUM_LAYOUT_ID)
   const urls = (props.previewUrls ?? []).filter(Boolean)
@@ -914,7 +1157,23 @@ export function WeddingAlbumLayoutPicker(props: {
       </div>
       {urls.length > 0 ? (
         <div className="w-full min-w-0 max-w-full overflow-hidden rounded-xl border border-stone-200/80 bg-stone-50/50 p-2 sm:p-2.5">
-          <WeddingAlbumStage urls={urls} alt="" layoutId={selected} locale={props.locale} crops={props.crops} compact />
+          <WeddingAlbumStage
+            urls={urls}
+            alt=""
+            layoutId={selected}
+            locale={props.locale}
+            crops={props.crops}
+            compact
+            edit={
+              props.onCropChange && props.onRemove
+                ? {
+                    onChange: props.onCropChange,
+                    onRemove: props.onRemove,
+                    removeLabel: props.removeLabel || ALBUM_EDIT_COPY[props.locale].remove,
+                  }
+                : undefined
+            }
+          />
         </div>
       ) : null}
     </div>

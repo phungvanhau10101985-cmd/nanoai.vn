@@ -2308,7 +2308,7 @@ export default function WeddingCardAiClientPage() {
                 <div className="w-full min-w-0 max-w-full space-y-3 overflow-hidden rounded-2xl border p-3">
                   <Label>{occasionCopy.albumLabel}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Kéo từng ảnh để chọn góc. Thanh zoom dưới ảnh để phóng phần muốn khách thấy. Nhấp đúp ảnh để về vị trí ban đầu. Ảnh mới tự lưu, căn góc sau khi ảnh đã lên thiệp.
+                    Trên khung xem album: kéo ảnh để căn góc, lăn chuột hoặc thanh zoom để phóng, nút X để xóa. Nút mũi tên vẫn chuyển ảnh. Nhấp đúp để về vị trí ban đầu. Ảnh mới tự lưu.
                   </p>
                   <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
                     <Upload className="h-4 w-4" />
@@ -2363,13 +2363,16 @@ export default function WeddingCardAiClientPage() {
                   )}
                   <div className="w-full min-w-0 max-w-full space-y-2 overflow-hidden">
                     <Label>Kiểu xem album trên thiệp</Label>
-                    <p className="text-xs text-muted-foreground">Ảnh hiện lớn ngay trên thiệp. Khách vuốt để xem từng ảnh.</p>
+                    <p className="text-xs text-muted-foreground">Xem đúng kiểu album trên thiệp, vừa xem vừa căn ảnh. Khách mời chỉ xem, không chỉnh được.</p>
                     <WeddingAlbumLayoutPicker
                       locale={uiLocale}
                       selectedId={sectionConfig.albumLayoutId}
                       previewUrls={card.albumImageUrls}
                       crops={sectionConfig.albumPhotoCrops}
                       onSelect={selectAlbumLayout}
+                      onCropChange={updateAlbumPhotoCrop}
+                      onRemove={removeSavedAlbumPhoto}
+                      removeLabel={tImage.customReferenceRemove}
                     />
                   </div>
                   <Textarea
