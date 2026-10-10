@@ -47,6 +47,21 @@ export function hasFactoryIntroContext(blocks: ImageLocOcrBlock[]): boolean {
   return IMAGE_LOC_FACTORY_INTRO_KEYWORDS.some((k) => combined.includes(k))
 }
 
+/** Bỏ cụm nhà sản xuất khỏi dòng. Phần còn lại vẫn dịch; dòng chỉ còn cụm đó thì xóa chữ. */
+export function stripFactoryIntroText(text: string): { matched: boolean; text: string } {
+  const keys = IMAGE_LOC_FACTORY_INTRO_KEYWORDS.filter((key) => key && text.includes(key)).sort(
+    (a, b) => b.length - a.length
+  )
+  if (!keys.length) return { matched: false, text }
+  let next = text
+  for (const key of keys) next = next.split(key).join(' ')
+  next = next
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s:：,，、|/／\-]+|[\s:：,，、|/／\-]+$/g, '')
+    .trim()
+  return { matched: true, text: next }
+}
+
 export function hasSizeTableContext(blocks: ImageLocOcrBlock[]): boolean {
   const texts = blocks.map((b) => String(b.text || '')).filter((t) => t.trim())
   if (!texts.length) return false
@@ -94,6 +109,10 @@ export function isLaundryInstructionImage(blocks: ImageLocOcrBlock[]): boolean {
   return blocks.some((block) =>
     IMAGE_LOC_LAUNDRY_KEYWORDS.some((keyword) => (block.text || '').includes(keyword))
   )
+}
+
+function blockHasReturnCluster(text: string): boolean {
+  return (text || '').includes('退')
 }
 
 function urgentDeleteHit(text: string): string | null {
@@ -159,6 +178,7 @@ export function classifyImage(
   void _originalUrl
   const nonempty = blocks.filter((b) => (b.text || '').trim())
   for (const b of nonempty) {
+    if (blockHasReturnCluster(b.text)) continue
     const hit = urgentDeleteHit(b.text)
     if (hit) {
       return {
@@ -226,10 +246,8 @@ export function classifyImage(
 export function localBlocksNeedDraw(
   blocks: ImageLocOcrBlock[]
 ): { action: 'deleted' | 'empty' | 'draw'; blocks: ImageLocOcrBlock[]; message: string } {
-  if (hasFactoryIntroContext(blocks)) {
-    return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
-  }
   for (const b of blocks) {
+    if (blockHasReturnCluster(b.text || '')) continue
     const hit = urgentDeleteHit(b.text || '')
     if (hit) {
       return { action: 'deleted', blocks: [], message: 'Xóa theo keyword cấm trong local translator' }
@@ -238,8 +256,18 @@ export function localBlocksNeedDraw(
 
   const draw: ImageLocOcrBlock[] = []
   for (const b of blocks) {
-    const text = (b.text || '').trim()
+    let text = (b.text || '').trim()
     if (!text) continue
+    if (blockHasReturnCluster(text)) {
+      draw.push({ text: '', bbox: b.bbox })
+      continue
+    }
+    const factory = stripFactoryIntroText(text)
+    if (factory.matched && countHanzi(factory.text).count < 2) {
+      draw.push({ text: '', bbox: b.bbox })
+      continue
+    }
+    if (factory.matched) text = factory.text
     const isDomain = IMAGE_LOC_DOMAIN_REGEX.test(text) || /www\.|\.com|\.cn|\.net|\.org|\.vn/i.test(text)
     const isOldYear = /2019|2020|2021|2022|2023|2024/.test(text)
     const hasJin = text.includes('斤')
@@ -251,7 +279,7 @@ export function localBlocksNeedDraw(
     // tô đè nhầm icon/nhãn nhỏ khi ảnh còn các block dài khác.
     if (!hasJin && countHanzi(text).count === 1) continue
     if (hasJin || hasChineseText(text) || /^\d+(?:[.,]\d+)?\s*cm$/i.test(text)) {
-      draw.push(b)
+      draw.push(text === (b.text || '').trim() ? b : { ...b, text })
     }
   }
   if (!draw.length) return { action: 'empty', blocks: [], message: 'Không có block local cần xử lý' }

@@ -6,6 +6,7 @@ import {
   overlayItemsLookLikeTable,
   overlayTranslatedText,
   attachTrailingMeasurements,
+  isTrailingMeasurement,
   spaceSpecPunctuation,
   splitTrailingModelCode,
   stripInventedLeadingModelCode,
@@ -135,8 +136,11 @@ REQUIREMENTS:
 3. Translate both English and Chinese text when present.
 4. If Chinese is already paired with an English gloss of the same phrase (e.g. "结构图 /Structure"), return one ${target} phrase. Do not repeat the meaning.
 5. Keep standard abbreviations such as NC and NO.
-6. Keep the full meaning of a short label. Do not shorten it to one fragment.
-7. Do not add explanations, model codes, or SKUs that are not in the source.`
+6. Keep the full meaning of a short label. Do not shorten it to one fragment. Do not add words that are not in the source.
+7. Do not add explanations, model codes, or SKUs that are not in the source.
+8. A short spec label must stay short enough for one line on the original row. Do not turn it into a sentence.
+9. A note or a full sentence must read as natural prose. Do not capitalize a word in the middle of the sentence.
+10. A poster slogan must stay one short line. Do not add adjectives that are not in the source.`
       const res = await deepseekPartnerChat(
         'You are a precise e-commerce image translator. Output only the translated text.',
         prompt,
@@ -192,28 +196,32 @@ function overlayUnion(items: OverlayItem[]): [number, number, number, number] {
 function overlayItemsClose(a: OverlayItem[], b: OverlayItem): boolean {
   const [ax1, ay1, ax2, ay2] = overlayUnion(a)
   const [bx1, by1, bx2, by2] = overlayXyxy(b)
+  const yOverlap = Math.min(ay2, by2) - Math.max(ay1, by1)
+  const verticalGap = Math.max(0, by1 - ay2, ay1 - by2)
+  // Mỗi dòng thông số là một khối. Chỉ gộp mảnh cùng hàng hoặc cách nhau không quá 2px.
+  if (yOverlap <= 0 && verticalGap > 2) return false
   const aw = Math.max(1, ax2 - ax1)
   const ah = Math.max(1, ay2 - ay1)
   const bw = Math.max(1, bx2 - bx1)
   const bh = Math.max(1, by2 - by1)
   const padX = Math.max(12, Math.trunc(Math.min(aw, bw) * 0.18))
-  const padY = Math.max(8, Math.trunc(Math.min(ah, bh) * 0.85))
-  const intersects = !(
-    ax2 + padX < bx1 ||
-    bx2 + padX < ax1 ||
-    ay2 + padY < by1 ||
-    by2 + padY < ay1
-  )
+  const intersects = !(ax2 + padX < bx1 || bx2 + padX < ax1)
   if (intersects && overlayModelCodeStaysApart(a, b)) return false
   if (intersects) return true
   const isCm = (text: string) => /^\d+(?:[.,]\d+)?\s*cm$/i.test(text.trim())
-  if (!isCm(b.translatedText) && !a.some((item) => isCm(item.translatedText))) return false
-  const yOverlap = Math.min(ay2, by2) - Math.max(ay1, by1)
+  const bIsCm = isCm(b.translatedText)
+  const aHasCm = a.some((item) => isCm(item.translatedText))
+  const aHasLabel = a.some((item) => (item.translatedText || '').trim() && !isCm(item.translatedText))
+  if (!bIsCm && !aHasCm) return false
+  // Một số đo chỉ dính một nhãn. Cụm đã đủ cặp thì không nuốt nhãn kế bên.
+  if (aHasCm && aHasLabel) return false
+  if (bIsCm && aHasCm) return false
   const centerClose =
     Math.abs((ay1 + ay2) / 2 - (by1 + by2) / 2) <= Math.max(ah, bh) * 1.2
   const sameRow = yOverlap > -Math.max(8, Math.min(ah, bh) * 0.6) || centerClose
   const horizontalGap = Math.max(0, bx1 - ax2, ax1 - bx2)
-  return sameRow && horizontalGap <= Math.max(80, Math.trunc(Math.max(aw, bw) * 0.9))
+  // Số đo chỉ dính nhãn cạnh nó. 0,9 bề rộng dòng sẽ nhảy sang cột thông số bên kia.
+  return sameRow && horizontalGap <= 96
 }
 
 export function mergeDenseImageLocOverlayItems(
@@ -259,21 +267,42 @@ export function mergeDenseImageLocOverlayItems(
     if (density <= 0.1) return group
     const padX = Math.max(18, Math.trunc((x2 - x1) * 0.08))
     const padY = Math.max(12, Math.trunc((y2 - y1) * 0.25))
-    const left = Math.max(0, x1 - padX)
+    // Nới phải để phủ nét chữ. Bên trái chỉ 4px — 18px sẽ đè icon kim cương cạnh nhãn.
+    const left = Math.max(0, x1 - 4)
     const top = Math.max(0, y1 - padY)
     const right = Math.min(imageWidth, x2 + padX)
     const bottom = Math.min(imageHeight, y2 + padY)
-    const translatedText = group
-      .sort((a, b) => a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x)
-      .map((item) => item.translatedText.trim())
-      .filter(Boolean)
-      .join(' ')
+    const translatedText = joinOverlayGroupText(group)
     return [{
       bbox: { x: left, y: top, width: right - left, height: bottom - top },
       translatedText,
       eraseOriginal: !translatedText && group.some((item) => item.eraseOriginal),
     }]
   })
+}
+
+function sameOverlayRow(a: OverlayItem, b: OverlayItem): boolean {
+  const overlap =
+    Math.min(a.bbox.y + a.bbox.height, b.bbox.y + b.bbox.height) - Math.max(a.bbox.y, b.bbox.y)
+  return overlap > Math.min(a.bbox.height, b.bbox.height) * 0.4
+}
+
+/** Cùng hàng thì đọc từ trái sang phải. Số đo đứng sau nhãn, kể cả khi khung OCR cao hơn 1px. */
+export function joinOverlayGroupText(group: OverlayItem[]): string {
+  const ordered = [...group].sort((a, b) => {
+    if (sameOverlayRow(a, b)) return a.bbox.x - b.bbox.x || a.bbox.y - b.bbox.y
+    return a.bbox.y - b.bbox.y || a.bbox.x - b.bbox.x
+  })
+  const parts = ordered.map((item) => item.translatedText.trim()).filter(Boolean)
+  const measure = parts.filter((part) => isTrailingMeasurement(part))
+  const rest = parts.filter((part) => !isTrailingMeasurement(part))
+  if (measure.length === 1 && rest.length) {
+    const label = rest.join(' ')
+    const short = rest.length === 1 && label.split(/\s+/).length <= 4 && !/[,.]/.test(label)
+    if (short && !/[:：]$/.test(label)) return `${label}: ${measure[0]}`
+    return `${label} ${measure[0]}`
+  }
+  return parts.join(' ')
 }
 
 function overlayWordTokens(text: string): string[] {
@@ -487,7 +516,99 @@ function overlayModelCodeStaysApart(group: OverlayItem[], item: OverlayItem): bo
 
 function isModelCodeToken(text: string): boolean {
   const token = text.trim()
+  if (/^\d+(?:[.,]\d+)?\s*(?:cm|mm|kg|g|ml)$/i.test(token)) return false
   return /^[A-Z0-9][A-Z0-9-]{2,11}$/i.test(token) && /\d/.test(token) && /[A-Za-z]/.test(token)
+}
+
+/** Tách thương hiệu Latin ở cuối dòng (SHOSE SHOW). Không tách chú giải sau dấu / . */
+export function peelKeptLatin(source: string): { text: string; trailing: string; leading: string } {
+  const trimmed = source.trim()
+  if (/[\u4e00-\u9fff].*[/／|].*[A-Za-z]/.test(trimmed)) {
+    return { text: trimmed, trailing: '', leading: '' }
+  }
+  const leading = (trimmed.match(/^[^\p{L}\p{N}]+/u) || [''])[0]
+  const rest = trimmed.slice(leading.length).trim()
+  const leadBrand = rest.match(/^([A-Za-z]{1,6}\d{0,4})\s*([\u4e00-\u9fff].*)$/)
+  if (leadBrand && !/^(?:PU|PVC|EVA|TPR|TPU|ABS|LED|USB|NC|NO)$/i.test(leadBrand[1])) {
+    return { text: leadBrand[2].trim(), trailing: '', leading: `${leading}${leadBrand[1]}`.trim() }
+  }
+  const spaced = rest.match(/^(.*[\u4e00-\u9fff].*?)(?:\s+)([A-Za-z][A-Za-z0-9-]{1,16}(?:\s+[A-Za-z][A-Za-z0-9-]{1,16})*)$/)
+  const stuck = rest.match(/^(.*[\u4e00-\u9fff])([A-Z][A-Z0-9]{3,16})$/)
+  const match = spaced || stuck
+  if (!match) return { text: trimmed, trailing: '', leading: '' }
+  let trailing = match[2].trim()
+  if (/^(?:PU|PVC|EVA|TPR|TPU|ABS|LED|USB)$/i.test(trailing)) {
+    return { text: trimmed, trailing: '', leading: '' }
+  }
+  const jammed = trailing.match(/^([A-Z]{3,8})(SHOW|SIZE|SALE|SHOP|STYLE)$/)
+  if (jammed) trailing = `${jammed[1]} ${jammed[2]}`
+  return { text: match[1].trim(), trailing, leading: leading.trim() }
+}
+
+type PreparedDrawBlock = {
+  block: ImageLocOcrBlock
+  source: string
+  translated: string
+  eraseOriginal: boolean
+  trailing: string
+  leading: string
+}
+
+/** Gộp các dòng chú thích xếp chồng trước khi dịch, để thành một câu. */
+export function coalesceStackedCopy<T extends PreparedDrawBlock>(items: T[], imageWidth: number): T[] {
+  if (items.length < 2 || imageWidth < 1) return items
+  const sorted = [...items].sort((a, b) => a.block.bbox[1] - b.block.bbox[1] || a.block.bbox[0] - b.block.bbox[0])
+  const used = new Set<T>()
+  const out: T[] = []
+  for (const item of sorted) {
+    if (used.has(item)) continue
+    const group = [item]
+    used.add(item)
+    const first = item.block.bbox
+    const firstWidth = first[2] - first[0]
+    if (firstWidth >= imageWidth * 0.28) {
+      let lastBottom = first[3]
+      for (const other of sorted) {
+        if (used.has(other)) continue
+        const box = other.block.bbox
+        const gap = box[1] - lastBottom
+        if (gap < -2 || gap > 4) continue
+        if (Math.abs(box[0] - first[0]) > 16) continue
+        if (box[2] - box[0] >= firstWidth - 8) continue
+        group.push(other)
+        used.add(other)
+        lastBottom = box[3]
+      }
+    }
+    if (group.length === 1) {
+      out.push(item)
+      continue
+    }
+    const boxes = group.map((entry) => entry.block.bbox)
+    const merged = group[0]
+    merged.block = {
+      ...merged.block,
+      text: group.map((entry) => entry.source).join(''),
+      bbox: [
+        Math.min(...boxes.map((box) => box[0])),
+        Math.min(...boxes.map((box) => box[1])),
+        Math.max(...boxes.map((box) => box[2])),
+        Math.max(...boxes.map((box) => box[3])),
+      ],
+    }
+    merged.source = merged.block.text
+    out.push(merged)
+  }
+  return out
+}
+
+/** «对照表 34» — số size nằm ô bên cạnh, không dịch vào nhãn. */
+export function peelTrailingGridNumber(text: string): { text: string; number: string } {
+  const match = text.trim().match(/^(.*[\u4e00-\u9fff])\s+(\d{2,3})$/)
+  if (!match) return { text: text.trim(), number: '' }
+  const value = Number(match[2])
+  if (!Number.isFinite(value) || value < 20 || value > 50) return { text: text.trim(), number: '' }
+  return { text: match[1].trim(), number: match[2] }
 }
 
 export type LocalDrawOutcome = { kind: 'drawn'; bytes: Buffer } | { kind: 'unchanged' }
@@ -496,7 +617,8 @@ export async function localDrawTranslated(
   imageBytes: Buffer,
   blocks: ImageLocOcrBlock[],
   language: string,
-  userId?: string | null
+  userId?: string | null,
+  contextBlocks?: ImageLocOcrBlock[]
 ): Promise<LocalDrawOutcome> {
   const metadata = await sharp(imageBytes).metadata()
   const imageWidth = metadata.width || 1
@@ -527,7 +649,8 @@ export async function localDrawTranslated(
     if (spaced.includes('\n')) redrawLatin.push({ bbox, translatedText: spaced })
     else obstacles.push({ bbox, translatedText: (block.text || '').trim() })
   }
-  const prepared = drawableBlocks.map((block) => {
+  const gridObstacles: OverlayItem[] = []
+  let prepared: PreparedDrawBlock[] = drawableBlocks.map((block) => {
     const raw = convertJinWeightText(block.text || '').trim()
     const box = {
       x: block.bbox[0],
@@ -538,13 +661,39 @@ export async function localDrawTranslated(
     const peeled = overlayItemLooksLikeEdgeBanner({ bbox: box }, imageWidth, imageHeight)
       ? splitTrailingModelCode(raw)
       : { text: raw, code: '' }
+    const latin = peelKeptLatin(peeled.text)
+    const source = (latin.text || peeled.text).replace(/^[|｜丨【\[\(（\s]+|[|｜丨】\]\)）\s]+$/g, '').trim()
+    const grid = peelTrailingGridNumber(source || latin.text || peeled.text)
+    let stored = block
+    if (grid.number) {
+      const [x1, y1, x2, y2] = block.bbox
+      const share = grid.number.length / Math.max(1, (source || block.text || '').trim().length)
+      const xRight = x1 + Math.max(12, Math.round((x2 - x1) * (1 - share - 0.06)))
+      const edge = Math.min(x2, xRight)
+      stored = { ...block, bbox: [x1, y1, edge, y2] }
+      if (edge < x2 - 4) {
+        const guardTop = Math.max(0, y1 - 28)
+        gridObstacles.push({
+          bbox: {
+            x: edge,
+            y: guardTop,
+            width: Math.max(1, x2 - edge),
+            height: Math.max(1, y2 - guardTop),
+          },
+          translatedText: '',
+        })
+      }
+    }
     return {
-      block,
-      source: peeled.text,
+      block: stored,
+      source: grid.number ? grid.text : source || latin.text || peeled.text,
       translated: '',
       eraseOriginal: !raw,
+      trailing: latin.trailing,
+      leading: latin.leading,
     }
   })
+  prepared = coalesceStackedCopy(prepared, imageWidth)
   const translatable = prepared.filter(
     (item) =>
       !item.eraseOriginal &&
@@ -558,7 +707,10 @@ export async function localDrawTranslated(
   )
   translatable.forEach((item, index) => {
     const phrase = collapseBilingualGlossTranslation(item.source, (translated[index] || '').trim())
-    item.translated = stripInventedLeadingModelCode(item.source, phrase)
+    const cleaned = stripInventedLeadingModelCode(item.source, phrase)
+    const lead = item.leading ? `${item.leading} ` : ''
+    const tail = item.trailing ? ` ${item.trailing}` : ''
+    item.translated = `${lead}${cleaned}${tail}`.trim()
   })
   let overlayItems: OverlayItem[] = prepared
     .map((item) => {
@@ -589,9 +741,28 @@ export async function localDrawTranslated(
   }
   overlayItems = drawable
   if (!overlayItems.length) return { kind: 'unchanged' }
+  const contextObstacles: OverlayItem[] = []
+  for (const block of contextBlocks ?? []) {
+    const text = (block.text || '').trim()
+    if (!text) continue
+    const bbox = {
+      x: block.bbox[0],
+      y: block.bbox[1],
+      width: Math.max(1, block.bbox[2] - block.bbox[0]),
+      height: Math.max(1, block.bbox[3] - block.bbox[1]),
+    }
+    const covered = overlayItems.some((item) => {
+      const overlapW = Math.min(item.bbox.x + item.bbox.width, bbox.x + bbox.width) - Math.max(item.bbox.x, bbox.x)
+      const overlapH = Math.min(item.bbox.y + item.bbox.height, bbox.y + bbox.height) - Math.max(item.bbox.y, bbox.y)
+      if (overlapW <= 0 || overlapH <= 0) return false
+      return overlapW * overlapH >= bbox.width * bbox.height * 0.5
+    })
+    if (covered) continue
+    contextObstacles.push({ bbox, translatedText: '' })
+  }
   const png = await overlayTranslatedText(imageBytes, overlayItems, {
     sampleBackground: true,
-    obstacles: attached.obstacles,
+    obstacles: [...attached.obstacles, ...contextObstacles, ...gridObstacles],
   })
   const q = imageLocJpegQuality()
   return { kind: 'drawn', bytes: await sharp(png).jpeg({ quality: q, mozjpeg: true }).toBuffer() }

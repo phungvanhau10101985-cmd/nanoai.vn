@@ -93,6 +93,41 @@ describe('image localization classifier', () => {
     assert.equal(draw.action, 'draw')
     assert.deepEqual(draw.blocks.map((block) => block.text), ['新款女装'])
   })
+
+  it('erases a return-policy cluster and still translates the other Chinese', () => {
+    const blocks: ImageLocOcrBlock[] = [
+      { text: '商品信息', bbox: [0, 0, 40, 12] },
+      { text: '特殊靴子订制都不退换', bbox: [200, 40, 320, 52] },
+      { text: '鞋面材质:漆皮', bbox: [0, 80, 120, 96] },
+    ]
+    const classified = classifyImage(blocks, [], 'https://example.com/boot.jpg')
+    assert.notEqual(classified.type, 'delete')
+    const local = localBlocksNeedDraw(blocks)
+    assert.equal(local.action, 'draw')
+    assert.equal(local.blocks.find((block) => block.bbox[1] === 40)?.text, '')
+    assert.equal(local.blocks.some((block) => block.text === '商品信息'), true)
+    assert.equal(local.blocks.some((block) => block.text.includes('鞋面材质')), true)
+  })
+
+  it('still deletes the image when another block has an urgent keyword', () => {
+    const local = localBlocksNeedDraw([
+      { text: '都不退换', bbox: [0, 0, 40, 12] },
+      { text: '热荐爆款', bbox: [0, 20, 80, 32] },
+    ])
+    assert.equal(local.action, 'deleted')
+  })
+
+  it('erases factory lines and still translates the other Chinese', () => {
+    const out = localBlocksNeedDraw([
+      { text: '源头工厂', bbox: [10, 20, 90, 40] },
+      { text: '不易起球', bbox: [10, 80, 90, 100] },
+      { text: '杰仕西服源头工厂', bbox: [10, 120, 140, 140] },
+    ])
+    assert.equal(out.action, 'draw')
+    assert.equal(out.blocks.find((block) => block.bbox[1] === 20)?.text, '')
+    assert.equal(out.blocks.find((block) => block.text === '不易起球')?.text, '不易起球')
+    assert.equal(out.blocks.find((block) => block.bbox[1] === 120)?.text, '杰仕西服')
+  })
 })
 
 describe('collect inventory image refs', () => {

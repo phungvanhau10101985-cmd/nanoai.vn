@@ -81,6 +81,29 @@ interface BlockWithParagraphs {
 }
 
 const CJK_RE = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/
+
+/** Giữ chữ Hán dính nhau. Chữ Latin cùng hàng thì có dấu cách, kể cả khi dính sau chữ Hán. */
+export function joinVisionWords(words: string[]): string {
+  let out = ''
+  for (const raw of words) {
+    const text = raw.trim()
+    if (!text) continue
+    if (!out) {
+      out = text
+      continue
+    }
+    const prev = [...out].at(-1) || ''
+    const next = [...text][0] || ''
+    const prevCjk = CJK_RE.test(prev)
+    const nextCjk = CJK_RE.test(next)
+    const prevLatin = /[A-Za-z0-9]/.test(prev)
+    const nextLatin = /[A-Za-z0-9]/.test(next)
+    const space = (prevCjk && nextLatin) || (prevLatin && nextCjk) || (prevLatin && nextLatin)
+    out += (space ? ' ' : '') + text
+  }
+  return out
+}
+
 const CM_DIMENSION_RE = /^\d+(?:[.,]\d+)?cm$/i
 
 function splitParagraphIntoLines(
@@ -123,17 +146,15 @@ function splitParagraphIntoLines(
     }
   }
 
-  if (lines.length <= 1) return [fallback]
-
-  return lines.map((l) => {
+  const sourceLines = lines.length ? lines : [{ items: ordered, y1: 0, y2: 0 }]
+  return sourceLines.map((l) => {
     l.items.sort((a, b) => a.bbox.x - b.bbox.x)
     const x1 = Math.min(...l.items.map((w) => w.bbox.x))
     const y1 = Math.min(...l.items.map((w) => w.bbox.y))
     const x2 = Math.max(...l.items.map((w) => w.bbox.x + w.bbox.width))
     const y2 = Math.max(...l.items.map((w) => w.bbox.y + w.bbox.height))
-    const hasCjk = l.items.some((w) => CJK_RE.test(w.text))
     return {
-      text: l.items.map((w) => w.text).join(hasCjk ? '' : ' '),
+      text: joinVisionWords(l.items.map((w) => w.text)) || fallback.text,
       bbox: { x: x1, y: y1, width: Math.max(1, x2 - x1), height: Math.max(1, y2 - y1) },
     }
   })

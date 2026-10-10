@@ -73,4 +73,27 @@ describe('image localization OCR layout', () => {
     assert.equal(blocks[0].text, '一双鞋细节')
     assert.deepEqual(blocks[0].bbox, { x: 30, y: 100, width: 170, height: 18 })
   })
+
+  it('keeps a space between Chinese and a Latin brand on the same line', () => {
+    const blocks = visionDocumentBlocksToText(
+      [
+        {
+          paragraphs: [
+            {
+              words: [
+                word('>', 8, 6, 16, 24),
+                word('商品参数', 20, 6, 90, 24),
+                word('SHOSE', 100, 6, 150, 24),
+                word('SHOW', 156, 6, 210, 24),
+              ],
+            },
+          ],
+        },
+      ],
+      749,
+      452
+    )
+    assert.equal(blocks.length, 1)
+    assert.equal(blocks[0].text, '>商品参数 SHOSE SHOW')
+  })
 })

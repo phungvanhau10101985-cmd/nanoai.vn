@@ -80,6 +80,7 @@ export const IMAGE_LOC_LAUNDRY_KEYWORDS = [
 ]
 
 export const IMAGE_LOC_FACTORY_INTRO_KEYWORDS = [
+  '源头工厂',
   '实力工厂',
   '工厂',
   '生产车间',

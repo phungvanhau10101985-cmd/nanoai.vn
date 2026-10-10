@@ -92,8 +92,8 @@ function throwIfCancelled(ctx: ProcessImageContext) {
 export type LocalizationEngineChoice = 'delete' | 'keep' | 'ai' | 'local'
 
 /**
- * Chỉ bảng size và hướng dẫn giặt tẩy đi GPT Image.
- * Ảnh khác dịch local, trừ khi `forceAi` chỉ định đúng ảnh đó.
+ * Không bật AI: mọi ảnh vẽ local, kể cả bảng size và hướng dẫn giặt tẩy.
+ * Bật AI: mọi ảnh đi GPT Image.
  */
 export function selectLocalizationEngine(opts: {
   classification: string
@@ -104,10 +104,11 @@ export function selectLocalizationEngine(opts: {
 }): LocalizationEngineChoice {
   if (opts.classification === 'delete') return 'delete'
   if (opts.classification === 'keep') return 'keep'
-  if (!opts.allowsAi) return 'local'
-  if (opts.hasSizeOrLaundry || opts.forceAi) return 'ai'
   void opts.geminiMode
-  return 'local'
+  void opts.hasSizeOrLaundry
+  void opts.forceAi
+  if (!opts.allowsAi) return 'local'
+  return 'ai'
 }
 
 function overlapAbortThreshold(): number | null {
@@ -168,7 +169,7 @@ async function transformImageBytes(
         }
       }
     }
-    const drawn = await localDrawTranslated(bytes, local.blocks, ctx.language, ctx.userId)
+    const drawn = await localDrawTranslated(bytes, local.blocks, ctx.language, ctx.userId, blocks)
     if (drawn.kind === 'unchanged') return { kind: 'kept', bytes, message: local.message }
     return { kind: 'processed', bytes: drawn.bytes, message: local.message }
   }
@@ -194,11 +195,13 @@ async function transformImageBytes(
       throwIfCancelled(ctx)
       let fix: 'ok' | 'gpt' | 'deepseek' = 'ok'
       let chineseBlocks: ReturnType<typeof chineseBlocksToRedraw> = []
+      let seenBlocks: ImageLocOcrBlock[] = []
       try {
         const [bleed, post] = await Promise.all([
           detectInkBleed(current),
           ocrImageBlocks(current, ctx.userId),
         ])
+        seenBlocks = post.blocks
         chineseBlocks = chineseBlocksToRedraw(post.blocks)
         const chinese = remainingChineseOnLocalizedImage(chineseBlocks.map((block) => block.text || ''))
         fix = localizedImageFix({ bleed: bleed.bleed, chineseCount: chinese.length })
@@ -229,7 +232,7 @@ async function transformImageBytes(
         continue
       }
       try {
-        const drawn = await localDrawTranslated(current, chineseBlocks, ctx.language, ctx.userId)
+        const drawn = await localDrawTranslated(current, chineseBlocks, ctx.language, ctx.userId, seenBlocks)
         if (drawn.kind === 'drawn') {
           current = drawn.bytes
           message = `${message} + DeepSeek vẽ chữ Trung còn sót`

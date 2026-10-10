@@ -5,13 +5,21 @@ import { isOwnCdnUrl } from './image-localization-config'
 import { isImageLocalizationFatalDependencyError } from './gemini-adapter'
 import { visionDocumentBlocksToText, visionVerticesToPixelRect } from '@/lib/vision-ocr'
 import {
+  coalesceStackedCopy,
+  joinOverlayGroupText,
+  peelKeptLatin,
+  peelTrailingGridNumber,
+} from './local-pipeline'
+import {
   attachTrailingMeasurements,
   clipEdgeBannerBox,
   expandTableCellBoxes,
   fitTableCellText,
   overlayItemsLookLikeTable,
   overlayRegionIsProductPhoto,
+  layoutSpecSheetRows,
   overlayTranslatedText,
+  sampleOverlayPaint,
   clampTextBoxToSources,
   spaceSpecPunctuation,
   splitOverlayVerticalBands,
@@ -315,6 +323,143 @@ describe('image localization runtime parity', () => {
     assert.ok(fitted.fontSize <= 15)
   })
 
+  it('keeps a brand in Latin and reads a measurement from the left', () => {
+    assert.deepEqual(peelKeptLatin('>商品参数 SHOSE SHOW'), {
+      text: '商品参数',
+      trailing: 'SHOSE SHOW',
+      leading: '>',
+    })
+    assert.deepEqual(peelKeptLatin('商品参数SHOSESHOW'), {
+      text: '商品参数',
+      trailing: 'SHOSE SHOW',
+      leading: '',
+    })
+    assert.equal(peelKeptLatin('鞋面材质:PU').text, '鞋面材质:PU')
+    assert.deepEqual(peelKeptLatin('JS杰仕西服'), {
+      text: '杰仕西服',
+      trailing: '',
+      leading: 'JS',
+    })
+    assert.equal(peelKeptLatin('商品参数/Product Parameters').trailing, '')
+    const joined = joinOverlayGroupText([
+      { bbox: { x: 515, y: 245, width: 25, height: 14 }, translatedText: '19cm' },
+      { bbox: { x: 443, y: 246, width: 55, height: 14 }, translatedText: 'Cao gót' },
+    ])
+    assert.equal(joined, 'Cao gót: 19cm')
+  })
+
+  it('translates stacked footnote lines as one sentence', () => {
+    const block = (text: string, y: number, width: number) => ({
+      block: { text, bbox: [40, y, 40 + width, y + 12] as [number, number, number, number] },
+      source: text,
+      translated: '',
+      eraseOriginal: false,
+      trailing: '',
+      leading: '',
+    })
+    const merged = coalesceStackedCopy(
+      [
+        block('备注:测量标准码为36码,每增加(减)一个尺码,鞋', 300, 280),
+        block('长增加(减)5mm。', 314, 100),
+        block('测量方式可能存在误差,具体以实物为准。', 328, 210),
+        block('鞋面材质:PU', 100, 80),
+      ],
+      749
+    )
+    assert.equal(merged.length, 2)
+    const note = merged.find((item) => item.source.includes('备注'))
+    assert.match(note?.source || '', /鞋长增加/)
+    assert.match(note?.source || '', /实物为准/)
+    assert.equal(merged.some((item) => item.source === '鞋面材质:PU'), true)
+  })
+
+  it('keeps brown ink on a light panel and white ink on a blue panel', async () => {
+    const width = 80
+    const height = 36
+    const raw = Buffer.alloc(width * height * 3, 236)
+    for (let y = 10; y < 26; y++) {
+      for (let x = 12; x < 40; x++) {
+        const offset = (y * width + x) * 3
+        raw[offset] = 122
+        raw[offset + 1] = 72
+        raw[offset + 2] = 28
+      }
+    }
+    const cream = await sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    const brown = await sampleOverlayPaint(cream, { x: 8, y: 6, width: 40, height: 24 }, width, height)
+    assert.ok(brown.flat)
+    assert.ok(brown.ink[0] > brown.ink[2] + 30)
+    assert.ok(brown.fill[0] > 200 && brown.fill[1] > 200)
+
+    const blueRaw = Buffer.alloc(width * height * 3)
+    for (let i = 0; i < width * height; i++) {
+      blueRaw[i * 3] = 18
+      blueRaw[i * 3 + 1] = 42
+      blueRaw[i * 3 + 2] = 92
+    }
+    for (let y = 8; y < 22; y++) {
+      for (let x = 10; x < 36; x++) {
+        const offset = (y * width + x) * 3
+        blueRaw[offset] = 245
+        blueRaw[offset + 1] = 245
+        blueRaw[offset + 2] = 245
+      }
+    }
+    const blue = await sharp(blueRaw, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    const whiteOnBlue = await sampleOverlayPaint(blue, { x: 4, y: 4, width: 44, height: 24 }, width, height)
+    assert.ok(whiteOnBlue.flat)
+    assert.ok(whiteOnBlue.ink[0] > 200)
+    assert.ok(whiteOnBlue.fill[2] > whiteOnBlue.fill[0] + 20)
+  })
+
+  it('snaps antialiased black ink to black and antialiased white ink to white', async () => {
+    const width = 90
+    const height = 40
+    const raw = Buffer.alloc(width * height * 3, 248)
+    for (let y = 8; y < 28; y++) {
+      for (let x = 10; x < 70; x++) {
+        const offset = (y * width + x) * 3
+        const core = x >= 16 && x < 64 && y >= 12 && y < 24
+        const value = core ? 12 : 118
+        raw[offset] = value
+        raw[offset + 1] = value
+        raw[offset + 2] = value
+      }
+    }
+    const light = await sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    const black = await sampleOverlayPaint(light, { x: 6, y: 4, width: 70, height: 30 }, width, height)
+    assert.deepEqual(black.ink, [0, 0, 0])
+
+    const dark = Buffer.alloc(width * height * 3, 28)
+    for (let y = 8; y < 28; y++) {
+      for (let x = 10; x < 70; x++) {
+        const offset = (y * width + x) * 3
+        const core = x >= 16 && x < 64 && y >= 12 && y < 24
+        const value = core ? 246 : 150
+        dark[offset] = value
+        dark[offset + 1] = value
+        dark[offset + 2] = value
+      }
+    }
+    const night = await sharp(dark, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    const white = await sampleOverlayPaint(night, { x: 6, y: 4, width: 70, height: 30 }, width, height)
+    assert.deepEqual(white.ink, [255, 255, 255])
+  })
+
+  it('left-aligns a spec column on one shared edge', () => {
+    const rows = ['Chất liệu mặt: PU', 'Chất liệu lót: PU', 'Màu: da báo', 'Size: 34-50', 'Cao gót: 19cm'].map(
+      (text, index) => ({
+        bbox: { x: 442, y: 110 + index * 22, width: 80, height: 14 },
+        translatedText: text,
+      })
+    )
+    layoutSpecSheetRows(rows, 749)
+    assert.equal(rows.every((row) => row.specRow && row.textAlign === 'start'), true)
+    assert.equal(new Set(rows.map((row) => row.textOriginX)).size, 1)
+    assert.equal(rows[0]?.textOriginX, 442)
+    assert.ok((rows[0]?.eraseBox?.width || 0) > 80)
+  })
+
   it('keeps a body label and the measurement beside it on one line', () => {
     const attached = attachTrailingMeasurements(
       [{ bbox: { x: 141, y: 85, width: 22, height: 11 }, translatedText: 'Vòng ngực' }],
@@ -371,6 +516,77 @@ describe('image localization runtime parity', () => {
       stripInventedLeadingModelCode('好阀选永创用心来创造', '2W31 Chọn van tốt, Yongchuang'),
       'Chọn van tốt, Yongchuang'
     )
+  })
+
+  it('joins a four-word callout with its cm', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 142, y: 268, width: 67, height: 19 }, translatedText: 'Chiều rộng ống trên' },
+        { bbox: { x: 213, y: 268, width: 55, height: 21 }, translatedText: '47cm' },
+      ],
+      629,
+      1024
+    )
+    assert.equal(laid.length, 1)
+    assert.match(laid[0]!.translatedText, /47cm/)
+  })
+
+  it('does not let a spec line cross the gutter into the other column', () => {
+    const cells = [0, 1, 2, 3].flatMap((row) => [
+      {
+        bbox: { x: 20, y: 40 + row * 36, width: 180, height: 18 },
+        translatedText: 'Đế giày/SOLE: Đế cao su chống trượt',
+      },
+      { bbox: { x: 370, y: 40 + row * 36, width: 180, height: 18 }, translatedText: 'Lớp lót/INSIDE: vải' },
+    ])
+    const expanded = expandTableCellBoxes(cells, 629)
+    const left = expanded[0]!
+    assert.ok(left.bbox.x + left.bbox.width < 300)
+    assert.ok(left.bbox.x + left.bbox.width < 370)
+  })
+
+  it('joins a nearby cm with its label and leaves the other spec column alone', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 35, y: 828, width: 40, height: 20 }, translatedText: 'Cao gót' },
+        { bbox: { x: 152, y: 828, width: 43, height: 20 }, translatedText: '19cm' },
+        { bbox: { x: 368, y: 829, width: 226, height: 20 }, translatedText: 'Cỡ: 34-43#' },
+      ],
+      629,
+      1024
+    )
+    assert.equal(laid.length, 2)
+    const heel = laid.find((item) => item.bbox.x < 200)
+    const size = laid.find((item) => item.bbox.x > 300)
+    assert.match(heel?.translatedText || '', /19cm/)
+    assert.doesNotMatch(size?.translatedText || '', /19cm/)
+  })
+
+  it('keeps the next measurement label out of a label that already has its cm', () => {
+    const laid = layoutImageLocOverlays(
+      [
+        { bbox: { x: 140, y: 62, width: 24, height: 11 }, translatedText: 'Chiều cao' },
+        { bbox: { x: 172, y: 62, width: 37, height: 11 }, translatedText: '165cm' },
+        { bbox: { x: 229, y: 62, width: 59, height: 10 }, translatedText: 'Cân nặng 47kg' },
+        { bbox: { x: 311, y: 62, width: 47, height: 11 }, translatedText: 'Cỡ đang mặc' },
+      ],
+      384,
+      1024
+    )
+    assert.equal(laid.length, 3)
+    const height = laid.find((item) => item.translatedText.includes('165cm'))
+    assert.match(height?.translatedText || '', /Chiều cao/)
+    assert.equal(height?.translatedText.includes('Cân nặng'), false)
+    assert.equal(laid.some((item) => item.translatedText === 'Cân nặng 47kg'), true)
+    assert.equal(laid.some((item) => item.translatedText === 'Cỡ đang mặc'), true)
+  })
+
+  it('peels a size-chart number off the header so the cell stays', () => {
+    const peeled = peelTrailingGridNumber('对照表 34')
+    assert.equal(peeled.text, '对照表')
+    assert.equal(peeled.number, '34')
+    assert.equal(peelTrailingGridNumber('上筒宽').number, '')
+    assert.equal(peelTrailingGridNumber('高 60').number, '')
   })
 
   it('does not merge a model code into the slogan line', () => {

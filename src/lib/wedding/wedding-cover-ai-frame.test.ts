@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverPhotoOpen, resolvePortraitShell } from './wedding-section-config'
+import { mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolvePortraitShell } from './wedding-section-config'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -149,4 +149,19 @@ test('bride and groom portraits keep their own frame choice', () => {
   const cleared = mergeWeddingSectionConfig(saved, { groomPortraitShellMode: undefined })
   assert.equal(resolvePortraitShell(parseWeddingSectionConfig(cleared), 'groom'), null)
   assert.equal(resolvePortraitShell(parseWeddingSectionConfig(cleared), 'bride')?.src, 'https://cdn.example/heart.png')
+})
+
+test('open celebration defaults to bloom and falling petals, and a chosen none is kept', () => {
+  assert.equal(resolveOpenBurstEffect(parseWeddingSectionConfig('{}')), 'bloom')
+  assert.equal(resolveOpenFallEffect(parseWeddingSectionConfig('{}')), 'petals')
+  const saved = mergeWeddingSectionConfig('{"coverPresetId":"classic_red"}', {
+    openBurstEffect: 'none',
+    openFallEffect: 'hearts',
+  })
+  const parsed = parseWeddingSectionConfig(saved)
+  assert.equal(parsed.coverPresetId, 'classic_red')
+  assert.equal(resolveOpenBurstEffect(parsed), 'none')
+  assert.equal(resolveOpenFallEffect(parsed), 'hearts')
+  assert.equal(JSON.parse(saved).openBurstEffect, 'none')
+  assert.equal(JSON.parse(saved).openFallEffect, 'hearts')
 })

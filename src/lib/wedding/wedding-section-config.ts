@@ -8,6 +8,35 @@ export type WeddingCoverPhotoOpen = 'none' | 'rise' | 'fade' | 'zoom' | 'assembl
 
 export type WeddingCoverFrameOpen = 'none' | 'fade' | 'bloom' | 'assemble'
 
+/** Nở một lần ngay lúc bấm Mở thiệp. */
+export type WeddingOpenBurstEffect = 'none' | 'bloom' | 'petals' | 'hearts' | 'stars' | 'fireworks' | 'gold' | 'butterflies'
+
+/** Rơi trong lúc thiệp hiện lên. */
+export type WeddingOpenFallEffect = 'none' | 'petals' | 'hearts' | 'stars' | 'fireworks' | 'gold' | 'snow' | 'confetti' | 'lanterns'
+
+export const WEDDING_OPEN_BURST_EFFECTS: WeddingOpenBurstEffect[] = [
+  'bloom',
+  'petals',
+  'hearts',
+  'stars',
+  'fireworks',
+  'gold',
+  'butterflies',
+  'none',
+]
+
+export const WEDDING_OPEN_FALL_EFFECTS: WeddingOpenFallEffect[] = [
+  'petals',
+  'hearts',
+  'stars',
+  'fireworks',
+  'gold',
+  'snow',
+  'confetti',
+  'lanterns',
+  'none',
+]
+
 export type WeddingSectionConfig = {
   /** Layout preset for the inner cover card (not page background). */
   coverPresetId?: string
@@ -24,6 +53,10 @@ export type WeddingSectionConfig = {
   coverPhotoOpen?: WeddingCoverPhotoOpen
   /** Cách khung hiện ra. */
   coverFrameOpen?: WeddingCoverFrameOpen
+  /** Hiệu ứng nở khi bấm Mở thiệp. */
+  openBurstEffect?: WeddingOpenBurstEffect
+  /** Hiệu ứng rơi khi thiệp lướt lên. */
+  openFallEffect?: WeddingOpenFallEffect
   /** Horizontal focal point for the cover photo crop, 0-100. */
   coverPhotoPositionX?: number
   /** Vertical focal point for the cover photo crop, 0-100. */
@@ -96,6 +129,8 @@ function readHoleNumber(value: unknown): number | undefined {
 const COVER_FRAME_MODES = new Set<WeddingCoverFrameMode>(['none', 'preset', 'library', 'ai'])
 const COVER_PHOTO_OPENS = new Set<WeddingCoverPhotoOpen>(['none', 'rise', 'fade', 'zoom', 'assemble'])
 const COVER_FRAME_OPENS = new Set<WeddingCoverFrameOpen>(['none', 'fade', 'bloom', 'assemble'])
+const OPEN_BURST_EFFECTS = new Set<WeddingOpenBurstEffect>(WEDDING_OPEN_BURST_EFFECTS)
+const OPEN_FALL_EFFECTS = new Set<WeddingOpenFallEffect>(WEDDING_OPEN_FALL_EFFECTS)
 
 function readCoverFrameMode(value: unknown): WeddingCoverFrameMode | undefined {
   return typeof value === 'string' && COVER_FRAME_MODES.has(value as WeddingCoverFrameMode)
@@ -112,6 +147,18 @@ function readCoverPhotoOpen(value: unknown): WeddingCoverPhotoOpen | undefined {
 function readCoverFrameOpen(value: unknown): WeddingCoverFrameOpen | undefined {
   return typeof value === 'string' && COVER_FRAME_OPENS.has(value as WeddingCoverFrameOpen)
     ? (value as WeddingCoverFrameOpen)
+    : undefined
+}
+
+function readOpenBurstEffect(value: unknown): WeddingOpenBurstEffect | undefined {
+  return typeof value === 'string' && OPEN_BURST_EFFECTS.has(value as WeddingOpenBurstEffect)
+    ? (value as WeddingOpenBurstEffect)
+    : undefined
+}
+
+function readOpenFallEffect(value: unknown): WeddingOpenFallEffect | undefined {
+  return typeof value === 'string' && OPEN_FALL_EFFECTS.has(value as WeddingOpenFallEffect)
+    ? (value as WeddingOpenFallEffect)
     : undefined
 }
 
@@ -183,6 +230,8 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverFrameMode: readCoverFrameMode(obj.coverFrameMode),
       coverPhotoOpen: readCoverPhotoOpen(obj.coverPhotoOpen),
       coverFrameOpen: readCoverFrameOpen(obj.coverFrameOpen),
+      openBurstEffect: readOpenBurstEffect(obj.openBurstEffect),
+      openFallEffect: readOpenFallEffect(obj.openFallEffect),
       albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
       albumPhotoCrops: readAlbumPhotoCrops(obj.albumPhotoCrops),
       sidePartyOwned: obj.sidePartyOwned === true,
@@ -221,6 +270,10 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (photoOpen) payload.coverPhotoOpen = photoOpen
   const frameOpen = readCoverFrameOpen(config.coverFrameOpen)
   if (frameOpen) payload.coverFrameOpen = frameOpen
+  const openBurst = readOpenBurstEffect(config.openBurstEffect)
+  if (openBurst) payload.openBurstEffect = openBurst
+  const openFall = readOpenFallEffect(config.openFallEffect)
+  if (openFall) payload.openFallEffect = openFall
   if (config.albumLayoutId?.trim()) payload.albumLayoutId = config.albumLayoutId.trim()
   const albumPhotoCrops = (config.albumPhotoCrops ?? [])
     .map((item) => ({
@@ -406,6 +459,16 @@ export function resolveCoverPhotoOpen(config: WeddingSectionConfig): WeddingCove
 
 export function resolveCoverFrameOpen(config: WeddingSectionConfig): WeddingCoverFrameOpen {
   return readCoverFrameOpen(config.coverFrameOpen) ?? 'bloom'
+}
+
+/** Chưa chọn: bung hoa lúc bấm mở. */
+export function resolveOpenBurstEffect(config: WeddingSectionConfig): WeddingOpenBurstEffect {
+  return readOpenBurstEffect(config.openBurstEffect) ?? 'bloom'
+}
+
+/** Chưa chọn: cánh hoa rơi lúc thiệp hiện lên. */
+export function resolveOpenFallEffect(config: WeddingSectionConfig): WeddingOpenFallEffect {
+  return readOpenFallEffect(config.openFallEffect) ?? 'petals'
 }
 
 export function resolveCoverPhotoObjectPosition(config: WeddingSectionConfig): string {

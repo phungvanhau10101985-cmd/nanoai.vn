@@ -6,13 +6,34 @@ import { chineseBlocksToRedraw, localizedImageFix, localizedImageProblem, parseI
 import { ImageLocalizationGptStopError, isImageLocalizationGptStopError } from './openai-adapter'
 
 describe('image localization route', () => {
-  it('keeps overlap and complex images on the local translator', () => {
+  it('keeps ordinary images on the local translator when AI is off', () => {
     assert.equal(
       selectLocalizationEngine({
         classification: 'gemini',
-        allowsAi: true,
+        allowsAi: false,
         geminiMode: 'api',
         hasSizeOrLaundry: false,
+      }),
+      'local'
+    )
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'local',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: false,
+      }),
+      'local'
+    )
+  })
+
+  it('keeps size and laundry sheets on the local translator when AI is off, and sends every image to GPT when AI is on', () => {
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'local',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: true,
       }),
       'local'
     )
@@ -20,20 +41,27 @@ describe('image localization route', () => {
       selectLocalizationEngine({
         classification: 'gemini',
         allowsAi: false,
-        geminiMode: 'api',
+        geminiMode: 'openai',
         hasSizeOrLaundry: true,
       }),
       'local'
     )
-  })
-
-  it('sends only size or laundry sheets to the AI image branch', () => {
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'local',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: false,
+        forceAi: true,
+      }),
+      'local'
+    )
     assert.equal(
       selectLocalizationEngine({
         classification: 'local',
         allowsAi: true,
         geminiMode: 'api',
-        hasSizeOrLaundry: true,
+        hasSizeOrLaundry: false,
       }),
       'ai'
     )
@@ -41,27 +69,8 @@ describe('image localization route', () => {
       selectLocalizationEngine({
         classification: 'gemini',
         allowsAi: true,
-        geminiMode: 'openai',
+        geminiMode: 'api',
         hasSizeOrLaundry: true,
-      }),
-      'ai'
-    )
-    assert.equal(
-      selectLocalizationEngine({
-        classification: 'local',
-        allowsAi: true,
-        geminiMode: 'api',
-        hasSizeOrLaundry: false,
-      }),
-      'local'
-    )
-    assert.equal(
-      selectLocalizationEngine({
-        classification: 'local',
-        allowsAi: true,
-        geminiMode: 'api',
-        hasSizeOrLaundry: false,
-        forceAi: true,
       }),
       'ai'
     )

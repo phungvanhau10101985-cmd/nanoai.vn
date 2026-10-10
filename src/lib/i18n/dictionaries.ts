@@ -3412,6 +3412,27 @@ export type Dictionary = {
     guestInviteVenueHint: string
     effectsToggleLabel: string
     effectsToggleDesc: string
+    openBurstLabel: string
+    openBurstHint: string
+    openFallLabel: string
+    openFallHint: string
+    openEffectNone: string
+    openBurstBloom: string
+    openBurstPetals: string
+    openBurstHearts: string
+    openBurstStars: string
+    openBurstFireworks: string
+    openBurstGold: string
+    openBurstButterflies: string
+    openFallPetals: string
+    openFallHearts: string
+    openFallStars: string
+    openFallFireworks: string
+    openFallGold: string
+    openFallSnow: string
+    openFallConfetti: string
+    openFallLanterns: string
+    openEffectPreview: string
     loginGateLead: string
     loginGateHint: string
     loginGateCta: string
@@ -5766,14 +5787,14 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
     imageLocRefresh: 'Làm mới trạng thái',
     imageLocAiOffBanner: 'Đang chỉ bật pipeline DeepSeek + vẽ local (OCR → dịch → vẽ chữ). GPT ảnh tạm tắt trên server.',
-    imageLocBulkHint: 'Chạy hàng loạt (không chọn SP): chỉ DeepSeek + vẽ local. GPT Image chỉ bật khi đã tick chọn sản phẩm trong bảng.',
+    imageLocBulkHint: 'Chạy hàng loạt (không chọn SP): mọi ảnh vẽ local, kể cả bảng size và hướng dẫn giặt tẩy. Tick sản phẩm rồi bật GPT để mọi ảnh qua GPT.',
     imageLocModeLabel: 'Sinh/sửa ảnh (chữ Trung → bản địa)',
     imageLocModeLocal: 'DeepSeek + vẽ local (không AI ảnh GPT)',
-    imageLocModeLocalHint: 'OCR (Vision) → DeepSeek dịch → vẽ local chữ trên ảnh. Không cần key OpenAI.',
+    imageLocModeLocalHint: 'Mọi ảnh, kể cả bảng size và hướng dẫn giặt tẩy: OCR → DeepSeek → vẽ local. Không gọi GPT. Không cần key OpenAI.',
     imageLocModeGemini: 'Gemini API (GEMINI_API_KEY)',
     imageLocModeGeminiHint: 'Bảng size và hướng dẫn giặt tẩy mặc định dịch bằng Gemini rồi lưu. Cùng shop Trung Quốc, shop này và danh mục cấp 2 thì dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần GEMINI_API_KEY.',
     imageLocModeOpenai: 'OpenAI GPT Image (OPENAI_API_KEY)',
-    imageLocModeOpenaiHint: 'Bảng size và hướng dẫn giặt tẩy dịch bằng GPT Image rồi lưu. Cùng shop Trung Quốc, shop này và danh mục cấp 2 thì dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần OPENAI_API_KEY.',
+    imageLocModeOpenaiHint: 'Mọi ảnh dịch bằng GPT Image, kể cả bảng size và hướng dẫn giặt tẩy. Bảng size và giặt tẩy được lưu; cùng shop Trung Quốc, shop này và danh mục cấp 2 dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần OPENAI_API_KEY.',
     imageLocNeedSelect: 'chọn SP trong bảng',
     imageLocAiOff: 'tạm tắt',
     imageLocCustomModel: 'Tùy chỉnh…',
@@ -7298,7 +7319,28 @@ export const VI_DICTIONARY: Dictionary = {
     guestInviteVenueLabel: 'Mời đến tại',
     guestInviteVenueHint: 'Hiển thị cùng tên khách trên thiệp (ví dụ: Đến tại nhà trai).',
     effectsToggleLabel: 'Bật hiệu ứng thiệp',
-    effectsToggleDesc: 'Bao gồm: tự động cuộn sau khi mở thiệp, nút nhạc nổi và tự động phát nhạc. Tắt nếu muốn thiệp tĩnh hoàn toàn.',
+    effectsToggleDesc: 'Bao gồm: tự động cuộn sau khi mở thiệp, nút nhạc nổi và tự động phát nhạc. Hiệu ứng bung và rơi chọn bên dưới. Tắt nếu muốn thiệp tĩnh hoàn toàn.',
+    openBurstLabel: 'Khi bấm mở thiệp',
+    openBurstHint: 'Nở ngay lúc khách bấm Mở thiệp.',
+    openFallLabel: 'Khi thiệp lướt lên',
+    openFallHint: 'Rơi trong lúc thiệp hiện lên.',
+    openEffectNone: 'Không hiệu ứng',
+    openBurstBloom: 'Bung hoa',
+    openBurstPetals: 'Cánh hoa tung',
+    openBurstHearts: 'Trái tim',
+    openBurstStars: 'Sao lấp lánh',
+    openBurstFireworks: 'Pháo hoa',
+    openBurstGold: 'Bụi vàng',
+    openBurstButterflies: 'Bướm',
+    openFallPetals: 'Cánh hoa rơi',
+    openFallHearts: 'Trái tim rơi',
+    openFallStars: 'Sao rơi',
+    openFallFireworks: 'Pháo hoa',
+    openFallGold: 'Kim tuyến vàng',
+    openFallSnow: 'Tuyết lấp lánh',
+    openFallConfetti: 'Hoa giấy',
+    openFallLanterns: 'Đèn lồng',
+    openEffectPreview: 'Xem thử',
     loginGateLead:
       'Đăng nhập để tạo thiệp cưới AI, xem trước nội dung miễn phí và xuất bản link RSVP cho khách mời.',
     loginGateHint: 'Chọn phong cách, soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',

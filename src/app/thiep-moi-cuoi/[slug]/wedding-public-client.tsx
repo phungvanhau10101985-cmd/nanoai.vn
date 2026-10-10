@@ -44,6 +44,8 @@ import {
   resolveCoverAiFrame,
   resolveCoverFrameMode,
   resolveCoverFrameOpen,
+  resolveOpenBurstEffect,
+  resolveOpenFallEffect,
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
@@ -53,6 +55,7 @@ import {
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingInvitationMotion } from '@/components/wedding/wedding-invitation-motion'
+import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
 import { WeddingPartyCountFields } from '@/components/wedding/wedding-party-count-fields'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
@@ -160,6 +163,8 @@ export default function WeddingPublicClient({
   const coverFrameMode = useMemo(() => resolveCoverFrameMode(sectionConfig), [sectionConfig])
   const coverPhotoOpen = useMemo(() => resolveCoverPhotoOpen(sectionConfig), [sectionConfig])
   const coverFrameOpen = useMemo(() => resolveCoverFrameOpen(sectionConfig), [sectionConfig])
+  const openBurstEffect = useMemo(() => resolveOpenBurstEffect(sectionConfig), [sectionConfig])
+  const openFallEffect = useMemo(() => resolveOpenFallEffect(sectionConfig), [sectionConfig])
   const albumLayoutId = resolveWeddingAlbumLayoutId(sectionConfig.albumLayoutId)
   const coverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -732,6 +737,9 @@ export default function WeddingPublicClient({
             </div>
           </div>
         </div>
+      ) : null}
+      {opened && card.effectsEnabled ? (
+        <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} />
       ) : null}
       <main className={cn('min-h-screen', theme.pageBg, theme.text)}>
         {!opened && (

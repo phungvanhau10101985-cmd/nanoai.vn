@@ -76,6 +76,8 @@ import {
   resolveAlbumPhotoFrame,
   resolveCoverFrameMode,
   resolveCoverFrameOpen,
+  resolveOpenBurstEffect,
+  resolveOpenFallEffect,
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
@@ -84,8 +86,13 @@ import {
   resolvePortraitShell,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
+  type WeddingOpenBurstEffect,
+  type WeddingOpenFallEffect,
   type WeddingPortraitShellFrame,
+  WEDDING_OPEN_BURST_EFFECTS,
+  WEDDING_OPEN_FALL_EFFECTS,
 } from '@/lib/wedding/wedding-section-config'
+import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
@@ -412,6 +419,7 @@ export default function WeddingCardAiClientPage() {
   const [framePrompt, setFramePrompt] = useState('')
   const [frameOpening, setFrameOpening] = useState<WeddingCoverFrameOpening>('ellipse')
   const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | null>(null)
+  const [openEffectPreview, setOpenEffectPreview] = useState(0)
   const [extraPrompt, setExtraPrompt] = useState('')
   const [styleReferenceFile, setStyleReferenceFile] = useState<File | null>(null)
   const [styleReferenceUrl, setStyleReferenceUrl] = useState('')
@@ -584,6 +592,8 @@ export default function WeddingCardAiClientPage() {
   const coverFrameMode = resolveCoverFrameMode(sectionConfig)
   const coverPhotoOpen = resolveCoverPhotoOpen(sectionConfig)
   const coverFrameOpen = resolveCoverFrameOpen(sectionConfig)
+  const openBurstEffect = resolveOpenBurstEffect(sectionConfig)
+  const openFallEffect = resolveOpenFallEffect(sectionConfig)
   const coverPhotoPositionX = sectionConfig.coverPhotoPositionX ?? 50
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -1252,6 +1262,32 @@ export default function WeddingCardAiClientPage() {
 
   const setCoverOpenEffect = (patch: { coverPhotoOpen?: 'none' | 'rise' | 'fade' | 'zoom' | 'assemble'; coverFrameOpen?: 'none' | 'fade' | 'bloom' | 'assemble' }) => {
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
+  }
+
+  const setOpenCelebration = (patch: { openBurstEffect?: WeddingOpenBurstEffect; openFallEffect?: WeddingOpenFallEffect }) => {
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
+  }
+
+  const burstEffectLabel: Record<WeddingOpenBurstEffect, string> = {
+    bloom: tBrief.openBurstBloom,
+    petals: tBrief.openBurstPetals,
+    hearts: tBrief.openBurstHearts,
+    stars: tBrief.openBurstStars,
+    fireworks: tBrief.openBurstFireworks,
+    gold: tBrief.openBurstGold,
+    butterflies: tBrief.openBurstButterflies,
+    none: tBrief.openEffectNone,
+  }
+  const fallEffectLabel: Record<WeddingOpenFallEffect, string> = {
+    petals: tBrief.openFallPetals,
+    hearts: tBrief.openFallHearts,
+    stars: tBrief.openFallStars,
+    fireworks: tBrief.openFallFireworks,
+    gold: tBrief.openFallGold,
+    snow: tBrief.openFallSnow,
+    confetti: tBrief.openFallConfetti,
+    lanterns: tBrief.openFallLanterns,
+    none: tBrief.openEffectNone,
   }
 
   const pickCoverFromLibrary = (imageUrl: string) => {
@@ -2509,6 +2545,46 @@ export default function WeddingCardAiClientPage() {
                   <div className="space-y-2">
                     <Toggle label={tBrief.effectsToggleLabel} checked={card.effectsEnabled} onChange={(v) => update('effectsEnabled', v)} />
                     <p className="text-xs text-muted-foreground">{tBrief.effectsToggleDesc}</p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-xs text-muted-foreground">
+                        {tBrief.openBurstLabel}
+                        <select
+                          className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                          value={openBurstEffect}
+                          onChange={(event) => setOpenCelebration({ openBurstEffect: event.target.value as WeddingOpenBurstEffect })}
+                        >
+                          {WEDDING_OPEN_BURST_EFFECTS.map((id) => (
+                            <option key={id} value={id}>{burstEffectLabel[id]}</option>
+                          ))}
+                        </select>
+                        <span className="mt-1 block">{tBrief.openBurstHint}</span>
+                      </label>
+                      <label className="block text-xs text-muted-foreground">
+                        {tBrief.openFallLabel}
+                        <select
+                          className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 text-sm text-foreground"
+                          value={openFallEffect}
+                          onChange={(event) => setOpenCelebration({ openFallEffect: event.target.value as WeddingOpenFallEffect })}
+                        >
+                          {WEDDING_OPEN_FALL_EFFECTS.map((id) => (
+                            <option key={id} value={id}>{fallEffectLabel[id]}</option>
+                          ))}
+                        </select>
+                        <span className="mt-1 block">{tBrief.openFallHint}</span>
+                      </label>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setOpenEffectPreview((n) => n + 1)}>
+                      {tBrief.openEffectPreview}
+                    </Button>
+                    {openEffectPreview > 0 ? (
+                      <WeddingOpenEffects
+                        key={openEffectPreview}
+                        play
+                        burst={openBurstEffect}
+                        fall={openFallEffect}
+                        span="preview"
+                      />
+                    ) : null}
                   </div>
                 </div>
                 <Toggle label="Bật RSVP" checked={card.rsvpEnabled} onChange={(v) => update('rsvpEnabled', v)} />

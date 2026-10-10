@@ -504,7 +504,7 @@ export async function startImageLocalizationJob(
   payload.language = lang as ImageLocStartPayload['language']
   if (!imageLocAiJobsAllowed() && payload.allow_ai_image_models !== false) {
     throw new ImageLocalizationError(
-      'Server đang giới hạn chỉ pipeline OCR + DeepSeek + vẽ local — gửi allow_ai_image_models=false. Bật lại GPT ảnh: IMAGE_LOCALIZATION_AI_IMAGE_JOBS_ALLOWED=true.'
+      'Server đang giới hạn chỉ pipeline OCR + DeepSeek + vẽ local — gửi allow_ai_image_models=false. Bật mọi ảnh qua GPT: IMAGE_LOCALIZATION_AI_IMAGE_JOBS_ALLOWED=true.'
     )
   }
   const skipAi = payload.allow_ai_image_models === false
