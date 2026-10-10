@@ -13,6 +13,7 @@ import {
   markSourceStockFinishedFromPg,
   setSourceStockWorkerPausedFromPg,
 } from '@/lib/db/messaging-partner-source-stock-pg'
+import { maybeNotifyPartnerAllPlatformsBlocked } from './source-stock-block-alert'
 import { evaluateStockPrimaryCssbuyWithFallbacks } from './evaluate'
 import {
   sourceStockCheckEnabled,
@@ -200,6 +201,17 @@ export async function checkProductSourceStock(
     commitDetail = ok
       ? `Đã COMMIT inventory.id=${inventoryId} status=${result.status}; cập nhật source_stock_* và stock_qty.`
       : `Không tìm thấy kho sau scrape — không COMMIT được.`
+    if (ok && result.status === 'blocked') {
+      await setSourceStockWorkerPausedFromPg(partnerId, true)
+      clearSourceStockMemoryQueue(partnerId)
+      await maybeNotifyPartnerAllPlatformsBlocked({
+        partnerId,
+        inventoryId,
+        link: productUrl,
+        detail: result.error || '',
+      })
+      commitDetail = `${commitDetail} Cả 3 nền bị Cloudflare — đã dừng worker workspace và báo quản trị.`
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     try {
@@ -235,7 +247,7 @@ async function workerLoop(): Promise<void> {
   daemonAlive = true
   const idle = Math.max(1, Math.min(15, sourceStockCheckIntervalSeconds()))
   console.info(
-    `[source-stock] checker started interval=${sourceStockCheckIntervalSeconds()}s (cssbuy → vipomall → pandamall)`
+    `[source-stock] checker started interval=${sourceStockCheckIntervalSeconds()}s (vipomall → pandamall → cssbuy; fallback chỉ khi Cloudflare)`
   )
   while (true) {
     try {
@@ -296,6 +308,10 @@ export async function getSourceStockWorkerAdminSnapshot(partnerId: string): Prom
   if (!envOn) {
     idle = 'disabled_by_env'
     reasonVi = 'Đã tắt SOURCE_STOCK_CHECK_ENABLED — worker không được khởi động.'
+  } else if (paused && (row.last_done_source_stock_status || '').trim().toLowerCase() === 'blocked') {
+    idle = 'paused_all_platforms_blocked'
+    reasonVi =
+      'Vipomall, PandaMall và CSSBuy đều bị Cloudflare — worker workspace này đã dừng và đã gửi email quản trị. Bật lại sau khi hết chặn.'
   } else if (paused) {
     idle = 'paused_via_db'
     reasonVi = 'Tạm dừng qua DB — workspace này không scrape trong vòng lặp.'

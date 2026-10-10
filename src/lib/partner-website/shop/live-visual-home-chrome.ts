@@ -7,6 +7,7 @@ import {
   pickVisualHomeStyles,
   visualHomeChromeByDeviceFor,
   visualHomeChromeLookFor,
+  withoutVisualHomeDeviceStyles,
   type VisualHomeChromeByDevice,
   type VisualHomeChromeWebsite,
 } from '@/lib/partner-website/shop/visual-home-chrome'
@@ -101,10 +102,16 @@ async function liveVisualHomeChromeShellPropsUncached(
       : extractHomeChromeForDevice(website, device),
     website.siteSlug ? loadSiteLiveCategoryBind(website.siteSlug, true) : Promise.resolve(null),
   ])
+  const byDevice = withoutVisualHomeDeviceStyles(extracted.visualChromeByDevice)
   if (!bind) {
-    return { ...extracted, previewDevice: device, initialNavRow: [], initialShowNavAll: false }
+    return {
+      ...extracted,
+      visualChromeByDevice: byDevice,
+      previewDevice: device,
+      initialNavRow: [],
+      initialShowNavAll: false,
+    }
   }
-  const byDevice = extracted.visualChromeByDevice
   return {
     ...extracted,
     previewDevice: device,

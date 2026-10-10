@@ -20,6 +20,7 @@ import {
   splitVisualHtmlBodyScripts,
   type VisualHtmlHoistedScript,
 } from '@/lib/partner-website/shop/split-visual-html-scripts'
+import { staticShopRuntimeSrcForBody } from '@/lib/partner-website/shop/pw-shop-static-runtime'
 import {
   PARTNER_SHOP_LISTING_HEAD_SCRIPT,
   PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID,
@@ -75,6 +76,10 @@ function PartnerSiteLiveHoistedScript({ script }: { script: VisualHtmlHoistedScr
       />
     )
   }
+  const staticSrc = script.type ? null : staticShopRuntimeSrcForBody(script.body)
+  if (staticSrc) {
+    return <script src={staticSrc} id={script.id || undefined} {...data} />
+  }
   return (
     <script
       id={script.id || undefined}
@@ -83,6 +88,13 @@ function PartnerSiteLiveHoistedScript({ script }: { script: VisualHtmlHoistedScr
       dangerouslySetInnerHTML={{ __html: script.body }}
     />
   )
+}
+
+/** Same position, still parser-blocking — only the body moves to a cached file. */
+function PartnerSiteLiveRuntimeScript({ id, body }: { id: string; body: string }) {
+  const src = staticShopRuntimeSrcForBody(body)
+  if (src) return <script id={id} src={src} />
+  return <script id={id} dangerouslySetInnerHTML={{ __html: body }} />
 }
 
 function PartnerSiteLiveVisualHead({
@@ -136,18 +148,15 @@ function PartnerSiteLiveVisualHead({
           {css ? <style data-pw-inline-visual-css="1" dangerouslySetInnerHTML={{ __html: css }} /> : null}
         </>
       )}
-      <script
+      <PartnerSiteLiveRuntimeScript
         id={`${PARTNER_SHOP_LISTING_HEAD_SCRIPT_ID}-early`}
-        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_LISTING_HEAD_SCRIPT }}
+        body={PARTNER_SHOP_LISTING_HEAD_SCRIPT}
       />
-      <script
+      <PartnerSiteLiveRuntimeScript
         id={`${PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT_ID}-early`}
-        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT }}
+        body={PARTNER_SHOP_MOBILE_HEADER_LOGO_SCRIPT}
       />
-      <script
-        id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID}
-        dangerouslySetInnerHTML={{ __html: PARTNER_SHOP_SCENE_CENTER_SCRIPT }}
-      />
+      <PartnerSiteLiveRuntimeScript id={PARTNER_SHOP_SCENE_CENTER_SCRIPT_ID} body={PARTNER_SHOP_SCENE_CENTER_SCRIPT} />
     </>
   )
 }

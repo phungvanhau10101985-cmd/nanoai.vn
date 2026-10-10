@@ -19,8 +19,48 @@ import {
   shopCacheSetJson,
   shopCacheSkipsRedisSet,
   visitorMergeClaimCacheKey,
+  bumpSiteCache,
   withInventoryShopCache,
+  withSiteProcessMemo,
 } from '@/lib/cache/partner-shop-cache'
+
+test('site process memo reuses derived HTML until the shop is saved', async () => {
+  let loads = 0
+  const run = () =>
+    withSiteProcessMemo({
+      slug: 'memo-shop',
+      key: 'visual:pdp:desktop',
+      sizeOf: (v: { html: string }) => v.html.length,
+      load: () => {
+        loads += 1
+        return { html: `<html>${'x'.repeat(100)}</html>` }
+      },
+    })
+  const first = await run()
+  const second = await run()
+  assert.equal(loads, 1)
+  assert.equal(second, first)
+  await bumpSiteCache('memo-shop')
+  await run()
+  assert.equal(loads, 2)
+})
+
+test('site process memo skips values larger than a quarter of its budget', async () => {
+  let loads = 0
+  const huge = () =>
+    withSiteProcessMemo({
+      slug: 'memo-huge',
+      key: 'visual:home:desktop',
+      sizeOf: () => 9 * 1024 * 1024,
+      load: () => {
+        loads += 1
+        return 'big'
+      },
+    })
+  await huge()
+  await huge()
+  assert.equal(loads, 2)
+})
 
 test('liveCategoryBindCacheSuffix is per visitor, not per product', () => {
   const a = liveCategoryBindCacheSuffix({

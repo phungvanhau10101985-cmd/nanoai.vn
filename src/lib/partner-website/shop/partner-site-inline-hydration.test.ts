@@ -103,7 +103,10 @@ test('root layout injects parser-blocking native navigation for custom-domain sh
   assert.match(source, /id="pw-shop-tiktok-pixel"/)
   assert.match(source, /buildPartnerShopGtmInstall/)
   assert.match(source, /id="pw-shop-gtm"/)
-  assert.doesNotMatch(source, /strategy="beforeInteractive"/)
+  const shopHead = source.slice(source.indexOf('{isPartnerWebsitePage ? ('), source.indexOf('</head>'))
+  assert.ok(shopHead.includes('PARTNER_SITE_NATIVE_NAV_SCRIPT_ID'))
+  assert.doesNotMatch(shopHead, /strategy="beforeInteractive"/)
+  assert.match(source, /dictionaryScriptSrc = isPartnerWebsitePage \? null/)
 })
 
 test('shop layout does not duplicate the root native-navigation scripts', async () => {

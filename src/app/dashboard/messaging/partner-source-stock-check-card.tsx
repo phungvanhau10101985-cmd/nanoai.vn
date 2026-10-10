@@ -455,9 +455,9 @@ export function PartnerSourceStockCheckCard({ partnerId, t }: { partnerId: strin
                 {testLinkResult.link_eligible ? t.sourceStockEligible : t.sourceStockIneligible}
               </span>
             </p>
-            <PreviewStockBranchCard title="CSSBuy" branch={testLinkResult.cssbuy} t={t} />
             <PreviewStockBranchCard title="Vipomall" branch={testLinkResult.vipomall ?? { status: 'skipped' }} t={t} />
             <PreviewStockBranchCard title="PandaMall" branch={testLinkResult.pandamall ?? { status: 'skipped' }} t={t} />
+            <PreviewStockBranchCard title="CSSBuy" branch={testLinkResult.cssbuy} t={t} />
             <PreviewStockBranchCard title={t.sourceStockMerged} branch={testLinkResult.merged} t={t} />
           </div>
         ) : null}

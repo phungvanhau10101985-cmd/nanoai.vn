@@ -344,6 +344,19 @@ export type OutfitListingCategory = {
   depth: number
 }
 
+const CATEGORY_ROLE_MEMO_MAX = 20_000
+const categoryRoleMemo = new Map<string, OutfitSlotId | null>()
+
+/** Every PDP scans the whole category tree once per slot; role depends on the name only. */
+function categoryNameOutfitRole(name: string): OutfitSlotId | null {
+  const hit = categoryRoleMemo.get(name)
+  if (hit !== undefined) return hit
+  const role = inferOutfitRole(name)
+  if (categoryRoleMemo.size >= CATEGORY_ROLE_MEMO_MAX) categoryRoleMemo.clear()
+  categoryRoleMemo.set(name, role)
+  return role
+}
+
 /**
  * Danh mục «Xem tất cả» của một nhóm phối (Áo / Váy / Quần / Túi / …).
  * Ưu tiên nhóm nông đúng giới tính, nằm dưới L1 chuẩn — không lấy L1 khác
@@ -358,7 +371,7 @@ export function pickOutfitListingCategory<T extends OutfitListingCategory>(
   const canonical = new Set(targetOutfitCat1Names(slot, gender).map((name) => name.trim().toLowerCase()))
   let best: { cat: T; score: number } | null = null
   for (const cat of cats) {
-    if (inferOutfitRole(cat.name) !== slot) continue
+    if (categoryNameOutfitRole(cat.name) !== slot) continue
     const names: string[] = []
     let cur: T | undefined = cat
     const seen = new Set<string>()

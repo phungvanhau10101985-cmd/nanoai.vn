@@ -97,6 +97,7 @@ import {
   useVisualViewportShellHeightPx,
 } from '@/hooks/use-visual-viewport-bottom-inset'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { ensureClientDictionary } from '@/lib/i18n/ensure-client-dictionary'
 import { CREATION_SIDEBAR_POPULAR_LINKS } from '@/lib/creation-tool-sidebar-config'
 import {
   LOCALE_COOKIE_NAME,
@@ -1293,6 +1294,7 @@ function GuestChatLocaleSwitches({
       } catch {
         // Cookie vẫn đổi — UI refresh; metadata có thể cập nhật ở tin sau
       }
+      await ensureClientDictionary(locale)
       startTransition(() => {
         if (typeof window !== 'undefined') {
           const u = new URL(window.location.href)

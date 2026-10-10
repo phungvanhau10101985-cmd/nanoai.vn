@@ -233,6 +233,11 @@ export function pickVisualHomeStyles(
     .join('\n')
 }
 
+/** Client shell reads CSS only from `visualChromeStyles`; per-device copies would double the RSC payload. */
+export function withoutVisualHomeDeviceStyles(byDevice: VisualHomeChromeByDevice): VisualHomeChromeByDevice {
+  return { ...byDevice, desktopStyles: '', laptopStyles: '', tabletStyles: '', mobileStyles: '' }
+}
+
 export function visualHomeChromeShellProps(
   website: VisualHomeChromeWebsite,
   previewDevice?: VisualDeviceVariant | null
@@ -247,7 +252,7 @@ export function visualHomeChromeShellProps(
     : visualHomeChromeByDevice(website)
   const lookDevice = previewDevice || 'desktop'
   return {
-    visualChromeByDevice,
+    visualChromeByDevice: withoutVisualHomeDeviceStyles(visualChromeByDevice),
     visualChromeStyles: pickVisualHomeStyles(visualChromeByDevice, previewDevice ?? null),
     previewDevice: previewDevice ?? null,
     chromeLook: visualHomeChromeLookFor(website, lookDevice),

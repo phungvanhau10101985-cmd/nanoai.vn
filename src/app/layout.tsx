@@ -23,6 +23,7 @@ import {
   partnerSiteSlugFromPathname,
 } from '@/lib/auth/app-request-headers'
 import { getCurrentWebLocale, getServerDictionary } from '@/lib/i18n/server'
+import { clientDictionaryScriptSrc } from '@/lib/i18n/client-dictionary-script'
 import { FloatingChatWidget } from '@/components/messaging/floating-chat-widget'
 import { ScrollTopButton } from '@/components/layout/scroll-top-button'
 import { parseSiteChatEmbed } from '@/lib/messaging/parse-site-chat-embed'
@@ -535,10 +536,14 @@ export default async function RootLayout({
     }
   }
   const bunnyCdnOrigin = getBunnyPublicBase()
+  const dictionaryScriptSrc = isPartnerWebsitePage ? null : clientDictionaryScriptSrc(locale)
 
   return (
     <html lang={locale} suppressHydrationWarning>
       <head>
+        {dictionaryScriptSrc ? (
+          <Script id="nanoai-dictionary" strategy="beforeInteractive" src={dictionaryScriptSrc} />
+        ) : null}
         <link rel="ai-catalog" type="application/json" href="/.well-known/ai-catalog.json" />
         <link rel="ard" type="application/json" href="/.well-known/ard.json" />
         <link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs.txt" />

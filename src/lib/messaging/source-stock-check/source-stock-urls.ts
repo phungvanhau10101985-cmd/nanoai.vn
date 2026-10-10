@@ -328,8 +328,9 @@ export function vipomallHtmlShowsAddToCartCta(html: string): boolean {
   const raw = html || ''
   if (!raw.trim()) return false
   const low = raw.toLowerCase()
-  if (low.includes('thêm giỏ hàng') || low.includes('them gio hang')) return true
-  if (low.includes('th&ecirc;m giỏ h&agrave;ng')) return true
+  const hasLabel = low.includes('thêm giỏ hàng') || low.includes('them gio hang') || low.includes('th&ecirc;m giỏ h&agrave;ng')
+  const hasControl = low.includes('button') || low.includes('spn-color') || low.includes('cart_detail.svg')
+  if (hasLabel && hasControl) return true
   if (low.includes('cart_detail.svg') && (low.includes('button') || low.includes('giỏ hàng') || low.includes('spn-color'))) {
     return true
   }
@@ -351,8 +352,9 @@ export function pandamallHtmlShowsCartOrBuyCta(html: string): boolean {
   const low = (html || '').toLowerCase()
   if (!low.trim()) return false
   if (low.includes('btn-addcart') || low.includes('btn-buynow')) return true
-  if (low.includes('thêm vào giỏ') || low.includes('them vao gio')) return true
-  if (low.includes('group-btn') && (low.includes('mua ngay') || low.includes('giỏ'))) return true
+  if (low.includes('group-btn') && (low.includes('thêm vào giỏ') || low.includes('mua ngay') || low.includes('them vao gio'))) {
+    return true
+  }
   return false
 }
 
@@ -391,8 +393,13 @@ export function cssbuyHtmlShowsAddToCartButton(html: string): boolean {
   return blob.includes('add to cart') && blob.includes('<button')
 }
 
-export function classifyCssbuyAddToCartCta(found: boolean, _disabled = false): 'in_stock' | 'out_of_stock' {
+export function classifyCssbuyAddToCartCta(
+  found: boolean,
+  _disabled = false,
+  notice = ''
+): 'in_stock' | 'out_of_stock' {
   void _disabled
+  if ((notice || '').trim()) return 'out_of_stock'
   return found ? 'in_stock' : 'out_of_stock'
 }
 
@@ -402,6 +409,5 @@ export function resultIsConclusiveStock(status: string): boolean {
 }
 
 export function resultShouldFallbackNextPlatform(status: string): boolean {
-  const s = (status || '').trim().toLowerCase()
-  return s === 'blocked' || s === 'error' || s === 'skipped'
+  return (status || '').trim().toLowerCase() === 'blocked'
 }

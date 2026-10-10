@@ -1,6 +1,50 @@
+import type { Page } from 'playwright'
 import type { SourceStockCheckResult } from './source-stock-types'
-import { coerceUrlForSourceStock, pandamallHtmlShowsCartOrBuyCta, pandamallHtmlSuggestsBlocked } from './source-stock-urls'
-import { withSourceStockProbePage } from './source-stock-probe-page'
+import { coerceUrlForSourceStock, pandamallHtmlSuggestsBlocked } from './source-stock-urls'
+import {
+  pollPageOutOfStockNotice,
+  readPageStockZone,
+  withSourceStockProbePage,
+  type SourceStockCartInteract,
+  type SourceStockProbeSnap,
+} from './source-stock-probe-page'
+import { noticeFromStockZone, productZoneLooksLoaded } from './stock-signals'
+
+async function probePandamallCart(page: Page, snap: SourceStockProbeSnap): Promise<SourceStockCartInteract> {
+  const zone = await readPageStockZone(page)
+  if (snap.blocked || snap.login || !snap.ctaFound) {
+    return {
+      notice: noticeFromStockZone(zone),
+      clicked: false,
+      clickNote: snap.ctaFound ? '' : 'no-cta',
+      verificationBlocked: false,
+      zone,
+    }
+  }
+  const already = noticeFromStockZone(zone)
+  if (already) {
+    return { notice: already, clicked: false, clickNote: 'already-visible', verificationBlocked: false, zone }
+  }
+  const cartBtn = page.locator('.btn-addcart, .group-btn .btn-addcart').first()
+  if ((await cartBtn.count()) === 0) {
+    return { notice: null, clicked: false, clickNote: 'no-cta', verificationBlocked: false, zone }
+  }
+  let clicked = false
+  try {
+    await cartBtn.click({ timeout: 8_000, force: true })
+    clicked = true
+  } catch {
+    clicked = false
+  }
+  const notice = await pollPageOutOfStockNotice(page)
+  return {
+    notice,
+    clicked,
+    clickNote: clicked ? 'clicked' : 'fail',
+    verificationBlocked: false,
+    zone: await readPageStockZone(page),
+  }
+}
 
 const PANDAMALL_PDP_PROBE_JS = `() => {
   const html = document.documentElement ? document.documentElement.outerHTML : "";
@@ -42,13 +86,14 @@ export async function evaluatePandamallSourceStock(
     }
   }
   try {
-    const { snap, html, title } = await withSourceStockProbePage({
+    const { snap, html, title, cart } = await withSourceStockProbePage({
       pageUrl: coerced.url,
       partnerId,
       preferHosts: ['pandamall.vn'],
       pandamallLogin: true,
       waitLocator: '.btn-addcart, .btn-buynow, .group-btn',
       probeJs: PANDAMALL_PDP_PROBE_JS,
+      interact: probePandamallCart,
     })
     if (pandamallHtmlSuggestsBlocked(html, title) || snap.blocked) {
       return {
@@ -64,12 +109,36 @@ export async function evaluatePandamallSourceStock(
         checked_via: 'pandamall',
       }
     }
-    if (snap.ctaFound || pandamallHtmlShowsCartOrBuyCta(html)) {
-      return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+    const ctaFound = Boolean(snap.ctaFound)
+    const notice = cart.notice || noticeFromStockZone(cart.zone)
+    if (notice) {
+      const viaClick = cart.clickNote === 'clicked'
+      return {
+        status: 'out_of_stock',
+        error: viaClick
+          ? `PandaMall: bấm giỏ báo hết hàng («${notice}»).`.slice(0, 1000)
+          : `PandaMall: vùng giá/thông báo báo hết hàng («${notice}»).`.slice(0, 1000),
+        checked_via: 'pandamall',
+      }
+    }
+    if (ctaFound) {
+      if (cart.clicked) return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+      return {
+        status: 'error',
+        error: 'PandaMall: thấy nút giỏ nhưng bấm không tới — chưa kết luận còn hàng.',
+        checked_via: 'pandamall',
+      }
+    }
+    if (productZoneLooksLoaded(cart.zone)) {
+      return {
+        status: 'out_of_stock',
+        error: 'PandaMall: trang sản phẩm đã hiện nhưng không thấy nút «Thêm vào giỏ» / «Mua ngay» — coi hết hàng.',
+        checked_via: 'pandamall',
+      }
     }
     return {
-      status: 'out_of_stock',
-      error: 'PandaMall: không thấy nút «Thêm vào giỏ» / «Mua ngay» — coi hết hàng.',
+      status: 'error',
+      error: 'PandaMall: chưa hiện giá, tên hoặc ảnh sản phẩm — chưa kết luận hết hàng.',
       checked_via: 'pandamall',
     }
   } catch (exc) {

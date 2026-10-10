@@ -1,7 +1,11 @@
 import { headers } from 'next/headers'
 import { PartnerSiteLiveVisualDocument } from '@/components/partner-website/shop/partner-site-live-visual-document'
 import { buildPartnerLiveDocumentStampScript } from '@/lib/partner-website/shop/inject-partner-shop-fonts'
-import { withSiteHtmlCache } from '@/lib/cache/partner-shop-cache'
+import {
+  hashShopCachePayload,
+  withSiteHtmlCache,
+  withSiteProcessMemo,
+} from '@/lib/cache/partner-shop-cache'
 import {
   readPartnerCustomDomainFromHeaders,
   readPartnerVisualDeviceFromHeaders,
@@ -43,6 +47,7 @@ import { fillMissingShopVisualDeviceFiles } from '@/lib/partner-website/shop/see
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
 import {
+  hasSavedVisualPdpShell,
   parseVisualDeviceQuery,
   shouldServeVisualPageHtml,
   type VisualDeviceVariant,
@@ -337,27 +342,65 @@ function withFilledVisualDevices(
   }
 }
 
-function resolveVisualTargetForScreen(
-  site: PartnerVisualSite,
-  target: PartnerVisualHtmlTarget,
-  device: VisualDeviceVariant
-): {
+type ResolvedVisualTarget = {
   html: string
   sourceDevice: VisualDeviceVariant
-} | null {
-  const website = withFilledVisualDevices(site, target, device)
-  const selected = resolvePartnerVisualHtmlForDevice(website, target, device)
-  return selected ? { html: selected.html, sourceDevice: selected.sourceDevice } : null
+} | null
+
+/**
+ * Output depends only on saved files + theme, never on the product id or category path once a
+ * shared `product_detail` / collection shell exists — so those share one entry per device.
+ */
+function visualTargetMemoKey(
+  site: PartnerVisualSite,
+  website: PartnerVisualSite,
+  target: PartnerVisualHtmlTarget,
+  device: VisualDeviceVariant
+): string {
+  const kind =
+    target.kind === 'page'
+      ? `page:${target.pageKey}`
+      : target.kind === 'category'
+        ? 'category'
+        : target.kind === 'cms'
+          ? `cms:${target.cmsSlug}`
+          : hasSavedVisualPdpShell(website, device)
+            ? 'pdp'
+            : `product:${target.productId}`
+  return [
+    'visual-target-1',
+    kind,
+    device,
+    hashShopCachePayload({
+      theme: website.theme ?? null,
+      renderMode: site.renderMode,
+      templateId: site.templateId,
+      locale: site.locale,
+      title: site.title,
+      logoUrl: site.logoUrl,
+      chatPath: site.chatPath,
+      published: site.isPublished ?? null,
+    }),
+  ].join(':')
 }
 
 async function loadVisualTargetForScreen(
   site: PartnerVisualSite,
   target: PartnerVisualHtmlTarget,
   device?: VisualDeviceVariant | null
-) {
+): Promise<ResolvedVisualTarget> {
   const requested = device || inferLiveVisualRequestDevice()
   const loaded = await ensureLiveVisualWebsite(site, target, requested)
-  return resolveVisualTargetForScreen(loaded, target, requested)
+  const website = withFilledVisualDevices(loaded, target, requested)
+  return withSiteProcessMemo<ResolvedVisualTarget>({
+    slug: site.siteSlug,
+    key: visualTargetMemoKey(site, website, target, requested),
+    sizeOf: (value) => value?.html.length ?? 0,
+    load: () => {
+      const selected = resolvePartnerVisualHtmlForDevice(website, target, requested)
+      return selected ? { html: selected.html, sourceDevice: selected.sourceDevice } : null
+    },
+  })
 }
 
 export async function maybePartnerSiteVisualPage(

@@ -1,3 +1,4 @@
+import type { Page } from 'playwright'
 import type { SourceStockCheckResult } from './source-stock-types'
 import {
   coerceUrlForSourceStock,
@@ -6,7 +7,58 @@ import {
   vipomallHtmlSuggestsBlocked,
 } from './source-stock-urls'
 import { buildVipomallPdpUrl, VIPOMALL_PLATFORM_1688 } from '@/lib/messaging/listing-import/listing-import-urls'
-import { withSourceStockProbePage } from './source-stock-probe-page'
+import {
+  pollPageOutOfStockNotice,
+  readPageStockZone,
+  withSourceStockProbePage,
+  type SourceStockCartInteract,
+  type SourceStockProbeSnap,
+} from './source-stock-probe-page'
+import { noticeFromStockZone, productZoneLooksLoaded } from './stock-signals'
+
+async function probeVipomallCart(page: Page, snap: SourceStockProbeSnap): Promise<SourceStockCartInteract> {
+  const zone = await readPageStockZone(page)
+  if (snap.blocked || !snap.ctaFound) {
+    return {
+      notice: noticeFromStockZone(zone),
+      clicked: false,
+      clickNote: snap.ctaFound ? '' : 'no-cta',
+      verificationBlocked: false,
+      zone,
+    }
+  }
+  const already = noticeFromStockZone(zone)
+  if (already) {
+    return { notice: already, clicked: false, clickNote: 'already-visible', verificationBlocked: false, zone }
+  }
+  const cartBtn = page.locator('button.button:has(img[src*="cart_detail.svg"])').first()
+  const labelBtn = page
+    .locator('button.button, span.spn-color')
+    .filter({ hasText: /^\s*thêm\s*giỏ\s*hàng\s*$/i })
+    .first()
+  if ((await cartBtn.count()) === 0 && (await labelBtn.count()) === 0) {
+    return { notice: null, clicked: false, clickNote: 'no-cta', verificationBlocked: false, zone }
+  }
+  let clicked = false
+  try {
+    if ((await cartBtn.count()) > 0) {
+      await cartBtn.click({ timeout: 8_000, force: true })
+    } else {
+      await labelBtn.click({ timeout: 4_000, force: true })
+    }
+    clicked = true
+  } catch {
+    clicked = false
+  }
+  const notice = await pollPageOutOfStockNotice(page)
+  return {
+    notice,
+    clicked,
+    clickNote: clicked ? 'clicked' : 'fail',
+    verificationBlocked: false,
+    zone: await readPageStockZone(page),
+  }
+}
 
 const VIPOMALL_PDP_PROBE_JS = `() => {
   const html = document.documentElement ? document.documentElement.outerHTML : "";
@@ -54,12 +106,13 @@ export async function evaluateVipomallSourceStockFromUrl(
     page = coerced.url.trim()
   }
   try {
-    const { snap, html } = await withSourceStockProbePage({
+    const { snap, html, cart } = await withSourceStockProbePage({
       pageUrl: page,
       partnerId: opts?.partnerId,
       preferHosts: ['vipomall.vn'],
       waitLocator: "button.button, span.spn-color, img[src*='cart_detail.svg']",
       probeJs: VIPOMALL_PDP_PROBE_JS,
+      interact: probeVipomallCart,
     })
     if (
       (vipomallHtmlSuggestsBlocked(html) && !vipomallHtmlShowsAddToCartCta(html)) ||
@@ -71,12 +124,36 @@ export async function evaluateVipomallSourceStockFromUrl(
         checked_via: 'vipomall',
       }
     }
-    if (snap.ctaFound || vipomallHtmlShowsAddToCartCta(html)) {
-      return { status: 'in_stock', error: null, checked_via: 'vipomall' }
+    const ctaFound = Boolean(snap.ctaFound)
+    const notice = cart.notice || noticeFromStockZone(cart.zone)
+    if (notice) {
+      const viaClick = cart.clickNote === 'clicked'
+      return {
+        status: 'out_of_stock',
+        error: viaClick
+          ? `Vipomall: bấm giỏ báo hết hàng («${notice}»).`.slice(0, 1000)
+          : `Vipomall: vùng giá/thông báo báo hết hàng («${notice}»).`.slice(0, 1000),
+        checked_via: 'vipomall',
+      }
+    }
+    if (ctaFound) {
+      if (cart.clicked) return { status: 'in_stock', error: null, checked_via: 'vipomall' }
+      return {
+        status: 'error',
+        error: 'Vipomall: thấy nút giỏ nhưng bấm không tới — chưa kết luận còn hàng.',
+        checked_via: 'vipomall',
+      }
+    }
+    if (productZoneLooksLoaded(cart.zone)) {
+      return {
+        status: 'out_of_stock',
+        error: 'Vipomall: trang sản phẩm đã hiện nhưng không thấy nút «Thêm giỏ hàng» / «Mua ngay» — coi hết hàng.',
+        checked_via: 'vipomall',
+      }
     }
     return {
-      status: 'out_of_stock',
-      error: 'Vipomall: không thấy nút «Thêm giỏ hàng» / «Mua ngay» — coi hết hàng.',
+      status: 'error',
+      error: 'Vipomall: chưa hiện giá, tên hoặc ảnh sản phẩm — chưa kết luận hết hàng.',
       checked_via: 'vipomall',
     }
   } catch (exc) {

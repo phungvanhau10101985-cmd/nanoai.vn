@@ -6,7 +6,18 @@ import {
   mergeVisualHomeStylesIntoHtml,
   preferredVisualHomeStyleSource,
   stripExtractedVisualStyleTags,
+  stripLeftoverOrderStatusTabCss,
 } from '@/lib/partner-website/shop/merge-visual-home-styles'
+
+test('leftover order-tab CSS strip stays linear on long brace-free runs (base64 fonts)', () => {
+  const font = `@font-face{src:url(data:font/woff2;base64,${'A'.repeat(300_000)})}`
+  const css = `${font}.pw-wrap .pw-shop-order-filter > a{display:grid}.keep{color:red}`
+  const started = performance.now()
+  const out = stripLeftoverOrderStatusTabCss(css)
+  assert.ok(performance.now() - started < 500)
+  assert.equal(out, `${font}.keep{color:red}`)
+  assert.equal(stripLeftoverOrderStatusTabCss(font), font)
+})
 
 const home = `<!DOCTYPE html><html>
 <head>

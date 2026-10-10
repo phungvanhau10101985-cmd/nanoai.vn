@@ -34,15 +34,14 @@ test('custom domain SSL, robots, and guest chat stay on the host', () => {
   assert.equal(mapPartnerCustomDomainPathToInternal('gudo-vn-3f93', '/messaging/p/gudo-vn-3f93'), null)
 })
 
-test('shop not-found screen uses storefront chrome and home redirect', async () => {
+test('shop not-found screen stays light (no chrome shell) and redirects home', async () => {
   const { readFile } = await import('node:fs/promises')
   const screen = await readFile(
     new URL('../../../components/partner-website/shop/partner-site-not-found-screen.tsx', import.meta.url),
     'utf8'
   )
-  assert.match(screen, /PartnerSiteShopShell/)
+  assert.doesNotMatch(screen, /PartnerSiteShopShell|liveVisualHomeChromeShellProps/)
   assert.match(screen, /PartnerSiteHomeRedirect/)
-  assert.match(screen, /pageKind=\{PW_PAGE\.home\}/)
   const nested = await readFile(new URL('../../../app/site/[slug]/not-found.tsx', import.meta.url), 'utf8')
   assert.match(nested, /PartnerSiteNotFoundScreen/)
 })

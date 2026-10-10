@@ -1230,6 +1230,14 @@ function fallbackPdpShellFromHomeChrome(
   return withCanonicalSharedChrome(shell, website, variant)
 }
 
+/** True when every product on this device renders the same saved `product_detail` shell. */
+export function hasSavedVisualPdpShell(
+  website: VisualWebsitePick,
+  variant: VisualDeviceVariant = 'desktop'
+): boolean {
+  return readExactVisualPageHtml(website, 'product_detail', variant).trim().length >= 40
+}
+
 /** Shared PDP layout for Sửa nhanh — one page per device, not per inventory id. */
 export function resolveVisualPdpShellHtml(
   website: VisualWebsitePick,

@@ -3,6 +3,7 @@ import { seedPlaywrightContextCookies, tryPandamallPlaywrightAutoLogin } from '@
 import { ListingImportPlaywrightError } from '@/lib/messaging/listing-import/playwright-browser'
 import { IMPORT_USER_AGENT } from '@/lib/messaging/listing-import/scrape-common'
 import { sourceStockCheckHeadless, sourceStockCheckPlaywrightTimeoutMs } from './source-stock-config'
+import { EMPTY_STOCK_ZONE, noticeFromStockZone, STOCK_ZONE_JS, type StockZoneSnap } from './stock-signals'
 
 async function loadPlaywright() {
   try {
@@ -24,6 +25,14 @@ export type SourceStockProbeSnap = {
   href?: string
 }
 
+export type SourceStockCartInteract = {
+  notice: string | null
+  clicked: boolean
+  clickNote: string
+  verificationBlocked: boolean
+  zone: StockZoneSnap
+}
+
 export async function withSourceStockProbePage(opts: {
   pageUrl: string
   partnerId?: string | null
@@ -35,7 +44,8 @@ export async function withSourceStockProbePage(opts: {
   waitText?: string
   pandamallLogin?: boolean
   probeJs: string
-}): Promise<{ snap: SourceStockProbeSnap; html: string; title: string; href: string }> {
+  interact?: (page: Page, snap: SourceStockProbeSnap) => Promise<SourceStockCartInteract>
+}): Promise<{ snap: SourceStockProbeSnap; html: string; title: string; href: string; cart: SourceStockCartInteract }> {
   const { chromium } = await loadPlaywright()
   const timeoutMs = sourceStockCheckPlaywrightTimeoutMs()
   let browser: Browser | null = null
@@ -103,6 +113,9 @@ export async function withSourceStockProbePage(opts: {
     }
     await page.waitForTimeout(400)
     const snap = (await page.evaluate(opts.probeJs)) as SourceStockProbeSnap
+    const cart = opts.interact
+      ? await opts.interact(page, snap && typeof snap === 'object' ? snap : {})
+      : { notice: null, clicked: false, clickNote: '', verificationBlocked: false, zone: { ...EMPTY_STOCK_ZONE } }
     const html = (await page.content()) || ''
     let title = ''
     try {
@@ -111,7 +124,7 @@ export async function withSourceStockProbePage(opts: {
       title = ''
     }
     const href = page.url() || opts.pageUrl
-    return { snap: snap && typeof snap === 'object' ? snap : {}, html, title, href }
+    return { snap: snap && typeof snap === 'object' ? snap : {}, html, title, href, cart }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     if (/Executable doesn't exist|playwright install/i.test(detail)) {
@@ -135,6 +148,33 @@ export async function withSourceStockProbePage(opts: {
       /* ignore */
     }
   }
+}
+
+export async function readPageStockZone(page: Page): Promise<StockZoneSnap> {
+  try {
+    const data = (await page.evaluate(STOCK_ZONE_JS)) as Partial<StockZoneSnap> | null
+    if (!data || typeof data !== 'object') return { ...EMPTY_STOCK_ZONE }
+    return {
+      zoneText: String(data.zoneText || ''),
+      risksOpen: Boolean(data.risksOpen),
+      productImage: Boolean(data.productImage),
+      title: String(data.title || ''),
+      missingProduct: Boolean(data.missingProduct),
+    }
+  } catch {
+    return { ...EMPTY_STOCK_ZONE }
+  }
+}
+
+export async function pollPageOutOfStockNotice(page: Page, rounds = 4, pauseMs = 700): Promise<string | null> {
+  let notice = noticeFromStockZone(await readPageStockZone(page))
+  if (notice) return notice
+  for (let i = 0; i < Math.max(1, rounds); i += 1) {
+    await page.waitForTimeout(pauseMs)
+    notice = noticeFromStockZone(await readPageStockZone(page))
+    if (notice) return notice
+  }
+  return null
 }
 
 async function clickCssbuyAcceptRisks(page: Page): Promise<boolean> {

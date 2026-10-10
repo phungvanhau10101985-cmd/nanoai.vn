@@ -129,6 +129,7 @@ export async function bumpSiteCache(slug: string | null | undefined): Promise<vo
   if (!key) return
   await redisIncr(siteVerKey(key))
   forgetMem(`pw:site:${key}:`)
+  forgetSiteMemo(`pw:site:${key}:`)
 }
 
 function bumpLater(task: Promise<unknown>): void {
@@ -384,6 +385,62 @@ export async function withSiteHtmlCache(input: {
     if (typeof hit === 'string' && hit.length >= 40) return hit
     const value = await input.load()
     if (value.length >= 40) await shopCacheSetJson(key, SITE_HTML_TTL_SEC, value)
+    return value
+  })
+}
+
+/**
+ * Derived per-device HTML: too big for Redis (`SHOP_REDIS_BLOB_MAX_BYTES`) and too costly to
+ * rebuild from saved files on every request. Same site version + TTL as `withSiteMetaCache`,
+ * kept as live objects so a hit does not re-parse megabytes of JSON.
+ */
+const SITE_MEMO_MAX_ENTRIES = 160
+const SITE_MEMO_BUDGET_CHARS = 32 * 1024 * 1024
+const siteMemo = new Map<string, { exp: number; size: number; value: unknown }>()
+let siteMemoChars = 0
+
+function dropSiteMemo(key: string): void {
+  const row = siteMemo.get(key)
+  if (!row) return
+  siteMemo.delete(key)
+  siteMemoChars -= row.size
+}
+
+function forgetSiteMemo(prefix: string): void {
+  for (const key of [...siteMemo.keys()]) {
+    if (key.startsWith(prefix)) dropSiteMemo(key)
+  }
+}
+
+export async function withSiteProcessMemo<T>(input: {
+  slug: string
+  key: string
+  sizeOf: (value: T) => number
+  load: () => T | Promise<T>
+}): Promise<T> {
+  const slug = input.slug.trim().toLowerCase()
+  if (!slug) return input.load()
+  const ver = await siteVer(slug)
+  const key = `pw:site:${slug}:v${ver}:memo:${input.key}`
+  const row = siteMemo.get(key)
+  if (row && row.exp > Date.now()) {
+    siteMemo.delete(key)
+    siteMemo.set(key, row)
+    return row.value as T
+  }
+  if (row) dropSiteMemo(key)
+  return loadOnce(key, async () => {
+    const value = await input.load()
+    const size = Math.max(1, input.sizeOf(value))
+    if (size > SITE_MEMO_BUDGET_CHARS / 4) return value
+    while (
+      siteMemo.size &&
+      (siteMemo.size >= SITE_MEMO_MAX_ENTRIES || siteMemoChars + size > SITE_MEMO_BUDGET_CHARS)
+    ) {
+      dropSiteMemo(siteMemo.keys().next().value as string)
+    }
+    siteMemo.set(key, { exp: Date.now() + SITE_META_TTL_SEC * 1000, size, value })
+    siteMemoChars += size
     return value
   })
 }

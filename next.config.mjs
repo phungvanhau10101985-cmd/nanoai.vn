@@ -142,9 +142,21 @@ const nextConfig = {
         ],
     },
     // Tắt webpack cache có thể gây lỗi clientModules trên Windows
-    webpack: (config, { dev }) => {
+    webpack: (config, { dev, isServer }) => {
         if (dev) {
             config.cache = false;
+        }
+        if (!isServer) {
+            /**
+             * Storefront client components import small helpers from big server/editor libs
+             * (visual-editor-pages → demo PDP shell, chrome layout CSS…). These libs have no
+             * top-level side effects, so let webpack drop modules whose exports go unused —
+             * keeps editor/server HTML builders out of the shop bundle.
+             */
+            config.module.rules.push({
+                test: /[\\/]src[\\/]lib[\\/]partner-website[\\/].+\.ts$/,
+                sideEffects: false,
+            });
         }
         return config;
     },

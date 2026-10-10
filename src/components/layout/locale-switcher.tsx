@@ -16,6 +16,7 @@ import {
   WEB_LOCALES,
   type WebLocale,
 } from '@/lib/i18n/config'
+import { ensureClientDictionary } from '@/lib/i18n/ensure-client-dictionary'
 
 type LocaleSwitcherProps = {
   currentLocale: WebLocale
@@ -39,8 +40,10 @@ export function LocaleSwitcher({ currentLocale }: LocaleSwitcherProps) {
     const tail = `; path=/; max-age=${maxAge}; samesite=lax`
     document.cookie = `${LOCALE_COOKIE_NAME}=${locale}${tail}`
     document.cookie = `${LOCALE_COOKIE_NAME_LEGACY}=${locale}${tail}`
-    startTransition(() => {
-      router.refresh()
+    void ensureClientDictionary(locale).then(() => {
+      startTransition(() => {
+        router.refresh()
+      })
     })
   }
 

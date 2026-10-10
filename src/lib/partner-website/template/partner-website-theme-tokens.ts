@@ -460,9 +460,12 @@ function chromeSelectorKind(
   return null
 }
 
+/** Anchored like `stripLeftoverOrderStatusTabCss`: unanchored `[^{}@]+` is quadratic on long runs. */
+const CHROME_THEME_CSS_RULE = /(?<=^|[{}@])([^{}@]+)\{([^{}]+)\}/g
+
 /** Convert leftover chrome hex in class rules to tokens. Leaves inline `style=""` alone. */
 export function bindChromeThemeVarsInCss(css: string): string {
-  return css.replace(/([^{}@]+)\{([^{}]+)\}/g, (full, rawSel: string, body: string) => {
+  return css.replace(CHROME_THEME_CSS_RULE, (full, rawSel: string, body: string) => {
     const kind = chromeSelectorKind(rawSel)
     if (!kind) return full
     let next = body

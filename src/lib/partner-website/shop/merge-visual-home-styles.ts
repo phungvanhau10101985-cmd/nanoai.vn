@@ -19,9 +19,17 @@ function rewriteVisualWrapperStickyCss(css: string): string {
   )
 }
 
+/**
+ * Starts only right after a brace (or at 0): an unanchored `[^{}]*` retries at
+ * every offset and goes quadratic on long brace-free runs (base64 fonts, 200KB+).
+ * Same matches — a rule's leftmost start is always its segment start.
+ */
+const LEFTOVER_ORDER_TAB_RULE = /(?<=^|[{}])[^{}]*\.pw-shop-order-filter[^{]*\{[^}]*\}/gi
+
 /** Merchant HTML leftover grid for order tabs must not override the engine swipe row. */
-function stripLeftoverOrderStatusTabCss(css: string): string {
-  return css.replace(/[^{}]*\.pw-shop-order-filter[^{]*\{[^}]*\}/gi, '')
+export function stripLeftoverOrderStatusTabCss(css: string): string {
+  if (!/\.pw-shop-order-filter/i.test(css)) return css
+  return css.replace(LEFTOVER_ORDER_TAB_RULE, '')
 }
 
 function stampTag(open: string): string {

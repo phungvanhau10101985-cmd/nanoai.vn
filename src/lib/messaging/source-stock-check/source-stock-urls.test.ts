@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
+import { noticeFromStockZone, productZoneLooksLoaded } from './stock-signals'
 import { evaluateStockWithProbeChain, mergeAllPlatformsBlockedOrError } from './evaluate'
 import {
   classifyCssbuyAddToCartCta,
@@ -53,6 +54,7 @@ describe('source stock urls + merge', () => {
     assert.equal(classifyCssbuyAddToCartCta(true), 'in_stock')
     assert.equal(classifyCssbuyAddToCartCta(true, true), 'in_stock')
     assert.equal(classifyCssbuyAddToCartCta(false), 'out_of_stock')
+    assert.equal(classifyCssbuyAddToCartCta(true, false, 'Out of stock'), 'out_of_stock')
     assert.equal(cssbuyHtmlShowsAddToCartButton('<p class="button">Add to Cart</p>'), true)
     assert.equal(cssbuyHtmlShowsAddToCartButton('<div class="ty_button_btn6">Add to Cart</div>'), true)
     assert.equal(cssbuyHtmlShowsAddToCartButton('<html></html>'), false)
@@ -62,8 +64,10 @@ describe('source stock urls + merge', () => {
     assert.equal(vipomallHtmlShowsAddToCartCta('<button class="add-cart">Thêm giỏ hàng</button>'), true)
     assert.equal(vipomallHtmlShowsAddToCartCta('<button disabled>Thêm giỏ hàng</button>'), true)
     assert.equal(vipomallHtmlShowsAddToCartCta('<html></html>'), false)
+    assert.equal(vipomallHtmlShowsAddToCartCta('<div>Thêm giỏ hàng</div>'), false)
     assert.equal(pandamallHtmlShowsCartOrBuyCta('<a class="btn-addcart">Thêm vào giỏ</a>'), true)
     assert.equal(pandamallHtmlShowsCartOrBuyCta('<button class="btn-buynow" disabled>Mua ngay</button>'), true)
+    assert.equal(pandamallHtmlShowsCartOrBuyCta('<div>Tìm kiếm &amp; Thêm vào giỏ</div>'), false)
     assert.equal(pandamallHtmlShowsCartOrBuyCta('<div>empty</div>'), false)
     assert.equal(cssbuyHtmlSuggestsSecurityBlock('<html>Just a moment</html>', 'Just a moment'), true)
     assert.equal(cssbuyHtmlSuggestsSecurityBlock('<button>Add to cart</button>', 'Goods'), false)
@@ -91,6 +95,7 @@ describe('source stock urls + merge', () => {
     )
     assert.equal(out.status, 'blocked')
     assert.equal(out.checked_via, 'cssbuy+vipomall+pandamall')
+    assert.match(String(out.error || ''), /đều bị Cloudflare/)
     const mixed = mergeAllPlatformsBlockedOrError(
       blocked,
       { status: 'error', error: 'timeout', checked_via: 'vipomall' },
@@ -99,22 +104,46 @@ describe('source stock urls + merge', () => {
     assert.equal(mixed.status, 'error')
   })
 
-  it('falls through blocked/error and treats in_stock/out_of_stock as conclusive', () => {
+  it('falls through only when Cloudflare blocks; error and stock stop the chain', () => {
     assert.equal(resultIsConclusiveStock('in_stock'), true)
     assert.equal(resultIsConclusiveStock('out_of_stock'), true)
     assert.equal(resultIsConclusiveStock('blocked'), false)
     assert.equal(resultShouldFallbackNextPlatform('blocked'), true)
-    assert.equal(resultShouldFallbackNextPlatform('error'), true)
+    assert.equal(resultShouldFallbackNextPlatform('error'), false)
+    assert.equal(resultShouldFallbackNextPlatform('out_of_stock'), false)
     assert.equal(resultShouldFallbackNextPlatform('in_stock'), false)
   })
 
-  it('runs CSSBuy → Vipomall → PandaMall and stops at the first conclusive result', async () => {
+  it('reads OOS only from the price zone or the PandaMall missing-product sentence', () => {
+    assert.equal(noticeFromStockZone({ missingProduct: true, zoneText: '' }), 'Không tìm thấy thông tin sản phẩm')
+    assert.equal(noticeFromStockZone({ zoneText: 'Price Out of stock' }), 'Out of stock')
+    assert.equal(noticeFromStockZone({ zoneText: 'Câu hỏi thường gặp: hết hàng thì sao?' }), 'hết hàng')
+    assert.equal(productZoneLooksLoaded({ risksOpen: true, productImage: true, title: 'Áo khoác bomber nam' }), false)
+    assert.equal(productZoneLooksLoaded({ productImage: false, title: 'cssbuy goods' }), false)
+    assert.equal(productZoneLooksLoaded({ productImage: true, title: '' }), true)
+  })
+
+  it('runs Vipomall → PandaMall → CSSBuy and continues only when blocked', async () => {
     const calls: string[] = []
-    const out = await evaluateStockWithProbeChain({
+    const stopped = await evaluateStockWithProbeChain({
+      vipomall: async () => {
+        calls.push('vipomall')
+        return { status: 'out_of_stock', error: null, checked_via: 'vipomall' }
+      },
+      pandamall: async () => {
+        calls.push('pandamall')
+        return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+      },
       cssbuy: async () => {
         calls.push('cssbuy')
-        return { status: 'blocked', error: 'cf', checked_via: 'cssbuy' }
+        return { status: 'in_stock', error: null, checked_via: 'cssbuy' }
       },
+    })
+    assert.deepEqual(calls, ['vipomall'])
+    assert.equal(stopped.status, 'out_of_stock')
+
+    calls.length = 0
+    const errored = await evaluateStockWithProbeChain({
       vipomall: async () => {
         calls.push('vipomall')
         return { status: 'error', error: 'timeout', checked_via: 'vipomall' }
@@ -123,27 +152,31 @@ describe('source stock urls + merge', () => {
         calls.push('pandamall')
         return { status: 'in_stock', error: null, checked_via: 'pandamall' }
       },
-    })
-    assert.deepEqual(calls, ['cssbuy', 'vipomall', 'pandamall'])
-    assert.equal(out.status, 'in_stock')
-
-    calls.length = 0
-    const stopped = await evaluateStockWithProbeChain({
       cssbuy: async () => {
         calls.push('cssbuy')
-        return { status: 'out_of_stock', error: null, checked_via: 'cssbuy' }
+        return { status: 'in_stock', error: null, checked_via: 'cssbuy' }
       },
+    })
+    assert.deepEqual(calls, ['vipomall'])
+    assert.equal(errored.status, 'error')
+
+    calls.length = 0
+    const out = await evaluateStockWithProbeChain({
       vipomall: async () => {
         calls.push('vipomall')
-        return { status: 'in_stock', error: null, checked_via: 'vipomall' }
+        return { status: 'blocked', error: 'cf', checked_via: 'vipomall' }
       },
       pandamall: async () => {
         calls.push('pandamall')
-        return { status: 'in_stock', error: null, checked_via: 'pandamall' }
+        return { status: 'blocked', error: 'cf', checked_via: 'pandamall' }
+      },
+      cssbuy: async () => {
+        calls.push('cssbuy')
+        return { status: 'in_stock', error: null, checked_via: 'cssbuy' }
       },
     })
-    assert.deepEqual(calls, ['cssbuy'])
-    assert.equal(stopped.status, 'out_of_stock')
+    assert.deepEqual(calls, ['vipomall', 'pandamall', 'cssbuy'])
+    assert.equal(out.status, 'in_stock')
   })
 })
 

@@ -33,11 +33,19 @@ const TOPBAR_RE =
 const FLOAT_KIT_RE =
   /<(aside|div|nav)\b(?=[^>]*\bdata-pw-chrome-kit=["']float["'])[^>]*>/i
 
+let lastMaskInput = ''
+let lastMaskOutput = ''
+
+/** Each block lookup masks the same ~1MB page again; reuse the last result. */
 function maskHtmlForTagScan(html: string): string {
-  return html.replace(
+  if (html === lastMaskInput) return lastMaskOutput
+  const masked = html.replace(
     /<!--[\s\S]*?-->|<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>/gi,
     (block) => ' '.repeat(block.length)
   )
+  lastMaskInput = html
+  lastMaskOutput = masked
+  return masked
 }
 
 function closingTagIndex(masked: string, from: number, tag: string): number {

@@ -6,7 +6,7 @@ import {
   coerceUrlForSourceStock,
   linkEligibleForSourceStockCheck,
   resolveNumeric1688OfferIdFromSourceUrl,
-  resultIsConclusiveStock,
+  resultShouldFallbackNextPlatform,
   SOURCE_STOCK_ELIGIBLE_MARKERS,
 } from './source-stock-urls'
 import { normalizeProductImportUrl } from '@/lib/messaging/listing-import/import-source-ids'
@@ -36,7 +36,7 @@ export function mergeAllPlatformsBlockedOrError(
   if (real.length && real.every((a) => (a.status || '').trim().toLowerCase() === 'blocked')) {
     return {
       status: 'blocked',
-      error: 'CSSBuy, Vipomall và PandaMall đều bị Cloudflare/CAPTCHA — dừng.'.slice(0, 1000),
+      error: 'Vipomall, PandaMall và CSSBuy đều bị Cloudflare/CAPTCHA — dừng.'.slice(0, 1000),
       checked_via: 'cssbuy+vipomall+pandamall',
     }
   }
@@ -80,16 +80,16 @@ export async function evaluateStockWithProbeChain(probes: {
   vipomall: () => Promise<SourceStockCheckResult>
   pandamall: () => Promise<SourceStockCheckResult>
 }): Promise<SourceStockCheckResult> {
-  const css = await probes.cssbuy()
-  if (resultIsConclusiveStock(css.status)) return css
   const vm = await probes.vipomall()
-  if (resultIsConclusiveStock(vm.status)) return vm
+  if (!resultShouldFallbackNextPlatform(vm.status)) return vm
   const panda = await probes.pandamall()
-  if (resultIsConclusiveStock(panda.status)) return panda
+  if (!resultShouldFallbackNextPlatform(panda.status)) return panda
+  const css = await probes.cssbuy()
+  if (!resultShouldFallbackNextPlatform(css.status)) return css
   return mergeAllPlatformsBlockedOrError(css, vm, panda)
 }
 
-/** Preview giống worker: CSSBuy → Vipomall → PandaMall. Không ghi DB. */
+/** Preview giống worker: Vipomall → PandaMall → CSSBuy. Chỉ Cloudflare mới chuyển nền. Không ghi DB. */
 export async function adminPreviewSourceStockByUrl(
   rawUrl: string,
   partnerId?: string | null
@@ -123,39 +123,39 @@ export async function adminPreviewSourceStockByUrl(
     }
   }
 
-  const css = await evaluateCssbuyPdpStock(canon, partnerId)
-  if (resultIsConclusiveStock(css.status)) {
-    return {
-      ok: true,
-      canonical_input: canon,
-      link_eligible: true,
-      coercion,
-      cssbuy: bubble(css),
-      vipomall: bubble(skipped()),
-      pandamall: bubble(skipped()),
-      merged: bubble(css),
-    }
-  }
   const vm = await evaluateVipomallSourceStockFromUrl(canon, {
     partnerId,
     fallbackProductId: resolveNumeric1688OfferIdFromSourceUrl(canon),
   })
-  if (resultIsConclusiveStock(vm.status)) {
+  if (!resultShouldFallbackNextPlatform(vm.status)) {
     return {
       ok: true,
       canonical_input: canon,
       link_eligible: true,
       coercion,
-      cssbuy: bubble(css),
+      cssbuy: bubble(skipped()),
       vipomall: bubble(vm),
       pandamall: bubble(skipped()),
       merged: bubble(vm),
     }
   }
   const panda = await evaluatePandamallSourceStock(canon, partnerId)
-  const merged = resultIsConclusiveStock(panda.status)
-    ? panda
-    : mergeAllPlatformsBlockedOrError(css, vm, panda)
+  if (!resultShouldFallbackNextPlatform(panda.status)) {
+    return {
+      ok: true,
+      canonical_input: canon,
+      link_eligible: true,
+      coercion,
+      cssbuy: bubble(skipped()),
+      vipomall: bubble(vm),
+      pandamall: bubble(panda),
+      merged: bubble(panda),
+    }
+  }
+  const css = await evaluateCssbuyPdpStock(canon, partnerId)
+  const merged = resultShouldFallbackNextPlatform(css.status)
+    ? mergeAllPlatformsBlockedOrError(css, vm, panda)
+    : css
   return {
     ok: true,
     canonical_input: canon,

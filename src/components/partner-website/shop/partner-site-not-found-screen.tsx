@@ -1,7 +1,6 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { PartnerSiteHomeRedirect } from '@/components/partner-website/shop/partner-site-home-redirect'
-import { PartnerSiteShopShell } from '@/components/partner-website/shop/partner-site-shop-shell'
 import {
   readPartnerCustomDomainFromHeaders,
   readPartnerSiteSlugFromHeaders,
@@ -10,12 +9,8 @@ import {
 } from '@/lib/auth/app-request-headers'
 import { isShopCustomDomainHost } from '@/lib/messaging/partner-custom-domain-platform-host'
 import { partnerWebsite404Copy } from '@/lib/partner-website/partner-website-system-pages'
-import { inferLiveVisualRequestDevice } from '@/lib/partner-website/shop/infer-live-visual-request-device-server'
-import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-visual-home-chrome'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { partnerShopNotFoundHomePath } from '@/lib/partner-website/shop/partner-site-not-found'
-import { partnerSiteTrackingFromPublicRow } from '@/lib/partner-website/shop/partner-site-tracking-from-site'
-import { PW_PAGE } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 function readShopNotFoundSlug(): { slug: string; customDomain: boolean } {
   const headerStore = headers()
@@ -31,6 +26,10 @@ function readShopNotFoundSlug(): { slug: string; customDomain: boolean } {
   return { slug, customDomain }
 }
 
+/**
+ * Next.js serializes every `not-found` element into the RSC payload of every page in its segment,
+ * so this screen must stay tiny — no shop chrome shell. It only shows while redirecting home.
+ */
 export async function PartnerSiteNotFoundScreen({ slug: slugProp }: { slug?: string } = {}) {
   const resolved = readShopNotFoundSlug()
   const slug = (slugProp || resolved.slug).trim()
@@ -46,67 +45,44 @@ export async function PartnerSiteNotFoundScreen({ slug: slugProp }: { slug?: str
 
   const homeHref = partnerShopNotFoundHomePath(shop.site.siteSlug, customDomain)
   const copy = partnerWebsite404Copy(shop.site.locale)
-  const device = inferLiveVisualRequestDevice()
+  const theme = shop.site.theme
+  const logoUrl = theme?.logoUrl || shop.site.logoUrl || ''
+  const text = theme?.textColor || '#1a1a1a'
+  const muted = theme?.mutedColor || '#6b7280'
+  const buy = theme?.buyButtonColor || theme?.primaryColor || '#ff3333'
 
   return (
-    <PartnerSiteShopShell
-      siteSlug={shop.site.siteSlug}
-      partnerSlug={shop.partnerSlug}
-      title={shop.site.title}
-      logoUrl={shop.site.logoUrl}
-      theme={shop.site.theme}
-      locale={shop.site.locale}
-      chatPath={shop.site.chatPath}
-      tracking={partnerSiteTrackingFromPublicRow(shop.site)}
-      footerJson={shop.site.footerJson}
-      navJson={shop.site.navJson}
-      pageKind={PW_PAGE.home}
-      activeNav="home"
-      hideAccountNav
-      {...(await liveVisualHomeChromeShellProps(shop.site, device))}
-    >
+    <>
       <PartnerSiteHomeRedirect href={homeHref} />
       <main
+        lang={shop.site.locale || 'vi'}
         style={{
-          minHeight: '48vh',
+          minHeight: '100vh',
           display: 'grid',
           placeItems: 'center',
-          padding: '32px 16px 88px',
+          padding: '32px 16px',
           textAlign: 'center',
+          background: theme?.backgroundColor || '#f5f5f5',
+          color: text,
+          fontFamily: theme?.fontFamily || 'ui-sans-serif, system-ui, sans-serif',
         }}
       >
         <div style={{ width: 'min(440px, 100%)' }}>
-          <p
-            style={{
-              margin: '0 0 8px',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '0.14em',
-              color: 'var(--pw-muted)',
-            }}
-          >
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={logoUrl}
+              alt={shop.site.title || ''}
+              style={{ display: 'block', margin: '0 auto 20px', maxHeight: 56, maxWidth: 180, objectFit: 'contain' }}
+            />
+          ) : null}
+          <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, letterSpacing: '0.14em', color: muted }}>
             {copy.codeLabel}
           </p>
-          <h1
-            style={{
-              margin: '0 0 10px',
-              fontSize: 'clamp(1.35rem, 2.4vw, 1.7rem)',
-              lineHeight: 1.25,
-              color: 'var(--pw-text)',
-            }}
-          >
+          <h1 style={{ margin: '0 0 10px', fontSize: 'clamp(1.35rem, 2.4vw, 1.7rem)', lineHeight: 1.25, color: text }}>
             {copy.heading}
           </h1>
-          <p
-            style={{
-              margin: '0 0 22px',
-              color: 'var(--pw-muted)',
-              fontSize: '0.98rem',
-              lineHeight: 1.55,
-            }}
-          >
-            {copy.body}
-          </p>
+          <p style={{ margin: '0 0 22px', color: muted, fontSize: '0.98rem', lineHeight: 1.55 }}>{copy.body}</p>
           <a
             href={homeHref}
             style={{
@@ -116,7 +92,7 @@ export async function PartnerSiteNotFoundScreen({ slug: slugProp }: { slug?: str
               minHeight: 44,
               padding: '0 18px',
               borderRadius: 999,
-              background: 'var(--pw-buy)',
+              background: buy,
               color: '#fff',
               textDecoration: 'none',
               fontWeight: 600,
@@ -127,6 +103,6 @@ export async function PartnerSiteNotFoundScreen({ slug: slugProp }: { slug?: str
           </a>
         </div>
       </main>
-    </PartnerSiteShopShell>
+    </>
   )
 }
