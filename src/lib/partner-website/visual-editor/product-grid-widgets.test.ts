@@ -3,6 +3,7 @@ import test from 'node:test'
 import { parseHTML } from 'linkedom'
 import {
   buildVisualEditorProductGridHtml,
+  dedupeFlashSaleBlocksInHtml,
   ensureHomeFlashSaleBlockInHtml,
   isPdpOnlyProductGridKind,
   isPersonalizeProductGridKind,
@@ -317,6 +318,43 @@ test('ensureHomeFlashSaleBlockInHtml inserts after banner once', () => {
   assert.ok(bannerIdx >= 0 && flashIdx > bannerIdx && catsIdx > flashIdx)
   const twice = ensureHomeFlashSaleBlockInHtml(once, { siteSlug: 'demo-shop', locale: 'vi' })
   assert.equal(twice.split('data-pw-personalize="flash-sale"').length, 2)
+})
+
+test('dedupeFlashSaleBlocksInHtml keeps the Sửa nhanh block and drops the seed copy', () => {
+  const page = `<html><head><style>html [data-pw-personalize="flash-sale"] .pw-flash-head{display:flex}</style></head><body><main>
+<section id="pw-grid-flash-sale" data-pw-personalize="flash-sale" data-pw-bg-index="5"><h2>FLASH SALE</h2><div>seed</div></section>
+<section id="pw-grid-flash-sale" data-pw-personalize="flash-sale" data-pw-edit="1"><h2>FLASH SALE</h2><div>placed</div></section>
+</main></body></html>`
+  const out = dedupeFlashSaleBlocksInHtml(page)
+  assert.equal(out.split('<section').length - 1, 1)
+  assert.match(out, /data-pw-edit="1"/)
+  assert.match(out, /placed/)
+  assert.doesNotMatch(out, /data-pw-bg-index="5"/)
+  assert.match(out, /html \[data-pw-personalize="flash-sale"\]/)
+  assert.equal(dedupeFlashSaleBlocksInHtml(out), out)
+})
+
+test('dedupeFlashSaleBlocksInHtml drops the hidden seed and keeps the Sửa nhanh block', () => {
+  const page = `<main>
+<section id="pw-grid-flash-sale" data-pw-personalize="flash-sale" data-pw-bg-index="5" hidden="" data-pw-live-products="loading"><h2>FLASH SALE</h2><div>seed</div></section>
+<section id="pw-grid-flash-sale" data-pw-personalize="flash-sale" data-pw-edit="1" data-pw-placement="flow"><h2>FLASH SALE</h2><div>placed</div></section>
+</main>`
+  const out = dedupeFlashSaleBlocksInHtml(page)
+  assert.equal(out.split('data-pw-personalize="flash-sale"').length, 2)
+  assert.match(out, /data-pw-edit="1"/)
+  assert.match(out, /placed/)
+  assert.doesNotMatch(out, /data-pw-bg-index="5"/)
+  assert.doesNotMatch(out, />seed</)
+})
+
+test('dedupeFlashSaleBlocksInHtml keeps the first block when none was placed in Sửa nhanh', () => {
+  const page = `<main>
+<section data-pw-personalize="flash-sale"><div>one</div></section>
+<section data-pw-personalize="flash-sale" data-pw-hidden="1"><div>hidden</div></section>
+</main>`
+  const out = dedupeFlashSaleBlocksInHtml(page)
+  assert.match(out, />one</)
+  assert.doesNotMatch(out, /hidden/)
 })
 
 test('ensureHomeFlashSaleBlockInHtml ignores CSS selectors in <style>', () => {

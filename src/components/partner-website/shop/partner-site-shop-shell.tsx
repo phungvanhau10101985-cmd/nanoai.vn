@@ -145,6 +145,7 @@ import {
   PARTNER_LIVE_HOIST_HOST_SEL,
   dedupePartnerShopLiveHeaders,
   stripPartnerLiveHoistHosts,
+  stripPartnerLiveSaleBanners,
 } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
@@ -219,9 +220,11 @@ function VisualHomeChromeRuntime({
     const win = window as Window & { __pwReactShopChrome?: number }
     win.__pwReactShopChrome = 1
     stripPartnerLiveHoistHosts()
+    stripPartnerLiveSaleBanners(document)
     dedupePartnerShopLiveHeaders()
     const sweepHoistedHeads = () => {
       if (document.querySelector(PARTNER_LIVE_HOIST_HOST_SEL)) stripPartnerLiveHoistHosts()
+      stripPartnerLiveSaleBanners(document)
       dedupePartnerShopLiveHeaders()
     }
     const mo =

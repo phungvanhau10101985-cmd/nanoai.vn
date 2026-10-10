@@ -981,12 +981,32 @@ function run(){
   }
   runFeaturedAndBind(editor);
 }
+function pwFlashHostScore(el){
+  var score=0;
+  if(el.getAttribute('data-pw-edit')==='1')score+=2;
+  if(el.getAttribute('data-pw-hidden')==='1'||el.hasAttribute('hidden'))score-=4;
+  return score;
+}
+function collapseExtraFlashHosts(){
+  var hosts=document.querySelectorAll('[data-pw-personalize="flash-sale"]');
+  if(!hosts||hosts.length<2)return;
+  var best=0,bestScore=pwFlashHostScore(hosts[0]),i,score;
+  for(i=1;i<hosts.length;i++){
+    score=pwFlashHostScore(hosts[i]);
+    if(score>bestScore){best=i;bestScore=score;}
+  }
+  for(i=hosts.length-1;i>=0;i--){
+    if(i!==best&&hosts[i].parentNode)hosts[i].parentNode.removeChild(hosts[i]);
+  }
+}
 function hydratePersonalizeHosts(){
+    collapseExtraFlashHosts();
     document.querySelectorAll('[data-pw-personalize]').forEach(function(el){
       if(el._pwGrid)return;
       if(el.getAttribute('data-pw-featured-categories')==='1')return;
       if(el.getAttribute('data-pw-personalize')==='featured-categories')return;
       if(el.getAttribute('data-pw-personalize')==='flash-sale'){
+        if(el.hasAttribute('hidden')||el.getAttribute('data-pw-hidden')==='1')return;
         var flashGrid=el.querySelector('[data-pw-grid]');
         if(flashGrid&&!el._pwFlashPainted){
           flashGrid.innerHTML='';

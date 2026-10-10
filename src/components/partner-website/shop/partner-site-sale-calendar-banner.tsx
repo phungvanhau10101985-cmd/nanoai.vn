@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { PartnerSaleCalendarState } from '@/lib/partner-website/promotions/partner-sale-calendar'
 import {
@@ -13,6 +13,7 @@ import {
   writePartnerSaleCountdownNode,
 } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { partnerSiteSaleCalendarApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { stripPartnerLiveSaleBanners } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import type { PwPageKind } from '@/lib/partner-website/visual-editor/pw-ui-contract'
 
 type Props = {
@@ -29,6 +30,11 @@ export function PartnerSiteSaleCalendarBanner({ siteSlug, locale, pageKind, hide
   const [birthdayPercent, setBirthdayPercent] = useState(0)
   const [closed, setClosed] = useState(false)
   const [ready, setReady] = useState(false)
+
+  useLayoutEffect(() => {
+    if (!visiblePage) return
+    stripPartnerLiveSaleBanners(document)
+  }, [visiblePage, ready])
 
   useEffect(() => {
     if (!visiblePage || !siteSlug) return

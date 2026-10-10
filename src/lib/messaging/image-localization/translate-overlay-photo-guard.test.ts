@@ -4,7 +4,11 @@ import sharp from 'sharp'
 import {
   fitLocalizedLabelText,
   fitPosterParagraphText,
+  layoutClippedLabelSlots,
+  overlayBoxCoversProductSubject,
+  overlayLabelTextWasClipped,
   overlayRegionIsProductPhoto,
+  overlayTranslatedText,
 } from '../../translate-overlay'
 
 describe('translated text photo guard', () => {
@@ -119,5 +123,50 @@ describe('translated text photo guard', () => {
       await overlayRegionIsProductPhoto(image, { x: 0, y: 0, width, height }, width, height),
       true
     )
+    assert.equal(overlayBoxCoversProductSubject({ width, height }, width, height), true)
+  })
+
+  it('still draws a short Chinese line that sits on leather', async () => {
+    const width = 768
+    const height = 1024
+    const pixels = Buffer.alloc(width * height * 3)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const offset = (y * width + x) * 3
+        const texture = ((x * 17 + y * 29) % 81) - 40
+        pixels[offset] = Math.max(0, Math.min(255, 145 + texture))
+        pixels[offset + 1] = Math.max(0, Math.min(255, 92 + texture))
+        pixels[offset + 2] = Math.max(0, Math.min(255, 48 + texture))
+      }
+    }
+    const image = await sharp(pixels, { raw: { width, height, channels: 3 } }).png().toBuffer()
+    const box = { x: 251, y: 602, width: 263, height: 44 }
+    assert.equal(await overlayRegionIsProductPhoto(image, box, width, height), true)
+    assert.equal(overlayBoxCoversProductSubject(box, width, height), false)
+    const out = await overlayTranslatedText(
+      image,
+      [{ bbox: box, translatedText: 'Da bò cao cấp lớp đầu' }],
+      { sampleBackground: true }
+    )
+    const before = await sharp(image).extract({ left: box.x, top: box.y, width: box.width, height: box.height }).raw().toBuffer()
+    const after = await sharp(out).extract({ left: box.x, top: box.y, width: box.width, height: box.height }).raw().toBuffer()
+    assert.notEqual(Buffer.compare(before, after), 0)
+  })
+
+  it('widens a short label so the Vietnamese phrase is not cut', () => {
+    const text = 'Thân thiện với da, thoải mái'
+    assert.equal(overlayLabelTextWasClipped(text, 48, 12), true)
+    const items = [
+      { bbox: { x: 225, y: 851, width: 48, height: 12 }, translatedText: text },
+      { bbox: { x: 359, y: 851, width: 49, height: 13 }, translatedText: 'Thoải mái và thoáng khí' },
+      { bbox: { x: 493, y: 851, width: 48, height: 13 }, translatedText: 'Mềm mại và tinh tế' },
+    ]
+    layoutClippedLabelSlots(items, 768, 1024)
+    const grown = items[0].eraseBox
+    assert.ok(grown)
+    assert.ok(grown.width > 48)
+    assert.ok(grown.height > 12)
+    assert.ok(grown.x + grown.width <= (items[1].eraseBox?.x ?? 999))
+    assert.equal(overlayLabelTextWasClipped(text, grown.width, grown.height), false)
   })
 })

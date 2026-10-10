@@ -382,6 +382,67 @@ function htmlHasFlashSaleBlock(html: string): boolean {
   return /<[a-z][^>]*\bdata-pw-personalize=["']flash-sale["']/i.test(html)
 }
 
+function sliceHtmlElement(html: string, openAt: number): { end: number; open: string } | null {
+  const open = /^<([a-zA-Z][\w:-]*)\b[^>]*>/.exec(html.slice(openAt))
+  if (!open) return null
+  if (/\/>\s*$/.test(open[0])) return { end: openAt + open[0].length, open: open[0] }
+  const tag = open[1]
+  const re = new RegExp(`</?${tag}\\b[^>]*>`, 'gi')
+  re.lastIndex = openAt + open[0].length
+  let depth = 1
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html))) {
+    if (match[0].startsWith('</')) depth -= 1
+    else if (!/\/\s*>$/.test(match[0])) depth += 1
+    if (depth === 0) return { end: match.index + match[0].length, open: open[0] }
+  }
+  return null
+}
+
+function flashSaleKeepScore(openTag: string): number {
+  let score = 0
+  if (/\bdata-pw-edit=["']1["']/i.test(openTag)) score += 2
+  if (/\bdata-pw-hidden=["']1["']/i.test(openTag)) score -= 4
+  if (/(?:^|\s)hidden(?:\s*=|\s|>)/i.test(openTag)) score -= 4
+  return score
+}
+
+/**
+ * One FLASH SALE host per document. A saved page can carry the seed block plus
+ * a later Sửa nhanh insert (`data-pw-edit="1"`). Live and the editor both read
+ * this, so the extra seed copy does not paint a second grid.
+ */
+export function dedupeFlashSaleBlocksInHtml(html: string): string {
+  if (!html || !htmlHasFlashSaleBlock(html)) return html
+  const openRe = /<([a-z][\w:-]*)\b[^>]*\bdata-pw-personalize=["']flash-sale["'][^>]*>/gi
+  const hits: { start: number; end: number; open: string }[] = []
+  let match: RegExpExecArray | null
+  while ((match = openRe.exec(html))) {
+    const start = match.index
+    if (hits.some((hit) => start >= hit.start && start < hit.end)) continue
+    const sliced = sliceHtmlElement(html, start)
+    if (!sliced) continue
+    hits.push({ start, end: sliced.end, open: sliced.open })
+    openRe.lastIndex = sliced.end
+  }
+  if (hits.length <= 1) return html
+  let best = 0
+  let bestScore = flashSaleKeepScore(hits[0].open)
+  for (let i = 1; i < hits.length; i++) {
+    const score = flashSaleKeepScore(hits[i].open)
+    if (score > bestScore) {
+      best = i
+      bestScore = score
+    }
+  }
+  let out = html
+  for (let i = hits.length - 1; i >= 0; i--) {
+    if (i === best) continue
+    out = `${out.slice(0, hits[i].start)}${out.slice(hits[i].end)}`
+  }
+  return out
+}
+
 export function ensureHomeFlashSaleBlockInHtml(
   html: string,
   input: {

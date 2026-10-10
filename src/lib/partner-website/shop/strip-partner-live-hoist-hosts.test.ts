@@ -5,6 +5,7 @@ import {
   dedupePartnerShopLiveHeaders,
   stripPartnerLiveChromeHosts,
   stripPartnerLiveHoistHosts,
+  stripPartnerLiveSaleBanners,
 } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 
 function fakeEl() {
@@ -41,6 +42,34 @@ test('stripPartnerLiveHoistHosts removes leftover visual-home chrome hosts', () 
   assert.equal(chrome.removed, true)
   assert.equal(dock.removed, true)
   assert.equal(floatLayer.removed, true)
+})
+
+test('stripPartnerLiveSaleBanners drops the HTML strip and keeps the React strip', () => {
+  const scriptBanner = {
+    removed: false,
+    getAttribute(name: string) {
+      return name === 'data-pw-sale-banner-react' ? null : null
+    },
+    remove() {
+      this.removed = true
+    },
+  }
+  const reactBanner = {
+    removed: false,
+    getAttribute(name: string) {
+      return name === 'data-pw-sale-banner-react' ? '1' : null
+    },
+    remove() {
+      this.removed = true
+    },
+  }
+  stripPartnerLiveSaleBanners(
+    fakeDoc({
+      '[data-pw-sale-calendar-banner]': [scriptBanner, reactBanner],
+    })
+  )
+  assert.equal(scriptBanner.removed, true)
+  assert.equal(reactBanner.removed, false)
 })
 
 test('stripPartnerLiveChromeHosts keeps dock and float layers', () => {

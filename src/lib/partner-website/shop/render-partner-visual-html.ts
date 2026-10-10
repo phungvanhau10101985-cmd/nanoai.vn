@@ -41,6 +41,7 @@ import { ensurePartnerSiteChromeKitInHtml } from '@/lib/partner-website/shop/par
 import { bindPartnerShopSloganInHtml } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { ensureSearchClusterInHtml } from '@/lib/partner-website/visual-editor/search-cluster-icons'
 import { ensureFeaturedCategoriesHostInHtml } from '@/lib/partner-website/visual-editor/featured-category-widgets'
+import { dedupeFlashSaleBlocksInHtml } from '@/lib/partner-website/visual-editor/product-grid-widgets'
 import { ensurePromoMarketingBannerInHtml } from '@/lib/partner-website/visual-editor/banner-widgets'
 import { ensureRecommendedGridAnchorInHtml } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import { PW_PAGE_BY_CATALOG_KEY } from '@/lib/partner-website/visual-editor/pw-ui-contract'
@@ -106,10 +107,11 @@ function stampPwPageOnDocumentHtml(html: string, pageKey?: string | null): strin
 function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInput): string {
   const siteSlug = input.siteSlug?.trim() ?? ''
   const locale = input.locale ?? 'vi'
-  const source =
+  const source = dedupeFlashSaleBlocksInHtml(
     input.runtime === 'authoring' && input.variant
       ? isolateVisualHtmlForDevice(html, input.variant)
       : html
+  )
   const canonical = normalizeVisualCoordinateContract(source, { variant: input.variant })
   const withPolicy = ensureAdsPlatformPolicyInHtml(
     canonical,

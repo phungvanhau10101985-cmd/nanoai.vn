@@ -102,9 +102,21 @@ function placeEl(el,slot){
   }
   if(slot.before&&el.nextSibling!==slot.before)slot.parent.insertBefore(el,slot.before);
 }
+function reactOwnsSaleBanner(){
+  return !!(window.__pwReactShopChrome||document.querySelector('[data-pw-sale-calendar-banner][data-pw-sale-banner-react="1"]'));
+}
+function dropScriptSaleBanners(keep){
+  var all=document.querySelectorAll('[data-pw-sale-calendar-banner]');
+  for(var i=0;i<all.length;i++){
+    if(all[i]===keep)continue;
+    if(all[i].getAttribute('data-pw-sale-banner-react')==='1')continue;
+    all[i].remove();
+  }
+}
 function paint(data){
   window.__pwSaleBannerData=data;
   window.__pwBirthdayOffer=data&&data.birthdayOffer||null;
+  if(reactOwnsSaleBanner()){dropScriptSaleBanners(null);return;}
   var s=data&&data.state;
   var bdayPct=Math.max(0,Math.round(Number(data&&data.birthdayOffer&&data.birthdayOffer.percent||0)||0));
   var bdayMsg=bdayPct>0&&!dismissedBirthday(bdayPct)?String(COPY.birthdayBanner||'').replace('{pct}',String(bdayPct)):'';
@@ -128,6 +140,7 @@ function paint(data){
     el.setAttribute('aria-live','off');
   }
   placeEl(el,slot);
+  dropScriptSaleBanners(el);
   var phase=hasCal?(s.phase==='active'?'active':'teaser'):'active';
   el.setAttribute('data-pw-sale-phase',phase);
   el.setAttribute('data-pw-sale-until',hasCal&&s.countdownTo?s.countdownTo:'');

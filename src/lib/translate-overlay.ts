@@ -730,6 +730,80 @@ function boxRemainder(outer: PixelBox, inner: PixelBox): PixelBox[] {
   return parts
 }
 
+/**
+ * Ô OCR phủ gần cả vùng sản phẩm thì không tô. Dòng chữ hẹp trên da vẫn được vẽ.
+ */
+export function overlayBoxCoversProductSubject(
+  box: { width: number; height: number },
+  imageWidth: number,
+  imageHeight: number
+): boolean {
+  const width = Math.max(0, box.width)
+  const height = Math.max(0, box.height)
+  const imageArea = Math.max(1, imageWidth * imageHeight)
+  const wide = width >= imageWidth * 0.34
+  const tall = height >= imageHeight * 0.18
+  return (width * height) / imageArea >= 0.12 || (wide && tall)
+}
+
+/** Nhãn dịch không nằm trọn trong ô OCR. */
+export function overlayLabelTextWasClipped(text: string, width: number, height: number): boolean {
+  const fitted = fitTableCellText(text, width, height)
+  const shown = fitted.lines.join(' ').replace(/\s+/g, ' ').trim()
+  return shown !== text.replace(/\s+/g, ' ').trim()
+}
+
+/** Chia hàng nhãn bị cắt theo điểm giữa, để các ô không đè nhau. */
+export function layoutClippedLabelSlots(
+  items: Array<OverlayItem & { tableCell?: boolean }>,
+  imageWidth: number,
+  imageHeight: number
+): void {
+  const pending = items.filter(
+    (item) =>
+      !item.tableCell &&
+      (item.translatedText || '').trim() &&
+      overlayLabelTextWasClipped(item.translatedText, item.bbox.width, item.bbox.height)
+  )
+  const used = new Set<OverlayItem>()
+  for (const item of pending) {
+    if (used.has(item)) continue
+    const yMid = item.bbox.y + item.bbox.height / 2
+    const row = pending.filter((other) => {
+      const mid = other.bbox.y + other.bbox.height / 2
+      return Math.abs(mid - yMid) <= Math.max(18, item.bbox.height, other.bbox.height) * 1.4
+    })
+    for (const entry of row) used.add(entry)
+    row.sort((a, b) => a.bbox.x - b.bbox.x)
+    const centers = row.map((entry) => entry.bbox.x + entry.bbox.width / 2)
+    row.forEach((entry, index) => {
+      const center = centers[index]
+      const prev = index > 0 ? centers[index - 1] : null
+      const next = index + 1 < centers.length ? centers[index + 1] : null
+      const half =
+        prev != null
+          ? (center - prev) / 2
+          : next != null
+            ? (next - center) / 2
+            : entry.bbox.width / 2
+      const left = prev != null ? (prev + center) / 2 : Math.max(0, center - half)
+      const right = next != null ? (center + next) / 2 : Math.min(imageWidth, center + half)
+      const gap = 4
+      const x = Math.max(0, Math.min(imageWidth - 1, Math.round(left + gap)))
+      const width = Math.max(8, Math.min(imageWidth - x, Math.round(right - gap - x)))
+      const fontSize = MIN_LOCALIZED_FONT_SIZE
+      const lineHeight = Math.round(fontSize * 1.2)
+      const maxChars = Math.max(1, Math.floor(Math.max(8, width - 4) / (fontSize * 0.58)))
+      const lines = wrapOverlayWords(entry.translatedText.trim(), maxChars)
+      const height = Math.max(
+        entry.bbox.height,
+        Math.min(Math.max(1, imageHeight - entry.bbox.y), lines.length * lineHeight + 6)
+      )
+      entry.eraseBox = { x, y: entry.bbox.y, width, height }
+    })
+  }
+}
+
 /** Da / kim loại: lệch kênh màu và nhiều xám giữa. Nền bảng trắng đen thì không. */
 export async function overlayRegionIsProductPhoto(
   imageBuffer: Buffer,
@@ -830,6 +904,7 @@ export async function overlayTranslatedText(
     }
     for (const item of expanded) drawItems.push({ ...item, tableCell: bandIsTable })
   }
+  layoutClippedLabelSlots(drawItems, imageWidth, imageHeight)
   const eraseNeighbors = [...drawItems, ...obstacles]
   for (const item of drawItems) {
     const { bbox, translatedText } = item
@@ -868,7 +943,23 @@ export async function overlayTranslatedText(
       ? fitted.height
       : Math.max(1, Math.min(imageHeight - y, Math.round(bbox.height)))
     if (!translatedText.trim() && !item.eraseOriginal) continue
-    if (await overlayRegionIsProductPhoto(imageBuffer, { x, y, width: w, height: h }, imageWidth, imageHeight)) {
+    const drawX = x
+    const drawY = y
+    const drawW = w
+    const drawH = h
+    if (
+      (await overlayRegionIsProductPhoto(
+        imageBuffer,
+        { x: drawX, y: drawY, width: drawW, height: drawH },
+        imageWidth,
+        imageHeight
+      )) &&
+      overlayBoxCoversProductSubject(
+        { width: drawW, height: drawH },
+        imageWidth,
+        imageHeight
+      )
+    ) {
       continue
     }
     let fillColor = options?.fillColor ?? '#ffffff'
@@ -901,19 +992,21 @@ export async function overlayTranslatedText(
       }
     }
     const background = Buffer.from(
-      `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+      `<svg width="${drawW}" height="${drawH}" xmlns="http://www.w3.org/2000/svg">
         <rect x="0" y="0" width="100%" height="100%" fill="${fillColor}"/>
       </svg>`
     )
-    backgrounds.push({ input: background, top: y, left: x })
+    backgrounds.push({ input: background, top: drawY, left: drawX })
     if (!translatedText.trim()) continue
 
     const bannerFit = banner ? fitBannerText(translatedText.trim(), banner.width, banner.height) : null
-    // 188 giữ chữ dịch trong hộp OCR hoặc ô bảng đã khóa, không phóng poster/nhãn đè ảnh.
-    const cell = !banner ? fitTableCellText(translatedText.trim(), Math.max(1, w), Math.max(1, h)) : null
+    // Ô bảng giữ khung khóa. Nhãn đã nới thì co chữ trong khung mới.
+    const cell = !banner
+      ? fitTableCellText(translatedText.trim(), Math.max(1, drawW), Math.max(1, drawH))
+      : null
     const posterFit = null
     const labelFit = null
-    const drawBox = banner ? banner : { x, y, width: w, height: h }
+    const drawBox = banner ? banner : { x: drawX, y: drawY, width: drawW, height: drawH }
     const textOutsideErase =
       !table &&
       !banner &&

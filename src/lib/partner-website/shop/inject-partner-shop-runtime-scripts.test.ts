@@ -59,6 +59,8 @@ test('runtime scripts wire search, camera, cart badges, chat, and category APIs 
   assert.match(out, /pw-badge-sale/)
   assert.match(out, /sắp diễn ra/)
   assert.match(out, /data-pw-sale-calendar-banner/)
+  assert.match(out, /__pwReactShopChrome/)
+  assert.match(out, /dropScriptSaleBanners/)
   assert.match(out, /data-pw-sale-until/)
   assert.match(out, /\.pw-sale-chip\[data-pw-sale-countdown\]/)
   assert.match(out, /pwSaleSetText/)

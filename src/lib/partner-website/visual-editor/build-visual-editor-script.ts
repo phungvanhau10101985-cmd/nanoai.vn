@@ -12154,6 +12154,14 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     return /data-pw-related\s*=|data-pw-outfit\s*=|data-pw-grid-kind\s*=\s*["']?(related|outfit)/.test(s)
   }
   function insertProductGrid(html) {
+    if (/data-pw-personalize\s*=\s*["']flash-sale["']/.test(String(html || ''))) {
+      var existingFlash = document.querySelector('[data-pw-personalize="flash-sale"]')
+      if (existingFlash) {
+        selectEl(existingFlash)
+        try { existingFlash.scrollIntoView({ block: 'center' }) } catch (eFlashHave) {}
+        return
+      }
+    }
     if (/data-pw-featured-categories/.test(String(html || ''))) {
       insertInFlowSection(html, 'data-pw-featured-categories')
       return

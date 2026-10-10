@@ -21,6 +21,24 @@ export function stripPartnerLiveHoistHosts(scope?: ParentNode | null): void {
   })
 }
 
+/**
+ * Sale strip is inserted beside hoisted chrome, outside the visual root.
+ * Soft-nav into the React shell leaves that node and the shell paints another.
+ * Keep the React strip (`data-pw-sale-banner-react`).
+ */
+export function stripPartnerLiveSaleBanners(scope?: ParentNode | null): void {
+  const root = scope || (typeof document !== 'undefined' ? document : null)
+  if (!root || typeof root.querySelectorAll !== 'function') return
+  root.querySelectorAll('[data-pw-sale-calendar-banner]').forEach((el) => {
+    if (el.getAttribute?.('data-pw-sale-banner-react') === '1') return
+    try {
+      el.remove()
+    } catch {
+      /* ignore */
+    }
+  })
+}
+
 /** Header hoist only — do not drop React float/dock layers on resize. */
 export function stripPartnerLiveChromeHosts(scope?: ParentNode | null): void {
   const root = scope || (typeof document !== 'undefined' ? document : null)
