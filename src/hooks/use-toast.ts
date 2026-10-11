@@ -3,6 +3,7 @@
 // Inspired by react-hot-toast library
 import * as React from "react"
 import { clearPendingGeneration, getPendingGeneration, trackEvent } from "@/lib/analytics-track"
+import { reportCustomerErrorClient } from "@/lib/client/report-customer-error"
 
 import type {
   ToastActionElement,
@@ -195,6 +196,13 @@ function trackToastDerivedEvents(props: Toast) {
 function toast({ ...props }: Toast) {
   const id = genId()
   trackToastDerivedEvents(props)
+  if (props.variant === 'destructive') {
+    reportCustomerErrorClient({
+      source: 'toast',
+      title: toText(props.title),
+      message: toText(props.description) || toText(props.title),
+    })
+  }
 
   const update = (props: ToasterToast) =>
     dispatch({

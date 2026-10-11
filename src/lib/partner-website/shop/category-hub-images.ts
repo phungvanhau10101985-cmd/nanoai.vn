@@ -196,7 +196,8 @@ async function fetchInventoryCategoryIdsFromPg(
       `select pic.inventory_id::text as inventory_id, pic.category_id::text as category_id
        from public.messaging_partner_inventory_categories pic
        join public.messaging_partner_categories c on c.id = pic.category_id
-       where pic.inventory_id = any($2::uuid[])`,
+       where c.partner_id = $1::uuid
+         and pic.inventory_id = any($2::uuid[])`,
       [partnerId, ids]
     )
     for (const row of rows) {

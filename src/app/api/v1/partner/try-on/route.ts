@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { tryOnCostMap, buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
@@ -14,7 +15,9 @@ const MAX_GARMENTS = 12
  * multipart/form-data:
  * - userImage: required
  * - garmentImage0, garmentImage1, ... (or garmentCount + garmentImage{i})
- * - imageQuality: optional "2K" | "4K" (default 2K)
+ * - imageQuality: optional "2K" | "4K" (default 2K, Gemini only)
+ * - imageEngine: optional "gemini" | "gpt" (default gemini)
+ * - gptQuality: required when imageEngine=gpt — "low" | "medium" | "high"
  * - gender: optional "male" | "female" (default male)
  * - customPrompt: optional string
  *
@@ -73,16 +76,22 @@ export async function POST(request: NextRequest) {
     const customPromptEn = customPrompt ? await normalizeToEnglish(customPrompt) : ''
 
     const baseCost = tryOnCostMap.single
-    const cost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
+    const geminiCost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
+    const charge = imageChargeFromForm(formData, geminiCost)
+    if (charge.error) {
+      return NextResponse.json({ ok: false, error: charge.error }, { status: 400 })
+    }
     const prompt = buildSinglePersonPrompt(genderLabel, customPromptEn, garmentImages.length)
 
     const pipe = await runVirtualTryOnPipeline({
       billingUserId,
       prompt,
-      cost,
+      cost: charge.cost,
       imageQuality,
       userImage,
       garmentFilesOrdered: garmentImages,
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
     })
 
     if ('error' in pipe) {

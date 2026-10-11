@@ -64,7 +64,25 @@ describe('gpt image endpoints', () => {
     assert.equal(fields.get('quality'), 'medium')
     assert.equal(fields.get('size'), 'auto')
     assert.equal(fields.get('input_fidelity'), null)
-    assert.equal(fields.getAll('image').length, 2)
+    assert.equal(fields.getAll('image').length, 0)
+    assert.equal(fields.getAll('image[]').length, 2)
+  })
+
+  it('keeps a single input image on the plain image field', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test-key-1234567890'
+    let form: FormData | null = null
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      form = init?.body instanceof FormData ? init.body : null
+      return pngResponse()
+    }) as typeof fetch
+    await generateGptImage({
+      prompt: 'edit this',
+      quality: 'low',
+      images: [{ bytes: Buffer.from('a'), mimeType: 'image/png', filename: 'a.png' }],
+    })
+    const fields = form as unknown as FormData
+    assert.equal(fields.getAll('image').length, 1)
+    assert.equal(fields.getAll('image[]').length, 0)
   })
 
   it('puts billable GPT usage on the Gemini-shaped response', async () => {

@@ -104,10 +104,11 @@ export async function generateGptImage(opts: {
     form.set('n', '1')
     form.set('size', size)
     form.set('quality', opts.quality)
+    const imageField = images.length > 1 ? 'image[]' : 'image'
     images.forEach((img, index) => {
       const mime = img.mimeType || 'image/png'
       const filename = img.filename || `input-${index + 1}.${mimeToExt(mime)}`
-      form.append('image', new Blob([new Uint8Array(img.bytes)], { type: mime }), filename)
+      form.append(imageField, new Blob([new Uint8Array(img.bytes)], { type: mime }), filename)
     })
     const res = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',

@@ -17,6 +17,7 @@ import {
   KeyRound,
   Table2,
   LayoutDashboard,
+  AlertTriangle,
 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -129,6 +130,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           ko: 'Facebook Messenger, Zalo OA, 앱 내 채팅을 하나의 수신함에서.',
         },
         icon: MessageCircle,
+      },
+      {
+        href: '/admin/error-reports',
+        title: {
+          vi: 'Nhật ký lỗi khách',
+          en: 'Customer errors',
+          zh: '客户错误日志',
+          ja: '顧客エラーログ',
+          ko: '고객 오류 로그',
+        },
+        description: {
+          vi: 'Khách thao tác bị lỗi — ghi lại và gửi email cho admin.',
+          en: 'Failed customer actions — logged and emailed to admins.',
+          zh: '客户操作失败 — 记录并邮件通知管理员。',
+          ja: '顧客の操作エラー — 記録して管理者にメール通知。',
+          ko: '고객 작업 오류 — 기록하고 관리자에게 메일 발송.',
+        },
+        icon: AlertTriangle,
       },
       {
         href: '/admin/api-keys',

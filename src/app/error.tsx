@@ -1,6 +1,7 @@
 'use client'
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { reportCustomerErrorClient } from '@/lib/client/report-customer-error'
 
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -25,6 +26,12 @@ export default function Error({
     uiLocale === 'en' ? en : uiLocale === 'zh' ? zh : uiLocale === 'ja' ? ja : uiLocale === 'ko' ? ko : vi
   useEffect(() => {
     console.error(error)
+    reportCustomerErrorClient({
+      source: 'boundary',
+      message: error.message || 'Unhandled render error',
+      detail: error.stack,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

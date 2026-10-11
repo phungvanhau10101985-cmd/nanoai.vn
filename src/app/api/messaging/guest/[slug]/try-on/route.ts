@@ -4,6 +4,9 @@ import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-ac
 import { buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { getClientIpFromRequest } from '@/lib/api/simple-ip-rate-limit'
+import { resolveAuthUserEmail } from '@/lib/email/account-notification-email'
+import { reportCustomerError } from '@/lib/errors/customer-error-report-pg'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -122,6 +125,19 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
 
   if ('error' in pipe) {
     const lowCredit = /Không đủ credits/i.test(pipe.error)
+    if (!lowCredit) {
+      void reportCustomerError({
+        source: 'server',
+        path: request.headers.get('referer')?.replace(/^https?:\/\/[^/]+/i, '') || `/site/${slug}`,
+        title: 'Thử đồ shop thất bại',
+        message: pipe.error,
+        userId: user.id,
+        userEmail: resolveAuthUserEmail(user),
+        ip: getClientIpFromRequest(request),
+        userAgent: request.headers.get('user-agent'),
+        meta: { api: `/api/messaging/guest/${slug}/try-on`, partnerId: partner.partnerId, engine: charge.engine },
+      })
+    }
     return NextResponse.json({ error: pipe.error }, { status: lowCredit ? 402 : 422 })
   }
 

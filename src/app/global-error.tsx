@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { DEFAULT_WEB_LOCALE } from '@/lib/i18n/config'
+import { reportCustomerErrorClient } from '@/lib/client/report-customer-error'
 
 export default function GlobalError({
   error,
@@ -12,6 +13,12 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error)
+    reportCustomerErrorClient({
+      source: 'boundary',
+      message: error.message || 'Unhandled global error',
+      detail: error.stack,
+      digest: error.digest,
+    })
   }, [error])
 
   return (

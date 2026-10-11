@@ -2,16 +2,63 @@ import Redis from 'ioredis'
 
 let client: Redis | null | undefined
 let redisSkipUntil = 0
-/** After a timeout, skip Redis long enough that the next page does not pay another 200ms miss. */
+/** After a real Redis failure, skip Redis long enough that the next page does not pay another miss. */
 const REDIS_DOWN_COOLDOWN_MS = 20_000
+/**
+ * Redis answers GET in ~10µs on the VPS. A 200ms budget fired on tiny `:ver` keys
+ * whenever the Node event loop stalled, then the cooldown sent every page to Postgres.
+ */
+export const REDIS_COMMAND_TIMEOUT_MS = 1000
+/** Event-loop lag above this means a timeout was ours, not Redis. */
+export const REDIS_LOCAL_STALL_MS = 250
+const LAG_SAMPLE_MS = 100
+const LAG_MEMORY_MS = 5000
+
+let lagTimer: ReturnType<typeof setInterval> | null = null
+let lastLagTickAt = 0
+let lastStallAt = 0
+
+function startLagSampler(): void {
+  if (lagTimer) return
+  lastLagTickAt = Date.now()
+  lagTimer = setInterval(() => {
+    const now = Date.now()
+    if (now - lastLagTickAt - LAG_SAMPLE_MS >= REDIS_LOCAL_STALL_MS) lastStallAt = now
+    lastLagTickAt = now
+  }, LAG_SAMPLE_MS)
+  lagTimer.unref?.()
+}
+
+function eventLoopStalledRecently(now = Date.now()): boolean {
+  if (now - lastLagTickAt - LAG_SAMPLE_MS >= REDIS_LOCAL_STALL_MS) return true
+  return lastStallAt > 0 && now - lastStallAt <= LAG_MEMORY_MS
+}
+
+function isCommandTimeout(err: unknown): boolean {
+  return err instanceof Error && /command timed out/i.test(err.message)
+}
+
+/** A timeout during a local stall is not Redis being down; keep using it. */
+export function redisFailureTriggersCooldown(err: unknown, localStall: boolean): boolean {
+  return !(isCommandTimeout(err) && localStall)
+}
 
 function redisCoolingDown(): boolean {
   return Date.now() < redisSkipUntil
 }
 
+let lastStallWarnAt = 0
+
 function noteRedisDown(op: string, key: string, err: unknown): void {
-  const fresh = Date.now() >= redisSkipUntil
-  redisSkipUntil = Date.now() + REDIS_DOWN_COOLDOWN_MS
+  const now = Date.now()
+  if (!redisFailureTriggersCooldown(err, eventLoopStalledRecently(now))) {
+    if (now - lastStallWarnAt < 60_000) return
+    lastStallWarnAt = now
+    console.warn('[redis]', op, 'timed out during a Node event-loop stall, Redis kept on', key)
+    return
+  }
+  const fresh = now >= redisSkipUntil
+  redisSkipUntil = now + REDIS_DOWN_COOLDOWN_MS
   if (!fresh) return
   console.warn('[redis]', op, 'failed', key, err instanceof Error ? err.message : err)
 }
@@ -34,8 +81,9 @@ export function getRedis(): Redis | null {
       maxRetriesPerRequest: 1,
       enableOfflineQueue: false,
       connectTimeout: 250,
-      commandTimeout: 200,
+      commandTimeout: REDIS_COMMAND_TIMEOUT_MS,
     })
+    startLagSampler()
     redis.on('error', (err) => {
       noteRedisDown('client', 'redis', err)
     })

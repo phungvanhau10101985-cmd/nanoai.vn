@@ -66,7 +66,8 @@ export function ImageEnginePicker({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" side="top" collisionPadding={12} className="w-[17rem] p-3">
+      {/* Picker nằm trong dialog z-[200], sheet z-[550], Hub Studio toàn màn z max: menu phải nổi trên mọi lớp. */}
+      <PopoverContent align="end" side="top" collisionPadding={12} className="z-[2147483647] w-[17rem] p-3">
         <div className="space-y-3">
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineLabel}</p>
