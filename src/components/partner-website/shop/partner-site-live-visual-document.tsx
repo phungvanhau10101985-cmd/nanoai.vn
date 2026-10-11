@@ -78,6 +78,8 @@ function PartnerSiteLiveHoistedScript({ script }: { script: VisualHtmlHoistedScr
   }
   const staticSrc = script.type ? null : staticShopRuntimeSrcForBody(script.body)
   if (staticSrc) {
+    // Replaces an inline script, so it must stay parser-blocking to keep run order.
+    // eslint-disable-next-line @next/next/no-sync-scripts
     return <script src={staticSrc} id={script.id || undefined} {...data} />
   }
   return (
@@ -93,6 +95,7 @@ function PartnerSiteLiveHoistedScript({ script }: { script: VisualHtmlHoistedScr
 /** Same position, still parser-blocking — only the body moves to a cached file. */
 function PartnerSiteLiveRuntimeScript({ id, body }: { id: string; body: string }) {
   const src = staticShopRuntimeSrcForBody(body)
+  // eslint-disable-next-line @next/next/no-sync-scripts
   if (src) return <script id={id} src={src} />
   return <script id={id} dangerouslySetInnerHTML={{ __html: body }} />
 }

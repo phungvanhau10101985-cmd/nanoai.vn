@@ -18,6 +18,7 @@ import {
   overlayRegionIsFlatLightHeader,
   overlayRegionIsProductPhoto,
   overlayTranslatedText,
+  type OverlayItem,
 } from '../../translate-overlay'
 
 describe('translated text photo guard', () => {
@@ -198,7 +199,7 @@ describe('translated text photo guard', () => {
   it('widens a short label so the Vietnamese phrase is not cut', () => {
     const text = 'Thân thiện với da, thoải mái'
     assert.equal(overlayLabelTextWasClipped(text, 48, 12), true)
-    const items = [
+    const items: OverlayItem[] = [
       { bbox: { x: 225, y: 851, width: 48, height: 12 }, translatedText: text },
       { bbox: { x: 359, y: 851, width: 49, height: 13 }, translatedText: 'Thoải mái và thoáng khí' },
       { bbox: { x: 493, y: 851, width: 48, height: 13 }, translatedText: 'Mềm mại và tinh tế' },

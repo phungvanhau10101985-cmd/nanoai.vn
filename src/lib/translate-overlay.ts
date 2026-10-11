@@ -30,6 +30,8 @@ export interface OverlayItem {
   textAlign?: 'start' | 'middle'
   /** Tọa độ x tuyệt đối của mép trái chữ, dùng chung cho cả cột thông số. */
   textOriginX?: number
+  /** Ô trong bảng đã nới theo cột. */
+  tableCell?: boolean
 }
 
 function escapeSvgText(s: string): string {
@@ -1474,107 +1476,6 @@ async function clampCaptionAbovePhoto(
   return { ...box, height: Math.max(1, height) }
 }
 
-function boxBlurLuminance(lum: Float64Array, width: number, height: number, radius: number): Float64Array {
-  const out = new Float64Array(lum.length)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let sum = 0
-      let n = 0
-      for (let dy = -radius; dy <= radius; dy++) {
-        const ny = y + dy
-        if (ny < 0 || ny >= height) continue
-        for (let dx = -radius; dx <= radius; dx++) {
-          const nx = x + dx
-          if (nx < 0 || nx >= width) continue
-          sum += lum[ny * width + nx]
-          n += 1
-        }
-      }
-      out[y * width + x] = n ? sum / n : lum[y * width + x]
-    }
-  }
-  return out
-}
-
-/**
- * Xóa nét chữ tương phản trên da, giữ vân. Không thay cả ô bằng một màu.
- * Chữ trắng trên kính mờ chỉ sáng hơn nền ngay quanh nó.
- */
-async function suppressContrastGlyphs(imageBuffer: Buffer, box: PixelBox): Promise<Buffer | null> {
-  const left = Math.max(0, Math.round(box.x))
-  const top = Math.max(0, Math.round(box.y))
-  const width = Math.max(1, Math.round(box.width))
-  const height = Math.max(1, Math.round(box.height))
-  const extracted = await sharp(imageBuffer)
-    .extract({ left, top, width, height })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const channels = extracted.info.channels
-  const data = Buffer.from(extracted.data.subarray(0, width * height * channels))
-  const total = width * height
-  const lum = new Float64Array(total)
-  for (let i = 0; i < total; i++) {
-    const offset = i * channels
-    lum[i] = 0.299 * data[offset] + 0.587 * data[offset + 1] + 0.114 * data[offset + 2]
-  }
-  const blur = boxBlurLuminance(lum, width, height, 2)
-  const sorted = Array.from(lum).sort((a, b) => a - b)
-  const median = sorted[Math.floor(sorted.length / 2)]
-  const ink = new Uint8Array(total)
-  for (let i = 0; i < total; i++) {
-    const lightInk = lum[i] > 188 && lum[i] > blur[i] + 14
-    const darkInk = median > 160 && lum[i] < 80 && blur[i] - lum[i] > 22
-    if (lightInk || darkInk) ink[i] = 1
-  }
-  const grown = new Uint8Array(ink)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x
-      if (!ink[i]) continue
-      for (let dy = -3; dy <= 3; dy++) {
-        for (let dx = -3; dx <= 3; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-          grown[ny * width + nx] = 1
-        }
-      }
-    }
-  }
-  let inkCount = 0
-  for (let i = 0; i < total; i++) if (grown[i]) inkCount += 1
-  if (inkCount < 8 || inkCount > total * 0.55) return null
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x
-      if (!grown[i]) continue
-      const samples: number[][] = [[], [], []]
-      for (let dy = -3; dy <= 3; dy++) {
-        for (let dx = -3; dx <= 3; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-          const ni = ny * width + nx
-          if (grown[ni]) continue
-          const offset = ni * channels
-          samples[0].push(data[offset])
-          samples[1].push(data[offset + 1])
-          samples[2].push(data[offset + 2])
-        }
-      }
-      const offset = i * channels
-      if (!samples[0].length) continue
-      for (let channel = 0; channel < 3; channel++) {
-        const values = samples[channel]
-        values.sort((a, b) => a - b)
-        data[offset + channel] = values[Math.floor(values.length / 2)]
-      }
-    }
-  }
-  return sharp(data, { raw: { width, height, channels } }).png().toBuffer()
-}
-
 /** Vision chỉ trả khung chữ, không trả font-size. Cỡ cũ = chiều cao khung, sàn 10px. */
 export function ocrLineFontSize(boxHeight: number): number {
   return Math.max(MIN_LOCALIZED_FONT_SIZE, Math.round(Math.max(1, boxHeight)))
@@ -1800,145 +1701,6 @@ async function measureSameSurfaceSlot(
   )
 }
 
-/** 188 `_repaint_bbox_to_background`: xóa nét lệch màu nền sát ô, giữ kính mờ / da. */
-async function repaintBboxToBackground(
-  imageBuffer: Buffer,
-  box: PixelBox,
-  imageWidth: number,
-  imageHeight: number
-): Promise<{ png: Buffer; ink: string } | null> {
-  const pad = 4
-  const x1 = Math.max(0, Math.round(box.x))
-  const y1 = Math.max(0, Math.round(box.y))
-  const x2 = Math.min(imageWidth, x1 + Math.max(1, Math.round(box.width)))
-  const y2 = Math.min(imageHeight, y1 + Math.max(1, Math.round(box.height)))
-  const width = x2 - x1
-  const height = y2 - y1
-  if (width < 2 || height < 2) return null
-  const ox1 = Math.max(0, x1 - pad)
-  const oy1 = Math.max(0, y1 - pad)
-  const ox2 = Math.min(imageWidth, x2 + pad)
-  const oy2 = Math.min(imageHeight, y2 + pad)
-  const extracted = await sharp(imageBuffer)
-    .extract({ left: ox1, top: oy1, width: ox2 - ox1, height: oy2 - oy1 })
-    .removeAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true })
-  const channels = extracted.info.channels
-  const outerW = extracted.info.width
-  const outerH = extracted.info.height
-  const ring: number[][] = [[], [], []]
-  const ix1 = x1 - ox1
-  const iy1 = y1 - oy1
-  const ix2 = ix1 + width
-  const iy2 = iy1 + height
-  for (let y = 0; y < outerH; y++) {
-    for (let x = 0; x < outerW; x++) {
-      if (x >= ix1 && x < ix2 && y >= iy1 && y < iy2) continue
-      const offset = (y * outerW + x) * channels
-      ring[0].push(extracted.data[offset])
-      ring[1].push(extracted.data[offset + 1])
-      ring[2].push(extracted.data[offset + 2])
-    }
-  }
-  if (ring[0].length < 9) return null
-  const medianOf = (values: number[]) => {
-    const copy = [...values].sort((a, b) => a - b)
-    return copy[Math.floor(copy.length / 2)] ?? 0
-  }
-  const ringRgb = [0, 1, 2].map((channel) => medianOf(ring[channel]))
-  const inner = Buffer.alloc(width * height * 3)
-  const innerLum: number[] = []
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const src = ((iy1 + y) * outerW + (ix1 + x)) * channels
-      const i = y * width + x
-      const rgb = [extracted.data[src], extracted.data[src + 1], extracted.data[src + 2]]
-      inner[i * 3] = rgb[0]
-      inner[i * 3 + 1] = rgb[1]
-      inner[i * 3 + 2] = rgb[2]
-      innerLum.push(0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2])
-    }
-  }
-  const ringLum = 0.299 * ringRgb[0] + 0.587 * ringRgb[1] + 0.114 * ringRgb[2]
-  const interiorLum = medianOf(innerLum)
-  // Kính mờ sáng hơn da quanh ô. Lấy màu kính bên trong, không lấy da đen ở viền.
-  const panel = interiorLum > ringLum + 25
-  const mask = new Uint8Array(width * height)
-  for (let i = 0; i < innerLum.length; i++) {
-    const lightInk = panel
-      ? innerLum[i] > 248
-      : Math.max(
-          Math.abs(inner[i * 3] - ringRgb[0]),
-          Math.abs(inner[i * 3 + 1] - ringRgb[1]),
-          Math.abs(inner[i * 3 + 2] - ringRgb[2])
-        ) > 28
-    const darkInk = interiorLum > 150 && innerLum[i] < Math.min(90, interiorLum - 40)
-    if (lightInk || darkInk) mask[i] = 1
-  }
-  const grown = new Uint8Array(mask)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (!mask[y * width + x]) continue
-      for (let dy = -1; dy <= 1; dy++) {
-        for (let dx = -1; dx <= 1; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-          grown[ny * width + nx] = 1
-        }
-      }
-    }
-  }
-  if (!panel) {
-    let inkCount = 0
-    for (let i = 0; i < grown.length; i++) if (grown[i]) inkCount += 1
-    if (inkCount > grown.length * 0.42) grown.fill(0)
-  }
-  const fillSamples: number[][] = [[], [], []]
-  for (let i = 0; i < grown.length; i++) {
-    if (grown[i]) continue
-    fillSamples[0].push(inner[i * 3])
-    fillSamples[1].push(inner[i * 3 + 1])
-    fillSamples[2].push(inner[i * 3 + 2])
-  }
-  const bg =
-    fillSamples[0].length >= 9
-      ? [0, 1, 2].map((channel) => medianOf(fillSamples[channel]))
-      : ringRgb
-  const inkSamples: number[] = []
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = y * width + x
-      if (!grown[i]) continue
-      inkSamples.push(innerLum[i])
-      const nearby: number[][] = [[], [], []]
-      for (let dy = -4; dy <= 4; dy++) {
-        for (let dx = -4; dx <= 4; dx++) {
-          const nx = x + dx
-          const ny = y + dy
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue
-          const ni = ny * width + nx
-          if (grown[ni]) continue
-          nearby[0].push(inner[ni * 3])
-          nearby[1].push(inner[ni * 3 + 1])
-          nearby[2].push(inner[ni * 3 + 2])
-        }
-      }
-      for (let channel = 0; channel < 3; channel++) {
-        const values = nearby[channel]
-        inner[i * 3 + channel] = values.length ? medianOf(values) : bg[channel]
-      }
-    }
-  }
-  inkSamples.sort((a, b) => a - b)
-  const inkLum = inkSamples.length ? inkSamples[Math.floor(inkSamples.length / 2)] : 255
-  const bgLum = 0.299 * bg[0] + 0.587 * bg[1] + 0.114 * bg[2]
-  const ink = inkLum >= 186 || (inkLum - bgLum >= 35 && inkLum >= 150) ? '#ffffff' : '#000000'
-  const png = await sharp(inner, { raw: { width, height, channels: 3 } }).png().toBuffer()
-  return { png, ink }
-}
-
 async function findInsetWhiteCard(
   imageBuffer: Buffer,
   src: PixelBox,
@@ -2138,7 +1900,7 @@ async function leadingIconPatch(
   box: PixelBox,
   imageWidth: number,
   imageHeight: number
-): Promise<{ input: Buffer; top: number; left: number } | null> {
+): Promise<{ input: Buffer; top: number; left: number; width: number } | null> {
   const searchLeft = Math.max(0, Math.round(box.x) - 34)
   const searchRight = Math.min(imageWidth, Math.round(box.x) + 8)
   const top = Math.max(0, Math.round(box.y) - 2)
@@ -2190,6 +1952,16 @@ async function leadingIconPatch(
   return { input: crop, top, left: searchLeft + x1, width: Math.max(1, x2 - x1 + 1) }
 }
 
+/** Ô khác cùng hàng, cách dưới 36px theo chiều ngang. */
+function boxSitsBesideNeighbor(box: PixelBox, neighbors: PixelBox[]): boolean {
+  return neighbors.some((other) => {
+    const overlapY = Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)
+    if (overlapY < 4) return false
+    const gap = Math.max(0, other.x - (box.x + box.width), box.x - (other.x + other.width))
+    return gap < 36
+  })
+}
+
 /**
  * Overlay các đoạn chữ đã dịch lên ảnh: cover vùng cũ bằng nền, vẽ chữ mới.
  */
@@ -2209,7 +1981,7 @@ export async function overlayTranslatedText(
   if (!imageWidth || !imageHeight) return imageBuffer
 
   const obstacles = options?.obstacles ?? []
-  const drawItems: Array<OverlayItem & { tableCell?: boolean }> = []
+  const drawItems: OverlayItem[] = []
   for (const band of splitOverlayVerticalBands(items)) {
     let bandIsTable = overlayItemsLookLikeTable(band)
     let expanded = bandIsTable ? expandTableCellBoxes(band, imageWidth, obstacles) : band
@@ -2268,7 +2040,7 @@ export async function overlayTranslatedText(
         imageBuffer,
         item.bbox,
         paint.fill,
-        [...others, ...obstacles],
+        [...others, ...obstacles.map((other) => other.eraseBox ?? other.bbox)],
         imageWidth,
         imageHeight,
         need
@@ -2316,34 +2088,12 @@ export async function overlayTranslatedText(
               }
             }
           }
-          const besideNeighbor = neighbors.some((other) => {
-            const overlapY =
-              Math.min(item.eraseBox.y + item.eraseBox.height, other.y + other.height) -
-              Math.max(item.eraseBox.y, other.y)
-            if (overlapY < 4) return false
-            const gap = Math.max(
-              0,
-              other.x - (item.eraseBox.x + item.eraseBox.width),
-              item.eraseBox.x - (other.x + other.width)
-            )
-            return gap < 36
-          })
+          const besideNeighbor = boxSitsBesideNeighbor(item.eraseBox, neighbors)
           const fontFloor = item.tableCell || besideNeighbor ? 10 : 14
           if (font <= fontFloor) break
           font -= 1
         }
-        const besideNeighbor = neighbors.some((other) => {
-          const overlapY =
-            Math.min(item.eraseBox.y + item.eraseBox.height, other.y + other.height) -
-            Math.max(item.eraseBox.y, other.y)
-          if (overlapY < 4) return false
-          const gap = Math.max(
-            0,
-            other.x - (item.eraseBox.x + item.eraseBox.width),
-            item.eraseBox.x - (other.x + other.width)
-          )
-          return gap < 36
-        })
+        const besideNeighbor = boxSitsBesideNeighbor(item.eraseBox, neighbors)
         item.lockedFont = Math.max(item.tableCell || besideNeighbor ? 10 : 14, font)
       } else {
         const line = Math.max(item.bbox.height, item.eraseBox.height)
@@ -2670,8 +2420,6 @@ export async function overlayTranslatedText(
                   )
         )
       : null
-    const posterFit = null
-    const labelFit = null
     const drawBox = banner ? banner : { x: drawX, y: drawY, width: drawW, height: drawH }
     const textOutsideErase =
       !table &&
@@ -2695,16 +2443,8 @@ export async function overlayTranslatedText(
           4,
           Math.floor(drawBox.width / Math.max(6, Math.min(18, drawBox.height * 0.28)))
         )
-    const lines = bannerFit
-      ? bannerFit.lines
-      : cell
-      ? cell.lines
-      : posterFit
-      ? posterFit.lines
-      : labelFit
-      ? labelFit.lines
-      : []
-    if (!cell && !bannerFit && !posterFit && !labelFit) {
+    const lines: string[] = bannerFit ? bannerFit.lines : cell ? cell.lines : []
+    if (!cell && !bannerFit) {
       for (const word of rawWords) {
         const candidate = lines.length ? `${lines[lines.length - 1]} ${word}` : word
         if (candidate.length <= maxChars || !lines.length) {
@@ -2720,10 +2460,6 @@ export async function overlayTranslatedText(
       ? bannerFit.fontSize
       : cell
       ? cell.fontSize
-      : posterFit
-      ? posterFit.fontSize
-      : labelFit
-      ? labelFit.fontSize
       : Math.max(
           MIN_LOCALIZED_FONT_SIZE,
           Math.min(
@@ -2736,10 +2472,6 @@ export async function overlayTranslatedText(
       ? bannerFit.lineHeight
       : cell
         ? cell.lineHeight
-        : posterFit
-          ? posterFit.lineHeight
-          : labelFit
-            ? labelFit.lineHeight
         : Math.max(9, Math.round(fontSize * 1.12))
     const anchorX = bannerFit
       ? bannerFit.padX

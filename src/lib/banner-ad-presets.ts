@@ -1,5 +1,4 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
 
 /** Tỷ lệ Gemini imageConfig chấp nhận (gemini-3-pro-image). */
 export const GEMINI_IMAGE_ASPECT_RATIOS = [
@@ -69,11 +68,104 @@ export type BannerAdPresetId =
   /** @deprecated */
   | 'ratio_5_4'
 
+export type BannerAdPresetLabelKey =
+  | 'horizontal_display_ads'
+  | 'square_social_ads'
+  | 'portrait_social_ads'
+  | 'vertical_story_ads'
+  | 'web_leaderboard'
+  | 'wide_hero_desktop'
+  | 'print_catalog_4_3'
+  | 'print_poster_3_4'
+  | 'catalog_photo_3_2'
+  | 'pinterest_poster_2_3'
+  | 'catalog_near_square_5_4'
+  | 'ooh_vertical_1_4'
+  | 'ooh_strip_8_1'
+
 export type BannerAdPreset = {
   id: BannerAdPresetId
   aspectRatio: BannerAspectRatio
-  labelKey: keyof (typeof import('@/lib/i18n/studio-preset-copy/vi').STUDIO_PRESET_VI)['sale_banner']['steps']
+  labelKey: BannerAdPresetLabelKey
   platform: 'google' | 'facebook' | 'instagram' | 'tiktok' | 'web' | 'other'
+}
+
+const BANNER_AD_PRESET_LABELS: Record<WebLocale, Record<BannerAdPresetLabelKey, string>> = {
+  vi: {
+    horizontal_display_ads: 'Google Display · YouTube · Banner web — AI 16:9 (gần 1200×628)',
+    square_social_ads: 'Facebook Feed & Google Ads vuông — AI 1:1 (1080×1080 / 1200×1200)',
+    portrait_social_ads: 'Facebook/Instagram feed dọc — AI 4:5 (1080×1350)',
+    vertical_story_ads: 'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+    web_leaderboard: 'Leaderboard web / banner ngang mảnh — AI 4:1',
+    wide_hero_desktop: 'Hero desktop siêu rộng — AI 21:9',
+    print_catalog_4_3: 'In ấn · catalog ngang — AI 4:3',
+    print_poster_3_4: 'Poster dọc · in ấn cửa hàng — AI 3:4',
+    catalog_photo_3_2: 'Catalog · ảnh ngang sản phẩm — AI 3:2',
+    pinterest_poster_2_3: 'Pinterest · poster dọc — AI 2:3',
+    catalog_near_square_5_4: 'Catalog gần vuông — AI 5:4',
+    ooh_vertical_1_4: 'OOH · màn dọc cực cao — AI 1:4',
+    ooh_strip_8_1: 'LED · sự kiện banner ngang — AI 8:1',
+  },
+  en: {
+    horizontal_display_ads: 'Google Display · YouTube · Web banner — AI 16:9 (near 1200×628)',
+    square_social_ads: 'Facebook Feed & Google Ads square — AI 1:1 (1080×1080 / 1200×1200)',
+    portrait_social_ads: 'Facebook/Instagram portrait feed — AI 4:5 (1080×1350)',
+    vertical_story_ads: 'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+    web_leaderboard: 'Web leaderboard / thin strip — AI 4:1',
+    wide_hero_desktop: 'Ultra-wide desktop hero — AI 21:9',
+    print_catalog_4_3: 'Print · horizontal catalog — AI 4:3',
+    print_poster_3_4: 'Vertical poster · in-store print — AI 3:4',
+    catalog_photo_3_2: 'Catalog · horizontal product photo — AI 3:2',
+    pinterest_poster_2_3: 'Pinterest · vertical poster — AI 2:3',
+    catalog_near_square_5_4: 'Near-square catalog — AI 5:4',
+    ooh_vertical_1_4: 'OOH · ultra-tall portrait screen — AI 1:4',
+    ooh_strip_8_1: 'LED · event ultra-wide strip — AI 8:1',
+  },
+  zh: {
+    horizontal_display_ads: 'Google 展示 · YouTube · 网页横幅 — AI 16:9（接近 1200×628）',
+    square_social_ads: 'Facebook 信息流 & Google 方形广告 — AI 1:1（1080×1080 / 1200×1200）',
+    portrait_social_ads: 'Facebook/Instagram 竖版信息流 — AI 4:5（1080×1350）',
+    vertical_story_ads: 'Story · Reels · TikTok — AI 9:16（1080×1920）',
+    web_leaderboard: '网页通栏 / 横条横幅 — AI 4:1',
+    wide_hero_desktop: '超宽桌面主视觉 — AI 21:9',
+    print_catalog_4_3: '印刷 · 横版目录 — AI 4:3',
+    print_poster_3_4: '竖版海报 · 店内印刷 — AI 3:4',
+    catalog_photo_3_2: '目录 · 横版产品图 — AI 3:2',
+    pinterest_poster_2_3: 'Pinterest · 竖版海报 — AI 2:3',
+    catalog_near_square_5_4: '近方形目录 — AI 5:4',
+    ooh_vertical_1_4: '户外 · 超高竖屏 — AI 1:4',
+    ooh_strip_8_1: 'LED · 活动超宽横条 — AI 8:1',
+  },
+  ja: {
+    horizontal_display_ads: 'Googleディスプレイ · YouTube · Webバナー — AI 16:9（1200×628に近い）',
+    square_social_ads: 'Facebookフィード & Google正方形広告 — AI 1:1（1080×1080 / 1200×1200）',
+    portrait_social_ads: 'Facebook/Instagram縦型フィード — AI 4:5（1080×1350）',
+    vertical_story_ads: 'Story · Reels · TikTok — AI 9:16（1080×1920）',
+    web_leaderboard: 'Webリーダーボード / 横長細 — AI 4:1',
+    wide_hero_desktop: '超ワイドデスクトップヒーロー — AI 21:9',
+    print_catalog_4_3: '印刷 · 横カタログ — AI 4:3',
+    print_poster_3_4: '縦ポスター · 店頭印刷 — AI 3:4',
+    catalog_photo_3_2: 'カタログ · 横商品写真 — AI 3:2',
+    pinterest_poster_2_3: 'Pinterest · 縦ポスター — AI 2:3',
+    catalog_near_square_5_4: 'やや正方形カタログ — AI 5:4',
+    ooh_vertical_1_4: 'OOH · 超縦型ディスプレイ — AI 1:4',
+    ooh_strip_8_1: 'LED · イベント超横長 — AI 8:1',
+  },
+  ko: {
+    horizontal_display_ads: 'Google 디스플레이 · YouTube · 웹 배너 — AI 16:9 (1200×628 근접)',
+    square_social_ads: 'Facebook 피드 & Google 정사각 광고 — AI 1:1 (1080×1080 / 1200×1200)',
+    portrait_social_ads: 'Facebook/Instagram 세로 피드 — AI 4:5 (1080×1350)',
+    vertical_story_ads: 'Story · Reels · TikTok — AI 9:16 (1080×1920)',
+    web_leaderboard: '웹 리더보드 / 가로 띠 — AI 4:1',
+    wide_hero_desktop: '초와이드 데스크톱 히어로 — AI 21:9',
+    print_catalog_4_3: '인쇄 · 가로 카탈로그 — AI 4:3',
+    print_poster_3_4: '세로 포스터 · 매장 인쇄 — AI 3:4',
+    catalog_photo_3_2: '카탈로그 · 가로 제품 사진 — AI 3:2',
+    pinterest_poster_2_3: 'Pinterest · 세로 포스터 — AI 2:3',
+    catalog_near_square_5_4: '거의 정사각 카탈로그 — AI 5:4',
+    ooh_vertical_1_4: 'OOH · 초세로 화면 — AI 1:4',
+    ooh_strip_8_1: 'LED · 이벤트 초와이드 — AI 8:1',
+  },
 }
 
 /** Một dòng / một tỷ lệ — label i18n ghi rõ kênh ads phù hợp. */
@@ -130,8 +222,8 @@ export function getBannerAdPresetById(id: BannerAdPresetId | string): BannerAdPr
 }
 
 export function getBannerAdPresetLabel(preset: BannerAdPreset, locale: WebLocale): string {
-  const copy = getStudioPresetCopy(locale)
-  return copy.sale_banner.steps[preset.labelKey]
+  const labels = BANNER_AD_PRESET_LABELS[locale] ?? BANNER_AD_PRESET_LABELS.vi
+  return labels[preset.labelKey] ?? BANNER_AD_PRESET_LABELS.vi[preset.labelKey]
 }
 
 export const GEMINI_RATIO_AD_USE: Record<GeminiAspectRatio, Record<WebLocale, string>> = {

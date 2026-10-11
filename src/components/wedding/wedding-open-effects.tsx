@@ -528,7 +528,7 @@ export function WeddingOpenEffects(props: {
     }
 
     const spawnFall = () => {
-      const { w, h } = view
+      const { w } = view
       const x = rand(-20, w + 20)
       const y = rand(-60, -12)
       if (fall === 'petals') push(petalBit(x, y, rand(-18, 18), rand(28, 70), rand(8, 18)))

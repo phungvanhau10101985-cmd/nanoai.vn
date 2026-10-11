@@ -25,6 +25,7 @@ import {
   splitOverlayVerticalBands,
   splitTrailingModelCode,
   stripInventedLeadingModelCode,
+  type OverlayItem,
 } from '@/lib/translate-overlay'
 import {
   collapseBilingualGlossTranslation,
@@ -448,7 +449,7 @@ describe('image localization runtime parity', () => {
 
   it('left-aligns a spec column on one shared edge', () => {
     const rows = ['Chất liệu mặt: PU', 'Chất liệu lót: PU', 'Màu: da báo', 'Size: 34-50', 'Cao gót: 19cm'].map(
-      (text, index) => ({
+      (text, index): OverlayItem => ({
         bbox: { x: 442, y: 110 + index * 22, width: 80, height: 14 },
         translatedText: text,
       })
