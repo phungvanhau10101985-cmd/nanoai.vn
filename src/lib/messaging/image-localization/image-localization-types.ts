@@ -172,6 +172,29 @@ export type ImageLocProductReport = {
   image_localization: Record<string, unknown> | null
 }
 
+export type ImageLocProbeLogLine = { at: string; text: string }
+export type ImageLocProbeImage = { role: 'original' | 'result'; url: string }
+export type ImageLocProbeStatus = 'running' | 'done' | 'error'
+export type ImageLocProbeEngine = 'local' | 'ai' | 'keep' | 'delete'
+
+export type ImageLocProbe = {
+  id: string
+  partner_id: string
+  status: ImageLocProbeStatus
+  language: string
+  apparel_sheet: boolean
+  engine: ImageLocProbeEngine | null
+  model: string | null
+  classify_type: string | null
+  classify_reason: string | null
+  message: string | null
+  log: ImageLocProbeLogLine[]
+  images: ImageLocProbeImage[]
+  created_at: string
+  finished_at: string | null
+  expires_at: string
+}
+
 export function isTerminalImageLocalizationJobStatus(status: string | null | undefined): boolean {
   return IMAGE_LOC_TERMINAL_JOB_STATUSES.has(String(status || '').trim().toLowerCase())
 }

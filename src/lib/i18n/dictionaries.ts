@@ -1925,6 +1925,39 @@ export type Dictionary = {
     imageLocDeleteTerminal: string
     imageLocSelectRequired: string
     imageLocSelectProduct: string
+    imageLocProbeTitle: string
+    imageLocProbeHint: string
+    imageLocProbeDrop: string
+    imageLocProbeDropHint: string
+    imageLocProbeReplace: string
+    imageLocProbeClear: string
+    imageLocProbeApparel: string
+    imageLocProbeApparelHint: string
+    imageLocProbeRun: string
+    imageLocProbeRunning: string
+    imageLocProbeNeedFile: string
+    imageLocProbeFolder: string
+    imageLocProbeOpenAll: string
+    imageLocProbeEmpty: string
+    imageLocProbeExpires: string
+    imageLocProbeDaysLeft: string
+    imageLocProbeOriginal: string
+    imageLocProbeResult: string
+    imageLocProbeEngineLocal: string
+    imageLocProbeEngineAi: string
+    imageLocProbeEngineKeep: string
+    imageLocProbeEngineDelete: string
+    imageLocProbeLog: string
+    imageLocProbeModel: string
+    imageLocProbeClose: string
+    imageLocProbeDeleteNow: string
+    imageLocProbeCount: string
+    imageLocProbeCollapse: string
+    imageLocProbePrev: string
+    imageLocProbeNext: string
+    imageLocProbeCounter: string
+    imageLocProbeError: string
+    imageLocProbeRunningBadge: string
     inventoryExternalSyncTitle: string
     inventoryExternalSyncIntro: string
     inventoryExternalSyncReconcileHint: string
@@ -5768,6 +5801,40 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocDeleteTerminal: 'Xóa job đã xong',
     imageLocSelectRequired: 'Chọn sản phẩm trong bảng kho trước khi dùng GPT Image.',
     imageLocSelectProduct: 'Chọn sản phẩm để bản địa hóa',
+    imageLocProbeTitle: 'Cổng thử một ảnh',
+    imageLocProbeHint:
+      'Thả một ảnh rồi bấm chạy. Chỉ ảnh đó đi đúng pipeline trên server, không ghi vào kho. Ảnh gốc và ảnh kết quả nằm trong thư mục thử và tự xóa sau 7 ngày.',
+    imageLocProbeDrop: 'Thả ảnh vào đây hoặc bấm để chọn',
+    imageLocProbeDropHint: 'JPG, PNG hoặc WebP, tối đa 8 MB. Một ảnh mỗi lần chạy.',
+    imageLocProbeReplace: 'Đổi ảnh',
+    imageLocProbeClear: 'Bỏ ảnh',
+    imageLocProbeApparel: 'Coi là bảng size hoặc hướng dẫn giặt của áo, quần, váy',
+    imageLocProbeApparelHint: 'Chỉ khi ảnh đúng là bảng đó thì server gọi GPT Image. Ảnh khác vẫn vẽ local.',
+    imageLocProbeRun: 'Chạy ảnh này',
+    imageLocProbeRunning: 'Đang chạy…',
+    imageLocProbeNeedFile: 'Chọn một ảnh trước khi chạy.',
+    imageLocProbeFolder: 'Thư mục thử',
+    imageLocProbeOpenAll: 'Mở hết',
+    imageLocProbeEmpty: 'Chưa có ảnh. Ảnh sau khi chạy sẽ nằm ở đây.',
+    imageLocProbeExpires: 'Tự xóa sau 7 ngày',
+    imageLocProbeDaysLeft: 'Còn {n} ngày',
+    imageLocProbeOriginal: 'Ảnh gốc',
+    imageLocProbeResult: 'Ảnh kết quả',
+    imageLocProbeEngineLocal: 'Local',
+    imageLocProbeEngineAi: 'GPT',
+    imageLocProbeEngineKeep: 'Giữ',
+    imageLocProbeEngineDelete: 'Xóa',
+    imageLocProbeLog: 'Nhật ký chạy',
+    imageLocProbeModel: 'Model',
+    imageLocProbeClose: 'Đóng',
+    imageLocProbeDeleteNow: 'Xóa khỏi thư mục',
+    imageLocProbeCount: '{n} ảnh',
+    imageLocProbeCollapse: 'Thu thư mục',
+    imageLocProbePrev: 'Ảnh trước',
+    imageLocProbeNext: 'Ảnh sau',
+    imageLocProbeCounter: '{i} / {n}',
+    imageLocProbeError: 'Lỗi',
+    imageLocProbeRunningBadge: 'Đang chạy',
     inventoryExternalSyncTitle: 'Tích hợp kho web khách → kho NanoAI',
     inventoryExternalSyncIntro:
       'So khớp từng trường kho trên NanoAI với tên trường JSON trên API kho khách (dùng dấu chấm cho object lồng, ví dụ product_info). Link trang sản phẩm lấy từ trường map tới slug — hỗ trợ URL đầy đủ. Lưu để backend/script đồng bộ Open Catalog dùng thống nhất.',

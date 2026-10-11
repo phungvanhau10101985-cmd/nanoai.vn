@@ -15,6 +15,7 @@ import {
   type ImageLocLanguage,
   type ImageLocSummary,
 } from '@/lib/messaging/image-localization/image-localization-types'
+import { PartnerImageLocalizationProbe } from './partner-image-localization-probe'
 
 const JOBS_LS = (partnerId: string) => `nanoai.image_loc.jobs.${partnerId}`
 
@@ -604,6 +605,8 @@ export function PartnerImageLocalizationCard({
           )}
         </div>
       </div>
+
+      <PartnerImageLocalizationProbe partnerId={partnerId} language={language} t={t} />
     </div>
   )
 }

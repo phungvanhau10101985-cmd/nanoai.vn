@@ -31,6 +31,8 @@ import { normalizeBrandLogoTemplate } from '@/lib/messaging/image-localization/o
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { tryOnPublicUrlToStoragePath } from '@/lib/storage/try-on-public-upload'
 import { deleteBunnyObjectForSource, partnerBunnyHostname, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
+import { IMAGE_LOC_PROBE_MAX_BYTES } from '@/lib/messaging/image-localization/probe-report'
+import { listImageLocProbeFolder, removeImageLocProbe, startImageLocProbe } from '@/lib/messaging/image-localization/probe-run'
 
 export const maxDuration = 300
 export const runtime = 'nodejs'
@@ -102,6 +104,10 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ items: await listImageLocCandidatesFromPg(partnerId, limit) })
   }
 
+  if (p === 'probes') {
+    return NextResponse.json({ items: await listImageLocProbeFolder(partnerId) })
+  }
+
   if (p === 'jobs') {
     const limit = Number(url.searchParams.get('limit') || '40')
     const activeOnly = boolParam(url.searchParams.get('active_only'), false)
@@ -130,6 +136,38 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const auth = await authorize(partnerId)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   const p = joinPath(path)
+
+  if (p === 'probes') {
+    let form: FormData
+    try {
+      form = await req.formData()
+    } catch {
+      return jsonError('Form upload không hợp lệ.')
+    }
+    const file = form.get('file')
+    if (!(file instanceof File) || file.size <= 0) return jsonError('Chưa chọn ảnh.')
+    if (file.size > IMAGE_LOC_PROBE_MAX_BYTES) return jsonError('Ảnh vượt quá 8 MB.')
+    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type || '') && !/\.(png|jpe?g|webp)$/i.test(file.name || '')) {
+      return jsonError('Ảnh phải là PNG, JPG hoặc WebP.')
+    }
+    const language = String(form.get('language') || 'vi')
+    const apparelSheet = ['1', 'true', 'yes', 'on'].includes(String(form.get('apparel_sheet') || '').trim().toLowerCase())
+    try {
+      const probe = await startImageLocProbe({
+        partnerId,
+        userId: auth.userId,
+        bytes: Buffer.from(await file.arrayBuffer()),
+        filename: file.name || 'image.jpg',
+        language,
+        apparelSheet,
+      })
+      return NextResponse.json({ probe })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      const status = e instanceof ImageLocalizationError ? 400 : 500
+      return jsonError(msg, status)
+    }
+  }
 
   if (p === 'settings/logo-upload') {
     let form: FormData
@@ -252,6 +290,13 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   if (p === 'jobs/terminal') {
     const deleted = await deleteTerminalImageLocJobsFromPg(partnerId)
     return NextResponse.json({ deleted })
+  }
+
+  const probeDelete = /^probes\/([^/]+)$/.exec(p)
+  if (probeDelete) {
+    const ok = await removeImageLocProbe(partnerId, probeDelete[1])
+    if (!ok) return jsonError('Không tìm thấy ảnh thử.', 404)
+    return NextResponse.json({ deleted: true, id: probeDelete[1] })
   }
 
   const one = /^jobs\/([^/]+)$/.exec(p)

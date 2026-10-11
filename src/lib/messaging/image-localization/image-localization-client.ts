@@ -3,6 +3,7 @@ import type {
   ImageLocCandidate,
   ImageLocJob,
   ImageLocJobList,
+  ImageLocProbe,
   ImageLocProductReport,
   ImageLocStartPayload,
   ImageLocSummary,
@@ -97,5 +98,24 @@ export const imageLocalizationClient = {
   },
   productReport(partnerId: string, inventoryId: string) {
     return json<ImageLocProductReport>(`${base(partnerId)}/products/${encodeURIComponent(inventoryId)}/report`)
+  },
+  listProbes(partnerId: string) {
+    return json<{ items: ImageLocProbe[] }>(`${base(partnerId)}/probes`)
+  },
+  async startProbe(partnerId: string, file: File, language: string, apparelSheet: boolean) {
+    const form = new FormData()
+    form.set('file', file)
+    form.set('language', language)
+    form.set('apparel_sheet', apparelSheet ? '1' : '0')
+    const res = await fetch(`${base(partnerId)}/probes`, { method: 'POST', body: form, cache: 'no-store' })
+    const data = (await res.json().catch(() => ({}))) as { probe?: ImageLocProbe; error?: string; detail?: string }
+    if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`)
+    if (!data.probe) throw new Error('Không nhận được ảnh thử.')
+    return data.probe
+  },
+  deleteProbe(partnerId: string, id: string) {
+    return json<{ deleted: true; id: string }>(`${base(partnerId)}/probes/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    })
   },
 }

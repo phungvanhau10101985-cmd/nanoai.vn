@@ -3,7 +3,7 @@ import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
 import { isOwnCdnUrl, normalizeImageUrl, imageLocGptVerifyAttempts, imageLocOpenaiImageModel } from './image-localization-config'
 import type { ImageLocOcrBlock, ImageProcessResult } from './image-localization-types'
-import { classifyImage, hasSizeOrLaundryContext, hasSizeTableContext, isLaundryInstructionImage } from './image-localization-classifier'
+import { classifyImage, countHanzi, hasSizeOrLaundryContext, hasSizeTableContext, isLaundryInstructionImage } from './image-localization-classifier'
 import { collectImageConsultSourceLines } from './image-consult-context'
 import { encodeJpeg, localBlocksNeedDraw, localDrawTranslated, ocrImageBlocks } from './local-pipeline'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
@@ -12,6 +12,8 @@ import { imageLocSheetKinds } from './sheet-cache'
 import { chineseBlocksToRedraw } from './gpt-verify'
 import { detectInkBleed } from './ink-bleed-check'
 import { splitTallImageIfNeeded, vstackImageParts } from './split-tall-image'
+import { probeModelLabel } from './probe-report'
+import sharp from 'sharp'
 import { overlayBrandLogoOnProcessedImage, loadImageLocBrandLogoBytes } from './overlay-brand-logo'
 
 export async function downloadLocalizationImage(url: string): Promise<{ bytes: Buffer; filename: string }> {
@@ -400,4 +402,121 @@ export async function processPreparedImage(
   }
   const merged = await vstackImageParts(stitch, originalShapes)
   return finishProcessed(merged, notes.filter(Boolean).join(' · '))
+}
+
+export type StandaloneLocalization = {
+  status: 'processed' | 'kept' | 'deleted'
+  message: string
+  bytes: Buffer | null
+  engine: LocalizationEngineChoice
+  model: string
+  classifyType: string
+  classifyReason: string
+  blockCount: number
+  hanziCount: number
+  partCount: number
+}
+
+/** Một ảnh, cùng nhánh server, không upload và không ghi kho. */
+export async function localizeStandaloneImage(
+  ctx: ProcessImageContext,
+  bytes: Buffer,
+  filename: string,
+  onLog?: (text: string) => Promise<void> | void
+): Promise<StandaloneLocalization> {
+  const log = async (text: string) => {
+    await onLog?.(text)
+  }
+  const meta = await sharp(bytes, { limitInputPixels: false }).metadata()
+  await log(`Ảnh ${meta.width || 0}×${meta.height || 0}. Đang OCR.`)
+  const { blocks } = await ocrImageBlocks(bytes, ctx.userId)
+  const hanziCount = blocks.reduce((sum, block) => sum + countHanzi(block.text || '').count, 0)
+  const parts = await splitTallImageIfNeeded({ bytes, blocks, filename })
+  const cut = parts.length > 1 ? `. Cắt ${parts.length} phần` : ''
+  await log(`OCR ${blocks.length} ô, ${hanziCount} chữ Hán${cut}.`)
+  const cls = classifyImage(blocks, [], 'probe://local')
+  await log(`Classifier ${cls.type}: ${cls.reason}`)
+  const kinds = imageLocSheetKinds(blocks)
+  const apparelSheet = Boolean(ctx.apparelProduct) && kinds.length > 0
+  const engine = selectLocalizationEngine({
+    classification: cls.type,
+    allowsAi: ctx.allowsAi,
+    geminiMode: ctx.geminiMode,
+    hasSizeOrLaundry: hasSizeOrLaundryContext(blocks) || isLaundryInstructionImage(blocks),
+    apparelSheet,
+  })
+  const model = probeModelLabel(engine)
+  if (engine === 'ai') await log(`Engine GPT Image. ${model}`)
+  else if (engine === 'local') await log(`Engine local. ${model}`)
+  else if (engine === 'delete') await log(`Engine xóa cả ảnh. ${model}`)
+  else await log(`Engine giữ nguyên. ${model}`)
+  if (ctx.apparelProduct && !apparelSheet && engine !== 'delete') {
+    await log('Đã đánh dấu áo quần váy, nhưng ảnh không phải bảng size hoặc hướng dẫn giặt, nên không gọi GPT.')
+  }
+  if (kinds.length > 0 && !ctx.apparelProduct && engine === 'local') {
+    await log('Ảnh có dấu bảng size hoặc hướng dẫn giặt. Chưa đánh dấu áo quần váy, nên vẽ local.')
+  }
+  if (engine === 'ai') await log('Đang gọi GPT Image.')
+  else if (engine === 'local') await log('Đang vẽ local.')
+
+  const outcomes: PartOutcome[] = []
+  for (const part of parts) {
+    outcomes.push(await transformImageBytes(ctx, part.bytes, part.filename, part.blocks, 'probe://local', apparelSheet))
+  }
+  const base = {
+    engine,
+    model,
+    classifyType: cls.type,
+    classifyReason: cls.reason,
+    blockCount: blocks.length,
+    hanziCount,
+    partCount: parts.length,
+  }
+  const withLogo = async (out: Buffer): Promise<Buffer> => {
+    try {
+      if (ctx.logoBytes === undefined) ctx.logoBytes = await loadImageLocBrandLogoBytes(ctx.logoUrl)
+      return await overlayBrandLogoOnProcessedImage(out, ctx.logoBytes)
+    } catch (error) {
+      console.warn('[image-localization] đóng logo lên ảnh thử thất bại:', error)
+      return out
+    }
+  }
+
+  if (outcomes.every((outcome) => outcome.kind === 'deleted')) {
+    const message = outcomes[0]?.message || 'Xóa ảnh'
+    await log(`Kết quả xóa: ${message}. Bản trong thư mục thử vẫn giữ đến hết 7 ngày.`)
+    return { ...base, status: 'deleted', message, bytes: null }
+  }
+  if (outcomes.every((outcome) => outcome.kind === 'kept')) {
+    const message = parts.length > 1 ? 'Ảnh dài: các phần giữ nguyên' : outcomes[0]?.message || 'Giữ nguyên'
+    await log(`Kết quả giữ nguyên: ${message}`)
+    return { ...base, status: 'kept', message, bytes: null }
+  }
+  if (parts.length > 1 && outcomes.some((outcome) => outcome.kind === 'deleted')) {
+    const deletedIndex = outcomes.findIndex((outcome) => outcome.kind === 'deleted')
+    const message = `Phần ${deletedIndex + 1}/${parts.length}: ${outcomes[deletedIndex]?.message || 'yêu cầu xóa ảnh'}`
+    await log(`Kết quả xóa: ${message}. Bản trong thư mục thử vẫn giữ đến hết 7 ngày.`)
+    return { ...base, status: 'deleted', message, bytes: null }
+  }
+
+  const stitch: Buffer[] = []
+  const originalShapes: Array<{ width: number; height: number }> = []
+  const notes: string[] = []
+  if (parts.length > 1) notes.push(`cắt ${parts.length} phần`)
+  for (let i = 0; i < outcomes.length; i++) {
+    const outcome = outcomes[i]
+    if (outcome.kind === 'deleted') continue
+    stitch.push(outcome.bytes)
+    originalShapes.push({ width: parts[i].width, height: Math.max(1, parts[i].y1 - parts[i].y0) })
+    notes.push(outcome.message)
+  }
+  const anyProcessed = outcomes.some((outcome) => outcome.kind === 'processed')
+  const message = notes.filter(Boolean).join(' · ') || (anyProcessed ? 'Đã xử lý' : 'Giữ nguyên')
+  if (!anyProcessed || !stitch.length) {
+    await log(`Kết quả giữ nguyên: ${message}`)
+    return { ...base, status: 'kept', message, bytes: null }
+  }
+  const merged = await withLogo(await vstackImageParts(stitch, originalShapes))
+  await log(`Kết quả đã vẽ: ${message}`)
+  return { ...base, status: 'processed', message, bytes: merged }
 }

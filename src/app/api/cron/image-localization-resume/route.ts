@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resumeImageLocalizationAfterRestart } from '@/lib/messaging/image-localization/job-runtime'
+import { sweepImageLocProbes } from '@/lib/messaging/image-localization/probe-run'
 
 /**
  * Phục hồi job bản địa hóa ảnh sau restart PM2 — mirror 188 start_resume_daemon.
@@ -21,7 +22,11 @@ async function handleCron(req: NextRequest) {
   }
   try {
     const out = await resumeImageLocalizationAfterRestart()
-    return NextResponse.json({ ok: true, ...out })
+    const probes = await sweepImageLocProbes().catch((error) => {
+      console.error('[cron/image-localization-resume] probe sweep', error)
+      return { expired: 0, stale: 0 }
+    })
+    return NextResponse.json({ ok: true, ...out, probes })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error'
     console.error('[cron/image-localization-resume]', msg)
