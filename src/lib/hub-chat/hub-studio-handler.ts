@@ -39,6 +39,7 @@ import {
 import {
   allDiscoveryDone,
   buildStepsFromPreset,
+  detachRetiredStudioPreset,
   getPresetKickoff,
   getPrimaryLogoStepKey,
   getStepAspectRatio,
@@ -52,7 +53,6 @@ import {
   isStepAfterPrimaryLogo,
   briefNotesForStepGeneration,
   matchStudioPresetWithScore,
-  matchesLandingPageIntent,
   matchesWebAppDesignIntent,
   presetTitle,
   primaryLogoApproved,
@@ -1371,7 +1371,7 @@ Respond with ONLY valid JSON:
 HUB ROUTE (classify first — mandatory):
 - "design": user wants INLINE step-by-step design in this chat (app UI, logo, banner set, packaging flow, etc.). Use suggestedPresetId + studio fields. workflows/plan usually empty.
 - "consultation": general advice, questions about NanoAI, how-to, pricing, which approach — answer in reply; optional workflows 0-2 if a single tool helps. Do NOT start design preset unless user clearly wants inline design.
-- "workflow": user needs ONE standalone tool page (try-on, sharpen, curriculum…). Fill workflows 1-3 items from catalog; hubRoute workflow. Banner quảng cáo → hubRoute "design" + suggestedPresetId sale_banner (NOT /tao-banner).
+- "workflow": user needs ONE standalone tool page (try-on, sharpen, curriculum, banner, interior, ad music…). Fill workflows 1-3 items from catalog; hubRoute workflow. Banner quảng cáo → hubRoute "workflow" + tool /tao-banner (NOT inline studio preset). Nhạc quảng cáo → hubRoute "workflow" + tool /tao-bai-hat-lyria-3. Nội thất / phòng khách → hubRoute "workflow" + tool /thiet-ke-noi-ngoai-that.
 - "pipeline": user needs MULTI-STEP plan across 2-6 different tools in order (e.g. studio banner → sharpen → upload). Fill plan.steps 2-6 ordered; hubRoute pipeline.
 - When session presetId is set and user continues the inline project: hubRoute MUST stay "design" unless they explicitly ask only for tool advice (then consultation + keep reply short).
 - When session presetId is null and message fits inline preset: hubRoute "design" + suggestedPresetId.
@@ -1389,7 +1389,7 @@ PRESET / PROJECT INTENT (hubRoute "design"):
 - intent "clarify": user wants design help but preset is ambiguous — suggestedPresetId empty, workflows empty; ask user to pick a feature chip from FULL FEATURE CATALOG.
 - intent "chat": unrelated to starting a design flow — suggestedPresetId empty.
 - When presetId is already set: suggestedPresetId must be empty string (do not switch preset mid-flow unless user explicitly asks to change project type — then clarify first).
-- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" → landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → sale_banner; "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi" → interior_design; "bộ post instagram" → social_media_kit; "truyện tranh cho bé" → story_with_images; "tóm tắt sách thành slide" → infographic_series; "campaign lookbook hè" → fashion_campaign; ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" → design_recreate (do NOT ask which design — start design_recreate immediately); "ảnh thẻ linkedin" → profile_photo_pack; ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset). ANY product photo set (Facebook, Shopee, Lazada, TikTok Shop, white background, lifestyle, amateur self-shot, "tạo ảnh sản phẩm", "ảnh sản phẩm") → hubRoute "workflow" + href /tao-anh-ban-hang. NEVER suggestedPresetId product_listing or catalog_photo_pack. NOT fashion_campaign.
+- Examples: "tạo web", "tạo giao diện web", "thiết kế web", "thiết kế web app", "thiết kế app bán quần áo" → mobile_shop (web app / shop website). ONLY "tạo landing page", "tạo ladipage", "thiết kế landing" are NOT an inline studio preset and NOT a tool page — do not set suggestedPresetId landing_page. Never map generic "tạo web" / "giao diện web" to landing_page. "làm bao bì mỹ phẩm" → packaging_kit; "banner quảng cáo", "google ads banner" → hubRoute "workflow" + tool /tao-banner (NOT inline studio preset); "thiết kế menu quán ăn", "thực đơn cafe" → food_menu; "phòng khách japandi", "nội thất", "ngoại thất" → hubRoute "workflow" + tool /thiet-ke-noi-ngoai-that (NOT inline studio preset); "nhạc quảng cáo", "jingle" → hubRoute "workflow" + tool /tao-bai-hat-lyria-3 (NOT inline studio preset); "truyện tranh cho bé", "kể chuyện bằng hình" → hubRoute "workflow" + tool /ke-chuyen-bang-hinh-anh (NOT inline studio preset); ANY phrase with both "lại" + "thiết kế" (e.g. "tạo lại bản thiết kế", "dựng lại thiết kế", "làm lại thiết kế", "thiết kế lại") OR "concept sheet từ ảnh" / "làm giống mẫu sản phẩm" is NOT an inline studio preset — do not set suggestedPresetId design_recreate; "ảnh thẻ", "ảnh thẻ linkedin" → hubRoute "workflow" + tool /tao-anh-the (NOT inline studio preset); ANY invitation intent ("thiết kế thiệp mời", "tạo thiệp cưới", "thiệp mời") → hubRoute "workflow" + tool /tao-thiep-moi-cuoi-ai (NOT inline studio preset). ANY product photo set (Facebook, Shopee, Lazada, TikTok Shop, white background, lifestyle, amateur self-shot, "tạo ảnh sản phẩm", "ảnh sản phẩm") → hubRoute "workflow" + href /tao-anh-ban-hang. NEVER suggestedPresetId product_listing or catalog_photo_pack.
 
 RETRY / FLOW INTENT (YOU must classify — server does NOT parse fixed phrases):
 - Understand ANY natural wording (Vietnamese, English, voice-style, typos, short replies).
@@ -2087,8 +2087,8 @@ async function generateAsset(
 
   if (generator === 'banner' && workSession.presetId === 'food_menu') {
     const menuLogoUrl = workSession.foodMenu?.logoUrl?.trim()
+    productUrls = []
     if (menuLogoUrl) {
-      productUrls = productUrls.filter((u) => u !== menuLogoUrl)
       if (!refUrls.includes(menuLogoUrl)) {
         refUrls = [menuLogoUrl, ...refUrls]
       }
@@ -3495,6 +3495,11 @@ async function finishApprove(
 export async function handleHubStudio(input: HubStudioHandlerInput): Promise<HubStudioHandlerResult> {
   const action: HubStudioAction = input.action ?? 'message'
   let session = (await pgGetHubThreadSession(input.threadId)) ?? emptyStudioSession()
+  const retiredSession = detachRetiredStudioPreset(session)
+  if (retiredSession !== session) {
+    session = retiredSession
+    await pgSaveHubThreadSession(input.threadId, session)
+  }
   session = reconcilePackagingProcessSteps(session, input.locale)
   session = reconcileDesignRecreateProcessSteps(session, input.locale)
   session = applyStudioSessionLabels(session, input.locale)
@@ -7511,8 +7516,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     if (
       !activeDesign &&
       idleFeatureMatch?.kind === 'studio' &&
-      ((idleFeatureMatch.presetId === 'mobile_shop' && matchesWebAppDesignIntent(message)) ||
-        (idleFeatureMatch.presetId === 'landing_page' && matchesLandingPageIntent(message)))
+      ((idleFeatureMatch.presetId === 'mobile_shop' && matchesWebAppDesignIntent(message)))
     ) {
       ai.suggestedPresetId = idleFeatureMatch.presetId
       ai.hubRoute = 'design'

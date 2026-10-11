@@ -1,5 +1,6 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { buildStepsFromPreset } from '@/lib/hub-chat/hub-studio-presets'
+import { presetStepLabel } from '@/lib/hub-chat/hub-studio-presets'
+import { DESIGN_RECREATE_FLOW } from '@/lib/hub-chat/hub-studio-preset-flows'
 import type { HubStudioProcessStep, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { DESIGN_LANGUAGE_STEP_KEY } from '@/lib/design/design-discovery-choices'
 
@@ -16,7 +17,11 @@ export function reconcileDesignRecreateProcessSteps(
 ): HubStudioSession {
   if (session.presetId !== 'design_recreate' || !session.processSteps.length) return session
 
-  const canonical = buildStepsFromPreset(locale, 'design_recreate')
+  const canonical: HubStudioProcessStep[] = DESIGN_RECREATE_FLOW.map((step, index) => ({
+    key: step.key,
+    label: presetStepLabel(locale, 'design_recreate', step.labelKey),
+    status: index === 0 ? 'in_progress' : 'pending',
+  }))
   const byKey = new Map(session.processSteps.map((step) => [step.key, step]))
   const hasLogo = session.processSteps.some((step) => step.key === DESIGN_RECREATE_LOGO_KEY)
   const hasLanguage = session.processSteps.some((step) => step.key === DESIGN_LANGUAGE_STEP_KEY)

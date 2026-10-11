@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolvePortraitShell } from './wedding-section-config'
+import { mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitShell } from './wedding-section-config'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -164,4 +164,10 @@ test('open celebration defaults to bloom and falling petals, and a chosen none i
   assert.equal(resolveOpenFallEffect(parsed), 'hearts')
   assert.equal(JSON.parse(saved).openBurstEffect, 'none')
   assert.equal(JSON.parse(saved).openFallEffect, 'hearts')
+  assert.equal(resolveOpenFallSeconds(parsed), 0)
+  const timed = mergeWeddingSectionConfig(saved, { openFallSeconds: 30 })
+  assert.equal(resolveOpenFallSeconds(parseWeddingSectionConfig(timed)), 30)
+  assert.equal(JSON.parse(timed).openFallSeconds, 30)
+  const clamped = mergeWeddingSectionConfig(saved, { openFallSeconds: 999 })
+  assert.equal(resolveOpenFallSeconds(parseWeddingSectionConfig(clamped)), 120)
 })

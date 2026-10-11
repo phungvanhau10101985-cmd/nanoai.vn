@@ -62,7 +62,7 @@ export function buildMenuImageGenerationPrompt(
   const venueHeader = input.venueName?.trim()
 
   const illustrationRule = includeIllustrations
-    ? 'Include small appetizing food illustration photos or stylized dish icons beside relevant items (not drinks) — cohesive style, not cluttered.'
+    ? 'Beside each food item (not drinks), place a small photorealistic photograph of that exact dish. Real food photography only: natural light, real texture, real plate or bowl, looks like a photo of the actual food. Do NOT draw, illustrate, use icons, cartoons, watercolor, vector, or clipart. If the brief says illustration or minh họa, still render those dish images as real photographs.'
     : 'Text-only menu layout — NO food photos or dish illustrations; use typography, dividers, and decorative graphic elements only.'
 
   const parts = [

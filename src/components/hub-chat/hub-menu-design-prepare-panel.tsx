@@ -39,11 +39,8 @@ const COPY: Record<
     namePlaceholder: string
     unitPlaceholder: string
     pricePlaceholder: string
-    productUploadLabel: string
-    productUploadBtn: string
     finishFlow: string
     savedCount: string
-    photoCount: string
   }
 > = {
   vi: {
@@ -77,11 +74,8 @@ const COPY: Record<
     namePlaceholder: 'Phở bò tái',
     unitPlaceholder: 'tô',
     pricePlaceholder: '65000',
-    productUploadLabel: 'Ảnh món tham khảo (tùy chọn)',
-    productUploadBtn: 'Tải ảnh món',
     finishFlow: 'Hoàn tất quy trình',
     savedCount: 'Đã lưu {n} menu',
-    photoCount: '{n} ảnh',
   },
   en: {
     title: 'Design menu',
@@ -113,11 +107,8 @@ const COPY: Record<
     namePlaceholder: 'Beef pho',
     unitPlaceholder: 'bowl',
     pricePlaceholder: '65000',
-    productUploadLabel: 'Reference dish photos (optional)',
-    productUploadBtn: 'Upload dish photos',
     finishFlow: 'Finish flow',
     savedCount: '{n} menu(s) saved',
-    photoCount: '{n} photo(s)',
   },
   zh: {
     title: '设计菜单',
@@ -147,11 +138,8 @@ const COPY: Record<
     namePlaceholder: '牛肉河粉',
     unitPlaceholder: '碗',
     pricePlaceholder: '65000',
-    productUploadLabel: '菜品参考图（可选）',
-    productUploadBtn: '上传菜品图',
     finishFlow: '完成流程',
     savedCount: '已保存 {n} 个菜单',
-    photoCount: '{n} 张图',
   },
   ja: {
     title: 'メニューデザイン',
@@ -183,11 +171,8 @@ const COPY: Record<
     namePlaceholder: '牛肉フォー',
     unitPlaceholder: '杯',
     pricePlaceholder: '65000',
-    productUploadLabel: '料理参考写真（任意）',
-    productUploadBtn: '料理写真をアップロード',
     finishFlow: 'フローを完了',
     savedCount: 'メニュー {n} 件保存済み',
-    photoCount: '{n} 枚',
   },
   ko: {
     title: '메뉴 디자인',
@@ -219,11 +204,8 @@ const COPY: Record<
     namePlaceholder: '쇠고기 쌀국수',
     unitPlaceholder: '그릇',
     pricePlaceholder: '65000',
-    productUploadLabel: '메뉴 참고 사진(선택)',
-    productUploadBtn: '메뉴 사진 업로드',
     finishFlow: '플로우 완료',
     savedCount: '메뉴 {n}개 저장됨',
-    photoCount: '{n}장',
   },
 }
 
@@ -234,7 +216,6 @@ export function HubMenuDesignPreparePanel({
   logoUrl,
   dishes,
   dishesBulkText,
-  uploadImages,
   approvedMenuCount,
   busy,
   onSelectFormat,
@@ -246,7 +227,6 @@ export function HubMenuDesignPreparePanel({
   onDishesBulkTextChange,
   onDishesBulkTextCommit,
   onDishesCommit,
-  onUploadProductFiles,
   onFinishFlow,
 }: {
   locale: WebLocale
@@ -255,7 +235,6 @@ export function HubMenuDesignPreparePanel({
   logoUrl?: string | null
   dishes: MenuDishItem[]
   dishesBulkText: string
-  uploadImages: string[]
   approvedMenuCount: number
   busy: boolean
   onSelectFormat: (presetId: MenuFormatPresetId) => void | Promise<void>
@@ -267,7 +246,6 @@ export function HubMenuDesignPreparePanel({
   onDishesBulkTextChange: (text: string) => void
   onDishesBulkTextCommit?: (text: string) => void | Promise<void>
   onDishesCommit?: (dishes: MenuDishItem[]) => void | Promise<void>
-  onUploadProductFiles: (files: FileList) => void | Promise<void>
   onFinishFlow: () => void | Promise<void>
 }) {
   const t = COPY[locale]
@@ -475,35 +453,6 @@ export function HubMenuDesignPreparePanel({
             {t.addDish}
           </Button>
         </div>
-      </div>
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-emerald-900 dark:text-emerald-100">{t.productUploadLabel}</label>
-        <label className="flex cursor-pointer items-center gap-2">
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            className="sr-only"
-            disabled={busy}
-            onChange={(e) => {
-              const files = e.target.files
-              if (files?.length) void onUploadProductFiles(files)
-              e.target.value = ''
-            }}
-          />
-          <Button type="button" size="sm" variant="outline" className="h-8 gap-1 text-xs" disabled={busy} asChild>
-            <span>
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="h-3.5 w-3.5" />}
-              {t.productUploadBtn}
-            </span>
-          </Button>
-          {uploadImages.length > 0 ? (
-            <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
-              {t.photoCount.replace('{n}', String(uploadImages.length))}
-            </span>
-          ) : null}
-        </label>
       </div>
 
       {approvedMenuCount > 0 ? (

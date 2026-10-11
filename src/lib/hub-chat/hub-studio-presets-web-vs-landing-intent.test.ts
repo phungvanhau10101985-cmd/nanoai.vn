@@ -34,12 +34,12 @@ test('only explicit landing / ladipage phrases are landing intent', () => {
   ]) {
     assert.equal(matchesLandingPageIntent(phrase), true, phrase)
     assert.equal(matchesWebAppDesignIntent(phrase), false, phrase)
-    assert.equal(matchStudioPreset(phrase)?.id, 'landing_page', phrase)
+    assert.equal(matchStudioPreset(phrase), null, phrase)
   }
 })
 
-test('mixed web + landing wording prefers landing', () => {
+test('mixed web + landing wording does not open a hub', () => {
   assert.equal(matchesLandingPageIntent('tạo web landing page'), true)
   assert.equal(matchesWebAppDesignIntent('tạo web landing page'), false)
-  assert.equal(matchStudioPreset('tạo web landing page')?.id, 'landing_page')
+  assert.equal(matchStudioPreset('tạo web landing page'), null)
 })

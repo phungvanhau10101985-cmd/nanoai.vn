@@ -78,6 +78,8 @@ import {
   resolveCoverFrameOpen,
   resolveOpenBurstEffect,
   resolveOpenFallEffect,
+  resolveOpenFallSeconds,
+  openFallSecondsStopIndex,
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
@@ -91,6 +93,7 @@ import {
   type WeddingPortraitShellFrame,
   WEDDING_OPEN_BURST_EFFECTS,
   WEDDING_OPEN_FALL_EFFECTS,
+  WEDDING_OPEN_FALL_SECOND_STOPS,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
 import { WeddingCoverPresetPicker } from '@/components/wedding/wedding-cover-preset-picker'
@@ -594,6 +597,7 @@ export default function WeddingCardAiClientPage() {
   const coverFrameOpen = resolveCoverFrameOpen(sectionConfig)
   const openBurstEffect = resolveOpenBurstEffect(sectionConfig)
   const openFallEffect = resolveOpenFallEffect(sectionConfig)
+  const openFallSeconds = resolveOpenFallSeconds(sectionConfig)
   const coverPhotoPositionX = sectionConfig.coverPhotoPositionX ?? 50
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -1264,7 +1268,7 @@ export default function WeddingCardAiClientPage() {
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
   }
 
-  const setOpenCelebration = (patch: { openBurstEffect?: WeddingOpenBurstEffect; openFallEffect?: WeddingOpenFallEffect }) => {
+  const setOpenCelebration = (patch: { openBurstEffect?: WeddingOpenBurstEffect; openFallEffect?: WeddingOpenFallEffect; openFallSeconds?: number }) => {
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
   }
 
@@ -2572,6 +2576,32 @@ export default function WeddingCardAiClientPage() {
                         </select>
                         <span className="mt-1 block">{tBrief.openFallHint}</span>
                       </label>
+                      {openFallEffect !== 'none' ? (
+                        <label className="block text-xs text-muted-foreground sm:col-span-2">
+                          <span className="flex items-center justify-between gap-3">
+                            <span>{tBrief.openFallDurationLabel}</span>
+                            <span className="font-medium text-foreground">
+                              {openFallSeconds <= 0
+                                ? tBrief.openFallDurationForever
+                                : tBrief.openFallDurationSeconds.replace('{n}', String(openFallSeconds))}
+                            </span>
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={WEDDING_OPEN_FALL_SECOND_STOPS.length - 1}
+                            step={1}
+                            value={openFallSecondsStopIndex(openFallSeconds)}
+                            onChange={(event) => {
+                              const stop = WEDDING_OPEN_FALL_SECOND_STOPS[Number(event.target.value)]
+                              if (stop === undefined) return
+                              setOpenCelebration({ openFallSeconds: stop })
+                            }}
+                            className="mt-2 h-2 w-full cursor-pointer accent-indigo-600"
+                          />
+                          <span className="mt-1 block">{tBrief.openFallDurationHint}</span>
+                        </label>
+                      ) : null}
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={() => setOpenEffectPreview((n) => n + 1)}>
                       {tBrief.openEffectPreview}
@@ -2582,6 +2612,7 @@ export default function WeddingCardAiClientPage() {
                         play
                         burst={openBurstEffect}
                         fall={openFallEffect}
+                        fallSeconds={openFallSeconds}
                         span="preview"
                       />
                     ) : null}

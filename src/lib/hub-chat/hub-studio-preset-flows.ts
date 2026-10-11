@@ -56,39 +56,6 @@ export const MOBILE_SHOP_FLOW: StudioFlowStepDef[] = [
   { key: 'policy_desktop', labelKey: 'policy_desktop', phase: 'design', generator: 'ui_desktop', formFactor: 'desktop' },
 ]
 
-export const SALE_BANNER_FLOW: StudioFlowStepDef[] = [
-  { key: 'domain_name', labelKey: 'domain_name', phase: 'discovery' },
-  { key: 'campaign_name', labelKey: 'campaign_name', phase: 'discovery' },
-  { key: 'product_offer', labelKey: 'product_offer', phase: 'discovery' },
-  { key: 'discount_cta', labelKey: 'discount_cta', phase: 'discovery' },
-  { key: 'brand_style', labelKey: 'brand_style', phase: 'discovery' },
-  { key: 'color_tone', labelKey: 'color_tone', phase: 'discovery' },
-  { key: 'banner_style', labelKey: 'banner_style', phase: 'discovery' },
-  { key: 'banner_model', labelKey: 'banner_model', phase: 'discovery' },
-  {
-    key: 'banner_design',
-    labelKey: 'banner_design',
-    phase: 'design',
-    generator: 'banner',
-    formFactor: 'desktop',
-  },
-]
-
-export const BRAND_KIT_FLOW: StudioFlowStepDef[] = [
-  { key: 'brand_name', labelKey: 'brand_name', phase: 'discovery' },
-  { key: 'industry', labelKey: 'industry', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'tagline', labelKey: 'tagline', phase: 'discovery' },
-  { key: 'logo_primary', labelKey: 'logo_primary', phase: 'design', generator: 'logo', formFactor: 'square' },
-  { key: 'logo_icon', labelKey: 'logo_icon', phase: 'design', generator: 'logo', formFactor: 'square' },
-  { key: 'banner_web', labelKey: 'banner_web', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'banner_social', labelKey: 'banner_social', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'product_label', labelKey: 'product_label', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'sticker', labelKey: 'sticker', phase: 'design', generator: 'logo', formFactor: 'square' },
-  { key: 'biz_card', labelKey: 'biz_card', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-]
-
 export const LANDING_PAGE_FLOW: StudioFlowStepDef[] = [
   { key: 'product_name', labelKey: 'product_name', phase: 'discovery' },
   { key: 'value_prop', labelKey: 'value_prop', phase: 'discovery' },
@@ -117,31 +84,6 @@ export const PRODUCT_LISTING_FLOW: StudioFlowStepDef[] = [
   { key: 'product_detail', labelKey: 'product_detail', phase: 'design', generator: 'product_photo', aspectRatio: '1:1', formFactor: 'square' },
   { key: 'promo_banner_sq', labelKey: 'promo_banner_sq', phase: 'design', generator: 'banner', aspectRatio: '1:1', platform: 'shopee', formFactor: 'square' },
   { key: 'promo_banner_story', labelKey: 'promo_banner_story', phase: 'design', generator: 'banner', aspectRatio: '9:16', platform: 'tiktok', formFactor: 'mobile' },
-]
-
-export const AD_MUSIC_FLOW: StudioFlowStepDef[] = [
-  { key: 'brand_product', labelKey: 'brand_product', phase: 'discovery' },
-  { key: 'mood_feel', labelKey: 'mood_feel', phase: 'discovery' },
-  { key: 'tempo', labelKey: 'tempo', phase: 'discovery' },
-  { key: 'instruments', labelKey: 'instruments', phase: 'discovery' },
-  { key: 'ad_platform', labelKey: 'ad_platform', phase: 'discovery' },
-  { key: 'duration_feel', labelKey: 'duration_feel', phase: 'discovery' },
-  { key: 'track_main', labelKey: 'track_main', phase: 'design', generator: 'lyria_music' },
-  { key: 'track_short', labelKey: 'track_short', phase: 'design', generator: 'lyria_music' },
-  { key: 'track_alt', labelKey: 'track_alt', phase: 'design', generator: 'lyria_music' },
-]
-
-export const LOOKBOOK_FLOW: StudioFlowStepDef[] = [
-  { key: 'collection_name', labelKey: 'collection_name', phase: 'discovery' },
-  { key: 'season_theme', labelKey: 'season_theme', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'model_vibe', labelKey: 'model_vibe', phase: 'discovery' },
-  { key: 'hero_look', labelKey: 'hero_look', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'grid_look', labelKey: 'grid_look', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'look_detail_1', labelKey: 'look_detail_1', phase: 'design', generator: 'product_photo', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'look_detail_2', labelKey: 'look_detail_2', phase: 'design', generator: 'product_photo', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'catalog_cover', labelKey: 'catalog_cover', phase: 'design', generator: 'banner', aspectRatio: '9:16', formFactor: 'mobile' },
 ]
 
 export const PACKAGING_KIT_FLOW: StudioFlowStepDef[] = [
@@ -173,87 +115,6 @@ const LEGACY_PACKAGING_STEPS: StudioFlowStepDef[] = [
   { key: 'face_lxh', labelKey: 'face_lxh', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
   { key: 'face_wxh', labelKey: 'face_wxh', phase: 'design', generator: 'packaging_face', formFactor: 'square' },
   { key: 'body_strip', labelKey: 'body_strip', phase: 'design', generator: 'packaging_face', formFactor: 'desktop' },
-]
-
-export const INTERIOR_DESIGN_FLOW: StudioFlowStepDef[] = [
-  { key: 'space_type', labelKey: 'space_type', phase: 'discovery' },
-  { key: 'area_size', labelKey: 'area_size', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'budget_tier', labelKey: 'budget_tier', phase: 'discovery' },
-  { key: 'living_room', labelKey: 'living_room', phase: 'design', generator: 'interior', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'kitchen', labelKey: 'kitchen', phase: 'design', generator: 'interior', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'bedroom', labelKey: 'bedroom', phase: 'design', generator: 'interior', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'facade', labelKey: 'facade', phase: 'design', generator: 'interior', aspectRatio: '16:9', formFactor: 'desktop' },
-]
-
-export const SOCIAL_MEDIA_KIT_FLOW: StudioFlowStepDef[] = [
-  { key: 'brand_name', labelKey: 'brand_name', phase: 'discovery' },
-  { key: 'content_theme', labelKey: 'content_theme', phase: 'discovery' },
-  { key: 'tone_voice', labelKey: 'tone_voice', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'platforms', labelKey: 'platforms', phase: 'discovery' },
-  { key: 'logo_avatar', labelKey: 'logo_avatar', phase: 'design', generator: 'logo', formFactor: 'square' },
-  { key: 'post_square', labelKey: 'post_square', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'story_916', labelKey: 'story_916', phase: 'design', generator: 'banner', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'facebook_cover', labelKey: 'facebook_cover', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'pinterest_pin', labelKey: 'pinterest_pin', phase: 'design', generator: 'banner', aspectRatio: '9:16', formFactor: 'mobile' },
-]
-
-export const STORY_WITH_IMAGES_FLOW: StudioFlowStepDef[] = [
-  { key: 'story_title', labelKey: 'story_title', phase: 'discovery' },
-  { key: 'audience_age', labelKey: 'audience_age', phase: 'discovery' },
-  { key: 'plot_summary', labelKey: 'plot_summary', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  {
-    key: 'main_character',
-    labelKey: 'main_character',
-    phase: 'design',
-    generator: 'story_panel',
-    referenceAnchor: true,
-    aspectRatio: '1:1',
-    formFactor: 'square',
-  },
-  { key: 'page_1', labelKey: 'page_1', phase: 'design', generator: 'story_panel', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'page_2', labelKey: 'page_2', phase: 'design', generator: 'story_panel', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'page_3', labelKey: 'page_3', phase: 'design', generator: 'story_panel', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'page_4', labelKey: 'page_4', phase: 'design', generator: 'story_panel', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'cover', labelKey: 'cover', phase: 'design', generator: 'story_panel', aspectRatio: '9:16', formFactor: 'mobile' },
-]
-
-export const INFOGRAPHIC_SERIES_FLOW: StudioFlowStepDef[] = [
-  { key: 'topic_focus', labelKey: 'topic_focus', phase: 'discovery' },
-  { key: 'audience', labelKey: 'audience', phase: 'discovery' },
-  { key: 'visual_style', labelKey: 'visual_style', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'slide_hook', labelKey: 'slide_hook', phase: 'design', generator: 'infographic', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'slide_2', labelKey: 'slide_2', phase: 'design', generator: 'infographic', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'slide_3', labelKey: 'slide_3', phase: 'design', generator: 'infographic', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'slide_4', labelKey: 'slide_4', phase: 'design', generator: 'infographic', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'slide_summary', labelKey: 'slide_summary', phase: 'design', generator: 'infographic', aspectRatio: '16:9', formFactor: 'desktop' },
-]
-
-export const FASHION_CAMPAIGN_FLOW: StudioFlowStepDef[] = [
-  { key: 'collection_name', labelKey: 'collection_name', phase: 'discovery' },
-  { key: 'season_theme', labelKey: 'season_theme', phase: 'discovery' },
-  { key: 'style_mood', labelKey: 'style_mood', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'target_channel', labelKey: 'target_channel', phase: 'discovery' },
-  { key: 'hero_look', labelKey: 'hero_look', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
-  { key: 'outfit_try_1', labelKey: 'outfit_try_1', phase: 'design', generator: 'product_photo', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'outfit_try_2', labelKey: 'outfit_try_2', phase: 'design', generator: 'product_photo', aspectRatio: '9:16', formFactor: 'mobile' },
-  { key: 'sale_banner', labelKey: 'sale_banner', phase: 'design', generator: 'banner', aspectRatio: '1:1', formFactor: 'square' },
-]
-
-export const PROFILE_PHOTO_PACK_FLOW: StudioFlowStepDef[] = [
-  { key: 'profession', labelKey: 'profession', phase: 'discovery' },
-  { key: 'tone_formal', labelKey: 'tone_formal', phase: 'discovery' },
-  { key: 'color_palette', labelKey: 'color_palette', phase: 'discovery' },
-  { key: 'id_white', labelKey: 'id_white', phase: 'design', generator: 'portrait', aspectRatio: '3:4', formFactor: 'mobile' },
-  { key: 'id_blue', labelKey: 'id_blue', phase: 'design', generator: 'portrait', aspectRatio: '3:4', formFactor: 'mobile' },
-  { key: 'linkedin_profile', labelKey: 'linkedin_profile', phase: 'design', generator: 'portrait', aspectRatio: '1:1', formFactor: 'square' },
-  { key: 'personal_banner', labelKey: 'personal_banner', phase: 'design', generator: 'banner', aspectRatio: '16:9', formFactor: 'desktop' },
 ]
 
 export const BAG_KIT_FLOW: StudioFlowStepDef[] = [
@@ -329,22 +190,10 @@ export const CATALOG_PHOTO_PACK_FLOW: StudioFlowStepDef[] = [
 
 export const PRESET_FLOW_MAP: Record<string, StudioFlowStepDef[]> = {
   mobile_shop: MOBILE_SHOP_FLOW,
-  sale_banner: SALE_BANNER_FLOW,
-  brand_kit: BRAND_KIT_FLOW,
-  landing_page: LANDING_PAGE_FLOW,
   product_listing: PRODUCT_LISTING_FLOW,
-  ad_music: AD_MUSIC_FLOW,
-  lookbook: LOOKBOOK_FLOW,
   packaging_kit: PACKAGING_KIT_FLOW,
-  interior_design: INTERIOR_DESIGN_FLOW,
-  social_media_kit: SOCIAL_MEDIA_KIT_FLOW,
-  story_with_images: STORY_WITH_IMAGES_FLOW,
-  infographic_series: INFOGRAPHIC_SERIES_FLOW,
-  fashion_campaign: FASHION_CAMPAIGN_FLOW,
-  profile_photo_pack: PROFILE_PHOTO_PACK_FLOW,
   food_menu: FOOD_MENU_FLOW,
   bag_kit: BAG_KIT_FLOW,
-  design_recreate: DESIGN_RECREATE_FLOW,
   catalog_photo_pack: CATALOG_PHOTO_PACK_FLOW,
 }
 

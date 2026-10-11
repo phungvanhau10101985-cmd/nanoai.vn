@@ -77,7 +77,7 @@ test('reconcile advances to box_face_confirm when dimensions in briefNotes', () 
 })
 
 test('reconcile does not mark brand done when brief echoes preset chip title', () => {
-  const title = 'Bộ đóng gói / bao bì'
+  const title = 'Thiết kế hộp giấy'
   let session = packagingDiscoverySession({
     briefNotes: { brand_name: title },
     processSteps: buildStepsFromPreset('vi', 'packaging_kit'),
@@ -91,7 +91,7 @@ test('reconcile does not mark brand done when brief echoes preset chip title', (
 })
 
 test('reconcile rewinds brand when brief wrongly used preset chip title', () => {
-  const title = 'Bộ đóng gói / bao bì'
+  const title = 'Thiết kế hộp giấy'
   let session = packagingDiscoverySession({
     briefNotes: { brand_name: title },
     processSteps: buildStepsFromPreset('vi', 'packaging_kit').map((s) =>
@@ -111,7 +111,7 @@ test('reconcile rewinds brand when brief wrongly used preset chip title', () => 
 })
 
 test('isPresetTitleEcho detects packaging preset chip label', () => {
-  assert.equal(isPresetTitleEcho('vi', 'packaging_kit', 'Bộ đóng gói / bao bì'), true)
+  assert.equal(isPresetTitleEcho('vi', 'packaging_kit', 'Thiết kế hộp giấy'), true)
   assert.equal(isPresetTitleEcho('vi', 'packaging_kit', 'TSP'), false)
 })
 
@@ -132,24 +132,24 @@ test('syncDiscoveryCurrentStep skips rewind when navigated back on design steps'
 })
 
 test('reconcile sets discoveryComplete when all discovery steps done but flag stale', () => {
-  const steps = buildStepsFromPreset('vi', 'landing_page')
+  const steps = buildStepsFromPreset('vi', 'food_menu')
   const doneDiscovery = steps.map((s) =>
-    s.key === 'landing_full' ? s : { ...s, status: 'done' as const }
+    s.key === 'menu_design' ? s : { ...s, status: 'done' as const }
   )
   let session: HubStudioSession = {
-    projectTitle: 'Glow Lab',
-    presetId: 'landing_page',
+    projectTitle: 'Phở Bò',
+    presetId: 'food_menu',
     uploadImages: [],
     briefNotes: {
-      product_name: 'Glow Lab',
-      value_prop: 'Skincare',
-      target_audience: 'Women 25-40',
-      style_mood: 'Clean',
-      color_palette: '#112233',
+      venue_name: 'Phở Bò Hà Nội',
+      menu_type: 'Treo tường',
+      food_illustration: 'Không ảnh',
+      menu_style: 'Tối giản',
+      color_tone: 'Nâu gỗ',
     },
     discoveryComplete: false,
     processSteps: doneDiscovery,
-    currentStepKey: 'landing_full',
+    currentStepKey: 'menu_design',
     referenceImages: [],
     pendingPreview: null,
     lastGenerationPrompt: null,
@@ -157,5 +157,5 @@ test('reconcile sets discoveryComplete when all discovery steps done but flag st
 
   session = reconcileDiscoveryProgress(session)
   assert.equal(session.discoveryComplete, true)
-  assert.equal(session.currentStepKey, 'landing_full')
+  assert.equal(session.currentStepKey, 'menu_design')
 })

@@ -1,7 +1,7 @@
 /** Studio preset copy — 7 new seamless flows (Vietnamese) */
 export const NEW_PRESETS_VI = {
   packaging_kit: {
-    title: 'Bộ đóng gói / bao bì',
+    title: 'Thiết kế hộp giấy',
     kickoff:
       'Thiết kế hộp carton kỹ thuật từ Logo → tạo tuần tự đủ 6 mặt trên|trước|phải|dưới|sau|trái → mockup 3D → Dieline PDF → nhãn → tem → mã vạch thật.',
     steps: {
@@ -70,174 +70,7 @@ export const NEW_PRESETS_VI = {
       barcode_label: 'Mã vạch thật: tự lấy tên SP từ brief; mã SP (vd. mã SP: 188-SRM-001). Mặc định Code128 — hoặc ghi EAN-13/QR nếu cần.',
     },
   },
-  interior_design: {
-    title: 'Nội thất / ngoại thất',
-    kickoff:
-      'Thiết kế liền mạch các không gian trong cùng một căn. Tải mặt bằng hoặc ảnh phòng hiện tại — sau đó tạo từng phòng với style thống nhất.',
-    uploadHint: 'Tải mặt bằng hoặc ảnh phòng (1–3 ảnh)',
-    steps: {
-      space_type: 'Brief: Loại không gian',
-      area_size: 'Brief: Diện tích',
-      style_mood: 'Brief: Phong cách',
-      color_palette: 'Brief: Màu sắc',
-      budget_tier: 'Brief: Phân khúc',
-      living_room: 'Phòng khách',
-      kitchen: 'Phòng bếp',
-      bedroom: 'Phòng ngủ',
-      facade: 'Mặt tiền / ngoại thất',
-    },
-    asks: {
-      space_type: '① Nhà phố, căn hộ, biệt thự hay văn phòng?',
-      area_size: '② Diện tích ước lượng? (m²)',
-      style_mood: '③ Phong cách: Scandinavian / Japandi / modern luxury / industrial?',
-      color_palette: '④ Tông màu chủ đạo?',
-      budget_tier: '⑤ Phân khúc: tiết kiệm / trung / cao cấp?',
-      living_room: 'Phòng khách: sofa, TV wall, ánh sáng, vật liệu?',
-      kitchen: 'Bếp: layout chữ L/U, tủ, đảo bếp?',
-      bedroom: 'Phòng ngủ: giường, tủ, rèm, mood?',
-      facade: 'Mặt tiền: số tầng, lan can, cây xanh?',
-    },
-  },
-  social_media_kit: {
-    title: 'Bộ social media',
-    kickoff:
-      'Tạo bộ nội dung shop/cá nhân: Logo/avatar → post vuông → story → cover Facebook → pin Pinterest. Giữ đồng bộ màu và typography.',
-    steps: {
-      brand_name: 'Brief: Tên / shop',
-      content_theme: 'Brief: Chủ đề nội dung',
-      tone_voice: 'Brief: Giọng điệu',
-      color_palette: 'Brief: Màu sắc',
-      platforms: 'Brief: Nền tảng',
-      logo_avatar: 'Logo / Avatar',
-      post_square: 'Post vuông 1:1',
-      story_916: 'Story 9:16',
-      facebook_cover: 'Cover Facebook',
-      pinterest_pin: 'Pin Pinterest',
-    },
-    asks: {
-      brand_name: '① Tên shop / thương hiệu cá nhân?',
-      content_theme: '② Chủ đề chính? (thời trang, mỹ phẩm, F&B…)',
-      tone_voice: '③ Giọng điệu: vui / sang / chuyên gia / Gen Z?',
-      color_palette: '④ Màu chủ đạo feed?',
-      platforms: '⑤ Đăng chính ở đâu? (IG, FB, Pinterest, TikTok…)',
-      logo_avatar: 'Logo/avatar: icon, chữ, vibe?',
-      post_square: 'Post vuông: headline, visual chính, CTA?',
-      story_916: 'Story: full màn, sticker CTA, swipe up?',
-      facebook_cover: 'Cover FB: slogan, ảnh hero, logo?',
-      pinterest_pin: 'Pin dọc: hook text, mood board?',
-    },
-  },
-  story_with_images: {
-    title: 'Kể chuyện bằng hình',
-    kickoff:
-      'Tạo truyện tranh / sách ảnh từng trang. Thiết kế nhân vật chính trước (tham chiếu) → 4 trang nội dung → bìa.',
-    steps: {
-      story_title: 'Brief: Tên truyện',
-      audience_age: 'Brief: Độ tuổi độc giả',
-      plot_summary: 'Brief: Tóm tắt cốt',
-      style_mood: 'Brief: Phong cách minh họa',
-      color_palette: 'Brief: Màu sắc',
-      main_character: 'Nhân vật chính',
-      page_1: 'Trang 1',
-      page_2: 'Trang 2',
-      page_3: 'Trang 3',
-      page_4: 'Trang 4',
-      cover: 'Bìa truyện',
-    },
-    asks: {
-      story_title: '① Tên truyện / sách?',
-      audience_age: '② Độc giả mấy tuổi? (3–6, 7–12, teen…)',
-      plot_summary: '③ Tóm tắt cốt truyện (3–5 câu)?',
-      style_mood: '④ Style: watercolor / flat / 3D cute / comic?',
-      color_palette: '⑤ Palette màu?',
-      main_character: 'Nhân vật chính: ngoại hình, trang phục, biểu cảm đặc trưng?',
-      page_1: 'Trang 1: cảnh mở đầu, hành động, thoại placeholder?',
-      page_2: 'Trang 2: xung đột / thử thách?',
-      page_3: 'Trang 3: cao trào?',
-      page_4: 'Trang 4: kết thúc / bài học?',
-      cover: 'Bìa: title, nhân vật, background?',
-    },
-  },
-  infographic_series: {
-    title: 'Infographic series',
-    kickoff:
-      'Tóm tắt sách/tài liệu thành bộ slide infographic. Tải ảnh trang sách hoặc PDF scan — brief chủ đề rồi tạo từng slide đồng bộ.',
-    uploadHint: 'Tải ảnh sách/tài liệu nguồn (1–5 trang)',
-    steps: {
-      topic_focus: 'Brief: Chủ đề trọng tâm',
-      audience: 'Brief: Đối tượng',
-      visual_style: 'Brief: Style visual',
-      color_palette: 'Brief: Màu sắc',
-      slide_hook: 'Slide 1 — Hook',
-      slide_2: 'Slide 2',
-      slide_3: 'Slide 3',
-      slide_4: 'Slide 4',
-      slide_summary: 'Slide tổng kết',
-    },
-    asks: {
-      topic_focus: '① Chủ đề cần tóm tắt? (1 câu)',
-      audience: '② Ai xem? (học sinh, phụ huynh, chuyên gia…)',
-      visual_style: '③ Style: flat icon / hand-drawn / corporate?',
-      color_palette: '④ Màu slide?',
-      slide_hook: 'Slide hook: tiêu đề gây chú ý, 1 insight lớn?',
-      slide_2: 'Slide 2: ý chính thứ 2, icon minh họa?',
-      slide_3: 'Slide 3: số liệu / quy trình?',
-      slide_4: 'Slide 4: ví dụ / case?',
-      slide_summary: 'Slide tổng kết: takeaway, CTA?',
-    },
-  },
-  fashion_campaign: {
-    title: 'Campaign thời trang',
-    kickoff:
-      'Chiến dịch look + try-on: tải ảnh mẫu/sản phẩm → hero look → 2 outfit try-on → banner sale. Giữ BST và màu đồng bộ.',
-    uploadHint: 'Tải ảnh mẫu / trang phục (1–5 ảnh)',
-    steps: {
-      collection_name: 'Brief: Tên BST',
-      season_theme: 'Brief: Mùa / theme',
-      style_mood: 'Brief: Phong cách',
-      color_palette: 'Brief: Palette',
-      target_channel: 'Brief: Kênh',
-      hero_look: 'Hero look',
-      outfit_try_1: 'Try-on outfit 1',
-      outfit_try_2: 'Try-on outfit 2',
-      sale_banner: 'Banner sale',
-    },
-    asks: {
-      collection_name: '① Tên bộ sưu tập / campaign?',
-      season_theme: '② Mùa / theme? (SS26, streetwear, office…)',
-      style_mood: '③ Mood: editorial / casual / sporty?',
-      color_palette: '④ Palette BST?',
-      target_channel: '⑤ Kênh: IG, TikTok Shop, website?',
-      hero_look: 'Hero look: full body, typography campaign?',
-      outfit_try_1: 'Outfit 1: món nào, pose, bối cảnh?',
-      outfit_try_2: 'Outfit 2: mix khác, phụ kiện?',
-      sale_banner: 'Banner sale: % giảm, CTA, màu nổi?',
-    },
-  },
-  profile_photo_pack: {
-    title: 'Bộ ảnh thẻ / profile',
-    kickoff:
-      'Tạo bộ ảnh chuyên nghiệp từ 1 ảnh gốc: ảnh thẻ trắng → xanh → LinkedIn → banner cá nhân. Giữ khuôn mặt nhất quán.',
-    uploadHint: 'Tải ảnh chân dung gốc (1 ảnh rõ mặt)',
-    steps: {
-      profession: 'Brief: Nghề / ngành',
-      tone_formal: 'Brief: Mức trang trọng',
-      color_palette: 'Brief: Tông màu',
-      id_white: 'Ảnh thẻ nền trắng',
-      id_blue: 'Ảnh thẻ nền xanh',
-      linkedin_profile: 'Profile LinkedIn',
-      personal_banner: 'Banner cá nhân',
-    },
-    asks: {
-      profession: '① Nghề / ngành? (IT, marketing, y tế…)',
-      tone_formal: '② Trang trọng: formal / business casual / sáng tạo?',
-      color_palette: '③ Tông áo / nền ưu tiên?',
-      id_white: 'Ảnh thẻ trắng: crop vai đầu, ánh sáng studio?',
-      id_blue: 'Ảnh thẻ xanh: tone chuẩn hành chính?',
-      linkedin_profile: 'LinkedIn: nụ cười nhẹ, nền blur văn phòng?',
-      personal_banner: 'Banner: tên, chức danh, gradient brand cá nhân?',
-    },
-  },
+
   bag_kit: {
     title: 'Thiết kế túi đựng',
     kickoff:
@@ -289,11 +122,10 @@ export const NEW_PRESETS_VI = {
     title: 'Thiết kế menu quán ăn',
     kickoff:
       'Thiết kế menu / thực đơn cho quán ăn, quán nước, cafe. Trả lời brief phong cách trước — sau đó nhập danh sách món và tạo menu.',
-    uploadHint: 'Tải ảnh món tham khảo (tùy chọn) — AI ghép vào menu nếu bạn chọn có ảnh minh họa.',
     steps: {
       venue_name: 'Brief: Tên quán',
       menu_type: 'Brief: Kiểu menu',
-      food_illustration: 'Brief: Ảnh minh họa món',
+      food_illustration: 'Brief: Ảnh món',
       menu_style: 'Brief: Phong cách',
       color_tone: 'Brief: Tông màu',
       menu_design: 'Thiết kế menu',
@@ -308,7 +140,7 @@ export const NEW_PRESETS_VI = {
       menu_type:
         '② Kiểu menu: treo tường A4, menu cuốn, bảng đứng, menu bàn (tent), menu digital trên màn hình?',
       food_illustration:
-        '③ Có ảnh minh họa món trên menu không? (Có — ảnh món appetizing / Không — chỉ chữ & trang trí)',
+        '③ Có ảnh món trên menu không? (Có — ảnh chụp thật của món / Không — chỉ chữ & trang trí)',
       menu_style:
         '④ Phong cách: vintage / hiện đại / tối giản / truyền thống Việt / rustic / luxury cafe?',
       color_tone: '⑤ Tông màu ưu tiên? (vd: nâu gỗ + kem, xanh lá + trắng, đen vàng sang)',
@@ -318,57 +150,13 @@ export const NEW_PRESETS_VI = {
     askExamples: {
       venue_name: 'Phở Bò Hà Nội — 123 Lê Lợi',
       menu_type: 'Menu treo tường A4 dọc — in 2 mặt',
-      food_illustration: 'Có — ảnh minh họa món bên cạnh tên món',
+      food_illustration: 'Có — ảnh chụp thật của món bên cạnh tên món',
       menu_style: 'Truyền thống Việt hiện đại — typography rõ, viền trang trí nhẹ',
       color_tone: 'Nâu gỗ + kem ấm, chữ đen',
       menu_design: 'Phở bò 65.000đ · Bún chả 55.000đ · Cà phê sữa 25.000đ',
     },
   },
-  design_recreate: {
-    title: 'Dựng lại thiết kế từ mẫu',
-    kickoff:
-      'Gửi ảnh mẫu → chọn mảng / định dạng / phong cách render → AI phân tích → ngôn ngữ trên bản thiết kế → **logo (bắt buộc)** → bảng concept (có gắn logo).',
-    uploadHint: 'Tải ảnh mẫu sản phẩm — tối đa 4 góc (trước, sau, bên, chi tiết)',
-    steps: {
-      design_sector: 'Brief: Mảng thiết kế',
-      design_format: 'Brief: Định dạng output',
-      render_style: 'Brief: Phong cách render',
-      sample_upload: 'Brief: Ảnh mẫu',
-      color_palette: 'Brief: Bảng màu',
-      design_notes: 'Brief: Ghi chú thêm',
-      design_language: 'Brief: Ngôn ngữ trên bản thiết kế',
-      logo: 'Logo',
-      concept_sheet: 'Bảng concept đầy đủ',
-      detail_panel: 'Panel chi tiết cận',
-      technical_flat: 'Bản vẽ kỹ thuật',
-    },
-    asks: {
-      design_sector: '① Chọn mảng thiết kế bên dưới.',
-      design_format: '② Chọn định dạng output bên dưới.',
-      render_style: '③ Chọn phong cách render bên dưới.',
-      sample_upload:
-        '④ **Tải ảnh mẫu** — tối đa 4 ảnh các góc (trước, sau, bên, chi tiết thêu/cổ/tay). AI sẽ phân tích để dựng lại thiết kế.',
-      color_palette: '⑤ Bảng màu ưu tiên? (vd: hồng đào + kem + vàng kim — hoặc để AI tự trích từ ảnh mẫu)',
-      design_notes: '⑥ Chọn ghi chú thêm bên dưới (hoặc Khác — nhập tay).',
-      design_language: '⑦ Chọn ngôn ngữ cho chữ/nhãn trên bản thiết kế bên dưới.',
-      logo:
-        'Logo (bắt buộc) sẽ gắn trên bản thiết kế: **đã có logo** → bấm **Tải logo**; **chưa có** → mô tả bên dưới để AI tạo. Phải duyệt logo trước khi sang bảng concept.',
-      concept_sheet:
-        'Chọn kiểu bảng concept bên dưới (luôn có đoạn text CẢM HỨNG + gắn logo đã duyệt).',
-      detail_panel: 'Chọn kiểu panel chi tiết cận bên dưới.',
-      technical_flat: 'Chọn kiểu bản vẽ kỹ thuật bên dưới.',
-    },
-    askExamples: {
-      design_sector: 'Thời trang — áo dài cách tân',
-      design_format: 'Bảng concept đầy đủ (giống lookbook thiết kế chuyên nghiệp)',
-      render_style: 'Bảng concept thời trang (màu nước + flat kỹ thuật)',
-      sample_upload: 'Đã tải 3 ảnh: trước, sau, chi tiết thêu',
-      color_palette: 'Hồng đào, kem be, xanh lá nhạt, vàng kim',
-      design_notes: 'Dịp Tết — phối quần rộng lụa + túi da beige + giày cao gót',
-      design_language: 'Tiếng Việt',
-      logo: 'Logo chữ cái monogram vàng kim trên nền trong suốt',
-    },
-  },
+
   catalog_photo_pack: {
     title: 'Ảnh bán hàng từ ảnh tự chụp',
     kickoff:

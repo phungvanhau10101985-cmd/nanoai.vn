@@ -16,16 +16,14 @@ test('matchesDesignRecreateAgainIntent requires lại + thiết kế', () => {
   assert.equal(matchesDesignRecreateAgainIntent('tạo lại'), false)
 })
 
-test('matchStudioPreset routes recreate phrases to design_recreate', () => {
-  assert.equal(matchStudioPreset('tạo lại bản thiết kế')?.id, 'design_recreate')
-  assert.equal(matchStudioPreset('Dựng lại thiết kế từ ảnh mẫu')?.id, 'design_recreate')
-  assert.equal(matchStudioPreset('làm lại bản thiết kế')?.id, 'design_recreate')
+test('matchStudioPreset does not open a hub for recreate phrases', () => {
+  assert.equal(matchStudioPreset('tạo lại bản thiết kế'), null)
+  assert.equal(matchStudioPreset('Dựng lại thiết kế từ ảnh mẫu'), null)
+  assert.equal(matchStudioPreset('làm lại bản thiết kế'), null)
 })
 
-test('matchFeatureFlowByMessage starts design_recreate for recreate phrases', () => {
-  const match = matchFeatureFlowByMessage('tạo lại bản thiết kế', 'vi')
-  assert.equal(match?.kind, 'studio')
-  if (match?.kind === 'studio') {
-    assert.equal(match.presetId, 'design_recreate')
-  }
+test('matchFeatureFlowByMessage does not start a hub for recreate phrases', () => {
+  assert.equal(matchFeatureFlowByMessage('tạo lại bản thiết kế', 'vi'), null)
+  assert.equal(matchFeatureFlowByMessage('làm giống mẫu', 'vi'), null)
+  assert.equal(matchFeatureFlowByMessage('concept sheet từ ảnh', 'vi'), null)
 })

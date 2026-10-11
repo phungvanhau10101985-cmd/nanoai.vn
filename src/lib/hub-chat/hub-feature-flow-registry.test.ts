@@ -24,11 +24,10 @@ test('tạo web and thiết kế web app start mobile_shop not landing_page', ()
   }
 })
 
-test('explicit landing / ladipage phrases start landing_page', () => {
+test('explicit landing / ladipage phrases do not start a hub', () => {
   for (const phrase of ['tạo landing page', 'tạo ladipage', 'thiết kế landing', 'tạo ladipge']) {
     const match = matchFeatureFlowByMessage(phrase, 'vi')
-    assert.equal(match?.kind, 'studio', phrase)
-    if (match?.kind === 'studio') assert.equal(match.presetId, 'landing_page', phrase)
+    assert.equal(match, null, phrase)
   }
 })
 
@@ -50,10 +49,10 @@ test('mở giáo trình maps to my curricula viewer', () => {
   if (match?.kind === 'standalone') assert.equal(match.href, '/giao-trinh')
 })
 
-test('tạo baner (typo) quảng cáo google maps to sale_banner studio not curriculum', () => {
+test('tạo baner (typo) quảng cáo google maps to the banner page not curriculum', () => {
   const match = matchFeatureFlowByMessage('tạo baner quảng cáo google', 'vi')
-  assert.equal(match?.kind, 'studio')
-  if (match?.kind === 'studio') assert.equal(match.presetId, 'sale_banner')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-banner')
 })
 
 test('bare tạo + unrelated topic does not suggest curriculum', () => {
@@ -61,15 +60,15 @@ test('bare tạo + unrelated topic does not suggest curriculum', () => {
   assert.notEqual(match?.kind === 'standalone' && match.href === '/tao-giao-trinh', true)
 })
 
-test('banner quảng cáo maps to sale_banner studio not standalone page', () => {
+test('banner quảng cáo maps to the banner page', () => {
   const match = matchFeatureFlowByMessage('tạo banner quảng cáo sale 50%', 'vi')
-  assert.equal(match?.kind, 'studio')
-  if (match?.kind === 'studio') assert.equal(match.presetId, 'sale_banner')
+  assert.equal(match?.kind, 'standalone')
+  if (match?.kind === 'standalone') assert.equal(match.href, '/tao-banner')
 })
 
-test('standalone catalog excludes tools replaced by studio presets', () => {
+test('banner page stays in the standalone catalog', () => {
   const entries = buildStandaloneFeatureEntries('vi')
-  assert.ok(!entries.some((e) => e.href === '/tao-banner'))
+  assert.ok(entries.some((e) => e.href === '/tao-banner'))
 })
 
 test('thiết kế hộp giấy maps to packaging_kit studio not a dead redirect', () => {
@@ -233,7 +232,7 @@ test('a catalog page or hub preset means the ask already has a surface', () => {
   const hub = catalogSurfaceForHubTurn({
     locale: 'vi',
     match: null,
-    suggestedPresetId: 'sale_banner',
+    suggestedPresetId: 'packaging_kit',
   })
   assert.equal(hub.hasOwnPage, false)
   assert.equal(hub.hasHubFlow, true)

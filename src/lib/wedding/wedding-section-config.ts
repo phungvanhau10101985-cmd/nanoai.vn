@@ -37,6 +37,9 @@ export const WEDDING_OPEN_FALL_EFFECTS: WeddingOpenFallEffect[] = [
   'none',
 ]
 
+/** Số giây hiệu ứng rơi. 0 = suốt lúc khách còn xem. */
+export const WEDDING_OPEN_FALL_SECOND_STOPS = [5, 10, 15, 20, 30, 45, 60, 90, 120, 0] as const
+
 export type WeddingSectionConfig = {
   /** Layout preset for the inner cover card (not page background). */
   coverPresetId?: string
@@ -57,6 +60,8 @@ export type WeddingSectionConfig = {
   openBurstEffect?: WeddingOpenBurstEffect
   /** Hiệu ứng rơi khi thiệp lướt lên. */
   openFallEffect?: WeddingOpenFallEffect
+  /** Số giây hiệu ứng rơi. 0 = suốt lúc khách còn xem. */
+  openFallSeconds?: number
   /** Horizontal focal point for the cover photo crop, 0-100. */
   coverPhotoPositionX?: number
   /** Vertical focal point for the cover photo crop, 0-100. */
@@ -162,6 +167,23 @@ function readOpenFallEffect(value: unknown): WeddingOpenFallEffect | undefined {
     : undefined
 }
 
+function readOpenFallSeconds(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(num)) return undefined
+  if (num <= 0) return 0
+  let best: number = WEDDING_OPEN_FALL_SECOND_STOPS[0]
+  let bestDist = Infinity
+  for (const stop of WEDDING_OPEN_FALL_SECOND_STOPS) {
+    if (stop === 0) continue
+    const dist = Math.abs(stop - num)
+    if (dist < bestDist) {
+      best = stop
+      bestDist = dist
+    }
+  }
+  return best
+}
+
 function readCoverAiFrameHole(value: unknown): WeddingCoverAiFrameHole | undefined {
   if (!value || typeof value !== 'object') return undefined
   const row = value as Record<string, unknown>
@@ -232,6 +254,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverFrameOpen: readCoverFrameOpen(obj.coverFrameOpen),
       openBurstEffect: readOpenBurstEffect(obj.openBurstEffect),
       openFallEffect: readOpenFallEffect(obj.openFallEffect),
+      openFallSeconds: readOpenFallSeconds(obj.openFallSeconds),
       albumLayoutId: typeof obj.albumLayoutId === 'string' ? obj.albumLayoutId.trim() : undefined,
       albumPhotoCrops: readAlbumPhotoCrops(obj.albumPhotoCrops),
       sidePartyOwned: obj.sidePartyOwned === true,
@@ -274,6 +297,8 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (openBurst) payload.openBurstEffect = openBurst
   const openFall = readOpenFallEffect(config.openFallEffect)
   if (openFall) payload.openFallEffect = openFall
+  const openFallSeconds = readOpenFallSeconds(config.openFallSeconds)
+  if (openFallSeconds !== undefined) payload.openFallSeconds = openFallSeconds
   if (config.albumLayoutId?.trim()) payload.albumLayoutId = config.albumLayoutId.trim()
   const albumPhotoCrops = (config.albumPhotoCrops ?? [])
     .map((item) => ({
@@ -469,6 +494,16 @@ export function resolveOpenBurstEffect(config: WeddingSectionConfig): WeddingOpe
 /** Chưa chọn: cánh hoa rơi lúc thiệp hiện lên. */
 export function resolveOpenFallEffect(config: WeddingSectionConfig): WeddingOpenFallEffect {
   return readOpenFallEffect(config.openFallEffect) ?? 'petals'
+}
+
+/** Chưa chọn: rơi suốt lúc khách còn xem. */
+export function resolveOpenFallSeconds(config: WeddingSectionConfig): number {
+  return readOpenFallSeconds(config.openFallSeconds) ?? 0
+}
+
+export function openFallSecondsStopIndex(seconds: number): number {
+  const index = WEDDING_OPEN_FALL_SECOND_STOPS.indexOf(seconds as (typeof WEDDING_OPEN_FALL_SECOND_STOPS)[number])
+  return index >= 0 ? index : WEDDING_OPEN_FALL_SECOND_STOPS.length - 1
 }
 
 export function resolveCoverPhotoObjectPosition(config: WeddingSectionConfig): string {

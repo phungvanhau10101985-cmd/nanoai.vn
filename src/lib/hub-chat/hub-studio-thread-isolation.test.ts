@@ -115,11 +115,11 @@ test('inactive threads allow preset start without confirmation', () => {
   store.set('thread-empty', emptyStudioSession())
 
   assert.equal(blocksPresetStartOnThread(store.get('thread-empty')), false)
-  assert.equal(shouldConfirmPresetChipStart(store.get('thread-empty'), 'brand_kit'), false)
+  assert.equal(shouldConfirmPresetChipStart(store.get('thread-empty'), 'sale_banner'), false)
 
-  const started = simulatePresetStart(store, 'thread-empty', 'brand_kit')
+  const started = simulatePresetStart(store, 'thread-empty', 'sale_banner')
   assert.equal(started.ok, true)
-  assert.equal(store.get('thread-empty')?.presetId, 'brand_kit')
+  assert.equal(store.get('thread-empty')?.presetId, 'sale_banner')
 })
 
 test('all presets can start on an empty thread after confirmation payload', () => {

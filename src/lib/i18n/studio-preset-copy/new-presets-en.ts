@@ -1,7 +1,7 @@
 /** Studio preset copy — 7 new seamless flows (English) */
 export const NEW_PRESETS_EN = {
   packaging_kit: {
-    title: 'Packaging kit',
+    title: 'Paper box design',
     kickoff:
       'Design a technical carton workflow: Logo → create all six faces one by one (top|front|right|bottom|back|left) → 3D mockup → Dieline PDF → label → seal → real barcode.',
     steps: {
@@ -70,174 +70,7 @@ export const NEW_PRESETS_EN = {
       barcode_label: 'Real barcode: uses product name from brief; product code (e.g. SKU: 188-SRM-001). Default Code128 — or EAN-13/QR if specified.',
     },
   },
-  interior_design: {
-    title: 'Interior / exterior',
-    kickoff:
-      'Design connected spaces in one home. Upload a floor plan or room photo — then create each room with a unified style.',
-    uploadHint: 'Upload floor plan or room photos (1–3 images)',
-    steps: {
-      space_type: 'Brief: Space type',
-      area_size: 'Brief: Area',
-      style_mood: 'Brief: Style',
-      color_palette: 'Brief: Colors',
-      budget_tier: 'Brief: Budget tier',
-      living_room: 'Living room',
-      kitchen: 'Kitchen',
-      bedroom: 'Bedroom',
-      facade: 'Facade / exterior',
-    },
-    asks: {
-      space_type: '① Townhouse, apartment, villa or office?',
-      area_size: '② Approximate area? (m²)',
-      style_mood: '③ Style: Scandinavian / Japandi / modern luxury / industrial?',
-      color_palette: '④ Main color tone?',
-      budget_tier: '⑤ Tier: budget / mid / premium?',
-      living_room: 'Living room: sofa, TV wall, lighting, materials?',
-      kitchen: 'Kitchen: L/U layout, cabinets, island?',
-      bedroom: 'Bedroom: bed, wardrobe, curtains, mood?',
-      facade: 'Facade: floors, railing, greenery?',
-    },
-  },
-  social_media_kit: {
-    title: 'Social media kit',
-    kickoff:
-      'Create a shop/personal content set: Logo/avatar → square post → story → Facebook cover → Pinterest pin. Keep colors and typography consistent.',
-    steps: {
-      brand_name: 'Brief: Name / shop',
-      content_theme: 'Brief: Content theme',
-      tone_voice: 'Brief: Tone of voice',
-      color_palette: 'Brief: Colors',
-      platforms: 'Brief: Platforms',
-      logo_avatar: 'Logo / Avatar',
-      post_square: 'Square post 1:1',
-      story_916: 'Story 9:16',
-      facebook_cover: 'Facebook cover',
-      pinterest_pin: 'Pinterest pin',
-    },
-    asks: {
-      brand_name: '① Shop / personal brand name?',
-      content_theme: '② Main theme? (fashion, beauty, F&B…)',
-      tone_voice: '③ Tone: fun / elegant / expert / Gen Z?',
-      color_palette: '④ Feed primary colors?',
-      platforms: '⑤ Main platforms? (IG, FB, Pinterest, TikTok…)',
-      logo_avatar: 'Logo/avatar: icon, wordmark, vibe?',
-      post_square: 'Square post: headline, main visual, CTA?',
-      story_916: 'Story: full screen, sticker CTA, swipe up?',
-      facebook_cover: 'FB cover: slogan, hero image, logo?',
-      pinterest_pin: 'Vertical pin: hook text, mood board?',
-    },
-  },
-  story_with_images: {
-    title: 'Story with images',
-    kickoff:
-      'Create a picture book page by page. Design the main character first (reference) → 4 story pages → cover.',
-    steps: {
-      story_title: 'Brief: Story title',
-      audience_age: 'Brief: Reader age',
-      plot_summary: 'Brief: Plot summary',
-      style_mood: 'Brief: Illustration style',
-      color_palette: 'Brief: Colors',
-      main_character: 'Main character',
-      page_1: 'Page 1',
-      page_2: 'Page 2',
-      page_3: 'Page 3',
-      page_4: 'Page 4',
-      cover: 'Book cover',
-    },
-    asks: {
-      story_title: '① Story / book title?',
-      audience_age: '② Reader age? (3–6, 7–12, teen…)',
-      plot_summary: '③ Plot summary (3–5 sentences)?',
-      style_mood: '④ Style: watercolor / flat / 3D cute / comic?',
-      color_palette: '⑤ Color palette?',
-      main_character: 'Main character: appearance, outfit, signature expression?',
-      page_1: 'Page 1: opening scene, action, dialogue placeholders?',
-      page_2: 'Page 2: conflict / challenge?',
-      page_3: 'Page 3: climax?',
-      page_4: 'Page 4: ending / lesson?',
-      cover: 'Cover: title, character, background?',
-    },
-  },
-  infographic_series: {
-    title: 'Infographic series',
-    kickoff:
-      'Summarize a book/document into infographic slides. Upload source pages — brief the topic, then create each slide in a unified style.',
-    uploadHint: 'Upload source book/document pages (1–5 images)',
-    steps: {
-      topic_focus: 'Brief: Main topic',
-      audience: 'Brief: Audience',
-      visual_style: 'Brief: Visual style',
-      color_palette: 'Brief: Colors',
-      slide_hook: 'Slide 1 — Hook',
-      slide_2: 'Slide 2',
-      slide_3: 'Slide 3',
-      slide_4: 'Slide 4',
-      slide_summary: 'Summary slide',
-    },
-    asks: {
-      topic_focus: '① Topic to summarize? (one sentence)',
-      audience: '② Who views it? (students, parents, professionals…)',
-      visual_style: '③ Style: flat icons / hand-drawn / corporate?',
-      color_palette: '④ Slide colors?',
-      slide_hook: 'Hook slide: attention title, one big insight?',
-      slide_2: 'Slide 2: second key point, icons?',
-      slide_3: 'Slide 3: stats / process?',
-      slide_4: 'Slide 4: example / case?',
-      slide_summary: 'Summary slide: takeaway, CTA?',
-    },
-  },
-  fashion_campaign: {
-    title: 'Fashion campaign',
-    kickoff:
-      'Look + try-on campaign: upload model/garment photos → hero look → 2 try-on outfits → sale banner. Keep collection colors consistent.',
-    uploadHint: 'Upload model / outfit photos (1–5 images)',
-    steps: {
-      collection_name: 'Brief: Collection name',
-      season_theme: 'Brief: Season / theme',
-      style_mood: 'Brief: Style',
-      color_palette: 'Brief: Palette',
-      target_channel: 'Brief: Channel',
-      hero_look: 'Hero look',
-      outfit_try_1: 'Try-on outfit 1',
-      outfit_try_2: 'Try-on outfit 2',
-      sale_banner: 'Sale banner',
-    },
-    asks: {
-      collection_name: '① Collection / campaign name?',
-      season_theme: '② Season / theme? (SS26, streetwear, office…)',
-      style_mood: '③ Mood: editorial / casual / sporty?',
-      color_palette: '④ Collection palette?',
-      target_channel: '⑤ Channel: IG, TikTok Shop, website?',
-      hero_look: 'Hero look: full body, campaign typography?',
-      outfit_try_1: 'Outfit 1: items, pose, setting?',
-      outfit_try_2: 'Outfit 2: different mix, accessories?',
-      sale_banner: 'Sale banner: discount %, CTA, bold colors?',
-    },
-  },
-  profile_photo_pack: {
-    title: 'ID / profile photo pack',
-    kickoff:
-      'Professional photo set from one source portrait: white ID → blue ID → LinkedIn → personal banner. Keep facial identity consistent.',
-    uploadHint: 'Upload a clear face portrait (1 photo)',
-    steps: {
-      profession: 'Brief: Profession',
-      tone_formal: 'Brief: Formality',
-      color_palette: 'Brief: Color tone',
-      id_white: 'White background ID',
-      id_blue: 'Blue background ID',
-      linkedin_profile: 'LinkedIn profile',
-      personal_banner: 'Personal banner',
-    },
-    asks: {
-      profession: '① Profession / industry? (IT, marketing, healthcare…)',
-      tone_formal: '② Formality: formal / business casual / creative?',
-      color_palette: '③ Preferred outfit / background tones?',
-      id_white: 'White ID photo: head-and-shoulders crop, studio light?',
-      id_blue: 'Blue ID photo: standard administrative tone?',
-      linkedin_profile: 'LinkedIn: slight smile, blurred office background?',
-      personal_banner: 'Banner: name, title, personal brand gradient?',
-    },
-  },
+
   bag_kit: {
     title: 'Paper bag design',
     kickoff:
@@ -287,11 +120,10 @@ export const NEW_PRESETS_EN = {
     title: 'Restaurant menu design',
     kickoff:
       'Design a menu for restaurants, cafés, or drink shops. Answer style brief first — then enter dishes and generate the menu.',
-    uploadHint: 'Upload reference dish photos (optional) — AI uses them when you choose illustrated menu.',
     steps: {
       venue_name: 'Brief: Venue name',
       menu_type: 'Brief: Menu type',
-      food_illustration: 'Brief: Food illustrations',
+      food_illustration: 'Brief: Dish photos',
       menu_style: 'Brief: Style',
       color_tone: 'Brief: Color tone',
       menu_design: 'Design menu',
@@ -306,7 +138,7 @@ export const NEW_PRESETS_EN = {
       menu_type:
         '② Menu type: wall A4, booklet, standing board, table tent, digital screen menu?',
       food_illustration:
-        '③ Include food illustration photos on the menu? (Yes — appetizing dish photos / No — text & decoration only)',
+        '③ Include dish photos on the menu? (Yes — photorealistic photos of each dish / No — text & decoration only)',
       menu_style:
         '④ Style: vintage / modern / minimal / traditional / rustic / luxury café?',
       color_tone: '⑤ Preferred color tone? (e.g. wood brown + cream, green + white)',
@@ -316,57 +148,13 @@ export const NEW_PRESETS_EN = {
     askExamples: {
       venue_name: 'Hanoi Beef Pho — 123 Le Loi St',
       menu_type: 'Wall A4 portrait — double-sided print',
-      food_illustration: 'Yes — small dish photo beside each item',
+      food_illustration: 'Yes — photorealistic photo of each dish beside the name',
       menu_style: 'Modern Vietnamese — clear typography, light decorative border',
       color_tone: 'Warm wood brown + cream, black text',
       menu_design: 'Beef pho 65,000 VND · Bun cha 55,000 VND · Milk coffee 25,000 VND',
     },
   },
-  design_recreate: {
-    title: 'Recreate design from sample',
-    kickoff:
-      'Upload samples → pick sector / output format / render style → AI analyzes → board language → **logo (required)** → concept board (with logo applied).',
-    uploadHint: 'Upload product sample photos — up to 4 angles (front, back, side, detail)',
-    steps: {
-      design_sector: 'Brief: Design sector',
-      design_format: 'Brief: Output format',
-      render_style: 'Brief: Render style',
-      sample_upload: 'Brief: Sample photos',
-      color_palette: 'Brief: Color palette',
-      design_notes: 'Brief: Extra notes',
-      design_language: 'Brief: Board language',
-      logo: 'Logo',
-      concept_sheet: 'Full concept board',
-      detail_panel: 'Detail close-up panel',
-      technical_flat: 'Technical flat sketch',
-    },
-    asks: {
-      design_sector: '① Choose a design sector below.',
-      design_format: '② Choose an output format below.',
-      render_style: '③ Choose a render style below.',
-      sample_upload:
-        '④ **Upload sample photos** — up to 4 angles (front, back, side, embroidery/collar/sleeve detail). AI will analyze to recreate the design.',
-      color_palette: '⑤ Preferred color palette? (e.g. peach + cream + gold — or let AI extract from samples)',
-      design_notes: '⑥ Choose extra notes below (or Other — type custom).',
-      design_language: '⑦ Choose the language for text/labels on the design board below.',
-      logo:
-        'Logo (required) will be placed on the design boards: **have a logo** → tap **Upload logo**; **none yet** → describe below for AI to create. Approve the logo before the concept board.',
-      concept_sheet:
-        'Choose a concept-board layout below (always includes INSPIRATION text + approved logo).',
-      detail_panel: 'Choose a detail-panel layout below.',
-      technical_flat: 'Choose a technical-flat layout below.',
-    },
-    askExamples: {
-      design_sector: 'Fashion — modern áo dài',
-      design_format: 'Full concept board (professional design lookbook sheet)',
-      render_style: 'Fashion concept sheet (watercolor + tech flats)',
-      sample_upload: 'Uploaded 3 photos: front, back, embroidery detail',
-      color_palette: 'Peach, cream beige, light green, metallic gold',
-      design_notes: 'Tet holiday — pair with wide silk trousers + beige leather bag + heels',
-      design_language: 'English',
-      logo: 'Gold monogram lettermark on transparent background',
-    },
-  },
+
   catalog_photo_pack: {
     title: 'Sell photos from your own shots',
     kickoff:

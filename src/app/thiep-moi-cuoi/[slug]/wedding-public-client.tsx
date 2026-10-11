@@ -46,6 +46,7 @@ import {
   resolveCoverFrameOpen,
   resolveOpenBurstEffect,
   resolveOpenFallEffect,
+  resolveOpenFallSeconds,
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
@@ -165,6 +166,7 @@ export default function WeddingPublicClient({
   const coverFrameOpen = useMemo(() => resolveCoverFrameOpen(sectionConfig), [sectionConfig])
   const openBurstEffect = useMemo(() => resolveOpenBurstEffect(sectionConfig), [sectionConfig])
   const openFallEffect = useMemo(() => resolveOpenFallEffect(sectionConfig), [sectionConfig])
+  const openFallSeconds = useMemo(() => resolveOpenFallSeconds(sectionConfig), [sectionConfig])
   const albumLayoutId = resolveWeddingAlbumLayoutId(sectionConfig.albumLayoutId)
   const coverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
@@ -739,7 +741,7 @@ export default function WeddingPublicClient({
         </div>
       ) : null}
       {opened && card.effectsEnabled ? (
-        <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} />
+        <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} />
       ) : null}
       <main className={cn('min-h-screen', theme.pageBg, theme.text)}>
         {!opened && (

@@ -4,7 +4,7 @@ import { NEW_PRESETS_EN } from './new-presets-en'
 export const NEW_PRESETS_JA = {
   ...NEW_PRESETS_EN,
   packaging_kit: {
-    title: 'パッケージ一式',
+    title: '紙箱デザイン',
     kickoff:
       '技術的な紙箱フロー：ロゴ → 天面|正面|右|底面|背面|左の6面を1面ずつ作成 → 3Dモックアップ → Dieline PDF → ラベル → 封緘シール → バーコード。',
     steps: {

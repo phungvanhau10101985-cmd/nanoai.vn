@@ -63,7 +63,7 @@ test('explicit request proposes another preset without mutating a session', () =
   )
   assert.equal(
     detectStudioFlowSwitch('Tôi muốn thiết kế landing page', 'packaging_kit'),
-    'landing_page'
+    null
   )
   assert.equal(
     detectStudioFlowSwitch('tạo giao diện web', 'packaging_kit'),
@@ -74,7 +74,7 @@ test('explicit request proposes another preset without mutating a session', () =
 test('compact preset intent proposes another flow without an explicit verb', () => {
   assert.equal(detectStudioFlowSwitch('giao diện web', 'packaging_kit'), 'mobile_shop')
   assert.equal(detectStudioFlowSwitch('App bán hàng', 'packaging_kit'), 'mobile_shop')
-  assert.equal(detectStudioFlowSwitch('tạo ladipage', 'packaging_kit'), 'landing_page')
+  assert.equal(detectStudioFlowSwitch('tạo ladipage', 'packaging_kit'), null)
 })
 
 test('request matching the current preset does not fork', () => {
@@ -85,9 +85,9 @@ test('request matching the current preset does not fork', () => {
 })
 
 test('confirmed new-flow payload always forks with a null thread id', () => {
-  const request = buildConfirmedNewFlowStartRequest('landing_page')
+  const request = buildConfirmedNewFlowStartRequest('food_menu')
   assert.equal(request.action, 'start_preset')
-  assert.equal(request.presetId, 'landing_page')
+  assert.equal(request.presetId, 'food_menu')
   assert.equal(request.forceNewThread, true)
   assert.equal(request.threadId, null)
 })
@@ -98,6 +98,6 @@ test('preset chips require confirmation only while a flow is active', () => {
     presetId: 'packaging_kit',
     processSteps: [{ key: 'brand_name', label: 'Brand', status: 'in_progress' as const }],
   }
-  assert.equal(shouldConfirmPresetChipStart(active, 'brand_kit'), true)
-  assert.equal(shouldConfirmPresetChipStart(emptyStudioSession(), 'brand_kit'), false)
+  assert.equal(shouldConfirmPresetChipStart(active, 'sale_banner'), true)
+  assert.equal(shouldConfirmPresetChipStart(emptyStudioSession(), 'sale_banner'), false)
 })

@@ -794,6 +794,7 @@ export function HomeHubChatBar() {
           setActivePlanRow(null)
           setStudioSession(null)
           setMessage('')
+          setShowFeaturePicker(true)
         }
         toast({ title: hc.chatHistoryDeleted })
       } catch {
@@ -876,6 +877,7 @@ export function HomeHubChatBar() {
     setFaceUploadConfirmOpen(false)
     setRegenerateDialogOpen(false)
     setRegenerateTargetStepKey(null)
+    setShowFeaturePicker(true)
     studioLaunchStartedRef.current = false
   }, [])
 
@@ -3354,8 +3356,7 @@ export function HomeHubChatBar() {
                 <Button
                   type="button"
                   size="sm"
-                  variant="outline"
-                  className="h-7 shrink-0 text-xs"
+                  className="h-7 shrink-0 bg-indigo-600 text-xs text-white shadow-sm hover:bg-indigo-700"
                   onClick={() => {
                     if (isActiveStudioFlow(studioSession)) {
                       toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
@@ -4274,7 +4275,6 @@ export function HomeHubChatBar() {
               logoUrl={studioSession?.foodMenu?.logoUrl}
               dishes={menuDishesDraft}
               dishesBulkText={menuDishesBulkDraft}
-              uploadImages={studioSession?.uploadImages ?? []}
               approvedMenuCount={foodMenuApprovedCount}
               busy={busy}
               onSelectFormat={selectMenuFormat}
@@ -4307,7 +4307,6 @@ export function HomeHubChatBar() {
                   menuVenueName: menuVenueDraft,
                 })
               }
-              onUploadProductFiles={(files) => void postStudioUpload(files)}
               onFinishFlow={() => void postStudio({ action: 'menu_finish_flow' })}
             />
           ) : null}

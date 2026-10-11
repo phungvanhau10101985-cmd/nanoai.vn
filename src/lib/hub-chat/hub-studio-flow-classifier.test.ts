@@ -12,9 +12,9 @@ import {
 
 test('parseFlowSwitchClassifierJson accepts valid preset id and confidence', () => {
   const parsed = parseFlowSwitchClassifierJson(
-    '{"switchPresetId":"landing_page","confidence":0.92}'
+    '{"switchPresetId":"food_menu","confidence":0.92}'
   )
-  assert.equal(parsed.switchPresetId, 'landing_page')
+  assert.equal(parsed.switchPresetId, 'food_menu')
   assert.equal(parsed.confidence, 0.92)
 })
 
@@ -25,8 +25,8 @@ test('parseFlowSwitchClassifierJson rejects invalid preset ids', () => {
 })
 
 test('parseFlowSwitchClassifierJson clamps confidence to 0..1', () => {
-  const parsed = parseFlowSwitchClassifierJson('{"switchPresetId":"brand_kit","confidence":1.8}')
-  assert.equal(parsed.switchPresetId, 'brand_kit')
+  const parsed = parseFlowSwitchClassifierJson('{"switchPresetId":"packaging_kit","confidence":1.8}')
+  assert.equal(parsed.switchPresetId, 'packaging_kit')
   assert.equal(parsed.confidence, 1)
 })
 

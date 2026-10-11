@@ -25,7 +25,24 @@ test('buildMenuImageGenerationPrompt — ghép trực tiếp không qua Gemini',
   assert.ok(result.prompt.includes('Lạc rang muối'))
   assert.ok(result.prompt.includes('MENU CONTENT'))
   assert.ok(result.prompt.includes('menu_type: quán bia'))
+  assert.ok(result.prompt.includes('photorealistic photograph'))
+  assert.ok(!result.prompt.includes('stylized'))
   assert.ok(!result.prompt.includes('---IMAGE_PROMPT---'))
+})
+
+test('buildMenuImageGenerationPrompt — không ảnh thì không chèn ảnh món', () => {
+  const result = buildMenuImageGenerationPrompt({
+    locale: 'vi',
+    briefNotes: { food_illustration: 'Không — chỉ chữ' },
+    dishes: [{ id: '1', order: '1', name: 'Phở bò', unit: 'tô', priceVnd: '65000' }],
+    formatPresetId: 'menu_a4_portrait',
+    aspectRatio: '3:4',
+    formatLabel: 'Menu A4 dọc',
+  })
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  assert.ok(result.prompt.includes('NO food photos'))
+  assert.ok(!result.prompt.includes('photorealistic photograph'))
 })
 
 test('buildMenuImageGenerationPrompt — rỗng', () => {

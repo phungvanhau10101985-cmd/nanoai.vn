@@ -5,7 +5,7 @@ import {
   STUDIO_PRESETS,
   featureNameCore,
   matchStudioPresetWithScore,
-  matchesLandingPageIntent,
+  matchesDesignRecreateAgainIntent,
   matchesWebAppDesignIntent,
   presetTitle,
 } from '@/lib/hub-chat/hub-studio-presets'
@@ -15,7 +15,6 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 
 /** Standalone tool pages superseded by inline Hub Studio presets — hide from studio catalog & routing. */
 export const STANDALONE_REPLACED_BY_STUDIO: Record<string, string> = {
-  '/tao-banner': 'sale_banner',
   '/thiet-ke-bao-bi': 'packaging_kit',
   '/thiet-ke-tui-dung': 'bag_kit',
 }
@@ -103,10 +102,35 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/tao-tem-niem-phong-bao-hanh': ['tem niêm phong', 'seal sticker', 'warranty seal'],
   '/thiet-ke-con-dau': ['con dấu', 'stamp design', 'company stamp'],
   '/tao-ma-vach': ['mã vạch', 'barcode', 'qr code label'],
+  '/tao-banner': [
+    'banner quảng cáo',
+    'banner quang cao',
+    'banner sale',
+    'banner khuyến mãi',
+    'banner khuyen mai',
+    'baner quảng cáo',
+    'baner quang cao',
+    'tạo baner',
+    'tao baner',
+    'quảng cáo google',
+    'quang cao google',
+    'banner google',
+    'baner google',
+    'google ads',
+    'facebook ads',
+    'poster sale',
+    'khai trương',
+  ],
   '/che-anh': ['chế ảnh', 'meme'],
   '/tao-anh-3d': ['ảnh 3d', 'product 3d'],
   '/tao-mo-hinh-3d-tu-anh': ['mô hình 3d', '3d model from image'],
-  '/thiet-ke-noi-ngoai-that': ['nội thất', 'interior design'],
+  '/thiet-ke-noi-ngoai-that': [
+    'nội thất',
+    'ngoại thất',
+    'interior design',
+    'phòng khách',
+    'nội thất / ngoại thất',
+  ],
   '/xay-nha-tu-dat-nen': ['xây nhà', 'my house', 'home design plot'],
   '/tao-anh-chain-dung': ['ảnh chân dung', 'portrait photo'],
   '/tao-giao-trinh': [
@@ -139,7 +163,15 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   ],
   '/ghi-am-bao-cao-cuoc-hop': ['ghi âm cuộc họp', 'meeting report'],
   '/dich-anh-tai-lieu': ['dịch ảnh', 'translate document image'],
-  '/tao-bai-hat-lyria-3': ['tạo nhạc', 'lyria', 'jingle', 'advertising music'],
+  '/tao-bai-hat-lyria-3': [
+    'tạo nhạc',
+    'lyria',
+    'jingle',
+    'advertising music',
+    'nhạc quảng cáo',
+    'nhac quang cao',
+    'nhạc nền',
+  ],
   '/tao-thiep-moi-cuoi-ai': [
     'thiệp mời',
     'thiep moi',
@@ -469,9 +501,8 @@ export function matchFeatureFlowByMessage(
     return matchLanguageLearningFlow(locale)
   }
 
-  if (matchesLandingPageIntent(trimmed)) {
-    return { kind: 'studio', presetId: 'landing_page', score: 56 }
-  }
+  if (matchesDesignRecreateAgainIntent(trimmed)) return null
+
   if (matchesWebAppDesignIntent(trimmed)) {
     return { kind: 'studio', presetId: 'mobile_shop', score: 48 }
   }
@@ -525,9 +556,6 @@ export function buildFeatureFlowCatalogForBrain(locale: WebLocale): string {
     const title = presetTitle(locale, p.id)
     if (p.id === 'mobile_shop') {
       return `${p.id}: ${title} | flow=studio_complete | use_for=tạo web, giao diện web, thiết kế web app`
-    }
-    if (p.id === 'landing_page') {
-      return `${p.id}: ${title} | flow=studio_complete | use_for=landing page, ladipage only`
     }
     return `${p.id}: ${title} | flow=studio_complete`
   })

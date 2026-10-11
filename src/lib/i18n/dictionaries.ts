@@ -391,21 +391,9 @@ export type Dictionary = {
     studioDiscoveryBlocked: string
     studioPresets: {
       mobile_shop: { title: string; sample: string; steps: Record<string, string> }
-      sale_banner: { title: string; sample: string; steps: Record<string, string> }
-      brand_kit: { title: string; sample: string; steps: Record<string, string> }
-      landing_page: { title: string; sample: string; steps: Record<string, string> }
       product_listing: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
       wedding_invite: { title: string; sample: string; steps: Record<string, string> }
-      ad_music: { title: string; sample: string; steps: Record<string, string> }
-      lookbook: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
       packaging_kit: { title: string; sample: string; steps: Record<string, string> }
-      interior_design: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
-      social_media_kit: { title: string; sample: string; steps: Record<string, string> }
-      story_with_images: { title: string; sample: string; steps: Record<string, string> }
-      infographic_series: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
-      fashion_campaign: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
-      design_recreate: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
-      profile_photo_pack: { title: string; sample: string; uploadHint: string; steps: Record<string, string> }
     }
   }
   referral: {
@@ -3432,6 +3420,10 @@ export type Dictionary = {
     openFallSnow: string
     openFallConfetti: string
     openFallLanterns: string
+    openFallDurationLabel: string
+    openFallDurationHint: string
+    openFallDurationForever: string
+    openFallDurationSeconds: string
     openEffectPreview: string
     loginGateLead: string
     loginGateHint: string
@@ -4221,21 +4213,6 @@ export const VI_DICTIONARY: Dictionary = {
           profile: 'Tài khoản',
         },
       },
-      sale_banner: {
-        title: 'Banner sale',
-        sample: 'Bộ banner khai trương shop thời trang, màu đỏ vàng',
-        steps: { banner_main: 'Banner chính', banner_square: 'Vuông 1:1', banner_story: 'Story 9:16' },
-      },
-      brand_kit: {
-        title: 'Bộ thương hiệu',
-        sample: 'Brand kit cafe artisan, tone nâu kem',
-        steps: { logo: 'Logo', banner: 'Banner', product_label: 'Nhãn SP', sticker: 'Sticker' },
-      },
-      landing_page: {
-        title: 'Mockup landing bán hàng & dịch vụ',
-        sample: 'Landing đa ngành — shop bán SP + dịch vụ, ghép preview desktop/mobile',
-        steps: { hero: 'Hero', features: 'Sản phẩm & dịch vụ', pricing: 'SP / gói giá', faq: 'FAQ', cta: 'CTA' },
-      },
       product_listing: {
         title: 'Ảnh sản phẩm',
         sample: 'Ảnh sản phẩm túi xách đăng Shopee, nền trắng',
@@ -4247,61 +4224,10 @@ export const VI_DICTIONARY: Dictionary = {
         sample: 'Thiệp cưới tone hồng pastel, phong cách tối giản',
         steps: { cover: 'Mặt trước', inside: 'Mặt trong', story: 'Story' },
       },
-      ad_music: {
-        title: 'Nhạc quảng cáo',
-        sample: 'Nhạc nền quảng cáo mỹ phẩm, vui tươi, 30–60 giây feel',
-        steps: { track_main: 'Bản chính', track_alt: 'Bản phụ' },
-      },
-      lookbook: {
-        title: 'Lookbook',
-        sample: 'Lookbook BST Thu Đông, tone be ấm',
-        uploadHint: 'Tải ảnh look/mẫu',
-        steps: { hero_look: 'Hero look', grid_look: 'Lưới look', detail_look: 'Chi tiết' },
-      },
       packaging_kit: {
-        title: 'Bộ đóng gói',
+        title: 'Thiết kế hộp giấy',
         sample: 'Bao bì mỹ phẩm organic, hộp vuông, tem niêm phong',
         steps: { logo: 'Logo', body_strip: 'Đủ 6 mặt hộp', box_3d: 'Mockup 3D', dieline: 'Dieline PDF', label: 'Nhãn' },
-      },
-      interior_design: {
-        title: 'Nội thất',
-        sample: 'Căn hộ 80m² phong cách Japandi, phòng khách ấm',
-        uploadHint: 'Tải mặt bằng hoặc ảnh phòng',
-        steps: { living: 'Phòng khách', kitchen: 'Bếp', bedroom: 'Ngủ', facade: 'Mặt tiền' },
-      },
-      social_media_kit: {
-        title: 'Social media',
-        sample: 'Bộ feed shop mỹ phẩm, tone hồng pastel',
-        steps: { avatar: 'Avatar', post: 'Post', story: 'Story', cover: 'Cover FB' },
-      },
-      story_with_images: {
-        title: 'Kể chuyện bằng hình',
-        sample: 'Truyện tranh trẻ em về chú mèo dũng cảm, watercolor',
-        steps: { character: 'Nhân vật', page1: 'Trang 1', cover: 'Bìa' },
-      },
-      infographic_series: {
-        title: 'Infographic',
-        sample: 'Tóm tắt sách kinh doanh thành 5 slide infographic',
-        uploadHint: 'Tải ảnh sách/tài liệu',
-        steps: { hook: 'Hook', body: 'Nội dung', summary: 'Tổng kết' },
-      },
-      fashion_campaign: {
-        title: 'Campaign thời trang',
-        sample: 'Campaign BST hè, try-on 2 outfit + banner sale',
-        uploadHint: 'Tải ảnh mẫu/trang phục',
-        steps: { hero: 'Hero', try1: 'Try-on 1', banner: 'Banner sale' },
-      },
-      design_recreate: {
-        title: 'Dựng lại thiết kế từ mẫu',
-        sample: 'Dựng lại áo dài cách tân từ ảnh mẫu — bảng concept đầy đủ',
-        uploadHint: 'Tải ảnh mẫu sản phẩm — tối đa 4 góc',
-        steps: { concept: 'Concept board', detail: 'Chi tiết', technical: 'Kỹ thuật' },
-      },
-      profile_photo_pack: {
-        title: 'Ảnh thẻ / profile',
-        sample: 'Bộ ảnh LinkedIn cho marketing, tone chuyên nghiệp',
-        uploadHint: 'Tải ảnh chân dung gốc',
-        steps: { id_white: 'Thẻ trắng', id_blue: 'Thẻ xanh', linkedin: 'LinkedIn', banner: 'Banner' },
       },
     },
   },
@@ -7340,6 +7266,10 @@ export const VI_DICTIONARY: Dictionary = {
     openFallSnow: 'Tuyết lấp lánh',
     openFallConfetti: 'Hoa giấy',
     openFallLanterns: 'Đèn lồng',
+    openFallDurationLabel: 'Thời gian hiệu ứng rơi',
+    openFallDurationHint: 'Kéo để chọn số giây sau khi mở thiệp. Đầu bên phải là suốt lúc khách còn xem.',
+    openFallDurationForever: 'Suốt lúc xem',
+    openFallDurationSeconds: '{n} giây',
     openEffectPreview: 'Xem thử',
     loginGateLead:
       'Đăng nhập để tạo thiệp cưới AI, xem trước nội dung miễn phí và xuất bản link RSVP cho khách mời.',

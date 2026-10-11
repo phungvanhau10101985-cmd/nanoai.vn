@@ -74,25 +74,14 @@ test('extractExampleFromAsk reads parenthetical hints', () => {
   )
 })
 
-test('sale_banner product_offer placeholder is banner-specific not mobile shop', () => {
-  const placeholder = getStudioStepInputPlaceholder(
-    'sale_banner',
-    'product_offer',
-    'vi',
-    'VD: Tôi muốn thiết kế giao diện app mobile bán hàng thời trang…'
-  )
-  assert.ok(placeholder.includes('Serum Vitamin C'))
-  assert.ok(!placeholder.includes('app mobile'))
-})
-
 test('design step keeps step-specific placeholder after discovery', () => {
   const placeholder = getStudioStepInputPlaceholder(
-    'sale_banner',
-    'banner_design',
+    'food_menu',
+    'menu_design',
     'vi',
     'fallback'
   )
-  assert.ok(placeholder.includes('GIẢM 50%'))
+  assert.ok(placeholder.includes('Phở bò'))
   assert.notEqual(placeholder, 'fallback')
 })
 

@@ -32,7 +32,7 @@ function sessionAtFaceLeft(): HubStudioSession {
 
 test('packaging_kit is forward-only — no step navigation', () => {
   assert.equal(isForwardOnlyStudioPreset('packaging_kit'), true)
-  assert.equal(isForwardOnlyStudioPreset('brand_kit'), false)
+  assert.equal(isForwardOnlyStudioPreset('sale_banner'), false)
   const session = sessionAtFaceLeft()
   assert.equal(canNavigateToStep(session, 'packaging_kit', 'face_back'), false)
   assert.equal(canNavigateToStep(session, 'packaging_kit', 'face_left'), false)

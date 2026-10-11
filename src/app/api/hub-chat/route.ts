@@ -25,7 +25,7 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
-import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
+import { detachRetiredStudioPreset, isRetiredStudioPreset, presetTitle } from '@/lib/hub-chat/hub-studio-presets'
 import { reconcilePackagingProcessSteps } from '@/lib/packaging/face-print-style'
 import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
 
@@ -124,6 +124,10 @@ export async function GET(request: NextRequest) {
 
   const thread = await pgGetHubChatThread(auth.user.id, threadId)
   if (!thread) return NextResponse.json({ error: 'Không tìm thấy hội thoại.' }, { status: 404 })
+  if (thread.session && isRetiredStudioPreset(thread.session.presetId)) {
+    thread.session = detachRetiredStudioPreset(thread.session)
+    await pgSaveHubThreadSession(thread.id, thread.session)
+  }
   if (thread.session?.presetId === 'packaging_kit' || thread.session?.presetId === 'bag_kit') {
     const locale = normalizeWebLocale(thread.locale) ?? 'vi'
     const baseSession =

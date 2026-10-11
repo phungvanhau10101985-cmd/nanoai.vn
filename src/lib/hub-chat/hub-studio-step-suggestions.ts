@@ -615,7 +615,6 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
   packaging_kit: PACKAGING_KIT_SUGGESTIONS,
   bag_kit: BAG_KIT_SUGGESTIONS,
   mobile_shop: COMMON_DISCOVERY_SUGGESTIONS,
-  brand_kit: COMMON_DISCOVERY_SUGGESTIONS,
   landing_page: {
     product_name: [
       suggestion(
@@ -708,153 +707,7 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
       ),
     ],
   },
-  sale_banner: {
-    domain_name: [
-      suggestion(
-        { vi: '188.com.vn', en: '188.com.vn', zh: '188.com.vn', ja: '188.com.vn', ko: '188.com.vn' },
-        {
-          vi: '188.com.vn',
-          en: '188.com.vn',
-          zh: '188.com.vn',
-          ja: '188.com.vn',
-          ko: '188.com.vn',
-        }
-      ),
-    ],
-    campaign_name: [
-      suggestion(
-        { vi: 'Khai trương', en: 'Grand opening', zh: '开业', ja: 'オープン', ko: '오픈' },
-        {
-          vi: 'Phong cách nam đẳng cấp — giày, túi, phụ kiện',
-          en: 'Premium men\'s style — shoes, bags & accessories',
-          zh: '高端男士风格 — 鞋包配饰',
-          ja: '上質なメンズスタイル — 靴・バッグ・アクセサリー',
-          ko: '프리미엄 남성 스타일 — 신발·가방·액세서리',
-        }
-      ),
-    ],
-    product_offer: [
-      suggestion(
-        { vi: 'Serum / spa', en: 'Serum / spa', zh: '精华 / 水疗', ja: 'セラム / スパ', ko: '세럼 / 스파' },
-        {
-          vi: 'Serum Vitamin C cao cấp — dưỡng sáng da, giảm thâm nám',
-          en: 'Premium Vitamin C serum — brightening, anti-dark-spot',
-          zh: '高端维生素C精华 — 提亮肤色、淡化色斑',
-          ja: 'プレミアムビタミンCセラム — 美白・シミケア',
-          ko: '프리미엄 비타민 C 세럼 — 미백·잡티 케어',
-        }
-      ),
-    ],
-    brand_style: [
-      suggestion(
-        { vi: 'Trẻ / sang', en: 'Youth / luxury', zh: '年轻 / 高端', ja: '若々 / 高級', ko: '젊은 / 럭셔리' },
-        {
-          vi: 'Trẻ trung, năng động — gradient tím hồng, typography bold',
-          en: 'Youthful, energetic — purple-pink gradient, bold typography',
-          zh: '年轻活力 — 紫粉渐变，粗体字体',
-          ja: '若々しくエネルギッシュ — 紫ピンクグラデ、太字',
-          ko: '젊고 역동적 — 보라·핑크 그라데이션, 볼드 타이포',
-        }
-      ),
-    ],
-    color_tone: COMMON_DISCOVERY_SUGGESTIONS.color_tone!,
-    banner_style: [
-      suggestion(
-        {
-          vi: 'Đời sống / sắp xếp phẳng',
-          en: 'Lifestyle / flat lay',
-          zh: '生活方式 / 平铺',
-          ja: 'ライフスタイル / フラットレイ',
-          ko: '라이프스타일 / 플랫레이',
-        },
-        {
-          vi: 'Bối cảnh đời sống cao cấp — người mẫu mặc sản phẩm, ánh sáng studio mềm',
-          en: 'Premium lifestyle — model wearing product, soft studio lighting',
-          zh: '高端生活方式 — 模特穿着产品，柔和棚拍光',
-          ja: '高級ライフスタイル — モデル着用、ソフトなスタジオ光',
-          ko: '프리미엄 라이프스타일 — 모델 착용, 부드러운 스튜디오 조명',
-        }
-      ),
-      suggestion(
-        {
-          vi: 'Sản phẩm / thuần chữ',
-          en: 'Product / typography',
-          zh: '产品 / 字体',
-          ja: '商品 / タイポ',
-          ko: '제품 / 타이포',
-        },
-        {
-          vi: 'Sắp xếp phẳng sản phẩm trên nền tối giản — không người mẫu',
-          en: 'Product flat lay on minimal background — no model',
-          zh: '极简背景产品平铺 — 无模特',
-          ja: 'ミニマル背景の商品フラットレイ — モデルなし',
-          ko: '미니멀 배경 제품 플랫레이 — 모델 없음',
-        }
-      ),
-    ],
-    banner_model: [
-      suggestion(
-        { vi: 'Nữ · châu Á', en: 'Female · Asian', zh: '女 · 亚洲', ja: '女性 · アジア', ko: '여성 · 아시아' },
-        {
-          vi: 'Nữ, châu Á, da sáng — mặc vest công sở sang trọng',
-          en: 'Female, Asian, light skin — wearing elegant office blazer',
-          zh: '女性，亚洲，肤色较浅 — 穿优雅职场西装',
-          ja: '女性、アジア系、明るい肌 — 上品なオフィスジャケット',
-          ko: '여성, 아시아, 밝은 피부 — 우아한 오피스 재킷',
-        }
-      ),
-      suggestion(
-        { vi: 'Nam · châu Âu', en: 'Male · European', zh: '男 · 欧洲', ja: '男性 · 欧州', ko: '남성 · 유럽' },
-        {
-          vi: 'Nam, châu Âu, da trung bình — phong cách thể thao năng động',
-          en: 'Male, European, medium skin — dynamic athletic look',
-          zh: '男性，欧洲，中等肤色 — 动感运动风',
-          ja: '男性、欧州系、中間的な肌 — ダイナミックなスポーティ',
-          ko: '남성, 유럽, 중간 톤 피부 — 역동적인 스포티 룩',
-        }
-      ),
-      suggestion(
-        {
-          vi: 'Không người mẫu',
-          en: 'No model',
-          zh: '无模特',
-          ja: 'モデルなし',
-          ko: '모델 없음',
-        },
-        {
-          vi: 'Không cần người mẫu — chỉ sản phẩm và typography',
-          en: 'No model needed — product and typography only',
-          zh: '不需要模特 — 仅产品与字体',
-          ja: 'モデル不要 — 商品とタイポのみ',
-          ko: '모델 불필요 — 제품과 타이포만',
-        }
-      ),
-    ],
-    discount_cta: [
-      suggestion(
-        { vi: 'Giảm 50%', en: '50% off', zh: '5折', ja: '50%OFF', ko: '50% 할인' },
-        {
-          vi: 'Giảm 50% — Mua ngay',
-          en: '50% off — Shop now',
-          zh: '5 折 — 立即购买',
-          ja: '50%OFF — 今すぐ購入',
-          ko: '50% 할인 — 지금 구매',
-        }
-      ),
-    ],
-    banner_design: [
-      suggestion(
-        { vi: 'Headline + CTA', en: 'Headline + CTA', zh: '标题 + CTA', ja: '見出し + CTA', ko: '헤드라인 + CTA' },
-        {
-          vi: 'GIẢM 50% — MUA NGAY · ảnh sản phẩm bên phải, logo góc trên',
-          en: '50% OFF — SHOP NOW · product image on the right, logo top corner',
-          zh: '5折 — 立即购买 · 产品图在右，Logo 左上角',
-          ja: '50%OFF — 今すぐ購入 · 商品画像右、ロゴ左上',
-          ko: '50% 할인 — 지금 구매 · 제품 이미지 오른쪽, 로고 좌상단',
-        }
-      ),
-    ],
-  },
+
   food_menu: {
     venue_name: [
       suggestion(
@@ -914,11 +767,11 @@ const PRESET_STEP_SUGGESTIONS: Record<string, Record<string, StudioStepSuggestio
       suggestion(
         { vi: 'Có ảnh món', en: 'With photos', zh: '有菜品图', ja: '写真あり', ko: '사진 있음' },
         {
-          vi: 'Có — ảnh minh họa món bên cạnh tên món',
-          en: 'Yes — appetizing dish photo beside each item name',
-          zh: '有 — 菜名旁诱人菜品图',
-          ja: 'あり — 料理名横に appetizing な写真',
-          ko: '있음 — 메뉴명 옆에 음식 사진',
+          vi: 'Có — ảnh chụp thật của món, đặt cạnh tên món',
+          en: 'Yes — photorealistic photo of each dish beside the name',
+          zh: '有 — 菜名旁放该菜的真实照片',
+          ja: 'あり — 料理名の横に実写の料理写真',
+          ko: '있음 — 메뉴명 옆에 실제 음식 사진',
         }
       ),
       suggestion(

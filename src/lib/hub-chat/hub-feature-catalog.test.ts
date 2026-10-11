@@ -25,8 +25,8 @@ test('resolveHubFeatureSelection routes create curriculum programmatically', () 
 })
 
 test('resolveHubFeatureSelection routes studio preset programmatically', () => {
-  const key = studioFeatureKey('landing_page')
+  const key = studioFeatureKey('packaging_kit')
   const resolved = resolveHubFeatureSelection(key, 'vi')
   assert.equal(resolved?.kind, 'studio')
-  if (resolved?.kind === 'studio') assert.equal(resolved.presetId, 'landing_page')
+  if (resolved?.kind === 'studio') assert.equal(resolved.presetId, 'packaging_kit')
 })

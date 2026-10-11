@@ -78,10 +78,10 @@ test('resolveEditUserMessage infers legacy user row without stored stepKey', () 
   assert.equal(resolved?.id, 'uuid-3')
 })
 
-test('isInPlaceDiscoveryBriefEdit is true for sale_banner discovery steps', () => {
-  const session = baseSession({ presetId: 'sale_banner', currentStepKey: 'brand_style' })
-  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'sale_banner', 'campaign_name'), true)
-  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'sale_banner', 'banner_design'), false)
+test('isInPlaceDiscoveryBriefEdit is true for packaging discovery steps', () => {
+  const session = baseSession({ presetId: 'packaging_kit', currentStepKey: 'style_mood' })
+  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'packaging_kit', 'brand_name'), true)
+  assert.equal(isInPlaceDiscoveryBriefEdit(session, 'packaging_kit', 'logo'), false)
 })
 
 test('applyInPlaceDiscoveryBriefEdit updates brief only and preserves timeline', () => {

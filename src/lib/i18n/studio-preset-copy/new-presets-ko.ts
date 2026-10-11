@@ -4,7 +4,7 @@ import { NEW_PRESETS_EN } from './new-presets-en'
 export const NEW_PRESETS_KO = {
   ...NEW_PRESETS_EN,
   packaging_kit: {
-    title: '패키징 세트',
+    title: '종이 상자 디자인',
     kickoff:
       '기술 종이상자 흐름: 로고 → 위|앞|오른쪽|아래|뒤|왼쪽 6개 면을 하나씩 생성 → 3D 목업 → Dieline PDF → 라벨 → 봉인 스티커 → 바코드.',
     steps: {

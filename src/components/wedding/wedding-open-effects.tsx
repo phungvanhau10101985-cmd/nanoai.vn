@@ -304,11 +304,13 @@ function fitCanvas(canvas: HTMLCanvasElement) {
   return { ctx, w, h }
 }
 
-/** Bung một lần khi mở thiệp, rồi hiệu ứng rơi trong lúc thiệp hiện lên. */
+/** Bung một lần khi mở thiệp. Hiệu ứng rơi chạy theo số giây đã chọn, hoặc suốt lúc thiệp đang mở. */
 export function WeddingOpenEffects(props: {
   play: boolean
   burst: WeddingOpenBurstEffect
   fall: WeddingOpenFallEffect
+  /** 0 = suốt lúc xem. */
+  fallSeconds?: number
   span?: 'full' | 'preview'
 }) {
   const ref = useRef<HTMLCanvasElement>(null)
@@ -327,14 +329,19 @@ export function WeddingOpenEffects(props: {
     const burst = props.burst
     const fall = props.fall
     const preview = props.span === 'preview'
-    const fallFor = fall === 'none' ? 0 : preview ? 3.4 : 13
-    const endAt = fall === 'none' ? 4.4 : fallFor + 7
+    const requestedSeconds = props.fallSeconds ?? 0
+    const fallKeepsGoing = fall !== 'none' && !preview && requestedSeconds <= 0
+    const fallFor =
+      fall === 'none' ? 0
+      : preview ? Math.min(requestedSeconds > 0 ? requestedSeconds : 6, 8)
+      : fallKeepsGoing ? Number.POSITIVE_INFINITY
+      : requestedSeconds
+    const endAt = fall === 'none' ? 4.4 : fallKeepsGoing ? Number.POSITIVE_INFINITY : fallFor + 7
     let seeded = false
     let spawnDebt = 0
     let last = performance.now()
     let raf = 0
-    const fireworkAt = preview ? [0.45, 1.7, 3] : [0.45, 1.8, 3.3, 5, 6.8, 8.7, 10.6, 12.4]
-    let fireworkCursor = 0
+    let nextFirework = 0.45
     const plannedBursts: Array<{ at: number; x: number; y: number }> = []
 
     const push = (bit: Bit) => {
@@ -709,11 +716,9 @@ export function WeddingOpenEffects(props: {
           spawnFall()
         }
       }
-      if (fall === 'fireworks') {
-        while (fireworkCursor < fireworkAt.length && t >= fireworkAt[fireworkCursor]!) {
-          fireworkCursor += 1
-          launchRocket()
-        }
+      if (fall === 'fireworks' && t < fallFor && t >= nextFirework) {
+        launchRocket()
+        nextFirework = t + rand(1.5, 2.4)
       }
       while (plannedBursts.length > 0 && t >= plannedBursts[0]!.at) {
         const shot = plannedBursts.shift()!
@@ -773,19 +778,29 @@ export function WeddingOpenEffects(props: {
         else if (bit.kind === 'lantern') drawLantern(ctx, bit)
         else if (bit.kind === 'butterfly') drawButterfly(ctx, bit, t)
       }
-      const fadeOut = endAt - 1.3
-      canvas.style.opacity = t > fadeOut ? String(Math.max(0, 1 - (t - fadeOut) / 1.3)) : '1'
+      if (!fallKeepsGoing) {
+        const fadeOut = endAt - 1.3
+        canvas.style.opacity = t > fadeOut ? String(Math.max(0, 1 - (t - fadeOut) / 1.3)) : '1'
+      }
       if (t < endAt) raf = window.requestAnimationFrame(tick)
       else ctx.clearRect(0, 0, view.w, view.h)
     }
 
+    const onVisibility = () => {
+      window.cancelAnimationFrame(raf)
+      if (document.hidden) return
+      last = performance.now()
+      raf = window.requestAnimationFrame(tick)
+    }
     const start = performance.now()
     raf = window.requestAnimationFrame(tick)
+    document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.cancelAnimationFrame(raf)
       window.removeEventListener('resize', onResize)
+      document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [play, props.burst, props.fall, props.span])
+  }, [play, props.burst, props.fall, props.fallSeconds, props.span])
 
   if (!play) return null
   return <canvas ref={ref} aria-hidden className="pointer-events-none fixed inset-0 z-[45]" />

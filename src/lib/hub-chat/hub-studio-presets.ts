@@ -1,6 +1,6 @@
 import { WEB_LOCALES, type WebLocale } from '@/lib/i18n/config'
 import { getStudioPresetCopy } from '@/lib/i18n/studio-preset-copy'
-import type { HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
+import type { HubStudioProcessStep, HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import {
   getFlowStep,
   getFlowSteps,
@@ -73,74 +73,6 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
     ],
   },
   {
-    id: 'sale_banner',
-    labelKey: 'sale_banner',
-    needsUpload: false,
-    intents: [
-      'banner sale',
-      'banner khuyến mãi',
-      'banner quảng cáo',
-      'tạo banner',
-      'baner quảng cáo',
-      'baner quang cao',
-      'tạo baner',
-      'tao baner',
-      'quảng cáo google',
-      'quang cao google',
-      'banner google',
-      'baner google',
-      'quảng cáo',
-      'poster sale',
-      'khai trương',
-      'google ads',
-      'facebook ads',
-      '促销横幅',
-      'セールバナー',
-      '세일 배너',
-    ],
-  },
-  {
-    id: 'brand_kit',
-    labelKey: 'brand_kit',
-    intents: [
-      'bộ thương hiệu',
-      'brand kit',
-      'logo và banner',
-      'nhận diện thương hiệu',
-      '品牌套件',
-      'ブランドキット',
-      '브랜드 키트',
-    ],
-  },
-  {
-    id: 'landing_page',
-    labelKey: 'landing_page',
-    intents: [
-      'landing page',
-      'landingpage',
-      'ladipage',
-      'ladi page',
-      'ladipge',
-      'tạo landing',
-      'tao landing',
-      'tạo ladipage',
-      'tao ladipage',
-      'thiết kế landing',
-      'thiet ke landing',
-      'trang đích',
-      'trang dich',
-      'landing page mockup',
-      'landing segment',
-      'mockup landing',
-      'thiết kế ảnh landing',
-      'ảnh phân đoạn landing',
-      'saas landing mockup',
-      '落地页',
-      'ランディング',
-      '랜딩페이지',
-    ],
-  },
-  {
     id: 'product_listing',
     labelKey: 'product_listing',
     needsUpload: true,
@@ -154,35 +86,6 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '产品图',
       '商品画像',
       '상품 사진',
-    ],
-  },
-  {
-    id: 'ad_music',
-    labelKey: 'ad_music',
-    intents: [
-      'nhạc quảng cáo',
-      'jingle',
-      'nhạc nền',
-      'advertising music',
-      'lyria',
-      '广告音乐',
-      'ジングル',
-      '광고 음악',
-    ],
-  },
-  {
-    id: 'lookbook',
-    labelKey: 'lookbook',
-    needsUpload: true,
-    uploadHintKey: 'lookbook',
-    intents: [
-      'lookbook',
-      'bộ sưu tập',
-      'thời trang',
-      'fashion collection',
-      'catalogue',
-      'ルックブック',
-      '룩북',
     ],
   },
   {
@@ -202,98 +105,6 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
       '包装设计',
       'パッケージ',
       '패키징',
-    ],
-  },
-  {
-    id: 'interior_design',
-    labelKey: 'interior_design',
-    needsUpload: true,
-    uploadHintKey: 'interior_design',
-    intents: [
-      'nội thất',
-      'ngoại thất',
-      'interior design',
-      'my house',
-      'xây nhà',
-      'phòng khách',
-      '室内设计',
-      'インテリア',
-      '인테리어',
-    ],
-  },
-  {
-    id: 'social_media_kit',
-    labelKey: 'social_media_kit',
-    intents: [
-      'social media kit',
-      'bộ social',
-      'content shop',
-      'post instagram',
-      'facebook cover',
-      'pinterest',
-      '社交媒体',
-      'SNSキット',
-      'SNS 키트',
-    ],
-  },
-  {
-    id: 'story_with_images',
-    labelKey: 'story_with_images',
-    intents: [
-      'kể chuyện bằng hình',
-      'story with images',
-      'truyện tranh',
-      'children book',
-      'picture book',
-      '绘本',
-      '絵本',
-      '그림책',
-    ],
-  },
-  {
-    id: 'infographic_series',
-    labelKey: 'infographic_series',
-    needsUpload: true,
-    uploadHintKey: 'infographic_series',
-    intents: [
-      'infographic',
-      'infographic series',
-      'slide tóm tắt',
-      'tóm tắt sách',
-      '信息图',
-      'インフォグラフィック',
-      '인포그래픽',
-    ],
-  },
-  {
-    id: 'fashion_campaign',
-    labelKey: 'fashion_campaign',
-    needsUpload: true,
-    uploadHintKey: 'fashion_campaign',
-    intents: [
-      'campaign thời trang',
-      'fashion campaign',
-      'thử đồ campaign',
-      'try on lookbook',
-      'outfit campaign',
-      '时尚 campaign',
-      'ファッションキャンペーン',
-      '패션 캠페인',
-    ],
-  },
-  {
-    id: 'profile_photo_pack',
-    labelKey: 'profile_photo_pack',
-    needsUpload: true,
-    uploadHintKey: 'profile_photo_pack',
-    intents: [
-      'bộ ảnh thẻ',
-      'ảnh thẻ profile',
-      'linkedin photo',
-      'professional headshot',
-      '证件照',
-      '証明写真',
-      '증명사진',
     ],
   },
   {
@@ -351,48 +162,6 @@ export const STUDIO_PRESETS: StudioPresetDef[] = [
     ],
   },
   {
-    id: 'design_recreate',
-    labelKey: 'design_recreate',
-    needsUpload: true,
-    uploadHintKey: 'design_recreate',
-    intents: [
-      'tạo lại bản thiết kế',
-      'tao lai ban thiet ke',
-      'tạo lại thiết kế',
-      'tao lai thiet ke',
-      'dựng lại bản thiết kế',
-      'dung lai ban thiet ke',
-      'dựng lại thiết kế',
-      'dung lai thiet ke',
-      'làm lại bản thiết kế',
-      'lam lai ban thiet ke',
-      'làm lại thiết kế',
-      'lam lai thiet ke',
-      'thiết kế lại',
-      'thiet ke lai',
-      'làm giống mẫu',
-      'lam giong mau',
-      'recreate design',
-      'redesign from sample',
-      'thiết kế theo mẫu',
-      'thiet ke theo mau',
-      'concept sheet từ ảnh',
-      'concept sheet tu anh',
-      'bảng concept thiết kế',
-      'bang concept thiet ke',
-      'fashion concept board',
-      'design from sample',
-      'mẫu sản phẩm thiết kế',
-      '设计还原',
-      '重新设计',
-      '概念板',
-      'デザイン再現',
-      'デザインやり直',
-      '디자인 재현',
-      '다시 디자인',
-    ],
-  },
-  {
     id: 'catalog_photo_pack',
     labelKey: 'catalog_photo_pack',
     needsUpload: true,
@@ -434,6 +203,39 @@ function presetCopy(locale: WebLocale, presetId: string): PresetCopy | null {
 
 export function getStudioPreset(id: string): StudioPresetDef | undefined {
   return STUDIO_PRESETS.find((p) => p.id === id)
+}
+
+const RETIRED_STUDIO_PRESET_IDS = new Set([
+  'lookbook',
+  'social_media_kit',
+  'brand_kit',
+  'profile_photo_pack',
+  'infographic_series',
+  'fashion_campaign',
+  'story_with_images',
+  'sale_banner',
+  'ad_music',
+  'interior_design',
+  'landing_page',
+  'design_recreate',
+])
+
+export function isRetiredStudioPreset(presetId: string | null | undefined): boolean {
+  return Boolean(presetId && RETIRED_STUDIO_PRESET_IDS.has(presetId))
+}
+
+/** Removed hub flows. Drop them from saved threads so they stop generating. */
+export function detachRetiredStudioPreset(session: HubStudioSession): HubStudioSession {
+  if (!isRetiredStudioPreset(session.presetId)) return session
+  return {
+    ...session,
+    presetId: null,
+    discoveryComplete: false,
+    processSteps: [],
+    currentStepKey: null,
+    pendingPreview: null,
+    lastGenerationPrompt: null,
+  }
 }
 
 function foldHubIntentText(text: string): string {
@@ -524,6 +326,8 @@ export function matchesDesignRecreateAgainIntent(message: string): boolean {
 }
 
 export function scoreStudioPresetMatch(message: string, preset: StudioPresetDef): number {
+  if (matchesLandingPageIntent(message)) return 0
+  if (matchesDesignRecreateAgainIntent(message)) return 0
   const lower = message.toLowerCase()
   const messageCore = featureNameCore(message)
   let score = 0
