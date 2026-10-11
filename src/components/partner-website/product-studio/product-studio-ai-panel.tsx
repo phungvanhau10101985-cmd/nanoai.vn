@@ -15,6 +15,9 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { Loader2, RefreshCw, ThumbsUp, Upload, X } from 'lucide-react'
 import type { ProductStudioExportUi } from '@/lib/catalog-photo/catalog-photo-copy'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { productStudioSlotImageCredit } from '@/lib/partner-website/product-studio/product-studio-image-model'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import {
@@ -235,6 +238,10 @@ export function ProductStudioAiPanel({
   const [shotStyle, setShotStyle] = useState('studio')
   const [aspectRatio, setAspectRatio] = useState('1:1')
   const [imageModel, setImageModel] = useState<ProductStudioImageModel>('pro')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const [uiLocale, setUiLocale] = useState('vi')
 
   const [formKind, setFormKind] = useState<ProductStudioSlotKind>('color')
   const [formPrompt, setFormPrompt] = useState('')
@@ -255,13 +262,28 @@ export function ProductStudioAiPanel({
   const canPublish = studio ? studioCanPublish(studio) : false
   const awaitingApproval = job?.status === 'ready_for_review' && Boolean(currentSlot)
   const generating = job?.status === 'generating' || job?.status === 'publishing'
-  const billingChoice: ProductStudioImageModel =
-    job?.payload.imageModel === 'flash' || job?.payload.imageModel === 'flash3'
-      ? job.payload.imageModel
-      : job
-        ? 'pro'
-        : imageModel
-  const slotCredit = (kind: ProductStudioSlotKind) => productStudioSlotImageCredit(kind, billingChoice)
+  const slotCredit = (kind: ProductStudioSlotKind) =>
+    imageEngineCredit({
+      engine: imageEngine,
+      gptQuality,
+      geminiCost: productStudioSlotImageCredit(kind, imageModel),
+    })
+  const enginePicker = (
+    <ImageEnginePicker
+      locale={uiLocale}
+      engine={imageEngine}
+      onEngineChange={setImageEngine}
+      geminiQuality={geminiQuality}
+      onGeminiQualityChange={setGeminiQuality}
+      gptQuality={gptQuality}
+      onGptQualityChange={setGptQuality}
+      geminiCost2k={productStudioSlotImageCredit('color', imageModel)}
+    />
+  )
+
+  useEffect(() => {
+    setUiLocale(readWebLocaleFromDocumentCookie())
+  }, [])
 
   const loadSessions = useCallback(async () => {
     const res = await fetch(`${base}/jobs?active=true`)
@@ -355,6 +377,8 @@ export function ProductStudioAiPanel({
         modelEthnicity: wearable && modelPresence === 'model' ? modelEthnicity : '',
         shotStyle,
         imageModel,
+        imageEngine,
+        gptQuality,
       }
       const res = await fetch(`${base}/jobs`, {
         method: 'POST',
@@ -398,6 +422,12 @@ export function ProductStudioAiPanel({
     setShotStyle(data.job.payload.shotStyle || 'studio')
     setAspectRatio(data.job.payload.aspectRatio || '1:1')
     setImageModel(data.job.payload.imageModel === 'flash' || data.job.payload.imageModel === 'flash3' ? data.job.payload.imageModel : 'pro')
+    setImageEngine(data.job.payload.imageEngine === 'gpt' ? 'gpt' : 'gemini')
+    setGptQuality(
+      data.job.payload.gptQuality === 'low' || data.job.payload.gptQuality === 'high'
+        ? data.job.payload.gptQuality
+        : 'medium',
+    )
     setFormKind(data.job.studio.phase || 'color')
     setStep(3)
   }
@@ -437,6 +467,9 @@ export function ProductStudioAiPanel({
           refUrls: formRefUrls,
           attachUrl: formAttachUrl,
           aspectRatio: formKind === 'material' ? STUDIO_MATERIAL_ASPECT_RATIO : aspectRatio,
+          imageModel,
+          imageEngine,
+          gptQuality,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { job?: ProductStudioJobRow; error?: string }
@@ -481,6 +514,9 @@ export function ProductStudioAiPanel({
           refUrls: formRefUrls,
           attachUrl: formAttachUrl.trim() || undefined,
           aspectRatio,
+          imageModel,
+          imageEngine,
+          gptQuality,
         }),
       })
       const data = (await res.json().catch(() => ({}))) as { job?: ProductStudioJobRow; error?: string }
@@ -804,6 +840,8 @@ export function ProductStudioAiPanel({
               </SelectContent>
             </Select>
           </div>
+          {enginePicker}
+          {imageEngine === 'gemini' ? (
           <div className="space-y-1.5">
             <Label>{t.productStudioImageModelLabel}</Label>
             <Select value={imageModel} onValueChange={(value) => setImageModel(value as ProductStudioImageModel)}>
@@ -823,9 +861,10 @@ export function ProductStudioAiPanel({
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              {creditText(t.productStudioMaterialCreditNote, productStudioSlotImageCredit('material', imageModel))}
+              {creditText(t.productStudioMaterialCreditNote, slotCredit('material'))}
             </p>
           </div>
+          ) : null}
           <div className="space-y-1.5">
             <Label>{t.productStudioFieldNotes}</Label>
             <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
@@ -909,6 +948,7 @@ export function ProductStudioAiPanel({
               {formKind === 'color' && pendingColorIndex < 1 ? (
                 <Textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={2} placeholder={t.productStudioPromptColorPlaceholder} />
               ) : null}
+              {enginePicker}
               <div className="flex gap-2">
                 <Button type="button" disabled={studioBusy || !currentSlot.candidateUrl} onClick={() => void approve()}>
                   <ThumbsUp className="mr-1.5 h-3.5 w-3.5" />
@@ -1005,6 +1045,7 @@ export function ProductStudioAiPanel({
               {formKind === 'color' && pendingColorIndex < 1 ? (
                 <Textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={2} placeholder={t.productStudioPromptColorPlaceholder} />
               ) : null}
+              {enginePicker}
               <Button type="button" disabled={studioBusy || uploading} onClick={() => void submitGenerate()}>
                 {studioBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                 {t.productStudioGenerate} · {creditText(t.productStudioCreditPerImage, slotCredit(formKind))}

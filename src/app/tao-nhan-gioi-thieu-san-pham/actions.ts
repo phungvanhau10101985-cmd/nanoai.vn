@@ -13,6 +13,8 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 
 const LABEL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -254,7 +256,9 @@ export async function createProductLabel(formData: FormData) {
     if (borderEn) prompt = prompt.replace('Chỉ trả về ảnh kết quả', `${borderEn} Chỉ trả về ảnh kết quả`)
   }
 
-  const COST = LABEL_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, LABEL_COSTS[imageQuality] ?? LABEL_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -291,14 +295,17 @@ export async function createProductLabel(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -325,7 +332,13 @@ export async function createProductLabel(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent(contentParts as never, { safetySettings } as never)
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: contentParts,
+      gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gioi-thieu-san-pham', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -385,7 +398,9 @@ export async function createLabelMockupOnProduct(formData: FormData) {
     return { error: 'Cần tải ảnh sản phẩm để xem mockup.' }
   }
 
-  const COST = MOCKUP_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, MOCKUP_COSTS[imageQuality] ?? MOCKUP_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
@@ -422,14 +437,17 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -440,10 +458,13 @@ export async function createLabelMockupOnProduct(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent(
-      [MOCKUP_PROMPT, productImagePart, labelImagePart],
-      { safetySettings }
-    )
+    const mockupParts = [MOCKUP_PROMPT, productImagePart, labelImagePart]
+    const genResult = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      parts: mockupParts,
+      gemini: () => model!.generateContent(mockupParts, { safetySettings }),
+    })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gioi-thieu-san-pham-mockup', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

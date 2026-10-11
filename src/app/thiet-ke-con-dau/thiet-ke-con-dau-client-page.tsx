@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { Download, Sparkles, Upload, X } from 'lucide-react'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
@@ -58,10 +60,16 @@ export default function ThietKeConDauClientPage() {
   const [rectHeightMm, setRectHeightMm] = useState(25)
   const [logo, setLogo] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const aspectRatio =
     shape === 'chu-nhat' ? closestAspectRatioFromMmSize(rectWidthMm, rectHeightMm) : SHAPE_TO_ASPECT_RATIO[shape] || '1:1'
   const [resultUrl, setResultUrl] = useState<string | null>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -121,6 +129,8 @@ export default function ThietKeConDauClientPage() {
     }
     fd.append('aspectRatio', aspectRatio)
     fd.append('imageQuality', imageQuality)
+    fd.append('imageEngine', imageEngine)
+    fd.append('gptQuality', gptQuality)
     Object.entries(formData).forEach(([k, v]) => v && fd.append(k, v.trim()))
     if (logo.file) fd.append('logo', logo.file)
     try {
@@ -507,25 +517,17 @@ export default function ThietKeConDauClientPage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Chất lượng', 'Quality', '质量', '画質', '화질')}</label>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setImageQuality('2K')}
-                      className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${imageQuality === '2K' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
-                    >
-                      2K (1.5)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setImageQuality('4K')}
-                      className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${imageQuality === '4K' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}
-                    >
-                      4K (3)
-                    </button>
-                  </div>
-                </div>
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={imageQuality}
+                  onGeminiQualityChange={setImageQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={1.5}
+                  geminiCost4k={3}
+                />
 
                 <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} disabled={false} className="w-full bg-rose-600 hover:bg-rose-700 text-white">
                   <Sparkles className="h-4 w-4 mr-2" />

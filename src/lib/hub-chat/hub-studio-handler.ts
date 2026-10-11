@@ -481,6 +481,8 @@ export type HubStudioHandlerInput = {
   landingSectionCopy?: string
   landingLogoBrief?: string
   stripBackground?: boolean
+  imageEngine?: string | null
+  gptQuality?: string | null
   landingPublishedShareUrl?: string
   landingPublishedShareToken?: string
   landingHtmlSource?: string
@@ -1469,7 +1471,7 @@ async function generateAsset(
   screenKey: string,
   screenLabel: string,
   locale: WebLocale,
-  opts?: { stripBackground?: boolean }
+  opts?: { stripBackground?: boolean; imageEngine?: string | null; gptQuality?: string | null }
 ): Promise<{ session: HubStudioSession; studio: HubStudioMessagePayload; chargedImage: number; error?: string }> {
   const effectiveScreenKey =
     session.presetId === 'landing_page'
@@ -2219,6 +2221,8 @@ async function generateAsset(
     printSizeMm,
     verbatimPrompt: isLandingFull,
     stripBackground: generator === 'logo' ? opts?.stripBackground : undefined,
+    imageEngine: opts?.imageEngine,
+    gptQuality: opts?.gptQuality,
   }
 
   let gen: Awaited<ReturnType<typeof runStudioImagePipeline>> | null = null
@@ -2659,7 +2663,8 @@ async function runPackagingArtifactStep(
   session: HubStudioSession,
   locale: WebLocale,
   message: string,
-  packagingArtifactStep: 'box_mockup_3d' | 'box_dieline_pdf'
+  packagingArtifactStep: 'box_mockup_3d' | 'box_dieline_pdf',
+  imageOpts?: { imageEngine?: string | null; gptQuality?: string | null }
 ): Promise<{
   session: HubStudioSession
   studio: HubStudioMessagePayload
@@ -2684,7 +2689,8 @@ async function runPackagingArtifactStep(
     message,
     packagingArtifactStep,
     artifactLabel,
-    locale
+    locale,
+    imageOpts
   )
   return {
     session: genResult.session,
@@ -2883,6 +2889,8 @@ async function generateSaleBannerBatch(input: {
   locale: WebLocale
   session: HubStudioSession
   presetIds: BannerAdPresetId[]
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<{
   ok: boolean
   session: HubStudioSession
@@ -2995,7 +3003,8 @@ async function generateSaleBannerBatch(input: {
       sharedPrompt,
       'banner_design',
       label,
-      input.locale
+      input.locale,
+      { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
     )
     workSession = gen.session
     totalCharged += gen.chargedImage
@@ -3129,6 +3138,8 @@ async function generateFoodMenu(input: {
   apiKey: string
   locale: WebLocale
   session: HubStudioSession
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<{
   ok: boolean
   session: HubStudioSession
@@ -3210,7 +3221,8 @@ async function generateFoodMenu(input: {
     built.prompt,
     'menu_design',
     label,
-    input.locale
+    input.locale,
+    { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
   )
   return {
     ok: !gen.error,
@@ -3974,6 +3986,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         locale: input.locale,
         session,
         presetIds,
+        imageEngine: input.imageEngine,
+        gptQuality: input.gptQuality,
       })
       session = batch.session
       studio = batch.studio
@@ -4050,6 +4064,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         apiKey: input.apiKey,
         locale: input.locale,
         session,
+        imageEngine: input.imageEngine,
+        gptQuality: input.gptQuality,
       })
       session = generated.session
       studio = generated.studio
@@ -4165,7 +4181,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       stepKey,
       label,
       input.locale,
-      { stripBackground: input.stripBackground }
+      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality }
     )
     session = generated.session
     studio = generated.studio
@@ -4618,7 +4634,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         generateUserCopy[input.locale],
         'box_dieline_pdf',
         artifactLabel,
-        input.locale
+        input.locale,
+        { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
       )
       session = generated.session
       studio = generated.studio
@@ -5518,6 +5535,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       referenceImageMeta: [],
       aspectRatio: '1:1',
       stripBackground: input.stripBackground,
+      imageEngine: input.imageEngine,
+      gptQuality: input.gptQuality,
     })
     if (!gen.ok) {
       return {
@@ -6579,6 +6598,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       imageBuffer: files[0]!.buffer,
       mimeType: files[0]!.mimeType,
       aspectRatio,
+      imageEngine: input.imageEngine,
+      gptQuality: input.gptQuality,
     })
     if (!gen.ok) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: gen.error }
@@ -6986,7 +7007,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       screenKey,
       label,
       input.locale,
-      { stripBackground: input.stripBackground }
+      { stripBackground: input.stripBackground, imageEngine: input.imageEngine, gptQuality: input.gptQuality }
     )
     if (genResult.error) {
       return { ok: false, reply: genResult.error, session, threadId: input.threadId, chargedChat: 0, error: genResult.error }
@@ -7144,7 +7165,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       editPrepared.editMessage,
       editStepKey,
       editLabel,
-      input.locale
+      input.locale,
+      { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
     )
     if (generated.error || !generated.session.pendingPreview) {
       return {
@@ -8125,7 +8147,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         genPrompt,
         session.currentStepKey,
         label,
-        input.locale
+        input.locale,
+        { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
       )
       if (genResult.error) {
         reply = `${reply}\n\n(${genResult.error})`
@@ -8175,7 +8198,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           session,
           input.locale,
           message,
-          targetStep
+          targetStep,
+          { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
         )
         session = artifactResult.session
         studio = artifactResult.studio
@@ -8194,7 +8218,8 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           genPrompt,
           targetStep,
           label,
-          input.locale
+          input.locale,
+          { imageEngine: input.imageEngine, gptQuality: input.gptQuality }
         )
         if (genResult.error) {
           reply = `${sanitizeAssistantReply(reply)}\n\n(${genResult.error})`

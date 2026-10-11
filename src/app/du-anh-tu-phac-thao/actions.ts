@@ -13,6 +13,8 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 
 const COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -93,11 +95,14 @@ export async function createImageFromSketch(formData: FormData) {
     ? aspectRatioRaw
     : '1:1'
 
-  const COST = COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, COSTS[imageQuality] ?? COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
-  const apiKey = process.env.GOOGLE_API_KEY?.trim()
-  if (!apiKey) {
-    return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
+  let googleApiKey = ''
+  if (charge.engine !== 'gpt') {
+    googleApiKey = process.env.GOOGLE_API_KEY?.trim() || ''
+    if (!googleApiKey) return { error: 'Thiếu cấu hình GOOGLE_API_KEY.' }
   }
 
   const result = await getUserForCreditAction()
@@ -166,22 +171,30 @@ export async function createImageFromSketch(formData: FormData) {
 
   const instruction = `${BASE_INSTRUCTION}\n\n${MODE_DIRECTIVES[sketchMode]}${notesBlock}`
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI(googleApiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
 
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent(
-      [{ text: instruction }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
-      { safetySettings: [...safetySettings] } as never
-    )
+    const sketchParts = [{ text: instruction }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }]
+    const genResult = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: sketchParts,
+      gemini: () =>
+        model!.generateContent(sketchParts as never, { safetySettings: [...safetySettings] } as never),
+    })
     const response = genResult.response
     void trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'du-anh-tu-phac-thao', user.id, imageQuality)
 

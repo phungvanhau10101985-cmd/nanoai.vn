@@ -606,7 +606,15 @@ export function PartnerImageLocalizationCard({
         </div>
       </div>
 
-      <PartnerImageLocalizationProbe partnerId={partnerId} language={language} t={t} />
+      <PartnerImageLocalizationProbe
+        partnerId={partnerId}
+        language={language}
+        mode={geminiMode}
+        openaiModel={openaiModel}
+        openaiQuality={openaiQuality}
+        openaiSize={openaiSize}
+        t={t}
+      />
     </div>
   )
 }

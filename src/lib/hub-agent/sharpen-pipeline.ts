@@ -5,6 +5,8 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@/lib/db/try-on-history-pg'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { deleteTryOnHistoryRowAndStorage } from '@/lib/storage/try-on-history-cleanup'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   downloadTryOnObject,
@@ -26,6 +28,8 @@ export type RunSharpenPipelineInput = {
   mimeType?: string
   note?: string
   imageQuality?: HubAutoRunImageQuality
+  imageEngine?: string | null
+  gptQuality?: string | null
 }
 
 export type RunSharpenPipelineResult =
@@ -60,7 +64,18 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
     )
   }
 
-  const COST = SHARPEN_COSTS[imageQuality]
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    SHARPEN_COSTS[imageQuality],
+  )
+  if (priced.error) return { ok: false, error: priced.error }
+  const COST = priced.cost
   let balance = 0
   try {
     balance = await getCreditBalanceByUserId(input.userId)
@@ -87,15 +102,18 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   })
   if (!historyItem) return { ok: false, error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const imagePart = {
     inlineData: {
       data: input.imageBuffer.toString('base64'),
@@ -110,7 +128,12 @@ export async function runSharpenPipeline(input: RunSharpenPipelineInput): Promis
   ]
 
   try {
-    const result = await model.generateContent([prompt, imagePart], { safetySettings })
+    const result = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      parts: [prompt, imagePart],
+      gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'lam-net-anh', input.userId, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

@@ -20,6 +20,8 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { cn } from '@/lib/utils'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
@@ -85,7 +87,10 @@ export default function TaoInfographicTuSachClientPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
-  const cost = 1.5
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const cost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 1.5 })
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -183,6 +188,8 @@ export default function TaoInfographicTuSachClientPage() {
     formData.append('contentText', contentText.trim())
     formData.append('teacherNotes', teacherNotes.trim())
     formData.append('outputLocale', getWebLocaleFromCookie())
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     bookSlots.forEach((s) => formData.append('bookPage', s.file))
 
     try {
@@ -374,6 +381,16 @@ export default function TaoInfographicTuSachClientPage() {
                 />
               </div>
 
+              <ImageEnginePicker
+                locale={uiLocale}
+                engine={imageEngine}
+                onEngineChange={setImageEngine}
+                geminiQuality={geminiQuality}
+                onGeminiQualityChange={setGeminiQuality}
+                gptQuality={gptQuality}
+                onGptQualityChange={setGptQuality}
+                geminiCost2k={1.5}
+              />
               <div className="space-y-2">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {tr('Ghi chú / trọng tâm (tuỳ chọn)', 'Focus notes (optional)', '重点备注（可选）', 'メモ（任意）', '메모(선택)')}
@@ -397,7 +414,7 @@ export default function TaoInfographicTuSachClientPage() {
                   onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                 >
                   <Upload className="h-4 w-4" />
-                  {tr(`Tạo infographic (${cost} credits)`, `Create infographic (${cost} credits)`, `创建信息图（${cost} 积分）`, `作成（${cost}クレジット）`, `만들기 (${cost} 크레딧)`)}
+                  {tr(`Tạo infographic (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `Create infographic (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `创建信息图（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 积分）`, `作成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}クレジット）`, `만들기 (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 크레딧)`)}
                 </Button>
               </div>
             </CardContent>

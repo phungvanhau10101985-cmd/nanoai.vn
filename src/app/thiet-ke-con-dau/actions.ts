@@ -14,6 +14,8 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 
 const SEAL_COSTS = { '2K': 1.5, '4K': 3 } as const
@@ -155,7 +157,9 @@ export async function createStampWithAI(formData: FormData) {
   parts.push('Chỉ trả về ảnh kết quả, không chèn chữ phụ. KHÔNG sử dụng quốc huy, quốc kỳ, đảng kỳ, biểu tượng cơ quan nhà nước.')
 
   const prompt = parts.join('\n')
-  const COST = SEAL_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, SEAL_COSTS[imageQuality] ?? SEAL_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -179,14 +183,17 @@ export async function createStampWithAI(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -204,7 +211,13 @@ export async function createStampWithAI(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent(contentParts as never, { safetySettings } as never)
+    const genResult = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: contentParts,
+      gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
+    })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-con-dau', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

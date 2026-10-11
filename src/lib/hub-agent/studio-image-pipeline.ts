@@ -12,6 +12,8 @@ import { productStudioGeminiImageCredit } from '@/lib/partner-website/product-st
 import type { StudioGeneratorKind } from '@/lib/hub-chat/hub-studio-presets'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
 import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
@@ -283,6 +285,9 @@ export async function runStudioImagePipeline(input: {
   imageModel?: string | null
   /** `null` = không gửi imageSize (Flash 2.5). Bỏ trống = spec 2K. */
   imageSize?: string | null
+  /** Thiếu = Gemini, giá cũ. */
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<StudioImageResult> {
   const refUrls = input.referenceImageUrls ?? []
   const productUrls = input.productImageUrls ?? []
@@ -316,11 +321,23 @@ export async function runStudioImagePipeline(input: {
   }
   const stripLogoBackground =
     input.kind === 'logo' ? parseLogoStripBackgroundFlag(input.stripBackground) : false
-  const imageCredit =
+  const geminiUnit =
     input.kind === 'logo' ? UI_MOCKUP_CREDIT : productStudioGeminiImageCredit(input.imageModel)
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    geminiUnit,
+  )
+  if (priced.error) return { ok: false, error: priced.error }
+  const imageCredit = priced.cost
   const requiredCredits =
     input.kind === 'logo'
-      ? requiredCreditsForLogoCreate(UI_MOCKUP_CREDIT, stripLogoBackground)
+      ? requiredCreditsForLogoCreate(imageCredit, stripLogoBackground)
       : imageCredit
   if (toTenths(balance) < toTenths(requiredCredits)) {
     return { ok: false, error: `Không đủ credits (cần ${requiredCredits}).` }
@@ -329,8 +346,13 @@ export async function runStudioImagePipeline(input: {
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
-  const genAI = new GoogleGenerativeAI(apiKey)
+  const needGemini = priced.engine !== 'gpt'
+  const needStripKey = input.kind === 'logo' && stripLogoBackground
+  let apiKey = ''
+  if (needGemini || needStripKey) {
+    apiKey = (await requireGoogleApiKeyForUser(input.userId)).apiKey
+  }
+  const genAI = needGemini ? new GoogleGenerativeAI(apiKey) : null
 
   const parts: object[] = [{ text: spec.prompt }]
   const primaryFaceKey = 'face_top'
@@ -423,18 +445,27 @@ export async function runStudioImagePipeline(input: {
     let lastError = 'AI không trả về ảnh.'
     const modelId = (input.imageModel || GEMINI_3_PRO_IMAGE.model).trim() || GEMINI_3_PRO_IMAGE.model
     const omitImageSize = input.imageSize === null
-    for (const aspectRatio of aspectRatioAttempts) {
+    const ratios = priced.engine === 'gpt' ? aspectRatioAttempts.slice(0, 1) : aspectRatioAttempts
+    for (const aspectRatio of ratios) {
       const imageConfig: { aspectRatio: string; imageSize?: '2K' | '4K' } = { aspectRatio }
       if (!omitImageSize) imageConfig.imageSize = input.imageSize === '4K' ? '4K' : spec.imageSize === '4K' ? '4K' : '2K'
-      const model = genAI.getGenerativeModel({
-        model: modelId,
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig,
-        },
-      })
+      const model = needGemini
+        ? genAI!.getGenerativeModel({
+            model: modelId,
+            generationConfig: {
+              responseModalities: ['TEXT', 'IMAGE'],
+              imageConfig,
+            },
+          })
+        : null
       try {
-        const result = await model.generateContent(parts as never, { safetySettings } as never)
+        const result = await runImageContent({
+          engine: priced.engine,
+          gptQuality: priced.gptQuality,
+          aspectRatio,
+          parts,
+          gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+        })
         trackFromUsageMetadata(
           result.response.usageMetadata,
           modelId,
@@ -464,7 +495,7 @@ export async function runStudioImagePipeline(input: {
             )
           : resultBufferRaw
         let resultBuffer = normalizedBuffer
-        let charged = input.kind === 'logo' ? UI_MOCKUP_CREDIT : imageCredit
+        let charged = imageCredit
         if (input.kind === 'logo' && stripLogoBackground) {
           const stripped = await stripLogoBackgroundToTransparentPng({
             apiKey,
@@ -473,7 +504,7 @@ export async function runStudioImagePipeline(input: {
             imageBuffer: normalizedBuffer,
           })
           resultBuffer = stripped.buffer
-          charged = chargedCreditsForLogoCreate(UI_MOCKUP_CREDIT, stripped.removed)
+          charged = chargedCreditsForLogoCreate(imageCredit, stripped.removed)
         }
         const resultPath = `results/${input.userId}/studio_${input.kind}_${Date.now()}.png`
         const { publicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {

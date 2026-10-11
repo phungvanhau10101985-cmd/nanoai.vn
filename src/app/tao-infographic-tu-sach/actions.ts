@@ -6,6 +6,8 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
@@ -206,8 +208,11 @@ export async function createInfographicFromBook(formData: FormData) {
   } catch {
     return { error: 'Không đọc được số dư credits.' }
   }
-  if (toTenths(openBalance) < toTenths(COST_2K)) {
-    return { error: `Không đủ credits. Cần ${formatCredits(COST_2K)} credits, hiện có ${formatCredits(openBalance)}.` }
+  const priced = imageChargeFromForm(formData, COST_2K)
+  if (priced.error) return { error: priced.error }
+  const imageCost = priced.cost
+  if (toTenths(openBalance) < toTenths(imageCost)) {
+    return { error: `Không đủ credits. Cần ${formatCredits(imageCost)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
 
   const timestamp = Date.now()
@@ -328,18 +333,27 @@ ${flashInstruction}`
   const imagePrompt =
     `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
 
-  const imageModel = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
-    },
-  })
+  const imageModel =
+    priced.engine === 'gpt'
+      ? null
+      : genAI.getGenerativeModel({
+          model: GEMINI_3_PRO_IMAGE.model,
+          generationConfig: {
+            responseModalities: ['TEXT', 'IMAGE'],
+            imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
+          },
+        })
 
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const imageResult = await imageModel.generateContent(imagePrompt, { safetySettings: [...safetySettings] } as never)
+    const imageResult = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '16:9',
+      parts: [imagePrompt],
+      gemini: () => imageModel!.generateContent(imagePrompt, { safetySettings: [...safetySettings] } as never),
+    })
     const imageResponse = imageResult.response
     void trackFromUsageMetadata(imageResponse.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-infographic-tu-sach', user.id, '2K')
     const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -366,7 +380,7 @@ ${flashInstruction}`
       upsert: true,
     })
 
-    const d = await deductUserCredits(user.id, COST_2K, 'tao-infographic-tu-sach')
+    const d = await deductUserCredits(user.id, imageCost, 'tao-infographic-tu-sach')
     if (!d.ok) {
       await deleteTryOnHistoryRowAndStorage( historyItem.id)
       return { error: d.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credits để hoàn tất.' : d.error }

@@ -25,6 +25,8 @@ export const IMAGE_LOC_OPENAI_MODEL_PRESETS = [
 
 export const IMAGE_LOC_OPENAI_OUTPUT_PRESETS = [
   { id: '', label: 'Theo backend (.env)', quality: '', size: '' },
+  { id: 'low-auto', label: 'Low · auto', quality: 'low', size: 'auto' },
+  { id: 'medium-auto', label: 'Medium · auto', quality: 'medium', size: 'auto' },
   { id: 'high-auto', label: 'High · auto', quality: 'high', size: 'auto' },
   { id: 'high-portrait', label: 'High · 1024×1792', quality: 'high', size: '1024x1792' },
   { id: 'high-landscape', label: 'High · 1792×1024', quality: 'high', size: '1792x1024' },

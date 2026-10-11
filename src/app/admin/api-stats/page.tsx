@@ -95,6 +95,7 @@ export default async function AdminApiStatsPage({
     calls1K: number
     calls2K: number
     calls4K: number
+    callsGpt: number
     callsNoImage: number
   }
   const newBucket = (): AggBucket => ({
@@ -108,6 +109,7 @@ export default async function AdminApiStatsPage({
     calls1K: 0,
     calls2K: 0,
     calls4K: 0,
+    callsGpt: 0,
     callsNoImage: 0,
   })
 
@@ -129,6 +131,7 @@ export default async function AdminApiStatsPage({
       if (imgSize === '1K') acc[key].calls1K += 1
       else if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
+      else if (imgSize === 'gpt-low' || imgSize === 'gpt-medium' || imgSize === 'gpt-high' || imgSize === 'gpt-auto') acc[key].callsGpt += 1
       else acc[key].callsNoImage += 1
       return acc
     },
@@ -153,6 +156,7 @@ export default async function AdminApiStatsPage({
       if (imgSize === '1K') acc[key].calls1K += 1
       else if (imgSize === '2K') acc[key].calls2K += 1
       else if (imgSize === '4K') acc[key].calls4K += 1
+      else if (imgSize === 'gpt-low' || imgSize === 'gpt-medium' || imgSize === 'gpt-high' || imgSize === 'gpt-auto') acc[key].callsGpt += 1
       else acc[key].callsNoImage += 1
       return acc
     },
@@ -162,7 +166,10 @@ export default async function AdminApiStatsPage({
   const byImageSize = logsList.reduce(
     (acc, log) => {
       const imgSize = (log as { image_size?: string | null }).image_size
-      const key = imgSize === '1K' ? '1K' : imgSize === '2K' ? '2K' : imgSize === '4K' ? '4K' : 'no-image'
+      const key =
+        imgSize === '1K' || imgSize === '2K' || imgSize === '4K' || imgSize === 'gpt-low' || imgSize === 'gpt-medium' || imgSize === 'gpt-high' || imgSize === 'gpt-auto'
+          ? imgSize
+          : 'no-image'
       if (!acc[key]) {
         acc[key] = { calls: 0, promptTokens: 0, outputTokens: 0, totalTokens: 0, costVnd: 0, inputCostVnd: 0, outputCostVnd: 0 }
       }
@@ -307,7 +314,7 @@ export default async function AdminApiStatsPage({
     }))
     .sort((a, b) => b.costVnd - a.costVnd)
   const shopCostVndTotal = byShopToken.reduce((sum, shop) => sum + shop.costVnd, 0)
-  /** Ảnh chất liệu / thực tế trong chat chỉ ghi sổ shop, không ghi api_usage_log. */
+  /** Ảnh chất liệu / thực tế: sổ shop. Cùng lượt cũng có trong api_usage_log nên lợi nhuận cộng lại phần đó. */
   const shopImageCostOutsidePlatformLog = byShopToken.reduce(
     (sum, shop) =>
       sum +
@@ -320,7 +327,23 @@ export default async function AdminApiStatsPage({
       ),
     0
   )
-  const profitInRange = revenueInRange - apiCostVndInRange - shopImageCostOutsidePlatformLog
+  /** Ảnh chất liệu / thực tế nằm cả sổ API và sổ shop. Lợi nhuận trừ sổ shop một lần, cộng lại phần đã có trong sổ API. */
+  const shopImageApiFeatures = new Set([
+    'partner-inventory-material-detail-image',
+    'partner-inventory-real-use-image',
+  ])
+  let shopImageCostAlreadyInApiLog = 0
+  for (const log of logsList) {
+    if (!shopImageApiFeatures.has(log.feature)) continue
+    shopImageCostAlreadyInApiLog += calcCostVndSplit(
+      log.prompt_token_count || 0,
+      log.candidates_token_count || 0,
+      log.model,
+      (log as { image_size?: string | null }).image_size,
+      { usdToVnd }
+    ).totalVnd
+  }
+  const profitInRange = revenueInRange - apiCostVndInRange - shopImageCostOutsidePlatformLog + shopImageCostAlreadyInApiLog
 
   const chartLocaleTag =
     uiLocale === 'en'
@@ -660,11 +683,11 @@ export default async function AdminApiStatsPage({
           <CardTitle>{tr('Token theo từng shop (Messaging)', 'Tokens by shop (Messaging)', '按店铺统计 Token（Messaging）', 'ショップ別トークン（Messaging）', '샵별 토큰 (Messaging)')}</CardTitle>
           <p className="text-sm text-muted-foreground">
             {tr(
-              'Sổ messaging_partner_ai_token_usage, xếp theo chi phí. Mỗi dòng model ghi nhánh (hội thoại, suy chất liệu, ảnh…). Chat và ảnh landing đã nằm trong sổ API phía trên. Chỉ ảnh chất liệu và ảnh thực tế được cộng vào lợi nhuận.',
-              'Ledger messaging_partner_ai_token_usage, sorted by cost. Each model row shows its branch (chat, material, images…). Chat and landing images are already in the API ledger above. Only material and lifestyle images are added into profit.',
-              '来源 messaging_partner_ai_token_usage，按费用排序。每个模型行标出用途。对话和落地页图已在上方 API 账。只有面料图和实拍图计入利润。',
-              '台帳 messaging_partner_ai_token_usage。費用順。各モデル行に用途。チャットとランディング画像は上の API 台帳に既出。素材画像と実使用画像だけ利益に含めます。',
-              '원장 messaging_partner_ai_token_usage, 비용순. 각 모델 행에 용도. 대화와 랜딩 이미지는 위 API 장부에 있습니다. 소재·실사용 이미지만 이익에 넣습니다.'
+              'Sổ messaging_partner_ai_token_usage, xếp theo chi phí. Mỗi dòng model ghi nhánh (hội thoại, suy chất liệu, ảnh…). Chat và ảnh landing đã nằm trong sổ API phía trên. Ảnh chất liệu và ảnh thực tế ghi cả hai sổ; lợi nhuận chỉ trừ một lần theo sổ shop.',
+              'Ledger messaging_partner_ai_token_usage, sorted by cost. Each model row shows its branch (chat, material, images…). Chat and landing images are already in the API ledger above. Material and lifestyle images are in both ledgers; profit subtracts the shop ledger once.',
+              '来源 messaging_partner_ai_token_usage，按费用排序。每个模型行标出用途。对话和落地页图已在上方 API 账。面料图和实拍图两边都记；利润只按店铺账扣一次。',
+              '台帳 messaging_partner_ai_token_usage。費用順。各モデル行に用途。チャットとランディング画像は上の API 台帳に既出。素材画像と実使用画像は両方に記録し、利益はショップ台帳を一度だけ引きます。',
+              '원장 messaging_partner_ai_token_usage, 비용순. 각 모델 행에 용도. 대화와 랜딩 이미지는 위 API 장부에 있습니다. 소재·실사용 이미지는 양쪽 장부에 있고, 이익은 샵 장부를 한 번만 뺍니다.'
             )}
           </p>
           {shopCostVndTotal > 0 ? (
@@ -804,6 +827,7 @@ export default async function AdminApiStatsPage({
                   <TableHead className="text-right">1K</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
+                  <TableHead className="text-right">GPT</TableHead>
                   <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
                   <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
@@ -830,6 +854,7 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">{formatNum(stats.calls1K)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
+                      <TableCell className="text-right">{formatNum(stats.callsGpt)}</TableCell>
                       <TableCell className="text-right">
                         <span>{formatNum(stats.promptTokens)}</span>
                         <br />
@@ -868,6 +893,7 @@ export default async function AdminApiStatsPage({
                   <TableHead className="text-right">1K</TableHead>
                   <TableHead className="text-right">2K</TableHead>
                   <TableHead className="text-right">4K</TableHead>
+                  <TableHead className="text-right">GPT</TableHead>
                   <TableHead className="text-right">{tr('Input', 'Input', '输入', '入力', '입력')}</TableHead>
                   <TableHead className="text-right">{tr('Output', 'Output', '输出', '出力', '출력')}</TableHead>
                   <TableHead className="text-right">{tr('Tổng', 'Total', '总计', '合計', '합계')}</TableHead>
@@ -889,6 +915,7 @@ export default async function AdminApiStatsPage({
                       <TableCell className="text-right">{formatNum(stats.calls1K)}</TableCell>
                       <TableCell className="text-right text-sky-600">{formatNum(stats.calls2K)}</TableCell>
                       <TableCell className="text-right text-amber-600">{formatNum(stats.calls4K)}</TableCell>
+                      <TableCell className="text-right">{formatNum(stats.callsGpt)}</TableCell>
                       <TableCell className="text-right">
                         <span>{formatNum(stats.promptTokens)}</span>
                         <br />
@@ -917,7 +944,7 @@ export default async function AdminApiStatsPage({
       <Card>
         <CardHeader>
           <CardTitle>{tr('Theo độ phân giải ảnh', 'By image resolution', '按图像分辨率', '画像解像度別', '이미지 해상도별')}</CardTitle>
-          <p className="text-sm text-muted-foreground">{tr('Số lượt gọi trả ảnh 1K, 2K, 4K hoặc không trả ảnh (chỉ text)', 'Calls returning 1K, 2K, 4K images or no image (text only)', '返回 1K、2K、4K 图片或不返回图片（仅文本）', '1K/2K/4K画像または画像なし（テキストのみ）', '1K/2K/4K 이미지 또는 이미지 없음(텍스트만)')}</p>
+          <p className="text-sm text-muted-foreground">{tr('Số lượt gọi trả ảnh 1K, 2K, 4K, GPT Image (low / medium / high / auto) hoặc không trả ảnh (chỉ text). Token GPT đã quy về đúng giá API.', 'Calls returning 1K, 2K, 4K, GPT Image (low / medium / high / auto), or no image (text only). GPT tokens are scaled to the API price.', '返回 1K、2K、4K、GPT Image（low / medium / high / auto）或不返回图片（仅文本）。GPT token 已按 API 价格折算。', '1K/2K/4K、GPT Image（low / medium / high / auto）、または画像なし（テキストのみ）。GPT token は API 料金に合わせています。', '1K/2K/4K, GPT Image(low / medium / high / auto) 또는 이미지 없음(텍스트만). GPT 토큰은 API 요금에 맞춥니다.')}</p>
         </CardHeader>
         <CardContent>
           <Table>
@@ -932,7 +959,7 @@ export default async function AdminApiStatsPage({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(['1K', '2K', '4K', 'no-image'] as const).map((key) => {
+              {(['1K', '2K', '4K', 'gpt-low', 'gpt-medium', 'gpt-high', 'gpt-auto', 'no-image'] as const).map((key) => {
                 const label =
                   key === '1K'
                     ? '1K'
@@ -940,6 +967,14 @@ export default async function AdminApiStatsPage({
                       ? '2K'
                       : key === '4K'
                         ? '4K'
+                        : key === 'gpt-low'
+                          ? 'GPT low'
+                          : key === 'gpt-medium'
+                            ? 'GPT medium'
+                            : key === 'gpt-high'
+                              ? 'GPT high'
+                              : key === 'gpt-auto'
+                                ? 'GPT auto'
                         : tr('Không trả ảnh', 'No image', '无图片', '画像なし', '이미지 없음')
                 const stats = byImageSize[key]
                 if (!stats || stats.calls === 0) return null

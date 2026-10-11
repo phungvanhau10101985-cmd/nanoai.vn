@@ -23,6 +23,8 @@ import { cn } from '@/lib/utils'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { GarmentUploader } from './garment-uploader'
 import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
@@ -75,6 +77,8 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const [customPrompt, setCustomPrompt] = useState<string>('')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -171,8 +175,12 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
       group5: 1.5
     };
     const baseCost = costMap[tryOnMode];
-    const cost = imageQuality === '4K' ? baseCost * 2.2 : baseCost;
-    const displayCost = cost.toFixed(1).replace('.', ',')
+    const cost = imageEngineCredit({
+      engine: imageEngine,
+      gptQuality,
+      geminiCost: imageQuality === '4K' ? baseCost * 2.2 : baseCost,
+    })
+    const displayCost = cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })
 
     const totalGarmentCount = tryOnMode === 'single' ? garmentImages.length
       : tryOnMode === 'couple' ? leftGarmentImages.length + rightGarmentImages.length
@@ -202,6 +210,8 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     formData.append('tryOnMode', tryOnMode)
     formData.append('customPrompt', customPrompt)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
 
     if (tryOnMode === 'single') {
       garmentImages.forEach((img, i) => img.file && formData.append(`garmentImage${i}`, img.file))
@@ -586,40 +596,17 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画質', '이미지 품질')}</h4>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setImageQuality('2K')}
-                          className={cn(
-                            'flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors',
-                            imageQuality === '2K'
-                              ? theme.badge
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                          )}
-                        >
-                          2K
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setImageQuality('4K')}
-                          className={cn(
-                            'flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors',
-                            imageQuality === '4K'
-                              ? theme.badge
-                              : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                          )}
-                        >
-                          4K (×2,2)
-                        </button>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {imageQuality === '2K'
-                          ? tr('Giá không đổi', 'Normal price', '原价', '通常価格', '기본 가격')
-                          : tr('Giá ×2,2', 'Price ×2.2', '价格 ×2.2', '価格 ×2.2', '가격 ×2.2')}
-                      </p>
-                    </div>
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={baseCost}
+                      geminiCost4k={baseCost * 2.2}
+                    />
                     <div className="space-y-2">
                       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Yêu cầu thêm', 'Extra prompt', '附加要求', '追加要望', '추가 요청')}</h4>
                       <Textarea

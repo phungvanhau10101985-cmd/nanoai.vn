@@ -24,6 +24,8 @@ import {
   publishCurrentWeddingCard,
   saveWeddingCardBrief,
 } from './actions'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
 import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
@@ -419,6 +421,9 @@ export default function WeddingCardAiClientPage() {
   const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
   const [generating, setGenerating] = useState(false)
   const [frameGenerating, setFrameGenerating] = useState(false)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [framePrompt, setFramePrompt] = useState('')
   const [frameOpening, setFrameOpening] = useState<WeddingCoverFrameOpening>('ellipse')
   const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | null>(null)
@@ -1326,6 +1331,8 @@ export default function WeddingCardAiClientPage() {
     await waitForNextPaint()
     const formData = new FormData()
     formData.append('cardId', card.id)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('extraPrompt', framePrompt)
     formData.append('openingShape', frameOpening)
     formData.append('sectionConfig', persistInputsRef.current.card.sectionConfig || '{}')
@@ -1367,6 +1374,8 @@ export default function WeddingCardAiClientPage() {
     await waitForNextPaint()
     const formData = new FormData()
     formData.append('cardId', card.id)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('type', 'master')
     formData.append('extraPrompt', extraPrompt)
     if (styleReferenceFile) formData.append('customReferenceImage', styleReferenceFile)
@@ -1979,6 +1988,16 @@ export default function WeddingCardAiClientPage() {
                     className="mt-3"
                   />
                 </div>
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={geminiQuality}
+                  onGeminiQualityChange={setGeminiQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={1}
+                />
                 <Button onClick={() => void generateImage()} disabled={generating || Boolean(applyingLibraryId) || uploadingOutside || !card.id}>
                   {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton}
@@ -2853,6 +2872,16 @@ export default function WeddingCardAiClientPage() {
                                 placeholder={txCover.aiFramePromptPlaceholder}
                                 maxLength={800}
                                 disabled={frameGenerating}
+                              />
+                              <ImageEnginePicker
+                                locale={uiLocale}
+                                engine={imageEngine}
+                                onEngineChange={setImageEngine}
+                                geminiQuality={geminiQuality}
+                                onGeminiQualityChange={setGeminiQuality}
+                                gptQuality={gptQuality}
+                                onGptQualityChange={setGptQuality}
+                                geminiCost2k={1}
                               />
                               <Button type="button" size="sm" disabled={frameGenerating || generating || !card.id} onClick={() => void generateCoverFrame()}>
                                 {frameGenerating ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}

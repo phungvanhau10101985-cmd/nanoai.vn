@@ -18,6 +18,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
     refUrls?: string[]
     attachUrl?: string
     aspectRatio?: string
+    imageModel?: string
+    imageEngine?: string
+    gptQuality?: string
   }
   const kind = String(body.kind || '').trim()
   if (!PRODUCT_STUDIO_SLOT_KINDS.includes(kind as ProductStudioSlotKind)) {
@@ -33,6 +36,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
       refUrls: Array.isArray(body.refUrls) ? body.refUrls : undefined,
       attachUrl: body.attachUrl,
       aspectRatio: body.aspectRatio,
+      imageModel: body.imageModel,
+      imageEngine: body.imageEngine,
+      gptQuality: body.gptQuality,
     },
     getCurrentWebLocale()
   )

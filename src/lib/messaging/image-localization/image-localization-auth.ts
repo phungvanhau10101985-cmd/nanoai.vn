@@ -22,7 +22,7 @@ export function buildImageLocAuthStatus(offPeakOnlyEnabled: boolean): ImageLocAu
     openai_default_image_quality: imageLocOpenaiDefaultQuality(),
     ai_image_explicit_only: imageLocAiExplicitOnly(),
     gemini_api_image_sizes: ['2K', '4K'],
-    openai_image_qualities: ['medium', 'high', 'auto'],
+    openai_image_qualities: ['low', 'medium', 'high', 'auto'],
     openai_image_sizes: ['auto', '1024x1792', '1792x1024', '1536x1024', '1024x1536'],
     api: geminiApiAuth(),
     openai: openaiApiAuth(),

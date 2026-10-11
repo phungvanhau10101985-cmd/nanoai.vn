@@ -27,7 +27,7 @@ describe('image localization route', () => {
     )
   })
 
-  it('sends apparel size and laundry sheets to GPT and keeps shoes and other images on the local translator', () => {
+  it('uses the same branches as the 188 job', () => {
     assert.equal(
       selectLocalizationEngine({
         classification: 'local',
@@ -43,10 +43,10 @@ describe('image localization route', () => {
         classification: 'keep',
         allowsAi: false,
         geminiMode: 'api',
-        hasSizeOrLaundry: false,
+        hasSizeOrLaundry: true,
         apparelSheet: true,
       }),
-      'ai'
+      'keep'
     )
     assert.equal(
       selectLocalizationEngine({
@@ -71,20 +71,20 @@ describe('image localization route', () => {
       selectLocalizationEngine({
         classification: 'local',
         allowsAi: true,
-        geminiMode: 'api',
+        geminiMode: 'openai',
         hasSizeOrLaundry: false,
       }),
-      'local'
+      'ai'
     )
     assert.equal(
       selectLocalizationEngine({
         classification: 'gemini',
         allowsAi: true,
-        geminiMode: 'api',
+        geminiMode: 'openai',
         hasSizeOrLaundry: true,
         apparelSheet: false,
       }),
-      'local'
+      'ai'
     )
     assert.equal(
       selectLocalizationEngine({
@@ -111,6 +111,7 @@ describe('image localization route', () => {
     assert.equal(plain.includes('94 斤 becomes 47 kg'), true)
     assert.equal(size.includes('Still convert 斤 body weight to kilograms'), true)
     assert.equal(normalizeOpenaiImageQuality('medium'), 'medium')
+    assert.equal(normalizeOpenaiImageQuality('low'), 'low')
     assert.equal(imageLocOpenaiDefaultQuality(), 'medium')
   })
 

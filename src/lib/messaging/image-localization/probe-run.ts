@@ -15,7 +15,8 @@ import {
 import { ImageLocalizationError } from './gemini-adapter'
 import { encodeJpeg } from './local-pipeline'
 import { localizeStandaloneImage } from './process-one'
-import { IMAGE_LOC_LANGUAGES, type ImageLocLanguage } from './image-localization-types'
+import { imageLocAiJobsAllowed } from './image-localization-config'
+import { IMAGE_LOC_LANGUAGES, type ImageLocGeminiMode, type ImageLocLanguage } from './image-localization-types'
 import { probeExpiresAt } from './probe-report'
 
 const workers = new Set<string>()
@@ -48,11 +49,20 @@ export async function removeImageLocProbe(partnerId: string, id: string): Promis
   return true
 }
 
-function spawnProbe(partnerId: string, id: string, bytes: Buffer, filename: string, language: string, apparelSheet: boolean, userId: string) {
+type ProbeRunOptions = {
+  language: string
+  apparelSheet: boolean
+  mode: ImageLocGeminiMode
+  openaiImageModel?: string | null
+  openaiImageQuality?: string | null
+  openaiImageSize?: string | null
+}
+
+function spawnProbe(partnerId: string, id: string, bytes: Buffer, filename: string, options: ProbeRunOptions, userId: string) {
   const key = `${partnerId}:${id}`
   if (workers.has(key)) return
   workers.add(key)
-  const task = runProbe(partnerId, id, bytes, filename, language, apparelSheet, userId)
+  const task = runProbe(partnerId, id, bytes, filename, options, userId)
     .catch((error) => {
       const message = error instanceof Error ? error.message : String(error)
       console.error('[image-localization] probe failed', id, message)
@@ -71,10 +81,11 @@ async function runProbe(
   id: string,
   bytes: Buffer,
   filename: string,
-  language: string,
-  apparelSheet: boolean,
+  options: ProbeRunOptions,
   userId: string
 ) {
+  const { language, apparelSheet } = options
+  const allowsAi = options.mode !== 'local_only'
   const originalPath = `localized-images/${partnerId}/probes/${id}/original.jpg`
   const originalJpeg = await encodeJpeg(bytes)
   const uploaded = await uploadPartnerBunnyObject(partnerId, originalPath, originalJpeg, 'image/jpeg')
@@ -85,9 +96,12 @@ async function runProbe(
       partnerId,
       skuOrId: `probe-${id}`,
       language,
-      geminiMode: 'openai',
-      allowsAi: true,
+      geminiMode: allowsAi ? 'openai' : 'api',
+      allowsAi,
       force: true,
+      openaiImageModel: options.openaiImageModel,
+      openaiImageQuality: options.openaiImageQuality,
+      openaiImageSize: options.openaiImageSize,
       logoUrl: settings.logo_url,
       userId,
       apparelProduct: apparelSheet,
@@ -131,10 +145,18 @@ export async function startImageLocProbe(input: {
   filename: string
   language: string
   apparelSheet: boolean
+  mode?: string | null
+  openaiImageModel?: string | null
+  openaiImageQuality?: string | null
+  openaiImageSize?: string | null
 }): Promise<ImageLocProbe> {
   const language = String(input.language || 'vi').trim().toLowerCase()
   if (!(IMAGE_LOC_LANGUAGES as readonly string[]).includes(language)) {
     throw new ImageLocalizationError('Ngôn ngữ không hỗ trợ. Dùng vi, en, th hoặc id.')
+  }
+  const mode: ImageLocGeminiMode = input.mode === 'openai' || input.mode === 'api' ? 'openai' : 'local_only'
+  if (mode !== 'local_only' && !imageLocAiJobsAllowed()) {
+    throw new ImageLocalizationError('Server đang tắt GPT Image. Chọn DeepSeek + vẽ local, hoặc bật IMAGE_LOCALIZATION_AI_IMAGE_JOBS_ALLOWED.')
   }
   await sweepImageLocProbes()
   const running = await findRunningImageLocProbe(input.partnerId)
@@ -147,7 +169,23 @@ export async function startImageLocProbe(input: {
     apparelSheet: input.apparelSheet,
     expiresAt: probeExpiresAt(),
   })
-  await appendImageLocProbeLog(input.partnerId, id, 'Đã nhận ảnh. Bắt đầu pipeline server.')
-  spawnProbe(input.partnerId, id, input.bytes, input.filename, language, input.apparelSheet, input.userId)
+  const branch = input.apparelSheet ? 'thời trang' : 'không phải thời trang'
+  const engine = mode === 'local_only' ? 'DeepSeek + vẽ local' : 'GPT Image'
+  await appendImageLocProbeLog(input.partnerId, id, `Đã nhận ảnh. Chế độ ${engine}, nhánh ${branch}.`)
+  spawnProbe(
+    input.partnerId,
+    id,
+    input.bytes,
+    input.filename,
+    {
+      language,
+      apparelSheet: input.apparelSheet,
+      mode,
+      openaiImageModel: input.openaiImageModel,
+      openaiImageQuality: input.openaiImageQuality,
+      openaiImageSize: input.openaiImageSize,
+    },
+    input.userId
+  )
   return probe
 }

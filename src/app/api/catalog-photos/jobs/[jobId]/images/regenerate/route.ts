@@ -18,6 +18,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
     refUrls?: string[]
     attachUrl?: string
     aspectRatio?: string
+    imageModel?: string
+    imageEngine?: string
+    gptQuality?: string
   }
   const slot = job.studio.currentSlot
   const attachFromBody = typeof body.attachUrl === 'string' ? body.attachUrl.trim() : ''
@@ -31,6 +34,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ jobId: str
       refUrls: Array.isArray(body.refUrls) && body.refUrls.length ? body.refUrls : slot.refUrls,
       attachUrl: attachFromBody || slot.attachUrl,
       aspectRatio: body.aspectRatio,
+      imageModel: body.imageModel,
+      imageEngine: body.imageEngine,
+      gptQuality: body.gptQuality,
     },
     getCurrentWebLocale()
   )

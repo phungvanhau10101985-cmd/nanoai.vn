@@ -21,6 +21,8 @@ import {
 } from '@/lib/db/try-on-history-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { resolveGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import type { GptImageQuality, ImageEngine } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -58,6 +60,9 @@ export type RunVirtualTryOnPipelineParams = {
   imageQuality: '2K' | '4K'
   userImage: File
   garmentFilesOrdered: File[]
+  /** Mặc định Gemini để caller cũ không gửi field vẫn chạy Gemini. */
+  engine?: ImageEngine
+  gptQuality?: GptImageQuality | null
 }
 
 export type RunVirtualTryOnPipelineResult =
@@ -66,6 +71,8 @@ export type RunVirtualTryOnPipelineResult =
 
 export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelineParams): Promise<RunVirtualTryOnPipelineResult> {
   const { billingUserId, prompt, cost, imageQuality, userImage, garmentFilesOrdered } = params
+  const engine: ImageEngine = params.engine === 'gpt' ? 'gpt' : 'gemini'
+  const gptQuality = params.gptQuality ?? null
 
   if (!isPgConfigured()) {
     return { error: 'Thiếu cấu hình cơ sở dữ liệu (DATABASE_URL).' }
@@ -152,25 +159,27 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
 
   const aspectRatio = await getAspectRatioFromImage(userBuf)
 
-  const resolvedGoogleKey = await resolveGoogleApiKeyForUser(billingUserId)
-  if (!resolvedGoogleKey) {
-    await removeTryOnStorageObjects(stagedPaths)
-    await deleteTryOnHistoryPg(historyItem.id)
-    return { error: 'Thiếu GOOGLE_API_KEY trên server hoặc Gemini API key riêng hợp lệ.' }
-  }
-
-  const genAI = new GoogleGenerativeAI(resolvedGoogleKey.apiKey)
   const modelName = GEMINI_3_PRO_IMAGE.model
-  const model = genAI.getGenerativeModel({
-    model: modelName,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: {
-        imageSize: imageQuality === '4K' ? '4K' : '2K',
-        aspectRatio,
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (engine !== 'gpt') {
+    const resolvedGoogleKey = await resolveGoogleApiKeyForUser(billingUserId)
+    if (!resolvedGoogleKey) {
+      await removeTryOnStorageObjects(stagedPaths)
+      await deleteTryOnHistoryPg(historyItem.id)
+      return { error: 'Thiếu GOOGLE_API_KEY trên server hoặc Gemini API key riêng hợp lệ.' }
+    }
+    const genAI = new GoogleGenerativeAI(resolvedGoogleKey.apiKey)
+    model = genAI.getGenerativeModel({
+      model: modelName,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: {
+          imageSize: imageQuality === '4K' ? '4K' : '2K',
+          aspectRatio,
+        },
       },
-    },
-  })
+    })
+  }
 
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -210,7 +219,14 @@ export async function runVirtualTryOnPipeline(params: RunVirtualTryOnPipelinePar
     let resultImageBase64: string | null = null
     let lastResponse: unknown = null
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const genResult = await model.generateContent([prompt, ...imageParts], { safetySettings })
+      const tryOnParts = [prompt, ...imageParts]
+      const genResult = await runImageContent({
+        engine,
+        gptQuality,
+        aspectRatio,
+        parts: tryOnParts,
+        gemini: () => model!.generateContent(tryOnParts, { safetySettings }),
+      })
       const response = genResult.response
       lastResponse = response
       trackFromUsageMetadata(

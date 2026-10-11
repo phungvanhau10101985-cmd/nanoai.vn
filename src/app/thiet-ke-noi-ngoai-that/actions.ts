@@ -13,6 +13,8 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 import { optimizeInteriorAiInputBuffer } from '@/lib/interior-ai-input-sharp'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
@@ -262,7 +264,9 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
       ? `${scope} ${expandExteriorPart} ${cleanNote}`
       : `${scope} design edit. ${deleteList} ${replaceList} ${rearrangeList} ${addPart} ${keepPart}${themePart}${colorPart} ${timePart}${stagingPart}${refNote} ${cleanNote}`.replace(/\s+/g, ' ').trim()
 
-  const COST_PER_IMAGE = IMAGE_COSTS[imageQuality]
+  const unitCharge = imageChargeFromForm(formData, IMAGE_COSTS[imageQuality] ?? IMAGE_COSTS['2K'], 1)
+  if (unitCharge.error) return { error: unitCharge.error }
+  const COST_PER_IMAGE = unitCharge.cost
   const actualVariantCount = isRotationOnly || isExpandExteriorDown ? 1 : variantCount
   const COST = COST_PER_IMAGE * actualVariantCount
   const result = await getUserForCreditAction()
@@ -293,14 +297,17 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (unitCharge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const contentParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [{ text: basePrompt }]
   if (isRotationOnly && hasRotationReference) {
     contentParts.push({ inlineData: { data: imageBuffer.toString('base64'), mimeType } })
@@ -335,7 +342,12 @@ export async function applyInteriorChanges(formData: FormData): Promise<ApplyInt
     })
     for (let i = 0; i < actualVariantCount; i++) {
       const genResult = await withTimeout(
-        model.generateContent(contentParts as never, { safetySettings } as never),
+        runImageContent({
+          engine: unitCharge.engine,
+          gptQuality: unitCharge.gptQuality,
+          parts: contentParts,
+          gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
+        }),
         INTERIOR_AI_TIMEOUT_MS,
         `AI apply timeout after ${Math.round(INTERIOR_AI_TIMEOUT_MS / 1000)}s`
       )
@@ -465,7 +477,9 @@ export async function processInteriorImage(formData: FormData) {
     prompt = prompt.replace('no text.', `STYLE NOTE: "${noteEn}". no text.`)
   }
 
-  const COST = IMAGE_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, IMAGE_COSTS[imageQuality] ?? IMAGE_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
@@ -498,14 +512,17 @@ export async function processInteriorImage(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const imagePart = { inlineData: { data: procBody.toString('base64'), mimeType: procMime } }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -517,7 +534,13 @@ export async function processInteriorImage(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent([prompt, imagePart] as never, { safetySettings } as never)
+    const processParts = [prompt, imagePart]
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      parts: processParts,
+      gemini: () => model!.generateContent(processParts as never, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-noi-ngoai-that-process', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

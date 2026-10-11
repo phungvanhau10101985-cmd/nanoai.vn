@@ -21,6 +21,8 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -61,6 +63,8 @@ export default function MoRongKhungHinhClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState('16:9')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -69,7 +73,11 @@ export default function MoRongKhungHinhClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -165,6 +173,8 @@ export default function MoRongKhungHinhClientPage() {
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('note', note)
     try {
@@ -281,17 +291,17 @@ export default function MoRongKhungHinhClientPage() {
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画質', '이미지 품질')}</h4>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setImageQuality('2K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '2K' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        2K (1,5)
-                      </button>
-                      <button type="button" onClick={() => setImageQuality('4K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '4K' ? 'border-indigo-500 bg-indigo-50 text-indigo-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        4K (3)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Yêu cầu (tùy chọn)', 'Request (optional)', '要求（可选）', '要望（任意）', '요청 (선택)')}</h4>
                     <Input placeholder={tr('VD: nền biển, nền studio...', 'e.g. beach, studio...', '例如：海滩、影棚...', '例：海、スタジオ...', '예: 해변, 스튜디오...')} value={note} onChange={(e) => setNote(e.target.value)} className="bg-white/80 text-xs h-9" />
@@ -299,7 +309,7 @@ export default function MoRongKhungHinhClientPage() {
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-200 text-indigo-700 hover:bg-indigo-50" />
                     <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!image.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-indigo-600 hover:bg-indigo-700 text-white">
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Mở rộng', 'Expand', '扩展', '拡張', '확장')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Mở rộng', 'Expand', '扩展', '拡張', '확장')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}</p>
                   </div>

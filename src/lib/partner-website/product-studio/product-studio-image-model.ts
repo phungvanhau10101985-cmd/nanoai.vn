@@ -1,3 +1,4 @@
+import { imageChargeFromForm, type ImageEngineSelection } from '@/lib/ai/image-engine'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 
@@ -48,4 +49,23 @@ export function productStudioGeminiImageCredit(model: string | null | undefined)
   const id = (model || '').trim()
   if (!id) return UI_MOCKUP_CREDIT
   return STUDIO_IMAGE_CREDIT_BY_MODEL[id] ?? UI_MOCKUP_CREDIT
+}
+
+/** Gemini: giá Pro/Flash hiện tại. GPT: 0,5 / 1 / 2. Thiếu engine = Gemini. */
+export function productStudioImageCharge(input: {
+  kind: string
+  imageModel?: string | null
+  imageEngine?: string | null
+  gptQuality?: string | null
+}): ImageEngineSelection {
+  return imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    productStudioSlotImageCredit(input.kind, input.imageModel),
+  )
 }

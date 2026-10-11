@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -371,8 +373,11 @@ export async function generateWeddingCardImage(formData: FormData) {
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
 
+  const priced = imageChargeFromForm(formData, COST)
+  if (priced.error) return { error: priced.error }
+  const imageCost = priced.cost
   const balance = await getCreditBalanceByUserId(userId)
-  if (balance < COST) return { error: `Không đủ credit. Cần ${COST} credit để tạo ảnh AI.` }
+  if (balance < imageCost) return { error: `Không đủ credit. Cần ${imageCost} credit để tạo ảnh AI.` }
 
   const hasCustomReference =
     Boolean(customReferenceImageUrl) ||
@@ -401,14 +406,17 @@ export async function generateWeddingCardImage(formData: FormData) {
 
   let charged = false
   try {
-    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_3_PRO_IMAGE.model,
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
-      },
-    })
+    let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+    if (priced.engine !== 'gpt') {
+      const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
+      model = genAI.getGenerativeModel({
+        model: GEMINI_3_PRO_IMAGE.model,
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
+        },
+      })
+    }
     const safetySettings = [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -424,7 +432,13 @@ export async function generateWeddingCardImage(formData: FormData) {
     referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent(parts as never, { safetySettings } as never)
+    const genResult = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '3:4',
+      parts,
+      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+    })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -437,7 +451,7 @@ export async function generateWeddingCardImage(formData: FormData) {
       contentType: 'image/png',
       upsert: true,
     })
-    const charge = await deductUserCredits(userId, COST, 'tao-thiep-moi-cuoi-ai')
+    const charge = await deductUserCredits(userId, imageCost, 'tao-thiep-moi-cuoi-ai')
     if (!charge.ok) {
       throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
     }
@@ -449,7 +463,7 @@ export async function generateWeddingCardImage(formData: FormData) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     if (typeof charged !== 'undefined' && charged) {
-      await refundUserCredits(userId, COST, 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
+      await refundUserCredits(userId, imageCost, 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
     }
     await failWeddingAiImage(imageId, userId, message).catch(() => undefined)
     return { error: `Tạo ảnh thất bại, credit chưa bị trừ nếu AI chưa ra ảnh: ${message}` }
@@ -468,7 +482,10 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
 
-  const frameCost = requiredCreditsForLogoCreate(COST, true)
+  const priced = imageChargeFromForm(formData, COST)
+  if (priced.error) return { error: priced.error }
+  const imageCost = priced.cost
+  const frameCost = requiredCreditsForLogoCreate(imageCost, true)
   const balance = await getCreditBalanceByUserId(userId)
   if (balance < frameCost) {
     return { error: `Không đủ credit. Cần ${frameCost} credit để tạo khung và xóa nền.` }
@@ -494,14 +511,17 @@ export async function generateWeddingCoverFrame(formData: FormData) {
 
   let charged = false
   try {
-    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_3_PRO_IMAGE.model,
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
-      },
-    })
+    let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+    if (priced.engine !== 'gpt') {
+      const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
+      model = genAI.getGenerativeModel({
+        model: GEMINI_3_PRO_IMAGE.model,
+        generationConfig: {
+          responseModalities: ['TEXT', 'IMAGE'],
+          imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
+        },
+      })
+    }
     const safetySettings = [
       { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
       { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -510,7 +530,13 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     ]
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent([prompt] as never, { safetySettings } as never)
+    const genResult = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '3:4',
+      parts: [prompt],
+      gemini: () => model!.generateContent([prompt] as never, { safetySettings } as never),
+    })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -536,7 +562,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
       contentType: 'image/png',
       upsert: true,
     })
-    const chargeAmount = chargedCreditsForLogoCreate(COST, true)
+    const chargeAmount = chargedCreditsForLogoCreate(imageCost, true)
     const charge = await deductUserCredits(userId, chargeAmount, 'tao-thiep-moi-cuoi-ai')
     if (!charge.ok) {
       throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
@@ -569,7 +595,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     if (charged) {
-      await refundUserCredits(userId, chargedCreditsForLogoCreate(COST, true), 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
+      await refundUserCredits(userId, chargedCreditsForLogoCreate(imageCost, true), 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
     }
     return { error: `Tạo khung thất bại, credit chưa bị trừ: ${message}` }
   }

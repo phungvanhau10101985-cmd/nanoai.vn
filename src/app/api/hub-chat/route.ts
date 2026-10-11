@@ -201,6 +201,8 @@ export async function POST(request: NextRequest) {
         cropSizeMm,
         cropAspectRatio,
         cropScreenKey,
+        imageEngine: String(fd.get('imageEngine') ?? '') || undefined,
+        gptQuality: String(fd.get('gptQuality') ?? '') || undefined,
       })
       if (!result.ok) {
         return NextResponse.json({ error: result.error || 'Studio lỗi.' }, { status: result.error ? 422 : 500 })
@@ -257,6 +259,8 @@ export async function POST(request: NextRequest) {
       landingSectionCopy?: string
       landingLogoBrief?: string
       stripBackground?: boolean | string | number | null
+      imageEngine?: string | null
+      gptQuality?: string | null
       landingPublishedShareUrl?: string
       landingPublishedShareToken?: string
       landingHtmlSource?: string
@@ -420,6 +424,8 @@ export async function POST(request: NextRequest) {
         landingSectionCopy,
         landingLogoBrief,
         stripBackground,
+        imageEngine: body?.imageEngine,
+        gptQuality: body?.gptQuality,
         landingPublishedShareUrl,
         landingPublishedShareToken,
         landingHtmlSource,

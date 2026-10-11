@@ -22,6 +22,8 @@ import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { DownloadImageButton } from '@/components/download-image-button'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 
 const DESIGN_STYLES = [
@@ -301,6 +303,10 @@ function StepWizard({
   toast: (opts: { title: string; description?: string; variant?: 'destructive'; duration?: number }) => void
 }) {
   const { steps, current_step, house_info } = project
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const imageCost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 4 })
 
   const floor3dUrl = steps.floor_3d?.imageUrl
 
@@ -379,7 +385,13 @@ function StepWizard({
           onBuild={handleStep1}
           onGoBackToForm={handleClear3D}
           checkCreditsAndProceed={checkCreditsAndProceed}
-          cost={4}
+          cost={imageCost}
+          imageEngine={imageEngine}
+          geminiQuality={geminiQuality}
+          gptQuality={gptQuality}
+          onImageEngineChange={setImageEngine}
+          onGeminiQualityChange={setGeminiQuality}
+          onGptQualityChange={setGptQuality}
         />
       )}
 
@@ -396,6 +408,12 @@ function Step1Form({
   onGoBackToForm,
   checkCreditsAndProceed,
   cost,
+  imageEngine,
+  geminiQuality,
+  gptQuality,
+  onImageEngineChange,
+  onGeminiQualityChange,
+  onGptQualityChange,
 }: {
   uiLocale: UiLocale
   tr: (l: UiLocale, vi: string, en: string, zh: string, ja: string, ko: string) => string
@@ -405,6 +423,12 @@ function Step1Form({
   onGoBackToForm: () => void
   checkCreditsAndProceed: (cost: number, fn: () => Promise<void>) => void
   cost: number
+  imageEngine: ImageEngine
+  geminiQuality: '2K' | '4K'
+  gptQuality: GptImageQuality
+  onImageEngineChange: (engine: ImageEngine) => void
+  onGeminiQualityChange: (quality: '2K' | '4K') => void
+  onGptQualityChange: (quality: GptImageQuality) => void
 }) {
   const houseLength = houseInfo?.houseLength ?? houseInfo?.houseFacadeWidth ?? ''
   const houseDepth = houseInfo?.houseDepth ?? houseInfo?.landDepthM ?? ''
@@ -426,6 +450,8 @@ function Step1Form({
     fd.append('hasBalcony', String(hasBalcony))
     fd.append('mainDoors', String(mainDoors))
     fd.append('hasReferenceImage', String(hasReferenceImage))
+    fd.append('imageEngine', imageEngine)
+    fd.append('gptQuality', gptQuality)
     if (hasReferenceImage && referenceFile) fd.append('referenceImage', referenceFile)
     return fd
   }
@@ -533,6 +559,16 @@ function Step1Form({
                 )}
               </div>
             </div>
+            <ImageEnginePicker
+              locale={uiLocale}
+              engine={imageEngine}
+              onEngineChange={onImageEngineChange}
+              geminiQuality={geminiQuality}
+              onGeminiQualityChange={onGeminiQualityChange}
+              gptQuality={gptQuality}
+              onGptQualityChange={onGptQualityChange}
+              geminiCost2k={4}
+            />
             <Button
               onClick={() => checkCreditsAndProceed(cost, () => onBuild(buildFormData()))}
               disabled={!houseLengthVal.trim()}

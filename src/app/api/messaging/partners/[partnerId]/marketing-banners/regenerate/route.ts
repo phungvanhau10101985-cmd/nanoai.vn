@@ -22,6 +22,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     month?: number
     discountPercent?: number
     campaignKey?: string
+    imageEngine?: string
+    gptQuality?: string
   } | null
   const kind = String(body?.kind ?? '')
   if (!isPartnerMarketingBannerKind(kind)) {
@@ -79,6 +81,8 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ partne
     force: true,
     actorUserId: access.actorId,
     chargeCredits: true,
+    imageEngine: body?.imageEngine,
+    gptQuality: body?.gptQuality,
   })
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 500 })

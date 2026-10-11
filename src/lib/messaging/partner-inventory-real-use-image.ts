@@ -7,12 +7,37 @@ import { pickInventoryRowForReferenceImage } from '@/lib/messaging/partner-inven
 import { uploadPartnerChatImageBuffer } from '@/lib/messaging/guest-chat-image'
 import { insertPartnerAiTokenUsage } from '@/lib/messaging/partner-ai-token-usage'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
+
+function imageLedgerFromUsage(um: { logModel?: string } | undefined): { provider: string; model: string } {
+  if (um?.logModel === 'gpt-image-2') return { provider: 'openai', model: 'gpt-image-2' }
+  return { provider: 'google', model: IMAGE_MODEL }
+}
+
+type ImageEngineChoice = {
+  imageEngine?: string | null
+  gptQuality?: string | null
+}
+
+function pricedEngine(choice?: ImageEngineChoice | null) {
+  return imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return choice?.imageEngine ?? null
+        if (name === 'gptQuality') return choice?.gptQuality ?? null
+        return null
+      },
+    },
+    0,
+  )
+}
 
 const ASKS_REAL_USE_RE =
   /(ảnh\s+chụp\s+thực\s+tế|thực\s+tế\s+không|ảnh\s+thực\s+tế|có\s+ảnh\s+thật|ảnh\s+thật|ảnh\s+ngoài\s+đời|ảnh\s+mặc|ảnh\s+đeo|ảnh\s+mang|ảnh\s+bên\s+trong|bên\s+trong\s+túi|ngăn\s+trong(\s+túi)?|lót\s+trong(\s+túi)?|real\s*photo|actual\s*photo|on\s*body|worn|try[\s-]?on|inside\s+(the\s+)?bag|interior\s+(shot|photo))/i
@@ -101,26 +126,35 @@ async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; 
 
 async function generateRealUseLifestyleBuffer(
   productImageUrl: string,
-  slot: 1 | 2
+  slot: 1 | 2,
+  choice?: ImageEngineChoice | null,
 ): Promise<{
   buffer: Buffer
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number
+  provider: string
+  model: string
 } | null> {
+  const priced = pricedEngine(choice)
+  if (priced.error) return null
   const key = process.env.GOOGLE_API_KEY?.trim()
-  if (!key) return null
+  if (priced.engine !== 'gpt' && !key) return null
   const inline = await fetchImageAsInlinePart(productImageUrl)
   if (!inline) return null
   const prompt = slot === 1 ? REAL_USE_PROMPT_SLOT1 : REAL_USE_PROMPT_SLOT2
-  const genAI = new GoogleGenerativeAI(key)
-  const model = genAI.getGenerativeModel({
-    model: IMAGE_MODEL,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
-    },
-  })
+  const parts = [prompt, { inlineData: { mimeType: inline.mimeType, data: inline.data } }]
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI(key!)
+    model = genAI.getGenerativeModel({
+      model: IMAGE_MODEL,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -128,20 +162,24 @@ async function generateRealUseLifestyleBuffer(
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
   try {
-    const genResult = await model.generateContent(
-      [prompt, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
-      { safetySettings } as never
-    )
+    const genResult = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '3:4',
+      parts,
+      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+    })
     const response = genResult.response
-    const um = response.usageMetadata
+    const um = response.usageMetadata as { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; logModel?: string } | undefined
     const prompt_tokens = Math.max(0, um?.promptTokenCount ?? 0)
     const completion_tokens = Math.max(0, um?.candidatesTokenCount ?? 0)
     const total_tokens = Math.max(0, um?.totalTokenCount ?? prompt_tokens + completion_tokens)
+    const ledger = imageLedgerFromUsage(um)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) return null
     const buffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     await trackFromUsageMetadata(response.usageMetadata, IMAGE_MODEL, 'partner-inventory-real-use-image', null, '2K')
-    return { buffer, prompt_tokens, completion_tokens, total_tokens }
+    return { buffer, prompt_tokens, completion_tokens, total_tokens, provider: ledger.provider, model: ledger.model }
   } catch (e) {
     console.warn('[real-use-image] gemini image gen failed', e)
     return null
@@ -161,6 +199,8 @@ export async function enrichInventoryRealUseImageIfNeeded(
     invForContext: InvRow[]
     selectedRow: InvRow | null
     lastConsultedRow: InvRow | null
+    imageEngine?: string | null
+    gptQuality?: string | null
   }
 ): Promise<{
   explicitSkuRows: InvRow[]
@@ -227,13 +267,16 @@ export async function enrichInventoryRealUseImageIfNeeded(
     return empty
   }
 
-  const gen = await generateRealUseLifestyleBuffer(focus.image_url.trim(), slot)
+  const gen = await generateRealUseLifestyleBuffer(focus.image_url.trim(), slot, {
+    imageEngine: input.imageEngine,
+    gptQuality: input.gptQuality,
+  })
   if (!gen?.buffer.length) return empty
 
   await insertPartnerAiTokenUsage({
     partner_id: partnerId,
-    provider: 'google',
-    model: IMAGE_MODEL,
+    provider: gen.provider,
+    model: gen.model,
     prompt_tokens: gen.prompt_tokens,
     completion_tokens: gen.completion_tokens,
     total_tokens: gen.total_tokens,

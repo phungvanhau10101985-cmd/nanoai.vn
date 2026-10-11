@@ -14,6 +14,8 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const CHE_ANH_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '4:3'] as const
@@ -73,7 +75,9 @@ export async function cheAnh(formData: FormData) {
   if (perImageParts.length) promptExtras += `PER-IMAGE NOTES: ${perImageParts.join('. ')}. `
   const prompt = PROMPT_BASE.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `${promptExtras}Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
-  const COST = CHE_ANH_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, CHE_ANH_COSTS[imageQuality] ?? CHE_ANH_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -102,15 +106,18 @@ export async function cheAnh(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
+  }
   const contentParts = await Promise.all([
     { text: prompt },
     ...images.map(async (img) => ({
@@ -127,7 +134,13 @@ export async function cheAnh(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent(contentParts, { safetySettings } as never)
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: contentParts,
+      gemini: () => model!.generateContent(contentParts, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'che-anh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

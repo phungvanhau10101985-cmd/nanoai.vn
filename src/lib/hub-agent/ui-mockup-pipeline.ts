@@ -7,6 +7,8 @@ import { loadImageBufferFromUrl } from '@/lib/hub-agent/sharpen-pipeline'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 
@@ -18,6 +20,8 @@ export type RunUiMockupInput = {
   brief: string
   projectTitle?: string
   referenceImageUrls?: string[]
+  imageEngine?: string | null
+  gptQuality?: string | null
 }
 
 export type RunUiMockupResult =
@@ -35,8 +39,20 @@ export async function runUiMockupPipeline(input: RunUiMockupInput): Promise<RunU
   } catch {
     return { ok: false, error: 'Không đọc được số dư credits.' }
   }
-  if (toTenths(balance) < toTenths(UI_MOCKUP_CREDIT)) {
-    return { ok: false, error: `Không đủ credits (cần ${UI_MOCKUP_CREDIT}).` }
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    UI_MOCKUP_CREDIT,
+  )
+  if (priced.error) return { ok: false, error: priced.error }
+  const cost = priced.cost
+  if (toTenths(balance) < toTenths(cost)) {
+    return { ok: false, error: `Không đủ credits (cần ${cost}).` }
   }
 
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
@@ -55,15 +71,18 @@ ${styleNote}
 Show realistic mobile layout with status bar, navigation, cards, buttons, and readable placeholder text in the design language.
 Flat UI design mockup only — return ONE image of the screen, no extra explanation text on the image borders.`
 
-  const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: '9:16' },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: '9:16' },
+      },
+    })
+  }
 
   const parts: object[] = [{ text: prompt }]
   for (const url of input.referenceImageUrls ?? []) {
@@ -83,7 +102,13 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
   ]
 
   try {
-    const result = await model.generateContent(parts as never, { safetySettings } as never)
+    const result = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '9:16',
+      parts,
+      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'hub-studio-ui', input.userId, '2K')
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -97,10 +122,10 @@ Flat UI design mockup only — return ONE image of the screen, no extra explanat
       upsert: true,
     })
 
-    const d = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT, 'hub-studio-ui')
+    const d = await deductUserCredits(input.userId, cost, 'hub-studio-ui')
     if (!d.ok) return { ok: false, error: d.error || 'Không thể trừ credits.' }
 
-    return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }
+    return { ok: true, resultUrl: publicUrl, charged: cost }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { ok: false, error: `Tạo giao diện thất bại: ${msg}` }

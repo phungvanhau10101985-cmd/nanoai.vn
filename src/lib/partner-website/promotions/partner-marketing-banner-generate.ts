@@ -12,6 +12,8 @@ import {
   insertPartnerMarketingBannerAssetFromPg,
   partnerShopHasLiveCustomDomainFromPg,
 } from '@/lib/db/messaging-partner-marketing-banner-pg'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { normalizeTemplateTheme } from '@/lib/partner-website/template/default-landing-v1'
@@ -119,16 +121,38 @@ async function generateBannerImageBytes(input: {
   prompt: string
   apiKey: string
   userId?: string | null
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<Buffer> {
-  const genAI = new GoogleGenerativeAI(input.apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: PARTNER_MARKETING_BANNER_ASPECT },
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
     },
+    PARTNER_MARKETING_BANNER_CREDIT_COST,
+  )
+  if (priced.error) throw new Error(priced.error)
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI(input.apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: PARTNER_MARKETING_BANNER_ASPECT },
+      },
+    })
+  }
+  const result = await runImageContent({
+    engine: priced.engine,
+    gptQuality: priced.gptQuality,
+    aspectRatio: PARTNER_MARKETING_BANNER_ASPECT,
+    parts: [{ text: input.prompt }],
+    gemini: () => model!.generateContent([{ text: input.prompt }], { safetySettings: SAFETY } as never),
   })
-  const result = await model.generateContent([{ text: input.prompt }], { safetySettings: SAFETY } as never)
   trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_3_PRO_IMAGE.model,
@@ -172,6 +196,8 @@ export async function generatePartnerMarketingBanner(input: {
   force?: boolean
   actorUserId?: string | null
   chargeCredits?: boolean
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<
   | { ok: true; asset: NonNullable<Awaited<ReturnType<typeof completePartnerMarketingBannerAssetFromPg>>> }
   | { ok: false; error: string; status?: number; code?: 'shop_not_live' | 'attempt_cap' }
@@ -261,13 +287,25 @@ export async function generatePartnerMarketingBanner(input: {
     return { ok: false, error: storage.error, status: 500 }
   }
 
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    PARTNER_MARKETING_BANNER_CREDIT_COST,
+  )
+  if (priced.error) return { ok: false, error: priced.error, status: 400 }
+  const creditCost = priced.cost
   if (input.chargeCredits) {
     if (!input.actorUserId) {
       return { ok: false, error: 'Không trừ được credit vì shop chưa có chủ tài khoản.', status: 402 }
     }
     try {
       const balance = await getCreditBalanceByUserId(input.actorUserId)
-      if (toTenths(balance) < toTenths(PARTNER_MARKETING_BANNER_CREDIT_COST)) {
+      if (toTenths(balance) < toTenths(creditCost)) {
         return { ok: false, error: 'Không đủ credits để tạo banner AI.', status: 402 }
       }
     } catch {
@@ -306,7 +344,7 @@ export async function generatePartnerMarketingBanner(input: {
     dateKey: partnerMarketingBannerDateKeyForKind(input.kind, day, month),
     discountPercent: input.discountPercent,
     prompt,
-    model: GEMINI_3_PRO_IMAGE.model,
+    model: priced.engine === 'gpt' ? 'gpt-image-2' : GEMINI_3_PRO_IMAGE.model,
     version,
     source: 'ai',
   })
@@ -317,6 +355,8 @@ export async function generatePartnerMarketingBanner(input: {
       prompt,
       apiKey,
       userId: input.actorUserId,
+      imageEngine: input.imageEngine,
+      gptQuality: input.gptQuality,
     })
     const bytes = await preparePartnerMarketingBannerJpeg(raw)
     const digest = bytes.subarray(0, 12).toString('hex')
@@ -336,7 +376,7 @@ export async function generatePartnerMarketingBanner(input: {
     })
     if (!ready) return { ok: false, error: 'Không lưu được ảnh banner.', status: 500 }
     if (input.chargeCredits && input.actorUserId) {
-      const deducted = await deductUserCredits(input.actorUserId, PARTNER_MARKETING_BANNER_CREDIT_COST, 'partner-marketing-banner')
+      const deducted = await deductUserCredits(input.actorUserId, creditCost, 'partner-marketing-banner')
       if (!deducted.ok) {
         return { ok: false, error: deducted.error, status: deducted.code === 'INSUFFICIENT_CREDITS' ? 402 : 500 }
       }

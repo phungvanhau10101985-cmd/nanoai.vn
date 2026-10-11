@@ -4,6 +4,7 @@ import test from 'node:test'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import {
   productStudioGeminiImageCredit,
+  productStudioImageCharge,
   productStudioSlotImageCredit,
   resolveProductStudioGeminiImage,
 } from '@/lib/partner-website/product-studio/product-studio-image-model'
@@ -38,6 +39,16 @@ test('studio image credit follows the gemini model of that slot', () => {
   assert.equal(productStudioSlotImageCredit('gallery', 'flash'), 0.4)
   assert.equal(productStudioSlotImageCredit('color', 'flash3'), 1.1)
   assert.equal(productStudioSlotImageCredit('detail', 'pro'), 1.5)
+  assert.equal(productStudioImageCharge({ kind: 'gallery', imageModel: 'flash' }).cost, 0.4)
+  assert.equal(productStudioImageCharge({ kind: 'material', imageModel: 'flash' }).cost, 1.5)
+  assert.equal(
+    productStudioImageCharge({ kind: 'gallery', imageModel: 'flash', imageEngine: 'gpt', gptQuality: 'high' }).cost,
+    2,
+  )
+  assert.equal(
+    productStudioImageCharge({ kind: 'color', imageModel: 'flash3', imageEngine: 'gpt', gptQuality: 'low' }).cost,
+    0.5,
+  )
   assert.equal(productStudioGeminiImageCredit(undefined), 1.5)
   assert.equal(productStudioGeminiImageCredit('gemini-2.5-flash-image'), 0.4)
 })

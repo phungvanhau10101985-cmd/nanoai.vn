@@ -134,8 +134,7 @@ export function normalizeGeminiImageSize(raw: string | null | undefined): string
 export function normalizeOpenaiImageQuality(raw: string | null | undefined): string | null {
   const s = String(raw || '').trim().toLowerCase()
   if (!s) return null
-  if (s === 'low') return 'high'
-  if (s === 'medium' || s === 'high' || s === 'auto') return s
+  if (s === 'low' || s === 'medium' || s === 'high' || s === 'auto') return s
   return null
 }
 

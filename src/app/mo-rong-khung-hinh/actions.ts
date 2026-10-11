@@ -14,6 +14,8 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const OUTPAINT_COSTS = { '2K': 1.5, '4K': 3 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -46,7 +48,9 @@ export async function outpaintImage(formData: FormData) {
     `TỶ LỆ KHUNG HÌNH MỤC TIÊU: ${aspectRatio}. ${noteEn ? `YÊU CẦU: "${noteEn}". ` : ''}Chỉ trả về ảnh kết quả, không chèn chữ.`
   )
 
-  const COST = OUTPAINT_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, OUTPAINT_COSTS[imageQuality] ?? OUTPAINT_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
@@ -76,15 +80,18 @@ export async function outpaintImage(formData: FormData) {
   if (!inserted) return { error: 'Không thể khởi tạo phiên xử lý.' }
   const historyItem = { id: inserted.id }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const buffer = Buffer.from(await image.arrayBuffer())
   const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType: image.type } }
   const safetySettings = [
@@ -97,7 +104,13 @@ export async function outpaintImage(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent([prompt, imagePart], { safetySettings })
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: [prompt, imagePart],
+      gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'mo-rong-khung-hinh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

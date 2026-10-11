@@ -22,6 +22,8 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
 import { tryAutoCompleteHubPlanStep } from '@/lib/hub-chat/hub-plan-auto-complete'
 import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
@@ -47,6 +49,8 @@ export default function LamNetAnhClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
@@ -54,7 +58,11 @@ export default function LamNetAnhClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const t = useMemo(() => {
     if (uiLocale === 'zh') {
       return {
@@ -210,6 +218,8 @@ export default function LamNetAnhClientPage() {
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('note', note)
     try {
       const result = await sharpenImage(formData)
@@ -328,33 +338,17 @@ export default function LamNetAnhClientPage() {
                       className="bg-white/80 text-xs h-20 min-h-[80px] resize-y"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.quality}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K'
-                            ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (1,5)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K'
-                            ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (3)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton
                       variant="outline"
@@ -366,7 +360,7 @@ export default function LamNetAnhClientPage() {
                       disabled={!image.file}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {t.sharpen} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {t.sharpen} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">{t.time}</p>
                   </div>

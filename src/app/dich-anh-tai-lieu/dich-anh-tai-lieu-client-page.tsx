@@ -10,6 +10,8 @@ import { translateDocumentImage, startTranslateBatch, startTranslatePdfBatch, ge
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { getDictionary } from '@/lib/i18n/dictionaries'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import {
   finalizeStandardImageGenerationResult,
   waitForNextPaintClient,
@@ -67,7 +69,6 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { TranslateProgressPanel } from './tien-trinh/translate-progress-panel'
 const MAX_BATCH = 50
 const TRANSLATE_PROGRESS_STORAGE_KEY = 'lastTranslateBatchId'
-const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -112,6 +113,8 @@ export default function DichAnhTaiLieuClientPage() {
   const [sourceLang, setSourceLang] = useState('')
   const [targetLang, setTargetLang] = useState('vi')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
@@ -122,6 +125,11 @@ export default function DichAnhTaiLieuClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+  const unitCost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 3 : 6,
+  })
 
   const fetchCredits = async () => {
     try {
@@ -233,7 +241,7 @@ export default function DichAnhTaiLieuClientPage() {
       } else {
         setPdfPageCount(res.pageCount)
         setPdfPreviews(res.previews)
-        toast({ title: tr(uiLocale, 'Đã phân tích PDF', 'PDF analyzed', '已分析 PDF', 'PDFを分析しました', 'PDF 분석 완료'), description: `${res.pageCount} ${tr(uiLocale, 'trang', 'pages', '页', 'ページ', '페이지')} • ${tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: ${(res.pageCount * TRANSLATE_COSTS[imageQuality]).toLocaleString('vi-VN')} credits`, duration: 3000 })
+        toast({ title: tr(uiLocale, 'Đã phân tích PDF', 'PDF analyzed', '已分析 PDF', 'PDFを分析しました', 'PDF 분석 완료'), description: `${res.pageCount} ${tr(uiLocale, 'trang', 'pages', '页', 'ページ', '페이지')} • ${tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: ${(res.pageCount * unitCost).toLocaleString('vi-VN')} credits`, duration: 3000 })
       }
     } catch {
       toast({ title: tr(uiLocale, 'Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr(uiLocale, 'Không đọc được file PDF.', 'Could not read PDF file.', '无法读取 PDF 文件。', 'PDFファイルを読み込めませんでした。', 'PDF 파일을 읽을 수 없습니다.'), variant: 'destructive' })
@@ -361,11 +369,11 @@ export default function DichAnhTaiLieuClientPage() {
   const imageCount = batchMode === 'excel' ? excelUrlCount : batchImages.length
   const estimatedCost =
     batchMode === 'pdf' && pdfPageCount
-      ? pdfPageCount * TRANSLATE_COSTS[imageQuality]
+      ? pdfPageCount * unitCost
       : isBatchOrExcel && imageCount > 0
-        ? imageCount * TRANSLATE_COSTS[imageQuality]
+        ? imageCount * unitCost
         : batchMode === 'single' && image.file
-          ? TRANSLATE_COSTS[imageQuality]
+          ? unitCost
           : 0
   const insufficientCredits = estimatedCost > 0 && userCredits < estimatedCost
 
@@ -399,6 +407,8 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('sourceLang', sourceLang)
       fd.append('targetLang', targetLang)
       fd.append('imageQuality', imageQuality)
+      fd.append('imageEngine', imageEngine)
+      fd.append('gptQuality', gptQuality)
       const r = await startTranslatePdfBatch(fd)
       if ('error' in r) {
         setStep('UPLOAD')
@@ -422,6 +432,8 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('sourceLang', sourceLang)
       fd.append('targetLang', targetLang)
       fd.append('imageQuality', imageQuality)
+      fd.append('imageEngine', imageEngine)
+      fd.append('gptQuality', gptQuality)
       fd.append('mode', 'excel')
       const r = await startTranslateBatch(fd)
       if ('error' in r) {
@@ -446,6 +458,8 @@ export default function DichAnhTaiLieuClientPage() {
       fd.append('sourceLang', sourceLang)
       fd.append('targetLang', targetLang)
       fd.append('imageQuality', imageQuality)
+      fd.append('imageEngine', imageEngine)
+      fd.append('gptQuality', gptQuality)
       fd.append('mode', 'batch')
       const r = await startTranslateBatch(fd)
       if ('error' in r) {
@@ -470,6 +484,8 @@ export default function DichAnhTaiLieuClientPage() {
       formData.append('sourceLang', sourceLang)
       formData.append('targetLang', targetLang)
       formData.append('imageQuality', imageQuality)
+      formData.append('imageEngine', imageEngine)
+      formData.append('gptQuality', gptQuality)
       try {
         const result = await translateDocumentImage(formData)
         await finalizeStandardImageGenerationResult(result, {
@@ -606,7 +622,7 @@ export default function DichAnhTaiLieuClientPage() {
                             )}
                           </div>
                           <p className="text-xs text-emerald-600 font-medium">
-                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {(pdfPageCount * TRANSLATE_COSTS[imageQuality]).toLocaleString('vi-VN')} credits ({pdfPageCount} × {imageQuality === '2K' ? '3' : '6'}/{tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')})
+                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {(pdfPageCount * unitCost).toLocaleString('vi-VN')} credits ({pdfPageCount} × {unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}/{tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')})
                           </p>
                           <p className="text-xs text-amber-600 font-medium">
                             → {tr(uiLocale, 'Chọn Ngôn ngữ nguồn và Ngôn ngữ đích bên cạnh, rồi bấm Dịch.', 'Select source and target language on the right, then click Translate.', '在右侧选择源语言和目标语言，然后点击翻译。', '右側でソース言語とターゲット言語を選択し、翻訳をクリックしてください。', '오른쪽에서 원본 및 대상 언어를 선택한 후 번역을 클릭하세요.')}
@@ -692,7 +708,7 @@ export default function DichAnhTaiLieuClientPage() {
                       {batchImages.length > 0 && (
                         <>
                           <p className="text-xs text-emerald-600 font-medium">
-                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {estimatedCost.toLocaleString('vi-VN')} credits ({batchImages.length} {tr(uiLocale, 'ảnh', 'images', '张图片', '枚', '장')} × {TRANSLATE_COSTS[imageQuality]})
+                            {tr(uiLocale, 'Giá sơ bộ', 'Est. cost', '预估价格', '概算', '예상 비용')}: {estimatedCost.toLocaleString('vi-VN')} credits ({batchImages.length} {tr(uiLocale, 'ảnh', 'images', '张图片', '枚', '장')} × {unitCost})
                           </p>
                           {insufficientCredits && (
                             <p className="text-xs text-red-600 font-medium">
@@ -824,22 +840,17 @@ export default function DichAnhTaiLieuClientPage() {
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr(uiLocale, 'Chất lượng ảnh đầu ra', 'Output image quality', '输出图像质量', '出力画像の品質', '출력 이미지 품질')}</h4>
                     <p className="text-[10px] text-muted-foreground -mt-1">{tr(uiLocale, 'PDF: ảnh đầu vào luôn tách độ phân giải cao để AI đọc đúng.', 'PDF: input pages are extracted at high resolution so AI can read accurately.', 'PDF：输入页始终以高分辨率拆分，便于 AI 准确识别。', 'PDF: 入力ページはAIが正確に読めるよう常に高解像度で分割します。', 'PDF: AI가 정확히 읽도록 입력 페이지를 항상 고해상도로 분리합니다.')}</p>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '2K' ? 'border-slate-600 bg-slate-600 text-white' : 'border-slate-500 bg-slate-400 text-slate-900 hover:bg-slate-500'}`}
-                      >
-                        2K (3)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '4K' ? 'border-slate-600 bg-slate-600 text-white' : 'border-slate-500 bg-slate-400 text-slate-900 hover:bg-slate-500'}`}
-                      >
-                        4K (6)
-                      </button>
-                    </div>
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={3}
+                      geminiCost4k={6}
+                    />
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Số dư', 'Balance', '余额', '残高', '잔액')}: <span className="font-medium text-foreground">{userCredits.toLocaleString('vi-VN')}</span> credits</p>
@@ -869,8 +880,8 @@ export default function DichAnhTaiLieuClientPage() {
                     >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Dịch', 'Translate', '翻译', '翻訳', '번역')} (
                       {batchMode === 'pdf'
-                        ? `${imageQuality === '2K' ? '3' : '6'} credit/${tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')}`
-                        : `${batchMode === 'excel' && excelUrlCount ? `${excelUrlCount} × ` : batchMode === 'batch' && batchImages.length ? `${batchImages.length} × ` : ''}${imageQuality === '2K' ? '3' : '6'} credit`}
+                        ? `${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit/${tr(uiLocale, 'trang', 'page', '页', 'ページ', '페이지')}`
+                        : `${batchMode === 'excel' && excelUrlCount ? `${excelUrlCount} × ` : batchMode === 'batch' && batchImages.length ? `${batchImages.length} × ` : ''}${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit`}
                       )
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr(uiLocale, 'Thời gian: 15–45 giây. Credits trừ khi xong từng ảnh/trang.', 'Time: 15–45 sec. Credits deducted per completed image/page.', '时间：15–45 秒。每完成一张图片/页扣除积分。', '所要時間：15〜45秒。画像/ページごとにクレジットが差し引かれます。', '소요 시간: 15–45초. 이미지/페이지당 완료 시 크레딧 차감.')}</p>

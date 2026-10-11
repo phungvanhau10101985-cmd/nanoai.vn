@@ -13,6 +13,8 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const MOCKUP_COSTS = { '2K': 1.5, '4K': 3 } as const
 
@@ -46,7 +48,9 @@ export async function create3DMockup(formData: FormData) {
     prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
-  const COST = MOCKUP_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, MOCKUP_COSTS[imageQuality] ?? MOCKUP_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
@@ -78,15 +82,18 @@ export async function create3DMockup(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(user.id)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const logoBuffer = Buffer.from(await logoImage.arrayBuffer())
   const logoImagePart = { inlineData: { data: logoBuffer.toString('base64'), mimeType: logoImage.type } }
   const safetySettings = [
@@ -99,10 +106,12 @@ export async function create3DMockup(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent(
-      [prompt, productImagePart, logoImagePart],
-      { safetySettings }
-    )
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      parts: [prompt, productImagePart, logoImagePart],
+      gemini: () => model!.generateContent([prompt, productImagePart, logoImagePart], { safetySettings }),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-anh-3d', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

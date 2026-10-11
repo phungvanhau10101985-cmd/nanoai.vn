@@ -89,6 +89,9 @@ export type ProductStudioJobPayload = {
   galleryCount?: number
   detailCount?: number
   imageModel?: ProductStudioImageModel
+  /** Thiếu = Gemini. */
+  imageEngine?: 'gemini' | 'gpt'
+  gptQuality?: 'low' | 'medium' | 'high'
   aspectRatio?: string
   modelPresence?: ProductStudioModelPresence
   modelGender?: string
@@ -266,6 +269,11 @@ export function jsonToProductStudioPayload(raw: Json): ProductStudioJobPayload {
     galleryCount: Number(o.galleryCount ?? 5) || 5,
     detailCount: Number(o.detailCount ?? 3) || 3,
     imageModel: o.imageModel === 'flash' || o.imageModel === 'flash3' ? o.imageModel : 'pro',
+    imageEngine: String(o.imageEngine ?? '').trim().toLowerCase() === 'gpt' ? 'gpt' : undefined,
+    gptQuality:
+      o.gptQuality === 'low' || o.gptQuality === 'medium' || o.gptQuality === 'high'
+        ? o.gptQuality
+        : undefined,
     aspectRatio: String(o.aspectRatio ?? '1:1').trim() || '1:1',
     modelPresence: o.modelPresence === 'model' ? 'model' : 'none',
     modelGender: String(o.modelGender ?? '').trim(),

@@ -20,6 +20,8 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
@@ -45,11 +47,17 @@ export default function KeChuyenBangHinhAnhClientPage() {
   const [step, setStep] = useState<Step>('INPUT')
   const [prompt, setPrompt] = useState('')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('4:3')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
-  const cost = imageQuality === '2K' ? 3 : 6
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 3 : 6,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -82,6 +90,8 @@ export default function KeChuyenBangHinhAnhClientPage() {
     const formData = new FormData()
     formData.append('prompt', prompt)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     try {
       const result = await createStoryImage(formData)
@@ -182,29 +192,17 @@ export default function KeChuyenBangHinhAnhClientPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画像品質', '이미지 품질')}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (3)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K' ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (6)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={3}
+                    geminiCost4k={6}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-rose-200 text-rose-700 hover:bg-rose-50" />
                     <Button
@@ -212,7 +210,7 @@ export default function KeChuyenBangHinhAnhClientPage() {
                       disabled={!prompt.trim()}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-rose-600 hover:bg-rose-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo ảnh', 'Create image', '生成图片', '画像を作成', '이미지 생성')} ({imageQuality === '2K' ? '3' : '6'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo ảnh', 'Create image', '生成图片', '画像を作成', '이미지 생성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '所要時間：15–45秒', '소요 시간: 15–45초')}</p>
                   </div>

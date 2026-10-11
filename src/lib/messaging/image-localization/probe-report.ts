@@ -9,6 +9,32 @@ export function probeExpiresAt(from = new Date()): Date {
   return new Date(from.getTime() + IMAGE_LOC_PROBE_TTL_MS)
 }
 
+/** http(s) hoặc link //cdn. Trả URL tuyệt đối, hoặc null nếu không phải link ảnh. */
+export function normalizeProbeImageUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const withProto = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed
+  let url: URL
+  try {
+    url = new URL(withProto)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  if (url.username || url.password) return null
+  return url.toString()
+}
+
+export function filenameFromProbeImageUrl(url: string): string {
+  try {
+    const name = decodeURIComponent(new URL(url).pathname.split('/').pop() || '')
+    if (/\.(png|jpe?g|webp)$/i.test(name)) return name.slice(0, 80)
+  } catch {
+    /* keep */
+  }
+  return 'image.jpg'
+}
+
 export function probeDaysLeft(expiresAt: string | Date, now = new Date()): number {
   const end = expiresAt instanceof Date ? expiresAt.getTime() : new Date(expiresAt).getTime()
   if (!Number.isFinite(end)) return 0

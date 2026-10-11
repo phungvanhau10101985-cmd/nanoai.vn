@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -206,6 +208,9 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
   const [loading, setLoading] = useState(true)
   const [working, setWorking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const fileRef = useRef<HTMLInputElement>(null)
 
   const apiBase = `/api/messaging/partners/${encodeURIComponent(partnerId)}/marketing-banners`
@@ -265,6 +270,8 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
       body = { ...body, day: parsed.day, month: parsed.month }
     }
     if (nextKind === 'regular' && campaignKey) body.campaignKey = campaignKey
+    body.imageEngine = imageEngine
+    body.gptQuality = gptQuality
     setWorking(true)
     setError(null)
     try {
@@ -356,7 +363,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
       <CardHeader>
         <CardTitle>{t.title}</CardTitle>
         <CardDescription>
-          {t.hint} {t.creditHint}
+          {t.hint} {imageEngine === 'gemini' ? t.creditHint : null}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -369,6 +376,16 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
           </div>
         ) : null}
 
+        <ImageEnginePicker
+          locale={locale}
+          engine={imageEngine}
+          onEngineChange={setImageEngine}
+          geminiQuality={geminiQuality}
+          onGeminiQualityChange={setGeminiQuality}
+          gptQuality={gptQuality}
+          onGptQualityChange={setGptQuality}
+          geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
+        />
         <div className="grid gap-3 sm:grid-cols-[180px_160px_auto_auto]">
           <select
             value={kind}

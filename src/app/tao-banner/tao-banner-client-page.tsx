@@ -18,6 +18,8 @@ import { Upload, Sparkles, RefreshCw, Plus, X, Check } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
@@ -54,13 +56,19 @@ export default function TaoBannerClientPage() {
   const [note, setNote] = useState('')
   const [images, setImages] = useState<{ file: File; preview: string; removeBackground: boolean; caption: string }[]>([])
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('16:9')
   const [logo, setLogo] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const logoInputRef = useRef<HTMLInputElement>(null)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -116,6 +124,8 @@ export default function TaoBannerClientPage() {
     await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('note', note)
     if (logo.file) formData.append('logo', logo.file)
@@ -344,29 +354,17 @@ export default function TaoBannerClientPage() {
                       ))}
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Chất lượng ảnh', 'Image quality', '图像质量', '画像品質', '이미지 품질')}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (1,5)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (3)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
                     <Button
@@ -374,7 +372,7 @@ export default function TaoBannerClientPage() {
                       disabled={images.length === 0}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo banner', 'Create banner', '创建横幅', 'バナーを作成', '배너 만들기')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo banner', 'Create banner', '创建横幅', 'バナーを作成', '배너 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">{tr('* Thời gian: 15–45 giây', '* Time: 15–45 seconds', '* 时长：15–45 秒', '* 所要時間: 15〜45秒', '* 소요 시간: 15–45초')}</p>
                   </div>

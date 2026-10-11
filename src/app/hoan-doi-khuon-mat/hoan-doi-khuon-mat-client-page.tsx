@@ -18,6 +18,8 @@ import { Upload, Sparkles, RefreshCw, Repeat } from 'lucide-react'
 import { ImageUploadWithPreview } from '@/components/image-upload-with-preview'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
@@ -47,6 +49,8 @@ export default function HoanDoiKhuonMatClientPage() {
   const [faceImageRight, setFaceImageRight] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [targetImage, setTargetImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [note, setNote] = useState('')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
@@ -54,7 +58,11 @@ export default function HoanDoiKhuonMatClientPage() {
   const faceInputRef = useRef<HTMLInputElement>(null)
   const faceLeftInputRef = useRef<HTMLInputElement>(null)
   const faceRightInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1 : 2
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1 : 2,
+  })
   const targetInputRef = useRef<HTMLInputElement>(null)
   const isSubmittingRef = useRef(false)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
@@ -161,6 +169,8 @@ export default function HoanDoiKhuonMatClientPage() {
       }
       formData.append('targetImage', targetImage.file)
       formData.append('imageQuality', imageQuality)
+      formData.append('imageEngine', imageEngine)
+      formData.append('gptQuality', gptQuality)
       formData.append('note', note)
       const result = await faceSwap(formData)
       await finalizeStandardImageGenerationResult(result, {
@@ -340,21 +350,21 @@ export default function HoanDoiKhuonMatClientPage() {
                   <CardDescription className="text-xs">{t.optionsDesc}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.quality}</h4>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => setImageQuality('2K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '2K' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        2K (1)
-                      </button>
-                      <button type="button" onClick={() => setImageQuality('4K')} className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${imageQuality === '4K' ? 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>
-                        4K (2)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1}
+                    geminiCost4k={2}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
                     <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
-                      <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({imageQuality === '2K' ? '1' : '2'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {t.time}</p>
                   </div>

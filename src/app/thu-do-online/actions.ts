@@ -12,6 +12,7 @@ import {
   buildFivePersonPrompt,
 } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import type { TryOnMode } from '@/lib/try-on/try-on-prompts'
 
 const TRY_ON_MODES: readonly TryOnMode[] = ['single', 'couple', 'group', 'group4', 'group5']
@@ -183,7 +184,10 @@ export async function generateAiImage(formData: FormData) {
   }
 
   const baseCost = tryOnCostMap[tryOnMode]
-  const cost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
+  const geminiCost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
+  const charge = imageChargeFromForm(formData, geminiCost)
+  if (charge.error) return { error: charge.error }
+  const cost = charge.cost
 
   const allGarmentImages = [
     ...garmentImages,
@@ -204,6 +208,8 @@ export async function generateAiImage(formData: FormData) {
     imageQuality,
     userImage,
     garmentFilesOrdered: allGarmentImages,
+    engine: charge.engine,
+    gptQuality: charge.gptQuality,
   })
 
   if ('error' in pipe) {

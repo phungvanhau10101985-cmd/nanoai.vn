@@ -16,8 +16,8 @@ export interface ApiUsageLogParams {
   promptTokenCount: number
   candidatesTokenCount: number
   totalTokenCount: number
-  /** Độ phân giải ảnh trả về: '2K' | '4K' | null (không trả ảnh) */
-  imageSize?: '2K' | '4K' | null
+  /** 1K/2K/4K, gpt-low/medium/high/auto, hoặc null khi không trả ảnh. */
+  imageSize?: string | null
 }
 
 /**
@@ -101,26 +101,29 @@ export async function trackApiUsage(params: ApiUsageLogParams): Promise<void> {
 /**
  * Trích xuất usage từ response và gọi trackApiUsage.
  * @param imageSize - Độ phân giải ảnh trả về ('2K' | '4K') nếu là lượt gọi sinh ảnh, undefined nếu không trả ảnh.
+ * GPT Image gắn `logModel` và `logImageSize` trên usage để không bị ghi nhầm model Gemini và size 2K/4K.
  */
 export async function trackFromUsageMetadata(
-  usageMetadata: UsageMetadata | undefined,
+  usageMetadata: (UsageMetadata & { logModel?: string; logImageSize?: string | null }) | undefined,
   model: string,
   feature: string,
   userId?: string | null,
-  imageSize?: '2K' | '4K' | null
+  imageSize?: string | null
 ): Promise<void> {
   if (!usageMetadata) return
   const prompt = usageMetadata.promptTokenCount ?? 0
   const candidates = usageMetadata.candidatesTokenCount ?? 0
   const total = usageMetadata.totalTokenCount ?? prompt + candidates
   if (total <= 0) return
+  const loggedModel = usageMetadata.logModel?.trim() || model
+  const loggedSize = usageMetadata.logImageSize !== undefined ? usageMetadata.logImageSize : (imageSize ?? null)
   await trackApiUsage({
     userId,
-    model,
+    model: loggedModel,
     feature,
     promptTokenCount: prompt,
     candidatesTokenCount: candidates,
     totalTokenCount: total,
-    imageSize: imageSize ?? null,
+    imageSize: loggedSize,
   })
 }

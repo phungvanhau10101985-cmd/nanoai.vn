@@ -6,6 +6,8 @@ import {
   fetchPartnerInventoryRowByIdForPartnerFromPg,
   updatePartnerInventoryMaterialDetailImageUrlFromPg,
 } from '@/lib/db/messaging-partner-inventory-pg'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -23,6 +25,29 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 type InvRow = Database['public']['Tables']['messaging_partner_inventory']['Row']
 
 const IMAGE_MODEL = GEMINI_3_PRO_IMAGE.model
+
+function imageLedgerFromUsage(um: { logModel?: string } | undefined): { provider: string; model: string } {
+  if (um?.logModel === 'gpt-image-2') return { provider: 'openai', model: 'gpt-image-2' }
+  return { provider: 'google', model: IMAGE_MODEL }
+}
+
+type ImageEngineChoice = {
+  imageEngine?: string | null
+  gptQuality?: string | null
+}
+
+function pricedEngine(choice?: ImageEngineChoice | null) {
+  return imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return choice?.imageEngine ?? null
+        if (name === 'gptQuality') return choice?.gptQuality ?? null
+        return null
+      },
+    },
+    0,
+  )
+}
 
 export type PartnerMaterialDetailFollowup = {
   inventoryId: string
@@ -153,25 +178,37 @@ async function fetchImageAsInlinePart(url: string): Promise<{ mimeType: string; 
 
 async function generateMaterialDetailCollageBuffer(
   productImageUrl: string,
-  row: InvRow
+  row: InvRow,
+  choice?: ImageEngineChoice | null,
 ): Promise<{
   buffer: Buffer
   prompt_tokens: number
   completion_tokens: number
   total_tokens: number
+  provider: string
+  model: string
 } | null> {
+  const priced = pricedEngine(choice)
+  if (priced.error) return null
   const key = process.env.GOOGLE_API_KEY?.trim()
-  if (!key) return null
+  if (priced.engine !== 'gpt' && !key) return null
   const inline = await fetchImageAsInlinePart(productImageUrl)
   if (!inline) return null
-  const genAI = new GoogleGenerativeAI(key)
-  const model = genAI.getGenerativeModel({
-    model: IMAGE_MODEL,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K', aspectRatio: MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO },
-    },
-  })
+  const parts = [
+    buildMaterialCollagePrompt(row),
+    { inlineData: { mimeType: inline.mimeType, data: inline.data } },
+  ]
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI(key!)
+    model = genAI.getGenerativeModel({
+      model: IMAGE_MODEL,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K', aspectRatio: MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -179,23 +216,24 @@ async function generateMaterialDetailCollageBuffer(
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
   try {
-    const genResult = await model.generateContent(
-      [
-        buildMaterialCollagePrompt(row),
-        { inlineData: { mimeType: inline.mimeType, data: inline.data } },
-      ] as never,
-      { safetySettings } as never
-    )
+    const genResult = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: MATERIAL_QUALITY_INFOGRAPHIC_ASPECT_RATIO,
+      parts,
+      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+    })
     const response = genResult.response
-    const um = response.usageMetadata
+    const um = response.usageMetadata as { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number; logModel?: string } | undefined
     const prompt_tokens = Math.max(0, um?.promptTokenCount ?? 0)
     const completion_tokens = Math.max(0, um?.candidatesTokenCount ?? 0)
     const total_tokens = Math.max(0, um?.totalTokenCount ?? prompt_tokens + completion_tokens)
+    const ledger = imageLedgerFromUsage(um)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePartRes || !('inlineData' in imagePartRes)) return null
     const buffer = Buffer.from((imagePartRes as { inlineData: { data: string } }).inlineData.data, 'base64')
     await trackFromUsageMetadata(response.usageMetadata, IMAGE_MODEL, 'partner-inventory-material-detail-image', null, '2K')
-    return { buffer, prompt_tokens, completion_tokens, total_tokens }
+    return { buffer, prompt_tokens, completion_tokens, total_tokens, provider: ledger.provider, model: ledger.model }
   } catch (e) {
     console.warn('[material-detail-image] gemini image gen failed', e)
     return null
@@ -259,7 +297,8 @@ export async function enrichInventoryMaterialDetailCollageIfNeeded(
 
 async function generateInventoryMaterialDetailFollowupByIdUncached(
   partnerId: string,
-  inventoryId: string
+  inventoryId: string,
+  choice?: ImageEngineChoice | null,
 ): Promise<PartnerMaterialDetailFollowup | null> {
   const row = await fetchPartnerInventoryRowByIdForPartnerFromPg(partnerId, inventoryId)
   if (!row) return null
@@ -280,7 +319,7 @@ async function generateInventoryMaterialDetailFollowupByIdUncached(
     console.warn('[material-detail-image] bunny probe', bunnyReady.error)
     return null
   }
-  const gen = await generateMaterialDetailCollageBuffer(src, row)
+  const gen = await generateMaterialDetailCollageBuffer(src, row, choice)
   if (!gen?.buffer.length) return null
   const stored = await storeGeneratedMaterialDetailImage(partnerId, row.id, gen)
   if (!stored) return null
@@ -297,12 +336,14 @@ async function generateInventoryMaterialDetailFollowupByIdUncached(
 /** Một process chỉ tạo một ảnh cho cùng tenant + inventory; DB URL là cache xuyên process. */
 export function generateInventoryMaterialDetailFollowupById(
   partnerId: string,
-  inventoryId: string
+  inventoryId: string,
+  choice?: ImageEngineChoice | null,
 ): Promise<PartnerMaterialDetailFollowup | null> {
-  const key = `${partnerId}:${inventoryId}`
+  const engineTag = choice?.imageEngine ? `:${choice.imageEngine}:${choice.gptQuality ?? ''}` : ''
+  const key = `${partnerId}:${inventoryId}${engineTag}`
   const current = materialImageInflight.get(key)
   if (current) return current
-  const pending = generateInventoryMaterialDetailFollowupByIdUncached(partnerId, inventoryId).finally(() => {
+  const pending = generateInventoryMaterialDetailFollowupByIdUncached(partnerId, inventoryId, choice).finally(() => {
     materialImageInflight.delete(key)
   })
   materialImageInflight.set(key, pending)
@@ -312,12 +353,12 @@ export function generateInventoryMaterialDetailFollowupById(
 async function storeGeneratedMaterialDetailImage(
   partnerId: string,
   inventoryId: string,
-  gen: { buffer: Buffer; prompt_tokens: number; completion_tokens: number; total_tokens: number }
+  gen: { buffer: Buffer; prompt_tokens: number; completion_tokens: number; total_tokens: number; provider: string; model: string }
 ): Promise<{ publicUrl: string; storagePath: string } | null> {
   await insertPartnerAiTokenUsage({
     partner_id: partnerId,
-    provider: 'google',
-    model: IMAGE_MODEL,
+    provider: gen.provider,
+    model: gen.model,
     prompt_tokens: gen.prompt_tokens,
     completion_tokens: gen.completion_tokens,
     total_tokens: gen.total_tokens,
@@ -336,7 +377,8 @@ async function storeGeneratedMaterialDetailImage(
 /** Tạo lại ảnh chất liệu (bỏ cache) — dùng cho thử SKU / đăng SP. */
 export async function regenerateInventoryMaterialDetailImage(
   partnerId: string,
-  row: InvRow
+  row: InvRow,
+  choice?: ImageEngineChoice | null,
 ): Promise<PartnerMaterialDetailFollowup | null> {
   const src = (row.image_url ?? '').trim()
   if (!/^https?:\/\//i.test(src)) return null
@@ -345,7 +387,7 @@ export async function regenerateInventoryMaterialDetailImage(
     console.warn('[material-detail-image] bunny probe', bunnyReady.error)
     return null
   }
-  const gen = await generateMaterialDetailCollageBuffer(src, row)
+  const gen = await generateMaterialDetailCollageBuffer(src, row, choice)
   if (!gen?.buffer.length) return null
   const stored = await storeGeneratedMaterialDetailImage(partnerId, row.id, gen)
   if (!stored) return null

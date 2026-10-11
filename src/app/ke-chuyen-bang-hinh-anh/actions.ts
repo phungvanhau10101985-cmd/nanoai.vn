@@ -12,6 +12,8 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 
 const STORY_COSTS = { '2K': 3, '4K': 6 } as const
@@ -57,7 +59,9 @@ export async function createStoryImage(formData: FormData) {
     return { error: 'Vui lòng nhập ý tưởng hoặc chủ đề cần minh họa.' }
   }
 
-  const COST = STORY_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, STORY_COSTS[imageQuality] ?? STORY_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -96,13 +100,16 @@ export async function createStoryImage(formData: FormData) {
   // Bước 2: Gemini 3 Pro Image Preview tạo ảnh từ câu chuyện (ảnh có chữ tiếng Việt)
   const fullPrompt = `${PROMPT_BASE}\n\nCÂU CHUYỆN CẦN MINH HỌA:\n"${expandedStory}"`
 
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -113,7 +120,13 @@ export async function createStoryImage(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent(fullPrompt, { safetySettings })
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: [fullPrompt],
+      gemini: () => model!.generateContent(fullPrompt, { safetySettings }),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'ke-chuyen-bang-hinh-anh', user.id, imageQuality)
 

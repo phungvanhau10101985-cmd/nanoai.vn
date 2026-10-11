@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { translateOneImage } from '@/lib/translate-document-image'
+import { GPT_IMAGE_CREDITS, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { applyPostCheckOcr } from '@/lib/translate-post-check'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { notifyTranslateImageJobDone, notifyTranslateImageSuccessSmart } from '@/lib/notifications/notify-job-events'
@@ -22,6 +23,14 @@ import {
 } from '@/lib/db/translate-process-pg'
 
 const TRANSLATE_COSTS = { '2K': 3, '4K': 6 } as const
+
+function translateJobEngine(cost: number, imageQuality: '2K' | '4K'): { engine: ImageEngine; gptQuality: GptImageQuality | null } {
+  const geminiUnit = TRANSLATE_COSTS[imageQuality]
+  if (Math.abs(cost - geminiUnit) < 0.05) return { engine: 'gemini', gptQuality: null }
+  const found = (['low', 'medium', 'high'] as const).find((quality) => Math.abs(GPT_IMAGE_CREDITS[quality] - cost) < 0.05)
+  if (found) return { engine: 'gpt', gptQuality: found }
+  return { engine: 'gemini', gptQuality: null }
+}
 
 function getBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
@@ -145,11 +154,12 @@ async function handleProcessTranslate(request: NextRequest) {
   const sourceLang = String(job.source_lang || 'en')
   const sourceLang2 = job.source_lang_2 ?? null
   const targetLang = String(job.target_lang || 'vi')
-  const imageQuality = (String(job.image_quality || '2K') as '2K' | '4K')
+  const imageQuality = (String(job.image_quality || '2K').toUpperCase() === '4K' ? '4K' : '2K') as '2K' | '4K'
   const cost = Number(job.cost) || TRANSLATE_COSTS[imageQuality]
+  const { engine, gptQuality } = translateJobEngine(cost, imageQuality)
 
   const apiKey = process.env.GOOGLE_API_KEY
-  if (!apiKey) {
+  if (engine !== 'gpt' && !apiKey) {
     const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
     await markTranslateJobFailedPg(resolvedJobId, errText)
     await notifyTranslateFailed(errText)
@@ -161,7 +171,7 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: errText }, { status: 500 })
   }
 
-  const genAI = new GoogleGenerativeAI(apiKey)
+  const genAI = new GoogleGenerativeAI(apiKey || 'unused')
   console.log('[process-translate] Bắt đầu dịch job', resolvedJobId, '| lần=', retryRound, '| url:', imageUrl?.slice(0, 80) + '...')
   let resultBuffer: Buffer
   let translateError: string | undefined
@@ -175,7 +185,7 @@ async function handleProcessTranslate(request: NextRequest) {
       imageQuality,
       userId,
       sourceLang2,
-      { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}` }
+      { retryRound, logPrefix: `[process-translate] job=${resolvedJobId}`, engine, gptQuality }
     )
     resultBuffer = result.buffer
     translateError = result.error
@@ -214,7 +224,19 @@ async function handleProcessTranslate(request: NextRequest) {
     return NextResponse.json({ error: translateError }, { status: 500 })
   }
 
-  const finalBuffer = await applyPostCheckOcr(resultBuffer, genAI, {
+  if (engine === 'gpt' && !apiKey) {
+    const errText = 'Thiếu GOOGLE_API_KEY trong cấu hình server'
+    await markTranslateJobFailedPg(resolvedJobId, errText)
+    await notifyTranslateFailed(errText)
+    if (batchId) {
+      const h: Record<string, string> = {}
+      if (secret) h['x-process-secret'] = secret
+      fetch(`${getBaseUrl()}/api/process-translate?batchId=${batchId}`, { headers: h }).catch(() => {})
+    }
+    return NextResponse.json({ error: errText }, { status: 500 })
+  }
+  const ocrClient = apiKey ? new GoogleGenerativeAI(apiKey) : genAI
+  const finalBuffer = await applyPostCheckOcr(resultBuffer, ocrClient, {
     sourceLang,
     sourceLang2,
     targetLang,

@@ -9,6 +9,8 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import type { HubAutoRunImageQuality } from '@/lib/hub-agent/auto-run-support'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { normalizeBannerAspectRatioForGemini } from '@/lib/banner-ad-presets'
 
@@ -24,6 +26,8 @@ export type RunBannerPipelineInput = {
   note?: string
   imageQuality?: HubAutoRunImageQuality
   aspectRatio?: string
+  imageEngine?: string | null
+  gptQuality?: string | null
 }
 
 export type RunBannerPipelineResult =
@@ -47,7 +51,18 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
     )
   }
 
-  const COST = BANNER_COSTS[imageQuality]
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    BANNER_COSTS[imageQuality],
+  )
+  if (priced.error) return { ok: false, error: priced.error }
+  const COST = priced.cost
   let balance = 0
   try {
     balance = await getCreditBalanceByUserId(input.userId)
@@ -75,15 +90,18 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   })
   if (!historyItem) return { ok: false, error: 'Kh├┤ng thß╗â khß╗ƒi tß║ío phi├¬n xß╗¡ l├╜.' }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -97,7 +115,13 @@ export async function runBannerPipeline(input: RunBannerPipelineInput): Promise<
   const contentParts: object[] = [{ text: prompt }, ...productImageParts]
 
   try {
-    const result = await model.generateContent(contentParts as never, { safetySettings } as never)
+    const result = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio,
+      parts: contentParts,
+      gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-banner', input.userId, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

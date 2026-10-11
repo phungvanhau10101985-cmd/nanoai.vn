@@ -18,6 +18,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Plus, X, Check, Save, FolderOpen, Box, FileSpreadsheet, FileDown, Trash2, FileEdit } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
@@ -211,6 +213,8 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
   const [referenceImage, setReferenceImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [images, setImages] = useState<{ file: File; preview: string; removeBackground: boolean }[]>([])
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [labelWidthMm, setLabelWidthMm] = useState('100')
   const [labelHeightMm, setLabelHeightMm] = useState('100')
   const aspectRatio = (() => {
@@ -231,7 +235,11 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
   const stepContentRef = useRef<HTMLDivElement>(null)
   const currentProjectIdRef = useRef<string>('')
   const [projects, setProjects] = useState<ProjectItem[]>([])
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -291,6 +299,8 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
     await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('labelName', labelName)
     formData.append('labelText', labelText)
@@ -503,6 +513,8 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
     formData.append('labelImageUrl', resultUrl)
     formData.append('productImage', mockupProductImage.file)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     try {
       const result = await createLabelMockupOnProduct(formData)
       await finalizeStandardImageGenerationResult(result, {
@@ -1274,33 +1286,23 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                     />
                   </div>
                   <div className="pt-6 mt-6 border-t space-y-3">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-medium text-muted-foreground">{tr('Chất lượng:', 'Quality:', '质量:', '品質:', '품질:')}</span>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (1,5 credit)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (3 credit)
-                      </button>
-                    </div>
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={1.5}
+                      geminiCost4k={3}
+                    />
                     <div className="flex flex-col sm:flex-row items-center gap-4">
                       <Button
                         onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                         className="w-full sm:w-auto min-w-[200px] h-10 shadow-md hover:shadow-lg transition-all text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
-                        <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo nhãn', 'Create label', '创建标签', 'ラベルを作成', '라벨 만들기')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                        <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo nhãn', 'Create label', '创建标签', 'ラベルを作成', '라벨 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                       </Button>
                       <p className="text-[10px] text-muted-foreground">{tr('* Thời gian: 15–45 giây', '* Time: 15–45 seconds', '* 时长：15–45 秒', '* 所要時間: 15〜45秒', '* 소요 시간: 15–45초')}</p>
                     </div>
@@ -1407,7 +1409,7 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep('RESULT')}>{tr('Quay lại', 'Back', '返回', '戻る', '뒤로')}</Button>
                 <Button onClick={() => checkCreditsAndProceed(cost, handleMockupSubmit)} disabled={!mockupProductImage} className="bg-cyan-600 hover:bg-cyan-700">
-                  <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo mockup', 'Create mockup', '创建模型', 'モックアップ作成', '목업 만들기')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                  <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo mockup', 'Create mockup', '创建模型', 'モックアップ作成', '목업 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                 </Button>
               </div>
             </CardContent>

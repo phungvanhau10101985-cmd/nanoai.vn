@@ -1932,10 +1932,15 @@ export type Dictionary = {
     imageLocProbeReplace: string
     imageLocProbeClear: string
     imageLocProbeApparel: string
+    imageLocProbeApparelYes: string
+    imageLocProbeApparelNo: string
     imageLocProbeApparelHint: string
     imageLocProbeRun: string
     imageLocProbeRunning: string
     imageLocProbeNeedFile: string
+    imageLocProbeUrl: string
+    imageLocProbeUrlPlaceholder: string
+    imageLocProbeBadUrl: string
     imageLocProbeFolder: string
     imageLocProbeOpenAll: string
     imageLocProbeEmpty: string
@@ -2709,6 +2714,10 @@ export type Dictionary = {
   imageGenerationClient: {
     unexpectedNoUrl: string
     clientFault: string
+    imageEngineLabel: string
+    imageEngineGemini: string
+    imageEngineGpt: string
+    imageEngineQuality: string
   }
   /** Trang /dashboard/tasks — tác vụ & hàng đợi thống nhất */
   taskHub: {
@@ -5749,11 +5758,11 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocBulkHint: 'Giày, túi, phụ kiện và ảnh lookbook vẽ local. Ảnh size hoặc hướng dẫn giặt của áo, quần, váy qua GPT, xóa ảnh người và ảnh sản phẩm, giữ bảng chữ, rồi lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2.',
     imageLocModeLabel: 'Sinh/sửa ảnh (chữ Trung → bản địa)',
     imageLocModeLocal: 'DeepSeek + vẽ local',
-    imageLocModeLocalHint: 'Giày, túi, phụ kiện và ảnh lookbook: OCR → DeepSeek → vẽ local. Ảnh size và giặt của áo, quần, váy vẫn qua GPT và cần OPENAI_API_KEY.',
+    imageLocModeLocalHint: 'Mọi ảnh: OCR → DeepSeek → vẽ local. Thời trang: bảng size và hướng dẫn giặt đi GPT, cần OPENAI_API_KEY.',
     imageLocModeGemini: 'Gemini API (GEMINI_API_KEY)',
     imageLocModeGeminiHint: 'Bảng size và hướng dẫn giặt tẩy mặc định dịch bằng Gemini rồi lưu. Cùng shop Trung Quốc, shop này và danh mục cấp 2 thì dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần GEMINI_API_KEY.',
     imageLocModeOpenai: 'OpenAI GPT Image (OPENAI_API_KEY)',
-    imageLocModeOpenaiHint: 'Chỉ ảnh size hoặc hướng dẫn giặt của áo, quần, váy đi GPT: xóa ảnh người mẫu và ảnh sản phẩm, giữ bảng size và chữ thông tin, lưu kho để cùng shop Trung Quốc và danh mục cấp 2 dùng lại. Ảnh khác vẽ local. Cần OPENAI_API_KEY.',
+    imageLocModeOpenaiHint: 'Mọi ảnh còn chữ Trung đi GPT Image. Thời trang thì bảng size và hướng dẫn giặt xóa ảnh người và ảnh sản phẩm. Cần OPENAI_API_KEY.',
     imageLocNeedSelect: 'chọn SP trong bảng',
     imageLocAiOff: 'tạm tắt',
     imageLocCustomModel: 'Tùy chỉnh…',
@@ -5803,16 +5812,21 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocSelectProduct: 'Chọn sản phẩm để bản địa hóa',
     imageLocProbeTitle: 'Cổng thử một ảnh',
     imageLocProbeHint:
-      'Thả một ảnh rồi bấm chạy. Chỉ ảnh đó đi đúng pipeline trên server, không ghi vào kho. Ảnh gốc và ảnh kết quả nằm trong thư mục thử và tự xóa sau 7 ngày.',
-    imageLocProbeDrop: 'Thả ảnh vào đây hoặc bấm để chọn',
-    imageLocProbeDropHint: 'JPG, PNG hoặc WebP, tối đa 8 MB. Một ảnh mỗi lần chạy.',
+      'Cùng pipeline với job thật, theo chế độ đang chọn phía trên. Thời trang thì bảng size và hướng dẫn giặt đi GPT. Loại khác vẽ local. Không ghi vào kho. Ảnh thử tự xóa sau 7 ngày.',
+    imageLocProbeDrop: 'Thả ảnh, bấm để chọn, hoặc Ctrl+V',
+    imageLocProbeDropHint: 'JPG, PNG hoặc WebP, tối đa 8 MB. Dán ảnh bằng Ctrl+V, hoặc dán link bên dưới.',
     imageLocProbeReplace: 'Đổi ảnh',
     imageLocProbeClear: 'Bỏ ảnh',
-    imageLocProbeApparel: 'Coi là bảng size hoặc hướng dẫn giặt của áo, quần, váy',
-    imageLocProbeApparelHint: 'Chỉ khi ảnh đúng là bảng đó thì server gọi GPT Image. Ảnh khác vẫn vẽ local.',
+    imageLocProbeApparel: 'Loại sản phẩm',
+    imageLocProbeApparelYes: 'Thời trang',
+    imageLocProbeApparelNo: 'Không phải thời trang',
+    imageLocProbeApparelHint: 'Thời trang: bảng size và hướng dẫn giặt đi GPT như job quần áo. Không phải thời trang: những ảnh đó vẽ local.',
     imageLocProbeRun: 'Chạy ảnh này',
     imageLocProbeRunning: 'Đang chạy…',
-    imageLocProbeNeedFile: 'Chọn một ảnh trước khi chạy.',
+    imageLocProbeNeedFile: 'Chọn ảnh, dán Ctrl+V, hoặc dán link trước khi chạy.',
+    imageLocProbeUrl: 'Link ảnh',
+    imageLocProbeUrlPlaceholder: 'https://…',
+    imageLocProbeBadUrl: 'Link ảnh không hợp lệ.',
     imageLocProbeFolder: 'Thư mục thử',
     imageLocProbeOpenAll: 'Mở hết',
     imageLocProbeEmpty: 'Chưa có ảnh. Ảnh sau khi chạy sẽ nằm ở đây.',
@@ -6645,6 +6659,10 @@ export const VI_DICTIONARY: Dictionary = {
       'Máy chủ có thể đã xử lý xong nhưng trình duyệt không nhận được link ảnh. Mở mục Ảnh đã xử lý trong Dashboard để xem kết quả hoặc thử lại.',
     clientFault:
       'Lỗi kết nối hoặc hết thời gian chờ. Ảnh có thể đã được lưu — kiểm tra Ảnh đã xử lý hoặc thử lại.',
+    imageEngineLabel: 'Model',
+    imageEngineGemini: 'Gemini',
+    imageEngineGpt: 'GPT Image 2',
+    imageEngineQuality: 'Chất lượng',
   },
   taskHub: {
     pageTitle: 'Tác vụ & hàng đợi',

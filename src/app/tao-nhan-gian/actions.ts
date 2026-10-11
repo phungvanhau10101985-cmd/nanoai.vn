@@ -14,6 +14,8 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import {
   STICKER_PHOTO_EXPRESSION_IDS,
   type StickerPhotoExpressionId,
@@ -125,7 +127,9 @@ export async function createStickerLabel(formData: FormData) {
     return { error: 'Vui lòng nhập ý tưởng nhãn gián cần tạo.' }
   }
 
-  const COST = STICKER_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, STICKER_COSTS[imageQuality] ?? STICKER_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -171,20 +175,29 @@ export async function createStickerLabel(formData: FormData) {
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
 
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
 
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     return { error: bunnyReady.error }
   }
-  const genResult = await model.generateContent(fullPrompt, { safetySettings })
+  const genResult = await runImageContent({
+    engine: charge.engine,
+    gptQuality: charge.gptQuality,
+    aspectRatio,
+    parts: [fullPrompt],
+    gemini: () => model!.generateContent(fullPrompt, { safetySettings }),
+  })
   const response = genResult.response
   trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-nhan-gian', user.id, imageQuality)
 
@@ -269,7 +282,9 @@ export async function createStickerFromPhoto(formData: FormData) {
     ? aspectRatioRaw
     : '1:1'
 
-  const COST = STICKER_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, STICKER_COSTS[imageQuality] ?? STICKER_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
 
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -334,22 +349,30 @@ export async function createStickerFromPhoto(formData: FormData) {
     caption.replace(/<<<|>>>/g, '')
   )
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
 
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await model.generateContent(
-      [{ text: fullPrompt }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }] as never,
-      { safetySettings: [...photoStickerSafetySettings] } as never
-    )
+    const photoParts = [{ text: fullPrompt }, { inlineData: { mimeType: inline.mimeType, data: inline.data } }]
+    const genResult = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: photoParts,
+      gemini: () =>
+        model!.generateContent(photoParts as never, { safetySettings: [...photoStickerSafetySettings] } as never),
+    })
     const response = genResult.response
     trackFromUsageMetadata(
       response.usageMetadata,

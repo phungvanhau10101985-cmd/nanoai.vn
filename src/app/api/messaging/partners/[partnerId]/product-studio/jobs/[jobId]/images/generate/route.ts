@@ -27,6 +27,9 @@ export async function POST(
     refUrls?: string[]
     attachUrl?: string
     aspectRatio?: string
+    imageModel?: string
+    imageEngine?: string
+    gptQuality?: string
   }
   const kind = String(body.kind || '').trim()
   if (!PRODUCT_STUDIO_SLOT_KINDS.includes(kind as ProductStudioSlotKind)) {
@@ -40,6 +43,9 @@ export async function POST(
     refUrls: Array.isArray(body.refUrls) ? body.refUrls : undefined,
     attachUrl: body.attachUrl,
     aspectRatio: body.aspectRatio,
+    imageModel: body.imageModel,
+    imageEngine: body.imageEngine,
+    gptQuality: body.gptQuality,
   })
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 400 })
   return NextResponse.json({ job: result.job })

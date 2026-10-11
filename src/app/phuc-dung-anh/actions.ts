@@ -13,6 +13,8 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const RESTORE_COSTS = { '2K': 4, '4K': 8 } as const
 const toTenths = (value: number) => Math.round(value * 10)
@@ -42,7 +44,9 @@ export async function restoreImage(formData: FormData) {
   const note = (formData.get('note') as string)?.trim() || ''
   if (!image || image.size === 0) return { error: 'Cần tải lên ít nhất một ảnh.' }
 
-  const RESTORE_COST = RESTORE_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, RESTORE_COSTS[imageQuality] ?? RESTORE_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const RESTORE_COST = charge.cost
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -108,14 +112,17 @@ export async function restoreImage(formData: FormData) {
     )
   }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const buffer = Buffer.from(await image.arrayBuffer())
   const imagePart = { inlineData: { data: buffer.toString('base64'), mimeType: image.type } }
   const safetySettings = [
@@ -128,7 +135,12 @@ export async function restoreImage(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent([prompt, imagePart], { safetySettings })
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      parts: [prompt, imagePart],
+      gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'phuc-dung-anh', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

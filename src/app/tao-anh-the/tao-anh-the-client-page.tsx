@@ -20,6 +20,8 @@ import {
 } from '@/components/ui/select'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
@@ -73,6 +75,8 @@ export default function TaoAnhTheClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('3:4')
   const [backgroundColor, setBackgroundColor] = useState<string>('white')
   const [shirtStyle, setShirtStyle] = useState<string>('formal')
@@ -83,7 +87,11 @@ export default function TaoAnhTheClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const t = useMemo(() => {
     if (uiLocale === 'en') return { err: 'Error', title: 'Create ID Photo', subtitle: 'Remove background and create standard ID photo sizes. 1.5-3 credits/image.', uploadCard: 'Upload portrait image', uploadDesc: 'Choose image, paste one (Ctrl+V), or paste image URL.', chooseOrPaste: 'Choose image or paste (Ctrl+V)', reselect: 'Select again', urlPlaceholder: 'Paste image URL then click Fetch', loading: 'Loading...', fetch: 'Fetch image', options: 'Options', optionsDesc: 'Choose ratio, extra request, and quality.', ratio: 'ID ratio', bgColor: 'Background color', shirtStyle: 'Shirt style', extra: 'Extra request', extraPlaceholder: 'e.g. white background, blue background, 3x4, 4x6...', quality: 'Image quality', create: 'Create ID photo', time: '* Time: 15-45 seconds', generatingTitle: 'Generating ID photo', generatingDesc: 'AI is removing background and standardizing ID photo', resultTitle: 'ID photo result', resultDesc: 'ID photo generated.', before: 'Before', after: 'After', retry: 'Try again', download: 'Download', footer: 'Sharper input gives better output. AI-generated images may contain minor errors.' }
     if (uiLocale === 'zh') return { err: '错误', title: '制作证件照', subtitle: '抠图并生成标准证件照尺寸。1.5-3 credits/张。', uploadCard: '上传人像图片', uploadDesc: '可选择图片、粘贴图片（Ctrl+V）或粘贴链接。', chooseOrPaste: '选择图片或粘贴图片（Ctrl+V）', reselect: '重新选择', urlPlaceholder: '粘贴图片链接后点击获取图片', loading: '加载中...', fetch: '获取图片', options: '选项', optionsDesc: '选择比例、附加要求与画质。', ratio: '证件照比例', bgColor: '背景颜色', shirtStyle: '服装款式', extra: '附加要求', extraPlaceholder: '例如：白底、蓝底、3x4、4x6...', quality: '图片质量', create: '生成证件照', time: '* 时间：15-45 秒', generatingTitle: '正在生成证件照', generatingDesc: 'AI 正在抠图并标准化证件照', resultTitle: '证件照结果', resultDesc: '证件照已生成。', before: '之前', after: '之后', retry: '重试', download: '下载', footer: '输入越清晰，结果越准确。AI 生成结果可能存在误差。' }
@@ -177,6 +185,8 @@ export default function TaoAnhTheClientPage() {
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('backgroundColor', backgroundColor)
     formData.append('shirtStyle', shirtStyle)
@@ -382,29 +392,17 @@ export default function TaoAnhTheClientPage() {
                       className="bg-white/80 text-xs h-20 min-h-[80px] resize-y"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.quality}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (1,5)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (3)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
                     <Button
@@ -412,7 +410,7 @@ export default function TaoAnhTheClientPage() {
                       disabled={!image.file}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {t.create} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {t.create} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">{t.time}</p>
                   </div>

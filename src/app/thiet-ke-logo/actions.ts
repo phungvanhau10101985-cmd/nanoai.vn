@@ -14,6 +14,8 @@ import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import {
   chargedCreditsForLogoCreate,
@@ -44,7 +46,9 @@ export async function createLogo(formData: FormData) {
     return { error: 'Vui lòng mô tả thương hiệu/logo hoặc tải ảnh tham khảo.' }
   }
 
-  const COST = LOGO_COSTS[imageQuality]
+  const charge = imageChargeFromForm(formData, LOGO_COSTS[imageQuality] ?? LOGO_COSTS['2K'])
+  if (charge.error) return { error: charge.error }
+  const COST = charge.cost
   const TOTAL_COST = requiredCreditsForLogoCreate(COST, stripBackground)
 
   const result = await getUserForCreditAction()
@@ -89,15 +93,19 @@ export async function createLogo(formData: FormData) {
     prompt = prompt.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `YÊU CẦU BỔ SUNG CỦA NGƯỜI DÙNG: "${noteEn}". Chỉ trả về ảnh kết quả, không chèn chữ.`)
   }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality, aspectRatio },
-    },
-  })
+  let apiKey = ''
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (charge.engine !== 'gpt') {
+    apiKey = (await requireGoogleApiKeyForUser(user.id)).apiKey
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality, aspectRatio },
+      },
+    })
+  }
   const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
@@ -114,7 +122,13 @@ export async function createLogo(formData: FormData) {
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await model.generateContent(contentParts as never, { safetySettings } as never)
+    const result = await runImageContent({
+      engine: charge.engine,
+      gptQuality: charge.gptQuality,
+      aspectRatio,
+      parts: contentParts,
+      gemini: () => model!.generateContent(contentParts as never, { safetySettings } as never),
+    })
     const response = result.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'thiet-ke-logo', user.id, imageQuality)
     const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -126,6 +140,7 @@ export async function createLogo(formData: FormData) {
     let resultBuffer: Buffer<ArrayBufferLike> = resultBufferRaw
     let charged = COST
     if (stripBackground) {
+      if (!apiKey) apiKey = (await requireGoogleApiKeyForUser(user.id)).apiKey
       const stripped = await stripLogoBackgroundToTransparentPng({
         apiKey,
         userId: user.id,
@@ -133,7 +148,7 @@ export async function createLogo(formData: FormData) {
         imageBuffer: resultBufferRaw as Buffer,
       })
       resultBuffer = stripped.buffer as Buffer
-      charged = chargedCreditsForLogoCreate(COST, stripped.removed) as 3 | 1.5
+      charged = chargedCreditsForLogoCreate(COST, stripped.removed)
     }
     const resultPath = `results/${user.id}/logo_${Date.now()}.png`
     const { publicUrl: logoResultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {

@@ -52,6 +52,7 @@ export function getApiUsageModelDisplayLabel(model: string): string {
     'gpt-4o-mini': 'GPT-4o mini',
     'gpt-4o-mini-tts': 'GPT-4o mini TTS',
     'gpt-4-turbo': 'GPT-4 Turbo',
+    'gpt-image-2': 'GPT Image 2',
     // DeepSeek
     'deepseek-chat': 'DeepSeek Chat',
     'deepseek-reasoner': 'DeepSeek Reasoner',

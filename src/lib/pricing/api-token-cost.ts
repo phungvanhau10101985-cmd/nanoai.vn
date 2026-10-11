@@ -45,6 +45,11 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
    * Trong codebase dùng làm fallback khi Gemini 2.5 Flash TTS lỗi (đắt hơn ~17x output).
    */
   'gpt-4o-mini-tts': { input: 0.6, output: 12 },
+  /**
+   * GPT Image 2. Input $5/1M đã gồm token ảnh đầu vào quy đổi (×8/5) từ $8/1M.
+   * Output $30/1M trên token API trả về. Không đặt outputImage — nếu không, size 2K/4K sẽ thay token bằng bảng Gemini.
+   */
+  'gpt-image-2': { input: 5, output: 30 },
 
   /** Gemini 3.1 Pro Preview — bậc theo prompt 200k token. */
   'gemini-3.1-pro-preview': { input: 2, output: 12, inputLong: 4, outputLong: 18 },

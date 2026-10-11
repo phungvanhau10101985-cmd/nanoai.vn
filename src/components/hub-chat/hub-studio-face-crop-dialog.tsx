@@ -43,6 +43,8 @@ import {
   snapshotCanvasPixels,
 } from '@/lib/packaging/face-edit-eraser'
 import { magicInpaintCanvas, preloadMagicInpaintLibrary } from '@/lib/packaging/face-edit-magic-inpaint'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import {
   cssColorToHex,
@@ -600,7 +602,11 @@ export function HubStudioFaceCropDialog({
   busy: boolean
   onSave: (blob: Blob, printSizeMm: FaceSizeMm) => void | Promise<void>
   onDone?: () => void
-  onOutpaintGaps?: (blob: Blob, aspectRatio: string) => Promise<string | null>
+  onOutpaintGaps?: (
+    blob: Blob,
+    aspectRatio: string,
+    engine?: { imageEngine: string; gptQuality: string }
+  ) => Promise<string | null>
   foldGuideRatios?: number[]
 }) {
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -628,6 +634,10 @@ export function HubStudioFaceCropDialog({
   const [baseImageUrl, setBaseImageUrl] = useState(imageUrl)
   const [outpaintMergeReady, setOutpaintMergeReady] = useState(false)
   const [outpaintBusy, setOutpaintBusy] = useState(false)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const outpaintCost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: UI_MOCKUP_CREDIT })
   const [blendBusy, setBlendBusy] = useState(false)
   const [magicBusy, setMagicBusy] = useState(false)
   const [magicEraserMode, setMagicEraserMode] = useState<MagicEraserMode>('box')
@@ -915,7 +925,10 @@ export function HubStudioFaceCropDialog({
       const blob = await exportFaceEditBlob(originalUrl, cropSnapshot, [], {
         fillGapsWithEdgeColor: true,
       })
-      const aiUrl = await onOutpaintGaps(blob, faceSizeAspectRatioLabel(faceSizeMm))
+      const aiUrl = await onOutpaintGaps(blob, faceSizeAspectRatioLabel(faceSizeMm), {
+        imageEngine,
+        gptQuality,
+      })
       if (!aiUrl) return
       outpaintMergeCacheRef.current = { aiUrl, originalUrl, crop: cropSnapshot, featherPx }
       const mergedUrl = await mergeOutpaintWithOriginalRegion(aiUrl, originalUrl, cropSnapshot, {
@@ -935,6 +948,8 @@ export function HubStudioFaceCropDialog({
     cropNatural,
     faceSizeMm,
     hasCropGaps,
+    gptQuality,
+    imageEngine,
     onOutpaintGaps,
     outpaintBusy,
     clearEraserUndoStack,
@@ -1432,6 +1447,18 @@ export function HubStudioFaceCropDialog({
         </DialogHeader>
 
         <div className="max-h-[min(28vh,240px)] shrink-0 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
+          {onOutpaintGaps ? (
+            <ImageEnginePicker
+              locale={locale}
+              engine={imageEngine}
+              onEngineChange={setImageEngine}
+              geminiQuality={geminiQuality}
+              onGeminiQualityChange={setGeminiQuality}
+              gptQuality={gptQuality}
+              onGptQualityChange={setGptQuality}
+              geminiCost2k={UI_MOCKUP_CREDIT}
+            />
+          ) : null}
           <div className="flex flex-wrap items-center gap-1.5">
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addTextLayer}>
               <Type className="mr-1 h-3.5 w-3.5" />
@@ -1486,7 +1513,7 @@ export function HubStudioFaceCropDialog({
                 variant="outline"
                 className="h-8 border-violet-300 text-xs text-violet-800 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-200 dark:hover:bg-violet-950/40"
                 disabled={busy || outpaintBusy || !hasCropGaps}
-                title={!hasCropGaps ? labels.outpaintNeedGaps : labels.outpaintCredit.replace('{n}', String(UI_MOCKUP_CREDIT))}
+                title={!hasCropGaps ? labels.outpaintNeedGaps : labels.outpaintCredit.replace('{n}', String(outpaintCost))}
                 onClick={() => void handleOutpaint()}
               >
                 {outpaintBusy ? (

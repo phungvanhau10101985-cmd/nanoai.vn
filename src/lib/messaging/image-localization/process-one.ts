@@ -83,8 +83,8 @@ async function runAiEdit(
     imageBytes,
     filename,
     language: ctx.language,
-    imageModel: imageLocOpenaiImageModel(),
-    imageQuality: 'medium',
+    imageModel: ctx.openaiImageModel || imageLocOpenaiImageModel(),
+    imageQuality: ctx.openaiImageQuality || 'medium',
     imageSize: ctx.openaiImageSize || 'auto',
     removeModel: opts?.removeModel,
   })
@@ -97,8 +97,8 @@ function throwIfCancelled(ctx: ProcessImageContext) {
 export type LocalizationEngineChoice = 'delete' | 'keep' | 'ai' | 'local'
 
 /**
- * Ảnh size hoặc hướng dẫn giặt của áo, quần, váy đi GPT.
- * Giày, túi, phụ kiện và mọi ảnh khác vẽ local, kể cả khi job bật AI.
+ * Cùng 188: radio local vẽ mọi ảnh, trừ bảng size và hướng dẫn giặt của thời trang.
+ * Radio GPT gửi mọi ảnh còn lại qua model. Ảnh không còn chữ Trung thì giữ nguyên.
  */
 export function selectLocalizationEngine(opts: {
   classification: string
@@ -108,13 +108,13 @@ export function selectLocalizationEngine(opts: {
   forceAi?: boolean
   apparelSheet?: boolean
 }): LocalizationEngineChoice {
-  if (opts.classification === 'delete') return 'delete'
   void opts.geminiMode
   void opts.hasSizeOrLaundry
   void opts.forceAi
-  void opts.allowsAi
-  if (opts.apparelSheet) return 'ai'
+  if (opts.classification === 'delete') return 'delete'
   if (opts.classification === 'keep') return 'keep'
+  if (opts.apparelSheet) return 'ai'
+  if (opts.allowsAi) return 'ai'
   return 'local'
 }
 
@@ -450,11 +450,11 @@ export async function localizeStandaloneImage(
   else if (engine === 'local') await log(`Engine local. ${model}`)
   else if (engine === 'delete') await log(`Engine xóa cả ảnh. ${model}`)
   else await log(`Engine giữ nguyên. ${model}`)
-  if (ctx.apparelProduct && !apparelSheet && engine !== 'delete') {
-    await log('Đã đánh dấu áo quần váy, nhưng ảnh không phải bảng size hoặc hướng dẫn giặt, nên không gọi GPT.')
+  if (ctx.apparelProduct && !apparelSheet && engine === 'local') {
+    await log('Nhánh thời trang. Ảnh này không phải bảng size hoặc hướng dẫn giặt, nên vẽ local.')
   }
   if (kinds.length > 0 && !ctx.apparelProduct && engine === 'local') {
-    await log('Ảnh có dấu bảng size hoặc hướng dẫn giặt. Chưa đánh dấu áo quần váy, nên vẽ local.')
+    await log('Nhánh không phải thời trang. Ảnh có bảng size hoặc hướng dẫn giặt, nên vẽ local.')
   }
   if (engine === 'ai') await log('Đang gọi GPT Image.')
   else if (engine === 'local') await log('Đang vẽ local.')

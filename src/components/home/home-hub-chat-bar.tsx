@@ -16,6 +16,8 @@ import {
   X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { getDictionary } from '@/lib/i18n/dictionaries'
@@ -34,7 +36,7 @@ import type { HubChatPlanPayload, HubChatWorkflowSuggestion } from '@/app/api/hu
 import { HubPlanAutoRunPanel } from '@/components/hub-chat/hub-plan-auto-run-panel'
 import { HubStudioActiveStepPreview, HubStudioMessageBubble, HubStudioMessageTime, HubStudioProcessRail, HubStudioThinking } from '@/components/hub-chat/hub-studio-inline'
 import type { HubChatThreadSummary, HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
-import { normalizeStudioSession, type HubStudioMessagePayload, type HubStudioProcessStep, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
+import { UI_MOCKUP_CREDIT, normalizeStudioSession, type HubStudioMessagePayload, type HubStudioProcessStep, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
 import { pendingPreviewBlocksWorkflowInput } from '@/lib/hub-chat/hub-studio-step-preview'
 
@@ -501,6 +503,13 @@ export function HomeHubChatBar() {
   const [landingSectionDraft, setLandingSectionDraft] = useState('')
   const [landingLogoDraft, setLandingLogoDraft] = useState('')
   const [logoStripBg, setLogoStripBg] = useState(false)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const imageEngineRef = useRef(imageEngine)
+  const gptQualityRef = useRef(gptQuality)
+  imageEngineRef.current = imageEngine
+  gptQualityRef.current = gptQuality
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -1046,6 +1055,8 @@ export function HomeHubChatBar() {
             landingSectionCopy: payload.landingSectionCopy,
             landingLogoBrief: payload.landingLogoBrief,
             stripBackground: payload.stripBackground,
+            imageEngine: imageEngineRef.current,
+            gptQuality: gptQualityRef.current,
             landingPublishedShareUrl: payload.landingPublishedShareUrl,
             landingPublishedShareToken: payload.landingPublishedShareToken,
             landingHtmlSource: payload.landingHtmlSource,
@@ -2555,7 +2566,11 @@ export function HomeHubChatBar() {
   )
 
   const postStudioOutpaintGaps = useCallback(
-    async (blob: Blob, aspectRatio: string): Promise<string | null> => {
+    async (
+      blob: Blob,
+      aspectRatio: string,
+      engine?: { imageEngine?: string; gptQuality?: string }
+    ): Promise<string | null> => {
       if (busy) return null
       setBusy(true)
       try {
@@ -2564,6 +2579,8 @@ export function HomeHubChatBar() {
         fd.append('action', 'outpaint_crop_gaps')
         fd.append('locale', uiLocale)
         fd.append('cropAspectRatio', aspectRatio)
+        fd.append('imageEngine', engine?.imageEngine || imageEngineRef.current)
+        fd.append('gptQuality', engine?.gptQuality || gptQualityRef.current)
         if (threadId) fd.append('threadId', threadId)
         fd.append('images', new File([blob], 'crop-outpaint.png', { type: 'image/png' }))
         const res = await fetch('/api/hub-chat', { method: 'POST', credentials: 'same-origin', body: fd })
@@ -4356,6 +4373,16 @@ export function HomeHubChatBar() {
             />
           ) : null}
 
+          <ImageEnginePicker
+            locale={uiLocale}
+            engine={imageEngine}
+            onEngineChange={setImageEngine}
+            geminiQuality={geminiQuality}
+            onGeminiQualityChange={setGeminiQuality}
+            gptQuality={gptQuality}
+            onGptQualityChange={setGptQuality}
+            geminiCost2k={UI_MOCKUP_CREDIT}
+          />
           {!hideStepInputComposer ? (
             <div className="flex flex-col gap-2">
               {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (

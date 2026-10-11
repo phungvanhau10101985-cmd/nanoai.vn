@@ -13,6 +13,28 @@ type GalleryItem = {
   url: string
 }
 
+function clipboardImageFile(data: DataTransfer | null): File | null {
+  if (!data) return null
+  for (const item of data.items) {
+    if (item.kind !== 'file' || !item.type.startsWith('image/')) continue
+    const file = item.getAsFile()
+    if (!file) continue
+    if (file.name) return file
+    const ext = file.type.includes('jpeg') ? 'jpg' : file.type.includes('webp') ? 'webp' : 'png'
+    return new File([file], `paste.${ext}`, { type: file.type || 'image/png' })
+  }
+  for (const file of data.files) {
+    if (file.type.startsWith('image/')) return file
+  }
+  return null
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false
+  const tag = target.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable
+}
+
 function daysLeft(iso: string): number {
   const end = new Date(iso).getTime()
   if (!Number.isFinite(end)) return 0
@@ -41,15 +63,25 @@ function engineClass(engine: ImageLocProbeEngine | null, status: ImageLocProbe['
 export function PartnerImageLocalizationProbe({
   partnerId,
   language,
+  mode,
+  openaiModel,
+  openaiQuality,
+  openaiSize,
   t,
 }: {
   partnerId: string
   language: ImageLocLanguage
+  mode: 'local_only' | 'api' | 'openai'
+  openaiModel: string
+  openaiQuality: string
+  openaiSize: string
   t: Copy
 }) {
   const [probes, setProbes] = useState<ImageLocProbe[]>([])
   const [file, setFile] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
   const [preview, setPreview] = useState<string | null>(null)
+  const blobPreview = useRef<string | null>(null)
   const [apparel, setApparel] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -59,6 +91,10 @@ export function PartnerImageLocalizationProbe({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const logRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const urlRef = useRef<HTMLInputElement | null>(null)
+  const sectionRef = useRef<HTMLElement | null>(null)
+  const pickFileRef = useRef<(next: File | null) => void>(() => undefined)
+  const applyUrlRef = useRef<(raw: string) => void>(() => undefined)
 
   const load = useCallback(async () => {
     const data = await imageLocalizationClient.listProbes(partnerId)
@@ -79,11 +115,17 @@ export function PartnerImageLocalizationProbe({
     return () => window.clearInterval(id)
   }, [running, load])
 
+  const replacePreview = (next: string | null, blob: boolean) => {
+    if (blobPreview.current) URL.revokeObjectURL(blobPreview.current)
+    blobPreview.current = blob ? next : null
+    setPreview(next)
+  }
+
   useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview)
+      if (blobPreview.current) URL.revokeObjectURL(blobPreview.current)
     }
-  }, [preview])
+  }, [])
 
   const gallery = useMemo<GalleryItem[]>(() => {
     const items: GalleryItem[] = []
@@ -107,10 +149,9 @@ export function PartnerImageLocalizationProbe({
 
   const pickFile = (next: File | null) => {
     setError(null)
-    if (preview) URL.revokeObjectURL(preview)
     if (!next) {
       setFile(null)
-      setPreview(null)
+      replacePreview(null, false)
       return
     }
     if (!/^image\/(png|jpe?g|webp)$/i.test(next.type) && !/\.(png|jpe?g|webp)$/i.test(next.name)) {
@@ -121,22 +162,80 @@ export function PartnerImageLocalizationProbe({
       setError(t.imageLocProbeDropHint)
       return
     }
+    setImageUrl('')
     setFile(next)
-    setPreview(URL.createObjectURL(next))
+    replacePreview(URL.createObjectURL(next), true)
   }
 
+  const applyImageUrl = (raw: string) => {
+    const trimmed = raw.trim()
+    setImageUrl(raw)
+    setError(null)
+    if (!trimmed) {
+      if (!file) replacePreview(null, false)
+      return
+    }
+    if (!/^https?:\/\/\S+$/i.test(trimmed) && !/^\/\/\S+$/.test(trimmed)) return
+    setFile(null)
+    replacePreview(trimmed.startsWith('//') ? `https:${trimmed}` : trimmed, false)
+  }
+  pickFileRef.current = pickFile
+  applyUrlRef.current = applyImageUrl
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target
+      const inProbe = Boolean(sectionRef.current && target instanceof Node && sectionRef.current.contains(target))
+      if (!inProbe && isTypingTarget(target)) return
+      const image = clipboardImageFile(event.clipboardData)
+      if (image) {
+        event.preventDefault()
+        pickFileRef.current(image)
+        return
+      }
+      if (target === urlRef.current) return
+      if (isTypingTarget(target)) return
+      const text = (event.clipboardData?.getData('text/uri-list') || event.clipboardData?.getData('text/plain') || '')
+        .trim()
+        .split(/\s+/)[0]
+      if (!text) return
+      if (!/^https?:\/\/\S+$/i.test(text) && !/^\/\/\S+$/.test(text)) return
+      event.preventDefault()
+      applyUrlRef.current(text)
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [])
+
   const run = async () => {
-    if (!file) {
+    const link = imageUrl.trim()
+    if (!file && !link) {
       setError(t.imageLocProbeNeedFile)
+      return
+    }
+    if (!file && !/^https?:\/\/\S+$/i.test(link) && !/^\/\/\S+$/.test(link)) {
+      setError(t.imageLocProbeBadUrl)
       return
     }
     setBusy(true)
     setError(null)
     try {
-      const probe = await imageLocalizationClient.startProbe(partnerId, file, language, apparel)
+      const probe = await imageLocalizationClient.startProbe(
+        partnerId,
+        file ? { file } : { imageUrl: link },
+        language,
+        apparel,
+        {
+          mode,
+          openaiImageModel: openaiModel.trim() || undefined,
+          openaiImageQuality: openaiQuality.trim() || undefined,
+          openaiImageSize: openaiSize.trim() || undefined,
+        }
+      )
       setSelectedId(probe.id)
       setFolderOpen(true)
       pickFile(null)
+      setImageUrl('')
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -184,7 +283,7 @@ export function PartnerImageLocalizationProbe({
   const imageCount = gallery.length
 
   return (
-    <section className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 sm:p-4 space-y-3">
+    <section ref={sectionRef} className="rounded-xl border border-sky-200 bg-sky-50/40 p-3 sm:p-4 space-y-3">
       <div>
         <h3 className="text-sm font-semibold text-sky-950">{t.imageLocProbeTitle}</h3>
         <p className="mt-1 text-xs leading-relaxed text-sky-950/80">{t.imageLocProbeHint}</p>
@@ -206,7 +305,15 @@ export function PartnerImageLocalizationProbe({
             onDrop={(event) => {
               event.preventDefault()
               setDragOver(false)
-              pickFile(event.dataTransfer.files?.[0] || null)
+              const dropped = event.dataTransfer.files?.[0]
+              if (dropped) {
+                pickFile(dropped)
+                return
+              }
+              const text = (event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain') || '')
+                .trim()
+                .split(/\s+/)[0]
+              if (text) applyImageUrl(text)
             }}
           >
             {preview ? (
@@ -229,27 +336,52 @@ export function PartnerImageLocalizationProbe({
               event.currentTarget.value = ''
             }}
           />
-          {file ? (
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium">{t.imageLocProbeUrl}</span>
+            <input
+              ref={urlRef}
+              type="url"
+              inputMode="url"
+              className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm"
+              value={imageUrl}
+              disabled={busy || running}
+              placeholder={t.imageLocProbeUrlPlaceholder}
+              onChange={(event) => applyImageUrl(event.target.value)}
+            />
+          </label>
+          {file || imageUrl.trim() ? (
             <div className="flex gap-2">
               <button type="button" className="rounded-md border border-border bg-white px-2 py-1 text-xs" onClick={() => inputRef.current?.click()}>
                 {t.imageLocProbeReplace}
               </button>
-              <button type="button" className="rounded-md border border-border bg-white px-2 py-1 text-xs" onClick={() => pickFile(null)}>
+              <button
+                type="button"
+                className="rounded-md border border-border bg-white px-2 py-1 text-xs"
+                onClick={() => {
+                  setImageUrl('')
+                  pickFile(null)
+                }}
+              >
                 {t.imageLocProbeClear}
               </button>
             </div>
           ) : null}
-          <label className="flex items-start gap-2 text-xs leading-snug">
-            <input type="checkbox" className="mt-0.5" checked={apparel} disabled={busy} onChange={(event) => setApparel(event.target.checked)} />
-            <span>
-              <span className="font-medium">{t.imageLocProbeApparel}</span>
-              <span className="mt-0.5 block text-muted-foreground">{t.imageLocProbeApparelHint}</span>
-            </span>
-          </label>
+          <fieldset className="space-y-1.5" disabled={busy}>
+            <legend className="text-xs font-medium">{t.imageLocProbeApparel}</legend>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="radio" name="probe-product-kind" checked={apparel} onChange={() => setApparel(true)} />
+              {t.imageLocProbeApparelYes}
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="radio" name="probe-product-kind" checked={!apparel} onChange={() => setApparel(false)} />
+              {t.imageLocProbeApparelNo}
+            </label>
+            <p className="text-[11px] leading-snug text-muted-foreground">{t.imageLocProbeApparelHint}</p>
+          </fieldset>
           <button
             type="button"
             className="w-full rounded-lg bg-sky-700 px-3 py-2 text-sm font-medium text-white hover:bg-sky-800 disabled:opacity-60"
-            disabled={busy || running || !file}
+            disabled={busy || running || (!file && !imageUrl.trim())}
             onClick={() => void run()}
           >
             {busy || running ? t.imageLocProbeRunning : t.imageLocProbeRun}

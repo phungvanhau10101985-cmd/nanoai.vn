@@ -8,6 +8,8 @@ import {
   sanitizeModelId,
 } from './image-localization-config'
 import { ImageLocalizationError } from './gemini-adapter'
+import { billGptImageUsage, type GptImageUsageQuality } from '@/lib/pricing/gpt-image-usage'
+import { trackApiUsage } from '@/lib/track-ai-usage'
 
 /** GPT Image lỗi: job phải dừng, không xử lý sản phẩm phía sau. */
 export class ImageLocalizationGptStopError extends ImageLocalizationError {
@@ -84,9 +86,31 @@ export async function openaiProcessImage(opts: {
     }
     throw new ImageLocalizationError(`OpenAI images/edits lỗi HTTP ${res.status}: ${detail}`)
   }
-  const body = (await res.json().catch(() => null)) as { data?: Array<{ b64_json?: string }> } | null
+  const body = (await res.json().catch(() => null)) as {
+    data?: Array<{ b64_json?: string }>
+    usage?: { input_tokens?: number; output_tokens?: number; input_tokens_details?: { text_tokens?: number; image_tokens?: number } }
+  } | null
   const b64 = body?.data?.[0]?.b64_json
   if (!b64) throw new ImageLocalizationError('OpenAI không trả b64_json (kiểm tra model GPT Image).')
+  const billedQuality = (
+    quality === 'low' || quality === 'medium' || quality === 'high' || quality === 'auto' ? quality : 'medium'
+  ) as GptImageUsageQuality
+  if (isG2) {
+    const billed = billGptImageUsage({
+      quality: billedQuality,
+      size: size || 'auto',
+      prompt,
+      usage: body?.usage,
+    })
+    void trackApiUsage({
+      model: billed.logModel,
+      feature: 'image-localization',
+      promptTokenCount: billed.promptTokenCount,
+      candidatesTokenCount: billed.candidatesTokenCount,
+      totalTokenCount: billed.totalTokenCount,
+      imageSize: billed.logImageSize,
+    })
+  }
   try {
     return { status: 'processed', bytes: Buffer.from(b64, 'base64'), message: 'OpenAI GPT Image đã xử lý ảnh' }
   } catch (e) {

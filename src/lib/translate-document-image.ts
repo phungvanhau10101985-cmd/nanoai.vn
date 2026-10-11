@@ -2,6 +2,8 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import type { GptImageQuality, ImageEngine } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const TARGET_LANGUAGES: Record<string, string> = {
   vi: 'Vietnamese (Tiếng Việt)',
@@ -63,21 +65,25 @@ export async function translateOneImage(
   imageQuality: '2K' | '4K',
   userId: string,
   sourceLang2?: string | null,
-  options?: { retryRound?: number; logPrefix?: string }
+  options?: { retryRound?: number; logPrefix?: string; engine?: ImageEngine; gptQuality?: GptImageQuality | null }
 ): Promise<{ buffer: Buffer; error?: string; words?: WordWithBbox[] }> {
   const prefix = options?.logPrefix ?? '[Gemini]'
   const retryRound = options?.retryRound ?? 1
+  const engine: ImageEngine = options?.engine === 'gpt' ? 'gpt' : 'gemini'
   const imageToSend = imageBuffer
   const inputSizeKb = Math.round(imageToSend.length / 1024)
-  console.log(`${prefix} [Dịch ảnh] Bắt đầu | input: ${inputSizeKb}KB | ${sourceLang}${sourceLang2 ? '+' + sourceLang2 : ''}→${targetLang} | quality=${imageQuality} | lần=${retryRound}`)
+  console.log(`${prefix} [Dịch ảnh] Bắt đầu | input: ${inputSizeKb}KB | ${sourceLang}${sourceLang2 ? '+' + sourceLang2 : ''}→${targetLang} | quality=${imageQuality} | engine=${engine} | lần=${retryRound}`)
 
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: imageQuality },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (engine !== 'gpt') {
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: imageQuality },
+      },
+    })
+  }
   const mimeToSend = imageMime || 'image/png'
   const imagePart = { inlineData: { data: imageToSend.toString('base64'), mimeType: mimeToSend } }
   const prompt = buildTranslatePrompt(sourceLang, sourceLang2 || null, targetLang)
@@ -88,10 +94,16 @@ export async function translateOneImage(
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   ]
 
-  console.log(`${prefix} [Dịch ảnh] Gửi request tới Gemini...`)
+  console.log(`${prefix} [Dịch ảnh] Gửi request...`)
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { buffer: Buffer.alloc(0), error: bunnyReady.error }
-  const result = await model.generateContent([prompt, imagePart], { safetySettings })
+  const translateParts = [prompt, imagePart]
+  const result = await runImageContent({
+    engine,
+    gptQuality: options?.gptQuality ?? null,
+    parts: translateParts,
+    gemini: () => model!.generateContent(translateParts, { safetySettings }),
+  })
   const response = result.response
 
   const usage = response.usageMetadata

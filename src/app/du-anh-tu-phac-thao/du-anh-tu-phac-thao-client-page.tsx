@@ -21,6 +21,8 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { cn } from '@/lib/utils'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
@@ -91,12 +93,18 @@ export default function DuAnhTuPhacThaoClientPage() {
   const [sketchMode, setSketchMode] = useState<SketchModeId>('color')
   const [optionalPrompt, setOptionalPrompt] = useState('')
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -177,6 +185,8 @@ export default function DuAnhTuPhacThaoClientPage() {
     formData.append('sketchMode', sketchMode)
     formData.append('optionalPrompt', optionalPrompt.trim())
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
 
     try {
@@ -356,25 +366,17 @@ export default function DuAnhTuPhacThaoClientPage() {
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                    {tr('Độ phân giải', 'Resolution', '分辨率', '解像度', '해상도')}
-                  </h4>
-                  <div className="flex rounded-md border border-input overflow-hidden">
-                    <button
-                      type="button"
-                      className={cn('flex-1 py-2 text-sm', imageQuality === '2K' ? 'bg-violet-600 text-white' : 'bg-background')}
-                      onClick={() => setImageQuality('2K')}
-                    >
-                      2K
-                    </button>
-                    <button
-                      type="button"
-                      className={cn('flex-1 py-2 text-sm border-l', imageQuality === '4K' ? 'bg-violet-600 text-white' : 'bg-background')}
-                      onClick={() => setImageQuality('4K')}
-                    >
-                      4K
-                    </button>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                 </div>
               </div>
 
@@ -387,7 +389,7 @@ export default function DuAnhTuPhacThaoClientPage() {
                   onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                 >
                   <Sparkles className="h-4 w-4" />
-                  {tr(`Dựng ảnh (${cost} credits)`, `Rebuild (${cost} credits)`, `生成（${cost} 积分）`, `作成（${cost}クレジット）`, `생성 (${cost} 크레딧)`)}
+                  {tr(`Dựng ảnh (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `Rebuild (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `生成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 积分）`, `作成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}クレジット）`, `생성 (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 크레딧)`)}
                 </Button>
               </div>
             </CardContent>

@@ -27,11 +27,11 @@ import {
 import { ImageLocalizationError } from '@/lib/messaging/image-localization/gemini-adapter'
 import { isOwnCdnUrl } from '@/lib/messaging/image-localization/image-localization-config'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
+import { filenameFromProbeImageUrl, IMAGE_LOC_PROBE_MAX_BYTES, normalizeProbeImageUrl } from '@/lib/messaging/image-localization/probe-report'
 import { normalizeBrandLogoTemplate } from '@/lib/messaging/image-localization/overlay-brand-logo'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 import { tryOnPublicUrlToStoragePath } from '@/lib/storage/try-on-public-upload'
 import { deleteBunnyObjectForSource, partnerBunnyHostname, uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
-import { IMAGE_LOC_PROBE_MAX_BYTES } from '@/lib/messaging/image-localization/probe-report'
 import { listImageLocProbeFolder, removeImageLocProbe, startImageLocProbe } from '@/lib/messaging/image-localization/probe-run'
 
 export const maxDuration = 300
@@ -145,21 +145,44 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       return jsonError('Form upload không hợp lệ.')
     }
     const file = form.get('file')
-    if (!(file instanceof File) || file.size <= 0) return jsonError('Chưa chọn ảnh.')
-    if (file.size > IMAGE_LOC_PROBE_MAX_BYTES) return jsonError('Ảnh vượt quá 8 MB.')
-    if (!/^image\/(png|jpe?g|webp)$/i.test(file.type || '') && !/\.(png|jpe?g|webp)$/i.test(file.name || '')) {
-      return jsonError('Ảnh phải là PNG, JPG hoặc WebP.')
-    }
+    const rawUrl = String(form.get('image_url') || '')
+    const imageUrl = normalizeProbeImageUrl(rawUrl)
     const language = String(form.get('language') || 'vi')
     const apparelSheet = ['1', 'true', 'yes', 'on'].includes(String(form.get('apparel_sheet') || '').trim().toLowerCase())
+    const mode = String(form.get('mode') || 'local_only')
+    const openaiImageModel = String(form.get('openai_image_model') || '').trim() || null
+    const openaiImageQuality = String(form.get('openai_image_quality') || '').trim() || null
+    const openaiImageSize = String(form.get('openai_image_size') || '').trim() || null
+    if (!(file instanceof File && file.size > 0) && !rawUrl.trim()) return jsonError('Chưa chọn ảnh hoặc link ảnh.')
+    if (!(file instanceof File && file.size > 0) && !imageUrl) return jsonError('Link ảnh không hợp lệ.')
     try {
+      let bytes: Buffer
+      let filename: string
+      if (file instanceof File && file.size > 0) {
+        if (file.size > IMAGE_LOC_PROBE_MAX_BYTES) return jsonError('Ảnh vượt quá 8 MB.')
+        if (!/^image\/(png|jpe?g|webp)$/i.test(file.type || '') && !/\.(png|jpe?g|webp)$/i.test(file.name || '')) {
+          return jsonError('Ảnh phải là PNG, JPG hoặc WebP.')
+        }
+        bytes = Buffer.from(await file.arrayBuffer())
+        filename = file.name || 'image.jpg'
+      } else {
+        bytes = await fetchImageWith1688Bypass(imageUrl as string, {
+          timeoutMs: 45_000,
+          maxBytes: IMAGE_LOC_PROBE_MAX_BYTES,
+        })
+        filename = filenameFromProbeImageUrl(imageUrl as string)
+      }
       const probe = await startImageLocProbe({
         partnerId,
         userId: auth.userId,
-        bytes: Buffer.from(await file.arrayBuffer()),
-        filename: file.name || 'image.jpg',
+        bytes,
+        filename,
         language,
         apparelSheet,
+        mode,
+        openaiImageModel,
+        openaiImageQuality,
+        openaiImageSize,
       })
       return NextResponse.json({ probe })
     } catch (e) {

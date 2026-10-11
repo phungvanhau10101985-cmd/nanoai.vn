@@ -22,6 +22,8 @@ import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 type Step = 'UPLOAD' | 'GENERATING' | 'RESULT'
 type ColorMode = 'original' | 'colorize'
@@ -60,6 +62,8 @@ export default function PhucDungClientPage() {
     Array(5).fill(null).map(() => ({ gender: '', age: '', extra: '' }))
   )
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [imageUrl, setImageUrl] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
   const [note, setNote] = useState('')
@@ -67,7 +71,11 @@ export default function PhucDungClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 4 : 8
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 4 : 8,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -178,6 +186,8 @@ export default function PhucDungClientPage() {
     formData.append('image', image.file)
     formData.append('colorMode', colorMode)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('personCount', String(personCount))
     formData.append('note', note)
     if (personCount < 6) {
@@ -432,33 +442,17 @@ export default function PhucDungClientPage() {
                   <CardDescription className="text-sm">{tr('Chất lượng & chế độ màu.', 'Quality & color mode.', '画质与色彩模式。', '画質とカラーモード。', '품질 및 색상 모드.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 pt-0 space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-semibold text-foreground">{tr('Chất lượng ảnh', 'Image quality', '图片质量', '画質', '이미지 품질')}</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
-                          imageQuality === '2K'
-                            ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
-                        }`}
-                      >
-                        2K (4)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`py-3 rounded-lg border-2 text-sm font-semibold transition-all ${
-                          imageQuality === '4K'
-                            ? 'border-amber-500 bg-amber-50 text-amber-800'
-                            : 'border-gray-200 bg-white hover:border-amber-300 text-muted-foreground'
-                        }`}
-                      >
-                        4K (8)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={4}
+                    geminiCost4k={8}
+                  />
                   <div className="space-y-2">
                     <h4 className="text-sm font-semibold text-foreground">{tr('Chế độ màu', 'Color mode', '色彩模式', 'カラーモード', '색상 모드')}</h4>
                     <div className="flex flex-col gap-2">
@@ -506,7 +500,7 @@ export default function PhucDungClientPage() {
                       disabled={!canSubmit}
                       className="w-full min-h-[44px] h-11 shadow-md hover:shadow-lg transition-all text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Phục dựng', 'Restore', '修复', '修復', '복원')} ({imageQuality === '2K' ? '4' : '8'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Phục dựng', 'Restore', '修复', '修復', '복원')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     {!canSubmit && (
                       <p className="text-xs text-amber-600 font-medium">

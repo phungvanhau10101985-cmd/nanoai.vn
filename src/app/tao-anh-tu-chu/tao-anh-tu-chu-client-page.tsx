@@ -12,6 +12,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, X } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
 import { ImagePreview } from '@/components/ui/image-preview'
@@ -64,13 +66,19 @@ export default function TaoAnhTuChuClientPage() {
   const [prompt, setPrompt] = useState('')
   const [reference, setReference] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
   const [imageStyle, setImageStyle] = useState<Text2ImageStyleId>('auto')
   const [resultUrl, setResultUrl] = useState<string | null>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const refInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -115,6 +123,8 @@ export default function TaoAnhTuChuClientPage() {
     await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('imageStyle', imageStyle)
     formData.append('prompt', prompt)
@@ -364,39 +374,17 @@ export default function TaoAnhTuChuClientPage() {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  {tr('Chất lượng ảnh', 'Image quality', '图片质量', '画質', '이미지 품질')}
-                </h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant={imageQuality === '2K' ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn(
-                      'h-11 touch-manipulation text-sm',
-                      imageQuality === '2K' &&
-                        'bg-violet-600 text-white hover:bg-violet-600/90 border-violet-600',
-                    )}
-                    onClick={() => setImageQuality('2K')}
-                  >
-                    2K (1,5)
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={imageQuality === '4K' ? 'default' : 'outline'}
-                    size="sm"
-                    className={cn(
-                      'h-11 touch-manipulation text-sm',
-                      imageQuality === '4K' &&
-                        'bg-violet-600 text-white hover:bg-violet-600/90 border-violet-600',
-                    )}
-                    onClick={() => setImageQuality('4K')}
-                  >
-                    4K (3)
-                  </Button>
-                </div>
-              </div>
+              <ImageEnginePicker
+                locale={uiLocale}
+                engine={imageEngine}
+                onEngineChange={setImageEngine}
+                geminiQuality={imageQuality}
+                onGeminiQualityChange={setImageQuality}
+                gptQuality={gptQuality}
+                onGptQualityChange={setGptQuality}
+                geminiCost2k={1.5}
+                geminiCost4k={3}
+              />
 
               <div className="space-y-3 pt-2 border-t border-border/60">
                 <DepositCreditButton
@@ -411,7 +399,7 @@ export default function TaoAnhTuChuClientPage() {
                   className="w-full h-11 text-sm bg-violet-600 hover:bg-violet-700 text-white touch-manipulation"
                 >
                   <Sparkles className="mr-2 h-4 w-4" />
-                  {tr('Tạo ảnh', 'Generate', '生成', '生成', '생성')} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                  {tr('Tạo ảnh', 'Generate', '生成', '生成', '생성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                 </Button>
                 <p className="text-[10px] text-center text-muted-foreground">
                   * {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}

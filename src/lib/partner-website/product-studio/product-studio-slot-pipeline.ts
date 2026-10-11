@@ -173,6 +173,9 @@ export type GenerateStudioSlotOpts = {
   refUrls?: string[]
   attachUrl?: string
   aspectRatio?: string
+  imageModel?: string | null
+  imageEngine?: string | null
+  gptQuality?: string | null
 }
 
 export type ProductStudioJobPatch = {
@@ -315,6 +318,22 @@ export async function generateProductStudioSlotOnJob(
   studio.currentSlot = slot
   studio.phase = kind
 
+  const imageEngine = opts.imageEngine ?? payload.imageEngine
+  const gptQuality = opts.gptQuality ?? payload.gptQuality
+  const modelChoice = opts.imageModel ?? payload.imageModel
+  if (opts.imageEngine != null || opts.gptQuality != null || opts.imageModel != null) {
+    payload = {
+      ...payload,
+      imageModel:
+        modelChoice === 'flash' || modelChoice === 'flash3' || modelChoice === 'pro'
+          ? modelChoice
+          : payload.imageModel,
+      imageEngine: String(imageEngine ?? '').trim().toLowerCase() === 'gpt' ? 'gpt' : undefined,
+      gptQuality:
+        gptQuality === 'low' || gptQuality === 'medium' || gptQuality === 'high' ? gptQuality : payload.gptQuality,
+    }
+  }
+
   await save({
     status: 'generating',
     step: `ai_${kind}`,
@@ -329,7 +348,7 @@ export async function generateProductStudioSlotOnJob(
     errorMessage: null,
   })
 
-  const imageChoice = resolveProductStudioGeminiImage(kind, payload.imageModel)
+  const imageChoice = resolveProductStudioGeminiImage(kind, modelChoice)
   const gen = await runStudioImagePipeline({
     userId: job.createdBy,
     kind: 'product_photo',
@@ -340,6 +359,8 @@ export async function generateProductStudioSlotOnJob(
     verbatimPrompt: true,
     imageModel: imageChoice.model,
     imageSize: imageChoice.imageSize,
+    imageEngine,
+    gptQuality,
   })
 
   if (!gen.ok) {
@@ -347,6 +368,7 @@ export async function generateProductStudioSlotOnJob(
       status: 'ready_for_review',
       step: 'awaiting_approval',
       errorMessage: gen.error,
+      payload,
       studio: {
         ...studio,
         currentSlot: { ...slot, error: gen.error },

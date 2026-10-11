@@ -10,6 +10,8 @@ import {
 } from '@/lib/db/house-build-projects-pg'
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -220,7 +222,9 @@ export async function step1Build3D(formData: FormData) {
 
   if (!houseInfo.houseLength.trim()) return { error: 'Vui lòng nhập chiều dài mặt tiền.' }
 
-  const COST = COSTS.floor_3d
+  const priced = imageChargeFromForm(formData, COSTS.floor_3d)
+  if (priced.error) return { error: priced.error }
+  const COST = priced.cost
   let openBalance = 0
   try {
     openBalance = await getCreditBalanceByUserId(user.id)
@@ -251,10 +255,13 @@ export async function step1Build3D(formData: FormData) {
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
-  const imageModel = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
-  })
+  const imageModel =
+    priced.engine === 'gpt'
+      ? null
+      : genAI.getGenerativeModel({
+          model: GEMINI_3_PRO_IMAGE.model,
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
+        })
   const fullPrompt = `${HOUSE_3D_PROMPT}\n\n${promptEn}\n\nChỉ trả về ảnh kết quả.`
 
   const refFile = formData.get('referenceImage') as File | null
@@ -263,12 +270,25 @@ export async function step1Build3D(formData: FormData) {
     const buf = Buffer.from(await refFile.arrayBuffer())
     const base64 = buf.toString('base64')
     const mime = refFile.type || 'image/png'
-    imgRes = await imageModel.generateContent(
-      [fullPrompt + '\n\nDùng ảnh tham chiếu này để lấy cảm hứng phong cách và bố cục.', { inlineData: { data: base64, mimeType: mime } }],
-      { safetySettings: getSafetySettings() }
-    )
+    const parts = [
+      fullPrompt + '\n\nDùng ảnh tham chiếu này để lấy cảm hứng phong cách và bố cục.',
+      { inlineData: { data: base64, mimeType: mime } },
+    ]
+    imgRes = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '16:9',
+      parts,
+      gemini: () => imageModel!.generateContent(parts, { safetySettings: getSafetySettings() }),
+    })
   } else {
-    imgRes = await imageModel.generateContent(fullPrompt, { safetySettings: getSafetySettings() })
+    imgRes = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: '16:9',
+      parts: [fullPrompt],
+      gemini: () => imageModel!.generateContent(fullPrompt, { safetySettings: getSafetySettings() }),
+    })
   }
   trackFromUsageMetadata(imgRes.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-3d', user.id, '2K')
 
@@ -348,7 +368,9 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
     otherRooms: (formData.get('otherRooms') as string)?.trim() || '',
   }
 
-  const COST = COSTS.floor_plan
+  const priced = imageChargeFromForm(formData, COSTS.floor_plan)
+  if (priced.error) return { error: priced.error }
+  const COST = priced.cost
   let openBalFp = 0
   try {
     openBalFp = await getCreditBalanceByUserId(user.id)
@@ -391,15 +413,25 @@ export async function stepFloorPlan(sourceProjectId: string, floorNum: number, f
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
-  const imageModel = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
-  })
+  const imageModel =
+    priced.engine === 'gpt'
+      ? null
+      : genAI.getGenerativeModel({
+          model: GEMINI_3_PRO_IMAGE.model,
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
+        })
   const fullPrompt = `${FLOOR_PLAN_IMAGE}\n\nYêu cầu: ${promptEn}\n\nChỉ trả về ảnh kết quả.`
-  const resultImg = await imageModel.generateContent([
+  const floorParts = [
     fullPrompt,
     { inlineData: { data: base64, mimeType: 'image/png' } },
-  ], { safetySettings: getSafetySettings() })
+  ]
+  const resultImg = await runImageContent({
+    engine: priced.engine,
+    gptQuality: priced.gptQuality,
+    aspectRatio: '16:9',
+    parts: floorParts,
+    gemini: () => imageModel!.generateContent(floorParts, { safetySettings: getSafetySettings() }),
+  })
   trackFromUsageMetadata(resultImg.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-floorplan', user.id, '2K')
 
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
@@ -457,12 +489,28 @@ export async function approveFloorPlanAndContinue(projectId: string, floorNum: n
 }
 
 /** Bước kết cấu tầng N - mỗi lần tạo ảnh = tạo dự án mới */
-export async function stepStructural(sourceProjectId: string, floorNum: number, floorPlanImageUrl: string) {
+export async function stepStructural(
+  sourceProjectId: string,
+  floorNum: number,
+  floorPlanImageUrl: string,
+  engineFields?: { imageEngine?: string | null; gptQuality?: string | null }
+) {
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
 
-  const COST = COSTS.structural
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return engineFields?.imageEngine ?? null
+        if (name === 'gptQuality') return engineFields?.gptQuality ?? null
+        return null
+      },
+    },
+    COSTS.structural,
+  )
+  if (priced.error) return { error: priced.error }
+  const COST = priced.cost
   let openBalSt = 0
   try {
     openBalSt = await getCreditBalanceByUserId(user.id)
@@ -481,15 +529,24 @@ export async function stepStructural(sourceProjectId: string, floorNum: number, 
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { error: bunnyReady.error }
 
-  const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey)
-  const imageModel = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
-  })
-  const resultImg = await imageModel.generateContent([
+  const imageModel =
+    priced.engine === 'gpt'
+      ? null
+      : new GoogleGenerativeAI((await requireGoogleApiKeyForUser(user.id)).apiKey).getGenerativeModel({
+          model: GEMINI_3_PRO_IMAGE.model,
+          generationConfig: { responseModalities: ['TEXT', 'IMAGE'], imageConfig: { imageSize: '2K', aspectRatio: '16:9' } },
+        })
+  const structuralParts = [
     `${STRUCTURAL_PROMPT} Floor ${floorNum}.`,
     { inlineData: { data: base64, mimeType: 'image/png' } },
-  ], { safetySettings: getSafetySettings() })
+  ]
+  const resultImg = await runImageContent({
+    engine: priced.engine,
+    gptQuality: priced.gptQuality,
+    aspectRatio: '16:9',
+    parts: structuralParts,
+    gemini: () => imageModel!.generateContent(structuralParts, { safetySettings: getSafetySettings() }),
+  })
   trackFromUsageMetadata(resultImg.response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'xay-nha-structural', user.id, '2K')
 
   const imgPart = resultImg.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)

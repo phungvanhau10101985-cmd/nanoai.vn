@@ -2,6 +2,8 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { UI_MOCKUP_CREDIT } from '@/lib/hub-chat/hub-studio-types'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
@@ -27,6 +29,8 @@ export async function runFaceCropOutpaint(input: {
   imageBuffer: Buffer
   mimeType: string
   aspectRatio: string
+  imageEngine?: string | null
+  gptQuality?: string | null
 }): Promise<FaceCropOutpaintResult> {
   let balance = 0
   try {
@@ -34,22 +38,37 @@ export async function runFaceCropOutpaint(input: {
   } catch {
     return { ok: false, error: 'Không đọc được số dư credits.' }
   }
-  if (toTenths(balance) < toTenths(UI_MOCKUP_CREDIT)) {
-    return { ok: false, error: `Không đủ credits (cần ${UI_MOCKUP_CREDIT}).` }
+  const priced = imageChargeFromForm(
+    {
+      get: (name) => {
+        if (name === 'imageEngine') return input.imageEngine ?? null
+        if (name === 'gptQuality') return input.gptQuality ?? null
+        return null
+      },
+    },
+    UI_MOCKUP_CREDIT,
+  )
+  if (priced.error) return { ok: false, error: priced.error }
+  const cost = priced.cost
+  if (toTenths(balance) < toTenths(cost)) {
+    return { ok: false, error: `Không đủ credits (cần ${cost}).` }
   }
 
   const bunnyReady = await ensureBunnyWritableBeforeImageModel()
   if (!bunnyReady.ok) return { ok: false, error: bunnyReady.error }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({
-    model: GEMINI_3_PRO_IMAGE.model,
-    generationConfig: {
-      responseModalities: ['TEXT', 'IMAGE'],
-      imageConfig: { imageSize: '2K' },
-    },
-  })
+  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
+  if (priced.engine !== 'gpt') {
+    const { apiKey } = await requireGoogleApiKeyForUser(input.userId)
+    const genAI = new GoogleGenerativeAI(apiKey)
+    model = genAI.getGenerativeModel({
+      model: GEMINI_3_PRO_IMAGE.model,
+      generationConfig: {
+        responseModalities: ['TEXT', 'IMAGE'],
+        imageConfig: { imageSize: '2K' },
+      },
+    })
+  }
 
   const prompt = `${OUTPAINT_PROMPT}\nTarget aspect ratio: ${input.aspectRatio}.`
   const imagePart = {
@@ -63,7 +82,13 @@ export async function runFaceCropOutpaint(input: {
   ]
 
   try {
-    const result = await model.generateContent([prompt, imagePart], { safetySettings })
+    const result = await runImageContent({
+      engine: priced.engine,
+      gptQuality: priced.gptQuality,
+      aspectRatio: input.aspectRatio,
+      parts: [prompt, imagePart],
+      gemini: () => model!.generateContent([prompt, imagePart], { safetySettings }),
+    })
     trackFromUsageMetadata(
       result.response.usageMetadata,
       GEMINI_3_PRO_IMAGE.model,
@@ -81,11 +106,11 @@ export async function runFaceCropOutpaint(input: {
       contentType: 'image/png',
       upsert: true,
     })
-    const deduct = await deductUserCredits(input.userId, UI_MOCKUP_CREDIT, 'hub-studio-packaging-outpaint')
+    const deduct = await deductUserCredits(input.userId, cost, 'hub-studio-packaging-outpaint')
     if (!deduct.ok) {
       return { ok: false, error: deduct.error || 'Không thể trừ credits.' }
     }
-    return { ok: true, resultUrl: publicUrl, charged: UI_MOCKUP_CREDIT }
+    return { ok: true, resultUrl: publicUrl, charged: cost }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {

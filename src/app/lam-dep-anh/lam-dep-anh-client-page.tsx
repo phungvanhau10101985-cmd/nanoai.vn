@@ -18,6 +18,8 @@ import { Toaster } from '@/components/ui/toaster'
 import { Upload, Sparkles, RefreshCw, Link2 } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
@@ -80,6 +82,8 @@ export default function LamDepAnhClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [image, setImage] = useState<{ file: File | null; preview: string | null }>({ file: null, preview: null })
   const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [personCount, setPersonCount] = useState<PersonCount>(1)
   const [personGenders, setPersonGenders] = useState<('male' | 'female')[]>(['female'])
   const [beautifyStyle, setBeautifyStyle] = useState<BeautifyStyle>('natural')
@@ -92,7 +96,11 @@ export default function LamDepAnhClientPage() {
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const cost = imageQuality === '2K' ? 1.5 : 3
+  const cost = imageEngineCredit({
+    engine: imageEngine,
+    gptQuality,
+    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+  })
   const t = useMemo(() => {
     if (uiLocale === 'en') {
       return {
@@ -237,6 +245,8 @@ export default function LamDepAnhClientPage() {
     const formData = new FormData()
     formData.append('image', image.file)
     formData.append('imageQuality', imageQuality)
+    formData.append('imageEngine', imageEngine)
+    formData.append('gptQuality', gptQuality)
     formData.append('personCount', String(personCount))
     formData.append('beautifyStyle', beautifyStyle)
     formData.append('beautifyStrength', beautifyStrength)
@@ -515,33 +525,17 @@ export default function LamDepAnhClientPage() {
                     />
                     <p className="text-[10px] text-muted-foreground">{t.blurHint}</p>
                   </div>
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t.qualityTitle}</h4>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('2K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '2K'
-                            ? 'border-rose-500 bg-rose-50 text-rose-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        2K (1,5)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageQuality('4K')}
-                        className={`flex-1 px-3 py-2 rounded-md border text-xs font-medium transition-colors ${
-                          imageQuality === '4K'
-                            ? 'border-rose-500 bg-rose-50 text-rose-800'
-                            : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'
-                        }`}
-                      >
-                        4K (3)
-                      </button>
-                    </div>
-                  </div>
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton
                       variant="outline"
@@ -553,7 +547,7 @@ export default function LamDepAnhClientPage() {
                       disabled={!image.file}
                       className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-rose-600 hover:bg-rose-700 text-white"
                     >
-                      <Sparkles className="mr-2 h-4 w-4" /> {t.beautify} ({imageQuality === '2K' ? '1,5' : '3'} credit)
+                      <Sparkles className="mr-2 h-4 w-4" /> {t.beautify} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">{t.timeHint}</p>
                   </div>

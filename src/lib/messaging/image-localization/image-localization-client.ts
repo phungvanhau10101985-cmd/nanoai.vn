@@ -102,11 +102,27 @@ export const imageLocalizationClient = {
   listProbes(partnerId: string) {
     return json<{ items: ImageLocProbe[] }>(`${base(partnerId)}/probes`)
   },
-  async startProbe(partnerId: string, file: File, language: string, apparelSheet: boolean) {
+  async startProbe(
+    partnerId: string,
+    source: { file?: File | null; imageUrl?: string },
+    language: string,
+    apparelSheet: boolean,
+    options?: {
+      mode?: 'local_only' | 'api' | 'openai'
+      openaiImageModel?: string
+      openaiImageQuality?: string
+      openaiImageSize?: string
+    }
+  ) {
     const form = new FormData()
-    form.set('file', file)
+    if (source.file) form.set('file', source.file)
+    if (source.imageUrl) form.set('image_url', source.imageUrl)
     form.set('language', language)
     form.set('apparel_sheet', apparelSheet ? '1' : '0')
+    form.set('mode', options?.mode || 'local_only')
+    if (options?.openaiImageModel) form.set('openai_image_model', options.openaiImageModel)
+    if (options?.openaiImageQuality) form.set('openai_image_quality', options.openaiImageQuality)
+    if (options?.openaiImageSize) form.set('openai_image_size', options.openaiImageSize)
     const res = await fetch(`${base(partnerId)}/probes`, { method: 'POST', body: form, cache: 'no-store' })
     const data = (await res.json().catch(() => ({}))) as { probe?: ImageLocProbe; error?: string; detail?: string }
     if (!res.ok) throw new Error(data.detail || data.error || `HTTP ${res.status}`)
