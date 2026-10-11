@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  partnerSiteCatalogHitPath,
   partnerSiteProductPath,
   partnerSiteStorefrontProductHref,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -44,4 +45,47 @@ test('storefront product href rewrites shop.local inventory fallback and /produc
     customDomain: true,
   })
   assert.equal(fromKey, '/products/ao-thun-00073cac')
+})
+
+test('it catalog hit opens the feature url, not the shop product page', () => {
+  assert.equal(
+    partnerSiteCatalogHitPath('nanoai-ws-un9v', ID, {
+      name: 'Thử đồ 1 người',
+      industryKey: 'it',
+      productUrl: 'https://nanoai.vn/thu-do-online/1-nguoi',
+    }),
+    'https://nanoai.vn/thu-do-online/1-nguoi'
+  )
+  assert.equal(
+    partnerSiteCatalogHitPath('nanoai-ws-un9v', ID, {
+      name: 'Thử đồ 1 người',
+      industryKey: 'it',
+      productUrl: '/thu-do-online/1-nguoi',
+    }),
+    '/thu-do-online/1-nguoi'
+  )
+})
+
+test('fashion catalog hit stays on the shop product page', () => {
+  const href = partnerSiteCatalogHitPath('demo-shop', ID, {
+    name: 'Áo',
+    industryKey: 'fashion',
+    productUrl: 'https://nanoai.vn/thu-do-online/1-nguoi',
+  })
+  assert.equal(href, partnerSiteProductPath('demo-shop', ID, { name: 'Áo' }))
+})
+
+test('it catalog hit ignores shop product urls and china source urls', () => {
+  const shopPdp = partnerSiteCatalogHitPath('nanoai-ws-un9v', ID, {
+    name: 'Thử đồ',
+    industryKey: 'it',
+    productUrl: 'https://nanoai.vn/site/nanoai-ws-un9v/products/thu-do-1-nguoi-86ae1f42',
+  })
+  assert.equal(shopPdp, partnerSiteProductPath('nanoai-ws-un9v', ID, { name: 'Thử đồ' }))
+  const china = partnerSiteCatalogHitPath('nanoai-ws-un9v', ID, {
+    name: 'Thử đồ',
+    industryKey: 'it',
+    productUrl: 'https://detail.1688.com/offer/1.html',
+  })
+  assert.equal(china, partnerSiteProductPath('nanoai-ws-un9v', ID, { name: 'Thử đồ' }))
 })

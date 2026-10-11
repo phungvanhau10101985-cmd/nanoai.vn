@@ -191,7 +191,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   })
   const mapped = page.rows
     .map((row) => {
-      return inventoryCardRowToShopProduct(shop.site.siteSlug, row)
+      return inventoryCardRowToShopProduct(shop.site.siteSlug, row, { industryKey: shop.industryKey })
     })
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
     .filter((p) => !excludeSet.has(p.id))

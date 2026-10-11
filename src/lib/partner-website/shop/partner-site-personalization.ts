@@ -57,7 +57,7 @@ import {
 } from '@/lib/messaging/resolve-widget-order-thread'
 import { requestSkipsPartnerSiteShopAuthResume } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { mergePartnerVisitorPersonalizationFromPg } from '@/lib/db/messaging-partner-recommendation-pg'
 import {
   claimShopCacheOnce,
@@ -240,15 +240,22 @@ function isoOrNull(value: unknown): string | null {
 export function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
   row: MessagingPartnerInventoryRow | PartnerInventoryShopCardRow,
-  overlay?: PartnerSiteSaleOverlay | null
+  overlay?: PartnerSiteSaleOverlay | null,
+  industryKey?: string | null
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = shopCardDisplaySrc(row.image_url)
   if (!imageUrl) return null
-  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
+  const name = (row.name ?? '').trim() || 'Product'
   const rawProductUrl = (row.product_url ?? '').trim()
+  const pdpPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const detailPath = partnerSiteCatalogHitPath(siteSlug, row.id, {
+    name,
+    industryKey,
+    productUrl: rawProductUrl,
+  })
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
     ? rawProductUrl
-    : `https://shop.local${detailPath}`
+    : `https://shop.local${pdpPath}`
   const priced: Pick<
     PartnerSitePersonalizationProduct,
     | 'priceAmount'
@@ -288,7 +295,7 @@ export function mapInventoryRowToPersonalizationProduct(
       }
   return {
     inventory_id: row.id,
-    name: (row.name ?? '').trim() || 'Product',
+    name,
     price_hint: (row.price_hint ?? '').trim(),
     image_url: imageUrl,
     product_url: productUrl,
@@ -369,6 +376,7 @@ async function loadProductsByIds(
     accountKey?: string | null
     linkedUserId?: string | null
     emailNormalized?: string | null
+    industryKey?: string | null
   }
 ): Promise<PartnerSitePersonalizationProduct[]> {
   const clean = ids.filter((id) => UUID_RE.test(id))
@@ -382,7 +390,7 @@ async function loadProductsByIds(
   for (const id of clean) {
     const row = byId.get(id)
     if (!row) continue
-    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row)
+    const mapped = mapInventoryRowToPersonalizationProduct(siteSlug, row, undefined, opts?.industryKey)
     if (mapped) out.push(mapped)
   }
   if (!out.length) return out
@@ -433,6 +441,7 @@ export async function getSiteRecentlyViewedProducts(input: {
   limit?: number
   linkedUserId?: string | null
   emailNormalized?: string | null
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
   const ids = await getSitePersonalizationInventoryIds({
@@ -445,6 +454,7 @@ export async function getSiteRecentlyViewedProducts(input: {
       accountKey: input.accountKey,
       linkedUserId: input.linkedUserId,
       emailNormalized: input.emailNormalized,
+      industryKey: input.industryKey,
     })
   ).slice(0, lim)
 }
@@ -456,6 +466,7 @@ export async function getSiteFavoriteProducts(input: {
   limit?: number
   linkedUserId?: string | null
   emailNormalized?: string | null
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const lim = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || 8)))
   const ids = await getSitePersonalizationInventoryIds({
@@ -468,6 +479,7 @@ export async function getSiteFavoriteProducts(input: {
       accountKey: input.accountKey,
       linkedUserId: input.linkedUserId,
       emailNormalized: input.emailNormalized,
+      industryKey: input.industryKey,
     })
   ).slice(0, lim)
 }
@@ -478,6 +490,7 @@ export async function loadSiteSavedProductsForRequest(input: {
   siteSlug: string
   mode: 'favorites' | 'recently-viewed'
   limit?: number
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const identity = await resolvePartnerStorefrontSaleIdentity(input.partnerId)
   if (!identity.accountKey) return []
@@ -487,11 +500,13 @@ export async function loadSiteSavedProductsForRequest(input: {
       siteSlug: input.siteSlug,
       accountKey: identity.accountKey,
       linkedUserId: identity.linkedUserId,
+      industryKey: input.industryKey,
       emailNormalized: identity.emailNormalized,
       limit: input.limit ?? 48,
     })
   }
   return getSiteRecentlyViewedProducts({
+    industryKey: input.industryKey,
     partnerId: input.partnerId,
     siteSlug: input.siteSlug,
     accountKey: identity.accountKey,
@@ -554,6 +569,7 @@ export async function getSiteRecommendedProducts(input: {
   accountKey: string
   linkedUserId?: string | null
   limit?: number
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const block = await getSiteHomeRecommendationBlock(input)
   return block.products

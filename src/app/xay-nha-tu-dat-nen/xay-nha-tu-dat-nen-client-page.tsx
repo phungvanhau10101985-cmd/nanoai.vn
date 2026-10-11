@@ -559,6 +559,7 @@ function Step1Form({
                 )}
               </div>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
             <ImageEnginePicker
               locale={uiLocale}
               engine={imageEngine}
@@ -576,6 +577,7 @@ function Step1Form({
             >
               <Sparkles className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Dựng mặt tiền nhà', 'Build house facade', '生成房屋立面', '外観を生成', '주택 외관 생성')} ({cost} credit)
             </Button>
+            </div>
           </>
         )}
       </CardContent>

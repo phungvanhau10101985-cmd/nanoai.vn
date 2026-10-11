@@ -1225,6 +1225,7 @@ export type PartnerWebsiteCopy = {
   industryLabelHotel: string
   industryLabelFood: string
   industryLabelMachinery: string
+  industryLabelIt: string
   industryLabelOther: string
   journalStepDone: string
   journalStepCurrent: string
@@ -2548,6 +2549,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateSuggestedBadge: 'Mặc định ngành',
     industryLabelFashion: 'mua sắm trực tuyến',
     industryLabelMachinery: 'mua sắm trực tuyến',
+    industryLabelIt: 'công nghệ thông tin',
     industryLabelHotel: 'khách sạn',
     industryLabelFood: 'ẩm thực',
     industryLabelOther: 'khác',
@@ -3875,6 +3877,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateSuggestedBadge: 'Industry default',
     industryLabelFashion: 'online shopping',
     industryLabelMachinery: 'online shopping',
+    industryLabelIt: 'information technology',
     industryLabelHotel: 'hotel',
     industryLabelFood: 'food',
     industryLabelOther: 'other',
@@ -5165,6 +5168,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateSuggestedBadge: '行业默认',
     industryLabelFashion: '在线购物',
     industryLabelMachinery: '在线购物',
+    industryLabelIt: '信息技术',
     industryLabelHotel: '酒店',
     industryLabelFood: '餐饮',
     industryLabelOther: '其他',
@@ -6474,6 +6478,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateSuggestedBadge: '業種の既定',
     industryLabelFashion: 'オンラインショッピング',
     industryLabelMachinery: 'オンラインショッピング',
+    industryLabelIt: '情報技術',
     industryLabelHotel: 'ホテル',
     industryLabelFood: 'フード',
     industryLabelOther: 'その他',
@@ -7785,6 +7790,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     templateSuggestedBadge: '업종 기본',
     industryLabelFashion: '온라인 쇼핑',
     industryLabelMachinery: '온라인 쇼핑',
+    industryLabelIt: '정보기술',
     industryLabelHotel: '호텔',
     industryLabelFood: '푸드',
     industryLabelOther: '기타',

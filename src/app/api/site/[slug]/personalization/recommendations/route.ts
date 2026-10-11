@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     offset,
     mixSeed,
     sameShopOnly: sameShopOnly || offset > 0,
+    industryKey: shop.industryKey,
   })
 
   return jsonSitePersonalization(

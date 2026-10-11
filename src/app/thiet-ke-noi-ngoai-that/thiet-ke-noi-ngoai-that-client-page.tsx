@@ -1389,6 +1389,13 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <CardDescription className="text-xs">{tr('Chất lượng', 'Quality', '质量', '画質', '화질')} {imageQuality} • {tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')} {variantCount} • {(unitCost * variantCount).toFixed(1)} credit</CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-3">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-medium text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
+                  {[1, 2, 3].map((n) => (
+                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 hover:bg-slate-200'}`}>{n}</button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2 items-center">
                 <ImageEnginePicker
                   locale={uiLocale}
                   engine={imageEngine}
@@ -1400,13 +1407,6 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                   geminiCost2k={APPLY_COSTS['2K']}
                   geminiCost4k={APPLY_COSTS['4K']}
                 />
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-medium text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
-                  {[1, 2, 3].map((n) => (
-                    <button key={n} type="button" onClick={() => setVariantCount(n)} className={`px-2 py-1 rounded text-xs font-medium ${variantCount === n ? 'bg-sky-100 text-sky-800' : 'bg-slate-100 hover:bg-slate-200'}`}>{n}</button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2 items-center">
                 <Button onClick={() => checkCreditsAndProceed(unitCost * variantCount, handleApplyFullRedesign)} disabled={!displayImage} className="h-9 text-sm bg-sky-600 hover:bg-sky-700 text-white">
                   <Sparkles className="mr-2 h-4 w-4" /> {tr('Làm mới', 'Refresh', '刷新', 'リフレッシュ', '새로고침')} ({(unitCost * variantCount).toFixed(1)} credit)
                 </Button>
@@ -1484,7 +1484,18 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex gap-2 flex-wrap items-center">
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={APPLY_COSTS['2K']}
+                      geminiCost4k={APPLY_COSTS['4K']}
+                    />
                     <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(unitCost, () => handleRotate('left'))} disabled={!getImageForApply() || !hasRotationReference} className="shrink-0">
                       <ArrowLeft className="h-4 w-4 mr-1" /> {tr('Trái', 'Left', '左', '左', '왼쪽')} ({unitCost} credit)
                     </Button>
@@ -1504,9 +1515,22 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <div className="space-y-2">
                   <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1"><Maximize2 className="h-3 w-3" /> {tr('Mở rộng ảnh', 'Expand image', '扩展图片', '画像を拡張', '이미지 확장')}</h4>
                   <p className="text-[10px] text-muted-foreground">{tr('Mở rộng sân vườn đều các mặt (trái, phải, trên, dưới).', 'Expand garden on all sides (left, right, top, bottom).', '向四周扩展花园（左、右、上、下）。', '庭園を四方に拡張（左・右・上・下）。', '정원을 사방으로 확장 (좌, 우, 상, 하).')}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={APPLY_COSTS['2K']}
+                    geminiCost4k={APPLY_COSTS['4K']}
+                  />
                   <Button type="button" variant="outline" size="sm" onClick={() => checkCreditsAndProceed(unitCost, () => handleExpandExteriorDown())} disabled={!getImageForApply()} className="shrink-0">
                     <Maximize2 className="h-4 w-4 mr-1" /> {tr('Mở rộng sân vườn', 'Expand garden', '扩展花园', '庭園を拡張', '정원 확장')} ({unitCost} credit)
                   </Button>
+                  </div>
                 </div>
               )}
               <div className="space-y-2">
@@ -1722,17 +1746,6 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                   <p className="text-[10px] text-muted-foreground">{tr('Phong cách không gian khi thêm đồ mới', 'Space style when adding new items', '添加新物品时的空间风格', '新規アイテム追加時の空間スタイル', '새 항목 추가 시 공간 스타일')}</p>
                 </div>
                 <div className="space-y-2">
-                <ImageEnginePicker
-                  locale={uiLocale}
-                  engine={imageEngine}
-                  onEngineChange={setImageEngine}
-                  geminiQuality={imageQuality}
-                  onGeminiQualityChange={setImageQuality}
-                  gptQuality={gptQuality}
-                  onGptQualityChange={setGptQuality}
-                  geminiCost2k={APPLY_COSTS['2K']}
-                  geminiCost4k={APPLY_COSTS['4K']}
-                />
                   <div className="flex gap-2 items-center">
                     <span className="text-xs text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
                     {[1, 2, 3].map((n) => (
@@ -1863,17 +1876,6 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <CardDescription className="text-xs">{tr('Ước tính', 'Estimate', '预估', '見積もり', '예상')} {(unitCost * variantCount).toFixed(1)} credit</CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-3">
-                <ImageEnginePicker
-                  locale={uiLocale}
-                  engine={imageEngine}
-                  onEngineChange={setImageEngine}
-                  geminiQuality={imageQuality}
-                  onGeminiQualityChange={setImageQuality}
-                  gptQuality={gptQuality}
-                  onGptQualityChange={setGptQuality}
-                  geminiCost2k={APPLY_COSTS['2K']}
-                  geminiCost4k={APPLY_COSTS['4K']}
-                />
                 <div className="flex flex-wrap gap-2 items-center">
                   <span className="text-xs font-medium text-muted-foreground">{tr('Phiên bản', 'Variants', '版本', 'バリアント', '버전')}:</span>
                   {[1, 2, 3].map((n) => (
@@ -1889,6 +1891,17 @@ export default function ThietKeNoiNgoaiThatClientPage() {
                 <Button variant="outline" size="sm" onClick={saveDraft} className="shrink-0"><Save className="h-3 w-3 mr-1" /> {tr('Lưu nháp', 'Save draft', '保存草稿', '下書き保存', '초안 저장')}</Button>
                 <Button variant="outline" size="sm" onClick={loadDraft} className="shrink-0"><FolderOpen className="h-3 w-3 mr-1" /> {tr('Tải nháp', 'Load draft', '加载草稿', '下書き読み込み', '초안 불러오기')}</Button>
                 <DepositCreditButton variant="outline" size="sm" className="border-emerald-200 text-emerald-700 hover:bg-emerald-50" />
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={imageQuality}
+                  onGeminiQualityChange={setImageQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={APPLY_COSTS['2K']}
+                  geminiCost4k={APPLY_COSTS['4K']}
+                />
                 <Button onClick={() => checkCreditsAndProceed(unitCost * variantCount, handleApply)} disabled={!getImageForApply()} className="h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white">
                   <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo', 'Apply', '应用', '適用', '적용')} ({(unitCost * variantCount).toFixed(1)} credit)
                 </Button>

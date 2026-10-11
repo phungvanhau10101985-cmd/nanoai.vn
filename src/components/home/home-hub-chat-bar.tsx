@@ -510,6 +510,18 @@ export function HomeHubChatBar() {
   const gptQualityRef = useRef(gptQuality)
   imageEngineRef.current = imageEngine
   gptQualityRef.current = gptQuality
+  const renderImageModelPicker = () => (
+    <ImageEnginePicker
+      locale={uiLocale}
+      engine={imageEngine}
+      onEngineChange={setImageEngine}
+      geminiQuality={geminiQuality}
+      onGeminiQualityChange={setGeminiQuality}
+      gptQuality={gptQuality}
+      onGptQualityChange={setGptQuality}
+      geminiCost2k={UI_MOCKUP_CREDIT}
+    />
+  )
   const [selectedGenRefKeys, setSelectedGenRefKeys] = useState<string[]>([])
   const [regenerateDialogOpen, setRegenerateDialogOpen] = useState(false)
   const [regeneratePromptDraft, setRegeneratePromptDraft] = useState('')
@@ -4064,6 +4076,7 @@ export function HomeHubChatBar() {
           onUploadProduct={(files) => void postGenerationProductUpload(files)}
           onRemoveProduct={removeGenProduct}
           onConfirm={() => void confirmRegenerate()}
+          modelPicker={renderImageModelPicker()}
         />
 
         <div className="flex flex-col gap-3">
@@ -4341,6 +4354,7 @@ export function HomeHubChatBar() {
               onUploadLogo={(files) => void postLandingLogoUpload(files)}
               onRemoveLogo={() => void postRemoveLandingLogo()}
               onGenerateLogo={(brief, strip) => void postGenerateLandingLogo(brief, strip)}
+              modelPicker={renderImageModelPicker()}
               shareMenu={
                 <HubLandingShareMenu
                   locale={uiLocale}
@@ -4369,20 +4383,11 @@ export function HomeHubChatBar() {
               onUploadLogo={(files) => void postLandingLogoUpload(files)}
               onRemoveLogo={() => void postRemoveLandingLogo()}
               onGenerateLogo={(brief, strip) => void postGenerateLandingLogo(brief, strip)}
+              modelPicker={renderImageModelPicker()}
               onUploadProductFiles={(files) => void postStudioUpload(files)}
             />
           ) : null}
 
-          <ImageEnginePicker
-            locale={uiLocale}
-            engine={imageEngine}
-            onEngineChange={setImageEngine}
-            geminiQuality={geminiQuality}
-            onGeminiQualityChange={setGeminiQuality}
-            gptQuality={gptQuality}
-            onGptQualityChange={setGptQuality}
-            geminiCost2k={UI_MOCKUP_CREDIT}
-          />
           {!hideStepInputComposer ? (
             <div className="flex flex-col gap-2">
               {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (
@@ -4405,20 +4410,23 @@ export function HomeHubChatBar() {
                     }
                   }}
                 />
-                <Button
-                  type="button"
-                  className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 sm:h-auto"
-                  disabled={
-                    busy ||
-                    (showGenerateCurrentStep
-                      ? !canGenerateCurrentStep
-                      : !isValidHubStudioMessage(message))
-                  }
-                  onClick={() => void sendMessage(message)}
-                >
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  {busy ? hc.thinking : hc.send}
-                </Button>
+                <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                  {renderImageModelPicker()}
+                  <Button
+                    type="button"
+                    className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 sm:h-auto"
+                    disabled={
+                      busy ||
+                      (showGenerateCurrentStep
+                        ? !canGenerateCurrentStep
+                        : !isValidHubStudioMessage(message))
+                    }
+                    onClick={() => void sendMessage(message)}
+                  >
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    {busy ? hc.thinking : hc.send}
+                  </Button>
+                </div>
               </div>
               {featureFeedbackControl}
             </div>
@@ -4457,18 +4465,21 @@ export function HomeHubChatBar() {
                 <span>{hc.studioLogoStripBg}</span>
               </label>
             ) : null}
-            <Button
-              type="button"
-              className="w-full gap-2 bg-violet-600 hover:bg-violet-700 sm:w-auto"
-              disabled={busy || !canGenerateCurrentStep}
-              onMouseDown={(e) => {
-                e.preventDefault()
-              }}
-              onClick={() => void generateCurrentStep()}
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {generateCurrentStepLabel}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {renderImageModelPicker()}
+              <Button
+                type="button"
+                className="gap-2 bg-violet-600 hover:bg-violet-700"
+                disabled={busy || !canGenerateCurrentStep}
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                }}
+                onClick={() => void generateCurrentStep()}
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {generateCurrentStepLabel}
+              </Button>
+            </div>
           </div>
         ) : null}
 

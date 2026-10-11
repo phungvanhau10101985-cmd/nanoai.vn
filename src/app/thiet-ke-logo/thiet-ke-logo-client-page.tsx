@@ -239,17 +239,6 @@ export default function ThietKeLogoClientPage() {
                       ))}
                     </div>
                   </div>
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1.5}
-                    geminiCost4k={3}
-                  />
                   <label className="flex items-start gap-2 text-xs leading-4">
                     <input
                       type="checkbox"
@@ -261,13 +250,26 @@ export default function ThietKeLogoClientPage() {
                   </label>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={1.5}
+                      geminiCost4k={3}
+                    />
                     <Button
                       onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                       disabled={!note.trim() && !image.file}
-                      className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
+                      className="h-9 shrink-0 shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white"
                     >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo logo', 'Create logo', '生成 Logo', 'ロゴを作成', '로고 생성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {stripBg
                       ? tr('Thời gian: 20–70 giây (gồm xóa nền PNG)', 'Time: 20–70 seconds (includes transparent PNG)', '时间：20–70 秒（含透明 PNG）', '時間：20–70秒（透過PNG含む）', '시간: 20–70초(투명 PNG 포함)')
                       : tr('Thời gian: 20–70 giây', 'Time: 20–70 seconds', '时间：20–70 秒', '時間：20–70秒', '시간: 20–70초')}</p>

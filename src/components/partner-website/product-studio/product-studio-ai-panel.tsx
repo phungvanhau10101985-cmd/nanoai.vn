@@ -840,7 +840,6 @@ export function ProductStudioAiPanel({
               </SelectContent>
             </Select>
           </div>
-          {enginePicker}
           {imageEngine === 'gemini' ? (
           <div className="space-y-1.5">
             <Label>{t.productStudioImageModelLabel}</Label>
@@ -948,8 +947,8 @@ export function ProductStudioAiPanel({
               {formKind === 'color' && pendingColorIndex < 1 ? (
                 <Textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={2} placeholder={t.productStudioPromptColorPlaceholder} />
               ) : null}
-              {enginePicker}
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                {enginePicker}
                 <Button type="button" disabled={studioBusy || !currentSlot.candidateUrl} onClick={() => void approve()}>
                   <ThumbsUp className="mr-1.5 h-3.5 w-3.5" />
                   {t.productStudioApproveContinue}
@@ -1045,11 +1044,13 @@ export function ProductStudioAiPanel({
               {formKind === 'color' && pendingColorIndex < 1 ? (
                 <Textarea value={formPrompt} onChange={(e) => setFormPrompt(e.target.value)} rows={2} placeholder={t.productStudioPromptColorPlaceholder} />
               ) : null}
+              <div className="flex flex-wrap items-center gap-2">
               {enginePicker}
               <Button type="button" disabled={studioBusy || uploading} onClick={() => void submitGenerate()}>
                 {studioBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
                 {t.productStudioGenerate} · {creditText(t.productStudioCreditPerImage, slotCredit(formKind))}
               </Button>
+              </div>
             </div>
           ) : null}
 
@@ -1137,10 +1138,13 @@ export function ProductStudioAiPanel({
           <Button type="button" variant="outline" disabled={step === 1 || submitting} onClick={() => { setFormError(''); setStep((s) => (s === 2 ? 1 : 2)) }}>
             {t.productStudioBack}
           </Button>
-          <Button type="button" disabled={submitting} onClick={() => void goNext()}>
-            {submitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
-            {step === 2 ? t.productStudioStartStudio : t.productStudioNext}
-          </Button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {step === 2 ? enginePicker : null}
+            <Button type="button" disabled={submitting} onClick={() => void goNext()}>
+              {submitting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+              {step === 2 ? t.productStudioStartStudio : t.productStudioNext}
+            </Button>
+          </div>
         </div>
       ) : exportMode && job?.status === 'done' ? null : (
         <div className="flex justify-start">

@@ -56,7 +56,7 @@ export function imageLocGptVerifyAttempts(): number {
 }
 
 export function imageLocInkBleedModel(): string {
-  return (process.env.IMAGE_LOCALIZATION_INK_BLEED_MODEL || 'gemini-2.5-flash-lite').trim() || 'gemini-2.5-flash-lite'
+  return (process.env.IMAGE_LOCALIZATION_INK_BLEED_MODEL || 'gemini-3.5-flash-lite').trim() || 'gemini-3.5-flash-lite'
 }
 
 export function imageLocJobQueueIdsMax(): number {

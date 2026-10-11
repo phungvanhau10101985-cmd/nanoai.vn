@@ -212,6 +212,18 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
   const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const fileRef = useRef<HTMLInputElement>(null)
+  const renderBannerEnginePicker = () => (
+    <ImageEnginePicker
+      locale={locale}
+      engine={imageEngine}
+      onEngineChange={setImageEngine}
+      geminiQuality={geminiQuality}
+      onGeminiQualityChange={setGeminiQuality}
+      gptQuality={gptQuality}
+      onGptQualityChange={setGptQuality}
+      geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
+    />
+  )
 
   const apiBase = `/api/messaging/partners/${encodeURIComponent(partnerId)}/marketing-banners`
 
@@ -376,16 +388,6 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
           </div>
         ) : null}
 
-        <ImageEnginePicker
-          locale={locale}
-          engine={imageEngine}
-          onEngineChange={setImageEngine}
-          geminiQuality={geminiQuality}
-          onGeminiQualityChange={setGeminiQuality}
-          gptQuality={gptQuality}
-          onGptQualityChange={setGptQuality}
-          geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
-        />
         <div className="grid gap-3 sm:grid-cols-[180px_160px_auto_auto]">
           <select
             value={kind}
@@ -433,6 +435,8 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
               {kind === 'warehouse' ? t.warehouseHint : t.regularHint}
             </p>
           )}
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+          {renderBannerEnginePicker()}
           <Button type="button" disabled={working} onClick={() => void queueGenerate(kind, dateKey)}>
             {working ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             {working ? t.working : t.generate}
@@ -457,6 +461,7 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
               if (file) void upload(file)
             }}
           />
+          </div>
         </div>
 
         {loading ? (
@@ -483,7 +488,8 @@ export function PartnerMarketingBannerManager({ partnerId, locale, onToast }: Pr
                         {current.source === 'upload' ? ` · ${t.upload}` : ''}
                       </p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {renderBannerEnginePicker()}
                       <Button
                         type="button"
                         variant="outline"

@@ -374,33 +374,34 @@ export default function TaoAnhTuChuClientPage() {
                 </div>
               </div>
 
-              <ImageEnginePicker
-                locale={uiLocale}
-                engine={imageEngine}
-                onEngineChange={setImageEngine}
-                geminiQuality={imageQuality}
-                onGeminiQualityChange={setImageQuality}
-                gptQuality={gptQuality}
-                onGptQualityChange={setGptQuality}
-                geminiCost2k={1.5}
-                geminiCost4k={3}
-              />
-
               <div className="space-y-3 pt-2 border-t border-border/60">
                 <DepositCreditButton
                   variant="outline"
                   size="sm"
                   className="w-full border-violet-200 text-violet-700 hover:bg-violet-50 h-10 touch-manipulation"
                 />
-                <Button
-                  type="button"
-                  onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
-                  disabled={prompt.trim().length < 3}
-                  className="w-full h-11 text-sm bg-violet-600 hover:bg-violet-700 text-white touch-manipulation"
-                >
-                  <Sparkles className="mr-2 h-4 w-4" />
-                  {tr('Tạo ảnh', 'Generate', '生成', '生成', '생성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                </Button>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
+                    disabled={prompt.trim().length < 3}
+                    className="h-11 shrink-0 text-sm bg-violet-600 hover:bg-violet-700 text-white touch-manipulation"
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    {tr('Tạo ảnh', 'Generate', '生成', '生成', '생성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
+                  </Button>
+                </div>
                 <p className="text-[10px] text-center text-muted-foreground">
                   * {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}
                 </p>

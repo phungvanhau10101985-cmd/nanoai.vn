@@ -517,22 +517,23 @@ export default function ThietKeConDauClientPage() {
                   </div>
                 </div>
 
-                <ImageEnginePicker
-                  locale={uiLocale}
-                  engine={imageEngine}
-                  onEngineChange={setImageEngine}
-                  geminiQuality={imageQuality}
-                  onGeminiQualityChange={setImageQuality}
-                  gptQuality={gptQuality}
-                  onGptQualityChange={setGptQuality}
-                  geminiCost2k={1.5}
-                  geminiCost4k={3}
-                />
-
-                <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} disabled={false} className="w-full bg-rose-600 hover:bg-rose-700 text-white">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  {tr('Tạo con dấu bằng AI', 'Create stamp with AI', 'AI 创建印章', 'AIでスタンプ作成', 'AI로 스탬프 만들기')} ({cost} credits)
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <ImageEnginePicker
+                    locale={uiLocale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality={imageQuality}
+                    onGeminiQualityChange={setImageQuality}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                    geminiCost4k={3}
+                  />
+                  <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} disabled={false} className="bg-rose-600 hover:bg-rose-700 text-white">
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    {tr('Tạo con dấu bằng AI', 'Create stamp with AI', 'AI 创建印章', 'AIでスタンプ作成', 'AI로 스탬프 만들기')} ({cost} credits)
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>

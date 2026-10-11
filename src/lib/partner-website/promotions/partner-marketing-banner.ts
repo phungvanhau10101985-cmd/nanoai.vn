@@ -158,7 +158,7 @@ export type PartnerMarketingBannerCopy = {
 
 export type PartnerMarketingBannerBrand = {
   shopName: string
-  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other' | null
   primaryColor: string
   accentColor: string
   buyButtonColor: string
@@ -214,6 +214,7 @@ export function fallbackPartnerMarketingBannerCopy(input: {
 function industryArtHint(industryKey: PartnerMarketingBannerBrand['industryKey']): string {
   if (industryKey === 'hotel') return 'phòng nghỉ, kỳ nghỉ, không gian hospitality cao cấp'
   if (industryKey === 'food') return 'món ăn, bàn tiệc, nguyên liệu tươi'
+  if (industryKey === 'it') return 'phần mềm, công cụ số, giao diện web'
   if (industryKey === 'other' || industryKey === 'machinery') return 'sản phẩm cửa hàng, mua sắm trực tuyến'
   return 'thời trang, giày dép, phụ kiện hiện đại'
 }

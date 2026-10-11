@@ -1,6 +1,7 @@
 import { fetchPartnerInventoryRowsByIdsInOrderFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchPartnerProfileForWebsitePg } from '@/lib/db/messaging-partner-websites-pg'
 import type { PartnerLandingProductSnapshot } from '@/lib/partner-website/landing/partner-landing-types'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export async function loadPartnerLandingProductSnapshots(input: {
   partnerId: string
@@ -11,16 +12,20 @@ export async function loadPartnerLandingProductSnapshots(input: {
   if (!ids.length) return []
   const rows = await fetchPartnerInventoryRowsByIdsInOrderFromPg(input.partnerId, ids)
   if (!rows?.length) return []
+  const industryKey = (await fetchPartnerProfileForWebsitePg(input.partnerId))?.industryKey ?? null
   return rows.map((row) => {
     const id = row.id
+    const name = row.name?.trim() || row.sku || 'Product'
     return {
       id,
-      name: row.name?.trim() || row.sku || 'Product',
+      name,
       price: row.price_hint?.trim() || '',
       description: row.description?.trim() || row.stock_note?.trim() || '',
       imageUrl: row.image_url?.trim() || '',
-      detailPath: partnerSiteProductPath(input.siteSlug, id, {
-        name: row.name?.trim() || row.sku || 'Product',
+      detailPath: partnerSiteCatalogHitPath(input.siteSlug, id, {
+        name,
+        industryKey,
+        productUrl: row.product_url,
       }),
     }
   })

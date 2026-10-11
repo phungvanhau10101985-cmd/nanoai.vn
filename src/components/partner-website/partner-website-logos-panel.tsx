@@ -38,6 +38,8 @@ import {
   PW_SLOGAN_PRODUCTS_MAX,
 } from '@/lib/partner-website/shop/partner-site-shop-slogan'
 import { requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 
 type LogoVersionRow = {
   id: string
@@ -91,6 +93,9 @@ export function PartnerWebsiteLogosPanel({
   const [createHint, setCreateHint] = useState('')
   const [createRefUrl, setCreateRefUrl] = useState('')
   const [createStripBg, setCreateStripBg] = useState(false)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const logoImageCredit = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 1.5 })
   const [logoVersions, setLogoVersions] = useState<LogoVersionRow[]>([])
   const [slogan, setSlogan] = useState('')
   const [sloganIdea, setSloganIdea] = useState('')
@@ -344,7 +349,7 @@ export function PartnerWebsiteLogosPanel({
 
   async function createLogo(slot: PartnerWebsiteLogoSlot, visualDevice?: VisualDeviceVariant) {
     if (!partnerId || !website) return
-    const credits = requiredCreditsForLogoCreate(1.5, createStripBg)
+    const credits = requiredCreditsForLogoCreate(logoImageCredit, createStripBg)
     if (!window.confirm(t.logosCreateConfirm.replace('{credits}', String(credits)))) return
     const key = `create:${rowKey(slot, visualDevice)}`
     const extra = createHint.trim()
@@ -385,6 +390,8 @@ export function PartnerWebsiteLogosPanel({
           referenceImageUrls: chatRefs.urls.length ? chatRefs.urls : undefined,
           referenceImageMeta: chatRefs.meta.length ? chatRefs.meta : undefined,
           stripBackground: createStripBg,
+          imageEngine,
+          gptQuality,
         }),
       })
       const json = (await res.json().catch(() => ({}))) as {
@@ -487,22 +494,34 @@ export function PartnerWebsiteLogosPanel({
           />
           <span>{t.logosStripBg}</span>
         </label>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="h-8 w-fit px-2.5 text-xs"
-          disabled={createBusy || !partnerId || !website}
-          onClick={() => void createLogo(slot, visualDevice)}
-        >
-          {createBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-          {createBusy
-            ? t.logosCreateBusy
-            : t.logosCreateCost.replace(
-                '{credits}',
-                String(requiredCreditsForLogoCreate(1.5, createStripBg))
-              )}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ImageEnginePicker
+            locale={locale}
+            engine={imageEngine}
+            onEngineChange={setImageEngine}
+            geminiQuality="2K"
+            onGeminiQualityChange={() => {}}
+            gptQuality={gptQuality}
+            onGptQualityChange={setGptQuality}
+            geminiCost2k={1.5}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-8 w-fit px-2.5 text-xs"
+            disabled={createBusy || !partnerId || !website}
+            onClick={() => void createLogo(slot, visualDevice)}
+          >
+            {createBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {createBusy
+              ? t.logosCreateBusy
+              : t.logosCreateCost.replace(
+                  '{credits}',
+                  String(requiredCreditsForLogoCreate(logoImageCredit, createStripBg))
+                )}
+          </Button>
+        </div>
       </div>
     )
   }

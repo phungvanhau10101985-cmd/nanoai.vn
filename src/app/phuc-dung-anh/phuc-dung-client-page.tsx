@@ -442,17 +442,6 @@ export default function PhucDungClientPage() {
                   <CardDescription className="text-sm">{tr('Chất lượng & chế độ màu.', 'Quality & color mode.', '画质与色彩模式。', '画質とカラーモード。', '품질 및 색상 모드.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-5 pt-0 space-y-4">
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={4}
-                    geminiCost4k={8}
-                  />
                   <div className="space-y-2">
                     <h4 className="text-sm font-semibold text-foreground">{tr('Chế độ màu', 'Color mode', '色彩模式', 'カラーモード', '색상 모드')}</h4>
                     <div className="flex flex-col gap-2">
@@ -495,13 +484,26 @@ export default function PhucDungClientPage() {
                       size="sm"
                       className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
                     />
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                    <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={4}
+                      geminiCost4k={8}
+                    />
                     <Button
                       onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                       disabled={!canSubmit}
-                      className="w-full min-h-[44px] h-11 shadow-md hover:shadow-lg transition-all text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
+                      className="min-h-[44px] h-11 shrink-0 shadow-md hover:shadow-lg transition-all text-sm font-semibold bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                     >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr('Phục dựng', 'Restore', '修复', '修復', '복원')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                     </Button>
+                    </div>
                     {!canSubmit && (
                       <p className="text-xs text-amber-600 font-medium">
                         {!image.file

@@ -4,6 +4,7 @@ export function getApiUsageModelDisplayLabel(model: string): string {
     // Gemini 3.1 (preview, 2026-04)
     'gemini-3.1-pro-preview': 'Gemini 3.1 Pro',
     'gemini-3.1-pro-preview-customtools': 'Gemini 3.1 Pro (custom tools)',
+    'gemini-3.5-flash-lite': 'Gemini 3.5 Flash-Lite',
     'gemini-3.1-flash-lite-preview': 'Gemini 3.1 Flash-Lite',
     'gemini-3.1-flash-image-preview': 'Gemini 3.1 Flash Image',
     'gemini-3.1-flash-tts-preview': 'Gemini 3.1 Flash TTS',

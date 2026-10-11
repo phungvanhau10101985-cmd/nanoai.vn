@@ -105,6 +105,40 @@ test('card mapper builds listing data without PDP or catalog fields', () => {
   })
 
   assert.equal(product.detailPath, '/site/demo/products/card-product-9744be2d')
+  const feature = inventoryCardRowToShopProduct(
+    'nanoai-ws-un9v',
+    {
+      id: '9744be2d-0b8d-4aa6-82a4-9bd861f7a034',
+      partner_id: '86f375fc-7265-49d8-972e-179dd3188984',
+      sort_order: 1,
+      sku: 'SKU-F',
+      name: 'Thử đồ 1 người',
+      stock_qty: 1,
+      price_hint: '6.000đ',
+      image_url: 'https://cdn.example/try.jpg',
+      product_url: 'https://nanoai.vn/thu-do-online/1-nguoi',
+      remarketing_id: 'feat:thu-do-1-nguoi',
+      is_active: true,
+      is_clearance: false,
+      price_amount: 6000,
+      price_currency: 'VND',
+      sale_price_amount: null,
+      sale_starts_at: null,
+      sale_ends_at: null,
+      category_l1: 'Công cụ',
+      category_l2: 'Thử đồ',
+      category_l3: '1 người',
+      likes_count: 0,
+      purchases_count: 0,
+      reviews_count: 0,
+      questions_count: 0,
+      rating_score: 0,
+      created_at: '2026-09-01T00:00:00.000Z',
+      updated_at: '2026-09-02T00:00:00.000Z',
+    },
+    { industryKey: 'it' }
+  )
+  assert.equal(feature.detailPath, 'https://nanoai.vn/thu-do-online/1-nguoi')
   assert.equal(product.imageUrl, 'https://cdn.example/card.jpg')
   assert.equal(product.isClearance, true)
   assert.equal(product.categoryL3, 'Túi mini')

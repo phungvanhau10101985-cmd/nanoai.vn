@@ -596,17 +596,6 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                    <ImageEnginePicker
-                      locale={uiLocale}
-                      engine={imageEngine}
-                      onEngineChange={setImageEngine}
-                      geminiQuality={imageQuality}
-                      onGeminiQualityChange={setImageQuality}
-                      gptQuality={gptQuality}
-                      onGptQualityChange={setGptQuality}
-                      geminiCost2k={baseCost}
-                      geminiCost4k={baseCost * 2.2}
-                    />
                     <div className="space-y-2">
                       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Yêu cầu thêm', 'Extra prompt', '附加要求', '追加要望', '추가 요청')}</h4>
                       <Textarea
@@ -623,9 +612,21 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         size="sm"
                         className={cn('w-full max-w-[180px]', theme.outlineButton)}
                       />
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                        locale={uiLocale}
+                        engine={imageEngine}
+                        onEngineChange={setImageEngine}
+                        geminiQuality={imageQuality}
+                        onGeminiQualityChange={setImageQuality}
+                        gptQuality={gptQuality}
+                        onGptQualityChange={setGptQuality}
+                        geminiCost2k={baseCost}
+                        geminiCost4k={baseCost * 2.2}
+                      />
                       <Button 
                         size="default" 
-                        className={cn('w-full max-w-[180px] min-h-[44px] shadow-md hover:shadow-lg transition-all text-sm touch-manipulation', theme.primaryButton)} 
+                        className={cn('min-h-[44px] shrink-0 shadow-md hover:shadow-lg transition-all text-sm touch-manipulation', theme.primaryButton)} 
                         onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                         title={imageQuality === '2K' ? tr('Tạo chất lượng ảnh 2K', 'Generate 2K image', '生成 2K 图片', '2K画像を生成', '2K 이미지 생성') : tr('Tạo chất lượng ảnh 4K', 'Generate 4K image', '生成 4K 图片', '4K画像を生成', '4K 이미지 생성')}
                         disabled={!userImage.file || 
@@ -638,6 +639,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                       >
                         <Sparkles className="mr-2 h-4 w-4" /> {buttonLabel} ({displayCost} credit)
                       </Button>
+                      </div>
                       <p className="text-[10px] text-center text-muted-foreground mt-2">
                         {tr('* Thời gian xử lý: 10-30s', '* Processing time: 10-30s', '* 处理时间：10-30秒', '* 処理時間: 10-30秒', '* 처리 시간: 10-30초')}
                       </p>

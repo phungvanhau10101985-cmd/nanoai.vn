@@ -1286,18 +1286,18 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                     />
                   </div>
                   <div className="pt-6 mt-6 border-t space-y-3">
-                    <ImageEnginePicker
-                      locale={uiLocale}
-                      engine={imageEngine}
-                      onEngineChange={setImageEngine}
-                      geminiQuality={imageQuality}
-                      onGeminiQualityChange={setImageQuality}
-                      gptQuality={gptQuality}
-                      onGptQualityChange={setGptQuality}
-                      geminiCost2k={1.5}
-                      geminiCost4k={3}
-                    />
                     <div className="flex flex-col sm:flex-row items-center gap-4">
+                      <ImageEnginePicker
+                        locale={uiLocale}
+                        engine={imageEngine}
+                        onEngineChange={setImageEngine}
+                        geminiQuality={imageQuality}
+                        onGeminiQualityChange={setImageQuality}
+                        gptQuality={gptQuality}
+                        onGptQualityChange={setGptQuality}
+                        geminiCost2k={1.5}
+                        geminiCost4k={3}
+                      />
                       <Button
                         onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                         className="w-full sm:w-auto min-w-[200px] h-10 shadow-md hover:shadow-lg transition-all text-sm bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -1406,8 +1406,19 @@ export default function TaoNhanGioiThieuSanPhamClientPage() {
                   />
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button variant="outline" onClick={() => setStep('RESULT')}>{tr('Quay lại', 'Back', '返回', '戻る', '뒤로')}</Button>
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={imageQuality}
+                  onGeminiQualityChange={setImageQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={1.5}
+                  geminiCost4k={3}
+                />
                 <Button onClick={() => checkCreditsAndProceed(cost, handleMockupSubmit)} disabled={!mockupProductImage} className="bg-cyan-600 hover:bg-cyan-700">
                   <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo mockup', 'Create mockup', '创建模型', 'モックアップ作成', '목업 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
                 </Button>

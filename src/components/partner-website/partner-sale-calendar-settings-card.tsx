@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ImagePlus, Loader2, Save } from 'lucide-react'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { PARTNER_MARKETING_BANNER_CREDIT_COST } from '@/lib/partner-website/promotions/partner-marketing-banner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -330,6 +333,8 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
   const [saving, setSaving] = useState(false)
   const [flashSaving, setFlashSaving] = useState(false)
   const [bannerWorking, setBannerWorking] = useState(false)
+  const [bannerEngine, setBannerEngine] = useState<ImageEngine>('gemini')
+  const [bannerGptQuality, setBannerGptQuality] = useState<GptImageQuality>('medium')
   const [iconWorking, setIconWorking] = useState(false)
   const [saleIcon, setSaleIcon] = useState<{
     auto: boolean
@@ -415,7 +420,12 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
       const res = await fetch(`${bannersApi}/regenerate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'warehouse', discountPercent: pct }),
+        body: JSON.stringify({
+          kind: 'warehouse',
+          discountPercent: pct,
+          imageEngine: bannerEngine,
+          gptQuality: bannerGptQuality,
+        }),
       })
       onToast?.(res.ok ? t.warehouseCreated : t.error, res.ok ? 'default' : 'destructive')
     } finally {
@@ -688,7 +698,17 @@ export function PartnerSaleCalendarSettingsCard({ partnerId, locale, onToast }: 
                 {iconWorking ? t.iconBusy : t.iconGenerate}
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <ImageEnginePicker
+                locale={locale}
+                engine={bannerEngine}
+                onEngineChange={setBannerEngine}
+                geminiQuality="2K"
+                onGeminiQualityChange={() => {}}
+                gptQuality={bannerGptQuality}
+                onGptQualityChange={setBannerGptQuality}
+                geminiCost2k={PARTNER_MARKETING_BANNER_CREDIT_COST}
+              />
               <Button
                 type="button"
                 variant="outline"

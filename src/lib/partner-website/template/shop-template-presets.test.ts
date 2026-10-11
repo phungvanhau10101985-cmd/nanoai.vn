@@ -22,6 +22,7 @@ test('every shop preset has a unique short code GD01–GD08', () => {
   assert.equal(getShopTemplatePreset('GD09').id, 'commerce-blue')
   assert.equal(getShopTemplatePreset('industrial-machinery').id, 'commerce-blue')
   assert.equal(suggestedShopTemplatePresetForIndustry('machinery'), 'commerce-blue')
+  assert.equal(suggestedShopTemplatePresetForIndustry('it'), 'commerce-blue')
 })
 
 test('resolveShopTemplatePresetId accepts id or short code', () => {

@@ -291,26 +291,28 @@ export default function MoRongKhungHinhClientPage() {
                       ))}
                     </select>
                   </div>
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1.5}
-                    geminiCost4k={3}
-                  />
                   <div className="space-y-2">
                     <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr('Yêu cầu (tùy chọn)', 'Request (optional)', '要求（可选）', '要望（任意）', '요청 (선택)')}</h4>
                     <Input placeholder={tr('VD: nền biển, nền studio...', 'e.g. beach, studio...', '例如：海滩、影棚...', '例：海、スタジオ...', '예: 해변, 스튜디오...')} value={note} onChange={(e) => setNote(e.target.value)} className="bg-white/80 text-xs h-9" />
                   </div>
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-indigo-200 text-indigo-700 hover:bg-indigo-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!image.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-indigo-600 hover:bg-indigo-700 text-white">
-                      <Sparkles className="mr-2 h-4 w-4" /> {tr('Mở rộng', 'Expand', '扩展', '拡張', '확장')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                    </Button>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                        locale={uiLocale}
+                        engine={imageEngine}
+                        onEngineChange={setImageEngine}
+                        geminiQuality={imageQuality}
+                        onGeminiQualityChange={setImageQuality}
+                        gptQuality={gptQuality}
+                        onGptQualityChange={setGptQuality}
+                        geminiCost2k={1.5}
+                        geminiCost4k={3}
+                      />
+                      <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!image.file} className="h-9 shrink-0 shadow-md hover:shadow-lg transition-all text-sm bg-indigo-600 hover:bg-indigo-700 text-white">
+                        <Sparkles className="mr-2 h-4 w-4" /> {tr('Mở rộng', 'Expand', '扩展', '拡張', '확장')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
+                      </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}</p>
                   </div>
                 </CardContent>

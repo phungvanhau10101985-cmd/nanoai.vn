@@ -1988,6 +1988,7 @@ export default function WeddingCardAiClientPage() {
                     className="mt-3"
                   />
                 </div>
+                <div className="flex flex-wrap items-center gap-2">
                 <ImageEnginePicker
                   locale={uiLocale}
                   engine={imageEngine}
@@ -2002,6 +2003,7 @@ export default function WeddingCardAiClientPage() {
                   {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton}
                 </Button>
+                </div>
             </div>
               </DialogContent>
             </Dialog>
@@ -2873,6 +2875,7 @@ export default function WeddingCardAiClientPage() {
                                 maxLength={800}
                                 disabled={frameGenerating}
                               />
+                              <div className="flex flex-wrap items-center gap-2">
                               <ImageEnginePicker
                                 locale={uiLocale}
                                 engine={imageEngine}
@@ -2887,6 +2890,7 @@ export default function WeddingCardAiClientPage() {
                                 {frameGenerating ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
                                 {txCover.aiFrameButton}
                               </Button>
+                              </div>
                               <p className="text-xs text-muted-foreground">{txCover.aiFrameHint}</p>
                             </div>
                             ) : null}

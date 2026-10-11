@@ -41,6 +41,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     linkedUserId: visitor.thread.linkedUserId,
     emailNormalized,
     limit: Math.min(48, offset + limit + 1),
+    industryKey: shop.industryKey,
   })
   const products = peeked.slice(offset, offset + limit)
   const hasMore = peeked.length > offset + limit

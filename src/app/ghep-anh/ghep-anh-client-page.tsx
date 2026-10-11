@@ -233,26 +233,28 @@ export default function GhepAnhClientPage() {
                   <CardDescription className="text-xs">{tr('Chất lượng xuất ảnh.', 'Output image quality.', '输出图片质量。', '出力画質。', '출력 이미지 품질.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1.5}
-                    geminiCost4k={3}
-                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-amber-200 text-amber-700 hover:bg-amber-50" />
-                    <Button
+                                        <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={1.5}
+                      geminiCost4k={3}
+                      />
+                      <Button
                       onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
                       disabled={images.length < 2}
-                      className="w-full max-w-[180px] min-h-[44px] shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white touch-manipulation"
-                    >
+                      className="shrink-0 max-w-[180px] min-h-[44px] shadow-md hover:shadow-lg transition-all text-sm bg-amber-600 hover:bg-amber-700 text-white touch-manipulation"
+                      >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr('Ghép ảnh', 'Merge images', '合成图片', '画像を合成', '이미지 합성')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                    </Button>
+                      </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '時間：15–45秒', '시간: 15–45초')}</p>
                   </div>
                 </CardContent>

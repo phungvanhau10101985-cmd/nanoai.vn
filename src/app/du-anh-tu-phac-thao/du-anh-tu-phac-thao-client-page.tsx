@@ -348,8 +348,7 @@ export default function DuAnhTuPhacThaoClientPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="space-y-2">
                   <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     {tr('Tỷ lệ khung', 'Aspect ratio', '画幅比例', 'アスペクト比', '비율')}
                   </h4>
@@ -364,24 +363,22 @@ export default function DuAnhTuPhacThaoClientPage() {
                       </option>
                     ))}
                   </select>
-                </div>
-                <div className="space-y-2">
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1.5}
-                    geminiCost4k={3}
-                  />
-                </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2">
                 <DepositCreditButton />
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={imageQuality}
+                  onGeminiQualityChange={setImageQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={1.5}
+                  geminiCost4k={3}
+                />
                 <Button
                   type="button"
                   size="lg"
@@ -391,6 +388,7 @@ export default function DuAnhTuPhacThaoClientPage() {
                   <Sparkles className="h-4 w-4" />
                   {tr(`Dựng ảnh (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `Rebuild (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `生成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 积分）`, `作成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}クレジット）`, `생성 (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 크레딧)`)}
                 </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

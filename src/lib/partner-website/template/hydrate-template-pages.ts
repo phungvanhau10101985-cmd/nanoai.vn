@@ -1,6 +1,7 @@
 import type { PartnerWebsitePage } from '@/lib/partner-website/template/partner-website-template-types'
 import { fetchPartnerInventoryActivePageWithCountFromPg } from '@/lib/db/messaging-partner-inventory-pg'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { fetchPartnerProfileForWebsitePg } from '@/lib/db/messaging-partner-websites-pg'
+import { partnerSiteCatalogHitPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 function inventoryImageUrl(row: { image_url?: string | null }): string {
   return row.image_url?.trim() || ''
@@ -16,6 +17,12 @@ export async function hydratePartnerWebsitePages(
     ...p,
     sections: p.sections.map((s) => ({ ...s, props: { ...s.props } })),
   }))
+  const needsInventory = next.some((page) =>
+    page.sections.some((section) => section.type === 'products-v1' && section.props.useInventory === true)
+  )
+  const industryKey = needsInventory
+    ? ((await fetchPartnerProfileForWebsitePg(partnerId))?.industryKey ?? null)
+    : null
 
   for (const page of next) {
     for (const section of page.sections) {
@@ -40,8 +47,10 @@ export async function hydratePartnerWebsitePages(
           productUrl,
           detailPath:
             slug && inventoryId
-              ? partnerSiteProductPath(slug, inventoryId, {
+              ? partnerSiteCatalogHitPath(slug, inventoryId, {
                   name: row.name?.trim() || row.sku || 'Product',
+                  industryKey,
+                  productUrl,
                 })
               : '',
         }

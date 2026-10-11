@@ -1,6 +1,6 @@
 import type { ShopTemplatePresetFlags } from '@/lib/partner-website/template/shop-template-presets'
 
-export type PartnerIndustryKey = 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
+export type PartnerIndustryKey = 'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other' | null
 
 export type PartnerWebsiteCapabilityFlags = {
   enabled: boolean
@@ -216,6 +216,23 @@ export function industryCopyProfile(industryKey: PartnerIndustryKey): PartnerSit
       heroSubtitleFallback: {
         vi: 'Đặt món nhanh — tư vấn qua chat',
         en: 'Order fast — chat for help',
+      },
+    }
+  }
+  if (industryKey === 'it') {
+    return {
+      heroBadge: { vi: 'Công nghệ thông tin', en: 'Information technology' },
+      heroCtaFallback: { vi: 'MỞ CÔNG CỤ', en: 'OPEN TOOL' },
+      secondaryCta: { vi: 'Xem tính năng', en: 'View features' },
+      categoriesFallback: {
+        vi: ['Thử đồ', 'Ảnh', 'Thiết kế', 'Giáo dục'],
+        en: ['Try-on', 'Photos', 'Design', 'Education'],
+      },
+      newArrivalsFallback: { vi: 'Tính năng mới', en: 'NEW FEATURES' },
+      bestSellersFallback: { vi: 'Tính năng nổi bật', en: 'FEATURED TOOLS' },
+      heroSubtitleFallback: {
+        vi: 'Mỗi tính năng là một công cụ — bấm để mở ngay',
+        en: 'Each feature is a tool — open it directly',
       },
     }
   }

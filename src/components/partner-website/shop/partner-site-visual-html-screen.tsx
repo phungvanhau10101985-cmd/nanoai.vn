@@ -223,6 +223,7 @@ export async function PartnerSiteVisualHtmlScreen({
         html: sourceHtml,
         partnerId: shopCtx.partnerId,
         siteSlug: site.siteSlug,
+        industryKey: shopCtx.industryKey,
         locale: site.locale,
         device: sourceDevice,
         liveListing,

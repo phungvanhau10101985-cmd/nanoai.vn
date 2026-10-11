@@ -37,6 +37,8 @@ export async function POST(
     kind?: string
     aspectRatio?: string
     stripBackground?: boolean | string | number | null
+    imageEngine?: string | null
+    gptQuality?: string | null
   }
   const prompt = String(body.prompt ?? '').trim()
   if (prompt.length < 4) {
@@ -76,6 +78,8 @@ export async function POST(
     verbatimPrompt: kind === 'logo',
     stripBackground:
       kind === 'logo' ? parseLogoStripBackgroundFlag(body.stripBackground) : undefined,
+    imageEngine: body.imageEngine,
+    gptQuality: body.gptQuality,
   })
 
   if (!result.ok) {

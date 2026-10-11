@@ -80,12 +80,13 @@ function scanCatalogNeeds(html: string, device?: VisualDeviceVariant | null): {
 async function mapSaleCards(
   partnerId: string,
   siteSlug: string,
-  rows: PartnerInventoryShopCardRow[]
+  rows: PartnerInventoryShopCardRow[],
+  industryKey?: string | null
 ): Promise<PartnerSiteShopProduct[]> {
   const overlay = await loadPartnerSiteSaleOverlay(partnerId).catch(() => null)
   const identity = await resolvePartnerStorefrontSaleIdentity(partnerId)
   const mapped = rows
-    .map((row) => inventoryCardRowToShopProduct(siteSlug, row))
+    .map((row) => inventoryCardRowToShopProduct(siteSlug, row, { industryKey }))
     .filter((p): p is PartnerSiteShopProduct => Boolean(p))
   return applyPartnerStorefrontSaleFaces(mapped, {
     partnerId,
@@ -98,6 +99,7 @@ export async function loadSiteLiveCatalogGrids(input: {
   html: string
   partnerId: string
   siteSlug: string
+  industryKey?: string | null
   locale: WebLocale
   device?: VisualDeviceVariant | null
   liveListing?: (LiveCategoryListingBind & { products?: PartnerSiteShopProduct[] | null }) | null
@@ -123,7 +125,7 @@ export async function loadSiteLiveCatalogGrids(input: {
           0,
           needs.maxLimit
         )
-        const cards = await mapSaleCards(input.partnerId, input.siteSlug, page?.rows ?? [])
+        const cards = await mapSaleCards(input.partnerId, input.siteSlug, page?.rows ?? [], input.industryKey)
         generic = cards
         personalize = cards
       })()
@@ -139,7 +141,7 @@ export async function loadSiteLiveCatalogGrids(input: {
           sort: 'newest',
           includeDescendants: true,
         })
-        listing = await mapSaleCards(input.partnerId, input.siteSlug, page?.rows ?? [])
+        listing = await mapSaleCards(input.partnerId, input.siteSlug, page?.rows ?? [], input.industryKey)
       })()
     )
   }

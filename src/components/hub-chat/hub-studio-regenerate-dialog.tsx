@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -58,6 +59,7 @@ export function HubStudioRegenerateDialog({
   onUploadProduct,
   onRemoveProduct,
   onConfirm,
+  modelPicker,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -82,6 +84,7 @@ export function HubStudioRegenerateDialog({
   onUploadProduct: (files: FileList) => void
   onRemoveProduct: (url: string) => void
   onConfirm: () => void
+  modelPicker?: ReactNode
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -142,10 +145,11 @@ export function HubStudioRegenerateDialog({
           ) : null}
         </div>
 
-        <DialogFooter className="shrink-0 gap-2 sm:gap-0">
+        <DialogFooter className="shrink-0 gap-2 sm:items-center sm:justify-end">
           <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
             {labels.cancel}
           </Button>
+          {modelPicker}
           <Button
             type="button"
             className="bg-violet-600 hover:bg-violet-700"

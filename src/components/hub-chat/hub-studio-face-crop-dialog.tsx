@@ -1447,18 +1447,6 @@ export function HubStudioFaceCropDialog({
         </DialogHeader>
 
         <div className="max-h-[min(28vh,240px)] shrink-0 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
-          {onOutpaintGaps ? (
-            <ImageEnginePicker
-              locale={locale}
-              engine={imageEngine}
-              onEngineChange={setImageEngine}
-              geminiQuality={geminiQuality}
-              onGeminiQualityChange={setGeminiQuality}
-              gptQuality={gptQuality}
-              onGptQualityChange={setGptQuality}
-              geminiCost2k={UI_MOCKUP_CREDIT}
-            />
-          ) : null}
           <div className="flex flex-wrap items-center gap-1.5">
             <Button type="button" size="sm" variant="outline" className="h-8 text-xs" onClick={addTextLayer}>
               <Type className="mr-1 h-3.5 w-3.5" />
@@ -1506,6 +1494,18 @@ export function HubStudioFaceCropDialog({
               <PaintBucket className="mr-1 h-3.5 w-3.5" />
               {fillGapsWithEdgeColor ? labels.fillEdgeColor : labels.fillEdgeColorOff}
             </Button>
+            {onOutpaintGaps ? (
+              <ImageEnginePicker
+                locale={locale}
+                engine={imageEngine}
+                onEngineChange={setImageEngine}
+                geminiQuality={geminiQuality}
+                onGeminiQualityChange={setGeminiQuality}
+                gptQuality={gptQuality}
+                onGptQualityChange={setGptQuality}
+                geminiCost2k={UI_MOCKUP_CREDIT}
+              />
+            ) : null}
             {onOutpaintGaps ? (
               <Button
                 type="button"

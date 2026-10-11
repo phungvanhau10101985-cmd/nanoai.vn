@@ -323,22 +323,24 @@ export default function TaoAnh3DClientPage() {
                   <CardDescription className="text-xs">{tr('Chất lượng xuất ảnh.', 'Output image quality.', '输出图像质量。', '出力画像の品質。', '출력 이미지 품질.')}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1.5}
-                    geminiCost4k={3}
-                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-cyan-200 text-cyan-700 hover:bg-cyan-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!canSubmit} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-cyan-600 hover:bg-cyan-700 text-white">
+                                        <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={1.5}
+                      geminiCost4k={3}
+                      />
+                      <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!canSubmit} className="shrink-0 max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-cyan-600 hover:bg-cyan-700 text-white">
                       <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo mockup', 'Create mockup', '创建模型', 'モックアップを作成', '목업 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                    </Button>
+                      </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">{tr('* Thời gian: 15–45 giây', '* Time: 15–45 seconds', '* 时长：15–45 秒', '* 所要時間: 15〜45秒', '* 소요 시간: 15–45초')}</p>
                   </div>
                 </CardContent>

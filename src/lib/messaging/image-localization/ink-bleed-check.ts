@@ -23,7 +23,7 @@ async function previewJpeg(imageBytes: Buffer): Promise<Buffer> {
   return pipeline.jpeg({ quality: 80 }).toBuffer()
 }
 
-/** Gemini Flash-Lite nhìn ảnh và trả có mực loang hay không. Không vẽ lại. */
+/** Gemini 3.5 Flash-Lite nhìn ảnh và trả có mực loang hay không. Không vẽ lại. */
 export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boolean; where: string }> {
   const apiKey = geminiTextKey()
   if (apiKey.length < 10) {
@@ -50,7 +50,7 @@ export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boole
             ],
           },
         ],
-        generationConfig: { temperature: 0, maxOutputTokens: 120, responseMimeType: 'application/json' },
+        generationConfig: { temperature: 0, maxOutputTokens: 512, responseMimeType: 'application/json' },
       }),
     })
   } finally {
@@ -61,9 +61,11 @@ export async function detectInkBleed(imageBytes: Buffer): Promise<{ bleed: boole
     throw new ImageLocalizationError(`Kiểm tra mực loang lỗi HTTP ${res.status}: ${text.slice(0, 300)}`)
   }
   const body = (await res.json().catch(() => null)) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }>
   } | null
-  const raw = body?.candidates?.[0]?.content?.parts?.map((part) => part.text || '').join('') || ''
+  const parts = body?.candidates?.[0]?.content?.parts || []
+  const answer = parts.filter((part) => !part.thought)
+  const raw = (answer.length ? answer : parts).map((part) => part.text || '').join('') || ''
   const verdict = parseInkBleedVerdict(raw)
   if (!verdict) throw new ImageLocalizationError('Kiểm tra mực loang không trả JSON dùng được.')
   return verdict

@@ -471,28 +471,30 @@ export default function TaoNhanGianClientPage() {
                       ))}
                     </div>
                   </div>
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={2}
-                    geminiCost4k={4}
-                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-teal-200 text-teal-700 hover:bg-teal-50" />
-                    <Button
+                                        <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={2}
+                      geminiCost4k={4}
+                      />
+                      <Button
                       onClick={() =>
-                        checkCreditsAndProceed(cost, workshopTab === 'idea' ? handleSubmitIdea : handleSubmitPhoto)
+                      checkCreditsAndProceed(cost, workshopTab === 'idea' ? handleSubmitIdea : handleSubmitPhoto)
                       }
                       disabled={workshopTab === 'idea' ? !prompt.trim() : !photo.file || !photoCaption.trim()}
-                      className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-teal-600 hover:bg-teal-700 text-white"
-                    >
+                      className="shrink-0 max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-teal-600 hover:bg-teal-700 text-white"
+                      >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr('Tạo nhãn', 'Create label', '创建标签', 'ラベルを作成', '라벨 만들기')} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                    </Button>
+                      </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr('Thời gian: 15–45 giây', 'Time: 15–45 seconds', '时间：15–45 秒', '所要時間: 15〜45秒', '소요 시간: 15–45초')}</p>
                   </div>
                 </CardContent>

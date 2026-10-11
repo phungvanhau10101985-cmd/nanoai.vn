@@ -174,7 +174,7 @@ export function PartnerMessagingInboxClient({
   const [inboxQuery, setInboxQuery] = useState('')
   const [shopAiComposing, setShopAiComposing] = useState(false)
   const [createChannelOpen, setCreateChannelOpen] = useState(false)
-  const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'other'>('fashion')
+  const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other'>('fashion')
   const [channelDisplayName, setChannelDisplayName] = useState('')
   const [channelBrandName, setChannelBrandName] = useState('')
   const [channelLogoUrl, setChannelLogoUrl] = useState('')
@@ -575,6 +575,7 @@ export function PartnerMessagingInboxClient({
                     { value: 'fashion', label: 'Mua sắm trực tuyến', hint: 'Bán lẻ · giỏ hàng · tư vấn' },
                     { value: 'hotel', label: 'Nhà nghỉ / khách sạn', hint: 'Đặt phòng · quản lý booking' },
                     { value: 'food', label: 'Nhà hàng / ăn uống', hint: 'Menu · đặt bàn' },
+                    { value: 'it', label: 'Công nghệ thông tin', hint: 'Công cụ số · link tính năng' },
                     { value: 'other', label: 'Khác', hint: 'Tư vấn chung' },
                   ] as const
                 ).map((opt) => {
@@ -605,6 +606,8 @@ export function PartnerMessagingInboxClient({
                   ? 'Tên khách sạn / nhà nghỉ'
                   : channelKind === 'food'
                   ? 'Tên nhà hàng'
+                  : channelKind === 'it'
+                  ? 'Tên nền tảng'
                   : 'Tên shop / kênh hiển thị'}
               </label>
               <Input
@@ -616,6 +619,8 @@ export function PartnerMessagingInboxClient({
                     ? 'VD: Khách sạn Bình Minh'
                     : channelKind === 'food'
                     ? 'VD: Nhà hàng Hương Việt'
+                    : channelKind === 'it'
+                    ? 'VD: NanoAI'
                     : 'VD: Shop của bạn'
                 }
                 maxLength={120}

@@ -39,6 +39,8 @@ import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
@@ -878,6 +880,8 @@ export default function CurriculumViewPage() {
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic'>('curriculum')
   const [infographicGenerating, setInfographicGenerating] = useState(false)
   const [lessonInfographicGenerating, setLessonInfographicGenerating] = useState(false)
+  const [infographicEngine, setInfographicEngine] = useState<ImageEngine>('gemini')
+  const [infographicGptQuality, setInfographicGptQuality] = useState<GptImageQuality>('medium')
   const runtimeHydratedRef = useRef(false)
   useEffect(() => {
     if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
@@ -1332,9 +1336,32 @@ export default function CurriculumViewPage() {
     () => getInfographicStrokeBucketKey(activeVisualInfographic?.imageUrl),
     [activeVisualInfographic?.imageUrl]
   )
+  const infographicImageCost = useMemo(() => {
+    try {
+      return imageEngineCredit({
+        engine: infographicEngine,
+        gptQuality: infographicGptQuality,
+        geminiCost: CURRICULUM_UI_CREDITS.slideInfographic2K,
+      })
+    } catch {
+      return CURRICULUM_UI_CREDITS.slideInfographic2K
+    }
+  }, [infographicEngine, infographicGptQuality])
   const lessonInfographicCostLabel = useMemo(
-    () => formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K),
-    []
+    () => formatCurriculumCredits(infographicImageCost),
+    [infographicImageCost]
+  )
+  const renderInfographicEnginePicker = () => (
+    <ImageEnginePicker
+      locale={uiLocale}
+      engine={infographicEngine}
+      onEngineChange={setInfographicEngine}
+      geminiQuality="2K"
+      onGeminiQualityChange={() => {}}
+      gptQuality={infographicGptQuality}
+      onGptQualityChange={setInfographicGptQuality}
+      geminiCost2k={CURRICULUM_UI_CREDITS.slideInfographic2K}
+    />
   )
   useEffect(() => {
     setInfographicSourceView((prev) => {
@@ -2734,6 +2761,8 @@ export default function CurriculumViewPage() {
           outputLocale: getWebLocaleFromCookie(),
           scope: 'curriculum',
           regenerate: Boolean(curriculumInfographic?.imageUrl),
+          imageEngine: infographicEngine,
+          gptQuality: infographicGptQuality,
         }),
       })
       let data: {
@@ -2794,7 +2823,7 @@ export default function CurriculumViewPage() {
     } finally {
       setInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent])
+  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicEngine, infographicGptQuality])
 
   const generateLessonInfographic = useCallback(async () => {
     if (!curriculumId || worksheetId) return
@@ -2861,6 +2890,8 @@ export default function CurriculumViewPage() {
           scope: 'lesson',
           lessonNo: activeLessonNo,
           regenerate: lessonInfographicExists,
+          imageEngine: infographicEngine,
+          gptQuality: infographicGptQuality,
         }),
       })
       let data: {
@@ -2929,7 +2960,7 @@ export default function CurriculumViewPage() {
     } finally {
       setLessonInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex])
+  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex, infographicEngine, infographicGptQuality])
 
   const infographicCostSuffix = useCallback(
     (hasExisting: boolean, costLabel: string) =>
@@ -5585,7 +5616,7 @@ export default function CurriculumViewPage() {
                     infographicSourceView !== 'visual'
                   )
                   const canGenerateVisualInfographic = !worksheetId && !curriculumInfographic && !!curriculumId
-                  const visualInfographicCostLabel = formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K)
+                  const visualInfographicCostLabel = lessonInfographicCostLabel
                   const slideNum = currentIndex + 1
                   const gradient = DARK_GRADIENTS[currentIndex % DARK_GRADIENTS.length]
                   const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
@@ -5607,7 +5638,8 @@ export default function CurriculumViewPage() {
                         {slideNum}
                       </div>
                       {!worksheetId && (
-                        <div className="absolute right-4 top-2 z-10 flex items-center gap-2">
+                        <div className="absolute right-4 top-2 z-10 flex flex-wrap items-center justify-end gap-2">
+                          {renderInfographicEnginePicker()}
                           <button
                             type="button"
                             onClick={handleGenerateLessonInfographic}
@@ -5748,7 +5780,8 @@ export default function CurriculumViewPage() {
                             ) : (
                               <div className="h-full w-full flex items-center justify-center p-3">
                                 {canGenerateVisualInfographic ? (
-                                  <div className="flex flex-col gap-2">
+                                  <div className="flex flex-wrap items-center justify-center gap-2">
+                                    {renderInfographicEnginePicker()}
                                     <button
                                       type="button"
                                       disabled={lessonInfographicGenerating || !activeLessonNo}
@@ -5862,7 +5895,8 @@ export default function CurriculumViewPage() {
                                 ) : (
                                   <div className="h-full w-full flex items-center justify-center p-2">
                                     {canGenerateVisualInfographic ? (
-                                      <div className="flex flex-col gap-1.5">
+                                      <div className="flex flex-wrap items-center justify-center gap-2">
+                                        {renderInfographicEnginePicker()}
                                         <button
                                           type="button"
                                           disabled={lessonInfographicGenerating || !activeLessonNo}
@@ -5902,7 +5936,7 @@ export default function CurriculumViewPage() {
                   if (slides.length === 0) return <p className="p-4 text-slate-500 text-sm">{tr('Không có slide', 'No slide', '无幻灯片', 'スライドなし', '슬라이드 없음')}</p>
                   const infographicStableBackground = 'linear-gradient(180deg, #0b1220 0%, #0f172a 100%)'
                   const inf = activeVisualInfographic
-                  const costLabel = formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K)
+                  const costLabel = lessonInfographicCostLabel
                   return (
                     <div className="h-full w-full overflow-y-auto overflow-x-hidden" style={{ background: infographicStableBackground }}>
                       <div className="p-4 space-y-3 text-left">
@@ -5926,7 +5960,8 @@ export default function CurriculumViewPage() {
                                 '첫 생성(차시·전체)은 무료. 다시 만들 때만 크레딧 차감.'
                               )}
                             </p>
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {renderInfographicEnginePicker()}
                               <button
                                 type="button"
                                 disabled={!curriculumId || lessonInfographicGenerating || !activeLessonNo}
@@ -6022,7 +6057,8 @@ export default function CurriculumViewPage() {
                                 {tr('Clear', 'Clear', '清除', 'クリア', '지우기')}
                               </button>
                             </div>
-                            <div className="flex flex-wrap justify-center gap-2">
+                            <div className="flex flex-wrap items-center justify-center gap-2">
+                              {renderInfographicEnginePicker()}
                               <button
                                 type="button"
                                 disabled={lessonInfographicGenerating || !activeLessonNo || !curriculumId}

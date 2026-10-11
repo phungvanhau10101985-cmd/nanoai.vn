@@ -11,9 +11,9 @@ import { inventoryCardRowToShopProduct } from '@/lib/partner-website/shop/invent
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
+  partnerSiteCatalogHitPath,
   partnerSiteCategoryPath,
   partnerSiteKhoSalePath,
-  partnerSiteProductPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import {
   isSaleListingSearchTerm,
@@ -35,6 +35,7 @@ export const maxDuration = 60
 
 function mapVectorProducts(
   siteSlug: string,
+  industryKey: string | null,
   matches: Array<{
     inventory_id: string
     name: string
@@ -56,7 +57,11 @@ function mapVectorProducts(
     priceHint: null as string | null,
     price_hint: null as string | null,
     score: m.score ?? null,
-    detailPath: partnerSiteProductPath(siteSlug, m.inventory_id, { name: m.name }),
+    detailPath: partnerSiteCatalogHitPath(siteSlug, m.inventory_id, {
+      name: m.name,
+      industryKey,
+      productUrl: m.product_url,
+    }),
   }))
 }
 
@@ -149,7 +154,7 @@ async function handleTextSearch(
 
   if (page.count > 0) {
     const products = page.rows
-      .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row))
+      .map((row) => inventoryCardRowToShopProduct(shop.site.siteSlug, row, { industryKey: shop.industryKey }))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
       .map((p) => ({
         id: p.id,
@@ -177,7 +182,7 @@ async function handleTextSearch(
   if (q.length >= 2) {
     const vector = await matchInventoryForPublicTextSearchApi(shop.partnerId, q, limit)
     if (vector.ok && vector.matches.length) {
-      const products = mapVectorProducts(shop.site.siteSlug, vector.matches)
+      const products = mapVectorProducts(shop.site.siteSlug, shop.industryKey, vector.matches)
       return NextResponse.json({
         ok: true,
         source: 'vector',

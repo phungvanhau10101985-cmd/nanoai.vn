@@ -17,6 +17,8 @@ import { createPortal } from 'react-dom'
 import type { ChangeEvent, ClipboardEvent, RefObject } from 'react'
 import { resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
 import { Button } from '@/components/ui/button'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -1897,6 +1899,14 @@ export function PartnerGuestChatClient({
   /** `open_try_on=1` từ widget — hiển thị gợi ý ảnh người / credits trong iframe. */
   const [tryOnOpenedViaEmbedQuery, setTryOnOpenedViaEmbedQuery] = useState(() => initialTryOnOpenFromGuestUrl(slug))
   const [tryOnBusy, setTryOnBusy] = useState(false)
+  const [tryOnEngine, setTryOnEngine] = useState<ImageEngine>('gemini')
+  const [tryOnGeminiQuality, setTryOnGeminiQuality] = useState<'2K' | '4K'>('2K')
+  const [tryOnGptQuality, setTryOnGptQuality] = useState<GptImageQuality>('medium')
+  const tryOnCost = imageEngineCredit({
+    engine: tryOnEngine,
+    gptQuality: tryOnGptQuality,
+    geminiCost: tryOnGeminiQuality === '4K' ? TRY_ON_COST_2K * 2.2 : TRY_ON_COST_2K,
+  })
   const [tryOnCreditsBalance, setTryOnCreditsBalance] = useState<number | null>(null)
   const [tryOnCreditsLoading, setTryOnCreditsLoading] = useState(false)
   const [topUpOpen, setTopUpOpen] = useState(false)
@@ -4876,7 +4886,7 @@ export function PartnerGuestChatClient({
       toast({ title: t.tryOnNeedBoth, variant: 'destructive' })
       return
     }
-    if (typeof tryOnCreditsBalance === 'number' && tryOnCreditsBalance < TRY_ON_COST_2K) {
+    if (typeof tryOnCreditsBalance === 'number' && tryOnCreditsBalance < tryOnCost) {
       toast({ title: t.toastTryOnInsufficientCredits, variant: 'destructive' })
       void openTopUpPopup()
       return
@@ -4895,7 +4905,9 @@ export function PartnerGuestChatClient({
         }
       })
       fd.set('garmentCount', String(tryOnGarmentFiles.length))
-      fd.set('imageQuality', '2K')
+      fd.set('imageQuality', tryOnGeminiQuality)
+      fd.set('imageEngine', tryOnEngine)
+      fd.set('gptQuality', tryOnGptQuality)
 
       const res = await fetch(`/api/messaging/guest/${encodeURIComponent(slug)}/try-on`, {
         method: 'POST',
@@ -4947,7 +4959,7 @@ export function PartnerGuestChatClient({
         setTryOnCreditsBalance(Math.max(0, data.creditsRemaining))
       }
       const deducted =
-        typeof data.deductedCredits === 'number' ? formatCredits(Math.max(0, data.deductedCredits)) : formatCredits(TRY_ON_COST_2K)
+        typeof data.deductedCredits === 'number' ? formatCredits(Math.max(0, data.deductedCredits)) : formatCredits(tryOnCost)
       toast({
         title: t.tryOnReady,
         description: t.tryOnChargedToast
@@ -5172,11 +5184,11 @@ export function PartnerGuestChatClient({
       return
     }
     if (authMode !== 'account' || tryOnCreditsLoading) return
-    if (typeof tryOnCreditsBalance !== 'number' || tryOnCreditsBalance >= TRY_ON_COST_2K) return
+    if (typeof tryOnCreditsBalance !== 'number' || tryOnCreditsBalance >= tryOnCost) return
     if (tryOnZeroCreditAutoTopUpRef.current) return
     tryOnZeroCreditAutoTopUpRef.current = true
     void beginTopUpModalFlow()
-  }, [tryOnOpen, authMode, tryOnCreditsBalance, tryOnCreditsLoading, beginTopUpModalFlow])
+  }, [tryOnOpen, authMode, tryOnCreditsBalance, tryOnCreditsLoading, tryOnCost, beginTopUpModalFlow])
 
   const createTopUpPayment = useCallback(async () => {
     const amount = Math.max(1000, Math.round(Number(topUpAmount) || 0))
@@ -7872,18 +7884,31 @@ export function PartnerGuestChatClient({
                     </div>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-10 w-full gap-1.5"
-                      disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
-                      onClick={() => void runTryOn()}
-                    >
-                      {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                      {tryOnBusy
-                        ? t.tryOnPreparing
-                        : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(TRY_ON_COST_2K))}
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ImageEnginePicker
+                        locale={uiLocale}
+                        engine={tryOnEngine}
+                        onEngineChange={setTryOnEngine}
+                        geminiQuality={tryOnGeminiQuality}
+                        onGeminiQualityChange={setTryOnGeminiQuality}
+                        gptQuality={tryOnGptQuality}
+                        onGptQualityChange={setTryOnGptQuality}
+                        geminiCost2k={TRY_ON_COST_2K}
+                        geminiCost4k={TRY_ON_COST_2K * 2.2}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-10 min-w-0 flex-1 gap-1.5"
+                        disabled={tryOnBusy || !tryOnUserFile || tryOnGarmentFiles.length === 0}
+                        onClick={() => void runTryOn()}
+                      >
+                        {tryOnBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                        {tryOnBusy
+                          ? t.tryOnPreparing
+                          : t.tryOnGenerateWithCost.replace('{credits}', formatCredits(tryOnCost))}
+                      </Button>
+                    </div>
                     <div className="flex items-center justify-between gap-1.5">
                       <span className="inline-flex h-7 items-center rounded-md border border-border/70 bg-background/70 px-2 text-[10px] font-medium text-muted-foreground sm:text-[11px]">
                         {t.tryOnCreditsBalanceLabel.replace(

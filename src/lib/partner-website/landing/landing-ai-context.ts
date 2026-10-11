@@ -14,7 +14,7 @@ import {
 import { fetchPartnerProductRatingSummaryFromPg } from '@/lib/db/messaging-partner-reviews-pg'
 import { inventoryShopDisplayDescription } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { collectShopProductGalleryImages } from '@/lib/partner-website/shop/inventory-shop-detail'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerLandingPageRow } from '@/lib/partner-website/landing/partner-landing-types'
 import type { LandingAiContext, LandingAiProduct } from '@/lib/partner-website/landing/landing-ai-types'
 
@@ -24,18 +24,27 @@ import type { LandingAiContext, LandingAiProduct } from '@/lib/partner-website/l
  * 188_BEHAVIOR_SPEC.md (AI không ghi ngược vào products/inventory).
  */
 
-function inventoryRowToLandingProduct(siteSlug: string, row: MessagingPartnerInventoryRow): LandingAiProduct {
+function inventoryRowToLandingProduct(
+  siteSlug: string,
+  row: MessagingPartnerInventoryRow,
+  industryKey: string | null
+): LandingAiProduct {
   const gallery = collectShopProductGalleryImages(row)
+  const name = row.name?.trim() || 'Sản phẩm'
   return {
     id: row.id,
-    name: row.name?.trim() || 'Sản phẩm',
+    name,
     material: row.material_note?.trim() || '',
     description: inventoryShopDisplayDescription(row),
     imageUrl: row.image_url?.trim() || gallery[0] || '',
     galleryImages: gallery,
     priceAmount: row.price_amount ?? null,
     priceHint: row.price_hint?.trim() || '',
-    detailPath: partnerSiteProductPath(siteSlug, row.id, { name: row.name?.trim() || 'san-pham' }),
+    detailPath: partnerSiteCatalogHitPath(siteSlug, row.id, {
+      name,
+      industryKey,
+      productUrl: row.product_url,
+    }),
   }
 }
 
@@ -79,7 +88,7 @@ export async function buildLandingAiContext(
     rows = (await fetchPartnerInventoryRowsByIdsInOrderFromPg(partnerId, landing.inventoryIds)) ?? []
   }
 
-  const products = rows.map((r) => inventoryRowToLandingProduct(website.siteSlug, r))
+  const products = rows.map((r) => inventoryRowToLandingProduct(website.siteSlug, r, partner.industryKey))
 
   let categoryName: string | null = null
   let categorySeoTitle: string | null = null

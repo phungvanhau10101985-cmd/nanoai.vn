@@ -39,6 +39,7 @@ export default async function PartnerSiteWishlistPage({ params }: Props) {
     partnerId: shop.partnerId,
     siteSlug: shop.site.siteSlug,
     mode: 'favorites',
+    industryKey: shop.industryKey,
   })
 
   return (

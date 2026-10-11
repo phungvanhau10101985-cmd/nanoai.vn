@@ -66,6 +66,9 @@ export const API_COST_PER_1M: Record<string, ModelUsdRates> = {
   /** Gemini 3 Pro (text) — cùng hàng với 3 Flash trên một số bảng; giữ tier 200k nếu có. */
   'gemini-3-pro-preview': { input: 2, output: 12, inputLong: 4, outputLong: 18 },
 
+  /** Gemini 3.5 Flash-Lite — $0.30 / $2.50 mỗi 1M token (standard). */
+  'gemini-3.5-flash-lite': { input: 0.3, output: 2.5 },
+
   /** Gemini 3.1 Flash-Lite Preview. */
   'gemini-3.1-flash-lite-preview': { input: 0.25, output: 1.5 },
 

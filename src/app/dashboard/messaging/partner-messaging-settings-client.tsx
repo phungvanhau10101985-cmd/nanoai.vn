@@ -137,11 +137,12 @@ const INDUSTRY_OPTIONS = [
   { value: 'fashion', label: 'Mua sắm trực tuyến' },
   { value: 'hotel', label: 'Khach san' },
   { value: 'food', label: 'Quan an' },
+  { value: 'it', label: 'Công nghệ thông tin' },
   { value: 'other', label: 'Nganh khac' },
 ] as const
 
 function industrySelectValue(key: string): (typeof INDUSTRY_OPTIONS)[number]['value'] {
-  if (key === 'hotel' || key === 'food' || key === 'other') return key
+  if (key === 'hotel' || key === 'food' || key === 'other' || key === 'it') return key
   return 'fashion'
 }
 
@@ -557,7 +558,7 @@ export function PartnerMessagingSettingsClient({
   useRegisterStepUpShop(selectedPartnerId)
   const [workspaceName, setWorkspaceName] = useState('')
   const [workspaceBrandName, setWorkspaceBrandName] = useState('')
-  const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'other'>('fashion')
+  const [workspaceIndustry, setWorkspaceIndustry] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other'>('fashion')
   const [workspaceLogoUrl, setWorkspaceLogoUrl] = useState('')
   const [fbPageId, setFbPageId] = useState('')
   const [fbToken, setFbToken] = useState('')

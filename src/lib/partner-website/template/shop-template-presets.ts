@@ -471,11 +471,11 @@ export function shopTemplatePresetDescription(preset: ShopTemplatePreset, locale
 }
 
 export function suggestedShopTemplatePresetForIndustry(
-  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null | undefined
+  industryKey: 'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other' | null | undefined
 ): ShopTemplatePresetId {
   if (industryKey === 'hotel') return 'hospitality-stay'
   if (industryKey === 'fashion') return 'fashion-orange'
   if (industryKey === 'food') return 'food-warm'
-  if (industryKey === 'machinery') return 'commerce-blue'
+  if (industryKey === 'machinery' || industryKey === 'it') return 'commerce-blue'
   return 'commerce-blue'
 }

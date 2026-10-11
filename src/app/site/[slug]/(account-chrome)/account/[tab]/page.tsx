@@ -105,6 +105,7 @@ export default async function PartnerSiteAccountTabPage({ params, searchParams }
           partnerId: shop.partnerId,
           siteSlug: shop.site.siteSlug,
           mode: normalized === 'wishlist' ? 'favorites' : 'recently-viewed',
+          industryKey: shop.industryKey,
         })
       : undefined
 

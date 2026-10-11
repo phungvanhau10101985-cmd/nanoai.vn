@@ -3,6 +3,7 @@ import { getUserForCreditAction } from '@/lib/auth'
 import { resolveFashionMessagingPartnerBySlug } from '@/lib/messaging/resolve-active-messaging-partner'
 import { buildSinglePersonPrompt } from '@/lib/try-on/try-on-prompts'
 import { runVirtualTryOnPipeline } from '@/lib/try-on/run-virtual-try-on-pipeline'
+import { imageChargeFromForm } from '@/lib/ai/image-engine'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -101,17 +102,22 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const imageQualityRaw = String(formData.get('imageQuality') ?? '2K')
   const imageQuality = imageQualityRaw === '4K' ? '4K' : '2K'
   const prompt = buildSinglePersonPrompt('female', '', garmentImages.length)
-  const baseCost = CHAT_TRY_ON_COST_2K
-  const cost = imageQuality === '4K' ? baseCost * 2.2 : baseCost
+  const geminiCost = imageQuality === '4K' ? CHAT_TRY_ON_COST_2K * 2.2 : CHAT_TRY_ON_COST_2K
+  const charge = imageChargeFromForm(formData, geminiCost)
+  if (charge.error) {
+    return NextResponse.json({ error: charge.error }, { status: 400 })
+  }
+  const cost = charge.cost
 
   const pipe = await runVirtualTryOnPipeline({
-    // Charge credits to the currently signed-in browser user.
     billingUserId: user.id,
     prompt,
     cost,
     imageQuality,
     userImage,
     garmentFilesOrdered: allGarments,
+    engine: charge.engine,
+    gptQuality: charge.gptQuality,
   })
 
   if ('error' in pipe) {

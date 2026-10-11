@@ -46,7 +46,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
   }
   const products = (block.rows ?? [])
     .map((row) => {
-      const mapped = mapInventoryRowToPersonalizationProduct(shop.site.siteSlug, row, overlay)
+      const mapped = mapInventoryRowToPersonalizationProduct(shop.site.siteSlug, row, overlay, shop.industryKey)
       if (!mapped) return null
       return attachPartnerBirthdayOffer(applyPartnerFlashSaleToProduct(mapped, block.assignment), birthdayOffer)
     })

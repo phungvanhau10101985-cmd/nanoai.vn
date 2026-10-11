@@ -23,7 +23,7 @@ import {
   shopDisplayConsultNote,
 } from '@/lib/partner-website/shop/pdp-product-info-html'
 import type { LivePdpBindColor } from '@/lib/partner-website/shop/bind-live-product-to-pdp-html'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { normalizePartnerSalePriceAmount } from '@/lib/partner-website/shop/partner-shop-flash-sale'
 
 type InventoryShopProductRow = InventoryShopSourceRow & {
@@ -323,11 +323,16 @@ export function inventoryShopDisplayDescription(row: {
 export function inventoryRowToShopProduct(
   siteSlug: string,
   rawRow: InventoryShopProductRow,
-  opts?: { pdp?: boolean }
+  opts?: { pdp?: boolean; industryKey?: string | null }
 ): PartnerSiteShopProduct | null {
   const row = hydrateInventoryShopRowFromCatalog188(rawRow)
   const name = (row.name ?? '').trim() || 'Product'
-  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const pdpPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const detailPath = partnerSiteCatalogHitPath(siteSlug, row.id, {
+    name,
+    industryKey: opts?.industryKey,
+    productUrl: row.product_url,
+  })
   const galleryImages = collectShopProductGalleryImages(row)
   const snap = catalog188SnapshotOf(row.catalog_json)
   const rawImage =
@@ -353,7 +358,7 @@ export function inventoryRowToShopProduct(
   // Chat inventory often omits product_url — shop detail path is enough.
   const productUrl = /^https?:\/\//i.test(rawProductUrl)
     ? rawProductUrl
-    : `https://shop.local${detailPath}`
+    : `https://shop.local${pdpPath}`
   const variants = inventoryRowToLivePdpVariants(row)
   const sku = (row.sku ?? '').trim() || (row.remarketing_id ?? '').trim()
   const textField = (raw: unknown) => {
@@ -439,10 +444,16 @@ export function inventoryRowToShopProduct(
  */
 export function inventoryCardRowToShopProduct(
   siteSlug: string,
-  row: PartnerInventoryShopCardRow
+  row: PartnerInventoryShopCardRow,
+  opts?: { industryKey?: string | null }
 ): PartnerSiteShopProduct {
   const name = row.name.trim() || 'Product'
-  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const pdpPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const detailPath = partnerSiteCatalogHitPath(siteSlug, row.id, {
+    name,
+    industryKey: opts?.industryKey,
+    productUrl: row.product_url,
+  })
   const rawImage = normalizeShopImageUrl(row.image_url)
   const sized = shopCardDisplaySrc(rawImage)
   const imageUrl =
@@ -462,7 +473,7 @@ export function inventoryCardRowToShopProduct(
     imageUrl,
     productUrl: /^https?:\/\//i.test(rawProductUrl)
       ? rawProductUrl
-      : `https://shop.local${detailPath}`,
+      : `https://shop.local${pdpPath}`,
     sku: row.sku?.trim() || row.remarketing_id.trim(),
     detailPath,
     stockQty: Math.max(0, Math.round(Number(row.stock_qty)) || 0),

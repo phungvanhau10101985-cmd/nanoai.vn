@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
+import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import {
   guardPartnerCatalogApi,
   headlessPersonalizationCorsHeaders,
@@ -57,12 +58,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ partnerId: 
   }
 
   const limit = Math.min(24, Math.max(1, Number(req.nextUrl.searchParams.get('limit') ?? 8) || 8))
+  const shop = await loadPartnerSiteShopContext(siteSlug)
   const products = await getSiteRecommendedProducts({
     partnerId,
     siteSlug,
     accountKey: headlessPersonalizationAccountKey(customerRef),
     linkedUserId: null,
     limit,
+    industryKey: shop?.industryKey,
   })
 
   return jsonHeadlessPersonalizationWithCors(

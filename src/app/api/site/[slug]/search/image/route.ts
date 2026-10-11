@@ -17,7 +17,7 @@ import {
   peekSiteVisitorAccountKeyFromRequest,
   resolveSiteVisitorEmail,
 } from '@/lib/partner-website/shop/partner-site-personalization'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
   const ids = candidates.map((c) => c.inventoryId).filter(Boolean)
   const rows = ids.length ? await fetchPartnerInventoryCardsByIdsInOrderFromPg(shop.partnerId, ids) : []
   const mapped = (rows ?? [])
-    .map((row) => inventoryCardRowToShopProduct(siteSlug, row))
+    .map((row) => inventoryCardRowToShopProduct(siteSlug, row, { industryKey: shop.industryKey }))
     .filter((p): p is NonNullable<typeof p> => Boolean(p))
   const saleConfig = await fetchPartnerSaleCalendarConfigFromPg(shop.partnerId).catch(() => null)
   let withFaces = mapped
@@ -151,7 +151,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         ratingScore: 0,
         purchasesCount: 0,
         score: c.score ?? null,
-        detailPath: partnerSiteProductPath(siteSlug, c.inventoryId, { name: c.name }),
+        detailPath: partnerSiteCatalogHitPath(siteSlug, c.inventoryId, {
+          name: c.name,
+          industryKey: shop.industryKey,
+          productUrl: c.product_url,
+        }),
         color_variants: c.color_variants ?? [],
         color_image_urls: (c.color_image_urls ?? []).map((url) => shopCardDisplaySrc(url) || url),
       }

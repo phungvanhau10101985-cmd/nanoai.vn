@@ -282,6 +282,8 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                           <button key={r.value} type="button" onClick={() => setAspectRatio(r.value)} className={`px-2 py-1.5 rounded-md border text-xs transition-colors ${aspectRatio === r.value ? 'border-rose-500 bg-rose-50 text-rose-800' : 'border-gray-200 bg-white hover:bg-gray-50 text-muted-foreground'}`}>{r.label}</button>
                         ))}
                       </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
                       <ImageEnginePicker
                         locale={uiLocale}
                         engine={imageEngine}
@@ -293,11 +295,11 @@ export default function TaoTemNiemPhongBaoHanhClientPage() {
                         geminiCost2k={1.5}
                         geminiCost4k={3}
                       />
+                      <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} disabled={false} className="bg-rose-600 hover:bg-rose-700 text-white">
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        {tr('Tạo tem bằng AI', 'Create seal with AI', 'AI 创建标签', 'AIでシール作成', 'AI로 씰 만들기')} ({cost} credits)
+                      </Button>
                     </div>
-                    <Button onClick={() => checkCreditsAndProceed(cost, () => void handleSubmit())} disabled={false} className="w-full bg-rose-600 hover:bg-rose-700 text-white">
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      {tr('Tạo tem bằng AI', 'Create seal with AI', 'AI 创建标签', 'AIでシール作成', 'AI로 씰 만들기')} ({cost} credits)
-                    </Button>
                   </CardContent>
                 </Card>
               </div>

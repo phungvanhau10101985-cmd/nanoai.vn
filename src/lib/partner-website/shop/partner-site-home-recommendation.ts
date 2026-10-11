@@ -31,7 +31,7 @@ import {
 } from '@/lib/partner-website/shop/partner-site-home-recommendation-mix'
 import type { PartnerInventoryShopCardRow } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteCatalogHitPath, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import type { PartnerSitePersonalizationProduct } from '@/lib/partner-website/shop/partner-site-personalization'
 import { applyPartnerStorefrontSaleFaces, loadPartnerSiteSaleOverlay } from '@/lib/partner-website/promotions/partner-site-sale-attach'
 
@@ -51,18 +51,25 @@ function isoOrNull(value: unknown): string | null {
 
 function mapInventoryRowToPersonalizationProduct(
   siteSlug: string,
-  row: PartnerInventoryShopCardRow
+  row: PartnerInventoryShopCardRow,
+  industryKey?: string | null
 ): PartnerSitePersonalizationProduct | null {
   const imageUrl = shopCardDisplaySrc(row.image_url)
   if (!imageUrl) return null
-  const detailPath = partnerSiteProductPath(siteSlug, row.id, { name: (row.name ?? '').trim() || 'Product' })
+  const name = (row.name ?? '').trim() || 'Product'
   const rawProductUrl = (row.product_url ?? '').trim()
+  const pdpPath = partnerSiteProductPath(siteSlug, row.id, { name })
+  const detailPath = partnerSiteCatalogHitPath(siteSlug, row.id, {
+    name,
+    industryKey,
+    productUrl: rawProductUrl,
+  })
   return {
     inventory_id: row.id,
-    name: (row.name ?? '').trim() || 'Product',
+    name,
     price_hint: (row.price_hint ?? '').trim(),
     image_url: imageUrl,
-    product_url: HTTP_RE.test(rawProductUrl) ? rawProductUrl : `https://shop.local${detailPath}`,
+    product_url: HTTP_RE.test(rawProductUrl) ? rawProductUrl : `https://shop.local${pdpPath}`,
     detail_path: detailPath,
     sku: (row.sku ?? '').trim() || null,
     priceAmount: numberOrNull(row.price_amount),
@@ -144,6 +151,7 @@ async function sameShopAndL3Products(input: {
   limit: number
   seed: number
   offset?: number
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const historyIds = input.viewedIds.slice(0, SAME_CATEGORY_HISTORY_WINDOW)
   if (!historyIds.length) return []
@@ -188,7 +196,7 @@ async function sameShopAndL3Products(input: {
       const sig = signalOf<InventorySameShopSignal>(candidateSignals, row.id)
       const pair = shopL3PairKey(sig?.sourceShopKey, sig?.l3Key)
       if (!sig || sig.sourceShopKey !== shop || !pair || !allowedPairs.has(pair)) continue
-      const mapped = mapInventoryRowToPersonalizationProduct(input.siteSlug, row)
+      const mapped = mapInventoryRowToPersonalizationProduct(input.siteSlug, row, input.industryKey)
       if (mapped) same.push(mapped)
     }
     if (same.length) queues.set(shop, seededShuffle(same, input.seed + shop.length))
@@ -212,6 +220,7 @@ async function cohortProducts(input: {
   excludeIds: Set<string>
   limit: number
   seed: number
+  industryKey?: string | null
 }): Promise<{ products: PartnerSitePersonalizationProduct[]; mode: SameAgeGenderCohortMode }> {
   const exact =
     input.birthYear != null
@@ -246,7 +255,7 @@ async function cohortProducts(input: {
   const products: PartnerSitePersonalizationProduct[] = []
   for (const row of rows) {
     if (!row.is_active) continue
-    const mapped = mapInventoryRowToPersonalizationProduct(input.siteSlug, row)
+    const mapped = mapInventoryRowToPersonalizationProduct(input.siteSlug, row, input.industryKey)
     if (mapped) products.push(mapped)
     if (products.length >= input.limit) break
   }
@@ -259,6 +268,7 @@ async function popularFallbackProducts(input: {
   excludeIds: string[]
   limit: number
   balanceGender: boolean
+  industryKey?: string | null
 }): Promise<PartnerSitePersonalizationProduct[]> {
   const ids = await fetchPopularInventoryIdsFromPg({
     partnerId: input.partnerId,
@@ -272,7 +282,7 @@ async function popularFallbackProducts(input: {
   )
   const mapped = rows
     .map((row) => {
-      const product = mapInventoryRowToPersonalizationProduct(input.siteSlug, row)
+      const product = mapInventoryRowToPersonalizationProduct(input.siteSlug, row, input.industryKey)
       if (!product) return null
       const gender =
         signalOf(signals, row.id)?.gender || inferApparelGenderFromName(row.name)
@@ -309,6 +319,7 @@ export async function getSiteHomeRecommendationBlock(input: {
   mixSeed?: number | null
   /** 188 «Xem thêm»: chỉ thêm cùng shop TQ + L3, không trộn lại cohort. */
   sameShopOnly?: boolean
+  industryKey?: string | null
 }): Promise<PartnerSiteHomeRecommendationBlock> {
   const limit = Math.max(1, Math.min(48, Math.floor(Number(input.limit) || HOME_RECOMMENDATION_SHOP_LIMIT)))
   const offset = Math.max(0, Math.floor(Number(input.offset) || 0))
@@ -336,6 +347,7 @@ export async function getSiteHomeRecommendationBlock(input: {
     limit: limit + 1,
     seed,
     offset: shopOnly ? offset : 0,
+    industryKey: input.industryKey,
   })
   const hasMoreShop = shop.length > limit
   const shopPage = shop.slice(0, limit)
@@ -386,6 +398,7 @@ export async function getSiteHomeRecommendationBlock(input: {
       excludeIds: viewedSet,
       limit: HOME_RECOMMENDATION_COHORT_LIMIT,
       seed,
+      industryKey: input.industryKey,
     })
     cohort = sampled.products
     cohortMode = sampled.mode
@@ -399,6 +412,7 @@ export async function getSiteHomeRecommendationBlock(input: {
       excludeIds: viewedIds,
       limit,
       balanceGender: true,
+      industryKey: input.industryKey,
     })
     cohortMode = cohort.length ? 'popular_fallback' : 'requires_login'
   }
@@ -410,6 +424,7 @@ export async function getSiteHomeRecommendationBlock(input: {
       excludeIds: viewedIds,
       limit,
       balanceGender: !demo.gender,
+      industryKey: input.industryKey,
     })
     if (cohort.length && cohortMode === 'requires_login') cohortMode = 'popular_fallback'
   }

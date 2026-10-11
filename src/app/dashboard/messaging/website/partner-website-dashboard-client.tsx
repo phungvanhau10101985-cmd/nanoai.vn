@@ -129,7 +129,7 @@ type WebsiteDashboardPartner = {
   brand_name: string | null
   display_name: string | null
   logo_url?: string | null
-  industry_key?: 'fashion' | 'hotel' | 'food' | 'machinery' | 'other' | null
+  industry_key?: 'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other' | null
 }
 
 type Props = {
@@ -670,6 +670,8 @@ export function PartnerWebsiteDashboardClient({
                           ? t.industryLabelFood
                           : (p.industry_key || 'fashion') === 'machinery'
                             ? t.industryLabelMachinery
+                            : (p.industry_key || 'fashion') === 'it'
+                              ? t.industryLabelIt
                             : (p.industry_key || 'fashion') === 'other'
                               ? t.industryLabelOther
                               : t.industryLabelFashion}

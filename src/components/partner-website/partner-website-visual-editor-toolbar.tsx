@@ -6,6 +6,8 @@ import Link from 'next/link'
 import { AlignCenter, AlignLeft, AlignRight, ArrowDown, ArrowUp, Bell, Bold, Camera, Check, ChevronLeft, ChevronRight, CircleHelp, ClipboardList, Clock, Copy, CreditCard, Crop, Download, ExternalLink, Eye, EyeOff, FileText, GripVertical, Handshake, Heart, Home, ImagePlus, Images, Info, Landmark, LayoutGrid, LayoutTemplate, Loader2, Lock, LogIn, LogOut, Mail, MapPin, Menu, MessageCircle, MousePointerClick, Newspaper, Package, Palette, Pencil, Phone, Plus, Redo2, RotateCcw, Ruler, Search, Share2, Shield, Shirt, ShoppingBag, Sparkles, Square, Store, Tag, Ticket, Trash2, Trophy, Truck, Type, Undo2, Upload, User, UserPlus, Video, Wallet, X, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
+import type { GptImageQuality, ImageEngine } from '@/lib/ai/image-engine'
 import {
   AlertDialog,
   AlertDialogContent,
@@ -1907,6 +1909,8 @@ export function PartnerWebsiteVisualEditorToolbar({
   const [saving, setSaving] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
   const [aiBusy, setAiBusy] = useState(false)
+  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
+  const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [aiPrompt, setAiPrompt] = useState('')
   const [aiImageColor, setAiImageColor] = useState(() =>
     theme ? cssColorToHex(resolveShopThemeColors(theme).primaryColor, '#c2410c') : '#c2410c'
@@ -3098,6 +3102,8 @@ export function PartnerWebsiteVisualEditorToolbar({
             kind: input.kind,
             aspectRatio: input.aspectRatio,
             stripBackground: input.kind === 'logo' ? Boolean(input.stripBackground ?? logoStripBg) : undefined,
+            imageEngine,
+            gptQuality,
           }),
         }
       )
@@ -3846,12 +3852,23 @@ export function PartnerWebsiteVisualEditorToolbar({
         />
         <span>{t.visualEditLogoStripBg}</span>
       </label>
+      <div className="flex flex-wrap items-center gap-1">
+      <ImageEnginePicker
+        locale={locale}
+        engine={imageEngine}
+        onEngineChange={setImageEngine}
+        geminiQuality="2K"
+        onGeminiQualityChange={() => {}}
+        gptQuality={gptQuality}
+        onGptQualityChange={setGptQuality}
+        geminiCost2k={1.5}
+      />
       <Button
         type="button"
         size="sm"
         className={cn(
           compact ? 'h-6 px-1.5 text-[10px]' : 'h-7 px-2 text-xs',
-          'w-full justify-center'
+          'shrink-0 justify-center'
         )}
         disabled={busy}
         title={logoActionLabel}
@@ -3860,6 +3877,7 @@ export function PartnerWebsiteVisualEditorToolbar({
         {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
         {logoActionLabel}
       </Button>
+      </div>
       <div className="flex flex-wrap gap-0.5" title={t.visualEditLogoAspect}>
         {LOGO_GEMINI_ASPECT_RATIOS.map((aspect) => (
           <button
@@ -4290,16 +4308,28 @@ export function PartnerWebsiteVisualEditorToolbar({
             </Button>
           ) : null}
         </div>
-        <Button
-          type="button"
-          size="sm"
-          className={cn(btn, 'w-full')}
-          disabled={busy}
-          onClick={() => void handleGenerateAi()}
-        >
-          {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-          {t.visualEditCreateWithAi}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1">
+          <ImageEnginePicker
+            locale={locale}
+            engine={imageEngine}
+            onEngineChange={setImageEngine}
+            geminiQuality="2K"
+            onGeminiQualityChange={() => {}}
+            gptQuality={gptQuality}
+            onGptQualityChange={setGptQuality}
+            geminiCost2k={1.5}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className={cn(btn, 'shrink-0')}
+            disabled={busy}
+            onClick={() => void handleGenerateAi()}
+          >
+            {aiBusy ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+            {t.visualEditCreateWithAi}
+          </Button>
+        </div>
       </div>
     )
   }
@@ -6752,6 +6782,16 @@ export function PartnerWebsiteVisualEditorToolbar({
                     {uploadBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Upload className="h-3 w-3" />}
                     <span className="ml-1">{t.visualEditChatIconLogoUpload}</span>
                   </Button>
+                  <ImageEnginePicker
+                    locale={locale}
+                    engine={imageEngine}
+                    onEngineChange={setImageEngine}
+                    geminiQuality="2K"
+                    onGeminiQualityChange={() => {}}
+                    gptQuality={gptQuality}
+                    onGptQualityChange={setGptQuality}
+                    geminiCost2k={1.5}
+                  />
                   <Button
                     type="button"
                     size="sm"

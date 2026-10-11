@@ -52,6 +52,42 @@ export function partnerSiteProductPath(
   return partnerSiteHref(siteSlug, `/products/${encodeURIComponent(key)}`, opts?.customDomain)
 }
 
+/**
+ * Ngành công nghệ thông tin: URL tính năng trên product_url (vd. /thu-do-online/1-nguoi).
+ * Bỏ qua PDP shop, URL nguồn Trung Quốc, và fallback shop.local.
+ */
+export function partnerSiteItFeatureHref(productUrl: string | null | undefined): string | null {
+  const raw = String(productUrl ?? '').trim()
+  if (!raw) return null
+  if (raw.startsWith('/') && !raw.startsWith('//')) {
+    if (raw.startsWith('/site/') || /\/products\//i.test(raw)) return null
+    return raw
+  }
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
+  if (isChinaSourceProductHost(url.hostname) || url.hostname === 'shop.local') return null
+  if (/\/products\//i.test(url.pathname) || url.pathname.startsWith('/site/')) return null
+  return `${url.origin}${url.pathname}${url.search}${url.hash}`
+}
+
+/** Thẻ catalog: ngành `it` mở link tính năng; ngành khác giữ PDP shop. */
+export function partnerSiteCatalogHitPath(
+  siteSlug: string,
+  inventoryId: string,
+  opts?: PathOpts & { industryKey?: string | null; productUrl?: string | null }
+): string {
+  if (opts?.industryKey === 'it') {
+    const feature = partnerSiteItFeatureHref(opts.productUrl)
+    if (feature) return feature
+  }
+  return partnerSiteProductPath(siteSlug, inventoryId, opts)
+}
+
 function isChinaSourceProductHost(host: string): boolean {
   const h = host.toLowerCase()
   return (

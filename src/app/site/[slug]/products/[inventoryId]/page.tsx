@@ -18,7 +18,7 @@ import { liveVisualHomeChromeShellProps } from '@/lib/partner-website/shop/live-
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { resolvePartnerShopProductByKey } from '@/lib/partner-website/shop/resolve-partner-shop-product-by-key'
 import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-site-product-slug'
-import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
+import { partnerSiteItFeatureHref, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
 import { fetchPartnerProductRatingSummaryFromPg } from '@/lib/db/messaging-partner-reviews-pg'
@@ -108,6 +108,11 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     getEmailSessionUser(),
   ])
   if (!row) notFound()
+
+  if (shop.industryKey === 'it') {
+    const featureHref = partnerSiteItFeatureHref(row.product_url)
+    if (featureHref) redirect(featureHref)
+  }
 
   const canonicalKey = buildPartnerSiteProductKey(row.name, row.id)
   if (decodeURIComponent(inventoryId.trim()).toLowerCase() !== canonicalKey.toLowerCase()) {
@@ -220,6 +225,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     accountKey,
     linkedUserId: sessionUser?.id ?? null,
     emailNormalized: guestEmail,
+    industryKey: shop.industryKey,
   })
 
   const sizeGuideImageUrl = await fetchSizeGuideImageUrlForInventoryFromPg(shop.partnerId, row.id)

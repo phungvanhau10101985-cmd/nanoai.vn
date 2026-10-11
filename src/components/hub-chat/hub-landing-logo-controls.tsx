@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { ImagePlus, Loader2, Sparkles } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,7 @@ export function HubLandingLogoControls({
   onUploadLogo,
   onRemoveLogo,
   onGenerateLogo,
+  modelPicker,
 }: {
   locale: WebLocale
   logoUrl?: string | null
@@ -95,6 +96,7 @@ export function HubLandingLogoControls({
   onUploadLogo?: (files: FileList) => void | Promise<void>
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground: boolean) => void | Promise<void>
+  modelPicker?: ReactNode
 }) {
   const t = COPY[locale]
   const fileRef = useRef<HTMLInputElement>(null)
@@ -142,7 +144,7 @@ export function HubLandingLogoControls({
             <span>{t.logoStripBg}</span>
           </label>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileRef}
             type="file"
@@ -164,6 +166,7 @@ export function HubLandingLogoControls({
             {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <ImagePlus className="mr-1 h-3.5 w-3.5" />}
             {t.logoUploadBtn}
           </Button>
+          {modelPicker}
           <Button
             type="button"
             size="sm"

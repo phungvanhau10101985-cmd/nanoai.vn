@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useRef, type ReactNode } from 'react'
 import { ImagePlus, Loader2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -97,6 +97,7 @@ export function HubLandingDesignPreparePanel({
   onRemoveLogo,
   onGenerateLogo,
   onUploadProductFiles,
+  modelPicker,
 }: {
   locale: WebLocale
   stepKey: LandingDesignStepKey
@@ -112,6 +113,7 @@ export function HubLandingDesignPreparePanel({
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground?: boolean) => void | Promise<void>
   onUploadProductFiles: (files: FileList) => void | Promise<void>
+  modelPicker?: ReactNode
 }) {
   const t = COPY[locale]
   const productFileRef = useRef<HTMLInputElement>(null)
@@ -134,6 +136,7 @@ export function HubLandingDesignPreparePanel({
         onUploadLogo={onUploadLogo}
         onRemoveLogo={onRemoveLogo}
         onGenerateLogo={onGenerateLogo}
+        modelPicker={modelPicker}
       />
 
       <div className="flex flex-col gap-1.5">

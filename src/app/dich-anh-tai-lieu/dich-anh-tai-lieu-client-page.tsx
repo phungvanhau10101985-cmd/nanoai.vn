@@ -838,8 +838,17 @@ export default function DichAnhTaiLieuClientPage() {
                     </select>
                   </div>
                   <div className="space-y-2">
-                    <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{tr(uiLocale, 'Chất lượng ảnh đầu ra', 'Output image quality', '输出图像质量', '出力画像の品質', '출력 이미지 품질')}</h4>
-                    <p className="text-[10px] text-muted-foreground -mt-1">{tr(uiLocale, 'PDF: ảnh đầu vào luôn tách độ phân giải cao để AI đọc đúng.', 'PDF: input pages are extracted at high resolution so AI can read accurately.', 'PDF：输入页始终以高分辨率拆分，便于 AI 准确识别。', 'PDF: 入力ページはAIが正確に読めるよう常に高解像度で分割します。', 'PDF: AI가 정확히 읽도록 입력 페이지를 항상 고해상도로 분리합니다.')}</p>
+                    <p className="text-[10px] text-muted-foreground">{tr(uiLocale, 'PDF: ảnh đầu vào luôn tách độ phân giải cao để AI đọc đúng.', 'PDF: input pages are extracted at high resolution so AI can read accurately.', 'PDF：输入页始终以高分辨率拆分，便于 AI 准确识别。', 'PDF: 入力ページはAIが正確に読めるよう常に高解像度で分割します。', 'PDF: AI가 정확히 읽도록 입력 페이지를 항상 고해상도로 분리합니다.')}</p>
+                  </div>
+                  <div className="pt-4 border-t space-y-2 flex flex-col items-center">
+                    <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Số dư', 'Balance', '余额', '残高', '잔액')}: <span className="font-medium text-foreground">{userCredits.toLocaleString('vi-VN')}</span> credits</p>
+                    {insufficientCredits && estimatedCost > 0 && (
+                      <p className="text-xs text-red-600 font-medium text-center">
+                        {tr(uiLocale, 'Cần', 'Need', '需要', '必要', '필요')} {estimatedCost.toLocaleString('vi-VN')} credits, {tr(uiLocale, 'hiện có', 'currently have', '当前有', '現在', '현재 보유')} {userCredits.toLocaleString('vi-VN')}. {tr(uiLocale, 'Nạp đủ mới bấm Dịch.', 'Top up first, then click Translate.', '请先充值，再点击翻译。', '先にチャージしてから翻訳してください。', '충전 후 번역을 눌러주세요.')}
+                      </p>
+                    )}
+                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200" onCreditsUpdated={fetchCredits} />
+                    <div className="flex flex-wrap items-center justify-center gap-2">
                     <ImageEnginePicker
                       locale={uiLocale}
                       engine={imageEngine}
@@ -851,15 +860,6 @@ export default function DichAnhTaiLieuClientPage() {
                       geminiCost2k={3}
                       geminiCost4k={6}
                     />
-                  </div>
-                  <div className="pt-4 border-t space-y-2 flex flex-col items-center">
-                    <p className="text-xs text-muted-foreground">{tr(uiLocale, 'Số dư', 'Balance', '余额', '残高', '잔액')}: <span className="font-medium text-foreground">{userCredits.toLocaleString('vi-VN')}</span> credits</p>
-                    {insufficientCredits && estimatedCost > 0 && (
-                      <p className="text-xs text-red-600 font-medium text-center">
-                        {tr(uiLocale, 'Cần', 'Need', '需要', '必要', '필요')} {estimatedCost.toLocaleString('vi-VN')} credits, {tr(uiLocale, 'hiện có', 'currently have', '当前有', '現在', '현재 보유')} {userCredits.toLocaleString('vi-VN')}. {tr(uiLocale, 'Nạp đủ mới bấm Dịch.', 'Top up first, then click Translate.', '请先充值，再点击翻译。', '先にチャージしてから翻訳してください。', '충전 후 번역을 눌러주세요.')}
-                      </p>
-                    )}
-                    <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200" onCreditsUpdated={fetchCredits} />
                     <Button
                       onClick={() => checkCreditsAndProceed(estimatedCost, handleSubmit)}
                       disabled={
@@ -876,7 +876,7 @@ export default function DichAnhTaiLieuClientPage() {
                               ? tr(uiLocale, 'Chọn Ngôn ngữ đích (dịch sang) trước', 'Select target language first', '请先选择目标语言', 'ターゲット言語を先に選択', '대상 언어를 먼저 선택하세요')
                               : undefined
                       }
-                      className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-slate-700 hover:bg-slate-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="h-9 shrink-0 shadow-md hover:shadow-lg transition-all text-sm bg-slate-700 hover:bg-slate-800 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Sparkles className="mr-2 h-4 w-4" /> {tr(uiLocale, 'Dịch', 'Translate', '翻译', '翻訳', '번역')} (
                       {batchMode === 'pdf'
@@ -884,6 +884,7 @@ export default function DichAnhTaiLieuClientPage() {
                         : `${batchMode === 'excel' && excelUrlCount ? `${excelUrlCount} × ` : batchMode === 'batch' && batchImages.length ? `${batchImages.length} × ` : ''}${unitCost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit`}
                       )
                     </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {tr(uiLocale, 'Thời gian: 15–45 giây. Credits trừ khi xong từng ảnh/trang.', 'Time: 15–45 sec. Credits deducted per completed image/page.', '时间：15–45 秒。每完成一张图片/页扣除积分。', '所要時間：15〜45秒。画像/ページごとにクレジットが差し引かれます。', '소요 시간: 15–45초. 이미지/페이지당 완료 시 크레딧 차감.')}</p>
                   </div>
                 </CardContent>

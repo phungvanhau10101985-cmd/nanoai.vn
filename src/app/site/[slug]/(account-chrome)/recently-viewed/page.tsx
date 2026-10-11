@@ -40,6 +40,7 @@ export default async function PartnerSiteRecentlyViewedPage({ params }: Props) {
     siteSlug: shop.site.siteSlug,
     mode: 'recently-viewed',
     limit: 24,
+    industryKey: shop.industryKey,
   })
 
   return (

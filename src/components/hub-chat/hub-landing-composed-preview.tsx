@@ -70,6 +70,7 @@ export function HubLandingComposedPreview({
   onUploadLogo,
   onRemoveLogo,
   onGenerateLogo,
+  modelPicker,
 }: {
   locale: WebLocale
   title: string
@@ -83,6 +84,7 @@ export function HubLandingComposedPreview({
   onUploadLogo?: (files: FileList) => void | Promise<void>
   onRemoveLogo?: () => void | Promise<void>
   onGenerateLogo?: (brief: string, stripBackground?: boolean) => void | Promise<void>
+  modelPicker?: ReactNode
 }) {
   const t = COPY[locale]
   const section = sections[0]
@@ -130,6 +132,7 @@ export function HubLandingComposedPreview({
           onUploadLogo={onUploadLogo}
           onRemoveLogo={onRemoveLogo}
           onGenerateLogo={onGenerateLogo}
+          modelPicker={modelPicker}
         />
       ) : null}
 

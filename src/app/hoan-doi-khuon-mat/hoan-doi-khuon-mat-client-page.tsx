@@ -350,22 +350,24 @@ export default function HoanDoiKhuonMatClientPage() {
                   <CardDescription className="text-xs">{t.optionsDesc}</CardDescription>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
-                  <ImageEnginePicker
-                    locale={uiLocale}
-                    engine={imageEngine}
-                    onEngineChange={setImageEngine}
-                    geminiQuality={imageQuality}
-                    onGeminiQualityChange={setImageQuality}
-                    gptQuality={gptQuality}
-                    onGptQualityChange={setGptQuality}
-                    geminiCost2k={1}
-                    geminiCost4k={2}
-                  />
                   <div className="pt-4 border-t space-y-2 flex flex-col items-center">
                     <DepositCreditButton variant="outline" size="sm" className="w-full max-w-[180px] border-fuchsia-200 text-fuchsia-700 hover:bg-fuchsia-50" />
-                    <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file} className="w-full max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
+                                        <div className="flex flex-wrap items-center justify-center gap-2">
+                      <ImageEnginePicker
+                      locale={uiLocale}
+                      engine={imageEngine}
+                      onEngineChange={setImageEngine}
+                      geminiQuality={imageQuality}
+                      onGeminiQualityChange={setImageQuality}
+                      gptQuality={gptQuality}
+                      onGptQualityChange={setGptQuality}
+                      geminiCost2k={1}
+                      geminiCost4k={2}
+                      />
+                      <Button onClick={() => checkCreditsAndProceed(cost, handleSubmit)} disabled={!hasRequiredFaces || !targetImage.file} className="shrink-0 max-w-[180px] h-9 shadow-md hover:shadow-lg transition-all text-sm bg-fuchsia-600 hover:bg-fuchsia-700 text-white">
                       <Sparkles className="mr-2 h-4 w-4" /> {t.swapBtn} ({cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credit)
-                    </Button>
+                      </Button>
+                    </div>
                     <p className="text-[10px] text-center text-muted-foreground mt-2">* {t.time}</p>
                   </div>
                 </CardContent>

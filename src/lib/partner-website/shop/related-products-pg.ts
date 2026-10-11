@@ -40,6 +40,7 @@ export async function fetchRelatedShopProducts(input: {
   accountKey?: string | null
   linkedUserId?: string | null
   emailNormalized?: string | null
+  industryKey?: string | null
 }): Promise<PartnerSiteShopProduct[]> {
   const limit = Math.min(48, Math.max(1, Math.floor(input.limit ?? PW_RELATED_LIMIT_DEFAULT)))
   const excludeId = String(input.excludeId || '').trim()
@@ -55,7 +56,7 @@ export async function fetchRelatedShopProducts(input: {
   const overlay = await loadPartnerSiteSaleOverlay(input.partnerId).catch(() => null)
   const mapped = (page?.rows ?? [])
     .filter((row) => row.id !== excludeId)
-    .map((row) => inventoryCardRowToShopProduct(input.siteSlug, row))
+    .map((row) => inventoryCardRowToShopProduct(input.siteSlug, row, { industryKey: input.industryKey }))
     .filter((p): p is PartnerSiteShopProduct => Boolean(p))
     .slice(0, limit)
   return applyPartnerStorefrontSaleFaces(mapped, {

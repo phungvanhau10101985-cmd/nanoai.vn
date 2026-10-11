@@ -381,16 +381,6 @@ export default function TaoInfographicTuSachClientPage() {
                 />
               </div>
 
-              <ImageEnginePicker
-                locale={uiLocale}
-                engine={imageEngine}
-                onEngineChange={setImageEngine}
-                geminiQuality={geminiQuality}
-                onGeminiQualityChange={setGeminiQuality}
-                gptQuality={gptQuality}
-                onGptQualityChange={setGptQuality}
-                geminiCost2k={1.5}
-              />
               <div className="space-y-2">
                 <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   {tr('Ghi chú / trọng tâm (tuỳ chọn)', 'Focus notes (optional)', '重点备注（可选）', 'メモ（任意）', '메모(선택)')}
@@ -407,6 +397,17 @@ export default function TaoInfographicTuSachClientPage() {
 
               <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between pt-2">
                 <DepositCreditButton />
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                <ImageEnginePicker
+                  locale={uiLocale}
+                  engine={imageEngine}
+                  onEngineChange={setImageEngine}
+                  geminiQuality={geminiQuality}
+                  onGeminiQualityChange={setGeminiQuality}
+                  gptQuality={gptQuality}
+                  onGptQualityChange={setGptQuality}
+                  geminiCost2k={1.5}
+                />
                 <Button
                   type="button"
                   size="lg"
@@ -416,6 +417,7 @@ export default function TaoInfographicTuSachClientPage() {
                   <Upload className="h-4 w-4" />
                   {tr(`Tạo infographic (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `Create infographic (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} credits)`, `创建信息图（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 积分）`, `作成（${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })}クレジット）`, `만들기 (${cost.toLocaleString(uiLocale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })} 크레딧)`)}
                 </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

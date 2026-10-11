@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 import { createMessagingWorkspaceProfile } from '@/app/dashboard/messaging/actions'
 import { partnerWebsiteDashboardPath } from '@/lib/partner-website/partner-website-dashboard-path'
 import type { Database } from '@/types/database.types'
-import { Building2, Factory, Globe, Plus, ShoppingBag, UtensilsCrossed } from 'lucide-react'
+import { Building2, Cpu, Factory, Globe, Plus, ShoppingBag, UtensilsCrossed } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 type PartnerRow = Database['public']['Tables']['messaging_partners']['Row']
@@ -20,6 +20,7 @@ function channelMeta(industryKey: string | null) {
   const key = String(industryKey || 'fashion')
   if (key === 'hotel') return { icon: Building2, label: 'Nhà nghỉ / khách sạn', tone: 'bg-blue-50 text-blue-700 border-blue-200' }
   if (key === 'food') return { icon: UtensilsCrossed, label: 'Nhà hàng / ăn uống', tone: 'bg-amber-50 text-amber-700 border-amber-200' }
+  if (key === 'it') return { icon: Cpu, label: 'Công nghệ thông tin', tone: 'bg-sky-50 text-sky-700 border-sky-200' }
   if (key === 'other') return { icon: Factory, label: 'Kênh khác', tone: 'bg-slate-50 text-slate-700 border-slate-200' }
   return { icon: ShoppingBag, label: 'Mua sắm trực tuyến', tone: 'bg-violet-50 text-violet-700 border-violet-200' }
 }
@@ -40,7 +41,7 @@ export function BusinessChannelsHubClient({
   const router = useRouter()
   const { toast } = useToast()
   const [createOpen, setCreateOpen] = useState(false)
-  const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'other'>('fashion')
+  const [channelKind, setChannelKind] = useState<'fashion' | 'hotel' | 'food' | 'machinery' | 'it' | 'other'>('fashion')
   const [displayName, setDisplayName] = useState('')
   const [brandName, setBrandName] = useState('')
   const [logoUrl, setLogoUrl] = useState('')
@@ -196,6 +197,7 @@ export function BusinessChannelsHubClient({
                   { value: 'fashion', label: 'Mua sắm trực tuyến' },
                   { value: 'hotel', label: 'Khách sạn' },
                   { value: 'food', label: 'Nhà hàng' },
+                  { value: 'it', label: 'Công nghệ thông tin' },
                   { value: 'other', label: 'Khác' },
                 ] as const
               ).map((opt) => (

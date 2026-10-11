@@ -15,6 +15,8 @@ import {
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
 import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
+import { imageEngineCredit, parseGptImageQuality, parseImageEngine } from '@/lib/ai/image-engine'
+import { runImageContent } from '@/lib/ai/gpt-image'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
@@ -103,6 +105,8 @@ export async function POST(req: NextRequest) {
       scope?: 'curriculum' | 'lesson'
       lessonNo?: number
       regenerate?: boolean
+      imageEngine?: string | null
+      gptQuality?: string | null
     }
     try {
       body = (await req.json()) as typeof body
@@ -135,6 +139,12 @@ export async function POST(req: NextRequest) {
     const scope = body.scope === 'lesson' ? 'lesson' : 'curriculum'
     const lessonNo = scope === 'lesson' ? Math.max(1, Math.floor(Number(body.lessonNo) || 1)) : undefined
     const isRegenerate = body.regenerate === true
+    const engine = parseImageEngine(body.imageEngine)
+    const gptQuality = parseGptImageQuality(body.gptQuality)
+    if (engine === 'gpt' && !gptQuality) {
+      return NextResponse.json({ error: 'Chọn chất lượng GPT: low, medium hoặc high.' }, { status: 400 })
+    }
+    const listPrice = imageEngineCredit({ engine, gptQuality, geminiCost: COST_2K })
     const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)
     const infographicKind = scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
 
@@ -142,7 +152,7 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       kind: infographicKind,
       artifactKey: infographicArtifactKey,
-      listPrice: COST_2K,
+      listPrice,
       isRegenerate,
     })
     if (requiredPrecheck > 0) {
@@ -219,38 +229,53 @@ ${FLASH_INSTRUCTION}`
     const imagePrompt =
       `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
 
-    const imageModel = genAI.getGenerativeModel({
-      model: GEMINI_3_PRO_IMAGE.model,
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
-      },
-    })
+    const imageModel =
+      engine === 'gpt'
+        ? null
+        : genAI.getGenerativeModel({
+            model: GEMINI_3_PRO_IMAGE.model,
+            generationConfig: {
+              responseModalities: ['TEXT', 'IMAGE'],
+              imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
+            },
+          })
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) {
       return NextResponse.json({ error: bunnyReady.error }, { status: 503 })
     }
-    let imageResult: Awaited<ReturnType<typeof imageModel.generateContent>>
+    let imageResult: Awaited<ReturnType<NonNullable<typeof imageModel>['generateContent']>>
     try {
-      imageResult = await imageModel.generateContent(imagePrompt, {
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-        ],
-      } as never)
-    } catch {
-      return NextResponse.json({ error: 'Không tạo được ảnh infographic. Thử lại sau.' }, { status: 502 })
+      imageResult = await runImageContent({
+        engine,
+        gptQuality,
+        aspectRatio: '16:9',
+        parts: [imagePrompt],
+        gemini: () => {
+          if (!imageModel) throw new Error('Thiếu model ảnh.')
+          return imageModel.generateContent(imagePrompt, {
+            safetySettings: [
+              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+              { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+              { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+            ],
+          } as never)
+        },
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Không tạo được ảnh infographic. Thử lại sau.'
+      return NextResponse.json({ error: msg }, { status: 502 })
     }
     const imageResponse = imageResult.response
-    void trackFromUsageMetadata(
-      imageResponse.usageMetadata,
-      GEMINI_3_PRO_IMAGE.model,
-      'curriculum-slide-infographic',
-      user.id,
-      '2K'
-    )
+    if (engine !== 'gpt') {
+      void trackFromUsageMetadata(
+        imageResponse.usageMetadata,
+        GEMINI_3_PRO_IMAGE.model,
+        'curriculum-slide-infographic',
+        user.id,
+        '2K'
+      )
+    }
     const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
     if (!imagePart || !('inlineData' in imagePart)) {
       return NextResponse.json({ error: 'AI không trả về ảnh infographic hợp lệ.' }, { status: 502 })
@@ -285,7 +310,7 @@ ${FLASH_INSTRUCTION}`
       userId: user.id,
       kind: infographicKind,
       artifactKey: infographicArtifactKey,
-      listPrice: COST_2K,
+      listPrice,
       chargeType: CURRICULUM_AI_CHARGE_TYPES.slideInfographic,
       isRegenerate,
       eventKey: `curriculum_infographic:${user.id}:${randomUUID()}`,
