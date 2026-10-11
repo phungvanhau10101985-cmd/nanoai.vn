@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   imageLocSheetKinds,
+  isApparelImageLocProduct,
   normalizeImageLocSheetKey,
   resolveStoredImageLocSheet,
 } from './sheet-cache'
@@ -25,6 +26,45 @@ describe('saved size and laundry sheets', () => {
     assert.equal(
       resolveStoredImageLocSheet(['size', 'laundry'], { size: 'https://cdn.example/size.jpg' }),
       null
+    )
+  })
+
+  it('treats dresses and tops as apparel and keeps shoes, bags, and other industries on the local path', () => {
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['女装', '连衣裙', '黑色连衣裙'] }),
+      true
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: null, labels: ['Quần jean nữ'] }),
+      true
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['女鞋', '半身裙'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['Giày tây nam', 'da bò'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['运动鞋', '厚底增高'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['Túi tote canvas'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['Đồng hồ nam'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'hotel', labels: ['Áo sơ mi'] }),
+      false
+    )
+    assert.equal(
+      isApparelImageLocProduct({ industryKey: 'fashion', labels: ['女装', '半身裙'] }),
+      true
     )
   })
 

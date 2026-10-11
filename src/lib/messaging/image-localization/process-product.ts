@@ -1,4 +1,5 @@
 import { fetchPartnerInventoryRowByIdForPartnerFromPg } from '@/lib/db/messaging-partner-inventory-pg'
+import { fetchMessagingPartnerByIdFromPg } from '@/lib/db/messaging-partners-pg'
 import {
   applyImageLocProductResultFromPg,
   claimInventoryForImageLocFromPg,
@@ -14,7 +15,12 @@ import { processPreparedImage, type ProcessImageContext } from './process-one'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
 import { isImageLocalizationGptStopError } from './openai-adapter'
 import { partnerBunnyHostname } from '@/lib/storage/partner-bunny-cdn'
-import { imageLocSheetKinds, normalizeImageLocSheetKey, resolveStoredImageLocSheet } from './sheet-cache'
+import {
+  imageLocSheetKinds,
+  isApparelImageLocProduct,
+  normalizeImageLocSheetKey,
+  resolveStoredImageLocSheet,
+} from './sheet-cache'
 import { fetchImageLocSheetsFromPg, saveImageLocSheetsToPg } from '@/lib/db/messaging-partner-image-localization-pg'
 
 export function isTransientImageLocDbError(error: unknown): boolean {
@@ -145,16 +151,22 @@ export async function processInventoryProduct(opts: {
 
   const skuOrId = String(row.sku || row.remarketing_id || row.id)
   const partnerHost = await partnerBunnyHostname(opts.partnerId)
+  const partner = await fetchMessagingPartnerByIdFromPg(opts.partnerId)
+  const apparelProduct = isApparelImageLocProduct({
+    industryKey: partner ? partner.industry_key : 'other',
+    labels: [row.category_l1, row.category_l2, row.category_l3, row.name, row.chinese_name],
+  })
   const ctx: ProcessImageContext = {
     ...opts.ctx,
     partnerId: opts.partnerId,
     skuOrId,
     cdnHosts: partnerHost ? [partnerHost] : undefined,
+    apparelProduct,
   }
   const results: Record<string, ImageProcessResult> = {}
   const shopNameChinese = normalizeImageLocSheetKey(row.source_shop_name_chinese)
   const categoryL2 = normalizeImageLocSheetKey(row.category_l2)
-  const reuseSheets = Boolean(ctx.allowsAi && shopNameChinese && categoryL2 && !dryRun)
+  const reuseSheets = Boolean(apparelProduct && shopNameChinese && categoryL2 && !dryRun)
   opts.progressCb?.(`tải/ghép ${urls.length} ảnh`)
   const batchOcr = await prepareImageLocBatchOcr({
     urls,

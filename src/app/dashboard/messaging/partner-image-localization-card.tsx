@@ -60,7 +60,7 @@ export function PartnerImageLocalizationCard({
   const [language, setLanguage] = useState<ImageLocLanguage>('vi')
   const [geminiMode, setGeminiMode] = useState<ImageLocGeminiMode>('local_only')
   const [openaiModel, setOpenaiModel] = useState('')
-  const [openaiQuality, setOpenaiQuality] = useState('high')
+  const [openaiQuality, setOpenaiQuality] = useState('medium')
   const [openaiSize, setOpenaiSize] = useState('auto')
   const [force, setForce] = useState(false)
   const [selectedOnly, setSelectedOnly] = useState(false)

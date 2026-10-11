@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { selectLocalizationEngine } from './process-one'
-import { imageLocGptVerifyAttempts, languagePrompt } from './image-localization-config'
+import { imageLocGptVerifyAttempts, imageLocOpenaiDefaultQuality, languagePrompt, normalizeOpenaiImageQuality } from './image-localization-config'
 import { chineseBlocksToRedraw, localizedImageFix, localizedImageProblem, parseInkBleedVerdict, remainingChineseOnLocalizedImage } from './gpt-verify'
 import { ImageLocalizationGptStopError, isImageLocalizationGptStopError } from './openai-adapter'
 
@@ -27,15 +27,36 @@ describe('image localization route', () => {
     )
   })
 
-  it('keeps size and laundry sheets on the local translator when AI is off, and sends every image to GPT when AI is on', () => {
+  it('sends apparel size and laundry sheets to GPT and keeps shoes and other images on the local translator', () => {
     assert.equal(
       selectLocalizationEngine({
         classification: 'local',
         allowsAi: false,
         geminiMode: 'api',
         hasSizeOrLaundry: true,
+        apparelSheet: true,
       }),
-      'local'
+      'ai'
+    )
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'keep',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: false,
+        apparelSheet: true,
+      }),
+      'ai'
+    )
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'delete',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: true,
+        apparelSheet: true,
+      }),
+      'delete'
     )
     assert.equal(
       selectLocalizationEngine({
@@ -49,21 +70,11 @@ describe('image localization route', () => {
     assert.equal(
       selectLocalizationEngine({
         classification: 'local',
-        allowsAi: false,
-        geminiMode: 'api',
-        hasSizeOrLaundry: false,
-        forceAi: true,
-      }),
-      'local'
-    )
-    assert.equal(
-      selectLocalizationEngine({
-        classification: 'local',
         allowsAi: true,
         geminiMode: 'api',
         hasSizeOrLaundry: false,
       }),
-      'ai'
+      'local'
     )
     assert.equal(
       selectLocalizationEngine({
@@ -71,21 +82,36 @@ describe('image localization route', () => {
         allowsAi: true,
         geminiMode: 'api',
         hasSizeOrLaundry: true,
+        apparelSheet: false,
       }),
-      'ai'
+      'local'
+    )
+    assert.equal(
+      selectLocalizationEngine({
+        classification: 'local',
+        allowsAi: false,
+        geminiMode: 'api',
+        hasSizeOrLaundry: false,
+        forceAi: true,
+      }),
+      'local'
     )
   })
 
-  it('tells the size-chart prompt to remove a model and keep the measurements', () => {
+  it('tells the size-chart prompt to remove a model and the product photo and keep the measurements', () => {
     const plain = languagePrompt('vi')
     const size = languagePrompt('vi', { removeModel: true })
-    assert.equal(plain.includes('Erase only the fashion model photograph'), false)
-    assert.equal(size.includes('Erase only the fashion model photograph'), true)
+    assert.equal(plain.includes('erase both the model'), false)
+    assert.equal(size.includes('erase both the model'), true)
+    assert.equal(size.includes('product photo'), true)
+    assert.equal(size.includes('Keep the size chart'), true)
     assert.equal(size.includes('Do not keep the original Chinese'), true)
     assert.equal(size.includes('Do not add a second copy of any line'), true)
     assert.equal(plain.includes('1 斤 = 0.5 kg'), true)
     assert.equal(plain.includes('94 斤 becomes 47 kg'), true)
     assert.equal(size.includes('Still convert 斤 body weight to kilograms'), true)
+    assert.equal(normalizeOpenaiImageQuality('medium'), 'medium')
+    assert.equal(imageLocOpenaiDefaultQuality(), 'medium')
   })
 
   it('marks a GPT image failure as a job stop', () => {
@@ -94,15 +120,8 @@ describe('image localization route', () => {
     assert.equal(isImageLocalizationGptStopError(new Error('vẽ local lỗi')), false)
   })
 
-  it('checks GPT twice, then stops', () => {
-    const prev = process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS
-    delete process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS
-    try {
-      assert.equal(imageLocGptVerifyAttempts(), 2)
-    } finally {
-      if (prev === undefined) delete process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS
-      else process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS = prev
-    }
+  it('redraws a bleeding sheet twice, then the job stops', () => {
+    assert.equal(imageLocGptVerifyAttempts(), 2)
   })
 
   it('accepts a GPT image only when no Chinese remains', () => {

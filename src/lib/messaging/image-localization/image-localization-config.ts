@@ -31,8 +31,9 @@ export function imageLocOpenaiImageModel(): string {
 }
 
 export function imageLocOpenaiDefaultQuality(): string {
-  const q = (process.env.IMAGE_LOCALIZATION_OPENAI_DEFAULT_IMAGE_QUALITY || 'high').trim().toLowerCase()
-  return q === 'auto' ? 'auto' : 'high'
+  const q = (process.env.IMAGE_LOCALIZATION_OPENAI_DEFAULT_IMAGE_QUALITY || 'medium').trim().toLowerCase()
+  if (q === 'auto' || q === 'high' || q === 'medium') return q
+  return 'medium'
 }
 
 export function imageLocMaxImagesPerProduct(): number {
@@ -49,11 +50,9 @@ export function imageLocMaxConsecutiveProductFailures(): number {
   return 3
 }
 
-/** Số lần hậu kiểm sau GPT. Lần 2 vẫn mực loang hoặc còn chữ Trung thì dừng job và báo admin. */
+/** Số lần GPT vẽ lại từ ảnh gốc khi hậu kiểm thấy mực loang. Hết 2 lần vẫn loang thì báo admin và dừng job. Chữ Trung còn sót không dùng số này. */
 export function imageLocGptVerifyAttempts(): number {
-  const n = Number(process.env.IMAGE_LOCALIZATION_GPT_VERIFY_ATTEMPTS || '2')
-  if (!Number.isFinite(n)) return 2
-  return Math.max(1, Math.min(5, Math.floor(n)))
+  return 2
 }
 
 export function imageLocInkBleedModel(): string {
@@ -135,8 +134,8 @@ export function normalizeGeminiImageSize(raw: string | null | undefined): string
 export function normalizeOpenaiImageQuality(raw: string | null | undefined): string | null {
   const s = String(raw || '').trim().toLowerCase()
   if (!s) return null
-  if (s === 'low' || s === 'medium') return 'high'
-  if (s === 'high' || s === 'auto') return s
+  if (s === 'low') return 'high'
+  if (s === 'medium' || s === 'high' || s === 'auto') return s
   return null
 }
 
@@ -165,7 +164,7 @@ export const LANGUAGE_LABELS: Record<string, string> = {
 export function languagePrompt(language: string, opts?: { removeModel?: boolean }): string {
   const target = LANGUAGE_LABELS[language] || language || 'Vietnamese'
   const removeModel = opts?.removeModel
-    ? ' Erase only the fashion model photograph: face, hair, body, and clothing. Fill only that photo area with the surrounding plain background. Replace each Chinese text string with its translation in the same position and size. Do not keep the original Chinese beside, above, or under the translation. Do not add a second copy of any line. Do not change centimeter measurements or bust, waist, and hip numbers. Still convert 斤 body weight to kilograms as instructed.'
+    ? ' If a fashion model photo or a product photo is on this sheet, erase both the model (face, hair, body, and clothing worn) and the product photo. Fill only those photo areas with the surrounding plain background. Keep the size chart and the product text: measurements, fabric, try-on notes, and care instructions. Replace each Chinese text string with its translation in the same position and size. Do not keep the original Chinese beside, above, or under the translation. Do not add a second copy of any line. Do not change centimeter measurements or bust, waist, and hip numbers. Still convert 斤 body weight to kilograms as instructed. If the sheet has no photo, translate the text and leave the tables in place.'
     : ''
   return `ROLE: E-commerce Image Localization Agent
 

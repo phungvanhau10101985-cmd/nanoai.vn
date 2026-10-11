@@ -1,14 +1,15 @@
 import { createHash } from 'node:crypto'
 import { fetchImageWith1688Bypass } from '@/lib/fetch-image-1688'
 import { uploadPartnerBunnyObject } from '@/lib/storage/partner-bunny-cdn'
-import { isOwnCdnUrl, normalizeImageUrl, imageLocGptVerifyAttempts } from './image-localization-config'
+import { isOwnCdnUrl, normalizeImageUrl, imageLocGptVerifyAttempts, imageLocOpenaiImageModel } from './image-localization-config'
 import type { ImageLocOcrBlock, ImageProcessResult } from './image-localization-types'
 import { classifyImage, hasSizeOrLaundryContext, hasSizeTableContext, isLaundryInstructionImage } from './image-localization-classifier'
 import { collectImageConsultSourceLines } from './image-consult-context'
 import { encodeJpeg, localBlocksNeedDraw, localDrawTranslated, ocrImageBlocks } from './local-pipeline'
 import { ImageLocalizationError, raiseIfFatalDependency } from './gemini-adapter'
-import { ImageLocalizationGptStopError, openaiProcessImage } from './openai-adapter'
-import { chineseBlocksToRedraw, localizedImageFix, localizedImageProblem, remainingChineseOnLocalizedImage } from './gpt-verify'
+import { ImageLocalizationGptStopError, openaiApiAuth, openaiProcessImage } from './openai-adapter'
+import { imageLocSheetKinds } from './sheet-cache'
+import { chineseBlocksToRedraw } from './gpt-verify'
 import { detectInkBleed } from './ink-bleed-check'
 import { splitTallImageIfNeeded, vstackImageParts } from './split-tall-image'
 import { overlayBrandLogoOnProcessedImage, loadImageLocBrandLogoBytes } from './overlay-brand-logo'
@@ -60,6 +61,8 @@ export type ProcessImageContext = {
   userId?: string | null
   /** Hostname Pull Zone của shop — ảnh trên host này coi là CDN shop. */
   cdnHosts?: readonly string[]
+  /** Áo, quần, váy của shop thời trang. Ảnh size/giặt của sản phẩm này đi GPT. */
+  apparelProduct?: boolean
   shouldCancel?: () => boolean
 }
 
@@ -78,9 +81,9 @@ async function runAiEdit(
     imageBytes,
     filename,
     language: ctx.language,
-    imageModel: ctx.openaiImageModel,
-    imageQuality: ctx.openaiImageQuality,
-    imageSize: ctx.openaiImageSize,
+    imageModel: imageLocOpenaiImageModel(),
+    imageQuality: 'medium',
+    imageSize: ctx.openaiImageSize || 'auto',
     removeModel: opts?.removeModel,
   })
 }
@@ -92,8 +95,8 @@ function throwIfCancelled(ctx: ProcessImageContext) {
 export type LocalizationEngineChoice = 'delete' | 'keep' | 'ai' | 'local'
 
 /**
- * Không bật AI: mọi ảnh vẽ local, kể cả bảng size và hướng dẫn giặt tẩy.
- * Bật AI: mọi ảnh đi GPT Image.
+ * Ảnh size hoặc hướng dẫn giặt của áo, quần, váy đi GPT.
+ * Giày, túi, phụ kiện và mọi ảnh khác vẽ local, kể cả khi job bật AI.
  */
 export function selectLocalizationEngine(opts: {
   classification: string
@@ -101,14 +104,16 @@ export function selectLocalizationEngine(opts: {
   geminiMode: 'api' | 'openai'
   hasSizeOrLaundry: boolean
   forceAi?: boolean
+  apparelSheet?: boolean
 }): LocalizationEngineChoice {
   if (opts.classification === 'delete') return 'delete'
-  if (opts.classification === 'keep') return 'keep'
   void opts.geminiMode
   void opts.hasSizeOrLaundry
   void opts.forceAi
-  if (!opts.allowsAi) return 'local'
-  return 'ai'
+  void opts.allowsAi
+  if (opts.apparelSheet) return 'ai'
+  if (opts.classification === 'keep') return 'keep'
+  return 'local'
 }
 
 function overlapAbortThreshold(): number | null {
@@ -141,7 +146,8 @@ async function transformImageBytes(
   bytes: Buffer,
   filename: string,
   blocks: ImageLocOcrBlock[],
-  sourceUrl: string
+  sourceUrl: string,
+  apparelSheet = false
 ): Promise<PartOutcome> {
   throwIfCancelled(ctx)
   const cls = classifyImage(blocks, [], sourceUrl)
@@ -149,7 +155,7 @@ async function transformImageBytes(
   if (cls.type === 'delete') {
     return { kind: 'deleted', message: `Xóa theo classifier: ${String(cls.details.detected_keyword || 'keyword')}` }
   }
-  if (cls.type === 'keep') {
+  if (cls.type === 'keep' && !apparelSheet) {
     return { kind: 'kept', bytes, message: 'Không có chữ Trung cần xử lý' }
   }
 
@@ -175,12 +181,17 @@ async function transformImageBytes(
   }
 
   const runAi = async (): Promise<PartOutcome> => {
-    if (!ctx.allowsAi) return runLocal()
-    const attempts = imageLocGptVerifyAttempts()
-    const removeModel = hasSizeTableContext(blocks)
+    if (!apparelSheet && !ctx.allowsAi) return runLocal()
+    if (apparelSheet && !openaiApiAuth(ctx.openaiImageModel).ready) {
+      throw new ImageLocalizationGptStopError(
+        'Ảnh size hoặc hướng dẫn giặt của áo quần váy cần GPT Image: thiếu OPENAI_API_KEY.'
+      )
+    }
+    const bleedRedrawsMax = imageLocGptVerifyAttempts()
+    const removeModel = apparelSheet || hasSizeTableContext(blocks)
     let current = bytes
     let message = ''
-    let lastProblem = 'không đọc lại được ảnh'
+    let bleedRedraws = 0
     try {
       const first = await runAiEdit(ctx, bytes, filename, { removeModel })
       current = first.bytes
@@ -191,25 +202,21 @@ async function transformImageBytes(
       const detail = e instanceof Error ? e.message : String(e)
       throw new ImageLocalizationGptStopError(detail)
     }
-    for (let check = 1; check <= attempts; check++) {
+    while (true) {
       throwIfCancelled(ctx)
-      let fix: 'ok' | 'gpt' | 'deepseek' = 'ok'
+      let bleed = false
+      let where = ''
       let chineseBlocks: ReturnType<typeof chineseBlocksToRedraw> = []
       let seenBlocks: ImageLocOcrBlock[] = []
       try {
-        const [bleed, post] = await Promise.all([
+        const [ink, post] = await Promise.all([
           detectInkBleed(current),
           ocrImageBlocks(current, ctx.userId),
         ])
+        bleed = ink.bleed
+        where = ink.where
         seenBlocks = post.blocks
         chineseBlocks = chineseBlocksToRedraw(post.blocks)
-        const chinese = remainingChineseOnLocalizedImage(chineseBlocks.map((block) => block.text || ''))
-        fix = localizedImageFix({ bleed: bleed.bleed, chineseCount: chinese.length })
-        if (fix === 'ok') {
-          const note = check > 1 ? `${message} (hậu kiểm lần ${check})` : message
-          return { kind: 'processed', bytes: current, message: note }
-        }
-        lastProblem = localizedImageProblem({ bleed: bleed.bleed, where: bleed.where, chinese })
       } catch (e) {
         if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
         if (e instanceof ImageLocalizationGptStopError) throw e
@@ -217,12 +224,22 @@ async function transformImageBytes(
         const detail = e instanceof Error ? e.message : String(e)
         throw new ImageLocalizationGptStopError(detail)
       }
-      if (check === attempts) break
-      if (fix === 'gpt') {
+      if (!bleed && chineseBlocks.length === 0) {
+        const note = bleedRedraws > 0 ? `${message} (hậu kiểm sau ${bleedRedraws} lần vẽ lại)` : message
+        return { kind: 'processed', bytes: current, message: note }
+      }
+      if (bleed) {
+        if (bleedRedraws >= bleedRedrawsMax) {
+          const place = where ? `: ${where}` : ''
+          throw new ImageLocalizationGptStopError(
+            `Mực loang còn sau ${bleedRedrawsMax} lần vẽ lại${place}. Job dừng, không xử lý sản phẩm phía sau.`
+          )
+        }
+        bleedRedraws += 1
         try {
           const again = await runAiEdit(ctx, bytes, filename, { removeModel })
           current = again.bytes
-          message = `${again.message} (vẽ lại vì mực loang)`
+          message = `${again.message} (vẽ lại lần ${bleedRedraws} vì mực loang)`
         } catch (e) {
           if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
           if (e instanceof ImageLocalizationGptStopError) throw e
@@ -240,10 +257,13 @@ async function transformImageBytes(
       } catch (e) {
         if (e instanceof ImageLocalizationError && e.message === 'Job đã bị hủy') throw e
         raiseIfFatalDependency(e)
-        lastProblem = e instanceof Error ? e.message : String(e)
+      }
+      return {
+        kind: 'processed',
+        bytes: current,
+        message: `${message} · lưu kho sheet cho sản phẩm sau cùng shop Trung Quốc và danh mục cấp 2`,
       }
     }
-    throw new ImageLocalizationGptStopError(`Hậu kiểm chưa đạt sau ${attempts} lần — ${lastProblem}`)
   }
 
   const route = selectLocalizationEngine({
@@ -251,6 +271,7 @@ async function transformImageBytes(
     allowsAi: ctx.allowsAi,
     geminiMode: ctx.geminiMode,
     hasSizeOrLaundry: hasSizeOrLaundryContext(blocks) || isLaundryInstructionImage(blocks),
+    apparelSheet,
   })
   if (route === 'ai') return runAi()
   return runLocal()
@@ -289,11 +310,12 @@ export async function processPreparedImage(
   })
   throwIfCancelled(ctx)
   const parts = await splitTallImageIfNeeded({ bytes, blocks, filename })
+  const apparelSheet = Boolean(ctx.apparelProduct) && imageLocSheetKinds(blocks).length > 0
 
   const outcomes: PartOutcome[] = []
   for (const part of parts) {
     throwIfCancelled(ctx)
-    outcomes.push(await transformImageBytes(ctx, part.bytes, part.filename, part.blocks, normalized))
+    outcomes.push(await transformImageBytes(ctx, part.bytes, part.filename, part.blocks, normalized, apparelSheet))
   }
 
   const finishProcessed = async (out: Buffer, message: string): Promise<ImageProcessResult> => {
