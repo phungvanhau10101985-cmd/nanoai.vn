@@ -207,6 +207,7 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
   const [googleClientId, setGoogleClientId] = useState('')
   const [googleClientSecret, setGoogleClientSecret] = useState('')
   const [googleRefreshToken, setGoogleRefreshToken] = useState('')
+  const [googleServiceAccountJson, setGoogleServiceAccountJson] = useState('')
   const [clearGoogle, setClearGoogle] = useState(false)
   const [metaAccountId, setMetaAccountId] = useState('')
   const [metaToken, setMetaToken] = useState('')
@@ -222,6 +223,7 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
     setGoogleClientId('')
     setGoogleClientSecret('')
     setGoogleRefreshToken('')
+    setGoogleServiceAccountJson('')
     setMetaToken('')
     setClearGoogle(false)
     setClearMeta(false)
@@ -306,6 +308,7 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
       ...(googleClientId.trim() ? { googleClientId: googleClientId.trim() } : {}),
       ...(googleClientSecret.trim() ? { googleClientSecret: googleClientSecret.trim() } : {}),
       ...(googleRefreshToken.trim() ? { googleRefreshToken: googleRefreshToken.trim() } : {}),
+      ...(googleServiceAccountJson.trim() ? { googleServiceAccountJson: googleServiceAccountJson.trim() } : {}),
       ...(metaToken.trim() ? { metaAccessToken: metaToken.trim() } : {}),
       ...(clearGoogle ? { clearGoogleSecrets: true } : {}),
       ...(clearMeta ? { clearMetaSecrets: true } : {}),
@@ -615,6 +618,21 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <TextField label={copy.customerId} value={googleCustomerId} onChange={setGoogleCustomerId} />
                 <TextField label={copy.mcc} value={googleLoginCustomerId} onChange={setGoogleLoginCustomerId} />
+              </div>
+              <label className="block text-sm">
+                {copy.serviceAccountJson}
+                <textarea
+                  rows={4}
+                  spellCheck={false}
+                  autoComplete="off"
+                  value={googleServiceAccountJson}
+                  placeholder={settings.googleServiceAccountEmail ? fillCopy(copy.serviceAccountSaved, { email: settings.googleServiceAccountEmail }) : copy.missingSecret}
+                  onChange={(e) => setGoogleServiceAccountJson(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-emerald-600 bg-white px-3 py-2 font-mono text-xs text-emerald-950 dark:bg-zinc-950 dark:text-emerald-100"
+                />
+              </label>
+              <p className="text-xs">{copy.oauthFallback}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
                 <TextField label={copy.developerToken} value={googleDeveloperToken} onChange={setGoogleDeveloperToken} secret placeholder={settings.googleDeveloperTokenSet ? copy.savedKeep : copy.missingSecret} />
                 <TextField label={copy.clientId} value={googleClientId} onChange={setGoogleClientId} placeholder={settings.googleClientIdSet ? copy.savedKeep : copy.missingSecret} />
                 <TextField label={copy.clientSecret} value={googleClientSecret} onChange={setGoogleClientSecret} secret placeholder={settings.googleClientSecretSet ? copy.savedKeep : copy.missingSecret} />

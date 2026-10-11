@@ -1,15 +1,31 @@
 import assert from 'node:assert/strict'
+import { generateKeyPairSync, verify } from 'node:crypto'
 import { describe, it } from 'node:test'
 import {
   AdSpendApiError,
   aggregateMetricRows,
+  buildServiceAccountAssertion,
   combineAdSpendTotals,
   emptyPlatform,
   googleConfigured,
   normalizeAdAccountId,
   normalizeCustomerId,
   parseAdSpendDateRange,
+  parseGoogleServiceAccountJson,
+  type AdSpendCredentials,
 } from './partner-ad-spend'
+
+const blank: AdSpendCredentials = {
+  googleDeveloperToken: '',
+  googleClientId: '',
+  googleClientSecret: '',
+  googleRefreshToken: '',
+  googleCustomerId: '',
+  googleLoginCustomerId: '',
+  googleServiceAccountJson: '',
+  metaAccessToken: '',
+  metaAdAccountId: '',
+}
 
 describe('partner ad spend', () => {
   it('keeps only digits on Google and Meta account ids', () => {
@@ -64,17 +80,42 @@ describe('partner ad spend', () => {
     assert.equal(total.totalStatus, 'ok')
     assert.equal(total.totalSpend, 80)
     assert.equal(
-      googleConfigured({
-        googleDeveloperToken: 'd',
-        googleClientId: 'c',
-        googleClientSecret: 's',
-        googleRefreshToken: 'r',
-        googleCustomerId: '1',
-        googleLoginCustomerId: '',
-        metaAccessToken: '',
-        metaAdAccountId: '',
-      }),
+      googleConfigured({ ...blank, googleClientId: 'c', googleClientSecret: 's', googleRefreshToken: 'r', googleCustomerId: '1' }),
       true,
     )
+  })
+
+  it('accepts a service account without developer token or OAuth client', () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const json = JSON.stringify({
+      type: 'service_account',
+      client_email: 'reader@demo.iam.gserviceaccount.com',
+      private_key_id: 'kid1',
+      private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    })
+    assert.equal(googleConfigured({ ...blank, googleCustomerId: '1', googleServiceAccountJson: json }), true)
+    assert.equal(googleConfigured({ ...blank, googleServiceAccountJson: json }), false)
+    assert.equal(parseGoogleServiceAccountJson('{"client_email":"x@y"}'), null)
+    assert.equal(parseGoogleServiceAccountJson('not json'), null)
+  })
+
+  it('signs a JWT assertion Google can verify with the public key', () => {
+    const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
+    const key = parseGoogleServiceAccountJson(
+      JSON.stringify({
+        client_email: 'reader@demo.iam.gserviceaccount.com',
+        private_key_id: 'kid1',
+        private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      }),
+    )
+    assert.ok(key)
+    const jwt = buildServiceAccountAssertion(key, 1_000)
+    const [head, body, sig] = jwt.split('.')
+    assert.equal(JSON.parse(Buffer.from(head!, 'base64url').toString()).kid, 'kid1')
+    const claims = JSON.parse(Buffer.from(body!, 'base64url').toString())
+    assert.equal(claims.iss, 'reader@demo.iam.gserviceaccount.com')
+    assert.equal(claims.scope, 'https://www.googleapis.com/auth/adwords')
+    assert.equal(claims.exp, 4_600)
+    assert.equal(verify('RSA-SHA256', Buffer.from(`${head}.${body}`), publicKey, Buffer.from(sig!, 'base64url')), true)
   })
 })

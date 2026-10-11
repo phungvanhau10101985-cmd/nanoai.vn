@@ -1429,6 +1429,7 @@ export async function saveMyMessagingAdSpendSettings(input: {
   googleClientId?: string
   googleClientSecret?: string
   googleRefreshToken?: string
+  googleServiceAccountJson?: string
   metaAccessToken?: string
   clearGoogleSecrets?: boolean
   clearMetaSecrets?: boolean
@@ -1439,6 +1440,7 @@ export async function saveMyMessagingAdSpendSettings(input: {
   const partnerId = input.partnerId?.trim()
   if (!partnerId || !isValidUuidString(partnerId)) return { error: 'Invalid partner id.' }
   const { savePartnerAdSpendSettingsFromPg } = await import('@/lib/db/messaging-partner-ad-spend-pg')
+  const { AdSpendApiError } = await import('@/lib/messaging/ad-spend/partner-ad-spend')
   try {
     const settings = await savePartnerAdSpendSettingsFromPg({
       ownerUserId: auth.user.id,
@@ -1450,6 +1452,7 @@ export async function saveMyMessagingAdSpendSettings(input: {
       googleClientId: String(input.googleClientId ?? '').slice(0, 400),
       googleClientSecret: String(input.googleClientSecret ?? '').slice(0, 400),
       googleRefreshToken: String(input.googleRefreshToken ?? '').slice(0, 800),
+      googleServiceAccountJson: String(input.googleServiceAccountJson ?? '').slice(0, 12_000),
       metaAccessToken: String(input.metaAccessToken ?? '').slice(0, 800),
       clearGoogleSecrets: input.clearGoogleSecrets === true,
       clearMetaSecrets: input.clearMetaSecrets === true,
@@ -1457,6 +1460,7 @@ export async function saveMyMessagingAdSpendSettings(input: {
     if (!settings) return { error: 'Không lưu được khóa quảng cáo.' }
     return { settings }
   } catch (error) {
+    if (error instanceof AdSpendApiError) return { error: error.message }
     console.error('[saveMyMessagingAdSpendSettings]', error)
     return { error: 'Không lưu được khóa quảng cáo.' }
   }

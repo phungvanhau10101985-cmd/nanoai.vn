@@ -56,6 +56,9 @@ export type AdSpendPageCopy = {
   clientId: string
   clientSecret: string
   refreshToken: string
+  serviceAccountJson: string
+  serviceAccountSaved: string
+  oauthFallback: string
   adAccountId: string
   accessToken: string
   savedKeep: string
@@ -156,11 +159,11 @@ const vi: AdSpendPageCopy = {
   googleLead: 'Dán khóa đọc của tài khoản quảng cáo shop này. Ô khóa để trống nghĩa là giữ khóa đã lưu. API đang dùng {version}.',
   facebookLead: 'Token hệ thống trong Business Manager, quyền ads_read. ID tài khoản là dãy số, có hoặc không có act_. Graph đang dùng {version}.',
   googleSteps: [
-    'Vào Google Ads → Công cụ → Trung tâm API, xin developer token (quyền chỉ đọc là đủ).',
-    'Trên Google Cloud tạo OAuth client (ứng dụng web hoặc máy tính), lấy Client ID và Client secret.',
-    'Xin refresh token với phạm vi https://www.googleapis.com/auth/adwords. Giữ token này, không dán access token ngắn hạn.',
+    'Trên Google Cloud bật Google Ads API cho project, kiểm tra cấp truy cập từ Explorer trở lên (đọc được tài khoản thật).',
+    'IAM → Service Accounts: tạo service account, vào Keys → Add key → JSON, tải file khóa về.',
+    'Trong Google Ads → Quản trị → Quyền truy cập và bảo mật, thêm email service account với quyền Chỉ đọc.',
     'Customer ID là 10 số trên góc tài khoản Google Ads, bỏ dấu gạch. Nếu quản lý qua MCC thì điền thêm ID tài khoản quản lý.',
-    'Lưu khóa. Trang đọc chi phí của kỳ đang chọn và trừ một lần vào lợi nhuận, không chia vào từng đơn.',
+    'Dán nguyên nội dung file JSON rồi Lưu khóa. Trang đọc chi phí của kỳ đang chọn và trừ một lần vào lợi nhuận, không chia vào từng đơn.',
   ],
   facebookSteps: [
     'Mở Meta Business Manager → Người dùng hệ thống, tạo token có quyền ads_read.',
@@ -170,10 +173,13 @@ const vi: AdSpendPageCopy = {
   ],
   customerId: 'Customer ID',
   mcc: 'ID tài khoản quản lý (MCC, nếu có)',
-  developerToken: 'Developer token',
+  developerToken: 'Developer token (không bắt buộc)',
   clientId: 'OAuth client ID',
   clientSecret: 'OAuth client secret',
   refreshToken: 'Refresh token',
+  serviceAccountJson: 'File JSON service account',
+  serviceAccountSaved: 'Đang dùng {email} — để trống nếu không đổi',
+  oauthFallback: 'Cách cũ bằng OAuth (refresh token có thể hết hạn). Chỉ dùng khi không có service account.',
   adAccountId: 'Ad account ID',
   accessToken: 'Access token',
   savedKeep: 'Đã lưu — để trống nếu không đổi',
@@ -287,12 +293,16 @@ const en: AdSpendPageCopy = {
   googleLead: 'Paste this shop’s read-only ad account keys. Leave a secret blank to keep the saved one. API version {version}.',
   facebookLead: 'A Business Manager system token with ads_read. The ad account id is digits, with or without act_. Graph version {version}.',
   googleSteps: [
-    'In Google Ads open Tools → API Center and request a developer token. Read-only access is enough.',
-    'In Google Cloud create an OAuth client (web or desktop) and copy the client id and secret.',
-    'Request a refresh token with scope https://www.googleapis.com/auth/adwords. Keep that token, not a short-lived access token.',
+    'In Google Cloud enable the Google Ads API for the project and check the access level is Explorer or higher (reads live accounts).',
+    'IAM → Service Accounts: create a service account, then Keys → Add key → JSON and download the key file.',
+    'In Google Ads → Admin → Access and security, add the service account email with Read only access.',
     'Customer ID is the 10 digits in the Google Ads account corner, without dashes. If an MCC manages the account, also fill the manager id.',
-    'Save the keys. This page reads spend for the selected period and subtracts it once from profit, not from each order.',
+    'Paste the whole JSON file and save. This page reads spend for the selected period and subtracts it once from profit, not from each order.',
   ],
+  developerToken: 'Developer token (optional)',
+  serviceAccountJson: 'Service account JSON file',
+  serviceAccountSaved: 'Using {email} — leave blank to keep',
+  oauthFallback: 'Legacy OAuth (the refresh token can expire). Use only without a service account.',
   facebookSteps: [
     'In Meta Business Manager create a system-user token with ads_read.',
     'Copy the ad account id from ad account settings (digits; act_ is optional).',
@@ -411,12 +421,16 @@ const zh: AdSpendPageCopy = {
   googleLead: '粘贴本店广告账户的只读密钥。密钥留空表示保留已保存的值。API 版本 {version}。',
   facebookLead: 'Business Manager 系统用户令牌，权限 ads_read。广告账户 ID 为数字，可带或不带 act_。Graph 版本 {version}。',
   googleSteps: [
-    '打开 Google Ads → 工具 → API 中心，申请 developer token。只读权限即可。',
-    '在 Google Cloud 创建 OAuth 客户端（网页或桌面），复制 Client ID 和 Client secret。',
-    '用范围 https://www.googleapis.com/auth/adwords 申请 refresh token。保存这个长期令牌，不要粘贴短期 access token。',
+    '在 Google Cloud 为项目启用 Google Ads API，并确认访问级别为 Explorer 或更高（可读取正式账户）。',
+    'IAM → 服务账号：创建服务账号，再到 Keys → Add key → JSON 下载密钥文件。',
+    '在 Google Ads → 管理 → 访问权限和安全，添加服务账号邮箱，权限选只读。',
     'Customer ID 是账户角上的 10 位数字，去掉横线。若由 MCC 管理，再填写经理账户 ID。',
-    '保存密钥。页面读取所选期间的费用，并从利润中扣除一次，不摊到每笔订单。',
+    '粘贴整个 JSON 文件并保存。页面读取所选期间的费用，并从利润中扣除一次，不摊到每笔订单。',
   ],
+  developerToken: 'Developer token（可选）',
+  serviceAccountJson: '服务账号 JSON 文件',
+  serviceAccountSaved: '正在使用 {email} — 不修改请留空',
+  oauthFallback: '旧的 OAuth 方式（refresh token 可能过期）。仅在没有服务账号时使用。',
   facebookSteps: [
     '在 Meta Business Manager 创建具有 ads_read 权限的系统用户令牌。',
     '在广告账户设置中复制广告账户 ID（数字，act_ 可省略）。',
@@ -535,12 +549,16 @@ const ja: AdSpendPageCopy = {
   googleLead: 'この店の広告アカウントの読み取りキーを貼ります。秘密欄を空にすると保存済みを維持します。API {version}。',
   facebookLead: 'Business Manager のシステムトークン（ads_read）。広告アカウント ID は数字です。act_ は付けても外せます。Graph {version}。',
   googleSteps: [
-    'Google 広告 → ツール → API センターで developer token を申請します。読み取り権限で足ります。',
-    'Google Cloud で OAuth クライアント（ウェブまたはデスクトップ）を作り、Client ID と secret をコピーします。',
-    'スコープ https://www.googleapis.com/auth/adwords で refresh token を取得します。短い access token は使いません。',
+    'Google Cloud でプロジェクトの Google Ads API を有効にし、アクセスレベルが Explorer 以上（本番アカウントを読める）か確認します。',
+    'IAM → サービスアカウントで作成し、Keys → Add key → JSON で鍵ファイルをダウンロードします。',
+    'Google 広告 → 管理 → アクセスとセキュリティで、サービスアカウントのメールを「閲覧のみ」で追加します。',
     'Customer ID はアカウント隅の 10 桁（ハイフンなし）です。MCC 管理ならマネージャー ID も入れます。',
-    '保存すると、選択期間の広告費を読み、利益から一度だけ引きます。注文ごとには割りません。',
+    'JSON ファイルの中身を丸ごと貼って保存すると、選択期間の広告費を読み、利益から一度だけ引きます。注文ごとには割りません。',
   ],
+  developerToken: 'Developer token（任意）',
+  serviceAccountJson: 'サービスアカウント JSON ファイル',
+  serviceAccountSaved: '{email} を使用中 — 変えないなら空欄',
+  oauthFallback: '旧 OAuth 方式（refresh token は期限切れになることがあります）。サービスアカウントがない場合のみ。',
   facebookSteps: [
     'Meta Business Manager で ads_read 付きのシステムユーザートークンを作ります。',
     '広告アカウント設定から広告アカウント ID（数字。act_ は任意）をコピーします。',
@@ -659,12 +677,16 @@ const ko: AdSpendPageCopy = {
   googleLead: '이 상점 광고 계정의 읽기 키를 붙입니다. 비밀 칸을 비우면 저장된 값을 유지합니다. API {version}.',
   facebookLead: 'Business Manager 시스템 토큰, 권한 ads_read. 광고 계정 ID는 숫자이며 act_는 있어도 됩니다. Graph {version}.',
   googleSteps: [
-    'Google Ads → 도구 → API 센터에서 developer token을 신청합니다. 읽기 권한이면 됩니다.',
-    'Google Cloud에서 OAuth 클라이언트(웹 또는 데스크톱)를 만들고 Client ID와 secret을 복사합니다.',
-    '범위 https://www.googleapis.com/auth/adwords 로 refresh token을 받습니다. 짧은 access token은 쓰지 않습니다.',
+    'Google Cloud에서 프로젝트의 Google Ads API를 켜고 접근 수준이 Explorer 이상(실제 계정 읽기 가능)인지 확인합니다.',
+    'IAM → 서비스 계정에서 만들고 Keys → Add key → JSON으로 키 파일을 내려받습니다.',
+    'Google Ads → 관리 → 액세스 및 보안에서 서비스 계정 이메일을 읽기 전용으로 추가합니다.',
     'Customer ID는 계정 모서리의 10자리(하이픈 제외)입니다. MCC가 관리하면 관리자 ID도 넣습니다.',
-    '저장하면 선택 기간의 광고비를 읽고 이익에서 한 번만 뺍니다. 주문마다 나누지 않습니다.',
+    'JSON 파일 내용을 통째로 붙여 저장하면 선택 기간의 광고비를 읽고 이익에서 한 번만 뺍니다. 주문마다 나누지 않습니다.',
   ],
+  developerToken: 'Developer token (선택)',
+  serviceAccountJson: '서비스 계정 JSON 파일',
+  serviceAccountSaved: '{email} 사용 중 — 유지하려면 비움',
+  oauthFallback: '이전 OAuth 방식(refresh token이 만료될 수 있음). 서비스 계정이 없을 때만 사용합니다.',
   facebookSteps: [
     'Meta Business Manager에서 ads_read 권한이 있는 시스템 사용자 토큰을 만듭니다.',
     '광고 계정 설정에서 광고 계정 ID(숫자, act_는 선택)를 복사합니다.',

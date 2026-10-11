@@ -1,6 +1,6 @@
 /** Đọc chi phí Google Ads và Facebook Ads của một shop. Không ghi log khóa bí mật. */
 
-import { createHash } from 'node:crypto'
+import { createHash, createPrivateKey, sign } from 'node:crypto'
 
 export const AD_SPEND_MAX_RANGE_DAYS = 366
 const CACHE_TTL_MS = 180_000
@@ -52,8 +52,15 @@ export type AdSpendCredentials = {
   googleRefreshToken: string
   googleCustomerId: string
   googleLoginCustomerId: string
+  googleServiceAccountJson: string
   metaAccessToken: string
   metaAdAccountId: string
+}
+
+export type GoogleServiceAccountKey = {
+  clientEmail: string
+  privateKey: string
+  privateKeyId: string
 }
 
 export class AdSpendApiError extends Error {}
@@ -100,14 +107,31 @@ export function parseAdSpendDateRange(dateFrom: string, dateTo: string): { start
   return { start, end }
 }
 
+/** Nhận nguyên file JSON tải từ Google Cloud; trả null nếu thiếu email hoặc khóa PEM. */
+export function parseGoogleServiceAccountJson(raw: string | null | undefined): GoogleServiceAccountKey | null {
+  const text = String(raw ?? '').trim()
+  if (!text) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const body = parsed as { client_email?: unknown; private_key?: unknown; private_key_id?: unknown }
+  const clientEmail = String(body.client_email ?? '').trim()
+  const privateKey = String(body.private_key ?? '').replace(/\\n/g, '\n').trim()
+  if (!clientEmail.includes('@') || !privateKey.includes('PRIVATE KEY')) return null
+  return { clientEmail, privateKey, privateKeyId: String(body.private_key_id ?? '').trim() }
+}
+
+function googleOauthConfigured(creds: AdSpendCredentials): boolean {
+  return Boolean(creds.googleClientId && creds.googleClientSecret && creds.googleRefreshToken)
+}
+
 export function googleConfigured(creds: AdSpendCredentials): boolean {
-  return Boolean(
-    creds.googleCustomerId &&
-      creds.googleDeveloperToken &&
-      creds.googleClientId &&
-      creds.googleClientSecret &&
-      creds.googleRefreshToken,
-  )
+  if (!creds.googleCustomerId) return false
+  return Boolean(parseGoogleServiceAccountJson(creds.googleServiceAccountJson)) || googleOauthConfigured(creds)
 }
 
 export function facebookConfigured(creds: AdSpendCredentials): boolean {
@@ -317,6 +341,51 @@ async function refreshGoogleAccessToken(creds: AdSpendCredentials): Promise<stri
   return token
 }
 
+export function buildServiceAccountAssertion(key: GoogleServiceAccountKey, nowSeconds: number): string {
+  const encode = (value: Record<string, unknown>) => Buffer.from(JSON.stringify(value)).toString('base64url')
+  const header: Record<string, unknown> = { alg: 'RS256', typ: 'JWT' }
+  if (key.privateKeyId) header.kid = key.privateKeyId
+  const unsigned = `${encode(header)}.${encode({
+    iss: key.clientEmail,
+    scope: 'https://www.googleapis.com/auth/adwords',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: nowSeconds,
+    exp: nowSeconds + 3600,
+  })}`
+  let signature: string
+  try {
+    signature = sign('RSA-SHA256', Buffer.from(unsigned), createPrivateKey(key.privateKey)).toString('base64url')
+  } catch {
+    throw new AdSpendApiError('Khóa service account Google không hợp lệ.')
+  }
+  return `${unsigned}.${signature}`
+}
+
+async function serviceAccountAccessToken(key: GoogleServiceAccountKey): Promise<string> {
+  const assertion = buildServiceAccountAssertion(key, Math.floor(Date.now() / 1000))
+  let response: Response
+  try {
+    response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
+      signal: AbortSignal.timeout(25_000),
+    })
+  } catch {
+    throw new AdSpendApiError('Không kết nối được máy chủ token Google.')
+  }
+  const payload = await readJson(response)
+  const token = payload && typeof payload === 'object' ? (payload as { access_token?: unknown }).access_token : null
+  if (!response.ok || typeof token !== 'string' || !token) throw new AdSpendApiError(googleErrorMessage(payload))
+  return token
+}
+
+async function googleAccessToken(creds: AdSpendCredentials): Promise<string> {
+  const serviceAccount = parseGoogleServiceAccountJson(creds.googleServiceAccountJson)
+  if (serviceAccount) return serviceAccountAccessToken(serviceAccount)
+  return refreshGoogleAccessToken(creds)
+}
+
 async function searchGoogleAds(input: {
   customerId: string
   accessToken: string
@@ -328,8 +397,8 @@ async function searchGoogleAds(input: {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${input.accessToken}`,
     'Content-Type': 'application/json',
-    'developer-token': input.developerToken,
   }
+  if (input.developerToken) headers['developer-token'] = input.developerToken
   if (input.loginCustomerId) headers['login-customer-id'] = input.loginCustomerId
   const rows: Record<string, unknown>[] = []
   let pageToken = ''
@@ -453,12 +522,21 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
   if (googleOn) {
     const key = cacheKey(
       'google',
-      [creds.googleCustomerId, creds.googleDeveloperToken, creds.googleRefreshToken, creds.googleLoginCustomerId, start, end, googleAdsApiVersion()].join('|'),
+      [
+        creds.googleCustomerId,
+        creds.googleDeveloperToken,
+        creds.googleRefreshToken,
+        creds.googleServiceAccountJson,
+        creds.googleLoginCustomerId,
+        start,
+        end,
+        googleAdsApiVersion(),
+      ].join('|'),
     )
     try {
       const cached = readCache(key)
       const loaded = cached ?? (await (async () => {
-        const token = await refreshGoogleAccessToken(creds)
+        const token = await googleAccessToken(creds)
         const query = [
           'SELECT segments.date, campaign.id, campaign.name,',
           'metrics.cost_micros, metrics.impressions, metrics.clicks, customer.currency_code',
