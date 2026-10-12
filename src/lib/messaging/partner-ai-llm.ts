@@ -70,6 +70,7 @@ import {
   enrichInventoryRealUseImageIfNeeded,
   type PartnerRealUseImageFollowup,
 } from '@/lib/messaging/partner-inventory-real-use-image'
+import { pickItFeatureLinkSourceRows } from '@/lib/messaging/partner-ai-it-feature-link-reply'
 import { aiProductCardsFromPayload, PARTNER_AI_PRODUCT_CARDS_MAX } from '@/lib/messaging/partner-ai-product-cards'
 import { partnerAiProductCardFromInventoryRow } from '@/lib/messaging/partner-ai-followup-product-cards-clamp'
 import {
@@ -905,14 +906,20 @@ export async function buildPartnerAiContext(
   specificAnglePhotoTemplateInventoryRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
   /** Shop ngành thời trang — áp dụng quy ước cân TQ (斤) khi tư vấn size. */
   isFashionPartner: boolean
+  /** Shop ngành CNTT — câu hỏi tính năng trả bằng link, không pipeline bán hàng. */
+  isItPartner: boolean
+  /** Dòng kho đã chọn để gửi link tính năng. Ngành khác luôn null. */
+  itFeatureLinkRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] | null
   deterministicSizeRecommendation: FashionSizeRecommendation | null
 }> {
   const effectiveLocaleOpts = await resolvePartnerAiLocaleOpts(conversationId, localeOpts)
   let isFashionPartner = false
+  let isItPartner = false
   if (isPgConfigured()) {
     try {
       const partner = await fetchMessagingPartnerByIdFromPg(partnerId)
       isFashionPartner = (partner?.industry_key ?? 'fashion') === 'fashion'
+      isItPartner = partner?.industry_key === 'it'
     } catch (e) {
       console.warn('[partner-ai-llm] partner industry', e)
     }
@@ -1241,6 +1248,8 @@ ${humanShopFactsBlock}`,
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
       isFashionPartner,
+      isItPartner,
+      itFeatureLinkRows: null,
       deterministicSizeRecommendation: null,
     }
   }
@@ -1275,6 +1284,8 @@ ${humanShopFactsBlock}`,
       specificAnglePhotoRequest: false,
       specificAnglePhotoTemplateInventoryRows: null,
       isFashionPartner,
+      isItPartner,
+      itFeatureLinkRows: null,
       deterministicSizeRecommendation: null,
     }
   }
@@ -1608,6 +1619,23 @@ ${humanShopFactsBlock}`,
     newProductSearchTemplateInventoryRows = rows.length > 0 ? rows : null
   }
 
+  const itFeatureLinkRows = isItPartner
+    ? pickItFeatureLinkSourceRows({
+        intent: partnerAiRouteIntent,
+        anchored: inboundAnchoredConsultRow,
+        explicitSku: explicitSkuRows[0] ?? null,
+        lastConsulted: lastConsultedRow,
+        useLastConsulted: useLastConsultedContext,
+        searchRows:
+          partnerAiRouteIntent === 'new_product_search'
+            ? newProductSearchTemplateInventoryRows?.length
+              ? newProductSearchTemplateInventoryRows
+              : invForContext
+            : null,
+        similarRows: similarAlternativesTemplateInventoryRows,
+      })
+    : null
+
   if (selectedRowForEnrich) {
     selectedRowBlock = `\n\nMặt hàng khách đã CHỌN từ danh sách ảnh gợi ý (ưu tiên cao nhất, chỉ tư vấn theo hàng này nếu không có yêu cầu đổi mẫu):\n${formatInventoryLines([selectedRowForEnrich], invFmtOpts)}
 
@@ -1775,12 +1803,19 @@ Nếu trong tin nhắn khách hoặc ngữ cảnh hệ thống có dòng [Custom
 Không hứa giảm giá hay thay đổi chính sách ngoài nội dung đã cho. Trường \`message\` trong JSON: **súc tích**, đúng ý khách; có thể gạch đầu dòng khi cần — **không** văn mẫu kiểu chatbot, **không** tự giới thiệu vai trò kỹ thuật.
 Giọng tư vấn **mở, nhẹ** (như nhân viên thật): ưu tiên làm rõ lo lắng / nhu cầu khi cần; tránh hối mua hoặc bắt chọn màu–size trong mọi tin. Đọc lịch sử — nếu vừa hỏi khách chọn màu (hoặc tương tự) gần đây thì **đừng** lặp lại; chuyển sang trả lời nội dung khách đang hỏi hoặc bổ sung thông tin hữu ích.
 ${semanticMessageSectionsBlock}`
+  const itFeatureChatOverride =
+    isItPartner && partnerAiRouteIntent !== 'policy_or_order_support'
+      ? `
+[Ngành công nghệ thông tin — ghi đè tư vấn bán hàng]
+Ý định tính năng đã được nhận dạng chung với hub. Trường message chỉ là một câu nhắc khách bấm link để mở tính năng. products = []. Không hỏi size, màu, chiều cao, cân nặng. Không nhắc Mua ngay, cọc, giỏ hàng. Không bịa link. Không dán URL ảnh.
+`
+      : ''
   const system =
     partnerAiRouteIntent === 'policy_or_order_support'
       ? policySystem
-      : compactSingleProductBranch
-        ? compactSingleProductSystem
-        : broadCatalogSystem
+      : `${itFeatureChatOverride}${
+          compactSingleProductBranch ? compactSingleProductSystem : broadCatalogSystem
+        }`
 
   const explicitSkuBlock =
     inboundAnchoredProductConsultBranch || !explicitSkuRows.length
@@ -1995,6 +2030,8 @@ ${salesConversionRouterBlock}`
     specificAnglePhotoTemplateInventoryRows:
       specificAnglePhotoTemplateInventoryRows.length > 0 ? specificAnglePhotoTemplateInventoryRows : null,
     isFashionPartner,
+    isItPartner,
+    itFeatureLinkRows: itFeatureLinkRows && itFeatureLinkRows.length > 0 ? itFeatureLinkRows : null,
     deterministicSizeRecommendation,
   }
 }

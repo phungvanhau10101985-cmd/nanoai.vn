@@ -29,6 +29,23 @@ function displayBankName(raw: string): string {
 }
 
 type Row = { id?: string; body: string; raw_payload: Json | null }
+
+type FeatureOpenButton = { href: string; label: string; buttonLabel: string }
+
+function featureOpenFromPayload(raw: Json | null): FeatureOpenButton | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const open = (raw as Record<string, unknown>).feature_open
+  if (!open || typeof open !== 'object' || Array.isArray(open)) return null
+  const row = open as Record<string, unknown>
+  const kind = String(row.kind ?? '')
+  const href = String(row.href ?? '').trim()
+  if (kind !== 'feature_page' && kind !== 'hub') return null
+  if (!href || (!/^https?:\/\//i.test(href) && !href.startsWith('/'))) return null
+  const label = String(row.label ?? '').trim()
+  const buttonLabel = String(row.button_label ?? row.buttonLabel ?? '').trim() || label
+  if (!buttonLabel) return null
+  return { href, label, buttonLabel }
+}
 type VisionCandidateCard = {
   name: string
   image_url: string
@@ -894,6 +911,7 @@ export function CustomerCareMessageBody({
   const caption = row.body.replace(/^📷\s*/u, '').replace(/^≡ƒô╖\s*/u, '').trim()
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
+  const featureOpen = featureOpenFromPayload(row.raw_payload)
   const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []
   /**
    * `VisionCandidateCard.product_url` là optional, còn `PartnerAiProductCard.product_url` bắt buộc string.
@@ -940,6 +958,15 @@ export function CustomerCareMessageBody({
               : 'break-all text-primary underline underline-offset-2 hover:text-primary/90'
           }
         />
+      ) : null}
+      {featureOpen ? (
+        <button
+          type="button"
+          className="inline-flex h-8 items-center rounded-md bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700"
+          onClick={() => openGuestProductDetailUrl(featureOpen.href)}
+        >
+          {featureOpen.buttonLabel}
+        </button>
       ) : null}
       <OrderPaymentPanel
         raw={row.raw_payload}

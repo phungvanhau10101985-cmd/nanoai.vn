@@ -37,8 +37,18 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 type Step = 'USER_UPLOAD' | 'GARMENT_UPLOAD' | 'GENERATING' | 'RESULT'
-// Chỉ sử dụng chất lượng cao
 type Gender = 'male' | 'female' | 'unknown'
+
+function tryOnModelLabel(
+  engine: ImageEngine,
+  geminiName: string,
+  gptName: string,
+  geminiQuality: '2K' | '4K',
+  gptQuality: GptImageQuality,
+): string {
+  return engine === 'gpt' ? `${gptName} · ${gptQuality}` : `${geminiName} · ${geminiQuality}`
+}
+
 type TryOnMode = 'single' | 'couple' | 'group' | 'group4' | 'group5'
 type UiLocale = 'vi' | 'en' | 'zh' | 'ja' | 'ko'
 
@@ -89,6 +99,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
     return vi
   }
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
+  const modelLabel = tryOnModelLabel(imageEngine, genClient.imageEngineGemini, genClient.imageEngineGpt, imageQuality, gptQuality)
   const subtitle = {
     single: tr('Thử đồ 1 người với AI', 'AI try-on for 1 person', 'AI 单人试衣', 'AI 1人試着', 'AI 1인 가상피팅'),
     couple: tr('Thử đồ 2 người với AI', 'AI try-on for 2 people', 'AI 双人试衣', 'AI 2人試着', 'AI 2인 가상피팅'),
@@ -628,7 +639,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         size="default" 
                         className={cn('min-h-[44px] shrink-0 shadow-md hover:shadow-lg transition-all text-sm touch-manipulation', theme.primaryButton)} 
                         onClick={() => checkCreditsAndProceed(cost, handleSubmit)}
-                        title={imageQuality === '2K' ? tr('Tạo chất lượng ảnh 2K', 'Generate 2K image', '生成 2K 图片', '2K画像を生成', '2K 이미지 생성') : tr('Tạo chất lượng ảnh 4K', 'Generate 4K image', '生成 4K 图片', '4K画像を生成', '4K 이미지 생성')}
+                        title={tr(`Tạo ảnh ${modelLabel}`, `Generate ${modelLabel}`, `生成 ${modelLabel}`, `${modelLabel}で生成`, `${modelLabel} 생성`)}
                         disabled={!userImage.file || 
                           (tryOnMode === 'single' && garmentImages.length === 0) || 
                           (tryOnMode === 'couple' && leftGarmentImages.length === 0 && rightGarmentImages.length === 0) || 
@@ -726,7 +737,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-white/90">{tr('Chất lượng:', 'Quality:', '质量：', '品質：', '품질:')}</span>
                           <span className="rounded-full border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
-                            {tr('Chất lượng Cao (Pro)', 'High Quality (Pro)', '高质量 (Pro)', '高品質 (Pro)', '고품질 (Pro)')}
+                            {modelLabel}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -752,7 +763,7 @@ export default function TryOnClientPage({ gender: initialGender, initialMode = '
             <CardFooter className="flex flex-col items-center justify-center pb-6 pt-2 px-4">
               <CardTitle className="text-xl text-center">{tr('Đây là kết quả của bạn!', 'Here is your result!', '这是你的结果！', 'これがあなたの結果です！', '결과가 준비되었습니다!')}</CardTitle>
               <CardDescription className="text-center mt-1">
-                {tr('Ảnh được tạo với chất lượng cao (Pro) vào lúc', 'Generated in High Quality (Pro) at', '图片以高质量（Pro）生成于', '高品質（Pro）で生成：', '고품질(Pro) 생성 시각')} {currentTime} {tr('ngày', 'on', '', '', '')} {currentDate}
+                {tr(`Ảnh được tạo với ${modelLabel} vào lúc`, `Generated with ${modelLabel} at`, `图片以${modelLabel}生成于`, `${modelLabel}で生成：`, `${modelLabel} 생성 시각`)} {currentTime} {tr('ngày', 'on', '', '', '')} {currentDate}
               </CardDescription>
             </CardFooter>
           </Card>

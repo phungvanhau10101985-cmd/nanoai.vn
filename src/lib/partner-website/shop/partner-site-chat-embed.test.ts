@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { parseHTML } from 'linkedom'
+import { preparePartnerVisualHtmlForPublic } from '@/lib/partner-website/shop/render-partner-visual-html'
 import {
   PARTNER_SITE_CHAT_OPEN_SELECTOR,
   buildPartnerSiteConsultEmbedPath,
   buildPartnerSiteLandingChatBridgeScript,
   consultContextFromPdpDocument,
+  stripSharedChromeFrozenProductContextInHtml,
   hasPartnerSiteConsultContext,
   isPartnerPdpDocument,
   partnerSiteChatOpenModeFromEl,
@@ -109,6 +111,41 @@ test('chat bridge try-on reads PDP gallery, not the header logo', () => {
   assert.match(s, /pw-pdp-hero-img/)
   assert.match(s, /function isChromeImg/)
   assert.match(s, /data-nanoai-image/)
+})
+
+test('homepage chrome Chat mua ignores a frozen demo product', () => {
+  const { document } = parseHTML(`<!DOCTYPE html>
+<html data-pw-page="home"><body data-pw-page="home">
+  <button type="button" data-pw-chrome-btn="chat" data-pw-chrome-float="1" data-nanoai-open-chat data-nanoai-consult
+    data-nanoai-sku="DEMO-PDP-001"
+    data-nanoai-inventory="00000000-0000-4000-8000-000000000001"
+    data-nanoai-image="https://cdn.188.com.vn/site/manual-products/dress.jpg">Tư vấn</button>
+</body></html>`)
+  const opened = resolvePartnerSiteChatOpenFromEventTarget(document.querySelector('[data-pw-chrome-btn="chat"]'))
+  assert.equal(opened?.ctx.sku || '', '')
+  assert.equal(opened?.ctx.inventoryId || '', '')
+  assert.equal(opened?.ctx.imageUrl || '', '')
+  const stripped = stripSharedChromeFrozenProductContextInHtml(document.documentElement.outerHTML)
+  assert.equal(stripped.includes('DEMO-PDP-001'), false)
+  assert.equal(stripped.includes('data-nanoai-open-chat'), true)
+  assert.match(buildPartnerSiteLandingChatBridgeScript(), /sharedChromeGateway\(el\)&&!onPdp/)
+  const home = `<!DOCTYPE html><html><body>
+    <button data-pw-chrome-btn="chat" data-nanoai-open-chat data-nanoai-sku="DEMO-PDP-001">Tư vấn</button>
+    <a data-nanoai-consult data-nanoai-sku="REAL-1">Tư vấn thẻ</a>
+  </body></html>`
+  const served = preparePartnerVisualHtmlForPublic(home, {
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    pageKey: 'home',
+  })
+  assert.equal(served.includes('DEMO-PDP-001'), false)
+  assert.match(served, /data-nanoai-sku="REAL-1"/)
+  const pdp = preparePartnerVisualHtmlForPublic(home, {
+    siteSlug: 'demo-shop',
+    locale: 'vi',
+    pageKey: 'product_detail',
+  })
+  assert.match(pdp, /DEMO-PDP-001/)
 })
 
 test('chat bridge Chat mua on PDP attaches the viewing product like 188 consult', () => {

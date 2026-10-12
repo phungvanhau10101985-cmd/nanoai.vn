@@ -21,6 +21,7 @@ import {
 import { injectMarketplaceLookIntoHtml } from '@/lib/partner-website/shop/marketplace-shop-look-css'
 import { injectShopLookIntoHtml } from '@/lib/partner-website/shop/shop-look-css'
 import { injectPartnerShopFooterFitCss } from '@/lib/partner-website/shop/partner-site-footer-fit-css'
+import { stripSharedChromeFrozenProductContextInHtml } from '@/lib/partner-website/shop/partner-site-chat-embed'
 import { injectPartnerShopLiveCssHref } from '@/lib/partner-website/shop/partner-shop-live-css'
 import { injectPartnerShopLiveTrackingHtml } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
@@ -187,10 +188,16 @@ function renderPartnerVisualDocument(html: string, input: PartnerVisualRenderInp
     ? withChrome
     : injectShopLookIntoHtml(injectMarketplaceLookIntoHtml(withChrome, input.theme), input.theme)
   const withFooterFit = liveCssHref ? withLook : injectPartnerShopFooterFitCss(withLook)
+  const keepChromeProduct =
+    input.pageKey === 'product_detail' ||
+    (!input.pageKey && /\bdata-pw-page=["']product["']/i.test(withFooterFit))
+  const withChromeProduct = keepChromeProduct
+    ? withFooterFit
+    : stripSharedChromeFrozenProductContextInHtml(withFooterFit)
   const withRuntime =
     input.runtime === 'authoring'
-      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withFooterFit, { siteSlug, locale })
-      : injectPartnerShopRuntimeScriptsIntoHtml(withFooterFit, {
+      ? injectPartnerShopReadOnlyRuntimeScriptsIntoHtml(withChromeProduct, { siteSlug, locale })
+      : injectPartnerShopRuntimeScriptsIntoHtml(withChromeProduct, {
           siteSlug,
           locale,
           shopTitle: wordmark,

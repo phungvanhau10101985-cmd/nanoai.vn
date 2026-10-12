@@ -31,7 +31,7 @@ import {
 } from '@/lib/messaging/partner-ai-photo-item-consult'
 import { deliverAutomatedPartnerMessage } from '@/lib/messaging/partner-ai-deliver'
 import { runMessagingPartnerAiJobBatch } from '@/lib/messaging/partner-ai-run-jobs'
-import { normalizeWebLocale } from '@/lib/i18n/config'
+import { DEFAULT_WEB_LOCALE, normalizeWebLocale } from '@/lib/i18n/config'
 import {
   inboundTextLooksLikeOrderStatusAsk,
   inboundTextLooksLikePurchasePickListIntent,
@@ -53,12 +53,21 @@ import {
   buildPurchasePickListCardsFromConversation,
   purchasePickListMessageBody,
 } from '@/lib/messaging/partner-ai-purchase-pick-list'
-import { classifyWidgetInboundIntent } from '@/lib/messaging/partner-ai-widget-intent-classifier'
+import { classifyInboundForShopIndustry } from '@/lib/messaging/partner-ai-industry-intent'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
 import {
+  absoluteSharedFeatureHref,
+  isFeatureChatPause,
+  resolveSharedFeatureOpen,
+} from '@/lib/hub-chat/shared-feature-open'
+import { getDictionary } from '@/lib/i18n/dictionaries'
+import {
+  createPartnerAiRouteDecision,
   partnerAiIntentAllowsProductContext,
   partnerAiRouteDecisionToPayload,
   resolvePartnerAiFinalRouteDecision,
   type PartnerAiRouteDecision,
+  type PartnerAiRouteIntent,
 } from '@/lib/messaging/partner-ai-intent-router'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import {
@@ -96,13 +105,15 @@ async function classifyPartnerInboundIntent(input: {
   conversationId: string
   inboundBody: string
   intentClassifyText?: string | null
+  industryKey?: string | null
 }): Promise<PartnerAiRouteDecision | null> {
   if (process.env.PARTNER_AI_WIDGET_INTENT_CLASSIFIER === '0') return null
   const raw = (input.intentClassifyText ?? stripInboundBodyForIntentClassify(input.inboundBody)).trim()
   if (raw.length < 1) return null
   try {
     const lastShop = await fetchLastOutboundCustomerCareMessageBodyPg(input.conversationId)
-    const decision = await classifyWidgetInboundIntent({
+    const decision = await classifyInboundForShopIndustry({
+      industryKey: input.industryKey,
       partnerId: input.partnerId,
       customerText: raw,
       lastShopMessage: lastShop,
@@ -232,6 +243,105 @@ async function runInstantShippingLookupReply(ctx: {
   if (err.error) console.error('[partner-ai] instant shipping lookup deliver', err.error)
 }
 
+async function replyForItShopFeatureIntent(input: {
+  partnerId: string
+  conversationId: string
+  messageId: string
+  inboundBody: string
+  intentClassifyText?: string | null
+  widgetUiLocale?: string | null
+  channel: CustomerCareChannel
+  settings: SettingsRow
+}): Promise<PartnerInboundShopTypingHint> {
+  const probe = stripInboundBodyForIntentClassify(
+    typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()
+      ? input.intentClassifyText
+      : input.inboundBody
+  )
+  let locale = normalizeWebLocale(input.widgetUiLocale ?? null) ?? DEFAULT_WEB_LOCALE
+  if (input.channel === 'widget' && !input.widgetUiLocale && isPgConfigured()) {
+    try {
+      const raw = await fetchConversationUiLocaleFromPg(input.conversationId)
+      locale = normalizeWebLocale(raw ?? null) ?? locale
+    } catch {
+      /* keep default */
+    }
+  }
+  const dict = getDictionary(locale)
+  const shared = resolveSharedFeatureOpen(probe, locale)
+  let intent: PartnerAiRouteIntent = 'clarify'
+  let body = dict.partnerGuestChat.itFeatureLinkClarify
+  let featureOpen: {
+    kind: 'feature_page' | 'hub'
+    href: string
+    label: string
+    button_label: string
+  } | null = null
+  if (shared) {
+    body = shared.message
+    intent = 'explicit_sku_consult'
+    featureOpen = {
+      kind: shared.open.kind,
+      href: absoluteSharedFeatureHref(shared.open.href, getPublicAppUrlForServer()),
+      label: shared.open.label,
+      button_label: shared.open.buttonLabel,
+    }
+  } else if (isFeatureChatPause(probe)) {
+    body = dict.partnerGuestChat.itFeatureLinkPause
+    intent = 'pause_or_close'
+  }
+  let gender: GuestProfileGender | null = null
+  try {
+    const conv = await fetchCustomerCareConversationByIdPg(input.conversationId)
+    gender = await fetchGuestGenderForPartnerConsultCachePg(conv?.linked_user_id)
+  } catch (e) {
+    console.warn('[partner-ai-inbound] it feature gender', e)
+  }
+  const addressed = enforceConfiguredGenderAddressing(body, gender)
+  const decision = createPartnerAiRouteDecision(intent, {
+    source: 'hard_rule',
+    reason: 'it_feature_link',
+    confidence: featureOpen ? 0.9 : 0.7,
+    salesStage: 'browsing',
+    ctaStrategy: 'no_cta',
+  })
+  try {
+    await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
+      ...partnerAiRouteDecisionToPayload(decision),
+      partner_ai_industry_branch: 'it',
+      ...(featureOpen ? { feature_open: featureOpen } : {}),
+    })
+  } catch (e) {
+    console.warn('[partner-ai-inbound] it feature payload', e)
+  }
+  await cancelPendingAiJobsForConversation(input.conversationId)
+  void (async () => {
+    let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+    try {
+      conv = await fetchCustomerCareConversationByIdPg(input.conversationId)
+    } catch (e) {
+      console.warn('[partner-ai-inbound] it feature conv', e)
+    }
+    if (!conv) return
+    await sleep(typingDelayMs(input.settings))
+    const err = await deliverAutomatedPartnerMessage({
+      conversation: conv,
+      settings: input.settings,
+      body: addressed,
+      rawPayload: {
+        source: 'it_feature_link',
+        ai_product_cards: [],
+        partner_ai_industry_branch: 'it',
+        ...partnerAiRouteDecisionToPayload(decision),
+        ...(featureOpen ? { feature_open: featureOpen } : {}),
+      } as unknown as Json,
+    })
+    if (err.error) console.error('[partner-ai-inbound] it feature deliver', err.error)
+  })()
+  const typingHi = Math.max(input.settings.typing_pause_min_ms, input.settings.typing_pause_max_ms)
+  return { show: true, maxWaitMs: typingHi + 10_000 }
+}
+
 /** Gợi ý UI phía khách: hiện “đang trả lời” trong khoảng maxWaitMs (poll nhanh hơn). */
 export type PartnerInboundShopTypingHint = { show: false } | { show: true; maxWaitMs: number }
 
@@ -274,11 +384,25 @@ export async function handlePartnerInboundForAi(input: {
       return { show: false }
     }
 
+    if (partnerGate?.industry_key === 'it') {
+      return replyForItShopFeatureIntent({
+        partnerId: input.partnerId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        inboundBody: input.inboundBody,
+        intentClassifyText: input.intentClassifyText,
+        widgetUiLocale: input.widgetUiLocale,
+        channel: input.channel,
+        settings,
+      })
+    }
+
     let routeDecision = await classifyPartnerInboundIntent({
       partnerId: input.partnerId,
       conversationId: input.conversationId,
       inboundBody: input.inboundBody,
       intentClassifyText: input.intentClassifyText,
+      industryKey: partnerGate?.industry_key,
     })
     const probeForLookup = stripInboundBodyForIntentClassify(
       typeof input.intentClassifyText === 'string' && input.intentClassifyText.trim()

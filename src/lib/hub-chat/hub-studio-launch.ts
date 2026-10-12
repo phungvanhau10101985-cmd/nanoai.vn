@@ -1,8 +1,12 @@
+import { getStudioPreset, isRetiredStudioPreset } from '@/lib/hub-chat/hub-studio-presets'
 import type { WebLocale } from '@/lib/i18n/config'
 
 export type HubStudioLaunchId = 'packaging_kit' | 'bag_kit' | 'catalog_photo_pack'
 
 export const HUB_STUDIO_LAUNCH_QUERY = 'hubStudio'
+
+/** Deep link that starts any in-hub studio preset. Catalog-photo presets stay on their own page. */
+export const HUB_PRESET_QUERY = 'hubPreset'
 
 export const HUB_STUDIO_LAUNCH_PROMPTS: Record<HubStudioLaunchId, Record<WebLocale, string>> = {
   packaging_kit: {
@@ -30,6 +34,18 @@ export const HUB_STUDIO_LAUNCH_PROMPTS: Record<HubStudioLaunchId, Record<WebLoca
 
 export function hubStudioLaunchHref(launchId: HubStudioLaunchId): string {
   return `/?${HUB_STUDIO_LAUNCH_QUERY}=${launchId}`
+}
+
+export function hubPresetLaunchHref(presetId: string): string {
+  return `/?${HUB_PRESET_QUERY}=${encodeURIComponent(presetId)}`
+}
+
+/** Preset id that the homepage can start in-hub. Product-photo presets are pages, not hubs. */
+export function parseHubPresetLaunchId(value: string | null | undefined): string | null {
+  const id = String(value ?? '').trim()
+  if (!id || id === 'product_listing' || id === 'catalog_photo_pack') return null
+  if (!getStudioPreset(id) || isRetiredStudioPreset(id)) return null
+  return id
 }
 
 export function hubStudioLaunchPrompt(launchId: HubStudioLaunchId, locale: WebLocale): string {

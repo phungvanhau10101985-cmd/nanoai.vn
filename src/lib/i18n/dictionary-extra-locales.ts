@@ -134,6 +134,7 @@ const EN_DICTIONARY: Dictionary = {
     advisoryOpenFeature: 'Open feature',
     advisoryStandaloneFeatureBody:
       'You want to use “{feature}”. This runs on a dedicated tool page — tap “Open feature” below to confirm and start.',
+    featureOpenHint: 'You want to use “{feature}”. Tap the link below to open the feature.',
     featureGroupStudioInline: 'In-chat design',
     featurePickerHint: 'Pick a feature — routing is programmatic',
     featureFeedbackOpen: 'Suggest a missing feature',
@@ -1040,6 +1041,7 @@ const EN_DICTIONARY: Dictionary = {
     modalConsultedCustomer: 'Contacted customer for consultation',
     modalPaymentHeading: 'Payment',
     modalOrderTotal: 'Order total',
+    modalDepositRequiredAmount: 'Deposit required',
     modalDepositNeed: 'Required',
     modalDepositDeposited: 'Deposited',
     modalCodAfterDeposit: 'Amount due on delivery (after deposit)',
@@ -2526,6 +2528,12 @@ const EN_DICTIONARY: Dictionary = {
       'Here are the matching products below. You can tap Buy now on any card to place an order in chat, or tap Consult to ask more.',
     photoAngleDetailTemplateMessage:
       'For the specific photo angle you asked about, please tap "View details" on the product card below to see full images and details on the web page.',
+    itFeatureLinkOneLead: 'Here is the {name} feature:',
+    itFeatureLinkManyLead: 'Here are the feature links that match:',
+    itFeatureLinkClickHint: 'Tap the link to use the feature.',
+    itFeatureLinkClarify:
+      'Which feature do you want? Send its name, for example try-on for 1 person or logo design, and I will send the right link.',
+    itFeatureLinkPause: 'You are welcome. When you need a feature, send its name and I will send the link.',
     visionPickHint: 'Choose the right product (or wait for a manual reply).',
     visionPickBusy: 'Sending…',
     visionPickError: 'Could not send your choice. Try again.',
@@ -4018,6 +4026,7 @@ const ZH_DICTIONARY: Dictionary = {
     advisoryOpenFeature: '打开功能',
     advisoryStandaloneFeatureBody:
       '您想使用“{feature}”。该功能在独立工具页运行——请点击下方的“打开功能”确认并开始。',
+    featureOpenHint: '您想使用“{feature}”。请点击下方链接打开该功能。',
     featureGroupStudioInline: '聊天内设计',
     featurePickerHint: '选择功能 — 系统将按编程路由',
     featureFeedbackOpen: '反馈缺少的功能',
@@ -4903,6 +4912,7 @@ const ZH_DICTIONARY: Dictionary = {
     modalConsultedCustomer: '已联系客户咨询',
     modalPaymentHeading: '支付',
     modalOrderTotal: '订单总额',
+    modalDepositRequiredAmount: '需付定金',
     modalDepositNeed: '应付',
     modalDepositDeposited: '已付定金',
     modalCodAfterDeposit: '收货时需付余额（扣除定金后）',
@@ -6349,6 +6359,11 @@ const ZH_DICTIONARY: Dictionary = {
       '下面是符合需求的商品。您可以点商品卡片上的“立即购买”在聊天中下单，也可以点“咨询”继续询问。',
     photoAngleDetailTemplateMessage:
       '您询问的是特定角度图片，请点击下方商品卡片的“查看详情”，在网页里查看完整图片和商品细节。',
+    itFeatureLinkOneLead: '{name} 功能在这里：',
+    itFeatureLinkManyLead: '这些是符合需求的功能链接：',
+    itFeatureLinkClickHint: '请点击链接使用该功能。',
+    itFeatureLinkClarify: '您想用哪项功能？请发送功能名称，例如 1 人试衣或设计 Logo，我会发正确链接。',
+    itFeatureLinkPause: '好的。需要用功能时，发送功能名称，我会发链接。',
     visionPickHint: '请选择正确商品（或等待人工回复）。',
     visionPickBusy: '发送中…',
     visionPickError: '无法提交选择，请重试。',
@@ -7783,6 +7798,7 @@ const JA_DICTIONARY: Dictionary = {
     advisoryOpenFeature: '機能を開く',
     advisoryStandaloneFeatureBody:
       '「{feature}」を使います。この機能は専用ツールページで実行されます — 下の「機能を開く」を押して確認してください。',
+    featureOpenHint: '「{feature}」を使います。下のリンクを押して機能を開いてください。',
     featureGroupStudioInline: 'チャット内デザイン',
     featurePickerHint: '機能を選択 — プログラムでルーティング',
     featureFeedbackOpen: '足りない機能を提案',
@@ -8694,6 +8710,7 @@ const JA_DICTIONARY: Dictionary = {
     modalConsultedCustomer: '顧客へ相談連絡済み',
     modalPaymentHeading: 'お支払い',
     modalOrderTotal: '注文合計',
+    modalDepositRequiredAmount: '必要な手付金',
     modalDepositNeed: '必要額',
     modalDepositDeposited: '入金済（手付）',
     modalCodAfterDeposit: '受取時のお支払い額（手付控除後）',
@@ -10174,6 +10191,12 @@ const JA_DICTIONARY: Dictionary = {
       '条件に合う商品を下にお送りします。気に入った商品カードの「今すぐ購入」からチャット内で注文できます。追加で聞きたい場合は「相談」を押してください。',
     photoAngleDetailTemplateMessage:
       'ご希望の具体的な角度写真は、下の商品カードの「詳細を見る」を押して、Webページで画像と詳細をご確認ください。',
+    itFeatureLinkOneLead: '{name} の機能はこちらです：',
+    itFeatureLinkManyLead: '該当する機能のリンクです：',
+    itFeatureLinkClickHint: 'リンクをタップして機能をご利用ください。',
+    itFeatureLinkClarify:
+      'どの機能を使いますか？機能名を送ってください。例：1人試着、ロゴ作成。正しいリンクをお送りします。',
+    itFeatureLinkPause: '承知しました。機能が必要なときは機能名を送ってください。リンクをお送りします。',
     visionPickHint: '正しい商品を選ぶか、手動の返信をお待ちください。',
     visionPickBusy: '送信中…',
     visionPickError: '選択を送信できませんでした。もう一度お試しください。',
@@ -11640,6 +11663,7 @@ const KO_DICTIONARY: Dictionary = {
     advisoryOpenFeature: '기능 열기',
     advisoryStandaloneFeatureBody:
       '“{feature}” 기능을 사용하려고 합니다. 전용 도구 페이지에서 실행됩니다 — 아래 “기능 열기”를 눌러 확인하세요.',
+    featureOpenHint: '“{feature}” 기능을 사용하려고 합니다. 아래 링크를 눌러 기능을 여세요.',
     featureGroupStudioInline: '채팅 내 디자인',
     featurePickerHint: '기능 선택 — 프로그램 라우팅',
     featureFeedbackOpen: '없는 기능 제안',
@@ -12549,6 +12573,7 @@ const KO_DICTIONARY: Dictionary = {
     modalConsultedCustomer: '고객 상담 연락 완료',
     modalPaymentHeading: '결제',
     modalOrderTotal: '주문 합계',
+    modalDepositRequiredAmount: '필요 계약금',
     modalDepositNeed: '필요 금액',
     modalDepositDeposited: '예치 완료',
     modalCodAfterDeposit: '수령 시 결제 금액(예치 차감 후)',
@@ -14026,6 +14051,12 @@ const KO_DICTIONARY: Dictionary = {
       '아래에 조건에 맞는 상품을 보내드렸습니다. 마음에 드는 상품 카드에서 바로구매를 눌러 채팅에서 주문하거나, 상담을 눌러 더 문의하실 수 있어요.',
     photoAngleDetailTemplateMessage:
       '요청하신 특정 각도 사진은 아래 상품 카드의 "자세히 보기"를 눌러 웹 페이지에서 상세 이미지와 정보를 확인해 주세요.',
+    itFeatureLinkOneLead: '{name} 기능은 여기 있습니다:',
+    itFeatureLinkManyLead: '해당하는 기능 링크입니다:',
+    itFeatureLinkClickHint: '링크를 눌러 기능을 사용해 주세요.',
+    itFeatureLinkClarify:
+      '어떤 기능을 쓰시겠어요? 기능 이름을 보내 주세요. 예: 1인 피팅, 로고 디자인. 맞는 링크를 보내 드립니다.',
+    itFeatureLinkPause: '알겠습니다. 기능이 필요하면 기능 이름을 보내 주세요. 링크를 보내 드립니다.',
     visionPickHint: '맞는 상품을 고르거나 직접 답장을 기다려 주세요.',
     visionPickBusy: '보내는 중…',
     visionPickError: '선택을 보낼 수 없습니다. 다시 시도해 주세요.',

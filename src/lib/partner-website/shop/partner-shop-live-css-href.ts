@@ -12,7 +12,8 @@ import {
 /** Bump when the live CSS pack contents change so HTML cache + `?v=` cannot reuse a stale sheet. */
 export const PARTNER_SHOP_LIVE_CSS_PACK_VERSION = '2'
 export const PARTNER_SHOP_LIVE_CSS_LINK_ID = 'pw-shop-live-css'
-export const PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA = 'css-href-2'
+/** Bust the cached visual HTML shell when served chrome/chat markup changes. */
+export const PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA = 'home-chat-ctx-1'
 
 /**
  * Cache-busting fingerprint (not cryptographic).

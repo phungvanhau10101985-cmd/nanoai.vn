@@ -195,9 +195,11 @@ import {
 import { findBlockingIncompleteStep } from '@/lib/hub-chat/hub-studio-step-retry'
 import { STUDIO_REFERENCE_ATTACH_LIMIT } from '@/lib/hub-chat/hub-studio-reference-limits'
 import {
+  HUB_PRESET_QUERY,
   HUB_STUDIO_LAUNCH_QUERY,
   consumeHubStudioLaunch,
   hubStudioLaunchPrompt,
+  parseHubPresetLaunchId,
   parseHubStudioLaunchId,
   peekHubStudioLaunch,
   saveHubStudioLaunch,
@@ -829,7 +831,8 @@ export function HomeHubChatBar() {
 
   useEffect(() => {
     const launchId = parseHubStudioLaunchId(searchParams.get(HUB_STUDIO_LAUNCH_QUERY))
-    if (launchId || peekHubStudioLaunch()) return
+    const presetLaunchId = parseHubPresetLaunchId(searchParams.get(HUB_PRESET_QUERY))
+    if (launchId || presetLaunchId || peekHubStudioLaunch()) return
     const saved = readHubThreadId()
     if (!saved) return
     setThreadId(saved)
@@ -3325,6 +3328,32 @@ export function HomeHubChatBar() {
       return
     }
 
+    const presetFromQuery =
+      parseHubPresetLaunchId(searchParams.get(HUB_PRESET_QUERY)) ??
+      (typeof window !== 'undefined'
+        ? parseHubPresetLaunchId(new URLSearchParams(window.location.search).get(HUB_PRESET_QUERY))
+        : null)
+    if (presetFromQuery) {
+      if (studioLaunchStartedRef.current || busy || postInFlightRef.current) return
+      if (isActiveStudioFlow(studioSession)) {
+        toast({ title: hc.studioNewFlowThreadRequired, variant: 'default' })
+        return
+      }
+      studioLaunchStartedRef.current = true
+      loadThreadEpochRef.current += 1
+      clearHubThreadId()
+      setThreadId(null)
+      setLines([])
+      setActivePlan(null)
+      setActivePlanRow(null)
+      setStudioSession(null)
+      setMessage('')
+      router.replace('/', { scroll: false })
+      void postStudio({ action: 'start_preset', presetId: presetFromQuery, forceNewThread: true })
+      window.setTimeout(() => scrollChatToBottom('auto'), 120)
+      return
+    }
+
     const launchId = consumeHubStudioLaunch()
     if (launchId === 'catalog_photo_pack') {
       router.replace('/tao-anh-ban-hang')
@@ -3402,7 +3431,7 @@ export function HomeHubChatBar() {
                     openWorkflow(w.href, w.prefillPrompt)
                   }}
                 >
-                  {w.requiresOpenConfirm ? hc.advisoryOpenFeature : hc.openTool}
+                  {w.buttonLabel || (w.requiresOpenConfirm ? hc.advisoryOpenFeature : hc.openTool)}
                 </Button>
               </li>
             ))}

@@ -27,6 +27,8 @@ export type HubChatWorkflowSuggestion = {
   flowKind?: HubFeatureFlowKind
   requiresOpenConfirm?: boolean
   studioPresetId?: string
+  /** Nút mở — cùng chữ trên hub và shop khi đích là trang tính năng hoặc hub. */
+  buttonLabel?: string
 }
 
 export type HubChatPlanPayload = {
@@ -164,7 +166,7 @@ export function buildStandaloneFeatureAdvisoryReply(
   match: Extract<HubFeatureFlowMatch, { kind: 'standalone' }>
 ): string {
   const t = getDictionary(locale).hubChat
-  return t.advisoryStandaloneFeatureBody.replace('{feature}', match.label)
+  return t.featureOpenHint.replace('{feature}', match.label)
 }
 
 export async function buildAdvisoryPayload(input: {

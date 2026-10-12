@@ -1645,6 +1645,12 @@ export function PartnerMessagingOrdersClient({
                       {formatVnd(selectedOrder.amount_after_discount || selectedOrder.subtotal_amount, locale)}
                     </dd>
                   </div>
+                  <div className="flex flex-wrap justify-between gap-x-4 gap-y-1">
+                    <dt className="text-gray-600">{t.modalDepositRequiredAmount}</dt>
+                    <dd className="font-semibold tabular-nums text-gray-900">
+                      {formatVnd(selectedOrder.required_amount, locale)}
+                    </dd>
+                  </div>
                   {partnerAdminExpectsDeposit(selectedOrder) || selectedOrder.paid_amount > 0 ? (
                     <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                       <dt className="shrink-0 text-gray-600">{t.tableColDeposit}</dt>

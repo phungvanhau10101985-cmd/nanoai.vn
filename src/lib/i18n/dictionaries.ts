@@ -248,6 +248,7 @@ export type Dictionary = {
     advisoryFeatureOpenConfirmCancel: string
     advisoryOpenFeature: string
     advisoryStandaloneFeatureBody: string
+    featureOpenHint: string
     featureGroupStudioInline: string
     featurePickerHint: string
     featureFeedbackOpen: string
@@ -1083,6 +1084,8 @@ export type Dictionary = {
     modalConsultedCustomer: string
     modalPaymentHeading: string
     modalOrderTotal: string
+    /** Số cọc đơn này phải thu (`required_amount`), khác số đã nhận. */
+    modalDepositRequiredAmount: string
     modalDepositNeed: string
     modalDepositDeposited: string
     modalCodAfterDeposit: string
@@ -2537,6 +2540,16 @@ export type Dictionary = {
     similarAlternativesTemplateMessage: string
     productSearchTemplateMessage: string
     photoAngleDetailTemplateMessage: string
+    /** Ngành CNTT — một tính năng. `{name}` = tên trong kho. */
+    itFeatureLinkOneLead: string
+    /** Ngành CNTT — vài tính năng khớp câu hỏi. */
+    itFeatureLinkManyLead: string
+    /** Ngành CNTT — nhắc bấm link vừa gửi. */
+    itFeatureLinkClickHint: string
+    /** Ngành CNTT — câu khách chưa chỉ một tính năng. */
+    itFeatureLinkClarify: string
+    /** Ngành CNTT — khách kết thúc, không gửi link. */
+    itFeatureLinkPause: string
     visionPickHint: string
     visionPickBusy: string
     visionPickError: string
@@ -4098,6 +4111,7 @@ export const VI_DICTIONARY: Dictionary = {
     advisoryOpenFeature: 'Mở tính năng',
     advisoryStandaloneFeatureBody:
       'Bạn muốn dùng “{feature}”. Tính năng này chạy trên trang công cụ riêng — bấm “Mở tính năng” bên dưới để xác nhận và bắt đầu.',
+    featureOpenHint: 'Bạn muốn dùng “{feature}”. Bấm vào link bên dưới để mở tính năng.',
     featureGroupStudioInline: 'Thiết kế trong chat',
     featurePickerHint: 'Chọn tính năng — hệ thống mở đúng flow theo lập trình',
     featureFeedbackOpen: 'Góp ý tính năng còn thiếu',
@@ -4958,6 +4972,7 @@ export const VI_DICTIONARY: Dictionary = {
     modalConsultedCustomer: 'Đã liên hệ tư vấn khách',
     modalPaymentHeading: 'Thanh toán',
     modalOrderTotal: 'Tổng đơn',
+    modalDepositRequiredAmount: 'Số tiền cần cọc',
     modalDepositNeed: 'Cần',
     modalDepositDeposited: 'Đã cọc',
     modalCodAfterDeposit: 'Số tiền thanh toán khi nhận hàng (sau cọc)',
@@ -6443,6 +6458,12 @@ export const VI_DICTIONARY: Dictionary = {
       'Dạ, em gửi anh/chị các mẫu phù hợp bên dưới ạ. Anh/chị xem thẻ, nếu ưng mẫu nào có thể bấm Mua ngay để lên đơn trong chat hoặc bấm Tư vấn để hỏi thêm nhé.',
     photoAngleDetailTemplateMessage:
       'Dạ với góc ảnh chi tiết như anh/chị đang hỏi, anh/chị bấm "Xem chi tiết" trên thẻ sản phẩm bên dưới giúp em để xem đầy đủ ảnh và thông tin trên web nhé.',
+    itFeatureLinkOneLead: 'Dạ, tính năng {name} nằm tại:',
+    itFeatureLinkManyLead: 'Dạ, em gửi đường dẫn các tính năng phù hợp:',
+    itFeatureLinkClickHint: 'Anh/chị bấm vào link để sử dụng tính năng ạ.',
+    itFeatureLinkClarify:
+      'Anh/chị muốn dùng tính năng nào? Nhắn tên tính năng, ví dụ thử đồ 1 người hoặc thiết kế logo, để em gửi đúng link ạ.',
+    itFeatureLinkPause: 'Dạ em chào anh/chị. Khi cần dùng tính năng, nhắn tên tính năng để em gửi link ạ.',
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',

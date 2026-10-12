@@ -317,14 +317,22 @@ export async function listPartnerEmsRecordsByIdsFromPg(
   return rows.map(mapEmsRecord)
 }
 
+/** Open EMS rows for the shipment cron. Once per 24h, including rows not linked to a shop order. */
 export async function listDuePartnerEmsRecordsForRecurringSyncFromPg(limit = 24): Promise<PartnerEmsRecord[]> {
   if (!isPgConfigured()) return []
   const rows = await pgQuery(
     `select ${RECORD_SELECT} ${FROM_JOIN}
-     where r.order_id is not null
-       and coalesce(o.shipping_status, 'pending') not in ('delivered', 'returned', 'cancelled')
-       and coalesce(r.sync_status, 'pending') not in ('parse_error', 'unlinked', 'order_not_found')
-       and r.updated_at <= now() - interval '30 minutes'
+     where coalesce(r.sync_status, 'pending') <> 'parse_error'
+       and coalesce(r.ems_phase, '') <> 'delivered'
+       and r.shop_return_received_at is null
+       and coalesce(r.order_status, '') <> 'returned'
+       and (r.order_id is null or coalesce(o.shipping_status, '') <> 'cancelled')
+       and (
+         nullif(btrim(coalesce(r.ems_tracking_code, '')), '') is not null
+         or nullif(btrim(coalesce(r.reference_code, '')), '') is not null
+         or nullif(btrim(coalesce(r.tracking_number_saved, '')), '') is not null
+       )
+       and r.updated_at <= now() - interval '24 hours'
      order by r.updated_at asc
      limit $1`,
     [Math.max(1, Math.min(80, Math.floor(limit)))]

@@ -34,6 +34,12 @@ import {
   deliverPartnerMaterialImageFollowup,
 } from '@/lib/messaging/partner-ai-deliver'
 import { generateInventoryMaterialDetailFollowupById } from '@/lib/messaging/partner-inventory-material-detail-image'
+import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import {
+  absoluteSharedFeatureHref,
+  isFeatureChatPause,
+  resolveSharedFeatureOpen,
+} from '@/lib/hub-chat/shared-feature-open'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -293,6 +299,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         specificAnglePhotoRequest,
         specificAnglePhotoTemplateInventoryRows,
         isFashionPartner,
+        isItPartner,
         deterministicSizeRecommendation,
       } = await buildPartnerAiContext(
         job.partner_id,
@@ -308,6 +315,60 @@ async function runMessagingPartnerAiJobBatchUsingPg(
 
       if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
         skipped += 1
+        continue
+      }
+
+      if (isItPartner && partnerAiRouteIntent !== 'policy_or_order_support') {
+        if ((await partnerAiJobIsStillProcessingPg(job.id)) === false) {
+          skipped += 1
+          continue
+        }
+        const dict = getDictionary(cacheUiLocale)
+        const shared = resolveSharedFeatureOpen(inboundForAi, cacheUiLocale)
+        let featureBody = dict.partnerGuestChat.itFeatureLinkClarify
+        let featureOpen: {
+          kind: 'feature_page' | 'hub'
+          href: string
+          label: string
+          button_label: string
+        } | null = null
+        if (shared) {
+          featureBody = shared.message
+          featureOpen = {
+            kind: shared.open.kind,
+            href: absoluteSharedFeatureHref(shared.open.href, getPublicAppUrlForServer()),
+            label: shared.open.label,
+            button_label: shared.open.buttonLabel,
+          }
+        } else if (isFeatureChatPause(inboundForAi)) {
+          featureBody = dict.partnerGuestChat.itFeatureLinkPause
+        }
+        const rawFeatureLink = {
+          source: 'it_feature_link',
+          model: null,
+          usage: null,
+          ai_product_cards: [],
+          ...(featureOpen ? { feature_open: featureOpen } : {}),
+          ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
+          ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
+          ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),
+          partner_ai_pipeline_branch: 'it_feature_link' as const,
+        } as unknown as Json
+        const dFeature = await deliverAutomatedPartnerMessage({
+          conversation: conv,
+          settings,
+          body: enforceConfiguredGenderAddressing(featureBody, configuredGender),
+          rawPayload: rawFeatureLink,
+          materialDetailFollowup: null,
+          realUseFollowup: null,
+        })
+        if (dFeature.error) {
+          await setPartnerAiJobStatus(job.id, { status: 'failed', error: dFeature.error })
+          failed += 1
+        } else {
+          await setPartnerAiJobStatus(job.id, { status: 'done', error: null })
+          completed += 1
+        }
         continue
       }
 

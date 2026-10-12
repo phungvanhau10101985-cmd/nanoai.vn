@@ -153,6 +153,10 @@ import {
   type HubRouteKind,
 } from '@/lib/hub-chat/hub-advisory'
 import {
+  sharedFeatureOpenFromMatch,
+  sharedFeatureOpenToWorkflow,
+} from '@/lib/hub-chat/shared-feature-open'
+import {
   notifyNanoAiAdminsHubFeatureRequest,
   shouldAutoForwardMissingHubFeature,
 } from '@/lib/hub-chat/hub-feature-request-admin'
@@ -7516,6 +7520,29 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
           return resolveIdleFeatureMatch(message, input.locale, recentContext)
         })()
       : null
+    if (!activeDesign && idleFeatureMatch) {
+      const shared = sharedFeatureOpenFromMatch(idleFeatureMatch, input.locale)
+      const workflow = sharedFeatureOpenToWorkflow(shared, message)
+      reply = shared.message
+      await pgInsertHubChatMessage({
+        threadId: input.threadId,
+        role: 'assistant',
+        content: reply,
+        workflows: [workflow],
+        planId: null,
+      })
+      return {
+        ok: true,
+        reply,
+        session,
+        threadId: input.threadId,
+        chargedChat,
+        workflows: [workflow],
+        plan: null,
+        hubRoute: 'workflow',
+        showFeaturePicker: false,
+      }
+    }
     const catalogSurface = catalogSurfaceForHubTurn({
       locale: input.locale,
       match: idleFeatureMatch,

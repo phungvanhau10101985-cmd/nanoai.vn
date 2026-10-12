@@ -169,6 +169,27 @@ function consultContextFromChatOpenEl(el: {
   }
 }
 
+/** Chat / Thử đồ trong chrome dùng chung. Ngữ cảnh SP trên nút này chỉ hợp lệ ở trang chi tiết. */
+export function isSharedChromeShopGateway(el: {
+  getAttribute: (name: string) => string | null
+}): boolean {
+  const btn = el.getAttribute('data-pw-chrome-btn') || ''
+  return btn === 'chat' || btn === 'try-on'
+}
+
+/** Chrome chat/Thử đồ được copy sang mọi trang. SP đóng trên nút (kể cả vỏ demo PDP) không được theo sang trang chủ, đăng nhập, listing. */
+export function stripSharedChromeFrozenProductContextInHtml(html: string): string {
+  if (!html.trim()) return html
+  return html.replace(
+    /<(button|a)\b([^>]*\bdata-pw-chrome-btn=["'](?:chat|try-on)["'][^>]*)>/gi,
+    (_full, tag: string, attrs: string) =>
+      `<${tag}${attrs.replace(
+        /\sdata-nanoai-(?:sku|image-2|image|inventory|product-url|cover-image|consult)(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?/gi,
+        ''
+      )}>`
+  )
+}
+
 export function partnerSiteChatOpenModeFromEl(el: {
   hasAttribute: (name: string) => boolean
   getAttribute: (name: string) => string | null
@@ -420,11 +441,12 @@ export function resolvePartnerSiteChatOpenFromEventTarget(
   if (el.closest('[data-pw-chrome-btn="chat-zalo"],[data-pw-chrome-btn="chat-facebook"]')) return null
   if (isPartnerSiteDashboardHref(el.getAttribute('href')) && !elIsMarkedShopChatOpen(el)) return null
   const mode = partnerSiteChatOpenModeFromEl(el)
-  const fromBtn = consultContextFromChatOpenEl(el)
   const doc = el.ownerDocument
   const onPdp = isPartnerPdpDocument(doc)
+  const sharedChrome = isSharedChromeShopGateway(el)
+  const fromBtn = sharedChrome && !onPdp ? {} : consultContextFromChatOpenEl(el)
   const fromPage =
-    mode === 'try_on' || mode === 'consult' || onPdp
+    onPdp || (!sharedChrome && (mode === 'try_on' || mode === 'consult'))
       ? consultContextFromPdpDocument(doc, el, { liveViewingImage: mode === 'try_on' })
       : {}
   const ctx = withAbsolutePartnerTryOnContext(mergeConsultContext(fromPage, fromBtn))
@@ -557,6 +579,10 @@ function ctxFromPdp(liveViewing){
 function hasCtx(ctx){
   return !!(ctx&&((ctx.sku||'').trim()||(ctx.imageUrl||'').trim()||(ctx.inventoryId||'').trim()));
 }
+function sharedChromeGateway(el){
+  var btn=el.getAttribute('data-pw-chrome-btn');
+  return btn==='chat'||btn==='try-on';
+}
 function mergeCtx(page,btn){
   return {
     inventoryId:page.inventoryId||btn.inventoryId||'',
@@ -595,7 +621,9 @@ document.addEventListener('click',function(ev){
   else mode='consult';
   var ctx=ctxFromEl(el);
   var onPdp=isPdpPage();
-  if(mode==='try_on'||mode==='consult'||onPdp){
+  if(sharedChromeGateway(el)&&!onPdp){
+    ctx={};
+  }else if(mode==='try_on'||mode==='consult'||onPdp){
     ctx=mergeCtx(ctxFromPdp(mode==='try_on'),ctx);
   }
   if(mode!=='try_on'&&onPdp&&hasCtx(ctx))mode='consult';

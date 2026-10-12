@@ -46,6 +46,17 @@ describe('order lifecycle mutation wiring', () => {
     assert.match(shopReturn, /event: 'returned'/)
   })
 
+  it('refreshes open EMS shipments once a day even when the shop order is not linked', () => {
+    const emsDb = source('../../db/messaging-partner-ems-shipping-pg.ts')
+    const start = emsDb.indexOf('export async function listDuePartnerEmsRecordsForRecurringSyncFromPg')
+    const body = emsDb.slice(start, emsDb.indexOf('export type UpsertEmsRecordInput', start))
+    assert.match(body, /interval '24 hours'/)
+    assert.match(body, /coalesce\(r\.ems_phase, ''\) <> 'delivered'/)
+    assert.match(body, /r\.order_id is null or coalesce\(o\.shipping_status, ''\) <> 'cancelled'/)
+    assert.doesNotMatch(body, /r\.order_id is not null/)
+    assert.doesNotMatch(body, /interval '30 minutes'/)
+  })
+
   it('returns the seeded shipment timeline when deposit poll sees a paid order', () => {
     const guestOrder = source('../../../app/api/messaging/guest/[slug]/order/[orderId]/route.ts')
     const depositClient = source('../../../components/partner-website/shop/partner-site-shop-deposit-client.tsx')
