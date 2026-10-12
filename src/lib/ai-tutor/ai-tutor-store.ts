@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { foldTutorTitle } from '@/lib/ai-tutor/ai-tutor-match'
 import { parseStoredTutorAnswer, parseTutorLabels } from '@/lib/ai-tutor/ai-tutor-parse'
 import type { TutorAnswer, TutorLabel, TutorThreadMessage } from '@/lib/ai-tutor/ai-tutor-types'
 
@@ -75,6 +76,26 @@ export async function listTutorTopicCatalog(
   }
 }
 
+/** Mọi chủ đề của một ngôn ngữ, bản ghi trước đứng trước để trùng tên lấy bản đầu. */
+export async function listTutorTopicNames(
+  locale: string
+): Promise<Array<{ topicKey: string; title: string }>> {
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{ topic_key: string; title: string }>(
+      `select topic_key, title
+       from public.tutor_topics
+       where locale = $1
+       order by created_at asc`,
+      [locale]
+    )
+    return rows.map((row) => ({ topicKey: row.topic_key, title: row.title }))
+  } catch (error) {
+    console.warn('[ai-tutor] topic names', error instanceof Error ? error.message : error)
+    return []
+  }
+}
+
 export async function fetchTutorTopic(topicKey: string, locale: string): Promise<TutorAnswer | null> {
   if (!isPgConfigured() || !topicKey) return null
   try {
@@ -119,6 +140,12 @@ export async function rememberTutorTopic(input: {
 }): Promise<TutorAnswer | null> {
   if (!isPgConfigured()) return null
   try {
+    const named = await listTutorTopicNames(input.locale)
+    const sameTitle = named.find((row) => foldTutorTitle(row.title) === foldTutorTitle(input.title))
+    if (sameTitle) {
+      await touchTutorTopic(sameTitle.topicKey, input.locale)
+      return fetchTutorTopic(sameTitle.topicKey, input.locale)
+    }
     const inserted = await pgQuery<{ topic_key: string }>(
       `insert into public.tutor_topics (
          topic_key, locale, title, explanation, practice, labels, draft_model, check_model

@@ -1,12 +1,60 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  bindLabelsToSaved,
+  pickSavedTopicByTag,
+  pickSavedTopicFromClassified,
+  pickSavedTopicFromQuestion,
+} from '@/lib/ai-tutor/ai-tutor-match'
+import {
   parseStoredTutorAnswer,
   parseTutorCheck,
   parseTutorClassify,
   parseTutorDraft,
   tutorTopicKey,
 } from '@/lib/ai-tutor/ai-tutor-parse'
+
+const SAVED = [
+  { topicKey: 'right-triangles', title: 'Tam giác vuông' },
+  { topicKey: 'dinh-ly-pytago', title: 'Định lý Pytago' },
+  { topicKey: 'pythagorean-theorem', title: 'Định lý Pytago' },
+  { topicKey: 'distance-formula', title: 'Công thức tính khoảng cách' },
+]
+
+test('a question that names one saved lesson reuses that lesson', () => {
+  assert.equal(pickSavedTopicFromQuestion('Học về tam giác vuông', SAVED)?.topicKey, 'right-triangles')
+  assert.equal(pickSavedTopicFromQuestion('nói về định lý pytago', SAVED)?.topicKey, 'dinh-ly-pytago')
+  assert.equal(pickSavedTopicFromQuestion('so sánh tam giác vuông và định lý pytago', SAVED), null)
+})
+
+test('a tag click matches the saved name even when the key differs', () => {
+  const hit = pickSavedTopicByTag({ key: 'pythagorean-theorem', title: 'Định lý Pytago' }, SAVED)
+  assert.equal(hit?.topicKey, 'dinh-ly-pytago')
+})
+
+test('classified lesson reuses the saved title before the new key', () => {
+  const hit = pickSavedTopicFromClassified(
+    { topicKey: 'right-triangle', title: 'Tam giác vuông' },
+    SAVED
+  )
+  assert.equal(hit?.topicKey, 'right-triangles')
+})
+
+test('new tags attach to a saved name and a topic does not tag itself', () => {
+  const labels = bindLabelsToSaved(
+    [
+      { key: 'pythagorean-theorem', title: 'Định lý Pytago' },
+      { key: 'right-triangles', title: 'Tam giác vuông' },
+      { key: 'trig-ratios', title: 'Tỉ số lượng giác' },
+    ],
+    SAVED,
+    'Tam giác vuông'
+  )
+  assert.deepEqual(labels, [
+    { key: 'dinh-ly-pytago', title: 'Định lý Pytago' },
+    { key: 'trig-ratios', title: 'Tỉ số lượng giác' },
+  ])
+})
 
 test('tutor topic key is stable ascii', () => {
   assert.equal(tutorTopicKey('Quang hợp'), 'quang-hop')

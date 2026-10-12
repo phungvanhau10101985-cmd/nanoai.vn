@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -117,7 +118,21 @@ export default function GiaSuAiClient({ locale }: Props) {
               </p>
             ) : (
               <article key={message.id} className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
-                {message.answer?.title ? <h2 className="text-base font-semibold">{message.answer.title}</h2> : null}
+                {message.answer?.title || (message.answer && message.answer.share !== 'private') ? (
+                  <div className="flex items-center gap-1.5">
+                    {message.answer?.title ? (
+                      <h2 className="text-base font-semibold">{message.answer.title}</h2>
+                    ) : null}
+                    {message.answer && message.answer.share !== 'private' ? (
+                      <Check
+                        className="h-4 w-4 shrink-0 text-green-600"
+                        strokeWidth={3}
+                        role="img"
+                        aria-label={copy.share[message.answer.share]}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
                 <section className="space-y-1">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {copy.explain}
@@ -131,9 +146,6 @@ export default function GiaSuAiClient({ locale }: Props) {
                     </h3>
                     <p className="whitespace-pre-wrap text-sm leading-6">{message.answer.practice}</p>
                   </section>
-                ) : null}
-                {message.answer ? (
-                  <p className="text-xs leading-5 text-muted-foreground">{copy.share[message.answer.share]}</p>
                 ) : null}
                 {message.answer && message.answer.labels.length > 0 ? (
                   <section className="space-y-2">

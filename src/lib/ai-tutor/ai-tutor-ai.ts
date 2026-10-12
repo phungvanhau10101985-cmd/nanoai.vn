@@ -3,12 +3,20 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { createGoogleGenerativeAIForUser } from '@/lib/ai/google-api-key-resolver'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { AI_TUTOR_CHECK_MODEL, AI_TUTOR_DRAFT_MODEL } from '@/lib/ai-tutor/ai-tutor-models'
+import {
+  bindLabelsToSaved,
+  pickSavedTopicByTag,
+  pickSavedTopicFromClassified,
+  pickSavedTopicFromQuestion,
+  type TutorTopicName,
+} from '@/lib/ai-tutor/ai-tutor-match'
 import { parseTutorCheck, parseTutorClassify, parseTutorDraft, tutorTopicKey } from '@/lib/ai-tutor/ai-tutor-parse'
 import {
   appendTutorMessage,
   ensureTutorSession,
   fetchTutorTopic,
   listTutorTopicCatalog,
+  listTutorTopicNames,
   rememberTutorTopic,
   touchTutorTopic,
 } from '@/lib/ai-tutor/ai-tutor-store'
@@ -134,8 +142,8 @@ Return ONLY JSON: {"topicKey":"","title":"","reuse":false}
 Rules:
 - topicKey is lowercase English kebab-case, 3 to 48 characters, and names the specific idea. "why is the sky blue" is "blue-sky", not "physics" or "vat-ly".
 - Never use a school subject as the key or the title.
-- reuse is true only when this question is the same idea as one existing topic. Then topicKey must be that existing key.
-- title is a short specific name a student would recognize, in ${languageName(input.locale)}, at most 6 words.
+- reuse is true only when this question is the same idea as one existing topic. Then topicKey and title must be copied exactly from that line.
+- title is a short specific lesson name a student would recognize, in ${languageName(input.locale)}, at most 6 words.
 - Do not answer the question.`
   const raw = await generateJson({
     userId: input.userId,
@@ -152,11 +160,15 @@ async function draftLesson(input: {
   locale: WebLocale
   question: string
   title: string
+  catalog: TutorTopicName[]
 }): Promise<{ explanation: string; practice: string; labels: TutorLabel[] } | null> {
   const prompt = `You are a tutor in a private 1:1 chat with one student. Write entirely in ${languageName(input.locale)}.
 Topic: ${input.title}
 Student question:
 ${input.question}
+
+Existing saved topics, one per line as key | title:
+${catalogBlock(input.catalog)}
 
 Return ONLY JSON:
 {"explanation":"","practice":"","labels":[{"key":"","title":""}]}
@@ -164,6 +176,7 @@ Rules:
 - explanation: 4 to 8 short sentences in everyday words. Define a term the first time you use it. Plain text, no markdown.
 - practice: one real situation outside class, such as a kitchen, a market, a phone, a bus, or a sport. No invented statistics.
 - labels: exactly 2 or 3 deeper related ideas. key is English kebab-case. title is in ${languageName(input.locale)}, at most 8 words.
+- When a label is the same idea as an existing topic, copy that key and title exactly.
 - Do not repeat the main topic as a label.`
   const raw = await generateJson({
     userId: input.userId,
@@ -242,17 +255,45 @@ async function recordTurn(input: {
   })
 }
 
+function withSavedTags(labels: TutorLabel[], saved: TutorTopicName[], parentTitle: string, parentKey: string): TutorLabel[] {
+  const bound = bindLabelsToSaved(labelsExcept(labels, parentKey), saved, parentTitle)
+  return bound.length >= 2 ? bound : labelsExcept(labels, parentKey)
+}
+
+async function serveSaved(input: {
+  sessionId: string | null
+  userId: string
+  locale: string
+  question: string
+  kind: 'question' | 'label'
+  topicKey: string
+}): Promise<TutorAnswer | null> {
+  const existing = await fetchTutorTopic(input.topicKey, input.locale)
+  if (!existing) return null
+  await touchTutorTopic(existing.topicKey, input.locale)
+  await recordTurn({
+    sessionId: input.sessionId,
+    userId: input.userId,
+    question: input.question,
+    kind: input.kind,
+    answer: existing,
+  })
+  return existing
+}
+
 async function composeFresh(input: {
   userId: string
   locale: WebLocale
   question: string
   topicKey: string
   title: string
+  saved: TutorTopicName[]
+  catalog: TutorTopicName[]
 }): Promise<TutorAnswer | null> {
   let drafted = await draftLesson(input)
   if (!drafted) drafted = await draftLesson(input)
   if (!drafted) return null
-  const draftLabels = labelsExcept(drafted.labels, input.topicKey)
+  const draftLabels = withSavedTags(drafted.labels, input.saved, input.title, input.topicKey)
   const checked = await checkLesson({
     userId: input.userId,
     locale: input.locale,
@@ -261,7 +302,7 @@ async function composeFresh(input: {
     practice: drafted.practice,
     labels: draftLabels.length >= 2 ? draftLabels : drafted.labels,
   })
-  const checkedLabels = labelsExcept(checked?.labels ?? [], input.topicKey)
+  const checkedLabels = withSavedTags(checked?.labels ?? [], input.saved, input.title, input.topicKey)
   if (checked?.ok && checkedLabels.length >= 2) {
     const saved = await rememberTutorTopic({
       topicKey: input.topicKey,
@@ -301,6 +342,20 @@ export async function askTutor(input: {
   const text = input.text.trim().slice(0, 2000)
   if (!text) return null
   const sessionId = await ensureTutorSession(input.userId, input.locale)
+  const saved = await listTutorTopicNames(input.locale)
+  const named = pickSavedTopicFromQuestion(text, saved)
+  if (named) {
+    const hit = await serveSaved({
+      sessionId,
+      userId: input.userId,
+      locale: input.locale,
+      question: text,
+      kind: 'question',
+      topicKey: named.topicKey,
+    })
+    if (hit) return hit
+  }
+
   const catalog = await listTutorTopicCatalog(input.locale)
   let classified = await classifyQuestion({ ...input, text, catalog })
   if (!classified) classified = await classifyQuestion({ ...input, text, catalog })
@@ -310,17 +365,17 @@ export async function askTutor(input: {
   }
   if (!classified) return null
 
-  const existing = await fetchTutorTopic(classified.topicKey, input.locale)
-  if (existing) {
-    await touchTutorTopic(classified.topicKey, input.locale)
-    await recordTurn({
+  const resolved = pickSavedTopicFromClassified(classified, saved)
+  if (resolved) {
+    const hit = await serveSaved({
       sessionId,
       userId: input.userId,
+      locale: input.locale,
       question: text,
       kind: 'question',
-      answer: existing,
+      topicKey: resolved.topicKey,
     })
-    return existing
+    if (hit) return hit
   }
 
   const fresh = await composeFresh({
@@ -329,6 +384,8 @@ export async function askTutor(input: {
     question: text,
     topicKey: classified.topicKey,
     title: classified.title,
+    saved,
+    catalog,
   })
   if (!fresh) return null
   await recordTurn({
@@ -351,24 +408,28 @@ export async function openTutorLabel(input: {
   const title = input.title.trim().slice(0, 80)
   if (!topicKey || !title) return null
   const sessionId = await ensureTutorSession(input.userId, input.locale)
-  const existing = await fetchTutorTopic(topicKey, input.locale)
-  if (existing) {
-    await touchTutorTopic(topicKey, input.locale)
-    await recordTurn({
+  const saved = await listTutorTopicNames(input.locale)
+  const tag = pickSavedTopicByTag({ key: topicKey, title }, saved)
+  if (tag) {
+    const hit = await serveSaved({
       sessionId,
       userId: input.userId,
+      locale: input.locale,
       question: title,
       kind: 'label',
-      answer: existing,
+      topicKey: tag.topicKey,
     })
-    return existing
+    if (hit) return hit
   }
+  const catalog = await listTutorTopicCatalog(input.locale)
   const fresh = await composeFresh({
     userId: input.userId,
     locale: input.locale,
     question: title,
     topicKey,
     title,
+    saved,
+    catalog,
   })
   if (!fresh) return null
   await recordTurn({
