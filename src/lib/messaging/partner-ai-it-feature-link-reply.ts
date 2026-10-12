@@ -17,6 +17,33 @@ export type ItFeatureLinkItem = {
   url: string
 }
 
+export type ItFeatureOpenButton = {
+  href: string
+  label: string
+  buttonLabel: string
+}
+
+/**
+ * Nút mở tính năng chỉ thuộc tin shop (`source = it_feature_link`).
+ * Tin khách có thể mang `feature_open` để ghi nhận định — không vẽ nút ở đó.
+ */
+export function itFeatureOpenButtonFromPayload(raw: unknown): ItFeatureOpenButton | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
+  if (String(record.source ?? '') !== 'it_feature_link') return null
+  const open = record.feature_open
+  if (!open || typeof open !== 'object' || Array.isArray(open)) return null
+  const row = open as Record<string, unknown>
+  const kind = String(row.kind ?? '')
+  const href = String(row.href ?? '').trim()
+  if (kind !== 'feature_page' && kind !== 'hub') return null
+  if (!href || (!/^https?:\/\//i.test(href) && !href.startsWith('/'))) return null
+  const label = String(row.label ?? '').trim()
+  const buttonLabel = String(row.button_label ?? row.buttonLabel ?? '').trim() || label
+  if (!buttonLabel) return null
+  return { href, label, buttonLabel }
+}
+
 export type ItFeatureLinkCopy = {
   /** Có `{name}`. */
   oneLead: string

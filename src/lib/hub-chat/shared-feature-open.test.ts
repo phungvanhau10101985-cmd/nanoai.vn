@@ -36,6 +36,22 @@ test('thanks is a pause, not a feature', () => {
   assert.equal(isFeatureChatPause('cảm ơn shop'), true)
 })
 
+test('homework help opens the feature page button', () => {
+  const open = resolveSharedFeatureOpen('hỗ trợ làm bài', 'vi')
+  assert.ok(open)
+  assert.equal(open.open.kind, 'feature_page')
+  assert.equal(open.open.href, '/ho-tro-lam-bai')
+  assert.equal(open.open.buttonLabel, 'Mở tính năng')
+})
+
+test('phục chế ảnh opens photo restoration', () => {
+  const open = resolveSharedFeatureOpen('Phục chế ảnh cho tôi', 'vi')
+  assert.ok(open)
+  assert.equal(open.open.kind, 'feature_page')
+  assert.equal(open.open.href, '/phuc-dung-anh')
+  assert.match(open.open.label, /Phục dựng/)
+})
+
 test('greeting does not invent a feature', () => {
   assert.equal(resolveSharedFeatureOpen('xin chào shop', 'vi'), null)
   assert.equal(isFeatureChatPause('xin chào shop'), false)

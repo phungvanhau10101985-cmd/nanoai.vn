@@ -37,6 +37,19 @@ test('matchFeatureFlowByMessage resolves standalone restore image tool', () => {
   if (match?.kind === 'standalone') assert.equal(match.href, '/phuc-dung-anh')
 })
 
+test('phục chế ảnh opens photo restoration, not the meme page', () => {
+  for (const phrase of ['Phục chế ảnh cho tôi', 'phục chế ảnh', 'phuc che anh', 'phục chế']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/phuc-dung-anh', phrase)
+  }
+  for (const phrase of ['chế ảnh', 'chế ảnh meme', 'meme']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/che-anh', phrase)
+  }
+})
+
 test('tạo giáo trình maps to create curriculum tool not my curricula', () => {
   const match = matchFeatureFlowByMessage('tạo giáo trình', 'vi')
   assert.equal(match?.kind, 'standalone')
@@ -170,6 +183,17 @@ test('buildAdvisoryPayload injects wedding tool for generic invitation design re
   })
   assert.equal(result.workflows[0]?.href, '/tao-thiep-moi-cuoi-ai')
   assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
+})
+
+test('hỗ trợ làm bài opens homework help, not teacher homework', () => {
+  for (const phrase of ['hỗ trợ làm bài', 'chữa bài tập', 'homework help', 'không hiểu bài này']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/ho-tro-lam-bai', phrase)
+  }
+  const teacher = matchFeatureFlowByMessage('tạo bài tập về nhà', 'vi')
+  assert.equal(teacher?.kind, 'standalone')
+  if (teacher?.kind === 'standalone') assert.equal(teacher.href, '/tao-bai-tap-ve-nha')
 })
 
 test('học ngoại ngữ opens the language learning page', () => {

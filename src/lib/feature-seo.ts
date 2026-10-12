@@ -1065,6 +1065,45 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       { question: 'Có chấm tự động không?', answer: 'Có, trắc nghiệm chấm tự động.' },
     ],
   },
+  'ho-tro-lam-bai': {
+    key: 'ho-tro-lam-bai',
+    pageTitle: 'Hỗ trợ làm bài – chụp đề, xem kiến thức và hướng tư duy',
+    pageDescription:
+      'Học sinh chụp ảnh bài tập. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi học sinh bấm bước cuối.',
+    path: '/ho-tro-lam-bai',
+    keywords: ['hỗ trợ làm bài', 'chữa bài tập', 'chụp ảnh bài tập', 'hướng tư duy', 'homework help'],
+    serviceName: 'Hỗ trợ làm bài',
+    serviceDescription:
+      'Đọc ảnh bài tập, tách từng câu, liệt kê kiến thức liên quan và hướng tư duy trước khi hiện đáp án.',
+    h2: 'Chụp bài, đọc từng câu, nghĩ theo hướng làm',
+    overview:
+      'Học sinh chụp một câu hoặc một trang bài. Trang đọc lại đề, liệt kê kiến thức cần nhớ và các bước tư duy. Gợi ý mở lần lượt. Đáp án nằm ở bước cuối. Khi đã có lời giải của mình, học sinh gửi bài làm để được chỉ chỗ đúng và chỗ cần xem lại.',
+    benefits: [
+      'Mỗi câu một thẻ: đề, kiến thức, hướng tư duy',
+      'Đáp án không hiện ngay',
+      'Chữa bài sau khi học sinh đã làm',
+    ],
+    useCases: ['Ôn một câu chưa hiểu', 'Xem hướng làm trước khi tính', 'Đối chiếu bài làm của mình'],
+    tips: [
+      'Chụp rõ một câu nếu trang có nhiều bài',
+      'Đọc hướng tư duy rồi tự làm trước khi bấm đáp án',
+      'Gõ bài làm của bạn vào ô chữa để xem chỗ lệch',
+    ],
+    faqs: [
+      {
+        question: 'Có đưa đáp án ngay không?',
+        answer: 'Không. Trang hiện kiến thức và hướng tư duy trước. Đáp án chỉ hiện khi bạn bấm bước cuối.',
+      },
+      {
+        question: 'Khác bài tập về nhà của giáo viên ở đâu?',
+        answer: 'Tạo bài tập về nhà là giáo viên giao đề và học sinh nộp bài. Hỗ trợ làm bài là chỗ học sinh tự chụp đề giấy để được hướng dẫn từng câu.',
+      },
+      {
+        question: 'Chụp được mấy ảnh?',
+        answer: 'Tối đa 3 ảnh mỗi lượt, mỗi ảnh tối đa 6MB.',
+      },
+    ],
+  },
   'tao-bai-tap-ve-nha': {
     key: 'tao-bai-tap-ve-nha',
     pageTitle: 'Tạo bài tập về nhà trực tuyến – không chấm điểm hiển thị cho học sinh',

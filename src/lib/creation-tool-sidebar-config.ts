@@ -13,12 +13,14 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     { href: '/giao-trinh', labelKey: 'my_curricula' },
     CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+    { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-bai-tap-ve-nha': [
     { href: '/giao-trinh', labelKey: 'my_curricula' },
     CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
+    { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-giao-trinh': [
@@ -103,6 +105,7 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
       CURRICULUM_PLAN_LINK,
       { href: '/tao-bai-thi', labelKey: 'online_exam' },
       { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+      { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
     ]
   }
   /** Trang xem phiếu / lời giải /phieu-bai-tap/[id] */

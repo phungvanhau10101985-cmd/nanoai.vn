@@ -83,7 +83,16 @@ export const HUB_ADVISORY_EXTRA_TOOLS: {
 ]
 
 const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
-  '/phuc-dung-anh': ['phục hồi ảnh', 'restore photo', 'old photo restore'],
+  '/phuc-dung-anh': [
+    'phục hồi ảnh',
+    'phục chế ảnh',
+    'phục chế',
+    'phục dựng ảnh cũ',
+    'khôi phục ảnh cũ',
+    'restore photo',
+    'old photo restore',
+    'photo restoration',
+  ],
   '/lam-net-anh': ['làm nét', 'sharpen', 'enhance sharpness'],
   '/lam-dep-anh': ['làm đẹp ảnh', 'beautify', 'retouch'],
   '/ghep-anh': ['ghép ảnh', 'merge photo', 'combine images'],
@@ -144,6 +153,24 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
   '/giao-trinh': ['mở giáo trình', 'mo giao trinh', 'xem giáo trình', 'giáo trình của tôi', 'my curricula'],
   '/tao-bai-thi': ['bài thi', 'online exam', 'quiz'],
   '/tao-bai-tap-ve-nha': ['bài tập về nhà', 'homework'],
+  '/ho-tro-lam-bai': [
+    'hỗ trợ làm bài',
+    'ho tro lam bai',
+    'chữa bài tập',
+    'chua bai tap',
+    'chữa bài',
+    'chua bai',
+    'giúp làm bài',
+    'giup lam bai',
+    'hướng làm bài',
+    'huong lam bai',
+    'không hiểu bài',
+    'khong hieu bai',
+    'homework help',
+    '作业辅导',
+    '宿題サポート',
+    '숙제 도우미',
+  ],
   '/lop': ['lớp học', 'classroom'],
   '/hoc-tieng-anh-ai': [
     'học tiếng anh',
@@ -293,6 +320,16 @@ export function getStandaloneFeatureByHref(
 const MIN_STUDIO_MATCH_SCORE = 10
 const MIN_STANDALONE_MATCH_SCORE = 8
 
+/**
+ * «Phục chế ảnh» là phục dựng ảnh cũ. Cụm này chứa «chế ảnh» nên không được mở trang meme.
+ */
+const OLD_PHOTO_RESTORE_MARKERS =
+  /phục\s*chế|phuc\s*che|phục\s*dựng|phuc\s*dung|phục\s*hồi|phuc\s*hoi|khôi\s*phục|khoi\s*phuc|restore\s+photo|old\s+photo/i
+
+function isOldPhotoRestorePhrase(message: string): boolean {
+  return OLD_PHOTO_RESTORE_MARKERS.test(message) || OLD_PHOTO_RESTORE_MARKERS.test(featureNameCore(message))
+}
+
 const CREATE_VERBS = /(?:^|\s)(?:tạo|tao|làm|lam|create|make|新建|创建|作成|만들)(?:\s|$)/i
 const OPEN_VERBS = /(?:^|\s)(?:mở|mo|xem|open|view|vào|打开|開く|열)(?:\s|$)/i
 
@@ -347,6 +384,33 @@ export const LANGUAGE_LEARNING_TOPIC_MARKERS =
   /học ngoại ngữ|hoc ngoai ngu|học tiếng anh|hoc tieng anh|english coach|language learning|learn a language|foreign language|学外语|外语学习|外国語|語学学習|외국어/i
 
 const PRESET_LESSON_MARKERS = /bài học có sẵn|bai hoc co san|preset lesson|completed lesson/i
+
+/** Học sinh xin hướng làm / chữa bài — không phải giáo viên tạo bài tập về nhà. */
+const HOMEWORK_HELP_MARKERS =
+  /hỗ trợ làm bài|ho tro lam bai|chữa bài|chua bai|giúp làm bài|giup lam bai|hướng làm bài|huong lam bai|không hiểu bài|khong hieu bai|homework help|作业辅导|宿題サポート|숙제 도우미/i
+
+const HOMEWORK_HELP_TEACHER_CREATE =
+  /tạo bài tập về nhà|tao bai tap ve nha|tạo bài thi|tao bai thi|tạo giáo trình|tao giao trinh|create homework|create curriculum/i
+
+export function isHomeworkHelpIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text || HOMEWORK_HELP_TEACHER_CREATE.test(text)) return false
+  return HOMEWORK_HELP_MARKERS.test(text)
+}
+
+export function matchHomeworkHelpFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/ho-tro-lam-bai')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
 
 export function isLanguageLearningIntent(message: string): boolean {
   const text = message.trim()
@@ -443,6 +507,7 @@ export function catalogSurfaceForHubTurn(input: {
 }
 
 function scoreStandaloneMatch(message: string, entry: StandaloneFeatureEntry): number {
+  if (entry.href === '/che-anh' && isOldPhotoRestorePhrase(message)) return 0
   const lower = message.toLowerCase().trim()
   const messageCore = featureNameCore(message)
   let score = 0
@@ -499,6 +564,10 @@ export function matchFeatureFlowByMessage(
 
   if (isLanguageLearningIntent(trimmed)) {
     return matchLanguageLearningFlow(locale)
+  }
+
+  if (isHomeworkHelpIntent(trimmed)) {
+    return matchHomeworkHelpFlow(locale)
   }
 
   if (matchesDesignRecreateAgainIntent(trimmed)) return null

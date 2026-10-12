@@ -309,7 +309,6 @@ async function replyForItShopFeatureIntent(input: {
     await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
       ...partnerAiRouteDecisionToPayload(decision),
       partner_ai_industry_branch: 'it',
-      ...(featureOpen ? { feature_open: featureOpen } : {}),
     })
   } catch (e) {
     console.warn('[partner-ai-inbound] it feature payload', e)

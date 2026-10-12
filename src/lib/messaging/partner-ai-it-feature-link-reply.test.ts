@@ -4,6 +4,7 @@ import {
   absoluteItFeatureLink,
   buildItFeatureLinkReply,
   itFeatureLinksFromRows,
+  itFeatureOpenButtonFromPayload,
   pickItFeatureLinkSourceRows,
 } from '@/lib/messaging/partner-ai-it-feature-link-reply'
 
@@ -12,6 +13,33 @@ const COPY = {
   manyLead: 'Dạ, em gửi đường dẫn các tính năng phù hợp:',
   clickHint: 'Anh/chị bấm vào link để sử dụng tính năng ạ.',
 }
+
+test('feature open button stays on the shop reply, not the customer message', () => {
+  const open = {
+    kind: 'feature_page',
+    href: 'https://nanoai.vn/phuc-dung-anh',
+    label: 'Phục dựng ảnh',
+    button_label: 'Mở tính năng',
+  }
+  assert.equal(
+    itFeatureOpenButtonFromPayload({
+      feature_open: open,
+      partner_ai_industry_branch: 'it',
+    }),
+    null
+  )
+  assert.deepEqual(
+    itFeatureOpenButtonFromPayload({
+      source: 'it_feature_link',
+      feature_open: open,
+    }),
+    {
+      href: 'https://nanoai.vn/phuc-dung-anh',
+      label: 'Phục dựng ảnh',
+      buttonLabel: 'Mở tính năng',
+    }
+  )
+})
 
 test('absolute feature link keeps a platform URL and expands a path', () => {
   assert.equal(

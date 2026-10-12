@@ -56,6 +56,7 @@ export type ToolKey =
   | 'curriculum_plan'
   | 'online_exam'
   | 'homework_online'
+  | 'homework_help'
   | 'classes'
   | 'try_on_1'
   | 'try_on_2'
@@ -6650,6 +6651,7 @@ export const VI_DICTIONARY: Dictionary = {
     curriculum_plan: 'Gói giáo trình',
     online_exam: 'Tạo bài thi trực tuyến',
     homework_online: 'Tạo bài tập về nhà',
+    homework_help: 'Hỗ trợ làm bài',
     classes: 'Lớp học',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',

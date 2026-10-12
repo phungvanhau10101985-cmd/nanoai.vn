@@ -156,7 +156,7 @@ export function resolveApiFeatureGroupId(feature: string): ApiFeatureGroupId {
   if (feature.startsWith('english-coach-')) return 'language-coach'
   if (feature.startsWith('curriculum-')) return 'curriculum'
   if (feature.startsWith('meeting-report-')) return 'meeting-assistant'
-  if (feature.startsWith('exam-')) return 'education-exam'
+  if (feature.startsWith('exam-') || feature.startsWith('homework-help')) return 'education-exam'
   if (feature.startsWith('music-lyria') || feature.startsWith('music-image-mood')) return 'music-ai'
   if (feature === 'thu-do-online') return 'virtual-tryon'
   if (feature.startsWith('thiet-ke-noi-ngoai-that')) return 'interior'
