@@ -4,6 +4,7 @@ import { getUserForAction } from '@/lib/auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import {
   explainHomeworkImages,
+  explainHomeworkText,
   reviewHomeworkAttempt,
   type HomeworkHelpErrorCode,
 } from '@/lib/homework-help/homework-help-ai'
@@ -48,6 +49,25 @@ export async function explainHomeworkPhoto(
     images,
   })
   if (!guide) return { ok: false, code: 'unreadable' }
+  return { ok: true, data: guide }
+}
+
+export async function explainTypedHomework(input: {
+  locale: string
+  text: string
+}): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  const text = input.text.trim()
+  if (!text) return { ok: false, code: 'missing_text' }
+  const locale = normalizeWebLocale(input.locale) ?? 'vi'
+  const guide = await explainHomeworkText({
+    userId: auth.user.id,
+    locale,
+    text: text.slice(0, 8000),
+  })
+  if (!guide) return { ok: false, code: 'ai_unavailable' }
+  if (!guide.problems.length) return { ok: false, code: 'missing_text' }
   return { ok: true, data: guide }
 }
 

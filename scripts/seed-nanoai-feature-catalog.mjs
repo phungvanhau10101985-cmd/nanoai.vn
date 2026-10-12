@@ -63,6 +63,7 @@ const ROWS = [
   ['tao-giao-trinh', 'giao-duc', '/giao-trinh', 'Tạo giáo trình', 'Create curriculum', '创建课程', 'カリキュラム作成', '교육과정 생성', 1, '1 lượt AI', 'Soạn bài giảng và slide', 'book', 'Tạo giáo trình, slide theo tiết và xem lại giáo trình đã lưu trên cùng một công cụ.', ['Tạo từ chủ đề hoặc ảnh', 'Slide theo tiết', 'Giáo trình của tôi', '1 credit mỗi lần tạo AI']],
   ['tao-bai-thi', 'giao-duc', '/tao-bai-thi', 'Tạo bài thi trực tuyến', 'Online exam (live session)', '在线考试（课堂）', 'オンライン試験（授業）', '온라인 시험(수업)', 1, '1 câu AI', 'Ra đề và tổ chức thi', 'exam', 'Tạo đề thi trực tuyến, câu trắc nghiệm và phiên làm bài cho lớp.', ['Đề trắc nghiệm', 'Phiên thi trực tuyến', '1 credit mỗi câu AI', 'Gắn với lớp học']],
   ['tao-bai-tap', 'giao-duc', '/tao-bai-tap-ve-nha', 'Tạo bài tập về nhà', 'Create homework', '创建家庭作业', '宿題を作成', '숙제 만들기', 1, '1 câu AI', 'Giao phiếu bài tập', 'exam', 'Tạo phiếu bài tập về nhà, câu hỏi và bài tự luận từ giáo trình hoặc ảnh SGK.', ['Phiếu bài tập', 'Trắc nghiệm và tự luận', '1 credit mỗi câu AI', 'Học sinh nộp bài online']],
+  ['ho-tro-lam-bai', 'giao-duc', '/ho-tro-lam-bai', 'Hỗ trợ làm bài', 'Homework help', '作业辅导', '宿題サポート', '숙제 도우미', 5, '1 tháng', 'Học sinh chụp hoặc gõ đề', 'exam', 'Chụp hoặc gõ đề. Mỗi câu hiện kiến thức đã kiểm tra và hướng tư duy. Cùng một đề thì học sinh sau dùng lại nội dung đã lưu.', ['Chụp hoặc gõ đề', 'Kiến thức được kiểm tra lại', 'Gợi ý từng bước', '30.000đ mỗi tháng'], 'month'],
   ['lop-hoc', 'giao-duc', '/lop', 'Lớp học', 'Classes', '班级', 'クラス', '수업', 0, 'Gói chuẩn', 'Quản lý lớp và học sinh', 'class', 'Tạo lớp, mời học sinh, giao phiếu và xem kết quả. Quản lý lớp không trừ credit.', ['Danh sách lớp', 'Mời học sinh', 'Giao bài', 'Xem kết quả']],
   ['hoc-ngoai-ngu', 'giao-duc', '/hoc-tieng-anh-ai', 'Học ngoại ngữ AI', 'AI Language Learning', 'AI 语言学习', 'AI 語学学習', 'AI 외국어 학습', 3.5, 'Buổi live', 'Luyện nói với AI', 'chat', 'Mở một buổi luyện nói trực tiếp với AI, có phản hồi hội thoại. Giá là credit mở buổi live.', ['Hội thoại trực tiếp', 'Nhiều ngôn ngữ', '3,5 credit mở buổi live', 'Phản hồi trong buổi học']],
   ['bai-hoc-co-san', 'giao-duc', '/hoc-bai-hoc-co-san', 'Bài học có sẵn theo lộ trình', 'Preset lessons', '现成课程', '用意されたレッスン', '준비된 레슨', 2, '1 bài', 'Ôn bài học đã soạn', 'book', 'Mở bài học có sẵn theo lộ trình, tách khỏi buổi live. Giá là credit mở một bài.', ['Lộ trình có sẵn', 'Tách khỏi buổi live', '2 credit mỗi bài', 'Luyện theo bài đã lưu']],
@@ -341,21 +342,20 @@ function nextId(used) {
 
 function buildProducts() {
   return ROWS.map((row, index) => {
-    const [key, groupKey, href, vi, en, zh, ja, ko, credits, sizeRaw, occasion, motif, what, features] = row
+    const [key, groupKey, href, vi, en, zh, ja, ko, credits, sizeRaw, occasion, motif, what, features, billing] = row
     const group = GROUPS[groupKey]
     const amount = Math.round(Number(credits) * CREDIT_VND)
     const sizes = String(sizeRaw).split('|')
     const url = `${ORIGIN}${href}`
     const priceHint = vnd(amount)
     const creditLabel = Number(credits) === 0 ? '0' : String(credits).replace('.', ',')
-    const description = [
-      what,
-      amount
-        ? `Giá niêm yết ${priceHint} cho một lượt mức chuẩn (${creditLabel} credit, 1 credit = 6.000đ). Credit trừ trên ví NanoAI khi chạy công cụ.`
-        : 'Mở công cụ không trừ credit.',
-      `Gồm: ${features.join('; ')}.`,
-      `Mở công cụ: ${url}`,
-    ].join('\n\n')
+    const priceLine =
+      billing === 'month'
+        ? `Giá ${priceHint} mỗi tháng cho một tài khoản. Trong tháng, mở bài đã lưu không tính thêm lượt model.`
+        : amount
+          ? `Giá niêm yết ${priceHint} cho một lượt mức chuẩn (${creditLabel} credit, 1 credit = 6.000đ). Credit trừ trên ví NanoAI khi chạy công cụ.`
+          : 'Mở công cụ không trừ credit.'
+    const description = [what, priceLine, `Gồm: ${features.join('; ')}.`, `Mở công cụ: ${url}`].join('\n\n')
     return {
       index,
       key,
@@ -378,9 +378,14 @@ function buildProducts() {
       amount,
       priceHint,
       description,
-      consult: `${vi} — ${what} Giá chuẩn ${priceHint}.`,
+      consult:
+        billing === 'month'
+          ? `${vi} — ${what} Giá ${priceHint} mỗi tháng.`
+          : `${vi} — ${what} Giá chuẩn ${priceHint}.`,
       material:
-        'Dịch vụ số trên nanoai.vn. Không giao hàng vật lý, không có kích thước kiện. Kết quả tạo trên tài khoản NanoAI sau khi dùng credit theo bảng giá của công cụ.',
+        billing === 'month'
+          ? 'Dịch vụ số trên nanoai.vn. Không giao hàng vật lý. Mở tính năng trên tài khoản NanoAI. Giá theo tháng.'
+          : 'Dịch vụ số trên nanoai.vn. Không giao hàng vật lý, không có kích thước kiện. Kết quả tạo trên tài khoản NanoAI sau khi dùng credit theo bảng giá của công cụ.',
     }
   })
 }
@@ -395,11 +400,277 @@ function assignLetter(used) {
   return free[randomInt(0, free.length)]
 }
 
+async function seedMissingFeatures(picked) {
+  if (!picked.length) throw new Error('SEED_FEATURE_KEYS không khớp dòng nào trong danh mục')
+  const skipUpload = process.env.SEED_SKIP_UPLOAD === '1'
+  const images = []
+  for (const product of picked) {
+    const coverPath = `shop-catalog/${SITE_SLUG}/${product.key}-cover.png`
+    const detailPath = `shop-catalog/${SITE_SLUG}/${product.key}-detail.png`
+    const cover = skipUpload ? null : await renderPng(coverSvg(product))
+    const detail = skipUpload ? null : await renderPng(detailSvg(product))
+    images.push({ product, coverPath, detailPath, cover, detail })
+  }
+  if (!skipUpload) {
+    for (const item of images) {
+      await putBunny(item.coverPath, item.cover)
+      await putBunny(item.detailPath, item.detail)
+    }
+  }
+  const probe = await fetch(publicUrl(images[0].coverPath))
+  if (!probe.ok) throw new Error(`Ảnh đại diện không mở được: HTTP ${probe.status}`)
+  await probe.arrayBuffer()
+
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, max: 2 })
+  const client = await pool.connect()
+  try {
+    await client.query('begin')
+    const prefixRow = await client.query(
+      `select inventory_sku_prefix from public.messaging_partners where id = $1::uuid`,
+      [PARTNER_ID]
+    )
+    const prefix = String(prefixRow.rows[0]?.inventory_sku_prefix || '').trim().toUpperCase()
+    if (!/^[A-Z]$/.test(prefix)) throw new Error('Shop NanoAI chưa có chữ cái đầu SKU')
+    const usedIds = await client.query(
+      `select gid from (
+         select rating_group_id as gid from public.messaging_partner_categories where rating_group_id is not null
+         union all
+         select rating_group_id from public.messaging_partner_inventory where rating_group_id is not null
+         union all
+         select question_group_id from public.messaging_partner_inventory where question_group_id is not null
+       ) u where gid is not null`
+    )
+    const taken = new Set(usedIds.rows.map((row) => Number(row.gid)).filter((n) => Number.isFinite(n)))
+    const sortRow = await client.query(
+      `select coalesce(max(sort_order), 0)::int as n
+       from public.messaging_partner_inventory
+       where partner_id = $1::uuid and remarketing_id like 'feat:%'`,
+      [PARTNER_ID]
+    )
+    let sortOrder = Number(sortRow.rows[0]?.n || 0)
+    const skuRows = await client.query(
+      `select sku from public.messaging_partner_inventory
+       where partner_id = $1::uuid and sku ~ $2`,
+      [PARTNER_ID, `^${prefix}[Ff][0-9]+$`]
+    )
+    let skuSeq = 0
+    for (const row of skuRows.rows) {
+      const match = String(row.sku || '').match(/(\d+)$/)
+      if (match) skuSeq = Math.max(skuSeq, Number(match[1]))
+    }
+
+    for (const item of images) {
+      const product = item.product
+      const remarketingId = `feat:${product.key}`
+      const existing = await client.query(
+        `select id::text from public.messaging_partner_inventory
+         where partner_id = $1::uuid and remarketing_id = $2
+         limit 1`,
+        [PARTNER_ID, remarketingId]
+      )
+      if (existing.rows[0]) {
+        console.log(`exists=${product.key}`)
+        continue
+      }
+      const l2 = await client.query(
+        `select id::text from public.messaging_partner_categories
+         where partner_id = $1::uuid and path = $2
+         limit 1`,
+        [PARTNER_ID, `cong-cu-nanoai/${product.groupKey}`]
+      )
+      const l2Id = l2.rows[0]?.id
+      if (!l2Id) throw new Error(`Thiếu nhóm danh mục cong-cu-nanoai/${product.groupKey}`)
+
+      sortOrder += 1
+      skuSeq += 1
+      product.sku = `${prefix}f${String(skuSeq).padStart(4, '0')}`
+      const coverUrl = publicUrl(item.coverPath)
+      const detailUrl = publicUrl(item.detailPath)
+      const ratingId = nextId(taken)
+      const questionId = nextId(taken)
+      const l3Id = randomUUID()
+      const names = { vi: product.name, en: product.en, zh: product.zh, ja: product.ja, ko: product.ko }
+      await client.query(
+        `insert into public.messaging_partner_categories (
+          id, partner_id, parent_id, name, name_i18n, slug, path, depth, sort_order, is_active,
+          image_url, description, description_i18n, seo_title, seo_description, seo_index, ai_generated, rating_group_id
+        ) values (
+          $1::uuid, $2::uuid, $3::uuid, $4, $5::jsonb, $6, $7, 3, $8, true,
+          $9, $10, $11::jsonb, $4, $10, true, false, $12
+        )`,
+        [
+          l3Id,
+          PARTNER_ID,
+          l2Id,
+          product.name,
+          JSON.stringify(names),
+          product.key,
+          `cong-cu-nanoai/${product.groupKey}/${product.key}`,
+          sortOrder,
+          coverUrl,
+          product.what,
+          JSON.stringify({ vi: product.what, en: product.en, zh: product.zh, ja: product.ja, ko: product.ko }),
+          ratingId,
+        ]
+      )
+      const inventoryId = randomUUID()
+      const colors = [{ name: 'Chuẩn', img: coverUrl }]
+      const productInfo = {
+        product_info: {
+          sku: product.sku,
+          name: product.name,
+          names,
+          brand: BRAND,
+          origin: 'Việt Nam',
+          chinese_name: product.zh,
+          category: { level_1: 'Công cụ NanoAI', level_2: product.groupName, level_3: product.name },
+          tool_url: product.url,
+        },
+        specifications: {
+          chat_lieu: 'Dịch vụ số AI',
+          don_vi: '1 tháng',
+          credit: product.credits,
+          credit_vnd: CREDIT_VND,
+          gia_niem_yet: product.priceHint,
+          kich_co_goi: product.sizes,
+          trong_luong: 'Số hóa',
+        },
+        target_audience: {
+          gender: 'Mọi người',
+          age_range: 'Người dùng NanoAI',
+          wearing_style: product.groupName,
+          tinh_nang_noi_bat: product.features,
+        },
+      }
+      const snapshot = {
+        product_id: product.sku,
+        code: product.sku,
+        origin: 'Việt Nam',
+        brand_name: BRAND,
+        name: product.name,
+        description: product.description,
+        price: product.amount,
+        shop_name: BRAND,
+        link_default: product.url,
+        main_image: coverUrl,
+        category: 'Công cụ NanoAI',
+        subcategory: product.groupName,
+        sub_subcategory: product.name,
+        features: product.features,
+        slug: product.key,
+      }
+      await client.query(
+        `insert into public.messaging_partner_inventory (
+          id, partner_id, sort_order, sku, name, description, stock_note, stock_qty, price_hint,
+          image_url, product_url, product_video_url, consult_note, remarketing_id, is_active,
+          created_at, updated_at, price_amount,
+          catalog_json, brand_name, origin, source_origin, chinese_name, deposit_required,
+          category_l1, category_l2, category_l3,
+          likes_count, purchases_count, reviews_count, questions_count, rating_score,
+          catalog_slug, style, color_summary, occasion, weight, features_json, product_info_json,
+          source_shop_name, source_shop_id, source_shop_name_chinese,
+          price_low_hint, price_high_hint, rating_group_id, question_group_id,
+          colors_json, sizes_json, gallery_urls, detail_image_urls, material_note,
+          material_detail_image_url, real_use_image_url, real_use_image_url_2,
+          cost_vnd
+        ) values (
+          $1::uuid, $2::uuid, $3::int, $4, $5, $6, $7::text, $8::int, $9,
+          $10, $11, '', $12, $13, true,
+          now(), now(), $14::numeric,
+          $15::jsonb, $16, 'manual', $17, $18, false,
+          $19, $20, $21,
+          0, 0, 0, 0, 0,
+          $22, $23, $24, $25, $26, $27::jsonb, $28::jsonb,
+          $16, $39, $16,
+          $29, $30, $31::int, $32::int,
+          $33::jsonb, $34::jsonb, $35::jsonb, $36::jsonb, $37,
+          $38, $38, $10,
+          $40::float8
+        )`,
+        [
+          inventoryId,
+          PARTNER_ID,
+          sortOrder,
+          product.sku,
+          product.name,
+          product.description,
+          JSON.stringify(colors),
+          STOCK,
+          product.priceHint,
+          coverUrl,
+          product.url,
+          product.consult,
+          remarketingId,
+          product.amount,
+          JSON.stringify(snapshot),
+          BRAND,
+          'Việt Nam',
+          product.zh,
+          'Công cụ NanoAI',
+          product.groupName,
+          product.name,
+          product.key,
+          product.groupName,
+          'Chuẩn',
+          product.occasion,
+          'Số hóa',
+          JSON.stringify(product.features),
+          JSON.stringify(productInfo),
+          product.sku,
+          product.sku,
+          ratingId,
+          questionId,
+          JSON.stringify(colors),
+          JSON.stringify(product.sizes),
+          JSON.stringify([coverUrl]),
+          JSON.stringify([detailUrl]),
+          product.material,
+          detailUrl,
+          PARTNER_ID,
+          product.amount,
+        ]
+      )
+      await client.query(
+        `insert into public.messaging_partner_inventory_categories (inventory_id, category_id, is_primary)
+         values ($1::uuid, $2::uuid, true)`,
+        [inventoryId, l3Id]
+      )
+      console.log(`inserted=${product.key} sku=${product.sku} url=${product.url}`)
+    }
+    await client.query('commit')
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+    await pool.end()
+  }
+
+  const redisUrl = String(process.env.REDIS_URL || '').trim()
+  if (redisUrl) {
+    const redis = new Redis(redisUrl, { maxRetriesPerRequest: 2, connectTimeout: 8000 })
+    await redis.ping()
+    await redis.incr(`pw:inv:${PARTNER_ID}:ver`)
+    await redis.incr(`pw:site:${SITE_SLUG}:ver`)
+    await redis.quit()
+    console.log('cache_bumped=1')
+  }
+}
+
 async function main() {
   for (const name of ['DATABASE_URL', 'BUNNY_STORAGE_ZONE', 'BUNNY_STORAGE_API_KEY', 'BUNNY_STORAGE_PUBLIC_BASE_URL']) {
     if (!String(process.env[name] || '').trim()) throw new Error(`Thiếu ${name}`)
   }
   const products = buildProducts()
+  const onlyKeys = String(process.env.SEED_FEATURE_KEYS || '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+  if (onlyKeys.length) {
+    console.log(`missing_only=${onlyKeys.join(',')}`)
+    await seedMissingFeatures(products.filter((product) => onlyKeys.includes(product.key)))
+    return
+  }
   console.log(`features=${products.length}`)
 
   const skipUpload = process.env.SEED_SKIP_UPLOAD === '1'

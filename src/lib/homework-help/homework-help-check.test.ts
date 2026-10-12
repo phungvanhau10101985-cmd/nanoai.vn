@@ -4,6 +4,7 @@ import { answersAgree, mergeCheckedProblem, parseHomeworkChecks } from '@/lib/ho
 import {
   homeworkStatementFingerprint,
   normalizeHomeworkStatement,
+  splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
 
 const draft = {
@@ -20,6 +21,19 @@ test('same problem text shares a fingerprint after numbering and spacing changes
   assert.equal(left, right)
   assert.equal(homeworkStatementFingerprint('Câu 1. Giải 2x + 3 = 7.'), homeworkStatementFingerprint('1) giải 2x+3=7'))
   assert.notEqual(homeworkStatementFingerprint('Giải 2x + 3 = 7'), homeworkStatementFingerprint('Giải 2x + 3 = 8'))
+})
+
+test('typed homework splits blank lines and question labels, and matches a photo statement', () => {
+  assert.deepEqual(splitTypedHomework('Giải 2x + 3 = 7'), ['Giải 2x + 3 = 7'])
+  assert.deepEqual(splitTypedHomework('Giải 2x + 3 = 7\n\nTính 3 × 4'), ['Giải 2x + 3 = 7', 'Tính 3 × 4'])
+  assert.deepEqual(splitTypedHomework('Câu 1. Giải 2x + 3 = 7\nCâu 2. Tính 3 × 4'), [
+    'Câu 1. Giải 2x + 3 = 7',
+    'Câu 2. Tính 3 × 4',
+  ])
+  assert.equal(
+    homeworkStatementFingerprint(splitTypedHomework('Câu 1. Giải 2x + 3 = 7.')[0] ?? ''),
+    homeworkStatementFingerprint('1) giải 2x+3=7')
+  )
 })
 
 test('answers agree on spacing and on the value after equals', () => {

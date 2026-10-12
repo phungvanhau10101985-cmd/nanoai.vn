@@ -68,6 +68,10 @@ const MobileBottomBar = nextDynamic(
   () => import("@/components/layout/mobile-bottom-bar").then((m) => m.MobileBottomBar),
   { ssr: false }
 );
+const MobileHubHistoryButton = nextDynamic(
+  () => import("@/components/layout/mobile-hub-history-button").then((m) => m.MobileHubHistoryButton),
+  { ssr: false }
+);
 const InstallPrompt = nextDynamic(
   () => import("@/components/pwa/install-prompt").then((m) => m.InstallPrompt),
   { ssr: false }
@@ -739,6 +743,7 @@ export default async function RootLayout({
             <DepositCreditProvider>
               <main className="pb-16 md:pb-0">{children}</main>
               <Footer />
+              <MobileHubHistoryButton />
               <MobileBottomBar />
               <InstallPrompt />
               <PushNotificationPrompt />

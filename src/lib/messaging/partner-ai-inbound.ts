@@ -60,6 +60,7 @@ import {
   isFeatureChatPause,
   resolveSharedFeatureOpen,
 } from '@/lib/hub-chat/shared-feature-open'
+import { loadItFeatureProductContext } from '@/lib/messaging/partner-ai-it-feature-product'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import {
   createPartnerAiRouteDecision,
@@ -322,6 +323,14 @@ async function replyForItShopFeatureIntent(input: {
       console.warn('[partner-ai-inbound] it feature conv', e)
     }
     if (!conv) return
+    const productContext = featureOpen
+      ? await loadItFeatureProductContext({
+          partnerId: input.partnerId,
+          conversationId: input.conversationId,
+          sourceMessageId: input.messageId,
+          href: featureOpen.href,
+        })
+      : null
     await sleep(typingDelayMs(input.settings))
     const err = await deliverAutomatedPartnerMessage({
       conversation: conv,
@@ -329,7 +338,8 @@ async function replyForItShopFeatureIntent(input: {
       body: addressed,
       rawPayload: {
         source: 'it_feature_link',
-        ai_product_cards: [],
+        ai_product_cards: productContext ? [productContext.card] : [],
+        ...(productContext ? { feature_product: productContext.product } : {}),
         partner_ai_industry_branch: 'it',
         ...partnerAiRouteDecisionToPayload(decision),
         ...(featureOpen ? { feature_open: featureOpen } : {}),

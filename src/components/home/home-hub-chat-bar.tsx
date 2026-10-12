@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
   Circle,
-  History,
   ImagePlus,
   Loader2,
   MessageSquarePlus,
@@ -31,6 +29,11 @@ import {
   saveHubPrefill,
   saveHubThreadId,
 } from '@/lib/hub-chat/hub-chat-prefill'
+import {
+  HUB_HISTORY_OPEN_THREAD_EVENT,
+  HUB_HISTORY_THREAD_DELETED_EVENT,
+  type HubHistoryThreadDetail,
+} from '@/lib/hub-chat/hub-history-events'
 import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
 import type { HubChatPlanPayload, HubChatWorkflowSuggestion } from '@/app/api/hub-chat/route'
 import { HubPlanAutoRunPanel } from '@/components/hub-chat/hub-plan-auto-run-panel'
@@ -554,10 +557,6 @@ export function HomeHubChatBar() {
   const [threadsLoading, setThreadsLoading] = useState(false)
   const [threadsLoginRequired, setThreadsLoginRequired] = useState(false)
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
-  const [historyPinned, setHistoryPinned] = useState(false)
-  const [historyDockTop, setHistoryDockTop] = useState(68)
-  const historyButtonRef = useRef<HTMLButtonElement>(null)
   const studioFileRef = useRef<HTMLInputElement>(null)
   const studioLogoFileRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
@@ -782,7 +781,6 @@ export function HomeHubChatBar() {
 
   const switchThread = useCallback(
     async (id: string) => {
-      setHistoryOpen(false)
       if (busy || id === threadId) return
       setEditingLineId(null)
       setEditingStepKey(null)
@@ -844,44 +842,31 @@ export function HomeHubChatBar() {
   }, [fetchThreadList])
 
   useEffect(() => {
-    if (!historyOpen) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setHistoryOpen(false)
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<HubHistoryThreadDetail>).detail?.threadId
+      if (id) void switchThread(id)
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [historyOpen])
-
-  useEffect(() => {
-    const button = historyButtonRef.current
-    if (!button) return
-    let frame = 0
-    const sync = () => {
-      frame = 0
-      if (window.innerWidth >= 1024) {
-        setHistoryPinned(false)
-        return
-      }
-      const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 48
-      const dock = Math.round(headerBottom + 8)
-      setHistoryDockTop((prev) => (prev === dock ? prev : dock))
-      const top = button.getBoundingClientRect().top
-      const next = top + button.offsetHeight < headerBottom + 4
-      setHistoryPinned((prev) => (prev === next ? prev : next))
+    const onDeleted = (event: Event) => {
+      const id = (event as CustomEvent<HubHistoryThreadDetail>).detail?.threadId
+      if (!id) return
+      setChatThreads((prev) => prev.filter((thread) => thread.id !== id))
+      if (threadId !== id) return
+      clearHubThreadId()
+      setThreadId(null)
+      setLines([])
+      setActivePlan(null)
+      setActivePlanRow(null)
+      setStudioSession(null)
+      setMessage('')
+      setShowFeaturePicker(true)
     }
-    const onScroll = () => {
-      if (frame) return
-      frame = window.requestAnimationFrame(sync)
-    }
-    sync()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
+    window.addEventListener(HUB_HISTORY_OPEN_THREAD_EVENT, onOpen)
+    window.addEventListener(HUB_HISTORY_THREAD_DELETED_EVENT, onDeleted)
     return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-      if (frame) window.cancelAnimationFrame(frame)
+      window.removeEventListener(HUB_HISTORY_OPEN_THREAD_EVENT, onOpen)
+      window.removeEventListener(HUB_HISTORY_THREAD_DELETED_EVENT, onDeleted)
     }
-  }, [])
+  }, [switchThread, threadId])
 
   const modelLabel = getHubChatFooterModelLabel(uiLocale)
 
@@ -3476,14 +3461,6 @@ export function HomeHubChatBar() {
             {hc.chatHistory}
             {chatThreads.length > 0 ? ` (${chatThreads.length})` : ''}
           </p>
-          <button
-            type="button"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-100 lg:hidden dark:hover:bg-indigo-950/50"
-            aria-label={hc.chatHistoryClose}
-            onClick={() => setHistoryOpen(false)}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
         {threadsLoading ? (
           <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
@@ -3548,19 +3525,7 @@ export function HomeHubChatBar() {
     <div className="surface-card relative border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
       <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
         <div className="flex items-start gap-2">
-          <Button
-            ref={historyButtonRef}
-            type="button"
-            variant="outline"
-            size="icon"
-            className="mt-0.5 h-9 w-9 shrink-0 border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 lg:hidden dark:border-indigo-800 dark:bg-slate-950 dark:text-indigo-200"
-            aria-expanded={historyOpen}
-            aria-controls="hub-chat-history-drawer"
-            aria-label={hc.chatHistory}
-            onClick={() => setHistoryOpen((open) => !open)}
-          >
-            <History className="h-4 w-4" />
-          </Button>
+          <div className="mt-0.5 h-9 w-9 shrink-0 lg:hidden" aria-hidden />
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
               <Sparkles className="h-5 w-5 text-indigo-600" />
@@ -3594,46 +3559,6 @@ export function HomeHubChatBar() {
         </aside>
 
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto">
-          {typeof document !== 'undefined' && (historyOpen || historyPinned)
-            ? createPortal(
-                <>
-                  {historyOpen ? (
-                    <button
-                      type="button"
-                      className="fixed inset-0 z-[45] bg-slate-900/20 lg:hidden"
-                      aria-label={hc.chatHistoryClose}
-                      onClick={() => setHistoryOpen(false)}
-                    />
-                  ) : null}
-                  {historyPinned && !historyOpen ? (
-                    <button
-                      type="button"
-                      className="fixed left-3 z-[46] flex h-9 w-9 items-center justify-center rounded-md border border-indigo-200 bg-white text-indigo-700 shadow-md lg:hidden dark:border-indigo-800 dark:bg-slate-950 dark:text-indigo-200"
-                      style={{ top: historyDockTop }}
-                      aria-expanded={false}
-                      aria-controls="hub-chat-history-drawer"
-                      aria-label={hc.chatHistory}
-                      onClick={() => setHistoryOpen(true)}
-                    >
-                      <History className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                  {historyOpen ? (
-                    <div
-                      id="hub-chat-history-drawer"
-                      className="fixed left-3 z-[46] flex w-[min(19rem,88%)] flex-col overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-xl lg:hidden dark:border-indigo-900 dark:bg-slate-950"
-                      style={{
-                        top: historyDockTop,
-                        height: `min(36rem, calc(100dvh - ${historyDockTop}px - 5.5rem))`,
-                      }}
-                    >
-                      {renderChatHistoryPanel()}
-                    </div>
-                  ) : null}
-                </>,
-                document.body
-              )
-            : null}
           <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
         {studioSession?.processSteps?.length ? (
           <div className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 dark:border-violet-900 dark:bg-violet-950/20">

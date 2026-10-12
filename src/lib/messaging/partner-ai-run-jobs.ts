@@ -40,6 +40,7 @@ import {
   isFeatureChatPause,
   resolveSharedFeatureOpen,
 } from '@/lib/hub-chat/shared-feature-open'
+import { loadItFeatureProductContext } from '@/lib/messaging/partner-ai-it-feature-product'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -343,11 +344,20 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         } else if (isFeatureChatPause(inboundForAi)) {
           featureBody = dict.partnerGuestChat.itFeatureLinkPause
         }
+        const productContext = featureOpen
+          ? await loadItFeatureProductContext({
+              partnerId: job.partner_id,
+              conversationId: job.conversation_id,
+              sourceMessageId: job.trigger_message_id,
+              href: featureOpen.href,
+            })
+          : null
         const rawFeatureLink = {
           source: 'it_feature_link',
           model: null,
           usage: null,
-          ai_product_cards: [],
+          ai_product_cards: productContext ? [productContext.card] : [],
+          ...(productContext ? { feature_product: productContext.product } : {}),
           ...(featureOpen ? { feature_open: featureOpen } : {}),
           ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
           ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),

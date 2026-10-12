@@ -20,6 +20,7 @@ import {
 import {
   homeworkPhotoCacheKey,
   homeworkStatementFingerprint,
+  splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
 import {
   parseHomeworkReview,
@@ -51,6 +52,7 @@ export type HomeworkHelpErrorCode =
   | 'ai_unavailable'
   | 'unreadable'
   | 'missing_attempt'
+  | 'missing_text'
 
 export type HomeworkImagePart = {
   mimeType: string
@@ -242,26 +244,16 @@ Rules:
   return parseHomeworkChecks(raw)
 }
 
-export async function explainHomeworkImages(input: {
+async function explainStatements(input: {
   userId: string
   locale: WebLocale
-  images: HomeworkImagePart[]
-}): Promise<HomeworkGuide | null> {
-  const photoKey = homeworkPhotoCacheKey(input.images)
-  const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
-  if (cachedPhoto && cachedPhoto.problems.length > 0) {
-    await touchHomeworkPhotoCache(photoKey, input.locale)
-    return cachedPhoto
-  }
-
-  const read = await readStatements(input)
-  if (!read) return null
-  if (read.statements.length === 0) return { note: read.note, problems: [] }
-
-  const problems: Array<HomeworkProblem | null> = read.statements.map(() => null)
+  note: string
+  statements: string[]
+}): Promise<{ guide: HomeworkGuide; everyProblemCacheable: boolean }> {
+  const problems: Array<HomeworkProblem | null> = input.statements.map(() => null)
   const pending: Array<{ index: number; statement: string }> = []
-  for (let index = 0; index < read.statements.length; index += 1) {
-    const statement = read.statements[index] ?? ''
+  for (let index = 0; index < input.statements.length; index += 1) {
+    const statement = input.statements[index] ?? ''
     const fingerprint = homeworkStatementFingerprint(statement)
     const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
     if (cached) {
@@ -294,12 +286,57 @@ export async function explainHomeworkImages(input: {
     }
   }
 
-  const guide: HomeworkGuide = {
-    note: read.note,
-    problems: problems.filter((problem): problem is HomeworkProblem => Boolean(problem)),
+  return {
+    guide: {
+      note: input.note,
+      problems: problems.filter((problem): problem is HomeworkProblem => Boolean(problem)),
+    },
+    everyProblemCacheable,
   }
-  if (everyProblemCacheable) await rememberHomeworkPhotoCache(photoKey, input.locale, guide)
-  return guide
+}
+
+export async function explainHomeworkImages(input: {
+  userId: string
+  locale: WebLocale
+  images: HomeworkImagePart[]
+}): Promise<HomeworkGuide | null> {
+  const photoKey = homeworkPhotoCacheKey(input.images)
+  const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
+  if (cachedPhoto && cachedPhoto.problems.length > 0) {
+    await touchHomeworkPhotoCache(photoKey, input.locale)
+    return cachedPhoto
+  }
+
+  const read = await readStatements(input)
+  if (!read) return null
+  if (read.statements.length === 0) return { note: read.note, problems: [] }
+
+  const explained = await explainStatements({
+    userId: input.userId,
+    locale: input.locale,
+    note: read.note,
+    statements: read.statements,
+  })
+  if (explained.everyProblemCacheable) {
+    await rememberHomeworkPhotoCache(photoKey, input.locale, explained.guide)
+  }
+  return explained.guide
+}
+
+export async function explainHomeworkText(input: {
+  userId: string
+  locale: WebLocale
+  text: string
+}): Promise<HomeworkGuide | null> {
+  const statements = splitTypedHomework(input.text)
+  if (!statements.length) return { note: '', problems: [] }
+  const explained = await explainStatements({
+    userId: input.userId,
+    locale: input.locale,
+    note: '',
+    statements,
+  })
+  return explained.guide
 }
 
 export async function reviewHomeworkAttempt(input: {

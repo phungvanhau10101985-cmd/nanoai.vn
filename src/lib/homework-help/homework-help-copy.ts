@@ -6,6 +6,9 @@ export type HomeworkHelpCopy = {
   takePhoto: string
   readButton: string
   reading: string
+  typeLabel: string
+  typePlaceholder: string
+  typeButton: string
   anotherPhoto: string
   statement: string
   knowledge: string
@@ -29,12 +32,15 @@ export type HomeworkHelpCopy = {
 
 const VI: HomeworkHelpCopy = {
   intro:
-    'Chụp một câu hoặc một trang bài. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi bạn bấm bước cuối. Kiến thức được kiểm tra lại trước khi hiện.',
+    'Chụp hoặc gõ một câu. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi bạn bấm bước cuối. Kiến thức được kiểm tra lại trước khi hiện.',
   pickPhoto: 'Chọn ảnh',
   takePhoto: 'Chụp bài',
   readButton: 'Đọc bài',
   reading: 'Đang đọc bài…',
-  anotherPhoto: 'Chụp câu khác',
+  typeLabel: 'Gõ đề',
+  typePlaceholder: 'Gõ một câu. Nhiều câu thì cách nhau một dòng trống, hoặc bắt đầu bằng Câu 1, Câu 2.',
+  typeButton: 'Xem hướng làm',
+  anotherPhoto: 'Làm câu khác',
   statement: 'Đề',
   knowledge: 'Kiến thức liên quan',
   thinking: 'Hướng tư duy',
@@ -61,17 +67,21 @@ const VI: HomeworkHelpCopy = {
     ai_unavailable: 'Chưa đọc được bài. Thử lại sau.',
     unreadable: 'Không đọc được nội dung ảnh. Chụp rõ hơn rồi thử lại.',
     missing_attempt: 'Gõ bài làm của bạn trước khi chữa.',
+    missing_text: 'Gõ đề bài trước.',
   },
 }
 
 const EN: HomeworkHelpCopy = {
   intro:
-    'Photograph one question or one page. Each question lists the related knowledge and a way to think it through. Hints open one step at a time. The answer appears only when you open the last step. Related knowledge is checked again before it is shown.',
+    'Photograph or type one question. Each question lists the related knowledge and a way to think it through. Hints open one step at a time. The answer appears only when you open the last step. Related knowledge is checked again before it is shown.',
   pickPhoto: 'Choose photo',
   takePhoto: 'Take photo',
   readButton: 'Read the problem',
   reading: 'Reading…',
-  anotherPhoto: 'Photograph another question',
+  typeLabel: 'Type the problem',
+  typePlaceholder: 'Type one question. For several, leave a blank line between them, or start each with Question 1, Question 2.',
+  typeButton: 'Show how to think',
+  anotherPhoto: 'Another question',
   statement: 'Problem',
   knowledge: 'Related knowledge',
   thinking: 'How to think',
@@ -98,16 +108,20 @@ const EN: HomeworkHelpCopy = {
     ai_unavailable: 'Could not read the problem. Try again shortly.',
     unreadable: 'Could not read this photo. Take a clearer picture and try again.',
     missing_attempt: 'Type your work before asking for a check.',
+    missing_text: 'Type the problem first.',
   },
 }
 
 const ZH: HomeworkHelpCopy = {
-  intro: '拍一道题或一页作业。每道题列出相关知识和思考步骤。提示逐条打开。答案只在最后一步出现。相关知识会先核对再显示。',
+  intro: '拍一道题，或把题目打出来。每道题列出相关知识和思考步骤。提示逐条打开。答案只在最后一步出现。相关知识会先核对再显示。',
   pickPhoto: '选择照片',
   takePhoto: '拍照',
   readButton: '读题',
   reading: '正在读题…',
-  anotherPhoto: '再拍一题',
+  typeLabel: '输入题目',
+  typePlaceholder: '输入一道题。多道题请空一行，或用“题1”“题2”开头。',
+  typeButton: '看思路',
+  anotherPhoto: '再做一题',
   statement: '题目',
   knowledge: '相关知识',
   thinking: '思考方向',
@@ -134,17 +148,21 @@ const ZH: HomeworkHelpCopy = {
     ai_unavailable: '暂时读不了题目。请稍后再试。',
     unreadable: '读不清这张照片。请拍清楚再试。',
     missing_attempt: '先写下你的解答，再请批改。',
+    missing_text: '请先输入题目。',
   },
 }
 
 const JA: HomeworkHelpCopy = {
   intro:
-    '問題を1問、または1ページ撮影します。各問に関連知識と考え方を出します。ヒントは一段ずつ開きます。答えは最後のステップでだけ表示します。関連知識は表示する前にもう一度確認します。',
+    '問題を撮影するか、入力します。各問に関連知識と考え方を出します。ヒントは一段ずつ開きます。答えは最後のステップでだけ表示します。関連知識は表示する前にもう一度確認します。',
   pickPhoto: '写真を選ぶ',
   takePhoto: '撮影する',
   readButton: '問題を読む',
   reading: '読んでいます…',
-  anotherPhoto: '別の問題を撮る',
+  typeLabel: '問題を入力',
+  typePlaceholder: '1問を入力します。複数は空行で区切るか、「問1」「問2」で始めてください。',
+  typeButton: '考え方を見る',
+  anotherPhoto: '別の問題',
   statement: '問題',
   knowledge: '関連する知識',
   thinking: '考え方',
@@ -171,17 +189,21 @@ const JA: HomeworkHelpCopy = {
     ai_unavailable: '問題を読めませんでした。しばらくしてから再度お試しください。',
     unreadable: 'この写真は読めません。はっきり撮ってもう一度お試しください。',
     missing_attempt: '確認する前に、自分の解答を書いてください。',
+    missing_text: '先に問題を入力してください。',
   },
 }
 
 const KO: HomeworkHelpCopy = {
   intro:
-    '문제 하나 또는 한 페이지를 찍습니다. 각 문제마다 관련 지식과 생각 순서를 보여 줍니다. 힌트는 한 단계씩 열리고, 답은 마지막 단계에서만 나옵니다. 관련 지식은 보여 주기 전에 다시 확인합니다.',
+    '문제를 찍거나 직접 입력합니다. 각 문제마다 관련 지식과 생각 순서를 보여 줍니다. 힌트는 한 단계씩 열리고, 답은 마지막 단계에서만 나옵니다. 관련 지식은 보여 주기 전에 다시 확인합니다.',
   pickPhoto: '사진 선택',
   takePhoto: '촬영',
   readButton: '문제 읽기',
   reading: '읽는 중…',
-  anotherPhoto: '다른 문제 찍기',
+  typeLabel: '문제 입력',
+  typePlaceholder: '문제 하나를 입력하세요. 여러 문제는 빈 줄로 나누거나 "문제 1", "문제 2"로 시작하세요.',
+  typeButton: '생각 방향 보기',
+  anotherPhoto: '다른 문제',
   statement: '문제',
   knowledge: '관련 지식',
   thinking: '생각 방향',
@@ -208,6 +230,7 @@ const KO: HomeworkHelpCopy = {
     ai_unavailable: '문제를 읽지 못했습니다. 잠시 후 다시 시도하세요.',
     unreadable: '이 사진을 읽지 못했습니다. 더 선명하게 찍고 다시 시도하세요.',
     missing_attempt: '확인받기 전에 내 풀이를 적으세요.',
+    missing_text: '먼저 문제를 입력하세요.',
   },
 }
 

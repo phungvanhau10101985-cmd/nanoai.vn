@@ -8,7 +8,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
 import type { HomeworkGuide, HomeworkProblem, HomeworkReview } from '@/lib/homework-help/homework-help-guide'
-import { explainHomeworkPhoto, reviewHomeworkWork } from '@/app/ho-tro-lam-bai/actions'
+import { explainHomeworkPhoto, explainTypedHomework, reviewHomeworkWork } from '@/app/ho-tro-lam-bai/actions'
 
 const MAX_IMAGES = 3
 
@@ -20,6 +20,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const copy = homeworkHelpCopy(locale)
   const [files, setFiles] = useState<File[]>([])
   const [previews, setPreviews] = useState<string[]>([])
+  const [typed, setTyped] = useState('')
   const [guide, setGuide] = useState<HomeworkGuide | null>(null)
   const [reading, setReading] = useState(false)
   const [error, setError] = useState('')
@@ -72,9 +73,49 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setGuide(result.data)
   }
 
+  async function readTyped() {
+    if (!typed.trim()) {
+      setError(copy.errors.missing_text)
+      return
+    }
+    setReading(true)
+    setError('')
+    setGuide(null)
+    const result = await explainTypedHomework({ locale, text: typed })
+    setReading(false)
+    if (!result.ok) {
+      setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      return
+    }
+    setGuide(result.data)
+  }
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
+
+      <div className="space-y-2">
+        <label
+          className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          htmlFor="homework-typed"
+        >
+          {copy.typeLabel}
+        </label>
+        <Textarea
+          id="homework-typed"
+          value={typed}
+          placeholder={copy.typePlaceholder}
+          onChange={(event) => {
+            setTyped(event.target.value)
+            setGuide(null)
+            setError('')
+          }}
+          rows={4}
+        />
+        <Button type="button" onClick={() => void readTyped()} disabled={reading || !typed.trim()}>
+          {reading ? copy.reading : copy.typeButton}
+        </Button>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         <input
@@ -157,6 +198,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           onClick={() => {
             setFiles([])
             replacePreviews([])
+            setTyped('')
             setGuide(null)
             setError('')
           }}

@@ -46,7 +46,7 @@ export function CreationToolPageShell({
         <div className="min-w-0 flex-1 lg:order-2 lg:min-h-0 lg:pl-0.5 xl:pl-1">
           <div
             className={cn(
-              'sticky top-[var(--site-header-height,3rem)] z-40 -mx-0.5 mb-5 border-b border-border/60 bg-background px-0.5 py-2 shadow-[0_1px_0_0_hsl(var(--background))]',
+              'sticky top-[var(--site-header-height,3rem)] z-40 -mx-0.5 mb-5 border-b border-border/60 bg-background px-0.5 py-2 pl-14 shadow-[0_1px_0_0_hsl(var(--background))] lg:pl-0.5',
             )}
           >
             <CreationToolShellBackButton label={t.creationSidebar.back} />
