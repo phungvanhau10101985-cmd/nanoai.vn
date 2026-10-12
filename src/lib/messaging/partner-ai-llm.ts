@@ -249,25 +249,34 @@ function formatInventoryLines(
  * Neo cọc / thanh toán theo cài đặt hệ thống — hạn chế tư vấn «COD 100% / trả toàn bộ lúc nhận» khi shop mặc định cọc.
  * Không bịa số tuyệt đối: giữ «khoảng / theo form».
  */
+function highUnitPriceDepositPolicySentence(pay: PartnerPaymentSettingsRow): string {
+  const threshold = Math.max(0, Math.round(Number(pay.high_unit_price_deposit_threshold_vnd) || 0))
+  const percent = Math.max(0, Math.min(100, Math.round(Number(pay.high_unit_price_min_deposit_percent) || 0)))
+  if (threshold <= 0 || percent <= 0) return ''
+  const amount = new Intl.NumberFormat('vi-VN').format(threshold)
+  return ` Nếu **đơn giá từ ${amount}₫ trở lên** thì khách **cọc tối thiểu ${percent}%** (kể cả sản phẩm không bật cờ cọc; hàng thanh lý kho không áp dụng).`
+}
+
 function buildPartnerPaymentPolicyBlockForPartnerAi(pay: PartnerPaymentSettingsRow): string {
+  const highPrice = highUnitPriceDepositPolicySentence(pay)
   if (pay.default_deposit_mode === 'fixed_amount' && pay.default_deposit_amount > 0) {
     const a = new Intl.NumberFormat('vi-VN').format(pay.default_deposit_amount)
     return `
 
 [Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì cọc trước (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc. **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu mặt hàng đang bàn **có cọc**. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.`
+Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì cọc trước (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc, trừ khi đơn giá chạm trần cọc tối thiểu. **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu mặt hàng đang bàn **có cọc**. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.${highPrice}`
   }
   if (pay.default_deposit_mode === 'percent' && pay.default_deposit_percent > 0) {
     return `
 
 [Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc. **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mặt hàng đang bàn **có cọc**; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.`
+Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc, trừ khi đơn giá chạm trần cọc tối thiểu. **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mặt hàng đang bàn **có cọc**; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.${highPrice}`
   }
   const savedPercent = Math.max(0, Math.min(100, Math.round(Number(pay.default_deposit_percent) || 0)))
   return `
 
 [Thanh toán (cài đặt hệ thống shop)]
-Cọc hay không **theo từng sản phẩm** (cờ «Cần đặt cọc» trên kho). Sản phẩm không bật cờ đó thì khách trả khi nhận, không bắt cọc. Sản phẩm có bật thì mức cọc là **${savedPercent > 0 ? `khoảng ${savedPercent}%` : 'theo form đơn'}**. **Cấm** nói cả shop không bao giờ cọc, và **cấm** bịa % khác số này.`
+Cọc hay không **theo từng sản phẩm** (cờ «Cần đặt cọc» trên kho). Sản phẩm không bật cờ đó thì khách trả khi nhận, không bắt cọc, trừ khi đơn giá chạm trần cọc tối thiểu. Sản phẩm có bật thì mức cọc là **${savedPercent > 0 ? `khoảng ${savedPercent}%` : 'theo form đơn'}**. **Cấm** nói cả shop không bao giờ cọc, và **cấm** bịa % khác số này.${highPrice}`
 }
 
 function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {

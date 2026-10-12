@@ -581,6 +581,8 @@ export function PartnerMessagingSettingsClient({
   const [paymentDepositMode, setPaymentDepositMode] = useState<'none' | 'percent' | 'fixed_amount'>('percent')
   const [paymentDepositPercent, setPaymentDepositPercent] = useState('30')
   const [paymentDepositAmount, setPaymentDepositAmount] = useState('0')
+  const [paymentHighUnitPriceThreshold, setPaymentHighUnitPriceThreshold] = useState('3000000')
+  const [paymentHighUnitPriceMinPercent, setPaymentHighUnitPriceMinPercent] = useState('30')
   const [paymentRequireProof, setPaymentRequireProof] = useState(true)
   const [paymentSePayEnabled, setPaymentSePayEnabled] = useState(false)
   const [paymentSePayBankCode, setPaymentSePayBankCode] = useState('')
@@ -1353,6 +1355,12 @@ export function PartnerMessagingSettingsClient({
           setPaymentDepositMode(res.settings.default_deposit_mode === 'fixed_amount' ? 'fixed_amount' : 'percent')
           setPaymentDepositPercent(String(Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0)))))
           setPaymentDepositAmount(String(Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0))))
+          setPaymentHighUnitPriceThreshold(
+            String(Math.max(0, Math.round(Number(res.settings.high_unit_price_deposit_threshold_vnd ?? 3000000) || 0)))
+          )
+          setPaymentHighUnitPriceMinPercent(
+            String(Math.max(0, Math.min(100, Math.round(Number(res.settings.high_unit_price_min_deposit_percent ?? 30) || 0))))
+          )
           setPaymentRequireProof(res.settings.require_payment_proof !== false)
           setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
           setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
@@ -1383,6 +1391,14 @@ export function PartnerMessagingSettingsClient({
             defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(res.settings.default_deposit_percent) || 0))),
             defaultDepositMode: res.settings.default_deposit_mode === 'fixed_amount' ? 'fixed_amount' : 'percent',
             defaultDepositAmount: Math.max(0, Math.round(Number(res.settings.default_deposit_amount) || 0)),
+            highUnitPriceDepositThresholdVnd: Math.max(
+              0,
+              Math.round(Number(res.settings.high_unit_price_deposit_threshold_vnd ?? 3000000) || 0)
+            ),
+            highUnitPriceMinDepositPercent: Math.max(
+              0,
+              Math.min(100, Math.round(Number(res.settings.high_unit_price_min_deposit_percent ?? 30) || 0))
+            ),
             requirePaymentProof: res.settings.require_payment_proof !== false,
             sepayEnabled: Boolean(res.settings.sepay_enabled),
             sepayBankCode: res.settings.sepay_bank_code || '',
@@ -2141,6 +2157,8 @@ export function PartnerMessagingSettingsClient({
         defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
         defaultDepositMode: paymentDepositMode,
         defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
+        highUnitPriceDepositThresholdVnd: Math.max(0, Math.round(Number(paymentHighUnitPriceThreshold) || 0)),
+        highUnitPriceMinDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentHighUnitPriceMinPercent) || 0))),
         requirePaymentProof: paymentRequireProof,
         sepayEnabled: paymentSePayEnabled,
         sepayBankCode: paymentSePayBankCode,
@@ -2165,6 +2183,8 @@ export function PartnerMessagingSettingsClient({
       paymentDepositAmount,
       paymentDepositMode,
       paymentDepositPercent,
+      paymentHighUnitPriceMinPercent,
+      paymentHighUnitPriceThreshold,
       paymentNotifyEmail,
       paymentRequireProof,
       paymentSePayAccountNumber,
@@ -2197,6 +2217,11 @@ export function PartnerMessagingSettingsClient({
           defaultDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentDepositPercent) || 0))),
           defaultDepositMode: paymentDepositMode,
           defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
+          highUnitPriceDepositThresholdVnd: Math.max(0, Math.round(Number(paymentHighUnitPriceThreshold) || 0)),
+          highUnitPriceMinDepositPercent: Math.max(
+            0,
+            Math.min(100, Math.round(Number(paymentHighUnitPriceMinPercent) || 0))
+          ),
           notifyEmail: paymentNotifyEmail,
           requirePaymentProof: paymentRequireProof,
           sepayEnabled: paymentSePayEnabled,
@@ -2239,6 +2264,8 @@ export function PartnerMessagingSettingsClient({
       paymentDepositAmount,
       paymentDepositMode,
       paymentDepositPercent,
+      paymentHighUnitPriceMinPercent,
+      paymentHighUnitPriceThreshold,
       paymentNotifyEmail,
       paymentRequireProof,
       paymentSePayAccountNumber,
@@ -3972,7 +3999,28 @@ export function PartnerMessagingSettingsClient({
                     />
                   </div>
                 ) : null}
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.paymentHighUnitPriceThresholdLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentHighUnitPriceThreshold}
+                    onChange={(e) => setPaymentHighUnitPriceThreshold(e.target.value.replace(/[^\d]/g, '').slice(0, 12))}
+                    placeholder="3000000"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">{t.paymentHighUnitPriceMinPercentLabel}</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentHighUnitPriceMinPercent}
+                    onChange={(e) => setPaymentHighUnitPriceMinPercent(e.target.value.replace(/[^\d]/g, '').slice(0, 3))}
+                    placeholder="30"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
+              <p className="text-[11px] text-muted-foreground">{t.paymentHighUnitPriceDepositHint}</p>
               <p className="text-[11px] text-muted-foreground">
                 Luu y: Bat hay tat dat coc nam o tung san pham (cot Can dat coc). O nay chi chon muc tien. Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don. Coc theo % da luu, toi thieu 100.000d; don nho hon muc do thi coc bang tien hang.
               </p>

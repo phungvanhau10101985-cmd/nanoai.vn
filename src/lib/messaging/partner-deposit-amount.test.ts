@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { resolvePercentDepositAmount } from './partner-deposit-amount'
+import {
+  partialDepositPercentForPrices,
+  resolvePercentDepositAmount,
+  unitPriceMeetsDepositFloor,
+} from './partner-deposit-amount'
 
 describe('resolvePercentDepositAmount', () => {
   it('keeps a saved 10 percent when the raw amount is already above 100_000', () => {
@@ -26,5 +30,51 @@ describe('resolvePercentDepositAmount', () => {
 
   it('charges nothing at 0 percent', () => {
     assert.equal(resolvePercentDepositAmount(250_000, 0), 0)
+  })
+})
+
+describe('high unit price deposit floor', () => {
+  const rule = { thresholdVnd: 3_000_000, minPercent: 30 }
+
+  it('starts at 3_000_000', () => {
+    assert.equal(unitPriceMeetsDepositFloor(2_999_999, rule), false)
+    assert.equal(unitPriceMeetsDepositFloor(3_000_000, rule), true)
+  })
+
+  it('raises the partial percent when a line meets the threshold', () => {
+    assert.equal(
+      partialDepositPercentForPrices({
+        shopPercent: 10,
+        unitPrices: [500_000, 3_000_000],
+        thresholdVnd: 3_000_000,
+        minPercent: 30,
+      }),
+      30
+    )
+  })
+
+  it('keeps a higher shop percent', () => {
+    assert.equal(
+      partialDepositPercentForPrices({
+        shopPercent: 50,
+        unitPrices: [4_000_000],
+        thresholdVnd: 3_000_000,
+        minPercent: 30,
+      }),
+      50
+    )
+  })
+
+  it('turns off when the threshold or percent is 0', () => {
+    assert.equal(unitPriceMeetsDepositFloor(9_000_000, { thresholdVnd: 0, minPercent: 30 }), false)
+    assert.equal(
+      partialDepositPercentForPrices({
+        shopPercent: 10,
+        unitPrices: [9_000_000],
+        thresholdVnd: 3_000_000,
+        minPercent: 0,
+      }),
+      10
+    )
   })
 })

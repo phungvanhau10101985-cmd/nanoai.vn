@@ -103,7 +103,12 @@ import {
   buildCheckoutSplitPlansForTenant,
   pickPrimaryCheckoutOrderIndex,
 } from '@/lib/messaging/fulfillment/checkout-split'
-import { resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
+import {
+  partialDepositPercentForPrices,
+  readHighUnitPriceDepositSettings,
+  resolvePercentDepositAmount,
+  unitPriceMeetsDepositFloor,
+} from '@/lib/messaging/partner-deposit-amount'
 import { patchPartnerOrderFulfillmentFromPg } from '@/lib/db/messaging-partner-order-shipment-pg'
 import { createPartnerCheckoutOrdersAtomicallyFromPg } from '@/lib/db/messaging-partner-checkout-transaction-pg'
 import {
@@ -762,15 +767,30 @@ export async function createOrderDraftFromProductPick(input: {
   const depositPercent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   const depositAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   const subtotal = Math.max(0, Math.round(unitPrice))
-  const productWantsDeposit = inv?.deposit_required === true && inv?.is_clearance !== true
+  const highUnitPrice = readHighUnitPriceDepositSettings({
+    thresholdVnd: settings?.high_unit_price_deposit_threshold_vnd,
+    minPercent: settings?.high_unit_price_min_deposit_percent,
+  })
+  const floorPercent =
+    inv?.is_clearance === true || !unitPriceMeetsDepositFloor(unitPrice, highUnitPrice) ? 0 : highUnitPrice.minPercent
+  const productWantsDeposit = (inv?.deposit_required === true && inv?.is_clearance !== true) || floorPercent > 0
   const calc = productWantsDeposit
     ? resolveRequiredAmountByDepositRule({
         subtotal,
         mode: settingsMode,
-        percent: depositPercent,
+        percent: Math.max(depositPercent, floorPercent),
         fixedAmount: depositAmount,
       })
     : { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
+  let depositAppliedPercent = calc.appliedPercent
+  let depositRequiredAmount = calc.requiredAmount
+  if (floorPercent > 0) {
+    const floorAmount = resolvePercentDepositAmount(subtotal, floorPercent)
+    if (depositRequiredAmount < floorAmount) {
+      depositRequiredAmount = floorAmount
+      depositAppliedPercent = Math.max(depositAppliedPercent, floorPercent)
+    }
+  }
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
     conversationId: conv.conversationId,
@@ -780,8 +800,8 @@ export async function createOrderDraftFromProductPick(input: {
     productImageUrl: trim(inv?.image_url || input.card.image_url, 600),
     productUrl: trim(inv?.product_url || input.card.product_url, 600),
     unitPrice,
-    depositPercent: calc.appliedPercent,
-    requiredAmount: calc.requiredAmount,
+    depositPercent: depositAppliedPercent,
+    requiredAmount: depositRequiredAmount,
     customerEmail: '',
   })
   if (!draft) return { error: 'Không tạo được đơn hàng.' }
@@ -964,6 +984,7 @@ export async function completeOrderCheckout(input: {
         lineSubtotal: payableSubtotal,
         isWarehouseItem: inv?.is_clearance === true,
         depositRequired: inv?.deposit_required === true,
+        unitPrice: priceLine?.effectiveUnitPrice ?? oldOrder.unit_price,
       },
     ],
     totalDiscount: 0,
@@ -971,6 +992,8 @@ export async function completeOrderCheckout(input: {
     shopDepositMode: settings.default_deposit_mode ?? 'percent',
     shopDepositPercent: clampPercent(settings.default_deposit_percent ?? 30, 30),
     shopDepositFixed: normalizeMoney(settings.default_deposit_amount ?? 0),
+    highUnitPriceDepositThresholdVnd: settings.high_unit_price_deposit_threshold_vnd,
+    highUnitPriceMinDepositPercent: settings.high_unit_price_min_deposit_percent,
   })[0]
   const expectedAmount = checkoutPlan?.requiredAmount ?? 0
   const depositPercent = checkoutPlan?.depositPercent ?? 0
@@ -1399,12 +1422,15 @@ export async function completeCartCheckout(input: {
       lineSubtotal: Math.max(0, Math.round(line.unitPrice)) * Math.max(1, line.quantity),
       isWarehouseItem: line.isWarehouseItem === true,
       depositRequired: line.depositRequired === true,
+      unitPrice: line.unitPrice,
     })),
     totalDiscount: partnerCheckoutStackedDiscountAmount(saleBreakdown),
     shippingFee: shippingFeeAmount,
     shopDepositMode: mode === 'none' || mode === 'fixed_amount' ? mode : 'percent',
     shopDepositPercent: percent,
     shopDepositFixed: fixedAmount,
+    highUnitPriceDepositThresholdVnd: settings.high_unit_price_deposit_threshold_vnd,
+    highUnitPriceMinDepositPercent: settings.high_unit_price_min_deposit_percent,
   })
   const primaryIndex = pickPrimaryCheckoutOrderIndex(plans)
   const checkoutGroupId = plans.length > 1 ? randomUUID() : null
@@ -1714,14 +1740,29 @@ export async function getProductPurchaseOptions(input: {
   )
   if (!row) return null
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
-  const mode =
+  const highUnitPrice = readHighUnitPriceDepositSettings({
+    thresholdVnd: settings?.high_unit_price_deposit_threshold_vnd,
+    minPercent: settings?.high_unit_price_min_deposit_percent,
+  })
+  const unitPrice = parseVndAmountFromText(row.price_hint ?? '')
+  const floorPercent =
+    row.is_clearance === true || !unitPriceMeetsDepositFloor(unitPrice, highUnitPrice) ? 0 : highUnitPrice.minPercent
+  let mode: 'none' | 'percent' | 'fixed_amount' =
     row.deposit_required === false || row.is_clearance === true
       ? 'none'
       : settings?.default_deposit_mode === 'fixed_amount'
         ? 'fixed_amount'
         : 'percent'
-  const percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
-  const fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
+  let percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
+  let fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
+  if (floorPercent > 0) {
+    const floorAmount = unitPrice > 0 ? resolvePercentDepositAmount(unitPrice, floorPercent) : 0
+    if (mode === 'none' || (mode === 'fixed_amount' && fixedAmount < floorAmount)) {
+      mode = 'percent'
+      fixedAmount = 0
+    }
+    percent = Math.max(percent, floorPercent)
+  }
   const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
     input.partnerId,
     input.linkedUserId ?? null
@@ -2051,12 +2092,24 @@ export async function buildGuestOrderDepositView(input: {
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   const payment_display = settings ? resolveOrderPaymentDisplay(input.order, settings) : null
   const gcr = await fetchPartnerGoogleCustomerReviewsMerchantIdFromPg(input.partnerId)
+  const partial = partialDepositPercentForPrices({
+    shopPercent: settings?.default_deposit_percent ?? 30,
+    unitPrices: await depositFloorUnitPrices(input.order),
+    thresholdVnd: settings?.high_unit_price_deposit_threshold_vnd,
+    minPercent: settings?.high_unit_price_min_deposit_percent,
+  })
   return {
     order: input.order,
     payment_display,
-    default_deposit_percent: Math.max(1, Math.min(99, Math.round(settings?.default_deposit_percent ?? 30))),
+    default_deposit_percent: Math.max(1, Math.min(99, partial || Math.round(settings?.default_deposit_percent ?? 30))),
     google_customer_reviews_merchant_id: gcr,
   }
+}
+
+async function depositFloorUnitPrices(order: PartnerOrderRow): Promise<number[]> {
+  const lines = await fetchPartnerOrderLinesFromPg(order.id)
+  const prices = lines.filter((line) => !line.is_warehouse_item).map((line) => Math.max(0, Math.round(line.unit_price)))
+  return prices.length > 0 ? prices : [Math.max(0, Math.round(order.unit_price))]
 }
 
 /** Đổi mức cọc theo % đã lưu hoặc 100% trên đơn đang chờ CK — tái tạo QR. */
@@ -2081,8 +2134,14 @@ export async function updateCartOrderDepositPercent(input: {
   const settings = await fetchPartnerPaymentSettingsFromPg(input.partnerId)
   if (!settings) return { error: 'Shop chưa cài đặt thanh toán.' }
   const shopPercent = clampPercent(settings.default_deposit_percent ?? 30, 30)
-  const requested = Math.round(Number(input.percent) || shopPercent)
-  const percent = requested >= 100 ? 100 : shopPercent
+  const partial = partialDepositPercentForPrices({
+    shopPercent,
+    unitPrices: await depositFloorUnitPrices(existing),
+    thresholdVnd: settings.high_unit_price_deposit_threshold_vnd,
+    minPercent: settings.high_unit_price_min_deposit_percent,
+  })
+  const requested = Math.round(Number(input.percent) || partial)
+  const percent = requested >= 100 ? 100 : partial
   const payable = Math.max(0, Math.round(existing.amount_after_discount || existing.subtotal_amount || 0))
   const ship = Math.max(0, Math.round(existing.shipping_fee_amount || 0))
   const requiredAmount =

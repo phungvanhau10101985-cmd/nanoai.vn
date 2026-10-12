@@ -1,4 +1,8 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import {
+  DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND,
+  DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT,
+} from '@/lib/messaging/partner-deposit-amount'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { PartnerStackedDiscountSnapshot } from '@/lib/db/messaging-partner-loyalty-pg'
@@ -55,6 +59,9 @@ export type PartnerPaymentSettingsRow = {
   ewallet_qr_url: string
   /** M1.4 — display-only carrier label. */
   shipping_carrier_label: string
+  /** Đơn giá từ mức này trở lên thì khách cọc ít nhất `high_unit_price_min_deposit_percent`. 0 = tắt. */
+  high_unit_price_deposit_threshold_vnd: number
+  high_unit_price_min_deposit_percent: number
   updated_at: string
 }
 
@@ -189,6 +196,15 @@ function isMissingPaymentSettingsTableError(e: unknown): boolean {
   const msg = String(err.message ?? '').toLowerCase()
   return msg.includes('messaging_partner_payment_settings')
 }
+
+function isMissingHighUnitPriceColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (String(err.code ?? '') !== '42703') return false
+  return String(err.message ?? '').toLowerCase().includes('high_unit_price')
+}
+
+let paymentSettingsHighUnitPriceColumnsReady: boolean | null = null
 
 function isLegacyDepositPercentConstraintError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
@@ -364,6 +380,11 @@ export function parseVndAmountFromText(raw: string): number {
 
 export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Promise<PartnerPaymentSettingsRow | null> {
   if (!isPgConfigured()) return null
+  const includeHighUnitPrice = paymentSettingsHighUnitPriceColumnsReady !== false
+  const highUnitPriceSelect = includeHighUnitPrice
+    ? `coalesce(high_unit_price_deposit_threshold_vnd, ${DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND}) as high_unit_price_deposit_threshold_vnd,
+              coalesce(high_unit_price_min_deposit_percent, ${DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT}) as high_unit_price_min_deposit_percent,`
+    : ''
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
       `select partner_id::text, bank_name, bank_bin, account_number, account_holder,
@@ -385,12 +406,14 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
               coalesce(ewallet_account_number, '') as ewallet_account_number,
               coalesce(ewallet_qr_url, '') as ewallet_qr_url,
               coalesce(shipping_carrier_label, '') as shipping_carrier_label,
+              ${highUnitPriceSelect}
               updated_at
        from public.messaging_partner_payment_settings
        where partner_id = $1::uuid
        limit 1`,
       [partnerId]
     )
+    if (includeHighUnitPrice) paymentSettingsHighUnitPriceColumnsReady = true
     if (!row) return null
     return {
       partner_id: String(row.partner_id),
@@ -428,9 +451,21 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       ewallet_account_number: String(row.ewallet_account_number ?? ''),
       ewallet_qr_url: String(row.ewallet_qr_url ?? ''),
       shipping_carrier_label: String(row.shipping_carrier_label ?? ''),
+      high_unit_price_deposit_threshold_vnd:
+        row.high_unit_price_deposit_threshold_vnd == null
+          ? DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND
+          : Math.max(0, num(row.high_unit_price_deposit_threshold_vnd, DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND)),
+      high_unit_price_min_deposit_percent:
+        row.high_unit_price_min_deposit_percent == null
+          ? DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT
+          : clampPercent(row.high_unit_price_min_deposit_percent, DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT),
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
+    if (isMissingHighUnitPriceColumnError(e) && paymentSettingsHighUnitPriceColumnsReady !== false) {
+      paymentSettingsHighUnitPriceColumnsReady = false
+      return fetchPartnerPaymentSettingsFromPg(partnerId)
+    }
     if (isMissingPaymentSettingsTableError(e)) return null
     console.warn('[fetchPartnerPaymentSettingsFromPg]', e)
     return null
@@ -463,6 +498,8 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   ewalletAccountNumber?: string
   ewalletQrUrl?: string
   shippingCarrierLabel?: string
+  highUnitPriceDepositThresholdVnd?: number | null
+  highUnitPriceMinDepositPercent?: number | null
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
   try {
@@ -474,6 +511,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          shipping_fee_amount, shipping_free_threshold_amount,
          ewallet_enabled, ewallet_provider_label, ewallet_account_name, ewallet_account_number, ewallet_qr_url,
          shipping_carrier_label,
+         high_unit_price_deposit_threshold_vnd, high_unit_price_min_deposit_percent,
          updated_at
        ) values (
          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
@@ -481,6 +519,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          $17::numeric, $18::numeric,
          $19, $20, $21, $22, $23,
          $24,
+         $25::numeric, $26,
          now()
        )
        on conflict (partner_id) do update set
@@ -507,6 +546,8 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          ewallet_account_number = excluded.ewallet_account_number,
          ewallet_qr_url = excluded.ewallet_qr_url,
          shipping_carrier_label = excluded.shipping_carrier_label,
+         high_unit_price_deposit_threshold_vnd = excluded.high_unit_price_deposit_threshold_vnd,
+         high_unit_price_min_deposit_percent = excluded.high_unit_price_min_deposit_percent,
          updated_at = now()`,
       [
         input.partnerId,
@@ -533,10 +574,21 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         String(input.ewalletAccountNumber ?? '').trim().slice(0, 60),
         String(input.ewalletQrUrl ?? '').trim().slice(0, 2000),
         String(input.shippingCarrierLabel ?? '').trim().slice(0, 80),
+        input.highUnitPriceDepositThresholdVnd == null
+          ? DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND
+          : Math.max(0, Math.round(num(input.highUnitPriceDepositThresholdVnd, 0))),
+        input.highUnitPriceMinDepositPercent == null
+          ? DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT
+          : clampPercent(input.highUnitPriceMinDepositPercent, DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT),
       ]
     )
+    if (paymentSettingsHighUnitPriceColumnsReady !== true) paymentSettingsHighUnitPriceColumnsReady = true
     return true
   } catch (e) {
+    if (isMissingHighUnitPriceColumnError(e)) {
+      paymentSettingsHighUnitPriceColumnsReady = false
+      console.warn('[upsertPartnerPaymentSettingsFromPg] missing high unit price columns')
+    }
     if (isMissingPaymentSettingsTableError(e)) return false
     console.warn('[upsertPartnerPaymentSettingsFromPg]', e)
     return false

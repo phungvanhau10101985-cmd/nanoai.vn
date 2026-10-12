@@ -228,6 +228,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
         lineSubtotal: Math.max(0, Math.round(line.effectiveUnitPrice * line.quantity)),
         isWarehouseItem: inv?.is_clearance === true,
         depositRequired: inv?.deposit_required === true,
+        unitPrice: line.effectiveUnitPrice,
       }
     }),
     totalDiscount: partnerCheckoutStackedDiscountAmount(breakdown),
@@ -235,6 +236,8 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     shopDepositMode: paymentSettings?.default_deposit_mode || 'percent',
     shopDepositPercent: paymentSettings?.default_deposit_percent ?? 30,
     shopDepositFixed: paymentSettings?.default_deposit_amount ?? 0,
+    highUnitPriceDepositThresholdVnd: paymentSettings?.high_unit_price_deposit_threshold_vnd,
+    highUnitPriceMinDepositPercent: paymentSettings?.high_unit_price_min_deposit_percent,
   })
   const checkoutSplit = {
     orderCount: Math.max(1, checkoutPlans.length),

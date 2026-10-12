@@ -970,6 +970,8 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
     default_deposit_percent: 30 as const,
     default_deposit_mode: 'percent' as const,
     default_deposit_amount: 0,
+    high_unit_price_deposit_threshold_vnd: 3_000_000,
+    high_unit_price_min_deposit_percent: 30,
     notify_email: user.email?.trim() || '',
     require_payment_proof: true,
     sepay_enabled: false,
@@ -1102,6 +1104,8 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   ewalletAccountNumber?: string
   ewalletQrUrl?: string
   shippingCarrierLabel?: string
+  highUnitPriceDepositThresholdVnd?: number | null
+  highUnitPriceMinDepositPercent?: number | null
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1144,6 +1148,14 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
     ewalletAccountNumber: (input.ewalletAccountNumber ?? '').trim().slice(0, 60),
     ewalletQrUrl: (input.ewalletQrUrl ?? '').trim().slice(0, 2000),
     shippingCarrierLabel: (input.shippingCarrierLabel ?? '').trim().slice(0, 80),
+    highUnitPriceDepositThresholdVnd:
+      input.highUnitPriceDepositThresholdVnd == null
+        ? 3_000_000
+        : Math.max(0, Math.round(Number(input.highUnitPriceDepositThresholdVnd) || 0)),
+    highUnitPriceMinDepositPercent:
+      input.highUnitPriceMinDepositPercent == null
+        ? 30
+        : Math.max(0, Math.min(100, Math.round(Number(input.highUnitPriceMinDepositPercent) || 0))),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()

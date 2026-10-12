@@ -176,4 +176,91 @@ describe('buildCheckoutSplitPlans', () => {
     assert.equal(capped[0].depositPercent, 10)
     assert.equal(capped[0].requiredAmount, 80_000)
   })
+
+  it('requires 30 percent when unit price is 3_000_000 even if the product flag is off', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 3_000_000, unitPrice: 3_000_000, depositRequired: false })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].requiresDeposit, true)
+    assert.equal(plans[0].depositPercent, 30)
+    assert.equal(plans[0].requiredAmount, 900_000)
+  })
+
+  it('leaves a unit price under 3_000_000 on the product flag', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 2_999_999, unitPrice: 2_999_999, depositRequired: false })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].requiresDeposit, false)
+    assert.equal(plans[0].requiredAmount, 0)
+  })
+
+  it('raises a flagged 10 percent line to 30 when the unit price meets the threshold', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 4_000_000, unitPrice: 4_000_000, depositRequired: true })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].depositPercent, 30)
+    assert.equal(plans[0].requiredAmount, 1_200_000)
+  })
+
+  it('keeps a shop percent that is already above the floor', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 4_000_000, unitPrice: 4_000_000, depositRequired: true })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 50,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].depositPercent, 50)
+    assert.equal(plans[0].requiredAmount, 2_000_000)
+  })
+
+  it('does not apply the floor to clearance warehouse lines', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [
+        line({
+          fulfillmentSource: 'vietnam',
+          lineSubtotal: 4_000_000,
+          unitPrice: 4_000_000,
+          isWarehouseItem: true,
+          depositRequired: false,
+        }),
+      ],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 30,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].requiresDeposit, false)
+    assert.equal(plans[0].requiredAmount, 0)
+  })
+
+  it('raises a fixed deposit up to 30 percent of a high unit price', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 4_000_000, unitPrice: 4_000_000, depositRequired: false })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'fixed_amount',
+      shopDepositPercent: 10,
+      shopDepositFixed: 150_000,
+    })
+    assert.equal(plans[0].requiredAmount, 1_200_000)
+    assert.equal(plans[0].requiresDeposit, true)
+  })
 })
