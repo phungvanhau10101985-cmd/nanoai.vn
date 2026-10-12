@@ -30,7 +30,7 @@ export default async function HoTroLamBaiPage() {
       <JsonLd data={jsonLd} />
       <JsonLd data={faqJsonLd} />
       <CreationToolPageShell currentHref={seo.path}>
-        <h1 className="mb-4 text-2xl font-semibold tracking-tight">{t.tool.homework_help}</h1>
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight max-md:sr-only">{t.tool.homework_help}</h1>
         <HoTroLamBaiClient locale={locale} />
       </CreationToolPageShell>
       <FeatureSeoSection seo={seo} />

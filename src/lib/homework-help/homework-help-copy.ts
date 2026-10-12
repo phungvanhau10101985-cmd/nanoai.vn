@@ -2,14 +2,13 @@ import type { WebLocale } from '@/lib/i18n/config'
 
 export type HomeworkHelpCopy = {
   intro: string
+  empty: string
+  placeholder: string
+  send: string
+  replying: string
+  newThread: string
   pickPhoto: string
   takePhoto: string
-  readButton: string
-  reading: string
-  typeLabel: string
-  typePlaceholder: string
-  typeButton: string
-  anotherPhoto: string
   statement: string
   knowledge: string
   thinking: string
@@ -32,15 +31,14 @@ export type HomeworkHelpCopy = {
 
 const VI: HomeworkHelpCopy = {
   intro:
-    'Chụp hoặc gõ một câu. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi bạn bấm bước cuối. Kiến thức được kiểm tra lại trước khi hiện.',
+    'Chat riêng để làm bài. Gõ hoặc chụp một câu. Giáo viên nêu kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi bạn bấm bước cuối.',
+  empty: 'Gõ hoặc chụp một câu bạn đang làm. Giáo viên hướng cho riêng bạn.',
+  placeholder: 'Gõ một câu bài tập…',
+  send: 'Gửi',
+  replying: 'Giáo viên đang trả lời',
+  newThread: 'Hội thoại mới',
   pickPhoto: 'Chọn ảnh',
   takePhoto: 'Chụp bài',
-  readButton: 'Đọc bài',
-  reading: 'Đang đọc bài…',
-  typeLabel: 'Gõ đề',
-  typePlaceholder: 'Gõ một câu. Nhiều câu thì cách nhau một dòng trống, hoặc bắt đầu bằng Câu 1, Câu 2.',
-  typeButton: 'Xem hướng làm',
-  anotherPhoto: 'Làm câu khác',
   statement: 'Đề',
   knowledge: 'Kiến thức liên quan',
   thinking: 'Hướng tư duy',
@@ -73,15 +71,14 @@ const VI: HomeworkHelpCopy = {
 
 const EN: HomeworkHelpCopy = {
   intro:
-    'Photograph or type one question. Each question lists the related knowledge and a way to think it through. Hints open one step at a time. The answer appears only when you open the last step. Related knowledge is checked again before it is shown.',
+    'A private chat for homework. Type or photograph one question. The teacher lists the related knowledge and a way to think it through. Hints open one step at a time. The answer appears only when you open the last step.',
+  empty: 'Type or photograph one question you are working on. The teacher guides only you.',
+  placeholder: 'Type one homework question…',
+  send: 'Send',
+  replying: 'The teacher is answering',
+  newThread: 'New chat',
   pickPhoto: 'Choose photo',
   takePhoto: 'Take photo',
-  readButton: 'Read the problem',
-  reading: 'Reading…',
-  typeLabel: 'Type the problem',
-  typePlaceholder: 'Type one question. For several, leave a blank line between them, or start each with Question 1, Question 2.',
-  typeButton: 'Show how to think',
-  anotherPhoto: 'Another question',
   statement: 'Problem',
   knowledge: 'Related knowledge',
   thinking: 'How to think',
@@ -113,15 +110,14 @@ const EN: HomeworkHelpCopy = {
 }
 
 const ZH: HomeworkHelpCopy = {
-  intro: '拍一道题，或把题目打出来。每道题列出相关知识和思考步骤。提示逐条打开。答案只在最后一步出现。相关知识会先核对再显示。',
+  intro: '单独聊天来做作业。输入或拍一道题。老师列出相关知识和思考步骤。提示逐条打开。答案只在最后一步出现。',
+  empty: '输入或拍一道你正在做的题。老师只辅导你。',
+  placeholder: '输入一道作业题…',
+  send: '发送',
+  replying: '老师正在回答',
+  newThread: '新对话',
   pickPhoto: '选择照片',
   takePhoto: '拍照',
-  readButton: '读题',
-  reading: '正在读题…',
-  typeLabel: '输入题目',
-  typePlaceholder: '输入一道题。多道题请空一行，或用“题1”“题2”开头。',
-  typeButton: '看思路',
-  anotherPhoto: '再做一题',
   statement: '题目',
   knowledge: '相关知识',
   thinking: '思考方向',
@@ -154,15 +150,14 @@ const ZH: HomeworkHelpCopy = {
 
 const JA: HomeworkHelpCopy = {
   intro:
-    '問題を撮影するか、入力します。各問に関連知識と考え方を出します。ヒントは一段ずつ開きます。答えは最後のステップでだけ表示します。関連知識は表示する前にもう一度確認します。',
+    '宿題用の個別チャットです。問題を入力するか撮影します。先生が関連知識と考え方を出します。ヒントは一段ずつ開き、答えは最後のステップでだけ表示します。',
+  empty: '取り組んでいる問題を入力するか撮影してください。先生はあなただけに案内します。',
+  placeholder: '問題を入力…',
+  send: '送信',
+  replying: '先生が回答しています',
+  newThread: '新しい会話',
   pickPhoto: '写真を選ぶ',
   takePhoto: '撮影する',
-  readButton: '問題を読む',
-  reading: '読んでいます…',
-  typeLabel: '問題を入力',
-  typePlaceholder: '1問を入力します。複数は空行で区切るか、「問1」「問2」で始めてください。',
-  typeButton: '考え方を見る',
-  anotherPhoto: '別の問題',
   statement: '問題',
   knowledge: '関連する知識',
   thinking: '考え方',
@@ -195,15 +190,14 @@ const JA: HomeworkHelpCopy = {
 
 const KO: HomeworkHelpCopy = {
   intro:
-    '문제를 찍거나 직접 입력합니다. 각 문제마다 관련 지식과 생각 순서를 보여 줍니다. 힌트는 한 단계씩 열리고, 답은 마지막 단계에서만 나옵니다. 관련 지식은 보여 주기 전에 다시 확인합니다.',
+    '숙제용 개인 채팅입니다. 문제를 입력하거나 찍으세요. 선생님이 관련 지식과 생각 순서를 보여 줍니다. 힌트는 한 단계씩 열리고, 답은 마지막 단계에서만 나옵니다.',
+  empty: '풀고 있는 문제 하나를 입력하거나 찍으세요. 선생님은 당신만 안내합니다.',
+  placeholder: '숙제 문제를 입력…',
+  send: '보내기',
+  replying: '선생님이 답하고 있습니다',
+  newThread: '새 대화',
   pickPhoto: '사진 선택',
   takePhoto: '촬영',
-  readButton: '문제 읽기',
-  reading: '읽는 중…',
-  typeLabel: '문제 입력',
-  typePlaceholder: '문제 하나를 입력하세요. 여러 문제는 빈 줄로 나누거나 "문제 1", "문제 2"로 시작하세요.',
-  typeButton: '생각 방향 보기',
-  anotherPhoto: '다른 문제',
   statement: '문제',
   knowledge: '관련 지식',
   thinking: '생각 방향',
