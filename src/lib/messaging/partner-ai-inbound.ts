@@ -61,7 +61,11 @@ import {
   resolveSharedFeatureOpen,
   resolveStudyHelpMenu,
 } from '@/lib/hub-chat/shared-feature-open'
-import { loadItFeatureProductContext, loadStudyHelpProductCards } from '@/lib/messaging/partner-ai-it-feature-product'
+import {
+  composeItFeatureConsultMessage,
+  loadItFeatureProductContext,
+  loadItFeatureProducts,
+} from '@/lib/messaging/partner-ai-it-feature-product'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import {
   createPartnerAiRouteDecision,
@@ -316,7 +320,6 @@ async function replyForItShopFeatureIntent(input: {
   } catch (e) {
     console.warn('[partner-ai-inbound] it feature gender', e)
   }
-  const addressed = enforceConfiguredGenderAddressing(body, gender)
   const decision = createPartnerAiRouteDecision(intent, {
     source: 'hard_rule',
     reason: 'it_feature_link',
@@ -341,7 +344,7 @@ async function replyForItShopFeatureIntent(input: {
       console.warn('[partner-ai-inbound] it feature conv', e)
     }
     if (!conv) return
-    const productContext = featureOpen
+    const product = featureOpen
       ? await loadItFeatureProductContext({
           partnerId: input.partnerId,
           conversationId: input.conversationId,
@@ -349,23 +352,32 @@ async function replyForItShopFeatureIntent(input: {
           href: featureOpen.href,
         })
       : null
-    const studyCards = featureOpens?.length
-      ? await loadStudyHelpProductCards({
+    const studyProducts = featureOpens?.length
+      ? await loadItFeatureProducts({
           partnerId: input.partnerId,
           conversationId: input.conversationId,
           sourceMessageId: input.messageId,
           hrefs: featureOpens.map((open) => open.href),
         })
       : []
+    const consultBody = composeItFeatureConsultMessage({
+      products: product ? [product] : studyProducts,
+      fallback: body,
+      many: Boolean(featureOpens?.length),
+      copy: {
+        includes: dict.partnerGuestChat.itFeatureConsultIncludes,
+        tap: dict.partnerGuestChat.itFeatureConsultTap,
+      },
+    })
     await sleep(typingDelayMs(input.settings))
     const err = await deliverAutomatedPartnerMessage({
       conversation: conv,
       settings: input.settings,
-      body: addressed,
+      body: enforceConfiguredGenderAddressing(consultBody, gender),
       rawPayload: {
         source: 'it_feature_link',
-        ai_product_cards: featureOpens ? studyCards : productContext ? [productContext.card] : [],
-        ...(productContext ? { feature_product: productContext.product } : {}),
+        ai_product_cards: [],
+        ...(product ? { feature_product: product } : {}),
         partner_ai_industry_branch: 'it',
         ...partnerAiRouteDecisionToPayload(decision),
         ...(featureOpen ? { feature_open: featureOpen } : {}),

@@ -9,6 +9,15 @@ import {
   type HomeworkHelpErrorCode,
 } from '@/lib/homework-help/homework-help-ai'
 import type { HomeworkGuide, HomeworkReview } from '@/lib/homework-help/homework-help-guide'
+import {
+  appendHomeworkExchange,
+  ensureHomeworkSession,
+  listHomeworkMessages,
+  listHomeworkSessions,
+  openHomeworkSession,
+  startHomeworkSession,
+} from '@/lib/homework-help/homework-help-store'
+import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
 
 const MAX_IMAGES = 3
 const MAX_BYTES = 6 * 1024 * 1024
@@ -20,6 +29,62 @@ export type HomeworkHelpActionResult<T> =
 
 function localeFrom(value: FormDataEntryValue | null): WebLocale {
   return normalizeWebLocale(String(value ?? '')) ?? 'vi'
+}
+
+function localeOf(value: string): WebLocale {
+  return normalizeWebLocale(value) ?? 'vi'
+}
+
+async function rememberTurn(input: {
+  userId: string
+  locale: WebLocale
+  text: string
+  imageCount: number
+  guide: HomeworkGuide
+}): Promise<void> {
+  const sessionId = await ensureHomeworkSession(input.userId, input.locale)
+  if (!sessionId) return
+  await appendHomeworkExchange({
+    sessionId,
+    userId: input.userId,
+    text: input.text,
+    imageCount: input.imageCount,
+    guide: input.guide,
+  })
+}
+
+export async function loadHomeworkThread(
+  locale: string
+): Promise<HomeworkHelpActionResult<{ sessionId: string | null; messages: HomeworkThreadMessage[] }>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  const sessionId = await ensureHomeworkSession(auth.user.id, localeOf(locale))
+  if (!sessionId) return { ok: true, data: { sessionId: null, messages: [] } }
+  return { ok: true, data: { sessionId, messages: await listHomeworkMessages(sessionId) } }
+}
+
+export async function startHomeworkThread(locale: string): Promise<HomeworkHelpActionResult<{ sessionId: string | null }>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  const sessionId = await startHomeworkSession(auth.user.id, localeOf(locale))
+  if (!sessionId) return { ok: false, code: 'new_thread_failed' }
+  return { ok: true, data: { sessionId } }
+}
+
+export async function listHomeworkHistory(): Promise<HomeworkHelpActionResult<HomeworkSessionSummary[]>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  return { ok: true, data: await listHomeworkSessions(auth.user.id) }
+}
+
+export async function openHomeworkHistoryThread(
+  sessionId: string
+): Promise<HomeworkHelpActionResult<{ sessionId: string; messages: HomeworkThreadMessage[] }>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  const messages = await openHomeworkSession(auth.user.id, sessionId)
+  if (!messages) return { ok: false, code: 'ai_unavailable' }
+  return { ok: true, data: { sessionId, messages } }
 }
 
 export async function explainHomeworkPhoto(
@@ -43,12 +108,21 @@ export async function explainHomeworkPhoto(
     images.push({ mimeType, base64 })
   }
 
+  const locale = localeFrom(formData.get('locale'))
   const guide = await explainHomeworkImages({
     userId: auth.user.id,
-    locale: localeFrom(formData.get('locale')),
+    locale,
     images,
   })
   if (!guide) return { ok: false, code: 'unreadable' }
+  const caption = String(formData.get('text') ?? '').trim().slice(0, 8000)
+  await rememberTurn({
+    userId: auth.user.id,
+    locale,
+    text: caption,
+    imageCount: images.length,
+    guide,
+  })
   return { ok: true, data: guide }
 }
 
@@ -68,6 +142,13 @@ export async function explainTypedHomework(input: {
   })
   if (!guide) return { ok: false, code: 'ai_unavailable' }
   if (!guide.problems.length) return { ok: false, code: 'missing_text' }
+  await rememberTurn({
+    userId: auth.user.id,
+    locale,
+    text: text.slice(0, 8000),
+    imageCount: 0,
+    guide,
+  })
   return { ok: true, data: guide }
 }
 

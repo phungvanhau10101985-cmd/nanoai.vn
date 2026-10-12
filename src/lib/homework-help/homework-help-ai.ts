@@ -53,6 +53,7 @@ export type HomeworkHelpErrorCode =
   | 'unreadable'
   | 'missing_attempt'
   | 'missing_text'
+  | 'new_thread_failed'
 
 export type HomeworkImagePart = {
   mimeType: string

@@ -23,9 +23,10 @@ export async function insertNotificationPg(input: InsertNotificationInput): Prom
   if (!isPgConfigured()) return { ok: false, error: 'database_not_configured' }
   try {
     const pool = getPgPool()
+    // now() là timestamptz. Default cũ timezone('utc', now()) bị session +07 hiểu nhầm, chuông sớm 7 giờ.
     const result = await pool.query(
-      `insert into public.notifications (user_id, type, title, body, meta)
-       values ($1::uuid, $2, $3, $4, $5::jsonb)
+      `insert into public.notifications (user_id, type, title, body, meta, created_at)
+       values ($1::uuid, $2, $3, $4, $5::jsonb, now())
        on conflict do nothing`,
       [
         input.user_id,

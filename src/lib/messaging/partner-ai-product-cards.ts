@@ -221,9 +221,11 @@ export function parsePartnerAiLlmStructured(raw: string): { message: string; pro
 export function aiProductCardsFromPayload(raw: Json | null): PartnerAiProductCard[] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
   const o = raw as Record<string, unknown>
+  const source = typeof o.source === 'string' ? o.source.trim() : ''
+  /** Shop CNTT: nút tính năng + chữ tư vấn. Không vẽ thẻ, kể cả tin đã lưu `ai_product_cards`. */
+  if (source === 'it_feature_link') return []
   const arr = o.ai_product_cards
   if (!Array.isArray(arr) || arr.length === 0) return []
-  const source = typeof o.source === 'string' ? o.source.trim() : ''
   const cap =
     source === 'ai_purchase_pick_list' || source === 'ai_chat_order_guidance'
       ? PARTNER_AI_PURCHASE_PICK_LIST_CARD_CAP

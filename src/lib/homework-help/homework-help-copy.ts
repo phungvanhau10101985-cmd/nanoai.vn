@@ -7,6 +7,11 @@ export type HomeworkHelpCopy = {
   send: string
   replying: string
   newThread: string
+  history: string
+  historyEmpty: string
+  historyClose: string
+  historyLoading: string
+  photoTurn: string
   pickPhoto: string
   takePhoto: string
   statement: string
@@ -37,6 +42,11 @@ const VI: HomeworkHelpCopy = {
   send: 'Gửi',
   replying: 'Giáo viên đang trả lời',
   newThread: 'Hội thoại mới',
+  history: 'Lịch sử làm bài tập',
+  historyEmpty: 'Chưa có hội thoại bài tập nào.',
+  historyClose: 'Đóng danh sách',
+  historyLoading: 'Đang tải danh sách…',
+  photoTurn: 'Ảnh bài tập',
   pickPhoto: 'Chọn ảnh',
   takePhoto: 'Chụp bài',
   statement: 'Đề',
@@ -66,6 +76,7 @@ const VI: HomeworkHelpCopy = {
     unreadable: 'Không đọc được nội dung ảnh. Chụp rõ hơn rồi thử lại.',
     missing_attempt: 'Gõ bài làm của bạn trước khi chữa.',
     missing_text: 'Gõ đề bài trước.',
+    new_thread_failed: 'Không tạo được hội thoại mới.',
   },
 }
 
@@ -77,6 +88,11 @@ const EN: HomeworkHelpCopy = {
   send: 'Send',
   replying: 'The teacher is answering',
   newThread: 'New chat',
+  history: 'Homework history',
+  historyEmpty: 'No homework chats yet.',
+  historyClose: 'Close the list',
+  historyLoading: 'Loading chats…',
+  photoTurn: 'Homework photo',
   pickPhoto: 'Choose photo',
   takePhoto: 'Take photo',
   statement: 'Problem',
@@ -106,6 +122,7 @@ const EN: HomeworkHelpCopy = {
     unreadable: 'Could not read this photo. Take a clearer picture and try again.',
     missing_attempt: 'Type your work before asking for a check.',
     missing_text: 'Type the problem first.',
+    new_thread_failed: 'Could not start a new chat.',
   },
 }
 
@@ -116,6 +133,11 @@ const ZH: HomeworkHelpCopy = {
   send: '发送',
   replying: '老师正在回答',
   newThread: '新对话',
+  history: '作业记录',
+  historyEmpty: '还没有作业对话。',
+  historyClose: '关闭列表',
+  historyLoading: '正在加载列表…',
+  photoTurn: '作业照片',
   pickPhoto: '选择照片',
   takePhoto: '拍照',
   statement: '题目',
@@ -145,6 +167,7 @@ const ZH: HomeworkHelpCopy = {
     unreadable: '读不清这张照片。请拍清楚再试。',
     missing_attempt: '先写下你的解答，再请批改。',
     missing_text: '请先输入题目。',
+    new_thread_failed: '无法新建对话。',
   },
 }
 
@@ -156,6 +179,11 @@ const JA: HomeworkHelpCopy = {
   send: '送信',
   replying: '先生が回答しています',
   newThread: '新しい会話',
+  history: '宿題の履歴',
+  historyEmpty: '宿題の会話はまだありません。',
+  historyClose: '一覧を閉じる',
+  historyLoading: '一覧を読み込んでいます…',
+  photoTurn: '宿題の写真',
   pickPhoto: '写真を選ぶ',
   takePhoto: '撮影する',
   statement: '問題',
@@ -185,6 +213,7 @@ const JA: HomeworkHelpCopy = {
     unreadable: 'この写真は読めません。はっきり撮ってもう一度お試しください。',
     missing_attempt: '確認する前に、自分の解答を書いてください。',
     missing_text: '先に問題を入力してください。',
+    new_thread_failed: '新しい会話を作れませんでした。',
   },
 }
 
@@ -196,6 +225,11 @@ const KO: HomeworkHelpCopy = {
   send: '보내기',
   replying: '선생님이 답하고 있습니다',
   newThread: '새 대화',
+  history: '숙제 기록',
+  historyEmpty: '아직 숙제 대화가 없습니다.',
+  historyClose: '목록 닫기',
+  historyLoading: '목록을 불러오는 중…',
+  photoTurn: '숙제 사진',
   pickPhoto: '사진 선택',
   takePhoto: '촬영',
   statement: '문제',
@@ -225,6 +259,7 @@ const KO: HomeworkHelpCopy = {
     unreadable: '이 사진을 읽지 못했습니다. 더 선명하게 찍고 다시 시도하세요.',
     missing_attempt: '확인받기 전에 내 풀이를 적으세요.',
     missing_text: '먼저 문제를 입력하세요.',
+    new_thread_failed: '새 대화를 만들지 못했습니다.',
   },
 }
 

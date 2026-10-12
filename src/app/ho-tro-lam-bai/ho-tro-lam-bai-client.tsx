@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Camera, ImagePlus, MessageSquarePlus, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Camera, History, ImagePlus, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -9,7 +9,16 @@ import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
 import type { HomeworkProblem, HomeworkReview } from '@/lib/homework-help/homework-help-guide'
 import { tutorNextBubbleDelayMs, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
-import { explainHomeworkPhoto, explainTypedHomework, reviewHomeworkWork } from '@/app/ho-tro-lam-bai/actions'
+import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
+import {
+  explainHomeworkPhoto,
+  explainTypedHomework,
+  listHomeworkHistory,
+  loadHomeworkThread,
+  openHomeworkHistoryThread,
+  reviewHomeworkWork,
+  startHomeworkThread,
+} from '@/app/ho-tro-lam-bai/actions'
 
 const MAX_IMAGES = 3
 
@@ -22,6 +31,7 @@ type UserTurn = {
   role: 'user'
   text: string
   images: string[]
+  imageCount: number
 }
 
 type TeacherTurn =
@@ -37,6 +47,41 @@ function sleep(ms: number): Promise<void> {
 
 function localId(): string {
   return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
+function formatHomeworkWhen(iso: string, locale: WebLocale): string {
+  try {
+    return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : locale, {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(iso))
+  } catch {
+    return iso.slice(0, 16)
+  }
+}
+
+function linesFromStored(messages: HomeworkThreadMessage[]): ChatLine[] {
+  const lines: ChatLine[] = []
+  for (const message of messages) {
+    if (message.role === 'user') {
+      lines.push({
+        id: message.id,
+        role: 'user',
+        text: message.body,
+        images: [],
+        imageCount: message.imageCount,
+      })
+      continue
+    }
+    if (message.kind === 'problem' && message.problem) {
+      lines.push({ id: message.id, role: 'teacher', kind: 'problem', problem: message.problem })
+      continue
+    }
+    if (message.kind === 'note' && message.body) {
+      lines.push({ id: message.id, role: 'teacher', kind: 'note', text: message.body })
+    }
+  }
+  return lines
 }
 
 function TeacherReplying({ label }: { label: string }) {
@@ -65,6 +110,11 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [previews, setPreviews] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [ready, setReady] = useState(false)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const busyRef = useRef(false)
   const urlsRef = useRef<string[]>([])
@@ -76,6 +126,23 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       for (const url of urls) URL.revokeObjectURL(url)
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    void loadHomeworkThread(locale).then((result) => {
+      if (cancelled) return
+      if (result.ok) {
+        if (!busyRef.current) {
+          setSessionId(result.data.sessionId)
+          setMessages(linesFromStored(result.data.messages))
+        }
+      } else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      setReady(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [copy.errors, locale])
 
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -94,7 +161,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   async function addFiles(list: FileList | null) {
-    if (!list?.length || busyRef.current) return
+    if (!list?.length || busyRef.current || !ready) return
     const picked = [...list].slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
       setError(copy.errors.too_many)
@@ -119,8 +186,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     })
   }
 
-  function beginNewThread() {
-    if (busyRef.current) return
+  function clearComposer() {
     setMessages((current) => {
       for (const message of current) {
         if (message.role === 'user') {
@@ -138,11 +204,74 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setError('')
   }
 
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    const result = await listHomeworkHistory()
+    setHistoryLoading(false)
+    if (!result.ok) {
+      setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      setSessions([])
+      return
+    }
+    setSessions(result.data)
+  }, [copy.errors])
+
+  async function beginNewThread() {
+    if (busyRef.current) return
+    const result = await startHomeworkThread(locale)
+    if (!result.ok) {
+      setError(copy.errors[result.code] ?? copy.errors.new_thread_failed)
+      return
+    }
+    setSessionId(result.data.sessionId)
+    clearComposer()
+    setHistoryOpen(false)
+  }
+
+  async function openHistory() {
+    if (historyOpen) {
+      setHistoryOpen(false)
+      return
+    }
+    setHistoryOpen(true)
+    await loadHistory()
+  }
+
+  async function openSavedThread(id: string) {
+    if (busyRef.current || id === sessionId) {
+      setHistoryOpen(false)
+      return
+    }
+    setError('')
+    const result = await openHomeworkHistoryThread(id)
+    if (!result.ok) {
+      setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      return
+    }
+    const lines = linesFromStored(result.data.messages)
+    setMessages((current) => {
+      for (const message of current) {
+        if (message.role === 'user') {
+          for (const url of message.images) dropPreview(url)
+        }
+      }
+      return lines
+    })
+    setText('')
+    setFiles([])
+    setPreviews((current) => {
+      for (const url of current) dropPreview(url)
+      return []
+    })
+    setSessionId(result.data.sessionId)
+    setHistoryOpen(false)
+  }
+
   async function send() {
     const question = text.trim()
     const shot = files
     const shotPreviews = previews
-    if (busyRef.current) return
+    if (busyRef.current || !ready) return
     if (!question && shot.length === 0) {
       setError(copy.errors.missing_text)
       return
@@ -158,6 +287,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       role: 'user',
       text: question,
       images: shotPreviews,
+      imageCount: shot.length,
     }
     setMessages((current) => [...current, pending])
     const startedAt = Date.now()
@@ -166,6 +296,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       ? await (async () => {
           const formData = new FormData()
           formData.set('locale', locale)
+          if (question) formData.set('text', question)
           for (const file of shot) formData.append('images', file)
           return explainHomeworkPhoto(formData)
         })()
@@ -218,10 +349,10 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     >
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
         <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
-        {messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
+        {ready && messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
         {messages.map((message) =>
           message.role === 'user' ? (
-            <UserBubble key={message.id} message={message} />
+            <UserBubble key={message.id} message={message} photoLabel={copy.photoTurn} />
           ) : message.kind === 'note' ? (
             <article key={message.id} className="max-w-[92%] rounded-xl border bg-background p-4">
               <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
@@ -237,15 +368,27 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className="h-9 gap-1.5 px-2.5"
-          disabled={busy}
+          size="icon"
+          className="h-9 w-9"
+          disabled={!ready || busy}
           aria-label={copy.newThread}
           title={copy.newThread}
-          onClick={beginNewThread}
+          onClick={() => void beginNewThread()}
         >
           <MessageSquarePlus className="h-4 w-4" aria-hidden />
-          {copy.newThread}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-9 w-9"
+          disabled={!ready || busy}
+          aria-expanded={historyOpen}
+          aria-label={copy.history}
+          title={copy.history}
+          onClick={() => void openHistory()}
+        >
+          <History className="h-4 w-4" aria-hidden />
         </Button>
         <input
           id="homework-help-gallery"
@@ -253,7 +396,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           accept="image/jpeg,image/png,image/webp"
           multiple
           className="sr-only"
-          disabled={busy}
+          disabled={!ready || busy}
           onChange={(event) => {
             void addFiles(event.target.files)
             event.target.value = ''
@@ -262,14 +405,18 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         <Button
           type="button"
           variant="outline"
-          size="sm"
-          className={`h-9 gap-1.5 px-2.5 ${busy ? 'pointer-events-none opacity-60' : ''}`}
-          disabled={busy}
+          size="icon"
+          className={`h-9 w-9 ${!ready || busy ? 'pointer-events-none opacity-60' : ''}`}
+          disabled={!ready || busy}
           asChild
         >
-          <label htmlFor="homework-help-gallery" className="cursor-pointer">
+          <label
+            htmlFor="homework-help-gallery"
+            className="cursor-pointer"
+            aria-label={copy.pickPhoto}
+            title={copy.pickPhoto}
+          >
             <ImagePlus className="h-4 w-4" aria-hidden />
-            {copy.pickPhoto}
           </label>
         </Button>
         <div className="inline-flex md:hidden">
@@ -279,7 +426,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
             className="sr-only"
-            disabled={busy}
+            disabled={!ready || busy}
             onChange={(event) => {
               void addFiles(event.target.files)
               event.target.value = ''
@@ -288,18 +435,66 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className={`h-9 gap-1.5 px-2.5 ${busy ? 'pointer-events-none opacity-60' : ''}`}
-            disabled={busy}
+            size="icon"
+            className={`h-9 w-9 ${!ready || busy ? 'pointer-events-none opacity-60' : ''}`}
+            disabled={!ready || busy}
             asChild
           >
-            <label htmlFor="homework-help-camera" className="cursor-pointer">
+            <label
+              htmlFor="homework-help-camera"
+              className="cursor-pointer"
+              aria-label={copy.takePhoto}
+              title={copy.takePhoto}
+            >
               <Camera className="h-4 w-4" aria-hidden />
-              {copy.takePhoto}
             </label>
           </Button>
         </div>
       </div>
+
+      {historyOpen ? (
+        <div className="max-h-48 shrink-0 overflow-y-auto border-b bg-background px-3 py-2 md:bg-card">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="text-xs font-medium">{copy.history}</p>
+            <button
+              type="button"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+              aria-label={copy.historyClose}
+              onClick={() => setHistoryOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          {historyLoading ? (
+            <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {copy.historyLoading}
+            </p>
+          ) : sessions.length === 0 ? (
+            <p className="py-2 text-xs text-muted-foreground">{copy.historyEmpty}</p>
+          ) : (
+            <ul className="space-y-1">
+              {sessions.map((session) => (
+                <li key={session.id}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void openSavedThread(session.id)}
+                    className={`flex w-full flex-col rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-60 ${
+                      session.id === sessionId ? 'bg-muted' : ''
+                    }`}
+                  >
+                    <span className="line-clamp-1 font-medium">{session.preview || copy.photoTurn}</span>
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
+                      {formatHomeworkWhen(session.updatedAt, locale)}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
 
       {previews.length > 0 ? (
         <div className="flex shrink-0 gap-2 overflow-x-auto border-b bg-background px-3 py-2 md:bg-card">
@@ -334,7 +529,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           placeholder={copy.placeholder}
           rows={2}
           className="max-h-24 resize-none"
-          disabled={busy}
+          disabled={!ready || busy}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
@@ -342,7 +537,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             }
           }}
         />
-        <Button type="submit" disabled={busy || (!text.trim() && files.length === 0)}>
+        <Button type="submit" disabled={!ready || busy || (!text.trim() && files.length === 0)}>
           {copy.send}
         </Button>
       </form>
@@ -350,7 +545,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   )
 }
 
-function UserBubble({ message }: { message: UserTurn }) {
+function UserBubble({ message, photoLabel }: { message: UserTurn; photoLabel: string }) {
   return (
     <div className="ml-auto flex max-w-[85%] flex-col items-end gap-2">
       {message.images.length > 0 ? (
@@ -362,6 +557,8 @@ function UserBubble({ message }: { message: UserTurn }) {
             </div>
           ))}
         </div>
+      ) : message.imageCount > 0 ? (
+        <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6">{photoLabel}</p>
       ) : null}
       {message.text ? (
         <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6">{message.text}</p>

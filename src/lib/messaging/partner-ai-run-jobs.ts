@@ -41,7 +41,11 @@ import {
   resolveSharedFeatureOpen,
   resolveStudyHelpMenu,
 } from '@/lib/hub-chat/shared-feature-open'
-import { loadItFeatureProductContext, loadStudyHelpProductCards } from '@/lib/messaging/partner-ai-it-feature-product'
+import {
+  composeItFeatureConsultMessage,
+  loadItFeatureProductContext,
+  loadItFeatureProducts,
+} from '@/lib/messaging/partner-ai-it-feature-product'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -361,7 +365,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         } else if (isFeatureChatPause(inboundForAi)) {
           featureBody = dict.partnerGuestChat.itFeatureLinkPause
         }
-        const productContext = featureOpen
+        const product = featureOpen
           ? await loadItFeatureProductContext({
               partnerId: job.partner_id,
               conversationId: job.conversation_id,
@@ -369,20 +373,29 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               href: featureOpen.href,
             })
           : null
-        const studyCards = featureOpens?.length
-          ? await loadStudyHelpProductCards({
+        const studyProducts = featureOpens?.length
+          ? await loadItFeatureProducts({
               partnerId: job.partner_id,
               conversationId: job.conversation_id,
               sourceMessageId: job.trigger_message_id,
               hrefs: featureOpens.map((open) => open.href),
             })
           : []
+        const consultBody = composeItFeatureConsultMessage({
+          products: product ? [product] : studyProducts,
+          fallback: featureBody,
+          many: Boolean(featureOpens?.length),
+          copy: {
+            includes: dict.partnerGuestChat.itFeatureConsultIncludes,
+            tap: dict.partnerGuestChat.itFeatureConsultTap,
+          },
+        })
         const rawFeatureLink = {
           source: 'it_feature_link',
           model: null,
           usage: null,
-          ai_product_cards: featureOpens ? studyCards : productContext ? [productContext.card] : [],
-          ...(productContext ? { feature_product: productContext.product } : {}),
+          ai_product_cards: [],
+          ...(product ? { feature_product: product } : {}),
           ...(featureOpen ? { feature_open: featureOpen } : {}),
           ...(featureOpens ? { feature_opens: featureOpens } : {}),
           ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
@@ -393,7 +406,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         const dFeature = await deliverAutomatedPartnerMessage({
           conversation: conv,
           settings,
-          body: enforceConfiguredGenderAddressing(featureBody, configuredGender),
+          body: enforceConfiguredGenderAddressing(consultBody, configuredGender),
           rawPayload: rawFeatureLink,
           materialDetailFollowup: null,
           realUseFollowup: null,

@@ -2562,6 +2562,10 @@ export type Dictionary = {
     itFeatureLinkPause: string
     /** «Giúp tôi học bài» — liệt kê nút tính năng học bài. */
     studyHelpPickHint: string
+    /** Ngành CNTT — một tính năng, dòng «Gồm». Có `{features}`. */
+    itFeatureConsultIncludes: string
+    /** Ngành CNTT — nhắc bấm nút mở tính năng, không dán URL. */
+    itFeatureConsultTap: string
     visionPickHint: string
     visionPickBusy: string
     visionPickError: string
@@ -6484,6 +6488,8 @@ export const VI_DICTIONARY: Dictionary = {
       'Anh/chị muốn dùng tính năng nào? Nhắn tên tính năng, ví dụ thử đồ 1 người hoặc thiết kế logo, để em gửi đúng link ạ.',
     itFeatureLinkPause: 'Dạ em chào anh/chị. Khi cần dùng tính năng, nhắn tên tính năng để em gửi link ạ.',
     studyHelpPickHint: 'Anh/chị muốn học bài. Bấm tính năng bên dưới ạ.',
+    itFeatureConsultIncludes: 'Gồm: {features}.',
+    itFeatureConsultTap: 'Anh/chị bấm nút bên dưới để mở tính năng ạ.',
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',
