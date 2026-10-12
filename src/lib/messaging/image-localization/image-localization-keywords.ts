@@ -294,4 +294,18 @@ export const IMAGE_LOC_LAUNDRY_STRONG_PATTERNS = [
   'washinglabel',
 ]
 
+/** Thanh chỉ số trên ảnh 商品参数: 版型 / 柔软 / 厚度 / 弹力. */
+export const IMAGE_LOC_PARAMETER_INDEX_LABELS = [
+  '版型指数',
+  '柔软指数',
+  '厚度指数',
+  '弹力指数',
+  '弹性指数',
+]
+
+export const IMAGE_LOC_PARAMETER_TITLE_PATTERNS = ['商品参数', '产品参数', 'productparameters']
+
+/** Ô chọn trên thanh chỉ số. Chỉ dùng khi ảnh đã có tiêu đề thông số. */
+export const IMAGE_LOC_PARAMETER_SCALE_WORDS = ['紧身', '合体', '宽松', '超柔', '薄款', '超薄', '无弹', '超弹']
+
 export const IMAGE_LOC_DOMAIN_REGEX = /(?:https?:\/\/)?(?:www\.)?[a-z0-9-]+(?:\.[a-z]{2,})+(?:\/\S*)?/i

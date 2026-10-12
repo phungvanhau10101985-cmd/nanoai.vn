@@ -105,6 +105,7 @@ describe('image localization route', () => {
     assert.equal(size.includes('erase both the model'), true)
     assert.equal(size.includes('product photo'), true)
     assert.equal(size.includes('Keep the size chart'), true)
+    assert.equal(size.includes('keep the black filled option'), true)
     assert.equal(size.includes('Do not keep the original Chinese'), true)
     assert.equal(size.includes('Do not add a second copy of any line'), true)
     assert.equal(plain.includes('1 斤 = 0.5 kg'), true)

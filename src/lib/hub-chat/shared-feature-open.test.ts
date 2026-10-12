@@ -36,6 +36,15 @@ test('thanks is a pause, not a feature', () => {
   assert.equal(isFeatureChatPause('cảm ơn shop'), true)
 })
 
+test('ai tutor opens the feature page button', () => {
+  const open = resolveSharedFeatureOpen('học với gia sư', 'vi')
+  assert.ok(open)
+  assert.equal(open.open.kind, 'feature_page')
+  assert.equal(open.open.href, '/gia-su-ai')
+  assert.equal(open.open.buttonLabel, 'Mở tính năng')
+  assert.doesNotMatch(open.message, /https?:\/\//)
+})
+
 test('homework help opens the feature page button', () => {
   const open = resolveSharedFeatureOpen('hỗ trợ làm bài', 'vi')
   assert.ok(open)

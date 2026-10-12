@@ -8,6 +8,9 @@ import {
   IMAGE_LOC_FACTORY_INTRO_KEYWORDS,
   IMAGE_LOC_LAUNDRY_KEYWORDS,
   IMAGE_LOC_LAUNDRY_STRONG_PATTERNS,
+  IMAGE_LOC_PARAMETER_INDEX_LABELS,
+  IMAGE_LOC_PARAMETER_SCALE_WORDS,
+  IMAGE_LOC_PARAMETER_TITLE_PATTERNS,
   IMAGE_LOC_SIZE_LABELS,
   IMAGE_LOC_SIZE_TABLE_TITLE_PATTERNS,
   IMAGE_LOC_URGENT_DELETE_KEYWORDS,
@@ -98,6 +101,29 @@ export function hasLaundryCareContext(blocks: ImageLocOcrBlock[]): boolean {
   }
   if (detected.size < 2) return false
   return /手洗|机洗|水洗|干洗|漂白|熨烫|烘干|handwash|machinewash|dryclean|bleach|iron|tumbledry/.test(compact)
+}
+
+/**
+ * Ảnh thông số dạng thanh chỉ số (商品参数: 版型 / 柔软 / 厚度 / 弹力).
+ * Bảng thông số dài chỉ có «参数» không tính — ảnh đó vẫn vẽ local.
+ */
+export function hasProductParameterContext(blocks: ImageLocOcrBlock[]): boolean {
+  const texts = blocks.map((b) => String(b.text || '')).filter((t) => t.trim())
+  if (!texts.length) return false
+  const compact = compactText(texts)
+  const indexHits = IMAGE_LOC_PARAMETER_INDEX_LABELS.reduce(
+    (n, label) => n + (compact.includes(label) ? 1 : 0),
+    0
+  )
+  if (indexHits >= 2) return true
+  const titled = IMAGE_LOC_PARAMETER_TITLE_PATTERNS.some((title) => compact.includes(title))
+  if (!titled) return false
+  if (indexHits >= 1) return true
+  const scaleHits = IMAGE_LOC_PARAMETER_SCALE_WORDS.reduce(
+    (n, word) => n + (compact.includes(word) ? 1 : 0),
+    0
+  )
+  return scaleHits >= 2
 }
 
 export function hasSizeOrLaundryContext(blocks: ImageLocOcrBlock[]): boolean {

@@ -14,6 +14,7 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
     { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
+    { href: '/gia-su-ai', labelKey: 'ai_tutor' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-bai-tap-ve-nha': [
@@ -21,6 +22,7 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
+    { href: '/gia-su-ai', labelKey: 'ai_tutor' },
     { href: '/lop', labelKey: 'classes' },
   ],
   '/tao-giao-trinh': [
@@ -106,6 +108,7 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
       { href: '/tao-bai-thi', labelKey: 'online_exam' },
       { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
       { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
+      { href: '/gia-su-ai', labelKey: 'ai_tutor' },
     ]
   }
   /** Trang xem phiếu / lời giải /phieu-bai-tap/[id] */

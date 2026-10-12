@@ -171,6 +171,21 @@ const STANDALONE_EXTRA_INTENTS: Partial<Record<string, string[]>> = {
     '宿題サポート',
     '숙제 도우미',
   ],
+  '/gia-su-ai': [
+    'gia sư',
+    'gia su',
+    'gia sư ai',
+    'học với gia sư',
+    'hoc voi gia su',
+    'dạy kèm',
+    'day kem',
+    'ai tutor',
+    'private tutor',
+    '家教',
+    '家庭教师',
+    '家庭教師',
+    '과외',
+  ],
   '/lop': ['lớp học', 'classroom'],
   '/hoc-tieng-anh-ai': [
     'học tiếng anh',
@@ -385,6 +400,30 @@ export const LANGUAGE_LEARNING_TOPIC_MARKERS =
 
 const PRESET_LESSON_MARKERS = /bài học có sẵn|bai hoc co san|preset lesson|completed lesson/i
 
+/** Học sinh muốn chat 1:1 với gia sư — không phải tạo giáo trình hay chữa đề giấy. */
+const AI_TUTOR_MARKERS =
+  /gia sư|gia su|giasu|dạy kèm|day kem|học kèm|hoc kem|học với gia sư|hoc voi gia su|ai tutor|private tutor|1 kèm 1|một kèm một|mot kem mot|家教|家庭教师|家庭教師|과외/i
+
+export function isAiTutorIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text) return false
+  return AI_TUTOR_MARKERS.test(text)
+}
+
+export function matchAiTutorFlow(
+  locale: WebLocale
+): Extract<HubFeatureFlowMatch, { kind: 'standalone' }> | null {
+  const entry = getStandaloneFeatureByHref(locale, '/gia-su-ai')
+  if (!entry) return null
+  return {
+    kind: 'standalone',
+    href: entry.href,
+    labelKey: entry.labelKey as ToolKey,
+    label: entry.label,
+    score: 100,
+  }
+}
+
 /** Học sinh xin hướng làm / chữa bài — không phải giáo viên tạo bài tập về nhà. */
 const HOMEWORK_HELP_MARKERS =
   /hỗ trợ làm bài|ho tro lam bai|chữa bài|chua bai|giúp làm bài|giup lam bai|hướng làm bài|huong lam bai|không hiểu bài|khong hieu bai|homework help|作业辅导|宿題サポート|숙제 도우미/i
@@ -560,6 +599,11 @@ export function matchFeatureFlowByMessage(
 
   if (isCatalogPhotoExportIntent(trimmed)) {
     return matchCatalogPhotoExportFlow(locale)
+  }
+
+  if (isAiTutorIntent(trimmed)) {
+    const tutor = matchAiTutorFlow(locale)
+    if (tutor) return tutor
   }
 
   if (isLanguageLearningIntent(trimmed)) {

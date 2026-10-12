@@ -5,6 +5,7 @@ import type { ComponentType } from 'react'
 import {
   Monitor,
   BookOpen,
+  GraduationCap,
   NotebookPen,
   Users,
 } from 'lucide-react'
@@ -76,6 +77,7 @@ export const AI_TOOLS = [
   { href: '/tao-bai-thi', labelKey: 'online_exam' as ToolKey, icon: Monitor },
   { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' as ToolKey, icon: NotebookPen },
   { href: '/ho-tro-lam-bai', labelKey: 'homework_help' as ToolKey, icon: BookOpen },
+  { href: '/gia-su-ai', labelKey: 'ai_tutor' as ToolKey, icon: GraduationCap },
   { href: '/lop', labelKey: 'classes' as ToolKey, icon: Users },
   { href: '/hoc-tieng-anh-ai', labelKey: 'ai_language_learning' as ToolKey, icon: AiLanguageLearningIcon },
   { href: '/ghi-am-bao-cao-cuoc-hop', labelKey: 'meeting_recorder_report' as ToolKey, icon: MeetingRecorderReportIcon },
@@ -151,6 +153,11 @@ export const NAV_GROUPS: readonly NavGroupConfig[] = [
         href: '/ho-tro-lam-bai',
         labelKey: 'homework_help' as ToolKey,
         icon: BookOpen,
+      },
+      {
+        href: '/gia-su-ai',
+        labelKey: 'ai_tutor' as ToolKey,
+        icon: GraduationCap,
       },
       {
         href: '/lop',

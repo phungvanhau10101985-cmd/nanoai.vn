@@ -13,6 +13,10 @@ import type {
 } from '@/lib/messaging/image-localization/image-localization-types'
 import { IMAGE_LOC_TERMINAL_JOB_STATUSES } from '@/lib/messaging/image-localization/image-localization-types'
 import type { ImageConsultContext } from '@/lib/messaging/image-localization/image-consult-context'
+import {
+  isImageLocSheetKind,
+  type ImageLocSheetKind,
+} from '@/lib/messaging/image-localization/sheet-cache'
 
 type JobRow = {
   job_id: string
@@ -587,8 +591,8 @@ export async function fetchImageLocSheetsFromPg(opts: {
   shopNameChinese: string
   categoryL2: string
   language: string
-  kinds: Array<'size' | 'laundry'>
-}): Promise<Partial<Record<'size' | 'laundry', string>>> {
+  kinds: ImageLocSheetKind[]
+}): Promise<Partial<Record<ImageLocSheetKind, string>>> {
   if (!isPgConfigured() || !opts.kinds.length) return {}
   try {
     const rows = await pgQuery<{ kind: string; image_url: string }>(
@@ -601,13 +605,13 @@ export async function fetchImageLocSheetsFromPg(opts: {
          and kind = any($5::text[])`,
       [opts.partnerId, opts.shopNameChinese, opts.categoryL2, opts.language, opts.kinds]
     )
-    const stored: Partial<Record<'size' | 'laundry', string>> = {}
+    const stored: Partial<Record<ImageLocSheetKind, string>> = {}
     for (const row of rows) {
-      if (row.kind === 'size' || row.kind === 'laundry') stored[row.kind] = row.image_url
+      if (isImageLocSheetKind(row.kind)) stored[row.kind] = row.image_url
     }
     return stored
   } catch (error) {
-    console.warn('[image-localization] đọc ảnh size/giặt đã lưu thất bại:', error)
+    console.warn('[image-localization] đọc ảnh size/giặt/thông số đã lưu thất bại:', error)
     return {}
   }
 }
@@ -617,7 +621,7 @@ export async function saveImageLocSheetsToPg(opts: {
   shopNameChinese: string
   categoryL2: string
   language: string
-  kinds: Array<'size' | 'laundry'>
+  kinds: ImageLocSheetKind[]
   imageUrl: string
 }): Promise<void> {
   if (!isPgConfigured() || !opts.kinds.length || !opts.imageUrl.trim()) return
@@ -633,7 +637,7 @@ export async function saveImageLocSheetsToPg(opts: {
       )
     }
   } catch (error) {
-    console.warn('[image-localization] lưu ảnh size/giặt thất bại:', error)
+    console.warn('[image-localization] lưu ảnh size/giặt/thông số thất bại:', error)
   }
 }
 

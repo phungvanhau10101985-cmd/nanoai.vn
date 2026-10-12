@@ -1104,6 +1104,46 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       },
     ],
   },
+  'gia-su-ai': {
+    key: 'gia-su-ai',
+    pageTitle: 'Gia sư AI – chat 1:1, giải thích dễ hiểu và ví dụ thực tế',
+    pageDescription:
+      'Học sinh chat riêng với gia sư AI. Mỗi câu được phân loại chủ đề, viết lại dễ hiểu kèm tình huống thực tế, rồi gắn 2 đến 3 nhãn để đào sâu. Chủ đề và nhãn kiểm tra chéo trước khi lưu cho học sinh khác.',
+    path: '/gia-su-ai',
+    keywords: ['gia sư ai', 'chat gia sư', 'học 1 kèm 1', 'giải thích dễ hiểu', 'ai tutor'],
+    serviceName: 'Gia sư AI',
+    serviceDescription:
+      'Chat 1:1 với gia sư. Câu hỏi được phân loại chủ đề, giải thích dễ hiểu, có ví dụ thực tế và nhãn đào sâu đã kiểm tra chéo.',
+    h2: 'Hỏi một ý, nghe lời dễ hiểu, bấm nhãn để học sâu hơn',
+    overview:
+      'Mỗi học sinh có một cuộc chat riêng với gia sư. Gia sư phân loại câu hỏi vào một chủ đề, viết lại bằng lời dễ hiểu và một tình huống ngoài lớp. Dưới câu trả lời có 2 đến 3 nhãn. Bấm nhãn thì mở ý đó. Nội dung chỉ lưu dùng chung sau khi được kiểm tra chéo. Học sinh khác hỏi cùng chủ đề, hoặc bấm nhãn đã có, thì đọc bản đã lưu.',
+    benefits: [
+      'Chat 1:1, lịch sử của từng học sinh',
+      'Lời giải dễ hiểu và một ví dụ thực tế',
+      '2 đến 3 nhãn để đào sâu',
+      'Chủ đề dùng chung chỉ sau khi kiểm tra chéo',
+    ],
+    useCases: ['Hỏi một ý chưa hiểu', 'Bấm nhãn để xem ý liên quan', 'Học lại chủ đề bạn khác đã hỏi'],
+    tips: [
+      'Hỏi một ý mỗi lần',
+      'Đọc ví dụ thực tế rồi bấm một nhãn nếu muốn đi sâu',
+      'Cùng một chủ đề thì lần sau ra bản đã lưu',
+    ],
+    faqs: [
+      {
+        question: 'Chat có phải của riêng mình không?',
+        answer: 'Có. Mỗi học sinh một phiên chat. Phần dùng chung chỉ là chủ đề và nhãn đã kiểm tra.',
+      },
+      {
+        question: 'Nhãn để làm gì?',
+        answer: 'Mỗi câu trả lời có 2 đến 3 nhãn liên quan. Bấm nhãn thì gia sư mở ý đó. Nhãn đã có thì lấy trong kho, chưa có thì soạn, kiểm tra rồi lưu.',
+      },
+      {
+        question: 'Học sinh khác hỏi cùng ý thì sao?',
+        answer: 'Câu hỏi được phân loại chủ đề. Chủ đề đã kiểm tra thì hiện bản đã lưu, không soạn lại từ đầu.',
+      },
+    ],
+  },
   'tao-bai-tap-ve-nha': {
     key: 'tao-bai-tap-ve-nha',
     pageTitle: 'Tạo bài tập về nhà trực tuyến – không chấm điểm hiển thị cho học sinh',

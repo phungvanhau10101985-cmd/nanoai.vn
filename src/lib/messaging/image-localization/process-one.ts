@@ -97,7 +97,7 @@ function throwIfCancelled(ctx: ProcessImageContext) {
 export type LocalizationEngineChoice = 'delete' | 'keep' | 'ai' | 'local'
 
 /**
- * Cùng 188: radio local vẽ mọi ảnh, trừ bảng size và hướng dẫn giặt của thời trang.
+ * Cùng 188: radio local vẽ mọi ảnh, trừ bảng size, hướng dẫn giặt và bảng thông số của thời trang.
  * Radio GPT gửi mọi ảnh còn lại qua model. Ảnh không còn chữ Trung thì giữ nguyên.
  */
 export function selectLocalizationEngine(opts: {
@@ -186,7 +186,7 @@ async function transformImageBytes(
     if (!apparelSheet && !ctx.allowsAi) return runLocal()
     if (apparelSheet && !openaiApiAuth(ctx.openaiImageModel).ready) {
       throw new ImageLocalizationGptStopError(
-        'Ảnh size hoặc hướng dẫn giặt của áo quần váy cần GPT Image: thiếu OPENAI_API_KEY.'
+        'Ảnh size, hướng dẫn giặt hoặc bảng thông số của áo quần váy cần GPT Image: thiếu OPENAI_API_KEY.'
       )
     }
     const bleedRedrawsMax = imageLocGptVerifyAttempts()
@@ -451,10 +451,10 @@ export async function localizeStandaloneImage(
   else if (engine === 'delete') await log(`Engine xóa cả ảnh. ${model}`)
   else await log(`Engine giữ nguyên. ${model}`)
   if (ctx.apparelProduct && !apparelSheet && engine === 'local') {
-    await log('Nhánh thời trang. Ảnh này không phải bảng size hoặc hướng dẫn giặt, nên vẽ local.')
+    await log('Nhánh thời trang. Ảnh này không phải bảng size, hướng dẫn giặt hoặc bảng thông số, nên vẽ local.')
   }
   if (kinds.length > 0 && !ctx.apparelProduct && engine === 'local') {
-    await log('Nhánh không phải thời trang. Ảnh có bảng size hoặc hướng dẫn giặt, nên vẽ local.')
+    await log('Nhánh không phải thời trang. Ảnh có bảng size, hướng dẫn giặt hoặc bảng thông số, nên vẽ local.')
   }
   if (engine === 'ai') await log('Đang gọi GPT Image.')
   else if (engine === 'local') await log('Đang vẽ local.')

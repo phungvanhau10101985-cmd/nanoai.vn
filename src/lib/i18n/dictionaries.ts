@@ -57,6 +57,7 @@ export type ToolKey =
   | 'online_exam'
   | 'homework_online'
   | 'homework_help'
+  | 'ai_tutor'
   | 'classes'
   | 'try_on_1'
   | 'try_on_2'
@@ -5777,15 +5778,15 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocTitle: 'Bản địa hóa ảnh',
     imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
     imageLocRefresh: 'Làm mới trạng thái',
-    imageLocAiOffBanner: 'Công tắc mọi ảnh qua GPT đang tắt. Ảnh size và hướng dẫn giặt của áo, quần, váy vẫn gọi GPT nếu có OPENAI_API_KEY. Ảnh khác vẽ local.',
-    imageLocBulkHint: 'Giày, túi, phụ kiện và ảnh lookbook vẽ local. Ảnh size hoặc hướng dẫn giặt của áo, quần, váy qua GPT, xóa ảnh người và ảnh sản phẩm, giữ bảng chữ, rồi lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2.',
+    imageLocAiOffBanner: 'Công tắc mọi ảnh qua GPT đang tắt. Ảnh size, hướng dẫn giặt và bảng thông số của áo, quần, váy vẫn gọi GPT nếu có OPENAI_API_KEY. Ảnh khác vẽ local.',
+    imageLocBulkHint: 'Giày, túi, phụ kiện và ảnh lookbook vẽ local. Ảnh size, hướng dẫn giặt hoặc bảng thông số của áo, quần, váy qua GPT, xóa ảnh người và ảnh sản phẩm, giữ bảng chữ, rồi lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2.',
     imageLocModeLabel: 'Sinh/sửa ảnh (chữ Trung → bản địa)',
     imageLocModeLocal: 'DeepSeek + vẽ local',
-    imageLocModeLocalHint: 'Mọi ảnh: OCR → DeepSeek → vẽ local. Thời trang: bảng size và hướng dẫn giặt đi GPT, cần OPENAI_API_KEY.',
+    imageLocModeLocalHint: 'Mọi ảnh: OCR → DeepSeek → vẽ local. Thời trang: bảng size, hướng dẫn giặt và bảng thông số đi GPT, cần OPENAI_API_KEY.',
     imageLocModeGemini: 'Gemini API (GEMINI_API_KEY)',
-    imageLocModeGeminiHint: 'Bảng size và hướng dẫn giặt tẩy mặc định dịch bằng Gemini rồi lưu. Cùng shop Trung Quốc, shop này và danh mục cấp 2 thì dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần GEMINI_API_KEY.',
+    imageLocModeGeminiHint: 'Bảng size, hướng dẫn giặt tẩy và bảng thông số mặc định dịch bằng Gemini rồi lưu. Cùng shop Trung Quốc, shop này và danh mục cấp 2 thì dùng ảnh đã lưu. Ảnh size có người mẫu thì xóa người mẫu, giữ số đo. Cần GEMINI_API_KEY.',
     imageLocModeOpenai: 'OpenAI GPT Image (OPENAI_API_KEY)',
-    imageLocModeOpenaiHint: 'Mọi ảnh còn chữ Trung đi GPT Image. Thời trang thì bảng size và hướng dẫn giặt xóa ảnh người và ảnh sản phẩm. Cần OPENAI_API_KEY.',
+    imageLocModeOpenaiHint: 'Mọi ảnh còn chữ Trung đi GPT Image. Thời trang thì bảng size, hướng dẫn giặt và bảng thông số xóa ảnh người và ảnh sản phẩm. Cần OPENAI_API_KEY.',
     imageLocNeedSelect: 'chọn SP trong bảng',
     imageLocAiOff: 'tạm tắt',
     imageLocCustomModel: 'Tùy chỉnh…',
@@ -5835,7 +5836,7 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocSelectProduct: 'Chọn sản phẩm để bản địa hóa',
     imageLocProbeTitle: 'Cổng thử một ảnh',
     imageLocProbeHint:
-      'Cùng pipeline với job thật, theo chế độ đang chọn phía trên. Thời trang thì bảng size và hướng dẫn giặt đi GPT. Loại khác vẽ local. Không ghi vào kho. Ảnh thử tự xóa sau 7 ngày.',
+      'Cùng pipeline với job thật, theo chế độ đang chọn phía trên. Thời trang thì bảng size, hướng dẫn giặt và bảng thông số đi GPT. Loại khác vẽ local. Không ghi vào kho. Ảnh thử tự xóa sau 7 ngày.',
     imageLocProbeDrop: 'Thả ảnh, bấm để chọn, hoặc Ctrl+V',
     imageLocProbeDropHint: 'JPG, PNG hoặc WebP, tối đa 8 MB. Dán ảnh bằng Ctrl+V, hoặc dán link bên dưới.',
     imageLocProbeReplace: 'Đổi ảnh',
@@ -5843,7 +5844,7 @@ export const VI_DICTIONARY: Dictionary = {
     imageLocProbeApparel: 'Loại sản phẩm',
     imageLocProbeApparelYes: 'Thời trang',
     imageLocProbeApparelNo: 'Không phải thời trang',
-    imageLocProbeApparelHint: 'Thời trang: bảng size và hướng dẫn giặt đi GPT như job quần áo. Không phải thời trang: những ảnh đó vẽ local.',
+    imageLocProbeApparelHint: 'Thời trang: bảng size, hướng dẫn giặt và bảng thông số đi GPT như job quần áo. Không phải thời trang: những ảnh đó vẽ local.',
     imageLocProbeRun: 'Chạy ảnh này',
     imageLocProbeRunning: 'Đang chạy…',
     imageLocProbeNeedFile: 'Chọn ảnh, dán Ctrl+V, hoặc dán link trước khi chạy.',
@@ -6659,6 +6660,7 @@ export const VI_DICTIONARY: Dictionary = {
     online_exam: 'Tạo bài thi trực tuyến',
     homework_online: 'Tạo bài tập về nhà',
     homework_help: 'Hỗ trợ làm bài',
+    ai_tutor: 'Gia sư AI',
     classes: 'Lớp học',
     try_on_1: 'Thử đồ 1 người',
     try_on_2: 'Thử đồ 2 người',

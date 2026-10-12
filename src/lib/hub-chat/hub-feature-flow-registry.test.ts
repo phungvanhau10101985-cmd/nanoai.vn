@@ -185,6 +185,18 @@ test('buildAdvisoryPayload injects wedding tool for generic invitation design re
   assert.equal(result.workflows[0]?.requiresOpenConfirm, true)
 })
 
+test('gia sư ai opens the 1:1 tutor, not curriculum or homework help', () => {
+  for (const phrase of ['gia sư ai', 'học với gia sư', 'dạy kèm cho tôi', 'ai tutor']) {
+    const match = matchFeatureFlowByMessage(phrase, 'vi')
+    assert.equal(match?.kind, 'standalone', phrase)
+    if (match?.kind === 'standalone') assert.equal(match.href, '/gia-su-ai', phrase)
+  }
+  const teach = matchFeatureFlowByMessage('dạy học lớp 6', 'vi')
+  if (teach?.kind === 'standalone') assert.notEqual(teach.href, '/gia-su-ai')
+  const homework = matchFeatureFlowByMessage('hỗ trợ làm bài', 'vi')
+  if (homework?.kind === 'standalone') assert.equal(homework.href, '/ho-tro-lam-bai')
+})
+
 test('hỗ trợ làm bài opens homework help, not teacher homework', () => {
   for (const phrase of ['hỗ trợ làm bài', 'chữa bài tập', 'homework help', 'không hiểu bài này']) {
     const match = matchFeatureFlowByMessage(phrase, 'vi')

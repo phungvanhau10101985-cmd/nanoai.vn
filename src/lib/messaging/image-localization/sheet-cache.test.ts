@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   imageLocSheetKinds,
+  imageLocSheetReuseMessage,
   isApparelImageLocProduct,
   normalizeImageLocSheetKey,
   resolveStoredImageLocSheet,
@@ -88,6 +89,50 @@ describe('saved size and laundry sheets', () => {
         { text: '手洗', bbox: [0, 20, 10, 10] },
       ]),
       ['laundry']
+    )
+  })
+
+  it('marks a product parameter index chart as params and leaves a plain spec table local', () => {
+    const box: [number, number, number, number] = [0, 0, 10, 10]
+    assert.deepEqual(
+      imageLocSheetKinds([
+        { text: 'PRODUCT PARAMETERS', bbox: box },
+        { text: '商品参数', bbox: box },
+        { text: '版型指数：', bbox: box },
+        { text: '紧身', bbox: box },
+        { text: '合体', bbox: box },
+        { text: '宽松', bbox: box },
+        { text: '柔软指数：', bbox: box },
+        { text: '常规', bbox: box },
+        { text: '柔软', bbox: box },
+        { text: '超柔', bbox: box },
+        { text: '厚度指数：', bbox: box },
+        { text: '薄款', bbox: box },
+        { text: '超薄', bbox: box },
+        { text: '弹力指数：', bbox: box },
+        { text: '无弹', bbox: box },
+        { text: '弹力', bbox: box },
+        { text: '超弹', bbox: box },
+      ]),
+      ['params']
+    )
+    assert.deepEqual(
+      imageLocSheetKinds([
+        { text: '商品参数', bbox: box },
+        { text: '颜色', bbox: box },
+        { text: '黑色', bbox: box },
+        { text: '材质', bbox: box },
+        { text: '棉', bbox: box },
+      ]),
+      []
+    )
+    assert.equal(
+      resolveStoredImageLocSheet(['params'], { params: 'https://cdn.example/params.jpg' }),
+      'https://cdn.example/params.jpg'
+    )
+    assert.equal(
+      imageLocSheetReuseMessage(['params']),
+      'Dùng ảnh thông số đã lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2'
     )
   })
 })

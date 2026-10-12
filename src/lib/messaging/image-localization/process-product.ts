@@ -17,6 +17,7 @@ import { isImageLocalizationGptStopError } from './openai-adapter'
 import { partnerBunnyHostname } from '@/lib/storage/partner-bunny-cdn'
 import {
   imageLocSheetKinds,
+  imageLocSheetReuseMessage,
   isApparelImageLocProduct,
   normalizeImageLocSheetKey,
   resolveStoredImageLocSheet,
@@ -200,7 +201,7 @@ export async function processInventoryProduct(opts: {
             original_url: normalized,
             final_url: storedUrl,
             status: 'processed',
-            message: 'Dùng ảnh size/giặt đã lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2',
+            message: imageLocSheetReuseMessage(kinds),
           }
           continue
         }

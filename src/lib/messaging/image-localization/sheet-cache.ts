@@ -1,8 +1,22 @@
 import { inferOutfitRole } from '@/lib/partner-website/shop/pdp-outfit-roles'
 import type { ImageLocOcrBlock } from './image-localization-types'
-import { hasSizeTableContext, isLaundryInstructionImage } from './image-localization-classifier'
+import {
+  hasProductParameterContext,
+  hasSizeTableContext,
+  isLaundryInstructionImage,
+} from './image-localization-classifier'
 
-export type ImageLocSheetKind = 'size' | 'laundry'
+export type ImageLocSheetKind = 'size' | 'laundry' | 'params'
+
+const SHEET_KIND_LABEL: Record<ImageLocSheetKind, string> = {
+  size: 'size',
+  laundry: 'giặt',
+  params: 'thông số',
+}
+
+export function isImageLocSheetKind(kind: string): kind is ImageLocSheetKind {
+  return kind === 'size' || kind === 'laundry' || kind === 'params'
+}
 
 export function normalizeImageLocSheetKey(value: string | null | undefined): string {
   return String(value || '').trim().replace(/\s+/g, ' ')
@@ -12,7 +26,13 @@ export function imageLocSheetKinds(blocks: ImageLocOcrBlock[]): ImageLocSheetKin
   const kinds: ImageLocSheetKind[] = []
   if (hasSizeTableContext(blocks)) kinds.push('size')
   if (isLaundryInstructionImage(blocks)) kinds.push('laundry')
+  if (hasProductParameterContext(blocks)) kinds.push('params')
   return kinds
+}
+
+export function imageLocSheetReuseMessage(kinds: ImageLocSheetKind[]): string {
+  const label = kinds.map((kind) => SHEET_KIND_LABEL[kind]).join('/')
+  return `Dùng ảnh ${label} đã lưu cho cùng shop Trung Quốc, shop này và danh mục cấp 2`
 }
 
 const EXTRA_APPAREL_KEYS = [
