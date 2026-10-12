@@ -5,6 +5,7 @@ import {
   buildItFeatureLinkReply,
   itFeatureLinksFromRows,
   itFeatureOpenButtonFromPayload,
+  itFeatureOpenButtonsFromPayload,
   pickItFeatureLinkSourceRows,
 } from '@/lib/messaging/partner-ai-it-feature-link-reply'
 
@@ -38,6 +39,20 @@ test('feature open button stays on the shop reply, not the customer message', ()
       label: 'Phục dựng ảnh',
       buttonLabel: 'Mở tính năng',
     }
+  )
+})
+
+test('study help menu renders one button per feature', () => {
+  const buttons = itFeatureOpenButtonsFromPayload({
+    source: 'it_feature_link',
+    feature_opens: [
+      { kind: 'feature_page', href: 'https://nanoai.vn/ho-tro-lam-bai', label: 'Hỗ trợ làm bài', button_label: 'Hỗ trợ làm bài' },
+      { kind: 'feature_page', href: 'https://nanoai.vn/gia-su-ai', label: 'Gia sư AI', button_label: 'Gia sư AI' },
+    ],
+  })
+  assert.deepEqual(
+    buttons.map((button) => button.buttonLabel),
+    ['Hỗ trợ làm bài', 'Gia sư AI']
   )
 })
 

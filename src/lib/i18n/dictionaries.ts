@@ -251,6 +251,10 @@ export type Dictionary = {
     advisoryOpenFeature: string
     advisoryStandaloneFeatureBody: string
     featureOpenHint: string
+    /** «Giúp tôi học bài» — nhắc bấm một tính năng học bài. */
+    studyHelpPickHint: string
+    /** Nhãn nút bài học có sẵn, tách khỏi «Học ngoại ngữ AI». */
+    studyHelpPresetLesson: string
     featureGroupStudioInline: string
     featurePickerHint: string
     featureFeedbackOpen: string
@@ -279,6 +283,7 @@ export type Dictionary = {
     planOpenQueue: string
     viewTaskQueue: string
     newThread: string
+    newHub: string
     newThreadFlowHint: string
     chatHistory: string
     chatHistoryEmpty: string
@@ -2555,6 +2560,8 @@ export type Dictionary = {
     itFeatureLinkClarify: string
     /** Ngành CNTT — khách kết thúc, không gửi link. */
     itFeatureLinkPause: string
+    /** «Giúp tôi học bài» — liệt kê nút tính năng học bài. */
+    studyHelpPickHint: string
     visionPickHint: string
     visionPickBusy: string
     visionPickError: string
@@ -4117,6 +4124,8 @@ export const VI_DICTIONARY: Dictionary = {
     advisoryStandaloneFeatureBody:
       'Bạn muốn dùng “{feature}”. Tính năng này chạy trên trang công cụ riêng — bấm “Mở tính năng” bên dưới để xác nhận và bắt đầu.',
     featureOpenHint: 'Bạn muốn dùng “{feature}”. Bấm vào link bên dưới để mở tính năng.',
+    studyHelpPickHint: 'Bạn muốn học bài. Bấm tính năng bên dưới.',
+    studyHelpPresetLesson: 'Bài học có sẵn',
     featureGroupStudioInline: 'Thiết kế trong chat',
     featurePickerHint: 'Chọn tính năng — hệ thống mở đúng flow theo lập trình',
     featureFeedbackOpen: 'Góp ý tính năng còn thiếu',
@@ -4145,6 +4154,7 @@ export const VI_DICTIONARY: Dictionary = {
     planOpenQueue: 'Hàng đợi',
     viewTaskQueue: 'Xem hàng đợi tác vụ',
     newThread: 'Hội thoại mới',
+    newHub: 'Tạo hub mới',
     newThreadFlowHint: 'Flow khác → tạo hội thoại mới',
     chatHistory: 'Danh sách đã chat',
     chatHistoryEmpty: 'Chưa có hội thoại nào.',
@@ -6473,6 +6483,7 @@ export const VI_DICTIONARY: Dictionary = {
     itFeatureLinkClarify:
       'Anh/chị muốn dùng tính năng nào? Nhắn tên tính năng, ví dụ thử đồ 1 người hoặc thiết kế logo, để em gửi đúng link ạ.',
     itFeatureLinkPause: 'Dạ em chào anh/chị. Khi cần dùng tính năng, nhắn tên tính năng để em gửi link ạ.',
+    studyHelpPickHint: 'Anh/chị muốn học bài. Bấm tính năng bên dưới ạ.',
     visionPickHint: '',
     visionPickBusy: 'Đang gửi…',
     visionPickError: 'Không gửi được lựa chọn. Thử lại.',

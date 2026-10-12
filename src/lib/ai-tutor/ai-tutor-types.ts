@@ -24,4 +24,11 @@ export type TutorThreadMessage = {
   createdAt: string
 }
 
-export type TutorErrorCode = 'unauthorized' | 'missing_text' | 'ai_unavailable'
+export type TutorSessionSummary = {
+  id: string
+  preview: string
+  updatedAt: string
+  messageCount: number
+}
+
+export type TutorErrorCode = 'unauthorized' | 'missing_text' | 'ai_unavailable' | 'new_thread_failed'

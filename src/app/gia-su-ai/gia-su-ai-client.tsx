@@ -1,37 +1,164 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Check } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, History, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import { aiTutorCopy } from '@/lib/ai-tutor/ai-tutor-copy'
-import type { TutorAnswer, TutorThreadMessage } from '@/lib/ai-tutor/ai-tutor-types'
-import { loadTutorThread, openTutorLabelAction, sendTutorQuestion } from '@/app/gia-su-ai/actions'
+import { tutorNextBubbleDelayMs, tutorReplyBubbles, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
+import type { TutorAnswer, TutorSessionSummary, TutorThreadMessage } from '@/lib/ai-tutor/ai-tutor-types'
+import {
+  listTutorHistory,
+  loadTutorThread,
+  openTutorHistoryThread,
+  openTutorLabelAction,
+  sendTutorQuestion,
+  startTutorThread,
+} from '@/app/gia-su-ai/actions'
 
 type Props = {
   locale: WebLocale
+}
+
+type TutorChatLine = TutorThreadMessage & {
+  bubbleSection?: 'explain' | 'practice'
+  showHeading?: boolean
+  showSectionLabel?: boolean
+  showLabels?: boolean
+}
+
+function sleep(ms: number): Promise<void> {
+  if (ms <= 0) return Promise.resolve()
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function linesFromStored(messages: TutorThreadMessage[]): TutorChatLine[] {
+  const lines: TutorChatLine[] = []
+  for (const message of messages) {
+    if (message.role !== 'tutor' || !message.answer) {
+      lines.push(message)
+      continue
+    }
+    const bubbles = tutorReplyBubbles(message.answer)
+    if (bubbles.length === 0) {
+      lines.push(message)
+      continue
+    }
+    bubbles.forEach((bubble, index) => {
+      lines.push({
+        ...message,
+        id: bubbles.length === 1 ? message.id : `${message.id}:${index}`,
+        body: bubble.text,
+        bubbleSection: bubble.section,
+        showHeading: index === 0,
+        showSectionLabel: bubbles.findIndex((item) => item.section === bubble.section) === index,
+        showLabels: index === bubbles.length - 1,
+      })
+    })
+  }
+  return lines
+}
+
+function bubbleLine(answer: TutorAnswer, index: number, bubbles: ReturnType<typeof tutorReplyBubbles>): TutorChatLine {
+  const bubble = bubbles[index]
+  return {
+    id: localId(),
+    role: 'tutor',
+    body: bubble.text,
+    topicKey: answer.topicKey,
+    kind: 'answer',
+    answer,
+    createdAt: new Date().toISOString(),
+    bubbleSection: bubble.section,
+    showHeading: index === 0,
+    showSectionLabel: bubbles.findIndex((item) => item.section === bubble.section) === index,
+    showLabels: index === bubbles.length - 1,
+  }
+}
+
+function formatTutorWhen(iso: string, locale: WebLocale): string {
+  try {
+    return new Intl.DateTimeFormat(locale === 'zh' ? 'zh-CN' : locale, {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(iso))
+  } catch {
+    return iso.slice(0, 16)
+  }
 }
 
 function localId(): string {
   return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
+function userTurn(body: string, kind: 'question' | 'label'): TutorThreadMessage {
+  return {
+    id: localId(),
+    role: 'user',
+    body,
+    topicKey: '',
+    kind,
+    answer: null,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+function tutorTurn(answer: TutorAnswer): TutorThreadMessage {
+  return {
+    id: localId(),
+    role: 'tutor',
+    body: answer.explanation,
+    topicKey: answer.topicKey,
+    kind: 'answer',
+    answer,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+function TeacherReplying({ label }: { label: string }) {
+  return (
+    <article
+      className="flex max-w-[92%] items-center gap-1.5 rounded-xl border bg-background px-4 py-3 text-sm text-muted-foreground"
+      role="status"
+      aria-live="polite"
+      aria-label={`${label}…`}
+    >
+      <span>{label}</span>
+      <span className="inline-flex items-end gap-px pl-0.5 text-base font-semibold leading-none text-foreground" aria-hidden>
+        <span className="inline-block animate-bounce [animation-delay:0ms]">.</span>
+        <span className="inline-block animate-bounce [animation-delay:150ms]">.</span>
+        <span className="inline-block animate-bounce [animation-delay:300ms]">.</span>
+      </span>
+    </article>
+  )
+}
+
 export default function GiaSuAiClient({ locale }: Props) {
   const copy = aiTutorCopy(locale)
-  const [messages, setMessages] = useState<TutorThreadMessage[]>([])
+  const [messages, setMessages] = useState<TutorChatLine[]>([])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
-  const endRef = useRef<HTMLDivElement | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [sessions, setSessions] = useState<TutorSessionSummary[]>([])
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const busyRef = useRef(false)
+  const frame = useMobileTutorFrame()
 
   useEffect(() => {
     let cancelled = false
     void loadTutorThread(locale).then((result) => {
       if (cancelled) return
-      if (result.ok) setMessages(result.data)
-      else setError(copy.errors[result.code])
+      if (result.ok) {
+        if (!busyRef.current) {
+          setSessionId(result.data.sessionId)
+          setMessages(linesFromStored(result.data.messages))
+        }
+      } else setError(copy.errors[result.code])
       setReady(true)
     })
     return () => {
@@ -40,71 +167,128 @@ export default function GiaSuAiClient({ locale }: Props) {
   }, [copy.errors, locale])
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' })
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    scroller.scrollTo({ top: scroller.scrollHeight })
   }, [messages, busy])
 
-  function pushTurn(question: string, kind: 'question' | 'label', answer: TutorAnswer) {
-    const now = new Date().toISOString()
-    setMessages((current) => [
-      ...current,
-      {
-        id: localId(),
-        role: 'user',
-        body: question,
-        topicKey: answer.topicKey,
-        kind,
-        answer: null,
-        createdAt: now,
-      },
-      {
-        id: localId(),
-        role: 'tutor',
-        body: answer.explanation,
-        topicKey: answer.topicKey,
-        kind: 'answer',
-        answer,
-        createdAt: now,
-      },
-    ])
+  async function ask(
+    pending: TutorThreadMessage,
+    run: () => Promise<{ ok: true; data: TutorAnswer } | { ok: false; code: keyof typeof copy.errors }>,
+    restore?: () => void
+  ) {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    setError('')
+    setMessages((current) => [...current, pending])
+    const startedAt = Date.now()
+    const result = await run()
+    if (!result.ok) {
+      setMessages((current) => current.filter((message) => message.id !== pending.id))
+      restore?.()
+      setError(copy.errors[result.code])
+      busyRef.current = false
+      setBusy(false)
+      return
+    }
+    const hold = tutorReplyHoldMs(startedAt, Date.now())
+    if (hold > 0) await sleep(hold)
+    const bubbles = tutorReplyBubbles(result.data)
+    if (bubbles.length === 0) {
+      setMessages((current) => [...current, tutorTurn(result.data)])
+    } else {
+      for (let index = 0; index < bubbles.length; index += 1) {
+        if (index > 0) await sleep(tutorNextBubbleDelayMs(bubbles[index - 1].text))
+        const line = bubbleLine(result.data, index, bubbles)
+        setMessages((current) => [...current, line])
+      }
+    }
+    busyRef.current = false
+    setBusy(false)
   }
 
   async function send() {
     const question = text.trim()
-    if (!question || busy) {
+    if (!question || busyRef.current) {
       if (!question) setError(copy.errors.missing_text)
       return
     }
-    setBusy(true)
-    setError('')
     setText('')
-    const result = await sendTutorQuestion({ locale, text: question })
-    setBusy(false)
+    await ask(userTurn(question, 'question'), () => sendTutorQuestion({ locale, text: question }), () => setText(question))
+  }
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    const result = await listTutorHistory()
+    setHistoryLoading(false)
     if (!result.ok) {
-      setText(question)
+      setError(copy.errors[result.code])
+      setSessions([])
+      return
+    }
+    setSessions(result.data)
+  }, [copy.errors])
+
+  async function beginNewThread() {
+    if (busyRef.current) return
+    setError('')
+    const result = await startTutorThread(locale)
+    if (!result.ok) {
       setError(copy.errors[result.code])
       return
     }
-    pushTurn(question, 'question', result.data)
+    setSessionId(result.data.sessionId)
+    setMessages([])
+    setText('')
+    setHistoryOpen(false)
+  }
+
+  async function openHistory() {
+    if (historyOpen) {
+      setHistoryOpen(false)
+      return
+    }
+    setHistoryOpen(true)
+    await loadHistory()
+  }
+
+  async function openSavedThread(id: string) {
+    if (busyRef.current || id === sessionId) {
+      setHistoryOpen(false)
+      return
+    }
+    setError('')
+    const result = await openTutorHistoryThread(id)
+    if (!result.ok) {
+      setError(copy.errors[result.code])
+      return
+    }
+    setSessionId(result.data.sessionId)
+    setMessages(linesFromStored(result.data.messages))
+    setText('')
+    setHistoryOpen(false)
   }
 
   async function openLabel(labelKey: string, title: string) {
-    if (busy) return
-    setBusy(true)
-    setError('')
-    const result = await openTutorLabelAction({ locale, labelKey, title })
-    setBusy(false)
-    if (!result.ok) {
-      setError(copy.errors[result.code])
-      return
-    }
-    pushTurn(title, 'label', result.data)
+    if (busyRef.current) return
+    await ask(userTurn(title, 'label'), () => openTutorLabelAction({ locale, labelKey, title }))
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
-      <div className="flex min-h-[480px] flex-col rounded-xl border bg-card shadow-sm">
-        <div className="flex-1 space-y-4 overflow-y-auto p-4">
+    <div
+      className="flex min-h-0 flex-col max-md:fixed max-md:inset-x-0 max-md:z-30 max-md:bg-background max-md:top-[calc(var(--site-header-height,3rem)+4.75rem)] max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:min-h-[32rem] md:rounded-xl md:border md:bg-card md:shadow-sm"
+      style={
+        frame
+          ? {
+              ...(frame.top > 0 ? { top: frame.top } : {}),
+              bottom: frame.bottom,
+            }
+          : undefined
+      }
+    >
+      <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+          <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
           {ready && messages.length === 0 ? (
             <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p>
           ) : null}
@@ -118,7 +302,8 @@ export default function GiaSuAiClient({ locale }: Props) {
               </p>
             ) : (
               <article key={message.id} className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
-                {message.answer?.title || (message.answer && message.answer.share !== 'private') ? (
+                {message.showHeading !== false &&
+                (message.answer?.title || (message.answer && message.answer.share !== 'private')) ? (
                   <div className="flex items-center gap-1.5">
                     {message.answer?.title ? (
                       <h2 className="text-base font-semibold">{message.answer.title}</h2>
@@ -133,21 +318,40 @@ export default function GiaSuAiClient({ locale }: Props) {
                     ) : null}
                   </div>
                 ) : null}
-                <section className="space-y-1">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {copy.explain}
-                  </h3>
-                  <p className="whitespace-pre-wrap text-sm leading-6">{message.answer?.explanation || message.body}</p>
-                </section>
-                {message.answer?.practice ? (
-                  <section className="space-y-1 rounded-lg bg-muted p-3">
-                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {copy.practice}
-                    </h3>
-                    <p className="whitespace-pre-wrap text-sm leading-6">{message.answer.practice}</p>
+                {message.bubbleSection ? (
+                  <section
+                    className={
+                      message.bubbleSection === 'practice' ? 'space-y-1 rounded-lg bg-muted p-3' : 'space-y-1'
+                    }
+                  >
+                    {message.showSectionLabel ? (
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {message.bubbleSection === 'practice' ? copy.practice : copy.explain}
+                      </h3>
+                    ) : null}
+                    <p className="whitespace-pre-wrap text-sm leading-6">{message.body}</p>
                   </section>
-                ) : null}
-                {message.answer && message.answer.labels.length > 0 ? (
+                ) : (
+                  <>
+                    <section className="space-y-1">
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {copy.explain}
+                      </h3>
+                      <p className="whitespace-pre-wrap text-sm leading-6">
+                        {message.answer?.explanation || message.body}
+                      </p>
+                    </section>
+                    {message.answer?.practice ? (
+                      <section className="space-y-1 rounded-lg bg-muted p-3">
+                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {copy.practice}
+                        </h3>
+                        <p className="whitespace-pre-wrap text-sm leading-6">{message.answer.practice}</p>
+                      </section>
+                    ) : null}
+                  </>
+                )}
+                {message.showLabels !== false && message.answer && message.answer.labels.length > 0 ? (
                   <section className="space-y-2">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       {copy.related}
@@ -171,11 +375,85 @@ export default function GiaSuAiClient({ locale }: Props) {
               </article>
             )
           )}
-          {busy ? <p className="text-sm text-muted-foreground">{copy.sending}</p> : null}
-          <div ref={endRef} />
+          {busy ? <TeacherReplying label={copy.replying} /> : null}
         </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-background px-3 pt-2 max-md:pr-16 md:bg-card">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 px-2.5"
+            disabled={!ready || busy}
+            aria-label={copy.newThread}
+            title={copy.newThread}
+            onClick={() => void beginNewThread()}
+          >
+            <MessageSquarePlus className="h-4 w-4" aria-hidden />
+            {copy.newThread}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5 px-2.5"
+            disabled={!ready || busy}
+            aria-expanded={historyOpen}
+            aria-label={copy.history}
+            title={copy.history}
+            onClick={() => void openHistory()}
+          >
+            <History className="h-4 w-4" aria-hidden />
+            {copy.history}
+          </Button>
+        </div>
+        {historyOpen ? (
+          <div className="max-h-48 shrink-0 overflow-y-auto border-b bg-background px-3 py-2 md:bg-card">
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-medium">{copy.history}</p>
+              <button
+                type="button"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
+                aria-label={copy.historyClose}
+                onClick={() => setHistoryOpen(false)}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {historyLoading ? (
+              <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                {copy.historyLoading}
+              </p>
+            ) : sessions.length === 0 ? (
+              <p className="py-2 text-xs text-muted-foreground">{copy.historyEmpty}</p>
+            ) : (
+              <ul className="space-y-1">
+                {sessions.map((session) => (
+                  <li key={session.id}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void openSavedThread(session.id)}
+                      className={`flex w-full flex-col rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-60 ${
+                        session.id === sessionId ? 'bg-muted' : ''
+                      }`}
+                    >
+                      <span className="line-clamp-1 font-medium">
+                        {session.preview || copy.empty}
+                      </span>
+                      <span className="mt-0.5 text-[11px] text-muted-foreground">
+                        {formatTutorWhen(session.updatedAt, locale)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+        {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
         <form
-          className="flex items-end gap-2 border-t p-3"
+          className="flex shrink-0 items-end gap-2 bg-background p-3 md:bg-card"
           onSubmit={(event) => {
             event.preventDefault()
             void send()
@@ -186,7 +464,8 @@ export default function GiaSuAiClient({ locale }: Props) {
             onChange={(event) => setText(event.target.value)}
             placeholder={copy.placeholder}
             rows={2}
-            disabled={busy}
+            className="max-h-24 resize-none"
+            disabled={!ready || busy}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault()
@@ -194,12 +473,55 @@ export default function GiaSuAiClient({ locale }: Props) {
               }
             }}
           />
-          <Button type="submit" disabled={busy}>
-            {busy ? copy.sending : copy.send}
+          <Button type="submit" disabled={!ready || busy}>
+            {copy.send}
           </Button>
         </form>
-      </div>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
     </div>
   )
+}
+
+/** Mobile: khóa trang, khung gõ nằm trên thanh đáy, chỉ hội thoại được vuốt. */
+function useMobileTutorFrame(): { top: number; bottom: number } | null {
+  const [frame, setFrame] = useState<{ top: number; bottom: number } | null>(null)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const sync = () => {
+      if (!mq.matches) {
+        setFrame(null)
+        document.documentElement.style.overflow = ''
+        document.body.style.overflow = ''
+        return
+      }
+      document.documentElement.style.overflow = 'hidden'
+      document.body.style.overflow = 'hidden'
+      const back = document.querySelector('[data-creation-tool-back]')
+      const nav = document.querySelector('nav.safe-area-pb')
+      const backBottom = back ? Math.round(back.getBoundingClientRect().bottom) : 0
+      const navTop = nav ? Math.round(nav.getBoundingClientRect().top) : window.innerHeight
+      setFrame({
+        top: backBottom,
+        bottom: Math.max(0, window.innerHeight - navTop),
+      })
+    }
+    if (mq.matches) window.scrollTo(0, 0)
+    sync()
+    const ro = new ResizeObserver(sync)
+    for (const selector of ['header', '[data-creation-tool-back]', 'nav.safe-area-pb']) {
+      const node = document.querySelector(selector)
+      if (node) ro.observe(node)
+    }
+    mq.addEventListener('change', sync)
+    window.addEventListener('resize', sync)
+    return () => {
+      ro.disconnect()
+      mq.removeEventListener('change', sync)
+      window.removeEventListener('resize', sync)
+      document.documentElement.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }, [])
+
+  return frame
 }

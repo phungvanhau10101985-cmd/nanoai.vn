@@ -41,17 +41,120 @@ function asAnswer(row: TopicRow, share: TutorAnswer['share']): TutorAnswer {
 export async function ensureTutorSession(userId: string, locale: string): Promise<string | null> {
   if (!isPgConfigured()) return null
   try {
-    const row = await pgQueryOne<{ id: string }>(
+    const current = await pgQueryOne<{ id: string }>(
+      `select id::text
+       from public.tutor_sessions
+       where user_id = $1::uuid
+       order by updated_at desc
+       limit 1`,
+      [userId]
+    )
+    if (current?.id) {
+      await pgQuery(`update public.tutor_sessions set locale = $2 where id = $1::uuid`, [current.id, locale])
+      return current.id
+    }
+    const created = await pgQueryOne<{ id: string }>(
       `insert into public.tutor_sessions (user_id, locale)
        values ($1::uuid, $2)
-       on conflict (user_id) do update
-         set locale = excluded.locale, updated_at = now()
        returning id::text`,
       [userId, locale]
     )
-    return row?.id ?? null
+    return created?.id ?? null
   } catch (error) {
     console.warn('[ai-tutor] session', error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+/** Hội thoại trống thì dùng lại. Đã có chữ thì mở một phiên mới. */
+export async function startTutorSession(userId: string, locale: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const latest = await pgQueryOne<{ id: string; n: number }>(
+      `select s.id::text,
+              (select count(*)::int from public.tutor_messages m where m.session_id = s.id) as n
+       from public.tutor_sessions s
+       where s.user_id = $1::uuid
+       order by s.updated_at desc
+       limit 1`,
+      [userId]
+    )
+    if (latest?.id && latest.n === 0) {
+      await pgQuery(
+        `update public.tutor_sessions set locale = $2, updated_at = now() where id = $1::uuid`,
+        [latest.id, locale]
+      )
+      return latest.id
+    }
+    const created = await pgQueryOne<{ id: string }>(
+      `insert into public.tutor_sessions (user_id, locale)
+       values ($1::uuid, $2)
+       returning id::text`,
+      [userId, locale]
+    )
+    return created?.id ?? null
+  } catch (error) {
+    console.warn('[ai-tutor] new session', error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+export async function listTutorSessions(userId: string): Promise<
+  Array<{ id: string; preview: string; updatedAt: string; messageCount: number }>
+> {
+  if (!isPgConfigured()) return []
+  try {
+    const rows = await pgQuery<{
+      id: string
+      preview: string
+      updated_at: Date | string
+      message_count: number
+    }>(
+      `select s.id::text,
+              coalesce((
+                select m.body
+                from public.tutor_messages m
+                where m.session_id = s.id and m.role = 'user'
+                order by m.created_at asc
+                limit 1
+              ), '') as preview,
+              s.updated_at,
+              (select count(*)::int from public.tutor_messages m where m.session_id = s.id) as message_count
+       from public.tutor_sessions s
+       where s.user_id = $1::uuid
+       order by s.updated_at desc
+       limit 40`,
+      [userId]
+    )
+    return rows
+      .filter((row) => row.message_count > 0)
+      .map((row) => ({
+        id: row.id,
+        preview: row.preview.trim(),
+        updatedAt: asIso(row.updated_at),
+        messageCount: row.message_count,
+      }))
+  } catch (error) {
+    console.warn('[ai-tutor] session list', error instanceof Error ? error.message : error)
+    return []
+  }
+}
+
+/** Đưa hội thoại này lên hiện tại rồi đọc tin. Không thuộc học sinh thì trả null. */
+export async function openTutorSession(userId: string, sessionId: string): Promise<TutorThreadMessage[] | null> {
+  if (!isPgConfigured() || !sessionId) return null
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `update public.tutor_sessions
+       set updated_at = now()
+       where id = $1::uuid and user_id = $2::uuid
+       returning id::text`,
+      [sessionId, userId]
+    )
+    if (!row?.id) return null
+    return listTutorMessages(row.id)
+  } catch (error) {
+    console.warn('[ai-tutor] open session', error instanceof Error ? error.message : error)
     return null
   }
 }
@@ -205,6 +308,7 @@ export async function appendTutorMessage(input: {
         JSON.stringify(input.payload),
       ]
     )
+    await pgQuery(`update public.tutor_sessions set updated_at = now() where id = $1::uuid`, [input.sessionId])
   } catch (error) {
     console.warn('[ai-tutor] message write', error instanceof Error ? error.message : error)
   }

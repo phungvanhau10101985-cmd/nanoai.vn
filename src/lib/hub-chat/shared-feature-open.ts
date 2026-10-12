@@ -2,9 +2,12 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { HubChatWorkflowSuggestion } from '@/lib/hub-chat/hub-advisory'
 import {
+  getStandaloneFeatureByHref,
+  isBroadStudyHelpIntent,
   isCatalogPhotoHubPreset,
   matchCatalogPhotoExportFlow,
   resolveIdleFeatureMatch,
+  STUDY_HELP_FEATURE_HREFS,
   type HubFeatureFlowMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
 import { presetTitle } from '@/lib/hub-chat/hub-studio-presets'
@@ -93,6 +96,39 @@ export function resolveSharedFeatureOpen(
   const match = resolveIdleFeatureMatch(message, locale, recentContext)
   if (!match) return null
   return sharedFeatureOpenFromMatch(match, locale)
+}
+
+export type StudyHelpMenu = {
+  message: string
+  opens: SharedFeatureOpenTarget[]
+}
+
+/** Các nút học bài khi khách nói «Giúp tôi học bài» mà chưa gọi tên một công cụ. */
+export function studyHelpOpenTargets(locale: WebLocale): SharedFeatureOpenTarget[] {
+  const presetLesson = getDictionary(locale).hubChat.studyHelpPresetLesson
+  const opens: SharedFeatureOpenTarget[] = []
+  for (const href of STUDY_HELP_FEATURE_HREFS) {
+    const entry = getStandaloneFeatureByHref(locale, href)
+    if (!entry) continue
+    const label = href === '/hoc-bai-hoc-co-san' ? presetLesson : entry.label
+    opens.push({
+      kind: 'feature_page',
+      href,
+      label,
+      buttonLabel: label,
+    })
+  }
+  return opens
+}
+
+export function resolveStudyHelpMenu(message: string, locale: WebLocale): StudyHelpMenu | null {
+  if (!isBroadStudyHelpIntent(message)) return null
+  const opens = studyHelpOpenTargets(locale)
+  if (!opens.length) return null
+  return {
+    message: getDictionary(locale).partnerGuestChat.studyHelpPickHint,
+    opens,
+  }
 }
 
 export function sharedFeatureOpenToWorkflow(

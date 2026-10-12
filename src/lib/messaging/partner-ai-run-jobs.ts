@@ -39,8 +39,9 @@ import {
   absoluteSharedFeatureHref,
   isFeatureChatPause,
   resolveSharedFeatureOpen,
+  resolveStudyHelpMenu,
 } from '@/lib/hub-chat/shared-feature-open'
-import { loadItFeatureProductContext } from '@/lib/messaging/partner-ai-it-feature-product'
+import { loadItFeatureProductContext, loadStudyHelpProductCards } from '@/lib/messaging/partner-ai-it-feature-product'
 import { enforceConfiguredGenderAddressing } from '@/lib/messaging/partner-ai-gender-addressing'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { enrichPartnerAiProductCardsWithInventoryVideoFromPg } from '@/lib/messaging/partner-ai-product-cards-enrich-pg'
@@ -326,6 +327,7 @@ async function runMessagingPartnerAiJobBatchUsingPg(
         }
         const dict = getDictionary(cacheUiLocale)
         const shared = resolveSharedFeatureOpen(inboundForAi, cacheUiLocale)
+        const study = shared ? null : resolveStudyHelpMenu(inboundForAi, cacheUiLocale)
         let featureBody = dict.partnerGuestChat.itFeatureLinkClarify
         let featureOpen: {
           kind: 'feature_page' | 'hub'
@@ -333,6 +335,12 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           label: string
           button_label: string
         } | null = null
+        let featureOpens: Array<{
+          kind: 'feature_page' | 'hub'
+          href: string
+          label: string
+          button_label: string
+        }> | null = null
         if (shared) {
           featureBody = shared.message
           featureOpen = {
@@ -341,6 +349,15 @@ async function runMessagingPartnerAiJobBatchUsingPg(
             label: shared.open.label,
             button_label: shared.open.buttonLabel,
           }
+        } else if (study) {
+          featureBody = study.message
+          const origin = getPublicAppUrlForServer()
+          featureOpens = study.opens.map((open) => ({
+            kind: open.kind,
+            href: absoluteSharedFeatureHref(open.href, origin),
+            label: open.label,
+            button_label: open.buttonLabel,
+          }))
         } else if (isFeatureChatPause(inboundForAi)) {
           featureBody = dict.partnerGuestChat.itFeatureLinkPause
         }
@@ -352,13 +369,22 @@ async function runMessagingPartnerAiJobBatchUsingPg(
               href: featureOpen.href,
             })
           : null
+        const studyCards = featureOpens?.length
+          ? await loadStudyHelpProductCards({
+              partnerId: job.partner_id,
+              conversationId: job.conversation_id,
+              sourceMessageId: job.trigger_message_id,
+              hrefs: featureOpens.map((open) => open.href),
+            })
+          : []
         const rawFeatureLink = {
           source: 'it_feature_link',
           model: null,
           usage: null,
-          ai_product_cards: productContext ? [productContext.card] : [],
+          ai_product_cards: featureOpens ? studyCards : productContext ? [productContext.card] : [],
           ...(productContext ? { feature_product: productContext.product } : {}),
           ...(featureOpen ? { feature_open: featureOpen } : {}),
+          ...(featureOpens ? { feature_opens: featureOpens } : {}),
           ...(partnerAiRouteIntent ? { partner_ai_route_intent: partnerAiRouteIntent } : {}),
           ...(partnerAiSalesStage ? { partner_ai_sales_stage: partnerAiSalesStage } : {}),
           ...(partnerAiCtaStrategy ? { partner_ai_cta_strategy: partnerAiCtaStrategy } : {}),

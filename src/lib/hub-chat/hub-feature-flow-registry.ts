@@ -428,6 +428,21 @@ export function matchAiTutorFlow(
 const HOMEWORK_HELP_MARKERS =
   /hỗ trợ làm bài|ho tro lam bai|chữa bài|chua bai|giúp làm bài|giup lam bai|hướng làm bài|huong lam bai|không hiểu bài|khong hieu bai|homework help|作业辅导|宿題サポート|숙제 도우미/i
 
+/**
+ * «Giúp tôi học bài» chưa chỉ một công cụ. Hiện các tính năng học bài để khách bấm.
+ * Câu đã gọi tên gia sư / chữa bài / ngoại ngữ thì không vào nhánh này.
+ */
+const BROAD_STUDY_HELP_MARKERS =
+  /giúp\s*(?:tôi|toi|mình|minh|em)?\s*học\s*bài|giup\s*(?:toi|minh|em)?\s*hoc\s*bai|muốn\s*học\s*bài|muon\s*hoc\s*bai|học\s*bài\s*giúp|hoc\s*bai\s*giup|help\s+me\s+(?:study|learn)|帮我学|勉強を手伝|勉強手伝|공부\s*도와/i
+
+/** Nút học bài cho học sinh — không gồm công cụ giáo viên tạo giáo trình / bài thi. */
+export const STUDY_HELP_FEATURE_HREFS = [
+  '/ho-tro-lam-bai',
+  '/gia-su-ai',
+  '/hoc-tieng-anh-ai',
+  '/hoc-bai-hoc-co-san',
+] as const
+
 const HOMEWORK_HELP_TEACHER_CREATE =
   /tạo bài tập về nhà|tao bai tap ve nha|tạo bài thi|tao bai thi|tạo giáo trình|tao giao trinh|create homework|create curriculum/i
 
@@ -435,6 +450,15 @@ export function isHomeworkHelpIntent(message: string): boolean {
   const text = message.trim()
   if (!text || HOMEWORK_HELP_TEACHER_CREATE.test(text)) return false
   return HOMEWORK_HELP_MARKERS.test(text)
+}
+
+export function isBroadStudyHelpIntent(message: string): boolean {
+  const text = message.trim()
+  if (!text) return false
+  if (isAiTutorIntent(text) || isHomeworkHelpIntent(text) || isLanguageLearningIntent(text)) return false
+  if (PRESET_LESSON_MARKERS.test(text) || HOMEWORK_HELP_TEACHER_CREATE.test(text)) return false
+  if (CURRICULUM_TOPIC_MARKERS.test(text)) return false
+  return BROAD_STUDY_HELP_MARKERS.test(text)
 }
 
 export function matchHomeworkHelpFlow(

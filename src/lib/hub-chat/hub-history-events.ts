@@ -1,7 +1,13 @@
 export const HUB_HISTORY_OPEN_THREAD_EVENT = 'nanoai:hub-history-open-thread'
 export const HUB_HISTORY_THREAD_DELETED_EVENT = 'nanoai:hub-history-thread-deleted'
+export const HUB_HISTORY_NEW_THREAD_EVENT = 'nanoai:hub-history-new-thread'
 
 export type HubHistoryThreadDetail = { threadId: string }
+
+export function dispatchHubHistoryNewThread(): void {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent(HUB_HISTORY_NEW_THREAD_EVENT))
+}
 
 export function dispatchHubHistoryOpenThread(threadId: string): void {
   if (typeof window === 'undefined') return

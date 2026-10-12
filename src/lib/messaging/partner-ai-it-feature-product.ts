@@ -55,6 +55,8 @@ export async function loadItFeatureProductContext(input: {
   conversationId: string
   sourceMessageId: string
   href: string
+  /** Menu nhiều tính năng không ghim một sản phẩm đã tư vấn. */
+  pinConsulted?: boolean
 }): Promise<{ card: PartnerAiProductCard; product: ItFeatureProductContext } | null> {
   let row: Awaited<ReturnType<typeof fetchPartnerInventoryRowByProductUrlFromPg>> = null
   for (const url of featureUrls(input.href)) {
@@ -82,8 +84,28 @@ export async function loadItFeatureProductContext(input: {
     inventory_id: product.inventory_id,
   }
   const key = normalizeProductUrlKey(product.product_url)
-  if (key) {
+  if (key && input.pinConsulted !== false) {
     await upsertConsultedProductKeyForConversationFromPg(input.conversationId, input.sourceMessageId, key)
   }
   return { card, product }
+}
+
+export async function loadStudyHelpProductCards(input: {
+  partnerId: string
+  conversationId: string
+  sourceMessageId: string
+  hrefs: string[]
+}): Promise<PartnerAiProductCard[]> {
+  const cards: PartnerAiProductCard[] = []
+  for (const href of input.hrefs) {
+    const ctx = await loadItFeatureProductContext({
+      partnerId: input.partnerId,
+      conversationId: input.conversationId,
+      sourceMessageId: input.sourceMessageId,
+      href,
+      pinConsulted: false,
+    })
+    if (ctx) cards.push(ctx.card)
+  }
+  return cards
 }

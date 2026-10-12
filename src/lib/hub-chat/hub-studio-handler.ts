@@ -94,6 +94,7 @@ import {
 import { classifyFeatureIntentWithAi } from '@/lib/hub-chat/hub-feature-intent-classifier'
 import {
   catalogSurfaceForHubTurn,
+  isBroadStudyHelpIntent,
   isCatalogPhotoHubPreset,
   matchFeatureFlowByMessage,
   resolveIdleFeatureMatch,
@@ -155,6 +156,7 @@ import {
 import {
   sharedFeatureOpenFromMatch,
   sharedFeatureOpenToWorkflow,
+  studyHelpOpenTargets,
 } from '@/lib/hub-chat/shared-feature-open'
 import {
   notifyNanoAiAdminsHubFeatureRequest,
@@ -7495,6 +7497,42 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     }
 
     const activeDesign = Boolean(session.presetId && session.processSteps.length)
+    if (!activeDesign && isBroadStudyHelpIntent(message)) {
+      const opens = studyHelpOpenTargets(input.locale)
+      if (opens.length > 0) {
+        reply = getDictionary(input.locale).hubChat.studyHelpPickHint
+        const workflows = opens.map((open) =>
+          sharedFeatureOpenToWorkflow(
+            {
+              message: reply,
+              open: {
+                ...open,
+                buttonLabel: getDictionary(input.locale).hubChat.advisoryOpenFeature,
+              },
+            },
+            ''
+          )
+        )
+        await pgInsertHubChatMessage({
+          threadId: input.threadId,
+          role: 'assistant',
+          content: reply,
+          workflows,
+          planId: null,
+        })
+        return {
+          ok: true,
+          reply,
+          session,
+          threadId: input.threadId,
+          chargedChat,
+          workflows,
+          plan: null,
+          hubRoute: 'consultation',
+          showFeaturePicker: false,
+        }
+      }
+    }
     const ai: ReturnType<typeof parseAiStudio> = activeDesign
       ? {
           reply: '',

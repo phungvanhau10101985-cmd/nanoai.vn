@@ -20,7 +20,7 @@ import { MessageTextWithLinks } from '@/components/messaging/message-text-with-l
 import { resolveExternalImageDisplayUrl } from '@/lib/fetch-image-1688'
 import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
 import { nextShopImageRetrySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
-import { itFeatureOpenButtonFromPayload } from '@/lib/messaging/partner-ai-it-feature-link-reply'
+import { itFeatureOpenButtonsFromPayload } from '@/lib/messaging/partner-ai-it-feature-link-reply'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 
@@ -895,7 +895,7 @@ export function CustomerCareMessageBody({
   const caption = row.body.replace(/^📷\s*/u, '').replace(/^≡ƒô╖\s*/u, '').trim()
   const onViolet = tone === 'onViolet'
   const productCards = aiProductCardsFromPayload(row.raw_payload)
-  const featureOpen = itFeatureOpenButtonFromPayload(row.raw_payload)
+  const featureOpens = itFeatureOpenButtonsFromPayload(row.raw_payload)
   const visionCards = showVisionCandidates ? visionCandidateCardsFromPayload(row.raw_payload) : []
   /**
    * `VisionCandidateCard.product_url` là optional, còn `PartnerAiProductCard.product_url` bắt buộc string.
@@ -943,14 +943,19 @@ export function CustomerCareMessageBody({
           }
         />
       ) : null}
-      {featureOpen ? (
-        <button
-          type="button"
-          className="inline-flex h-8 items-center rounded-md bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700"
-          onClick={() => openGuestProductDetailUrl(featureOpen.href)}
-        >
-          {featureOpen.buttonLabel}
-        </button>
+      {featureOpens.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {featureOpens.map((featureOpen) => (
+            <button
+              key={featureOpen.href}
+              type="button"
+              className="inline-flex h-8 items-center rounded-md bg-indigo-600 px-3 text-xs font-medium text-white hover:bg-indigo-700"
+              onClick={() => openGuestProductDetailUrl(featureOpen.href)}
+            >
+              {featureOpen.buttonLabel}
+            </button>
+          ))}
+        </div>
       ) : null}
       <OrderPaymentPanel
         raw={row.raw_payload}

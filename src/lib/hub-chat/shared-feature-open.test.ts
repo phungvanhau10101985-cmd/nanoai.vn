@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   isFeatureChatPause,
   resolveSharedFeatureOpen,
+  resolveStudyHelpMenu,
 } from '@/lib/hub-chat/shared-feature-open'
 
 test('standalone feature page opens that page', () => {
@@ -59,6 +60,26 @@ test('phục chế ảnh opens photo restoration', () => {
   assert.equal(open.open.kind, 'feature_page')
   assert.equal(open.open.href, '/phuc-dung-anh')
   assert.match(open.open.label, /Phục dựng/)
+})
+
+test('giúp tôi học bài lists study features instead of one tool', () => {
+  const menu = resolveStudyHelpMenu('Giúp tôi học bài', 'vi')
+  assert.ok(menu)
+  assert.match(menu.message, /học bài/)
+  assert.doesNotMatch(menu.message, /https?:\/\//)
+  assert.deepEqual(
+    menu.opens.map((open) => open.href),
+    ['/ho-tro-lam-bai', '/gia-su-ai', '/hoc-tieng-anh-ai', '/hoc-bai-hoc-co-san']
+  )
+  assert.equal(menu.opens[3]?.label, 'Bài học có sẵn')
+  assert.equal(resolveSharedFeatureOpen('Giúp tôi học bài', 'vi'), null)
+})
+
+test('a named study tool still opens that one feature', () => {
+  assert.equal(resolveStudyHelpMenu('học với gia sư', 'vi'), null)
+  assert.equal(resolveStudyHelpMenu('hỗ trợ làm bài', 'vi'), null)
+  const open = resolveSharedFeatureOpen('học với gia sư', 'vi')
+  assert.equal(open?.open.href, '/gia-su-ai')
 })
 
 test('greeting does not invent a feature', () => {

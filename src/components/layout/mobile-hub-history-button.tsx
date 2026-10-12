@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { History, Loader2, Trash2, X } from 'lucide-react'
+import { History, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import type { HubChatThreadSummary } from '@/lib/db/hub-chat-pg'
 import {
+  dispatchHubHistoryNewThread,
   dispatchHubHistoryOpenThread,
   dispatchHubHistoryThreadDeleted,
 } from '@/lib/hub-chat/hub-history-events'
@@ -16,11 +18,9 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { useToast } from '@/hooks/use-toast'
 
-/** Cùng chỗ với nút lịch sử trên thẻ Trợ lý NanoAI (dưới header, lệch trái). */
-const HISTORY_DOCK_STYLE = {
-  top: 'calc(var(--site-header-height, 3rem) + 1px + 1.25rem + 1px + 0.75rem + 0.125rem)',
-  left: 'calc(0.75rem + 1px + 0.75rem)',
-} as const
+/** Nằm trong header, sát logo. Danh sách mở dưới header. */
+const HISTORY_DRAWER_CLASS =
+  'fixed left-3 top-[calc(var(--site-header-height,3rem)+0.5rem)] z-[60] h-[min(36rem,calc(100dvh-var(--site-header-height,3rem)-5rem))]'
 
 function formatThreadUpdatedAt(iso: string, locale: WebLocale): string {
   try {
@@ -52,7 +52,12 @@ export function MobileHubHistoryButton() {
   const [loading, setLoading] = useState(false)
   const [loginRequired, setLoginRequired] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [mounted, setMounted] = useState(false)
   const hide = pathname.startsWith('/auth')
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const syncPath = () => setPathname(window.location.pathname || '/')
@@ -97,6 +102,16 @@ export function MobileHubHistoryButton() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
+  const startNewHub = useCallback(() => {
+    setOpen(false)
+    clearHubThreadId()
+    if ((window.location.pathname || '/') === '/') {
+      dispatchHubHistoryNewThread()
+      return
+    }
+    router.push('/')
+  }, [router])
+
   const openThread = useCallback(
     (id: string) => {
       setOpen(false)
@@ -139,43 +154,34 @@ export function MobileHubHistoryButton() {
 
   if (hide) return null
 
-  return (
-    <>
-      {open ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-[45] bg-slate-900/20 lg:hidden"
-          aria-label={hc.chatHistoryClose}
-          onClick={() => setOpen(false)}
-        />
-      ) : (
-        <button
-          type="button"
-          className="fixed z-[46] flex h-9 w-9 items-center justify-center rounded-md border border-indigo-200 bg-white text-indigo-700 shadow-md lg:hidden dark:border-indigo-800 dark:bg-slate-950 dark:text-indigo-200"
-          style={HISTORY_DOCK_STYLE}
-          aria-expanded={false}
-          aria-controls="hub-chat-history-drawer"
-          aria-label={hc.chatHistory}
-          onClick={() => setOpen(true)}
-        >
-          <History className="h-4 w-4" />
-        </button>
-      )}
-      {open ? (
-        <div
-          id="hub-chat-history-drawer"
-          className="fixed z-[46] flex w-[min(19rem,88%)] flex-col overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-xl lg:hidden dark:border-indigo-900 dark:bg-slate-950"
-          style={{
-            ...HISTORY_DOCK_STYLE,
-            height: 'min(36rem, calc(100dvh - var(--site-header-height, 3rem) - 8rem))',
-          }}
-        >
+  const drawer =
+    open && mounted
+      ? createPortal(
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-[55] bg-slate-900/20 lg:hidden"
+              aria-label={hc.chatHistoryClose}
+              onClick={() => setOpen(false)}
+            />
+            <div
+              id="hub-chat-history-drawer"
+              className={`${HISTORY_DRAWER_CLASS} flex w-[min(19rem,88%)] flex-col overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-xl lg:hidden dark:border-indigo-900 dark:bg-slate-950`}
+            >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
-            <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-              <p className="text-xs font-medium text-indigo-900 dark:text-indigo-100">
+            <div className="mb-2 flex shrink-0 items-center gap-1.5">
+              <p className="min-w-0 flex-1 truncate text-xs font-medium text-indigo-900 dark:text-indigo-100">
                 {hc.chatHistory}
                 {threads.length > 0 ? ` (${threads.length})` : ''}
               </p>
+              <button
+                type="button"
+                className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 text-[11px] font-medium text-indigo-800 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-100 dark:hover:bg-indigo-950"
+                onClick={startNewHub}
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden />
+                {hc.newHub}
+              </button>
               <button
                 type="button"
                 className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-indigo-100 dark:hover:bg-indigo-950/50"
@@ -235,8 +241,25 @@ export function MobileHubHistoryButton() {
               </ul>
             )}
           </div>
-        </div>
-      ) : null}
+            </div>
+          </>,
+          document.body
+        )
+      : null
+
+  return (
+    <>
+      <button
+        type="button"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-indigo-200 bg-white text-indigo-700 lg:hidden dark:border-indigo-800 dark:bg-slate-950 dark:text-indigo-200"
+        aria-expanded={open}
+        aria-controls="hub-chat-history-drawer"
+        aria-label={hc.chatHistory}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <History className="h-4 w-4" />
+      </button>
+      {drawer}
     </>
   )
 }

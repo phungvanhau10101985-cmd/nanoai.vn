@@ -30,6 +30,7 @@ import {
   saveHubThreadId,
 } from '@/lib/hub-chat/hub-chat-prefill'
 import {
+  HUB_HISTORY_NEW_THREAD_EVENT,
   HUB_HISTORY_OPEN_THREAD_EVENT,
   HUB_HISTORY_THREAD_DELETED_EVENT,
   type HubHistoryThreadDetail,
@@ -889,6 +890,12 @@ export function HomeHubChatBar() {
     setShowFeaturePicker(true)
     studioLaunchStartedRef.current = false
   }, [])
+
+  useEffect(() => {
+    const onNew = () => startNewThread()
+    window.addEventListener(HUB_HISTORY_NEW_THREAD_EVENT, onNew)
+    return () => window.removeEventListener(HUB_HISTORY_NEW_THREAD_EVENT, onNew)
+  }, [startNewThread])
 
   const postStudio = useCallback(
     async (payload: {
@@ -3525,7 +3532,6 @@ export function HomeHubChatBar() {
     <div className="surface-card relative border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
       <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
         <div className="flex items-start gap-2">
-          <div className="mt-0.5 h-9 w-9 shrink-0 lg:hidden" aria-hidden />
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
               <Sparkles className="h-5 w-5 text-indigo-600" />

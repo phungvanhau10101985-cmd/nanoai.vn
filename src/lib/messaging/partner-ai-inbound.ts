@@ -59,8 +59,9 @@ import {
   absoluteSharedFeatureHref,
   isFeatureChatPause,
   resolveSharedFeatureOpen,
+  resolveStudyHelpMenu,
 } from '@/lib/hub-chat/shared-feature-open'
-import { loadItFeatureProductContext } from '@/lib/messaging/partner-ai-it-feature-product'
+import { loadItFeatureProductContext, loadStudyHelpProductCards } from '@/lib/messaging/partner-ai-it-feature-product'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import {
   createPartnerAiRouteDecision,
@@ -270,6 +271,7 @@ async function replyForItShopFeatureIntent(input: {
   }
   const dict = getDictionary(locale)
   const shared = resolveSharedFeatureOpen(probe, locale)
+  const study = shared ? null : resolveStudyHelpMenu(probe, locale)
   let intent: PartnerAiRouteIntent = 'clarify'
   let body = dict.partnerGuestChat.itFeatureLinkClarify
   let featureOpen: {
@@ -278,6 +280,12 @@ async function replyForItShopFeatureIntent(input: {
     label: string
     button_label: string
   } | null = null
+  let featureOpens: Array<{
+    kind: 'feature_page' | 'hub'
+    href: string
+    label: string
+    button_label: string
+  }> | null = null
   if (shared) {
     body = shared.message
     intent = 'explicit_sku_consult'
@@ -287,6 +295,16 @@ async function replyForItShopFeatureIntent(input: {
       label: shared.open.label,
       button_label: shared.open.buttonLabel,
     }
+  } else if (study) {
+    body = study.message
+    intent = 'explicit_sku_consult'
+    const origin = getPublicAppUrlForServer()
+    featureOpens = study.opens.map((open) => ({
+      kind: open.kind,
+      href: absoluteSharedFeatureHref(open.href, origin),
+      label: open.label,
+      button_label: open.buttonLabel,
+    }))
   } else if (isFeatureChatPause(probe)) {
     body = dict.partnerGuestChat.itFeatureLinkPause
     intent = 'pause_or_close'
@@ -302,7 +320,7 @@ async function replyForItShopFeatureIntent(input: {
   const decision = createPartnerAiRouteDecision(intent, {
     source: 'hard_rule',
     reason: 'it_feature_link',
-    confidence: featureOpen ? 0.9 : 0.7,
+    confidence: featureOpen || featureOpens ? 0.9 : 0.7,
     salesStage: 'browsing',
     ctaStrategy: 'no_cta',
   })
@@ -331,6 +349,14 @@ async function replyForItShopFeatureIntent(input: {
           href: featureOpen.href,
         })
       : null
+    const studyCards = featureOpens?.length
+      ? await loadStudyHelpProductCards({
+          partnerId: input.partnerId,
+          conversationId: input.conversationId,
+          sourceMessageId: input.messageId,
+          hrefs: featureOpens.map((open) => open.href),
+        })
+      : []
     await sleep(typingDelayMs(input.settings))
     const err = await deliverAutomatedPartnerMessage({
       conversation: conv,
@@ -338,11 +364,12 @@ async function replyForItShopFeatureIntent(input: {
       body: addressed,
       rawPayload: {
         source: 'it_feature_link',
-        ai_product_cards: productContext ? [productContext.card] : [],
+        ai_product_cards: featureOpens ? studyCards : productContext ? [productContext.card] : [],
         ...(productContext ? { feature_product: productContext.product } : {}),
         partner_ai_industry_branch: 'it',
         ...partnerAiRouteDecisionToPayload(decision),
         ...(featureOpen ? { feature_open: featureOpen } : {}),
+        ...(featureOpens ? { feature_opens: featureOpens } : {}),
       } as unknown as Json,
     })
     if (err.error) console.error('[partner-ai-inbound] it feature deliver', err.error)

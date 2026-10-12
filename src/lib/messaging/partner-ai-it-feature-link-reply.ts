@@ -27,13 +27,7 @@ export type ItFeatureOpenButton = {
  * Nút mở tính năng chỉ thuộc tin shop (`source = it_feature_link`).
  * Tin khách có thể mang `feature_open` để ghi nhận định — không vẽ nút ở đó.
  */
-export function itFeatureOpenButtonFromPayload(raw: unknown): ItFeatureOpenButton | null {
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
-  const record = raw as Record<string, unknown>
-  if (String(record.source ?? '') !== 'it_feature_link') return null
-  const open = record.feature_open
-  if (!open || typeof open !== 'object' || Array.isArray(open)) return null
-  const row = open as Record<string, unknown>
+function parseFeatureOpenItem(row: Record<string, unknown>): ItFeatureOpenButton | null {
   const kind = String(row.kind ?? '')
   const href = String(row.href ?? '').trim()
   if (kind !== 'feature_page' && kind !== 'hub') return null
@@ -42,6 +36,38 @@ export function itFeatureOpenButtonFromPayload(raw: unknown): ItFeatureOpenButto
   const buttonLabel = String(row.button_label ?? row.buttonLabel ?? '').trim() || label
   if (!buttonLabel) return null
   return { href, label, buttonLabel }
+}
+
+export function itFeatureOpenButtonFromPayload(raw: unknown): ItFeatureOpenButton | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const record = raw as Record<string, unknown>
+  if (String(record.source ?? '') !== 'it_feature_link') return null
+  const open = record.feature_open
+  if (!open || typeof open !== 'object' || Array.isArray(open)) return null
+  return parseFeatureOpenItem(open as Record<string, unknown>)
+}
+
+/** Một nút hoặc danh sách nút học bài trên tin shop. */
+export function itFeatureOpenButtonsFromPayload(raw: unknown): ItFeatureOpenButton[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
+  const record = raw as Record<string, unknown>
+  if (String(record.source ?? '') !== 'it_feature_link') return []
+  const many = record.feature_opens
+  if (Array.isArray(many)) {
+    const out: ItFeatureOpenButton[] = []
+    const seen = new Set<string>()
+    for (const item of many) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+      const button = parseFeatureOpenItem(item as Record<string, unknown>)
+      if (!button || seen.has(button.href)) continue
+      seen.add(button.href)
+      out.push(button)
+      if (out.length >= 8) break
+    }
+    if (out.length) return out
+  }
+  const one = itFeatureOpenButtonFromPayload(raw)
+  return one ? [one] : []
 }
 
 export type ItFeatureLinkCopy = {

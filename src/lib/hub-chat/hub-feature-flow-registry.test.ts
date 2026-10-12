@@ -5,6 +5,7 @@ import { buildAdvisoryPayload, tagWorkflowFlowMeta } from '@/lib/hub-chat/hub-ad
 import {
   buildStandaloneFeatureEntries,
   catalogSurfaceForHubTurn,
+  isBroadStudyHelpIntent,
   matchFeatureFlowByMessage,
   resolveIdleFeatureMatch,
 } from '@/lib/hub-chat/hub-feature-flow-registry'
@@ -195,6 +196,12 @@ test('gia sư ai opens the 1:1 tutor, not curriculum or homework help', () => {
   if (teach?.kind === 'standalone') assert.notEqual(teach.href, '/gia-su-ai')
   const homework = matchFeatureFlowByMessage('hỗ trợ làm bài', 'vi')
   if (homework?.kind === 'standalone') assert.equal(homework.href, '/ho-tro-lam-bai')
+})
+
+test('giúp tôi học bài stays a menu, not one study tool', () => {
+  assert.equal(isBroadStudyHelpIntent('Giúp tôi học bài'), true)
+  assert.equal(isBroadStudyHelpIntent('học với gia sư'), false)
+  assert.equal(matchFeatureFlowByMessage('Giúp tôi học bài', 'vi'), null)
 })
 
 test('hỗ trợ làm bài opens homework help, not teacher homework', () => {
