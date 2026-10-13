@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
 import { Camera, History, ImagePlus, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
@@ -240,19 +241,13 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   async function openHistory() {
-    if (historyOpen) {
-      setHistoryOpen(false)
-      return
-    }
     setHistoryOpen(true)
     await loadHistory()
   }
 
   async function openSavedThread(id: string) {
-    if (busyRef.current || id === sessionId) {
-      setHistoryOpen(false)
-      return
-    }
+    setHistoryOpen(false)
+    if (busyRef.current || id === sessionId) return
     setError('')
     const result = await openHomeworkHistoryThread(id)
     if (!result.ok) {
@@ -278,7 +273,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return []
     })
     setSessionId(result.data.sessionId)
-    setHistoryOpen(false)
   }
 
   async function send() {
@@ -489,49 +483,46 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         </div>
       </div>
 
-      {historyOpen ? (
-        <div className="max-h-48 shrink-0 overflow-y-auto border-b bg-background px-3 py-2 md:bg-card">
-          <div className="mb-1 flex items-center justify-between gap-2">
-            <p className="text-xs font-medium">{copy.history}</p>
-            <button
-              type="button"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
-              aria-label={copy.historyClose}
-              onClick={() => setHistoryOpen(false)}
-            >
-              <X className="h-4 w-4" />
-            </button>
+      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+        <DialogContent
+          className="z-[80] flex max-h-[min(32rem,85dvh)] w-[calc(100%-1.5rem)] max-w-md flex-col gap-3 p-4 sm:p-6"
+          overlayClassName="z-[70]"
+        >
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle>{copy.history}</DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {historyLoading ? (
+              <p className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {copy.historyLoading}
+              </p>
+            ) : sessions.length === 0 ? (
+              <p className="py-2 text-sm text-muted-foreground">{copy.historyEmpty}</p>
+            ) : (
+              <ul className="space-y-1">
+                {sessions.map((session) => (
+                  <li key={session.id}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void openSavedThread(session.id)}
+                      className={`flex w-full flex-col rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60 ${
+                        session.id === sessionId ? 'bg-muted' : ''
+                      }`}
+                    >
+                      <span className="line-clamp-2 font-medium">{session.preview || copy.photoTurn}</span>
+                      <span className="mt-0.5 text-xs text-muted-foreground">
+                        {formatHomeworkWhen(session.updatedAt, locale)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          {historyLoading ? (
-            <p className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              {copy.historyLoading}
-            </p>
-          ) : sessions.length === 0 ? (
-            <p className="py-2 text-xs text-muted-foreground">{copy.historyEmpty}</p>
-          ) : (
-            <ul className="space-y-1">
-              {sessions.map((session) => (
-                <li key={session.id}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void openSavedThread(session.id)}
-                    className={`flex w-full flex-col rounded-md px-2 py-1.5 text-left text-xs hover:bg-muted disabled:opacity-60 ${
-                      session.id === sessionId ? 'bg-muted' : ''
-                    }`}
-                  >
-                    <span className="line-clamp-1 font-medium">{session.preview || copy.photoTurn}</span>
-                    <span className="mt-0.5 text-[11px] text-muted-foreground">
-                      {formatHomeworkWhen(session.updatedAt, locale)}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
+        </DialogContent>
+      </Dialog>
 
       {previews.length > 0 ? (
         <div className="flex shrink-0 gap-2 overflow-x-auto border-b bg-background px-3 py-2 md:bg-card">

@@ -437,11 +437,14 @@ export type Dictionary = {
     trialActiveLine: string
     /** {days} */
     trialTotalDaysNote: string
+    /** {days} — chưa dùng giáo trình lần nào */
+    trialNotStarted: string
     /** {days} */
     trialDaysLeft: string
     /** {datetime} */
     trialEndsAtLine: string
     trialNotActive: string
+    statusTrialPending: string
     servicesSectionTitle: string
     productCurriculum: string
     statusViaTrial: string
@@ -808,6 +811,7 @@ export type Dictionary = {
     messagingWebsiteLink: string
     messagingOrdersLink: string
     messagingProfitLink: string
+    messagingShipQueueLink: string
     messagingAnalyticsLink: string
     messagingSettingsPageTitle: string
     /** Ô chọn shop trên thanh header trang quản trị */
@@ -4338,11 +4342,14 @@ export const VI_DICTIONARY: Dictionary = {
     trialSectionTitle: 'Dùng thử miễn phí',
     trialActiveLine:
       'Bạn đang trong thời gian dùng thử — chưa trừ phí tháng giáo trình.',
-    trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ khi tạo tài khoản.',
+    trialTotalDaysNote: 'Thời lượng dùng thử: {days} ngày kể từ lần đầu dùng giáo trình, phiếu bài tập hoặc bài thi.',
+    trialNotStarted:
+      'Chưa bắt đầu. {days} ngày dùng thử tính từ lần đầu bạn tạo giáo trình, phiếu hoặc bài thi — không tính từ lúc tạo tài khoản.',
     trialDaysLeft: 'Còn lại khoảng {days} ngày.',
     trialEndsAtLine: 'Hết hạn dùng thử (dự kiến): {datetime}',
     trialNotActive:
-      'Bạn không còn trong 18 ngày dùng thử đầu tiên. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
+      'Đã hết thời gian dùng thử kể từ lần đầu dùng giáo trình. Phí tháng giáo trình sẽ trừ bằng credit mỗi kỳ khi áp dụng.',
+    statusTrialPending: 'Chưa dùng giáo trình — phí tháng chưa trừ.',
     servicesSectionTitle: 'Phí tháng giáo trình (credit)',
     productCurriculum: 'Giáo trình & tạo bài',
     statusViaTrial: 'Đang dùng thử — chưa trừ phí tháng.',
@@ -4712,7 +4719,8 @@ export const VI_DICTIONARY: Dictionary = {
     emailManagementLink: 'Quản lý gửi email',
     messagingWebsiteLink: 'Tạo web & landing',
     messagingOrdersLink: 'Đơn hàng',
-    messagingProfitLink: 'Lợi nhuận',
+    messagingProfitLink: 'Chi phí lợi nhuận',
+    messagingShipQueueLink: 'Hàng chờ gửi',
     messagingAnalyticsLink: 'Doanh thu',
     messagingSettingsPageTitle: 'Quản trị shop',
     settingsHeaderShopSelect: 'Chọn shop',

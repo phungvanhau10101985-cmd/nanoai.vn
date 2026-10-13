@@ -112,7 +112,7 @@ export type AdSpendPageCopy = {
 }
 
 const vi: AdSpendPageCopy = {
-  title: 'Lợi nhuận',
+  title: 'Chi phí lợi nhuận',
   intro: 'Chọn hôm nay, tuần hoặc tháng. Chi phí quảng cáo Google và Facebook cùng lợi nhuận của kỳ đó hiện ngay bên dưới.',
   badRange: 'Chọn ngày bắt đầu trước hoặc bằng ngày kết thúc.',
   from: 'Từ',
@@ -251,7 +251,7 @@ const vi: AdSpendPageCopy = {
 
 const en: AdSpendPageCopy = {
   ...vi,
-  title: 'Profit',
+  title: 'Cost and profit',
   intro: 'Pick today, a week, or a month. Google and Facebook ad spend and profit for that period appear below.',
   badRange: 'Pick a start date on or before the end date.',
   from: 'From',
@@ -379,7 +379,7 @@ const en: AdSpendPageCopy = {
 
 const zh: AdSpendPageCopy = {
   ...en,
-  title: '利润',
+  title: '成本与利润',
   intro: '选择今天、本周或本月。下方立即显示该期间的 Google、Facebook 广告费和利润。',
   badRange: '开始日期必须早于或等于结束日期。',
   from: '从',
@@ -507,7 +507,7 @@ const zh: AdSpendPageCopy = {
 
 const ja: AdSpendPageCopy = {
   ...en,
-  title: '利益',
+  title: '費用と利益',
   intro: '今日、今週、今月を選びます。その期間の Google と Facebook の広告費と利益が下に出ます。',
   badRange: '開始日は終了日と同じか、それより前にしてください。',
   from: '開始',
@@ -635,7 +635,7 @@ const ja: AdSpendPageCopy = {
 
 const ko: AdSpendPageCopy = {
   ...en,
-  title: '이익',
+  title: '비용과 이익',
   intro: '오늘, 이번 주, 이번 달을 고르면 그 기간의 Google·Facebook 광고비와 이익이 아래에 나옵니다.',
   badRange: '시작일은 종료일과 같거나 더 이전이어야 합니다.',
   from: '부터',

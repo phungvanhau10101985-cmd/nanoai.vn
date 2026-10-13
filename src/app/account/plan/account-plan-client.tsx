@@ -35,6 +35,7 @@ type StudentPlanOption = {
 
 type StudentProduct = {
   accessGranted: boolean
+  trialStarted: boolean
   trialActive: boolean
   trialEndsAt: string | null
   trialDaysRemaining: number
@@ -55,10 +56,11 @@ type PlanPayload = {
   signupBonusCredits: number
   freeTrialDays: number
   freeTrial: {
+    started: boolean
+    startedAt: string | null
     active: boolean
     endsAt: string | null
     daysRemaining: number
-    userCreatedAt: string | null
   }
   products: {
     curriculum: ProductRow
@@ -88,6 +90,7 @@ function parseStudentProduct(value: unknown): StudentProduct | null {
   if (plans.length !== 3) return null
   return {
     accessGranted: Boolean(o.accessGranted),
+    trialStarted: Boolean(o.trialStarted),
     trialActive: Boolean(o.trialActive),
     trialEndsAt: typeof o.trialEndsAt === 'string' ? o.trialEndsAt : null,
     trialDaysRemaining: Math.max(0, Math.floor(Number(o.trialDaysRemaining) || 0)),
@@ -130,10 +133,11 @@ function parsePlanPayload(json: unknown): PlanPayload | null {
     signupBonusCredits: Number.isFinite(signupBonusCredits) ? signupBonusCredits : 0,
     freeTrialDays: Number.isFinite(freeTrialDays) ? freeTrialDays : 0,
     freeTrial: {
+      started: Boolean(f.started),
+      startedAt: typeof f.startedAt === 'string' ? f.startedAt : null,
       active: Boolean(f.active),
       endsAt: typeof f.endsAt === 'string' ? f.endsAt : null,
       daysRemaining: Math.max(0, Math.floor(Number(f.daysRemaining) || 0)),
-      userCreatedAt: typeof f.userCreatedAt === 'string' ? f.userCreatedAt : null,
     },
     products: { curriculum: cur, student },
   }
@@ -144,6 +148,7 @@ function ProductBlock({
   row,
   period,
   freeTrialActive,
+  trialNotStarted,
   t,
   webLocale,
 }: {
@@ -151,6 +156,7 @@ function ProductBlock({
   row: ProductRow
   period: string
   freeTrialActive: boolean
+  trialNotStarted: boolean
   t: Dictionary['accountPlan']
   webLocale: WebLocale
 }) {
@@ -173,6 +179,9 @@ function ProductBlock({
     variant = 'default'
   } else if (freeTrialActive) {
     status = t.statusViaTrial
+    variant = 'secondary'
+  } else if (trialNotStarted) {
+    status = t.statusTrialPending
     variant = 'secondary'
   } else {
     status = t.statusAccessOn
@@ -339,8 +348,12 @@ export function AccountPlanClientPage({
                   <p>{fillI18nTemplate(t.trialDaysLeft, { days: String(data.freeTrial.daysRemaining) })}</p>
                   {trialEndStr ? <p>{fillI18nTemplate(t.trialEndsAtLine, { datetime: trialEndStr })}</p> : null}
                 </CardDescription>
-              ) : (
+              ) : data.freeTrial.started ? (
                 <CardDescription>{t.trialNotActive}</CardDescription>
+              ) : (
+                <CardDescription>
+                  {fillI18nTemplate(t.trialNotStarted, { days: String(data.freeTrialDays) })}
+                </CardDescription>
               )}
             </CardHeader>
           </Card>
@@ -374,7 +387,9 @@ export function AccountPlanClientPage({
                     days: String(data.products.student.trialDaysRemaining),
                   })}
                 </Badge>
-              ) : null}
+              ) : data.products.student.trialStarted ? null : (
+                <p className="text-sm text-muted-foreground">{studentCopy.trialWaiting}</p>
+              )}
               {studentAccessUntil ? (
                 <p className="text-sm text-foreground">
                   {fillI18nTemplate(studentCopy.accessUntil, { datetime: studentAccessUntil })}
@@ -415,6 +430,7 @@ export function AccountPlanClientPage({
                 row={data.products.curriculum}
                 period={data.period}
                 freeTrialActive={data.freeTrial.active}
+                trialNotStarted={!data.freeTrial.started}
                 t={t}
                 webLocale={webLocale}
               />

@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
 import {
   isCurriculumAiCreditsDisabled,
@@ -165,6 +166,7 @@ export type ApplyCurriculumAiChargeResult =
 export async function applyCurriculumAiCharge(
   input: ApplyCurriculumAiChargeInput
 ): Promise<ApplyCurriculumAiChargeResult> {
+  await beginFeatureTrial(input.userId, 'curriculum')
   const dailyQuota = await readCurriculumDailyBodyQuota(input.userId)
   const decision = await resolveCurriculumAiCharge(input)
 

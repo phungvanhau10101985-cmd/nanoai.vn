@@ -2,6 +2,7 @@
 
 import { getUserForAction } from '@/lib/auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { hasStudentStudyAccess } from '@/lib/student-study-access'
 import { askTutor, openTutorLabel } from '@/lib/ai-tutor/ai-tutor-ai'
 import {
@@ -24,7 +25,7 @@ export async function loadTutorThread(
 ): Promise<TutorActionResult<{ sessionId: string | null; messages: TutorThreadMessage[] }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const sessionId = await ensureTutorSession(auth.user.id, localeOf(locale))
@@ -35,7 +36,7 @@ export async function loadTutorThread(
 export async function startTutorThread(locale: string): Promise<TutorActionResult<{ sessionId: string | null }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const sessionId = await startTutorSession(auth.user.id, localeOf(locale))
@@ -67,7 +68,8 @@ export async function sendTutorQuestion(input: {
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
   const text = input.text.trim()
   if (!text) return { ok: false, code: 'missing_text' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const answer = await askTutor({
@@ -86,7 +88,8 @@ export async function openTutorLabelAction(input: {
 }): Promise<TutorActionResult<TutorAnswer>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const answer = await openTutorLabel({

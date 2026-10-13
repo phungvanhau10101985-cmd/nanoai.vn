@@ -1,6 +1,7 @@
 import { spendCreditsIdempotent } from '@/lib/db/credits-balance'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
+import { readFeatureTrialStartedAt } from '@/lib/feature-trial-start'
 import {
   STUDENT_STUDY_CHARGE_TYPE,
   isStudentStudyTrialActive,
@@ -53,44 +54,46 @@ export async function readPaidStudentStudyAccessEnd(userId: string): Promise<Dat
 
 export async function hasStudentStudyAccess(input: {
   userId: string
-  createdAt?: string | null
   now?: Date
 }): Promise<boolean> {
   const now = input.now ?? new Date()
-  if (isStudentStudyTrialActive(input.createdAt, now)) return true
+  const startedAt = await readFeatureTrialStartedAt(input.userId, 'student')
+  if (!startedAt) return true
+  if (isStudentStudyTrialActive(startedAt, now)) return true
   const paidEnd = await readPaidStudentStudyAccessEnd(input.userId)
   return Boolean(paidEnd && paidEnd.getTime() > now.getTime())
 }
 
 export async function readStudentStudyStatus(input: {
   userId: string
-  createdAt?: string | null
   now?: Date
 }): Promise<{
   accessGranted: boolean
+  trialStarted: boolean
   trialActive: boolean
   trialEndsAt: string | null
   trialDaysRemaining: number
   accessEndsAt: string | null
 }> {
   const now = input.now ?? new Date()
-  const trialEnds = studentStudyTrialEndsAt(input.createdAt)
-  const trialActive = isStudentStudyTrialActive(input.createdAt, now)
+  const startedAt = await readFeatureTrialStartedAt(input.userId, 'student')
+  const trialEnds = studentStudyTrialEndsAt(startedAt)
+  const trialActive = isStudentStudyTrialActive(startedAt, now)
   const paidEnd = await readPaidStudentStudyAccessEnd(input.userId)
   const paidActive = Boolean(paidEnd && paidEnd.getTime() > now.getTime())
   const accessEndMs = Math.max(trialActive && trialEnds ? trialEnds.getTime() : 0, paidActive && paidEnd ? paidEnd.getTime() : 0)
   return {
-    accessGranted: trialActive || paidActive,
+    accessGranted: !startedAt || trialActive || paidActive,
+    trialStarted: Boolean(startedAt),
     trialActive,
     trialEndsAt: trialEnds?.toISOString() ?? null,
-    trialDaysRemaining: studentStudyTrialDaysRemaining(input.createdAt, now),
+    trialDaysRemaining: studentStudyTrialDaysRemaining(startedAt, now),
     accessEndsAt: accessEndMs > 0 ? new Date(accessEndMs).toISOString() : null,
   }
 }
 
 export async function purchaseStudentStudyPlan(input: {
   userId: string
-  createdAt?: string | null
   planId: StudentStudyPlanId
   now?: Date
 }): Promise<
@@ -109,9 +112,10 @@ export async function purchaseStudentStudyPlan(input: {
   const credits = studentStudyPlanCredits(plan.priceVnd)
   const now = input.now ?? new Date()
   const paidEndsAt = await readPaidStudentStudyAccessEnd(input.userId)
+  const startedAt = await readFeatureTrialStartedAt(input.userId, 'student')
   const accessEndsAt = nextStudentStudyAccessEnd({
     paidEndsAt,
-    trialEndsAt: studentStudyTrialEndsAt(input.createdAt),
+    trialEndsAt: studentStudyTrialEndsAt(startedAt),
     days: plan.days,
     now,
   })

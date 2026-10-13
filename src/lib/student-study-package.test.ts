@@ -27,13 +27,15 @@ test('student package is homework help and tutor for every grade', () => {
   )
 })
 
-test('student trial lasts 6 days from signup', () => {
-  const created = '2026-10-01T00:00:00.000Z'
+test('student trial lasts 6 days from first real use', () => {
+  const started = '2026-10-01T00:00:00.000Z'
   const during = new Date('2026-10-06T00:00:00.000Z')
   const after = new Date('2026-10-07T00:00:00.000Z')
-  assert.equal(isStudentStudyTrialActive(created, during), true)
-  assert.equal(isStudentStudyTrialActive(created, after), false)
-  assert.equal(studentStudyTrialDaysRemaining(created, during), 1)
+  assert.equal(isStudentStudyTrialActive(started, during), true)
+  assert.equal(isStudentStudyTrialActive(started, after), false)
+  assert.equal(studentStudyTrialDaysRemaining(started, during), 1)
+  assert.equal(isStudentStudyTrialActive(null, during), false)
+  assert.equal(studentStudyTrialDaysRemaining(null, during), 0)
 })
 
 test('buying during trial extends past the trial end', () => {
@@ -50,6 +52,7 @@ test('student package copy names every grade and the three prices exist as label
     assert.ok(copy.planMonth.length > 0)
     assert.ok(copy.planQuarter.length > 0)
     assert.ok(copy.planYear.length > 0)
+    assert.ok(copy.trialWaiting.length > 0)
     assert.match(copy.audience.toLowerCase(), /cấp|grade|年级|学年|학년|level|学段|段階|과정|primary|tiểu|小学|小学/)
   }
 })

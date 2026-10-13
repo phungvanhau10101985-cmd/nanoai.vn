@@ -5,6 +5,7 @@ import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
 import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { getUserForCreditAction } from '@/lib/auth'
+import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -809,6 +810,7 @@ export async function createCurriculum(formData: FormData) {
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
   const { user } = result
+  await beginFeatureTrial(user.id, 'curriculum')
 
   const loadLessonTitleFromDb = async () => {
     if (!lessonNum) return null
@@ -1011,6 +1013,7 @@ export async function saveCurriculum(formData: FormData) {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
   const { user } = authResult
+  await beginFeatureTrial(user.id, 'curriculum')
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể lưu giáo trình.' }
   }
@@ -1755,6 +1758,7 @@ export async function createWorksheetFromQuestions(formData: FormData) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const userId = auth.user?.id
+  if (userId) await beginFeatureTrial(userId, 'curriculum')
 
   if (!isPgConfigured()) {
     return { error: 'Thiếu DATABASE_URL — không thể tạo phiếu bài tập.' }

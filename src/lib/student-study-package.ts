@@ -35,30 +35,30 @@ export function studentStudyPlanCredits(priceVnd: number): number {
 const MS_PER_DAY = 86_400_000
 
 export function studentStudyTrialEndsAt(
-  userCreatedAtIso: string | null | undefined,
+  trialStartedAtIso: string | null | undefined,
   now = new Date()
 ): Date | null {
   void now
-  if (!userCreatedAtIso) return null
-  const t = Date.parse(userCreatedAtIso)
+  if (!trialStartedAtIso) return null
+  const t = Date.parse(trialStartedAtIso)
   if (Number.isNaN(t)) return null
   return new Date(t + STUDENT_STUDY_TRIAL_DAYS * MS_PER_DAY)
 }
 
 export function isStudentStudyTrialActive(
-  userCreatedAtIso: string | null | undefined,
+  trialStartedAtIso: string | null | undefined,
   now = new Date()
 ): boolean {
-  const end = studentStudyTrialEndsAt(userCreatedAtIso)
+  const end = studentStudyTrialEndsAt(trialStartedAtIso)
   if (!end) return false
   return now.getTime() < end.getTime()
 }
 
 export function studentStudyTrialDaysRemaining(
-  userCreatedAtIso: string | null | undefined,
+  trialStartedAtIso: string | null | undefined,
   now = new Date()
 ): number {
-  const end = studentStudyTrialEndsAt(userCreatedAtIso)
+  const end = studentStudyTrialEndsAt(trialStartedAtIso)
   if (!end || now.getTime() >= end.getTime()) return 0
   return Math.max(0, Math.ceil((end.getTime() - now.getTime()) / MS_PER_DAY))
 }
@@ -91,6 +91,7 @@ export type StudentStudyPackageCopy = {
   homework: string
   tutor: string
   trialNote: string
+  trialWaiting: string
   trialActive: string
   accessUntil: string
   excludesLanguage: string
@@ -115,7 +116,8 @@ const COPY: Record<WebLocale, StudentStudyPackageCopy> = {
     includesTitle: 'Trong gói',
     homework: 'Hỗ trợ chữa bài — chụp hoặc gõ đề, xem hướng làm, rồi đối chiếu bài của mình.',
     tutor: 'Gia sư — chat riêng, giải thích dễ hiểu và ví dụ thực tế.',
-    trialNote: 'Học thử {days} ngày kể từ khi tạo tài khoản. Hết thử thì mua gói.',
+    trialNote: 'Học thử {days} ngày kể từ lần đầu gửi bài chữa hoặc hỏi gia sư.',
+    trialWaiting: 'Chưa bắt đầu. Đồng hồ chạy khi bạn dùng hỗ trợ chữa bài hoặc gia sư lần đầu.',
     trialActive: 'Đang học thử — còn khoảng {days} ngày.',
     accessUntil: 'Gói dùng đến {datetime}.',
     excludesLanguage: 'Học ngoại ngữ AI không nằm trong gói này. Luyện nói trả theo từng buổi.',
@@ -138,7 +140,8 @@ const COPY: Record<WebLocale, StudentStudyPackageCopy> = {
     includesTitle: 'Included',
     homework: 'Homework help — photo or type a problem, see how to think it through, then check your work.',
     tutor: 'Tutor — a private chat with a plain explanation and a real-life example.',
-    trialNote: '{days}-day trial from account creation. Buy a plan when it ends.',
+    trialNote: '{days}-day trial from the first homework check or tutor question.',
+    trialWaiting: 'Not started. The clock starts the first time you use homework help or the tutor.',
     trialActive: 'Trial in progress — about {days} day(s) left.',
     accessUntil: 'Plan active until {datetime}.',
     excludesLanguage: 'AI language practice is not in this plan. It is billed per session.',
@@ -161,7 +164,8 @@ const COPY: Record<WebLocale, StudentStudyPackageCopy> = {
     includesTitle: '包含',
     homework: '作业辅导 — 拍照或输入题目，先看思路，再对照自己的解答。',
     tutor: '家教 — 单独聊天，用好懂的话和现实例子讲解。',
-    trialNote: '自注册起可试用 {days} 天。结束后购买套餐。',
+    trialNote: '自第一次提交作业批改或向家教提问起，可试用 {days} 天。',
+    trialWaiting: '尚未开始。第一次使用作业辅导或家教时才开始计时。',
     trialActive: '试用中 — 大约还剩 {days} 天。',
     accessUntil: '套餐有效期至 {datetime}。',
     excludesLanguage: 'AI 外语练习不在此套餐内，按每次会话计费。',
@@ -184,7 +188,8 @@ const COPY: Record<WebLocale, StudentStudyPackageCopy> = {
     includesTitle: '含まれるもの',
     homework: '宿題サポート — 問題を撮影または入力し、考え方を見てから自分の答案を照合。',
     tutor: 'チューター — 個別チャットで、わかりやすい説明と実例。',
-    trialNote: '登録から {days} 日間お試し。終了後にプランを購入します。',
+    trialNote: '宿題の添削を送るか、チューターに質問した初回から {days} 日間お試し。',
+    trialWaiting: '未開始です。宿題サポートかチューターを初めて使ったときから計ります。',
     trialActive: 'お試し中 — 残り約 {days} 日。',
     accessUntil: '{datetime} まで利用できます。',
     excludesLanguage: 'AI語学練習はこのプランに含まれません。回ごとの課金です。',
@@ -207,7 +212,8 @@ const COPY: Record<WebLocale, StudentStudyPackageCopy> = {
     includesTitle: '포함',
     homework: '숙제 도움 — 문제를 찍거나 입력하고, 풀이 방향을 본 뒤 내 답을 대조합니다.',
     tutor: '튜터 — 1:1 채팅, 쉬운 설명과 실제 예시.',
-    trialNote: '가입일부터 {days}일 체험. 끝나면 요금제를 구매합니다.',
+    trialNote: '숙제를 처음 보내거나 튜터에게 처음 질문한 시점부터 {days}일 체험.',
+    trialWaiting: '아직 시작하지 않았습니다. 숙제 도움이나 튜터를 처음 쓸 때 시계가 갑니다.',
     trialActive: '체험 중 — 약 {days}일 남음.',
     accessUntil: '{datetime}까지 이용할 수 있습니다.',
     excludesLanguage: 'AI 외국어 연습은 이 요금제에 없습니다. 회차별로 결제합니다.',

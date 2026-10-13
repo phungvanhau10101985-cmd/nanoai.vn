@@ -2,6 +2,7 @@
 
 import { getUserForAction } from '@/lib/auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { hasStudentStudyAccess } from '@/lib/student-study-access'
 import {
   explainHomeworkImages,
@@ -59,7 +60,7 @@ export async function loadHomeworkThread(
 ): Promise<HomeworkHelpActionResult<{ sessionId: string | null; messages: HomeworkThreadMessage[] }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const sessionId = await ensureHomeworkSession(auth.user.id, localeOf(locale))
@@ -70,7 +71,7 @@ export async function loadHomeworkThread(
 export async function startHomeworkThread(locale: string): Promise<HomeworkHelpActionResult<{ sessionId: string | null }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const sessionId = await startHomeworkSession(auth.user.id, localeOf(locale))
@@ -99,7 +100,8 @@ export async function explainHomeworkPhoto(
 ): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
 
@@ -144,7 +146,8 @@ export async function explainTypedHomework(input: {
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
   const text = input.text.trim()
   if (!text) return { ok: false, code: 'missing_text' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'
@@ -175,7 +178,8 @@ export async function reviewHomeworkWork(input: {
   const statement = input.statement.trim()
   const attempt = input.attempt.trim()
   if (!statement || !attempt) return { ok: false, code: 'missing_attempt' }
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'

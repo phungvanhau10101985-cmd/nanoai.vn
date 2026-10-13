@@ -11,6 +11,7 @@ import {
   isValidYearMonth,
   type MonthlyServiceProduct,
 } from '@/lib/monthly-service-credits'
+import { readFeatureTrialStartedAt } from '@/lib/feature-trial-start'
 import { purchaseStudentStudyPlan, readStudentStudyStatus } from '@/lib/student-study-access'
 import { STUDENT_STUDY_PLANS, studentStudyPlanById, studentStudyPlanCredits } from '@/lib/student-study-package'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
@@ -106,16 +107,15 @@ export async function GET() {
     }
     const curriculum = await productPayload(auth.user.id, yearMonth, 'curriculum')
 
-    const createdAt = auth.user.created_at
-    const freeTrialActive = isServiceFreeTrialActive(createdAt)
-    const trialEndsAt = getServiceTrialEndsAt(createdAt)
+    const trialStartedAt = await readFeatureTrialStartedAt(auth.user.id, 'curriculum')
+    const freeTrialActive = isServiceFreeTrialActive(trialStartedAt)
+    const trialEndsAt = getServiceTrialEndsAt(trialStartedAt)
     const curriculumOut = {
       ...curriculum,
-      accessGranted: curriculum.chargedThisPeriod || freeTrialActive,
+      accessGranted: curriculum.chargedThisPeriod || freeTrialActive || !trialStartedAt,
     }
     const studentStatus = await readStudentStudyStatus({
       userId: auth.user.id,
-      createdAt,
     })
 
     return NextResponse.json({
@@ -125,10 +125,11 @@ export async function GET() {
       signupBonusCredits: SIGNUP_BONUS_CREDITS,
       freeTrialDays: SERVICE_FREE_TRIAL_DAYS,
       freeTrial: {
+        started: Boolean(trialStartedAt),
+        startedAt: trialStartedAt,
         active: freeTrialActive,
         endsAt: trialEndsAt?.toISOString() ?? null,
-        daysRemaining: getServiceFreeTrialDaysRemaining(createdAt),
-        userCreatedAt: createdAt ?? null,
+        daysRemaining: getServiceFreeTrialDaysRemaining(trialStartedAt),
       },
       products: {
         curriculum: curriculumOut,
@@ -182,7 +183,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }, { status: 503 })
     }
 
-    const createdAt = auth.user.created_at
     if (resolved === 'student') {
       const plan = studentStudyPlanById(String(body.plan ?? ''))
       if (!plan) {
@@ -190,7 +190,6 @@ export async function POST(request: NextRequest) {
       }
       const bought = await purchaseStudentStudyPlan({
         userId: auth.user.id,
-        createdAt,
         planId: plan.id,
       })
       if (!bought.ok) {
@@ -220,13 +219,15 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    if (isServiceFreeTrialActive(createdAt)) {
+    const trialStartedAt = await readFeatureTrialStartedAt(auth.user.id, 'curriculum')
+    const freeTrialActive = isServiceFreeTrialActive(trialStartedAt)
+    if (!trialStartedAt || freeTrialActive) {
       const newBalance = await readCreditBalance(auth.user.id)
       return NextResponse.json({
         ok: true,
         charged: false,
         skippedCharge: true,
-        freeTrialActive: true,
+        freeTrialActive,
         code: 'FREE_TRIAL_NO_MONTHLY_CHARGE',
         newBalance,
         period: yearMonth,

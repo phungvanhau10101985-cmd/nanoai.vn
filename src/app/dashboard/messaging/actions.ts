@@ -1370,6 +1370,24 @@ export async function fetchMyMessagingOrderProfitSheet(input: {
   return { sheet }
 }
 
+export async function fetchMyMessagingShipQueue(input: {
+  partnerId?: string
+  period?: 'all' | 'day' | 'week' | 'month'
+}): Promise<{ queue: import('@/lib/db/messaging-partner-ship-queue-pg').PartnerShipQueue } | { error: string }> {
+  const auth = await requireUser()
+  if ('error' in auth) return { error: auth.error ?? 'Unauthorized.' }
+  const { user } = auth
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set.' }
+  const { fetchPartnerShipQueueFromPg } = await import('@/lib/db/messaging-partner-ship-queue-pg')
+  const queue = await fetchPartnerShipQueueFromPg({
+    ownerUserId: user.id,
+    partnerId: input.partnerId?.trim() || null,
+    period: input.period,
+  })
+  if (!queue) return { error: 'ship_queue_load_failed' }
+  return { queue }
+}
+
 export async function saveMyMessagingOrderProfitInputs(input: {
   partnerId: string
   dateFrom: string

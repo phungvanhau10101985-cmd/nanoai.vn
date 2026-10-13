@@ -642,6 +642,8 @@ export function PartnerMessagingOrdersClient({
     window.setTimeout(() => setPageToast(null), 3000)
   }
 
+  const pendingOpenCode = useRef<string | null>(null)
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const q = (params.get('q') || params.get('highlight') || '').trim()
@@ -649,6 +651,7 @@ export function PartnerMessagingOrdersClient({
       setSearch(q)
       setAppliedSearch(q)
     }
+    if (params.get('open') === '1' && q) pendingOpenCode.current = q
   }, [])
 
   useEffect(() => {
@@ -860,6 +863,19 @@ export function PartnerMessagingOrdersClient({
     setMarkOutTracking(order.tracking_number || '')
     setMarkOutProvider(order.shipping_provider || 'EMS')
   }
+
+  useEffect(() => {
+    const code = pendingOpenCode.current
+    if (!code || rows.length === 0) return
+    const needle = code.trim().toLowerCase()
+    const match = rows.find((row) => {
+      const ref = (row.payment_reference || '').trim().toLowerCase()
+      return ref === needle || row.id.toLowerCase() === needle || orderCodeDisplay(row).toLowerCase() === needle
+    })
+    if (!match) return
+    pendingOpenCode.current = null
+    openDetail(match)
+  }, [rows])
 
   const openPaymentModal = (order: OrderRow) => {
     setSelectedOrder(order)
