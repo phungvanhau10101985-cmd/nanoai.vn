@@ -226,6 +226,7 @@ export function mergeCheckedProblem(
   draft: HomeworkProblem,
   check: HomeworkProblemCheck | null
 ): { problem: HomeworkProblem; cacheable: boolean } {
+  const tags = draft.tags ?? []
   if (!check) {
     return {
       problem: {
@@ -234,6 +235,7 @@ export function mergeCheckedProblem(
         thinking: draft.thinking,
         hints: draft.hints,
         answer: '',
+        tags: [],
       },
       cacheable: false,
     }
@@ -243,6 +245,10 @@ export function mergeCheckedProblem(
   const agreed = answersAgree(draft.answer, check.answer, draft.statement)
   const revealed = freshResultTokens(`${draft.answer}\n${check.answer}`, draft.statement)
   const hideResult = (line: string) => !revealed.some((token) => lineHasResult(line, token))
+  const cores = [draft.answer, check.answer]
+    .map((value) => answerCore(normalizeHomeworkAnswer(value)))
+    .filter((core) => core.length > 0)
+  const visibleTags = tags.filter((tag) => !lineLeaks(tag.title, cores) && hideResult(tag.title))
   if (agreed) {
     return {
       problem: {
@@ -251,13 +257,11 @@ export function mergeCheckedProblem(
         thinking: draft.thinking.filter(hideResult),
         hints: draft.hints.filter(hideResult),
         answer: draft.answer.trim(),
+        tags: visibleTags,
       },
       cacheable: true,
     }
   }
-  const cores = [draft.answer, check.answer]
-    .map((value) => answerCore(normalizeHomeworkAnswer(value)))
-    .filter((core) => core.length > 0)
   return {
     problem: {
       statement: draft.statement,
@@ -265,6 +269,7 @@ export function mergeCheckedProblem(
       thinking: draft.thinking.filter((line) => !lineLeaks(line, cores)),
       hints: draft.hints.filter((line) => !lineLeaks(line, cores)),
       answer: '',
+      tags: visibleTags,
     },
     cacheable: false,
   }

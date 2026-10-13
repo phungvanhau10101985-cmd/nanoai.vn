@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { WebLocale } from '@/lib/i18n/config'
 import { createGoogleGenerativeAIForUser } from '@/lib/ai/google-api-key-resolver'
+import type { TutorTopicName } from '@/lib/ai-tutor/ai-tutor-match'
+import { listTutorTopicCatalog, listTutorTopicNames } from '@/lib/ai-tutor/ai-tutor-store'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   fetchHomeworkPhotoCache,
@@ -36,6 +38,7 @@ import {
   HOMEWORK_HELP_READ_MODEL,
   HOMEWORK_HELP_REVIEW_MODEL,
 } from '@/lib/homework-help/homework-help-models'
+import { attachHomeworkTags } from '@/lib/homework-help/homework-help-tags'
 
 const LANGUAGE_NAME: Record<WebLocale, string> = {
   vi: 'Vietnamese',
@@ -154,25 +157,35 @@ Rules:
   return parseHomeworkStatements(raw)
 }
 
+function tutorCatalogBlock(rows: TutorTopicName[]): string {
+  if (!rows.length) return '(none yet)'
+  return rows.map((row) => `${row.topicKey} | ${row.title}`).join('\n')
+}
+
 async function draftProblems(input: {
   userId: string
   locale: WebLocale
   statements: Array<{ index: number; statement: string }>
+  catalog: TutorTopicName[]
 }): Promise<Array<{ index: number; problem: HomeworkProblem }> | null> {
   const list = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
   const prompt = `Write a study guide for these homework questions. Write entirely in ${languageName(input.locale)}.
 ${list}
+Existing saved knowledge tags, one per line as key | title:
+${tutorCatalogBlock(input.catalog)}
 Return ONLY JSON:
-{"problems":[{"index":0,"statement":"","knowledge":[],"thinking":[],"hints":[],"answer":""}]}
+{"problems":[{"index":0,"statement":"","knowledge":[],"thinking":[],"hints":[],"answer":"","tags":[{"key":"","title":""}]}]}
 Rules:
 - One object per listed index, same index numbers.
 - statement: repeat that question.
 - knowledge: 3 to 5 short related facts or rules.
+- tags: 2 or 3 knowledge tags a student can open. key is English kebab-case. title is in ${languageName(input.locale)}, at most 8 words, and names the idea.
+- When a tag is the same idea as a saved tag, copy that key and title exactly.
 - thinking: ordered steps that show how to start. Do not finish the calculation or name the final choice.
 - hints: up to 4 shorter nudges. Still no final result.
 - answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
 - Leave answer empty only when a needed number or formula is missing from the statement.
-- Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, or hints.`
+- Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, hints, or tag titles.`
   const raw = await generateJson({
     userId: input.userId,
     feature: 'homework-help-draft',
@@ -203,6 +216,7 @@ function alignDrafts(
         thinking: row?.thinking ?? [],
         hints: row?.hints ?? [],
         answer: row?.answer ?? '',
+        tags: row?.tags ?? [],
       },
     }
   })
@@ -241,12 +255,17 @@ Rules:
   return parseHomeworkChecks(raw)
 }
 
+function withSharedTags(problem: HomeworkProblem, saved: TutorTopicName[]): HomeworkProblem {
+  return { ...problem, tags: attachHomeworkTags(problem, saved) }
+}
+
 async function explainStatements(input: {
   userId: string
   locale: WebLocale
   note: string
   statements: string[]
 }): Promise<{ guide: HomeworkGuide; everyProblemCacheable: boolean }> {
+  const savedTopics = await listTutorTopicNames(input.locale)
   const problems: Array<HomeworkProblem | null> = input.statements.map(() => null)
   const pending: Array<{ index: number; statement: string }> = []
   for (let index = 0; index < input.statements.length; index += 1) {
@@ -255,7 +274,7 @@ async function explainStatements(input: {
     const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
     if (cached) {
       await touchHomeworkProblemCache(fingerprint, input.locale)
-      problems[index] = { ...cached, cached: true }
+      problems[index] = withSharedTags({ ...cached, cached: true }, savedTopics)
       continue
     }
     pending.push({ index, statement })
@@ -263,9 +282,20 @@ async function explainStatements(input: {
 
   let everyProblemCacheable = pending.length === 0
   if (pending.length > 0) {
-    let drafted = await draftProblems({ userId: input.userId, locale: input.locale, statements: pending })
+    const catalog = await listTutorTopicCatalog(input.locale)
+    let drafted = await draftProblems({
+      userId: input.userId,
+      locale: input.locale,
+      statements: pending,
+      catalog,
+    })
     if (!drafted) {
-      drafted = await draftProblems({ userId: input.userId, locale: input.locale, statements: pending })
+      drafted = await draftProblems({
+        userId: input.userId,
+        locale: input.locale,
+        statements: pending,
+        catalog,
+      })
     }
     const aligned = alignDrafts(pending, drafted)
     let checks = drafted
@@ -279,10 +309,11 @@ async function explainStatements(input: {
     for (const item of aligned) {
       const check = checks?.find((row) => row.index === item.index) ?? null
       const merged = mergeCheckedProblem(item.problem, check)
+      const tagged = withSharedTags(merged.problem, savedTopics)
       const fingerprint = homeworkStatementFingerprint(item.problem.statement)
       problems[item.index] = merged.cacheable
-        ? await rememberHomeworkProblem(fingerprint, input.locale, merged.problem)
-        : merged.problem
+        ? await rememberHomeworkProblem(fingerprint, input.locale, tagged)
+        : tagged
       if (!merged.cacheable) everyProblemCacheable = false
     }
   }
@@ -305,9 +336,10 @@ export async function explainHomeworkImages(input: {
   const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
   if (cachedPhoto && cachedPhoto.problems.length > 0) {
     await touchHomeworkPhotoCache(photoKey, input.locale)
+    const savedTopics = await listTutorTopicNames(input.locale)
     return {
       note: cachedPhoto.note,
-      problems: cachedPhoto.problems.map((problem) => ({ ...problem, cached: true })),
+      problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
     }
   }
 

@@ -14,6 +14,10 @@ const draft = {
   thinking: ['Chuyển 3 sang vế kia', 'Ra x = 2'],
   hints: ['Vế kia còn 4'],
   answer: 'x = 2',
+  tags: [
+    { key: 'linear-equation', title: 'Phương trình bậc nhất' },
+    { key: 'the-root', title: 'Nghiệm là 2' },
+  ],
 }
 
 test('same problem text shares a fingerprint after numbering and spacing changes', () => {
@@ -103,6 +107,7 @@ test('a matching chemistry answer stays visible but steps do not spoil the new r
       thinking: ['Muối X là Fe(NO3)3', 'Lập phương trình khí'],
       hints: ['Khối lượng FeCO3 là 4,64 g'],
       answer: 'Fe(NO3)3 | FeCO3 4,64 g',
+      tags: [{ key: 'nitric-acid', title: 'HNO3 đặc' }],
     },
     {
       index: 0,
@@ -130,6 +135,7 @@ test('cross-check keeps only confirmed knowledge and a matching answer', () => {
   assert.deepEqual(merged.problem.knowledge, ['Phương trình bậc nhất một ẩn'])
   assert.equal(merged.problem.answer, 'x = 2')
   assert.equal(merged.problem.thinking.length, 2)
+  assert.deepEqual(merged.problem.tags, [{ key: 'linear-equation', title: 'Phương trình bậc nhất' }])
 })
 
 test('disagreement hides the answer and drops a step that leaks it', () => {
@@ -150,6 +156,7 @@ test('a failed check does not keep knowledge or an answer to cache', () => {
   const merged = mergeCheckedProblem(draft, null)
   assert.equal(merged.cacheable, false)
   assert.deepEqual(merged.problem.knowledge, [])
+  assert.deepEqual(merged.problem.tags, [])
   assert.equal(merged.problem.answer, '')
   assert.equal(merged.problem.statement, draft.statement)
 })

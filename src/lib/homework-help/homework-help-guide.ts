@@ -1,9 +1,14 @@
+import { parseTutorLabels, tutorTopicKey } from '@/lib/ai-tutor/ai-tutor-parse'
+import type { TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
+
 export type HomeworkProblem = {
   statement: string
   knowledge: string[]
   thinking: string[]
   hints: string[]
   answer: string
+  /** Nhãn kiến thức dùng chung với gia sư. Bấm nhãn mở đúng chủ đề trong kho đó. */
+  tags: TutorLabel[]
   /** Bản này đọc từ cache DB, không phải lần soạn mới. */
   cached?: boolean
 }
@@ -33,6 +38,19 @@ function cleanLine(value: unknown, max: number): string {
     .slice(0, max)
 }
 
+/** Dòng kiến thức đã có trở thành nhãn khi model không gửi tag riêng. */
+export function knowledgeLinesAsTags(lines: string[]): TutorLabel[] {
+  const out: TutorLabel[] = []
+  for (const line of lines) {
+    const title = line.replace(/\s+/g, ' ').trim().slice(0, 80)
+    const key = tutorTopicKey(title)
+    if (!key || !title) continue
+    out.push({ key, title })
+    if (out.length === 3) break
+  }
+  return out
+}
+
 function asLines(value: unknown, maxItems: number, maxLen: number): string[] {
   if (!Array.isArray(value)) return []
   const out: string[] = []
@@ -57,12 +75,14 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
     const item = row as Record<string, unknown>
     const statement = cleanLine(item.statement, 4000)
     if (!statement) continue
+    const knowledge = asLines(item.knowledge, 5, 280)
     problems.push({
       statement,
-      knowledge: asLines(item.knowledge, 5, 280),
+      knowledge,
       thinking: asLines(item.thinking, 6, 320),
       hints: asLines(item.hints, 4, 320),
       answer: cleanLine(item.answer, 2000),
+      tags: parseTutorLabels(item.tags),
       ...(item.cached === true ? { cached: true } : {}),
     })
     if (problems.length >= MAX_PROBLEMS) break

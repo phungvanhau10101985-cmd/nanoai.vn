@@ -398,7 +398,8 @@ export async function askTutor(input: {
   return fresh
 }
 
-export async function openTutorLabel(input: {
+/** Đọc hoặc soạn một nhãn trong kho chủ đề. Không ghi vào chat gia sư. Bài tập và gia sư dùng chung hàm này. */
+export async function resolveSharedTutorTopic(input: {
   userId: string
   locale: WebLocale
   labelKey: string
@@ -407,37 +408,44 @@ export async function openTutorLabel(input: {
   const topicKey = tutorTopicKey(input.labelKey)
   const title = input.title.trim().slice(0, 80)
   if (!topicKey || !title) return null
-  const sessionId = await ensureTutorSession(input.userId, input.locale)
   const saved = await listTutorTopicNames(input.locale)
   const tag = pickSavedTopicByTag({ key: topicKey, title }, saved)
   if (tag) {
-    const hit = await serveSaved({
-      sessionId,
-      userId: input.userId,
-      locale: input.locale,
-      question: title,
-      kind: 'label',
-      topicKey: tag.topicKey,
-    })
-    if (hit) return hit
+    const existing = await fetchTutorTopic(tag.topicKey, input.locale)
+    if (existing) {
+      await touchTutorTopic(existing.topicKey, input.locale)
+      return existing
+    }
   }
   const catalog = await listTutorTopicCatalog(input.locale)
-  const fresh = await composeFresh({
+  return composeFresh({
     userId: input.userId,
     locale: input.locale,
     question: title,
-    topicKey,
-    title,
+    topicKey: tag?.topicKey || topicKey,
+    title: tag?.title || title,
     saved,
     catalog,
   })
-  if (!fresh) return null
+}
+
+export async function openTutorLabel(input: {
+  userId: string
+  locale: WebLocale
+  labelKey: string
+  title: string
+}): Promise<TutorAnswer | null> {
+  const title = input.title.trim().slice(0, 80)
+  if (!tutorTopicKey(input.labelKey) || !title) return null
+  const sessionId = await ensureTutorSession(input.userId, input.locale)
+  const answer = await resolveSharedTutorTopic(input)
+  if (!answer) return null
   await recordTurn({
     sessionId,
     userId: input.userId,
     question: title,
     kind: 'label',
-    answer: fresh,
+    answer,
   })
-  return fresh
+  return answer
 }

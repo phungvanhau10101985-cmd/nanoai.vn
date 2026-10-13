@@ -3,15 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
-import { Camera, ImagePlus, Loader2, X } from 'lucide-react'
+import { Camera, History, ImagePlus, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
-import { StudyChatThreadBar } from '@/components/student-study/study-chat-thread-bar'
 import type { WebLocale } from '@/lib/i18n/config'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
-import type { HomeworkProblem, HomeworkReview } from '@/lib/homework-help/homework-help-guide'
+import type { TutorAnswer, TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
+import { knowledgeLinesAsTags, type HomeworkProblem, type HomeworkReview } from '@/lib/homework-help/homework-help-guide'
 import { tutorNextBubbleDelayMs, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
 import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
 import {
@@ -20,6 +20,7 @@ import {
   listHomeworkHistory,
   loadHomeworkThread,
   openHomeworkHistoryThread,
+  openHomeworkKnowledgeTag,
   reviewHomeworkWork,
   startHomeworkThread,
 } from '@/app/ho-tro-lam-bai/actions'
@@ -419,14 +420,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   return (
     <div className={shellClass} style={shellStyle} data-study-chat="">
-      <StudyChatThreadBar
-        newLabel={copy.newThread}
-        historyLabel={copy.history}
-        historyOpen={historyOpen}
-        disabled={!ready || busy}
-        onNew={() => void beginNewThread()}
-        onHistory={() => void openHistory()}
-      />
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
         <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
         {ready && messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
@@ -514,6 +507,31 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             </label>
           </Button>
         </div>
+        <Button
+          type="button"
+          size="icon"
+          className="h-9 w-9"
+          disabled={!ready || busy}
+          aria-label={copy.newThread}
+          title={copy.newThread}
+          onClick={() => void beginNewThread()}
+        >
+          <MessageSquarePlus className="h-4 w-4" aria-hidden />
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-9 w-9 bg-background"
+          disabled={!ready || busy}
+          aria-expanded={historyOpen}
+          aria-haspopup="dialog"
+          aria-label={copy.history}
+          title={copy.history}
+          onClick={() => void openHistory()}
+        >
+          <History className="h-4 w-4" aria-hidden />
+        </Button>
       </div>
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
@@ -652,7 +670,13 @@ function ProblemBubble({
   const [review, setReview] = useState<HomeworkReview | null>(null)
   const [reviewing, setReviewing] = useState(false)
   const [error, setError] = useState('')
+  const [tagOpen, setTagOpen] = useState<TutorLabel | null>(null)
+  const [tagAnswer, setTagAnswer] = useState<TutorAnswer | null>(null)
+  const [tagBusy, setTagBusy] = useState(false)
+  const [tagError, setTagError] = useState('')
+  const tagRequestRef = useRef(0)
   const hintsLeft = shownHints < problem.hints.length
+  const tags = problem.tags.length > 0 ? problem.tags : knowledgeLinesAsTags(problem.knowledge)
   const canShowAnswer = Boolean(problem.answer) && !hintsLeft && !answerOpen
 
   async function checkWork() {
@@ -672,6 +696,34 @@ function ProblemBubble({
     setReview(result.data)
   }
 
+  async function openTag(tag: TutorLabel) {
+    const request = tagRequestRef.current + 1
+    tagRequestRef.current = request
+    setTagOpen(tag)
+    setTagAnswer(null)
+    setTagError('')
+    setTagBusy(true)
+    const result = await openHomeworkKnowledgeTag({
+      locale,
+      labelKey: tag.key,
+      title: tag.title,
+    })
+    if (request !== tagRequestRef.current) return
+    setTagBusy(false)
+    if (!result.ok) {
+      if (result.code === 'payment_required') onPaymentRequired()
+      else setTagError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      return
+    }
+    setTagAnswer(result.data)
+  }
+
+  function closeTag() {
+    tagRequestRef.current += 1
+    setTagOpen(null)
+    setTagBusy(false)
+  }
+
   return (
     <article className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
       <section className="space-y-1">
@@ -682,14 +734,32 @@ function ProblemBubble({
         <h2 className="text-base font-semibold">{problem.statement}</h2>
       </section>
 
-      {problem.knowledge.length > 0 ? (
-        <section className="space-y-1">
+      {problem.knowledge.length > 0 || tags.length > 0 ? (
+        <section className="space-y-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.knowledge}</h3>
-          <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
-            {problem.knowledge.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
+          {tags.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {tags.map((tag) => (
+                <Button
+                  key={`${tag.key}-${tag.title}`}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={tagBusy}
+                  onClick={() => void openTag(tag)}
+                >
+                  {tag.title}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          {problem.knowledge.length > 0 ? (
+            <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
+              {problem.knowledge.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : null}
         </section>
       ) : (
         <p className="text-sm leading-6 text-muted-foreground">{copy.knowledgeHeld}</p>
@@ -774,6 +844,44 @@ function ProblemBubble({
           </div>
         ) : null}
       </section>
+
+      <Dialog
+        open={tagOpen != null}
+        onOpenChange={(open) => {
+          if (!open) closeTag()
+        }}
+      >
+        <DialogContent
+          className="z-[80] flex max-h-[min(32rem,85dvh)] w-[calc(100%-1.5rem)] max-w-md flex-col gap-3 overflow-y-auto p-4 sm:p-6"
+          overlayClassName="z-[70]"
+        >
+          <DialogHeader className="pr-8 text-left">
+            <DialogTitle>{tagAnswer?.title || tagOpen?.title}</DialogTitle>
+          </DialogHeader>
+          {tagBusy ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              {copy.tagLoading}
+            </p>
+          ) : null}
+          {tagError ? <p className="text-sm text-destructive">{tagError}</p> : null}
+          {tagAnswer ? (
+            <div className="space-y-3">
+              {tagAnswer.share !== 'private' ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
+              <section className="space-y-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.explain}</h3>
+                <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.explanation}</p>
+              </section>
+              {tagAnswer.practice ? (
+                <section className="space-y-1 rounded-lg bg-muted p-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.practice}</h3>
+                  <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.practice}</p>
+                </section>
+              ) : null}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </article>
   )
 }

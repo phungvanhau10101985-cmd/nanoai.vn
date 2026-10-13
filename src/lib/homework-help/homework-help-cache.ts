@@ -13,6 +13,7 @@ type ProblemCacheRow = {
   thinking: unknown
   hints: unknown
   answer: string
+  tags: unknown
 }
 
 type PhotoCacheRow = {
@@ -29,6 +30,7 @@ function asProblem(row: ProblemCacheRow): HomeworkProblem | null {
         thinking: row.thinking,
         hints: row.hints,
         answer: row.answer,
+        tags: row.tags,
       },
     ],
   })
@@ -42,7 +44,7 @@ export async function fetchHomeworkProblemCache(
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<ProblemCacheRow>(
-      `select statement, knowledge, thinking, hints, answer
+      `select statement, knowledge, thinking, hints, answer, tags
        from public.homework_help_problem_cache
        where fingerprint = $1 and locale = $2
        limit 1`,
@@ -79,8 +81,8 @@ export async function rememberHomeworkProblem(
   try {
     const inserted = await pgQuery<{ fingerprint: string }>(
       `insert into public.homework_help_problem_cache (
-         fingerprint, locale, statement, knowledge, thinking, hints, answer, read_model, check_model
-       ) values ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8, $9)
+         fingerprint, locale, statement, knowledge, thinking, hints, answer, tags, read_model, check_model
+       ) values ($1, $2, $3, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8::jsonb, $9, $10)
        on conflict (fingerprint, locale) do nothing
        returning fingerprint`,
       [
@@ -91,6 +93,7 @@ export async function rememberHomeworkProblem(
         JSON.stringify(problem.thinking),
         JSON.stringify(problem.hints),
         problem.answer,
+        JSON.stringify(problem.tags ?? []),
         HOMEWORK_HELP_DRAFT_MODEL,
         HOMEWORK_HELP_CHECK_MODEL,
       ]

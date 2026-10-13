@@ -4,6 +4,8 @@ import { getUserForAction } from '@/lib/auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
 import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { hasStudentStudyAccess } from '@/lib/student-study-access'
+import { resolveSharedTutorTopic } from '@/lib/ai-tutor/ai-tutor-ai'
+import type { TutorAnswer } from '@/lib/ai-tutor/ai-tutor-types'
 import {
   explainHomeworkImages,
   explainHomeworkText,
@@ -191,4 +193,28 @@ export async function reviewHomeworkWork(input: {
   })
   if (!review) return { ok: false, code: 'ai_unavailable' }
   return { ok: true, data: review }
+}
+
+export async function openHomeworkKnowledgeTag(input: {
+  locale: string
+  labelKey: string
+  title: string
+}): Promise<HomeworkHelpActionResult<TutorAnswer>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  const title = input.title.trim()
+  const labelKey = input.labelKey.trim()
+  if (!title || !labelKey) return { ok: false, code: 'missing_text' }
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
+    return { ok: false, code: 'payment_required' }
+  }
+  const answer = await resolveSharedTutorTopic({
+    userId: auth.user.id,
+    locale: localeOf(input.locale),
+    labelKey,
+    title,
+  })
+  if (!answer) return { ok: false, code: 'ai_unavailable' }
+  return { ok: true, data: answer }
 }

@@ -12,12 +12,17 @@ test('parseHomeworkGuide keeps knowledge and hides nothing the model already spl
         thinking: ['Chuyển 3 sang vế kia', 'Chia hai vế cho hệ số của x'],
         hints: ['Vế kia còn 7 trừ 3'],
         answer: 'x = 2',
+        tags: [
+          { key: 'linear-equation', title: 'Phương trình bậc nhất' },
+          { key: 'bad', title: 'Bỏ', ok: false },
+        ],
       },
     ],
   })
   assert.ok(guide)
   assert.equal(guide.problems.length, 1)
   assert.equal(guide.problems[0]?.knowledge.length, 2)
+  assert.deepEqual(guide.problems[0]?.tags, [{ key: 'linear-equation', title: 'Phương trình bậc nhất' }])
   assert.equal(guide.problems[0]?.answer, 'x = 2')
   assert.equal(guide.problems[0]?.thinking.some((step) => step.includes('x = 2')), false)
   assert.equal(guide.problems[0]?.cached, undefined)

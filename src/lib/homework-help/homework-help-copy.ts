@@ -30,6 +30,9 @@ export type HomeworkHelpCopy = {
   emptyPhoto: string
   removeImage: string
   knowledgeHeld: string
+  explain: string
+  practice: string
+  tagLoading: string
   answerHeld: string
   cachedFromDb: string
   errors: Record<string, string>
@@ -66,6 +69,9 @@ const VI: HomeworkHelpCopy = {
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
   removeImage: 'Gỡ ảnh',
   knowledgeHeld: 'Chưa đủ chắc để hiện kiến thức của câu này.',
+  explain: 'Giải thích',
+  practice: 'Áp dụng thực tế',
+  tagLoading: 'Đang mở kiến thức…',
   answerHeld: 'Chưa đủ chắc để hiện đáp án.',
   cachedFromDb: 'Đoạn này lấy từ cache đã lưu.',
   errors: {
@@ -114,6 +120,9 @@ const EN: HomeworkHelpCopy = {
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
   removeImage: 'Remove',
   knowledgeHeld: 'This knowledge is not sure enough to show.',
+  explain: 'Explanation',
+  practice: 'In real life',
+  tagLoading: 'Opening this topic…',
   answerHeld: 'The answer is not sure enough to show.',
   cachedFromDb: 'This part is from the saved cache.',
   errors: {
@@ -161,6 +170,9 @@ const ZH: HomeworkHelpCopy = {
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
   removeImage: '移除',
   knowledgeHeld: '这条知识还不够确定，所以先不显示。',
+  explain: '说明',
+  practice: '生活里的例子',
+  tagLoading: '正在打开这条知识…',
   answerHeld: '答案还不够确定，所以先不显示。',
   cachedFromDb: '这一段来自已保存的缓存。',
   errors: {
@@ -209,6 +221,9 @@ const JA: HomeworkHelpCopy = {
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
   removeImage: '外す',
   knowledgeHeld: 'この知識はまだ確実ではないので表示しません。',
+  explain: '説明',
+  practice: '実生活での例',
+  tagLoading: 'この知識を開いています…',
   answerHeld: '答えはまだ確実ではないので表示しません。',
   cachedFromDb: 'この部分は保存済みのキャッシュです。',
   errors: {
@@ -257,6 +272,9 @@ const KO: HomeworkHelpCopy = {
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',
   removeImage: '빼기',
   knowledgeHeld: '이 지식은 아직 확실하지 않아 보여 주지 않습니다.',
+  explain: '설명',
+  practice: '실생활 예시',
+  tagLoading: '이 지식을 여는 중…',
   answerHeld: '답은 아직 확실하지 않아 보여 주지 않습니다.',
   cachedFromDb: '이 부분은 저장된 캐시에서 가져온 것입니다.',
   errors: {
