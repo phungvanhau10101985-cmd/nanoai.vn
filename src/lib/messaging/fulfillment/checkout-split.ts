@@ -11,7 +11,7 @@ import {
   PARTNER_MIN_DEPOSIT_VND,
   readHighUnitPriceDepositSettings,
   resolvePercentDepositAmount,
-  unitPriceMeetsDepositFloor,
+  orderValueMeetsDepositFloor,
   type HighUnitPriceDepositSettings,
 } from '@/lib/messaging/partner-deposit-amount'
 
@@ -22,7 +22,7 @@ export type CheckoutSplitLine = {
   lineSubtotal: number
   isWarehouseItem: boolean
   depositRequired: boolean
-  /** Đơn giá bán (sau giá sale của sản phẩm). Trống = không áp trần đơn giá. */
+  /** Đơn giá bán (sau giá sale). Trần cọc xét tổng lineSubtotal của đơn, không xét từng đơn giá. */
   unitPrice?: number
 }
 
@@ -47,7 +47,7 @@ export type CheckoutSplitPlanInput = {
   shopDepositMode: 'none' | 'percent' | 'fixed_amount'
   shopDepositPercent: number
   shopDepositFixed: number
-  /** Trần đơn giá. Bỏ trống = 3.000.000đ / cọc tối thiểu 30%. 0 = tắt. */
+  /** Trần giá trị đơn. Bỏ trống = 3.000.000đ / cọc tối thiểu 30% trên cả đơn. 0 = tắt. */
   highUnitPriceDepositThresholdVnd?: number | null
   highUnitPriceMinDepositPercent?: number | null
 }
@@ -151,7 +151,7 @@ type GroupDeposit = {
   flaggedPayable: number
 }
 
-/** Cọc theo cờ sản phẩm, và nâng lên % tối thiểu khi đơn giá chạm trần. Kho thanh lý không cọc. */
+/** Cọc theo cờ sản phẩm, và nâng lên % tối thiểu khi tiền hàng của đơn chạm trần. Kho thanh lý không tính vào đơn và không cọc. */
 function resolveGroupDeposit(input: {
   lines: CheckoutSplitLine[]
   discount: number
@@ -170,6 +170,8 @@ function resolveGroupDeposit(input: {
     weights[key] = Math.max(0, Math.round(row.lineSubtotal))
   }
   const lineDiscounts = allocateIntegerTotal(Math.max(0, Math.round(input.discount)), weights, keys)
+  const orderGoods = regular.reduce((sum, { row }) => sum + Math.max(0, Math.round(row.lineSubtotal)), 0)
+  const floorPct = orderValueMeetsDepositFloor(orderGoods, input.highUnitPrice) ? input.highUnitPrice.minPercent : 0
   let depositPayable = 0
   let flaggedPayable = 0
   let highPayable = 0
@@ -181,9 +183,6 @@ function resolveGroupDeposit(input: {
     const sub = Math.max(0, Math.round(row.lineSubtotal))
     const lineDiscount = Math.min(sub, lineDiscounts[String(index)] || 0)
     const payable = Math.max(0, sub - lineDiscount)
-    const floorPct = unitPriceMeetsDepositFloor(Math.round(Number(row.unitPrice) || 0), input.highUnitPrice)
-      ? input.highUnitPrice.minPercent
-      : 0
     if (row.depositRequired) flaggedPayable += payable
     if (floorPct > 0) highPayable += payable
     if (input.shopDepositMode === 'fixed_amount') {

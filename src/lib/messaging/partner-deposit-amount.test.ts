@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  orderValueMeetsDepositFloor,
   partialDepositPercentForPrices,
   resolvePercentDepositAmount,
   unitPriceMeetsDepositFloor,
@@ -36,20 +37,33 @@ describe('resolvePercentDepositAmount', () => {
 describe('high unit price deposit floor', () => {
   const rule = { thresholdVnd: 3_000_000, minPercent: 30 }
 
-  it('starts at 3_000_000', () => {
-    assert.equal(unitPriceMeetsDepositFloor(2_999_999, rule), false)
+  it('starts at 3_000_000 on the order value', () => {
+    assert.equal(orderValueMeetsDepositFloor(2_999_999, rule), false)
+    assert.equal(orderValueMeetsDepositFloor(3_000_000, rule), true)
     assert.equal(unitPriceMeetsDepositFloor(3_000_000, rule), true)
   })
 
-  it('raises the partial percent when a line meets the threshold', () => {
+  it('raises the partial percent when the order total meets the threshold', () => {
     assert.equal(
       partialDepositPercentForPrices({
         shopPercent: 10,
-        unitPrices: [500_000, 3_000_000],
+        unitPrices: [1_000_000, 1_000_000, 1_000_000],
         thresholdVnd: 3_000_000,
         minPercent: 30,
       }),
       30
+    )
+  })
+
+  it('keeps the shop percent when the lines stay under 3_000_000 together', () => {
+    assert.equal(
+      partialDepositPercentForPrices({
+        shopPercent: 10,
+        unitPrices: [1_000_000, 1_000_000],
+        thresholdVnd: 3_000_000,
+        minPercent: 30,
+      }),
+      10
     )
   })
 

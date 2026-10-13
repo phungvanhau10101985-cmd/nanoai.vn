@@ -4770,10 +4770,10 @@ export const VI_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Chỉnh web',
     settingsCreateWebsiteButton: 'Tạo web',
     settingsNavPayment: 'Cài đặt thanh toán',
-    paymentHighUnitPriceThresholdLabel: 'Trần đơn giá (VND)',
+    paymentHighUnitPriceThresholdLabel: 'Trần giá trị đơn (VND)',
     paymentHighUnitPriceMinPercentLabel: 'Cọc tối thiểu khi đạt trần (%)',
     paymentHighUnitPriceDepositHint:
-      'Sản phẩm có đơn giá từ mức này trở lên thì khách đặt cọc ít nhất % này, kể cả khi chưa bật «Cần đặt cọc». Hàng thanh lý kho không áp dụng. Điền 0 để tắt.',
+      'Đơn có tiền hàng từ mức này trở lên thì khách đặt cọc ít nhất % này trên cả đơn, kể cả khi từng sản phẩm dưới mức đó và chưa bật «Cần đặt cọc». Ba món 1 triệu vẫn là đơn 3 triệu. Hàng thanh lý kho không tính vào đơn và không cọc. Điền 0 để tắt.',
     sepayHmacLabel: 'Secret Key HMAC-SHA256 (whsec_)',
     sepayHmacHint:
       'SePay → Webhooks của shop → Bảo mật → HMAC-SHA256 → bấm mắt, copy Secret Key (whsec_…). Không dùng merchant key spsk_. Để trống ô này nếu không đổi key đã lưu.',

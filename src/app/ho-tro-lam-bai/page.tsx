@@ -10,6 +10,9 @@ import HoTroLamBaiClient from '@/app/ho-tro-lam-bai/ho-tro-lam-bai-client'
 
 const seo = getFeatureSeo('ho-tro-lam-bai')
 
+/** Khớp nginx /ho-tro-lam-bai 500s. Self-host không cắt sớm hơn nginx. */
+export const maxDuration = 500
+
 export const metadata = buildMetadata({
   title: seo.pageTitle,
   description: seo.pageDescription,

@@ -48,6 +48,31 @@ location /api/fetch-image {
     add_header X-Cache-Status $upstream_cache_status;
 }
 
+# Hỗ trợ làm bài: đọc ảnh rồi DeepSeek, Gemini Pro, có khi thêm GPT. Phải đứng trước location /.
+location /ho-tro-lam-bai {
+    proxy_pass http://nanoai_next;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-NanoAI-Edge 1;
+    proxy_set_header X-Partner-Site-Slug $pw_partner_site_slug;
+
+    proxy_connect_timeout 60;
+    proxy_send_timeout 500;
+    proxy_read_timeout 500;
+    client_body_timeout 120;
+    client_max_body_size 50M;
+    proxy_buffer_size 128k;
+    proxy_buffers 4 256k;
+    proxy_busy_buffers_size 256k;
+    proxy_temp_file_write_size 256k;
+}
+
 # Excel kho: file lớn + upsert/SEO lâu hơn request thường. Phải đứng trước location /.
 location ~ ^/api/messaging/partners/[0-9a-fA-F-]+/inventory/import$ {
     proxy_pass http://nanoai_next;

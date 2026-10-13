@@ -13,7 +13,13 @@ import {
   touchHomeworkPhotoCache,
   touchHomeworkProblemCache,
 } from '@/lib/homework-help/homework-help-cache'
-import { HOMEWORK_FLASH_CALL_MS, HOMEWORK_PRO_CALL_MS, homeworkCallTimeoutMs } from '@/lib/homework-help/homework-help-budget'
+import {
+  HOMEWORK_DRAFT_CALL_MS,
+  HOMEWORK_FLASH_CALL_MS,
+  HOMEWORK_GEMINI_CALL_MS,
+  HOMEWORK_GPT_CALL_MS,
+  homeworkCallTimeoutMs,
+} from '@/lib/homework-help/homework-help-budget'
 import {
   answersAgree,
   matchingDeepSeekAnswer,
@@ -175,6 +181,9 @@ async function generateJson(input: {
     void trackFromUsageMetadata(result.response.usageMetadata, input.model, input.feature, input.userId)
     const value = parseModelJson(readGeminiText(result))
     if (value == null) return { status: 'parse', value: null }
+    if (input.preferredMs >= HOMEWORK_GEMINI_CALL_MS) {
+      console.warn('[homework-help] gemini pro ok', input.model, `${Date.now() - started}ms`)
+    }
     return { status: 'ok', value }
   } catch (error) {
     console.warn(
@@ -264,6 +273,7 @@ async function generateReasonerJson(input: {
     })
     const value = parseModelJson(text)
     if (value == null) return { status: 'parse', value: null }
+    console.warn('[homework-help] draft ok', input.model, `${Date.now() - started}ms`)
     return { status: 'ok', value }
   } catch (error) {
     console.warn(
@@ -351,7 +361,7 @@ Rules:
       model: HOMEWORK_HELP_DRAFT_MODEL,
       prompt,
       startedAt: input.startedAt,
-      preferredMs: HOMEWORK_PRO_CALL_MS,
+      preferredMs: HOMEWORK_DRAFT_CALL_MS,
       maxOutputTokens: HOMEWORK_HELP_DRAFT_MAX_TOKENS,
     })
   let raw = await call()
@@ -455,7 +465,7 @@ ${ANSWER_RULES}`
     temperature: 0,
     prompt,
     startedAt: input.startedAt,
-    preferredMs: HOMEWORK_PRO_CALL_MS,
+    preferredMs: HOMEWORK_GEMINI_CALL_MS,
     maxOutputTokens: HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
     thinkingBudget: HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
   })
@@ -473,7 +483,7 @@ async function solveWithGpt(input: {
   statements: Array<{ index: number; statement: string }>
   startedAt: number
 }): Promise<HomeworkProblemCheck[] | null> {
-  const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), HOMEWORK_PRO_CALL_MS)
+  const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), HOMEWORK_GPT_CALL_MS)
   if (timeoutMs == null) {
     console.warn('[homework-help] budget spent', 'homework-help-gpt')
     return null
@@ -541,9 +551,10 @@ ${ANSWER_RULES}`
     })
     const solved = parseHomeworkChecks(parseModelJson(text))
     if (!solved?.length) {
-      console.warn('[homework-help] gpt parse failed', `${Date.now() - started}ms`)
+      console.warn('[homework-help] gpt parse failed', `${Date.now() - started}ms`, text.slice(0, 180))
       return null
     }
+    console.warn('[homework-help] gpt ok', `${Date.now() - started}ms`)
     return solved
   } catch (error) {
     console.warn('[homework-help] gpt failed', `${Date.now() - started}ms`, error instanceof Error ? error.message : error)
@@ -715,7 +726,7 @@ export async function explainHomeworkImages(input: {
   userId: string
   locale: WebLocale
   images: HomeworkImagePart[]
-}): Promise<HomeworkGuide | null> {
+}): Promise<HomeworkGuide | 'unreadable' | 'ai_unavailable'> {
   const photoKey = homeworkPhotoCacheKey(input.images)
   const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
   if (cachedPhoto && cachedPhoto.problems.length > 0) {
@@ -729,7 +740,7 @@ export async function explainHomeworkImages(input: {
 
   const startedAt = Date.now()
   let read = await readStatements({ ...input, startedAt })
-  if (!read) return null
+  if (!read) return 'unreadable'
   if (homeworkReadIsThin(read.statements) && Date.now() - startedAt < 20_000) {
     console.warn('[homework-help] thin read, retry')
     const again = await readStatements({ ...input, startedAt })
@@ -744,7 +755,7 @@ export async function explainHomeworkImages(input: {
     statements: read.statements,
     startedAt,
   })
-  if (!explained) return null
+  if (!explained) return 'ai_unavailable'
   if (explained.everyProblemCacheable) {
     await rememberHomeworkPhotoCache(photoKey, input.locale, explained.guide)
   }
@@ -755,7 +766,7 @@ export async function explainHomeworkText(input: {
   userId: string
   locale: WebLocale
   text: string
-}): Promise<HomeworkGuide | null> {
+}): Promise<HomeworkGuide | 'ai_unavailable'> {
   const statements = splitTypedHomework(input.text)
   if (!statements.length) return { note: '', problems: [] }
   const explained = await explainStatements({
@@ -765,7 +776,7 @@ export async function explainHomeworkText(input: {
     statements,
     startedAt: Date.now(),
   })
-  return explained?.guide ?? null
+  return explained?.guide ?? 'ai_unavailable'
 }
 
 export async function reviewHomeworkAttempt(input: {

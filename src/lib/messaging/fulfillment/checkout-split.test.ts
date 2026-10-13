@@ -251,7 +251,57 @@ describe('buildCheckoutSplitPlans', () => {
     assert.equal(plans[0].requiredAmount, 0)
   })
 
-  it('raises a fixed deposit up to 30 percent of a high unit price', () => {
+  it('requires 30 percent when three 1_000_000 products make one order of 3_000_000', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [
+        line({ fulfillmentSource: 'vietnam', lineSubtotal: 1_000_000, unitPrice: 1_000_000, depositRequired: false }),
+        line({ fulfillmentSource: 'vietnam', lineSubtotal: 1_000_000, unitPrice: 1_000_000, depositRequired: false }),
+        line({ fulfillmentSource: 'vietnam', lineSubtotal: 1_000_000, unitPrice: 1_000_000, depositRequired: false }),
+      ],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans.length, 1)
+    assert.equal(plans[0].requiresDeposit, true)
+    assert.equal(plans[0].depositPercent, 30)
+    assert.equal(plans[0].depositPayable, 3_000_000)
+    assert.equal(plans[0].requiredAmount, 900_000)
+  })
+
+  it('counts quantity in the line total, so one 1_000_000 product times 3 is also 30 percent', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 3_000_000, unitPrice: 1_000_000, depositRequired: false })],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans[0].depositPercent, 30)
+    assert.equal(plans[0].requiredAmount, 900_000)
+  })
+
+  it('does not combine two fulfillment orders that each stay under 3_000_000', () => {
+    const plans = buildCheckoutSplitPlans({
+      lines: [
+        line({ fulfillmentSource: 'vietnam', lineSubtotal: 1_500_000, unitPrice: 1_500_000, depositRequired: false }),
+        line({ fulfillmentSource: 'china', lineSubtotal: 1_500_000, unitPrice: 1_500_000, depositRequired: false }),
+      ],
+      totalDiscount: 0,
+      shippingFee: 0,
+      shopDepositMode: 'percent',
+      shopDepositPercent: 10,
+      shopDepositFixed: 0,
+    })
+    assert.equal(plans.length, 2)
+    assert.equal(plans[0].requiresDeposit, false)
+    assert.equal(plans[1].requiresDeposit, false)
+  })
+
+  it('raises a fixed deposit up to 30 percent of an order at the threshold', () => {
     const plans = buildCheckoutSplitPlans({
       lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 4_000_000, unitPrice: 4_000_000, depositRequired: false })],
       totalDiscount: 0,

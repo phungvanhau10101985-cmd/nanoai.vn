@@ -817,10 +817,10 @@ const EN_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Edit website',
     settingsCreateWebsiteButton: 'Create website',
     settingsNavPayment: 'Payment settings',
-    paymentHighUnitPriceThresholdLabel: 'Unit price threshold (VND)',
-    paymentHighUnitPriceMinPercentLabel: 'Minimum deposit at that price (%)',
+    paymentHighUnitPriceThresholdLabel: 'Order value threshold (VND)',
+    paymentHighUnitPriceMinPercentLabel: 'Minimum deposit at that order value (%)',
     paymentHighUnitPriceDepositHint:
-      'When a product unit price is at or above this amount, the customer must deposit at least this percent, even if Deposit required is off. Clearance warehouse items are excluded. Enter 0 to turn this off.',
+      'When an order’s merchandise total is at or above this amount, the customer deposits at least this percent of the whole order, even if no single product reaches it and Deposit required is off. Three 1,000,000 items are a 3,000,000 order. Clearance warehouse items are excluded. Enter 0 to turn this off.',
     sepayHmacLabel: 'HMAC-SHA256 Secret Key (whsec_)',
     sepayHmacHint:
       'SePay → this shop’s Webhooks → Security → HMAC-SHA256 → reveal and copy the Secret Key (whsec_…). Do not use the merchant spsk_ key. Leave blank to keep the saved key.',
@@ -4718,10 +4718,10 @@ const ZH_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '编辑网站',
     settingsCreateWebsiteButton: '创建网站',
     settingsNavPayment: '支付设置',
-    paymentHighUnitPriceThresholdLabel: '单价门槛（越南盾）',
+    paymentHighUnitPriceThresholdLabel: '订单金额门槛（越南盾）',
     paymentHighUnitPriceMinPercentLabel: '达到门槛时的最低定金（%）',
     paymentHighUnitPriceDepositHint:
-      '商品单价达到或超过该金额时，客户至少支付该比例定金，即使未勾选「需要订金」。清仓库存不适用。填 0 关闭。',
+      '订单商品金额达到或超过该金额时，客户至少按该比例支付整单定金，即使单件未达到且未勾选「需要订金」。三件各 100 万也算 300 万的订单。清仓库存不计入、不适用。填 0 关闭。',
     sepayHmacLabel: 'HMAC-SHA256 Secret Key（whsec_）',
     sepayHmacHint:
       '在 SePay → 本店 Webhooks → 安全 → HMAC-SHA256 点眼睛复制 Secret Key（whsec_…）。不要用商户 spsk_。不更换已保存密钥请留空。',
@@ -8528,10 +8528,10 @@ const JA_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: 'Webを編集',
     settingsCreateWebsiteButton: 'Webを作成',
     settingsNavPayment: '決済設定',
-    paymentHighUnitPriceThresholdLabel: '単価の基準（VND）',
+    paymentHighUnitPriceThresholdLabel: '注文金額の基準（VND）',
     paymentHighUnitPriceMinPercentLabel: '基準以上の最低手付（%）',
     paymentHighUnitPriceDepositHint:
-      '商品の単価がこの金額以上なら、内金フラグがオフでもお客様は少なくともこの割合を支払います。在庫処分品は対象外です。0 で無効。',
+      '注文の商品合計がこの金額以上なら、単品が基準未満でも内金フラグがオフでも、お客様は注文全体の少なくともこの割合を支払います。100万の商品3点も300万の注文です。在庫処分品は対象外です。0 で無効。',
     sepayHmacLabel: 'HMAC-SHA256 Secret Key（whsec_）',
     sepayHmacHint:
       'SePay → この店舗の Webhooks → セキュリティ → HMAC-SHA256 で目のアイコンから Secret Key（whsec_…）をコピー。商用 spsk_ は使わないでください。変更しない場合は空欄のまま。',
@@ -12409,10 +12409,10 @@ const KO_DICTIONARY: Dictionary = {
     settingsManageWebsiteButton: '웹사이트 편집',
     settingsCreateWebsiteButton: '웹사이트 만들기',
     settingsNavPayment: '결제 설정',
-    paymentHighUnitPriceThresholdLabel: '단가 기준 (VND)',
+    paymentHighUnitPriceThresholdLabel: '주문 금액 기준 (VND)',
     paymentHighUnitPriceMinPercentLabel: '기준 이상 최소 계약금 (%)',
     paymentHighUnitPriceDepositHint:
-      '상품 단가가 이 금액 이상이면 계약금 필요가 꺼져 있어도 고객은 최소 이 비율을 계약금으로 냅니다. 재고 정리 상품은 제외됩니다. 0이면 끄기.',
+      '주문 상품 합계가 이 금액 이상이면 개별 상품이 기준 미만이어도, 계약금 필요가 꺼져 있어도 고객은 주문 전체의 최소 이 비율을 계약금으로 냅니다. 100만 원 상품 3개도 300만 원 주문입니다. 재고 정리 상품은 제외됩니다. 0이면 끄기.',
     sepayHmacLabel: 'HMAC-SHA256 Secret Key (whsec_)',
     sepayHmacHint:
       'SePay → 이 매장 Webhooks → 보안 → HMAC-SHA256에서 눈 아이콘으로 Secret Key(whsec_…)를 복사하세요. 가맹점 spsk_는 쓰지 마세요. 저장된 키를 유지하려면 비워 두세요.',

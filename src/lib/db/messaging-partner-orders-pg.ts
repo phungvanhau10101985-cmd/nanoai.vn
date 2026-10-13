@@ -59,7 +59,7 @@ export type PartnerPaymentSettingsRow = {
   ewallet_qr_url: string
   /** M1.4 — display-only carrier label. */
   shipping_carrier_label: string
-  /** Đơn giá từ mức này trở lên thì khách cọc ít nhất `high_unit_price_min_deposit_percent`. 0 = tắt. */
+  /** Tiền hàng của đơn từ mức này trở lên thì khách cọc ít nhất `high_unit_price_min_deposit_percent` trên cả đơn. 0 = tắt. */
   high_unit_price_deposit_threshold_vnd: number
   high_unit_price_min_deposit_percent: number
   updated_at: string

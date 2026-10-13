@@ -1,7 +1,7 @@
 /** Trần cọc theo % — không phải ô cài đặt riêng. Số % vẫn lấy từ Cài đặt thanh toán. */
 export const PARTNER_MIN_DEPOSIT_VND = 100_000
 
-/** Đơn giá từ mức này trở lên thì khách cọc ít nhất % bên dưới. Shop sửa trong Cài đặt thanh toán. */
+/** Giá trị đơn (tiền hàng) từ mức này trở lên thì khách cọc ít nhất % bên dưới. Shop sửa trong Cài đặt thanh toán. */
 export const DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND = 3_000_000
 export const DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT = 30
 
@@ -28,14 +28,24 @@ export function readHighUnitPriceDepositSettings(input?: {
   return { thresholdVnd: threshold, minPercent }
 }
 
-export function unitPriceMeetsDepositFloor(unitPrice: number, settings: HighUnitPriceDepositSettings): boolean {
+/** Tiền hàng của một đơn (đã nhân số lượng, không tính ship). Một sản phẩm thì trùng đơn giá. */
+export function orderValueMeetsDepositFloor(orderValueVnd: number, settings: HighUnitPriceDepositSettings): boolean {
   if (settings.thresholdVnd <= 0 || settings.minPercent <= 0) return false
-  return Math.round(Number(unitPrice) || 0) >= settings.thresholdVnd
+  return Math.round(Number(orderValueVnd) || 0) >= settings.thresholdVnd
 }
 
-/** % cọc một phần khách được chọn: shop % , hoặc cao hơn nếu đơn có đơn giá chạm trần. */
+/** Đơn một sản phẩm: đơn giá chính là giá trị đơn. */
+export function unitPriceMeetsDepositFloor(unitPrice: number, settings: HighUnitPriceDepositSettings): boolean {
+  return orderValueMeetsDepositFloor(unitPrice, settings)
+}
+
+/**
+ * % cọc một phần khách được chọn: % shop, hoặc cao hơn khi tiền hàng của đơn chạm trần.
+ * Cộng các dòng (đơn giá × số lượng). Ba món 1 triệu vẫn là đơn 3 triệu.
+ */
 export function partialDepositPercentForPrices(input: {
   shopPercent: number
+  /** Tiền hàng từng dòng (đã × số lượng), hoặc một phần tử là tổng đơn. */
   unitPrices: number[]
   thresholdVnd?: number | null
   minPercent?: number | null
@@ -45,8 +55,8 @@ export function partialDepositPercentForPrices(input: {
     minPercent: input.minPercent,
   })
   const shop = clampPartnerDepositPercent(input.shopPercent, 0)
-  const hit = input.unitPrices.some((price) => unitPriceMeetsDepositFloor(price, rule))
-  if (!hit) return shop
+  const orderValue = input.unitPrices.reduce((sum, price) => sum + Math.max(0, Math.round(Number(price) || 0)), 0)
+  if (!orderValueMeetsDepositFloor(orderValue, rule)) return shop
   return Math.max(shop, rule.minPercent)
 }
 

@@ -2106,10 +2106,20 @@ export async function buildGuestOrderDepositView(input: {
   }
 }
 
+/** Tiền hàng từng dòng (đã × số lượng). Trần cọc cộng cả đơn, không xét từng đơn giá. */
 async function depositFloorUnitPrices(order: PartnerOrderRow): Promise<number[]> {
   const lines = await fetchPartnerOrderLinesFromPg(order.id)
-  const prices = lines.filter((line) => !line.is_warehouse_item).map((line) => Math.max(0, Math.round(line.unit_price)))
-  return prices.length > 0 ? prices : [Math.max(0, Math.round(order.unit_price))]
+  const goods = lines
+    .filter((line) => !line.is_warehouse_item)
+    .map((line) => {
+      const sub = Math.max(0, Math.round(Number(line.line_subtotal) || 0))
+      if (sub > 0) return sub
+      return Math.max(0, Math.round(line.unit_price)) * Math.max(1, Math.round(line.quantity) || 1)
+    })
+  if (goods.length > 0) return goods
+  if (lines.length > 0) return []
+  const qty = Math.max(1, Math.round(order.quantity) || 1)
+  return [Math.max(Math.max(0, Math.round(order.unit_price)) * qty, Math.max(0, Math.round(order.subtotal_amount)))]
 }
 
 /** Đổi mức cọc theo % đã lưu hoặc 100% trên đơn đang chờ CK — tái tạo QR. */

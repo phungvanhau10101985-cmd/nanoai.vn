@@ -123,21 +123,21 @@ export async function explainHomeworkPhoto(
   }
 
   const locale = localeFrom(formData.get('locale'))
-  const guide = await explainHomeworkImages({
+  const explained = await explainHomeworkImages({
     userId: auth.user.id,
     locale,
     images,
   })
-  if (!guide) return { ok: false, code: 'unreadable' }
+  if (explained === 'unreadable' || explained === 'ai_unavailable') return { ok: false, code: explained }
   const caption = String(formData.get('text') ?? '').trim().slice(0, 8000)
   await rememberTurn({
     userId: auth.user.id,
     locale,
     text: caption,
     imageCount: images.length,
-    guide,
+    guide: explained,
   })
-  return { ok: true, data: guide }
+  return { ok: true, data: explained }
 }
 
 export async function explainTypedHomework(input: {
@@ -153,21 +153,21 @@ export async function explainTypedHomework(input: {
     return { ok: false, code: 'payment_required' }
   }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'
-  const guide = await explainHomeworkText({
+  const explained = await explainHomeworkText({
     userId: auth.user.id,
     locale,
     text: text.slice(0, 8000),
   })
-  if (!guide) return { ok: false, code: 'ai_unavailable' }
-  if (!guide.problems.length) return { ok: false, code: 'missing_text' }
+  if (explained === 'ai_unavailable') return { ok: false, code: 'ai_unavailable' }
+  if (!explained.problems.length) return { ok: false, code: 'missing_text' }
   await rememberTurn({
     userId: auth.user.id,
     locale,
     text: text.slice(0, 8000),
     imageCount: 0,
-    guide,
+    guide: explained,
   })
-  return { ok: true, data: guide }
+  return { ok: true, data: explained }
 }
 
 export async function reviewHomeworkWork(input: {
