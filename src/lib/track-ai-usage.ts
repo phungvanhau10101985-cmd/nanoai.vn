@@ -104,7 +104,7 @@ export async function trackApiUsage(params: ApiUsageLogParams): Promise<void> {
  * GPT Image gắn `logModel` và `logImageSize` trên usage để không bị ghi nhầm model Gemini và size 2K/4K.
  */
 export async function trackFromUsageMetadata(
-  usageMetadata: (UsageMetadata & { logModel?: string; logImageSize?: string | null }) | undefined,
+  usageMetadata: (Partial<UsageMetadata> & { logModel?: string; logImageSize?: string | null }) | undefined,
   model: string,
   feature: string,
   userId?: string | null,

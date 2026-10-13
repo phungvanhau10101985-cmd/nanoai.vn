@@ -76,7 +76,7 @@ export async function rememberHomeworkProblem(
   fingerprint: string,
   locale: string,
   problem: HomeworkProblem,
-  verifyModel = HOMEWORK_HELP_FALLBACK_MODEL
+  verifyModel: string = HOMEWORK_HELP_FALLBACK_MODEL
 ): Promise<HomeworkProblem> {
   if (!isPgConfigured()) return problem
   try {
