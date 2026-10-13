@@ -351,51 +351,58 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
     setMessages((current) => [...current, pending])
     const startedAt = Date.now()
-
-    const result = shot.length
-      ? await (async () => {
-          const formData = new FormData()
-          formData.set('locale', locale)
-          if (question) formData.set('text', question)
-          for (const file of shot) formData.append('images', file)
-          return explainHomeworkPhoto(formData)
-        })()
-      : await explainTypedHomework({ locale, text: question })
-
-    if (!result.ok) {
+    const restoreDraft = () => {
       setMessages((current) => current.filter((message) => message.id !== pending.id))
       setText(question)
       setFiles(shot)
       setPreviews(shotPreviews)
-      if (result.code === 'payment_required') {
-        setNeedsPlan(true)
-        setError('')
-      } else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
-      busyRef.current = false
-      setBusy(false)
-      return
     }
 
-    const hold = tutorReplyHoldMs(startedAt, Date.now())
-    if (hold > 0) await sleep(hold)
-    const problems = result.data.problems
-    if (problems.length === 0) {
-      setMessages((current) => [
-        ...current,
-        { id: localId(), role: 'teacher', kind: 'note', text: result.data.note || copy.emptyPhoto },
-      ])
-    } else {
-      for (let index = 0; index < problems.length; index += 1) {
-        if (index > 0) await sleep(tutorNextBubbleDelayMs(problems[index - 1].statement))
-        const problem = problems[index]
+    try {
+      const result = shot.length
+        ? await (async () => {
+            const formData = new FormData()
+            formData.set('locale', locale)
+            if (question) formData.set('text', question)
+            for (const file of shot) formData.append('images', file)
+            return explainHomeworkPhoto(formData)
+          })()
+        : await explainTypedHomework({ locale, text: question })
+
+      if (!result.ok) {
+        restoreDraft()
+        if (result.code === 'payment_required') {
+          setNeedsPlan(true)
+          setError('')
+        } else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+        return
+      }
+
+      const hold = tutorReplyHoldMs(startedAt, Date.now())
+      if (hold > 0) await sleep(hold)
+      const problems = result.data.problems
+      if (problems.length === 0) {
         setMessages((current) => [
           ...current,
-          { id: localId(), role: 'teacher', kind: 'problem', problem },
+          { id: localId(), role: 'teacher', kind: 'note', text: result.data.note || copy.emptyPhoto },
         ])
+      } else {
+        for (let index = 0; index < problems.length; index += 1) {
+          if (index > 0) await sleep(tutorNextBubbleDelayMs(problems[index - 1].statement))
+          const problem = problems[index]
+          setMessages((current) => [
+            ...current,
+            { id: localId(), role: 'teacher', kind: 'problem', problem },
+          ])
+        }
       }
+    } catch {
+      restoreDraft()
+      setError(copy.errors.ai_unavailable)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
-    busyRef.current = false
-    setBusy(false)
   }
 
   const shellClass = STUDY_CHAT_SHELL_CLASS
@@ -682,18 +689,23 @@ function ProblemBubble({
   async function checkWork() {
     setReviewing(true)
     setError('')
-    const result = await reviewHomeworkWork({
-      locale,
-      statement: problem.statement,
-      attempt,
-    })
-    setReviewing(false)
-    if (!result.ok) {
-      if (result.code === 'payment_required') onPaymentRequired()
-      else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
-      return
+    try {
+      const result = await reviewHomeworkWork({
+        locale,
+        statement: problem.statement,
+        attempt,
+      })
+      if (!result.ok) {
+        if (result.code === 'payment_required') onPaymentRequired()
+        else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+        return
+      }
+      setReview(result.data)
+    } catch {
+      setError(copy.errors.ai_unavailable)
+    } finally {
+      setReviewing(false)
     }
-    setReview(result.data)
   }
 
   async function openTag(tag: TutorLabel) {
@@ -703,19 +715,25 @@ function ProblemBubble({
     setTagAnswer(null)
     setTagError('')
     setTagBusy(true)
-    const result = await openHomeworkKnowledgeTag({
-      locale,
-      labelKey: tag.key,
-      title: tag.title,
-    })
-    if (request !== tagRequestRef.current) return
-    setTagBusy(false)
-    if (!result.ok) {
-      if (result.code === 'payment_required') onPaymentRequired()
-      else setTagError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
-      return
+    try {
+      const result = await openHomeworkKnowledgeTag({
+        locale,
+        labelKey: tag.key,
+        title: tag.title,
+      })
+      if (request !== tagRequestRef.current) return
+      if (!result.ok) {
+        if (result.code === 'payment_required') onPaymentRequired()
+        else setTagError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+        return
+      }
+      setTagAnswer(result.data)
+    } catch {
+      if (request !== tagRequestRef.current) return
+      setTagError(copy.errors.ai_unavailable)
+    } finally {
+      if (request === tagRequestRef.current) setTagBusy(false)
     }
-    setTagAnswer(result.data)
   }
 
   function closeTag() {

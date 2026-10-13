@@ -3,8 +3,8 @@ import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 import type { HomeworkGuide, HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import { parseHomeworkGuide } from '@/lib/homework-help/homework-help-guide'
 import {
-  HOMEWORK_HELP_CHECK_MODEL,
   HOMEWORK_HELP_DRAFT_MODEL,
+  HOMEWORK_HELP_FALLBACK_MODEL,
 } from '@/lib/homework-help/homework-help-models'
 
 type ProblemCacheRow = {
@@ -75,7 +75,8 @@ export async function touchHomeworkProblemCache(fingerprint: string, locale: str
 export async function rememberHomeworkProblem(
   fingerprint: string,
   locale: string,
-  problem: HomeworkProblem
+  problem: HomeworkProblem,
+  verifyModel = HOMEWORK_HELP_FALLBACK_MODEL
 ): Promise<HomeworkProblem> {
   if (!isPgConfigured()) return problem
   try {
@@ -95,7 +96,7 @@ export async function rememberHomeworkProblem(
         problem.answer,
         JSON.stringify(problem.tags ?? []),
         HOMEWORK_HELP_DRAFT_MODEL,
-        HOMEWORK_HELP_CHECK_MODEL,
+        verifyModel,
       ]
     )
     if (inserted.length > 0) return problem

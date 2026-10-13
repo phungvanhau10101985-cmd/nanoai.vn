@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { answersAgree, mergeCheckedProblem, parseHomeworkChecks, parseModelJson } from '@/lib/homework-help/homework-help-check'
+import {
+  answersAgree,
+  matchingDeepSeekAnswer,
+  mergeAdjudicatedProblem,
+  mergeCheckedProblem,
+  parseHomeworkChecks,
+  parseHomeworkPicks,
+  parseModelJson,
+} from '@/lib/homework-help/homework-help-check'
 import {
   homeworkReadIsThin,
   homeworkStatementFingerprint,
@@ -159,6 +167,76 @@ test('a failed check does not keep knowledge or an answer to cache', () => {
   assert.deepEqual(merged.problem.tags, [])
   assert.equal(merged.problem.answer, '')
   assert.equal(merged.problem.statement, draft.statement)
+})
+
+test('a judge that confirms the check answer shows that side and does not cache it', () => {
+  const merged = mergeAdjudicatedProblem(
+    draft,
+    { index: 0, answer: 'x = 5', knowledge: [] },
+    { index: 0, pick: 'check', answer: 'x = 5' },
+    [
+      { index: 0, ok: true },
+      { index: 1, ok: false },
+    ]
+  )
+  assert.equal(merged.cacheable, false)
+  assert.equal(merged.problem.answer, 'x = 5')
+  assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
+  assert.deepEqual(merged.problem.knowledge, ['Phương trình bậc nhất một ẩn'])
+  assert.deepEqual(merged.problem.tags, [{ key: 'linear-equation', title: 'Phương trình bậc nhất' }])
+})
+
+test('a judge that confirms the draft answer shows the draft wording', () => {
+  const merged = mergeAdjudicatedProblem(
+    draft,
+    { index: 0, answer: 'x = 5', knowledge: [] },
+    { index: 0, pick: 'draft', answer: '2' },
+    [{ index: 0, ok: true }]
+  )
+  assert.equal(merged.problem.answer, 'x = 2')
+  assert.equal(merged.cacheable, false)
+  assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
+})
+
+test('a judge that writes a third answer hides the result', () => {
+  const merged = mergeAdjudicatedProblem(
+    draft,
+    { index: 0, answer: 'x = 5', knowledge: [] },
+    { index: 0, pick: 'check', answer: 'x = 9' }
+  )
+  assert.equal(merged.problem.answer, '')
+  assert.equal(merged.cacheable, false)
+})
+
+test('a judge that cannot choose hides the result', () => {
+  const merged = mergeAdjudicatedProblem(draft, { index: 0, answer: 'x = 5', knowledge: [] }, {
+    index: 0,
+    pick: 'none',
+    answer: '',
+  })
+  assert.equal(merged.problem.answer, '')
+  assert.equal(merged.cacheable, false)
+  assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
+})
+
+test('gemini pro keeps the deepseek answer it matches', () => {
+  assert.equal(matchingDeepSeekAnswer('x = 2', 'x = 5', '2', draft.statement), 'draft')
+  assert.equal(matchingDeepSeekAnswer('x = 2', 'x = 5', 'x = 5', draft.statement), 'check')
+  assert.equal(matchingDeepSeekAnswer('x = 2', 'x = 5', 'x = 9', draft.statement), '')
+  assert.equal(matchingDeepSeekAnswer('x = 2', 'x = 5', '', draft.statement), '')
+  assert.equal(matchingDeepSeekAnswer('x = 2', 'x = 2', '2', draft.statement), 'draft')
+})
+
+test('judge parser keeps a side and drops an unknown index', () => {
+  const picks = parseHomeworkPicks({
+    problems: [
+      { index: 0, pick: 'Check', answer: 'x = 5' },
+      { index: 9, pick: 'draft', answer: '2' },
+    ],
+  })
+  assert.equal(picks?.length, 1)
+  assert.equal(picks?.[0]?.pick, 'check')
+  assert.equal(picks?.[0]?.answer, 'x = 5')
 })
 
 test('check parser ignores a line the model did not mark', () => {

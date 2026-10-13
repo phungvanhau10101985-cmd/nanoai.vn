@@ -12,6 +12,12 @@ export type HomeworkProblemCheck = {
   knowledge: HomeworkKnowledgeVerdict[]
 }
 
+export type HomeworkAnswerPick = {
+  index: number
+  pick: 'draft' | 'check' | 'none'
+  answer: string
+}
+
 function cleanLine(value: unknown, max: number): string {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
@@ -116,6 +122,23 @@ export function parseHomeworkChecks(raw: unknown): HomeworkProblemCheck[] | null
       answer: cleanLine(item.answer, 2000),
       knowledge,
     })
+  }
+  return out
+}
+
+export function parseHomeworkPicks(raw: unknown): HomeworkAnswerPick[] | null {
+  if (!raw || typeof raw !== 'object') return null
+  const problems = (raw as Record<string, unknown>).problems
+  if (!Array.isArray(problems)) return null
+  const out: HomeworkAnswerPick[] = []
+  for (const row of problems) {
+    if (!row || typeof row !== 'object') continue
+    const item = row as Record<string, unknown>
+    const index = Number(item.index)
+    if (!Number.isInteger(index) || index < 0 || index > 7) continue
+    const pickText = cleanLine(item.pick, 16).toLowerCase()
+    const pick = pickText === 'draft' || pickText === 'check' || pickText === 'none' ? pickText : 'none'
+    out.push({ index, pick, answer: cleanLine(item.answer, 2000) })
   }
   return out
 }
@@ -270,6 +293,67 @@ export function mergeCheckedProblem(
       hints: draft.hints.filter((line) => !lineLeaks(line, cores)),
       answer: '',
       tags: visibleTags,
+    },
+    cacheable: false,
+  }
+}
+
+/** Đáp án thứ ba trùng bên nào thì trả về bên đó. Trùng cả hai thì lấy bản DeepSeek. */
+export function matchingDeepSeekAnswer(
+  draftAnswer: string,
+  checkAnswer: string,
+  fallbackAnswer: string,
+  statement = ''
+): 'draft' | 'check' | '' {
+  const fallback = fallbackAnswer.trim()
+  if (!fallback) return ''
+  const draftHit = Boolean(draftAnswer.trim()) && answersAgree(fallback, draftAnswer, statement)
+  const checkHit = Boolean(checkAnswer.trim()) && answersAgree(fallback, checkAnswer, statement)
+  if (draftHit) return 'draft'
+  if (checkHit) return 'check'
+  return ''
+}
+
+function chosenSideAnswer(
+  draftAnswer: string,
+  checkAnswer: string,
+  statement: string,
+  verdict: HomeworkAnswerPick | null
+): string {
+  if (!verdict || verdict.pick === 'none') return ''
+  const chosen = verdict.pick === 'draft' ? draftAnswer : checkAnswer
+  if (!chosen.trim()) return ''
+  if (!answersAgree(verdict.answer, chosen, statement)) return ''
+  return chosen.trim()
+}
+
+/** Hai đáp án đã khác nhau. Chỉ hiện bên mà lượt phân xử chọn, và câu trả lời nó chép lại phải khớp bên đó. */
+export function mergeAdjudicatedProblem(
+  draft: HomeworkProblem,
+  check: HomeworkProblemCheck,
+  verdict: HomeworkAnswerPick | null,
+  grades: HomeworkKnowledgeVerdict[] = []
+): { problem: HomeworkProblem; cacheable: boolean } {
+  const chosen = chosenSideAnswer(draft.answer, check.answer, draft.statement, verdict)
+  if (!chosen) {
+    return mergeCheckedProblem(draft, { ...check, knowledge: grades })
+  }
+  const confirmed = new Set(grades.filter((item) => item.ok).map((item) => item.index))
+  const revealed = freshResultTokens(`${draft.answer}\n${check.answer}`, draft.statement)
+  const hideResult = (line: string) => !revealed.some((token) => lineHasResult(line, token))
+  const cores = [draft.answer, check.answer]
+    .map((value) => answerCore(normalizeHomeworkAnswer(value)))
+    .filter((core) => core.length > 0)
+  const keepLine = (line: string) => hideResult(line) && !lineLeaks(line, cores)
+  const tags = draft.tags ?? []
+  return {
+    problem: {
+      ...draft,
+      knowledge: draft.knowledge.filter((_, index) => confirmed.has(index)).filter(keepLine),
+      thinking: draft.thinking.filter(keepLine),
+      hints: draft.hints.filter(keepLine),
+      answer: chosen,
+      tags: tags.filter((tag) => keepLine(tag.title)),
     },
     cacheable: false,
   }

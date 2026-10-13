@@ -1,9 +1,10 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { GoogleGenerativeAI, type GenerationConfig } from '@google/generative-ai'
 import type { WebLocale } from '@/lib/i18n/config'
 import { createGoogleGenerativeAIForUser } from '@/lib/ai/google-api-key-resolver'
 import type { TutorTopicName } from '@/lib/ai-tutor/ai-tutor-match'
 import { listTutorTopicCatalog, listTutorTopicNames } from '@/lib/ai-tutor/ai-tutor-store'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import { DEEPSEEK_CHAT_COMPLETIONS_URL, buildDeepSeekCompletionBody } from '@/lib/deepseek-api'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 import {
   fetchHomeworkPhotoCache,
   fetchHomeworkProblemCache,
@@ -12,7 +13,11 @@ import {
   touchHomeworkPhotoCache,
   touchHomeworkProblemCache,
 } from '@/lib/homework-help/homework-help-cache'
+import { HOMEWORK_FLASH_CALL_MS, HOMEWORK_PRO_CALL_MS, homeworkCallTimeoutMs } from '@/lib/homework-help/homework-help-budget'
 import {
+  answersAgree,
+  matchingDeepSeekAnswer,
+  mergeAdjudicatedProblem,
   mergeCheckedProblem,
   parseHomeworkChecks,
   parseHomeworkStatements,
@@ -33,12 +38,22 @@ import {
   type HomeworkReview,
 } from '@/lib/homework-help/homework-help-guide'
 import {
-  HOMEWORK_HELP_CHECK_MODEL,
+  HOMEWORK_HELP_DRAFT_MAX_TOKENS,
   HOMEWORK_HELP_DRAFT_MODEL,
+  HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
+  HOMEWORK_HELP_FALLBACK_MODEL,
+  HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
+  HOMEWORK_HELP_GPT_MAX_TOKENS,
+  HOMEWORK_HELP_GPT_MODEL,
+  HOMEWORK_HELP_GRADE_MAX_TOKENS,
+  HOMEWORK_HELP_GRADE_MODEL,
+  HOMEWORK_HELP_READ_MAX_TOKENS,
   HOMEWORK_HELP_READ_MODEL,
+  HOMEWORK_HELP_REVIEW_MAX_TOKENS,
   HOMEWORK_HELP_REVIEW_MODEL,
 } from '@/lib/homework-help/homework-help-models'
 import { attachHomeworkTags } from '@/lib/homework-help/homework-help-tags'
+import { rememberHomeworkUnsolved } from '@/lib/homework-help/homework-help-unsolved'
 
 const LANGUAGE_NAME: Record<WebLocale, string> = {
   vi: 'Vietnamese',
@@ -94,6 +109,28 @@ function languageName(locale: WebLocale): string {
   return LANGUAGE_NAME[locale] ?? LANGUAGE_NAME.vi
 }
 
+type GeminiCallStatus = 'ok' | 'parse' | 'transport' | 'budget'
+
+function geminiCauseText(cause: unknown): string {
+  if (!cause) return ''
+  if (cause instanceof Error) {
+    const code =
+      'code' in cause && typeof (cause as { code?: unknown }).code === 'string'
+        ? (cause as { code: string }).code
+        : ''
+    const nested = geminiCauseText(cause.cause)
+    const head = code ? `${code} ${cause.message}` : cause.message
+    return nested ? `${head} | ${nested}` : head
+  }
+  return String(cause)
+}
+
+function describeGeminiFailure(error: unknown): string {
+  if (!(error instanceof Error)) return String(error)
+  const cause = geminiCauseText(error.cause)
+  return cause ? `${error.message} | ${cause}` : error.message
+}
+
 async function generateJson(input: {
   userId: string
   feature: string
@@ -101,33 +138,142 @@ async function generateJson(input: {
   temperature: number
   prompt: string
   images?: HomeworkImagePart[]
-}): Promise<unknown | null> {
+  startedAt: number
+  preferredMs: number
+  maxOutputTokens: number
+  thinkingBudget?: number
+}): Promise<{ status: GeminiCallStatus; value: unknown | null }> {
+  const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), input.preferredMs)
+  if (timeoutMs == null) {
+    console.warn('[homework-help] budget spent', input.feature)
+    return { status: 'budget', value: null }
+  }
   let genAI: GoogleGenerativeAI
   try {
     genAI = await createGoogleGenerativeAIForUser(input.userId)
   } catch (error) {
     console.warn('[homework-help] missing Gemini key', error instanceof Error ? error.message : error)
-    return null
+    return { status: 'transport', value: null }
   }
+  const generationConfig = {
+    temperature: input.temperature,
+    maxOutputTokens: input.maxOutputTokens,
+    responseMimeType: 'application/json',
+    ...(input.thinkingBudget != null ? { thinkingConfig: { thinkingBudget: input.thinkingBudget } } : {}),
+  } as GenerationConfig
   const model = genAI.getGenerativeModel({
     model: input.model,
-    generationConfig: {
-      temperature: input.temperature,
-      maxOutputTokens: 65536,
-      responseMimeType: 'application/json',
-    },
+    generationConfig,
   })
   const parts: Array<string | { inlineData: { mimeType: string; data: string } }> = [input.prompt]
   for (const image of input.images ?? []) {
     parts.push({ inlineData: { mimeType: image.mimeType, data: image.base64 } })
   }
+  const started = Date.now()
   try {
-    const result = (await model.generateContent(parts)) as GeminiTextResult
+    const result = (await model.generateContent(parts, { timeout: timeoutMs })) as GeminiTextResult
     void trackFromUsageMetadata(result.response.usageMetadata, input.model, input.feature, input.userId)
-    return parseModelJson(readGeminiText(result))
+    const value = parseModelJson(readGeminiText(result))
+    if (value == null) return { status: 'parse', value: null }
+    return { status: 'ok', value }
   } catch (error) {
-    console.warn('[homework-help] generate failed', error instanceof Error ? error.message : error)
-    return null
+    console.warn(
+      '[homework-help] generate failed',
+      input.feature,
+      input.model,
+      `${Date.now() - started}ms`,
+      describeGeminiFailure(error)
+    )
+    return { status: 'transport', value: null }
+  }
+}
+
+async function generateReasonerJson(input: {
+  userId: string
+  feature: string
+  model: string
+  prompt: string
+  startedAt: number
+  preferredMs: number
+  maxOutputTokens: number
+}): Promise<{ status: GeminiCallStatus; value: unknown | null }> {
+  const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), input.preferredMs)
+  if (timeoutMs == null) {
+    console.warn('[homework-help] budget spent', input.feature)
+    return { status: 'budget', value: null }
+  }
+  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!key) {
+    console.warn('[homework-help] missing DeepSeek key')
+    return { status: 'transport', value: null }
+  }
+  const started = Date.now()
+  try {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('verify', {
+          model: input.model,
+          temperature: 0,
+          max_tokens: input.maxOutputTokens,
+          reasoning_effort: 'low',
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: 'Return only a JSON object. No markdown.' },
+            { role: 'user', content: input.prompt },
+          ],
+        })
+      ),
+    })
+    const rawBody = await res.text()
+    const json = (() => {
+      try {
+        return JSON.parse(rawBody) as {
+          choices?: Array<{ message?: { content?: string } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+          error?: { message?: string }
+        }
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok || !json) {
+      console.warn(
+        '[homework-help] generate failed',
+        input.feature,
+        input.model,
+        `${Date.now() - started}ms`,
+        res.status,
+        json?.error?.message || rawBody.slice(0, 240) || res.statusText || 'DeepSeek error'
+      )
+      return { status: 'transport', value: null }
+    }
+    const text = json.choices?.[0]?.message?.content?.trim() || ''
+    trackOpenAiStyleCompletionUsage({
+      userId: input.userId,
+      model: input.model,
+      feature: input.feature,
+      usage: json.usage,
+      fallbackPromptChars: input.prompt.length,
+      fallbackOutputChars: text.length,
+    })
+    const value = parseModelJson(text)
+    if (value == null) return { status: 'parse', value: null }
+    return { status: 'ok', value }
+  } catch (error) {
+    console.warn(
+      '[homework-help] generate failed',
+      input.feature,
+      input.model,
+      `${Date.now() - started}ms`,
+      describeGeminiFailure(error)
+    )
+    return { status: 'transport', value: null }
   }
 }
 
@@ -135,6 +281,7 @@ async function readStatements(input: {
   userId: string
   locale: WebLocale
   images: HomeworkImagePart[]
+  startedAt: number
 }): Promise<{ note: string; statements: string[] } | null> {
   const prompt = `You transcribe homework from a photo. Write entirely in ${languageName(input.locale)}.
 Return ONLY JSON: {"note":"","statements":["one full problem"]}
@@ -145,16 +292,26 @@ Rules:
 - Write formulas with plain letters and digits: FeCO3, HNO3, H2SO4, Ba(OH)2. Keep the printed numbers.
 - Skip a question cut off at the edge when its data is not visible. Ignore student names.
 - If the photo is not schoolwork, return an empty statements array and a short note.`
-  const raw = await generateJson({
-    userId: input.userId,
-    feature: 'homework-help-read',
-    model: HOMEWORK_HELP_READ_MODEL,
-    temperature: 0,
-    prompt,
-    images: input.images,
-  })
-  if (!raw) return null
-  return parseHomeworkStatements(raw)
+  const call = () =>
+    generateJson({
+      userId: input.userId,
+      feature: 'homework-help-read',
+      model: HOMEWORK_HELP_READ_MODEL,
+      temperature: 0,
+      prompt,
+      images: input.images,
+      startedAt: input.startedAt,
+      preferredMs: HOMEWORK_FLASH_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_READ_MAX_TOKENS,
+    })
+  let raw = await call()
+  let read = raw.status === 'ok' && raw.value != null ? parseHomeworkStatements(raw.value) : null
+  if (!read && raw.status !== 'transport' && raw.status !== 'budget') {
+    console.warn('[homework-help] read parse failed, retry')
+    raw = await call()
+    read = raw.status === 'ok' && raw.value != null ? parseHomeworkStatements(raw.value) : null
+  }
+  return read
 }
 
 function tutorCatalogBlock(rows: TutorTopicName[]): string {
@@ -167,6 +324,7 @@ async function draftProblems(input: {
   locale: WebLocale
   statements: Array<{ index: number; statement: string }>
   catalog: TutorTopicName[]
+  startedAt: number
 }): Promise<Array<{ index: number; problem: HomeworkProblem }> | null> {
   const list = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
   const prompt = `Write a study guide for these homework questions. Write entirely in ${languageName(input.locale)}.
@@ -186,16 +344,24 @@ Rules:
 - answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
 - Leave answer empty only when a needed number or formula is missing from the statement.
 - Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, hints, or tag titles.`
-  const raw = await generateJson({
-    userId: input.userId,
-    feature: 'homework-help-draft',
-    model: HOMEWORK_HELP_DRAFT_MODEL,
-    temperature: 0,
-    prompt,
-  })
-  if (!raw) return null
-  const drafted = parseIndexedDrafts(raw)
-  if (!drafted || drafted.length === 0) return null
+  const call = () =>
+    generateReasonerJson({
+      userId: input.userId,
+      feature: 'homework-help-draft',
+      model: HOMEWORK_HELP_DRAFT_MODEL,
+      prompt,
+      startedAt: input.startedAt,
+      preferredMs: HOMEWORK_PRO_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_DRAFT_MAX_TOKENS,
+    })
+  let raw = await call()
+  let drafted = raw.status === 'ok' && raw.value != null ? parseIndexedDrafts(raw.value) : null
+  if (!drafted?.length && raw.status !== 'transport' && raw.status !== 'budget') {
+    console.warn('[homework-help] draft parse failed, retry')
+    raw = await call()
+    drafted = raw.status === 'ok' && raw.value != null ? parseIndexedDrafts(raw.value) : null
+  }
+  if (!drafted?.length) return null
   return drafted
 }
 
@@ -222,37 +388,167 @@ function alignDrafts(
   })
 }
 
-async function checkProblems(input: {
+async function gradeKnowledge(input: {
   userId: string
   locale: WebLocale
-  drafts: Array<{ index: number; problem: HomeworkProblem }>
+  rows: Array<{ index: number; statement: string; knowledge: string[] }>
+  startedAt: number
 }): Promise<HomeworkProblemCheck[] | null> {
-  const blocks = input.drafts
+  const blocks = input.rows
     .map((item) => {
-      const lines = item.problem.knowledge.map((line, index) => `  [${index}] ${line}`).join('\n')
-      return `[${item.index}] ${item.problem.statement}\n${lines || '  (no knowledge lines)'}`
+      const lines = item.knowledge.map((line, index) => `  [${index}] ${line}`).join('\n')
+      return `[${item.index}] ${item.statement}\n${lines}`
     })
     .join('\n')
-  const prompt = `Check school knowledge before a student sees it. Write entirely in ${languageName(input.locale)}.
-Solve each question yourself from the full statement. You are not shown any draft answer.
+  const prompt = `Mark school knowledge lines before a student sees them. Write entirely in ${languageName(input.locale)}.
 ${blocks}
-Return ONLY a JSON object, never a bare array:
-{"problems":[{"index":0,"answer":"","knowledge":[{"index":0,"ok":true}]}]}
+Return ONLY JSON:
+{"problems":[{"index":0,"knowledge":[{"index":0,"ok":true}]}]}
 Rules:
-- answer is your own final results, one line. Join sub-questions with " | " in problem order. Plain formulas and the units used in the problem, such as "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No "1." labels and no working.
-- Leave answer empty only when a needed number or formula is missing from the statement.
-- knowledge lists every draft line index. ok is true only when that line is factually right for this question.
+- knowledge lists every line index shown above.
+- ok is true only when that line is factually right for this question.
 - A wrong rule, a wrong formula, or a line that states the final result is not ok.
-- Do not add knowledge lines.`
+- Do not add lines and do not write the solution.`
+  const call = () =>
+    generateJson({
+      userId: input.userId,
+      feature: 'homework-help-grade',
+      model: HOMEWORK_HELP_GRADE_MODEL,
+      temperature: 0,
+      prompt,
+      startedAt: input.startedAt,
+      preferredMs: HOMEWORK_FLASH_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_GRADE_MAX_TOKENS,
+    })
+  let raw = await call()
+  let grades = raw.status === 'ok' ? parseHomeworkChecks(raw.value) : null
+  if (!grades?.length && raw.status !== 'transport' && raw.status !== 'budget') {
+    console.warn('[homework-help] grade parse failed, retry')
+    raw = await call()
+    grades = raw.status === 'ok' ? parseHomeworkChecks(raw.value) : null
+  }
+  if (!grades?.length) return null
+  return grades
+}
+
+const ANSWER_RULES = `Rules:
+- answer is your own final results, one line. Join sub-questions with " | " in problem order. Plain formulas and the units used in the problem, such as "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No "1." labels and no working.
+- Leave answer empty only when a needed number or formula is missing from the statement.`
+
+async function solveWithGemini(input: {
+  userId: string
+  locale: WebLocale
+  statements: Array<{ index: number; statement: string }>
+  startedAt: number
+}): Promise<HomeworkProblemCheck[] | null> {
+  const blocks = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
+  const prompt = `Solve each homework question yourself. Write entirely in ${languageName(input.locale)}.
+You are not shown any other solution.
+${blocks}
+Return ONLY JSON:
+{"problems":[{"index":0,"answer":""}]}
+${ANSWER_RULES}`
   const raw = await generateJson({
     userId: input.userId,
-    feature: 'homework-help-check',
-    model: HOMEWORK_HELP_CHECK_MODEL,
+    feature: 'homework-help-fallback',
+    model: HOMEWORK_HELP_FALLBACK_MODEL,
     temperature: 0,
     prompt,
+    startedAt: input.startedAt,
+    preferredMs: HOMEWORK_PRO_CALL_MS,
+    maxOutputTokens: HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
+    thinkingBudget: HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
   })
-  if (!raw) return null
-  return parseHomeworkChecks(raw)
+  const solved = raw.status === 'ok' ? parseHomeworkChecks(raw.value) : null
+  if (!solved?.length) {
+    console.warn('[homework-help] gemini pro failed', raw.status)
+    return null
+  }
+  return solved
+}
+
+async function solveWithGpt(input: {
+  userId: string
+  locale: WebLocale
+  statements: Array<{ index: number; statement: string }>
+  startedAt: number
+}): Promise<HomeworkProblemCheck[] | null> {
+  const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), HOMEWORK_PRO_CALL_MS)
+  if (timeoutMs == null) {
+    console.warn('[homework-help] budget spent', 'homework-help-gpt')
+    return null
+  }
+  const key = process.env.OPENAI_API_KEY?.trim()
+  if (!key) {
+    console.warn('[homework-help] missing OpenAI key')
+    return null
+  }
+  console.warn('[homework-help] answers differ, gpt', input.statements.length)
+  const blocks = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
+  const prompt = `Solve each homework question yourself. Write entirely in ${languageName(input.locale)}.
+You are not shown any other solution.
+${blocks}
+Return ONLY JSON:
+{"problems":[{"index":0,"answer":""}]}
+${ANSWER_RULES}`
+  const model = HOMEWORK_HELP_GPT_MODEL
+  const body: Record<string, unknown> = {
+    model,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: 'Return only a JSON object. No markdown.' },
+      { role: 'user', content: prompt },
+    ],
+  }
+  if (model.startsWith('gpt-5') || model.startsWith('o')) {
+    body.max_completion_tokens = HOMEWORK_HELP_GPT_MAX_TOKENS
+  } else {
+    body.temperature = 0
+    body.max_tokens = HOMEWORK_HELP_GPT_MAX_TOKENS
+  }
+  const started = Date.now()
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(timeoutMs),
+      body: JSON.stringify(body),
+    })
+    const rawBody = await res.text()
+    const json = (() => {
+      try {
+        return JSON.parse(rawBody) as {
+          choices?: Array<{ message?: { content?: string | null } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+          error?: { message?: string }
+        }
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok || !json) {
+      console.warn('[homework-help] gpt failed', res.status, (json?.error?.message || rawBody).slice(0, 240))
+      return null
+    }
+    const text = String(json.choices?.[0]?.message?.content ?? '').trim()
+    trackOpenAiStyleCompletionUsage({
+      userId: input.userId,
+      model,
+      feature: 'homework-help-gpt',
+      usage: json.usage,
+      fallbackPromptChars: prompt.length,
+      fallbackOutputChars: text.length,
+    })
+    const solved = parseHomeworkChecks(parseModelJson(text))
+    if (!solved?.length) {
+      console.warn('[homework-help] gpt parse failed', `${Date.now() - started}ms`)
+      return null
+    }
+    return solved
+  } catch (error) {
+    console.warn('[homework-help] gpt failed', `${Date.now() - started}ms`, error instanceof Error ? error.message : error)
+    return null
+  }
 }
 
 function withSharedTags(problem: HomeworkProblem, saved: TutorTopicName[]): HomeworkProblem {
@@ -264,7 +560,8 @@ async function explainStatements(input: {
   locale: WebLocale
   note: string
   statements: string[]
-}): Promise<{ guide: HomeworkGuide; everyProblemCacheable: boolean }> {
+  startedAt: number
+}): Promise<{ guide: HomeworkGuide; everyProblemCacheable: boolean } | null> {
   const savedTopics = await listTutorTopicNames(input.locale)
   const problems: Array<HomeworkProblem | null> = input.statements.map(() => null)
   const pending: Array<{ index: number; statement: string }> = []
@@ -283,38 +580,125 @@ async function explainStatements(input: {
   let everyProblemCacheable = pending.length === 0
   if (pending.length > 0) {
     const catalog = await listTutorTopicCatalog(input.locale)
-    let drafted = await draftProblems({
-      userId: input.userId,
-      locale: input.locale,
-      statements: pending,
-      catalog,
-    })
-    if (!drafted) {
-      drafted = await draftProblems({
+    const [drafted, geminiSolved] = await Promise.all([
+      draftProblems({
         userId: input.userId,
         locale: input.locale,
         statements: pending,
         catalog,
-      })
+        startedAt: input.startedAt,
+      }),
+      solveWithGemini({
+        userId: input.userId,
+        locale: input.locale,
+        statements: pending,
+        startedAt: input.startedAt,
+      }),
+    ])
+    if (!drafted) {
+      const kept = problems.filter((problem): problem is HomeworkProblem => Boolean(problem))
+      if (!kept.length) return null
+      return { guide: { note: input.note, problems: kept }, everyProblemCacheable: false }
     }
     const aligned = alignDrafts(pending, drafted)
-    let checks = drafted
-      ? await checkProblems({ userId: input.userId, locale: input.locale, drafts: aligned })
-      : null
-    if (drafted && !checks) {
-      console.warn('[homework-help] check parse failed, retry')
-      checks = await checkProblems({ userId: input.userId, locale: input.locale, drafts: aligned })
-    }
-    everyProblemCacheable = Boolean(drafted && checks)
+    const geminiByIndex = new Map((geminiSolved ?? []).map((row) => [row.index, row.answer]))
+    const needsGpt = aligned.flatMap((item) => {
+      const geminiAnswer = geminiByIndex.get(item.index) ?? ''
+      if (
+        item.problem.answer.trim() &&
+        geminiAnswer.trim() &&
+        answersAgree(item.problem.answer, geminiAnswer, item.problem.statement)
+      ) {
+        return []
+      }
+      return [{ index: item.index, statement: item.problem.statement }]
+    })
+    const gradeRows = aligned
+      .filter((item) => item.problem.knowledge.length > 0)
+      .map((item) => ({
+        index: item.index,
+        statement: item.problem.statement,
+        knowledge: item.problem.knowledge,
+      }))
+    const [grades, gptSolved] = await Promise.all([
+      gradeRows.length > 0
+        ? gradeKnowledge({
+            userId: input.userId,
+            locale: input.locale,
+            rows: gradeRows,
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve(null),
+      needsGpt.length > 0
+        ? solveWithGpt({
+            userId: input.userId,
+            locale: input.locale,
+            statements: needsGpt,
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve(null),
+    ])
+    const gradeByIndex = new Map((grades ?? []).map((row) => [row.index, row.knowledge]))
+    const gptByIndex = new Map((gptSolved ?? []).map((row) => [row.index, row.answer]))
+    const gptIndexes = new Set(needsGpt.map((row) => row.index))
+    everyProblemCacheable = true
+    const unsolved: Array<{
+      statement: string
+      draftAnswer: string
+      geminiAnswer: string
+      gptAnswer: string
+    }> = []
     for (const item of aligned) {
-      const check = checks?.find((row) => row.index === item.index) ?? null
-      const merged = mergeCheckedProblem(item.problem, check)
+      const itemGrades = gradeByIndex.get(item.index) ?? []
+      const geminiAnswer = geminiByIndex.get(item.index) ?? ''
+      const gptAnswer = gptByIndex.get(item.index) ?? ''
+      const agreed =
+        Boolean(item.problem.answer.trim()) &&
+        Boolean(geminiAnswer.trim()) &&
+        answersAgree(item.problem.answer, geminiAnswer, item.problem.statement)
+      const side = gptIndexes.has(item.index)
+        ? matchingDeepSeekAnswer(item.problem.answer, geminiAnswer, gptAnswer, item.problem.statement)
+        : ''
+      const geminiCheck = { index: item.index, answer: geminiAnswer, knowledge: itemGrades }
+      const merged = agreed
+        ? mergeCheckedProblem(item.problem, geminiCheck)
+        : mergeAdjudicatedProblem(
+            item.problem,
+            geminiCheck,
+            side
+              ? {
+                  index: item.index,
+                  pick: side,
+                  answer: side === 'draft' ? item.problem.answer : geminiAnswer,
+                }
+              : { index: item.index, pick: 'none', answer: '' },
+            itemGrades
+          )
+      if (!merged.problem.answer.trim()) {
+        unsolved.push({
+          statement: item.problem.statement,
+          draftAnswer: item.problem.answer,
+          geminiAnswer,
+          gptAnswer,
+        })
+      }
       const tagged = withSharedTags(merged.problem, savedTopics)
       const fingerprint = homeworkStatementFingerprint(item.problem.statement)
-      problems[item.index] = merged.cacheable
-        ? await rememberHomeworkProblem(fingerprint, input.locale, tagged)
+      const cacheable = Boolean(merged.problem.answer.trim()) && (merged.cacheable || Boolean(side))
+      const verifyModel = side === 'check' || side === 'draft' ? HOMEWORK_HELP_GPT_MODEL : HOMEWORK_HELP_FALLBACK_MODEL
+      problems[item.index] = cacheable
+        ? await rememberHomeworkProblem(fingerprint, input.locale, tagged, agreed ? HOMEWORK_HELP_FALLBACK_MODEL : verifyModel)
         : tagged
-      if (!merged.cacheable) everyProblemCacheable = false
+      if (!cacheable) everyProblemCacheable = false
+    }
+    if (unsolved.length > 0) {
+      await rememberHomeworkUnsolved({
+        userId: input.userId,
+        locale: input.locale,
+        rows: unsolved,
+      }).catch((error) =>
+        console.warn('[homework-help] unsolved', error instanceof Error ? error.message : error)
+      )
     }
   }
 
@@ -343,11 +727,12 @@ export async function explainHomeworkImages(input: {
     }
   }
 
-  let read = await readStatements(input)
+  const startedAt = Date.now()
+  let read = await readStatements({ ...input, startedAt })
   if (!read) return null
-  if (homeworkReadIsThin(read.statements)) {
+  if (homeworkReadIsThin(read.statements) && Date.now() - startedAt < 20_000) {
     console.warn('[homework-help] thin read, retry')
-    const again = await readStatements(input)
+    const again = await readStatements({ ...input, startedAt })
     if (again && !homeworkReadIsThin(again.statements)) read = again
   }
   if (read.statements.length === 0) return { note: read.note, problems: [] }
@@ -357,7 +742,9 @@ export async function explainHomeworkImages(input: {
     locale: input.locale,
     note: read.note,
     statements: read.statements,
+    startedAt,
   })
+  if (!explained) return null
   if (explained.everyProblemCacheable) {
     await rememberHomeworkPhotoCache(photoKey, input.locale, explained.guide)
   }
@@ -376,8 +763,9 @@ export async function explainHomeworkText(input: {
     locale: input.locale,
     note: '',
     statements,
+    startedAt: Date.now(),
   })
-  return explained.guide
+  return explained?.guide ?? null
 }
 
 export async function reviewHomeworkAttempt(input: {
@@ -408,13 +796,24 @@ Rules:
 - checks: 1 to 5 steps. ok is true only when that part of the attempt is sound.
 - note explains why, without writing the correct final answer, option letter, or a worked solution.
 - gap: one sentence on the idea to revisit. No final answer.`
-  const raw = await generateJson({
-    userId: input.userId,
-    feature: 'homework-help-review',
-    model: HOMEWORK_HELP_REVIEW_MODEL,
-    temperature: 0.2,
-    prompt,
-  })
-  if (!raw) return null
-  return parseHomeworkReview(raw)
+  const startedAt = Date.now()
+  const call = () =>
+    generateJson({
+      userId: input.userId,
+      feature: 'homework-help-review',
+      model: HOMEWORK_HELP_REVIEW_MODEL,
+      temperature: 0.2,
+      prompt,
+      startedAt,
+      preferredMs: HOMEWORK_FLASH_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_REVIEW_MAX_TOKENS,
+    })
+  let raw = await call()
+  let review = raw.status === 'ok' && raw.value != null ? parseHomeworkReview(raw.value) : null
+  if (!review && (raw.status === 'parse' || raw.status === 'ok')) {
+    console.warn('[homework-help] review parse failed, retry')
+    raw = await call()
+    review = raw.status === 'ok' && raw.value != null ? parseHomeworkReview(raw.value) : null
+  }
+  return review
 }

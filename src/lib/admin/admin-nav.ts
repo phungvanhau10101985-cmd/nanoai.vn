@@ -18,6 +18,7 @@ import {
   Table2,
   LayoutDashboard,
   AlertTriangle,
+  CircleHelp,
 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -148,6 +149,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           ko: '고객 작업 오류 — 기록하고 관리자에게 메일 발송.',
         },
         icon: AlertTriangle,
+      },
+      {
+        href: '/admin/homework-unsolved',
+        title: {
+          vi: 'Bài chưa có đáp án',
+          en: 'Homework without an answer',
+          zh: '没有答案的作业',
+          ja: '解答のない宿題',
+          ko: '답이 없는 숙제',
+        },
+        description: {
+          vi: 'GPT không khớp DeepSeek và Gemini Pro. Mail admin một lần mỗi ngày nếu có bài mới.',
+          en: 'GPT matched neither DeepSeek nor Gemini Pro. Admins get one email a day when there is something new.',
+          zh: 'GPT 与 DeepSeek、Gemini Pro 都不一致。有新题时每天给管理员发一封邮件。',
+          ja: 'GPT が DeepSeek にも Gemini Pro にも一致しない宿題。新しい問題がある日は管理者にメールを1通送ります。',
+          ko: 'GPT가 DeepSeek과 Gemini Pro 어느 쪽과도 맞지 않은 숙제. 새 문제가 있으면 하루에 한 번 관리자에게 메일을 보냅니다.',
+        },
+        icon: CircleHelp,
       },
       {
         href: '/admin/api-keys',
