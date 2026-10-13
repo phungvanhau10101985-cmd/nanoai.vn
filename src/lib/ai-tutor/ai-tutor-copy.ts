@@ -44,6 +44,7 @@ const VI: AiTutorCopy = {
     missing_text: 'Gõ câu hỏi trước khi gửi.',
     ai_unavailable: 'Gia sư chưa trả lời được. Thử lại sau.',
     new_thread_failed: 'Không tạo được hội thoại mới.',
+    payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để chat với gia sư.',
   },
 }
 
@@ -72,6 +73,7 @@ const EN: AiTutorCopy = {
     missing_text: 'Type a question before sending.',
     ai_unavailable: 'The tutor could not answer. Try again later.',
     new_thread_failed: 'Could not start a new chat.',
+    payment_required: 'The student plan is not active this period. Buy it to chat with the tutor.',
   },
 }
 
@@ -100,6 +102,7 @@ const ZH: AiTutorCopy = {
     missing_text: '先写下问题再发送。',
     ai_unavailable: '家教暂时答不了。请稍后再试。',
     new_thread_failed: '没能开始新对话。',
+    payment_required: '本期学生套餐未开通。购买后才能和家教聊天。',
   },
 }
 
@@ -128,6 +131,7 @@ const JA: AiTutorCopy = {
     missing_text: '送る前に質問を書いてください。',
     ai_unavailable: '今は答えられません。あとでもう一度試してください。',
     new_thread_failed: '新しい会話を始められませんでした。',
+    payment_required: 'この期間の生徒プランが未開通です。購入するとチューターと話せます。',
   },
 }
 
@@ -156,6 +160,7 @@ const KO: AiTutorCopy = {
     missing_text: '보내기 전에 질문을 입력하세요.',
     ai_unavailable: '지금은 답하지 못했습니다. 나중에 다시 시도하세요.',
     new_thread_failed: '새 대화를 시작하지 못했습니다.',
+    payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 튜터와 대화할 수 있습니다.',
   },
 }
 

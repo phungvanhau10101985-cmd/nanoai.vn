@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
 import { Check, History, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -16,6 +17,7 @@ import {
   sendTutorQuestion,
   startTutorThread,
 } from '@/app/gia-su-ai/actions'
+import { StudentStudyPaywall } from '@/components/student-study/student-study-paywall'
 
 type Props = {
   locale: WebLocale
@@ -141,13 +143,15 @@ export default function GiaSuAiClient({ locale }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
+  const [needsPlan, setNeedsPlan] = useState(false)
+  const [reloadKey, setReloadKey] = useState(0)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [sessions, setSessions] = useState<TutorSessionSummary[]>([])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const busyRef = useRef(false)
-  const frame = useMobileTutorFrame()
+  const frame = useMobileToolChatFrame()
 
   useEffect(() => {
     let cancelled = false
@@ -155,16 +159,20 @@ export default function GiaSuAiClient({ locale }: Props) {
       if (cancelled) return
       if (result.ok) {
         if (!busyRef.current) {
+          setNeedsPlan(false)
           setSessionId(result.data.sessionId)
           setMessages(linesFromStored(result.data.messages))
         }
+      } else if (result.code === 'payment_required') {
+        setNeedsPlan(true)
+        setError('')
       } else setError(copy.errors[result.code])
       setReady(true)
     })
     return () => {
       cancelled = true
     }
-  }, [copy.errors, locale])
+  }, [copy.errors, locale, reloadKey])
 
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -187,7 +195,10 @@ export default function GiaSuAiClient({ locale }: Props) {
     if (!result.ok) {
       setMessages((current) => current.filter((message) => message.id !== pending.id))
       restore?.()
-      setError(copy.errors[result.code])
+      if (result.code === 'payment_required') {
+        setNeedsPlan(true)
+        setError('')
+      } else setError(copy.errors[result.code])
       busyRef.current = false
       setBusy(false)
       return
@@ -235,7 +246,10 @@ export default function GiaSuAiClient({ locale }: Props) {
     setError('')
     const result = await startTutorThread(locale)
     if (!result.ok) {
-      setError(copy.errors[result.code])
+      if (result.code === 'payment_required') {
+        setNeedsPlan(true)
+        setError('')
+      } else setError(copy.errors[result.code])
       return
     }
     setSessionId(result.data.sessionId)
@@ -261,7 +275,10 @@ export default function GiaSuAiClient({ locale }: Props) {
     setError('')
     const result = await openTutorHistoryThread(id)
     if (!result.ok) {
-      setError(copy.errors[result.code])
+      if (result.code === 'payment_required') {
+        setNeedsPlan(true)
+        setError('')
+      } else setError(copy.errors[result.code])
       return
     }
     setSessionId(result.data.sessionId)
@@ -275,17 +292,31 @@ export default function GiaSuAiClient({ locale }: Props) {
     await ask(userTurn(title, 'label'), () => openTutorLabelAction({ locale, labelKey, title }))
   }
 
+  const shellClass =
+    'flex min-h-0 flex-col max-md:fixed max-md:inset-x-0 max-md:z-30 max-md:bg-background max-md:top-[calc(var(--site-header-height,3rem)+4.75rem)] max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:min-h-[32rem] md:rounded-xl md:border md:bg-card md:shadow-sm'
+  const shellStyle = frame
+    ? {
+        ...(frame.top > 0 ? { top: frame.top } : {}),
+        ...(frame.bottom != null ? { bottom: frame.bottom } : {}),
+      }
+    : undefined
+
+  if (!ready) {
+    return <div className={shellClass} style={shellStyle} aria-busy="true" />
+  }
+
+  if (needsPlan) {
+    return (
+      <div className={shellClass} style={shellStyle}>
+        <StudentStudyPaywall locale={locale} onPurchased={() => setReloadKey((n) => n + 1)} />
+      </div>
+    )
+  }
+
   return (
     <div
-      className="flex min-h-0 flex-col max-md:fixed max-md:inset-x-0 max-md:z-30 max-md:bg-background max-md:top-[calc(var(--site-header-height,3rem)+4.75rem)] max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:min-h-[32rem] md:rounded-xl md:border md:bg-card md:shadow-sm"
-      style={
-        frame
-          ? {
-              ...(frame.top > 0 ? { top: frame.top } : {}),
-              bottom: frame.bottom,
-            }
-          : undefined
-      }
+      className={shellClass}
+      style={shellStyle}
     >
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
@@ -481,47 +512,3 @@ export default function GiaSuAiClient({ locale }: Props) {
   )
 }
 
-/** Mobile: khóa trang, khung gõ nằm trên thanh đáy, chỉ hội thoại được vuốt. */
-function useMobileTutorFrame(): { top: number; bottom: number } | null {
-  const [frame, setFrame] = useState<{ top: number; bottom: number } | null>(null)
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 767px)')
-    const sync = () => {
-      if (!mq.matches) {
-        setFrame(null)
-        document.documentElement.style.overflow = ''
-        document.body.style.overflow = ''
-        return
-      }
-      document.documentElement.style.overflow = 'hidden'
-      document.body.style.overflow = 'hidden'
-      const back = document.querySelector('[data-creation-tool-back]')
-      const nav = document.querySelector('nav.safe-area-pb')
-      const backBottom = back ? Math.round(back.getBoundingClientRect().bottom) : 0
-      const navTop = nav ? Math.round(nav.getBoundingClientRect().top) : window.innerHeight
-      setFrame({
-        top: backBottom,
-        bottom: Math.max(0, window.innerHeight - navTop),
-      })
-    }
-    if (mq.matches) window.scrollTo(0, 0)
-    sync()
-    const ro = new ResizeObserver(sync)
-    for (const selector of ['header', '[data-creation-tool-back]', 'nav.safe-area-pb']) {
-      const node = document.querySelector(selector)
-      if (node) ro.observe(node)
-    }
-    mq.addEventListener('change', sync)
-    window.addEventListener('resize', sync)
-    return () => {
-      ro.disconnect()
-      mq.removeEventListener('change', sync)
-      window.removeEventListener('resize', sync)
-      document.documentElement.style.overflow = ''
-      document.body.style.overflow = ''
-    }
-  }, [])
-
-  return frame
-}

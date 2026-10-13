@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server'
 import { getUserOrBypass } from '@/lib/auth'
 import { resolveAuthUserEmail } from '@/lib/email/account-notification-email'
 import { getClientIpFromRequest, isRateLimited } from '@/lib/api/simple-ip-rate-limit'
-import { CUSTOMER_ERROR_LIMITS as L, clipText, type CustomerErrorSource } from '@/lib/errors/customer-error-filter'
+import {
+  CUSTOMER_ERROR_LIMITS as L,
+  clipText,
+  isLikelyBotUserAgent,
+  type CustomerErrorSource,
+} from '@/lib/errors/customer-error-filter'
 import { reportCustomerError } from '@/lib/errors/customer-error-report-pg'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +16,9 @@ const CLIENT_SOURCES: CustomerErrorSource[] = ['toast', 'boundary']
 
 export async function POST(req: Request) {
   const ip = getClientIpFromRequest(req)
+  if (isLikelyBotUserAgent(req.headers.get('user-agent'))) {
+    return NextResponse.json({ ok: true, ignored: true })
+  }
   if (isRateLimited(`error-reports:${ip}`, 20, 10 * 60_000)) {
     return NextResponse.json({ ok: false }, { status: 429 })
   }

@@ -54,6 +54,7 @@ export type HomeworkHelpErrorCode =
   | 'missing_attempt'
   | 'missing_text'
   | 'new_thread_failed'
+  | 'payment_required'
 
 export type HomeworkImagePart = {
   mimeType: string

@@ -73,6 +73,7 @@ export function CreationToolPageShell({
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 className={cn(
                   'block rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 touch-manipulation',
                   'lg:px-2.5 lg:py-2 lg:leading-snug lg:ring-offset-background',
@@ -99,6 +100,7 @@ export function CreationToolPageShell({
             <Link
               key={item.href}
               href={item.href}
+              prefetch={false}
               className={cn(
                 'block touch-manipulation rounded-lg px-3 py-2 text-sm transition-colors duration-150',
                 'lg:px-2.5 lg:py-2 lg:leading-snug lg:ring-offset-background',

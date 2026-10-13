@@ -1,4 +1,5 @@
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { STUDENT_STUDY_PLANS } from '@/lib/student-study-package'
 import { getDictionary, type NavGroupKey } from '@/lib/i18n/dictionaries'
 import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
 import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
@@ -189,6 +190,19 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
       brand: 'NanoAI',
     })
   }
+
+  items.push({
+    id: 'feature_goi_hoc_sinh',
+    title: 'Gói học sinh',
+    description:
+      'Hỗ trợ chữa bài và gia sư cho học sinh mọi cấp. Học thử 6 ngày. 39.000₫/tháng, 99.000₫/3 tháng, 360.000₫/năm.',
+    availability: 'in stock',
+    condition: 'new',
+    priceVnd: STUDENT_STUDY_PLANS[0].priceVnd,
+    linkPath: '/account/plan',
+    imagePath: pickImagePathForToolHref('/giao-trinh'),
+    brand: 'NanoAI',
+  })
 
   items.push({
     id: WALLET_TOPUP_ITEM_ID,

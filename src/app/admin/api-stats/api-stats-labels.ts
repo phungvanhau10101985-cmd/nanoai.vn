@@ -104,6 +104,7 @@ export const STATIC_API_FEATURE_LABELS: Record<string, string> = {
   'curriculum_lesson_slide_generate': 'Giáo trình — tạo slide tiết',
   'curriculum_slide_infographic': 'Giáo trình — infographic slide',
   'monthly_service_curriculum': 'Gói tháng — giáo trình',
+  'monthly_service_student': 'Gói học sinh — chữa bài và gia sư',
   'english_coach_live_start': 'Học ngoại ngữ — bắt đầu live',
   'english_coach_live_unlock': 'Học ngoại ngữ — mở thêm lượt live',
   'english_coach_preset_start': 'Học ngoại ngữ — bài có sẵn',

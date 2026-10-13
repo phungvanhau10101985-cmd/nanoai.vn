@@ -20,6 +20,16 @@ const VALIDATION_HINT = /vui lòng|hãy |please |请|してください|해 주�
 const FAILURE_WORD =
   /lỗi|error|fail|thất bại|không thể|timeout|quá thời gian|http \d{3}|失败|错误|エラー|失敗|오류|실패|exception|unexpected/i
 
+/** Cùng tập crawler với analytics — không ghi nhật ký lỗi khách. */
+const BOT_UA =
+  /bot|crawler|spider|facebookexternalhit|facebot|meta-externalagent|meta-externalfetcher|slackbot|whatsapp|telegrambot|twitterbot|linkedinbot|bingbot|googlebot|yandex|duckduckbot|embedly|quora link preview|pinterest|discordbot|applebot/i
+
+export function isLikelyBotUserAgent(userAgent: string | null | undefined): boolean {
+  const ua = (userAgent || '').trim()
+  if (!ua) return false
+  return BOT_UA.test(ua)
+}
+
 export function clipText(value: unknown, max: number): string {
   const s = typeof value === 'string' ? value : value == null ? '' : String(value)
   return s.replace(/\u0000/g, '').trim().slice(0, max)

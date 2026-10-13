@@ -2,6 +2,7 @@
 
 import { getUserForAction } from '@/lib/auth'
 import { normalizeWebLocale, type WebLocale } from '@/lib/i18n/config'
+import { hasStudentStudyAccess } from '@/lib/student-study-access'
 import {
   explainHomeworkImages,
   explainHomeworkText,
@@ -58,6 +59,9 @@ export async function loadHomeworkThread(
 ): Promise<HomeworkHelpActionResult<{ sessionId: string | null; messages: HomeworkThreadMessage[] }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+    return { ok: false, code: 'payment_required' }
+  }
   const sessionId = await ensureHomeworkSession(auth.user.id, localeOf(locale))
   if (!sessionId) return { ok: true, data: { sessionId: null, messages: [] } }
   return { ok: true, data: { sessionId, messages: await listHomeworkMessages(sessionId) } }
@@ -66,6 +70,9 @@ export async function loadHomeworkThread(
 export async function startHomeworkThread(locale: string): Promise<HomeworkHelpActionResult<{ sessionId: string | null }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+    return { ok: false, code: 'payment_required' }
+  }
   const sessionId = await startHomeworkSession(auth.user.id, localeOf(locale))
   if (!sessionId) return { ok: false, code: 'new_thread_failed' }
   return { ok: true, data: { sessionId } }
@@ -92,6 +99,9 @@ export async function explainHomeworkPhoto(
 ): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+    return { ok: false, code: 'payment_required' }
+  }
 
   const files = formData
     .getAll('images')
@@ -134,6 +144,9 @@ export async function explainTypedHomework(input: {
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
   const text = input.text.trim()
   if (!text) return { ok: false, code: 'missing_text' }
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+    return { ok: false, code: 'payment_required' }
+  }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'
   const guide = await explainHomeworkText({
     userId: auth.user.id,
@@ -162,6 +175,9 @@ export async function reviewHomeworkWork(input: {
   const statement = input.statement.trim()
   const attempt = input.attempt.trim()
   if (!statement || !attempt) return { ok: false, code: 'missing_attempt' }
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id, createdAt: auth.user.created_at }))) {
+    return { ok: false, code: 'payment_required' }
+  }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'
   const review = await reviewHomeworkAttempt({
     userId: auth.user.id,

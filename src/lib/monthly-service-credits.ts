@@ -1,17 +1,20 @@
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 
 /**
- * Phí dịch vụ theo tháng chỉ áp dụng **giáo trình / tạo bài** (không gồm credit AI theo lượt).
- * Học tiếng Anh AI: trả theo từng buổi/bài — xem `/api/english-coach/credits`.
- * Tham chiếu: ~110k/tháng giáo trình @ 6k/credit → 18 credit.
+ * Phí tháng giáo trình (giáo viên tạo giáo trình / đề / bài tập).
+ * Gói học sinh (chữa bài + gia sư) là giá VND riêng — xem `student-study-package.ts`.
+ * Học ngoại ngữ AI trả theo từng buổi/bài (`/api/english-coach/credits`).
+ * Tham chiếu: 18 credit × 6.000₫ ≈ 108.000₫/tháng.
  */
 export const MONTHLY_SERVICE_CREDITS = {
   curriculum: 18,
 } as const
 
+export type MonthlyServiceProduct = keyof typeof MONTHLY_SERVICE_CREDITS
+
 export const MONTHLY_SERVICE_CHARGE_TYPES = {
   curriculum: 'monthly_service_curriculum',
-} as const satisfies Record<keyof typeof MONTHLY_SERVICE_CREDITS, string>
+} as const satisfies Record<MonthlyServiceProduct, string>
 
 /** Chuỗi YYYY-MM theo lịch Việt Nam (Asia/Ho_Chi_Minh). */
 export function getVietnamYearMonth(d = new Date()): string {
@@ -43,11 +46,19 @@ export function isValidYearMonth(ym: string): boolean {
 
 /**
  * Idempotency key — PHẢI gồm userId vì `language_coach_credit_events.event_key` unique toàn bảng,
- * không chỉ theo user. Chỉ dùng cho phí tháng **giáo trình**.
+ * không chỉ theo user.
  */
-export function curriculumMonthlyEventKey(yearMonth: string, userId: string): string {
+export function monthlyServiceEventKey(
+  product: MonthlyServiceProduct,
+  yearMonth: string,
+  userId: string
+): string {
   const uid = String(userId || '').trim().toLowerCase()
-  return `monthly_service:${uid}:curriculum:${yearMonth}`
+  return `monthly_service:${uid}:${product}:${yearMonth}`
+}
+
+export function curriculumMonthlyEventKey(yearMonth: string, userId: string): string {
+  return monthlyServiceEventKey('curriculum', yearMonth, userId)
 }
 
 /** Ước tính VND tương đương (hiển thị), không dùng cho thanh toán. */

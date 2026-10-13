@@ -1,5 +1,6 @@
 'use client'
 
+import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import {
   CUSTOMER_ERROR_LIMITS as L,
   clipText,
@@ -18,6 +19,7 @@ export function reportCustomerErrorClient(input: {
   digest?: string
 }): void {
   if (typeof window === 'undefined') return
+  if (isLikelyBotTraffic()) return
   const path = window.location.pathname + window.location.search
   if (path.startsWith('/admin')) return
   const title = clipText(input.title, L.title)

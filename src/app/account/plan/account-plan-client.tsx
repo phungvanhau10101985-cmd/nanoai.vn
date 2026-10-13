@@ -10,6 +10,13 @@ import type { Dictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
+import {
+  STUDENT_STUDY_INCLUDES,
+  STUDENT_STUDY_TRIAL_DAYS,
+  studentStudyPackageCopy,
+  studentStudyPlanLabel,
+  type StudentStudyPlanId,
+} from '@/lib/student-study-package'
 
 const NUMBER_LOCALE: Record<WebLocale, string> = {
   vi: 'vi-VN',
@@ -17,6 +24,22 @@ const NUMBER_LOCALE: Record<WebLocale, string> = {
   zh: 'zh-CN',
   ja: 'ja-JP',
   ko: 'ko-KR',
+}
+
+type StudentPlanOption = {
+  id: StudentStudyPlanId
+  days: number
+  priceVnd: number
+  credits: number
+}
+
+type StudentProduct = {
+  accessGranted: boolean
+  trialActive: boolean
+  trialEndsAt: string | null
+  trialDaysRemaining: number
+  accessEndsAt: string | null
+  plans: StudentPlanOption[]
 }
 
 type ProductRow = {
@@ -39,6 +62,37 @@ type PlanPayload = {
   }
   products: {
     curriculum: ProductRow
+    student: StudentProduct
+  }
+}
+
+function isStudentPlanId(value: unknown): value is StudentStudyPlanId {
+  return value === 'month' || value === 'quarter' || value === 'year'
+}
+
+function parseStudentProduct(value: unknown): StudentProduct | null {
+  if (!value || typeof value !== 'object') return null
+  const o = value as Record<string, unknown>
+  if (!Array.isArray(o.plans)) return null
+  const plans: StudentPlanOption[] = []
+  for (const item of o.plans) {
+    if (!item || typeof item !== 'object') return null
+    const row = item as Record<string, unknown>
+    if (!isStudentPlanId(row.id)) return null
+    const days = Number(row.days)
+    const priceVnd = Number(row.priceVnd)
+    const credits = Number(row.credits)
+    if (!Number.isFinite(days) || !Number.isFinite(priceVnd) || !Number.isFinite(credits)) return null
+    plans.push({ id: row.id, days, priceVnd, credits })
+  }
+  if (plans.length !== 3) return null
+  return {
+    accessGranted: Boolean(o.accessGranted),
+    trialActive: Boolean(o.trialActive),
+    trialEndsAt: typeof o.trialEndsAt === 'string' ? o.trialEndsAt : null,
+    trialDaysRemaining: Math.max(0, Math.floor(Number(o.trialDaysRemaining) || 0)),
+    accessEndsAt: typeof o.accessEndsAt === 'string' ? o.accessEndsAt : null,
+    plans,
   }
 }
 
@@ -68,7 +122,8 @@ function parsePlanPayload(json: unknown): PlanPayload | null {
   if (!products || typeof products !== 'object') return null
   const p = products as Record<string, unknown>
   const cur = p.curriculum
-  if (!isProductRow(cur)) return null
+  const student = parseStudentProduct(p.student)
+  if (!isProductRow(cur) || !student) return null
   return {
     ok: true,
     period,
@@ -80,7 +135,7 @@ function parsePlanPayload(json: unknown): PlanPayload | null {
       daysRemaining: Math.max(0, Math.floor(Number(f.daysRemaining) || 0)),
       userCreatedAt: typeof f.userCreatedAt === 'string' ? f.userCreatedAt : null,
     },
-    products: { curriculum: cur },
+    products: { curriculum: cur, student },
   }
 }
 
@@ -146,7 +201,10 @@ export function AccountPlanClientPage({
 }) {
   const [data, setData] = useState<PlanPayload | null>(null)
   const [loading, setLoading] = useState(true)
+  const [buyingPlan, setBuyingPlan] = useState<StudentStudyPlanId | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  const [buyNote, setBuyNote] = useState<string | null>(null)
+  const studentCopy = studentStudyPackageCopy(webLocale)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -175,6 +233,54 @@ export function AccountPlanClientPage({
     }
   }, [t.errorConfig, t.errorLoad])
 
+  const buyStudentPlan = useCallback(async (planId: StudentStudyPlanId) => {
+    setBuyingPlan(planId)
+    setBuyNote(null)
+    try {
+      const res = await fetch('/api/account/monthly-service-credits', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: 'student', plan: planId }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string
+        code?: string
+        alreadyCharged?: boolean
+        charged?: boolean
+        requiredCredits?: number
+        priceVnd?: number
+        accessEndsAt?: string
+      }
+      if (res.status === 401) {
+        window.location.assign('/auth/login?next=/account/plan')
+        return
+      }
+      const price = (json.priceVnd ?? 0).toLocaleString(NUMBER_LOCALE[webLocale] ?? 'vi-VN')
+      const until =
+        typeof json.accessEndsAt === 'string' ? formatSessionIsoDateTime(json.accessEndsAt, webLocale) : ''
+      if (json.alreadyCharged) {
+        setBuyNote(studentCopy.buyAlready)
+      } else if (res.status === 402 || json.code === 'INSUFFICIENT_CREDITS') {
+        setBuyNote(
+          fillI18nTemplate(studentCopy.buyInsufficient, {
+            credits: String(json.requiredCredits ?? ''),
+            price,
+          })
+        )
+      } else if (!res.ok) {
+        setBuyNote(json.error || t.errorLoad)
+      } else if (json.charged) {
+        setBuyNote(fillI18nTemplate(studentCopy.buySuccess, { datetime: until }))
+      }
+      await load()
+    } catch {
+      setBuyNote(t.errorLoad)
+    } finally {
+      setBuyingPlan(null)
+    }
+  }, [load, studentCopy, t.errorLoad, webLocale])
+
   useEffect(() => {
     void load()
   }, [load])
@@ -182,6 +288,14 @@ export function AccountPlanClientPage({
   const trialEndStr =
     data?.freeTrial?.endsAt != null
       ? formatSessionIsoDateTime(data.freeTrial.endsAt, webLocale)
+      : ''
+  const includeText = {
+    homework_help: studentCopy.homework,
+    ai_tutor: studentCopy.tutor,
+  } as const
+  const studentAccessUntil =
+    data?.products.student.accessEndsAt != null
+      ? formatSessionIsoDateTime(data.products.student.accessEndsAt, webLocale)
       : ''
 
   return (
@@ -229,6 +343,66 @@ export function AccountPlanClientPage({
                 <CardDescription>{t.trialNotActive}</CardDescription>
               )}
             </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">{studentCopy.title}</CardTitle>
+              <CardDescription className="space-y-1 text-left">
+                <p>{studentCopy.lead}</p>
+                <p>{studentCopy.audience}</p>
+                <p>{fillI18nTemplate(studentCopy.trialNote, { days: String(STUDENT_STUDY_TRIAL_DAYS) })}</p>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">{studentCopy.includesTitle}</p>
+                <ul className="space-y-2 text-sm text-muted-foreground">
+                  {STUDENT_STUDY_INCLUDES.map((item) => (
+                    <li key={item.id}>
+                      <Link href={item.href} className="text-foreground underline-offset-4 hover:underline">
+                        {includeText[item.id]}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <p className="text-sm text-muted-foreground">{studentCopy.excludesLanguage}</p>
+              {data.products.student.trialActive ? (
+                <Badge variant="secondary">
+                  {fillI18nTemplate(studentCopy.trialActive, {
+                    days: String(data.products.student.trialDaysRemaining),
+                  })}
+                </Badge>
+              ) : null}
+              {studentAccessUntil ? (
+                <p className="text-sm text-foreground">
+                  {fillI18nTemplate(studentCopy.accessUntil, { datetime: studentAccessUntil })}
+                </p>
+              ) : null}
+              <div className="grid gap-2 sm:grid-cols-3">
+                {data.products.student.plans.map((plan) => (
+                  <Button
+                    key={plan.id}
+                    type="button"
+                    variant={plan.id === 'year' ? 'default' : 'outline'}
+                    disabled={buyingPlan != null}
+                    onClick={() => void buyStudentPlan(plan.id)}
+                  >
+                    <span className="flex flex-col items-start gap-0.5">
+                      <span>{buyingPlan === plan.id ? studentCopy.buying : studentStudyPlanLabel(webLocale, plan.id)}</span>
+                      <span className="text-xs font-normal opacity-80">
+                        {fillI18nTemplate(studentCopy.priceLine, {
+                          price: plan.priceVnd.toLocaleString(NUMBER_LOCALE[webLocale] ?? 'vi-VN'),
+                          credits: String(plan.credits),
+                        })}
+                      </span>
+                    </span>
+                  </Button>
+                ))}
+              </div>
+              {buyNote ? <p className="text-sm text-muted-foreground">{buyNote}</p> : null}
+            </CardContent>
           </Card>
 
           <Card>

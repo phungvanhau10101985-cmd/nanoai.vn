@@ -77,6 +77,7 @@ const VI: HomeworkHelpCopy = {
     missing_attempt: 'Gõ bài làm của bạn trước khi chữa.',
     missing_text: 'Gõ đề bài trước.',
     new_thread_failed: 'Không tạo được hội thoại mới.',
+    payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để dùng hỗ trợ làm bài.',
   },
 }
 
@@ -123,6 +124,7 @@ const EN: HomeworkHelpCopy = {
     missing_attempt: 'Type your work before asking for a check.',
     missing_text: 'Type the problem first.',
     new_thread_failed: 'Could not start a new chat.',
+    payment_required: 'The student plan is not active this period. Buy it to use homework help.',
   },
 }
 
@@ -168,6 +170,7 @@ const ZH: HomeworkHelpCopy = {
     missing_attempt: '先写下你的解答，再请批改。',
     missing_text: '请先输入题目。',
     new_thread_failed: '无法新建对话。',
+    payment_required: '本期学生套餐未开通。购买后才能使用作业辅导。',
   },
 }
 
@@ -214,6 +217,7 @@ const JA: HomeworkHelpCopy = {
     missing_attempt: '確認する前に、自分の解答を書いてください。',
     missing_text: '先に問題を入力してください。',
     new_thread_failed: '新しい会話を作れませんでした。',
+    payment_required: 'この期間の生徒プランが未開通です。購入すると宿題サポートを使えます。',
   },
 }
 
@@ -260,6 +264,7 @@ const KO: HomeworkHelpCopy = {
     missing_attempt: '확인받기 전에 내 풀이를 적으세요.',
     missing_text: '먼저 문제를 입력하세요.',
     new_thread_failed: '새 대화를 만들지 못했습니다.',
+    payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 숙제 도우미를 쓸 수 있습니다.',
   },
 }
 

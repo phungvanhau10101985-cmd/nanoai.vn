@@ -7,6 +7,7 @@ import { NAV_GROUPS } from '@/lib/nav-config'
 export type CreationRelatedItem = { href: string; labelKey: ToolKey }
 
 const CURRICULUM_PLAN_LINK: CreationRelatedItem = { href: '/account/plan', labelKey: 'curriculum_plan' }
+const STUDENT_PLAN_LINK: CreationRelatedItem = { href: '/account/plan', labelKey: 'student_study_package' }
 
 const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
   '/tao-bai-thi': [
@@ -51,6 +52,16 @@ const CURRICULUM_RELATED: Record<string, CreationRelatedItem[]> = {
     CURRICULUM_PLAN_LINK,
     { href: '/tao-bai-thi', labelKey: 'online_exam' },
     { href: '/tao-bai-tap-ve-nha', labelKey: 'homework_online' },
+  ],
+  '/ho-tro-lam-bai': [
+    STUDENT_PLAN_LINK,
+    { href: '/gia-su-ai', labelKey: 'ai_tutor' },
+    { href: '/lop', labelKey: 'classes' },
+  ],
+  '/gia-su-ai': [
+    STUDENT_PLAN_LINK,
+    { href: '/ho-tro-lam-bai', labelKey: 'homework_help' },
+    { href: '/lop', labelKey: 'classes' },
   ],
 }
 

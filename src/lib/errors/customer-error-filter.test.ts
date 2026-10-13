@@ -2,6 +2,7 @@ import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   isExpectedCustomerMessage,
+  isLikelyBotUserAgent,
   normalizeErrorForFingerprint,
   normalizePathForFingerprint,
 } from './customer-error-filter'
@@ -21,6 +22,21 @@ describe('customer error filter', () => {
     )
     assert.equal(isExpectedCustomerMessage('Lỗi', 'Có lỗi xảy ra khi tạo ảnh. Vui lòng thử lại.'), false)
     assert.equal(isExpectedCustomerMessage('Image generation failed', 'GPT Image quá thời gian chờ.'), false)
+  })
+
+  it('ignores crawler user agents that execute JS and report chunk errors', () => {
+    assert.equal(
+      isLikelyBotUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 (compatible; meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler))'
+      ),
+      true
+    )
+    assert.equal(
+      isLikelyBotUserAgent(
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.6.2 Mobile/15E148 Safari/604.1'
+      ),
+      false
+    )
   })
 
   it('merges errors that only differ by numbers, ids or urls', () => {

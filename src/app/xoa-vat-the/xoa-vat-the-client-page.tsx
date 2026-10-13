@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { eraseObjects } from './actions'
+import { compressImageFileForAi } from '@/lib/client/compress-image-for-ai'
+import { isClientNetworkFaultMessage } from '@/lib/client/client-network-fault'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import {
   finalizeStandardImageGenerationResult,
@@ -228,8 +230,9 @@ export default function XoaVatTheClientPage() {
     }
     setStep('GENERATING')
     await waitForNextPaintClient()
+    const prepared = await compressImageFileForAi(image.file, { imageQuality })
     const formData = new FormData()
-    formData.append('image', image.file)
+    formData.append('image', prepared)
     formData.append('imageQuality', imageQuality)
     formData.append('imageEngine', imageEngine)
     formData.append('gptQuality', gptQuality)
@@ -253,7 +256,13 @@ export default function XoaVatTheClientPage() {
       })
     } catch (e) {
       setStep('UPLOAD')
-      toast({ title: t.failed, description: e instanceof Error ? e.message : genClient.clientFault, variant: 'destructive', duration: 6000 })
+      const raw = e instanceof Error ? e.message : ''
+      toast({
+        title: t.failed,
+        description: !raw || isClientNetworkFaultMessage(raw) ? genClient.clientFault : raw,
+        variant: 'destructive',
+        duration: 6000,
+      })
     }
   }
 

@@ -6,10 +6,13 @@ import {
   MONTHLY_SERVICE_CREDITS,
   MONTHLY_SERVICE_CHARGE_TYPES,
   getVietnamYearMonth,
-  curriculumMonthlyEventKey,
+  monthlyServiceEventKey,
   estimatedVndForMonthlyCredits,
   isValidYearMonth,
+  type MonthlyServiceProduct,
 } from '@/lib/monthly-service-credits'
+import { purchaseStudentStudyPlan, readStudentStudyStatus } from '@/lib/student-study-access'
+import { STUDENT_STUDY_PLANS, studentStudyPlanById, studentStudyPlanCredits } from '@/lib/student-study-package'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
 import {
@@ -19,9 +22,6 @@ import {
   getServiceFreeTrialDaysRemaining,
   isServiceFreeTrialActive,
 } from '@/lib/service-free-trial'
-
-const CURRICULUM_CREDITS = MONTHLY_SERVICE_CREDITS.curriculum
-const CURRICULUM_CHARGE_TYPE = MONTHLY_SERVICE_CHARGE_TYPES.curriculum
 
 /** Trạng thái theo phiên đăng nhập — không cache tĩnh. */
 export const dynamic = 'force-dynamic'
@@ -34,19 +34,24 @@ async function hasChargedPeriod(userId: string, eventKey: string): Promise<boole
   return pgHasLanguageCoachEventKey(userId, eventKey)
 }
 
-async function chargeCurriculumMonthlyIdempotent(input: { userId: string; yearMonth: string }) {
-  const eventKey = curriculumMonthlyEventKey(input.yearMonth, input.userId)
+async function chargeMonthlyIdempotent(input: {
+  userId: string
+  yearMonth: string
+  product: MonthlyServiceProduct
+}) {
+  const amount = MONTHLY_SERVICE_CREDITS[input.product]
+  const eventKey = monthlyServiceEventKey(input.product, input.yearMonth, input.userId)
   const r = await spendCreditsIdempotent({
     userId: input.userId,
-    amount: CURRICULUM_CREDITS,
+    amount,
     eventKey,
-    chargeType: CURRICULUM_CHARGE_TYPE,
+    chargeType: MONTHLY_SERVICE_CHARGE_TYPES[input.product],
     sessionId: null,
     metadataJson: JSON.stringify({
       kind: 'monthly_service_access',
-      product: 'curriculum',
+      product: input.product,
       period: input.yearMonth,
-      credits: CURRICULUM_CREDITS,
+      credits: amount,
     }),
   })
   return {
@@ -55,33 +60,37 @@ async function chargeCurriculumMonthlyIdempotent(input: { userId: string; yearMo
     newBalance: r.newBalance,
     error: r.error,
     eventKey,
-    amount: CURRICULUM_CREDITS,
+    amount,
   }
 }
 
-function curriculumProductPayload(userId: string, yearMonth: string) {
-  const eventKey = curriculumMonthlyEventKey(yearMonth, userId)
+function productPayload(userId: string, yearMonth: string, product: MonthlyServiceProduct) {
+  const creditsRequired = MONTHLY_SERVICE_CREDITS[product]
+  const eventKey = monthlyServiceEventKey(product, yearMonth, userId)
   return hasChargedPeriod(userId, eventKey).then((chargedThisPeriod) => ({
-    creditsRequired: CURRICULUM_CREDITS,
-    estimatedVnd: estimatedVndForMonthlyCredits(CURRICULUM_CREDITS),
+    creditsRequired,
+    estimatedVnd: estimatedVndForMonthlyCredits(creditsRequired),
     chargedThisPeriod,
     eventKey,
   }))
 }
 
 /**
- * Chuẩn hóa POST `product`: rỗng hoặc `curriculum` → hợp lệ; `english_coach` / `englishCoach` → đã bỏ.
+ * POST `product`: rỗng hoặc `curriculum` → gói giáo viên.
+ * `student` kèm `plan` (`month` | `quarter` | `year`) → gói học sinh.
+ * `english_coach` đã bỏ — học ngoại ngữ trả theo buổi.
  */
-function parseMonthlyPostProduct(raw: string): 'curriculum' | 'legacy_english' | 'invalid' {
+function parseMonthlyPostProduct(raw: string): 'curriculum' | 'student' | 'legacy_english' | 'invalid' {
   const v = String(raw || '').trim()
   if (v === '' || v === 'curriculum') return 'curriculum'
+  if (v === 'student') return 'student'
   if (v === 'english_coach' || v === 'englishCoach') return 'legacy_english'
   return 'invalid'
 }
 
 /**
- * GET: trạng thái phí tháng giáo trình (kỳ VN) + credit cần cho kỳ đó.
- * POST: trừ một lần / kỳ / curriculum (idempotent). English AI không có phí tháng — dùng `/api/english-coach/credits`.
+ * GET: phí tháng giáo trình và trạng thái gói học sinh (chữa bài + gia sư).
+ * POST: trừ phí tháng giáo trình, hoặc mua gói học sinh theo `plan`.
  */
 export async function GET() {
   try {
@@ -95,7 +104,7 @@ export async function GET() {
     if (!isPgConfigured()) {
       return NextResponse.json({ error: 'Cấu hình máy chủ thiếu DATABASE_URL.' }, { status: 503 })
     }
-    const curriculum = await curriculumProductPayload(auth.user.id, yearMonth)
+    const curriculum = await productPayload(auth.user.id, yearMonth, 'curriculum')
 
     const createdAt = auth.user.created_at
     const freeTrialActive = isServiceFreeTrialActive(createdAt)
@@ -104,6 +113,10 @@ export async function GET() {
       ...curriculum,
       accessGranted: curriculum.chargedThisPeriod || freeTrialActive,
     }
+    const studentStatus = await readStudentStudyStatus({
+      userId: auth.user.id,
+      createdAt,
+    })
 
     return NextResponse.json({
       ok: true,
@@ -119,6 +132,15 @@ export async function GET() {
       },
       products: {
         curriculum: curriculumOut,
+        student: {
+          ...studentStatus,
+          plans: STUDENT_STUDY_PLANS.map((plan) => ({
+            id: plan.id,
+            days: plan.days,
+            priceVnd: plan.priceVnd,
+            credits: studentStudyPlanCredits(plan.priceVnd),
+          })),
+        },
       },
     })
   } catch (e) {
@@ -129,7 +151,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json().catch(() => ({}))) as { product?: string }
+    const body = (await request.json().catch(() => ({}))) as { product?: string; plan?: string }
     const resolved = parseMonthlyPostProduct(String(body.product ?? ''))
     if (resolved === 'legacy_english') {
       return NextResponse.json(
@@ -142,7 +164,10 @@ export async function POST(request: NextRequest) {
       )
     }
     if (resolved === 'invalid') {
-      return NextResponse.json({ error: 'Thiếu hoặc sai product (chỉ hỗ trợ curriculum).' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'Thiếu hoặc sai product (curriculum hoặc student).' },
+        { status: 400 }
+      )
     }
 
     const auth = await getUserForAction()
@@ -158,6 +183,43 @@ export async function POST(request: NextRequest) {
     }
 
     const createdAt = auth.user.created_at
+    if (resolved === 'student') {
+      const plan = studentStudyPlanById(String(body.plan ?? ''))
+      if (!plan) {
+        return NextResponse.json({ error: 'Thiếu hoặc sai plan (month, quarter, year).' }, { status: 400 })
+      }
+      const bought = await purchaseStudentStudyPlan({
+        userId: auth.user.id,
+        createdAt,
+        planId: plan.id,
+      })
+      if (!bought.ok) {
+        if (bought.error === 'insufficient_credits') {
+          return NextResponse.json(
+            {
+              error: `Không đủ credits. Cần ${bought.credits} credit (${bought.priceVnd}₫).`,
+              requiredCredits: bought.credits,
+              priceVnd: bought.priceVnd,
+              code: 'INSUFFICIENT_CREDITS',
+            },
+            { status: 402 }
+          )
+        }
+        return NextResponse.json({ error: bought.error || 'Không thể trừ credits.' }, { status: 500 })
+      }
+      return NextResponse.json({
+        ok: true,
+        charged: !bought.alreadyApplied,
+        alreadyCharged: bought.alreadyApplied,
+        newBalance: bought.newBalance,
+        product: 'student',
+        plan: plan.id,
+        credits: bought.credits,
+        priceVnd: bought.priceVnd,
+        accessEndsAt: bought.accessEndsAt,
+      })
+    }
+
     if (isServiceFreeTrialActive(createdAt)) {
       const newBalance = await readCreditBalance(auth.user.id)
       return NextResponse.json({
@@ -168,14 +230,15 @@ export async function POST(request: NextRequest) {
         code: 'FREE_TRIAL_NO_MONTHLY_CHARGE',
         newBalance,
         period: yearMonth,
-        product: 'curriculum',
-        creditsWouldHaveBeen: CURRICULUM_CREDITS,
+        product: resolved,
+        creditsWouldHaveBeen: MONTHLY_SERVICE_CREDITS[resolved],
       })
     }
 
-    const charged = await chargeCurriculumMonthlyIdempotent({
+    const charged = await chargeMonthlyIdempotent({
       userId: auth.user.id,
       yearMonth,
+      product: resolved,
     })
 
     if (!charged.ok) {
@@ -199,7 +262,7 @@ export async function POST(request: NextRequest) {
       alreadyCharged: charged.alreadyApplied,
       newBalance: charged.newBalance,
       period: yearMonth,
-      product: 'curriculum',
+      product: resolved,
       credits: charged.amount,
       eventKey: charged.eventKey,
     })

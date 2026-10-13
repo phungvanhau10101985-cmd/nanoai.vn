@@ -2,6 +2,7 @@
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { reportCustomerErrorClient } from '@/lib/client/report-customer-error'
+import { reloadOnceForStaleChunk } from '@/lib/client/recover-chunk-load'
 
 import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,9 @@ export default function Error({
   const uiLocale = getWebLocaleFromCookie()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     uiLocale === 'en' ? en : uiLocale === 'zh' ? zh : uiLocale === 'ja' ? ja : uiLocale === 'ko' ? ko : vi
+  const chunkReloading = reloadOnceForStaleChunk(error)
   useEffect(() => {
+    if (chunkReloading) return
     console.error(error)
     reportCustomerErrorClient({
       source: 'boundary',
@@ -32,7 +35,17 @@ export default function Error({
       detail: error.stack,
       digest: error.digest,
     })
-  }, [error])
+  }, [error, chunkReloading])
+
+  if (chunkReloading) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">
+        <p className="text-muted-foreground text-center max-w-md">
+          {tr('Đang tải lại trang…', 'Reloading…', '正在重新加载…', '再読み込みしています…', '페이지를 다시 불러오는 중…')}
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8">

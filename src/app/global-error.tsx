@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { DEFAULT_WEB_LOCALE } from '@/lib/i18n/config'
 import { reportCustomerErrorClient } from '@/lib/client/report-customer-error'
+import { reloadOnceForStaleChunk } from '@/lib/client/recover-chunk-load'
 
 export default function GlobalError({
   error,
@@ -11,7 +12,9 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
+  const chunkReloading = reloadOnceForStaleChunk(error)
   useEffect(() => {
+    if (chunkReloading) return
     console.error(error)
     reportCustomerErrorClient({
       source: 'boundary',
@@ -19,7 +22,15 @@ export default function GlobalError({
       detail: error.stack,
       digest: error.digest,
     })
-  }, [error])
+  }, [error, chunkReloading])
+
+  if (chunkReloading) {
+    return (
+      <html lang={DEFAULT_WEB_LOCALE}>
+        <body />
+      </html>
+    )
+  }
 
   return (
     <html lang={DEFAULT_WEB_LOCALE}>
