@@ -7,9 +7,10 @@ import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 export const HOMEWORK_HELP_READ_MODEL = GEMINI_25_FLASH_NO_THINKING.model
 
 /**
- * Soạn kiến thức, hướng tư duy, gợi ý và đáp án nháp: cùng Flash, chỉ chữ, không gửi lại ảnh.
+ * Soạn kiến thức, hướng tư duy, gợi ý và đáp án nháp. Pro, chỉ chữ, không gửi lại ảnh.
+ * Flash cân bằng sai phản ứng oxi hóa-khử nhiều bước, lệch Pro nên đáp án bị giấu.
  */
-export const HOMEWORK_HELP_DRAFT_MODEL = GEMINI_25_FLASH_NO_THINKING.model
+export const HOMEWORK_HELP_DRAFT_MODEL = GEMINI_25_PRO.model
 
 /**
  * Kiểm tra chéo: Gemini 2.5 Pro, chỉ chữ.

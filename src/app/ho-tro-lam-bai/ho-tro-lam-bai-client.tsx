@@ -1,11 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
-import { Camera, History, ImagePlus, Loader2, MessageSquarePlus, X } from 'lucide-react'
+import { Camera, ImagePlus, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { StudyChatThreadBar } from '@/components/student-study/study-chat-thread-bar'
 import type { WebLocale } from '@/lib/i18n/config'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
@@ -21,7 +23,13 @@ import {
   reviewHomeworkWork,
   startHomeworkThread,
 } from '@/app/ho-tro-lam-bai/actions'
+import { StudyCacheMark } from '@/components/student-study/study-cache-mark'
 import { StudentStudyPaywall } from '@/components/student-study/student-study-paywall'
+import {
+  revealStudyComposer,
+  scheduleStudyComposerReveal,
+  STUDY_CHAT_SHELL_CLASS,
+} from '@/lib/study-chat-frame'
 
 const MAX_IMAGES = 3
 
@@ -121,6 +129,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const composerRef = useRef<HTMLTextAreaElement | null>(null)
+  const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
   const urlsRef = useRef<string[]>([])
   const frame = useMobileToolChatFrame()
@@ -129,8 +139,21 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     const urls = urlsRef.current
     return () => {
       for (const url of urls) URL.revokeObjectURL(url)
+      cancelRevealRef.current?.()
     }
   }, [])
+
+  function placeComposer() {
+    const scroller = scrollerRef.current
+    if (scroller) scroller.scrollTop = scroller.scrollHeight
+    revealStudyComposer(composerRef.current)
+  }
+
+  function placeComposerSoon() {
+    cancelRevealRef.current?.()
+    placeComposer()
+    cancelRevealRef.current = scheduleStudyComposerReveal(placeComposer)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -146,6 +169,10 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         setNeedsPlan(true)
         setError('')
       } else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      setReady(true)
+    }).catch(() => {
+      if (cancelled) return
+      setError(copy.errors.ai_unavailable)
       setReady(true)
     })
     return () => {
@@ -215,19 +242,34 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true)
-    const result = await listHomeworkHistory()
-    setHistoryLoading(false)
-    if (!result.ok) {
-      setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+    try {
+      const result = await listHomeworkHistory()
+      if (!result.ok) {
+        setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+        setSessions([])
+        return
+      }
+      setSessions(result.data)
+    } catch {
+      setError(copy.errors.ai_unavailable)
       setSessions([])
-      return
+    } finally {
+      setHistoryLoading(false)
     }
-    setSessions(result.data)
   }, [copy.errors])
 
   async function beginNewThread() {
     if (busyRef.current) return
-    const result = await startHomeworkThread(locale)
+    flushSync(() => setHistoryOpen(false))
+    placeComposer()
+    let result: Awaited<ReturnType<typeof startHomeworkThread>>
+    try {
+      result = await startHomeworkThread(locale)
+    } catch {
+      setError(copy.errors.new_thread_failed)
+      placeComposerSoon()
+      return
+    }
     if (!result.ok) {
       if (result.code === 'payment_required') {
         setNeedsPlan(true)
@@ -237,7 +279,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
     setSessionId(result.data.sessionId)
     clearComposer()
-    setHistoryOpen(false)
+    placeComposerSoon()
   }
 
   async function openHistory() {
@@ -246,10 +288,18 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   async function openSavedThread(id: string) {
-    setHistoryOpen(false)
+    flushSync(() => setHistoryOpen(false))
+    placeComposer()
     if (busyRef.current || id === sessionId) return
     setError('')
-    const result = await openHomeworkHistoryThread(id)
+    let result: Awaited<ReturnType<typeof openHomeworkHistoryThread>>
+    try {
+      result = await openHomeworkHistoryThread(id)
+    } catch {
+      setError(copy.errors.ai_unavailable)
+      placeComposerSoon()
+      return
+    }
     if (!result.ok) {
       if (result.code === 'payment_required') {
         setNeedsPlan(true)
@@ -273,6 +323,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return []
     })
     setSessionId(result.data.sessionId)
+    placeComposerSoon()
   }
 
   async function send() {
@@ -346,8 +397,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setBusy(false)
   }
 
-  const shellClass =
-    'flex min-h-0 flex-col max-md:fixed max-md:inset-x-0 max-md:z-30 max-md:bg-background max-md:top-[calc(var(--site-header-height,3rem)+4.75rem)] max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:min-h-[32rem] md:rounded-xl md:border md:bg-card md:shadow-sm'
+  const shellClass = STUDY_CHAT_SHELL_CLASS
   const shellStyle = frame
     ? {
         ...(frame.top > 0 ? { top: frame.top } : {}),
@@ -368,7 +418,15 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   return (
-    <div className={shellClass} style={shellStyle}>
+    <div className={shellClass} style={shellStyle} data-study-chat="">
+      <StudyChatThreadBar
+        newLabel={copy.newThread}
+        historyLabel={copy.history}
+        historyOpen={historyOpen}
+        disabled={!ready || busy}
+        onNew={() => void beginNewThread()}
+        onHistory={() => void openHistory()}
+      />
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
         <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
         {ready && messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
@@ -395,32 +453,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         {busy ? <TeacherReplying label={copy.replying} /> : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-background px-3 pt-2 max-md:pr-16 md:bg-card">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-9 w-9"
-          disabled={!ready || busy}
-          aria-label={copy.newThread}
-          title={copy.newThread}
-          onClick={() => void beginNewThread()}
-        >
-          <MessageSquarePlus className="h-4 w-4" aria-hidden />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-9 w-9"
-          disabled={!ready || busy}
-          aria-expanded={historyOpen}
-          aria-label={copy.history}
-          title={copy.history}
-          onClick={() => void openHistory()}
-        >
-          <History className="h-4 w-4" aria-hidden />
-        </Button>
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-muted/40 px-3 py-2 max-md:pr-16">
         <input
           id="homework-help-gallery"
           type="file"
@@ -487,6 +520,10 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         <DialogContent
           className="z-[80] flex max-h-[min(32rem,85dvh)] w-[calc(100%-1.5rem)] max-w-md flex-col gap-3 p-4 sm:p-6"
           overlayClassName="z-[70]"
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            placeComposerSoon()
+          }}
         >
           <DialogHeader className="pr-8 text-left">
             <DialogTitle>{copy.history}</DialogTitle>
@@ -507,7 +544,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
                       type="button"
                       disabled={busy}
                       onClick={() => void openSavedThread(session.id)}
-                      className={`flex w-full flex-col rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60 ${
+                      className={`flex min-h-12 w-full flex-col justify-center rounded-lg px-3 py-2.5 text-left text-sm hover:bg-muted disabled:opacity-60 ${
                         session.id === sessionId ? 'bg-muted' : ''
                       }`}
                     >
@@ -545,18 +582,21 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
       {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
       <form
-        className="flex shrink-0 items-end gap-2 bg-background p-3 md:bg-card"
+        className="flex shrink-0 items-end gap-2 border-t bg-muted/40 p-3"
         onSubmit={(event) => {
           event.preventDefault()
           void send()
         }}
       >
         <Textarea
+          ref={composerRef}
+          id="ho-tro-lam-bai-composer"
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder={copy.placeholder}
           rows={2}
-          className="max-h-24 resize-none"
+          enterKeyHint="send"
+          className="max-h-24 resize-none bg-background"
           disabled={!ready || busy}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -635,7 +675,10 @@ function ProblemBubble({
   return (
     <article className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
       <section className="space-y-1">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.statement}</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.statement}</h3>
+          {problem.cached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
+        </div>
         <h2 className="text-base font-semibold">{problem.statement}</h2>
       </section>
 

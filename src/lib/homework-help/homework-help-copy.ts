@@ -31,6 +31,7 @@ export type HomeworkHelpCopy = {
   removeImage: string
   knowledgeHeld: string
   answerHeld: string
+  cachedFromDb: string
   errors: Record<string, string>
 }
 
@@ -66,6 +67,7 @@ const VI: HomeworkHelpCopy = {
   removeImage: 'Gỡ ảnh',
   knowledgeHeld: 'Chưa đủ chắc để hiện kiến thức của câu này.',
   answerHeld: 'Chưa đủ chắc để hiện đáp án.',
+  cachedFromDb: 'Đoạn này lấy từ cache đã lưu.',
   errors: {
     unauthorized: 'Đăng nhập để dùng hỗ trợ làm bài.',
     missing_image: 'Chọn hoặc chụp ảnh bài trước.',
@@ -113,6 +115,7 @@ const EN: HomeworkHelpCopy = {
   removeImage: 'Remove',
   knowledgeHeld: 'This knowledge is not sure enough to show.',
   answerHeld: 'The answer is not sure enough to show.',
+  cachedFromDb: 'This part is from the saved cache.',
   errors: {
     unauthorized: 'Sign in to use homework help.',
     missing_image: 'Choose or take a photo first.',
@@ -159,6 +162,7 @@ const ZH: HomeworkHelpCopy = {
   removeImage: '移除',
   knowledgeHeld: '这条知识还不够确定，所以先不显示。',
   answerHeld: '答案还不够确定，所以先不显示。',
+  cachedFromDb: '这一段来自已保存的缓存。',
   errors: {
     unauthorized: '登录后才能使用作业辅导。',
     missing_image: '请先选择或拍摄作业照片。',
@@ -206,6 +210,7 @@ const JA: HomeworkHelpCopy = {
   removeImage: '外す',
   knowledgeHeld: 'この知識はまだ確実ではないので表示しません。',
   answerHeld: '答えはまだ確実ではないので表示しません。',
+  cachedFromDb: 'この部分は保存済みのキャッシュです。',
   errors: {
     unauthorized: '宿題サポートを使うにはログインしてください。',
     missing_image: '先に写真を選ぶか撮影してください。',
@@ -253,6 +258,7 @@ const KO: HomeworkHelpCopy = {
   removeImage: '빼기',
   knowledgeHeld: '이 지식은 아직 확실하지 않아 보여 주지 않습니다.',
   answerHeld: '답은 아직 확실하지 않아 보여 주지 않습니다.',
+  cachedFromDb: '이 부분은 저장된 캐시에서 가져온 것입니다.',
   errors: {
     unauthorized: '숙제 도우미를 쓰려면 로그인하세요.',
     missing_image: '먼저 사진을 고르거나 찍으세요.',

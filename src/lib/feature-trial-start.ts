@@ -52,23 +52,33 @@ async function earliestRealUseMs(userId: string, feature: FeatureTrialFeature): 
 }
 
 async function readStoredStart(userId: string, feature: FeatureTrialFeature): Promise<string | null> {
-  const row = await pgQueryOne<{ started_at: Date | string }>(
-    `select started_at
-     from public.feature_trial_starts
-     where user_id = $1::uuid and feature = $2
-     limit 1`,
-    [userId, feature]
-  )
-  return asIso(row?.started_at)
+  try {
+    const row = await pgQueryOne<{ started_at: Date | string }>(
+      `select started_at
+       from public.feature_trial_starts
+       where user_id = $1::uuid and feature = $2
+       limit 1`,
+      [userId, feature]
+    )
+    return asIso(row?.started_at)
+  } catch (err) {
+    if (isMissingRelation(err)) return null
+    throw err
+  }
 }
 
 async function insertStart(userId: string, feature: FeatureTrialFeature, startedAt: Date): Promise<string | null> {
-  await pgQuery(
-    `insert into public.feature_trial_starts (user_id, feature, started_at)
-     values ($1::uuid, $2, $3::timestamptz)
-     on conflict (user_id, feature) do nothing`,
-    [userId, feature, startedAt.toISOString()]
-  )
+  try {
+    await pgQuery(
+      `insert into public.feature_trial_starts (user_id, feature, started_at)
+       values ($1::uuid, $2, $3::timestamptz)
+       on conflict (user_id, feature) do nothing`,
+      [userId, feature, startedAt.toISOString()]
+    )
+  } catch (err) {
+    if (isMissingRelation(err)) return null
+    throw err
+  }
   return readStoredStart(userId, feature)
 }
 

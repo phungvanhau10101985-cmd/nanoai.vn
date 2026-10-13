@@ -99,7 +99,7 @@ export async function rememberHomeworkProblem(
     const existing = await fetchHomeworkProblemCache(fingerprint, locale)
     if (!existing) return problem
     await touchHomeworkProblemCache(fingerprint, locale)
-    return existing
+    return { ...existing, cached: true }
   } catch (error) {
     console.warn('[homework-help] problem cache write', error instanceof Error ? error.message : error)
     return problem

@@ -20,6 +20,20 @@ test('parseHomeworkGuide keeps knowledge and hides nothing the model already spl
   assert.equal(guide.problems[0]?.knowledge.length, 2)
   assert.equal(guide.problems[0]?.answer, 'x = 2')
   assert.equal(guide.problems[0]?.thinking.some((step) => step.includes('x = 2')), false)
+  assert.equal(guide.problems[0]?.cached, undefined)
+})
+
+test('parseHomeworkGuide keeps the cache mark from a stored problem', () => {
+  const guide = parseHomeworkGuide({
+    note: '',
+    problems: [{ statement: '2 + 2', knowledge: [], thinking: [], hints: [], answer: '4', cached: true }],
+  })
+  assert.equal(guide?.problems[0]?.cached, true)
+  const fresh = parseHomeworkGuide({
+    note: '',
+    problems: [{ statement: '2 + 3', knowledge: [], thinking: [], hints: [], answer: '5', cached: false }],
+  })
+  assert.equal(fresh?.problems[0]?.cached, undefined)
 })
 
 test('parseHomeworkGuide drops a problem with no statement', () => {

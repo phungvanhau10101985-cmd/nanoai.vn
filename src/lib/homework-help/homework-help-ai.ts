@@ -15,10 +15,12 @@ import {
   parseHomeworkChecks,
   parseHomeworkStatements,
   parseIndexedDrafts,
+  parseModelJson,
   type HomeworkProblemCheck,
 } from '@/lib/homework-help/homework-help-check'
 import {
   homeworkPhotoCacheKey,
+  homeworkReadIsThin,
   homeworkStatementFingerprint,
   splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
@@ -84,17 +86,6 @@ function readGeminiText(result: GeminiTextResult): string {
   return parts.map((part) => String(part.text || '')).join('').trim()
 }
 
-function parseJsonObject(raw: string): unknown {
-  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
-  const start = trimmed.indexOf('{')
-  const end = trimmed.lastIndexOf('}')
-  if (start < 0 || end <= start) return null
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1)) as unknown
-  } catch {
-    return null
-  }
-}
 
 function languageName(locale: WebLocale): string {
   return LANGUAGE_NAME[locale] ?? LANGUAGE_NAME.vi
@@ -119,7 +110,7 @@ async function generateJson(input: {
     model: input.model,
     generationConfig: {
       temperature: input.temperature,
-      maxOutputTokens: 8192,
+      maxOutputTokens: 65536,
       responseMimeType: 'application/json',
     },
   })
@@ -130,7 +121,7 @@ async function generateJson(input: {
   try {
     const result = (await model.generateContent(parts)) as GeminiTextResult
     void trackFromUsageMetadata(result.response.usageMetadata, input.model, input.feature, input.userId)
-    return parseJsonObject(readGeminiText(result))
+    return parseModelJson(readGeminiText(result))
   } catch (error) {
     console.warn('[homework-help] generate failed', error instanceof Error ? error.message : error)
     return null
@@ -142,12 +133,14 @@ async function readStatements(input: {
   locale: WebLocale
   images: HomeworkImagePart[]
 }): Promise<{ note: string; statements: string[] } | null> {
-  const prompt = `You read a homework photo. Write entirely in ${languageName(input.locale)}.
-Return ONLY JSON: {"note":"","statements":["one school question"]}
+  const prompt = `You transcribe homework from a photo. Write entirely in ${languageName(input.locale)}.
+Return ONLY JSON: {"note":"","statements":["one full problem"]}
 Rules:
-- One string per visible school question, at most 8, in page order.
-- Copy the question in plain words. Do not solve it and do not add knowledge.
-- Ignore names, scores, and page headers.
+- One string per exam item, at most 8, in page order.
+- A data paragraph and its sub-questions 1. 2. 3. are ONE problem. Keep the whole paragraph, every formula, every equation, every number, every unit, and every sub-question in that same string.
+- Transcribe. Do not summarize, do not solve, and do not add facts.
+- Write formulas with plain letters and digits: FeCO3, HNO3, H2SO4, Ba(OH)2. Keep the printed numbers.
+- Skip a question cut off at the edge when its data is not visible. Ignore student names.
 - If the photo is not schoolwork, return an empty statements array and a short note.`
   const raw = await generateJson({
     userId: input.userId,
@@ -177,8 +170,9 @@ Rules:
 - knowledge: 3 to 5 short related facts or rules.
 - thinking: ordered steps that show how to start. Do not finish the calculation or name the final choice.
 - hints: up to 4 shorter nudges. Still no final result.
-- answer: the final result only, one short line. Leave empty if the question cannot be answered from the text.
-- Do not put the final number, option letter, or completed result inside knowledge, thinking, or hints.`
+- answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
+- Leave answer empty only when a needed number or formula is missing from the statement.
+- Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, or hints.`
   const raw = await generateJson({
     userId: input.userId,
     feature: 'homework-help-draft',
@@ -226,12 +220,13 @@ async function checkProblems(input: {
     })
     .join('\n')
   const prompt = `Check school knowledge before a student sees it. Write entirely in ${languageName(input.locale)}.
-Solve each question yourself. You are not shown any draft answer.
+Solve each question yourself from the full statement. You are not shown any draft answer.
 ${blocks}
-Return ONLY JSON:
+Return ONLY a JSON object, never a bare array:
 {"problems":[{"index":0,"answer":"","knowledge":[{"index":0,"ok":true}]}]}
 Rules:
-- answer is your own final result, one short line. Leave empty if the text is not enough.
+- answer is your own final results, one line. Join sub-questions with " | " in problem order. Plain formulas and the units used in the problem, such as "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No "1." labels and no working.
+- Leave answer empty only when a needed number or formula is missing from the statement.
 - knowledge lists every draft line index. ok is true only when that line is factually right for this question.
 - A wrong rule, a wrong formula, or a line that states the final result is not ok.
 - Do not add knowledge lines.`
@@ -260,7 +255,7 @@ async function explainStatements(input: {
     const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
     if (cached) {
       await touchHomeworkProblemCache(fingerprint, input.locale)
-      problems[index] = cached
+      problems[index] = { ...cached, cached: true }
       continue
     }
     pending.push({ index, statement })
@@ -273,9 +268,13 @@ async function explainStatements(input: {
       drafted = await draftProblems({ userId: input.userId, locale: input.locale, statements: pending })
     }
     const aligned = alignDrafts(pending, drafted)
-    const checks = drafted
+    let checks = drafted
       ? await checkProblems({ userId: input.userId, locale: input.locale, drafts: aligned })
       : null
+    if (drafted && !checks) {
+      console.warn('[homework-help] check parse failed, retry')
+      checks = await checkProblems({ userId: input.userId, locale: input.locale, drafts: aligned })
+    }
     everyProblemCacheable = Boolean(drafted && checks)
     for (const item of aligned) {
       const check = checks?.find((row) => row.index === item.index) ?? null
@@ -306,11 +305,19 @@ export async function explainHomeworkImages(input: {
   const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
   if (cachedPhoto && cachedPhoto.problems.length > 0) {
     await touchHomeworkPhotoCache(photoKey, input.locale)
-    return cachedPhoto
+    return {
+      note: cachedPhoto.note,
+      problems: cachedPhoto.problems.map((problem) => ({ ...problem, cached: true })),
+    }
   }
 
-  const read = await readStatements(input)
+  let read = await readStatements(input)
   if (!read) return null
+  if (homeworkReadIsThin(read.statements)) {
+    console.warn('[homework-help] thin read, retry')
+    const again = await readStatements(input)
+    if (again && !homeworkReadIsThin(again.statements)) read = again
+  }
   if (read.statements.length === 0) return { note: read.note, problems: [] }
 
   const explained = await explainStatements({

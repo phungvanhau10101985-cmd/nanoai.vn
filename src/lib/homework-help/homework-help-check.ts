@@ -1,3 +1,4 @@
+import { foldPlainScience, homeworkDataSignature } from '@/lib/homework-help/homework-help-fingerprint'
 import { parseHomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 
 export type HomeworkKnowledgeVerdict = {
@@ -18,13 +19,52 @@ function cleanLine(value: unknown, max: number): string {
     .slice(0, max)
 }
 
+function tryParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+function sliceParse(raw: string, open: string, close: string): unknown {
+  const start = raw.indexOf(open)
+  const end = raw.lastIndexOf(close)
+  if (start < 0 || end <= start) return undefined
+  return tryParse(raw.slice(start, end + 1))
+}
+
+function asModelRecord(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  if (value.every((item) => typeof item === 'string')) return { note: '', statements: value }
+  return { problems: value }
+}
+
+/** Nhận object đúng dạng, hoặc mảng trần mà model vẫn hay trả. */
+export function parseModelJson(raw: string): unknown {
+  const trimmed = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')
+  const whole = tryParse(trimmed)
+  if (whole !== undefined) return asModelRecord(whole)
+  const arrayAt = trimmed.indexOf('[')
+  const objectAt = trimmed.indexOf('{')
+  if (arrayAt >= 0 && (objectAt < 0 || arrayAt < objectAt)) {
+    const parsed = sliceParse(trimmed, '[', ']')
+    if (parsed !== undefined) return asModelRecord(parsed)
+  }
+  if (objectAt >= 0) {
+    const parsed = sliceParse(trimmed, '{', '}')
+    if (parsed !== undefined) return asModelRecord(parsed)
+  }
+  return null
+}
+
 export function parseHomeworkStatements(raw: unknown): { note: string; statements: string[] } | null {
   if (!raw || typeof raw !== 'object') return null
   const record = raw as Record<string, unknown>
   if (!Array.isArray(record.statements)) return null
   const statements: string[] = []
   for (const item of record.statements) {
-    const text = cleanLine(item, 1200)
+    const text = cleanLine(item, 4000)
     if (!text) continue
     statements.push(text)
     if (statements.length >= 8) break
@@ -73,7 +113,7 @@ export function parseHomeworkChecks(raw: unknown): HomeworkProblemCheck[] | null
     }
     out.push({
       index,
-      answer: cleanLine(item.answer, 500),
+      answer: cleanLine(item.answer, 2000),
       knowledge,
     })
   }
@@ -95,14 +135,79 @@ function answerCore(normalized: string): string {
   return (eq >= 0 ? normalized.slice(eq + 1) : normalized).replace(/^[:：]+/, '')
 }
 
-export function answersAgree(left: string, right: string): boolean {
-  const a = normalizeHomeworkAnswer(left)
-  const b = normalizeHomeworkAnswer(right)
-  if (!a || !b) return false
-  if (a === b) return true
-  const leftCore = answerCore(a)
-  const rightCore = answerCore(b)
-  return Boolean(leftCore) && leftCore === rightCore
+function sameAnswerToken(left: string, right: string): boolean {
+  if (left === right) return true
+  if (!/^-?\d/.test(left) || !/^-?\d/.test(right)) return false
+  const a = Number(left)
+  const b = Number(right)
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false
+  const diff = Math.abs(a - b)
+  const scale = Math.max(Math.abs(a), Math.abs(b), 1)
+  return diff <= 0.02 || diff / scale <= 0.005
+}
+
+function tokensAgree(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((token, index) => sameAnswerToken(token, right[index] ?? ''))
+}
+
+/** Số đo và công thức mới, bỏ hệ số cân bằng và chất đã có trong đề. */
+function outcomeTokens(answer: string, statement: string): { formulas: string[]; numbers: number[] } {
+  const known = new Set(homeworkDataSignature(statement).split('|').filter(Boolean))
+  const formulas: string[] = []
+  const numbers: number[] = []
+  for (const token of homeworkDataSignature(answer).split('|').filter(Boolean)) {
+    if (/^-?\d/.test(token)) {
+      const value = Number(token)
+      if (!Number.isFinite(value)) continue
+      if (Number.isInteger(value) && value <= 40) continue
+      numbers.push(value)
+      continue
+    }
+    if (!known.has(token)) formulas.push(token)
+  }
+  numbers.sort((left, right) => left - right)
+  return { formulas: [...new Set(formulas)].sort(), numbers }
+}
+
+export function answersAgree(left: string, right: string, statement = ''): boolean {
+  const a = homeworkDataSignature(left).split('|').filter(Boolean)
+  const b = homeworkDataSignature(right).split('|').filter(Boolean)
+  if (!a.length || !b.length) return false
+  if (tokensAgree(a, b)) return true
+  const aSorted = [...a].sort()
+  const bSorted = [...b].sort()
+  if (tokensAgree(aSorted, bSorted)) return true
+  if (!statement) return false
+  const aOut = outcomeTokens(left, statement)
+  const bOut = outcomeTokens(right, statement)
+  if (aOut.formulas.length + aOut.numbers.length < 2) return false
+  if (!tokensAgree(aOut.formulas, bOut.formulas)) return false
+  return (
+    aOut.numbers.length === bOut.numbers.length &&
+    aOut.numbers.every((value, index) => sameAnswerToken(String(value), String(bOut.numbers[index] ?? '')))
+  )
+}
+
+function compactStudyLine(line: string): string {
+  return normalizeHomeworkAnswer(foldPlainScience(line))
+    .replace(/[()]/g, '')
+    .replace(/(\d),(\d)/g, '$1.$2')
+}
+
+function lineHasResult(line: string, token: string): boolean {
+  const compact = compactStudyLine(line)
+  if (/^-?\d/.test(token)) {
+    const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return new RegExp(`(?:^|[^\\d])${escaped}(?:$|[^\\d])`).test(compact)
+  }
+  return token.length >= 4 && compact.includes(token)
+}
+
+function freshResultTokens(answer: string, statement: string): string[] {
+  const known = new Set(homeworkDataSignature(statement).split('|').filter(Boolean))
+  return homeworkDataSignature(answer)
+    .split('|')
+    .filter((token) => token.length >= 4 && !known.has(token))
 }
 
 function lineLeaks(line: string, cores: string[]): boolean {
@@ -135,10 +240,18 @@ export function mergeCheckedProblem(
   }
   const confirmed = new Set(check.knowledge.filter((item) => item.ok).map((item) => item.index))
   const knowledge = draft.knowledge.filter((_, index) => confirmed.has(index))
-  const agreed = answersAgree(draft.answer, check.answer)
+  const agreed = answersAgree(draft.answer, check.answer, draft.statement)
+  const revealed = freshResultTokens(`${draft.answer}\n${check.answer}`, draft.statement)
+  const hideResult = (line: string) => !revealed.some((token) => lineHasResult(line, token))
   if (agreed) {
     return {
-      problem: { ...draft, knowledge, answer: draft.answer.trim() },
+      problem: {
+        ...draft,
+        knowledge: knowledge.filter(hideResult),
+        thinking: draft.thinking.filter(hideResult),
+        hints: draft.hints.filter(hideResult),
+        answer: draft.answer.trim(),
+      },
       cacheable: true,
     }
   }
@@ -153,6 +266,6 @@ export function mergeCheckedProblem(
       hints: draft.hints.filter((line) => !lineLeaks(line, cores)),
       answer: '',
     },
-    cacheable: true,
+    cacheable: false,
   }
 }

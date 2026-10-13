@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { answersAgree, mergeCheckedProblem, parseHomeworkChecks } from '@/lib/homework-help/homework-help-check'
+import { answersAgree, mergeCheckedProblem, parseHomeworkChecks, parseModelJson } from '@/lib/homework-help/homework-help-check'
 import {
+  homeworkReadIsThin,
   homeworkStatementFingerprint,
   normalizeHomeworkStatement,
   splitTypedHomework,
@@ -41,6 +42,79 @@ test('answers agree on spacing and on the value after equals', () => {
   assert.equal(answersAgree('x = 2', '2'), true)
   assert.equal(answersAgree('x = 2', 'x = 3'), false)
   assert.equal(answersAgree('', '2'), false)
+  assert.equal(answersAgree('Fe(NO₃)₃', 'Fe(NO3)3'), true)
+  assert.equal(answersAgree('FeCO3 5,695 g', 'FeCO3 5,70 g'), true)
+  assert.equal(answersAgree('FeCO3 5,695 g', 'FeCO3 8 g'), false)
+  assert.equal(
+    answersAgree(
+      'Fe(NO3)3 ; FeCO3 + 4HNO3 → Fe(NO3)3 + CO2 + NO2 + 2H2O | FeCO3 4,64 g; FeS2 0,96 g | 23,89 ml',
+      'Fe(NO3)3 | FeCO3 4,64 g ; FeS2 0,96 g | 23,9 ml',
+      'Hỗn hợp FeCO3 và FeS2 tác dụng HNO3 tạo CO2, NO2, H2O. 540 ml, 7,568 gam'
+    ),
+    true
+  )
+})
+
+const chemistryWithMarks =
+  'Câu V (2,0 điểm) Hỗn hợp A gồm FeCO₃ và FeS₂. HNO₃ 63% (1,44 g/ml). FeCO₃ + HNO₃ → CO₂ + NO₂ + H₂O (1) FeS₂ + HNO₃ → H₂SO₄ + NO₂ + H₂O (2). Tỉ khối 1,425. 540 ml Ba(OH)₂ 0,2M. 7,568 gam BaSO₄. 1. X là muối gì? 2. Tính khối lượng. 3. Thể tích HNO₃.'
+const chemistryPlain =
+  'Hỗn hợp A gồm FeCO3 và FeS2. HNO3 63% (1.44 g/ml). FeCO3 + HNO3 → CO2 + NO2 + H2O FeS2 + HNO3 → H2SO4 + NO2 + H2O. Tỉ khối 1.425. 540 ml Ba(OH)2 0.2M. 7.568 gam BaSO4. X là muối gì? Tính khối lượng. Thể tích HNO3.'
+
+test('the same chemistry problem matches after subscripts, scores, and question numbers change', () => {
+  assert.equal(homeworkStatementFingerprint(chemistryWithMarks), homeworkStatementFingerprint(chemistryPlain))
+  assert.notEqual(
+    homeworkStatementFingerprint(chemistryPlain),
+    homeworkStatementFingerprint(chemistryPlain.replace('7,568', '8,000').replace('7.568', '8.000'))
+  )
+  assert.notEqual(
+    homeworkStatementFingerprint('X là muối gì? Hoàn thành các phương trình phản ứng (1) và (2).'),
+    homeworkStatementFingerprint(chemistryPlain)
+  )
+})
+
+test('a photo read of only the questions is thin', () => {
+  assert.equal(
+    homeworkReadIsThin([
+      'X là muối gì? Hoàn thành các phương trình phản ứng (1) và (2).',
+      'Tính khối lượng từng chất trong hỗn hợp A.',
+      'Xác định thể tích dung dịch HNO3 đã dùng.',
+    ]),
+    true
+  )
+  assert.equal(homeworkReadIsThin([chemistryPlain]), false)
+  assert.equal(homeworkReadIsThin(['Giải 2x + 3 = 7']), false)
+})
+
+test('a bare check array still parses', () => {
+  const parsed = parseModelJson(
+    '[{"index":0,"answer":"","knowledge":[{"index":0,"ok":true}]},{"index":1,"answer":"Fe(NO3)3","knowledge":[]}]'
+  )
+  const checks = parseHomeworkChecks(parsed)
+  assert.equal(checks?.length, 2)
+  assert.equal(checks?.[1]?.answer, 'Fe(NO3)3')
+  assert.equal(checks?.[0]?.knowledge[0]?.ok, true)
+})
+
+test('a matching chemistry answer stays visible but steps do not spoil the new results', () => {
+  const merged = mergeCheckedProblem(
+    {
+      statement: 'Hỗn hợp FeCO3',
+      knowledge: ['HNO3 đặc oxi hóa Fe lên Fe(III)'],
+      thinking: ['Muối X là Fe(NO3)3', 'Lập phương trình khí'],
+      hints: ['Khối lượng FeCO3 là 4,64 g'],
+      answer: 'Fe(NO3)3 | FeCO3 4,64 g',
+    },
+    {
+      index: 0,
+      answer: 'Fe(NO3)3 | FeCO3 4.64 g',
+      knowledge: [{ index: 0, ok: true }],
+    }
+  )
+  assert.equal(merged.cacheable, true)
+  assert.equal(merged.problem.answer, 'Fe(NO3)3 | FeCO3 4,64 g')
+  assert.deepEqual(merged.problem.knowledge, ['HNO3 đặc oxi hóa Fe lên Fe(III)'])
+  assert.deepEqual(merged.problem.thinking, ['Lập phương trình khí'])
+  assert.deepEqual(merged.problem.hints, [])
 })
 
 test('cross-check keeps only confirmed knowledge and a matching answer', () => {
@@ -69,7 +143,7 @@ test('disagreement hides the answer and drops a step that leaks it', () => {
   })
   assert.equal(merged.problem.answer, '')
   assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
-  assert.equal(merged.cacheable, true)
+  assert.equal(merged.cacheable, false)
 })
 
 test('a failed check does not keep knowledge or an answer to cache', () => {

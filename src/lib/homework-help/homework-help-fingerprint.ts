@@ -3,10 +3,51 @@ import { createHash } from 'node:crypto'
 const LABEL_PREFIX =
   /^(?:câu|bài|question|problem|q|题|問|문제)\s*\d{1,3}\s*[:.)．。、\-–]\s*/i
 const BARE_NUMBER_PREFIX = /^\d{1,2}\s*[:.)．。]\s*/
+const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉'
+const SUPERSCRIPT_DIGITS = '⁰¹²³⁴⁵⁶⁷⁸⁹'
+const SCORE_PATTERN = /\(\s*\d+(?:[.,]\d+)?\s*đi[eể]m\s*\)/gi
+const EXAM_LABEL =
+  /(?:^|[\s])(?:câu|bài|question|problem|q|题|問|문제)\s*(?:\d{1,3}|[ivxlcdm]{1,8})\s*[:.)．。、\-–]*/gi
+const LIST_MARKER = /(?:^|\s)\d{1,2}\s*[.)．、]\s+(?=[^\d\s])/g
+const EQUATION_NUMBER = /\(\s*\d{1,2}\s*\)/g
+const DATA_TOKEN = /[A-Z][a-z]?(?:\d+|(?:[A-Z][a-z]?\d*)+|\([A-Za-z0-9]+\)\d*)+|\d+(?:[.,]\d+)?/g
+
+/** Số dưới/trên dòng thành số thường để FeCO₃ và FeCO3 là một công thức. */
+export function foldPlainScience(value: string): string {
+  let text = value.normalize('NFKC')
+  for (let i = 0; i < 10; i += 1) {
+    text = text.split(SUBSCRIPT_DIGITS[i] ?? '').join(String(i))
+    text = text.split(SUPERSCRIPT_DIGITS[i] ?? '').join(String(i))
+  }
+  return text
+}
+
+function plainToken(raw: string): string {
+  if (/^\d/.test(raw)) {
+    const num = Number(raw.replace(',', '.'))
+    return Number.isFinite(num) ? String(num) : ''
+  }
+  return raw.toLowerCase().replace(/[()]/g, '')
+}
+
+/**
+ * Công thức và số liệu theo thứ tự trên đề, bỏ nhãn câu và điểm.
+ * Hai lời đọc khác chữ nhưng cùng dữ kiện ra cùng một chuỗi.
+ */
+export function homeworkDataSignature(statement: string): string {
+  let text = foldPlainScience(statement).replace(SCORE_PATTERN, ' ')
+  text = text.replace(EXAM_LABEL, ' ').replace(EQUATION_NUMBER, ' ').replace(LIST_MARKER, ' ')
+  const tokens: string[] = []
+  for (const match of text.matchAll(DATA_TOKEN)) {
+    const token = plainToken(match[0])
+    if (token) tokens.push(token)
+  }
+  return tokens.join('|')
+}
 
 /** Cùng một đề dù lệch số câu, dấu cách, hoặc dấu câu. */
 export function normalizeHomeworkStatement(raw: string): string {
-  let text = raw.normalize('NFKC').replace(/\s+/g, ' ').trim().toLowerCase()
+  let text = foldPlainScience(raw).replace(/\s+/g, ' ').trim().toLowerCase()
   for (let i = 0; i < 2; i += 1) {
     const next = text.replace(LABEL_PREFIX, '').replace(BARE_NUMBER_PREFIX, '').trim()
     if (next === text) break
@@ -16,7 +57,15 @@ export function normalizeHomeworkStatement(raw: string): string {
 }
 
 export function homeworkStatementFingerprint(statement: string): string {
-  return createHash('sha256').update(normalizeHomeworkStatement(statement), 'utf8').digest('hex')
+  const parts = homeworkDataSignature(statement).split('|').filter(Boolean)
+  const basis = parts.length >= 4 ? parts.join('|') : normalizeHomeworkStatement(statement)
+  return createHash('sha256').update(basis, 'utf8').digest('hex')
+}
+
+/** Nhiều câu nhưng không câu nào mang dữ kiện: ảnh mới chỉ đọc phần hỏi. */
+export function homeworkReadIsThin(statements: string[]): boolean {
+  if (statements.length < 2) return false
+  return statements.every((statement) => homeworkDataSignature(statement).split('|').filter(Boolean).length < 3)
 }
 
 const TYPED_QUESTION_START =
@@ -32,7 +81,7 @@ export function splitTypedHomework(raw: string): string[] {
     let current: string[] = []
     const flush = () => {
       const joined = current.join('\n').replace(/\s+/g, ' ').trim()
-      if (joined) pieces.push(joined.slice(0, 1200))
+      if (joined) pieces.push(joined.slice(0, 4000))
       current = []
     }
     for (const line of lines) {

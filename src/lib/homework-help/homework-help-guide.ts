@@ -4,6 +4,8 @@ export type HomeworkProblem = {
   thinking: string[]
   hints: string[]
   answer: string
+  /** Bản này đọc từ cache DB, không phải lần soạn mới. */
+  cached?: boolean
 }
 
 export type HomeworkGuide = {
@@ -53,14 +55,15 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
   for (const row of problemsRaw) {
     if (!row || typeof row !== 'object') continue
     const item = row as Record<string, unknown>
-    const statement = cleanLine(item.statement, 1200)
+    const statement = cleanLine(item.statement, 4000)
     if (!statement) continue
     problems.push({
       statement,
       knowledge: asLines(item.knowledge, 5, 280),
       thinking: asLines(item.thinking, 6, 320),
       hints: asLines(item.hints, 4, 320),
-      answer: cleanLine(item.answer, 500),
+      answer: cleanLine(item.answer, 2000),
+      ...(item.cached === true ? { cached: true } : {}),
     })
     if (problems.length >= MAX_PROBLEMS) break
   }
