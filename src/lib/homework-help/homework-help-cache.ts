@@ -145,6 +145,70 @@ export async function touchHomeworkPhotoCache(imageHash: string, locale: string)
   }
 }
 
+export async function fetchHomeworkSolution(fingerprint: string, locale: string): Promise<string | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ solution: string | null }>(
+      `select solution
+       from public.homework_help_problem_cache
+       where fingerprint = $1 and locale = $2
+       limit 1`,
+      [fingerprint, locale]
+    )
+    const text = row?.solution?.trim() ?? ''
+    return text || null
+  } catch (error) {
+    console.warn('[homework-help] solution cache read', error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+/** Bản đầu thắng. Hàng chưa có thì tạo hàng mỏng để lần sau vẫn đọc được lời giải. */
+export async function rememberHomeworkSolution(input: {
+  fingerprint: string
+  locale: string
+  statement: string
+  answer: string
+  solution: string
+}): Promise<void> {
+  if (!isPgConfigured()) return
+  const solution = input.solution.trim()
+  if (!solution) return
+  try {
+    const updated = await pgQuery<{ fingerprint: string }>(
+      `update public.homework_help_problem_cache
+       set solution = $3, updated_at = now()
+       where fingerprint = $1 and locale = $2 and btrim(solution) = ''
+       returning fingerprint`,
+      [input.fingerprint, input.locale, solution]
+    )
+    if (updated.length > 0) return
+    const existing = await fetchHomeworkSolution(input.fingerprint, input.locale)
+    if (existing) return
+    await pgQuery(
+      `insert into public.homework_help_problem_cache (
+         fingerprint, locale, statement, knowledge, thinking, hints, answer, solution, read_model, check_model
+       ) values ($1, $2, $3, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $4, $5, $6, $6)
+       on conflict (fingerprint, locale) do update
+         set solution = case
+           when btrim(public.homework_help_problem_cache.solution) = '' then excluded.solution
+           else public.homework_help_problem_cache.solution
+         end,
+         updated_at = now()`,
+      [
+        input.fingerprint,
+        input.locale,
+        input.statement,
+        input.answer,
+        solution,
+        HOMEWORK_HELP_DRAFT_MODEL,
+      ]
+    )
+  } catch (error) {
+    console.warn('[homework-help] solution cache write', error instanceof Error ? error.message : error)
+  }
+}
+
 export async function rememberHomeworkPhotoCache(
   imageHash: string,
   locale: string,

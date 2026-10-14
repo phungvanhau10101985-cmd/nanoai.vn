@@ -22,13 +22,10 @@ export type HomeworkHelpCopy = {
   nextHint: string
   showAnswer: string
   answer: string
-  attemptLabel: string
-  attemptPlaceholder: string
-  reviewButton: string
-  reviewing: string
-  gap: string
-  checkOk: string
-  checkBad: string
+  solutionWarning: string
+  showSolution: string
+  solutionOpening: string
+  solutionTitle: string
   emptyPhoto: string
   removeImage: string
   cropTitle: string
@@ -70,13 +67,11 @@ const VI: HomeworkHelpCopy = {
   nextHint: 'Gợi ý tiếp',
   showAnswer: 'Xem đáp án',
   answer: 'Đáp án',
-  attemptLabel: 'Bài làm của bạn',
-  attemptPlaceholder: 'Gõ lời giải bạn đã làm',
-  reviewButton: 'Chữa giúp',
-  reviewing: 'Đang chữa…',
-  gap: 'Chỗ cần xem lại',
-  checkOk: 'Đúng hướng',
-  checkBad: 'Chưa đúng',
+  solutionWarning:
+    'Nên tự làm trước. Đọc lời giải xong, não lười tư duy hơn: bạn nhớ đường người khác đã đi, và lần sau dễ ngừng tự suy luận.',
+  showSolution: 'Xem bài giải · {credits} credit',
+  solutionOpening: 'Đang mở bài giải…',
+  solutionTitle: 'Bài giải',
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
   removeImage: 'Gỡ ảnh',
   cropTitle: 'Chọn vùng cần gửi',
@@ -100,10 +95,10 @@ const VI: HomeworkHelpCopy = {
     too_many: 'Tối đa 3 ảnh mỗi lượt.',
     ai_unavailable: 'Chưa đọc được bài. Thử lại sau.',
     unreadable: 'Không đọc được nội dung ảnh. Chụp rõ hơn rồi thử lại.',
-    missing_attempt: 'Gõ bài làm của bạn trước khi chữa.',
     missing_text: 'Gõ đề bài trước.',
     new_thread_failed: 'Không tạo được hội thoại mới.',
     payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để dùng hỗ trợ làm bài.',
+    insufficient_credits: 'Không đủ credit để mở bài giải.',
     paste_failed: 'Không lấy được ảnh từ clipboard hoặc link. Thử lại, hoặc chọn ảnh từ máy.',
   },
 }
@@ -131,13 +126,11 @@ const EN: HomeworkHelpCopy = {
   nextHint: 'Next hint',
   showAnswer: 'Show answer',
   answer: 'Answer',
-  attemptLabel: 'Your work',
-  attemptPlaceholder: 'Type the solution you already tried',
-  reviewButton: 'Check my work',
-  reviewing: 'Checking…',
-  gap: 'What to revisit',
-  checkOk: 'On track',
-  checkBad: 'Not yet',
+  solutionWarning:
+    'Try it yourself first. After you read the worked solution, your mind gets lazier: you remember the path someone else took, and next time you stop reasoning it out.',
+  showSolution: 'Show the worked solution · {credits} credit',
+  solutionOpening: 'Opening the worked solution…',
+  solutionTitle: 'Worked solution',
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
   removeImage: 'Remove',
   cropTitle: 'Choose what to send',
@@ -161,10 +154,10 @@ const EN: HomeworkHelpCopy = {
     too_many: 'Up to 3 photos at a time.',
     ai_unavailable: 'Could not read the problem. Try again shortly.',
     unreadable: 'Could not read this photo. Take a clearer picture and try again.',
-    missing_attempt: 'Type your work before asking for a check.',
     missing_text: 'Type the problem first.',
     new_thread_failed: 'Could not start a new chat.',
     payment_required: 'The student plan is not active this period. Buy it to use homework help.',
+    insufficient_credits: 'Not enough credits to open the worked solution.',
     paste_failed: 'Could not read that image from the clipboard or link. Try again, or choose a file.',
   },
 }
@@ -191,13 +184,10 @@ const ZH: HomeworkHelpCopy = {
   nextHint: '下一条提示',
   showAnswer: '查看答案',
   answer: '答案',
-  attemptLabel: '你的解答',
-  attemptPlaceholder: '写下你已经做过的步骤',
-  reviewButton: '帮我看',
-  reviewing: '正在批改…',
-  gap: '需要再看的地方',
-  checkOk: '方向对',
-  checkBad: '还不对',
+  solutionWarning: '请先自己做。看完详解后，大脑会更懒于思考：你记住的是别人走过的路，下次就容易不再自己推理。',
+  showSolution: '查看详解 · {credits} 积分',
+  solutionOpening: '正在打开详解…',
+  solutionTitle: '详解',
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
   removeImage: '移除',
   cropTitle: '选择要发送的区域',
@@ -221,10 +211,10 @@ const ZH: HomeworkHelpCopy = {
     too_many: '每次最多 3 张照片。',
     ai_unavailable: '暂时读不了题目。请稍后再试。',
     unreadable: '读不清这张照片。请拍清楚再试。',
-    missing_attempt: '先写下你的解答，再请批改。',
     missing_text: '请先输入题目。',
     new_thread_failed: '无法新建对话。',
     payment_required: '本期学生套餐未开通。购买后才能使用作业辅导。',
+    insufficient_credits: '积分不足，无法打开详解。',
     paste_failed: '无法从剪贴板或链接读取图片。请重试，或从设备选择图片。',
   },
 }
@@ -252,13 +242,11 @@ const JA: HomeworkHelpCopy = {
   nextHint: '次のヒント',
   showAnswer: '答えを見る',
   answer: '答え',
-  attemptLabel: '自分の解答',
-  attemptPlaceholder: 'すでに考えた解き方を書く',
-  reviewButton: '見てほしい',
-  reviewing: '見ています…',
-  gap: '見直すところ',
-  checkOk: '方向は合っている',
-  checkBad: 'まだ違う',
+  solutionWarning:
+    'まず自分で解いてください。解説を読むと、頭は考えるのを怠けやすくなります。他人が通った道を覚えるだけで、次は自分で推論しなくなりがちです。',
+  showSolution: '詳しい解説を見る · {credits} クレジット',
+  solutionOpening: '解説を開いています…',
+  solutionTitle: '詳しい解説',
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
   removeImage: '外す',
   cropTitle: '送る範囲を選ぶ',
@@ -282,10 +270,10 @@ const JA: HomeworkHelpCopy = {
     too_many: '一度に3枚までです。',
     ai_unavailable: '問題を読めませんでした。しばらくしてから再度お試しください。',
     unreadable: 'この写真は読めません。はっきり撮ってもう一度お試しください。',
-    missing_attempt: '確認する前に、自分の解答を書いてください。',
     missing_text: '先に問題を入力してください。',
     new_thread_failed: '新しい会話を作れませんでした。',
     payment_required: 'この期間の生徒プランが未開通です。購入すると宿題サポートを使えます。',
+    insufficient_credits: 'クレジットが足りないため、解説を開けません。',
     paste_failed: 'クリップボードまたはリンクから画像を読めませんでした。もう一度試すか、端末から選んでください。',
   },
 }
@@ -313,13 +301,11 @@ const KO: HomeworkHelpCopy = {
   nextHint: '다음 힌트',
   showAnswer: '답 보기',
   answer: '답',
-  attemptLabel: '내가 푼 풀이',
-  attemptPlaceholder: '이미 해본 풀이를 적으세요',
-  reviewButton: '풀어 준 것 봐 주기',
-  reviewing: '보는 중…',
-  gap: '다시 볼 부분',
-  checkOk: '방향이 맞음',
-  checkBad: '아직 아님',
+  solutionWarning:
+    '먼저 직접 풀어 보세요. 풀이를 읽고 나면 뇌는 생각하기를 더 게을리합니다. 다른 사람이 간 길을 기억하고, 다음엔 스스로 추론하지 않게 됩니다.',
+  showSolution: '자세한 풀이 보기 · {credits} 크레딧',
+  solutionOpening: '풀이를 여는 중…',
+  solutionTitle: '자세한 풀이',
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',
   removeImage: '빼기',
   cropTitle: '보낼 영역 선택',
@@ -343,10 +329,10 @@ const KO: HomeworkHelpCopy = {
     too_many: '한 번에 사진은 3장까지입니다.',
     ai_unavailable: '문제를 읽지 못했습니다. 잠시 후 다시 시도하세요.',
     unreadable: '이 사진을 읽지 못했습니다. 더 선명하게 찍고 다시 시도하세요.',
-    missing_attempt: '확인받기 전에 내 풀이를 적으세요.',
     missing_text: '먼저 문제를 입력하세요.',
     new_thread_failed: '새 대화를 만들지 못했습니다.',
     payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 숙제 도우미를 쓸 수 있습니다.',
+    insufficient_credits: '크레딧이 부족해 풀이를 열 수 없습니다.',
     paste_failed: '클립보드나 링크에서 이미지를 읽지 못했습니다. 다시 시도하거나 기기에서 고르세요.',
   },
 }

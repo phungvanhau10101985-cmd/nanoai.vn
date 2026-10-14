@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseHomeworkGuide, parseHomeworkReview } from '@/lib/homework-help/homework-help-guide'
+import { parseHomeworkGuide, parseHomeworkSolution } from '@/lib/homework-help/homework-help-guide'
 
 test('parseHomeworkGuide keeps knowledge and hides nothing the model already split out', () => {
   const guide = parseHomeworkGuide({
@@ -49,12 +49,8 @@ test('parseHomeworkGuide drops a problem with no statement', () => {
   assert.deepEqual(guide, { note: 'Không thấy đề', problems: [] })
 })
 
-test('parseHomeworkReview requires at least one check', () => {
-  assert.equal(parseHomeworkReview({ checks: [], gap: 'x' }), null)
-  const review = parseHomeworkReview({
-    checks: [{ label: 'Chuyển vế', ok: false, note: 'Dấu chưa đổi' }],
-    gap: 'Nhắc lại quy tắc chuyển vế',
-  })
-  assert.equal(review?.checks[0]?.ok, false)
-  assert.match(review?.gap ?? '', /chuyển vế/)
+test('parseHomeworkSolution keeps line breaks and drops an empty body', () => {
+  assert.equal(parseHomeworkSolution({ solution: '  Bước 1\r\nBước 2  ' }), 'Bước 1\nBước 2')
+  assert.equal(parseHomeworkSolution({ solution: '   ' }), '')
+  assert.equal(parseHomeworkSolution(null), '')
 })

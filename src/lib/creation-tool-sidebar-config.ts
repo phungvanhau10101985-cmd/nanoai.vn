@@ -99,7 +99,11 @@ function siblingsFromNav(path: string): CreationRelatedItem[] {
   return []
 }
 
-export function getCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
+/**
+ * Liên quan chặt (giáo trình, lớp, hỗ trợ làm bài). Không gồm cả nhóm nav lớn.
+ * Picker desktop dùng hàm này để không kéo mọi công cụ cùng mục lên trên.
+ */
+export function getExplicitCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
   const path = normalizePath(currentHref)
   if (CURRICULUM_RELATED[path]) return CURRICULUM_RELATED[path]
   if (path === '/cai-dat-hien-thi-ket-qua-anh') {
@@ -140,8 +144,13 @@ export function getCreationRelatedLinks(currentHref: string): CreationRelatedIte
   ) {
     return CURRICULUM_RELATED['/lop'] ?? []
   }
-  const fromNav = siblingsFromNav(path)
-  return fromNav
+  return []
+}
+
+export function getCreationRelatedLinks(currentHref: string): CreationRelatedItem[] {
+  const explicit = getExplicitCreationRelatedLinks(currentHref)
+  if (explicit.length > 0) return explicit
+  return siblingsFromNav(normalizePath(currentHref))
 }
 
 /** Công cụ nhiều người dùng — hiển thị dưới cùng sidebar. */

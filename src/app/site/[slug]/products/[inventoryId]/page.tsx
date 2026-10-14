@@ -21,7 +21,10 @@ import { buildPartnerSiteProductKey } from '@/lib/partner-website/shop/partner-s
 import { partnerSiteItFeatureHref, partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { resolvePartnerSiteAbsoluteUrl } from '@/lib/partner-website/shop/partner-site-absolute-url'
 import { JsonLd } from '@/components/seo-json-ld'
-import { fetchPartnerProductRatingSummaryFromPg } from '@/lib/db/messaging-partner-reviews-pg'
+import {
+  fetchPartnerProductRatingSummaryFromPg,
+  fetchPartnerProductReviewSnippetsFromPg,
+} from '@/lib/db/messaging-partner-reviews-pg'
 import {
   fetchCategoryIdsForInventoryFromPg,
   fetchPartnerCategoriesFlatFromPg,
@@ -145,7 +148,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
   const mapped = inventoryRowToShopProduct(shop.site.siteSlug, row, { pdp: true })
   if (!mapped) notFound()
   let guestEmail: string | null = null
-  const [faced, visualDoc, savedOutfit, ratingSummary, paymentSettings] = await Promise.all([
+  const [faced, visualDoc, savedOutfit, ratingSummary, reviewSnippets, paymentSettings] = await Promise.all([
     guestEmailPromise.then((email) => {
       guestEmail = email
       return applyPartnerStorefrontSaleFaces([{ ...mapped, isClearance: row.is_clearance === true }], {
@@ -159,6 +162,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     visualDocPromise,
     savedOutfitPromise,
     fetchPartnerProductRatingSummaryFromPg(shop.partnerId, row.id),
+    fetchPartnerProductReviewSnippetsFromPg(shop.partnerId, row.id),
     fetchPartnerPaymentSettingsFromPg(shop.partnerId),
   ])
   const product = faced[0]
@@ -187,6 +191,7 @@ export default async function PartnerSiteProductDetailPage({ params, searchParam
     shippingFeeAmount,
     returnPolicyUrl: resolvePartnerSiteAbsoluteUrl(shop.site.siteSlug, '/returns'),
     rating: ratingSummary,
+    reviews: reviewSnippets,
   })
   const liveProduct = {
     ...product,

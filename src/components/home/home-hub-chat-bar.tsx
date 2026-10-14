@@ -187,6 +187,14 @@ import {
   groupPostFlowFeatureCatalog,
 } from '@/lib/hub-chat/hub-feature-catalog'
 import {
+  mergeRecentFeatureKeys,
+  rankHubFeaturePickerGroups,
+  readHubPickerRecentKeys,
+  recentFeatureKeysFromThreads,
+  rememberHubPickerFeature,
+} from '@/lib/hub-chat/hub-feature-picker-rank'
+import { readRecentFeatureHrefs } from '@/lib/mobile-feature-dock'
+import {
   extractExampleFromAsk,
   getStudioStepInputPlaceholder,
   getStudioStepSuggestions,
@@ -556,6 +564,8 @@ export function HomeHubChatBar() {
   const [editingLineId, setEditingLineId] = useState<string | null>(null)
   const [editingStepKey, setEditingStepKey] = useState<string | null>(null)
   const [chatThreads, setChatThreads] = useState<HubChatThreadSummary[]>([])
+  const [pickerRecentKeys, setPickerRecentKeys] = useState<string[]>([])
+  const [visitedFeatureHrefs, setVisitedFeatureHrefs] = useState<string[]>([])
   const [threadsLoading, setThreadsLoading] = useState(false)
   const [threadsLoginRequired, setThreadsLoginRequired] = useState(false)
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null)
@@ -748,10 +758,16 @@ export function HomeHubChatBar() {
 
   const t = useMemo(() => getDictionary(uiLocale), [uiLocale])
   const hc = t.hubChat
-  const featureCatalogGroups = useMemo(
-    () => groupHubFeatureCatalog(uiLocale),
-    [uiLocale]
-  )
+  const featureCatalogGroups = useMemo(() => {
+    const groups = groupHubFeatureCatalog(uiLocale)
+    const recent = mergeRecentFeatureKeys({
+      sessionKeys: pickerRecentKeys,
+      threadKeys: recentFeatureKeysFromThreads(chatThreads, uiLocale),
+      visitedHrefs: visitedFeatureHrefs,
+      entries: groups.flatMap((group) => group.entries),
+    })
+    return rankHubFeaturePickerGroups(groups, recent)
+  }, [chatThreads, pickerRecentKeys, uiLocale, visitedFeatureHrefs])
   const postFlowFeatureGroups = useMemo(
     () => groupPostFlowFeatureCatalog(uiLocale, studioSession?.presetId),
     [studioSession?.presetId, uiLocale]
@@ -842,6 +858,11 @@ export function HomeHubChatBar() {
   useEffect(() => {
     void fetchThreadList()
   }, [fetchThreadList])
+
+  useEffect(() => {
+    setPickerRecentKeys(readHubPickerRecentKeys())
+    setVisitedFeatureHrefs(readRecentFeatureHrefs())
+  }, [])
 
   useEffect(() => {
     const onOpen = (event: Event) => {
@@ -4490,8 +4511,8 @@ export function HomeHubChatBar() {
         ) : !hideStepInputComposer && showFeaturePicker && !isActiveStudioFlow(studioSession) && activeStepSuggestions.length === 0 ? (
           <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
             <p className="text-xs font-medium text-muted-foreground">{hc.featurePickerHint}</p>
-            {featureCatalogGroups.map((group) => (
-              <div key={group.groupKey}>
+            {featureCatalogGroups.map((group, groupIndex) => (
+              <div key={`${group.groupKey}-${groupIndex}`}>
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-700/80 dark:text-violet-300/80">
                   {group.groupLabel}
                 </p>
@@ -4502,6 +4523,7 @@ export function HomeHubChatBar() {
                       type="button"
                       disabled={busy}
                       onClick={() => {
+                        setPickerRecentKeys(rememberHubPickerFeature(entry.key))
                         void postStudio({ action: 'select_feature', featureKey: entry.key })
                       }}
                       className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"

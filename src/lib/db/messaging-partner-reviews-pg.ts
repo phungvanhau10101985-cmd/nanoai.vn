@@ -569,6 +569,49 @@ export async function fetchPartnerProductRatingSummaryFromPg(
   }
 }
 
+/** A few public reviews for Product JSON-LD. Same pool the PDP rating uses. */
+export async function fetchPartnerProductReviewSnippetsFromPg(
+  partnerId: string,
+  inventoryId: string,
+  importGroup?: number
+): Promise<Array<{ authorName: string; rating: number; body: string; datePublished: string | null }>> {
+  if (!isPgConfigured()) return []
+  const group = coalesceImportGroup(importGroup)
+  try {
+    const rows = await pgQuery<{
+      reviewer_name: string
+      rating: number
+      title: string
+      content: string
+      created_at: unknown
+    }>(
+      `select coalesce(reviewer_name, '') as reviewer_name, rating,
+              coalesce(title, '') as title, coalesce(content, '') as content, created_at
+       from public.messaging_partner_product_reviews
+       where is_active = true
+         and ${publicPoolWhereSql(1, 2, 3)}
+         and length(btrim(coalesce(reviewer_name, ''))) >= 2
+       order by useful_count desc, created_at desc
+       limit 5`,
+      [partnerId, inventoryId, group]
+    )
+    return rows.map((row) => {
+      const created = row.created_at instanceof Date ? row.created_at : new Date(String(row.created_at || ''))
+      const datePublished = Number.isNaN(created.getTime()) ? null : created.toISOString().slice(0, 10)
+      const body = [String(row.title || '').trim(), String(row.content || '').trim()].filter(Boolean).join(' — ')
+      return {
+        authorName: row.reviewer_name,
+        rating: row.rating,
+        body,
+        datePublished,
+      }
+    })
+  } catch (e) {
+    console.warn('[fetchPartnerProductReviewSnippetsFromPg]', e)
+    return []
+  }
+}
+
 /** Toggle vote hữu ích — unique (review_id, voter_key), tăng/giảm useful_count, sàn 0. */
 export async function togglePartnerProductReviewVoteFromPg(input: {
   reviewId: string

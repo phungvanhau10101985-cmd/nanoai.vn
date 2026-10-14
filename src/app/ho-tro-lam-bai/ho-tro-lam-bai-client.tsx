@@ -7,13 +7,13 @@ import { Camera, History, Image as ImageIcon, Loader2, MessageSquarePlus, X } fr
 import { Button } from '@/components/ui/button'
 import { StudyComposerTool, StudyMessengerComposer } from '@/components/student-study/study-messenger-composer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import { ImageRegionPicker } from '@/components/media/image-region-picker'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
+import { HOMEWORK_SOLUTION_CREDIT_COST } from '@/lib/homework-help/homework-help-solution-cost'
 import type { TutorAnswer, TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
-import { knowledgeLinesAsTags, type HomeworkProblem, type HomeworkReview } from '@/lib/homework-help/homework-help-guide'
+import { knowledgeLinesAsTags, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import { tutorNextBubbleDelayMs, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
 import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
 import {
@@ -23,7 +23,7 @@ import {
   loadHomeworkThread,
   openHomeworkHistoryThread,
   openHomeworkKnowledgeTag,
-  reviewHomeworkWork,
+  openHomeworkSolution,
   startHomeworkThread,
 } from '@/app/ho-tro-lam-bai/actions'
 import { StudyCacheMark } from '@/components/student-study/study-cache-mark'
@@ -663,10 +663,10 @@ function ProblemBubble({
 }) {
   const [shownHints, setShownHints] = useState(0)
   const [answerOpen, setAnswerOpen] = useState(false)
-  const [attempt, setAttempt] = useState('')
-  const [review, setReview] = useState<HomeworkReview | null>(null)
-  const [reviewing, setReviewing] = useState(false)
-  const [error, setError] = useState('')
+  const [solution, setSolution] = useState('')
+  const [solutionCached, setSolutionCached] = useState(false)
+  const [solutionBusy, setSolutionBusy] = useState(false)
+  const [solutionError, setSolutionError] = useState('')
   const [tagOpen, setTagOpen] = useState<TutorLabel | null>(null)
   const [tagAnswer, setTagAnswer] = useState<TutorAnswer | null>(null)
   const [tagBusy, setTagBusy] = useState(false)
@@ -675,26 +675,28 @@ function ProblemBubble({
   const hintsLeft = shownHints < problem.hints.length
   const tags = problem.tags.length > 0 ? problem.tags : knowledgeLinesAsTags(problem.knowledge)
   const canShowAnswer = Boolean(problem.answer) && !hintsLeft && !answerOpen
+  const solutionLabel = copy.showSolution.replace('{credits}', String(HOMEWORK_SOLUTION_CREDIT_COST))
 
-  async function checkWork() {
-    setReviewing(true)
-    setError('')
+  async function openSolution() {
+    setSolutionBusy(true)
+    setSolutionError('')
     try {
-      const result = await reviewHomeworkWork({
+      const result = await openHomeworkSolution({
         locale,
         statement: problem.statement,
-        attempt,
+        answer: problem.answer,
       })
       if (!result.ok) {
         if (result.code === 'payment_required') onPaymentRequired()
-        else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+        else setSolutionError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
         return
       }
-      setReview(result.data)
+      setSolution(result.data.solution)
+      setSolutionCached(result.data.cached)
     } catch {
-      setError(copy.errors.ai_unavailable)
+      setSolutionError(copy.errors.ai_unavailable)
     } finally {
-      setReviewing(false)
+      setSolutionBusy(false)
     }
   }
 
@@ -818,40 +820,36 @@ function ProblemBubble({
         </section>
       ) : null}
 
-      <section className="space-y-2 border-t pt-3">
-        <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {copy.attemptLabel}
-        </label>
-        <Textarea
-          value={attempt}
-          placeholder={copy.attemptPlaceholder}
-          onChange={(event) => setAttempt(event.target.value)}
-          rows={2}
-          className="max-h-24 resize-none"
-          disabled={reviewing}
-        />
-        <Button type="button" size="sm" onClick={() => void checkWork()} disabled={reviewing || !attempt.trim()}>
-          {reviewing ? copy.reviewing : copy.reviewButton}
-        </Button>
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
-        {review ? (
-          <div className="space-y-2 text-sm leading-6">
-            <ul className="space-y-2">
-              {review.checks.map((check) => (
-                <li key={`${check.label}-${check.note}`}>
-                  <span className="font-medium">{check.ok ? copy.checkOk : copy.checkBad}.</span> {check.label}
-                  {check.note ? ` — ${check.note}` : ''}
-                </li>
-              ))}
-            </ul>
-            {review.gap ? (
-              <p className="rounded-lg bg-muted p-3">
-                <span className="font-medium">{copy.gap}.</span> {review.gap}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
+      {answerOpen && problem.answer ? (
+        <section className="space-y-2">
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm leading-6">
+            {copy.solutionWarning}
+          </p>
+          {solution ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {copy.solutionTitle}
+                </h3>
+                {solutionCached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
+              </div>
+              <p className="whitespace-pre-wrap text-sm leading-6">{solution}</p>
+            </div>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={() => void openSolution()} disabled={solutionBusy}>
+              {solutionBusy ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {copy.solutionOpening}
+                </span>
+              ) : (
+                solutionLabel
+              )}
+            </Button>
+          )}
+          {solutionError ? <p className="text-sm text-destructive">{solutionError}</p> : null}
+        </section>
+      ) : null}
 
       <Dialog
         open={tagOpen != null}

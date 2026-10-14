@@ -1071,23 +1071,22 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     pageDescription:
       'Học sinh chụp ảnh hoặc gõ bài tập. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi học sinh bấm bước cuối.',
     path: '/ho-tro-lam-bai',
-    keywords: ['hỗ trợ làm bài', 'chữa bài tập', 'chụp ảnh bài tập', 'gõ đề bài', 'hướng tư duy', 'homework help'],
+    keywords: ['hỗ trợ làm bài', 'chụp ảnh bài tập', 'gõ đề bài', 'hướng tư duy', 'homework help'],
     serviceName: 'Hỗ trợ làm bài',
     serviceDescription:
       'Đọc ảnh hoặc chữ đề bài, tách từng câu, liệt kê kiến thức liên quan và hướng tư duy trước khi hiện đáp án.',
     h2: 'Chụp hoặc gõ bài, đọc từng câu, nghĩ theo hướng làm',
     overview:
-      'Học sinh chụp một câu, một trang bài, hoặc gõ đề. Trang đọc lại đề, liệt kê kiến thức cần nhớ và các bước tư duy. Gợi ý mở lần lượt. Đáp án nằm ở bước cuối. Khi đã có lời giải của mình, học sinh gửi bài làm để được chỉ chỗ đúng và chỗ cần xem lại.',
+      'Học sinh chụp một câu, một trang bài, hoặc gõ đề. Trang đọc lại đề, liệt kê kiến thức cần nhớ và các bước tư duy. Gợi ý mở lần lượt. Đáp án nằm ở bước cuối.',
     benefits: [
       'Mỗi câu một thẻ: đề, kiến thức, hướng tư duy',
+      'Gợi ý mở lần lượt trước đáp án',
       'Đáp án không hiện ngay',
-      'Chữa bài sau khi học sinh đã làm',
     ],
-    useCases: ['Ôn một câu chưa hiểu', 'Xem hướng làm trước khi tính', 'Đối chiếu bài làm của mình'],
+    useCases: ['Ôn một câu chưa hiểu', 'Xem hướng làm trước khi tính', 'Đối chiếu đáp án sau khi tự làm'],
     tips: [
       'Chụp rõ một câu nếu trang có nhiều bài, hoặc gõ đề và cách các câu bằng một dòng trống',
       'Đọc hướng tư duy rồi tự làm trước khi bấm đáp án',
-      'Gõ bài làm của bạn vào ô chữa để xem chỗ lệch',
     ],
     faqs: [
       {

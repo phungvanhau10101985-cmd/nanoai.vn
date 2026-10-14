@@ -6,13 +6,21 @@ import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { hasStudentStudyAccess } from '@/lib/student-study-access'
 import { resolveSharedTutorTopic } from '@/lib/ai-tutor/ai-tutor-ai'
 import type { TutorAnswer } from '@/lib/ai-tutor/ai-tutor-types'
+import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
+import { pgQueryOne } from '@/lib/db/pg-query'
+import { homeworkStatementFingerprint } from '@/lib/homework-help/homework-help-fingerprint'
+import {
+  HOMEWORK_SOLUTION_CHARGE_TYPE,
+  HOMEWORK_SOLUTION_CREDIT_COST,
+  homeworkSolutionEventKey,
+} from '@/lib/homework-help/homework-help-solution-cost'
 import {
   explainHomeworkImages,
   explainHomeworkText,
-  reviewHomeworkAttempt,
+  writeHomeworkSolution,
   type HomeworkHelpErrorCode,
 } from '@/lib/homework-help/homework-help-ai'
-import type { HomeworkGuide, HomeworkReview } from '@/lib/homework-help/homework-help-guide'
+import type { HomeworkGuide } from '@/lib/homework-help/homework-help-guide'
 import {
   appendHomeworkExchange,
   ensureHomeworkSession,
@@ -170,29 +178,69 @@ export async function explainTypedHomework(input: {
   return { ok: true, data: explained }
 }
 
-export async function reviewHomeworkWork(input: {
+async function homeworkSolutionWasCharged(eventKey: string): Promise<boolean> {
+  try {
+    const paid = await pgQueryOne<{ event_key: string }>(
+      `select event_key from public.language_coach_credit_events where event_key = $1 limit 1`,
+      [eventKey]
+    )
+    if (paid) return true
+    const guest = await pgQueryOne<{ event_key: string }>(
+      `select event_key from public.guest_credit_trial_events where event_key = $1 limit 1`,
+      [eventKey]
+    )
+    return Boolean(guest)
+  } catch {
+    return false
+  }
+}
+
+export async function openHomeworkSolution(input: {
   locale: string
   statement: string
-  attempt: string
-}): Promise<HomeworkHelpActionResult<HomeworkReview>> {
+  answer: string
+}): Promise<HomeworkHelpActionResult<{ solution: string; cached: boolean }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  const statement = input.statement.trim()
-  const attempt = input.attempt.trim()
-  if (!statement || !attempt) return { ok: false, code: 'missing_attempt' }
+  const statement = input.statement.trim().slice(0, 4000)
+  const answer = input.answer.trim().slice(0, 2000)
+  if (!statement) return { ok: false, code: 'missing_text' }
   await beginFeatureTrial(auth.user.id, 'student')
   if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
-  const locale = normalizeWebLocale(input.locale) ?? 'vi'
-  const review = await reviewHomeworkAttempt({
+  const locale = localeOf(input.locale)
+  const fingerprint = homeworkStatementFingerprint(statement)
+  const eventKey = homeworkSolutionEventKey(auth.user.id, locale, fingerprint)
+  const alreadyCharged = await homeworkSolutionWasCharged(eventKey)
+  if (!alreadyCharged) {
+    const balance = await getCreditBalanceByUserId(auth.user.id)
+    if (balance < HOMEWORK_SOLUTION_CREDIT_COST) return { ok: false, code: 'insufficient_credits' }
+  }
+  const written = await writeHomeworkSolution({
     userId: auth.user.id,
     locale,
-    statement: statement.slice(0, 1200),
-    attempt: attempt.slice(0, 2000),
+    statement,
+    answer,
   })
-  if (!review) return { ok: false, code: 'ai_unavailable' }
-  return { ok: true, data: review }
+  if (!written) return { ok: false, code: 'ai_unavailable' }
+  if (!alreadyCharged) {
+    const charged = await spendCreditsIdempotent({
+      userId: auth.user.id,
+      amount: HOMEWORK_SOLUTION_CREDIT_COST,
+      eventKey,
+      chargeType: HOMEWORK_SOLUTION_CHARGE_TYPE,
+      sessionId: null,
+      metadataJson: JSON.stringify({
+        kind: HOMEWORK_SOLUTION_CHARGE_TYPE,
+        fingerprint,
+        locale,
+        cached: written.cached,
+      }),
+    })
+    if (!charged.ok) return { ok: false, code: 'insufficient_credits' }
+  }
+  return { ok: true, data: written }
 }
 
 export async function openHomeworkKnowledgeTag(input: {

@@ -8,8 +8,10 @@ import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/t
 import {
   fetchHomeworkPhotoCache,
   fetchHomeworkProblemCache,
+  fetchHomeworkSolution,
   rememberHomeworkPhotoCache,
   rememberHomeworkProblem,
+  rememberHomeworkSolution,
   touchHomeworkPhotoCache,
   touchHomeworkProblemCache,
 } from '@/lib/homework-help/homework-help-cache'
@@ -37,12 +39,7 @@ import {
   homeworkStatementFingerprint,
   splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
-import {
-  parseHomeworkReview,
-  type HomeworkGuide,
-  type HomeworkProblem,
-  type HomeworkReview,
-} from '@/lib/homework-help/homework-help-guide'
+import { parseHomeworkSolution, type HomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import {
   HOMEWORK_HELP_DRAFT_MAX_TOKENS,
   HOMEWORK_HELP_DRAFT_MODEL,
@@ -55,8 +52,6 @@ import {
   HOMEWORK_HELP_GRADE_MODEL,
   HOMEWORK_HELP_READ_MAX_TOKENS,
   HOMEWORK_HELP_READ_MODEL,
-  HOMEWORK_HELP_REVIEW_MAX_TOKENS,
-  HOMEWORK_HELP_REVIEW_MODEL,
 } from '@/lib/homework-help/homework-help-models'
 import { attachHomeworkTags } from '@/lib/homework-help/homework-help-tags'
 import { rememberHomeworkCompareEvents, homeworkAnswerCompareOutcome } from '@/lib/homework-help/homework-help-compare'
@@ -78,10 +73,10 @@ export type HomeworkHelpErrorCode =
   | 'too_many'
   | 'ai_unavailable'
   | 'unreadable'
-  | 'missing_attempt'
   | 'missing_text'
   | 'new_thread_failed'
   | 'payment_required'
+  | 'insufficient_credits'
 
 export type HomeworkImagePart = {
   mimeType: string
@@ -206,6 +201,7 @@ async function generateReasonerJson(input: {
   startedAt: number
   preferredMs: number
   maxOutputTokens: number
+  reasoningEffort?: 'low' | 'medium' | 'high'
 }): Promise<{ status: GeminiCallStatus; value: unknown | null }> {
   const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), input.preferredMs)
   if (timeoutMs == null) {
@@ -231,7 +227,7 @@ async function generateReasonerJson(input: {
           model: input.model,
           temperature: 0,
           max_tokens: input.maxOutputTokens,
-          reasoning_effort: 'low',
+          reasoning_effort: input.reasoningEffort ?? 'low',
           response_format: { type: 'json_object' },
           messages: [
             { role: 'system', content: 'Return only a JSON object. No markdown.' },
@@ -802,52 +798,66 @@ export async function explainHomeworkText(input: {
   return explained?.guide ?? 'ai_unavailable'
 }
 
-export async function reviewHomeworkAttempt(input: {
+/** Viết lời giải một lần rồi giữ trong cache. Không trừ credit ở đây. */
+export async function writeHomeworkSolution(input: {
   userId: string
   locale: WebLocale
   statement: string
-  attempt: string
-}): Promise<HomeworkReview | null> {
-  const fingerprint = homeworkStatementFingerprint(input.statement)
-  const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
-  if (cached) await touchHomeworkProblemCache(fingerprint, input.locale)
-  const truth = cached?.answer.trim() ?? ''
-  const truthLine = truth
-    ? `Checked answer, private, never quote it or any equivalent form: ${truth}`
-    : 'No checked answer is available. Judge the method only.'
-  const prompt = `A student already tried this question. Judge their attempt. Write entirely in ${languageName(input.locale)}.
+  answer: string
+}): Promise<{ solution: string; cached: boolean } | null> {
+  const statement = input.statement.trim()
+  if (!statement) return null
+  const fingerprint = homeworkStatementFingerprint(statement)
+  const saved = await fetchHomeworkSolution(fingerprint, input.locale)
+  if (saved) {
+    await touchHomeworkProblemCache(fingerprint, input.locale)
+    return { solution: saved, cached: true }
+  }
+  const answer = input.answer.trim()
+  const answerLine = answer
+    ? `Checked final answer. The working must arrive at this and must not replace it:\n${answer}`
+    : 'No checked final answer was stored. Derive the result from the question.'
+  const prompt = `Write the full worked solution for this homework question. Write entirely in ${languageName(input.locale)}.
 Question:
-${input.statement}
+${statement}
 
-Student attempt:
-${input.attempt}
-
-${truthLine}
+${answerLine}
 
 Return ONLY JSON:
-{"checks":[{"label":"","ok":true,"note":""}],"gap":""}
+{"solution":""}
 Rules:
-- checks: 1 to 5 steps. ok is true only when that part of the attempt is sound.
-- note explains why, without writing the correct final answer, option letter, or a worked solution.
-- gap: one sentence on the idea to revisit. No final answer.`
+- solution is the working a student reads after they chose to open it. Several short lines, separated by newline characters.
+- Show each formula, rearrangement, and arithmetic step.
+- The last line is the final result. When a checked answer is given above, repeat that result, unchanged.
+- Do not stop at a hint. Do not omit the calculations.`
   const startedAt = Date.now()
   const call = () =>
-    generateJson({
+    generateReasonerJson({
       userId: input.userId,
-      feature: 'homework-help-review',
-      model: HOMEWORK_HELP_REVIEW_MODEL,
-      temperature: 0.2,
+      feature: 'homework-help-solution',
+      model: HOMEWORK_HELP_DRAFT_MODEL,
       prompt,
       startedAt,
-      preferredMs: HOMEWORK_FLASH_CALL_MS,
-      maxOutputTokens: HOMEWORK_HELP_REVIEW_MAX_TOKENS,
+      preferredMs: HOMEWORK_DRAFT_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_DRAFT_MAX_TOKENS,
+      reasoningEffort: 'high',
     })
   let raw = await call()
-  let review = raw.status === 'ok' && raw.value != null ? parseHomeworkReview(raw.value) : null
-  if (!review && (raw.status === 'parse' || raw.status === 'ok')) {
-    console.warn('[homework-help] review parse failed, retry')
+  let solution = raw.status === 'ok' && raw.value != null ? parseHomeworkSolution(raw.value) : ''
+  if (!solution && raw.status !== 'transport' && raw.status !== 'budget') {
+    console.warn('[homework-help] solution parse failed, retry')
     raw = await call()
-    review = raw.status === 'ok' && raw.value != null ? parseHomeworkReview(raw.value) : null
+    solution = raw.status === 'ok' && raw.value != null ? parseHomeworkSolution(raw.value) : ''
   }
-  return review
+  if (!solution) return null
+  await rememberHomeworkSolution({
+    fingerprint,
+    locale: input.locale,
+    statement,
+    answer,
+    solution,
+  })
+  const stored = await fetchHomeworkSolution(fingerprint, input.locale)
+  if (stored && stored !== solution) return { solution: stored, cached: true }
+  return { solution, cached: false }
 }

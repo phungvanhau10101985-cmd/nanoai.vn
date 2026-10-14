@@ -18,17 +18,6 @@ export type HomeworkGuide = {
   problems: HomeworkProblem[]
 }
 
-export type HomeworkReviewCheck = {
-  label: string
-  ok: boolean
-  note: string
-}
-
-export type HomeworkReview = {
-  checks: HomeworkReviewCheck[]
-  gap: string
-}
-
 const MAX_PROBLEMS = 8
 
 function cleanLine(value: unknown, max: number): string {
@@ -90,28 +79,11 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
   return { note, problems }
 }
 
-export function parseHomeworkReview(raw: unknown): HomeworkReview | null {
-  if (!raw || typeof raw !== 'object') return null
-  const record = raw as Record<string, unknown>
-  const checksRaw = record.checks
-  if (!Array.isArray(checksRaw)) return null
-  const checks: HomeworkReviewCheck[] = []
-  for (const row of checksRaw) {
-    if (!row || typeof row !== 'object') continue
-    const item = row as Record<string, unknown>
-    const label = cleanLine(item.label, 120)
-    const note = cleanLine(item.note, 320)
-    if (!label && !note) continue
-    checks.push({
-      label: label || note,
-      ok: item.ok === true,
-      note,
-    })
-    if (checks.length >= 5) break
-  }
-  if (!checks.length) return null
-  return {
-    checks,
-    gap: cleanLine(record.gap, 400),
-  }
+/** Lời giải chi tiết. Giữ xuống dòng. Không đi cùng hướng tư duy hay đáp án gửi sẵn cho học sinh. */
+export function parseHomeworkSolution(raw: unknown): string {
+  if (!raw || typeof raw !== 'object') return ''
+  return String((raw as { solution?: unknown }).solution ?? '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .slice(0, 8000)
 }

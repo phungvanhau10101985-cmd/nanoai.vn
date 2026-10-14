@@ -25,13 +25,9 @@ export const HOMEWORK_HELP_FALLBACK_THINKING_BUDGET = 8_192
 /** Dòng kiến thức đúng hay sai. Flash, vì đáp án đã được đối chiếu. */
 export const HOMEWORK_HELP_GRADE_MODEL = GEMINI_25_FLASH_NO_THINKING.model
 
-/** Chữa bài làm của học sinh. Flash đủ vì đáp án đã kiểm tra lấy từ cache và không được viết ra. */
-export const HOMEWORK_HELP_REVIEW_MODEL = GEMINI_25_FLASH_NO_THINKING.model
-
 /** Trần token ra của reasoner, gồm cả đoạn nghĩ, để JSON không bị cắt giữa chừng. */
 export const HOMEWORK_HELP_DRAFT_MAX_TOKENS = 16_384
 export const HOMEWORK_HELP_FALLBACK_MAX_TOKENS = 16_384
 export const HOMEWORK_HELP_GPT_MAX_TOKENS = 16_384
 export const HOMEWORK_HELP_GRADE_MAX_TOKENS = 2_048
 export const HOMEWORK_HELP_READ_MAX_TOKENS = 16_384
-export const HOMEWORK_HELP_REVIEW_MAX_TOKENS = 2_048
