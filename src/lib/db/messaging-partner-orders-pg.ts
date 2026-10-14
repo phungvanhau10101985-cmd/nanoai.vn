@@ -2126,7 +2126,7 @@ export async function fetchPartnerOrderAdminRevenueFromPg(input: {
               ), ''), o.id::text)
             ) as dup_key
          from public.messaging_partner_orders o
-         join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders_profit', { parentKey: 'orders', markerKey: 'orders_profit' })}
+         join public.messaging_partners mp on mp.id = o.partner_id and ${sqlPartnerMpActorHasPerm(1, 'orders')}
          left join lateral (
            select string_agg(piece, '|' order by piece) as cart_key
            from (
