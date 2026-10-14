@@ -4,6 +4,7 @@ import type { AppUser } from '@/lib/auth/app-user'
 import { Button } from '@/components/ui/button'
 import { getUserOrBypass } from '@/lib/auth'
 import { MobileHubHistoryButton } from './mobile-hub-history-button'
+import { SITE_HEADER_BACK_SLOT_ID } from './site-header-back-slot'
 import { MobileNav } from './mobile-nav'
 import { HeaderUserMenu } from './header-user-menu'
 import { LocaleSwitcher } from './locale-switcher'
@@ -57,6 +58,7 @@ export async function Header() {
       <div className="container mx-auto max-w-7xl px-3 py-2 sm:px-6 lg:px-8 lg:py-2.5 xl:px-10">
         <div className="flex items-center justify-between gap-2 sm:gap-3.5 lg:gap-4">
           <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-2 md:max-w-none md:flex-none md:gap-3.5 lg:gap-4">
+            <div id={SITE_HEADER_BACK_SLOT_ID} className="contents" />
             <MobileHubHistoryButton />
             <Link href="/" className="group flex min-w-0 shrink-0 items-center gap-2">
               <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-border/70 bg-card/90 shadow-sm transition-transform duration-200 group-hover:scale-[1.02] lg:h-9 lg:w-9">

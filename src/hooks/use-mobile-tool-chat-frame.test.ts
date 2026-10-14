@@ -31,6 +31,13 @@ test('keyboard lift clears the keyboard without stacking the dock height', () =>
   )
 })
 
+test('chat top follows the header when the back control sits inside it', () => {
+  assert.deepEqual(
+    mobileToolChatFrameFromBox({ ...base, backBottomPx: 40, headerBottomPx: 49 }),
+    { top: 49, bottom: 88 }
+  )
+})
+
 test('a short visual gap such as the URL bar does not lift the composer', () => {
   assert.deepEqual(
     mobileToolChatFrameFromBox({ ...base, visualHeightPx: 760 }),

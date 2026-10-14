@@ -42,16 +42,9 @@ export function CreationToolPageShell({
             : 'max-w-7xl px-3 sm:px-6 lg:gap-8 lg:px-8 xl:gap-10',
         )}
       >
-        {/* DOM: nội dung trước — mobile hiển thị công cụ + nút quay lại trước menu; lg:order-2 để desktop vẫn sidebar trái */}
+        <CreationToolShellBackButton label={t.creationSidebar.back} />
+        {/* DOM: nội dung trước — mobile hiển thị công cụ trước menu; lg:order-2 để desktop vẫn sidebar trái */}
         <div className="min-w-0 flex-1 lg:order-2 lg:min-h-0 lg:pl-0.5 xl:pl-1">
-          <div
-            data-creation-tool-back=""
-            className={cn(
-              'sticky top-[var(--site-header-height,3rem)] z-40 -mx-0.5 mb-5 border-b border-border/60 bg-background px-0.5 py-2 shadow-[0_1px_0_0_hsl(var(--background))]',
-            )}
-          >
-            <CreationToolShellBackButton label={t.creationSidebar.back} />
-          </div>
           {children}
         </div>
 

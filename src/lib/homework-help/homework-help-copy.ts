@@ -29,6 +29,13 @@ export type HomeworkHelpCopy = {
   checkBad: string
   emptyPhoto: string
   removeImage: string
+  cropTitle: string
+  cropHint: string
+  cropConfirm: string
+  cropCancel: string
+  cropWhole: string
+  cropFailed: string
+  cropProgress: string
   knowledgeHeld: string
   explain: string
   practice: string
@@ -68,6 +75,13 @@ const VI: HomeworkHelpCopy = {
   checkBad: 'Chưa đúng',
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
   removeImage: 'Gỡ ảnh',
+  cropTitle: 'Chọn vùng cần gửi',
+  cropHint: 'Kéo khung hoặc các góc để chỉ giữ phần bài. Phần ngoài khung không gửi lên máy chủ.',
+  cropConfirm: 'Dùng vùng này',
+  cropCancel: 'Hủy',
+  cropWhole: 'Chọn cả ảnh',
+  cropFailed: 'Không cắt được vùng này. Thử lại.',
+  cropProgress: 'Ảnh {current}/{total}',
   knowledgeHeld: 'Chưa đủ chắc để hiện kiến thức của câu này.',
   explain: 'Giải thích',
   practice: 'Áp dụng thực tế',
@@ -119,6 +133,13 @@ const EN: HomeworkHelpCopy = {
   checkBad: 'Not yet',
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
   removeImage: 'Remove',
+  cropTitle: 'Choose what to send',
+  cropHint: 'Drag the frame or its corners so only the work stays inside. Anything outside is not sent to the server.',
+  cropConfirm: 'Use this area',
+  cropCancel: 'Cancel',
+  cropWhole: 'Select the whole photo',
+  cropFailed: 'Could not crop this area. Try again.',
+  cropProgress: 'Photo {current}/{total}',
   knowledgeHeld: 'This knowledge is not sure enough to show.',
   explain: 'Explanation',
   practice: 'In real life',
@@ -169,6 +190,13 @@ const ZH: HomeworkHelpCopy = {
   checkBad: '还不对',
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
   removeImage: '移除',
+  cropTitle: '选择要发送的区域',
+  cropHint: '拖动方框或四角，只保留要交的内容。框外的部分不会发到服务器。',
+  cropConfirm: '使用此区域',
+  cropCancel: '取消',
+  cropWhole: '选择整张照片',
+  cropFailed: '无法裁切这块区域。请重试。',
+  cropProgress: '照片 {current}/{total}',
   knowledgeHeld: '这条知识还不够确定，所以先不显示。',
   explain: '说明',
   practice: '生活里的例子',
@@ -220,6 +248,13 @@ const JA: HomeworkHelpCopy = {
   checkBad: 'まだ違う',
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
   removeImage: '外す',
+  cropTitle: '送る範囲を選ぶ',
+  cropHint: '枠や角をドラッグして、必要な部分だけ残してください。枠の外はサーバーに送りません。',
+  cropConfirm: 'この範囲を使う',
+  cropCancel: 'キャンセル',
+  cropWhole: '写真全体を選ぶ',
+  cropFailed: 'この範囲を切り取れませんでした。もう一度お試しください。',
+  cropProgress: '写真 {current}/{total}',
   knowledgeHeld: 'この知識はまだ確実ではないので表示しません。',
   explain: '説明',
   practice: '実生活での例',
@@ -271,6 +306,13 @@ const KO: HomeworkHelpCopy = {
   checkBad: '아직 아님',
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',
   removeImage: '빼기',
+  cropTitle: '보낼 영역 선택',
+  cropHint: '틀이나 모서리를 끌어 필요한 부분만 남기세요. 틀 밖은 서버로 보내지 않습니다.',
+  cropConfirm: '이 영역 사용',
+  cropCancel: '취소',
+  cropWhole: '사진 전체 선택',
+  cropFailed: '이 영역을 자르지 못했습니다. 다시 시도하세요.',
+  cropProgress: '사진 {current}/{total}',
   knowledgeHeld: '이 지식은 아직 확실하지 않아 보여 주지 않습니다.',
   explain: '설명',
   practice: '실생활 예시',

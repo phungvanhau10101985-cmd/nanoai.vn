@@ -3232,6 +3232,14 @@ export type Dictionary = {
     examEssayUploadPick: string
     examEssayUploadCamera: string
     examEssayUploading: string
+    examEssayCropTitle: string
+    examEssayCropHint: string
+    examEssayCropConfirm: string
+    examEssayCropCancel: string
+    examEssayCropWhole: string
+    examEssayCropFailed: string
+    /** {current} {total} */
+    examEssayCropProgress: string
     examEssayRemoveImage: string
     examEssayTooManyImages: string
     examEssayUploadFailed: string
@@ -7157,7 +7165,7 @@ export const VI_DICTIONARY: Dictionary = {
     scoreLabel: 'Điểm',
     questionSuffix: 'câu',
     examEssayPhotoHint:
-      'Có thể chọn ảnh từ máy hoặc chụp bằng camera (tối đa 10 ảnh mỗi câu tự luận, mỗi ảnh ≤ 5MB, JPEG/PNG/WebP). Cô sẽ xem khi chấm.',
+      'Có thể chọn ảnh từ máy hoặc chụp bằng camera (tối đa 10 ảnh mỗi câu tự luận, mỗi ảnh ≤ 5MB, JPEG/PNG/WebP). Trước khi gửi, khoanh vùng phần bài cần nộp. Cô sẽ xem khi chấm.',
     examEssayImageRetentionHint:
       'Ảnh tải lên được lưu tối đa {days} ngày để chấm bài; sau đó có thể bị xóa khỏi hệ thống.',
     examEssayImageRetentionResult:
@@ -7169,6 +7177,13 @@ export const VI_DICTIONARY: Dictionary = {
     examEssayUploadPick: 'Chọn ảnh',
     examEssayUploadCamera: 'Chụp ảnh',
     examEssayUploading: 'Đang tải ảnh…',
+    examEssayCropTitle: 'Chọn vùng cần gửi',
+    examEssayCropHint: 'Kéo khung hoặc các góc để chỉ giữ phần bài. Phần ngoài khung không gửi lên máy chủ.',
+    examEssayCropConfirm: 'Dùng vùng này',
+    examEssayCropCancel: 'Hủy',
+    examEssayCropWhole: 'Chọn cả ảnh',
+    examEssayCropFailed: 'Không cắt được vùng này. Thử lại.',
+    examEssayCropProgress: 'Ảnh {current}/{total}',
     examEssayRemoveImage: 'Xóa ảnh',
     examEssayTooManyImages: 'Tối đa 10 ảnh mỗi câu tự luận.',
     examEssayUploadFailed: 'Tải ảnh thất bại.',

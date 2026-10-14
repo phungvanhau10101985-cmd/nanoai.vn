@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
+import { ImageRegionPicker } from '@/components/media/image-region-picker'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
 import type { TutorAnswer, TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
@@ -126,6 +127,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [needsPlan, setNeedsPlan] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const [cropQueue, setCropQueue] = useState<File[]>([])
+  const [cropIndex, setCropIndex] = useState(0)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
@@ -197,21 +200,34 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     urlsRef.current = urlsRef.current.filter((item) => item !== url)
   }
 
-  async function addFiles(list: FileList | null) {
-    if (!list?.length || busyRef.current || !ready) return
+  function queuePhotos(list: FileList | null) {
+    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0) return
     const picked = [...list].slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
       setError(copy.errors.too_many)
       return
     }
-    const compressed = await Promise.all(picked.map((file) => compressEssayImageForUpload(file)))
-    const nextFiles = [...files, ...compressed].slice(0, MAX_IMAGES)
-    setFiles(nextFiles)
-    setPreviews((current) => {
-      for (const url of current) dropPreview(url)
-      return nextFiles.map((file) => remember(URL.createObjectURL(file)))
-    })
     setError('')
+    setCropIndex(0)
+    setCropQueue(picked)
+  }
+
+  async function acceptCroppedPhoto(file: File) {
+    const compressed = await compressEssayImageForUpload(file)
+    setFiles((current) => [...current, compressed].slice(0, MAX_IMAGES))
+    setPreviews((current) => [...current, remember(URL.createObjectURL(compressed))])
+    const next = cropIndex + 1
+    if (next >= cropQueue.length || files.length + 1 >= MAX_IMAGES) {
+      setCropQueue([])
+      setCropIndex(0)
+      return
+    }
+    setCropIndex(next)
+  }
+
+  function cancelCrop() {
+    setCropQueue([])
+    setCropIndex(0)
   }
 
   function removeAt(index: number) {
@@ -460,9 +476,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           accept="image/jpeg,image/png,image/webp"
           multiple
           className="sr-only"
-          disabled={!ready || busy}
+          disabled={!ready || busy || cropQueue.length > 0}
           onChange={(event) => {
-            void addFiles(event.target.files)
+            queuePhotos(event.target.files)
             event.target.value = ''
           }}
         />
@@ -470,8 +486,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           type="button"
           variant="outline"
           size="icon"
-          className={`h-9 w-9 ${!ready || busy ? 'pointer-events-none opacity-60' : ''}`}
-          disabled={!ready || busy}
+          className={`h-9 w-9 ${!ready || busy || cropQueue.length > 0 ? 'pointer-events-none opacity-60' : ''}`}
+          disabled={!ready || busy || cropQueue.length > 0}
           asChild
         >
           <label
@@ -490,9 +506,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             accept="image/jpeg,image/png,image/webp"
             capture="environment"
             className="sr-only"
-            disabled={!ready || busy}
+            disabled={!ready || busy || cropQueue.length > 0}
             onChange={(event) => {
-              void addFiles(event.target.files)
+              queuePhotos(event.target.files)
               event.target.value = ''
             }}
           />
@@ -500,8 +516,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             type="button"
             variant="outline"
             size="icon"
-            className={`h-9 w-9 ${!ready || busy ? 'pointer-events-none opacity-60' : ''}`}
-            disabled={!ready || busy}
+            className={`h-9 w-9 ${!ready || busy || cropQueue.length > 0 ? 'pointer-events-none opacity-60' : ''}`}
+            disabled={!ready || busy || cropQueue.length > 0}
             asChild
           >
             <label
@@ -585,6 +601,23 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ImageRegionPicker
+        file={cropQueue[cropIndex] ?? null}
+        title={copy.cropTitle}
+        hint={copy.cropHint}
+        confirmLabel={copy.cropConfirm}
+        cancelLabel={copy.cropCancel}
+        wholeLabel={copy.cropWhole}
+        failedLabel={copy.cropFailed}
+        stepLabel={
+          cropQueue.length > 1
+            ? copy.cropProgress.replace('{current}', String(cropIndex + 1)).replace('{total}', String(cropQueue.length))
+            : undefined
+        }
+        onConfirm={acceptCroppedPhoto}
+        onCancel={cancelCrop}
+      />
 
       {previews.length > 0 ? (
         <div className="flex shrink-0 gap-2 overflow-x-auto border-b bg-background px-3 py-2 md:bg-card">
@@ -870,34 +903,36 @@ function ProblemBubble({
         }}
       >
         <DialogContent
-          className="z-[80] flex max-h-[min(32rem,85dvh)] w-[calc(100%-1.5rem)] max-w-md flex-col gap-3 overflow-y-auto p-4 sm:p-6"
+          className="z-[80] flex max-h-[min(32rem,85dvh)] w-[calc(100%-1.5rem)] max-w-md flex-col gap-3 overflow-hidden p-4 sm:p-6 [&>button]:z-20 [&>button]:bg-background"
           overlayClassName="z-[70]"
         >
-          <DialogHeader className="pr-8 text-left">
+          <DialogHeader className="shrink-0 pr-8 text-left">
             <DialogTitle>{tagAnswer?.title || tagOpen?.title}</DialogTitle>
           </DialogHeader>
-          {tagBusy ? (
-            <p className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              {copy.tagLoading}
-            </p>
-          ) : null}
-          {tagError ? <p className="text-sm text-destructive">{tagError}</p> : null}
-          {tagAnswer ? (
-            <div className="space-y-3">
-              {tagAnswer.share !== 'private' ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
-              <section className="space-y-1">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.explain}</h3>
-                <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.explanation}</p>
-              </section>
-              {tagAnswer.practice ? (
-                <section className="space-y-1 rounded-lg bg-muted p-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.practice}</h3>
-                  <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.practice}</p>
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {tagBusy ? (
+              <p className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {copy.tagLoading}
+              </p>
+            ) : null}
+            {tagError ? <p className="text-sm text-destructive">{tagError}</p> : null}
+            {tagAnswer ? (
+              <div className="space-y-3">
+                {tagAnswer.share !== 'private' ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
+                <section className="space-y-1">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.explain}</h3>
+                  <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.explanation}</p>
                 </section>
-              ) : null}
-            </div>
-          ) : null}
+                {tagAnswer.practice ? (
+                  <section className="space-y-1 rounded-lg bg-muted p-3">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.practice}</h3>
+                    <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.practice}</p>
+                  </section>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </article>

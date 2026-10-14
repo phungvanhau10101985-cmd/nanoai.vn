@@ -1,5 +1,6 @@
 /**
- * Chân trang mobile: tính năng đang mở, vừa mở, và cùng nhóm với trang hiện tại.
+ * Chân trang mobile: vuốt ngang mọi tính năng.
+ * Cụm giữa là tính năng liên quan rồi tới tính năng vừa xem.
  */
 import type { ToolKey } from '@/lib/i18n/dictionaries'
 import {
@@ -11,7 +12,7 @@ import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
 export const MOBILE_RECENT_FEATURES_KEY = 'nanoai_recent_features_v1'
 const MAX_RECENT = 12
 
-export type MobileFeatureDockKind = 'current' | 'recent' | 'related' | 'popular'
+export type MobileFeatureDockKind = 'current' | 'recent' | 'related' | 'popular' | 'catalog'
 
 export type MobileFeatureDockItem = {
   href: string
@@ -102,34 +103,64 @@ export function rememberFeatureVisit(pathname: string): string[] {
 
 export function buildMobileFeatureDock(pathname: string, recentHrefs: readonly string[]): MobileFeatureDockItem[] {
   const path = normalizeFeaturePath(pathname)
-  const items: MobileFeatureDockItem[] = []
+  const focus: MobileFeatureDockItem[] = []
   const seen = new Set<string>()
-  const push = (href: string, labelKey: ToolKey, kind: MobileFeatureDockKind) => {
+  const pushFocus = (href: string, labelKey: ToolKey, kind: MobileFeatureDockKind) => {
     const normalized = normalizeFeaturePath(href)
     if (!normalized || normalized === '/' || seen.has(normalized)) return
     seen.add(normalized)
-    items.push({ href: normalized, labelKey, kind })
-  }
-
-  const current = resolveCatalogFeature(path)
-  if (current) push(current.href, current.labelKey, 'current')
-
-  for (const href of recentHrefs) {
-    const feature = resolveCatalogFeature(href)
-    if (feature) push(feature.href, feature.labelKey, 'recent')
+    focus.push({ href: normalized, labelKey, kind })
   }
 
   for (const related of getCreationRelatedLinks(path)) {
-    push(related.href, related.labelKey, 'related')
+    pushFocus(related.href, related.labelKey, 'related')
   }
 
-  if (items.length === 0) {
+  const current = resolveCatalogFeature(path)
+  if (current) pushFocus(current.href, current.labelKey, 'current')
+
+  for (const href of recentHrefs) {
+    const feature = resolveCatalogFeature(href)
+    if (!feature) continue
+    pushFocus(feature.href, feature.labelKey, feature.href === current?.href ? 'current' : 'recent')
+  }
+
+  if (focus.length === 0) {
     for (const popular of CREATION_SIDEBAR_POPULAR_LINKS) {
-      push(popular.href, popular.labelKey, 'popular')
+      pushFocus(popular.href, popular.labelKey, 'popular')
     }
   }
 
-  return items
+  const rest: MobileFeatureDockItem[] = []
+  for (const feature of catalogFeatures()) {
+    if (seen.has(feature.href)) continue
+    rest.push({ href: feature.href, labelKey: feature.labelKey, kind: 'catalog' })
+  }
+
+  const mid = Math.ceil(rest.length / 2)
+  return [...rest.slice(0, mid), ...focus, ...rest.slice(mid)]
+}
+
+/** Vị trí cuộn để cụm liên quan + vừa xem nằm giữa khung nhìn. */
+export function dockHomeScrollLeft(input: {
+  clusterLeft: number
+  clusterWidth: number
+  seamLeft: number | null
+  viewport: number
+  maxScroll: number
+}): number {
+  const { clusterLeft, clusterWidth, seamLeft, viewport, maxScroll } = input
+  // Một ô icon. Cụm chỉ nhỉnh hơn màn hình thì vẫn căn cả cụm, không kéo catalog vào giữa.
+  const oneIcon = 88
+  let left = clusterLeft
+  if (viewport > 0 && clusterWidth > 0 && clusterWidth <= viewport + oneIcon) {
+    left = clusterLeft - (viewport - clusterWidth) / 2
+  } else if (seamLeft != null && seamLeft > clusterLeft) {
+    left = seamLeft - viewport / 2
+  }
+  const max = Number.isFinite(maxScroll) ? Math.max(0, maxScroll) : 0
+  if (!Number.isFinite(left)) return 0
+  return Math.min(max, Math.max(0, left))
 }
 
 export function activeMobileFeatureHref(pathname: string, items: readonly MobileFeatureDockItem[]): string | null {

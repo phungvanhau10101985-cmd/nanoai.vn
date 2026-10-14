@@ -12,7 +12,8 @@ const MIN_DOCK_PX = 64
 const KEYBOARD_LIFT_MIN_PX = 80
 
 /**
- * Mobile chat giữa nút Quay lại và thanh đáy.
+ * Mobile chat giữa header và thanh đáy.
+ * Nút Quay lại nằm trong header, mép trên khung là đáy header.
  * Thanh đáy là dynamic `ssr: false`, lần đo đầu thường chưa có nav.
  * `innerHeight - navTop` lúc đó ra 0 và ghi đè CSS, khung thụt xuống đè ô nhập.
  * Chỉ khi nav cao đủ mới gắn `bottom`. Bàn phím lấy khoảng visual viewport,
@@ -21,13 +22,14 @@ const KEYBOARD_LIFT_MIN_PX = 80
 export function mobileToolChatFrameFromBox(input: {
   mobile: boolean
   backBottomPx: number
+  headerBottomPx?: number
   dockHeightPx: number
   layoutHeightPx: number
   visualOffsetTopPx: number
   visualHeightPx: number
 }): MobileToolChatFrame | null {
   if (!input.mobile) return null
-  const top = Math.max(0, Math.round(input.backBottomPx))
+  const top = Math.max(0, Math.round(Math.max(input.backBottomPx, input.headerBottomPx ?? 0)))
   const dock = Number.isFinite(input.dockHeightPx) ? Math.ceil(input.dockHeightPx) : 0
   if (dock < MIN_DOCK_PX) return { top, bottom: null }
   const visualBottom = Math.max(0, input.visualOffsetTopPx) + Math.max(0, input.visualHeightPx)
@@ -48,6 +50,7 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
 
     const read = (): MobileToolChatFrame | null => {
       if (!mq.matches) return null
+      const header = document.querySelector('header')
       const back = document.querySelector('[data-creation-tool-back]')
       const nav = document.querySelector('nav.safe-area-pb')
       const vv = window.visualViewport
@@ -59,6 +62,7 @@ export function useMobileToolChatFrame(): MobileToolChatFrame | null {
       return mobileToolChatFrameFromBox({
         mobile: true,
         backBottomPx: back ? back.getBoundingClientRect().bottom : 0,
+        headerBottomPx: header ? header.getBoundingClientRect().bottom : 0,
         dockHeightPx: nav ? nav.getBoundingClientRect().height : 0,
         layoutHeightPx: window.innerHeight,
         visualOffsetTopPx: fieldFocused ? (vv?.offsetTop ?? 0) : 0,

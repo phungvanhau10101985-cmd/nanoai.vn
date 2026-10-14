@@ -360,14 +360,6 @@ export default function GiaSuAiClient({ locale }: Props) {
 
   return (
     <div className={shellClass} style={shellStyle} data-study-chat="">
-      <StudyChatThreadBar
-        newLabel={copy.newThread}
-        historyLabel={copy.history}
-        historyOpen={historyOpen}
-        disabled={!ready || busy}
-        onNew={() => void beginNewThread()}
-        onHistory={() => void openHistory()}
-      />
       <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
           <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
           {ready && messages.length === 0 ? (
@@ -505,8 +497,16 @@ export default function GiaSuAiClient({ locale }: Props) {
           </DialogContent>
         </Dialog>
         {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
+        <StudyChatThreadBar
+          newLabel={copy.newThread}
+          historyLabel={copy.history}
+          historyOpen={historyOpen}
+          disabled={!ready || busy}
+          onNew={() => void beginNewThread()}
+          onHistory={() => void openHistory()}
+        />
         <form
-          className="flex shrink-0 items-end gap-2 border-t bg-muted/40 p-3"
+          className="flex shrink-0 items-end gap-2 bg-muted/40 px-3 pb-3 pt-2"
           onSubmit={(event) => {
             event.preventDefault()
             void send()

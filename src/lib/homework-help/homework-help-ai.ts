@@ -59,6 +59,7 @@ import {
   HOMEWORK_HELP_REVIEW_MODEL,
 } from '@/lib/homework-help/homework-help-models'
 import { attachHomeworkTags } from '@/lib/homework-help/homework-help-tags'
+import { rememberHomeworkCompareEvents, homeworkAnswerCompareOutcome } from '@/lib/homework-help/homework-help-compare'
 import { rememberHomeworkUnsolved } from '@/lib/homework-help/homework-help-unsolved'
 
 const LANGUAGE_NAME: Record<WebLocale, string> = {
@@ -659,6 +660,11 @@ async function explainStatements(input: {
       geminiAnswer: string
       gptAnswer: string
     }> = []
+    const compareEvents: Array<{
+      checkpoint: 'answer' | 'knowledge'
+      outcome: 'agree' | 'gpt_deepseek' | 'gpt_gemini' | 'unmatched' | 'ok' | 'not_ok'
+      fingerprint: string
+    }> = []
     for (const item of aligned) {
       const itemGrades = gradeByIndex.get(item.index) ?? []
       const geminiAnswer = geminiByIndex.get(item.index) ?? ''
@@ -695,6 +701,18 @@ async function explainStatements(input: {
       }
       const tagged = withSharedTags(merged.problem, savedTopics)
       const fingerprint = homeworkStatementFingerprint(item.problem.statement)
+      compareEvents.push({
+        checkpoint: 'answer',
+        outcome: homeworkAnswerCompareOutcome({ agreed, side }),
+        fingerprint,
+      })
+      for (const grade of itemGrades) {
+        compareEvents.push({
+          checkpoint: 'knowledge',
+          outcome: grade.ok ? 'ok' : 'not_ok',
+          fingerprint,
+        })
+      }
       const cacheable = Boolean(merged.problem.answer.trim()) && (merged.cacheable || Boolean(side))
       const verifyModel = side === 'check' || side === 'draft' ? HOMEWORK_HELP_GPT_MODEL : HOMEWORK_HELP_FALLBACK_MODEL
       problems[item.index] = cacheable
@@ -711,6 +729,11 @@ async function explainStatements(input: {
         console.warn('[homework-help] unsolved', error instanceof Error ? error.message : error)
       )
     }
+    await rememberHomeworkCompareEvents({
+      userId: input.userId,
+      locale: input.locale,
+      events: compareEvents,
+    })
   }
 
   return {

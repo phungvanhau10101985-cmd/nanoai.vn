@@ -3206,7 +3206,7 @@ const EN_DICTIONARY: Dictionary = {
     scoreLabel: 'Score',
     questionSuffix: 'questions',
     examEssayPhotoHint:
-      'Pick photos from your device or use the camera (up to 10 per essay question, 5MB each, JPEG/PNG/WebP). Your teacher will see them when grading.',
+      'Pick photos from your device or use the camera (up to 10 per essay question, 5MB each, JPEG/PNG/WebP). Before sending, frame only the work you want to submit. Your teacher will see them when grading.',
     examEssayImageRetentionHint:
       'Uploaded images are kept for up to {days} days for grading, then may be removed from the system.',
     examEssayImageRetentionResult:
@@ -3218,6 +3218,13 @@ const EN_DICTIONARY: Dictionary = {
     examEssayUploadPick: 'Choose from gallery',
     examEssayUploadCamera: 'Take photo',
     examEssayUploading: 'Uploading…',
+    examEssayCropTitle: 'Choose what to send',
+    examEssayCropHint: 'Drag the frame or its corners so only the work stays inside. Anything outside is not sent to the server.',
+    examEssayCropConfirm: 'Use this area',
+    examEssayCropCancel: 'Cancel',
+    examEssayCropWhole: 'Select the whole photo',
+    examEssayCropFailed: 'Could not crop this area. Try again.',
+    examEssayCropProgress: 'Photo {current}/{total}',
     examEssayRemoveImage: 'Remove',
     examEssayTooManyImages: 'Maximum 10 images per essay question.',
     examEssayUploadFailed: 'Image upload failed.',
@@ -7011,7 +7018,7 @@ const ZH_DICTIONARY: Dictionary = {
     scoreLabel: '得分',
     questionSuffix: '题',
     examEssayPhotoHint:
-      '可从相册选择或用相机拍摄（主观题每题最多10张，每张≤5MB，JPEG/PNG/WebP）。教师批改时会查看。',
+      '可从相册选择或用相机拍摄（主观题每题最多10张，每张≤5MB，JPEG/PNG/WebP）。发送前请框选要提交的部分。教师批改时会查看。',
     examEssayImageRetentionHint: '上传的图片最多保存 {days} 天用于阅卷，之后可能被系统删除。',
     examEssayImageRetentionResult: '您上传的图片约保留至 {expiresAt}（自提交起约 {days} 天）。',
     examGradeEssayImageRetentionTeacher:
@@ -7020,6 +7027,13 @@ const ZH_DICTIONARY: Dictionary = {
     examEssayUploadPick: '相册选图',
     examEssayUploadCamera: '拍照',
     examEssayUploading: '上传中…',
+    examEssayCropTitle: '选择要发送的区域',
+    examEssayCropHint: '拖动方框或四角，只保留要交的内容。框外的部分不会发到服务器。',
+    examEssayCropConfirm: '使用此区域',
+    examEssayCropCancel: '取消',
+    examEssayCropWhole: '选择整张照片',
+    examEssayCropFailed: '无法裁切这块区域。请重试。',
+    examEssayCropProgress: '照片 {current}/{total}',
     examEssayRemoveImage: '移除',
     examEssayTooManyImages: '主观题每题最多10张图片。',
     examEssayUploadFailed: '上传失败。',
@@ -10876,7 +10890,7 @@ const JA_DICTIONARY: Dictionary = {
     scoreLabel: '点数',
     questionSuffix: '問',
     examEssayPhotoHint:
-      '端末から選ぶかカメラで撮影できます（記述1問あたり最大10枚、各5MB、JPEG/PNG/WebP）。採点時に先生が確認します。',
+      '端末から選ぶかカメラで撮影できます（記述1問あたり最大10枚、各5MB、JPEG/PNG/WebP）。送る前に、提出したい部分だけ枠で囲んでください。採点時に先生が確認します。',
     examEssayImageRetentionHint:
       'アップロード画像は採点のため最大 {days} 日保存され、その後は削除される場合があります。',
     examEssayImageRetentionResult:
@@ -10888,6 +10902,13 @@ const JA_DICTIONARY: Dictionary = {
     examEssayUploadPick: '写真を選ぶ',
     examEssayUploadCamera: 'カメラで撮る',
     examEssayUploading: 'アップロード中…',
+    examEssayCropTitle: '送る範囲を選ぶ',
+    examEssayCropHint: '枠や角をドラッグして、必要な部分だけ残してください。枠の外はサーバーに送りません。',
+    examEssayCropConfirm: 'この範囲を使う',
+    examEssayCropCancel: 'キャンセル',
+    examEssayCropWhole: '写真全体を選ぶ',
+    examEssayCropFailed: 'この範囲を切り取れませんでした。もう一度お試しください。',
+    examEssayCropProgress: '写真 {current}/{total}',
     examEssayRemoveImage: '削除',
     examEssayTooManyImages: '記述1問あたり最大10枚です。',
     examEssayUploadFailed: 'アップロードに失敗しました。',
@@ -14750,7 +14771,7 @@ const KO_DICTIONARY: Dictionary = {
     scoreLabel: '점수',
     questionSuffix: '문항',
     examEssayPhotoHint:
-      '갤러리에서 고르거나 카메라로 촬영할 수 있습니다(서술형 문항당 최대 10장, 장당 5MB, JPEG/PNG/WebP). 채점 시 선생님이 확인합니다.',
+      '갤러리에서 고르거나 카메라로 촬영할 수 있습니다(서술형 문항당 최대 10장, 장당 5MB, JPEG/PNG/WebP). 보내기 전에 제출할 부분만 틀로 남기세요. 채점 시 선생님이 확인합니다.',
     examEssayImageRetentionHint:
       '업로드한 이미지는 채점을 위해 최대 {days}일 보관되며 이후 삭제될 수 있습니다.',
     examEssayImageRetentionResult:
@@ -14762,6 +14783,13 @@ const KO_DICTIONARY: Dictionary = {
     examEssayUploadPick: '갤러리에서 선택',
     examEssayUploadCamera: '카메라로 촬영',
     examEssayUploading: '업로드 중…',
+    examEssayCropTitle: '보낼 영역 선택',
+    examEssayCropHint: '틀이나 모서리를 끌어 필요한 부분만 남기세요. 틀 밖은 서버로 보내지 않습니다.',
+    examEssayCropConfirm: '이 영역 사용',
+    examEssayCropCancel: '취소',
+    examEssayCropWhole: '사진 전체 선택',
+    examEssayCropFailed: '이 영역을 자르지 못했습니다. 다시 시도하세요.',
+    examEssayCropProgress: '사진 {current}/{total}',
     examEssayRemoveImage: '삭제',
     examEssayTooManyImages: '서술형 문항당 최대 10장입니다.',
     examEssayUploadFailed: '업로드에 실패했습니다.',

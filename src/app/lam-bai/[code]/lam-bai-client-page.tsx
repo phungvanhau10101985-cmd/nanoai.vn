@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { computeExamScoresOn100And10 } from '@/lib/exam-feedback'
+import { ImageRegionPicker } from '@/components/media/image-region-picker'
 import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { EXAM_ESSAY_IMAGE_RETENTION_DAYS, formatExamEssayImageExpireAtForUi } from '@/lib/exam-essay-config'
 import { cn } from '@/lib/utils'
@@ -254,6 +255,7 @@ export default function LamBaiClientPage({
   const [essayImageUrls, setEssayImageUrls] = useState<Record<string, string[]>>({})
   const essayImageUrlsRef = useRef<Record<string, string[]>>({})
   const [essayUploadingId, setEssayUploadingId] = useState<string | null>(null)
+  const [essayCrop, setEssayCrop] = useState<{ questionId: string; files: File[]; index: number } | null>(null)
   const [studentName, setStudentName] = useState('')
   const [studentDob, setStudentDob] = useState('')
   const [dobDay, setDobDay] = useState('')
@@ -709,19 +711,41 @@ export default function LamBaiClientPage({
   )
 
   const handleEssayFilesSelected = useCallback(
-    async (questionId: string, fileList: FileList | null) => {
-      if (!fileList?.length) return
+    (questionId: string, fileList: FileList | null) => {
+      if (!fileList?.length || essayCrop) return
       const files = Array.from(fileList).filter((f) => ALLOWED_ESSAY_IMAGE_MIME.has(f.type))
       if (files.length === 0) {
         toast({ variant: 'destructive', description: t.examEssayUploadFailed })
         return
       }
-      for (const f of files) {
-        const ok = await uploadEssayImage(questionId, f)
-        if (!ok) break
+      const room = EXAM_ESSAY_MAX_IMAGES - (essayImageUrlsRef.current[questionId]?.length ?? 0)
+      const picked = files.slice(0, Math.max(0, room))
+      if (picked.length === 0) {
+        toast({ variant: 'destructive', description: t.examEssayTooManyImages })
+        return
       }
+      setEssayCrop({ questionId, files: picked, index: 0 })
     },
-    [uploadEssayImage, t, toast]
+    [essayCrop, t, toast]
+  )
+
+  const acceptEssayCrop = useCallback(
+    async (file: File) => {
+      if (!essayCrop) return
+      const ok = await uploadEssayImage(essayCrop.questionId, file)
+      if (!ok) {
+        setEssayCrop(null)
+        return
+      }
+      const next = essayCrop.index + 1
+      const room = EXAM_ESSAY_MAX_IMAGES - (essayImageUrlsRef.current[essayCrop.questionId]?.length ?? 0)
+      if (next >= essayCrop.files.length || room <= 0) {
+        setEssayCrop(null)
+        return
+      }
+      setEssayCrop({ ...essayCrop, index: next })
+    },
+    [essayCrop, uploadEssayImage]
   )
 
   const handleSubmit = useCallback(async () => {
@@ -1513,7 +1537,7 @@ export default function LamBaiClientPage({
                             accept="image/jpeg,image/png,image/webp"
                             className="sr-only"
                             onChange={(e) => {
-                              void handleEssayFilesSelected(q.id, e.target.files)
+                              handleEssayFilesSelected(q.id, e.target.files)
                               e.target.value = ''
                             }}
                           />
@@ -1538,7 +1562,7 @@ export default function LamBaiClientPage({
                               capture="environment"
                               className="sr-only"
                               onChange={(e) => {
-                                void handleEssayFilesSelected(q.id, e.target.files)
+                                handleEssayFilesSelected(q.id, e.target.files)
                                 e.target.value = ''
                               }}
                             />
@@ -1613,6 +1637,26 @@ export default function LamBaiClientPage({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <ImageRegionPicker
+          file={essayCrop?.files[essayCrop.index] ?? null}
+          busy={essayUploadingId != null}
+          title={t.examEssayCropTitle}
+          hint={t.examEssayCropHint}
+          confirmLabel={t.examEssayCropConfirm}
+          cancelLabel={t.examEssayCropCancel}
+          wholeLabel={t.examEssayCropWhole}
+          failedLabel={t.examEssayCropFailed}
+          stepLabel={
+            essayCrop && essayCrop.files.length > 1
+              ? t.examEssayCropProgress
+                  .replace('{current}', String(essayCrop.index + 1))
+                  .replace('{total}', String(essayCrop.files.length))
+              : undefined
+          }
+          onConfirm={acceptEssayCrop}
+          onCancel={() => setEssayCrop(null)}
+        />
       </div>
     </div>
   )

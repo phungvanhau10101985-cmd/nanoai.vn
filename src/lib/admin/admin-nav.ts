@@ -19,6 +19,7 @@ import {
   LayoutDashboard,
   AlertTriangle,
   CircleHelp,
+  PieChart,
 } from 'lucide-react'
 import type { WebLocale } from '@/lib/i18n/config'
 
@@ -167,6 +168,24 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
           ko: 'GPT가 DeepSeek과 Gemini Pro 어느 쪽과도 맞지 않은 숙제. 새 문제가 있으면 하루에 한 번 관리자에게 메일을 보냅니다.',
         },
         icon: CircleHelp,
+      },
+      {
+        href: '/admin/homework-compare-stats',
+        title: {
+          vi: 'Tỷ lệ khớp bài',
+          en: 'Homework match rate',
+          zh: '作业核对率',
+          ja: '宿題の一致率',
+          ko: '숙제 일치율',
+        },
+        description: {
+          vi: 'DeepSeek với Gemini Pro, GPT khi lệch, và từng dòng kiến thức.',
+          en: 'DeepSeek against Gemini Pro, GPT when they differ, and each knowledge line.',
+          zh: 'DeepSeek 与 Gemini Pro、不一致时的 GPT，以及每条知识点。',
+          ja: 'DeepSeek と Gemini Pro、ずれたときの GPT、知識の各行。',
+          ko: 'DeepSeek와 Gemini Pro, 다를 때의 GPT, 지식 줄마다.',
+        },
+        icon: PieChart,
       },
       {
         href: '/admin/api-keys',
