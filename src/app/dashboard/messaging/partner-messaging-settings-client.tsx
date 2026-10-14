@@ -3329,7 +3329,7 @@ export function PartnerMessagingSettingsClient({
           selectedPartnerId &&
           partnerAllowsPerm(selectedPartner, 'inventory_source_stock') ? (
             <div id="messaging-source-stock" className="scroll-mt-4">
-              <PartnerSourceStockCheckCard partnerId={selectedPartnerId} t={tAi} />
+              <PartnerSourceStockCheckCard partnerId={selectedPartnerId} siteSlug={websiteSiteSlug} t={tAi} />
             </div>
           ) : null}
 

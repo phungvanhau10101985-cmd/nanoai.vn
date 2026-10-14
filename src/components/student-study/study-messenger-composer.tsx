@@ -1,7 +1,17 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { ChevronRight, Send, Smile, ThumbsUp } from 'lucide-react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type FocusEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
+import { ChevronRight, Loader2, Send, Smile, ThumbsUp } from 'lucide-react'
+import type { WebLocale } from '@/lib/i18n/config'
 import { cn } from '@/lib/utils'
 
 const LINE_PX = 36
@@ -9,7 +19,22 @@ const MAX_PX = 168
 const EMOJIS = ['😀', '😁', '😂', '🥰', '😊', '😉', '😎', '🤔', '😅', '😭', '👍', '👏', '🙏', '❤️', '🔥', '✨', '✅', '📚', '✏️', '📝']
 
 export const studyComposerIconClass =
-  'inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-full text-[#0084FF] transition-colors hover:bg-black/5 active:bg-black/10 disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:h-6 [&_svg]:w-6 [&_svg]:shrink-0'
+  'relative inline-flex h-10 w-9 shrink-0 items-center justify-center rounded-full text-[#0084FF] transition-colors hover:bg-black/5 active:bg-black/10 disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:h-6 [&_svg]:w-6 [&_svg]:shrink-0'
+
+export function messengerComposerLabels(locale: WebLocale): { showTools: string; emoji: string } {
+  switch (locale) {
+    case 'en':
+      return { showTools: 'Show buttons', emoji: 'Emoji' }
+    case 'zh':
+      return { showTools: '显示按钮', emoji: '表情' }
+    case 'ja':
+      return { showTools: 'ボタンを表示', emoji: '絵文字' }
+    case 'ko':
+      return { showTools: '버튼 표시', emoji: '이모티콘' }
+    default:
+      return { showTools: 'Hiện nút', emoji: 'Biểu cảm' }
+  }
+}
 
 type Props = {
   id: string
@@ -23,7 +48,14 @@ type Props = {
   emojiLabel: string
   disabled?: boolean
   canSend: boolean
+  sending?: boolean
   tools: ReactNode
+  onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void
+  onFocus?: (event: FocusEvent<HTMLTextAreaElement>) => void
+  onBlur?: () => void
+  /** Đánh dấu ô khách để khung chat không kéo thêm khi bàn phím mở. */
+  guestComposerInput?: boolean
+  formClassName?: string
 }
 
 export function StudyComposerTool({
@@ -78,7 +110,13 @@ export function StudyMessengerComposer({
   emojiLabel,
   disabled,
   canSend,
+  sending = false,
   tools,
+  onPaste,
+  onFocus,
+  onBlur,
+  guestComposerInput = false,
+  formClassName,
 }: Props) {
   const pinnedOpen = useRef(false)
   const emojiRootRef = useRef<HTMLDivElement | null>(null)
@@ -140,17 +178,20 @@ export function StudyMessengerComposer({
 
   return (
     <form
-      className="relative z-10 flex shrink-0 items-end gap-0.5 border-t bg-background px-1.5 py-1.5"
+      className={cn(
+        'relative z-10 flex shrink-0 items-end gap-0.5 border-t bg-background px-1.5 py-1.5',
+        formClassName,
+      )}
       data-study-composer=""
       onSubmit={(event) => {
         event.preventDefault()
-        if (!disabled && canSend) onSubmit()
+        if (!disabled && !sending && canSend) onSubmit()
       }}
     >
       <div
         className={cn(
           'flex min-w-0 shrink overflow-hidden transition-[max-width,opacity,transform] duration-200 ease-out',
-          toolsOpen ? 'max-w-52 translate-x-0 opacity-100' : 'pointer-events-none max-w-0 -translate-x-2 opacity-0',
+          toolsOpen ? 'max-w-[17rem] translate-x-0 opacity-100' : 'pointer-events-none max-w-0 -translate-x-2 opacity-0',
         )}
         aria-hidden={!toolsOpen}
       >
@@ -189,12 +230,16 @@ export function StudyMessengerComposer({
           disabled={disabled}
           enterKeyHint="send"
           placeholder={placeholder}
+          data-guest-composer-input={guestComposerInput ? '1' : undefined}
           className="min-h-9 min-w-0 flex-1 resize-none break-words bg-transparent px-2.5 py-2 text-[15px] leading-5 text-foreground outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap placeholder:text-[#65676B] disabled:opacity-60"
           onChange={(event) => onChange(event.target.value)}
+          onPaste={onPaste}
+          onFocus={onFocus}
+          onBlur={onBlur}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
-              if (!disabled && canSend) onSubmit()
+              if (!disabled && !sending && canSend) onSubmit()
             }
           }}
         />
@@ -230,9 +275,9 @@ export function StudyMessengerComposer({
               className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0084FF] text-white"
               aria-label={sendLabel}
               title={sendLabel}
-              disabled={disabled || !canSend}
+              disabled={disabled || sending || !canSend}
             >
-              <Send className="h-4 w-4" aria-hidden />
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Send className="h-4 w-4" aria-hidden />}
             </button>
           ) : (
             <span className="flex h-9 w-8 items-center justify-center text-[#0084FF]" aria-hidden>

@@ -6,7 +6,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
+import {
+  messengerComposerLabels,
+  StudyComposerTool,
+  StudyMessengerComposer,
+} from '@/components/student-study/study-messenger-composer'
+import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cookie'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import type { Database } from '@/types/database.types'
@@ -43,7 +48,6 @@ import {
   Phone,
   Plus,
   Search,
-  Send,
   Settings,
   StickyNote,
   Users,
@@ -156,6 +160,9 @@ export function PartnerMessagingInboxClient({
 }) {
   const router = useRouter()
   const { toast } = useToast()
+  const locale = useWebLocaleFromDocumentCookie()
+  const replyRef = useRef<HTMLTextAreaElement | null>(null)
+  const chrome = messengerComposerLabels(locale)
   const [partners, setPartners] = useState<PartnerRow[]>(initialPartners)
   const [selectedPartnerId, setSelectedPartnerId] = useState<string | null>(
     initialPartnerId && initialPartners.some((p) => p.id === initialPartnerId)
@@ -1023,88 +1030,63 @@ export function PartnerMessagingInboxClient({
                   className="hidden"
                   onChange={onPickCamera}
                 />
-                <div className="rounded-md border border-border bg-card shadow-sm transition-[box-shadow] focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/15">
-                  {imagePreviewUrl ? (
-                    <div className="relative border-b border-border/50 bg-muted/30 p-1">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
-                      <img src={imagePreviewUrl} alt="" className="mx-auto max-h-[4.5rem] rounded object-contain" />
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="icon"
-                        className="absolute right-1 top-1 h-6 w-6 rounded-full shadow-sm"
-                        onClick={clearAttachment}
-                        disabled={pending || uploading}
-                        aria-label={t.partnerRemoveAttachmentAria}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ) : null}
-
-                  {imageStoragePath ? (
-                    <p className="border-b border-border/50 px-2 py-0.5 text-[9px] leading-tight text-muted-foreground">{t.partnerCaptionHint}</p>
-                  ) : null}
-
-                  <div className="relative flex items-end gap-0.5 pr-1">
-                    <Textarea
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onPaste={onReplyPaste}
-                      placeholder={t.replyPlaceholder}
-                      rows={isMobileLayout ? 1 : 2}
-                      className="min-h-[2.25rem] flex-1 resize-none rounded-none border-0 bg-card py-1.5 pl-2 pr-2 text-xs leading-snug text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 sm:min-h-[2.875rem] sm:pr-[5.75rem] sm:pb-8 sm:text-[13px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault()
-                          if (!pending && canSend) send()
-                        }
-                      }}
-                    />
-                    <div className="flex shrink-0 items-center gap-px pb-0.5 sm:pointer-events-none sm:absolute sm:bottom-1 sm:right-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
+                {imagePreviewUrl ? (
+                  <div className="relative mb-1 rounded-xl bg-muted/30 p-1">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- local preview blob/object URL */}
+                    <img src={imagePreviewUrl} alt="" className="mx-auto max-h-[4.5rem] rounded object-contain" />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="icon"
+                      className="absolute right-1 top-1 h-6 w-6 rounded-full shadow-sm"
+                      onClick={clearAttachment}
+                      disabled={pending || uploading}
+                      aria-label={t.partnerRemoveAttachmentAria}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : null}
+                {imageStoragePath ? (
+                  <p className="px-2 pb-1 text-[11px] leading-tight text-muted-foreground">{t.partnerCaptionHint}</p>
+                ) : null}
+                <StudyMessengerComposer
+                  id="shop-inbox-composer"
+                  inputRef={replyRef}
+                  value={draft}
+                  onChange={setDraft}
+                  onSubmit={() => {
+                    if (!pending && canSend) send()
+                  }}
+                  onPaste={onReplyPaste}
+                  placeholder={t.replyPlaceholder}
+                  sendLabel={t.send}
+                  showToolsLabel={chrome.showTools}
+                  emojiLabel={chrome.emoji}
+                  disabled={!selectedConvId}
+                  canSend={canSend}
+                  sending={pending}
+                  formClassName="border-0 bg-transparent px-0 py-0"
+                  tools={
+                    <>
+                      <StudyComposerTool
+                        label={t.partnerAttachPhoto}
                         disabled={uploading || pending}
                         onClick={() => galleryInputRef.current?.click()}
-                        aria-label={t.partnerAttachPhoto}
                       >
-                        {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="pointer-events-auto h-7 w-7 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        {uploading ? <Loader2 className="animate-spin" aria-hidden /> : <ImagePlus strokeWidth={1.75} aria-hidden />}
+                      </StudyComposerTool>
+                      <StudyComposerTool
+                        label={t.partnerTakePhoto}
                         disabled={uploading || pending}
                         onClick={() => cameraInputRef.current?.click()}
-                        aria-label={t.partnerTakePhoto}
                       >
-                        <Camera className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        onClick={send}
-                        disabled={pending || !canSend}
-                        className="pointer-events-auto h-7 w-7 rounded-full bg-gradient-to-br from-violet-600 to-violet-700 text-white shadow-sm hover:from-violet-600/95 hover:to-violet-700/95 disabled:opacity-40"
-                        aria-label={t.send}
-                      >
-                        <Send className="h-3.5 w-3.5" aria-hidden />
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="hidden flex-wrap items-center justify-between gap-1 border-t border-border/50 px-2 py-0.5 md:flex">
-                    <p className="min-w-0 flex-1 truncate text-[9px] text-muted-foreground">{t.replyKeyboardHint}</p>
-                    {uploading ? <span className="shrink-0 text-[9px] text-muted-foreground">{t.partnerUploading}</span> : null}
-                  </div>
-                  {uploading ? (
-                    <p className="border-t border-border/50 px-2 py-0.5 text-[9px] text-muted-foreground md:hidden">{t.partnerUploading}</p>
-                  ) : null}
-                </div>
+                        <Camera strokeWidth={1.75} aria-hidden />
+                      </StudyComposerTool>
+                    </>
+                  }
+                />
+                {uploading ? <p className="px-2 pt-1 text-[11px] text-muted-foreground">{t.partnerUploading}</p> : null}
               </div>
             </>
           )}

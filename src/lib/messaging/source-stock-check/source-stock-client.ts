@@ -10,16 +10,30 @@ function base(partnerId: string): string {
   return `/api/messaging/partners/${encodeURIComponent(partnerId)}/source-stock-check`
 }
 
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) },
-  })
-  const data = (await res.json().catch(() => ({}))) as T & { error?: string; detail?: string }
-  if (!res.ok) {
-    throw new Error((data as { detail?: string; error?: string }).detail || (data as { error?: string }).error || `HTTP ${res.status}`)
+async function json<T>(url: string, init?: RequestInit & { timeoutMs?: number }): Promise<T> {
+  const { timeoutMs, ...rest } = init || {}
+  const ctrl = new AbortController()
+  const timer = timeoutMs && timeoutMs > 0 ? setTimeout(() => ctrl.abort(), timeoutMs) : null
+  try {
+    const res = await fetch(url, {
+      ...rest,
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json', ...(rest.headers || {}) },
+    })
+    const data = (await res.json().catch(() => ({}))) as T & { error?: string; detail?: string }
+    if (!res.ok) {
+      const detail = (data as { detail?: string; error?: string }).detail || (data as { error?: string }).error
+      throw new Error(detail ? `[${res.status}] ${detail}` : `[${res.status}] HTTP ${res.status}`)
+    }
+    return data
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('[504] timeout')
+    }
+    throw error
+  } finally {
+    if (timer) clearTimeout(timer)
   }
-  return data
 }
 
 export const sourceStockClient = {
@@ -73,9 +87,10 @@ export const sourceStockClient = {
     )
   },
   deleteByIds(partnerId: string, dbIds: string[]) {
-    return json<{ ok: true; deleted: number }>(`${base(partnerId)}/delete-by-db-ids`, {
+    return json<{ ok: boolean; deleted: number }>(`${base(partnerId)}/delete-by-db-ids`, {
       method: 'POST',
       body: JSON.stringify({ db_ids: dbIds }),
+      timeoutMs: 90_000,
     })
   },
   clearOosFlag(partnerId: string, dbId: string) {

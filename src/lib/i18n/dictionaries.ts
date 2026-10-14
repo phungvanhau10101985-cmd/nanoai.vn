@@ -1884,6 +1884,91 @@ export type Dictionary = {
     sourceStockMinutesAgo: string
     sourceStockHoursAgo: string
     sourceStockDaysAgo: string
+    sourceStockReadMore: string
+    sourceStockReadMoreP1: string
+    sourceStockReadMoreP2: string
+    sourceStockReadMoreP3: string
+    sourceStockFlowLabel: string
+    sourceStockFlowValue: string
+    sourceStockFlowHint: string
+    sourceStockDomainHint: string
+    sourceStockCoerceCssbuy: string
+    sourceStockCoerceVipomall: string
+    sourceStockCoercePandamall: string
+    sourceStockBranchCssbuy: string
+    sourceStockBranchVipomall: string
+    sourceStockBranchPandamall: string
+    sourceStockBranchMerged: string
+    sourceStockPauseOnDetail: string
+    sourceStockRamLabel: string
+    sourceStockCycleLabel: string
+    sourceStockIdlePrefix: string
+    sourceStockCommitFail: string
+    sourceStockCommitOk: string
+    sourceStockCommitUnknown: string
+    sourceStockCommitWhen: string
+    sourceStockCommitNone: string
+    sourceStockMultiProcess: string
+    sourceStockProgressHeading: string
+    sourceStockUpcomingList: string
+    sourceStockFinishedLabel: string
+    sourceStockQueueHeading: string
+    sourceStockCountHow: string
+    sourceStockCountHowBody: string
+    sourceStockTtlClassic: string
+    sourceStockPdpGap: string
+    sourceStockPdpWindow: string
+    sourceStockReportExplain: string
+    sourceStockReportExplainBody: string
+    sourceStockReportFrom: string
+    sourceStockReportNewestNote: string
+    sourceStockReportUtc: string
+    sourceStockNoChecked: string
+    sourceStockOosWhyTitle: string
+    sourceStockOosWhy1: string
+    sourceStockOosWhy2: string
+    sourceStockOosWhy3: string
+    sourceStockOosWhy4: string
+    sourceStockColDbId: string
+    sourceStockColLinkDb: string
+    sourceStockColVipomall: string
+    sourceStockColCssbuy: string
+    sourceStockColSku: string
+    sourceStockColPlatform: string
+    sourceStockColChecked: string
+    sourceStockColBatch: string
+    sourceStockColPdp: string
+    sourceStockColActions: string
+    sourceStockViewPdp: string
+    sourceStockOpenClose: string
+    sourceStockPageOn: string
+    sourceStockPageFooter: string
+    sourceStockSelectedOf: string
+    sourceStockByMarks: string
+    sourceStockWindowOos: string
+    sourceStockDeleteLine: string
+    sourceStockDeleteHint: string
+    sourceStockClearLine: string
+    sourceStockClearHint: string
+    sourceStockRecheckLine: string
+    sourceStockRecheckHint: string
+    sourceStockServerTitle: string
+    sourceStockServerBody: string
+    sourceStockResetP1: string
+    sourceStockResetP2: string
+    sourceStockResetP3: string
+    sourceStockResetPhraseNote: string
+    sourceStockDeleteAndMore: string
+    sourceStockDeleteWaiting: string
+    sourceStockDeleteRunning: string
+    sourceStockDeleteChunkNote: string
+    sourceStockDeleteRetryNote: string
+    sourceStockDeletePartial: string
+    sourceStockQueueLoading: string
+    sourceStockQueueMissing: string
+    sourceStockReportLoading: string
+    sourceStockReportRetry: string
+    sourceStockReportEmpty: string
     imageLocTitle: string
     imageLocIntro: string
     imageLocRefresh: string
@@ -5710,90 +5795,93 @@ export const VI_DICTIONARY: Dictionary = {
     listingImportExcelCancelToast: 'Đã hủy import Excel.',
     sourceStockTitle: 'Kiểm tra nguồn hàng',
     sourceStockIntro:
-      'Worker Vipomall → PandaMall → CSSBuy. Còn hàng hoặc hết hàng thì dừng. Chỉ Cloudflare/CAPTCHA mới chuyển nền. Cả ba bị chặn thì worker dừng và gửi email quản trị shop. Hết hàng khi bấm giỏ thấy nhãn ở vùng giá, hoặc PandaMall báo không tìm thấy sản phẩm. Trang chưa hiện giá, tên hoặc ảnh thì không gắn hết hàng. Hết hàng → tồn 0; về hàng sau OOS → 500.',
+      'Kiểm tra hết/còn hàng trên nguồn chạy trên máy chủ: daemon trong process Node, xếp từng SP và ghi vào DB. Env chính SOURCE_STOCK_CHECK_ENABLED (mặc định bật; đặt false và khởi động lại để tắt), cùng SOURCE_STOCK_CHECK_* (interval, stale…). Thứ tự Vipomall → PandaMall → CSSBuy. Hết hàng hoặc còn hàng thì dừng. Chỉ khi nền đang đọc bị Cloudflare / CAPTCHA mới chuyển nền sau. Cả ba bị chặn thì worker dừng hẳn, ghi blocked và gửi email quản trị shop. Bật lại bằng nút tiếp tục trên trang này. Tab này chỉ là dashboard.',
     sourceStockApiError: 'Lỗi API kiểm tra nguồn',
     sourceStockClose: 'Đóng',
-    sourceStockDomainLabel: 'Lọc hàng đợi / báo cáo theo miền URL',
-    sourceStockDomainCssbuy: 'CSSBuy (và 1688/Taobao quy đổi)',
-    sourceStockDomainVipomall: 'Vipomall',
-    sourceStockTestHeading: 'Thử URL (không ghi DB)',
-    sourceStockTestHint: 'Dán 1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall. Worker chạy Vipomall trước, rồi PandaMall, rồi CSSBuy. Chỉ Cloudflare mới chuyển nền.',
-    sourceStockTestRunning: 'Đang mở Playwright…',
-    sourceStockTestRun: 'Thử URL',
-    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… hoặc cssbuy.com/item-…',
-    sourceStockEligible: 'Đủ điều kiện worker',
-    sourceStockIneligible: 'Không đủ điều kiện',
-    sourceStockMerged: 'Kết luận',
-    sourceStockWorkerHeading: 'Worker kiểm tra nguồn',
+    sourceStockDomainLabel: 'Góc nhìn thống kê (batch)',
+    sourceStockDomainCssbuy: 'cssbuy.com — Playwright PDP',
+    sourceStockDomainVipomall: 'vipomall.vn — gương 1688',
+    sourceStockTestHeading: 'Thử PDP theo link (không ghi DB)',
+    sourceStockTestHint:
+      'Dán 1688 / Taobao / Tmall / CSSBuy / Vipomall / PandaMall. Worker chạy Vipomall trước, bị Cloudflare/CAPTCHA mới sang PandaMall, rồi mới sang CSSBuy. Hết hàng hoặc còn hàng thì dừng. Có thể chậm khi phải mở nền sau. Không ghi kho.',
+    sourceStockTestRunning: 'Đang chạy…',
+    sourceStockTestRun: 'Chạy thử',
+    sourceStockTestPlaceholder: 'https://detail.1688.com/offer/… · cssbuy.com · vipomall.vn/san-pham/…',
+    sourceStockEligible: 'Hợp miền worker',
+    sourceStockIneligible: 'Ngoài miền worker',
+    sourceStockMerged: 'Kết quả dùng (một PDP — như worker)',
+    sourceStockWorkerHeading: 'Worker PDP · Vipomall → PandaMall → CSSBuy',
     sourceStockOn: 'bật',
     sourceStockOff: 'tắt',
-    sourceStockPauseFlag: 'Pause DB',
-    sourceStockDaemon: 'Daemon',
+    sourceStockPauseFlag: 'Cờ tạm dừng (DB)',
+    sourceStockDaemon: 'Luồng source-stock-checker trong process này',
     sourceStockRunning: 'đang chạy',
     sourceStockIdle: 'đang nghỉ',
     sourceStockWorkerLoading: 'Đang đọc trạng thái worker…',
     sourceStockWriting: 'Đang ghi…',
-    sourceStockPause: 'Tạm dừng',
-    sourceStockResume: 'Tiếp tục',
+    sourceStockPause: 'Tạm dừng (DB)',
+    sourceStockResume: 'Chạy tiếp (DB)',
     sourceStockPausedOk: 'Đã tạm dừng worker của workspace này.',
     sourceStockResumedOk: 'Đã tiếp tục worker của workspace này.',
-    sourceStockChecking: 'Đang kiểm',
-    sourceStockCheckingHint: 'SP Playwright đang mở.',
-    sourceStockCheckingEmpty: 'Không có SP đang kiểm.',
-    sourceStockLastDone: 'Vừa xong',
-    sourceStockLastDoneHint: 'Lần commit kho gần nhất.',
-    sourceStockLastDoneEmpty: 'Chưa có lần kiểm trong process này.',
-    sourceStockUpcoming: 'Tiếp theo',
-    sourceStockUpcomingHint: 'Ưu tiên RAM rồi hàng DB đến hạn.',
-    sourceStockUpcomingEmpty: 'Hàng chờ trống hoặc đang pause.',
-    sourceStockRefreshingQueue: 'Đang tải hàng đợi…',
-    sourceStockRefreshQueue: 'Làm mới hàng đợi',
-    sourceStockRefreshingReport: 'Đang tải báo cáo…',
+    sourceStockChecking: 'Đang chạy',
+    sourceStockCheckingHint: 'Ghi vào DB khi worker bước vào scrape (mọi process đọc chung).',
+    sourceStockCheckingEmpty: 'Không có SP đang «checking» trên snapshot — có thể worker đang nghỉ giữa chu kỳ hoặc vừa xong và chưa kịp vào PDP kế.',
+    sourceStockLastDone: 'Vừa chạy xong',
+    sourceStockLastDoneHint: 'PDP kết thúc gần nhất đã commit trạng thái.',
+    sourceStockLastDoneEmpty: 'Chưa ghi «vừa xong» (chưa có lần scrape commit / worker mới restart).',
+    sourceStockUpcoming: 'Chuẩn bị chạy tiếp',
+    sourceStockUpcomingHint: 'Ưu tiên FIFO hàng chờ RAM process này, rồi SP đến hạn theo DB.',
+    sourceStockUpcomingEmpty: 'FIFO RAM trống và không còn dòng đến hạn phù hợp trong bản preview (hoặc đang chờ TTL).',
+    sourceStockRefreshingQueue: 'Đang đếm queue…',
+    sourceStockRefreshQueue: 'Làm mới queue',
+    sourceStockRefreshingReport: 'Đang tải BC…',
     sourceStockRefreshReport: 'Làm mới báo cáo 30 ngày',
-    sourceStockResetPdp: 'Reset chu kỳ PDP',
-    sourceStockStatTotal: 'Trong phạm vi',
-    sourceStockStatEligible: 'Đủ ĐK',
-    sourceStockStatTraffic: 'Có PDP 30 ngày',
-    sourceStockStatCooldown: 'TTL / cooldown',
-    sourceStockStatNever: 'Chưa quét',
-    sourceStockStatRescan: 'Hết TTL',
-    sourceStockStatNoPdp: 'Chưa PDP',
-    sourceStockTtlHint: 'TTL batch {n} ngày. Hết hàng → stock_qty=0; về hàng sau OOS → 500.',
-    sourceStockReportHeading: 'Báo cáo {n} ngày',
-    sourceStockCountTtl: 'Đóng dấu TTL',
-    sourceStockCountChecked: 'Đã kiểm',
-    sourceStockCountOos: 'Hết hàng nguồn',
-    sourceStockCountIn: 'Còn hàng nguồn',
-    sourceStockCountQtyPos: 'Tồn > 0',
-    sourceStockCountQtyZero: 'Tồn ≤ 0',
-    sourceStockOosTable: 'Hết hàng nguồn (cửa sổ)',
-    sourceStockSelectAll: 'Chọn trang này',
+    sourceStockResetPdp: 'Reset kiểm tra PDP (toàn phạm vi)',
+    sourceStockStatTotal: 'Tổng phạm vi',
+    sourceStockStatEligible: 'Đến lượt ngay',
+    sourceStockStatTraffic: 'PDP trong đến lượt',
+    sourceStockStatCooldown: 'Chờ TTL',
+    sourceStockStatNever: 'Chưa batch lần nào',
+    sourceStockStatRescan: 'Đến lượt sau TTL',
+    sourceStockStatNoPdp: 'Đến lượt không PDP',
+    sourceStockTtlHint: 'TTL cổ điển {n} ngày.',
+    sourceStockReportHeading: 'Báo cáo cửa sổ {n} ngày',
+    sourceStockCountTtl: 'TTL batch trong cửa sổ',
+    sourceStockCountChecked: 'Đã có checked_at',
+    sourceStockCountOos: 'Cờ hết trong cửa sổ',
+    sourceStockCountIn: 'Cờ còn trong cửa sổ',
+    sourceStockCountQtyPos: 'Sau KT: tồn > 0',
+    sourceStockCountQtyZero: 'Sau KT: tồn ≤ 0',
+    sourceStockOosTable: 'Mẫu: cờ hết hàng (out_of_stock) trong cửa sổ',
+    sourceStockSelectAll: 'Chọn hết',
     sourceStockClearSel: 'Bỏ chọn',
-    sourceStockDeleteDb: 'Xóa khỏi kho',
-    sourceStockClearFlag: 'Xóa cờ OOS',
-    sourceStockRecheck: 'Kiểm lại',
-    sourceStockDeleteAllWindow: 'Xóa tất cả OOS cửa sổ',
+    sourceStockDeleteDb: 'Xóa DB',
+    sourceStockClearFlag: 'Gỡ cờ',
+    sourceStockRecheck: 'PDP lại',
+    sourceStockDeleteAllWindow: 'Xóa DB (tất cả)',
     sourceStockClearAllWindow: 'Gỡ cờ (tất cả)',
-    sourceStockRecheckAllWindow: 'Kiểm lại (tất cả)',
+    sourceStockRecheckAllWindow: 'PDP lại (tất cả)',
     sourceStockColName: 'Tên',
     sourceStockColQty: 'Tồn',
-    sourceStockOosEmpty: 'Không có SP hết hàng nguồn trong cửa sổ.',
-    sourceStockInTable: 'Còn hàng nguồn (mẫu)',
-    sourceStockInEmpty: 'Không có mẫu còn hàng.',
-    sourceStockTtlTable: 'Đóng dấu TTL gần đây',
-    sourceStockTtlEmpty: 'Không có dấu TTL trong cửa sổ.',
-    sourceStockResetTitle: 'Reset chu kỳ kiểm tra nguồn',
+    sourceStockOosEmpty:
+      'Không có sản nào thỏa: trong cửa sổ 30 ngày + source_stock_status = out_of_stock. Nếu vừa kiểm tra xong — bấm «Làm mới báo cáo 30 ngày». Luôn gắn cờ lên đúng SP được chọn trong hàng chờ.',
+    sourceStockInTable: 'Mẫu: cờ còn hàng (in_stock) trong cửa sổ',
+    sourceStockInEmpty: 'Không có dòng trong phạm vi.',
+    sourceStockTtlTable: 'Mẫu: TTL batch gần nhất trong cửa sổ',
+    sourceStockTtlEmpty: 'Không có dòng trong phạm vi.',
+    sourceStockResetTitle: 'Xác nhận reset kiểm tra PDP toàn phạm vi?',
     sourceStockResetBody:
-      'Đưa source_stock về unknown (bỏ queued/checking), xóa hàng RAM. Worker sẽ quét lại SP đủ điều kiện. Gõ đúng cụm xác nhận.',
+      'Đặt source_stock_status về unknown, xóa source_stock_checked_at, source_stock_next_check_at, source_stock_check_platform và ghi chú lỗi cho mọi SP trong phạm vi link đang hiển thị.',
     sourceStockResetType: 'Gõ',
     sourceStockCancel: 'Hủy',
     sourceStockResetting: 'Đang reset…',
-    sourceStockResetConfirm: 'Reset',
+    sourceStockResetConfirm: 'Đồng ý — reset',
     sourceStockResetOk: 'Đã reset {n} sản phẩm.',
-    sourceStockDeleteTitle: 'Xóa sản phẩm khỏi kho?',
-    sourceStockDeleteBody: 'Xóa {n} dòng khỏi kho workspace này. Không hoàn tác.',
+    sourceStockDeleteTitle: 'Xóa vĩnh viễn {n} sản khỏi DB cửa hàng?',
+    sourceStockDeleteBody:
+      'Xóa theo khóa inventory id — không hoàn tác. Xóa DB trước, dọn Bunny CDN sau. Gặp timeout/502 sẽ tạm dừng khoảng 12 giây rồi tự xóa tiếp.',
     sourceStockDeleting: 'Đang xóa…',
-    sourceStockDeleteConfirm: 'Xóa',
+    sourceStockDeleteConfirm: 'Đồng ý — xóa',
     sourceStockDeletedOk: 'Đã xóa {n} dòng.',
     sourceStockClearedOk: 'Đã xóa cờ hết hàng nguồn.',
     sourceStockRecheckOk: 'Đã đưa vào hàng kiểm lại.',
@@ -5806,6 +5894,105 @@ export const VI_DICTIONARY: Dictionary = {
     sourceStockMinutesAgo: '{n} phút trước',
     sourceStockHoursAgo: '{n} giờ trước',
     sourceStockDaysAgo: '{n} ngày trước',
+    sourceStockReadMore: 'Đọc thêm — TTL batch, PDP traffic, chặn / captcha, CSSBuy & Vipomall',
+    sourceStockReadMoreP1:
+      'Worker (khi SOURCE_STOCK_CHECK_ENABLED bật — mặc định vậy) chạy Vipomall trước, bị Cloudflare/CAPTCHA mới sang PandaMall, rồi mới sang CSSBuy. Hết hàng hoặc còn hàng thì dừng, không mở nền sau. Cả ba bị chặn mới dừng hẳn. Mỗi vòng một SP, nghỉ theo SOURCE_STOCK_CHECK_INTERVAL_SECONDS. Không cần mở tab này để duy trì luồng. Khi phản hồi blocked hoặc captcha, xử lý nguồn hoặc hạ tần suất trên server. error / fetch_error: không đánh dấu TTL batch và giữ đúng SP đó để thử lại.',
+    sourceStockReadMoreP2:
+      'PDP traffic lấy từ lượt xem trong cửa sổ ADMIN_SOURCE_BATCH_TRAFFIC_VIEW_WINDOW_DAYS; SP có traffic được ưu tiên. Nếu đã có admin_source_batch_scanned_at nhưng chưa qua ADMIN_SOURCE_BATCH_TRAFFIC_CHECK_GAP_DAYS thì không xếp hàng. SP không traffic vẫn theo TTL ADMIN_SOURCE_BATCH_SCAN_COOLDOWN_DAYS (= {n} ngày theo API hiện tại). Một lần chạy cần link đủ dài trong DB.',
+    sourceStockReadMoreP3:
+      'CSSBuy: .ty_button_btn6 Add to Cart / Buy now. Vipomall: button.button + cart_detail.svg «Thêm giỏ hàng». PandaMall: .btn-addcart / .btn-buynow (disabled vẫn còn hàng).',
+    sourceStockFlowLabel: 'Luồng',
+    sourceStockFlowValue: 'Theo DB (queue)',
+    sourceStockFlowHint:
+      'Worker máy chủ (mặc định bật): Vipomall → PandaMall → CSSBuy. Chỉ Cloudflare/CAPTCHA mới chuyển nền; cả ba bị chặn mới dừng.',
+    sourceStockDomainHint: 'Bộ lọc báo cáo. Worker kiểm tra: Vipomall → PandaMall → CSSBuy; chỉ Cloudflare/CAPTCHA mới chuyển nền.',
+    sourceStockCoerceCssbuy: 'CSSBuy (coerce)',
+    sourceStockCoerceVipomall: 'Vipomall (coerce)',
+    sourceStockCoercePandamall: 'PandaMall (coerce)',
+    sourceStockBranchCssbuy: 'CSSBuy (Add to Cart / Buy now)',
+    sourceStockBranchVipomall: 'Vipomall («Thêm giỏ hàng»)',
+    sourceStockBranchPandamall: 'PandaMall («Thêm vào giỏ» / «Mua ngay»)',
+    sourceStockBranchMerged: 'Kết quả dùng (một PDP — như worker)',
+    sourceStockPauseOnDetail: 'BẬT — không scrape',
+    sourceStockRamLabel: 'Hàng chờ RAM process',
+    sourceStockCycleLabel: 'chu kỳ',
+    sourceStockIdlePrefix: 'Hiện worker idle',
+    sourceStockCommitFail: 'Commit bảng kho: chưa ghi được (hoặc lỗi ghi).',
+    sourceStockCommitOk: 'Commit bảng kho: đã ghi (theo audit worker state).',
+    sourceStockCommitUnknown: 'Commit bảng kho: chưa rõ — xem detail / đối chiếu.',
+    sourceStockCommitWhen: 'Thời điểm audit',
+    sourceStockCommitNone: 'Chưa có audit commit bảng kho — lần scrape đầu sau khi cập nhật sẽ có dòng trạng thái tại đây.',
+    sourceStockMultiProcess: 'Nhiều tiến trình / VPS',
+    sourceStockProgressHeading: 'Link PDP — tiến trình scrape',
+    sourceStockUpcomingList: 'Các PDP xếp tiếp theo snapshot ({n} dòng)',
+    sourceStockFinishedLabel: 'Hoàn tất',
+    sourceStockQueueHeading: 'Tiến độ DB · đang bán',
+    sourceStockCountHow: 'Cách đếm & thứ tự chọn',
+    sourceStockCountHowBody:
+      'Ưu tiên PDP traffic trong cửa sổ; trong mỗi nhóm: admin_source_batch_scanned_at chưa có đi trước → ai càng cũ càng được lấy → inventory id tăng dần. «Chờ TTL» gồm SP traffic chưa qua chờ-gap và SP không traffic chưa qua TTL cổ điển.',
+    sourceStockTtlClassic: 'TTL cổ điển {n} ngày',
+    sourceStockPdpGap: 'PDP gap {n}d',
+    sourceStockPdpWindow: 'PDP cửa sổ {n}d',
+    sourceStockReportExplain: 'Giải thích nhanh các cột đếm',
+    sourceStockReportExplainBody:
+      'Cùng phạm vi đang bán và link như queue. «Nền kết luận»: source_stock_check_platform (cssbuy / vipomall / pandamall). «TTL batch»: admin_source_batch_scanned_at trong cửa sổ. «Kiểm tra nguồn»: source_stock_checked_at trong cửa sổ. Hết / còn: theo source_stock_status và tồn.',
+    sourceStockReportFrom: 'Từ',
+    sourceStockReportNewestNote:
+      'Danh sách mẫu: mới nhất trước, {n} SP/trang cho mỗi nhóm (phân trang riêng OOS / in_stock / TTL batch).',
+    sourceStockReportUtc: '(UTC rolling)',
+    sourceStockNoChecked: 'Không có checked_at trong cửa sổ.',
+    sourceStockOosWhyTitle: 'Vì sao vừa «hết» nhưng bảng này vẫn trống, hoặc F5 là mất link?',
+    sourceStockOosWhy1: 'Dữ liệu bền nằm ở bảng mẫu và kho (theo cờ và timestamp trong DB), không nhờ bảng tạm trên tab.',
+    sourceStockOosWhy2:
+      'Hàng chờ DB: mỗi lần kiểm tra ghi source_stock_checked_at và source_stock_status lên đúng inventory được lấy từ queue. Hết nguồn thì tồn ≤ 0 / out_of_stock; đọc OK thì in_stock; lỗi scrape thì error.',
+    sourceStockOosWhy3:
+      'Nếu đã commit nhưng bảng này chưa đổi: bấm «Làm mới báo cáo 30 ngày» và kiểm tra ô domain (cssbuy/vipomall).',
+    sourceStockOosWhy4: 'Card «Sau KT: tồn ≤ 0» khác chỉ báo out_of_stock của bảng OOS — đừng so sánh một-một.',
+    sourceStockColDbId: 'DB id',
+    sourceStockColLinkDb: 'Link DB',
+    sourceStockColVipomall: 'Link Vipomall (1688)',
+    sourceStockColCssbuy: 'Link CSSBuy (quy đổi)',
+    sourceStockColSku: 'Mã SP',
+    sourceStockColPlatform: 'Nền kết luận',
+    sourceStockColChecked: 'Kiểm tra nguồn',
+    sourceStockColBatch: 'Batch TTL',
+    sourceStockColPdp: 'PDP',
+    sourceStockColActions: 'Thao tác',
+    sourceStockViewPdp: 'Xem',
+    sourceStockOpenClose: 'Mở / thu',
+    sourceStockPageOn: '{shown} trên trang · {total} trong cửa sổ · trang {page}/{pages}',
+    sourceStockPageFooter: 'Thứ tự mới nhất trước · trang {page} / {pages} · {size} SP/trang · tổng {total}',
+    sourceStockSelectedOf: 'Đã chọn {selected} / {shown} trong bảng',
+    sourceStockByMarks: 'Theo ô đánh dấu',
+    sourceStockWindowOos: 'Cờ hết trong cửa sổ',
+    sourceStockDeleteLine: 'Xóa khỏi DB…',
+    sourceStockDeleteHint: 'Đúng là hết, gỡ SP shop',
+    sourceStockClearLine: 'Gỡ cờ hết…',
+    sourceStockClearHint: 'Đọc sai — giữ SP, mở tồn lại',
+    sourceStockRecheckLine: 'Kiểm tra lại PDP',
+    sourceStockRecheckHint: 'Hết vẫn cờ • còn thì báo',
+    sourceStockServerTitle: 'Luồng chính: máy chủ',
+    sourceStockServerBody:
+      'Worker kiểm tra nguồn chạy trong process backend khi SOURCE_STOCK_CHECK_ENABLED=true (mặc định). Các ô đếm trên chỉ đọc DB đã được worker ghi — tần suất và sự cố chỉnh env và log trên máy chủ (tab không bắt đầu scrape tay).',
+    sourceStockResetP1:
+      'Sẽ đặt source_stock_status về unknown, xóa source_stock_checked_at, source_stock_next_check_at, source_stock_check_platform và ghi chú lỗi — cho tất cả sản trong phạm vi link như ô «Tiến độ DB» đang hiển thị ({domain}, active only).',
+    sourceStockResetP2:
+      'Bỏ qua sản đang queued / checking. Queue RAM chỉ một process nhận request được xóa — nếu nhiều worker, chỉ một instance được dọn hàng chờ.',
+    sourceStockResetP3: 'Không đụng TTL batch (admin_source_batch_scanned_at) và không tự chỉnh tồn.',
+    sourceStockResetPhraseNote: 'rồi mới được bấm reset (không phân biệt hoa thường, có hoặc không dấu).',
+    sourceStockDeleteAndMore: 'và {n} mã khác trong cùng lần xóa.',
+    sourceStockDeleteWaiting: 'Tạm dừng — sẽ tự xóa tiếp…',
+    sourceStockDeleteRunning: 'Đang xóa khỏi DB…',
+    sourceStockDeleteChunkNote: 'Đã xóa {deleted} sản · lô {index}/{total} ({size} mã/lô; Bunny dọn sau)',
+    sourceStockDeleteRetryNote:
+      'Gặp timeout/502 — chờ {sec}s rồi tự thử lại (lần {attempt}). Đã xóa {deleted} sản; không cần bấm lại.',
+    sourceStockDeletePartial:
+      'Đã xóa {done}/{total} sản rồi dừng (còn {left}). Đã tự thử lại {retries} lần sau mỗi 12s vẫn lỗi. {detail}',
+    sourceStockQueueLoading: 'Đang đếm hàng chờ…',
+    sourceStockQueueMissing: 'Không đọc được số đếm — bấm «Làm mới queue».',
+    sourceStockReportLoading: 'Đang tải báo cáo…',
+    sourceStockReportRetry: 'Thử lại',
+    sourceStockReportEmpty: 'Chưa có dữ liệu báo cáo.',
     imageLocTitle: 'Bản địa hóa ảnh',
     imageLocIntro: 'Xử lý ảnh cột O/P/Q/T: biến thể, thư viện, ảnh chi tiết và ảnh chính cho sản phẩm chưa bản địa hóa.',
     imageLocRefresh: 'Làm mới trạng thái',

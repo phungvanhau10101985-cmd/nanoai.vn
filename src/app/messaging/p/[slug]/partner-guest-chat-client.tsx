@@ -30,6 +30,11 @@ import {
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import {
+  messengerComposerLabels,
+  StudyComposerTool,
+  StudyMessengerComposer,
+} from '@/components/student-study/study-messenger-composer'
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -121,7 +126,6 @@ import {
   Search,
   MessageSquareText,
   Package,
-  Send,
   Sparkles,
   Store,
   X,
@@ -1465,6 +1469,8 @@ type GuestChatDraftComposerProps = {
     guestTakePhoto: string
     send: string
     guestUploading: string
+    showTools: string
+    emoji: string
   }
 }
 
@@ -1497,24 +1503,6 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   const draftRef = useRef(draft)
   draftRef.current = draft
 
-  const autoResizeDraft = useCallback(() => {
-    const el = draftTextareaRef.current
-    if (!el) return
-    const minHeight = 40
-    const maxHeight = 120
-    // height:0 + overflow:hidden làm scrollHeight kẹt 1 dòng — dòng 2 tràn đè icon.
-    el.style.overflowY = 'hidden'
-    el.style.height = 'auto'
-    const scroll = el.scrollHeight
-    const next = Math.min(Math.max(scroll, minHeight), maxHeight)
-    el.style.height = `${next}px`
-    el.style.overflowY = scroll > maxHeight ? 'auto' : 'hidden'
-  }, [])
-
-  useLayoutEffect(() => {
-    autoResizeDraft()
-  }, [draft, autoResizeDraft])
-
   const canSend = Boolean((draft.trim() || attachmentCount > 0) && !uploading)
 
   const send = useCallback(() => {
@@ -1525,152 +1513,93 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
     })
   }, [enqueueGuestSend, submitGuestMessage])
 
+  const toolsBusy = uploading || sending
+
   return (
-    <div className="flex flex-col gap-1.5">
-      <div className="relative">
-        <Textarea
-          ref={draftTextareaRef}
-          data-guest-composer-input="1"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onInput={autoResizeDraft}
-          onPaste={onDraftPaste}
-          onFocus={(e) => {
-            onComposerFocusChange?.(true)
-            const el = e.currentTarget
-            const scroll = () =>
-              el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' })
+    <div className="flex flex-col gap-1">
+      <StudyMessengerComposer
+        id="guest-chat-composer"
+        inputRef={draftTextareaRef}
+        value={draft}
+        onChange={setDraft}
+        onSubmit={() => {
+          if (!sending) void send()
+        }}
+        onPaste={onDraftPaste}
+        onFocus={(event) => {
+          onComposerFocusChange?.(true)
+          const el = event.currentTarget
+          const scroll = () => el.scrollIntoView({ block: 'end', inline: 'nearest', behavior: 'auto' })
+          scroll()
+          window.requestAnimationFrame(() => {
             scroll()
-            window.requestAnimationFrame(() => {
-              scroll()
-              window.requestAnimationFrame(scroll)
-            })
-            /** Bàn phím ảo mở chậm (iOS / Facebook in-app) — kéo lại sau khi viewport đổi. */
-            window.setTimeout(scroll, 80)
-            window.setTimeout(scroll, 280)
-          }}
-          onBlur={() => onComposerFocusChange?.(false)}
-          placeholder={labels.placeholder}
-          rows={1}
-          className="box-border block max-h-[120px] min-h-10 w-full resize-none overflow-y-auto border-0 bg-background px-0 py-1 pr-12 text-[17px] leading-snug shadow-none focus-visible:ring-0 sm:text-lg"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault()
-              if (canSend && !sending) void send()
-            }
-          }}
-        />
-        <Button
-          type="button"
-          className="absolute right-0 top-0.5 z-10 h-9 w-9 min-w-0 shrink-0 px-0 sm:h-10 sm:w-10"
-          onClick={() => void send()}
-          disabled={!canSend || sending}
-          aria-label={labels.send}
-        >
-          {sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-        </Button>
-      </div>
-      <div className="relative z-0 flex shrink-0 items-end gap-1.5 overflow-x-auto bg-background [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
-            disabled={uploading || sending || tryOnBusy}
-            onClick={onToggleTryOn}
-          >
-            {tryOnBusy ? (
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-            ) : (
-              <Sparkles className="h-4 w-4 shrink-0" aria-hidden />
-            )}
-            <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
-              {labels.tryOnOpen}
-            </span>
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-9 w-9 shrink-0 p-0 sm:h-10 sm:w-10"
-            disabled={uploading || sending}
-            onClick={() => galleryInputRef.current?.click()}
-            aria-label={labels.guestAttachPhoto}
-            title={labels.guestAttachPhoto}
-          >
-            {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImagePlus className="h-5 w-5" />}
-          </Button>
-          {showCameraButton ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 w-9 shrink-0 p-0 sm:h-10 sm:w-10"
-              disabled={uploading || sending}
-              onClick={() => cameraInputRef.current?.click()}
-              aria-label={labels.guestTakePhoto}
-              title={labels.guestTakePhoto}
+            window.requestAnimationFrame(scroll)
+          })
+          window.setTimeout(scroll, 80)
+          window.setTimeout(scroll, 280)
+        }}
+        onBlur={() => onComposerFocusChange?.(false)}
+        placeholder={labels.placeholder}
+        sendLabel={labels.send}
+        showToolsLabel={labels.showTools}
+        emojiLabel={labels.emoji}
+        canSend={canSend}
+        sending={sending}
+        guestComposerInput
+        formClassName="border-0 bg-transparent px-0 py-0"
+        tools={
+          <>
+            <StudyComposerTool
+              label={labels.tryOnOpen}
+              disabled={toolsBusy || tryOnBusy}
+              onClick={onToggleTryOn}
             >
-              <Camera className="h-5 w-5" />
-            </Button>
-          ) : null}
-          {productShelfButtonLabel && onOpenProductShelf ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
-              disabled={uploading || sending}
-              onClick={() => onOpenProductShelf()}
+              {tryOnBusy ? <Loader2 className="animate-spin" aria-hidden /> : <Sparkles strokeWidth={1.75} aria-hidden />}
+            </StudyComposerTool>
+            <StudyComposerTool
+              label={labels.guestAttachPhoto}
+              disabled={toolsBusy}
+              onClick={() => galleryInputRef.current?.click()}
             >
-              <Package className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
-                {productShelfButtonLabel}
-              </span>
-            </Button>
-          ) : null}
-          {showCommerceShortcuts && onOpenMyOrders && ordersShortcutLabel ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 border-violet-300/80 bg-violet-50/90 px-2 py-1.5 text-violet-950 hover:bg-violet-100/90 dark:border-violet-700 dark:bg-violet-950/45 dark:text-violet-50 dark:hover:bg-violet-900/55 sm:min-h-[3rem]"
-              disabled={uploading || sending}
-              onClick={() => onOpenMyOrders()}
-              title={ordersShortcutLabel}
-              aria-label={ordersShortcutLabel}
-            >
-              <Package className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
-                {ordersShortcutLabel}
-              </span>
-            </Button>
-          ) : null}
-          {showCommerceShortcuts && onOpenCart && cartShortcutLabel ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="relative flex h-auto min-h-[2.75rem] shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-1.5 sm:min-h-[3rem]"
-              disabled={uploading || sending}
-              onClick={() => onOpenCart()}
-              title={cartShortcutLabel}
-              aria-label={`${cartShortcutLabel} (${cartItemCount})`}
-            >
-              <ShoppingCart className="h-4 w-4 shrink-0" aria-hidden />
-              <span className="max-w-[4.25rem] text-center text-[10px] font-medium leading-tight sm:max-w-[5rem] sm:text-[11px]">
-                {cartShortcutLabel}
-              </span>
-              {cartItemCount > 0 ? (
-                <span className="absolute right-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
-                  {cartItemCount > 99 ? '99+' : cartItemCount}
-                </span>
-              ) : null}
-            </Button>
-          ) : null}
-      </div>
+              {uploading ? <Loader2 className="animate-spin" aria-hidden /> : <ImagePlus strokeWidth={1.75} aria-hidden />}
+            </StudyComposerTool>
+            {showCameraButton ? (
+              <StudyComposerTool
+                label={labels.guestTakePhoto}
+                disabled={toolsBusy}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                <Camera strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+            ) : null}
+            {productShelfButtonLabel && onOpenProductShelf ? (
+              <StudyComposerTool label={productShelfButtonLabel} disabled={toolsBusy} onClick={() => onOpenProductShelf()}>
+                <Package strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+            ) : null}
+            {showCommerceShortcuts && onOpenMyOrders && ordersShortcutLabel ? (
+              <StudyComposerTool label={ordersShortcutLabel} disabled={toolsBusy} onClick={() => onOpenMyOrders()}>
+                <Package strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+            ) : null}
+            {showCommerceShortcuts && onOpenCart && cartShortcutLabel ? (
+              <StudyComposerTool
+                label={`${cartShortcutLabel} (${cartItemCount})`}
+                disabled={toolsBusy}
+                onClick={() => onOpenCart()}
+              >
+                <ShoppingCart strokeWidth={1.75} aria-hidden />
+                {cartItemCount > 0 ? (
+                  <span className="absolute right-0 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-emerald-600 px-0.5 text-[9px] font-bold leading-none text-white">
+                    {cartItemCount > 99 ? '99+' : cartItemCount}
+                  </span>
+                ) : null}
+              </StudyComposerTool>
+            ) : null}
+          </>
+        }
+      />
       {uploading ? <p className="text-xs text-muted-foreground sm:text-sm">{labels.guestUploading}</p> : null}
-      <p className="hidden text-xs leading-tight text-muted-foreground sm:block sm:text-sm">{labels.sendKeyboardHint}</p>
     </div>
   )
 })
@@ -5574,8 +5503,10 @@ export function PartnerGuestChatClient({
       guestTakePhoto: t.guestTakePhoto,
       send: t.send,
       guestUploading: t.guestUploading,
+      showTools: messengerComposerLabels(uiLocale).showTools,
+      emoji: messengerComposerLabels(uiLocale).emoji,
     }),
-    [t]
+    [t, uiLocale]
   )
 
   const toggleTryOnPanel = useCallback(() => setTryOnOpen((v) => !v), [])
