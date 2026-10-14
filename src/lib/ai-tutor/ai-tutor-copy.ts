@@ -6,6 +6,8 @@ export type AiTutorCopy = {
   empty: string
   placeholder: string
   send: string
+  showTools: string
+  emoji: string
   replying: string
   explain: string
   practice: string
@@ -25,6 +27,8 @@ const VI: AiTutorCopy = {
   empty: 'Hỏi một ý bạn chưa hiểu. Gia sư trả lời cho riêng bạn.',
   placeholder: 'Hỏi một vấn đề…',
   send: 'Gửi',
+  showTools: 'Hiện nút',
+  emoji: 'Biểu cảm',
   replying: 'Giáo viên đang trả lời',
   explain: 'Giải thích',
   practice: 'Áp dụng thực tế',
@@ -54,6 +58,8 @@ const EN: AiTutorCopy = {
   empty: 'Ask about one idea you do not understand yet. The tutor answers only you.',
   placeholder: 'Ask about one idea…',
   send: 'Send',
+  showTools: 'Show buttons',
+  emoji: 'Emoji',
   replying: 'The teacher is answering',
   explain: 'Explanation',
   practice: 'In real life',
@@ -83,6 +89,8 @@ const ZH: AiTutorCopy = {
   empty: '问一个你还没弄懂的问题。家教会只回答你。',
   placeholder: '问一个问题…',
   send: '发送',
+  showTools: '显示按钮',
+  emoji: '表情',
   replying: '老师正在回答',
   explain: '说明',
   practice: '生活里的例子',
@@ -112,6 +120,8 @@ const JA: AiTutorCopy = {
   empty: 'まだわからないことを一つ聞いてください。家庭教師はあなただけに答えます。',
   placeholder: '質問を書く…',
   send: '送る',
+  showTools: 'ボタンを表示',
+  emoji: '絵文字',
   replying: '先生が回答しています',
   explain: '説明',
   practice: '実生活での例',
@@ -141,6 +151,8 @@ const KO: AiTutorCopy = {
   empty: '아직 모르는 것 하나를 물어보세요. 선생님은 나에게만 답합니다.',
   placeholder: '질문을 입력…',
   send: '보내기',
+  showTools: '버튼 표시',
+  emoji: '이모티콘',
   replying: '선생님이 답하고 있습니다',
   explain: '설명',
   practice: '실생활 예시',

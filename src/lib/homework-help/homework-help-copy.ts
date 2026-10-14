@@ -5,6 +5,8 @@ export type HomeworkHelpCopy = {
   empty: string
   placeholder: string
   send: string
+  showTools: string
+  emoji: string
   replying: string
   newThread: string
   history: string
@@ -51,6 +53,8 @@ const VI: HomeworkHelpCopy = {
   empty: 'Gõ hoặc chụp một câu bạn đang làm. Giáo viên hướng cho riêng bạn.',
   placeholder: 'Gõ một câu bài tập…',
   send: 'Gửi',
+  showTools: 'Hiện nút',
+  emoji: 'Biểu cảm',
   replying: 'Giáo viên đang trả lời',
   newThread: 'Hội thoại mới',
   history: 'Lịch sử làm bài tập',
@@ -109,6 +113,8 @@ const EN: HomeworkHelpCopy = {
   empty: 'Type or photograph one question you are working on. The teacher guides only you.',
   placeholder: 'Type one homework question…',
   send: 'Send',
+  showTools: 'Show buttons',
+  emoji: 'Emoji',
   replying: 'The teacher is answering',
   newThread: 'New chat',
   history: 'Homework history',
@@ -166,6 +172,8 @@ const ZH: HomeworkHelpCopy = {
   empty: '输入或拍一道你正在做的题。老师只辅导你。',
   placeholder: '输入一道作业题…',
   send: '发送',
+  showTools: '显示按钮',
+  emoji: '表情',
   replying: '老师正在回答',
   newThread: '新对话',
   history: '作业记录',
@@ -224,6 +232,8 @@ const JA: HomeworkHelpCopy = {
   empty: '取り組んでいる問題を入力するか撮影してください。先生はあなただけに案内します。',
   placeholder: '問題を入力…',
   send: '送信',
+  showTools: 'ボタンを表示',
+  emoji: '絵文字',
   replying: '先生が回答しています',
   newThread: '新しい会話',
   history: '宿題の履歴',
@@ -282,6 +292,8 @@ const KO: HomeworkHelpCopy = {
   empty: '풀고 있는 문제 하나를 입력하거나 찍으세요. 선생님은 당신만 안내합니다.',
   placeholder: '숙제 문제를 입력…',
   send: '보내기',
+  showTools: '버튼 표시',
+  emoji: '이모티콘',
   replying: '선생님이 답하고 있습니다',
   newThread: '새 대화',
   history: '숙제 기록',

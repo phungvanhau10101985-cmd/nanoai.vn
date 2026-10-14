@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
-import { Camera, History, ImagePlus, Loader2, MessageSquarePlus, X } from 'lucide-react'
+import { Camera, History, Image as ImageIcon, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { StudyComposerTool, StudyMessengerComposer } from '@/components/student-study/study-messenger-composer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -469,93 +470,30 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         {busy ? <TeacherReplying label={copy.replying} /> : null}
       </div>
 
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-t bg-muted/40 px-3 py-2 max-md:pr-16">
-        <input
-          id="homework-help-gallery"
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          className="sr-only"
-          disabled={!ready || busy || cropQueue.length > 0}
-          onChange={(event) => {
-            queuePhotos(event.target.files)
-            event.target.value = ''
-          }}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className={`h-9 w-9 ${!ready || busy || cropQueue.length > 0 ? 'pointer-events-none opacity-60' : ''}`}
-          disabled={!ready || busy || cropQueue.length > 0}
-          asChild
-        >
-          <label
-            htmlFor="homework-help-gallery"
-            className="cursor-pointer"
-            aria-label={copy.pickPhoto}
-            title={copy.pickPhoto}
-          >
-            <ImagePlus className="h-4 w-4" aria-hidden />
-          </label>
-        </Button>
-        <div className="inline-flex md:hidden">
-          <input
-            id="homework-help-camera"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            className="sr-only"
-            disabled={!ready || busy || cropQueue.length > 0}
-            onChange={(event) => {
-              queuePhotos(event.target.files)
-              event.target.value = ''
-            }}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className={`h-9 w-9 ${!ready || busy || cropQueue.length > 0 ? 'pointer-events-none opacity-60' : ''}`}
-            disabled={!ready || busy || cropQueue.length > 0}
-            asChild
-          >
-            <label
-              htmlFor="homework-help-camera"
-              className="cursor-pointer"
-              aria-label={copy.takePhoto}
-              title={copy.takePhoto}
-            >
-              <Camera className="h-4 w-4" aria-hidden />
-            </label>
-          </Button>
-        </div>
-        <Button
-          type="button"
-          size="icon"
-          className="h-9 w-9"
-          disabled={!ready || busy}
-          aria-label={copy.newThread}
-          title={copy.newThread}
-          onClick={() => void beginNewThread()}
-        >
-          <MessageSquarePlus className="h-4 w-4" aria-hidden />
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="h-9 w-9 bg-background"
-          disabled={!ready || busy}
-          aria-expanded={historyOpen}
-          aria-haspopup="dialog"
-          aria-label={copy.history}
-          title={copy.history}
-          onClick={() => void openHistory()}
-        >
-          <History className="h-4 w-4" aria-hidden />
-        </Button>
-      </div>
+      <input
+        id="homework-help-gallery"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        multiple
+        className="sr-only"
+        disabled={!ready || busy || cropQueue.length > 0}
+        onChange={(event) => {
+          queuePhotos(event.target.files)
+          event.target.value = ''
+        }}
+      />
+      <input
+        id="homework-help-camera"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        capture="environment"
+        className="sr-only md:hidden"
+        disabled={!ready || busy || cropQueue.length > 0}
+        onChange={(event) => {
+          queuePhotos(event.target.files)
+          event.target.value = ''
+        }}
+      />
 
       <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
         <DialogContent
@@ -639,34 +577,50 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       ) : null}
 
       {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
-      <form
-        className="flex shrink-0 items-end gap-2 border-t bg-muted/40 p-3"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void send()
-        }}
-      >
-        <Textarea
-          ref={composerRef}
-          id="ho-tro-lam-bai-composer"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          placeholder={copy.placeholder}
-          rows={2}
-          enterKeyHint="send"
-          className="max-h-24 resize-none bg-background"
-          disabled={!ready || busy}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault()
-              void send()
-            }
-          }}
-        />
-        <Button type="submit" disabled={!ready || busy || (!text.trim() && files.length === 0)}>
-          {copy.send}
-        </Button>
-      </form>
+      <StudyMessengerComposer
+        id="ho-tro-lam-bai-composer"
+        inputRef={composerRef}
+        value={text}
+        onChange={setText}
+        onSubmit={() => void send()}
+        placeholder={copy.placeholder}
+        sendLabel={copy.send}
+        showToolsLabel={copy.showTools}
+        emojiLabel={copy.emoji}
+        disabled={!ready || busy}
+        canSend={Boolean(text.trim()) || files.length > 0}
+        tools={
+          <>
+            <div className="md:hidden">
+              <StudyComposerTool
+                label={copy.takePhoto}
+                htmlFor="homework-help-camera"
+                disabled={!ready || busy || cropQueue.length > 0}
+              >
+                <Camera strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+            </div>
+            <StudyComposerTool
+              label={copy.pickPhoto}
+              htmlFor="homework-help-gallery"
+              disabled={!ready || busy || cropQueue.length > 0}
+            >
+              <ImageIcon strokeWidth={1.75} aria-hidden />
+            </StudyComposerTool>
+            <StudyComposerTool label={copy.newThread} disabled={!ready || busy} onClick={() => void beginNewThread()}>
+              <MessageSquarePlus strokeWidth={1.75} aria-hidden />
+            </StudyComposerTool>
+            <StudyComposerTool
+              label={copy.history}
+              disabled={!ready || busy}
+              expanded={historyOpen}
+              onClick={() => void openHistory()}
+            >
+              <History strokeWidth={1.75} aria-hidden />
+            </StudyComposerTool>
+          </>
+        }
+      />
     </div>
   )
 }

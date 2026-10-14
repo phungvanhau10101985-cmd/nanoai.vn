@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, History, Loader2, MessageSquarePlus } from 'lucide-react'
 import { StudyCacheMark } from '@/components/student-study/study-cache-mark'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Textarea } from '@/components/ui/textarea'
-import { StudyChatThreadBar } from '@/components/student-study/study-chat-thread-bar'
+import { StudyComposerTool, StudyMessengerComposer } from '@/components/student-study/study-messenger-composer'
 import type { WebLocale } from '@/lib/i18n/config'
 import { aiTutorCopy } from '@/lib/ai-tutor/ai-tutor-copy'
 import { tutorNextBubbleDelayMs, tutorReplyBubbles, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
@@ -497,42 +496,34 @@ export default function GiaSuAiClient({ locale }: Props) {
           </DialogContent>
         </Dialog>
         {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
-        <StudyChatThreadBar
-          newLabel={copy.newThread}
-          historyLabel={copy.history}
-          historyOpen={historyOpen}
+        <StudyMessengerComposer
+          id="gia-su-composer"
+          inputRef={composerRef}
+          value={text}
+          onChange={setText}
+          onSubmit={() => void send()}
+          placeholder={copy.placeholder}
+          sendLabel={copy.send}
+          showToolsLabel={copy.showTools}
+          emojiLabel={copy.emoji}
           disabled={!ready || busy}
-          onNew={() => void beginNewThread()}
-          onHistory={() => void openHistory()}
+          canSend={Boolean(text.trim())}
+          tools={
+            <>
+              <StudyComposerTool label={copy.newThread} disabled={!ready || busy} onClick={() => void beginNewThread()}>
+                <MessageSquarePlus strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+              <StudyComposerTool
+                label={copy.history}
+                disabled={!ready || busy}
+                expanded={historyOpen}
+                onClick={() => void openHistory()}
+              >
+                <History strokeWidth={1.75} aria-hidden />
+              </StudyComposerTool>
+            </>
+          }
         />
-        <form
-          className="flex shrink-0 items-end gap-2 bg-muted/40 px-3 pb-3 pt-2"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void send()
-          }}
-        >
-          <Textarea
-            ref={composerRef}
-            id="gia-su-composer"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder={copy.placeholder}
-            rows={2}
-            enterKeyHint="send"
-            className="max-h-24 resize-none bg-background"
-            disabled={!ready || busy}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void send()
-              }
-            }}
-          />
-          <Button type="submit" disabled={!ready || busy}>
-            {copy.send}
-          </Button>
-        </form>
     </div>
   )
 }
