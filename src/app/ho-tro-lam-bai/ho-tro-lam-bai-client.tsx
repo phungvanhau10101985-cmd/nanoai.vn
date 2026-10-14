@@ -675,7 +675,11 @@ function ProblemBubble({
   const hintsLeft = shownHints < problem.hints.length
   const tags = problem.tags.length > 0 ? problem.tags : knowledgeLinesAsTags(problem.knowledge)
   const canShowAnswer = Boolean(problem.answer) && !hintsLeft && !answerOpen
-  const solutionLabel = copy.showSolution.replace('{credits}', String(HOMEWORK_SOLUTION_CREDIT_COST))
+  const creditText =
+    locale === 'vi'
+      ? String(HOMEWORK_SOLUTION_CREDIT_COST).replace('.', ',')
+      : String(HOMEWORK_SOLUTION_CREDIT_COST)
+  const solutionLabel = copy.showSolution.replace('{credits}', creditText)
 
   async function openSolution() {
     setSolutionBusy(true)
