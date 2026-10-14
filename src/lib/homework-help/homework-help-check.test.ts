@@ -7,6 +7,8 @@ import {
   mergeCheckedProblem,
   parseHomeworkChecks,
   parseHomeworkPicks,
+  parseHomeworkSame,
+  parseHomeworkSide,
   parseModelJson,
 } from '@/lib/homework-help/homework-help-check'
 import {
@@ -130,17 +132,14 @@ test('a matching chemistry answer stays visible but steps do not spoil the new r
   assert.deepEqual(merged.problem.hints, [])
 })
 
-test('cross-check keeps only confirmed knowledge and a matching answer', () => {
+test('cross-check keeps the knowledge lines and a matching answer', () => {
   const merged = mergeCheckedProblem(draft, {
     index: 0,
     answer: '2',
-    knowledge: [
-      { index: 0, ok: true },
-      { index: 1, ok: false },
-    ],
+    knowledge: [],
   })
   assert.equal(merged.cacheable, true)
-  assert.deepEqual(merged.problem.knowledge, ['Phương trình bậc nhất một ẩn'])
+  assert.deepEqual(merged.problem.knowledge, ['Phương trình bậc nhất một ẩn', 'Nghiệm là 2'])
   assert.equal(merged.problem.answer, 'x = 2')
   assert.equal(merged.problem.thinking.length, 2)
   assert.deepEqual(merged.problem.tags, [{ key: 'linear-equation', title: 'Phương trình bậc nhất' }])
@@ -150,10 +149,7 @@ test('disagreement hides the answer and drops a step that leaks it', () => {
   const merged = mergeCheckedProblem(draft, {
     index: 0,
     answer: 'x = 5',
-    knowledge: [
-      { index: 0, ok: true },
-      { index: 1, ok: false },
-    ],
+    knowledge: [],
   })
   assert.equal(merged.problem.answer, '')
   assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
@@ -173,11 +169,7 @@ test('a judge that confirms the check answer shows that side and does not cache 
   const merged = mergeAdjudicatedProblem(
     draft,
     { index: 0, answer: 'x = 5', knowledge: [] },
-    { index: 0, pick: 'check', answer: 'x = 5' },
-    [
-      { index: 0, ok: true },
-      { index: 1, ok: false },
-    ]
+    { index: 0, pick: 'check', answer: 'x = 5' }
   )
   assert.equal(merged.cacheable, false)
   assert.equal(merged.problem.answer, 'x = 5')
@@ -190,8 +182,7 @@ test('a judge that confirms the draft answer shows the draft wording', () => {
   const merged = mergeAdjudicatedProblem(
     draft,
     { index: 0, answer: 'x = 5', knowledge: [] },
-    { index: 0, pick: 'draft', answer: '2' },
-    [{ index: 0, ok: true }]
+    { index: 0, pick: 'draft', answer: '2' }
   )
   assert.equal(merged.problem.answer, 'x = 2')
   assert.equal(merged.cacheable, false)
@@ -217,6 +208,44 @@ test('a judge that cannot choose hides the result', () => {
   assert.equal(merged.problem.answer, '')
   assert.equal(merged.cacheable, false)
   assert.deepEqual(merged.problem.thinking, ['Chuyển 3 sang vế kia'])
+})
+
+test('a trusted check keeps the draft answer when the wording differs', () => {
+  const merged = mergeCheckedProblem(draft, { index: 0, answer: 'C3H5(OCOH)3', knowledge: [] }, { trust: true })
+  assert.equal(merged.cacheable, true)
+  assert.equal(merged.problem.answer, draft.answer)
+})
+
+test('a trusted third answer is shown when it matches the other side', () => {
+  const merged = mergeAdjudicatedProblem(
+    draft,
+    { index: 0, answer: 'x = 5', knowledge: [] },
+    { index: 0, pick: 'check', answer: 'C3H5(OCOH)3' },
+    { trust: true }
+  )
+  assert.equal(merged.problem.answer, 'C3H5(OCOH)3')
+  assert.equal(merged.cacheable, false)
+})
+
+test('same and side judges parse only the listed problems', () => {
+  const same = parseHomeworkSame({
+    problems: [
+      { index: 0, same: true },
+      { index: 1, same: false },
+      { index: 9, same: true },
+    ],
+  })
+  assert.equal(same?.length, 2)
+  assert.equal(same?.[0]?.same, true)
+  assert.equal(same?.[1]?.same, false)
+  const sides = parseHomeworkSide({
+    problems: [
+      { index: 0, side: 'Draft' },
+      { index: 1, side: 'maybe' },
+    ],
+  })
+  assert.equal(sides?.[0]?.side, 'draft')
+  assert.equal(sides?.[1]?.side, 'none')
 })
 
 test('gemini pro keeps the deepseek answer it matches', () => {

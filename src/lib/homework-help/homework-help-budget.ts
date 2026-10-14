@@ -1,6 +1,6 @@
 /**
  * Nginx chỉ đường /ho-tro-lam-bai cắt sau 500s. Các trang khác vẫn 300s.
- * Đọc ảnh, rồi DeepSeek và Gemini Pro chạy cùng lúc. Không khớp thì GPT giải lại trong phần thời gian còn lại.
+ * Đọc ảnh, rồi DeepSeek và Gemini Pro chạy cùng lúc. Chữ khác nhau thì hỏi một lần có cùng kết quả không. Vẫn khác thì GPT giải lại.
  * Lần gọi cuối dừng trước mốc này 15s để còn chỗ trả lời.
  */
 export const HOMEWORK_HELP_BUDGET_MS = 490_000
@@ -13,6 +13,8 @@ export const HOMEWORK_DRAFT_CALL_MS = 240_000
 export const HOMEWORK_GEMINI_CALL_MS = 120_000
 /** GPT-5 chỉ trả đáp án. Đo 77s khi nghĩ mức mặc định. Lượt muộn bị rút theo thời gian còn lại. */
 export const HOMEWORK_GPT_CALL_MS = 150_000
+/** Gemini Pro hỏi hai đáp án có cùng kết quả không. Chỉ chạy khi chữ đã khác. */
+export const HOMEWORK_JUDGE_CALL_MS = 90_000
 export const HOMEWORK_FLASH_CALL_MS = 35_000
 
 const RESPONSE_SLACK_MS = 15_000

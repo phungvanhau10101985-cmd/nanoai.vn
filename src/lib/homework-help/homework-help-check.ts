@@ -126,6 +126,54 @@ export function parseHomeworkChecks(raw: unknown): HomeworkProblemCheck[] | null
   return out
 }
 
+export type HomeworkSameVerdict = {
+  index: number
+  same: boolean
+}
+
+export type HomeworkSideVerdict = {
+  index: number
+  side: 'draft' | 'check' | 'none'
+}
+
+function problemRows(raw: unknown): unknown[] | null {
+  if (!raw || typeof raw !== 'object') return null
+  const problems = (raw as Record<string, unknown>).problems
+  return Array.isArray(problems) ? problems : null
+}
+
+/** Lượt hỏi: hai đáp án khác chữ có cùng kết quả hay không. */
+export function parseHomeworkSame(raw: unknown): HomeworkSameVerdict[] | null {
+  const problems = problemRows(raw)
+  if (!problems) return null
+  const out: HomeworkSameVerdict[] = []
+  for (const row of problems) {
+    if (!row || typeof row !== 'object') continue
+    const item = row as Record<string, unknown>
+    const index = Number(item.index)
+    if (!Number.isInteger(index) || index < 0 || index > 7) continue
+    out.push({ index, same: item.same === true })
+  }
+  return out
+}
+
+/** Lượt hỏi thứ ba: GPT giống DeepSeek, giống Gemini, hay không giống ai. */
+export function parseHomeworkSide(raw: unknown): HomeworkSideVerdict[] | null {
+  const problems = problemRows(raw)
+  if (!problems) return null
+  const out: HomeworkSideVerdict[] = []
+  for (const row of problems) {
+    if (!row || typeof row !== 'object') continue
+    const item = row as Record<string, unknown>
+    const index = Number(item.index)
+    if (!Number.isInteger(index) || index < 0 || index > 7) continue
+    const sideText = cleanLine(item.side, 16).toLowerCase()
+    const side = sideText === 'draft' || sideText === 'check' || sideText === 'none' ? sideText : 'none'
+    out.push({ index, side })
+  }
+  return out
+}
+
 export function parseHomeworkPicks(raw: unknown): HomeworkAnswerPick[] | null {
   if (!raw || typeof raw !== 'object') return null
   const problems = (raw as Record<string, unknown>).problems
@@ -247,7 +295,8 @@ function lineLeaks(line: string, cores: string[]): boolean {
 
 export function mergeCheckedProblem(
   draft: HomeworkProblem,
-  check: HomeworkProblemCheck | null
+  check: HomeworkProblemCheck | null,
+  options?: { trust?: boolean }
 ): { problem: HomeworkProblem; cacheable: boolean } {
   const tags = draft.tags ?? []
   if (!check) {
@@ -263,9 +312,7 @@ export function mergeCheckedProblem(
       cacheable: false,
     }
   }
-  const confirmed = new Set(check.knowledge.filter((item) => item.ok).map((item) => item.index))
-  const knowledge = draft.knowledge.filter((_, index) => confirmed.has(index))
-  const agreed = answersAgree(draft.answer, check.answer, draft.statement)
+  const agreed = options?.trust === true || answersAgree(draft.answer, check.answer, draft.statement)
   const revealed = freshResultTokens(`${draft.answer}\n${check.answer}`, draft.statement)
   const hideResult = (line: string) => !revealed.some((token) => lineHasResult(line, token))
   const cores = [draft.answer, check.answer]
@@ -276,7 +323,7 @@ export function mergeCheckedProblem(
     return {
       problem: {
         ...draft,
-        knowledge: knowledge.filter(hideResult),
+        knowledge: draft.knowledge.filter(hideResult),
         thinking: draft.thinking.filter(hideResult),
         hints: draft.hints.filter(hideResult),
         answer: draft.answer.trim(),
@@ -288,7 +335,7 @@ export function mergeCheckedProblem(
   return {
     problem: {
       statement: draft.statement,
-      knowledge,
+      knowledge: draft.knowledge.filter((line) => !lineLeaks(line, cores)),
       thinking: draft.thinking.filter((line) => !lineLeaks(line, cores)),
       hints: draft.hints.filter((line) => !lineLeaks(line, cores)),
       answer: '',
@@ -318,9 +365,14 @@ function chosenSideAnswer(
   draftAnswer: string,
   checkAnswer: string,
   statement: string,
-  verdict: HomeworkAnswerPick | null
+  verdict: HomeworkAnswerPick | null,
+  trust: boolean
 ): string {
   if (!verdict || verdict.pick === 'none') return ''
+  if (trust) {
+    if (verdict.pick === 'draft') return draftAnswer.trim()
+    return verdict.answer.trim()
+  }
   const chosen = verdict.pick === 'draft' ? draftAnswer : checkAnswer
   if (!chosen.trim()) return ''
   if (!answersAgree(verdict.answer, chosen, statement)) return ''
@@ -332,13 +384,12 @@ export function mergeAdjudicatedProblem(
   draft: HomeworkProblem,
   check: HomeworkProblemCheck,
   verdict: HomeworkAnswerPick | null,
-  grades: HomeworkKnowledgeVerdict[] = []
+  options?: { trust?: boolean }
 ): { problem: HomeworkProblem; cacheable: boolean } {
-  const chosen = chosenSideAnswer(draft.answer, check.answer, draft.statement, verdict)
+  const chosen = chosenSideAnswer(draft.answer, check.answer, draft.statement, verdict, options?.trust === true)
   if (!chosen) {
-    return mergeCheckedProblem(draft, { ...check, knowledge: grades })
+    return mergeCheckedProblem(draft, check)
   }
-  const confirmed = new Set(grades.filter((item) => item.ok).map((item) => item.index))
   const revealed = freshResultTokens(`${draft.answer}\n${check.answer}`, draft.statement)
   const hideResult = (line: string) => !revealed.some((token) => lineHasResult(line, token))
   const cores = [draft.answer, check.answer]
@@ -349,7 +400,7 @@ export function mergeAdjudicatedProblem(
   return {
     problem: {
       ...draft,
-      knowledge: draft.knowledge.filter((_, index) => confirmed.has(index)).filter(keepLine),
+      knowledge: draft.knowledge.filter(keepLine),
       thinking: draft.thinking.filter(keepLine),
       hints: draft.hints.filter(keepLine),
       answer: chosen,
