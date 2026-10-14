@@ -14,7 +14,7 @@ import {
   useTransition,
 } from 'react'
 import { createPortal } from 'react-dom'
-import type { ChangeEvent, ClipboardEvent, RefObject } from 'react'
+import type { ChangeEvent, RefObject } from 'react'
 import { resolvePercentDepositAmount } from '@/lib/messaging/partner-deposit-amount'
 import { Button } from '@/components/ui/button'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
@@ -1446,7 +1446,8 @@ type GuestChatDraftComposerProps = {
   uploading: boolean
   sending: boolean
   tryOnBusy: boolean
-  onDraftPaste: (e: ClipboardEvent<HTMLTextAreaElement>) => void
+  onPasteImages: (files: File[]) => void
+  onPasteImageError: (code: 'failed' | 'too-large' | 'blocked') => void
   onToggleTryOn: () => void
   galleryInputRef: RefObject<HTMLInputElement | null>
   cameraInputRef: RefObject<HTMLInputElement | null>
@@ -1482,7 +1483,8 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
   uploading,
   sending,
   tryOnBusy,
-  onDraftPaste,
+  onPasteImages,
+  onPasteImageError,
   onToggleTryOn,
   galleryInputRef,
   cameraInputRef,
@@ -1525,7 +1527,8 @@ const GuestChatDraftComposer = memo(function GuestChatDraftComposer({
         onSubmit={() => {
           if (!sending) void send()
         }}
-        onPaste={onDraftPaste}
+        onPasteImages={onPasteImages}
+        onPasteImageError={onPasteImageError}
         onFocus={(event) => {
           onComposerFocusChange?.(true)
           const el = event.currentTarget
@@ -4776,29 +4779,16 @@ export function PartnerGuestChatClient({
     if (f) void uploadFiles([f])
   }
 
-  const onDraftPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    if (uploading || sending || tryOnBusy) return
-    const cd = e.clipboardData
-    if (!cd) return
-    const attachFirstImage = (f: File | null) => {
-      if (!f?.type.startsWith('image/')) return false
-      e.preventDefault()
-      void uploadFiles([f])
-      return true
-    }
-    const { files, items } = cd
-    if (files?.length) {
-      for (let i = 0; i < files.length; i++) {
-        if (attachFirstImage(files[i])) return
-      }
-    }
-    if (items?.length) {
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i]
-        if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
-        if (attachFirstImage(it.getAsFile())) return
-      }
-    }
+  const onPasteImages = (incoming: File[]) => {
+    if (uploading || sending || tryOnBusy || !incoming.length) return
+    void uploadFiles(incoming)
+  }
+
+  const onPasteImageError = (code: 'failed' | 'too-large' | 'blocked') => {
+    toast({
+      title: code === 'too-large' ? t.guestImageTooLarge : t.guestImageInvalidType,
+      variant: 'destructive',
+    })
   }
 
   const runTryOn = async () => {
@@ -7872,7 +7862,8 @@ export function PartnerGuestChatClient({
                 uploading={uploading}
                 sending={sending}
                 tryOnBusy={tryOnBusy}
-                onDraftPaste={onDraftPaste}
+                onPasteImages={onPasteImages}
+                onPasteImageError={onPasteImageError}
                 onToggleTryOn={toggleTryOnPanel}
                 galleryInputRef={galleryInputRef}
                 cameraInputRef={cameraInputRef}

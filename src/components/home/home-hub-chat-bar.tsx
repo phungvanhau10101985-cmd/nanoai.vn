@@ -42,6 +42,7 @@ import { HubStudioActiveStepPreview, HubStudioMessageBubble, HubStudioMessageTim
 import type { HubChatThreadSummary, HubMultiTaskPlanRow } from '@/lib/db/hub-chat-pg'
 import { UI_MOCKUP_CREDIT, normalizeStudioSession, type HubStudioMessagePayload, type HubStudioProcessStep, type HubStudioSession } from '@/lib/hub-chat/hub-studio-types'
 import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
+import { clipboardHasImagePayload, resolvePastedImages } from '@/lib/chat/paste-image-client'
 import { pendingPreviewBlocksWorkflowInput } from '@/lib/hub-chat/hub-studio-step-preview'
 
 function withClientStudioSession(
@@ -4363,6 +4364,25 @@ export function HomeHubChatBar() {
                   rows={3}
                   disabled={busy}
                   className="min-h-[80px] w-full min-w-0 flex-1 resize-y text-sm"
+                  onPaste={(event) => {
+                    if (busy || !showStudioUpload || !clipboardHasImagePayload(event.clipboardData)) return
+                    event.preventDefault()
+                    const field = event.currentTarget
+                    void resolvePastedImages(event.clipboardData).then((outcome) => {
+                      if (outcome.action === 'files') {
+                        void postStudioUpload(outcome.files)
+                        return
+                      }
+                      if (outcome.action === 'insert') {
+                        const current = field.value
+                        const start = field.selectionStart ?? current.length
+                        const end = field.selectionEnd ?? current.length
+                        setMessage(`${current.slice(0, start)}${outcome.text}${current.slice(end)}`)
+                        return
+                      }
+                      if (outcome.action === 'error') toast({ title: hc.errorGeneric, variant: 'destructive' })
+                    })
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()

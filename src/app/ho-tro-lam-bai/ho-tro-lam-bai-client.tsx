@@ -201,11 +201,12 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     urlsRef.current = urlsRef.current.filter((item) => item !== url)
   }
 
-  function queuePhotos(list: FileList | null) {
+  function queuePhotos(list: FileList | readonly File[] | null) {
     if (!list?.length || busyRef.current || !ready || cropQueue.length > 0) return
-    const picked = [...list].slice(0, MAX_IMAGES - files.length)
+    const incoming = [...list].filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
+    const picked = incoming.slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
-      setError(copy.errors.too_many)
+      setError(incoming.length ? copy.errors.too_many : copy.errors.bad_type)
       return
     }
     setError('')
@@ -589,6 +590,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         emojiLabel={copy.emoji}
         disabled={!ready || busy}
         canSend={Boolean(text.trim()) || files.length > 0}
+        onPasteImages={(incoming) => queuePhotos(incoming)}
+        onPasteImageError={(code) => setError(code === 'too-large' ? copy.errors.too_large : copy.errors.paste_failed)}
         tools={
           <>
             <div className="md:hidden">

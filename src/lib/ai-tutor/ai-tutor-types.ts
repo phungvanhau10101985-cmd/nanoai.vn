@@ -31,4 +31,13 @@ export type TutorSessionSummary = {
   messageCount: number
 }
 
-export type TutorErrorCode = 'unauthorized' | 'missing_text' | 'ai_unavailable' | 'new_thread_failed' | 'payment_required'
+export type TutorErrorCode =
+  | 'unauthorized'
+  | 'missing_text'
+  | 'ai_unavailable'
+  | 'new_thread_failed'
+  | 'payment_required'
+  | 'bad_type'
+  | 'too_large'
+  | 'too_many'
+  | 'unreadable'

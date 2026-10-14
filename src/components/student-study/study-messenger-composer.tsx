@@ -11,6 +11,7 @@ import {
   type RefObject,
 } from 'react'
 import { ChevronRight, Loader2, Send, Smile, ThumbsUp } from 'lucide-react'
+import { clipboardHasImagePayload, resolvePastedImages } from '@/lib/chat/paste-image-client'
 import type { WebLocale } from '@/lib/i18n/config'
 import { cn } from '@/lib/utils'
 
@@ -51,6 +52,9 @@ type Props = {
   sending?: boolean
   tools: ReactNode
   onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void
+  /** Ctrl+V ảnh, hoặc dán một link http(s). Link không phải ảnh được giữ lại thành chữ. */
+  onPasteImages?: (files: File[]) => void | Promise<void>
+  onPasteImageError?: (code: 'failed' | 'too-large' | 'blocked') => void
   onFocus?: (event: FocusEvent<HTMLTextAreaElement>) => void
   onBlur?: () => void
   /** Đánh dấu ô khách để khung chat không kéo thêm khi bàn phím mở. */
@@ -113,6 +117,8 @@ export function StudyMessengerComposer({
   sending = false,
   tools,
   onPaste,
+  onPasteImages,
+  onPasteImageError,
   onFocus,
   onBlur,
   guestComposerInput = false,
@@ -120,6 +126,7 @@ export function StudyMessengerComposer({
 }: Props) {
   const pinnedOpen = useRef(false)
   const emojiRootRef = useRef<HTMLDivElement | null>(null)
+  const pasteLock = useRef(false)
   const [toolsOpen, setToolsOpen] = useState(true)
   const [multi, setMulti] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -161,6 +168,44 @@ export function StudyMessengerComposer({
     document.addEventListener('pointerdown', close)
     return () => document.removeEventListener('pointerdown', close)
   }, [emojiOpen])
+
+  function insertAtCaret(snippet: string) {
+    const field = inputRef.current
+    const current = field?.value ?? value
+    const start = field?.selectionStart ?? current.length
+    const end = field?.selectionEnd ?? current.length
+    const next = `${current.slice(0, start)}${snippet}${current.slice(end)}`
+    onChange(next)
+    const caret = start + snippet.length
+    window.requestAnimationFrame(() => {
+      field?.focus()
+      field?.setSelectionRange(caret, caret)
+    })
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    if (disabled || !onPasteImages) {
+      onPaste?.(event)
+      return
+    }
+    if (!clipboardHasImagePayload(event.clipboardData)) {
+      onPaste?.(event)
+      return
+    }
+    event.preventDefault()
+    if (pasteLock.current) return
+    pasteLock.current = true
+    void resolvePastedImages(event.clipboardData)
+      .then(async (outcome) => {
+        if (outcome.action === 'files') await onPasteImages(outcome.files)
+        else if (outcome.action === 'insert') insertAtCaret(outcome.text)
+        else if (outcome.action === 'error') onPasteImageError?.(outcome.code)
+      })
+      .catch(() => onPasteImageError?.('failed'))
+      .finally(() => {
+        pasteLock.current = false
+      })
+  }
 
   function insertEmoji(emoji: string) {
     const field = inputRef.current
@@ -233,7 +278,7 @@ export function StudyMessengerComposer({
           data-guest-composer-input={guestComposerInput ? '1' : undefined}
           className="min-h-9 min-w-0 flex-1 resize-none break-words bg-transparent px-2.5 py-2 text-[15px] leading-5 text-foreground outline-none placeholder:overflow-hidden placeholder:text-ellipsis placeholder:whitespace-nowrap placeholder:text-[#65676B] disabled:opacity-60"
           onChange={(event) => onChange(event.target.value)}
-          onPaste={onPaste}
+          onPaste={handlePaste}
           onFocus={onFocus}
           onBlur={onBlur}
           onKeyDown={(event) => {

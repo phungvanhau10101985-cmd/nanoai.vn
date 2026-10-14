@@ -398,6 +398,66 @@ export async function askTutor(input: {
   return fresh
 }
 
+async function readPhotoQuestion(input: {
+  userId: string
+  locale: WebLocale
+  images: Array<{ mimeType: string; base64: string }>
+}): Promise<string | null> {
+  if (!input.images.length) return null
+  let genAI: GoogleGenerativeAI
+  try {
+    genAI = await createGoogleGenerativeAIForUser(input.userId)
+  } catch (error) {
+    console.warn('[ai-tutor] missing Gemini key', error instanceof Error ? error.message : error)
+    return null
+  }
+  const model = genAI.getGenerativeModel({
+    model: AI_TUTOR_DRAFT_MODEL,
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 1500,
+      responseMimeType: 'application/json',
+    },
+  })
+  const prompt = `You read a photo a student pasted into a tutor chat. Write in ${languageName(input.locale)}.
+Return ONLY JSON: {"question":"..."}
+Rules:
+- If the photo shows a school problem, transcribe that problem in full as the question. Keep every formula, number, and unit.
+- If the photo is a diagram or a page of notes, write the question the student needs explained.
+- Do not solve it.
+- If the photo has no question, return an empty question.`
+  const parts: Array<string | { inlineData: { mimeType: string; data: string } }> = [
+    prompt,
+    ...input.images.map((image) => ({ inlineData: { mimeType: image.mimeType, data: image.base64 } })),
+  ]
+  try {
+    const result = (await model.generateContent(parts)) as GeminiTextResult
+    void trackFromUsageMetadata(result.response.usageMetadata, AI_TUTOR_DRAFT_MODEL, 'ai-tutor-photo', input.userId).catch(
+      () => undefined
+    )
+    const parsed = parseJsonObject(readGeminiText(result)) as { question?: unknown } | null
+    const question = typeof parsed?.question === 'string' ? parsed.question.trim() : ''
+    return question || null
+  } catch (error) {
+    console.warn('[ai-tutor] photo read failed', error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
+/** Ảnh dán vào chat gia sư được đọc thành câu hỏi, rồi đi cùng luồng chữ. */
+export async function askTutorAboutPhoto(input: {
+  userId: string
+  locale: WebLocale
+  text: string
+  images: Array<{ mimeType: string; base64: string }>
+}): Promise<TutorAnswer | 'unreadable' | null> {
+  const caption = input.text.trim()
+  const seen = await readPhotoQuestion(input)
+  const question = [caption, seen ?? ''].map((part) => part.trim()).filter(Boolean).join('\n\n').slice(0, 2000)
+  if (!question) return seen == null && input.images.length ? 'unreadable' : null
+  return askTutor({ userId: input.userId, locale: input.locale, text: question })
+}
+
 /** Đọc hoặc soạn một nhãn trong kho chủ đề. Không ghi vào chat gia sư. Bài tập và gia sư dùng chung hàm này. */
 export async function resolveSharedTutorTopic(input: {
   userId: string

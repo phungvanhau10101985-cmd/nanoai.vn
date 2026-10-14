@@ -50,20 +50,24 @@ function sameBox(a: ImgBox, b: ImgBox): boolean {
   )
 }
 
-function readImgBox(stage: HTMLElement): ImgBox | null {
-  const img = stage.querySelector('img')
-  if (!img?.naturalWidth || !img.naturalHeight) return null
-  const bounds = stage.getBoundingClientRect()
-  if (bounds.width < 8 || bounds.height < 8) return null
-  const scale = Math.min(bounds.width / img.naturalWidth, bounds.height / img.naturalHeight)
-  const w = img.naturalWidth * scale
-  const h = img.naturalHeight * scale
+/** Hộp ảnh và khung cắt dùng cùng số pixel. object-contain vẽ lệch vài px so với công thức riêng. */
+function fitContainBox(stageW: number, stageH: number, natW: number, natH: number): ImgBox | null {
+  if (stageW < 8 || stageH < 8 || natW < 1 || natH < 1) return null
+  const scale = Math.min(stageW / natW, stageH / natH)
+  const w = Math.max(1, Math.round(natW * scale))
+  const h = Math.max(1, Math.round(natH * scale))
   return {
-    x: (bounds.width - w) / 2,
-    y: (bounds.height - h) / 2,
+    x: Math.round((stageW - w) / 2),
+    y: Math.round((stageH - h) / 2),
     w,
     h,
   }
+}
+
+function readImgBox(stage: HTMLElement): ImgBox | null {
+  const img = stage.querySelector('img')
+  if (!img?.naturalWidth || !img.naturalHeight) return null
+  return fitContainBox(stage.clientWidth, stage.clientHeight, img.naturalWidth, img.naturalHeight)
 }
 
 /** Ghim sheet vào visual viewport. 100dvh nhảy khi thanh trình duyệt hiện/ẩn sau lúc chụp ảnh. */
@@ -322,7 +326,12 @@ export function ImageRegionPicker({
               src={url}
               alt=""
               draggable={false}
-              className="pointer-events-none absolute inset-0 h-full w-full object-contain"
+              className="pointer-events-none absolute max-w-none"
+              style={
+                imgBox.w > 0
+                  ? { left: imgBox.x, top: imgBox.y, width: imgBox.w, height: imgBox.h }
+                  : { width: 0, height: 0 }
+              }
               onLoad={() => {
                 const stage = stageRef.current
                 if (!stage) return

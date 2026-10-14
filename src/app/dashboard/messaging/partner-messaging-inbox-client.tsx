@@ -465,29 +465,17 @@ export function PartnerMessagingInboxClient({
     if (f) void uploadPartnerImage(f)
   }
 
-  const onReplyPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+  const onPasteImages = (incoming: File[]) => {
     if (!selectedPartnerId || uploading || pending) return
-    const cd = e.clipboardData
-    if (!cd) return
-    const attachFirstImage = (f: File | null) => {
-      if (!f?.type.startsWith('image/')) return false
-      e.preventDefault()
-      void uploadPartnerImage(f)
-      return true
-    }
-    const { files, items } = cd
-    if (files?.length) {
-      for (let i = 0; i < files.length; i++) {
-        if (attachFirstImage(files[i])) return
-      }
-    }
-    if (items?.length) {
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i]
-        if (it.kind !== 'file' || !it.type.startsWith('image/')) continue
-        if (attachFirstImage(it.getAsFile())) return
-      }
-    }
+    const file = incoming.find((item) => item.type.startsWith('image/'))
+    if (file) void uploadPartnerImage(file)
+  }
+
+  const onPasteImageError = (code: 'failed' | 'too-large' | 'blocked') => {
+    toast({
+      title: code === 'too-large' ? t.partnerImageTooLarge : t.partnerImageInvalidType,
+      variant: 'destructive',
+    })
   }
 
   const canSend = Boolean(selectedPartnerId && selectedConvId && (draft.trim() || imageStoragePath) && !uploading)
@@ -1058,7 +1046,8 @@ export function PartnerMessagingInboxClient({
                   onSubmit={() => {
                     if (!pending && canSend) send()
                   }}
-                  onPaste={onReplyPaste}
+                  onPasteImages={onPasteImages}
+                  onPasteImageError={onPasteImageError}
                   placeholder={t.replyPlaceholder}
                   sendLabel={t.send}
                   showToolsLabel={chrome.showTools}

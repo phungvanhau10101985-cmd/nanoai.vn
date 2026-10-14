@@ -104,6 +104,7 @@ const VI: HomeworkHelpCopy = {
     missing_text: 'Gõ đề bài trước.',
     new_thread_failed: 'Không tạo được hội thoại mới.',
     payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để dùng hỗ trợ làm bài.',
+    paste_failed: 'Không lấy được ảnh từ clipboard hoặc link. Thử lại, hoặc chọn ảnh từ máy.',
   },
 }
 
@@ -164,6 +165,7 @@ const EN: HomeworkHelpCopy = {
     missing_text: 'Type the problem first.',
     new_thread_failed: 'Could not start a new chat.',
     payment_required: 'The student plan is not active this period. Buy it to use homework help.',
+    paste_failed: 'Could not read that image from the clipboard or link. Try again, or choose a file.',
   },
 }
 
@@ -223,6 +225,7 @@ const ZH: HomeworkHelpCopy = {
     missing_text: '请先输入题目。',
     new_thread_failed: '无法新建对话。',
     payment_required: '本期学生套餐未开通。购买后才能使用作业辅导。',
+    paste_failed: '无法从剪贴板或链接读取图片。请重试，或从设备选择图片。',
   },
 }
 
@@ -283,6 +286,7 @@ const JA: HomeworkHelpCopy = {
     missing_text: '先に問題を入力してください。',
     new_thread_failed: '新しい会話を作れませんでした。',
     payment_required: 'この期間の生徒プランが未開通です。購入すると宿題サポートを使えます。',
+    paste_failed: 'クリップボードまたはリンクから画像を読めませんでした。もう一度試すか、端末から選んでください。',
   },
 }
 
@@ -343,6 +347,7 @@ const KO: HomeworkHelpCopy = {
     missing_text: '먼저 문제를 입력하세요.',
     new_thread_failed: '새 대화를 만들지 못했습니다.',
     payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 숙제 도우미를 쓸 수 있습니다.',
+    paste_failed: '클립보드나 링크에서 이미지를 읽지 못했습니다. 다시 시도하거나 기기에서 고르세요.',
   },
 }
 

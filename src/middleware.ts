@@ -200,7 +200,15 @@ function rewritePublishedCustomDomain(
   return partnerCustomDomainRewrite(request, rewriteUrl, host, internalPath, siteSlug)
 }
 
+/** Next 14 action id là SHA1 hex 40 ký tự. "x", "0", "action" là request rác. */
+const SERVER_ACTION_ID = /^[a-f0-9]{40}$/i
+
 export async function middleware(request: NextRequest) {
+  const nextAction = request.headers.get('next-action')
+  if (nextAction !== null && !SERVER_ACTION_ID.test(nextAction)) {
+    return new NextResponse(null, { status: 404 })
+  }
+
   const hostHeader =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ||
     request.headers.get('host')?.split(',')[0]?.trim() ||

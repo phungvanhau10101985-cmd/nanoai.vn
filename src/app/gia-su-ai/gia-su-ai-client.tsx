@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
-import { Check, History, Loader2, MessageSquarePlus } from 'lucide-react'
+import { Check, History, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { StudyCacheMark } from '@/components/student-study/study-cache-mark'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { StudyComposerTool, StudyMessengerComposer } from '@/components/student-study/study-messenger-composer'
 import type { WebLocale } from '@/lib/i18n/config'
 import { aiTutorCopy } from '@/lib/ai-tutor/ai-tutor-copy'
+import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { tutorNextBubbleDelayMs, tutorReplyBubbles, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
 import type { TutorAnswer, TutorSessionSummary, TutorThreadMessage } from '@/lib/ai-tutor/ai-tutor-types'
 import {
@@ -17,6 +18,7 @@ import {
   loadTutorThread,
   openTutorHistoryThread,
   openTutorLabelAction,
+  sendTutorPhoto,
   sendTutorQuestion,
   startTutorThread,
 } from '@/app/gia-su-ai/actions'
@@ -31,7 +33,10 @@ type Props = {
   locale: WebLocale
 }
 
+const MAX_IMAGES = 3
+
 type TutorChatLine = TutorThreadMessage & {
+  images?: string[]
   bubbleSection?: 'explain' | 'practice'
   showHeading?: boolean
   showSectionLabel?: boolean
@@ -102,7 +107,7 @@ function localId(): string {
   return `local-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-function userTurn(body: string, kind: 'question' | 'label'): TutorThreadMessage {
+function userTurn(body: string, kind: 'question' | 'label', images: string[] = []): TutorChatLine {
   return {
     id: localId(),
     role: 'user',
@@ -111,6 +116,7 @@ function userTurn(body: string, kind: 'question' | 'label'): TutorThreadMessage 
     kind,
     answer: null,
     createdAt: new Date().toISOString(),
+    images,
   }
 }
 
@@ -148,6 +154,8 @@ export default function GiaSuAiClient({ locale }: Props) {
   const copy = aiTutorCopy(locale)
   const [messages, setMessages] = useState<TutorChatLine[]>([])
   const [text, setText] = useState('')
+  const [files, setFiles] = useState<File[]>([])
+  const [previews, setPreviews] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
@@ -161,9 +169,16 @@ export default function GiaSuAiClient({ locale }: Props) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
+  const urlsRef = useRef<string[]>([])
   const frame = useMobileToolChatFrame()
 
-  useEffect(() => () => cancelRevealRef.current?.(), [])
+  useEffect(
+    () => () => {
+      cancelRevealRef.current?.()
+      for (const url of urlsRef.current) URL.revokeObjectURL(url)
+    },
+    []
+  )
 
   function placeComposer() {
     const scroller = scrollerRef.current
@@ -206,7 +221,7 @@ export default function GiaSuAiClient({ locale }: Props) {
     const scroller = scrollerRef.current
     if (!scroller) return
     scroller.scrollTo({ top: scroller.scrollHeight })
-  }, [messages, busy])
+  }, [messages, busy, previews.length])
 
   async function ask(
     pending: TutorThreadMessage,
@@ -247,14 +262,82 @@ export default function GiaSuAiClient({ locale }: Props) {
     setBusy(false)
   }
 
+  function remember(url: string) {
+    urlsRef.current.push(url)
+    return url
+  }
+
+  function dropPreview(url: string) {
+    URL.revokeObjectURL(url)
+    urlsRef.current = urlsRef.current.filter((item) => item !== url)
+  }
+
+  function clearDraftImages() {
+    for (const url of urlsRef.current) URL.revokeObjectURL(url)
+    urlsRef.current = []
+    setFiles([])
+    setPreviews([])
+  }
+
+  async function addPhotos(list: readonly File[]) {
+    if (busyRef.current || !ready) return
+    const incoming = list.filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
+    const room = MAX_IMAGES - files.length
+    const picked = incoming.slice(0, room)
+    if (!picked.length) {
+      setError(incoming.length ? copy.errors.too_many : copy.errors.bad_type)
+      return
+    }
+    setError('')
+    const compressed: File[] = []
+    for (const file of picked) compressed.push(await compressEssayImageForUpload(file))
+    const ready = compressed.filter((file) => file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp')
+    if (!ready.length) {
+      setError(copy.errors.bad_type)
+      return
+    }
+    setFiles((current) => [...current, ...ready].slice(0, MAX_IMAGES))
+    setPreviews((current) => [...current, ...ready.map((file) => remember(URL.createObjectURL(file)))].slice(0, MAX_IMAGES))
+  }
+
+  function removePhoto(index: number) {
+    setFiles((current) => current.filter((_, i) => i !== index))
+    setPreviews((current) => {
+      const removed = current[index]
+      if (removed) dropPreview(removed)
+      return current.filter((_, i) => i !== index)
+    })
+  }
+
   async function send() {
     const question = text.trim()
-    if (!question || busyRef.current) {
-      if (!question) setError(copy.errors.missing_text)
+    const shot = files
+    const shotPreviews = previews
+    if (busyRef.current) return
+    if (!question && shot.length === 0) {
+      setError(copy.errors.missing_text)
       return
     }
     setText('')
-    await ask(userTurn(question, 'question'), () => sendTutorQuestion({ locale, text: question }), () => setText(question))
+    setFiles([])
+    setPreviews([])
+    const restore = () => {
+      setText(question)
+      setFiles(shot)
+      setPreviews(shotPreviews)
+    }
+    await ask(
+      userTurn(question, 'question', shotPreviews),
+      () => {
+        if (!shot.length) return sendTutorQuestion({ locale, text: question })
+        const formData = new FormData()
+        formData.set('locale', locale)
+        if (question) formData.set('text', question)
+        for (const file of shot) formData.append('images', file)
+        return sendTutorPhoto(formData)
+      },
+      restore
+    )
   }
 
   const loadHistory = useCallback(async () => {
@@ -298,6 +381,7 @@ export default function GiaSuAiClient({ locale }: Props) {
     setSessionId(result.data.sessionId)
     setMessages([])
     setText('')
+    clearDraftImages()
     placeComposerSoon()
   }
 
@@ -329,6 +413,7 @@ export default function GiaSuAiClient({ locale }: Props) {
     setSessionId(result.data.sessionId)
     setMessages(linesFromStored(result.data.messages))
     setText('')
+    clearDraftImages()
     placeComposerSoon()
   }
 
@@ -366,12 +451,19 @@ export default function GiaSuAiClient({ locale }: Props) {
           ) : null}
           {messages.map((message) =>
             message.role === 'user' ? (
-              <p
-                key={message.id}
-                className="ml-auto max-w-[85%] rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6"
-              >
-                {message.body}
-              </p>
+              <div key={message.id} className="ml-auto flex max-w-[85%] flex-col items-end gap-2">
+                {message.images && message.images.length > 0 ? (
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {message.images.map((url) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img key={url} src={url} alt="" className="h-24 w-24 rounded-xl object-cover" />
+                    ))}
+                  </div>
+                ) : null}
+                {message.body ? (
+                  <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6">{message.body}</p>
+                ) : null}
+              </div>
             ) : (
               <article key={message.id} className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
                 {message.showHeading !== false &&
@@ -495,6 +587,24 @@ export default function GiaSuAiClient({ locale }: Props) {
             </div>
           </DialogContent>
         </Dialog>
+        {previews.length > 0 ? (
+          <div className="flex shrink-0 gap-2 overflow-x-auto border-b bg-background px-3 py-2">
+            {previews.map((url, index) => (
+              <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border bg-muted/30">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="h-full w-full object-cover" />
+                <button
+                  type="button"
+                  className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 text-muted-foreground shadow"
+                  aria-label={copy.removeImage}
+                  onClick={() => removePhoto(index)}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
         <StudyMessengerComposer
           id="gia-su-composer"
@@ -507,7 +617,9 @@ export default function GiaSuAiClient({ locale }: Props) {
           showToolsLabel={copy.showTools}
           emojiLabel={copy.emoji}
           disabled={!ready || busy}
-          canSend={Boolean(text.trim())}
+          canSend={Boolean(text.trim()) || files.length > 0}
+          onPasteImages={(incoming) => void addPhotos(incoming)}
+          onPasteImageError={(code) => setError(code === 'too-large' ? copy.errors.too_large : copy.pasteFailed)}
           tools={
             <>
               <StudyComposerTool label={copy.newThread} disabled={!ready || busy} onClick={() => void beginNewThread()}>

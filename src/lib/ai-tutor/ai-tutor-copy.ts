@@ -17,6 +17,9 @@ export type AiTutorCopy = {
   historyEmpty: string
   historyClose: string
   historyLoading: string
+  photoTurn: string
+  removeImage: string
+  pasteFailed: string
   share: Record<TutorShare, string>
   errors: Record<TutorErrorCode, string>
 }
@@ -43,12 +46,19 @@ const VI: AiTutorCopy = {
   historyEmpty: 'Chưa có hội thoại nào với giáo viên.',
   historyClose: 'Đóng lịch sử',
   historyLoading: 'Đang tải lịch sử…',
+  photoTurn: 'Ảnh câu hỏi',
+  removeImage: 'Gỡ ảnh',
+  pasteFailed: 'Không lấy được ảnh từ clipboard hoặc link. Thử lại.',
   errors: {
     unauthorized: 'Đăng nhập để học với gia sư.',
-    missing_text: 'Gõ câu hỏi trước khi gửi.',
+    missing_text: 'Gõ câu hỏi hoặc dán ảnh trước khi gửi.',
     ai_unavailable: 'Gia sư chưa trả lời được. Thử lại sau.',
     new_thread_failed: 'Không tạo được hội thoại mới.',
     payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để chat với gia sư.',
+    bad_type: 'Chỉ nhận ảnh JPEG, PNG hoặc WebP.',
+    too_large: 'Ảnh quá lớn. Mỗi ảnh tối đa 6MB.',
+    too_many: 'Tối đa 3 ảnh mỗi lượt.',
+    unreadable: 'Không đọc được nội dung ảnh. Chụp rõ hơn rồi thử lại.',
   },
 }
 
@@ -74,12 +84,19 @@ const EN: AiTutorCopy = {
   historyEmpty: 'No chats with the teacher yet.',
   historyClose: 'Close history',
   historyLoading: 'Loading history…',
+  photoTurn: 'Question photo',
+  removeImage: 'Remove',
+  pasteFailed: 'Could not read that image from the clipboard or link. Try again.',
   errors: {
     unauthorized: 'Sign in to study with the tutor.',
-    missing_text: 'Type a question before sending.',
+    missing_text: 'Type a question or paste a photo before sending.',
     ai_unavailable: 'The tutor could not answer. Try again later.',
     new_thread_failed: 'Could not start a new chat.',
     payment_required: 'The student plan is not active this period. Buy it to chat with the tutor.',
+    bad_type: 'Use a JPEG, PNG, or WebP photo.',
+    too_large: 'Photo is too large. Each photo can be up to 6MB.',
+    too_many: 'Up to 3 photos at a time.',
+    unreadable: 'Could not read this photo. Take a clearer picture and try again.',
   },
 }
 
@@ -105,12 +122,19 @@ const ZH: AiTutorCopy = {
   historyEmpty: '还没有和老师的对话。',
   historyClose: '关闭记录',
   historyLoading: '正在加载记录…',
+  photoTurn: '题目照片',
+  removeImage: '移除',
+  pasteFailed: '无法从剪贴板或链接读取图片。请重试。',
   errors: {
     unauthorized: '登录后才能和家教学习。',
-    missing_text: '先写下问题再发送。',
+    missing_text: '先写下问题或粘贴图片再发送。',
     ai_unavailable: '家教暂时答不了。请稍后再试。',
     new_thread_failed: '没能开始新对话。',
     payment_required: '本期学生套餐未开通。购买后才能和家教聊天。',
+    bad_type: '只接受 JPEG、PNG 或 WebP。',
+    too_large: '照片太大。每张最多 6MB。',
+    too_many: '每次最多 3 张照片。',
+    unreadable: '读不清这张照片。请拍清楚再试。',
   },
 }
 
@@ -136,12 +160,19 @@ const JA: AiTutorCopy = {
   historyEmpty: '先生との会話はまだありません。',
   historyClose: '履歴を閉じる',
   historyLoading: '履歴を読み込み中…',
+  photoTurn: '質問の写真',
+  removeImage: '外す',
+  pasteFailed: 'クリップボードまたはリンクから画像を読めませんでした。もう一度試してください。',
   errors: {
     unauthorized: '家庭教師と学ぶにはログインしてください。',
-    missing_text: '送る前に質問を書いてください。',
+    missing_text: '送る前に質問を書くか、画像を貼ってください。',
     ai_unavailable: '今は答えられません。あとでもう一度試してください。',
     new_thread_failed: '新しい会話を始められませんでした。',
     payment_required: 'この期間の生徒プランが未開通です。購入するとチューターと話せます。',
+    bad_type: 'JPEG、PNG、WebPのみ使えます。',
+    too_large: '写真が大きすぎます。1枚あたり6MBまでです。',
+    too_many: '一度に3枚までです。',
+    unreadable: 'この写真は読めません。はっきり撮ってもう一度お試しください。',
   },
 }
 
@@ -167,12 +198,19 @@ const KO: AiTutorCopy = {
   historyEmpty: '선생님과의 대화가 아직 없습니다.',
   historyClose: '기록 닫기',
   historyLoading: '기록을 불러오는 중…',
+  photoTurn: '질문 사진',
+  removeImage: '빼기',
+  pasteFailed: '클립보드나 링크에서 이미지를 읽지 못했습니다. 다시 시도하세요.',
   errors: {
     unauthorized: '과외 선생님과 공부하려면 로그인하세요.',
-    missing_text: '보내기 전에 질문을 입력하세요.',
+    missing_text: '보내기 전에 질문을 입력하거나 사진을 붙여넣으세요.',
     ai_unavailable: '지금은 답하지 못했습니다. 나중에 다시 시도하세요.',
     new_thread_failed: '새 대화를 시작하지 못했습니다.',
     payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 튜터와 대화할 수 있습니다.',
+    bad_type: 'JPEG, PNG, WebP만 받을 수 있습니다.',
+    too_large: '사진이 너무 큽니다. 한 장당 6MB까지입니다.',
+    too_many: '한 번에 사진은 3장까지입니다.',
+    unreadable: '이 사진을 읽지 못했습니다. 더 선명하게 찍고 다시 시도하세요.',
   },
 }
 
