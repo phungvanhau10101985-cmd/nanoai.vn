@@ -1,8 +1,9 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import type { WebLocale } from '@/lib/i18n/config'
 import { createGoogleGenerativeAIForUser } from '@/lib/ai/google-api-key-resolver'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { AI_TUTOR_CHECK_MODEL, AI_TUTOR_DRAFT_MODEL } from '@/lib/ai-tutor/ai-tutor-models'
+import { DEEPSEEK_CHAT_COMPLETIONS_URL, buildDeepSeekCompletionBody } from '@/lib/deepseek-api'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import { AI_TUTOR_CHECK_MODEL, AI_TUTOR_DRAFT_MODEL, AI_TUTOR_FLASH_MODEL } from '@/lib/ai-tutor/ai-tutor-models'
 import {
   bindLabelsToSaved,
   pickSavedTopicByTag,
@@ -109,6 +110,84 @@ async function generateJson(input: {
   }
 }
 
+/** Soạn và kiểm tra chéo. Thinking bật, effort thấp để còn chỗ viết JSON. */
+const TUTOR_DEEPSEEK_TIMEOUT_MS = 120_000
+
+async function generateDeepSeekJson(input: {
+  userId: string
+  feature: string
+  model: string
+  maxOutputTokens: number
+  prompt: string
+}): Promise<unknown | null> {
+  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!key) {
+    console.warn('[ai-tutor] missing DeepSeek key')
+    return null
+  }
+  try {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(TUTOR_DEEPSEEK_TIMEOUT_MS),
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('verify', {
+          model: input.model,
+          temperature: 0,
+          max_tokens: input.maxOutputTokens,
+          reasoning_effort: 'low',
+          response_format: { type: 'json_object' },
+          messages: [
+            { role: 'system', content: 'Return only a JSON object. No markdown.' },
+            { role: 'user', content: input.prompt },
+          ],
+        })
+      ),
+    })
+    const rawBody = await res.text()
+    const json = (() => {
+      try {
+        return JSON.parse(rawBody) as {
+          choices?: Array<{ message?: { content?: string } }>
+          usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+          error?: { message?: string }
+        }
+      } catch {
+        return null
+      }
+    })()
+    if (!res.ok || !json) {
+      console.warn(
+        '[ai-tutor] deepseek failed',
+        input.feature,
+        res.status,
+        json?.error?.message || rawBody.slice(0, 240) || res.statusText
+      )
+      return null
+    }
+    const text = json.choices?.[0]?.message?.content?.trim() || ''
+    trackOpenAiStyleCompletionUsage({
+      userId: input.userId,
+      model: input.model,
+      feature: input.feature,
+      usage: json.usage,
+      fallbackPromptChars: input.prompt.length,
+      fallbackOutputChars: text.length,
+    })
+    if (!text) {
+      console.warn('[ai-tutor] empty text', input.feature)
+      return null
+    }
+    return parseJsonObject(text)
+  } catch (error) {
+    console.warn('[ai-tutor] deepseek failed', input.feature, error instanceof Error ? error.message : error)
+    return null
+  }
+}
+
 const BROAD_TOPIC =
   /^(toan|ngu-van|van|vat-ly|vat-ly-hoc|hoa|hoa-hoc|sinh|sinh-hoc|lich-su|dia-ly|tieng-anh|physics|math|maths|chemistry|biology|science|history|geography|english|khoa-hoc|tu-nhien)$/
 
@@ -148,7 +227,7 @@ Rules:
   const raw = await generateJson({
     userId: input.userId,
     feature: 'ai-tutor-classify',
-    model: AI_TUTOR_DRAFT_MODEL,
+    model: AI_TUTOR_FLASH_MODEL,
     maxOutputTokens: 2048,
     prompt,
   })
@@ -178,7 +257,7 @@ Rules:
 - labels: exactly 2 or 3 deeper related ideas. key is English kebab-case. title is in ${languageName(input.locale)}, at most 8 words.
 - When a label is the same idea as an existing topic, copy that key and title exactly.
 - Do not repeat the main topic as a label.`
-  const raw = await generateJson({
+  const raw = await generateDeepSeekJson({
     userId: input.userId,
     feature: 'ai-tutor-draft',
     model: AI_TUTOR_DRAFT_MODEL,
@@ -217,7 +296,7 @@ Rules:
 - If a sentence is wrong, rewrite explanation and practice so they are right. Set ok false when you cannot make them right.
 - A label ok is true only when it is a real deeper idea, not a repeat of the question. Keep 2 or 3 labels.
 - Plain text. No markdown.`
-  const raw = await generateJson({
+  const raw = await generateDeepSeekJson({
     userId: input.userId,
     feature: 'ai-tutor-check',
     model: AI_TUTOR_CHECK_MODEL,
@@ -412,7 +491,7 @@ async function readPhotoQuestion(input: {
     return null
   }
   const model = genAI.getGenerativeModel({
-    model: AI_TUTOR_DRAFT_MODEL,
+    model: AI_TUTOR_FLASH_MODEL,
     generationConfig: {
       temperature: 0,
       maxOutputTokens: 1500,
@@ -432,7 +511,7 @@ Rules:
   ]
   try {
     const result = (await model.generateContent(parts)) as GeminiTextResult
-    void trackFromUsageMetadata(result.response.usageMetadata, AI_TUTOR_DRAFT_MODEL, 'ai-tutor-photo', input.userId).catch(
+    void trackFromUsageMetadata(result.response.usageMetadata, AI_TUTOR_FLASH_MODEL, 'ai-tutor-photo', input.userId).catch(
       () => undefined
     )
     const parsed = parseJsonObject(readGeminiText(result)) as { question?: unknown } | null

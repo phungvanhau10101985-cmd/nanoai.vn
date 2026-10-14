@@ -7,7 +7,7 @@ import { hasStudentStudyAccess } from '@/lib/student-study-access'
 import { resolveSharedTutorTopic } from '@/lib/ai-tutor/ai-tutor-ai'
 import type { TutorAnswer } from '@/lib/ai-tutor/ai-tutor-types'
 import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
-import { pgQueryOne } from '@/lib/db/pg-query'
+import { pgQuery } from '@/lib/db/pg-query'
 import { homeworkStatementFingerprint } from '@/lib/homework-help/homework-help-fingerprint'
 import {
   HOMEWORK_SOLUTION_CHARGE_TYPE,
@@ -67,15 +67,24 @@ async function rememberTurn(input: {
 
 export async function loadHomeworkThread(
   locale: string
-): Promise<HomeworkHelpActionResult<{ sessionId: string | null; messages: HomeworkThreadMessage[] }>> {
+): Promise<
+  HomeworkHelpActionResult<{ sessionId: string | null; messages: HomeworkThreadMessage[]; unlockedStatements: string[] }>
+> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
   if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
     return { ok: false, code: 'payment_required' }
   }
-  const sessionId = await ensureHomeworkSession(auth.user.id, localeOf(locale))
-  if (!sessionId) return { ok: true, data: { sessionId: null, messages: [] } }
-  return { ok: true, data: { sessionId, messages: await listHomeworkMessages(sessionId) } }
+  const webLocale = localeOf(locale)
+  const sessionId = await ensureHomeworkSession(auth.user.id, webLocale)
+  if (!sessionId) return { ok: true, data: { sessionId: null, messages: [], unlockedStatements: [] } }
+  const messages = await listHomeworkMessages(sessionId)
+  const unlockedStatements = await unlockedHomeworkStatements(
+    auth.user.id,
+    webLocale,
+    messages.flatMap((message) => (message.problem?.statement ? [message.problem.statement] : []))
+  )
+  return { ok: true, data: { sessionId, messages, unlockedStatements } }
 }
 
 export async function startHomeworkThread(locale: string): Promise<HomeworkHelpActionResult<{ sessionId: string | null }>> {
@@ -96,13 +105,19 @@ export async function listHomeworkHistory(): Promise<HomeworkHelpActionResult<Ho
 }
 
 export async function openHomeworkHistoryThread(
-  sessionId: string
-): Promise<HomeworkHelpActionResult<{ sessionId: string; messages: HomeworkThreadMessage[] }>> {
+  sessionId: string,
+  locale: string
+): Promise<HomeworkHelpActionResult<{ sessionId: string; messages: HomeworkThreadMessage[]; unlockedStatements: string[] }>> {
   const auth = await getUserForAction()
   if ('error' in auth) return { ok: false, code: 'unauthorized' }
   const messages = await openHomeworkSession(auth.user.id, sessionId)
   if (!messages) return { ok: false, code: 'ai_unavailable' }
-  return { ok: true, data: { sessionId, messages } }
+  const unlockedStatements = await unlockedHomeworkStatements(
+    auth.user.id,
+    localeOf(locale),
+    messages.flatMap((message) => (message.problem?.statement ? [message.problem.statement] : []))
+  )
+  return { ok: true, data: { sessionId, messages, unlockedStatements } }
 }
 
 export async function explainHomeworkPhoto(
@@ -178,20 +193,56 @@ export async function explainTypedHomework(input: {
   return { ok: true, data: explained }
 }
 
-async function homeworkSolutionWasCharged(eventKey: string): Promise<boolean> {
+async function homeworkSolutionEventKeysCharged(eventKeys: string[]): Promise<Set<string>> {
+  const keys = [...new Set(eventKeys.filter(Boolean))]
+  if (!keys.length) return new Set()
   try {
-    const paid = await pgQueryOne<{ event_key: string }>(
-      `select event_key from public.language_coach_credit_events where event_key = $1 limit 1`,
-      [eventKey]
+    const rows = await pgQuery<{ event_key: string }>(
+      `select event_key from public.language_coach_credit_events where event_key = any($1::text[])
+       union
+       select event_key from public.guest_credit_trial_events where event_key = any($1::text[])`,
+      [keys]
     )
-    if (paid) return true
-    const guest = await pgQueryOne<{ event_key: string }>(
-      `select event_key from public.guest_credit_trial_events where event_key = $1 limit 1`,
-      [eventKey]
-    )
-    return Boolean(guest)
+    return new Set(rows.map((row) => row.event_key))
   } catch {
-    return false
+    return new Set()
+  }
+}
+
+async function homeworkSolutionWasCharged(eventKey: string): Promise<boolean> {
+  const paid = await homeworkSolutionEventKeysCharged([eventKey])
+  return paid.has(eventKey)
+}
+
+/** Cùng học sinh, cùng câu: đã trả 0,5 credit thì lần sau không hiện giá. */
+async function unlockedHomeworkStatements(userId: string, locale: WebLocale, statements: string[]): Promise<string[]> {
+  const seen = new Set<string>()
+  const items: { statement: string; eventKey: string }[] = []
+  for (const raw of statements) {
+    if (typeof raw !== 'string' || seen.has(raw)) continue
+    const statement = raw.trim().slice(0, 4000)
+    if (!statement) continue
+    seen.add(raw)
+    items.push({
+      statement: raw,
+      eventKey: homeworkSolutionEventKey(userId, locale, homeworkStatementFingerprint(statement)),
+    })
+    if (items.length >= 80) break
+  }
+  if (!items.length) return []
+  const paid = await homeworkSolutionEventKeysCharged(items.map((item) => item.eventKey))
+  return items.filter((item) => paid.has(item.eventKey)).map((item) => item.statement)
+}
+
+export async function listUnlockedHomeworkSolutions(input: {
+  locale: string
+  statements: string[]
+}): Promise<HomeworkHelpActionResult<string[]>> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { ok: false, code: 'unauthorized' }
+  return {
+    ok: true,
+    data: await unlockedHomeworkStatements(auth.user.id, localeOf(input.locale), input.statements),
   }
 }
 

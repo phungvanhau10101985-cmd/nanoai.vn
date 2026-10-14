@@ -24,6 +24,7 @@ export type HomeworkHelpCopy = {
   answer: string
   solutionWarning: string
   showSolution: string
+  showSolutionOwned: string
   solutionOpening: string
   solutionTitle: string
   emptyPhoto: string
@@ -70,6 +71,7 @@ const VI: HomeworkHelpCopy = {
   solutionWarning:
     'Nên tự làm trước. Đọc lời giải xong, não lười tư duy hơn: bạn nhớ đường người khác đã đi, và lần sau dễ ngừng tự suy luận.',
   showSolution: 'Xem bài giải · {credits} credit',
+  showSolutionOwned: 'Xem bài giải',
   solutionOpening: 'Đang mở bài giải…',
   solutionTitle: 'Bài giải',
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
@@ -129,6 +131,7 @@ const EN: HomeworkHelpCopy = {
   solutionWarning:
     'Try it yourself first. After you read the worked solution, your mind gets lazier: you remember the path someone else took, and next time you stop reasoning it out.',
   showSolution: 'Show the worked solution · {credits} credit',
+  showSolutionOwned: 'Show the worked solution',
   solutionOpening: 'Opening the worked solution…',
   solutionTitle: 'Worked solution',
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
@@ -186,6 +189,7 @@ const ZH: HomeworkHelpCopy = {
   answer: '答案',
   solutionWarning: '请先自己做。看完详解后，大脑会更懒于思考：你记住的是别人走过的路，下次就容易不再自己推理。',
   showSolution: '查看详解 · {credits} 积分',
+  showSolutionOwned: '查看详解',
   solutionOpening: '正在打开详解…',
   solutionTitle: '详解',
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
@@ -245,6 +249,7 @@ const JA: HomeworkHelpCopy = {
   solutionWarning:
     'まず自分で解いてください。解説を読むと、頭は考えるのを怠けやすくなります。他人が通った道を覚えるだけで、次は自分で推論しなくなりがちです。',
   showSolution: '詳しい解説を見る · {credits} クレジット',
+  showSolutionOwned: '詳しい解説を見る',
   solutionOpening: '解説を開いています…',
   solutionTitle: '詳しい解説',
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
@@ -304,6 +309,7 @@ const KO: HomeworkHelpCopy = {
   solutionWarning:
     '먼저 직접 풀어 보세요. 풀이를 읽고 나면 뇌는 생각하기를 더 게을리합니다. 다른 사람이 간 길을 기억하고, 다음엔 스스로 추론하지 않게 됩니다.',
   showSolution: '자세한 풀이 보기 · {credits} 크레딧',
+  showSolutionOwned: '자세한 풀이 보기',
   solutionOpening: '풀이를 여는 중…',
   solutionTitle: '자세한 풀이',
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',

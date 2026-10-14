@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
 import { Camera, History, Image as ImageIcon, Loader2, MessageSquarePlus, X } from 'lucide-react'
@@ -20,6 +20,7 @@ import {
   explainHomeworkPhoto,
   explainTypedHomework,
   listHomeworkHistory,
+  listUnlockedHomeworkSolutions,
   loadHomeworkThread,
   openHomeworkHistoryThread,
   openHomeworkKnowledgeTag,
@@ -133,6 +134,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
+  const [paidSolutions, setPaidSolutions] = useState<Set<string>>(() => new Set())
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
@@ -169,6 +171,11 @@ export default function HoTroLamBaiClient({ locale }: Props) {
           setNeedsPlan(false)
           setSessionId(result.data.sessionId)
           setMessages(linesFromStored(result.data.messages))
+          setPaidSolutions((current) => {
+            const next = new Set(current)
+            for (const statement of result.data.unlockedStatements) next.add(statement)
+            return next
+          })
         }
       } else if (result.code === 'payment_required') {
         setNeedsPlan(true)
@@ -184,6 +191,39 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       cancelled = true
     }
   }, [copy.errors, locale, reloadKey])
+
+  const problemStatements = useMemo(
+    () =>
+      messages.flatMap((message) =>
+        message.role === 'teacher' && message.kind === 'problem' && message.problem.statement
+          ? [message.problem.statement]
+          : []
+      ),
+    [messages]
+  )
+  const problemStatementKey = JSON.stringify(problemStatements)
+
+  useEffect(() => {
+    const statements = JSON.parse(problemStatementKey) as string[]
+    if (!statements.length) return
+    let cancelled = false
+    void listUnlockedHomeworkSolutions({ locale, statements }).then((result) => {
+      if (cancelled || !result.ok) return
+      setPaidSolutions((current) => {
+        let changed = false
+        const next = new Set(current)
+        for (const statement of result.data) {
+          if (next.has(statement)) continue
+          next.add(statement)
+          changed = true
+        }
+        return changed ? next : current
+      })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [locale, problemStatementKey])
 
   useEffect(() => {
     const scroller = scrollerRef.current
@@ -313,7 +353,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setError('')
     let result: Awaited<ReturnType<typeof openHomeworkHistoryThread>>
     try {
-      result = await openHomeworkHistoryThread(id)
+      result = await openHomeworkHistoryThread(id, locale)
     } catch {
       setError(copy.errors.ai_unavailable)
       placeComposerSoon()
@@ -342,6 +382,11 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return []
     })
     setSessionId(result.data.sessionId)
+    setPaidSolutions((current) => {
+      const next = new Set(current)
+      for (const statement of result.data.unlockedStatements) next.add(statement)
+      return next
+    })
     placeComposerSoon()
   }
 
@@ -461,6 +506,15 @@ export default function HoTroLamBaiClient({ locale }: Props) {
               locale={locale}
               copy={copy}
               problem={message.problem}
+              solutionPaid={paidSolutions.has(message.problem.statement)}
+              onSolutionPaid={(statement) => {
+                setPaidSolutions((current) => {
+                  if (current.has(statement)) return current
+                  const next = new Set(current)
+                  next.add(statement)
+                  return next
+                })
+              }}
               onPaymentRequired={() => {
                 setNeedsPlan(true)
                 setError('')
@@ -654,11 +708,15 @@ function ProblemBubble({
   locale,
   copy,
   problem,
+  solutionPaid,
+  onSolutionPaid,
   onPaymentRequired,
 }: {
   locale: WebLocale
   copy: HomeworkHelpCopy
   problem: HomeworkProblem
+  solutionPaid: boolean
+  onSolutionPaid: (statement: string) => void
   onPaymentRequired: () => void
 }) {
   const [shownHints, setShownHints] = useState(0)
@@ -679,7 +737,9 @@ function ProblemBubble({
     locale === 'vi'
       ? String(HOMEWORK_SOLUTION_CREDIT_COST).replace('.', ',')
       : String(HOMEWORK_SOLUTION_CREDIT_COST)
-  const solutionLabel = copy.showSolution.replace('{credits}', creditText)
+  const solutionLabel = solutionPaid
+    ? copy.showSolutionOwned
+    : copy.showSolution.replace('{credits}', creditText)
 
   async function openSolution() {
     setSolutionBusy(true)
@@ -697,6 +757,7 @@ function ProblemBubble({
       }
       setSolution(result.data.solution)
       setSolutionCached(result.data.cached)
+      onSolutionPaid(problem.statement)
     } catch {
       setSolutionError(copy.errors.ai_unavailable)
     } finally {
