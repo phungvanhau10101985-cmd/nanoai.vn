@@ -1,4 +1,6 @@
-export const dynamic = 'force-static'
+import { buildShopLlmsFullTxt, llmsTextResponse, requestPublicOrigin } from '@/lib/agent/shop-llms-txt'
+
+export const dynamic = 'force-dynamic'
 
 const LLMS_FULL_TXT_CONTENT = `# NanoAI - Tài liệu kỹ thuật đầy đủ cho tác nhân AI (Full Agent Documentation)
 
@@ -51,13 +53,8 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 - [Điều khoản dịch vụ](https://nanoai.vn/terms): Quy định sử dụng và trách nhiệm trên nền tảng NanoAI
 `
 
-export function GET() {
-  return new Response(LLMS_FULL_TXT_CONTENT, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
+export function GET(req: Request) {
+  const where = requestPublicOrigin(req)
+  const body = where.shop ? buildShopLlmsFullTxt(where.origin, where.host) : LLMS_FULL_TXT_CONTENT
+  return llmsTextResponse(body)
 }

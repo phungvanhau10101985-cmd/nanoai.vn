@@ -4,8 +4,8 @@ import { createHash, createPrivateKey, sign } from 'node:crypto'
 
 export const AD_SPEND_MAX_RANGE_DAYS = 366
 const CACHE_TTL_MS = 180_000
-/** Đổi khi thêm cột số liệu, để cache 3 phút không trả bản thiếu chuyển đổi. */
-const METRICS_VERSION = 'conv1'
+/** Đổi khi đổi cách đếm chuyển đổi, để cache 3 phút không giữ bản cũ. */
+const METRICS_VERSION = 'purchase1'
 
 /** Một sự kiện mua có thể nằm ở nhiều action_type. Lấy loại đầu tiên có số, ưu tiên omni_purchase vì Meta đã gộp kênh. */
 const META_PURCHASE_TYPES = [
@@ -85,6 +85,28 @@ export class AdSpendApiError extends Error {}
 
 type CacheEntry = { at: number; rows: Record<string, unknown>[]; partial: boolean }
 const reportCache = new Map<string, CacheEntry>()
+
+/** Chi phí, nhấn, hiển thị. Không lấy conversions ở đây vì cột đó gồm mọi mục tiêu, không chỉ lượt mua. */
+export function googleSpendQuery(start: string, end: string): string {
+  return [
+    'SELECT segments.date, campaign.id, campaign.name,',
+    'metrics.cost_micros, metrics.impressions, metrics.clicks, customer.currency_code',
+    'FROM campaign',
+    `WHERE segments.date BETWEEN '${start}' AND '${end}'`,
+    'AND metrics.cost_micros > 0',
+  ].join(' ')
+}
+
+/** Lượt mua và giá trị mua. Cùng truy vấn với cost_micros sẽ bị Google nhân chi phí theo từng loại chuyển đổi. */
+export function googlePurchaseQuery(start: string, end: string): string {
+  return [
+    'SELECT segments.date, campaign.id, campaign.name,',
+    'metrics.conversions, metrics.conversions_value, customer.currency_code',
+    'FROM campaign',
+    `WHERE segments.date BETWEEN '${start}' AND '${end}'`,
+    'AND segments.conversion_action_category = PURCHASE',
+  ].join(' ')
+}
 
 export function googleAdsApiVersion(): string {
   const raw = (process.env.GOOGLE_ADS_API_VERSION || 'v25').trim() || 'v25'
@@ -609,21 +631,18 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
       const cached = readCache(key)
       const loaded = cached ?? (await (async () => {
         const token = await googleAccessToken(creds)
-        const query = [
-          'SELECT segments.date, campaign.id, campaign.name,',
-          'metrics.cost_micros, metrics.impressions, metrics.clicks,',
-          'metrics.conversions, metrics.conversions_value, customer.currency_code',
-          'FROM campaign',
-          `WHERE segments.date BETWEEN '${start}' AND '${end}'`,
-          'AND metrics.cost_micros > 0',
-        ].join(' ')
-        const fresh = await searchGoogleAds({
+        const search = {
           customerId: creds.googleCustomerId,
           accessToken: token,
           developerToken: creds.googleDeveloperToken,
           loginCustomerId: creds.googleLoginCustomerId,
-          query,
-        })
+        }
+        const spend = await searchGoogleAds({ ...search, query: googleSpendQuery(start, end) })
+        const purchases = await searchGoogleAds({ ...search, query: googlePurchaseQuery(start, end) })
+        const fresh = {
+          rows: [...spend.rows, ...purchases.rows],
+          partial: spend.partial || purchases.partial,
+        }
         reportCache.set(key, { at: Date.now(), rows: fresh.rows, partial: fresh.partial })
         return fresh
       })())

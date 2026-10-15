@@ -113,7 +113,10 @@ test('shopCardDisplaySrc reads AliCDN like 188 getProductMainImage (img.alicdn +
     shopPdpPageSrc('https://cbu01.alicdn.com/img/ibank/O1CN01a.jpg'),
     'https://img.alicdn.com/img/ibank/O1CN01a.jpg_1200x1200.jpg'
   )
-  assert.equal(shopCardDisplaySrc('https://cdn.188.com.vn/site/ok.jpg'), 'https://cdn.188.com.vn/site/ok.jpg')
+  assert.equal(
+    shopCardDisplaySrc('https://cdn.188.com.vn/site/ok.jpg'),
+    'https://cdn.188.com.vn/site/ok.jpg?width=640&quality=68'
+  )
   assert.equal(shopBannerDisplaySrc(dress), `${dress}_1200x1200.jpg`)
   assert.equal(shopBannerDisplaySrc('https://cdn.example/sale.png'), 'https://cdn.example/sale.png')
   assert.equal(shopAboveFoldDisplaySrc(dress), `${dress}_600x600q90.jpg`)
@@ -141,7 +144,7 @@ test('collectShopProductGalleryImages and shop mapper keep a reachable https car
   }
   assert.deepEqual(collectShopProductGalleryImages(row), ['https://cdn.188.com.vn/site/vay.jpg'])
   const product = inventoryRowToShopProduct('demo-shop', row)
-  assert.equal(product?.imageUrl, 'https://cdn.188.com.vn/site/vay.jpg')
+  assert.equal(product?.imageUrl, 'https://cdn.188.com.vn/site/vay.jpg?width=640&quality=68')
 })
 
 test('collectShopProductGalleryImages is main + column P, not detail images', () => {

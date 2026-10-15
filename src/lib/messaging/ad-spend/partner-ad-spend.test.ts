@@ -8,6 +8,8 @@ import {
   combineAdSpendTotals,
   emptyPlatform,
   googleConfigured,
+  googlePurchaseQuery,
+  googleSpendQuery,
   metaPurchaseAmount,
   normalizeAdAccountId,
   normalizeCustomerId,
@@ -66,6 +68,36 @@ describe('partner ad spend', () => {
     assert.equal(sheet.daily[0]?.conversions, 1.5)
     assert.equal(sheet.campaigns[0]?.name, 'A')
     assert.equal(sheet.campaigns[0]?.conversionValue, 50_000)
+  })
+
+  it('prices each Google conversion from purchases, not from every conversion action', () => {
+    const spendQuery = googleSpendQuery('2026-10-15', '2026-10-15')
+    const purchaseQuery = googlePurchaseQuery('2026-10-15', '2026-10-15')
+    assert.match(spendQuery, /metrics\.cost_micros/)
+    assert.doesNotMatch(spendQuery, /metrics\.conversions/)
+    assert.match(purchaseQuery, /segments\.conversion_action_category = PURCHASE/)
+    assert.doesNotMatch(purchaseQuery, /metrics\.cost_micros/)
+    const sheet = aggregateMetricRows(
+      [
+        { date: '2026-10-15', spend_micros: 736_374_000_000, impressions: 85_661, clicks: 1_362, campaign_id: '1', campaign_name: 'Mua sắm', currency: 'VND' },
+        { date: '2026-10-15', conversions: 1, conversion_value: 900_000, campaign_id: '1', campaign_name: 'Mua sắm', currency: 'VND' },
+      ],
+      {
+        dateKey: 'date',
+        spendKey: 'spend_micros',
+        impressionsKey: 'impressions',
+        clicksKey: 'clicks',
+        campaignIdKey: 'campaign_id',
+        campaignNameKey: 'campaign_name',
+        currencyKey: 'currency',
+        spendIsMicros: true,
+      },
+    )
+    assert.equal(sheet.spend, 736_374)
+    assert.equal(sheet.conversions, 1)
+    assert.equal(sheet.conversionValue, 900_000)
+    assert.equal(sheet.campaigns[0]?.conversions, 1)
+    assert.equal((sheet.campaigns[0]?.spend ?? 0) / (sheet.campaigns[0]?.conversions ?? 1), 736_374)
   })
 
   it('counts one Meta purchase even when several action types repeat it', () => {

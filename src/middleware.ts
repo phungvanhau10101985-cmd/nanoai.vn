@@ -19,6 +19,7 @@ import { isPlatformAppHostname } from '@/lib/messaging/partner-custom-domain-pla
 import {
   mapPartnerCustomDomainPathToInternal,
   mapPartnerInternalPathToPublic,
+  SHOP_CUSTOM_DOMAIN_HOST_FILES,
 } from '@/lib/messaging/partner-custom-domain-site-path'
 import { getInternalBaseUrl } from '@/lib/internal-url'
 import {
@@ -192,7 +193,7 @@ function rewritePublishedCustomDomain(
   }
   const internalPath = mapPartnerCustomDomainPathToInternal(siteSlug, path)
   if (!internalPath) {
-    if (path === '/robots.txt') return nextOnCustomDomain(request, host, siteSlug)
+    if (SHOP_CUSTOM_DOMAIN_HOST_FILES.has(path)) return nextOnCustomDomain(request, host, siteSlug)
     return null
   }
   const rewriteUrl = request.nextUrl.clone()

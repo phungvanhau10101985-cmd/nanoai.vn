@@ -1,5 +1,11 @@
 import { is1688ImageUrl, normalizeAlicdnImageUrl } from '@/lib/fetch-image-1688'
 import { guestChatSameOriginImageSrc } from '@/lib/messaging/guest-chat-image-src'
+import {
+  PW_SHOP_TIGHTEN_CDN_JS,
+  SHOP_CARD_IMAGE_EDGE,
+  SHOP_PAGE_IMAGE_EDGE,
+  tightenShopCdnImageUrl,
+} from '@/lib/partner-website/shop/shop-image-delivery'
 import { rewriteAllMessagingCdnUrls } from '@/lib/shop188-cdn-url'
 import { isPdpProductInfoJsonBlob } from '@/lib/partner-website/shop/pdp-product-info-html'
 
@@ -157,7 +163,7 @@ export function shopCardDisplaySrc(raw: string | null | undefined): string {
   } catch {
     /* keep display */
   }
-  return display
+  return tightenShopCdnImageUrl(display, SHOP_CARD_IMAGE_EDGE)
 }
 
 /** Above-fold card/banner — never `/api/fetch-image` (LCP must be a CDN URL). */
@@ -204,7 +210,7 @@ export function shopPdpPageSrc(raw: string | null | undefined): string {
     return url
   }
   if (url.startsWith('/')) return url
-  return displayShopImageUrl(applyShopAlicdnPageSize(url))
+  return tightenShopCdnImageUrl(displayShopImageUrl(applyShopAlicdnPageSize(url)), SHOP_PAGE_IMAGE_EDGE)
 }
 
 /** Cạnh dài tối đa khi proxy lại ảnh lỗi. Điện thoại không decode file Bunny gốc. */
@@ -303,7 +309,7 @@ function shopPdpPageSrc(raw){
       return page;
     }
   }catch(e){}
-  return u;
+  return tightenShopCdn(u,${SHOP_PAGE_IMAGE_EDGE});
 }
 function pdpImgFullSrc(el){
   return (el&&(el.getAttribute('data-pw-full-src')||el.getAttribute('src')))||'';
@@ -348,7 +354,8 @@ function galleryFaceVisible(el){
   return true;
 }`
 
-export const PW_SHOP_IMAGE_RETRY_JS = `function nextShopImageRetrySrc(src){
+export const PW_SHOP_IMAGE_RETRY_JS = `${PW_SHOP_TIGHTEN_CDN_JS}
+function nextShopImageRetrySrc(src){
   src=String(src||'').trim();
   if(!src)return '';
   var chatPath='';
@@ -503,7 +510,7 @@ export const PW_SHOP_BANNER_IMG_JS = `function shopBannerImg(raw){
       return page;
     }
   }catch(e){}
-  return u;
+  return tightenShopCdn(u,${SHOP_PAGE_IMAGE_EDGE});
 }`
 
 /** Injected catalog/outfit/personalize bootstrap — same rewrite as shopCardDisplaySrc. */
@@ -534,7 +541,7 @@ function shopImg(p){
       return '/api/fetch-image?url='+encodeURIComponent(raw);
     }
   }catch(e){}
-  return raw;
+  return tightenShopCdn(raw,${SHOP_CARD_IMAGE_EDGE});
 }`
 
 /** Mô tả PDP — cột F `pro_content` giống 188. Chất liệu hiện ở lưới thông số, không nhét vào mô tả. */

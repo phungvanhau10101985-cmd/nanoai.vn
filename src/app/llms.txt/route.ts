@@ -1,4 +1,6 @@
-export const dynamic = 'force-static'
+import { buildShopLlmsTxt, llmsTextResponse, requestPublicOrigin } from '@/lib/agent/shop-llms-txt'
+
+export const dynamic = 'force-dynamic'
 
 const LLMS_TXT_CONTENT = `# NanoAI
 
@@ -31,13 +33,8 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 - [Open Catalog](https://nanoai.vn/dashboard/messaging): Quản lý kho hàng, danh mục sản phẩm và đồng bộ đa kênh
 `
 
-export function GET() {
-  return new Response(LLMS_TXT_CONTENT, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'public, max-age=3600, s-maxage=86400',
-      'Access-Control-Allow-Origin': '*',
-    },
-  })
+export function GET(req: Request) {
+  const where = requestPublicOrigin(req)
+  const body = where.shop ? buildShopLlmsTxt(where.origin, where.host) : LLMS_TXT_CONTENT
+  return llmsTextResponse(body)
 }

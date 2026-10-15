@@ -67,9 +67,14 @@ export const SHOP_PUBLIC_ROOT_SEGMENTS = new Set([
 export const SHOP_CUSTOM_DOMAIN_PASSTHROUGH_ROOTS = new Set([
   '.well-known',
   'robots.txt',
+  'llms.txt',
+  'llms-full.txt',
   'auth',
   'messaging',
 ])
+
+/** Host files that must answer immediately. Rewriting them into `/site/{slug}` renders the shop page and times out agents. */
+export const SHOP_CUSTOM_DOMAIN_HOST_FILES = new Set(['/robots.txt', '/llms.txt', '/llms-full.txt'])
 
 export function partnerSiteInternalPrefix(siteSlug: string): string {
   return `/site/${encodeURIComponent(siteSlug.trim())}`

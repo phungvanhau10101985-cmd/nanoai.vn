@@ -30,6 +30,8 @@ test('custom domain unknown URLs enter the shop so 404 can send home', () => {
 test('custom domain SSL, robots, and guest chat stay on the host', () => {
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/.well-known/acme-challenge/x'), null)
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/robots.txt'), null)
+  assert.equal(mapPartnerCustomDomainPathToInternal('gudo-vn-3f93', '/llms.txt'), null)
+  assert.equal(mapPartnerCustomDomainPathToInternal('gudo-vn-3f93', '/llms-full.txt'), null)
   assert.equal(mapPartnerCustomDomainPathToInternal('188-shop', '/auth/shop-google'), null)
   assert.equal(mapPartnerCustomDomainPathToInternal('gudo-vn-3f93', '/messaging/p/gudo-vn-3f93'), null)
 })

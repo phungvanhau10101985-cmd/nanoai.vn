@@ -20,9 +20,10 @@ import { replaceInlineShopRuntimesWithHashedFiles } from '@/lib/partner-website/
 import { injectPartnerShopCdnPreconnect } from '@/lib/partner-website/shop/preload-partner-shop-lcp'
 import { getBunnyPublicBase } from '@/lib/bunny-cdn-url'
 import { buildPartnerShopCdnImageRetryScript } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { buildPartnerSiteAgentTreeScript } from '@/lib/partner-website/shop/partner-site-agent-tree'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry|agent-tree)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -222,9 +223,16 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   if (hooks.newsletter) {
     out = appendBeforeBody(out, buildPartnerSiteNewsletterBootstrapScript({ siteSlug, locale }))
   }
+  if (!/href=["']\/llms\.txt["']/i.test(out)) {
+    const link = '<link rel="alternate" type="text/plain" href="/llms.txt" title="LLMs.txt" />'
+    out = /<head[^>]*>/i.test(out)
+      ? out.replace(/<head[^>]*>/i, (open) => `${open}${link}`)
+      : appendInHead(out, link)
+  }
   if (input.hashedRuntimes) {
     out = injectPartnerShopCdnPreconnect(out, getBunnyPublicBase())
     out = replaceInlineShopRuntimesWithHashedFiles(out, { siteSlug, locale })
   }
+  out = appendBeforeBody(out, buildPartnerSiteAgentTreeScript())
   return out
 }

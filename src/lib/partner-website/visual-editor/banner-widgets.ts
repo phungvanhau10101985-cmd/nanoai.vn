@@ -456,13 +456,13 @@ function buildUnifiedPromoSlidesHtml(siteSlug: string, locale: WebLocale): strin
       `<div data-pw-slide="${i}" data-pw-promo-slot="${slot}"${active}><img class="pw-hero-media" ${pwElAttr(PW_EL.media)} ${editAttr(PW_EDIT_SLOT.heroImage)} data-pw-banner-placeholder="1" alt="" width="2100" height="900" src="${BANNER_PLACEHOLDER_SRC}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain"/>${overlay}${bannerCopyHtml(copy, href)}</div>`
     )
     dots.push(
-      `<button type="button" data-pw-slide-to="${i}"${i === 0 ? ' class="is-active"' : ''}></button>`
+      `<button type="button" data-pw-slide-to="${i}" aria-label="${escapeHtml(copy.title)} ${i + 1}"${i === 0 ? ' class="is-active"' : ''}></button>`
     )
   })
   return `<div data-pw-slides>${slides.join('')}</div>
   ${SLIDE_ARROW_PREV}
   ${SLIDE_ARROW_NEXT}
-  <div class="pw-slide-dots" ${pwElAttr(PW_EL.dots)} aria-hidden="true">${dots.join('')}</div>`
+  <div class="pw-slide-dots" ${pwElAttr(PW_EL.dots)}>${dots.join('')}</div>`
 }
 
 function findMatchingCloseTag(html: string, from: number, tag: string): number {

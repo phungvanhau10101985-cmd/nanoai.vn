@@ -5,6 +5,7 @@ import { injectPartnerWebsiteResponsiveBaselineIntoHtml } from '@/lib/partner-we
 import type { PartnerWebsiteProject } from '@/lib/partner-website/partner-website-types'
 import { buildPartnerSitePersonalizationBootstrapScript } from '@/lib/partner-website/shop/build-personalization-bootstrap-script'
 import { injectPartnerShopRuntimeScriptsIntoHtml } from '@/lib/partner-website/shop/inject-partner-shop-runtime-scripts'
+import { rewriteShopHtmlImageDelivery } from '@/lib/partner-website/shop/shop-image-delivery'
 import { injectShopTrackingSnippetsIntoHtml } from '@/lib/partner-website/shop/build-shop-tracking-head-snippets'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 
@@ -58,5 +59,5 @@ export function renderPartnerWebsiteHtml(input: {
     else if (script) html = `${html}\n${script}`
   }
 
-  return html
+  return rewriteShopHtmlImageDelivery(html)
 }

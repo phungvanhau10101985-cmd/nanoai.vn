@@ -39,7 +39,8 @@ function placeholderTiles(count: number, locale: WebLocale, clone = false): stri
       : ` ${pwElAttr(PW_EL.card)} data-pw-grid-placeholder="1"`
     const media = clone ? '' : ` ${pwElAttr(PW_EL.cardMedia)}`
     const label = clone ? '' : ` ${pwElAttr(PW_EL.cardName)}`
-    out += `<a class="pw-featured-cat-card"${contract} href="#">
+    const hrefAttr = clone ? ' data-pw-clone-href="#"' : ' href="#"'
+    out += `<a class="pw-featured-cat-card"${contract}${hrefAttr}>
   <span class="pw-featured-cat-media"${media}></span>
   <span${label}>${escapeHtml(name)}</span>
 </a>`
@@ -86,6 +87,14 @@ export function appendFeaturedMarqueeCloneHtml(inner: string): string {
     if (!/\bdecoding\s*=/.test(next)) next += ' decoding="async"'
     if (!/\bfetchpriority\s*=/.test(next)) next += ' fetchpriority="low"'
     return `<img${next}>`
+  }).replace(/<a\b([^>]*?)>/gi, (full, attrs: string) => {
+    const href = String(attrs).match(/\bhref\s*=\s*(["'])([^"']*)\1/i)
+    if (!href) return full
+    let next = String(attrs).replace(/\s*\bhref\s*=\s*(["'])[^"']*\1/i, '')
+    if (!/\bdata-pw-clone-href\s*=/.test(next)) {
+      next += ` data-pw-clone-href="${href[2].replace(/"/g, '&quot;')}"`
+    }
+    return `<a${next}>`
   })
   const clone = `<div class="pw-featured-cat-grid" data-pw-featured-clone="1" aria-hidden="true">${cloneCards}</div>`
   const pair = `${match[0]}${clone}`
