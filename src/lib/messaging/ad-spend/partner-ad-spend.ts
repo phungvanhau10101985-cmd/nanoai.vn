@@ -4,12 +4,26 @@ import { createHash, createPrivateKey, sign } from 'node:crypto'
 
 export const AD_SPEND_MAX_RANGE_DAYS = 366
 const CACHE_TTL_MS = 180_000
+/** Đổi khi thêm cột số liệu, để cache 3 phút không trả bản thiếu chuyển đổi. */
+const METRICS_VERSION = 'conv1'
+
+/** Một sự kiện mua có thể nằm ở nhiều action_type. Lấy loại đầu tiên có số, ưu tiên omni_purchase vì Meta đã gộp kênh. */
+const META_PURCHASE_TYPES = [
+  'omni_purchase',
+  'purchase',
+  'offsite_conversion.fb_pixel_purchase',
+  'onsite_web_purchase',
+  'web_in_store_purchase',
+  'onsite_conversion.purchase',
+] as const
 
 export type AdSpendDay = {
   date: string
   spend: number
   impressions: number
   clicks: number
+  conversions: number
+  conversionValue: number
 }
 
 export type AdSpendCampaign = {
@@ -18,6 +32,8 @@ export type AdSpendCampaign = {
   spend: number
   impressions: number
   clicks: number
+  conversions: number
+  conversionValue: number
 }
 
 export type AdSpendPlatformReport = {
@@ -28,6 +44,8 @@ export type AdSpendPlatformReport = {
   spend: number
   impressions: number
   clicks: number
+  conversions: number
+  conversionValue: number
   daily: AdSpendDay[]
   campaigns: AdSpendCampaign[]
   partial: boolean
@@ -148,6 +166,39 @@ function asInt(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+type MetricBucket = {
+  spend: number
+  impressions: number
+  clicks: number
+  conversions: number
+  conversionValue: number
+}
+
+function emptyBucket(): MetricBucket {
+  return { spend: 0, impressions: 0, clicks: 0, conversions: 0, conversionValue: 0 }
+}
+
+/** Không cộng các action_type trùng cùng một lượt mua. */
+export function metaPurchaseAmount(actions: unknown): number {
+  if (!Array.isArray(actions)) return 0
+  const found = new Map<string, number>()
+  for (const item of actions) {
+    if (!item || typeof item !== 'object') continue
+    const name = String((item as { action_type?: unknown }).action_type ?? '').trim()
+    if (!name) continue
+    found.set(name, asFloat((item as { value?: unknown }).value))
+  }
+  for (const name of META_PURCHASE_TYPES) {
+    const amount = found.get(name) || 0
+    if (amount) return amount
+  }
+  return 0
+}
+
 export function aggregateMetricRows(
   rows: Record<string, unknown>[],
   opts: {
@@ -159,9 +210,13 @@ export function aggregateMetricRows(
     campaignNameKey: string
     currencyKey: string
     spendIsMicros: boolean
+    conversionsKey?: string
+    conversionValueKey?: string
   },
 ): Omit<AdSpendPlatformReport, 'configured' | 'ok' | 'error' | 'partial'> {
-  const daily = new Map<string, { spend: number; impressions: number; clicks: number }>()
+  const conversionsKey = opts.conversionsKey ?? 'conversions'
+  const conversionValueKey = opts.conversionValueKey ?? 'conversion_value'
+  const daily = new Map<string, MetricBucket>()
   const campaigns = new Map<string, AdSpendCampaign>()
   let currency: string | null = null
   for (const row of rows) {
@@ -169,13 +224,17 @@ export function aggregateMetricRows(
     const spend = opts.spendIsMicros ? microsToAmount(row[opts.spendKey]) : asFloat(row[opts.spendKey])
     const impressions = asInt(row[opts.impressionsKey])
     const clicks = asInt(row[opts.clicksKey])
+    const conversions = asFloat(row[conversionsKey])
+    const conversionValue = asFloat(row[conversionValueKey])
     const code = String(row[opts.currencyKey] ?? '').trim()
     if (code && !currency) currency = code
     if (day) {
-      const bucket = daily.get(day) ?? { spend: 0, impressions: 0, clicks: 0 }
+      const bucket = daily.get(day) ?? emptyBucket()
       bucket.spend += spend
       bucket.impressions += impressions
       bucket.clicks += clicks
+      bucket.conversions += conversions
+      bucket.conversionValue += conversionValue
       daily.set(day, bucket)
     }
     const cid = String(row[opts.campaignIdKey] ?? '').trim() || String(row[opts.campaignNameKey] ?? '').trim()
@@ -183,34 +242,40 @@ export function aggregateMetricRows(
     const camp = campaigns.get(cid) ?? {
       id: cid,
       name: String(row[opts.campaignNameKey] ?? cid),
-      spend: 0,
-      impressions: 0,
-      clicks: 0,
+      ...emptyBucket(),
     }
     camp.spend += spend
     camp.impressions += impressions
     camp.clicks += clicks
+    camp.conversions += conversions
+    camp.conversionValue += conversionValue
     campaigns.set(cid, camp)
   }
   const dailyRows = [...daily.entries()]
     .sort((a, b) => (a[0] < b[0] ? 1 : -1))
     .map(([date, values]) => ({
       date,
-      spend: Math.round(values.spend * 100) / 100,
+      spend: roundMoney(values.spend),
       impressions: values.impressions,
       clicks: values.clicks,
+      conversions: roundMoney(values.conversions),
+      conversionValue: roundMoney(values.conversionValue),
     }))
   const campaignRows = [...campaigns.values()]
     .map((item) => ({
       ...item,
-      spend: Math.round(item.spend * 100) / 100,
+      spend: roundMoney(item.spend),
+      conversions: roundMoney(item.conversions),
+      conversionValue: roundMoney(item.conversionValue),
     }))
     .sort((a, b) => b.spend - a.spend)
   return {
     currency,
-    spend: Math.round(dailyRows.reduce((sum, item) => sum + item.spend, 0) * 100) / 100,
+    spend: roundMoney(dailyRows.reduce((sum, item) => sum + item.spend, 0)),
     impressions: dailyRows.reduce((sum, item) => sum + item.impressions, 0),
     clicks: dailyRows.reduce((sum, item) => sum + item.clicks, 0),
+    conversions: roundMoney(dailyRows.reduce((sum, item) => sum + item.conversions, 0)),
+    conversionValue: roundMoney(dailyRows.reduce((sum, item) => sum + item.conversionValue, 0)),
     daily: dailyRows,
     campaigns: campaignRows,
   }
@@ -225,6 +290,8 @@ export function emptyPlatform(configured: boolean, error: string | null = null):
     spend: 0,
     impressions: 0,
     clicks: 0,
+    conversions: 0,
+    conversionValue: 0,
     daily: [],
     campaigns: [],
     partial: false,
@@ -432,6 +499,8 @@ async function searchGoogleAds(input: {
           spend_micros: metrics.costMicros ?? metrics.cost_micros,
           impressions: metrics.impressions,
           clicks: metrics.clicks,
+          conversions: metrics.conversions,
+          conversion_value: metrics.conversionsValue ?? metrics.conversions_value,
           campaign_id: campaign.id,
           campaign_name: campaign.name,
           currency: customer.currencyCode ?? customer.currency_code,
@@ -447,7 +516,7 @@ async function searchGoogleAds(input: {
 
 async function fetchMetaRows(creds: AdSpendCredentials, start: string, end: string): Promise<{ rows: Record<string, unknown>[]; partial: boolean }> {
   const params = new URLSearchParams({
-    fields: 'campaign_id,campaign_name,spend,impressions,clicks,date_start,account_currency',
+    fields: 'campaign_id,campaign_name,spend,impressions,clicks,actions,action_values,date_start,account_currency',
     level: 'campaign',
     time_increment: '1',
     time_range: JSON.stringify({ since: start, until: end }),
@@ -478,6 +547,8 @@ async function fetchMetaRows(creds: AdSpendCredentials, start: string, end: stri
           spend: row.spend,
           impressions: row.impressions,
           clicks: row.clicks,
+          conversions: metaPurchaseAmount(row.actions),
+          conversion_value: metaPurchaseAmount(row.action_values),
           campaign_id: row.campaign_id,
           campaign_name: row.campaign_name,
           currency: row.account_currency,
@@ -531,6 +602,7 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
         start,
         end,
         googleAdsApiVersion(),
+        METRICS_VERSION,
       ].join('|'),
     )
     try {
@@ -539,7 +611,8 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
         const token = await googleAccessToken(creds)
         const query = [
           'SELECT segments.date, campaign.id, campaign.name,',
-          'metrics.cost_micros, metrics.impressions, metrics.clicks, customer.currency_code',
+          'metrics.cost_micros, metrics.impressions, metrics.clicks,',
+          'metrics.conversions, metrics.conversions_value, customer.currency_code',
           'FROM campaign',
           `WHERE segments.date BETWEEN '${start}' AND '${end}'`,
           'AND metrics.cost_micros > 0',
@@ -562,7 +635,10 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
   }
 
   if (facebookOn) {
-    const key = cacheKey('facebook', [creds.metaAdAccountId, creds.metaAccessToken, start, end, metaGraphApiVersion()].join('|'))
+    const key = cacheKey(
+      'facebook',
+      [creds.metaAdAccountId, creds.metaAccessToken, start, end, metaGraphApiVersion(), METRICS_VERSION].join('|'),
+    )
     try {
       const cached = readCache(key)
       const loaded = cached ?? (await (async () => {

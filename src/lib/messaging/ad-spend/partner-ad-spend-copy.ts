@@ -39,6 +39,15 @@ export type AdSpendPageCopy = {
   total: string
   campaign: string
   clicks: string
+  conversions: string
+  costEach: string
+  conversionValue: string
+  roas: string
+  conversionLine: string
+  noConversionEach: string
+  perConversion: string
+  conversionValueLine: string
+  roasLine: string
   noCampaigns: string
   partial: string
   keysTitle: string
@@ -149,6 +158,15 @@ const vi: AdSpendPageCopy = {
   total: 'Tổng',
   campaign: 'Chiến dịch',
   clicks: 'Nhấn',
+  conversions: 'Chuyển đổi',
+  costEach: 'Chi phí/lượt',
+  conversionValue: 'Giá trị',
+  roas: 'ROAS',
+  conversionLine: '{count} lượt chuyển đổi · {each}',
+  noConversionEach: '— / chuyển đổi',
+  perConversion: '{amount} / chuyển đổi',
+  conversionValueLine: 'Giá trị chuyển đổi {amount}',
+  roasLine: 'ROAS {value}',
   noCampaigns: 'Không có chiến dịch phát sinh chi phí.',
   partial: 'Kỳ này có nhiều dòng hơn mức đã tải. Rút ngắn khoảng ngày để xem đủ chi phí.',
   keysTitle: 'Khóa kết nối',
@@ -285,6 +303,15 @@ const en: AdSpendPageCopy = {
   total: 'Total',
   campaign: 'Campaign',
   clicks: 'Clicks',
+  conversions: 'Conversions',
+  costEach: 'Cost each',
+  conversionValue: 'Value',
+  roas: 'ROAS',
+  conversionLine: '{count} conversions · {each}',
+  noConversionEach: '— / conversion',
+  perConversion: '{amount} / conversion',
+  conversionValueLine: 'Conversion value {amount}',
+  roasLine: 'ROAS {value}',
   noCampaigns: 'No campaign spent money.',
   partial: 'This range has more rows than were loaded. Shorten the dates to see the full spend.',
   keysTitle: 'Connection keys',
@@ -413,6 +440,15 @@ const zh: AdSpendPageCopy = {
   total: '合计',
   campaign: '广告系列',
   clicks: '点击',
+  conversions: '转化',
+  costEach: '单次成本',
+  conversionValue: '价值',
+  roas: 'ROAS',
+  conversionLine: '{count} 次转化 · {each}',
+  noConversionEach: '— / 转化',
+  perConversion: '{amount} / 转化',
+  conversionValueLine: '转化价值 {amount}',
+  roasLine: 'ROAS {value}',
   noCampaigns: '没有产生费用的广告系列。',
   partial: '此区间的行数超过已加载的部分。缩短日期才能看全费用。',
   keysTitle: '连接密钥',
@@ -541,6 +577,15 @@ const ja: AdSpendPageCopy = {
   total: '合計',
   campaign: 'キャンペーン',
   clicks: 'クリック',
+  conversions: 'コンバージョン',
+  costEach: '1件あたり',
+  conversionValue: '価値',
+  roas: 'ROAS',
+  conversionLine: '{count} 件のコンバージョン · {each}',
+  noConversionEach: '— / コンバージョン',
+  perConversion: '{amount} / コンバージョン',
+  conversionValueLine: 'コンバージョン価値 {amount}',
+  roasLine: 'ROAS {value}',
   noCampaigns: '費用のあるキャンペーンはありません。',
   partial: '読み込んだ行より多い期間です。日付を短くすると全額が見えます。',
   keysTitle: '接続キー',
@@ -669,6 +714,15 @@ const ko: AdSpendPageCopy = {
   total: '합계',
   campaign: '캠페인',
   clicks: '클릭',
+  conversions: '전환',
+  costEach: '건당 비용',
+  conversionValue: '가치',
+  roas: 'ROAS',
+  conversionLine: '전환 {count} · {each}',
+  noConversionEach: '— / 전환',
+  perConversion: '{amount} / 전환',
+  conversionValueLine: '전환 가치 {amount}',
+  roasLine: 'ROAS {value}',
   noCampaigns: '비용이 발생한 캠페인이 없습니다.',
   partial: '불러온 줄보다 많은 기간입니다. 날짜를 줄이면 전체 비용을 봅니다.',
   keysTitle: '연결 키',

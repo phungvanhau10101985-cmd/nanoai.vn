@@ -131,6 +131,16 @@ function formatCount(n: number): string {
   return new Intl.NumberFormat('vi-VN').format(n || 0)
 }
 
+function formatConversions(n: number): string {
+  const rounded = Math.round((n || 0) * 100) / 100
+  return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(rounded)
+}
+
+function formatRoas(value: number, spend: number): string {
+  if (!spend) return '—'
+  return new Intl.NumberFormat('vi-VN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value / spend)
+}
+
 function sameSummary(prev: AdSpendProfitSummary, next: AdSpendProfitSummary): boolean {
   return (
     prev.dateFrom === next.dateFrom &&
@@ -152,20 +162,26 @@ function sumDaily(days: AdSpendPlatformReport['daily'], from: string, to: string
   let spend = 0
   let clicks = 0
   let impressions = 0
+  let conversions = 0
+  let conversionValue = 0
   for (const row of days) {
     if (row.date >= from && row.date <= to) {
       spend += row.spend
       clicks += row.clicks
       impressions += row.impressions
+      conversions += row.conversions || 0
+      conversionValue += row.conversionValue || 0
     }
   }
-  return { spend, clicks, impressions }
+  return { spend, clicks, impressions, conversions, conversionValue }
 }
 
 type Slice = {
   amount: number | null
   clicks: number
   impressions: number
+  conversions: number
+  conversionValue: number
   currency: string | null
   configured: boolean
   ok: boolean
@@ -173,24 +189,52 @@ type Slice = {
 
 function platformSlice(report: AdSpendPlatformReport, from: string, to: string, full: boolean): Slice {
   if (!report.configured || !report.ok) {
-    return { amount: null, clicks: 0, impressions: 0, currency: report.currency, configured: report.configured, ok: report.ok }
+    return {
+      amount: null,
+      clicks: 0,
+      impressions: 0,
+      conversions: 0,
+      conversionValue: 0,
+      currency: report.currency,
+      configured: report.configured,
+      ok: report.ok,
+    }
   }
   if (full) {
-    return { amount: report.spend, clicks: report.clicks, impressions: report.impressions, currency: report.currency, configured: true, ok: true }
+    return {
+      amount: report.spend,
+      clicks: report.clicks,
+      impressions: report.impressions,
+      conversions: report.conversions || 0,
+      conversionValue: report.conversionValue || 0,
+      currency: report.currency,
+      configured: true,
+      ok: true,
+    }
   }
   const summed = sumDaily(report.daily, from, to)
-  return { amount: summed.spend, clicks: summed.clicks, impressions: summed.impressions, currency: report.currency, configured: true, ok: true }
+  return {
+    amount: summed.spend,
+    clicks: summed.clicks,
+    impressions: summed.impressions,
+    conversions: summed.conversions,
+    conversionValue: summed.conversionValue,
+    currency: report.currency,
+    configured: true,
+    ok: true,
+  }
 }
 
 export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
   const copy = adSpendPageCopy(locale)
   const initial = rangeFor('30')
+  const today = rangeFor('today')
   const [settings, setSettings] = useState<PartnerAdSpendSettingsView | null>(null)
   const [report, setReport] = useState<AdSpendReport | null>(null)
   const [periodFrom, setPeriodFrom] = useState(initial.from)
   const [periodTo, setPeriodTo] = useState(initial.to)
-  const [focusFrom, setFocusFrom] = useState(initial.from)
-  const [focusTo, setFocusTo] = useState(initial.to)
+  const [focusFrom, setFocusFrom] = useState(today.from)
+  const [focusTo, setFocusTo] = useState(today.to)
   const [draftFrom, setDraftFrom] = useState(initial.from)
   const [draftTo, setDraftTo] = useState(initial.to)
   const [chosenPreset, setChosenPreset] = useState<RangeKey | null>('30')
@@ -513,8 +557,8 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
           <HeroStat label={copy.profit} value={profitText} hint={profitHint} negative={profitNegative} />
         </div>
         <div className="grid grid-cols-2 gap-px border-t border-orange-100 bg-orange-100 lg:grid-cols-4 dark:border-orange-900/40 dark:bg-orange-950/40">
-          <MiniStat label={copy.google} value={platformText(copy, focusSpend?.google, spendLoading && adsConfigured)} hint={platformHint(copy, focusSpend?.google)} />
-          <MiniStat label={copy.facebook} value={platformText(copy, focusSpend?.facebook, spendLoading && adsConfigured)} hint={platformHint(copy, focusSpend?.facebook)} />
+          <MiniStat label={copy.google} value={platformText(copy, focusSpend?.google, spendLoading && adsConfigured)} lines={platformLines(copy, focusSpend?.google)} />
+          <MiniStat label={copy.facebook} value={platformText(copy, focusSpend?.facebook, spendLoading && adsConfigured)} lines={platformLines(copy, focusSpend?.facebook)} />
           <MiniStat
             label={copy.revenue}
             value={profitLoading ? copy.calculating : formatVnd(profitForFocus?.revenue ?? 0)}
@@ -673,9 +717,18 @@ function platformText(copy: AdSpendPageCopy, slice: Slice | null | undefined, lo
   return formatMoney(slice.amount, slice.currency)
 }
 
-function platformHint(copy: AdSpendPageCopy, slice: Slice | null | undefined): string | undefined {
+function platformLines(copy: AdSpendPageCopy, slice: Slice | null | undefined): string[] | undefined {
   if (!slice?.ok || slice.amount == null) return undefined
-  return fillCopy(copy.clicksImpressions, { clicks: formatCount(slice.clicks), impressions: formatCount(slice.impressions) })
+  const each =
+    slice.conversions > 0
+      ? fillCopy(copy.perConversion, { amount: formatMoney(slice.amount / slice.conversions, slice.currency) })
+      : copy.noConversionEach
+  return [
+    fillCopy(copy.clicksImpressions, { clicks: formatCount(slice.clicks), impressions: formatCount(slice.impressions) }),
+    fillCopy(copy.conversionLine, { count: formatConversions(slice.conversions), each }),
+    fillCopy(copy.conversionValueLine, { amount: formatMoney(slice.conversionValue, slice.currency) }),
+    fillCopy(copy.roasLine, { value: formatRoas(slice.conversionValue, slice.amount) }),
+  ]
 }
 
 function dayTotal(google: number | undefined, facebook: number | undefined, source: AdSpendReport, copy: AdSpendPageCopy): string {
@@ -696,12 +749,22 @@ function HeroStat({ label, value, hint, negative }: { label: string; value: stri
   )
 }
 
-function MiniStat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function MiniStat({ label, value, hint, lines }: { label: string; value: string; hint?: string; lines?: string[] }) {
   return (
     <div className="bg-white px-4 py-3 dark:bg-zinc-900">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 text-base font-bold tabular-nums text-[#ea580c]">{value}</p>
-      {hint ? <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p> : null}
+      {lines?.length ? (
+        <div className="mt-1 space-y-0.5">
+          {lines.map((line) => (
+            <p key={line} className="text-[11px] leading-snug text-slate-500">
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : hint ? (
+        <p className="mt-0.5 text-[11px] text-slate-400">{hint}</p>
+      ) : null}
     </div>
   )
 }
@@ -727,16 +790,30 @@ function CampaignTable({ title, report, copy }: { title: string; report: AdSpend
                 <th className="px-4 py-2 font-medium">{copy.campaign}</th>
                 <th className="px-4 py-2 font-medium">{copy.adSpend}</th>
                 <th className="px-4 py-2 font-medium">{copy.clicks}</th>
+                <th className="px-4 py-2 font-medium">{copy.conversions}</th>
+                <th className="px-4 py-2 font-medium">{copy.costEach}</th>
+                <th className="px-4 py-2 font-medium">{copy.conversionValue}</th>
+                <th className="px-4 py-2 font-medium">{copy.roas}</th>
               </tr>
             </thead>
             <tbody>
-              {report.campaigns.map((row) => (
-                <tr key={row.id} className="border-t border-slate-100 dark:border-zinc-800">
-                  <td className="px-4 py-2">{row.name}</td>
-                  <td className="px-4 py-2 whitespace-nowrap">{formatMoney(row.spend, report.currency)}</td>
-                  <td className="px-4 py-2">{formatCount(row.clicks)}</td>
-                </tr>
-              ))}
+              {report.campaigns.map((row) => {
+                const conversions = row.conversions || 0
+                const conversionValue = row.conversionValue || 0
+                return (
+                  <tr key={row.id} className="border-t border-slate-100 dark:border-zinc-800">
+                    <td className="px-4 py-2">{row.name}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{formatMoney(row.spend, report.currency)}</td>
+                    <td className="px-4 py-2">{formatCount(row.clicks)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{formatConversions(conversions)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">
+                      {conversions > 0 ? formatMoney(row.spend / conversions, report.currency) : copy.dash}
+                    </td>
+                    <td className="px-4 py-2 whitespace-nowrap">{formatMoney(conversionValue, report.currency)}</td>
+                    <td className="px-4 py-2 whitespace-nowrap">{formatRoas(conversionValue, row.spend)}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

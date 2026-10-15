@@ -8,6 +8,7 @@ import {
   combineAdSpendTotals,
   emptyPlatform,
   googleConfigured,
+  metaPurchaseAmount,
   normalizeAdAccountId,
   normalizeCustomerId,
   parseAdSpendDateRange,
@@ -42,8 +43,8 @@ describe('partner ad spend', () => {
   it('sums micros into daily spend and campaigns', () => {
     const sheet = aggregateMetricRows(
       [
-        { date: '2026-10-01', spend_micros: 1_500_000, impressions: 10, clicks: 2, campaign_id: '1', campaign_name: 'A', currency: 'VND' },
-        { date: '2026-10-01', spend_micros: 500_000, impressions: 4, clicks: 1, campaign_id: '1', campaign_name: 'A', currency: 'VND' },
+        { date: '2026-10-02', spend_micros: 1_500_000, impressions: 10, clicks: 2, conversions: '1.5', conversion_value: 40_000, campaign_id: '1', campaign_name: 'A', currency: 'VND' },
+        { date: '2026-10-01', spend_micros: 500_000, impressions: 4, clicks: 1, conversions: 1, conversion_value: '10000', campaign_id: '1', campaign_name: 'A', currency: 'VND' },
       ],
       {
         dateKey: 'date',
@@ -58,8 +59,32 @@ describe('partner ad spend', () => {
     )
     assert.equal(sheet.spend, 2)
     assert.equal(sheet.currency, 'VND')
-    assert.equal(sheet.daily[0]?.clicks, 3)
+    assert.equal(sheet.clicks, 3)
+    assert.equal(sheet.conversions, 2.5)
+    assert.equal(sheet.conversionValue, 50_000)
+    assert.equal(sheet.daily[0]?.date, '2026-10-02')
+    assert.equal(sheet.daily[0]?.conversions, 1.5)
     assert.equal(sheet.campaigns[0]?.name, 'A')
+    assert.equal(sheet.campaigns[0]?.conversionValue, 50_000)
+  })
+
+  it('counts one Meta purchase even when several action types repeat it', () => {
+    const actions = [
+      { action_type: 'link_click', value: '80' },
+      { action_type: 'omni_purchase', value: '4' },
+      { action_type: 'purchase', value: '4' },
+      { action_type: 'offsite_conversion.fb_pixel_purchase', value: '3' },
+    ]
+    assert.equal(metaPurchaseAmount(actions), 4)
+    assert.equal(
+      metaPurchaseAmount([
+        { action_type: 'omni_purchase', value: '900000' },
+        { action_type: 'purchase', value: '900000' },
+      ]),
+      900_000,
+    )
+    assert.equal(metaPurchaseAmount([{ action_type: 'offsite_conversion.fb_pixel_purchase', value: '2' }]), 2)
+    assert.equal(metaPurchaseAmount(null), 0)
   })
 
   it('adds Google and Facebook only when both succeed in one currency', () => {
