@@ -28,7 +28,7 @@ describe('wedding guest packs', () => {
   })
 
   it('hides a pack that cannot cover guests already on the list', () => {
-    const quota = buildWeddingGuestPackQuota(null, 80)
+    const quota = buildWeddingGuestPackQuota(null, 150)
     const p50 = quota.offers.find((offer) => offer.id === 'p50')
     const p100 = quota.offers.find((offer) => offer.id === 'p100')
     const unlimited = quota.offers.find((offer) => offer.id === 'unlimited')
@@ -39,10 +39,11 @@ describe('wedding guest packs', () => {
     assert.equal(unlimited?.payVnd, 299_000)
   })
 
-  it('caps 50 guests on the small pack and leaves the large pack open', () => {
-    assert.equal(canAddWeddingGuests(49, 1, 'p50'), true)
-    assert.equal(canAddWeddingGuests(50, 1, 'p50'), false)
-    assert.equal(canAddWeddingGuests(100, 1, 'p100'), false)
+  it('caps 100 guests on the 149k pack and 200 on the 199k pack', () => {
+    assert.equal(canAddWeddingGuests(99, 1, 'p50'), true)
+    assert.equal(canAddWeddingGuests(100, 1, 'p50'), false)
+    assert.equal(canAddWeddingGuests(199, 1, 'p100'), true)
+    assert.equal(canAddWeddingGuests(200, 1, 'p100'), false)
     assert.equal(canAddWeddingGuests(400, 20, 'unlimited'), true)
   })
 

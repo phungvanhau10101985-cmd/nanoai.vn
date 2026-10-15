@@ -6,9 +6,10 @@ export type WeddingGuestPackSide = 'groom' | 'bride'
 
 export type WeddingGuestPackLimitCode = 'guest_pack_limit_groom' | 'guest_pack_limit_bride'
 
+/** id `p50` / `p100` là mã đã lưu DB. Trần khách hiện tại: 100, 200, không giới hạn. */
 export const WEDDING_GUEST_PACKS = [
-  { id: 'p50', label: 'Tối đa 50 khách', cap: 50, priceVnd: 149_000 },
-  { id: 'p100', label: 'Tối đa 100 khách', cap: 100, priceVnd: 199_000 },
+  { id: 'p50', label: 'Tối đa 100 khách', cap: 100, priceVnd: 149_000 },
+  { id: 'p100', label: 'Tối đa 200 khách', cap: 200, priceVnd: 199_000 },
   { id: 'unlimited', label: 'Không giới hạn', cap: null, priceVnd: 299_000 },
 ] as const
 

@@ -146,7 +146,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       'Tạo thiệp mời cưới online bằng AI: visual nền, chữ tiếng Việt do hệ thống render, xuất bản link thiệp điện tử và RSVP.',
     h2: 'Tạo thiệp cưới AI online, gửi khách mời chỉ với một đường dẫn',
     overview:
-      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI kết hợp ảnh nền do AI sinh với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Gói khách mời tính riêng cho nhà trai và nhà gái: 50 khách 149.000đ, 100 khách 199.000đ, không giới hạn 299.000đ. Ba khách đầu mỗi bên dùng thử; mở thêm khách bằng quét mã QR.',
+      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI kết hợp ảnh nền do AI sinh với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Gói khách mời tính riêng cho nhà trai và nhà gái: 100 khách 149.000đ, 200 khách 199.000đ, không giới hạn 299.000đ. Ba khách đầu mỗi bên dùng thử; mở thêm khách bằng quét mã QR.',
     benefits: [
       'Xem trước nội dung và xuất bản link miễn phí, chỉ tốn credit khi sinh ảnh AI mới',
       'Chữ tiếng Việt do hệ thống render, hạn chế lỗi font trên ảnh AI',
@@ -171,7 +171,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Gói khách mời thiệp cưới giá bao nhiêu?',
         answer:
-          'Ba khách đầu mỗi bên dùng thử. Gói 50 khách 149.000đ, gói 100 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng. Mua thành công khi quét mã QR và ngân hàng báo tiền về.',
+          'Ba khách đầu mỗi bên dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng. Mua thành công khi quét mã QR và ngân hàng báo tiền về.',
       },
       {
         question: 'Khách mời xem thiệp cưới online thế nào?',

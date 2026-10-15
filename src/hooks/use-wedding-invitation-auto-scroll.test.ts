@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { advanceWeddingAutoScrollY, paintWeddingAutoScrollTop } from './use-wedding-invitation-auto-scroll'
+import {
+  advanceWeddingAutoScrollY,
+  paintWeddingAutoScrollTop,
+  weddingAutoScrollShouldYield,
+} from './use-wedding-invitation-auto-scroll'
 
 test('fractional steps accumulate instead of sticking at 0', () => {
   let y = 0
@@ -16,6 +20,13 @@ test('fractional steps accumulate instead of sticking at 0', () => {
 test('a long gap does not jump more than one capped frame', () => {
   const y = advanceWeddingAutoScrollY(0, 5000, 5000)
   assert.equal(paintWeddingAutoScrollTop(y), 2)
+})
+
+test('yields when the guest scrolls up and ignores an unpainted iOS page', () => {
+  assert.equal(weddingAutoScrollShouldYield(0, 0), false)
+  assert.equal(weddingAutoScrollShouldYield(4, 0), false)
+  assert.equal(weddingAutoScrollShouldYield(80, 79), false)
+  assert.equal(weddingAutoScrollShouldYield(80, 40), true)
 })
 
 test('stops at the bottom', () => {

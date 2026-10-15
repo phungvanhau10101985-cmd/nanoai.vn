@@ -821,7 +821,7 @@ export default function WeddingPublicClient({
         <WeddingInvitationMotion enabled={card.effectsEnabled}>
         <nav
           className={cn(
-            'sticky top-0 z-30 border-b px-2 py-2 text-sm backdrop-blur-xl backdrop-saturate-150 sm:px-3 sm:py-2.5',
+            'sticky top-0 z-30 border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
             theme.nav,
           )}
         >

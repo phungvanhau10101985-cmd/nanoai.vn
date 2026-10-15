@@ -29,6 +29,14 @@ export function paintWeddingAutoScrollTop(y: number) {
   return Math.round(y)
 }
 
+/**
+ * Khách đã kéo lên khỏi khung vừa vẽ. Không được ghi scrollTop lớn hơn — nếu không trang bị kéo xuống từng khung hình.
+ * `painted` gần 0 là iOS chưa nhận scrollTo, không coi là khách kéo lên.
+ */
+export function weddingAutoScrollShouldYield(painted: number, actual: number): boolean {
+  return painted >= 8 && actual + 6 < painted
+}
+
 function scrollingRoot(): HTMLElement {
   const el = document.scrollingElement
   return el instanceof HTMLElement ? el : document.documentElement
@@ -123,6 +131,7 @@ export function startWeddingInvitationAutoScroll() {
   let watchTimer: number | null = null
   let acceptUserControl = false
   let y = 0
+  let painted = 0
   let lastTs = 0
   let usingInterval = false
   const cleanups: Array<() => void> = []
@@ -169,12 +178,31 @@ export function startWeddingInvitationAutoScroll() {
     }
   }
 
+  const haltForGuest = () => {
+    y = readScrollTop()
+    painted = y
+    if (stopped) return
+    if (idleTimer != null) window.clearTimeout(idleTimer)
+    if (!paused) {
+      paused = true
+      clearDriver()
+    }
+    idleTimer = window.setTimeout(resume, RESUME_IDLE_MS)
+  }
+
   const step = (dt: number) => {
     if (stopped || paused) return
+    const actual = readScrollTop()
+    if (weddingAutoScrollShouldYield(painted, actual)) {
+      haltForGuest()
+      return
+    }
     const maxScroll = Math.max(0, html.scrollHeight - window.innerHeight, root.scrollHeight - root.clientHeight)
     if (maxScroll <= 0) return
     y = advanceWeddingAutoScrollY(y, dt, maxScroll)
     writeScrollTop(y)
+    const after = readScrollTop()
+    if (Math.abs(after - paintWeddingAutoScrollTop(y)) <= 2) painted = after
     if (y >= maxScroll - 0.5) stop()
   }
 
@@ -217,6 +245,7 @@ export function startWeddingInvitationAutoScroll() {
     if (stopped || !paused) return
     paused = false
     y = readScrollTop()
+    painted = y
     arm()
   }
 

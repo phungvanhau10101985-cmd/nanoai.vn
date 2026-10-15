@@ -48,8 +48,7 @@ export function WeddingReadableGlass({ theme, className, children, id, strength 
         className={cn(
           'pointer-events-none absolute inset-0',
           EDGE_FADE,
-          'backdrop-blur-xl',
-          dark ? 'backdrop-saturate-[1.08]' : 'backdrop-saturate-[1.12]',
+          dark ? 'bg-slate-950/28' : 'bg-[#fffdf8]/38',
         )}
       />
       <div aria-hidden className={cn('pointer-events-none absolute inset-0', EDGE_FADE, vignette)} />

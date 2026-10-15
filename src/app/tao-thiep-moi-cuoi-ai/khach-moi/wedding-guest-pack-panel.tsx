@@ -167,7 +167,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
           <DialogHeader>
             <DialogTitle>{`Gói khách mời ${sideLabel}`}</DialogTitle>
             <DialogDescription>
-              {`3 khách đầu của ${sideLabel} dùng thử. Gói 50 khách 149.000đ, gói 100 khách 199.000đ, từ 101 khách 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
+              {`3 khách đầu của ${sideLabel} dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
             </DialogDescription>
           </DialogHeader>
 
