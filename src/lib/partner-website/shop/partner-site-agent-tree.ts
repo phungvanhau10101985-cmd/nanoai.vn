@@ -26,12 +26,41 @@ function nameFromHref(href){
   bit=decodeURIComponent(bit).replace(/[-_]+/g,' ').trim();
   return bit||t.link;
 }
+function skipNameNode(node){
+  if(!node||node.nodeType!==1)return false;
+  if(node.getAttribute('aria-hidden')==='true'||node.hasAttribute('hidden'))return true;
+  if(node.getAttribute('data-pw-logo-wordmark-hidden')==='1')return true;
+  var style=node.getAttribute('style')||'';
+  if(/display\\s*:\\s*none/i.test(style)||/visibility\\s*:\\s*hidden/i.test(style))return true;
+  var cls=node.classList;
+  if(cls&&cls.contains('pw-wordmark')){
+    var host=node.closest?node.closest('a,button'):null;
+    if(host&&host.querySelector&&host.querySelector('img:not([data-pw-logo-empty])'))return true;
+  }
+  return false;
+}
+function exposedText(el){
+  var chunks=[];
+  function walkText(node){
+    if(!node)return;
+    if(node.nodeType===3){chunks.push(node.textContent||'');return;}
+    if(node.nodeType!==1||skipNameNode(node))return;
+    var kids=node.childNodes;
+    for(var i=0;i<kids.length;i++)walkText(kids[i]);
+  }
+  var kids=el.childNodes;
+  for(var n=0;n<kids.length;n++)walkText(kids[n]);
+  return chunks.join(' ').replace(/\\s+/g,' ').trim();
+}
+function hiddenWordmark(el){
+  var wm=el.querySelector&&el.querySelector('.pw-wordmark,[data-pw-el="wordmark"]');
+  return wm?(wm.textContent||'').replace(/\\s+/g,' ').trim():'';
+}
 function hasName(el){
   var al=el.getAttribute('aria-label');
   if(al&&al.trim())return true;
   if((el.getAttribute('aria-labelledby')||'').trim())return true;
-  var text=(el.textContent||'').replace(/\\s+/g,' ').trim();
-  if(text)return true;
+  if(exposedText(el))return true;
   var img=el.querySelector&&el.querySelector('img[alt]');
   return !!(img&&(img.getAttribute('alt')||'').trim());
 }
@@ -43,7 +72,7 @@ function labelControl(el){
   if(hasName(el))return;
   var title=(el.getAttribute('title')||'').trim();
   var href=el.getAttribute('href')||el.getAttribute('data-pw-clone-href')||'';
-  var fallback=title||(tag==='A'||el.getAttribute('role')==='link'?nameFromHref(href):(el.getAttribute('data-pw-variant-close')!=null||el.getAttribute('data-pw-cart-added-close')!=null?t.close:t.button));
+  var fallback=title||hiddenWordmark(el)||(tag==='A'||el.getAttribute('role')==='link'?nameFromHref(href):(el.getAttribute('data-pw-variant-close')!=null||el.getAttribute('data-pw-cart-added-close')!=null?t.close:t.button));
   el.setAttribute('aria-label',fallback);
 }
 function selfFocusable(el){
