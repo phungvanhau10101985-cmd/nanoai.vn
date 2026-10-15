@@ -5,6 +5,7 @@ import { parseHTML } from 'linkedom'
 import { DEFAULT_PARTNER_WEBSITE_THEME } from '@/lib/partner-website/template/partner-website-template-types'
 import {
   applyShopBrowserThemeColorToDocument,
+  bindChromeThemeVarsInCss,
   darkenHex,
   extractShopBrowserThemeColorFromHtml,
   hexesClose,
@@ -182,6 +183,16 @@ test('theme root rewrite is byte-idempotent and stays in place', () => {
   assert.equal(once.indexOf('id="before"') < once.indexOf('id="pw-theme-root"'), true)
   assert.equal(once.indexOf('id="pw-theme-root"') < once.indexOf('id="after"'), true)
   assert.equal((once.match(/id="pw-theme-root"/g) || []).length, 1)
+})
+
+test('chrome rule scan stays linear on a long brace-free run', () => {
+  const font = `@font-face{src:url(data:font/woff2;base64,${'A'.repeat(300_000)})}`
+  const css = `${font}.pw-topbar{background:#c2410c}.pw-hero{background:#c2410c}`
+  const started = performance.now()
+  const out = bindChromeThemeVarsInCss(css)
+  assert.ok(performance.now() - started < 500)
+  assert.match(out, /\.pw-topbar\{background:var\(--pw-primary\)/)
+  assert.match(out, /\.pw-hero\{background:#c2410c/)
 })
 
 test('rebinds chrome class hex to tokens and leaves inline paint alone', () => {

@@ -460,41 +460,101 @@ function chromeSelectorKind(
   return null
 }
 
-/** Anchored like `stripLeftoverOrderStatusTabCss`: unanchored `[^{}@]+` is quadratic on long runs. */
-const CHROME_THEME_CSS_RULE = /(?<=^|[{}@])([^{}@]+)\{([^{}]+)\}/g
+/**
+ * Same matches as `(?<=^|[{}@])([^{}@]+)\{([^{}]+)\}`.
+ * Lookbehind is compiled with `new RegExp` in the shop client chunk and throws
+ * `Invalid regular expression: invalid group specifier name` on iOS Safari before 16.4.
+ * Anchor only at 0 or right after `{` `}` `@` so a long brace-free run stays linear.
+ */
+function matchChromeCssRule(css: string, i: number): number {
+  let j = i
+  while (j < css.length) {
+    const c = css.charCodeAt(j)
+    if (c === 123 || c === 125 || c === 64) break
+    j++
+  }
+  if (j === i || j >= css.length || css.charCodeAt(j) !== 123) return -1
+  let k = j + 1
+  while (k < css.length) {
+    const c = css.charCodeAt(k)
+    if (c === 123 || c === 125) break
+    k++
+  }
+  if (k === j + 1 || k >= css.length || css.charCodeAt(k) !== 125) return -1
+  return k + 1
+}
+
+function indexAfterCssAnchor(css: string, from: number): number {
+  for (let j = from; j < css.length; j++) {
+    const c = css.charCodeAt(j)
+    if (c === 123 || c === 125 || c === 64) return j + 1
+  }
+  return css.length
+}
+
+function paintChromeRuleBody(kind: NonNullable<ReturnType<typeof chromeSelectorKind>>, body: string): string {
+  if (kind === 'topbar' || kind === 'search-submit') {
+    return body.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-primary)')
+  }
+  if (kind === 'search-form') {
+    return body.replace(
+      /(border(?:-color)?)\s*:\s*([^;]*?)#[0-9a-fA-F]{3,8}/gi,
+      '$1:$2var(--pw-primary)'
+    )
+  }
+  if (kind === 'price') {
+    return body.replace(/color\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'color:var(--pw-primary)')
+  }
+  if (kind === 'cart') {
+    return body.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-cart)')
+  }
+  if (kind === 'buy') {
+    return body.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-buy)')
+  }
+  if (kind === 'nav-ink' || kind === 'nav-row-hover') {
+    return body.replace(
+      /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
+      (decl) => (isWhiteNavColorDecl(decl) ? decl : `color:${PW_NAV_INK}`)
+    )
+  }
+  if (kind === 'nav-hover') {
+    return body.replace(
+      /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
+      'color:var(--pw-primary)'
+    )
+  }
+  return body
+}
 
 /** Convert leftover chrome hex in class rules to tokens. Leaves inline `style=""` alone. */
 export function bindChromeThemeVarsInCss(css: string): string {
-  return css.replace(CHROME_THEME_CSS_RULE, (full, rawSel: string, body: string) => {
-    const kind = chromeSelectorKind(rawSel)
-    if (!kind) return full
-    let next = body
-    if (kind === 'topbar' || kind === 'search-submit') {
-      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-primary)')
-    } else if (kind === 'search-form') {
-      next = next.replace(
-        /(border(?:-color)?)\s*:\s*([^;]*?)#[0-9a-fA-F]{3,8}/gi,
-        '$1:$2var(--pw-primary)'
-      )
-    } else if (kind === 'price') {
-      next = next.replace(/color\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'color:var(--pw-primary)')
-    } else if (kind === 'cart') {
-      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-cart)')
-    } else if (kind === 'buy') {
-      next = next.replace(/background(?:-color)?\s*:\s*#[0-9a-fA-F]{3,8}/gi, 'background:var(--pw-buy)')
-    } else if (kind === 'nav-ink' || kind === 'nav-row-hover') {
-      next = next.replace(
-        /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
-        (decl) => (isWhiteNavColorDecl(decl) ? decl : `color:${PW_NAV_INK}`)
-      )
-    } else if (kind === 'nav-hover') {
-      next = next.replace(
-        /color\s*:\s*(?:var\(--pw-[a-z-]+\)|#[0-9a-fA-F]{3,8})/gi,
-        'color:var(--pw-primary)'
-      )
+  if (!css) return css
+  const parts: string[] = []
+  let i = 0
+  while (i < css.length) {
+    if (i !== 0) {
+      const prev = css.charCodeAt(i - 1)
+      if (prev !== 123 && prev !== 125 && prev !== 64) {
+        const next = indexAfterCssAnchor(css, i)
+        parts.push(css.slice(i, next))
+        i = next
+        continue
+      }
     }
-    return `${rawSel}{${next}}`
-  })
+    const end = matchChromeCssRule(css, i)
+    if (end < 0) {
+      parts.push(css[i]!)
+      i += 1
+      continue
+    }
+    const open = css.indexOf('{', i)
+    const rawSel = css.slice(i, open)
+    const body = css.slice(open + 1, end - 1)
+    const kind = chromeSelectorKind(rawSel)
+    parts.push(kind ? `${rawSel}{${paintChromeRuleBody(kind, body)}}` : css.slice(i, end))
+    i = end
+  }
+  return parts.join('')
 }
 
 function writeThemeVarsOnEl(el: Element | null | undefined, vars: Record<string, string>): void {

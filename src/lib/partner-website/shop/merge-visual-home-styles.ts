@@ -20,16 +20,62 @@ function rewriteVisualWrapperStickyCss(css: string): string {
 }
 
 /**
- * Starts only right after a brace (or at 0): an unanchored `[^{}]*` retries at
- * every offset and goes quadratic on long brace-free runs (base64 fonts, 200KB+).
- * Same matches — a rule's leftmost start is always its segment start.
+ * Same matches as `(?<=^|[{}])[^{}]*\.pw-shop-order-filter[^{]*\{[^}]*\}`.
+ * Lookbehind throws on iOS Safari before 16.4 (`invalid group specifier name`)
+ * when this module is evaluated in a client chunk. Scan only at 0 or right
+ * after `{` `}` so a long brace-free run stays linear.
  */
-const LEFTOVER_ORDER_TAB_RULE = /(?<=^|[{}])[^{}]*\.pw-shop-order-filter[^{]*\{[^}]*\}/gi
+function matchOrderFilterRule(css: string, i: number): number {
+  let j = i
+  while (j < css.length) {
+    const c = css.charCodeAt(j)
+    if (c === 123 || c === 125) break
+    j++
+  }
+  if (j >= css.length || css.charCodeAt(j) !== 123) return -1
+  if (!/\.pw-shop-order-filter/i.test(css.slice(i, j))) return -1
+  let k = j + 1
+  while (k < css.length) {
+    const c = css.charCodeAt(k)
+    if (c === 123 || c === 125) break
+    k++
+  }
+  if (k >= css.length || css.charCodeAt(k) !== 125) return -1
+  return k + 1
+}
+
+function indexAfterBrace(css: string, from: number): number {
+  for (let j = from; j < css.length; j++) {
+    const c = css.charCodeAt(j)
+    if (c === 123 || c === 125) return j + 1
+  }
+  return css.length
+}
 
 /** Merchant HTML leftover grid for order tabs must not override the engine swipe row. */
 export function stripLeftoverOrderStatusTabCss(css: string): string {
-  if (!/\.pw-shop-order-filter/i.test(css)) return css
-  return css.replace(LEFTOVER_ORDER_TAB_RULE, '')
+  if (!css || !/\.pw-shop-order-filter/i.test(css)) return css
+  const parts: string[] = []
+  let i = 0
+  while (i < css.length) {
+    if (i !== 0) {
+      const prev = css.charCodeAt(i - 1)
+      if (prev !== 123 && prev !== 125) {
+        const next = indexAfterBrace(css, i)
+        parts.push(css.slice(i, next))
+        i = next
+        continue
+      }
+    }
+    const end = matchOrderFilterRule(css, i)
+    if (end < 0) {
+      parts.push(css[i]!)
+      i += 1
+      continue
+    }
+    i = end
+  }
+  return parts.join('')
 }
 
 function stampTag(open: string): string {

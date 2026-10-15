@@ -59,7 +59,7 @@ function stampAttr(attrs: string, name: string, value: string): string {
 function setHidden(attrs: string, hidden: boolean): string {
   const userHidden = /\bdata-pw-hidden=["']1["']/i.test(attrs)
   let next = attrs
-    .replace(/(?<![\w-])hidden(?:=["'][^"']*["'])?/gi, '')
+    .replace(/(^|[^A-Za-z0-9_-])hidden(?:=["'][^"']*["'])?/gi, '$1')
     .replace(/\s{2,}/g, ' ')
     .replace(/\s+$/g, '')
   if (hidden || userHidden) next = `${next} hidden`
