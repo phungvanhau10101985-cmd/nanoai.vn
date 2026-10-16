@@ -45,24 +45,8 @@ const TEXT_GLOW_DARK =
 const TEXT_GLOW_HEADING_DARK =
   '[text-shadow:0_0_14px_rgba(0,0,0,0.72),0_2px_6px_rgba(0,0,0,0.52),0_0_22px_rgba(0,0,0,0.38)]'
 
-/** Kính mờ trung tính — ổn định trên mọi ảnh nền AI */
-const GLASS_SHELL =
-  'backdrop-blur-2xl backdrop-saturate-[1.14] shadow-[0_10px_44px_rgba(0,0,0,0.09),0_0_0_1px_rgba(255,255,255,0.48)]'
-const PANEL_FROST =
-  'bg-[#fffdf8]/70 backdrop-blur-xl backdrop-saturate-[1.1] shadow-[0_6px_32px_rgba(0,0,0,0.07),inset_0_1px_0_rgba(255,255,255,0.5),0_0_0_1px_rgba(255,255,255,0.42)]'
-const PANEL_FROST_INNER =
-  'bg-[#fffcf7]/62 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_0_0_1px_rgba(255,255,255,0.32)]'
-const PANEL_UI_LIGHT =
-  'bg-[#fffcf7]/78 backdrop-blur-lg backdrop-saturate-[1.08] shadow-[0_4px_20px_rgba(0,0,0,0.06),inset_0_1px_0_rgba(255,255,255,0.45),0_0_0_1px_rgba(255,255,255,0.48)]'
-
-const GLASS_SHELL_DARK =
-  'bg-black/22 backdrop-blur-2xl backdrop-saturate-[1.08] shadow-[0_10px_44px_rgba(0,0,0,0.32),0_0_0_1px_rgba(255,255,255,0.14)]'
-const PANEL_FROST_DARK =
-  'bg-slate-950/56 backdrop-blur-xl shadow-[0_6px_32px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.07),0_0_0_1px_rgba(255,255,255,0.12)]'
-const PANEL_FROST_INNER_DARK =
-  'bg-slate-950/48 backdrop-blur-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_0_1px_rgba(255,255,255,0.1)]'
-const PANEL_UI_DARK =
-  'bg-slate-950/64 backdrop-blur-lg shadow-[0_4px_20px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06),0_0_0_1px_rgba(255,255,255,0.12)]'
+/** Nền chữ trong nội dung thiệp: trong suốt, không kính mờ. */
+const PANEL_CLEAR = 'bg-transparent shadow-none'
 
 const WEDDING_THEMES: Record<string, WeddingTheme> = {
   luxury: {
@@ -72,10 +56,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-[#fbf5ec]',
     heroGradient: 'linear-gradient(135deg, #fff7ed 0%, #fff1f2 45%, #f6e7bf 100%)',
     softGradient: 'bg-gradient-to-br from-amber-50 via-white to-rose-50',
-    panel: `${PANEL_FROST}`,
-    panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/14 ${GLASS_SHELL}`,
-    panelUi: PANEL_UI_LIGHT,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-[#2f241f]',
     mutedText: 'text-[#4a3a32]',
     accent: 'text-[#a66a2d]',
@@ -94,10 +78,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-stone-50',
     heroGradient: 'linear-gradient(135deg, #fafaf9 0%, #ffffff 52%, #dbe7dd 100%)',
     softGradient: 'bg-gradient-to-br from-stone-50 via-white to-emerald-50',
-    panel: `${PANEL_FROST}`,
-    panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/15 ${GLASS_SHELL}`,
-    panelUi: PANEL_UI_LIGHT,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-stone-950',
     mutedText: 'text-stone-800',
     accent: 'text-emerald-700',
@@ -116,10 +100,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-[#fff7ed]',
     heroGradient: 'linear-gradient(135deg, #7f1d1d 0%, #be123c 48%, #f6c453 100%)',
     softGradient: 'bg-gradient-to-br from-red-50 via-rose-50 to-amber-50',
-    panel: `${PANEL_FROST}`,
-    panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-[#fff8ec]/18 ${GLASS_SHELL}`,
-    panelUi: PANEL_UI_LIGHT,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-[#2a1210]',
     mutedText: 'text-[#4a2018]',
     accent: 'text-red-800',
@@ -138,10 +122,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-[#fff7f8]',
     heroGradient: 'linear-gradient(135deg, #fff1f2 0%, #ffffff 48%, #dff3e8 100%)',
     softGradient: 'bg-gradient-to-br from-pink-50 via-white to-emerald-50',
-    panel: `${PANEL_FROST}`,
-    panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-white/14 ${GLASS_SHELL}`,
-    panelUi: PANEL_UI_LIGHT,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-[#2d3824]',
     mutedText: 'text-[#445538]',
     accent: 'text-rose-700',
@@ -160,10 +144,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-[#f7ead7]',
     heroGradient: 'linear-gradient(135deg, #f5deb8 0%, #fff7ed 46%, #d8a48f 100%)',
     softGradient: 'bg-gradient-to-br from-amber-100 via-orange-50 to-rose-100',
-    panel: `${PANEL_FROST}`,
-    panelStrong: PANEL_FROST_INNER,
-    panelGlass: `bg-[#fff8ec]/16 ${GLASS_SHELL}`,
-    panelUi: PANEL_UI_LIGHT,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-[#3b2618]',
     mutedText: 'text-[#523820]',
     accent: 'text-[#9a5b2e]',
@@ -182,10 +166,10 @@ const WEDDING_THEMES: Record<string, WeddingTheme> = {
     pageBg: 'bg-slate-950',
     heroGradient: 'linear-gradient(135deg, #020617 0%, #334155 56%, #d6a84f 100%)',
     softGradient: 'bg-gradient-to-br from-slate-950 via-slate-900 to-amber-900',
-    panel: `${PANEL_FROST_DARK}`,
-    panelStrong: PANEL_FROST_INNER_DARK,
-    panelGlass: `${GLASS_SHELL_DARK}`,
-    panelUi: PANEL_UI_DARK,
+    panel: PANEL_CLEAR,
+    panelStrong: PANEL_CLEAR,
+    panelGlass: PANEL_CLEAR,
+    panelUi: PANEL_CLEAR,
     text: 'text-white',
     mutedText: 'text-slate-100',
     accent: 'text-amber-300',
@@ -272,17 +256,5 @@ export function weddingBackgroundStyle(
     backgroundSize: showImage ? ('cover' as const) : undefined,
     backgroundPosition: showImage ? ('center' as const) : undefined,
     backgroundRepeat: showImage ? ('no-repeat' as const) : undefined,
-  }
-}
-
-/** Ảnh nền khóa đúng khung nhìn, không phóng theo chiều cao nội dung. */
-export function weddingViewportBackgroundStyle(imageUrl: string | null | undefined, fallbackColor: string) {
-  const cleanUrl = imageUrl?.trim()
-  return {
-    backgroundColor: fallbackColor,
-    backgroundImage: cleanUrl ? `url(${cleanUrl})` : undefined,
-    backgroundSize: cleanUrl ? ('cover' as const) : undefined,
-    backgroundPosition: cleanUrl ? ('center center' as const) : undefined,
-    backgroundRepeat: 'no-repeat' as const,
   }
 }

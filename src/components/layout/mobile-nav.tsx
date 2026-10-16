@@ -11,6 +11,7 @@ import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import {
   activeMobileFeatureHref,
   buildMobileFeatureGrid,
+  readFeatureVisitCounts,
   rememberFeatureVisit,
   type MobileFeatureDockItem,
 } from '@/lib/mobile-feature-dock'
@@ -38,23 +39,25 @@ interface MobileNavProps {
 export function MobileNav({ isAdmin, t }: MobileNavProps) {
   const [pathname, setPathname] = useState('/')
   const [recentHrefs, setRecentHrefs] = useState<string[]>([])
+  const [visitCounts, setVisitCounts] = useState<Record<string, number>>({})
 
   useEffect(() => {
     const syncPath = () => {
       const path = window.location.pathname || '/'
       setPathname(path)
       setRecentHrefs(rememberFeatureVisit(path))
+      setVisitCounts(readFeatureVisitCounts())
     }
     syncPath()
     return subscribeToUrlChanges(syncPath)
   }, [])
 
   const { lead, rest } = useMemo(
-    () => buildMobileFeatureGrid(pathname, recentHrefs),
-    [pathname, recentHrefs]
+    () => buildMobileFeatureGrid(pathname, recentHrefs, visitCounts),
+    [pathname, recentHrefs, visitCounts]
   )
   const activeHref = activeMobileFeatureHref(pathname, [...lead, ...rest])
-  const personalLead = lead.some((item) => item.kind !== 'popular')
+  const personalLead = lead.length > 0
 
   const trigger = (
     <SheetTrigger asChild>
@@ -74,21 +77,21 @@ export function MobileNav({ isAdmin, t }: MobileNavProps) {
       {trigger}
       <SheetContent
         side="bottom"
-        className="flex h-[min(85dvh,40rem)] flex-col gap-0 rounded-t-2xl p-0"
+        className="flex h-[min(85dvh,40rem)] flex-col gap-0 rounded-t-2xl p-0 [&>button]:right-3 [&>button]:top-3 [&>button]:z-10 [&>button]:flex [&>button]:h-8 [&>button]:w-8 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-full [&>button]:bg-muted"
       >
-        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-          <SheetTitle className="text-base">{t.menu.mainMenu}</SheetTitle>
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b py-3 pl-4 pr-14">
+          <SheetTitle className="shrink-0 text-base">{t.menu.mainMenu}</SheetTitle>
           <SheetClose asChild>
-            <Link href="/" className="flex items-center gap-2 text-sm font-semibold">
+            <Link href="/" className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
               <Image
                 src="/icons/icon-192x192.png"
                 alt={t.app.siteName}
                 width={28}
                 height={28}
                 unoptimized
-                className="rounded-md"
+                className="h-7 w-7 shrink-0 rounded-md"
               />
-              {t.app.siteName}
+              <span className="truncate">{t.app.siteName}</span>
             </Link>
           </SheetClose>
         </div>
@@ -160,7 +163,7 @@ function FeatureGrid({
   labelFor: (key: MobileFeatureDockItem['labelKey']) => string
 }) {
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-2.5">
       {items.map((item) => {
         const Icon = iconFor(item.href)
         const label = labelFor(item.labelKey)
@@ -172,12 +175,14 @@ function FeatureGrid({
               aria-current={active ? 'page' : undefined}
               title={label}
               className={cn(
-                'flex min-h-[4.75rem] flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 py-2 text-center touch-manipulation active:bg-muted/60',
+                'flex min-h-[7.25rem] flex-col items-center justify-start gap-2 rounded-2xl border border-transparent px-1.5 pb-2.5 pt-2.5 text-center touch-manipulation active:bg-muted/70',
                 active ? 'border-primary/30 bg-primary/8 font-semibold text-primary' : 'bg-muted/30 text-foreground'
               )}
             >
-              <Icon className={cn('h-5 w-5 shrink-0', active && 'stroke-[2.5px]')} />
-              <span className="line-clamp-2 w-full text-[11px] font-medium leading-tight">{label}</span>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center">
+                <Icon className={cn('h-11 w-11 max-h-full max-w-full shrink-0', active && 'stroke-[2.25px]')} />
+              </span>
+              <span className="line-clamp-2 w-full text-sm font-semibold leading-snug">{label}</span>
             </Link>
           </SheetClose>
         )

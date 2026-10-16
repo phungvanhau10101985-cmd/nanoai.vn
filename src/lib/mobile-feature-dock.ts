@@ -10,9 +10,10 @@ import {
 import { AI_TOOLS, NAV_GROUPS } from '@/lib/nav-config'
 
 export const MOBILE_RECENT_FEATURES_KEY = 'nanoai_recent_features_v1'
+export const MOBILE_FEATURE_VISIT_COUNTS_KEY = 'nanoai_feature_visit_counts_v1'
 const MAX_RECENT = 12
 
-export type MobileFeatureDockKind = 'current' | 'recent' | 'related' | 'popular' | 'catalog'
+export type MobileFeatureDockKind = 'current' | 'recent' | 'related' | 'popular' | 'frequent' | 'catalog'
 
 export type MobileFeatureDockItem = {
   href: string
@@ -87,6 +88,40 @@ export function readRecentFeatureHrefs(): string[] {
   }
 }
 
+export function readFeatureVisitCounts(): Record<string, number> {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = window.localStorage.getItem(MOBILE_FEATURE_VISIT_COUNTS_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+    const counts: Record<string, number> = {}
+    for (const [key, value] of Object.entries(parsed)) {
+      const feature = resolveCatalogFeature(key)
+      if (!feature || typeof value !== 'number' || !Number.isFinite(value) || value <= 0) continue
+      counts[feature.href] = (counts[feature.href] ?? 0) + Math.floor(value)
+    }
+    return counts
+  } catch {
+    return {}
+  }
+}
+
+/** Cùng một lần mở chỉ cộng một lần, dù thanh đáy và menu cùng ghi nhận. */
+let lastCountedHref: string | null = null
+
+function bumpFeatureVisitCount(href: string) {
+  if (lastCountedHref === href) return
+  lastCountedHref = href
+  const counts = readFeatureVisitCounts()
+  counts[href] = (counts[href] ?? 0) + 1
+  try {
+    window.localStorage.setItem(MOBILE_FEATURE_VISIT_COUNTS_KEY, JSON.stringify(counts))
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Ghi nhận trang tính năng vừa mở. Trang không thuộc catalog thì giữ nguyên danh sách. */
 export function rememberFeatureVisit(pathname: string): string[] {
   const current = readRecentFeatureHrefs()
@@ -98,6 +133,7 @@ export function rememberFeatureVisit(pathname: string): string[] {
   } catch {
     /* ignore */
   }
+  bumpFeatureVisitCount(feature.href)
   return next
 }
 
@@ -141,18 +177,41 @@ export function buildMobileFeatureDock(pathname: string, recentHrefs: readonly s
   return [...rest.slice(0, mid), ...focus, ...rest.slice(mid)]
 }
 
-/** Lưới danh mục: vừa mở rồi liên quan ở trên, phần còn lại theo thứ tự catalog. */
+/**
+ * Lưới danh mục, từ trên xuống:
+ * vừa mở (mới nhất trước), rồi tính năng hay xem nhất, rồi phần chưa mở theo catalog.
+ */
 export function buildMobileFeatureGrid(
   pathname: string,
-  recentHrefs: readonly string[]
+  recentHrefs: readonly string[],
+  visitCounts: Readonly<Record<string, number>> = {}
 ): { lead: MobileFeatureDockItem[]; rest: MobileFeatureDockItem[] } {
-  const dock = buildMobileFeatureDock(pathname, recentHrefs)
-  const byKind = (kind: MobileFeatureDockKind) => dock.filter((item) => item.kind === kind)
-  const lead = [...byKind('recent'), ...byKind('related'), ...byKind('current'), ...byKind('popular')]
-  const leadHrefs = new Set(lead.map((item) => item.href))
-  const rest = catalogFeatures()
-    .filter((feature) => !leadHrefs.has(feature.href))
-    .map((feature) => ({ href: feature.href, labelKey: feature.labelKey, kind: 'catalog' as const }))
+  const catalog = catalogFeatures()
+  const byHref = new Map(catalog.map((feature) => [feature.href, feature]))
+  const seen = new Set<string>()
+  const lead: MobileFeatureDockItem[] = []
+  const pushLead = (href: string, kind: 'recent' | 'frequent') => {
+    const feature = byHref.get(normalizeFeaturePath(href))
+    if (!feature || seen.has(feature.href)) return
+    seen.add(feature.href)
+    lead.push({ href: feature.href, labelKey: feature.labelKey, kind })
+  }
+
+  const current = resolveCatalogFeature(pathname)
+  if (current) pushLead(current.href, 'recent')
+  for (const href of recentHrefs) pushLead(href, 'recent')
+
+  const frequent = catalog
+    .map((feature, index) => ({ feature, index, count: visitCounts[feature.href] ?? 0 }))
+    .filter((row) => row.count > 0 && !seen.has(row.feature.href))
+    .sort((a, b) => b.count - a.count || a.index - b.index)
+  for (const row of frequent) pushLead(row.feature.href, 'frequent')
+
+  const rest: MobileFeatureDockItem[] = []
+  for (const feature of catalog) {
+    if (seen.has(feature.href)) continue
+    rest.push({ href: feature.href, labelKey: feature.labelKey, kind: 'catalog' })
+  }
   return { lead, rest }
 }
 

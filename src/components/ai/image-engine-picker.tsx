@@ -43,32 +43,50 @@ export function ImageEnginePicker({
 }) {
   const webLocale: WebLocale = locale === 'en' || locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'vi'
   const t = getDictionary(webLocale).imageGenerationClient
-  const engineName = engine === 'gemini' ? t.imageEngineGemini : t.imageEngineGpt
   const shownGeminiQuality = geminiCost4k == null ? '2K' : geminiQuality
-  const qualityLabel =
-    engine === 'gemini'
+  const [open, setOpen] = useState(false)
+  /** Engine đang xem trong hộp. Khác engine đã lưu thì mọi mức chất lượng đều chưa chọn. */
+  const [draftEngine, setDraftEngine] = useState<ImageEngine | null>(null)
+  const shownEngine = draftEngine ?? engine
+  const qualityPending = draftEngine != null && draftEngine !== engine
+  const engineName = shownEngine === 'gemini' ? t.imageEngineGemini : t.imageEngineGpt
+  const qualityLabel = qualityPending
+    ? t.imageEnginePickQuality
+    : shownEngine === 'gemini'
       ? `${shownGeminiQuality} (${formatCredit(shownGeminiQuality === '4K' && geminiCost4k != null ? geminiCost4k : geminiCost2k, webLocale)})`
       : `${gptQuality} (${formatCredit(GPT_IMAGE_CREDITS[gptQuality], webLocale)})`
-  const qualityCols = engine === 'gpt' ? 'grid-cols-3' : geminiCost4k != null ? 'grid-cols-2' : 'grid-cols-1'
-  const [open, setOpen] = useState(false)
+  const qualityCols = shownEngine === 'gpt' ? 'grid-cols-3' : geminiCost4k != null ? 'grid-cols-2' : 'grid-cols-1'
+  const geminiQualityChosen = !qualityPending && engine === 'gemini'
+  const gptQualityChosen = !qualityPending && engine === 'gpt'
+
+  function handleOpenChange(next: boolean) {
+    if (!next && qualityPending) return
+    setOpen(next)
+    if (!next) setDraftEngine(null)
+  }
 
   function chooseEngine(next: ImageEngine) {
-    onEngineChange(next)
-    setOpen(false)
+    setDraftEngine(next === engine ? null : next)
   }
 
   function chooseGeminiQuality(quality: '2K' | '4K') {
+    if (shownEngine !== 'gemini') return
+    if (engine !== 'gemini') onEngineChange('gemini')
     onGeminiQualityChange(quality)
+    setDraftEngine(null)
     setOpen(false)
   }
 
   function chooseGptQuality(quality: GptImageQuality) {
+    if (shownEngine !== 'gpt') return
+    if (engine !== 'gpt') onEngineChange('gpt')
     onGptQualityChange(quality)
+    setDraftEngine(null)
     setOpen(false)
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -84,28 +102,63 @@ export function ImageEnginePicker({
         </button>
       </PopoverTrigger>
       {/* Picker nằm trong dialog z-[200], sheet z-[550], Hub Studio toàn màn z max: menu phải nổi trên mọi lớp. */}
-      <PopoverContent align="end" side="top" collisionPadding={12} className="z-[2147483647] w-[17rem] p-3">
+      <PopoverContent
+        align="end"
+        side="top"
+        collisionPadding={12}
+        className="z-[2147483647] w-[17rem] p-3"
+        onPointerDownOutside={(event) => {
+          if (qualityPending) event.preventDefault()
+        }}
+        onInteractOutside={(event) => {
+          if (qualityPending) event.preventDefault()
+        }}
+        onEscapeKeyDown={(event) => {
+          if (qualityPending) event.preventDefault()
+        }}
+      >
         <div className="space-y-3">
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineLabel}</p>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
-              <button type="button" onClick={() => chooseEngine('gemini')} className={chipClass(engine === 'gemini')}>
+              <button
+                type="button"
+                onClick={() => chooseEngine('gemini')}
+                className={chipClass(shownEngine === 'gemini')}
+                aria-pressed={shownEngine === 'gemini'}
+              >
                 {t.imageEngineGemini}
               </button>
-              <button type="button" onClick={() => chooseEngine('gpt')} className={chipClass(engine === 'gpt')}>
+              <button
+                type="button"
+                onClick={() => chooseEngine('gpt')}
+                className={chipClass(shownEngine === 'gpt')}
+                aria-pressed={shownEngine === 'gpt'}
+              >
                 {t.imageEngineGpt}
               </button>
             </div>
           </div>
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineQuality}</p>
-            {engine === 'gemini' ? (
+            {qualityPending ? <p className="text-[11px] leading-snug text-amber-700">{t.imageEnginePickQuality}</p> : null}
+            {shownEngine === 'gemini' ? (
               <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols)}>
-                <button type="button" onClick={() => chooseGeminiQuality('2K')} className={chipClass(shownGeminiQuality === '2K')}>
+                <button
+                  type="button"
+                  onClick={() => chooseGeminiQuality('2K')}
+                  className={chipClass(geminiQualityChosen && shownGeminiQuality === '2K')}
+                  aria-pressed={geminiQualityChosen && shownGeminiQuality === '2K'}
+                >
                   2K ({formatCredit(geminiCost2k, webLocale)})
                 </button>
                 {geminiCost4k != null ? (
-                  <button type="button" onClick={() => chooseGeminiQuality('4K')} className={chipClass(geminiQuality === '4K')}>
+                  <button
+                    type="button"
+                    onClick={() => chooseGeminiQuality('4K')}
+                    className={chipClass(geminiQualityChosen && geminiQuality === '4K')}
+                    aria-pressed={geminiQualityChosen && geminiQuality === '4K'}
+                  >
                     4K ({formatCredit(geminiCost4k, webLocale)})
                   </button>
                 ) : null}
@@ -117,7 +170,8 @@ export function ImageEnginePicker({
                     key={quality}
                     type="button"
                     onClick={() => chooseGptQuality(quality)}
-                    className={chipClass(gptQuality === quality)}
+                    className={chipClass(gptQualityChosen && gptQuality === quality)}
+                    aria-pressed={gptQualityChosen && gptQuality === quality}
                   >
                     {quality} ({formatCredit(GPT_IMAGE_CREDITS[quality], webLocale)})
                   </button>

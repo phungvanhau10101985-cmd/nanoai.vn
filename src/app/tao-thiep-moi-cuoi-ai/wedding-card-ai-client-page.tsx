@@ -2168,7 +2168,7 @@ export default function WeddingCardAiClientPage() {
               <CardContent className="space-y-4">
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
-                    className="relative flex min-h-[360px] items-center justify-center overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
+                    className="relative flex min-h-[360px] items-center justify-center overflow-x-clip overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
                     style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover)}
                   >
                     <WeddingCoverShellCard
@@ -3579,7 +3579,8 @@ function ImageUploadField(props: {
         />
       ) : shell ? (
         <div className="mx-auto w-full max-w-sm">
-          <div className="relative mx-auto" style={{ width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%` }}>
+          <div className="flex w-full justify-center">
+          <div className="relative shrink-0" style={{ width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%` }}>
             <WeddingFramedPhoto
               frameSrc={shell.src}
               hole={shell.hole}
@@ -3591,14 +3592,16 @@ function ImageUploadField(props: {
             {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
             {photoActions}
           </div>
+          </div>
           {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
         </div>
       ) : (
-        <div className="mx-auto w-full">
+        <>
+        <div className="flex w-full justify-center">
         <div
           className={cn(
-            'relative overflow-hidden rounded-xl',
-            portrait ? 'mx-auto aspect-[3/4] max-h-72' : 'mx-auto h-36',
+            'relative shrink-0 overflow-hidden rounded-xl',
+            portrait ? 'aspect-[3/4] max-h-72' : 'h-36',
           )}
           style={{ width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%` }}
         >
@@ -3616,8 +3619,9 @@ function ImageUploadField(props: {
           {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
           {photoActions}
         </div>
-        {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
         </div>
+        {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
+        </>
       )}
       {props.onRemove && previewUrl ? (
         <Button type="button" variant="outline" size="sm" onClick={props.onRemove}>
@@ -3673,13 +3677,15 @@ function CoverPhotoCropEditor(props: {
         </p>
       </div>
 
+      <div className="flex w-full justify-center">
       <div
         ref={frameRef}
-        className={
+        className={cn(
+          'shrink-0',
           props.frameClassName ??
-          'relative h-40 cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing sm:h-48'
-        }
-        style={{ touchAction: 'none', width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%`, marginInline: 'auto' }}
+            'relative h-40 cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing sm:h-48',
+        )}
+        style={{ touchAction: 'none', width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%`, maxWidth: 'none' }}
         role="application"
         aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {
@@ -3757,6 +3763,7 @@ function CoverPhotoCropEditor(props: {
         )}
         {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
         {props.frameActions}
+      </div>
       </div>
       {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
 

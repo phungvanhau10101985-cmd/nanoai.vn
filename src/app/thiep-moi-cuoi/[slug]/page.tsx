@@ -7,7 +7,9 @@ import {
   getPublishedInvitedGuestRsvp,
   getPublishedWeddingCardBySlug,
   listPublishedSideGuestWishes,
+  listPublishedWeddingImages,
 } from '@/lib/db/wedding-cards-pg'
+import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
 import { buildPersonalWeddingInvite, buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
@@ -123,6 +125,8 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       }).catch(() => null)
     : null
   const sideWishes = await listPublishedSideGuestWishes(card.id)
+  const backgroundImages = await listPublishedWeddingImages(card.id).catch(() => [])
+  const backgroundPlateUrls = weddingBackgroundPlateUrls(card.masterImageUrl, backgroundImages)
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
   return (
     <>
@@ -142,6 +146,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         askLetterView={!singleOccasion && letterView == null}
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
+        backgroundPlateUrls={backgroundPlateUrls}
       />
     </>
   )

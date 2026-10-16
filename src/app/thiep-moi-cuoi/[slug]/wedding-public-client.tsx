@@ -36,7 +36,8 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
-import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingViewportBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
+import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
+import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
 import {
@@ -128,6 +129,7 @@ export default function WeddingPublicClient({
   askLetterView = false,
   initialPersonalInvite = '',
   initialGuestRsvp = null,
+  backgroundPlateUrls = [],
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -137,6 +139,7 @@ export default function WeddingPublicClient({
   askLetterView?: boolean
   initialPersonalInvite?: string
   initialGuestRsvp?: PublishedGuestRsvpSnapshot | null
+  backgroundPlateUrls?: string[]
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -160,6 +163,9 @@ export default function WeddingPublicClient({
   )
   const theme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const pageBackground = card.masterImageUrl?.trim() || ''
+  const contentSurface = pageBackground
+    ? { background: 'transparent' }
+    : weddingBackgroundStyle(pageBackground, theme, 0)
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
@@ -746,18 +752,15 @@ export default function WeddingPublicClient({
         <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} />
       ) : null}
       <main className={cn('relative z-0 min-h-screen', theme.pageBg, theme.text)}>
-        {pageBackground ? (
-          <div
-            aria-hidden
-            className="pointer-events-none fixed inset-0 -z-10 h-[100dvh] w-full"
-            style={weddingViewportBackgroundStyle(pageBackground, isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8')}
-          />
-        ) : null}
+        <WeddingScrollingBackground
+          urls={backgroundPlateUrls.length > 0 ? backgroundPlateUrls : pageBackground ? [pageBackground] : []}
+          fallbackColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
+        />
         {!opened && (
           <>
             <div
               ref={coverScrollRef}
-              className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-cover bg-center"
+              className="fixed inset-0 z-50 overflow-x-clip overflow-y-auto overscroll-y-contain bg-cover bg-center"
               style={{
                 ...weddingBackgroundStyle(
                   guestInviteLocation.coverImageUrl || pageBackground,
@@ -845,7 +848,7 @@ export default function WeddingPublicClient({
         <section
           id="cover"
           className="relative flex min-h-[100svh] items-center justify-center bg-cover bg-center px-3 py-8 sm:px-4 sm:py-12"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true, omitImage: Boolean(pageBackground) })}
+          style={contentSurface}
         >
           <WeddingReadableGlass theme={theme} strength="hero" className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
@@ -970,8 +973,8 @@ export default function WeddingPublicClient({
         </section>
 
         <section
-          className={cn('bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16', theme.softGradient)}
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
+          className="bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16"
+          style={contentSurface}
         >
           <div className={PUBLIC_COLUMN}>
             {(groomFamilyLine.trim() || groomHometownLine.trim() || brideFamilyLine.trim() || brideHometownLine.trim()) ? (
@@ -1063,7 +1066,7 @@ export default function WeddingPublicClient({
         <section
           id="event"
           className="bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
+          style={contentSurface}
         >
           <div className={PUBLIC_COLUMN}>
             {showBothHouses ? (
@@ -1254,7 +1257,7 @@ export default function WeddingPublicClient({
         {shouldShowPublicGiftBoxForSide(card, guestInviteLocation.side) && (
           <div
             className="border-y border-amber-200/50 bg-cover bg-center"
-            style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.dense, { omitImage: Boolean(pageBackground) })}
+            style={contentSurface}
           >
             <WeddingGiftEnvelopeBlock
               card={card}
@@ -1267,7 +1270,7 @@ export default function WeddingPublicClient({
 
         <section
           className="bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
+          style={contentSurface}
         >
           <div className={PUBLIC_COLUMN}>
           {withoutPartyAddress(card.storyText) && withoutPartyAddress(card.storyText).trim() !== withoutPartyAddress(card.coupleIntro).trim() && (
@@ -1390,7 +1393,7 @@ export default function WeddingPublicClient({
         </section>
         <section
           className="bg-cover bg-center px-3 py-12 text-center sm:px-4 sm:py-20"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true, omitImage: Boolean(pageBackground) })}
+          style={contentSurface}
         >
           <WeddingReadableGlass theme={theme} strength="hero" reveal className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />

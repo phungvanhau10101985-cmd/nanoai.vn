@@ -5,7 +5,7 @@ import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CL
 import { cn } from '@/lib/utils'
 import { resolveGuestInviteMapUrl } from '@/lib/wedding/google-maps-embed-url'
 import { formatGuestInviteVenueDateTime } from '@/lib/wedding/wedding-calendar-utils'
-import { getWeddingMapButtonColors, isWeddingDarkTheme } from '@/lib/wedding/wedding-theme'
+import { getWeddingMapButtonColors } from '@/lib/wedding/wedding-theme'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 
 type Props = {
@@ -57,12 +57,6 @@ export function WeddingGuestInviteBlock(props: Props) {
           props.panelClassName,
           'bg-transparent shadow-none ring-0',
         )}
-        style={{
-          background: isWeddingDarkTheme(props.weddingThemeId)
-            ? 'radial-gradient(ellipse 40% 46% at 50% 48%, rgba(15,23,42,0.64) 0%, rgba(15,23,42,0.24) 64%, transparent 100%)'
-            : 'radial-gradient(ellipse 40% 46% at 50% 48%, rgba(255,252,247,0.8) 0%, rgba(255,248,236,0.36) 64%, transparent 100%)',
-          boxShadow: 'none',
-        }}
       >
         <p className={cn('text-xs sm:text-sm', props.scriptLines && 'wedding-open-line wedding-open-cordial', props.cordiallyClassName)}>{props.cordiallyInvitesLabel}</p>
         <p

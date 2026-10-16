@@ -33,8 +33,9 @@ function Portrait(props: {
   const editable = Boolean(props.onChoosePhoto && props.onChooseFrame)
   const frameScale = props.frameScale && props.frameScale > 0 ? props.frameScale : 1
   return (
+    <div className="flex w-full justify-center">
     <figure
-      className="group relative mx-auto min-w-0"
+      className="group relative shrink-0"
       style={{ width: `${Math.round(frameScale * 1000) / 10}%` }}
       onClick={editable ? () => props.onChooseFrame?.() : undefined}
     >
@@ -117,6 +118,7 @@ function Portrait(props: {
         </div>
       ) : null}
     </figure>
+    </div>
   )
 }
 

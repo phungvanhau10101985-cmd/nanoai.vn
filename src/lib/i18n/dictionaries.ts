@@ -81,7 +81,7 @@ export type Dictionary = {
     openMenu: string
     /** Nút danh mục ghim trên thanh đáy mobile. */
     catalogButton: string
-    /** Đầu lưới danh mục: vừa mở và liên quan. */
+    /** Đầu lưới danh mục: vừa mở, rồi tính năng hay xem. */
     featureGridLead: string
     /** Phần còn lại của lưới danh mục. */
     featureGridRest: string
@@ -2843,6 +2843,7 @@ export type Dictionary = {
     imageEngineGemini: string
     imageEngineGpt: string
     imageEngineQuality: string
+    imageEnginePickQuality: string
   }
   /** Trang /dashboard/tasks — tác vụ & hàng đợi thống nhất */
   taskHub: {
@@ -4074,7 +4075,7 @@ export const VI_DICTIONARY: Dictionary = {
   menu: {
     openMenu: 'Mở menu',
     catalogButton: 'Danh mục',
-    featureGridLead: 'Vừa mở và liên quan',
+    featureGridLead: 'Vừa mở và hay xem',
     featureGridRest: 'Tính năng khác',
     mainMenu: 'Menu chính',
     accountMenu: 'Mở menu tài khoản',
@@ -6939,6 +6940,7 @@ export const VI_DICTIONARY: Dictionary = {
     imageEngineGemini: 'Gemini',
     imageEngineGpt: 'GPT Image 2',
     imageEngineQuality: 'Chất lượng',
+    imageEnginePickQuality: 'Chưa chọn — chọn một mức',
   },
   taskHub: {
     pageTitle: 'Tác vụ & hàng đợi',

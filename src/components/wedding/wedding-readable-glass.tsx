@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { isWeddingDarkTheme, type WeddingTheme } from '@/lib/wedding/wedding-theme'
+import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 
 type Props = {
   theme: WeddingTheme
@@ -15,43 +15,15 @@ type Props = {
   reveal?: boolean
 }
 
-const VIGNETTE_LIGHT: Record<NonNullable<Props['strength']>, string> = {
-  hero: 'bg-[radial-gradient(ellipse_72%_88%_at_50%_40%,rgba(255,253,248,0.82)_0%,rgba(255,248,236,0.42)_42%,transparent_72%)]',
-  section:
-    'bg-[radial-gradient(ellipse_76%_90%_at_50%_40%,rgba(255,253,248,0.7)_0%,rgba(255,247,232,0.34)_48%,transparent_76%)]',
-}
-
-const VIGNETTE_DARK: Record<NonNullable<Props['strength']>, string> = {
-  hero: 'bg-[radial-gradient(ellipse_72%_88%_at_50%_40%,rgba(15,23,42,0.7)_0%,rgba(15,23,42,0.36)_42%,transparent_72%)]',
-  section:
-    'bg-[radial-gradient(ellipse_76%_90%_at_50%_40%,rgba(15,23,42,0.58)_0%,rgba(15,23,42,0.28)_48%,transparent_76%)]',
-}
-
-/** Mờ dần hai bên để hoa văn nền lộ ra, không còn cột trắng cắt cạnh. */
-const EDGE_FADE =
-  '[mask-image:linear-gradient(90deg,transparent_0%,#000_16%,#000_84%,transparent_100%)] [-webkit-mask-image:linear-gradient(90deg,transparent_0%,#000_16%,#000_84%,transparent_100%)]'
-
-/** Khối kính: nền ảnh lộ hai bên, vùng giữa đủ ổn định để đọc chữ trên mọi loại nền AI. */
-export function WeddingReadableGlass({ theme, className, children, id, strength = 'section', reveal }: Props) {
-  const dark = isWeddingDarkTheme(theme.id)
-  const vignette = dark ? VIGNETTE_DARK[strength] : VIGNETTE_LIGHT[strength]
-
+/** Khối chữ nội dung thiệp: không phủ nền, ảnh thiệp hiện xuyên suốt. */
+export function WeddingReadableGlass({ className, children, id, reveal }: Props) {
   return (
     <div
       id={id}
       data-wedding-reveal={reveal ? '' : undefined}
       className={cn('relative isolate bg-transparent shadow-none', className)}
-      style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+      style={{ background: 'transparent', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      <div
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-0',
-          EDGE_FADE,
-          dark ? 'bg-slate-950/28' : 'bg-[#fffdf8]/38',
-        )}
-      />
-      <div aria-hidden className={cn('pointer-events-none absolute inset-0', EDGE_FADE, vignette)} />
       <div className="relative z-10 w-full min-w-0 [container-type:inline-size]">{children}</div>
     </div>
   )

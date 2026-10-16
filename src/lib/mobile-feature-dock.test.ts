@@ -68,20 +68,32 @@ test('home with no history centers popular tools inside the full catalog', () =>
   assert.equal(activeMobileFeatureHref('/', items), null)
 })
 
-test('feature grid puts recent then related above the rest of the catalog', () => {
-  const { lead, rest } = buildMobileFeatureGrid('/gia-su-ai', ['/gia-su-ai', '/tao-thiep-moi-cuoi-ai'])
+test('feature grid puts the open feature and recent opens first, then most viewed', () => {
+  const { lead, rest } = buildMobileFeatureGrid(
+    '/gia-su-ai',
+    ['/tao-thiep-moi-cuoi-ai', '/lam-dep-anh'],
+    { '/lam-net-anh': 8, '/tao-thiep-moi-cuoi-ai': 3, '/phuc-dung-anh': 5, '/gia-su-ai': 1 }
+  )
   assert.deepEqual(
     lead.map((item) => item.href),
-    ['/tao-thiep-moi-cuoi-ai', '/account/plan', '/ho-tro-lam-bai', '/lop', '/gia-su-ai']
+    ['/gia-su-ai', '/tao-thiep-moi-cuoi-ai', '/lam-dep-anh', '/lam-net-anh', '/phuc-dung-anh']
   )
   assert.deepEqual(
     lead.map((item) => item.kind),
-    ['recent', 'related', 'related', 'related', 'current']
+    ['recent', 'recent', 'recent', 'frequent', 'frequent']
   )
   assert.ok(rest.length > 20)
   assert.ok(rest.every((item) => item.kind === 'catalog'))
   assert.equal(rest.some((item) => item.href === '/gia-su-ai'), false)
+  assert.equal(rest.some((item) => item.href === '/lam-net-anh'), false)
   assert.equal(rest[0]?.href, '/thu-do-online')
+})
+
+test('feature grid without history keeps catalog order', () => {
+  const { lead, rest } = buildMobileFeatureGrid('/', [], {})
+  assert.equal(lead.length, 0)
+  assert.equal(rest[0]?.href, '/thu-do-online')
+  assert.ok(rest.every((item) => item.kind === 'catalog'))
 })
 
 test('home scroll centers a short cluster and the related/recent seam when it overflows', () => {

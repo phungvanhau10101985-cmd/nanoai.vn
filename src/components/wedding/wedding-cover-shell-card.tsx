@@ -247,22 +247,21 @@ export function FrameScaleDragBar(props: { edit: FrameScaleEdit; className?: str
 }
 
 function FrameResizeChrome(props: { edit?: FrameScaleEdit; className?: string; style?: CSSProperties; children: ReactNode }) {
-  if (!props.edit) {
-    return (
-      <div className={props.className} style={props.style}>
-        {props.children}
-      </div>
-    )
-  }
-  return (
-    <div className={props.className} style={props.style}>
+  const box = props.edit ? (
+    <div className={cn(props.className, props.style?.width != null && 'shrink-0')} style={props.style}>
       <div className="relative">
         {props.children}
         <FrameEdgeGrips edit={props.edit} />
       </div>
       <FrameScaleDragBar edit={props.edit} />
     </div>
+  ) : (
+    <div className={cn(props.className, props.style?.width != null && 'shrink-0')} style={props.style}>
+      {props.children}
+    </div>
   )
+  if (props.style?.width == null) return box
+  return <div className="flex w-full justify-center">{box}</div>
 }
 
 function coverPhotoBox(edit: CoverPhotoEdit | undefined, objectPosition?: string, scale?: number) {
@@ -533,15 +532,20 @@ function CoverPhoto(props: {
   const objectPosition = props.objectPosition ?? '50% 50%'
   const scale = Math.max(1, Math.min(3, props.scale ?? 1))
   const boxScale = frameScaleOf(props.boxScale)
+  const photoHeight = props.compact ? '6rem' : 'clamp(11rem, 32dvh, 15rem)'
   return (
+    <div className="flex w-full justify-center">
     <div
       className={cn(
-        'mx-auto w-full overflow-hidden shadow-md ring-1 ring-black/5',
+        'w-full shrink-0 overflow-hidden shadow-md ring-1 ring-black/5',
         props.compact ? 'h-24 rounded-lg' : 'h-[clamp(11rem,32dvh,15rem)] rounded-2xl lg:h-[clamp(13rem,38dvh,17rem)]',
         props.openSlowly && 'wedding-cover-photo-open',
         props.className,
       )}
-      style={boxScale === 1 ? undefined : { zoom: boxScale }}
+      style={{
+        width: `${frameWidthPercent(100, boxScale)}%`,
+        ...(boxScale === 1 ? {} : { height: `calc((${photoHeight}) * ${boxScale})` }),
+      }}
     >
       <div className={cn('h-full w-full', props.breathe && !props.compact && 'wedding-cover-breathe')}>
         <img
@@ -556,6 +560,7 @@ function CoverPhoto(props: {
           }}
         />
       </div>
+    </div>
     </div>
   )
 }
@@ -903,14 +908,18 @@ function CoverFrameViewport(props: {
   const imageAspect = props.imageAspect && props.imageAspect > 0 ? props.imageAspect : 3 / 4
   const aspect = tight ? (tight.w / tight.h) * imageAspect : imageAspect
   const widthPercent = props.widthPercent && props.widthPercent > 0 ? props.widthPercent : 86
+  // Chiều cao chỉ sinh từ aspect-ratio. Trần cao đi vào chiều ngang, nếu không khung bị kéo méo.
+  const width = props.maxHeight
+    ? `min(${widthPercent}%, calc((${props.maxHeight}) * ${aspect}))`
+    : `${widthPercent}%`
   return (
     <div
       className={cn('relative mx-auto overflow-hidden', props.className)}
       style={{
         aspectRatio: String(aspect),
-        width: props.maxHeight ? `min(${widthPercent}%, calc(${props.maxHeight} * ${aspect}))` : `${widthPercent}%`,
+        width,
         maxWidth: `${widthPercent}%`,
-        ...(props.maxHeight ? { maxHeight: props.maxHeight } : {}),
+        height: 'auto',
       }}
     >
       <div
@@ -1150,7 +1159,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         ) : (
           <CoverFrameViewport
             key={props.motionKey}
-            className={cn('!w-full !max-w-none', holeMask === undefined ? 'opacity-0' : frameMotion)}
+            className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
             content={holeMask?.content}
             imageAspect={holeMask?.aspect}
             widthPercent={100}
@@ -1252,7 +1261,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidth}%` }}>
             <CoverFrameViewport
               key={props.motionKey}
-              className={cn('!w-full !max-w-none', holeMask === undefined ? 'opacity-0' : frameMotion)}
+              className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
               content={holeMask?.content}
               imageAspect={holeMask?.aspect}
               widthPercent={100}
