@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent, type ReactNode, type WheelEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
@@ -64,6 +64,8 @@ type WeddingCoverShellCardProps = {
   frameOnly?: boolean
   /** Cỡ khung ảnh so với mặc định, 0.6–1.4. */
   frameScale?: number
+  /** Editor: kéo cỡ khung. Không đổi vị trí hay zoom ảnh bên trong. */
+  frameScaleEdit?: FrameScaleEdit
   /** Tên chú rể từ trái, tên cô dâu từ phải, ghép vào giữa. */
   namesFlyIn?: boolean
   onOpen?: () => void
@@ -80,6 +82,14 @@ type WeddingCoverShellCardProps = {
     onYes: () => void
     onNo: () => void
   }
+}
+
+export type FrameScaleEdit = {
+  scale: number
+  onChange: (scale: number) => void
+  label: string
+  zoomOutLabel: string
+  zoomInLabel: string
 }
 
 type CoverPhotoEdit = {
@@ -107,6 +117,152 @@ function frameScaleOf(value: number | undefined) {
 
 function frameWidthPercent(base: number, scale: number) {
   return Math.round(base * scale * 10) / 10
+}
+
+function useFrameScaleDrag(edit: FrameScaleEdit, sign: number) {
+  const dragRef = useRef<{ pointerId: number; x: number; scale: number } | null>(null)
+  const scale = frameScaleOf(edit.scale)
+  const emit = (value: number) => edit.onChange(frameScaleOf(Math.round(value * 100) / 100))
+  return {
+    scale,
+    step: (delta: number) => emit(scale + delta),
+    onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
+      event.preventDefault()
+      event.stopPropagation()
+      dragRef.current = { pointerId: event.pointerId, x: event.clientX, scale }
+      try {
+        event.currentTarget.setPointerCapture(event.pointerId)
+      } catch {
+        /* kéo vẫn cập nhật khi trình duyệt không giữ pointer */
+      }
+    },
+    onPointerMove: (event: ReactPointerEvent<HTMLElement>) => {
+      const drag = dragRef.current
+      if (!drag || drag.pointerId !== event.pointerId) return
+      event.preventDefault()
+      event.stopPropagation()
+      emit(drag.scale + (sign * (event.clientX - drag.x)) / 140)
+    },
+    onPointerUp: (event: ReactPointerEvent<HTMLElement>) => {
+      if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null
+      event.stopPropagation()
+    },
+  }
+}
+
+export function FrameEdgeGrips(props: { edit: FrameScaleEdit }) {
+  const left = useFrameScaleDrag(props.edit, -1)
+  const right = useFrameScaleDrag(props.edit, 1)
+  const grip =
+    'absolute top-1/2 z-[5] flex h-7 w-3.5 -translate-y-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border border-rose-300 bg-white text-rose-700 shadow'
+  return (
+    <>
+      <button
+        type="button"
+        aria-label={props.edit.zoomOutLabel}
+        className={cn(grip, 'left-1')}
+        onPointerDown={left.onPointerDown}
+        onPointerMove={left.onPointerMove}
+        onPointerUp={left.onPointerUp}
+        onPointerCancel={left.onPointerUp}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="text-[10px] leading-none" aria-hidden>
+          ↔
+        </span>
+      </button>
+      <button
+        type="button"
+        aria-label={props.edit.zoomInLabel}
+        className={cn(grip, 'right-1')}
+        onPointerDown={right.onPointerDown}
+        onPointerMove={right.onPointerMove}
+        onPointerUp={right.onPointerUp}
+        onPointerCancel={right.onPointerUp}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="text-[10px] leading-none" aria-hidden>
+          ↔
+        </span>
+      </button>
+    </>
+  )
+}
+
+export function FrameScaleDragBar(props: { edit: FrameScaleEdit; className?: string }) {
+  const drag = useFrameScaleDrag(props.edit, 1)
+  const percent = Math.round(drag.scale * 100)
+  return (
+    <div
+      className={cn(
+        'relative z-[5] mx-auto mt-1.5 flex w-[min(100%,12rem)] items-center gap-0.5 rounded-full border border-rose-200 bg-white/95 px-0.5 py-0.5 text-stone-800 shadow',
+        props.className,
+      )}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <button
+        type="button"
+        className="flex h-6 w-6 shrink-0 items-center justify-center text-sm leading-none"
+        aria-label={props.edit.zoomOutLabel}
+        onClick={() => drag.step(-0.05)}
+      >
+        −
+      </button>
+      <div
+        role="slider"
+        aria-label={props.edit.label}
+        aria-valuemin={60}
+        aria-valuemax={140}
+        aria-valuenow={percent}
+        tabIndex={0}
+        className="flex h-6 min-w-0 flex-1 cursor-ew-resize touch-none items-center justify-center text-[10px] font-medium tabular-nums"
+        onPointerDown={drag.onPointerDown}
+        onPointerMove={drag.onPointerMove}
+        onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerUp}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+            event.preventDefault()
+            drag.step(-0.05)
+          }
+          if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            drag.step(0.05)
+          }
+        }}
+      >
+        {props.edit.label} {percent}%
+      </div>
+      <button
+        type="button"
+        className="flex h-6 w-6 shrink-0 items-center justify-center text-sm leading-none"
+        aria-label={props.edit.zoomInLabel}
+        onClick={() => drag.step(0.05)}
+      >
+        +
+      </button>
+    </div>
+  )
+}
+
+function FrameResizeChrome(props: { edit?: FrameScaleEdit; className?: string; style?: CSSProperties; children: ReactNode }) {
+  if (!props.edit) {
+    return (
+      <div className={props.className} style={props.style}>
+        {props.children}
+      </div>
+    )
+  }
+  return (
+    <div className={props.className} style={props.style}>
+      <div className="relative">
+        {props.children}
+        <FrameEdgeGrips edit={props.edit} />
+      </div>
+      <FrameScaleDragBar edit={props.edit} />
+    </div>
+  )
 }
 
 function coverPhotoBox(edit: CoverPhotoEdit | undefined, objectPosition?: string, scale?: number) {
@@ -160,7 +316,7 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
   return {
     className: edit ? 'cursor-grab touch-none active:cursor-grabbing' : undefined,
     style: (edit ? { touchAction: 'none' } : undefined) as CSSProperties | undefined,
-    onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+    onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
       const current = editRef.current
       if (!current || (event.target as HTMLElement).closest('button')) return
       dragRef.current = {
@@ -176,7 +332,7 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
         /* kéo vẫn cập nhật khi trình duyệt không giữ pointer */
       }
     },
-    onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
+    onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => {
       const current = editRef.current
       const drag = dragRef.current
       if (!current || !drag || drag.pointerId !== event.pointerId) return
@@ -189,7 +345,7 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
         positionY: clampCoverPercent(drag.y - dy),
       })
     },
-    onPointerUp: (event: PointerEvent<HTMLDivElement>) => {
+    onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => {
       if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null
       try {
         event.currentTarget.releasePointerCapture(event.pointerId)
@@ -430,32 +586,31 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       />
       <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
       {props.coverPhotoUrl ? (
-        <CoverPhotoPan
-          edit={props.coverPhotoEdit}
-          className={cn('relative', compact ? 'my-2' : 'my-2 sm:my-3 lg:my-2')}
-        >
-          <CoverPhoto
-            url={props.coverPhotoUrl}
-            alt={props.photoAlt}
-            compact={compact}
-            className={props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : undefined}
-            objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
-            scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
-            boxScale={props.frameScale}
-            breathe={props.breathe}
-            openSlowly={props.namesFlyIn && !compact}
-          />
-          {props.onChoosePhoto ? (
-            <CoverFrameActions
-              hasPhoto
-              onChoosePhoto={props.onChoosePhoto}
-              onChooseFrame={props.onChooseFrame}
-              changePhotoLabel={props.changePhotoLabel}
-              chooseFrameLabel={props.chooseFrameLabel}
-              className="bottom-1.5 left-1/2"
+        <FrameResizeChrome edit={props.frameScaleEdit} className={cn(compact ? 'my-2' : 'my-2 sm:my-3 lg:my-2')}>
+          <CoverPhotoPan edit={props.coverPhotoEdit} className="relative">
+            <CoverPhoto
+              url={props.coverPhotoUrl}
+              alt={props.photoAlt}
+              compact={compact}
+              className={props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : undefined}
+              objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
+              scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
+              boxScale={props.frameScale}
+              breathe={props.breathe}
+              openSlowly={props.namesFlyIn && !compact}
             />
-          ) : null}
-        </CoverPhotoPan>
+            {props.onChoosePhoto ? (
+              <CoverFrameActions
+                hasPhoto
+                onChoosePhoto={props.onChoosePhoto}
+                onChooseFrame={props.onChooseFrame}
+                changePhotoLabel={props.changePhotoLabel}
+                chooseFrameLabel={props.chooseFrameLabel}
+                className="bottom-1.5 left-1/2"
+              />
+            ) : null}
+          </CoverPhotoPan>
+        </FrameResizeChrome>
       ) : props.onChoosePhoto ? (
         <button
           type="button"
@@ -546,29 +701,31 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
           aria-hidden
         />
         {props.coverPhotoUrl ? (
-          <CoverPhotoPan edit={props.coverPhotoEdit} className="relative">
-            <CoverPhoto
-              url={props.coverPhotoUrl}
-              alt={props.photoAlt}
-              compact={compact}
-              className={compact ? 'h-28' : props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : 'h-[clamp(12rem,34dvh,16rem)] lg:h-[clamp(14rem,40dvh,18rem)]'}
-              objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
-              scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
-              boxScale={props.frameScale}
-              breathe={props.breathe}
-              openSlowly={props.namesFlyIn && !compact}
-            />
-            {props.onChoosePhoto ? (
-              <CoverFrameActions
-                hasPhoto
-                onChoosePhoto={props.onChoosePhoto}
-                onChooseFrame={props.onChooseFrame}
-                changePhotoLabel={props.changePhotoLabel}
-                chooseFrameLabel={props.chooseFrameLabel}
-                className="bottom-1.5 left-1/2"
+          <FrameResizeChrome edit={props.frameScaleEdit}>
+            <CoverPhotoPan edit={props.coverPhotoEdit} className="relative">
+              <CoverPhoto
+                url={props.coverPhotoUrl}
+                alt={props.photoAlt}
+                compact={compact}
+                className={compact ? 'h-28' : props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : 'h-[clamp(12rem,34dvh,16rem)] lg:h-[clamp(14rem,40dvh,18rem)]'}
+                objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
+                scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
+                boxScale={props.frameScale}
+                breathe={props.breathe}
+                openSlowly={props.namesFlyIn && !compact}
               />
-            ) : null}
-          </CoverPhotoPan>
+              {props.onChoosePhoto ? (
+                <CoverFrameActions
+                  hasPhoto
+                  onChoosePhoto={props.onChoosePhoto}
+                  onChooseFrame={props.onChooseFrame}
+                  changePhotoLabel={props.changePhotoLabel}
+                  chooseFrameLabel={props.chooseFrameLabel}
+                  className="bottom-1.5 left-1/2"
+                />
+              ) : null}
+            </CoverPhotoPan>
+          </FrameResizeChrome>
         ) : props.onChoosePhoto ? (
           <button
             type="button"
@@ -964,9 +1121,13 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
   )
   if (props.frameOnly) {
     return (
-      <div className="mx-auto w-full">
+      <FrameResizeChrome
+        edit={props.frameScaleEdit}
+        className="mx-auto"
+        style={{ width: `${plain ? frameWidthPercent(78, frameScale) : frameWidth}%` }}
+      >
         {plain ? (
-          <div key={props.motionKey} className={cn('relative mx-auto', photoMotion || 'wedding-cover-frame-settle')} style={{ width: `${frameWidthPercent(78, frameScale)}%` }}>
+          <div key={props.motionKey} className={cn('relative', photoMotion || 'wedding-cover-frame-settle')}>
             <CoverPhotoPan
               edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
               className="relative aspect-square w-full overflow-hidden rounded-full"
@@ -989,15 +1150,15 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         ) : (
           <CoverFrameViewport
             key={props.motionKey}
-            className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
+            className={cn('!w-full !max-w-none', holeMask === undefined ? 'opacity-0' : frameMotion)}
             content={holeMask?.content}
             imageAspect={holeMask?.aspect}
-            widthPercent={frameWidth}
+            widthPercent={100}
           >
             {frameArt}
           </CoverFrameViewport>
         )}
-      </div>
+      </FrameResizeChrome>
     )
   }
   return (
@@ -1010,9 +1171,11 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       )}
     >
       {plain || nestFrame ? null : (
-        <div key={props.motionKey} ref={intro.rootRef} className={cn('relative mx-auto aspect-[3/4]', frameMotion)} style={{ width: `${frameWidthPercent(100, frameScale)}%` }}>
-          {frameArt}
-        </div>
+        <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthPercent(100, frameScale)}%` }}>
+          <div key={props.motionKey} ref={intro.rootRef} className={cn('relative aspect-[3/4] w-full', frameMotion)}>
+            {frameArt}
+          </div>
+        </FrameResizeChrome>
       )}
       <div
         className={cn(
@@ -1045,55 +1208,59 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           {props.preset.ornament}
         </div>
         {plain ? (
-          <div
-            key={props.motionKey}
-            className={cn('relative mx-auto my-1', photoMotion || 'wedding-cover-frame-settle')}
+          <FrameResizeChrome
+            edit={props.frameScaleEdit}
+            className="mx-auto my-1"
             style={{
               width: props.fitViewport
                 ? `min(${frameWidthPercent(68, frameScale)}%, ${frameWidthPercent(16, frameScale)}rem)`
                 : `${frameWidthPercent(78, frameScale)}%`,
             }}
           >
-            <CoverPhotoPan
-              edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
-              className="relative aspect-square w-full overflow-hidden rounded-full"
-            >
-              {props.coverPhotoUrl ? (
-                <img
-                  src={props.coverPhotoUrl}
-                  alt={props.photoAlt}
-                  draggable={false}
-                  className="h-full w-full select-none object-cover"
-                  style={{
-                    objectPosition: photoBox.position,
-                    transform: `scale(${photoBox.zoom})`,
-                    transformOrigin: photoBox.position,
-                  }}
-                />
-              ) : null}
-            </CoverPhotoPan>
-            <CoverFrameActions
-              hasPhoto={Boolean(props.coverPhotoUrl)}
-              onChoosePhoto={props.onChoosePhoto}
-              onChooseFrame={props.onChooseFrame}
-              choosePhotoLabel={props.choosePhotoLabel}
-              changePhotoLabel={props.changePhotoLabel}
-              chooseFrameLabel={props.chooseFrameLabel}
-              className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
-            />
-          </div>
+            <div key={props.motionKey} className={cn('relative', photoMotion || 'wedding-cover-frame-settle')}>
+              <CoverPhotoPan
+                edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
+                className="relative aspect-square w-full overflow-hidden rounded-full"
+              >
+                {props.coverPhotoUrl ? (
+                  <img
+                    src={props.coverPhotoUrl}
+                    alt={props.photoAlt}
+                    draggable={false}
+                    className="h-full w-full select-none object-cover"
+                    style={{
+                      objectPosition: photoBox.position,
+                      transform: `scale(${photoBox.zoom})`,
+                      transformOrigin: photoBox.position,
+                    }}
+                  />
+                ) : null}
+              </CoverPhotoPan>
+              <CoverFrameActions
+                hasPhoto={Boolean(props.coverPhotoUrl)}
+                onChoosePhoto={props.onChoosePhoto}
+                onChooseFrame={props.onChooseFrame}
+                choosePhotoLabel={props.choosePhotoLabel}
+                changePhotoLabel={props.changePhotoLabel}
+                chooseFrameLabel={props.chooseFrameLabel}
+                className={props.coverPhotoUrl ? 'bottom-2 left-1/2' : 'left-1/2 top-1/2 -translate-y-1/2'}
+              />
+            </div>
+          </FrameResizeChrome>
         ) : null}
         {nestFrame ? (
-          <CoverFrameViewport
-            key={props.motionKey}
-            className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
-            content={holeMask?.content}
-            imageAspect={holeMask?.aspect}
-            widthPercent={frameWidth}
-            maxHeight={props.fitViewport ? `min(${frameWidthPercent(32, frameScale)}svh, ${frameWidthPercent(16, frameScale)}rem)` : undefined}
-          >
-            {frameArt}
-          </CoverFrameViewport>
+          <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidth}%` }}>
+            <CoverFrameViewport
+              key={props.motionKey}
+              className={cn('!w-full !max-w-none', holeMask === undefined ? 'opacity-0' : frameMotion)}
+              content={holeMask?.content}
+              imageAspect={holeMask?.aspect}
+              widthPercent={100}
+              maxHeight={props.fitViewport ? `min(${frameWidthPercent(32, frameScale)}svh, ${frameWidthPercent(16, frameScale)}rem)` : undefined}
+            >
+              {frameArt}
+            </CoverFrameViewport>
+          </FrameResizeChrome>
         ) : null}
         {!props.guestName ? (
           <p className={cn(compact ? 'text-[10px]' : 'text-xs sm:text-sm', mutedCls)}>{props.weddingDate || props.dateFallback}</p>
@@ -1159,13 +1326,16 @@ export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
     if (!props.coverPhotoUrl) return null
     const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
     return (
-      <CoverPhoto
-        url={props.coverPhotoUrl}
-        alt={props.photoAlt}
-        objectPosition={photo.position}
-        scale={photo.zoom}
-        className="rounded-2xl"
-      />
+      <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto w-full">
+        <CoverPhoto
+          url={props.coverPhotoUrl}
+          alt={props.photoAlt}
+          objectPosition={photo.position}
+          scale={photo.zoom}
+          boxScale={props.frameScale}
+          className="rounded-2xl"
+        />
+      </FrameResizeChrome>
     )
   }
   return <GlassCoverCard {...props} />

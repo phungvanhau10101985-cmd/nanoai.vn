@@ -8,6 +8,8 @@ import {
   combineAdSpendTotals,
   emptyPlatform,
   googleConfigured,
+  explainGoogleAdsFailure,
+  googleErrorMessage,
   googlePurchaseQuery,
   googleSpendQuery,
   metaPurchaseAmount,
@@ -20,9 +22,6 @@ import {
 
 const blank: AdSpendCredentials = {
   googleDeveloperToken: '',
-  googleClientId: '',
-  googleClientSecret: '',
-  googleRefreshToken: '',
   googleCustomerId: '',
   googleLoginCustomerId: '',
   googleServiceAccountJson: '',
@@ -75,8 +74,32 @@ describe('partner ad spend', () => {
     const purchaseQuery = googlePurchaseQuery('2026-10-15', '2026-10-15')
     assert.match(spendQuery, /metrics\.cost_micros/)
     assert.doesNotMatch(spendQuery, /metrics\.conversions/)
+    const selectClause = purchaseQuery.slice(0, purchaseQuery.indexOf(' FROM '))
+    assert.match(selectClause, /segments\.conversion_action_category/)
     assert.match(purchaseQuery, /segments\.conversion_action_category = PURCHASE/)
     assert.doesNotMatch(purchaseQuery, /metrics\.cost_micros/)
+    assert.equal(
+      explainGoogleAdsFailure("The customer account can't be accessed because it is not yet enabled or has been deactivated."),
+      'Google đang khóa tài khoản quảng cáo, thường vì chậm thanh toán. Khóa JSON đã lưu vẫn giữ. Sau khi trả tiền, trang đọc lại được mà không cần đăng nhập lại.',
+    )
+    assert.match(
+      googleErrorMessage({
+        error: {
+          message: 'Request contains an invalid argument.',
+          details: [{ errors: [{ errorCode: { queryError: 'EXPECTED_REFERENCED_FIELD_IN_SELECT_CLAUSE' }, message: "The following field must be present in SELECT clause: 'segments.conversion_action_category'." }] }],
+        },
+      }),
+      /segments\.conversion_action_category/,
+    )
+    assert.match(
+      googleErrorMessage({
+        error: {
+          message: 'The caller does not have permission',
+          details: [{ errors: [{ errorCode: { authorizationError: 'CUSTOMER_NOT_ENABLED' }, message: 'The customer account can\'t be accessed because it is not yet enabled or has been deactivated.' }] }],
+        },
+      }),
+      /chậm thanh toán/,
+    )
     const sheet = aggregateMetricRows(
       [
         { date: '2026-10-15', spend_micros: 736_374_000_000, impressions: 85_661, clicks: 1_362, campaign_id: '1', campaign_name: 'Mua sắm', currency: 'VND' },
@@ -136,13 +159,10 @@ describe('partner ad spend', () => {
     const total = combineAdSpendTotals({ google, facebook, googleConfigured: true, facebookConfigured: false })
     assert.equal(total.totalStatus, 'ok')
     assert.equal(total.totalSpend, 80)
-    assert.equal(
-      googleConfigured({ ...blank, googleClientId: 'c', googleClientSecret: 's', googleRefreshToken: 'r', googleCustomerId: '1' }),
-      true,
-    )
+    assert.equal(googleConfigured({ ...blank, googleCustomerId: '1' }), false)
   })
 
-  it('accepts a service account without developer token or OAuth client', () => {
+  it('accepts a service account without a developer token', () => {
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 })
     const json = JSON.stringify({
       type: 'service_account',

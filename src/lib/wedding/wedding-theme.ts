@@ -245,7 +245,7 @@ export function weddingBackgroundStyle(
   imageUrl: string | null | undefined,
   theme: WeddingTheme,
   overlayOpacity: number = WEDDING_BG_OVERLAY.section,
-  opts?: { readingVignette?: boolean },
+  opts?: { readingVignette?: boolean; omitImage?: boolean },
 ) {
   const cleanUrl = imageUrl?.trim()
   const dark = isWeddingDarkTheme(theme.id)
@@ -262,11 +262,27 @@ export function weddingBackgroundStyle(
       ? 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(15,23,42,0.52) 0%, rgba(15,23,42,0.22) 52%, transparent 78%), '
       : 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(255,252,245,0.52) 0%, rgba(255,248,236,0.24) 52%, transparent 78%), '
     : ''
+  const showImage = Boolean(cleanUrl) && !opts?.omitImage
   return {
-    backgroundImage: cleanUrl
+    backgroundImage: showImage
       ? `${edgeVignette}${readingVignette}${wash}url(${cleanUrl})`
-      : theme.heroGradient,
+      : opts?.omitImage && cleanUrl
+        ? `${edgeVignette}${readingVignette}${wash.slice(0, -2)}`
+        : theme.heroGradient,
+    backgroundSize: showImage ? ('cover' as const) : undefined,
+    backgroundPosition: showImage ? ('center' as const) : undefined,
+    backgroundRepeat: showImage ? ('no-repeat' as const) : undefined,
+  }
+}
+
+/** Ảnh nền khóa đúng khung nhìn, không phóng theo chiều cao nội dung. */
+export function weddingViewportBackgroundStyle(imageUrl: string | null | undefined, fallbackColor: string) {
+  const cleanUrl = imageUrl?.trim()
+  return {
+    backgroundColor: fallbackColor,
+    backgroundImage: cleanUrl ? `url(${cleanUrl})` : undefined,
     backgroundSize: cleanUrl ? ('cover' as const) : undefined,
-    backgroundPosition: cleanUrl ? ('center' as const) : undefined,
+    backgroundPosition: cleanUrl ? ('center center' as const) : undefined,
+    backgroundRepeat: 'no-repeat' as const,
   }
 }

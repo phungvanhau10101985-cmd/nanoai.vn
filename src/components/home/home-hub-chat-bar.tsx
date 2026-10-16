@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Check,
@@ -572,6 +572,7 @@ export function HomeHubChatBar() {
   const studioFileRef = useRef<HTMLInputElement>(null)
   const studioLogoFileRef = useRef<HTMLInputElement>(null)
   const chatScrollRef = useRef<HTMLDivElement>(null)
+  const homeFrameScrollRef = useRef<HTMLDivElement>(null)
   const studioWorkflowAnchorRef = useRef<HTMLDivElement>(null)
   const studioTextareaRef = useRef<HTMLTextAreaElement>(null)
   const postInFlightRef = useRef(false)
@@ -581,7 +582,8 @@ export function HomeHubChatBar() {
   const searchParams = useSearchParams()
 
   const scrollChatToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
-    const el = chatScrollRef.current
+    const narrow = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    const el = narrow ? homeFrameScrollRef.current ?? chatScrollRef.current : chatScrollRef.current
     if (!el) return
     el.scrollTo({ top: el.scrollHeight, behavior })
   }, [])
@@ -3257,7 +3259,7 @@ export function HomeHubChatBar() {
   }, [featureFeedbackBusy, featureFeedbackDraft, hc.errorGeneric, hc.featureFeedbackNeedText, hc.featureFeedbackSent, hc.loginRequired, toast])
 
   const featureFeedbackControl = (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-2 max-md:hidden">
       {featureFeedbackOpen ? (
         <div className="rounded-xl border border-indigo-200 bg-white p-3 shadow-sm dark:border-indigo-800 dark:bg-slate-950">
           <div className="flex items-start justify-between gap-2">
@@ -3550,9 +3552,25 @@ export function HomeHubChatBar() {
     )
   }
 
+  useLayoutEffect(() => {
+    const field = studioTextareaRef.current
+    if (!field) return
+    const narrow = window.matchMedia('(max-width: 767px)').matches
+    if (!narrow) {
+      field.style.height = ''
+      return
+    }
+    field.style.height = 'auto'
+    const next = Math.min(Math.max(field.scrollHeight, 36), 120)
+    field.style.height = `${next}px`
+  }, [message])
+
   return (
-    <div className="surface-card relative border border-indigo-100/80 shadow-sm dark:border-indigo-900/40">
-      <div className="border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+    <div
+      data-home-chat-frame=""
+      className="surface-card relative border border-indigo-100/80 shadow-sm max-md:flex max-md:h-full max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:rounded-none max-md:border-0 max-md:bg-background max-md:shadow-none dark:border-indigo-900/40"
+    >
+      <div className="shrink-0 border-b border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-3 sm:px-5 sm:py-4 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
         <div className="flex items-start gap-2">
           <div className="min-w-0">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100 sm:text-lg">
@@ -3564,7 +3582,7 @@ export function HomeHubChatBar() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col lg:max-h-[calc(100dvh-13rem)] lg:flex-row lg:items-stretch">
+      <div className="flex min-h-0 flex-1 flex-col lg:max-h-[calc(100dvh-13rem)] lg:flex-row lg:items-stretch">
         <aside className="flex shrink-0 flex-col border-b border-indigo-100 bg-indigo-50/40 dark:border-indigo-900/50 dark:bg-indigo-950/20 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-5.5rem)] lg:w-64 lg:overflow-hidden lg:self-start lg:border-b-0 lg:border-r xl:w-72">
           <div className="shrink-0 p-3 lg:border-b lg:border-indigo-100/80 dark:lg:border-indigo-900/50">
             <Button
@@ -3586,8 +3604,11 @@ export function HomeHubChatBar() {
           <div className="hidden min-h-0 flex-1 flex-col lg:flex">{renderChatHistoryPanel()}</div>
         </aside>
 
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto">
-          <div className="space-y-3 px-3 py-3 sm:px-5 sm:py-4">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col max-md:overflow-hidden lg:overflow-y-auto">
+          <div
+            ref={homeFrameScrollRef}
+            className="space-y-3 px-3 py-3 max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-y-auto max-md:overscroll-contain max-md:bg-muted/20 max-md:px-0 max-md:pb-0 max-md:pt-2 sm:px-5 sm:py-4"
+          >
         {studioSession?.processSteps?.length ? (
           <div className="rounded-lg border border-violet-100 bg-violet-50/40 px-3 py-2 dark:border-violet-900 dark:bg-violet-950/20">
             <p className="mb-1.5 text-xs font-medium text-violet-900 dark:text-violet-100">{hc.studioProcessTitle}</p>
@@ -3619,8 +3640,8 @@ export function HomeHubChatBar() {
           <div ref={studioWorkflowAnchorRef} className="space-y-3">
             <div
               ref={chatScrollRef}
-              className={`space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 dark:border-slate-800 dark:bg-slate-900/40 ${
-                shouldPinStudioWorkflowView ? 'max-h-[min(60vh,520px)]' : 'max-h-80'
+              className={`space-y-2 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50/50 p-2 max-md:max-h-none max-md:overflow-visible max-md:rounded-none max-md:border-0 max-md:bg-transparent max-md:p-0 dark:border-slate-800 dark:bg-slate-900/40 ${
+                shouldPinStudioWorkflowView ? 'md:max-h-[min(60vh,520px)]' : 'md:max-h-80'
               }`}
             >
             {displayLines.map((line) => {
@@ -4370,8 +4391,10 @@ export function HomeHubChatBar() {
             />
           ) : null}
 
+          </div>
+          <div className="max-md:!mt-auto max-md:shrink-0 max-md:border-t max-md:border-border max-md:bg-background max-md:px-2 max-md:pb-2 max-md:pt-2 max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.12)] dark:max-md:shadow-[0_-8px_32px_rgba(0,0,0,0.45)] md:space-y-3 md:px-3 md:pb-0 sm:md:px-5">
           {!hideStepInputComposer ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 max-md:rounded-xl max-md:border-2 max-md:border-border max-md:bg-background max-md:p-1.5">
               {studioSession?.presetId && getActiveStepKey(studioSession) && studioInputPlaceholder ? (
                 <p className="text-xs font-medium text-foreground">{studioInputPlaceholder}</p>
               ) : null}
@@ -4382,9 +4405,9 @@ export function HomeHubChatBar() {
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder={chatInputPlaceholder}
                   aria-label={chatInputPlaceholder || hc.send}
-                  rows={3}
+                  rows={1}
                   disabled={busy}
-                  className="min-h-[80px] w-full min-w-0 flex-1 resize-y text-sm"
+                  className="min-h-9 w-full min-w-0 flex-1 resize-none rounded-full border-0 bg-[#F0F2F5] px-3 py-2 text-[15px] leading-5 shadow-none ring-0 ring-offset-0 placeholder:text-[#65676B] focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-white/10 md:min-h-[80px] md:resize-y md:rounded-md md:border md:border-input md:bg-background md:text-sm md:leading-normal md:ring-offset-background md:focus-visible:ring-2 md:focus-visible:ring-ring md:focus-visible:ring-offset-2"
                   onPaste={(event) => {
                     if (busy || !showStudioUpload || !clipboardHasImagePayload(event.clipboardData)) return
                     event.preventDefault()
@@ -4415,7 +4438,7 @@ export function HomeHubChatBar() {
                   {renderImageModelPicker()}
                   <Button
                     type="button"
-                    className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 sm:h-auto"
+                    className="h-10 shrink-0 bg-indigo-600 hover:bg-indigo-700 max-md:h-9 max-md:w-9 max-md:rounded-full max-md:px-0 sm:h-auto"
                     disabled={
                       busy ||
                       (showGenerateCurrentStep
@@ -4425,7 +4448,7 @@ export function HomeHubChatBar() {
                     onClick={() => void sendMessage(message)}
                   >
                     {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    {busy ? hc.thinking : hc.send}
+                    <span className="max-md:sr-only">{busy ? hc.thinking : hc.send}</span>
                   </Button>
                 </div>
               </div>
@@ -4485,7 +4508,7 @@ export function HomeHubChatBar() {
         ) : null}
 
         {showPostFlowSuggestions ? (
-          <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-52 space-y-2 overflow-y-auto pr-1 max-md:hidden">
             <p className="text-xs font-medium text-emerald-800 dark:text-emerald-200">{hc.studioPostFlowSuggestHint}</p>
             {postFlowFeatureGroups.map((group) => (
               <div key={group.groupKey}>
@@ -4509,7 +4532,7 @@ export function HomeHubChatBar() {
             ))}
           </div>
         ) : !hideStepInputComposer && showFeaturePicker && !isActiveStudioFlow(studioSession) && activeStepSuggestions.length === 0 ? (
-          <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+          <div className="max-h-52 space-y-2 overflow-y-auto pr-1 max-md:hidden">
             <p className="text-xs font-medium text-muted-foreground">{hc.featurePickerHint}</p>
             {featureCatalogGroups.map((group, groupIndex) => (
               <div key={`${group.groupKey}-${groupIndex}`}>
@@ -4536,7 +4559,7 @@ export function HomeHubChatBar() {
             ))}
           </div>
         ) : !hideStepInputComposer && activeStepSuggestions.length > 0 ? (
-          <div>
+          <div className="max-md:hidden">
             <p className="mb-1.5 text-xs font-medium text-muted-foreground">{hc.suggested}</p>
             <div className="flex flex-wrap gap-1.5">
               {activeStepSuggestions.map((item) => (
@@ -4557,7 +4580,7 @@ export function HomeHubChatBar() {
           </div>
         ) : null}
 
-          <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
+          <div className="-mx-3 border-t border-indigo-50 bg-gradient-to-r from-indigo-50/90 via-white to-violet-50/80 px-3 py-2.5 max-md:hidden sm:-mx-5 sm:px-5 dark:border-indigo-950/50 dark:from-indigo-950/40 dark:via-slate-900 dark:to-violet-950/30">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-indigo-200 bg-white/80 px-2.5 py-0.5 text-[11px] font-medium text-indigo-700 dark:border-indigo-800 dark:bg-slate-900/80 dark:text-indigo-300">
                 {hc.creditNote}

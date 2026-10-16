@@ -16,9 +16,6 @@ export type PartnerAdSpendSettingsView = {
   googleCustomerId: string
   googleLoginCustomerId: string
   googleDeveloperTokenSet: boolean
-  googleClientIdSet: boolean
-  googleClientSecretSet: boolean
-  googleRefreshTokenSet: boolean
   googleServiceAccountEmail: string
   googleConfigured: boolean
   metaAdAccountId: string
@@ -30,9 +27,6 @@ export type PartnerAdSpendSettingsView = {
 
 type SecretRow = {
   google_developer_token: string | null
-  google_client_id: string | null
-  google_client_secret: string | null
-  google_refresh_token: string | null
   google_customer_id: string | null
   google_login_customer_id: string | null
   google_service_account_json: string | null
@@ -43,9 +37,6 @@ type SecretRow = {
 function blankCreds(): AdSpendCredentials {
   return {
     googleDeveloperToken: '',
-    googleClientId: '',
-    googleClientSecret: '',
-    googleRefreshToken: '',
     googleCustomerId: '',
     googleLoginCustomerId: '',
     googleServiceAccountJson: '',
@@ -58,9 +49,6 @@ function credsFromRow(row: SecretRow | null): AdSpendCredentials {
   if (!row) return blankCreds()
   return {
     googleDeveloperToken: String(row.google_developer_token ?? '').trim(),
-    googleClientId: String(row.google_client_id ?? '').trim(),
-    googleClientSecret: String(row.google_client_secret ?? '').trim(),
-    googleRefreshToken: String(row.google_refresh_token ?? '').trim(),
     googleCustomerId: normalizeCustomerId(row.google_customer_id),
     googleLoginCustomerId: normalizeCustomerId(row.google_login_customer_id),
     googleServiceAccountJson: String(row.google_service_account_json ?? '').trim(),
@@ -74,9 +62,6 @@ export function adSpendSettingsView(creds: AdSpendCredentials): PartnerAdSpendSe
     googleCustomerId: creds.googleCustomerId,
     googleLoginCustomerId: creds.googleLoginCustomerId,
     googleDeveloperTokenSet: Boolean(creds.googleDeveloperToken),
-    googleClientIdSet: Boolean(creds.googleClientId),
-    googleClientSecretSet: Boolean(creds.googleClientSecret),
-    googleRefreshTokenSet: Boolean(creds.googleRefreshToken),
     googleServiceAccountEmail: parseGoogleServiceAccountJson(creds.googleServiceAccountJson)?.clientEmail ?? '',
     googleConfigured: googleConfigured(creds),
     metaAdAccountId: creds.metaAdAccountId,
@@ -101,7 +86,7 @@ async function partnerOrdersAllowed(ownerUserId: string, partnerId: string): Pro
 
 async function loadSecretRow(partnerId: string): Promise<SecretRow | null> {
   return pgQueryOne<SecretRow>(
-    `select google_developer_token, google_client_id, google_client_secret, google_refresh_token,
+    `select google_developer_token,
             google_customer_id, google_login_customer_id, google_service_account_json,
             meta_access_token, meta_ad_account_id
      from public.messaging_partner_ad_spend
@@ -133,9 +118,6 @@ export async function savePartnerAdSpendSettingsFromPg(input: {
   googleLoginCustomerId: string
   metaAdAccountId: string
   googleDeveloperToken?: string
-  googleClientId?: string
-  googleClientSecret?: string
-  googleRefreshToken?: string
   googleServiceAccountJson?: string
   metaAccessToken?: string
   clearGoogleSecrets?: boolean
@@ -155,9 +137,6 @@ export async function savePartnerAdSpendSettingsFromPg(input: {
   }
   if (input.clearGoogleSecrets) {
     next.googleDeveloperToken = ''
-    next.googleClientId = ''
-    next.googleClientSecret = ''
-    next.googleRefreshToken = ''
     next.googleServiceAccountJson = ''
   }
   if (input.clearMetaSecrets) next.metaAccessToken = ''
@@ -166,9 +145,6 @@ export async function savePartnerAdSpendSettingsFromPg(input: {
     return text || previous
   }
   next.googleDeveloperToken = keep(input.googleDeveloperToken, next.googleDeveloperToken)
-  next.googleClientId = keep(input.googleClientId, next.googleClientId)
-  next.googleClientSecret = keep(input.googleClientSecret, next.googleClientSecret)
-  next.googleRefreshToken = keep(input.googleRefreshToken, next.googleRefreshToken)
   next.googleServiceAccountJson = keep(serviceAccountText, next.googleServiceAccountJson)
   next.metaAccessToken = keep(input.metaAccessToken, next.metaAccessToken)
 
@@ -192,9 +168,9 @@ export async function savePartnerAdSpendSettingsFromPg(input: {
     [
       input.partnerId,
       next.googleDeveloperToken || null,
-      next.googleClientId || null,
-      next.googleClientSecret || null,
-      next.googleRefreshToken || null,
+      null,
+      null,
+      null,
       next.googleCustomerId || null,
       next.googleLoginCustomerId || null,
       next.googleServiceAccountJson || null,

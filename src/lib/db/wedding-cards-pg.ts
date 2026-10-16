@@ -894,6 +894,7 @@ export type WeddingBackgroundLibraryItem = {
   id: string
   imageUrl: string
   imageType: WeddingImageType
+  referenceImageUrl: string
   createdAt: string
 }
 
@@ -903,6 +904,7 @@ function mapBackgroundLibraryItem(row: Record<string, unknown>): WeddingBackgrou
     id: String(row.id),
     imageUrl: String(row.image_url ?? ''),
     imageType: WEDDING_IMAGE_TYPES.includes(type as WeddingImageType) ? (type as WeddingImageType) : 'master',
+    referenceImageUrl: String(row.reference_image_url ?? ''),
     createdAt: String(row.created_at),
   }
 }
@@ -910,15 +912,21 @@ function mapBackgroundLibraryItem(row: Record<string, unknown>): WeddingBackgrou
 export async function saveWeddingBackgroundToLibrary(input: {
   imageUrl: string
   imageType: WeddingImageType
+  referenceImageUrl?: string
 }): Promise<void> {
   requirePg()
   const imageUrl = input.imageUrl.trim()
   if (!imageUrl || !WEDDING_IMAGE_TYPES.includes(input.imageType)) return
+  const referenceImageUrl = (input.referenceImageUrl ?? '').trim().slice(0, 2000)
   await getPgPool().query(
-    `insert into public.wedding_background_library (image_url, image_type)
-     values ($1, $2)
-     on conflict (image_url) do nothing`,
-    [imageUrl.slice(0, 2000), input.imageType],
+    `insert into public.wedding_background_library (image_url, image_type, reference_image_url)
+     values ($1, $2, $3)
+     on conflict (image_url) do update set
+       reference_image_url = case
+         when excluded.reference_image_url <> '' then excluded.reference_image_url
+         else public.wedding_background_library.reference_image_url
+       end`,
+    [imageUrl.slice(0, 2000), input.imageType, referenceImageUrl],
   )
 }
 
@@ -988,6 +996,7 @@ export type WeddingCoverFrameLibraryItem = {
   hole: { x: number; y: number; w: number; h: number }
   panel: string
   ink: 'dark' | 'light'
+  referenceImageUrl: string
   createdAt: string
 }
 
@@ -1013,6 +1022,7 @@ function mapCoverFrameLibraryItem(row: Record<string, unknown>): WeddingCoverFra
     },
     panel,
     ink: row.ink === 'light' ? 'light' : 'dark',
+    referenceImageUrl: String(row.reference_image_url ?? ''),
     createdAt: String(row.created_at ?? ''),
   }
 }
@@ -1022,6 +1032,7 @@ export async function saveWeddingCoverFrameToLibrary(input: {
   hole: { x: number; y: number; w: number; h: number }
   panel: string
   ink: 'dark' | 'light'
+  referenceImageUrl?: string
 }): Promise<WeddingCoverFrameLibraryItem | null> {
   requirePg()
   const imageUrl = input.imageUrl.trim()
@@ -1035,12 +1046,17 @@ export async function saveWeddingCoverFrameToLibrary(input: {
     created_at: '',
   })
   if (!mapped) return null
+  const referenceImageUrl = (input.referenceImageUrl ?? '').trim().slice(0, 2000)
   const res = await getPgPool().query(
-    `insert into public.wedding_cover_frame_library (image_url, hole, panel, ink)
-     values ($1, $2::jsonb, $3, $4)
-     on conflict (image_url) do update set image_url = excluded.image_url
-     returning id, image_url, hole, panel, ink, created_at`,
-    [imageUrl.slice(0, 2000), JSON.stringify(mapped.hole), mapped.panel, mapped.ink],
+    `insert into public.wedding_cover_frame_library (image_url, hole, panel, ink, reference_image_url)
+     values ($1, $2::jsonb, $3, $4, $5)
+     on conflict (image_url) do update set
+       reference_image_url = case
+         when excluded.reference_image_url <> '' then excluded.reference_image_url
+         else public.wedding_cover_frame_library.reference_image_url
+       end
+     returning id, image_url, hole, panel, ink, reference_image_url, created_at`,
+    [imageUrl.slice(0, 2000), JSON.stringify(mapped.hole), mapped.panel, mapped.ink, referenceImageUrl],
   )
   return res.rows[0] ? mapCoverFrameLibraryItem(res.rows[0]) : null
 }
@@ -1049,7 +1065,7 @@ export async function listWeddingCoverFrameLibrary(limit = 80): Promise<WeddingC
   requirePg()
   const cap = Math.max(1, Math.min(80, Math.round(limit) || 80))
   const res = await getPgPool().query(
-    `select id, image_url, hole, panel, ink, created_at
+    `select id, image_url, hole, panel, ink, reference_image_url, created_at
      from public.wedding_cover_frame_library
      where image_url <> ''
      order by created_at desc
@@ -1066,7 +1082,7 @@ export async function listWeddingBackgroundLibrary(limit = 80): Promise<WeddingB
   requirePg()
   const cap = Math.max(1, Math.min(80, Math.round(limit) || 80))
   const res = await getPgPool().query(
-    `select id, image_url, image_type, created_at
+    `select id, image_url, image_type, reference_image_url, created_at
      from public.wedding_background_library
      where image_url <> ''
      order by created_at desc
@@ -1074,6 +1090,23 @@ export async function listWeddingBackgroundLibrary(limit = 80): Promise<WeddingB
     [cap],
   )
   return res.rows.map(mapBackgroundLibraryItem)
+}
+
+/** Chỉ gắn đề xuất khi URL đúng là một ảnh đã có trong kho đối diện. */
+export async function resolveWeddingLibraryReferenceUrl(
+  imageUrl: string,
+  library: 'background' | 'frame',
+): Promise<string> {
+  requirePg()
+  const url = imageUrl.trim().slice(0, 2000)
+  if (!url) return ''
+  const res = await getPgPool().query(
+    library === 'background'
+      ? `select image_url from public.wedding_background_library where image_url = $1 limit 1`
+      : `select image_url from public.wedding_cover_frame_library where image_url = $1 limit 1`,
+    [url],
+  )
+  return res.rows[0] ? String(res.rows[0].image_url) : ''
 }
 
 /** Gắn ảnh riêng của một thiệp. Không ghi kho chung, không trừ credit. */

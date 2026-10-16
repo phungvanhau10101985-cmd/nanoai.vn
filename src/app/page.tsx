@@ -34,16 +34,17 @@ function HomeHubChatBarSkeleton() {
 export default function Home() {
   const { t } = getServerDictionary()
   return (
-    <div className="min-h-screen">
-      <section className="w-full pb-10 pt-5 md:pb-14 md:pt-8">
-        <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
+    <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden md:min-h-screen">
+      <section className="w-full max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:p-0 md:pb-14 md:pt-8 pb-10 pt-5">
+        <div className="mx-auto w-full max-w-7xl max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:px-0 px-3 sm:px-6 lg:px-8">
           <h1 className="sr-only">
             {t.app.siteName} - {t.app.defaultDescription || 'Nền tảng Trí tuệ Nhân tạo Đa tính năng'}
           </h1>
-          <div className="space-y-6 md:space-y-8">
+          <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:space-y-0 max-md:overflow-hidden space-y-6 md:space-y-8">
             <Suspense fallback={<HomeHubChatBarSkeleton />}>
               <HomeHubChatBar />
             </Suspense>
+            <div className="hidden space-y-6 md:block md:space-y-8">
             {NAV_GROUPS.map((group) => {
               const homeLinks = group.links.filter((item) => item.showOnHomepage !== false)
               if (homeLinks.length === 0) return null
@@ -61,6 +62,7 @@ export default function Home() {
                 </div>
               )
             })}
+            </div>
           </div>
         </div>
       </section>

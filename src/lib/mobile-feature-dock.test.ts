@@ -4,6 +4,7 @@ import { CREATION_SIDEBAR_POPULAR_LINKS } from '@/lib/creation-tool-sidebar-conf
 import {
   activeMobileFeatureHref,
   buildMobileFeatureDock,
+  buildMobileFeatureGrid,
   dockHomeScrollLeft,
   resolveCatalogFeature,
   type MobileFeatureDockItem,
@@ -65,6 +66,22 @@ test('home with no history centers popular tools inside the full catalog', () =>
   assert.equal(focus.length, CREATION_SIDEBAR_POPULAR_LINKS.length)
   assert.ok(start > 0 && end < items.length - 1)
   assert.equal(activeMobileFeatureHref('/', items), null)
+})
+
+test('feature grid puts recent then related above the rest of the catalog', () => {
+  const { lead, rest } = buildMobileFeatureGrid('/gia-su-ai', ['/gia-su-ai', '/tao-thiep-moi-cuoi-ai'])
+  assert.deepEqual(
+    lead.map((item) => item.href),
+    ['/tao-thiep-moi-cuoi-ai', '/account/plan', '/ho-tro-lam-bai', '/lop', '/gia-su-ai']
+  )
+  assert.deepEqual(
+    lead.map((item) => item.kind),
+    ['recent', 'related', 'related', 'related', 'current']
+  )
+  assert.ok(rest.length > 20)
+  assert.ok(rest.every((item) => item.kind === 'catalog'))
+  assert.equal(rest.some((item) => item.href === '/gia-su-ai'), false)
+  assert.equal(rest[0]?.href, '/thu-do-online')
 })
 
 test('home scroll centers a short cluster and the related/recent seam when it overflows', () => {

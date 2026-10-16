@@ -1456,9 +1456,6 @@ export async function saveMyMessagingAdSpendSettings(input: {
   googleLoginCustomerId: string
   metaAdAccountId: string
   googleDeveloperToken?: string
-  googleClientId?: string
-  googleClientSecret?: string
-  googleRefreshToken?: string
   googleServiceAccountJson?: string
   metaAccessToken?: string
   clearGoogleSecrets?: boolean
@@ -1479,9 +1476,6 @@ export async function saveMyMessagingAdSpendSettings(input: {
       googleLoginCustomerId: String(input.googleLoginCustomerId ?? '').slice(0, 40),
       metaAdAccountId: String(input.metaAdAccountId ?? '').slice(0, 40),
       googleDeveloperToken: String(input.googleDeveloperToken ?? '').slice(0, 400),
-      googleClientId: String(input.googleClientId ?? '').slice(0, 400),
-      googleClientSecret: String(input.googleClientSecret ?? '').slice(0, 400),
-      googleRefreshToken: String(input.googleRefreshToken ?? '').slice(0, 800),
       googleServiceAccountJson: String(input.googleServiceAccountJson ?? '').slice(0, 12_000),
       metaAccessToken: String(input.metaAccessToken ?? '').slice(0, 800),
       clearGoogleSecrets: input.clearGoogleSecrets === true,

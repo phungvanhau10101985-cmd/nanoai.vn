@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame } from '@/lib/wedding/wedding-section-config'
-import { WeddingFramedPhoto } from '@/components/wedding/wedding-cover-shell-card'
+import { FrameEdgeGrips, FrameScaleDragBar, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 
 const PORTRAIT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
@@ -26,6 +26,7 @@ function Portrait(props: {
   chooseFrameLabel?: string
   onChoosePhoto?: () => void
   onChooseFrame?: () => void
+  frameScaleEdit?: FrameScaleEdit
 }) {
   const nameText = props.name.trim() || props.label
   const frameStyle = albumPhotoFrameStyle(props.frame)
@@ -37,8 +38,8 @@ function Portrait(props: {
       style={{ width: `${Math.round(frameScale * 1000) / 10}%` }}
       onClick={editable ? () => props.onChooseFrame?.() : undefined}
     >
+      <div className="relative">
       {props.shell ? (
-        <>
           <WeddingFramedPhoto
             frameSrc={props.shell.src}
             hole={props.shell.hole}
@@ -49,15 +50,6 @@ function Portrait(props: {
             frameScale={1}
             className="w-full max-w-none"
           />
-          <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
-            <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
-              {props.label}
-            </p>
-            <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
-              {nameText}
-            </p>
-          </figcaption>
-        </>
       ) : (
         <div
           className={cn(
@@ -87,6 +79,19 @@ function Portrait(props: {
           </figcaption>
         </div>
       )}
+      {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
+      </div>
+      {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
+      {props.shell ? (
+        <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
+          <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
+            {props.label}
+          </p>
+          <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
+            {nameText}
+          </p>
+        </figcaption>
+      ) : null}
       {editable ? (
         <div className="pointer-events-none absolute inset-0 z-[4] flex items-end justify-center gap-1.5 bg-gradient-to-t from-black/50 via-black/10 to-transparent p-2 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
           <button
@@ -136,6 +141,8 @@ export function WeddingCouplePortraits(props: {
   chooseFrameLabel?: string
   onChoosePhoto?: (side: 'groom' | 'bride') => void
   onChooseFrame?: (side: 'groom' | 'bride') => void
+  groomFrameScaleEdit?: FrameScaleEdit
+  brideFrameScaleEdit?: FrameScaleEdit
 }) {
   const groomImageUrl = props.groomImageUrl.trim()
   const brideImageUrl = props.brideImageUrl.trim()
@@ -157,6 +164,7 @@ export function WeddingCouplePortraits(props: {
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
+          frameScaleEdit={props.groomFrameScaleEdit}
         />
       </div>
     )
@@ -178,6 +186,7 @@ export function WeddingCouplePortraits(props: {
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
+          frameScaleEdit={props.groomFrameScaleEdit}
         />
         <span
           className={cn(
@@ -203,6 +212,7 @@ export function WeddingCouplePortraits(props: {
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
+          frameScaleEdit={props.brideFrameScaleEdit}
         />
       </div>
     </div>

@@ -79,6 +79,12 @@ export type Dictionary = {
   }
   menu: {
     openMenu: string
+    /** Nút danh mục ghim trên thanh đáy mobile. */
+    catalogButton: string
+    /** Đầu lưới danh mục: vừa mở và liên quan. */
+    featureGridLead: string
+    /** Phần còn lại của lưới danh mục. */
+    featureGridRest: string
     mainMenu: string
     accountMenu: string
     personalSection: string
@@ -3610,6 +3616,11 @@ export type Dictionary = {
     referenceFrameLibraryEmpty: string
     referenceBackgroundLibraryLabel: string
     referenceBackgroundLibraryEmpty: string
+    referenceUploadNew: string
+    referencePickFrame: string
+    referencePickBackground: string
+    libraryRecommendedHeading: string
+    libraryAllHeading: string
     frameReferenceHint: string
     chooseBackground: string
     chooseBackgroundAgain: string
@@ -3722,6 +3733,7 @@ export type Dictionary = {
     storyTitle: string
     albumTitle: string
     albumHint: string
+    albumGridHint: string
     albumAlt: string
     rsvpTitle: string
     guestNameLabel: string
@@ -4061,6 +4073,9 @@ export const VI_DICTIONARY: Dictionary = {
   },
   menu: {
     openMenu: 'Mở menu',
+    catalogButton: 'Danh mục',
+    featureGridLead: 'Vừa mở và liên quan',
+    featureGridRest: 'Tính năng khác',
     mainMenu: 'Menu chính',
     accountMenu: 'Mở menu tài khoản',
     personalSection: 'Cá nhân',
@@ -7632,7 +7647,7 @@ export const VI_DICTIONARY: Dictionary = {
   weddingCardAiImage: {
     customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',
     customReferenceHint:
-      'AI lấy tông màu, họa tiết và không khí từ ảnh này — không sao chép bố cục hay chữ. Dùng khi tạo ảnh nền chính cho cả thiệp. Không tốn credit cho việc chọn ảnh.',
+      'AI lấy tông màu, họa tiết và không khí từ ảnh này — không sao chép bố cục hay chữ. Tải ảnh mới, hoặc chọn một khung AI có sẵn.',
     customReferenceChoose: 'Chọn ảnh tham khảo',
     customReferenceRemove: 'Gỡ ảnh',
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
@@ -7642,7 +7657,12 @@ export const VI_DICTIONARY: Dictionary = {
     referenceFrameLibraryEmpty: 'Kho khung còn trống. Tạo một khung AI trước, hoặc tải ảnh tham khảo từ máy.',
     referenceBackgroundLibraryLabel: 'Nền AI đã có',
     referenceBackgroundLibraryEmpty: 'Kho nền còn trống. Tạo một nền AI trước, hoặc tải ảnh tham khảo từ máy.',
-    frameReferenceHint: 'Chọn một nền AI để khung cùng họa tiết và tông màu với nền. AI vẽ khung mới, không chép nguyên ảnh nền. Vẫn tải được ảnh từ máy hoặc dán link.',
+    referenceUploadNew: 'Tải ảnh mới',
+    referencePickFrame: 'Chọn khung AI có sẵn',
+    referencePickBackground: 'Chọn nền AI có sẵn',
+    libraryRecommendedHeading: 'Đề xuất',
+    libraryAllHeading: 'Kho AI',
+    frameReferenceHint: 'Tải ảnh mới, hoặc chọn một nền AI có sẵn. AI vẽ khung mới theo họa tiết và tông màu đó, không chép nguyên ảnh.',
     chooseBackground: 'Chọn nền',
     chooseBackgroundAgain: 'Chọn lại',
     backgroundPickedOk: 'OK',
@@ -7756,6 +7776,7 @@ export const VI_DICTIONARY: Dictionary = {
     storyTitle: 'Album / Story',
     albumTitle: 'Album ảnh cô dâu chú rể',
     albumHint: 'Vuốt ngang hoặc bấm mũi tên để xem từng ảnh.',
+    albumGridHint: 'Bấm một ảnh để mở cả album.',
     albumAlt: 'Ảnh album cưới',
     rsvpTitle: 'Xác nhận tham dự',
     guestNameLabel: 'Họ tên',

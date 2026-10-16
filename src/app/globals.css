@@ -194,3 +194,36 @@
 .animate-progress-bar {
   animation: progress-bar 1.5s ease-in-out infinite;
 }
+
+/* Trang chủ mobile: khung chat chiếm chỗ giữa header và thanh điều hướng đáy. */
+@media (max-width: 767px) {
+  body:has([data-home-chat-frame]) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    height: 100dvh;
+  }
+  body:has([data-home-chat-frame]) > header {
+    flex: none;
+  }
+  body:has([data-home-chat-frame]) footer {
+    display: none;
+  }
+  body:has([data-home-chat-frame]) main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+  body:has([data-home-chat-frame]) main > div {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+}

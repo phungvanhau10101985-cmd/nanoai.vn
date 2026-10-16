@@ -141,6 +141,21 @@ export function buildMobileFeatureDock(pathname: string, recentHrefs: readonly s
   return [...rest.slice(0, mid), ...focus, ...rest.slice(mid)]
 }
 
+/** Lưới danh mục: vừa mở rồi liên quan ở trên, phần còn lại theo thứ tự catalog. */
+export function buildMobileFeatureGrid(
+  pathname: string,
+  recentHrefs: readonly string[]
+): { lead: MobileFeatureDockItem[]; rest: MobileFeatureDockItem[] } {
+  const dock = buildMobileFeatureDock(pathname, recentHrefs)
+  const byKind = (kind: MobileFeatureDockKind) => dock.filter((item) => item.kind === kind)
+  const lead = [...byKind('recent'), ...byKind('related'), ...byKind('current'), ...byKind('popular')]
+  const leadHrefs = new Set(lead.map((item) => item.href))
+  const rest = catalogFeatures()
+    .filter((feature) => !leadHrefs.has(feature.href))
+    .map((feature) => ({ href: feature.href, labelKey: feature.labelKey, kind: 'catalog' as const }))
+  return { lead, rest }
+}
+
 /** Vị trí cuộn để cụm liên quan + vừa xem nằm giữa khung nhìn. */
 export function dockHomeScrollLeft(input: {
   clusterLeft: number

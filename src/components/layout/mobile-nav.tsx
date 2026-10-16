@@ -2,11 +2,33 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTrigger, SheetClose, SheetTitle } from '@/components/ui/sheet'
-import { Menu, ChevronRight, BarChart3 } from 'lucide-react'
-import { NAV_GROUPS } from '@/lib/nav-config'
+import { Menu, BarChart3, Sparkles, type LucideIcon } from 'lucide-react'
+import { AI_TOOLS, NAV_GROUPS, type NavIcon } from '@/lib/nav-config'
+import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
+import {
+  activeMobileFeatureHref,
+  buildMobileFeatureGrid,
+  rememberFeatureVisit,
+  type MobileFeatureDockItem,
+} from '@/lib/mobile-feature-dock'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
+import { cn } from '@/lib/utils'
+
+const ICON_BY_HREF = new Map<string, NavIcon>()
+for (const tool of AI_TOOLS) ICON_BY_HREF.set(tool.href, tool.icon)
+for (const group of NAV_GROUPS) {
+  for (const link of group.links) {
+    ICON_BY_HREF.set(link.href, link.icon)
+    for (const sub of link.subLinks ?? []) ICON_BY_HREF.set(sub.href, sub.icon)
+  }
+}
+
+function iconFor(href: string): NavIcon | LucideIcon {
+  return ICON_BY_HREF.get(href) ?? Sparkles
+}
 
 interface MobileNavProps {
   isAdmin: boolean
@@ -14,147 +36,152 @@ interface MobileNavProps {
 }
 
 export function MobileNav({ isAdmin, t }: MobileNavProps) {
+  const [pathname, setPathname] = useState('/')
+  const [recentHrefs, setRecentHrefs] = useState<string[]>([])
+
+  useEffect(() => {
+    const syncPath = () => {
+      const path = window.location.pathname || '/'
+      setPathname(path)
+      setRecentHrefs(rememberFeatureVisit(path))
+    }
+    syncPath()
+    return subscribeToUrlChanges(syncPath)
+  }, [])
+
+  const { lead, rest } = useMemo(
+    () => buildMobileFeatureGrid(pathname, recentHrefs),
+    [pathname, recentHrefs]
+  )
+  const activeHref = activeMobileFeatureHref(pathname, [...lead, ...rest])
+  const personalLead = lead.some((item) => item.kind !== 'popular')
+
+  const trigger = (
+    <SheetTrigger asChild>
+      <Button
+        variant="ghost"
+        className="h-full w-full min-h-0 flex-col gap-1 rounded-none px-1 text-[10px] font-medium leading-tight text-foreground touch-manipulation"
+        aria-label={t.menu.openMenu}
+      >
+        <Menu className="h-5 w-5 shrink-0" />
+        <span className="line-clamp-2 w-full">{t.menu.catalogButton}</span>
+      </Button>
+    </SheetTrigger>
+  )
+
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-11 w-11 min-h-[44px] min-w-[44px] md:hidden touch-manipulation rounded-xl active:scale-95 transition-transform"
-          aria-label={t.menu.openMenu}
-        >
-          <Menu className="h-6 w-6" />
-        </Button>
-      </SheetTrigger>
+      {trigger}
       <SheetContent
-        side="left"
-        className="flex flex-col w-[min(340px,90vw)] max-w-[340px] p-0 gap-0 overflow-hidden border-r-0 rounded-r-2xl"
-        onInteractOutside={(e) => {
-          const t = e.target
-          if (t instanceof Element && t.closest('[data-nanoai-widget-root]')) {
-            e.preventDefault()
-          }
-        }}
+        side="bottom"
+        className="flex h-[min(85dvh,40rem)] flex-col gap-0 rounded-t-2xl p-0"
       >
-        <div className="flex items-center justify-between px-5 pt-14 pb-4 border-b shrink-0 safe-area-pt">
-          <SheetTitle className="sr-only">{t.menu.mainMenu}</SheetTitle>
+        <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+          <SheetTitle className="text-base">{t.menu.mainMenu}</SheetTitle>
           <SheetClose asChild>
-            <Link
-              href="/"
-              className="flex items-center gap-2 font-bold text-lg tracking-tight"
-            >
+            <Link href="/" className="flex items-center gap-2 text-sm font-semibold">
               <Image
                 src="/icons/icon-192x192.png"
                 alt={t.app.siteName}
-                width={40}
-                height={40}
-                priority
+                width={28}
+                height={28}
                 unoptimized
-                className="rounded-lg"
+                className="rounded-md"
               />
               {t.app.siteName}
             </Link>
           </SheetClose>
         </div>
-        <nav
-          className="flex-1 overflow-y-auto overscroll-contain py-4 px-3 safe-area-pb mobile-nav-scroll"
-          aria-label={t.menu.mainMenu}
-        >
-          <div className="flex flex-col gap-6">
-            {NAV_GROUPS.map((group) => (
-              <div key={group.titleKey} className="space-y-1">
-                <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t.navGroup[group.titleKey]}
-                </h3>
-                <div className="flex flex-col gap-0.5 rounded-xl overflow-hidden bg-muted/30">
-                  {group.links.map((item) => {
-                    const Icon = item.icon
-                    const subs = item.subLinks
-                    return (
-                      <div key={item.href} className="flex flex-col">
-                        <SheetClose asChild>
-                          <Link
-                            href={item.href}
-                            className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium transition-colors touch-manipulation active:bg-muted/60 text-foreground hover:bg-muted/50"
-                          >
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-background">
-                              <Icon className="h-5 w-5" />
-                            </span>
-                            <span className="flex-1">{t.tool[item.labelKey]}</span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                          </Link>
-                        </SheetClose>
-                        {subs?.map((sub) => {
-                          const SubIcon = sub.icon
-                          return (
-                            <SheetClose asChild key={sub.href}>
-                              <Link
-                                href={sub.href}
-                                className="flex items-center gap-3 min-h-[48px] pl-6 pr-4 py-2.5 text-sm font-medium transition-colors touch-manipulation active:bg-muted/60 text-foreground hover:bg-muted/50 border-t border-border/40 bg-blue-500/[0.04] dark:bg-blue-400/[0.06]"
-                              >
-                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
-                                  <SubIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                                </span>
-                                <span className="flex-1">{t.tool[sub.labelKey]}</span>
-                                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                              </Link>
-                            </SheetClose>
-                          )
-                        })}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            ))}
-            {isAdmin && (
-              <div className="space-y-1">
-                <h3 className="px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t.menu.system}
-                </h3>
-                <div className="flex flex-col gap-0.5 rounded-xl overflow-hidden bg-muted/30">
-                  <SheetClose asChild>
-                    <Link
-                      href="/admin/users"
-                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
-                        <BarChart3 className="h-4 w-4" />
-                      </span>
-                      <span>{t.menu.admin}</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-                    </Link>
-                  </SheetClose>
-                  <SheetClose asChild>
-                    <Link
-                      href="/admin/english-coach"
-                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
-                        <BarChart3 className="h-4 w-4" />
-                      </span>
-                      <span>Chuẩn hóa từ vựng</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-                    </Link>
-                  </SheetClose>
-                  <SheetClose asChild>
-                    <Link
-                      href="/admin/curriculum-edit-reviews"
-                      className="flex items-center gap-3 min-h-[48px] px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50 transition-colors touch-manipulation"
-                    >
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-background">
-                        <BarChart3 className="h-4 w-4" />
-                      </span>
-                      <span>Duyệt giáo trình</span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-                    </Link>
-                  </SheetClose>
-                </div>
-              </div>
-            )}
-          </div>
-        </nav>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 safe-area-pb">
+          {personalLead ? (
+            <section className="mb-4">
+              <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.featureGridLead}
+              </h3>
+              <FeatureGrid items={lead} activeHref={activeHref} labelFor={(key) => t.tool[key]} />
+            </section>
+          ) : null}
+          <section>
+            {personalLead ? (
+              <h3 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {t.menu.featureGridRest}
+              </h3>
+            ) : null}
+            <FeatureGrid
+              items={personalLead ? rest : [...lead, ...rest]}
+              activeHref={activeHref}
+              labelFor={(key) => t.tool[key]}
+            />
+          </section>
+          {isAdmin ? (
+            <div className="mt-4 space-y-1 border-t pt-3">
+              <h3 className="px-1 py-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {t.menu.system}
+              </h3>
+              <SheetClose asChild>
+                <Link href="/admin/users" className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium">
+                  <BarChart3 className="h-4 w-4" />
+                  {t.menu.admin}
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  href="/admin/english-coach"
+                  className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Chuẩn hóa từ vựng
+                </Link>
+              </SheetClose>
+              <SheetClose asChild>
+                <Link
+                  href="/admin/curriculum-edit-reviews"
+                  className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-medium"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Duyệt giáo trình
+                </Link>
+              </SheetClose>
+            </div>
+          ) : null}
+        </div>
       </SheetContent>
     </Sheet>
+  )
+}
+
+function FeatureGrid({
+  items,
+  activeHref,
+  labelFor,
+}: {
+  items: MobileFeatureDockItem[]
+  activeHref: string | null
+  labelFor: (key: MobileFeatureDockItem['labelKey']) => string
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {items.map((item) => {
+        const Icon = iconFor(item.href)
+        const label = labelFor(item.labelKey)
+        const active = item.href === activeHref
+        return (
+          <SheetClose asChild key={item.href}>
+            <Link
+              href={item.href}
+              aria-current={active ? 'page' : undefined}
+              title={label}
+              className={cn(
+                'flex min-h-[4.75rem] flex-col items-center justify-center gap-1 rounded-xl border border-transparent px-1 py-2 text-center touch-manipulation active:bg-muted/60',
+                active ? 'border-primary/30 bg-primary/8 font-semibold text-primary' : 'bg-muted/30 text-foreground'
+              )}
+            >
+              <Icon className={cn('h-5 w-5 shrink-0', active && 'stroke-[2.5px]')} />
+              <span className="line-clamp-2 w-full text-[11px] font-medium leading-tight">{label}</span>
+            </Link>
+          </SheetClose>
+        )
+      })}
+    </div>
   )
 }

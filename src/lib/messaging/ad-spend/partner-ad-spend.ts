@@ -5,7 +5,7 @@ import { createHash, createPrivateKey, sign } from 'node:crypto'
 export const AD_SPEND_MAX_RANGE_DAYS = 366
 const CACHE_TTL_MS = 180_000
 /** Đổi khi đổi cách đếm chuyển đổi, để cache 3 phút không giữ bản cũ. */
-const METRICS_VERSION = 'purchase1'
+const METRICS_VERSION = 'purchase2'
 
 /** Một sự kiện mua có thể nằm ở nhiều action_type. Lấy loại đầu tiên có số, ưu tiên omni_purchase vì Meta đã gộp kênh. */
 const META_PURCHASE_TYPES = [
@@ -65,9 +65,6 @@ export type AdSpendReport = {
 
 export type AdSpendCredentials = {
   googleDeveloperToken: string
-  googleClientId: string
-  googleClientSecret: string
-  googleRefreshToken: string
   googleCustomerId: string
   googleLoginCustomerId: string
   googleServiceAccountJson: string
@@ -97,15 +94,32 @@ export function googleSpendQuery(start: string, end: string): string {
   ].join(' ')
 }
 
-/** Lượt mua và giá trị mua. Cùng truy vấn với cost_micros sẽ bị Google nhân chi phí theo từng loại chuyển đổi. */
+/**
+ * Lượt mua và giá trị mua. Cùng truy vấn với cost_micros sẽ bị Google nhân chi phí theo từng loại chuyển đổi.
+ * Segment trong WHERE bắt buộc có mặt trong SELECT, nếu không Google trả invalid argument và cả thẻ thành lỗi.
+ */
 export function googlePurchaseQuery(start: string, end: string): string {
   return [
-    'SELECT segments.date, campaign.id, campaign.name,',
+    'SELECT segments.date, campaign.id, campaign.name, segments.conversion_action_category,',
     'metrics.conversions, metrics.conversions_value, customer.currency_code',
     'FROM campaign',
     `WHERE segments.date BETWEEN '${start}' AND '${end}'`,
     'AND segments.conversion_action_category = PURCHASE',
   ].join(' ')
+}
+
+/** Tài khoản bị Google khóa thì nói rõ, không để câu tiếng Anh của API. */
+export function explainGoogleAdsFailure(message: string): string {
+  const text = message.toLowerCase()
+  const accountLocked =
+    text.includes('customer_not_enabled') ||
+    text.includes('not yet enabled') ||
+    text.includes('has been deactivated') ||
+    (text.includes('customer') && text.includes('not enabled'))
+  if (accountLocked) {
+    return 'Google đang khóa tài khoản quảng cáo, thường vì chậm thanh toán. Khóa JSON đã lưu vẫn giữ. Sau khi trả tiền, trang đọc lại được mà không cần đăng nhập lại.'
+  }
+  return message
 }
 
 export function googleAdsApiVersion(): string {
@@ -165,13 +179,9 @@ export function parseGoogleServiceAccountJson(raw: string | null | undefined): G
   return { clientEmail, privateKey, privateKeyId: String(body.private_key_id ?? '').trim() }
 }
 
-function googleOauthConfigured(creds: AdSpendCredentials): boolean {
-  return Boolean(creds.googleClientId && creds.googleClientSecret && creds.googleRefreshToken)
-}
-
 export function googleConfigured(creds: AdSpendCredentials): boolean {
   if (!creds.googleCustomerId) return false
-  return Boolean(parseGoogleServiceAccountJson(creds.googleServiceAccountJson)) || googleOauthConfigured(creds)
+  return Boolean(parseGoogleServiceAccountJson(creds.googleServiceAccountJson))
 }
 
 export function facebookConfigured(creds: AdSpendCredentials): boolean {
@@ -348,31 +358,39 @@ export function combineAdSpendTotals(input: {
 }
 
 export function googleErrorMessage(payload: unknown): string {
-  if (!payload || typeof payload !== 'object') return 'Google Ads từ chối yêu cầu.'
-  const body = payload as { error?: unknown; error_description?: unknown }
-  if (typeof body.error === 'string') {
-    const desc = String(body.error_description || body.error).trim()
-    return `Không lấy được token Google: ${desc}`
-  }
-  if (body.error && typeof body.error === 'object') {
-    const err = body.error as { message?: unknown; details?: unknown }
-    const msg = String(err.message || 'Google Ads từ chối yêu cầu.').trim()
-    const extras: string[] = []
-    if (Array.isArray(err.details)) {
-      for (const detail of err.details) {
-        if (!detail || typeof detail !== 'object') continue
-        const errors = (detail as { errors?: unknown }).errors
-        if (!Array.isArray(errors)) continue
-        for (const item of errors) {
-          if (!item || typeof item !== 'object') continue
-          const text = String((item as { message?: unknown }).message || '').trim()
-          if (text) extras.push(text)
+  let message = 'Google Ads từ chối yêu cầu.'
+  if (payload && typeof payload === 'object') {
+    const body = payload as { error?: unknown; error_description?: unknown }
+    if (typeof body.error === 'string') {
+      const desc = String(body.error_description || body.error).trim()
+      message = `Không lấy được token Google: ${desc}`
+    } else if (body.error && typeof body.error === 'object') {
+      const err = body.error as { message?: unknown; details?: unknown }
+      const msg = String(err.message || 'Google Ads từ chối yêu cầu.').trim()
+      const extras: string[] = []
+      if (Array.isArray(err.details)) {
+        for (const detail of err.details) {
+          if (!detail || typeof detail !== 'object') continue
+          const errors = (detail as { errors?: unknown }).errors
+          if (!Array.isArray(errors)) continue
+          for (const item of errors) {
+            if (!item || typeof item !== 'object') continue
+            const text = String((item as { message?: unknown }).message || '').trim()
+            const code = (item as { errorCode?: unknown }).errorCode
+            if (code && typeof code === 'object') {
+              const names = Object.values(code as Record<string, unknown>)
+                .map((value) => String(value || '').trim())
+                .filter(Boolean)
+              extras.push(...names)
+            }
+            if (text) extras.push(text)
+          }
         }
       }
+      message = extras.length ? `${msg} ${extras.slice(0, 3).join(' ')}` : msg
     }
-    return extras.length ? `${msg} ${extras.slice(0, 2).join(' ')}` : msg
   }
-  return 'Google Ads từ chối yêu cầu.'
+  return explainGoogleAdsFailure(message)
 }
 
 export function metaErrorMessage(payload: unknown): string {
@@ -405,29 +423,6 @@ async function readJson(response: Response): Promise<unknown> {
   } catch {
     return {}
   }
-}
-
-async function refreshGoogleAccessToken(creds: AdSpendCredentials): Promise<string> {
-  let response: Response
-  try {
-    response = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: creds.googleClientId,
-        client_secret: creds.googleClientSecret,
-        refresh_token: creds.googleRefreshToken,
-        grant_type: 'refresh_token',
-      }),
-      signal: AbortSignal.timeout(25_000),
-    })
-  } catch {
-    throw new AdSpendApiError('Không kết nối được máy chủ token Google.')
-  }
-  const payload = await readJson(response)
-  const token = payload && typeof payload === 'object' ? (payload as { access_token?: unknown }).access_token : null
-  if (!response.ok || typeof token !== 'string' || !token) throw new AdSpendApiError(googleErrorMessage(payload))
-  return token
 }
 
 export function buildServiceAccountAssertion(key: GoogleServiceAccountKey, nowSeconds: number): string {
@@ -471,8 +466,8 @@ async function serviceAccountAccessToken(key: GoogleServiceAccountKey): Promise<
 
 async function googleAccessToken(creds: AdSpendCredentials): Promise<string> {
   const serviceAccount = parseGoogleServiceAccountJson(creds.googleServiceAccountJson)
-  if (serviceAccount) return serviceAccountAccessToken(serviceAccount)
-  return refreshGoogleAccessToken(creds)
+  if (!serviceAccount) throw new AdSpendApiError('Cần file JSON service account để đọc Google Ads.')
+  return serviceAccountAccessToken(serviceAccount)
 }
 
 async function searchGoogleAds(input: {
@@ -618,7 +613,6 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
       [
         creds.googleCustomerId,
         creds.googleDeveloperToken,
-        creds.googleRefreshToken,
         creds.googleServiceAccountJson,
         creds.googleLoginCustomerId,
         start,
@@ -638,18 +632,29 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
           loginCustomerId: creds.googleLoginCustomerId,
         }
         const spend = await searchGoogleAds({ ...search, query: googleSpendQuery(start, end) })
-        const purchases = await searchGoogleAds({ ...search, query: googlePurchaseQuery(start, end) })
+        let purchases: { rows: Record<string, unknown>[]; partial: boolean } = { rows: [], partial: false }
+        let purchaseError = ''
+        try {
+          purchases = await searchGoogleAds({ ...search, query: googlePurchaseQuery(start, end) })
+        } catch (error) {
+          const raw = error instanceof AdSpendApiError ? error.message : 'Không đọc được lượt mua Google Ads.'
+          purchaseError = raw.startsWith('Google đang khóa')
+            ? raw
+            : `Đã đọc chi phí. Lượt mua chưa đọc được: ${raw}`
+        }
         const fresh = {
           rows: [...spend.rows, ...purchases.rows],
           partial: spend.partial || purchases.partial,
+          purchaseError,
         }
-        reportCache.set(key, { at: Date.now(), rows: fresh.rows, partial: fresh.partial })
+        if (!purchaseError) reportCache.set(key, { at: Date.now(), rows: fresh.rows, partial: fresh.partial })
         return fresh
       })())
       google = await platformFromRows(true, loaded.rows, loaded.partial, true)
+      if ('purchaseError' in loaded && loaded.purchaseError) google = { ...google, error: loaded.purchaseError }
     } catch (error) {
       const message = error instanceof AdSpendApiError ? error.message : 'Không đọc được chi phí Google Ads.'
-      google = emptyPlatform(true, message)
+      google = emptyPlatform(true, explainGoogleAdsFailure(message))
     }
   }
 

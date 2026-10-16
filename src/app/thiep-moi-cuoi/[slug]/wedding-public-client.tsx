@@ -36,7 +36,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
-import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
+import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingViewportBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
 import {
@@ -745,7 +745,14 @@ export default function WeddingPublicClient({
       {opened && card.effectsEnabled ? (
         <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} />
       ) : null}
-      <main className={cn('min-h-screen', theme.pageBg, theme.text)}>
+      <main className={cn('relative z-0 min-h-screen', theme.pageBg, theme.text)}>
+        {pageBackground ? (
+          <div
+            aria-hidden
+            className="pointer-events-none fixed inset-0 -z-10 h-[100dvh] w-full"
+            style={weddingViewportBackgroundStyle(pageBackground, isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8')}
+          />
+        ) : null}
         {!opened && (
           <>
             <div
@@ -838,7 +845,7 @@ export default function WeddingPublicClient({
         <section
           id="cover"
           className="relative flex min-h-[100svh] items-center justify-center bg-cover bg-center px-3 py-8 sm:px-4 sm:py-12"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
+          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true, omitImage: Boolean(pageBackground) })}
         >
           <WeddingReadableGlass theme={theme} strength="hero" className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
@@ -964,7 +971,7 @@ export default function WeddingPublicClient({
 
         <section
           className={cn('bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16', theme.softGradient)}
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section)}
+          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
         >
           <div className={PUBLIC_COLUMN}>
             {(groomFamilyLine.trim() || groomHometownLine.trim() || brideFamilyLine.trim() || brideHometownLine.trim()) ? (
@@ -1040,8 +1047,14 @@ export default function WeddingPublicClient({
                   locale={uiLocale}
                   crops={sectionConfig.albumPhotoCrops}
                   onExpand={(index) => setActiveAlbumIndex(index)}
+                  onOpenAlbum={() => {
+                    setActiveAlbumIndex(null)
+                    setAlbumOpen(true)
+                  }}
                 />
-                <p className={cn('mt-3 text-center text-sm', theme.mutedText, theme.textGlow)}>{tx.albumHint}</p>
+                <p className={cn('mt-3 text-center text-sm', theme.mutedText, theme.textGlow)}>
+                  {albumLayoutId === 'grid' ? tx.albumGridHint : tx.albumHint}
+                </p>
               </WeddingSectionCard>
             )}
           </div>
@@ -1050,7 +1063,7 @@ export default function WeddingPublicClient({
         <section
           id="event"
           className="bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section)}
+          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
         >
           <div className={PUBLIC_COLUMN}>
             {showBothHouses ? (
@@ -1241,7 +1254,7 @@ export default function WeddingPublicClient({
         {shouldShowPublicGiftBoxForSide(card, guestInviteLocation.side) && (
           <div
             className="border-y border-amber-200/50 bg-cover bg-center"
-            style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.dense)}
+            style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.dense, { omitImage: Boolean(pageBackground) })}
           >
             <WeddingGiftEnvelopeBlock
               card={card}
@@ -1254,7 +1267,7 @@ export default function WeddingPublicClient({
 
         <section
           className="bg-cover bg-center px-3 py-10 sm:px-4 sm:py-16"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section)}
+          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.section, { omitImage: Boolean(pageBackground) })}
         >
           <div className={PUBLIC_COLUMN}>
           {withoutPartyAddress(card.storyText) && withoutPartyAddress(card.storyText).trim() !== withoutPartyAddress(card.coupleIntro).trim() && (
@@ -1377,7 +1390,7 @@ export default function WeddingPublicClient({
         </section>
         <section
           className="bg-cover bg-center px-3 py-12 text-center sm:px-4 sm:py-20"
-          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
+          style={weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.hero, { readingVignette: true, omitImage: Boolean(pageBackground) })}
         >
           <WeddingReadableGlass theme={theme} strength="hero" reveal className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />

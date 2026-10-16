@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { getUserOrBypass } from '@/lib/auth'
 import { MobileHubHistoryButton } from './mobile-hub-history-button'
 import { SITE_HEADER_BACK_SLOT_ID } from './site-header-back-slot'
-import { MobileNav } from './mobile-nav'
 import { HeaderUserMenu } from './header-user-menu'
 import { LocaleSwitcher } from './locale-switcher'
 import { LayoutGrid } from 'lucide-react'
@@ -90,9 +89,7 @@ export async function Header() {
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
-            <div className="md:hidden">
-              <MobileNav isAdmin={isAdmin} t={clientDictionary} />
-            </div>
+            <span id="nanoai-is-admin" data-admin={isAdmin ? '1' : '0'} hidden />
             {user ? (
               <>
                 {!isGuestTrialUser && <NotificationBell t={clientDictionary} locale={locale} />}

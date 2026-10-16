@@ -26,6 +26,7 @@ import {
   listWeddingImages,
   listWeddingMusicLibrary,
   listWeddingRsvps,
+  resolveWeddingLibraryReferenceUrl,
   saveWeddingBackgroundToLibrary,
   saveWeddingCoverFrameToLibrary,
   saveWeddingMusicToLibrary,
@@ -463,7 +464,11 @@ export async function generateWeddingCardImage(formData: FormData) {
     }
     charged = true
     await completeWeddingAiImage({ imageId, userId, imageUrl: publicUrl, makeMaster: type === 'master' })
-    await saveWeddingBackgroundToLibrary({ imageUrl: publicUrl, imageType: type }).catch(() => undefined)
+    const referenceImageUrl =
+      customReferenceImageFile instanceof File && customReferenceImageFile.size > 0
+        ? ''
+        : await resolveWeddingLibraryReferenceUrl(customReferenceImageUrl, 'frame')
+    await saveWeddingBackgroundToLibrary({ imageUrl: publicUrl, imageType: type, referenceImageUrl }).catch(() => undefined)
     revalidatePath('/tao-thiep-moi-cuoi-ai')
     return { success: true, imageId, imageUrl: publicUrl }
   } catch (e) {
@@ -594,11 +599,16 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     })
     const saved = await saveWeddingCardSectionConfig(cardId, userId, sectionConfig)
     if (!saved) throw new Error('Không lưu được khung vào thiệp.')
+    const referenceImageUrl =
+      customReferenceImageFile instanceof File && customReferenceImageFile.size > 0
+        ? ''
+        : await resolveWeddingLibraryReferenceUrl(customReferenceImageUrl, 'background')
     const libraryItem = await saveWeddingCoverFrameToLibrary({
       imageUrl: publicUrl,
       hole,
       panel: COVER_AI_FRAME_PANEL,
       ink: 'dark',
+      referenceImageUrl,
     }).catch(() => null)
     revalidatePath('/tao-thiep-moi-cuoi-ai')
     revalidatePath(`/thiep-moi-cuoi/${saved.slug}`)

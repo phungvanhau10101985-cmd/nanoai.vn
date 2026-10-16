@@ -62,12 +62,8 @@ export type AdSpendPageCopy = {
   customerId: string
   mcc: string
   developerToken: string
-  clientId: string
-  clientSecret: string
-  refreshToken: string
   serviceAccountJson: string
   serviceAccountSaved: string
-  oauthFallback: string
   adAccountId: string
   accessToken: string
   savedKeep: string
@@ -174,7 +170,7 @@ const vi: AdSpendPageCopy = {
   close: 'Thu gọn',
   googleTitle: 'Google Ads',
   facebookTitle: 'Facebook Ads',
-  googleLead: 'Dán khóa đọc của tài khoản quảng cáo shop này. Ô khóa để trống nghĩa là giữ khóa đã lưu. API đang dùng {version}.',
+  googleLead: 'Dán file JSON service account của tài khoản quảng cáo shop này. Ô khóa để trống nghĩa là giữ khóa đã lưu. API đang dùng {version}.',
   facebookLead: 'Token hệ thống trong Business Manager, quyền ads_read. ID tài khoản là dãy số, có hoặc không có act_. Graph đang dùng {version}.',
   googleSteps: [
     'Trên Google Cloud bật Google Ads API cho project, kiểm tra cấp truy cập từ Explorer trở lên (đọc được tài khoản thật).',
@@ -192,12 +188,8 @@ const vi: AdSpendPageCopy = {
   customerId: 'Customer ID',
   mcc: 'ID tài khoản quản lý (MCC, nếu có)',
   developerToken: 'Developer token (không bắt buộc)',
-  clientId: 'OAuth client ID',
-  clientSecret: 'OAuth client secret',
-  refreshToken: 'Refresh token',
   serviceAccountJson: 'File JSON service account',
   serviceAccountSaved: 'Đang dùng {email} — để trống nếu không đổi',
-  oauthFallback: 'Cách cũ bằng OAuth (refresh token có thể hết hạn). Chỉ dùng khi không có service account.',
   adAccountId: 'Ad account ID',
   accessToken: 'Access token',
   savedKeep: 'Đã lưu — để trống nếu không đổi',
@@ -317,7 +309,7 @@ const en: AdSpendPageCopy = {
   keysTitle: 'Connection keys',
   open: 'Open',
   close: 'Collapse',
-  googleLead: 'Paste this shop’s read-only ad account keys. Leave a secret blank to keep the saved one. API version {version}.',
+  googleLead: 'Paste this shop’s service account JSON. Leave a secret blank to keep the saved one. API version {version}.',
   facebookLead: 'A Business Manager system token with ads_read. The ad account id is digits, with or without act_. Graph version {version}.',
   googleSteps: [
     'In Google Cloud enable the Google Ads API for the project and check the access level is Explorer or higher (reads live accounts).',
@@ -329,7 +321,6 @@ const en: AdSpendPageCopy = {
   developerToken: 'Developer token (optional)',
   serviceAccountJson: 'Service account JSON file',
   serviceAccountSaved: 'Using {email} — leave blank to keep',
-  oauthFallback: 'Legacy OAuth (the refresh token can expire). Use only without a service account.',
   facebookSteps: [
     'In Meta Business Manager create a system-user token with ads_read.',
     'Copy the ad account id from ad account settings (digits; act_ is optional).',
@@ -454,7 +445,7 @@ const zh: AdSpendPageCopy = {
   keysTitle: '连接密钥',
   open: '展开',
   close: '收起',
-  googleLead: '粘贴本店广告账户的只读密钥。密钥留空表示保留已保存的值。API 版本 {version}。',
+  googleLead: '粘贴本店广告账户的服务账号 JSON。密钥留空表示保留已保存的值。API 版本 {version}。',
   facebookLead: 'Business Manager 系统用户令牌，权限 ads_read。广告账户 ID 为数字，可带或不带 act_。Graph 版本 {version}。',
   googleSteps: [
     '在 Google Cloud 为项目启用 Google Ads API，并确认访问级别为 Explorer 或更高（可读取正式账户）。',
@@ -466,7 +457,6 @@ const zh: AdSpendPageCopy = {
   developerToken: 'Developer token（可选）',
   serviceAccountJson: '服务账号 JSON 文件',
   serviceAccountSaved: '正在使用 {email} — 不修改请留空',
-  oauthFallback: '旧的 OAuth 方式（refresh token 可能过期）。仅在没有服务账号时使用。',
   facebookSteps: [
     '在 Meta Business Manager 创建具有 ads_read 权限的系统用户令牌。',
     '在广告账户设置中复制广告账户 ID（数字，act_ 可省略）。',
@@ -591,7 +581,7 @@ const ja: AdSpendPageCopy = {
   keysTitle: '接続キー',
   open: '開く',
   close: '閉じる',
-  googleLead: 'この店の広告アカウントの読み取りキーを貼ります。秘密欄を空にすると保存済みを維持します。API {version}。',
+  googleLead: 'この店のサービスアカウント JSON を貼ります。秘密欄を空にすると保存済みを維持します。API {version}。',
   facebookLead: 'Business Manager のシステムトークン（ads_read）。広告アカウント ID は数字です。act_ は付けても外せます。Graph {version}。',
   googleSteps: [
     'Google Cloud でプロジェクトの Google Ads API を有効にし、アクセスレベルが Explorer 以上（本番アカウントを読める）か確認します。',
@@ -603,7 +593,6 @@ const ja: AdSpendPageCopy = {
   developerToken: 'Developer token（任意）',
   serviceAccountJson: 'サービスアカウント JSON ファイル',
   serviceAccountSaved: '{email} を使用中 — 変えないなら空欄',
-  oauthFallback: '旧 OAuth 方式（refresh token は期限切れになることがあります）。サービスアカウントがない場合のみ。',
   facebookSteps: [
     'Meta Business Manager で ads_read 付きのシステムユーザートークンを作ります。',
     '広告アカウント設定から広告アカウント ID（数字。act_ は任意）をコピーします。',
@@ -728,7 +717,7 @@ const ko: AdSpendPageCopy = {
   keysTitle: '연결 키',
   open: '열기',
   close: '접기',
-  googleLead: '이 상점 광고 계정의 읽기 키를 붙입니다. 비밀 칸을 비우면 저장된 값을 유지합니다. API {version}.',
+  googleLead: '이 상점의 서비스 계정 JSON을 붙입니다. 비밀 칸을 비우면 저장된 값을 유지합니다. API {version}.',
   facebookLead: 'Business Manager 시스템 토큰, 권한 ads_read. 광고 계정 ID는 숫자이며 act_는 있어도 됩니다. Graph {version}.',
   googleSteps: [
     'Google Cloud에서 프로젝트의 Google Ads API를 켜고 접근 수준이 Explorer 이상(실제 계정 읽기 가능)인지 확인합니다.',
@@ -740,7 +729,6 @@ const ko: AdSpendPageCopy = {
   developerToken: 'Developer token (선택)',
   serviceAccountJson: '서비스 계정 JSON 파일',
   serviceAccountSaved: '{email} 사용 중 — 유지하려면 비움',
-  oauthFallback: '이전 OAuth 방식(refresh token이 만료될 수 있음). 서비스 계정이 없을 때만 사용합니다.',
   facebookSteps: [
     'Meta Business Manager에서 ads_read 권한이 있는 시스템 사용자 토큰을 만듭니다.',
     '광고 계정 설정에서 광고 계정 ID(숫자, act_는 선택)를 복사합니다.',

@@ -8,6 +8,7 @@ import { useWebLocaleFromDocumentCookie } from '@/hooks/use-web-locale-from-cook
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { AI_TOOLS, NAV_GROUPS, type NavIcon } from '@/lib/nav-config'
+import { MobileNav } from '@/components/layout/mobile-nav'
 import {
   activeMobileFeatureHref,
   buildMobileFeatureDock,
@@ -52,6 +53,7 @@ export function MobileBottomBar() {
   const uiLocale = useWebLocaleFromDocumentCookie()
   const [pathname, setPathname] = useState('/')
   const [recentHrefs, setRecentHrefs] = useState<string[]>([])
+  const [isAdmin, setIsAdmin] = useState(false)
   const hideOnAuth = pathname.startsWith('/auth')
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -66,6 +68,10 @@ export function MobileBottomBar() {
   const returnTimerRef = useRef<number | null>(null)
   const touchingRef = useRef(false)
   const programmaticRef = useRef(false)
+
+  useEffect(() => {
+    setIsAdmin(document.getElementById('nanoai-is-admin')?.getAttribute('data-admin') === '1')
+  }, [])
 
   useEffect(() => {
     const syncPath = () => {
@@ -203,26 +209,31 @@ export function MobileBottomBar() {
         '모든 기능. 가운데는 관련 기능과 최근 기능'
       )}
     >
-      <div
-        ref={scrollerRef}
-        className="relative mx-auto flex h-16 w-full max-w-xl items-stretch overflow-x-auto overscroll-x-contain rounded-2xl border border-border/70 bg-background/92 shadow-[0_-8px_24px_rgba(2,6,23,0.08)] backdrop-blur-xl [scrollbar-width:none] supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-8px_24px_rgba(2,6,23,0.45)] [&::-webkit-scrollbar]:hidden"
-      >
-        {items.map((item, index) => (
-          <FeatureDockLink
-            key={`${item.kind}-${item.href}`}
-            item={item}
-            label={dict.tool[item.labelKey]}
-            active={item.href === activeHref}
-            showDivider={
-              (focusStart > 0 && index === focusStart) ||
-              (seamIndex > focusStart && index === seamIndex) ||
-              (focusEnd >= 0 && focusEnd < items.length - 1 && index === focusEnd + 1)
-            }
-            focusStart={index === focusStart}
-            focusEnd={index === focusEnd}
-            focusSeam={index === seamIndex && seamIndex > focusStart}
-          />
-        ))}
+      <div className="mx-auto flex h-16 w-full max-w-xl items-stretch overflow-hidden rounded-2xl border border-border/70 bg-background/92 shadow-[0_-8px_24px_rgba(2,6,23,0.08)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/80 dark:shadow-[0_-8px_24px_rgba(2,6,23,0.45)]">
+        <div
+          ref={scrollerRef}
+          className="flex min-w-0 flex-1 items-stretch overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {items.map((item, index) => (
+            <FeatureDockLink
+              key={`${item.kind}-${item.href}`}
+              item={item}
+              label={dict.tool[item.labelKey]}
+              active={item.href === activeHref}
+              showDivider={
+                (focusStart > 0 && index === focusStart) ||
+                (seamIndex > focusStart && index === seamIndex) ||
+                (focusEnd >= 0 && focusEnd < items.length - 1 && index === focusEnd + 1)
+              }
+              focusStart={index === focusStart}
+              focusEnd={index === focusEnd}
+              focusSeam={index === seamIndex && seamIndex > focusStart}
+            />
+          ))}
+        </div>
+        <div className="flex w-[4.5rem] shrink-0 items-stretch border-l border-border/70 bg-background">
+          <MobileNav isAdmin={isAdmin} t={dict} />
+        </div>
       </div>
     </nav>
   )

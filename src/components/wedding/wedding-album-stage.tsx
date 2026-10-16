@@ -7,6 +7,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   DEFAULT_WEDDING_ALBUM_LAYOUT_ID,
   resolveWeddingAlbumLayoutId,
+  WEDDING_ALBUM_GRID_SLOTS,
   WEDDING_ALBUM_LAYOUTS,
   type WeddingAlbumLayoutId,
 } from '@/lib/wedding/wedding-album-layouts'
@@ -299,6 +300,8 @@ export function WeddingAlbumStage(props: {
   compact?: boolean
   crops?: WeddingAlbumPhotoCrop[]
   onExpand?: (index: number) => void
+  /** Lưới 2×2: bấm một ảnh mở cả album, không chỉ phóng ảnh đó. */
+  onOpenAlbum?: () => void
   /** Chỉ bật ở màn tạo thiệp. Thiệp khách mời không truyền prop này. */
   edit?: WeddingAlbumStageEdit
 }) {
@@ -371,7 +374,7 @@ export function WeddingAlbumStage(props: {
 
   useEffect(() => {
     const el = swipeRootRef.current
-    if (!el || count < 2) return
+    if (!el || count < 2 || layout === 'grid') return
 
     let active = false
     let locked: 'unset' | 'x' | 'y' = 'unset'
@@ -447,7 +450,7 @@ export function WeddingAlbumStage(props: {
       el.removeEventListener('touchcancel', onEnd)
       el.removeEventListener('click', blockClick, true)
     }
-  }, [count])
+  }, [count, layout])
 
   const jumpTo = (target: number) => {
     if (layout === 'slide') {
@@ -476,7 +479,7 @@ export function WeddingAlbumStage(props: {
   if (count === 0) return null
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (props.edit) return
+    if (layout === 'grid' || props.edit) return
     if (event.pointerType === 'touch') return
     if (count < 2 || settling.current) return
     if ((event.target as HTMLElement).closest('[data-album-chrome], [data-album-slide-scroller], [data-album-film-strip]')) return
@@ -519,6 +522,7 @@ export function WeddingAlbumStage(props: {
   const prevLabel = navCopy.prev
   const nextLabel = navCopy.next
   const expandLabel = navCopy.expand
+  const isGrid = layout === 'grid'
 
   return (
     <div className={cn('relative w-full min-w-0 max-w-full overflow-hidden', props.className)}>
@@ -529,8 +533,9 @@ export function WeddingAlbumStage(props: {
           touchAction: layout === 'slide' || layout === 'film' ? 'pan-x pan-y' : 'pan-y',
           overscrollBehaviorX: 'contain',
         }}
-        tabIndex={count > 1 ? 0 : undefined}
+        tabIndex={count > 1 && !isGrid ? 0 : undefined}
         onKeyDown={(event) => {
+          if (isGrid) return
           if (event.key === 'ArrowLeft') nudge(-1)
           if (event.key === 'ArrowRight') nudge(1)
         }}
@@ -542,7 +547,7 @@ export function WeddingAlbumStage(props: {
         <div
           className={cn(
             'w-full min-w-0 max-w-full overflow-hidden transition-opacity duration-300 ease-out',
-            props.edit && 'pointer-events-none',
+            props.edit && !isGrid && 'pointer-events-none',
           )}
           style={{ opacity: revealed ? 1 : 0 }}
         >
@@ -558,6 +563,7 @@ export function WeddingAlbumStage(props: {
             onNudge={nudge}
             onJump={jumpTo}
             onExpand={props.onExpand}
+            onOpenAlbum={props.onOpenAlbum}
             onIndex={(next) => {
               setGlide(0)
               glideRef.current = 0
@@ -566,13 +572,13 @@ export function WeddingAlbumStage(props: {
             locked={Boolean(props.edit)}
           />
         </div>
-        {count > 1 ? (
+        {count > 1 && !isGrid ? (
           <>
             <Arrow dir={-1} label={prevLabel} onClick={() => nudge(-1)} compact={props.compact} />
             <Arrow dir={1} label={nextLabel} onClick={() => nudge(1)} compact={props.compact} />
           </>
         ) : null}
-        {props.onExpand && !props.edit ? (
+        {props.onExpand && !props.edit && !isGrid ? (
           <button
             type="button"
             aria-label={expandLabel}
@@ -583,7 +589,7 @@ export function WeddingAlbumStage(props: {
             <Maximize2 className="h-4 w-4" />
           </button>
         ) : null}
-        {props.edit ? (
+        {props.edit && !isGrid ? (
           <AlbumStageEditor
             index={safeIndex}
             frame={resolveAlbumPhotoFrame(props.crops, safeIndex)}
@@ -592,7 +598,7 @@ export function WeddingAlbumStage(props: {
           />
         ) : null}
       </div>
-      {count > 1 && layout !== 'film' && layout !== 'story' ? (
+      {count > 1 && layout !== 'film' && layout !== 'story' && !isGrid ? (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
           {urls.map((url, dot) => (
             <button
@@ -892,6 +898,7 @@ function AlbumFrame(props: {
   onNudge: (dir: -1 | 1) => void
   onJump: (index: number) => void
   onExpand?: (index: number) => void
+  onOpenAlbum?: () => void
   onIndex: (index: number) => void
   locked?: boolean
 }) {
@@ -902,6 +909,54 @@ function AlbumFrame(props: {
   const frame = props.compact
     ? 'relative mx-auto h-64 w-full sm:h-80'
     : 'relative mx-auto h-[min(68vh,34rem)] w-full'
+
+  if (props.layout === 'grid') {
+    const visible = urls.slice(0, WEDDING_ALBUM_GRID_SLOTS)
+    const extra = Math.max(0, count - visible.length)
+    return (
+      <div className={cn('grid grid-cols-2', props.compact ? 'gap-1.5' : 'gap-2 sm:gap-3')} data-album-grid="">
+        {visible.map((url, i) => {
+          const showExtra = extra > 0 && i === visible.length - 1
+          const cell = (
+            <>
+              <div className="relative aspect-[3/4] overflow-hidden">
+                <AlbumPhoto url={url} alt={alt} frame={props.frameOf(i)} className="absolute inset-0" />
+              </div>
+              {showExtra ? (
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/45 font-semibold text-white">
+                  <span className={props.compact ? 'text-lg' : 'text-2xl sm:text-3xl'}>+{extra}</span>
+                </span>
+              ) : null}
+            </>
+          )
+          const openAlbum = props.onOpenAlbum
+            ? () => props.onOpenAlbum?.()
+            : props.onExpand
+              ? () => props.onExpand?.(i)
+              : null
+          if (!openAlbum) {
+            return (
+              <div key={`${url}-${i}`} className="relative overflow-hidden rounded-2xl shadow-sm ring-1 ring-black/10">
+                {cell}
+              </div>
+            )
+          }
+          return (
+            <button
+              key={`${url}-${i}`}
+              type="button"
+              data-album-photo=""
+              aria-label={alt}
+              className="relative overflow-hidden rounded-2xl text-left shadow-sm ring-1 ring-black/10 transition hover:opacity-95"
+              onClick={openAlbum}
+            >
+              {cell}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
 
   if (props.layout === 'coverflow') {
     return (

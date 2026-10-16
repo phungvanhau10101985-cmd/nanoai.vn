@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { GPT_IMAGE_CREDITS, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -49,9 +50,25 @@ export function ImageEnginePicker({
       ? `${shownGeminiQuality} (${formatCredit(shownGeminiQuality === '4K' && geminiCost4k != null ? geminiCost4k : geminiCost2k, webLocale)})`
       : `${gptQuality} (${formatCredit(GPT_IMAGE_CREDITS[gptQuality], webLocale)})`
   const qualityCols = engine === 'gpt' ? 'grid-cols-3' : geminiCost4k != null ? 'grid-cols-2' : 'grid-cols-1'
+  const [open, setOpen] = useState(false)
+
+  function chooseEngine(next: ImageEngine) {
+    onEngineChange(next)
+    setOpen(false)
+  }
+
+  function chooseGeminiQuality(quality: '2K' | '4K') {
+    onGeminiQualityChange(quality)
+    setOpen(false)
+  }
+
+  function chooseGptQuality(quality: GptImageQuality) {
+    onGptQualityChange(quality)
+    setOpen(false)
+  }
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -72,10 +89,10 @@ export function ImageEnginePicker({
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineLabel}</p>
             <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
-              <button type="button" onClick={() => onEngineChange('gemini')} className={chipClass(engine === 'gemini')}>
+              <button type="button" onClick={() => chooseEngine('gemini')} className={chipClass(engine === 'gemini')}>
                 {t.imageEngineGemini}
               </button>
-              <button type="button" onClick={() => onEngineChange('gpt')} className={chipClass(engine === 'gpt')}>
+              <button type="button" onClick={() => chooseEngine('gpt')} className={chipClass(engine === 'gpt')}>
                 {t.imageEngineGpt}
               </button>
             </div>
@@ -84,11 +101,11 @@ export function ImageEnginePicker({
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineQuality}</p>
             {engine === 'gemini' ? (
               <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols)}>
-                <button type="button" onClick={() => onGeminiQualityChange('2K')} className={chipClass(shownGeminiQuality === '2K')}>
+                <button type="button" onClick={() => chooseGeminiQuality('2K')} className={chipClass(shownGeminiQuality === '2K')}>
                   2K ({formatCredit(geminiCost2k, webLocale)})
                 </button>
                 {geminiCost4k != null ? (
-                  <button type="button" onClick={() => onGeminiQualityChange('4K')} className={chipClass(geminiQuality === '4K')}>
+                  <button type="button" onClick={() => chooseGeminiQuality('4K')} className={chipClass(geminiQuality === '4K')}>
                     4K ({formatCredit(geminiCost4k, webLocale)})
                   </button>
                 ) : null}
@@ -99,7 +116,7 @@ export function ImageEnginePicker({
                   <button
                     key={quality}
                     type="button"
-                    onClick={() => onGptQualityChange(quality)}
+                    onClick={() => chooseGptQuality(quality)}
                     className={chipClass(gptQuality === quality)}
                   >
                     {quality} ({formatCredit(GPT_IMAGE_CREDITS[quality], webLocale)})

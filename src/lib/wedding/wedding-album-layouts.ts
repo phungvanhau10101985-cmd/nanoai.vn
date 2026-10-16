@@ -9,6 +9,10 @@ export type WeddingAlbumLayoutId =
   | 'polaroid'
   | 'book'
   | 'story'
+  | 'grid'
+
+/** Ô xem trước trên thiệp: 2 cột × 2 hàng. Ảnh còn lại mở trong album. */
+export const WEDDING_ALBUM_GRID_SLOTS = 4
 
 export type WeddingAlbumLayout = {
   id: WeddingAlbumLayoutId
@@ -47,6 +51,10 @@ export const WEDDING_ALBUM_LAYOUTS: WeddingAlbumLayout[] = [
   {
     id: 'story',
     label: { vi: 'Story dọc', en: 'Vertical story', zh: '竖向故事', ja: '縦ストーリー', ko: '세로 스토리' },
+  },
+  {
+    id: 'grid',
+    label: { vi: 'Lưới 2×2', en: '2×2 grid', zh: '2×2 网格', ja: '2×2グリッド', ko: '2×2 격자' },
   },
 ]
 

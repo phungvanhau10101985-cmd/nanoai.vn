@@ -247,9 +247,6 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
   const [googleCustomerId, setGoogleCustomerId] = useState('')
   const [googleLoginCustomerId, setGoogleLoginCustomerId] = useState('')
   const [googleDeveloperToken, setGoogleDeveloperToken] = useState('')
-  const [googleClientId, setGoogleClientId] = useState('')
-  const [googleClientSecret, setGoogleClientSecret] = useState('')
-  const [googleRefreshToken, setGoogleRefreshToken] = useState('')
   const [googleServiceAccountJson, setGoogleServiceAccountJson] = useState('')
   const [clearGoogle, setClearGoogle] = useState(false)
   const [metaAccountId, setMetaAccountId] = useState('')
@@ -263,9 +260,6 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
     setGoogleLoginCustomerId(data.googleLoginCustomerId || '')
     setMetaAccountId(data.metaAdAccountId || '')
     setGoogleDeveloperToken('')
-    setGoogleClientId('')
-    setGoogleClientSecret('')
-    setGoogleRefreshToken('')
     setGoogleServiceAccountJson('')
     setMetaToken('')
     setClearGoogle(false)
@@ -348,9 +342,6 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
       googleLoginCustomerId,
       metaAdAccountId: metaAccountId,
       ...(googleDeveloperToken.trim() ? { googleDeveloperToken: googleDeveloperToken.trim() } : {}),
-      ...(googleClientId.trim() ? { googleClientId: googleClientId.trim() } : {}),
-      ...(googleClientSecret.trim() ? { googleClientSecret: googleClientSecret.trim() } : {}),
-      ...(googleRefreshToken.trim() ? { googleRefreshToken: googleRefreshToken.trim() } : {}),
       ...(googleServiceAccountJson.trim() ? { googleServiceAccountJson: googleServiceAccountJson.trim() } : {}),
       ...(metaToken.trim() ? { metaAccessToken: metaToken.trim() } : {}),
       ...(clearGoogle ? { clearGoogleSecrets: true } : {}),
@@ -584,8 +575,8 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
       {periodReport ? (
         <div className="mt-4 space-y-3">
           {periodReport.google.partial || periodReport.facebook.partial ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.partial}</div> : null}
-          {periodReport.google.configured && !periodReport.google.ok && periodReport.google.error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.google}: {periodReport.google.error}</div> : null}
-          {periodReport.facebook.configured && !periodReport.facebook.ok && periodReport.facebook.error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.facebook}: {periodReport.facebook.error}</div> : null}
+          {periodReport.google.configured && periodReport.google.error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.google}: {periodReport.google.error}</div> : null}
+          {periodReport.facebook.configured && periodReport.facebook.error ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{copy.facebook}: {periodReport.facebook.error}</div> : null}
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <div className="border-b border-slate-100 px-4 py-3 dark:border-zinc-800">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-zinc-100">{copy.dailyTitle}</h3>
@@ -674,13 +665,7 @@ export function PartnerOrderProfitPanel({ partnerId, locale = 'vi' }: Props) {
                   className="mt-1 w-full rounded-lg border border-emerald-600 bg-white px-3 py-2 font-mono text-xs text-emerald-950 dark:bg-zinc-950 dark:text-emerald-100"
                 />
               </label>
-              <p className="text-xs">{copy.oauthFallback}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField label={copy.developerToken} value={googleDeveloperToken} onChange={setGoogleDeveloperToken} secret placeholder={settings.googleDeveloperTokenSet ? copy.savedKeep : copy.missingSecret} />
-                <TextField label={copy.clientId} value={googleClientId} onChange={setGoogleClientId} placeholder={settings.googleClientIdSet ? copy.savedKeep : copy.missingSecret} />
-                <TextField label={copy.clientSecret} value={googleClientSecret} onChange={setGoogleClientSecret} secret placeholder={settings.googleClientSecretSet ? copy.savedKeep : copy.missingSecret} />
-                <TextField label={copy.refreshToken} value={googleRefreshToken} onChange={setGoogleRefreshToken} secret placeholder={settings.googleRefreshTokenSet ? copy.savedKeep : copy.missingSecret} />
-              </div>
+              <TextField label={copy.developerToken} value={googleDeveloperToken} onChange={setGoogleDeveloperToken} secret placeholder={settings.googleDeveloperTokenSet ? copy.savedKeep : copy.missingSecret} />
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={clearGoogle} onChange={(e) => setClearGoogle(e.target.checked)} />
                 {copy.clearGoogle}
