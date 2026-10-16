@@ -22,6 +22,7 @@ export function buildWeddingCoverFramePrompt(input: {
   palette: string
   extraPrompt: string
   openingShape?: WeddingCoverFrameOpening
+  hasReference?: boolean
 }): string {
   const extra = input.extraPrompt.trim()
   const opening = readWeddingCoverFrameOpening(input.openingShape)
@@ -30,6 +31,9 @@ export function buildWeddingCoverFramePrompt(input: {
     `Style: ${input.styleLabel}. Palette accents: ${input.palette || 'ivory, gold, rose'}.`,
     'The logo mark is only the decorative ring — flowers, leaves, and fine linework forming one closed wreath.',
     OPENING_PROMPT[opening],
+    input.hasReference
+      ? 'REFERENCE IMAGE (attached, often the invitation background): match its palette, floral species, metal, and lighting so this wreath belongs on that background. Invent a NEW wreath. Keep the flat #F4F1EA canvas and the opening shape requested above. Do not copy the background layout or any readable text.'
+      : '',
     'The entire canvas behind the mark, including the large center opening and the outer margins, must be one flat solid color #F4F1EA. No texture, no gradient, no paper grain, no shadow, no photo, no people, no letters, no numbers.',
     'The center opening must stay empty so the same #F4F1EA canvas shows through, like the counter inside the letter O. Do not draw a card, plate, or filled shape in the center.',
     'Keep the ring visually closed so the center opening is fully enclosed.',

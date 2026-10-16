@@ -63,11 +63,13 @@ export async function generateGptImage(opts: {
   prompt: string
   quality: GptImageQuality
   aspectRatio?: string | null
+  /** Size `WIDTHxHEIGHT` gửi thẳng. Bỏ qua thì map từ aspectRatio. */
+  size?: string | null
   images?: GptImageInput[]
 }): Promise<GptImageCallResult> {
   const key = openaiKey()
   const images = (opts.images || []).filter((img) => img.bytes?.length)
-  const size = gptImageSizeForAspect(opts.aspectRatio, images.length > 0)
+  const size = String(opts.size || '').trim() || gptImageSizeForAspect(opts.aspectRatio, images.length > 0)
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), GPT_IMAGE_TIMEOUT_MS)
   try {
@@ -186,6 +188,8 @@ export async function runImageContent<T>(opts: {
   engine: ImageEngine
   gptQuality: GptImageQuality | null
   aspectRatio?: string | null
+  /** Size GPT `WIDTHxHEIGHT`. Có thì không gộp tỷ lệ đứng về 1024×1536. */
+  gptSize?: string | null
   parts: unknown[]
   gemini: () => Promise<T>
 }): Promise<T> {
@@ -197,6 +201,7 @@ export async function runImageContent<T>(opts: {
     prompt,
     quality: opts.gptQuality,
     aspectRatio: opts.aspectRatio,
+    size: opts.gptSize,
     images,
   })
   return geminiShapeFromBuffer(generated.buffer, generated.usage) as T

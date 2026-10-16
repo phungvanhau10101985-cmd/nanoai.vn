@@ -68,6 +68,8 @@ export type WeddingSectionConfig = {
   coverPhotoPositionY?: number
   /** Cover photo zoom scale, 1-3. */
   coverPhotoScale?: number
+  /** Cỡ khung ảnh trên vỏ, 0.6–1.4. 1 = cỡ mặc định. */
+  coverFrameScale?: number
   /** Kiểu vuốt album trên thiệp. */
   albumLayoutId?: string
   /** Khung zoom/kéo từng ảnh album, theo thứ tự trong album. */
@@ -80,9 +82,13 @@ export type WeddingSectionConfig = {
   groomPhotoPositionY?: number
   /** Zoom ảnh chú rể, 1–3. */
   groomPhotoScale?: number
+  /** Cỡ khung ảnh chú rể, 0.6–1.4. 1 = cỡ mặc định. */
+  groomPortraitFrameScale?: number
   bridePhotoPositionX?: number
   bridePhotoPositionY?: number
   bridePhotoScale?: number
+  /** Cỡ khung ảnh cô dâu, 0.6–1.4. 1 = cỡ mặc định. */
+  bridePortraitFrameScale?: number
   /** Khung trang trí quanh ảnh chân dung. preset = khung mẫu. library = khung AI đã lưu. */
   groomPortraitShellMode?: 'preset' | 'library'
   groomPortraitShellPresetId?: string
@@ -123,6 +129,26 @@ function readScale(value: unknown): number | undefined {
   const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
   if (!Number.isFinite(num)) return undefined
   return Math.max(1, Math.min(3, Math.round(num * 100) / 100))
+}
+
+/** Khung ảnh to nhỏ quanh cỡ mặc định. Ảnh bên trong vẫn zoom riêng. */
+export const WEDDING_FRAME_SCALE_MIN = 0.6
+export const WEDDING_FRAME_SCALE_MAX = 1.4
+
+export function clampWeddingFrameScale(value: number): number {
+  return Math.max(WEDDING_FRAME_SCALE_MIN, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(value * 100) / 100))
+}
+
+function readFrameScale(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(num)) return undefined
+  return clampWeddingFrameScale(num)
+}
+
+function writeFrameScale(payload: WeddingSectionConfig, key: 'coverFrameScale' | 'groomPortraitFrameScale' | 'bridePortraitFrameScale', value: number | undefined) {
+  const scale = readFrameScale(value)
+  if (scale === undefined || scale === 1) return
+  payload[key] = scale
 }
 
 function readHoleNumber(value: unknown): number | undefined {
@@ -245,6 +271,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverPhotoPositionX: readPercent(obj.coverPhotoPositionX),
       coverPhotoPositionY: readPercent(obj.coverPhotoPositionY),
       coverPhotoScale: readScale(obj.coverPhotoScale),
+      coverFrameScale: readFrameScale(obj.coverFrameScale),
       coverAiFrameUrl: typeof obj.coverAiFrameUrl === 'string' ? obj.coverAiFrameUrl.trim() || undefined : undefined,
       coverAiFrameHole: readCoverAiFrameHole(obj.coverAiFrameHole),
       coverAiFramePanel: readCoverAiFramePanel(obj.coverAiFramePanel),
@@ -261,9 +288,11 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       groomPhotoPositionX: readPercent(obj.groomPhotoPositionX),
       groomPhotoPositionY: readPercent(obj.groomPhotoPositionY),
       groomPhotoScale: readScale(obj.groomPhotoScale),
+      groomPortraitFrameScale: readFrameScale(obj.groomPortraitFrameScale),
       bridePhotoPositionX: readPercent(obj.bridePhotoPositionX),
       bridePhotoPositionY: readPercent(obj.bridePhotoPositionY),
       bridePhotoScale: readScale(obj.bridePhotoScale),
+      bridePortraitFrameScale: readFrameScale(obj.bridePortraitFrameScale),
       ...readPortraitShell(obj, 'groom'),
       ...readPortraitShell(obj, 'bride'),
     }
@@ -279,6 +308,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (typeof config.coverPhotoPositionX === 'number') payload.coverPhotoPositionX = readPercent(config.coverPhotoPositionX)
   if (typeof config.coverPhotoPositionY === 'number') payload.coverPhotoPositionY = readPercent(config.coverPhotoPositionY)
   if (typeof config.coverPhotoScale === 'number') payload.coverPhotoScale = readScale(config.coverPhotoScale)
+  writeFrameScale(payload, 'coverFrameScale', config.coverFrameScale)
   const aiFrameUrl = config.coverAiFrameUrl?.trim()
   const aiFrameHole = readCoverAiFrameHole(config.coverAiFrameHole)
   if (aiFrameUrl && aiFrameHole) {
@@ -313,6 +343,8 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (config.sidePartyOwned) payload.sidePartyOwned = true
   writePortraitCrop(payload, 'groom', config)
   writePortraitCrop(payload, 'bride', config)
+  writeFrameScale(payload, 'groomPortraitFrameScale', config.groomPortraitFrameScale)
+  writeFrameScale(payload, 'bridePortraitFrameScale', config.bridePortraitFrameScale)
   writePortraitShell(payload, 'groom', config)
   writePortraitShell(payload, 'bride', config)
   return JSON.stringify(payload)
@@ -346,6 +378,16 @@ function writePortraitCrop(payload: WeddingSectionConfig, side: 'groom' | 'bride
   payload[xKey] = frame.x
   payload[yKey] = frame.y
   payload[scaleKey] = frame.scale
+}
+
+/** Cỡ khung vỏ. Chưa chỉnh thì 1. */
+export function resolveCoverFrameScale(config: WeddingSectionConfig): number {
+  return readFrameScale(config.coverFrameScale) ?? 1
+}
+
+/** Cỡ khung chân dung. Chưa chỉnh thì 1. */
+export function resolvePortraitFrameScale(config: WeddingSectionConfig, side: 'groom' | 'bride'): number {
+  return readFrameScale(side === 'groom' ? config.groomPortraitFrameScale : config.bridePortraitFrameScale) ?? 1
 }
 
 /** Ảnh chân dung chưa căn: mặt ở khoảng 18% từ mép trên, zoom 1. */

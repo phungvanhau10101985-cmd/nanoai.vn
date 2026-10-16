@@ -3605,6 +3605,12 @@ export type Dictionary = {
     customReferenceRemove: string
     customReferenceUrlPlaceholder: string
     customReferenceEmpty: string
+    referenceFrameLibraryLabel: string
+    referenceFrameLibraryHint: string
+    referenceFrameLibraryEmpty: string
+    referenceBackgroundLibraryLabel: string
+    referenceBackgroundLibraryEmpty: string
+    frameReferenceHint: string
     chooseBackground: string
     chooseBackgroundAgain: string
     backgroundPickedOk: string
@@ -3638,6 +3644,7 @@ export type Dictionary = {
     uploadLabel: string
     choosePhoto: string
     chooseFrame: string
+    frameSizeLabel: string
     changePhoto: string
     coverPhotoZoomOut: string
     coverPhotoZoomIn: string
@@ -7630,6 +7637,12 @@ export const VI_DICTIONARY: Dictionary = {
     customReferenceRemove: 'Gỡ ảnh',
     customReferenceUrlPlaceholder: 'Hoặc dán URL ảnh tham khảo (https://...)',
     customReferenceEmpty: 'Chưa chọn ảnh tham khảo',
+    referenceFrameLibraryLabel: 'Khung AI đã có',
+    referenceFrameLibraryHint: 'Bấm một khung trong kho để nền cùng họa tiết và tông màu với khung. Vẫn tải được ảnh từ máy hoặc dán link.',
+    referenceFrameLibraryEmpty: 'Kho khung còn trống. Tạo một khung AI trước, hoặc tải ảnh tham khảo từ máy.',
+    referenceBackgroundLibraryLabel: 'Nền AI đã có',
+    referenceBackgroundLibraryEmpty: 'Kho nền còn trống. Tạo một nền AI trước, hoặc tải ảnh tham khảo từ máy.',
+    frameReferenceHint: 'Chọn một nền AI để khung cùng họa tiết và tông màu với nền. AI vẽ khung mới, không chép nguyên ảnh nền. Vẫn tải được ảnh từ máy hoặc dán link.',
     chooseBackground: 'Chọn nền',
     chooseBackgroundAgain: 'Chọn lại',
     backgroundPickedOk: 'OK',
@@ -7665,6 +7678,7 @@ export const VI_DICTIONARY: Dictionary = {
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     choosePhoto: 'Chọn ảnh',
     chooseFrame: 'Chọn khung',
+    frameSizeLabel: 'Cỡ khung',
     changePhoto: 'Đổi ảnh',
     coverPhotoZoomOut: 'Thu nhỏ',
     coverPhotoZoomIn: 'Phóng to',

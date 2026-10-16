@@ -22,6 +22,12 @@ describe('gpt image api cost', () => {
     }
   })
 
+  it('scales fallback tokens for a custom tall size', () => {
+    const usd = gptImageFallbackOutputUsd('low', '1104x3312')
+    const expected = (697 / 1_000_000) * 30
+    assert.ok(Math.abs(usd - expected) < 0.00002, `got ${usd}`)
+  })
+
   it('keeps GPT output tokens when a 2K size is passed', () => {
     const billed = billGptImageUsage({ quality: 'low', size: '1024x1024', prompt: '' })
     const withTier = calcCostVnd(0, billed.candidatesTokenCount, 'gpt-image-2', '2K', USD_TO_VND)

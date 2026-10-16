@@ -1,5 +1,19 @@
 import type { WeddingImageType } from '@/lib/db/wedding-cards-pg'
 
+/**
+ * Ảnh nền thiệp trên Gemini: tỷ lệ đứng cao nhất gemini-3-pro-image nhận ổn định.
+ * 9:16 cao hơn 2:3 và 3:4. 1:4 / 1:8 runtime reject; 9:21 không nằm trong tỷ lệ model chấp nhận.
+ */
+export const WEDDING_BACKGROUND_ASPECT_RATIO = '9:16' as const
+
+/**
+ * Ảnh nền thiệp trên GPT Image 2. Mọi tỷ lệ đứng thường bị gộp thành 1024×1536 (2:3).
+ * gpt-image-2 nhận size tùy ý: cạnh chia hết cho 16, tỷ lệ dài/ngắn ≤ 3:1,
+ * tổng pixel từ 655360 đến dưới mốc thí nghiệm 3686400 (2560×1440).
+ * 1104×3312 là chiều cao lớn nhất trong vùng đó, đúng tỷ lệ 1:3.
+ */
+export const WEDDING_GPT_BACKGROUND_SIZE = '1104x3312' as const
+
 /** Hướng nghệ thuật riêng từng mặt (tiếng Anh cho model ảnh). */
 const FACE_ART_DIRECTION: Record<WeddingImageType, string> = {
   master: `PRIMARY HERO MASTER visual for the invitation — the boldest, richest composition; strong focal romance; premium centerpiece energy. This is the anchor artwork every other face should feel related to, but not copy.`,
@@ -51,6 +65,8 @@ export function buildWeddingPrompt(input: {
   hasReference: boolean
   /** Ảnh tham khảo phong cách do người dùng chọn trong mục tạo ảnh nền */
   hasCustomReference?: boolean
+  /** Nhãn khung xuất. Gemini dùng 9:16; GPT dùng size 1104x3312. */
+  canvasLabel?: string
 }): string {
   const faceWord = input.type === 'master' ? 'PRIMARY master hero invitation visual' : `secondary "${input.type}" invitation face background`
   const ref = input.hasReference
@@ -60,11 +76,12 @@ export function buildWeddingPrompt(input: {
     : ''
 
   const customRef = input.hasCustomReference
-    ? 'CUSTOM STYLE REFERENCE (last attached image when present): adopt palette family, ornament vocabulary, material texture, lighting warmth — invent a NEW composition; do NOT duplicate layout, focal crop, or readable text from that image.'
+    ? 'CUSTOM STYLE REFERENCE (attached, often a wedding frame): match its palette, metal, floral species, and line mood so this full-bleed background belongs with that frame. Invent a NEW full-page composition. Do NOT paste the wreath, center hole, or readable text onto the plate.'
     : ''
 
   const parts = [
     'Create a premium Vietnamese wedding invitation VISUAL BACKGROUND plate (digital print-ready illustration / artwork).',
+    `OUTPUT CANVAS: portrait ${input.canvasLabel || WEDDING_BACKGROUND_ASPECT_RATIO}, the tallest vertical plate. Artwork continues from the top edge through the bottom edge so a long invitation scrolls down the full height of this background.`,
     `Target plate: ${faceWord}.`,
     FACE_ART_DIRECTION[input.type],
     `Global style preset (keep consistent tone): ${input.style || 'luxury'}.`,

@@ -20,6 +20,7 @@ function Portrait(props: {
   theme: WeddingTheme
   frame: WeddingAlbumPhotoFrame
   shell?: WeddingPortraitShellFrame | null
+  frameScale?: number
   compact?: boolean
   choosePhotoLabel?: string
   chooseFrameLabel?: string
@@ -29,9 +30,11 @@ function Portrait(props: {
   const nameText = props.name.trim() || props.label
   const frameStyle = albumPhotoFrameStyle(props.frame)
   const editable = Boolean(props.onChoosePhoto && props.onChooseFrame)
+  const frameScale = props.frameScale && props.frameScale > 0 ? props.frameScale : 1
   return (
     <figure
-      className="group relative min-w-0"
+      className="group relative mx-auto min-w-0"
+      style={{ width: `${Math.round(frameScale * 1000) / 10}%` }}
       onClick={editable ? () => props.onChooseFrame?.() : undefined}
     >
       {props.shell ? (
@@ -43,6 +46,7 @@ function Portrait(props: {
             alt={`${props.label} ${nameText}`}
             objectPosition={frameStyle.objectPosition}
             scale={props.frame.scale}
+            frameScale={1}
             className="w-full max-w-none"
           />
           <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
@@ -123,6 +127,8 @@ export function WeddingCouplePortraits(props: {
   brideFrame?: WeddingAlbumPhotoFrame
   groomShell?: WeddingPortraitShellFrame | null
   brideShell?: WeddingPortraitShellFrame | null
+  groomFrameScale?: number
+  brideFrameScale?: number
   theme: WeddingTheme
   compact?: boolean
   className?: string
@@ -144,6 +150,7 @@ export function WeddingCouplePortraits(props: {
           label={props.groomLabel}
           frame={props.groomFrame ?? PORTRAIT_FRAME}
           shell={props.groomShell}
+          frameScale={props.groomFrameScale}
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={props.choosePhotoLabel}
@@ -164,6 +171,7 @@ export function WeddingCouplePortraits(props: {
           label={props.groomLabel}
           frame={props.groomFrame ?? PORTRAIT_FRAME}
           shell={props.groomShell}
+          frameScale={props.groomFrameScale}
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={props.choosePhotoLabel}
@@ -188,6 +196,7 @@ export function WeddingCouplePortraits(props: {
           label={props.brideLabel}
           frame={props.brideFrame ?? PORTRAIT_FRAME}
           shell={props.brideShell}
+          frameScale={props.brideFrameScale}
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={props.choosePhotoLabel}

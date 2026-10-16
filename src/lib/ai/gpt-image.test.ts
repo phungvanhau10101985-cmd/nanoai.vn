@@ -85,6 +85,26 @@ describe('gpt image endpoints', () => {
     assert.equal(fields.getAll('image[]').length, 0)
   })
 
+  it('sends an explicit portrait size instead of the 1024x1536 bucket', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test-key-1234567890'
+    let body: { size?: string } = {}
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+      body = JSON.parse(String(init?.body))
+      return pngResponse()
+    }) as typeof fetch
+    await runImageContent({
+      engine: 'gpt',
+      gptQuality: 'low',
+      aspectRatio: '9:16',
+      gptSize: '1104x3312',
+      parts: ['tall wedding plate'],
+      gemini: async () => {
+        throw new Error('gemini should not run')
+      },
+    })
+    assert.equal(body.size, '1104x3312')
+  })
+
   it('puts billable GPT usage on the Gemini-shaped response', async () => {
     process.env.OPENAI_API_KEY = 'sk-test-key-1234567890'
     globalThis.fetch = (async () =>

@@ -62,6 +62,8 @@ type WeddingCoverShellCardProps = {
   nestPhoto?: boolean
   /** Chỉ khung ảnh, không tên và không chữ Thân mời. Dùng trong nội dung thiệp. */
   frameOnly?: boolean
+  /** Cỡ khung ảnh so với mặc định, 0.6–1.4. */
+  frameScale?: number
   /** Tên chú rể từ trái, tên cô dâu từ phải, ghép vào giữa. */
   namesFlyIn?: boolean
   onOpen?: () => void
@@ -95,6 +97,16 @@ function clampCoverPercent(value: number) {
 
 function clampCoverScale(value: number) {
   return Math.max(1, Math.min(3, Math.round(value * 100) / 100))
+}
+
+function frameScaleOf(value: number | undefined) {
+  const num = value ?? 1
+  if (!Number.isFinite(num)) return 1
+  return Math.max(0.6, Math.min(1.4, num))
+}
+
+function frameWidthPercent(base: number, scale: number) {
+  return Math.round(base * scale * 10) / 10
 }
 
 function coverPhotoBox(edit: CoverPhotoEdit | undefined, objectPosition?: string, scale?: number) {
@@ -355,6 +367,8 @@ function CoverPhoto(props: {
   className?: string
   objectPosition?: string
   scale?: number
+  /** Phóng cả ô ảnh, khác với zoom nội dung. */
+  boxScale?: number
   breathe?: boolean
   /** Ảnh vỏ hiện từ từ lúc thiệp mở, cùng nhịp tên bay vào. */
   openSlowly?: boolean
@@ -362,6 +376,7 @@ function CoverPhoto(props: {
   if (!props.url.trim()) return null
   const objectPosition = props.objectPosition ?? '50% 50%'
   const scale = Math.max(1, Math.min(3, props.scale ?? 1))
+  const boxScale = frameScaleOf(props.boxScale)
   return (
     <div
       className={cn(
@@ -370,6 +385,7 @@ function CoverPhoto(props: {
         props.openSlowly && 'wedding-cover-photo-open',
         props.className,
       )}
+      style={boxScale === 1 ? undefined : { zoom: boxScale }}
     >
       <div className={cn('h-full w-full', props.breathe && !props.compact && 'wedding-cover-breathe')}>
         <img
@@ -425,6 +441,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
             className={props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : undefined}
             objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
             scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
+            boxScale={props.frameScale}
             breathe={props.breathe}
             openSlowly={props.namesFlyIn && !compact}
           />
@@ -537,6 +554,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
               className={compact ? 'h-28' : props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : 'h-[clamp(12rem,34dvh,16rem)] lg:h-[clamp(14rem,40dvh,18rem)]'}
               objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
               scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
+              boxScale={props.frameScale}
               breathe={props.breathe}
               openSlowly={props.namesFlyIn && !compact}
             />
@@ -721,18 +739,21 @@ function CoverFrameViewport(props: {
   imageAspect?: number
   /** Trần cao khung trên vỏ công khai, để nút Mở thiệp còn dưới vỏ. */
   maxHeight?: string
+  /** Phần trăm chiều ngang ô cha. Mặc định 86. */
+  widthPercent?: number
 }) {
   const tight = tightFrameContent(props.content)
   const imageAspect = props.imageAspect && props.imageAspect > 0 ? props.imageAspect : 3 / 4
   const aspect = tight ? (tight.w / tight.h) * imageAspect : imageAspect
+  const widthPercent = props.widthPercent && props.widthPercent > 0 ? props.widthPercent : 86
   return (
     <div
-      className={cn('relative mx-auto overflow-hidden', props.maxHeight ? 'w-auto max-w-[86%]' : 'w-[86%]', props.className)}
+      className={cn('relative mx-auto overflow-hidden', props.className)}
       style={{
         aspectRatio: String(aspect),
-        ...(props.maxHeight
-          ? { maxHeight: props.maxHeight, width: `min(86%, calc(${props.maxHeight} * ${aspect}))` }
-          : {}),
+        width: props.maxHeight ? `min(${widthPercent}%, calc(${props.maxHeight} * ${aspect}))` : `${widthPercent}%`,
+        maxWidth: `${widthPercent}%`,
+        ...(props.maxHeight ? { maxHeight: props.maxHeight } : {}),
       }}
     >
       <div
@@ -789,6 +810,7 @@ export function WeddingFramedPhoto(props: {
   alt: string
   objectPosition?: string
   scale?: number
+  frameScale?: number
   className?: string
 }) {
   const holeMask = useCoverFrameHoleMask(props.frameSrc, props.hole)
@@ -800,6 +822,7 @@ export function WeddingFramedPhoto(props: {
       className={cn(holeMask === undefined && 'opacity-0', props.className)}
       content={holeMask?.content}
       imageAspect={holeMask?.aspect}
+      widthPercent={frameWidthPercent(100, frameScaleOf(props.frameScale))}
     >
       <div
         className="pointer-events-none absolute inset-0"
@@ -853,6 +876,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
   const accentCls = light ? 'text-amber-200' : 'text-rose-800'
   const photoFrame = holeMask?.box ?? hole
   const photoBox = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  const frameScale = frameScaleOf(props.frameScale)
+  const frameWidth = frameWidthPercent(86, frameScale)
   const nestFrame = !plain && Boolean(frame) && (Boolean(props.nestPhoto) || Boolean(props.frameOnly))
   const photoMotion = props.openMotion
     ? coverPhotoMotionClass(props.photoOpen)
@@ -941,7 +966,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
     return (
       <div className="mx-auto w-full">
         {plain ? (
-          <div key={props.motionKey} className={cn('relative mx-auto w-[78%]', photoMotion || 'wedding-cover-frame-settle')}>
+          <div key={props.motionKey} className={cn('relative mx-auto', photoMotion || 'wedding-cover-frame-settle')} style={{ width: `${frameWidthPercent(78, frameScale)}%` }}>
             <CoverPhotoPan
               edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
               className="relative aspect-square w-full overflow-hidden rounded-full"
@@ -967,6 +992,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
             content={holeMask?.content}
             imageAspect={holeMask?.aspect}
+            widthPercent={frameWidth}
           >
             {frameArt}
           </CoverFrameViewport>
@@ -984,7 +1010,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       )}
     >
       {plain || nestFrame ? null : (
-        <div key={props.motionKey} ref={intro.rootRef} className={cn('relative aspect-[3/4] w-full', frameMotion)}>
+        <div key={props.motionKey} ref={intro.rootRef} className={cn('relative mx-auto aspect-[3/4]', frameMotion)} style={{ width: `${frameWidthPercent(100, frameScale)}%` }}>
           {frameArt}
         </div>
       )}
@@ -1019,7 +1045,15 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           {props.preset.ornament}
         </div>
         {plain ? (
-          <div key={props.motionKey} className={cn('relative mx-auto my-1', props.fitViewport ? 'w-[min(68%,16rem)]' : 'w-[78%]', photoMotion || 'wedding-cover-frame-settle')}>
+          <div
+            key={props.motionKey}
+            className={cn('relative mx-auto my-1', photoMotion || 'wedding-cover-frame-settle')}
+            style={{
+              width: props.fitViewport
+                ? `min(${frameWidthPercent(68, frameScale)}%, ${frameWidthPercent(16, frameScale)}rem)`
+                : `${frameWidthPercent(78, frameScale)}%`,
+            }}
+          >
             <CoverPhotoPan
               edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
               className="relative aspect-square w-full overflow-hidden rounded-full"
@@ -1055,7 +1089,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
             content={holeMask?.content}
             imageAspect={holeMask?.aspect}
-            maxHeight={props.fitViewport ? 'min(32svh,16rem)' : undefined}
+            widthPercent={frameWidth}
+            maxHeight={props.fitViewport ? `min(${frameWidthPercent(32, frameScale)}svh, ${frameWidthPercent(16, frameScale)}rem)` : undefined}
           >
             {frameArt}
           </CoverFrameViewport>

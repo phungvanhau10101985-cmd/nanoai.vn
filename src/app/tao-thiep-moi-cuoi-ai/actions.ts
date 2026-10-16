@@ -39,7 +39,11 @@ import {
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { buildWeddingPrompt } from '@/lib/wedding/build-wedding-image-prompt'
+import {
+  WEDDING_BACKGROUND_ASPECT_RATIO,
+  WEDDING_GPT_BACKGROUND_SIZE,
+  buildWeddingPrompt,
+} from '@/lib/wedding/build-wedding-image-prompt'
 import { buildWeddingCoverFramePrompt, readWeddingCoverFrameOpening } from '@/lib/wedding/build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from '@/lib/wedding/measure-cover-frame-hole'
 import { getWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
@@ -395,6 +399,7 @@ export async function generateWeddingCardImage(formData: FormData) {
       (type !== 'master' && Boolean(card.masterImageUrl)) ||
       hasCustomReference,
     hasCustomReference,
+    canvasLabel: priced.engine === 'gpt' ? `${WEDDING_GPT_BACKGROUND_SIZE} (1:3)` : WEDDING_BACKGROUND_ASPECT_RATIO,
   })
   const imageId = await insertWeddingAiImageProcessing({
     userId,
@@ -413,7 +418,7 @@ export async function generateWeddingCardImage(formData: FormData) {
         model: GEMINI_3_PRO_IMAGE.model,
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: { imageSize: '2K', aspectRatio: '3:4' },
+          imageConfig: { imageSize: '2K', aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO },
         },
       })
     }
@@ -435,7 +440,8 @@ export async function generateWeddingCardImage(formData: FormData) {
     const genResult = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
-      aspectRatio: '3:4',
+      aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO,
+      gptSize: priced.engine === 'gpt' ? WEDDING_GPT_BACKGROUND_SIZE : null,
       parts,
       gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
     })
@@ -479,6 +485,11 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   const cardId = clean(formData.get('cardId'), 80)
   const extraPrompt = clean(formData.get('extraPrompt'), 800)
   const openingShape = readWeddingCoverFrameOpening(formData.get('openingShape'))
+  const customReferenceImageUrl = clean(formData.get('customReferenceImageUrl'), 1000)
+  const customReferenceImageFile = formData.get('customReferenceImage')
+  const hasCustomReference =
+    Boolean(customReferenceImageUrl) ||
+    (customReferenceImageFile instanceof File && customReferenceImageFile.size > 0)
   const card = await getWeddingCardForUser(cardId, userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
 
@@ -497,6 +508,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     palette: card.colorPalette.trim() || style.palette,
     extraPrompt,
     openingShape,
+    hasReference: hasCustomReference,
   })
   const clientConfig = String(formData.get('sectionConfig') ?? '').trim()
   let baseConfig = card.sectionConfig
@@ -530,12 +542,18 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     ]
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
+    const parts: (string | object)[] = [prompt]
+    const referenceParts = await Promise.all([
+      getReferenceImagePart(customReferenceImageUrl || null),
+      getReferenceImagePartFromFile(customReferenceImageFile),
+    ])
+    referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
     const genResult = await runImageContent({
       engine: priced.engine,
       gptQuality: priced.gptQuality,
       aspectRatio: '3:4',
-      parts: [prompt],
-      gemini: () => model!.generateContent([prompt] as never, { safetySettings } as never),
+      parts,
+      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
     })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')

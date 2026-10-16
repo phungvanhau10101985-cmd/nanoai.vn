@@ -44,6 +44,7 @@ import {
   resolveCoverAiFrame,
   resolveCoverFrameMode,
   resolveCoverFrameOpen,
+  resolveCoverFrameScale,
   resolveOpenBurstEffect,
   resolveOpenFallEffect,
   resolveOpenFallSeconds,
@@ -52,6 +53,7 @@ import {
   resolveCoverPhotoScale,
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
+  resolvePortraitFrameScale,
   resolvePortraitShell,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
@@ -778,6 +780,7 @@ export default function WeddingPublicClient({
                     coverPhotoUrl={displayCoverPhotoUrl}
                     coverPhotoObjectPosition={coverPhotoObjectPosition}
                     coverPhotoScale={coverPhotoScale}
+                    frameScale={resolveCoverFrameScale(sectionConfig)}
                     groomName={card.groomName}
                     brideName={card.brideName}
                     weddingDate={displayWeddingDateLabel}
@@ -863,6 +866,7 @@ export default function WeddingPublicClient({
                   coverPhotoUrl={displayCoverPhotoUrl}
                   coverPhotoObjectPosition={coverPhotoObjectPosition}
                   coverPhotoScale={coverPhotoScale}
+                  frameScale={resolveCoverFrameScale(sectionConfig)}
                   groomName={card.groomName}
                   brideName={card.brideName}
                   theme={theme}
@@ -1009,6 +1013,8 @@ export default function WeddingPublicClient({
                   brideFrame={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
                   groomShell={resolvePortraitShell(sectionConfig, 'groom')}
                   brideShell={resolvePortraitShell(sectionConfig, 'bride')}
+                  groomFrameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
+                  brideFrameScale={resolvePortraitFrameScale(sectionConfig, 'bride')}
                   theme={theme}
                 />
               </WeddingReadableGlass>

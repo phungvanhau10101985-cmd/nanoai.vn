@@ -31,10 +31,21 @@ export type GptImageLoggedUsage = {
   logImageSize: 'gpt-low' | 'gpt-medium' | 'gpt-high' | 'gpt-auto'
 }
 
+function customSizePixelScale(size: string): number | null {
+  const match = /^(\d+)x(\d+)$/.exec(size)
+  if (!match) return null
+  if (size === '1024x1024' || size === '1024x1536' || size === '1536x1024') return null
+  const pixels = Number(match[1]) * Number(match[2])
+  if (!Number.isFinite(pixels) || pixels <= 0) return null
+  return pixels / (1024 * 1024)
+}
+
 export function gptImageOutputFallbackTokens(quality: GptImageUsageQuality, size: string): number {
   const table = size === '1024x1536' || size === '1536x1024' ? TALL_OUTPUT_TOKENS : SQUARE_OUTPUT_TOKENS
-  if (quality === 'low' || quality === 'high') return table[quality]
-  return table.medium
+  const base = quality === 'low' || quality === 'high' ? table[quality] : table.medium
+  const scale = customSizePixelScale(size)
+  if (scale == null) return base
+  return Math.max(1, Math.round(base * scale))
 }
 
 export function billGptImageUsage(input: {
