@@ -14,7 +14,7 @@ type Props = {
   contentClassName?: string
 }
 
-/** Khối nội dung trên nền ảnh AI — kính mờ trung tính, tiêu đề tinh tế. */
+/** Khối nội dung trên nền ảnh AI — nền chữ kem mờ từ mép vào giữa. */
 export function WeddingSectionCard({ theme, title, children, id, className, contentClassName }: Props) {
   return (
     <WeddingReadableGlass

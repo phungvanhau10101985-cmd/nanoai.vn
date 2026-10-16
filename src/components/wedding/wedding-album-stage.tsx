@@ -960,11 +960,17 @@ function AlbumFrame(props: {
 
   if (props.layout === 'coverflow') {
     return (
-      <div className={cn(frame, 'overflow-hidden')} style={{ perspective: '1400px' }}>
+      <div className={cn(frame, 'overflow-hidden')}>
         {urls.map((url, i) => {
           const d = wrappedDelta(i, focus, count)
           const ad = Math.abs(d)
           if (ad > 2.6) return null
+          // Ảnh đang xem không dùng rotateY. rotateY(0) trong khung perspective
+          // làm thẻ bị xiên trên điện thoại: hở tam giác trắng hai mép.
+          const flat = ad < 0.001
+          const shift = d * 68
+          const angle = d * -28
+          const scale = 1 - Math.min(ad, 1.15) * 0.08
           return (
             <div
               key={`${url}-${i}`}
@@ -972,12 +978,15 @@ function AlbumFrame(props: {
               tabIndex={0}
               aria-label={alt}
               data-album-photo=""
-              className="absolute left-1/2 top-0 h-full w-[72%] overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
+              className="absolute left-0 top-0 h-full w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
               style={{
                 touchAction: 'pan-y',
                 zIndex: 24 - Math.round(ad * 8),
                 opacity: ad > 1.2 ? Math.max(0, (1.8 - ad) / 0.6) : 1,
-                transform: `translateX(calc(-50% + ${d * 46}%)) rotateY(${d * -28}deg) scale(${1 - Math.min(ad, 1.15) * 0.12})`,
+                transformOrigin: 'center center',
+                transform: flat
+                  ? 'none'
+                  : `translateX(${shift}%) perspective(1400px) rotateY(${angle}deg) scale(${scale})`,
                 transition,
               }}
               onClick={() => {
@@ -991,7 +1000,7 @@ function AlbumFrame(props: {
                 props.onNudge(d > 0 ? 1 : -1)
               }}
             >
-              <AlbumPhoto url={url} alt={i === index ? alt : ''} frame={props.frameOf(i)} />
+              <AlbumPhoto url={url} alt={i === index ? alt : ''} frame={props.frameOf(i)} className="absolute inset-0" />
               <span className="pointer-events-none absolute inset-0 bg-black" style={{ opacity: Math.min(0.38, ad * 0.32), transition }} />
             </div>
           )
@@ -1139,7 +1148,7 @@ function AlbumFrame(props: {
                 touchAction: 'pan-y',
                 zIndex: 20 - Math.round(Math.abs(d) * 6),
                 opacity: Math.max(0, 1 - Math.max(0, Math.abs(d) - 0.08) * 1.05),
-                transform: `translateX(calc(-50% + ${d * 108}%)) translateY(-50%) rotate(${d * 6 - 1.2}deg)`,
+                transform: `translateX(calc(-50% + ${d * 108}%)) translateY(-50%) rotate(${d * 6}deg)`,
                 transition,
               }}
             >
@@ -1157,22 +1166,25 @@ function AlbumFrame(props: {
   }
 
   const under = wrap(index + (glide >= 0 ? -1 : 1), count)
+  const bookFlat = Math.abs(glide) < 0.001
   return (
-    <div className={cn(frame, 'overflow-hidden')} style={{ perspective: '1600px' }}>
-      <div className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] -translate-x-1/2 overflow-hidden rounded-2xl shadow-md" style={{ touchAction: 'pan-y' }}>
-        <AlbumPhoto url={urls[under] ?? ''} alt={alt} frame={props.frameOf(under)} />
+    <div className={cn(frame, 'overflow-hidden')}>
+      <div className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] overflow-hidden rounded-2xl shadow-md" style={{ touchAction: 'pan-y', transform: 'translateX(-50%)' }}>
+        <AlbumPhoto url={urls[under] ?? ''} alt={alt} frame={props.frameOf(under)} className="absolute inset-0" />
       </div>
       <div
         className="absolute left-1/2 top-0 h-full w-[70%] max-w-[24rem] overflow-hidden rounded-2xl shadow-2xl"
         style={{
           touchAction: 'pan-y',
           opacity: Math.max(0, 1 - Math.abs(glide) * 1.05),
-          transform: `translateX(calc(-50% + ${glide * -36}%)) rotateY(${glide * 46}deg)`,
+          transform: bookFlat
+            ? 'translateX(-50%)'
+            : `translateX(calc(-50% + ${glide * -36}%)) perspective(1600px) rotateY(${glide * 46}deg)`,
           transformOrigin: 'center center',
           transition,
         }}
       >
-        <AlbumPhoto url={urls[index] ?? ''} alt={alt} frame={props.frameOf(index)} />
+        <AlbumPhoto url={urls[index] ?? ''} alt={alt} frame={props.frameOf(index)} className="absolute inset-0" />
       </div>
     </div>
   )
