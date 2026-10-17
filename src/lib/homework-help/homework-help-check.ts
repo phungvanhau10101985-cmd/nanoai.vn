@@ -414,38 +414,52 @@ export function mergeCheckedProblem(
   }
 }
 
-/** Chữ đáp án đang hiện thuộc model nào. Đề có hình lấy bài GPT. Đề chữ lấy DeepSeek, hoặc GPT khi GPT là bên được chọn. */
+/** Chữ đáp án đang hiện thuộc model nào. DeepSeek không giải thì hiện bài Gemini khi GPT khớp. Đề chữ DeepSeek giải được thì lấy DeepSeek, hoặc GPT khi GPT là bên được chọn. */
 export function shownAnswerMark(input: {
   pictured: boolean
+  geminiGuide?: boolean
   visionAgreed: boolean
   agreed: boolean
   side: '' | 'draft' | 'check'
   hasAnswer: boolean
 }): 'D' | 'G' | 'P' | '' {
   if (!input.hasAnswer) return ''
-  if (input.pictured) return input.visionAgreed ? 'P' : ''
+  if (input.geminiGuide || input.pictured) return input.visionAgreed ? 'G' : ''
   if (input.agreed || input.side === 'draft') return 'D'
   if (input.side === 'check') return 'P'
   return ''
 }
 
-/** Đề có hình. Không dùng DeepSeek. Gemini và GPT khớp thì hiện nguyên bài của GPT. */
+/** DeepSeek không giải. Gemini viết đủ bài. GPT khớp thì hiện nguyên bài của Gemini. */
 export function mergeVisionPair(
   guide: HomeworkProblem,
-  geminiAnswer: string,
   gptAnswer: string,
   options?: { trust?: boolean }
 ): { problem: HomeworkProblem; agreed: boolean; cacheable: boolean } {
-  const gemini = geminiAnswer.trim()
+  const gemini = guide.answer.trim()
   const gpt = gptAnswer.trim()
   const trust = options?.trust === true && Boolean(gemini) && Boolean(gpt)
   const agreed = Boolean(gemini) && Boolean(gpt) && (trust || answersAgree(gemini, gpt, guide.statement))
-  const merged = mergeCheckedProblem(
-    { ...guide, answer: gpt },
-    { index: 0, answer: gemini, knowledge: [] },
-    { trust: agreed }
-  )
-  return { problem: merged.problem, agreed, cacheable: agreed && merged.cacheable }
+  if (!agreed) {
+    return {
+      problem: {
+        statement: guide.statement,
+        knowledge: [],
+        thinking: [],
+        hints: [],
+        answer: '',
+        tags: [],
+      },
+      agreed: false,
+      cacheable: false,
+    }
+  }
+  const merged = mergeCheckedProblem(guide, { index: 0, answer: gpt, knowledge: [] }, { trust: true })
+  return {
+    problem: { ...merged.problem, guideMark: 'G' },
+    agreed: true,
+    cacheable: merged.cacheable,
+  }
 }
 
 /** Đáp án thứ ba trùng bên nào thì trả về bên đó. Trùng cả hai thì lấy bản DeepSeek. */

@@ -1026,6 +1026,7 @@ function ProblemBubble({
   const tagRequestRef = useRef(0)
   const hintsLeft = shownHints < problem.hints.length
   const tags = problem.tags.length > 0 ? problem.tags : knowledgeLinesAsTags(problem.knowledge)
+  const guideMark: HomeworkModelMark = problem.guideMark === 'G' || problem.answerMark === 'G' ? 'G' : 'D'
   const canShowAnswer = Boolean(problem.answer) && !hintsLeft && !answerOpen
   const creditText =
     locale === 'vi'
@@ -1110,7 +1111,7 @@ function ProblemBubble({
         <section className="space-y-2">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.knowledge}</h3>
-            <ModelMark mark="D" />
+            <ModelMark mark={guideMark} />
           </div>
           {tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
@@ -1146,7 +1147,7 @@ function ProblemBubble({
         <section className="space-y-1 rounded-lg bg-muted p-3">
           <div className="flex items-center gap-2">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.thinking}</h3>
-            <ModelMark mark="D" />
+            <ModelMark mark={guideMark} />
           </div>
           <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
             {problem.thinking.map((item) => (
@@ -1162,7 +1163,7 @@ function ProblemBubble({
 
       {shownHints > 0 ? (
         <div className="space-y-1">
-          <ModelMark mark="D" />
+          <ModelMark mark={guideMark} />
           <ol className="list-decimal space-y-1 pl-5 text-sm leading-6" start={problem.thinking.length + 1}>
             {problem.hints.slice(0, shownHints).map((item) => (
               <li key={item}>

@@ -274,7 +274,7 @@ test('judge parser keeps a side and drops an unknown index', () => {
 })
 
 test('the visible answer is marked with the model that wrote it', () => {
-  assert.equal(shownAnswerMark({ pictured: true, visionAgreed: true, agreed: false, side: 'check', hasAnswer: true }), 'P')
+  assert.equal(shownAnswerMark({ pictured: true, geminiGuide: true, visionAgreed: true, agreed: false, side: '', hasAnswer: true }), 'G')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: true, side: '', hasAnswer: true }), 'D')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'draft', hasAnswer: true }), 'D')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'check', hasAnswer: true }), 'P')
@@ -288,31 +288,35 @@ test('a same-result verdict keeps the asked index when the model copies the exam
   assert.deepEqual([...alignSameVerdicts([0, 2], [{ index: 0, same: true }, { index: 2, same: false }])], [0])
 })
 
-test('a figure problem shows the gpt write-up only when both vision models agree', () => {
+test('a figure problem shows the whole gemini guide only when gpt agrees', () => {
   const guide = {
     statement: 'Mạch dao động (hình 1). Tính dòng cực đại.',
     knowledge: ['Năng lượng dao động bảo toàn'],
     thinking: ['Đổi vị trí khoá rồi viết chu kỳ'],
     hints: ['Năng lượng tụ và cuộn bằng nhau sau mỗi phần tư chu kỳ'],
-    answer: 'I = 9 A',
+    answer: 'x = 2',
     tags: [{ key: 'lc-circuit', title: 'Mạch dao động LC' }],
   }
-  const agreed = mergeVisionPair(guide, 'x = 2', 'X = 2')
+  const agreed = mergeVisionPair(guide, 'X = 2')
   assert.equal(agreed.agreed, true)
   assert.equal(agreed.cacheable, true)
-  assert.equal(agreed.problem.answer, 'X = 2')
+  assert.equal(agreed.problem.answer, 'x = 2')
+  assert.equal(agreed.problem.guideMark, 'G')
   assert.deepEqual(agreed.problem.knowledge, ['Năng lượng dao động bảo toàn'])
   assert.deepEqual(agreed.problem.thinking, ['Đổi vị trí khoá rồi viết chu kỳ'])
+  assert.deepEqual(agreed.problem.hints, ['Năng lượng tụ và cuộn bằng nhau sau mỗi phần tư chu kỳ'])
 
-  const split = mergeVisionPair(guide, 'x = 2', 'x = 9')
+  const split = mergeVisionPair(guide, 'x = 9')
   assert.equal(split.agreed, false)
   assert.equal(split.cacheable, false)
   assert.equal(split.problem.answer, '')
-  assert.deepEqual(split.problem.knowledge, ['Năng lượng dao động bảo toàn'])
+  assert.deepEqual(split.problem.knowledge, [])
+  assert.deepEqual(split.problem.thinking, [])
 
-  const trusted = mergeVisionPair(guide, 'x = 2', 'hai', { trust: true })
+  const trusted = mergeVisionPair(guide, 'hai', { trust: true })
   assert.equal(trusted.agreed, true)
-  assert.equal(trusted.problem.answer, 'hai')
+  assert.equal(trusted.problem.answer, 'x = 2')
+  assert.equal(trusted.problem.guideMark, 'G')
 })
 
 test('only a problem that cites a printed figure needs the photo', () => {

@@ -9,6 +9,7 @@ import {
   fetchHomeworkPhotoCache,
   fetchHomeworkProblemCache,
   fetchHomeworkSolution,
+  homeworkStoredGuideIsThin,
   rememberHomeworkPhotoCache,
   rememberHomeworkProblem,
   rememberHomeworkSolution,
@@ -337,16 +338,22 @@ function tutorCatalogBlock(rows: TutorTopicName[]): string {
   return rows.map((row) => `${row.topicKey} | ${row.title}`).join('\n')
 }
 
-async function draftProblems(input: {
-  userId: string
+function studyGuidePrompt(input: {
   locale: WebLocale
   statements: Array<{ index: number; statement: string }>
   catalog: TutorTopicName[]
-  startedAt: number
-}): Promise<Array<{ index: number; problem: HomeworkProblem }> | null> {
+  hasPhoto: boolean
+  insist: boolean
+}): string {
   const list = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
-  const prompt = `Write a study guide for these homework questions. Write entirely in ${languageName(input.locale)}.
-${list}
+  const photoLine = input.hasPhoto
+    ? "The homework photo is attached. Read every figure, circuit, graph, table, label, and printed value from that photo. The text below is the student's checked transcription of the same page.\n"
+    : ''
+  const insistLine = input.insist
+    ? 'A previous pass left these answers empty. Compute each result and return a non-empty answer for every listed index.\n'
+    : ''
+  return `Write a study guide for these homework questions. Write entirely in ${languageName(input.locale)}.
+${photoLine}${insistLine}${list}
 Existing saved knowledge tags, one per line as key | title:
 ${tutorCatalogBlock(input.catalog)}
 Return ONLY JSON:
@@ -362,6 +369,22 @@ Rules:
 - answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
 - Leave answer empty only when a needed number or formula is missing from the statement.
 - Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, hints, or tag titles.`
+}
+
+async function draftProblems(input: {
+  userId: string
+  locale: WebLocale
+  statements: Array<{ index: number; statement: string }>
+  catalog: TutorTopicName[]
+  startedAt: number
+}): Promise<Array<{ index: number; problem: HomeworkProblem }> | null> {
+  const prompt = studyGuidePrompt({
+    locale: input.locale,
+    statements: input.statements,
+    catalog: input.catalog,
+    hasPhoto: false,
+    insist: false,
+  })
   const call = () =>
     generateReasonerJson({
       userId: input.userId,
@@ -404,6 +427,71 @@ function alignDrafts(
       },
     }
   })
+}
+
+/** DeepSeek không giải. Gemini viết đủ kiến thức, hướng tư duy, gợi ý và đáp án. */
+async function draftGuideWithGemini(input: {
+  userId: string
+  locale: WebLocale
+  statements: Array<{ index: number; statement: string }>
+  catalog: TutorTopicName[]
+  images: HomeworkImagePart[]
+  startedAt: number
+}): Promise<Array<{ index: number; problem: HomeworkProblem }> | null> {
+  const ask = (statements: Array<{ index: number; statement: string }>, insist: boolean) =>
+    generateJson({
+      userId: input.userId,
+      feature: 'homework-help-gemini-guide',
+      model: HOMEWORK_HELP_FALLBACK_MODEL,
+      temperature: 0,
+      prompt: studyGuidePrompt({
+        locale: input.locale,
+        statements,
+        catalog: input.catalog,
+        hasPhoto: input.images.length > 0,
+        insist,
+      }),
+      images: input.images,
+      startedAt: input.startedAt,
+      preferredMs: HOMEWORK_DRAFT_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_DRAFT_MAX_TOKENS,
+      thinkingBudget: HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
+    })
+  const raw = await ask(input.statements, false)
+  if (raw.status !== 'ok') {
+    console.warn('[homework-help] gemini guide failed', raw.status)
+    return null
+  }
+  let drafted = parseIndexedDrafts(raw.value)
+  let insisted = false
+  if (!drafted?.length) {
+    console.warn('[homework-help] gemini guide parse failed, retry')
+    insisted = true
+    const again = await ask(input.statements, true)
+    drafted = again.status === 'ok' ? parseIndexedDrafts(again.value) : null
+  }
+  if (!drafted?.length) {
+    console.warn('[homework-help] gemini guide failed', 'blank')
+    return null
+  }
+  let aligned = alignDrafts(input.statements, drafted)
+  const missing = aligned.filter((item) => !item.problem.answer.trim())
+  if (!insisted && missing.length > 0) {
+    console.warn('[homework-help] gemini guide blank, retry', missing.length)
+    const again = await ask(
+      missing.map((item) => ({ index: item.index, statement: item.problem.statement })),
+      true
+    )
+    if (again.status === 'ok') {
+      const filled = alignDrafts(
+        missing.map((item) => ({ index: item.index, statement: item.problem.statement })),
+        parseIndexedDrafts(again.value)
+      ).filter((item) => item.problem.answer.trim())
+      const byIndex = new Map(filled.map((item) => [item.index, item]))
+      aligned = aligned.map((item) => byIndex.get(item.index) ?? item)
+    }
+  }
+  return aligned
 }
 
 const ANSWER_RULES = `Rules:
@@ -782,7 +870,7 @@ async function explainStatements(input: {
     const statement = input.statements[index] ?? ''
     const fingerprint = homeworkStatementFingerprint(statement)
     const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
-    if (cached) {
+    if (cached && !homeworkStoredGuideIsThin(cached)) {
       await touchHomeworkProblemCache(fingerprint, input.locale)
       problems[index] = withSharedTags({ ...cached, cached: true }, savedTopics)
       continue
@@ -793,8 +881,10 @@ async function explainStatements(input: {
   let everyProblemCacheable = pending.length === 0
   if (pending.length > 0) {
     const catalog = await listTutorTopicCatalog(input.locale)
+    const picturedPending = pending.filter((item) => homeworkStatementNeedsPhoto(item.statement))
     const plainPending = pending.filter((item) => !homeworkStatementNeedsPhoto(item.statement))
-    const [drafted, geminiSolved] = await Promise.all([
+    if (picturedPending.length) console.warn('[homework-help] gemini guide', picturedPending.length)
+    const [drafted, geminiSolved, picturedGuides, picturedGpt] = await Promise.all([
       plainPending.length
         ? draftProblems({
             userId: input.userId,
@@ -804,41 +894,64 @@ async function explainStatements(input: {
             startedAt: input.startedAt,
           })
         : Promise.resolve([]),
-      solveWithGemini({
-        userId: input.userId,
-        locale: input.locale,
-        statements: pending,
-        images: input.images,
-        startedAt: input.startedAt,
-      }),
+      plainPending.length
+        ? solveWithGemini({
+            userId: input.userId,
+            locale: input.locale,
+            statements: plainPending,
+            images: [],
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve([]),
+      picturedPending.length
+        ? draftGuideWithGemini({
+            userId: input.userId,
+            locale: input.locale,
+            statements: picturedPending,
+            catalog,
+            images: input.images,
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve([]),
+      picturedPending.length
+        ? solveWithGpt({
+            userId: input.userId,
+            locale: input.locale,
+            statements: picturedPending,
+            images: input.images,
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve(null),
     ])
     if (!drafted && plainPending.length === pending.length) {
       const kept = problems.filter((problem): problem is HomeworkProblem => Boolean(problem))
       if (!kept.length) return null
       return { guide: { note: input.note, problems: kept }, everyProblemCacheable: false }
     }
-    const plainGuides = new Map(
-      alignDrafts(plainPending, drafted).map((item) => [item.index, item.problem])
+    const plainGuides = new Map(alignDrafts(plainPending, drafted).map((item) => [item.index, item.problem]))
+    const picturedGuideByIndex = new Map(
+      alignDrafts(picturedPending, picturedGuides).map((item) => [item.index, item.problem])
     )
+    const geminiGuideIndexes = new Set(picturedPending.map((item) => item.index))
     const aligned = pending.map((item) => {
-      const picturedItem = homeworkStatementNeedsPhoto(item.statement)
-      const row = picturedItem ? undefined : plainGuides.get(item.index)
+      const guide = geminiGuideIndexes.has(item.index)
+        ? picturedGuideByIndex.get(item.index)
+        : plainGuides.get(item.index)
       return {
         index: item.index,
         problem: {
           statement: item.statement,
-          knowledge: row?.knowledge ?? [],
-          thinking: row?.thinking ?? [],
-          hints: row?.hints ?? [],
-          answer: picturedItem ? '' : (row?.answer ?? ''),
-          tags: row?.tags ?? [],
+          knowledge: guide?.knowledge ?? [],
+          thinking: guide?.thinking ?? [],
+          hints: guide?.hints ?? [],
+          answer: guide?.answer ?? '',
+          tags: guide?.tags ?? [],
         },
       }
     })
-    const pictured = new Set(
-      aligned.filter((item) => homeworkStatementNeedsPhoto(item.problem.statement)).map((item) => item.index)
-    )
+    const pictured = new Set(picturedPending.map((item) => item.index))
     const geminiByIndex = new Map((geminiSolved ?? []).map((row) => [row.index, row.answer]))
+    const gptByIndex = new Map((picturedGpt ?? []).map((row) => [row.index, row.answer]))
     const textAgreed = new Set(
       aligned
         .filter((item) => {
@@ -858,14 +971,61 @@ async function explainStatements(input: {
       if (!item.problem.answer.trim() || !geminiAnswer.trim()) return []
       return [{ index: item.index, statement: item.problem.statement, first: item.problem.answer, second: geminiAnswer }]
     })
-    const judgedSame = await judgeSameAnswers({
-      userId: input.userId,
-      rows: judgeRows,
-      startedAt: input.startedAt,
-    })
+    const missed = aligned.filter((item) => !geminiGuideIndexes.has(item.index) && !item.problem.answer.trim())
+    if (missed.length) console.warn('[homework-help] deepseek blank, gemini guide', missed.length)
+    const [judgedSame, missedPack] = await Promise.all([
+      judgeSameAnswers({
+        userId: input.userId,
+        rows: judgeRows,
+        startedAt: input.startedAt,
+      }),
+      missed.length
+        ? Promise.all([
+            draftGuideWithGemini({
+              userId: input.userId,
+              locale: input.locale,
+              statements: missed.map((item) => ({ index: item.index, statement: item.problem.statement })),
+              catalog,
+              images: [],
+              startedAt: input.startedAt,
+            }),
+            solveWithGpt({
+              userId: input.userId,
+              locale: input.locale,
+              statements: missed.map((item) => ({ index: item.index, statement: item.problem.statement })),
+              images: [],
+              startedAt: input.startedAt,
+            }),
+          ])
+        : Promise.resolve(null),
+    ])
+    if (missedPack) {
+      const [guides, gpt] = missedPack
+      const filled = new Map(
+        alignDrafts(
+          missed.map((item) => ({ index: item.index, statement: item.problem.statement })),
+          guides
+        ).map((item) => [item.index, item.problem])
+      )
+      for (const item of aligned) {
+        const guide = filled.get(item.index)
+        if (!guide) continue
+        item.problem = {
+          statement: item.problem.statement,
+          knowledge: guide.knowledge,
+          thinking: guide.thinking,
+          hints: guide.hints,
+          answer: guide.answer,
+          tags: guide.tags,
+        }
+        geminiGuideIndexes.add(item.index)
+      }
+      for (const row of gpt ?? []) gptByIndex.set(row.index, row.answer)
+    }
     const needsGpt = aligned.flatMap((item) => {
-      if (pictured.has(item.index)) return [{ index: item.index, statement: item.problem.statement }]
+      if (geminiGuideIndexes.has(item.index)) return []
       if (textAgreed.has(item.index) || judgedSame.has(item.index)) return []
+      if (!item.problem.answer.trim()) return []
       return [{ index: item.index, statement: item.problem.statement }]
     })
     const gptSolved =
@@ -878,20 +1038,20 @@ async function explainStatements(input: {
             startedAt: input.startedAt,
           })
         : null
-    const gptByIndex = new Map((gptSolved ?? []).map((row) => [row.index, row.answer]))
+    for (const row of gptSolved ?? []) gptByIndex.set(row.index, row.answer)
     const draftByIndex = new Map(aligned.map((item) => [item.index, item.problem]))
     const sideByText = new Map<number, 'draft' | 'check'>()
     const sideJudgeRows: Array<{ index: number; statement: string; first: string; second: string; third: string }> = []
     const visionJudgeRows = aligned.flatMap((item) => {
-      if (!pictured.has(item.index)) return []
-      const geminiAnswer = geminiByIndex.get(item.index) ?? ''
+      if (!geminiGuideIndexes.has(item.index)) return []
+      const geminiAnswer = item.problem.answer
       const gptAnswer = gptByIndex.get(item.index) ?? ''
       if (!geminiAnswer.trim() || !gptAnswer.trim()) return []
       if (answersAgree(geminiAnswer, gptAnswer, item.problem.statement)) return []
       return [{ index: item.index, statement: item.problem.statement, first: geminiAnswer, second: gptAnswer }]
     })
     for (const item of needsGpt) {
-      if (pictured.has(item.index)) continue
+      if (geminiGuideIndexes.has(item.index)) continue
       const problem = draftByIndex.get(item.index)
       if (!problem) continue
       const geminiAnswer = geminiByIndex.get(item.index) ?? ''
@@ -940,18 +1100,17 @@ async function explainStatements(input: {
       fingerprint: string
     }> = []
     for (const item of aligned) {
-      const geminiAnswer = geminiByIndex.get(item.index) ?? ''
+      const geminiGuideItem = geminiGuideIndexes.has(item.index)
+      const geminiAnswer = geminiGuideItem ? item.problem.answer : (geminiByIndex.get(item.index) ?? '')
       const gptAnswer = gptByIndex.get(item.index) ?? ''
       const picturedItem = pictured.has(item.index)
-      const vision = picturedItem
-        ? mergeVisionPair(item.problem, geminiAnswer, gptAnswer, { trust: visionSame.has(item.index) })
+      const vision = geminiGuideItem
+        ? mergeVisionPair(item.problem, gptAnswer, { trust: visionSame.has(item.index) })
         : null
-      const agreed = !picturedItem && (textAgreed.has(item.index) || judgedSame.has(item.index))
+      const agreed = !geminiGuideItem && (textAgreed.has(item.index) || judgedSame.has(item.index))
       const judged = judgedSide.get(item.index)
-      const side = picturedItem
-        ? vision?.agreed
-          ? 'check'
-          : ''
+      const side = geminiGuideItem
+        ? ''
         : gptIndexes.has(item.index)
           ? (sideByText.get(item.index) ?? (judged && judged !== 'none' ? judged : ''))
           : ''
@@ -975,14 +1134,16 @@ async function explainStatements(input: {
       if (!merged.problem.answer.trim()) {
         unsolved.push({
           statement: item.problem.statement,
-          draftAnswer: item.problem.answer,
+          draftAnswer: geminiGuideItem ? '' : item.problem.answer,
           geminiAnswer,
           gptAnswer,
         })
       }
+      const geminiAgreed = Boolean(vision?.agreed)
       const answerMark = shownAnswerMark({
         pictured: picturedItem,
-        visionAgreed: Boolean(vision?.agreed),
+        geminiGuide: geminiGuideItem,
+        visionAgreed: geminiAgreed,
         agreed,
         side,
         hasAnswer: Boolean(merged.problem.answer.trim()),
@@ -994,7 +1155,7 @@ async function explainStatements(input: {
       const fingerprint = homeworkStatementFingerprint(item.problem.statement)
       compareEvents.push({
         checkpoint: 'answer',
-        outcome: homeworkAnswerCompareOutcome({ agreed, side }),
+        outcome: homeworkAnswerCompareOutcome({ agreed: agreed || geminiAgreed, side }),
         fingerprint,
       })
       const cacheable = Boolean(merged.problem.answer.trim()) && (merged.cacheable || Boolean(side))
@@ -1094,7 +1255,11 @@ export async function explainReviewedStatements(input: {
       cachedPhoto != null &&
       cachedStatements.length === statements.length &&
       cachedStatements.every((item, index) => item === statements[index])
-    if (cachedPhoto && same && cachedPhoto.problems.length > 0) {
+    const cachedPhotoIsThin =
+      cachedPhoto != null &&
+      cachedPhoto.problems.length > 0 &&
+      cachedPhoto.problems.every(homeworkStoredGuideIsThin)
+    if (cachedPhoto && same && cachedPhoto.problems.length > 0 && !cachedPhotoIsThin) {
       await touchHomeworkPhotoCache(photoKey, input.locale)
       const savedTopics = await listTutorTopicNames(input.locale)
       return withPhotoStatementMark(

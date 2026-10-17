@@ -21,6 +21,11 @@ type PhotoCacheRow = {
   guide: unknown
 }
 
+/** Bản cũ của đề có hình chỉ lưu đáp án, chưa có kiến thức hay hướng tư duy. */
+export function homeworkStoredGuideIsThin(problem: HomeworkProblem): boolean {
+  return problem.knowledge.length === 0 && problem.thinking.length === 0 && problem.hints.length === 0
+}
+
 function asProblem(row: ProblemCacheRow): HomeworkProblem | null {
   const guide = parseHomeworkGuide({
     note: '',
@@ -33,7 +38,7 @@ function asProblem(row: ProblemCacheRow): HomeworkProblem | null {
         answer: row.answer,
         tags: row.tags,
         ...(row.check_model === 'D' || row.check_model === 'G' || row.check_model === 'P'
-          ? { answerMark: row.check_model }
+          ? { answerMark: row.check_model, ...(row.check_model === 'G' ? { guideMark: 'G' as const } : {}) }
           : {}),
       },
     ],
@@ -75,7 +80,7 @@ export async function touchHomeworkProblemCache(fingerprint: string, locale: str
   }
 }
 
-/** Giữ bản đã lưu nếu đề này đã có. Bản đầu thắng, lần sau không ghi đè. */
+/** Giữ bản đã lưu nếu đề này đã có. Bản đầu thắng, lần sau không ghi đè. Bản chỉ có đáp án thì được bài Gemini đủ kiến thức thay. */
 export async function rememberHomeworkProblem(
   fingerprint: string,
   locale: string,
@@ -99,13 +104,43 @@ export async function rememberHomeworkProblem(
         JSON.stringify(problem.hints),
         problem.answer,
         JSON.stringify(problem.tags ?? []),
-        HOMEWORK_HELP_DRAFT_MODEL,
+        problem.guideMark === 'G' ? HOMEWORK_HELP_FALLBACK_MODEL : HOMEWORK_HELP_DRAFT_MODEL,
         problem.answerMark ?? verifyModel,
       ]
     )
     if (inserted.length > 0) return problem
     const existing = await fetchHomeworkProblemCache(fingerprint, locale)
     if (!existing) return problem
+    const incomingHasGuide =
+      problem.knowledge.length > 0 || problem.thinking.length > 0 || problem.hints.length > 0
+    if (homeworkStoredGuideIsThin(existing) && incomingHasGuide) {
+      await pgQuery(
+        `update public.homework_help_problem_cache
+         set statement = $3,
+             knowledge = $4::jsonb,
+             thinking = $5::jsonb,
+             hints = $6::jsonb,
+             answer = $7,
+             tags = $8::jsonb,
+             read_model = $9,
+             check_model = $10,
+             updated_at = now()
+         where fingerprint = $1 and locale = $2`,
+        [
+          fingerprint,
+          locale,
+          problem.statement,
+          JSON.stringify(problem.knowledge),
+          JSON.stringify(problem.thinking),
+          JSON.stringify(problem.hints),
+          problem.answer,
+          JSON.stringify(problem.tags ?? []),
+          problem.guideMark === 'G' ? HOMEWORK_HELP_FALLBACK_MODEL : HOMEWORK_HELP_DRAFT_MODEL,
+          problem.answerMark ?? verifyModel,
+        ]
+      )
+      return problem
+    }
     await touchHomeworkProblemCache(fingerprint, locale)
     return { ...existing, cached: true }
   } catch (error) {
@@ -219,12 +254,26 @@ export async function rememberHomeworkPhotoCache(
   guide: HomeworkGuide
 ): Promise<void> {
   if (!isPgConfigured() || guide.problems.length === 0) return
+  const payload = JSON.stringify(guide)
   try {
+    const existing = await fetchHomeworkPhotoCache(imageHash, locale)
+    const existingIsThin =
+      existing != null && existing.problems.length > 0 && existing.problems.every(homeworkStoredGuideIsThin)
+    if (existing && !existingIsThin) return
+    if (existingIsThin) {
+      await pgQuery(
+        `update public.homework_help_photo_cache
+         set guide = $3::jsonb
+         where image_hash = $1 and locale = $2`,
+        [imageHash, locale, payload]
+      )
+      return
+    }
     await pgQuery(
       `insert into public.homework_help_photo_cache (image_hash, locale, guide)
        values ($1, $2, $3::jsonb)
        on conflict (image_hash, locale) do nothing`,
-      [imageHash, locale, JSON.stringify(guide)]
+      [imageHash, locale, payload]
     )
   } catch (error) {
     console.warn('[homework-help] photo cache write', error instanceof Error ? error.message : error)

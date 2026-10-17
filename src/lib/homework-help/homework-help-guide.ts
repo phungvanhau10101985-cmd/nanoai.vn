@@ -14,6 +14,8 @@ export type HomeworkProblem = {
   tags: TutorLabel[]
   /** Đề đọc từ ảnh bằng Gemini. */
   statementMark?: 'G'
+  /** Model viết kiến thức, hướng tư duy và gợi ý. DeepSeek khi không ghi. */
+  guideMark?: 'D' | 'G'
   /** Model viết câu đáp án đang hiện. */
   answerMark?: HomeworkModelMark
   /** Bản này đọc từ cache DB, không phải lần soạn mới. */
@@ -73,6 +75,7 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
     if (!statement) continue
     const knowledge = asLines(item.knowledge, 5, 280)
     const statementMark = item.statementMark === 'G' ? 'G' : undefined
+    const guideMark = item.guideMark === 'G' || item.guideMark === 'D' ? item.guideMark : undefined
     const answerMark = item.answerMark === 'D' || item.answerMark === 'G' || item.answerMark === 'P' ? item.answerMark : undefined
     problems.push({
       statement,
@@ -82,6 +85,7 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
       answer: cleanLine(item.answer, 2000),
       tags: parseTutorLabels(item.tags),
       ...(statementMark ? { statementMark } : {}),
+      ...(guideMark ? { guideMark } : {}),
       ...(answerMark ? { answerMark } : {}),
       ...(item.cached === true ? { cached: true } : {}),
     })
