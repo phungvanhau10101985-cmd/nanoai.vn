@@ -236,6 +236,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
+  const submitPhotosRef = useRef<(shot: File[], shotPreviews: string[]) => Promise<void>>(async () => {})
   const urlsRef = useRef<string[]>([])
   const frame = useMobileToolChatFrame()
 
@@ -360,16 +361,24 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   async function acceptCroppedPhoto(file: File) {
     const compressed = await compressEssayImageForUpload(file)
-    setText('')
-    setFiles((current) => [...current, compressed].slice(0, MAX_IMAGES))
-    setPreviews((current) => [...current, remember(URL.createObjectURL(compressed))])
+    const nextFiles = [...files, compressed].slice(0, MAX_IMAGES)
+    const nextPreviews = [...previews, remember(URL.createObjectURL(compressed))]
     const next = cropIndex + 1
-    if (next >= cropQueue.length || files.length + 1 >= MAX_IMAGES) {
-      setCropQueue([])
-      setCropIndex(0)
+    const queueDone = next >= cropQueue.length || nextFiles.length >= MAX_IMAGES
+    setText('')
+    if (!queueDone) {
+      setFiles(nextFiles)
+      setPreviews(nextPreviews)
+      setCropIndex(next)
       return
     }
-    setCropIndex(next)
+    flushSync(() => {
+      setCropQueue([])
+      setCropIndex(0)
+      setFiles([])
+      setPreviews([])
+    })
+    await submitPhotosRef.current(nextFiles, nextPreviews)
   }
 
   function cancelCrop() {
@@ -526,6 +535,63 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setError(copy.errors[code] ?? copy.errors.ai_unavailable)
   }
 
+  async function submitPhotos(shot: File[], shotPreviews: string[]) {
+    if (busyRef.current || !ready || review || chatClosed || shot.length === 0) {
+      setFiles(shot)
+      setPreviews(shotPreviews)
+      return
+    }
+    busyRef.current = true
+    setBusy(true)
+    setWaitLabel('reading')
+    setError('')
+    setText('')
+    setFiles([])
+    setPreviews([])
+    const pending: UserTurn = {
+      id: localId(),
+      role: 'user',
+      text: '',
+      images: shotPreviews,
+      imageCount: shot.length,
+    }
+    setMessages((current) => [...current, pending])
+    const restoreDraft = () => {
+      setMessages((current) => current.filter((message) => message.id !== pending.id))
+      setFiles(shot)
+      setPreviews(shotPreviews)
+    }
+
+    try {
+      const formData = new FormData()
+      formData.set('locale', locale)
+      for (const file of shot) formData.append('images', file)
+      const result = await readHomeworkPhoto(formData)
+      if (!result.ok) {
+        restoreDraft()
+        failHomework(result.code)
+        return
+      }
+      setReview({
+        turnId: pending.id,
+        note: result.data.note,
+        statements: result.data.statements.length ? result.data.statements : [''],
+        photoKey: result.data.photoKey,
+        imageCount: shot.length,
+        caption: '',
+        files: shot,
+      })
+    } catch {
+      restoreDraft()
+      setError(copy.errors.ai_unavailable)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  submitPhotosRef.current = submitPhotos
+
   async function send() {
     const shot = files
     const question = shot.length > 0 ? '' : text.trim()
@@ -535,9 +601,13 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       setError(copy.errors.missing_text)
       return
     }
+    if (shot.length > 0) {
+      await submitPhotos(shot, shotPreviews)
+      return
+    }
     busyRef.current = true
     setBusy(true)
-    setWaitLabel(shot.length ? 'reading' : 'replying')
+    setWaitLabel('replying')
     setError('')
     setText('')
     setFiles([])
@@ -547,7 +617,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       role: 'user',
       text: question,
       images: shotPreviews,
-      imageCount: shot.length,
+      imageCount: 0,
     }
     setMessages((current) => [...current, pending])
     const startedAt = Date.now()
@@ -559,28 +629,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
 
     try {
-      if (shot.length) {
-        const formData = new FormData()
-        formData.set('locale', locale)
-        for (const file of shot) formData.append('images', file)
-        const result = await readHomeworkPhoto(formData)
-        if (!result.ok) {
-          restoreDraft()
-          failHomework(result.code)
-          return
-        }
-        setReview({
-          turnId: pending.id,
-          note: result.data.note,
-          statements: result.data.statements.length ? result.data.statements : [''],
-          photoKey: result.data.photoKey,
-          imageCount: shot.length,
-          caption: question,
-          files: shot,
-        })
-        return
-      }
-
       const result = await explainTypedHomework({ locale, text: question })
       if (!result.ok) {
         restoreDraft()
@@ -1059,9 +1107,9 @@ function ProblemBubble({
             </ul>
           ) : null}
         </section>
-      ) : (
+      ) : !problem.answer ? (
         <p className="text-sm leading-6 text-muted-foreground">{copy.knowledgeHeld}</p>
-      )}
+      ) : null}
 
       {problem.thinking.length > 0 ? (
         <section className="space-y-1 rounded-lg bg-muted p-3">

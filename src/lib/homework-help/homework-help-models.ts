@@ -7,17 +7,17 @@ export const HOMEWORK_HELP_READ_MODEL = GEMINI_25_FLASH_NO_THINKING.model
 /**
  * Soạn kiến thức, hướng tư duy và gợi ý.
  * DeepSeek V4 Pro, thinking bật (reasoner). API này chỉ nhận chữ.
- * Đề có hình thì để trống đáp án, không tham gia phiếu.
+ * Đề có hình thì không gọi model này.
  */
 export const HOMEWORK_HELP_DRAFT_MODEL = DEEPSEEK_V4_PRO
 
 /**
- * Gemini 2.5 Pro chỉ trả kết quả để đối chiếu với DeepSeek.
- * Đề có hình minh họa thì gửi kèm ảnh. Không viết kiến thức, gợi ý hay bước giải.
+ * Gemini 2.5 Pro trả kết quả để đối chiếu.
+ * Đề có hình minh họa thì gửi kèm ảnh và đối chiếu với GPT. Không viết kiến thức, gợi ý hay bước giải.
  */
 export const HOMEWORK_HELP_FALLBACK_MODEL = GEMINI_25_PRO.model
 
-/** GPT giải lại khi chữ khác và lượt hỏi cũng nói là khác kết quả. Chỉ đề có hình minh họa mới kèm ảnh. */
+/** GPT giải riêng. Đề có hình thì luôn gọi, kèm ảnh. Khớp Gemini thì hiện bài của GPT. */
 export const HOMEWORK_HELP_GPT_MODEL = 'gpt-5'
 
 /** Trần token nghĩ của Pro, để còn chỗ viết JSON trước khi hết giờ. */

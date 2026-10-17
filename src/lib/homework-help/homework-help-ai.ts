@@ -24,6 +24,7 @@ import {
   homeworkCallTimeoutMs,
 } from '@/lib/homework-help/homework-help-budget'
 import {
+  alignSameVerdicts,
   alignSolverAnswers,
   answersAgree,
   matchingDeepSeekAnswer,
@@ -331,12 +332,6 @@ Rules:
   return read
 }
 
-function figureAnswerRule(statements: Array<{ index: number; statement: string }>): string {
-  const indexes = statements.filter((item) => homeworkStatementNeedsPhoto(item.statement)).map((item) => item.index)
-  if (!indexes.length) return ''
-  return `- Indexes ${indexes.join(', ')} cite a printed figure you cannot see. Leave answer empty for those indexes. Do not guess the figure. Knowledge, thinking, and hints may name the law, not a final number.\n`
-}
-
 function tutorCatalogBlock(rows: TutorTopicName[]): string {
   if (!rows.length) return '(none yet)'
   return rows.map((row) => `${row.topicKey} | ${row.title}`).join('\n')
@@ -365,7 +360,7 @@ Rules:
 - thinking: ordered steps that show how to start. Do not finish the calculation or name the final choice.
 - hints: up to 4 shorter nudges. Still no final result.
 - answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
-${figureAnswerRule(input.statements)}- Leave answer empty only when a needed number or formula is missing from the statement, or when the figure rule above says to leave it empty.
+- Leave answer empty only when a needed number or formula is missing from the statement.
 - Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, hints, or tag titles.`
   const call = () =>
     generateReasonerJson({
@@ -658,9 +653,11 @@ async function solveWithGpt(input: {
 
 const SAME_RESULT_RULES = `Rules:
 - The same result means the same substances, the same quantities, and the same required equations.
+- An exact value and its rounded decimal are the same result. 0.25π A and 0.786 A are the same current. 2√2 V, √8 V, and 2.83 V are the same voltage. π/4 and 0.785 are the same number.
 - Different notation of one molecule is still the same result. HCOO-CH2-CH(OCHO)-CH2-OCHO, CH2(OCHO)CH(OCHO)CH2(OCHO), and C3H5(OCOH)3 are one ester.
 - Equivalent chemical tests are the same result. AgNO3/NH3 and Ag2O are both the silver-mirror test.
-- A different number, a different compound, or a missing required part is not the same.
+- A different quantity, a different compound, or a missing required part is not the same.
+- Copy each [index] exactly. Do not renumber the questions.
 - Do not solve the question again.`
 
 function answerLines(rows: Array<{ index: number; statement: string; first: string; second: string; third?: string }>): string {
@@ -708,7 +705,10 @@ ${SAME_RESULT_RULES}`
     console.warn('[homework-help] judge failed', raw.status)
     return new Set()
   }
-  return new Set(judged.filter((row) => row.same).map((row) => row.index))
+  return alignSameVerdicts(
+    input.rows.map((row) => row.index),
+    judged
+  )
 }
 
 /** GPT đã giải riêng. Hỏi một lần GPT giống bên nào. Chữ trùng thì không hỏi. */
@@ -793,14 +793,17 @@ async function explainStatements(input: {
   let everyProblemCacheable = pending.length === 0
   if (pending.length > 0) {
     const catalog = await listTutorTopicCatalog(input.locale)
+    const plainPending = pending.filter((item) => !homeworkStatementNeedsPhoto(item.statement))
     const [drafted, geminiSolved] = await Promise.all([
-      draftProblems({
-        userId: input.userId,
-        locale: input.locale,
-        statements: pending,
-        catalog,
-        startedAt: input.startedAt,
-      }),
+      plainPending.length
+        ? draftProblems({
+            userId: input.userId,
+            locale: input.locale,
+            statements: plainPending,
+            catalog,
+            startedAt: input.startedAt,
+          })
+        : Promise.resolve([]),
       solveWithGemini({
         userId: input.userId,
         locale: input.locale,
@@ -809,16 +812,29 @@ async function explainStatements(input: {
         startedAt: input.startedAt,
       }),
     ])
-    if (!drafted) {
+    if (!drafted && plainPending.length === pending.length) {
       const kept = problems.filter((problem): problem is HomeworkProblem => Boolean(problem))
       if (!kept.length) return null
       return { guide: { note: input.note, problems: kept }, everyProblemCacheable: false }
     }
-    const aligned = alignDrafts(pending, drafted).map((item) =>
-      homeworkStatementNeedsPhoto(item.problem.statement)
-        ? { ...item, problem: { ...item.problem, answer: '' } }
-        : item
+    const plainGuides = new Map(
+      alignDrafts(plainPending, drafted).map((item) => [item.index, item.problem])
     )
+    const aligned = pending.map((item) => {
+      const picturedItem = homeworkStatementNeedsPhoto(item.statement)
+      const row = picturedItem ? undefined : plainGuides.get(item.index)
+      return {
+        index: item.index,
+        problem: {
+          statement: item.statement,
+          knowledge: row?.knowledge ?? [],
+          thinking: row?.thinking ?? [],
+          hints: row?.hints ?? [],
+          answer: picturedItem ? '' : (row?.answer ?? ''),
+          tags: row?.tags ?? [],
+        },
+      }
+    })
     const pictured = new Set(
       aligned.filter((item) => homeworkStatementNeedsPhoto(item.problem.statement)).map((item) => item.index)
     )
@@ -906,6 +922,10 @@ async function explainStatements(input: {
         startedAt: input.startedAt,
       }),
     ])
+    if (visionJudgeRows.length > 0) {
+      const marked = visionJudgeRows.map((row) => row.index).filter((index) => visionSame.has(index))
+      console.warn('[homework-help] vision judge', visionJudgeRows.length, marked.length ? marked.join(',') : 'none')
+    }
     const gptIndexes = new Set(needsGpt.map((row) => row.index))
     everyProblemCacheable = true
     const unsolved: Array<{

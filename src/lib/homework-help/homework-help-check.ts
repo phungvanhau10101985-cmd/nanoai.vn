@@ -187,6 +187,30 @@ function problemRows(raw: unknown): unknown[] | null {
   return Array.isArray(problems) ? problems : null
 }
 
+/**
+ * Gắn cờ same về đúng index đã hỏi.
+ * Model hay chép index 0 trong ví dụ dù câu gửi lên là index khác.
+ */
+export function alignSameVerdicts(requested: number[], judged: HomeworkSameVerdict[] | null): Set<number> {
+  const same = new Set<number>()
+  if (!judged?.length || requested.length === 0) return same
+  const wanted = new Set(requested)
+  const used = new Set<number>()
+  for (const row of judged) {
+    if (!wanted.has(row.index) || used.has(row.index)) continue
+    used.add(row.index)
+    if (row.same) same.add(row.index)
+  }
+  const missed = requested.filter((index) => !used.has(index))
+  const extras = judged.filter((row) => !wanted.has(row.index))
+  if (missed.length > 0 && extras.length === missed.length) {
+    missed.forEach((index, position) => {
+      if (extras[position]?.same) same.add(index)
+    })
+  }
+  return same
+}
+
 /** Lượt hỏi: hai đáp án khác chữ có cùng kết quả hay không. */
 export function parseHomeworkSame(raw: unknown): HomeworkSameVerdict[] | null {
   const problems = problemRows(raw)
@@ -390,7 +414,7 @@ export function mergeCheckedProblem(
   }
 }
 
-/** Chữ đáp án đang hiện thuộc model nào. Đề có hình lấy lời Gemini. Đề chữ lấy DeepSeek, hoặc GPT khi GPT là bên được chọn. */
+/** Chữ đáp án đang hiện thuộc model nào. Đề có hình lấy bài GPT. Đề chữ lấy DeepSeek, hoặc GPT khi GPT là bên được chọn. */
 export function shownAnswerMark(input: {
   pictured: boolean
   visionAgreed: boolean
@@ -399,13 +423,13 @@ export function shownAnswerMark(input: {
   hasAnswer: boolean
 }): 'D' | 'G' | 'P' | '' {
   if (!input.hasAnswer) return ''
-  if (input.pictured) return input.visionAgreed ? 'G' : ''
+  if (input.pictured) return input.visionAgreed ? 'P' : ''
   if (input.agreed || input.side === 'draft') return 'D'
   if (input.side === 'check') return 'P'
   return ''
 }
 
-/** Đề có hình. DeepSeek không bỏ phiếu. Gemini và GPT khớp thì hiện lời Gemini và giữ phần học. */
+/** Đề có hình. Không dùng DeepSeek. Gemini và GPT khớp thì hiện nguyên bài của GPT. */
 export function mergeVisionPair(
   guide: HomeworkProblem,
   geminiAnswer: string,
@@ -417,8 +441,8 @@ export function mergeVisionPair(
   const trust = options?.trust === true && Boolean(gemini) && Boolean(gpt)
   const agreed = Boolean(gemini) && Boolean(gpt) && (trust || answersAgree(gemini, gpt, guide.statement))
   const merged = mergeCheckedProblem(
-    { ...guide, answer: gemini },
-    { index: 0, answer: gpt, knowledge: [] },
+    { ...guide, answer: gpt },
+    { index: 0, answer: gemini, knowledge: [] },
     { trust: agreed }
   )
   return { problem: merged.problem, agreed, cacheable: agreed && merged.cacheable }

@@ -7,6 +7,7 @@ import {
   mergeCheckedProblem,
   mergeVisionPair,
   shownAnswerMark,
+  alignSameVerdicts,
   alignSolverAnswers,
   parseHomeworkChecks,
   parseHomeworkPicks,
@@ -273,14 +274,21 @@ test('judge parser keeps a side and drops an unknown index', () => {
 })
 
 test('the visible answer is marked with the model that wrote it', () => {
-  assert.equal(shownAnswerMark({ pictured: true, visionAgreed: true, agreed: false, side: 'check', hasAnswer: true }), 'G')
+  assert.equal(shownAnswerMark({ pictured: true, visionAgreed: true, agreed: false, side: 'check', hasAnswer: true }), 'P')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: true, side: '', hasAnswer: true }), 'D')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'draft', hasAnswer: true }), 'D')
   assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'check', hasAnswer: true }), 'P')
   assert.equal(shownAnswerMark({ pictured: true, visionAgreed: false, agreed: false, side: '', hasAnswer: false }), '')
 })
 
-test('a figure problem keeps the study guide and shows an answer only when both vision models agree', () => {
+test('a same-result verdict keeps the asked index when the model copies the example index', () => {
+  assert.deepEqual([...alignSameVerdicts([1], [{ index: 0, same: true }])], [1])
+  assert.deepEqual([...alignSameVerdicts([1], [{ index: 1, same: true }])], [1])
+  assert.deepEqual([...alignSameVerdicts([1], [{ index: 0, same: false }])], [])
+  assert.deepEqual([...alignSameVerdicts([0, 2], [{ index: 0, same: true }, { index: 2, same: false }])], [0])
+})
+
+test('a figure problem shows the gpt write-up only when both vision models agree', () => {
   const guide = {
     statement: 'Mạch dao động (hình 1). Tính dòng cực đại.',
     knowledge: ['Năng lượng dao động bảo toàn'],
@@ -292,7 +300,7 @@ test('a figure problem keeps the study guide and shows an answer only when both 
   const agreed = mergeVisionPair(guide, 'x = 2', 'X = 2')
   assert.equal(agreed.agreed, true)
   assert.equal(agreed.cacheable, true)
-  assert.equal(agreed.problem.answer, 'x = 2')
+  assert.equal(agreed.problem.answer, 'X = 2')
   assert.deepEqual(agreed.problem.knowledge, ['Năng lượng dao động bảo toàn'])
   assert.deepEqual(agreed.problem.thinking, ['Đổi vị trí khoá rồi viết chu kỳ'])
 
@@ -304,7 +312,7 @@ test('a figure problem keeps the study guide and shows an answer only when both 
 
   const trusted = mergeVisionPair(guide, 'x = 2', 'hai', { trust: true })
   assert.equal(trusted.agreed, true)
-  assert.equal(trusted.problem.answer, 'x = 2')
+  assert.equal(trusted.problem.answer, 'hai')
 })
 
 test('only a problem that cites a printed figure needs the photo', () => {
