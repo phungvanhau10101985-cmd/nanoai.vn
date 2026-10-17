@@ -141,13 +141,17 @@ async function imagesFromForm(
   if (files.length > MAX_IMAGES) return { code: 'too_many' }
 
   const images: HomeworkImagePart[] = []
+  const seen = new Set<string>()
   for (const file of files) {
     if (file.size > MAX_BYTES) return { code: 'too_large' }
     const mimeType = file.type || 'image/jpeg'
     if (!ALLOWED.has(mimeType)) return { code: 'bad_type' }
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
+    if (seen.has(base64)) continue
+    seen.add(base64)
     images.push({ mimeType, base64 })
   }
+  if (!images.length) return required ? { code: 'missing_image' } : { images: [] }
   return { images }
 }
 

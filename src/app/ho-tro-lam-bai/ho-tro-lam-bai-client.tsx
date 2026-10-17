@@ -47,6 +47,26 @@ import {
 
 const MAX_IMAGES = 3
 
+function fingerprintBytes(bytes: Uint8Array): string {
+  let hash = 2166136261
+  for (let i = 0; i < bytes.length; i += 1) {
+    hash ^= bytes[i]
+    hash = Math.imul(hash, 16777619)
+  }
+  return `${bytes.length}:${hash >>> 0}`
+}
+
+async function fileFingerprint(file: File): Promise<string> {
+  return fingerprintBytes(new Uint8Array(await file.arrayBuffer()))
+}
+
+async function filesShareFingerprint(files: File[], fingerprint: string): Promise<boolean> {
+  for (const file of files) {
+    if ((await fileFingerprint(file)) === fingerprint) return true
+  }
+  return false
+}
+
 type Props = {
   locale: WebLocale
 }
@@ -237,6 +257,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
   const acceptingCropRef = useRef(false)
+  const queueSessionRef = useRef(false)
   const cropBatchRef = useRef<{ files: File[]; previews: string[] }>({ files: [], previews: [] })
   const submitPhotosRef = useRef<(shot: File[], shotPreviews: string[]) => Promise<void>>(async () => {})
   const urlsRef = useRef<string[]>([])
@@ -344,34 +365,49 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     urlsRef.current = urlsRef.current.filter((item) => item !== url)
   }
 
-  function queuePhotos(list: FileList | readonly File[] | null) {
-    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0 || review || chatClosed) return
+  function dropCropBatch() {
+    for (const url of cropBatchRef.current.previews) dropPreview(url)
+    cropBatchRef.current = { files: [], previews: [] }
+  }
+
+  async function queuePhotos(list: FileList | readonly File[] | null) {
+    const raw = list ? [...list] : []
+    if (!raw.length || busyRef.current || !ready || cropQueue.length > 0 || queueSessionRef.current || review || chatClosed) return
     if (text.trim()) {
       setError(copy.errors.photo_blocked)
       return
     }
+    queueSessionRef.current = true
     const seen = new Set<string>()
-    const incoming = [...list].filter((file) => {
-      if (file.size <= 0 || !file.type.startsWith('image/') || file.type === 'image/svg+xml') return false
-      const key = `${file.name}|${file.size}|${file.lastModified}|${file.type}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-    const picked = incoming.slice(0, MAX_IMAGES)
-    if (!picked.length) {
-      setError(incoming.length ? copy.errors.too_many : copy.errors.bad_type)
+    const incoming: File[] = []
+    try {
+      for (const file of raw) {
+        if (file.size <= 0 || !file.type.startsWith('image/') || file.type === 'image/svg+xml') continue
+        const key = await fileFingerprint(file)
+        if (seen.has(key)) continue
+        seen.add(key)
+        incoming.push(file)
+        if (incoming.length >= MAX_IMAGES) break
+      }
+    } catch {
+      queueSessionRef.current = false
+      setError(copy.errors.bad_type)
+      return
+    }
+    if (!incoming.length || busyRef.current || review || chatClosed) {
+      queueSessionRef.current = false
+      if (!incoming.length) setError(copy.errors.bad_type)
       return
     }
     setError('')
-    cropBatchRef.current = { files: [], previews: [] }
+    dropCropBatch()
     setFiles([])
     setPreviews((current) => {
       for (const url of current) dropPreview(url)
       return []
     })
     setCropIndex(0)
-    setCropQueue(picked)
+    setCropQueue(incoming)
   }
 
   async function acceptCroppedPhoto(file: File) {
@@ -379,36 +415,62 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     acceptingCropRef.current = true
     try {
       const compressed = await compressEssayImageForUpload(file)
+      const slots = cropQueue.length
       const batch = cropBatchRef.current
-      const nextFiles = [...batch.files, compressed].slice(0, MAX_IMAGES)
-      const nextPreviews = [...batch.previews, remember(URL.createObjectURL(compressed))].slice(0, MAX_IMAGES)
+      const url = remember(URL.createObjectURL(compressed))
+      let nextFiles: File[]
+      let nextPreviews: string[]
+      if (slots <= 1) {
+        for (const old of batch.previews) dropPreview(old)
+        nextFiles = [compressed]
+        nextPreviews = [url]
+      } else {
+        const fingerprint = await fileFingerprint(compressed)
+        const duplicate = await filesShareFingerprint(batch.files, fingerprint)
+        if (duplicate) {
+          dropPreview(url)
+          nextFiles = batch.files
+          nextPreviews = batch.previews
+        } else {
+          nextFiles = [...batch.files, compressed].slice(0, MAX_IMAGES)
+          nextPreviews = [...batch.previews, url].slice(0, MAX_IMAGES)
+        }
+      }
       batch.files = nextFiles
       batch.previews = nextPreviews
       const next = cropIndex + 1
-      const queueDone = next >= cropQueue.length || nextFiles.length >= MAX_IMAGES
+      const queueDone = slots <= 1 || next >= slots || nextFiles.length >= MAX_IMAGES
       setText('')
       if (!queueDone) {
-        setFiles(nextFiles)
-        setPreviews(nextPreviews)
         setCropIndex(next)
         return
       }
+      const shot = nextFiles.slice(0, MAX_IMAGES)
+      const shotPreviews = nextPreviews.slice(0, shot.length)
       cropBatchRef.current = { files: [], previews: [] }
+      queueSessionRef.current = false
       flushSync(() => {
         setCropQueue([])
         setCropIndex(0)
         setFiles([])
         setPreviews([])
       })
-      await submitPhotosRef.current(nextFiles, nextPreviews)
+      await submitPhotosRef.current(shot, shotPreviews)
     } finally {
       acceptingCropRef.current = false
     }
   }
 
   function cancelCrop() {
+    dropCropBatch()
+    queueSessionRef.current = false
     setCropQueue([])
     setCropIndex(0)
+    setFiles([])
+    setPreviews((current) => {
+      for (const url of current) dropPreview(url)
+      return []
+    })
   }
 
   function removeAt(index: number) {
@@ -812,8 +874,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         className="sr-only"
         disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
         onChange={(event) => {
-          queuePhotos(event.target.files)
+          const picked = event.target.files ? [...event.target.files] : []
           event.target.value = ''
+          void queuePhotos(picked)
         }}
       />
       <input
@@ -824,8 +887,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         className="sr-only md:hidden"
         disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
         onChange={(event) => {
-          queuePhotos(event.target.files)
+          const picked = event.target.files ? [...event.target.files] : []
           event.target.value = ''
+          void queuePhotos(picked)
         }}
       />
 
