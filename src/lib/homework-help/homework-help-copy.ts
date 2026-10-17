@@ -19,6 +19,7 @@ export type HomeworkHelpCopy = {
   statement: string
   knowledge: string
   thinking: string
+  figure: string
   nextHint: string
   showAnswer: string
   answer: string
@@ -36,6 +37,7 @@ export type HomeworkHelpCopy = {
   reviewCancel: string
   reviewRemove: string
   problemLabel: string
+  chatClosed: string
   removeImage: string
   cropTitle: string
   cropHint: string
@@ -73,6 +75,7 @@ const VI: HomeworkHelpCopy = {
   statement: 'Đề',
   knowledge: 'Kiến thức liên quan',
   thinking: 'Hướng tư duy',
+  figure: 'Hình minh họa',
   nextHint: 'Gợi ý tiếp',
   showAnswer: 'Xem đáp án',
   answer: 'Đáp án',
@@ -92,6 +95,7 @@ const VI: HomeworkHelpCopy = {
   reviewCancel: 'Hủy',
   reviewRemove: 'Bỏ câu này',
   problemLabel: 'Câu {n}',
+  chatClosed: 'Bài này đã gửi. Mỗi bài là một hội thoại. Mở hội thoại mới để làm bài khác.',
   removeImage: 'Gỡ ảnh',
   cropTitle: 'Chọn vùng cần gửi',
   cropHint: 'Kéo khung hoặc các góc để chỉ giữ phần bài. Phần ngoài khung không gửi lên máy chủ.',
@@ -119,6 +123,7 @@ const VI: HomeworkHelpCopy = {
     payment_required: 'Gói học sinh chưa mở cho kỳ này. Mua gói để dùng hỗ trợ làm bài.',
     insufficient_credits: 'Không đủ credit để mở bài giải.',
     paste_failed: 'Không lấy được ảnh từ clipboard hoặc link. Thử lại, hoặc chọn ảnh từ máy.',
+    chat_closed: 'Hội thoại này đã khóa. Mở hội thoại mới để làm bài khác.',
   },
 }
 
@@ -142,6 +147,7 @@ const EN: HomeworkHelpCopy = {
   statement: 'Problem',
   knowledge: 'Related knowledge',
   thinking: 'How to think',
+  figure: 'Figure',
   nextHint: 'Next hint',
   showAnswer: 'Show answer',
   answer: 'Answer',
@@ -161,6 +167,7 @@ const EN: HomeworkHelpCopy = {
   reviewCancel: 'Cancel',
   reviewRemove: 'Remove this question',
   problemLabel: 'Question {n}',
+  chatClosed: 'This problem is in. Each problem has its own chat. Start a new chat for the next one.',
   removeImage: 'Remove',
   cropTitle: 'Choose what to send',
   cropHint: 'Drag the frame or its corners so only the work stays inside. Anything outside is not sent to the server.',
@@ -188,6 +195,7 @@ const EN: HomeworkHelpCopy = {
     payment_required: 'The student plan is not active this period. Buy it to use homework help.',
     insufficient_credits: 'Not enough credits to open the worked solution.',
     paste_failed: 'Could not read that image from the clipboard or link. Try again, or choose a file.',
+    chat_closed: 'This chat is closed. Start a new chat for another problem.',
   },
 }
 
@@ -210,6 +218,7 @@ const ZH: HomeworkHelpCopy = {
   statement: '题目',
   knowledge: '相关知识',
   thinking: '思考方向',
+  figure: '图示',
   nextHint: '下一条提示',
   showAnswer: '查看答案',
   answer: '答案',
@@ -227,6 +236,7 @@ const ZH: HomeworkHelpCopy = {
   reviewCancel: '取消',
   reviewRemove: '去掉这题',
   problemLabel: '第 {n} 题',
+  chatClosed: '这道题已经提交。每道题一个对话。请开新对话做下一题。',
   removeImage: '移除',
   cropTitle: '选择要发送的区域',
   cropHint: '拖动方框或四角，只保留要交的内容。框外的部分不会发到服务器。',
@@ -254,6 +264,7 @@ const ZH: HomeworkHelpCopy = {
     payment_required: '本期学生套餐未开通。购买后才能使用作业辅导。',
     insufficient_credits: '积分不足，无法打开详解。',
     paste_failed: '无法从剪贴板或链接读取图片。请重试，或从设备选择图片。',
+    chat_closed: '这个对话已关闭。请开新对话做另一题。',
   },
 }
 
@@ -277,6 +288,7 @@ const JA: HomeworkHelpCopy = {
   statement: '問題',
   knowledge: '関連する知識',
   thinking: '考え方',
+  figure: '図',
   nextHint: '次のヒント',
   showAnswer: '答えを見る',
   answer: '答え',
@@ -296,6 +308,7 @@ const JA: HomeworkHelpCopy = {
   reviewCancel: 'キャンセル',
   reviewRemove: 'この問題を外す',
   problemLabel: '問 {n}',
+  chatClosed: 'この問題は送信済みです。問題ごとに会話は一つです。次は新しい会話を開いてください。',
   removeImage: '外す',
   cropTitle: '送る範囲を選ぶ',
   cropHint: '枠や角をドラッグして、必要な部分だけ残してください。枠の外はサーバーに送りません。',
@@ -323,6 +336,7 @@ const JA: HomeworkHelpCopy = {
     payment_required: 'この期間の生徒プランが未開通です。購入すると宿題サポートを使えます。',
     insufficient_credits: 'クレジットが足りないため、解説を開けません。',
     paste_failed: 'クリップボードまたはリンクから画像を読めませんでした。もう一度試すか、端末から選んでください。',
+    chat_closed: 'この会話は閉じています。別の問題は新しい会話で出してください。',
   },
 }
 
@@ -346,6 +360,7 @@ const KO: HomeworkHelpCopy = {
   statement: '문제',
   knowledge: '관련 지식',
   thinking: '생각 방향',
+  figure: '그림',
   nextHint: '다음 힌트',
   showAnswer: '답 보기',
   answer: '답',
@@ -365,6 +380,7 @@ const KO: HomeworkHelpCopy = {
   reviewCancel: '취소',
   reviewRemove: '이 문제 빼기',
   problemLabel: '문제 {n}',
+  chatClosed: '이 문제는 보냈습니다. 문제마다 대화는 하나입니다. 다음 문제는 새 대화에서 내세요.',
   removeImage: '빼기',
   cropTitle: '보낼 영역 선택',
   cropHint: '틀이나 모서리를 끌어 필요한 부분만 남기세요. 틀 밖은 서버로 보내지 않습니다.',
@@ -392,6 +408,7 @@ const KO: HomeworkHelpCopy = {
     payment_required: '이번 기간 학생 요금제가 열려 있지 않습니다. 구매한 뒤 숙제 도우미를 쓸 수 있습니다.',
     insufficient_credits: '크레딧이 부족해 풀이를 열 수 없습니다.',
     paste_failed: '클립보드나 링크에서 이미지를 읽지 못했습니다. 다시 시도하거나 기기에서 고르세요.',
+    chat_closed: '이 대화는 잠겼습니다. 다른 문제는 새 대화에서 내세요.',
   },
 }
 

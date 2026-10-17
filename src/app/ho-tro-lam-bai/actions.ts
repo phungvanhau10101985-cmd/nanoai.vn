@@ -26,6 +26,7 @@ import type { HomeworkGuide } from '@/lib/homework-help/homework-help-guide'
 import {
   appendHomeworkExchange,
   ensureHomeworkSession,
+  homeworkSessionHasSubmission,
   listHomeworkMessages,
   listHomeworkSessions,
   openHomeworkSession,
@@ -49,16 +50,23 @@ function localeOf(value: string): WebLocale {
   return normalizeWebLocale(value) ?? 'vi'
 }
 
+async function closedChatCode(userId: string, locale: WebLocale): Promise<HomeworkHelpErrorCode | null> {
+  const sessionId = await ensureHomeworkSession(userId, locale)
+  if (!sessionId) return null
+  if (await homeworkSessionHasSubmission(sessionId)) return 'chat_closed'
+  return null
+}
+
 async function rememberTurn(input: {
   userId: string
   locale: WebLocale
   text: string
   imageCount: number
   guide: HomeworkGuide
-}): Promise<void> {
+}): Promise<boolean> {
   const sessionId = await ensureHomeworkSession(input.userId, input.locale)
-  if (!sessionId) return
-  await appendHomeworkExchange({
+  if (!sessionId) return true
+  return appendHomeworkExchange({
     sessionId,
     userId: input.userId,
     text: input.text,
@@ -158,6 +166,8 @@ export async function readHomeworkPhoto(
 ): Promise<HomeworkHelpActionResult<{ note: string; statements: string[]; photoKey: string }>> {
   const student = await requireHomeworkStudent()
   if ('code' in student) return { ok: false, code: student.code }
+  const closed = await closedChatCode(student.userId, localeFrom(formData.get('locale')))
+  if (closed) return { ok: false, code: closed }
   const parsed = await imagesFromForm(formData)
   if ('code' in parsed) return { ok: false, code: parsed.code }
 
@@ -185,6 +195,8 @@ export async function confirmHomeworkRead(input: {
   const statements = input.statements.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8)
   if (!statements.length) return { ok: false, code: 'missing_text' }
   const locale = localeOf(input.locale)
+  const closed = await closedChatCode(student.userId, locale)
+  if (closed) return { ok: false, code: closed }
   const explained = await explainReviewedStatements({
     userId: student.userId,
     locale,
@@ -195,13 +207,14 @@ export async function confirmHomeworkRead(input: {
   if (explained === 'ai_unavailable') return { ok: false, code: 'ai_unavailable' }
   if (!explained.problems.length) return { ok: false, code: 'missing_text' }
   const imageCount = Math.min(MAX_IMAGES, Math.max(0, Math.floor(input.imageCount)))
-  await rememberTurn({
+  const saved = await rememberTurn({
     userId: student.userId,
     locale,
     text: input.caption.trim().slice(0, 8000),
     imageCount,
     guide: explained,
   })
+  if (!saved) return { ok: false, code: 'chat_closed' }
   return { ok: true, data: explained }
 }
 
@@ -218,6 +231,8 @@ export async function explainTypedHomework(input: {
     return { ok: false, code: 'payment_required' }
   }
   const locale = normalizeWebLocale(input.locale) ?? 'vi'
+  const closed = await closedChatCode(auth.user.id, locale)
+  if (closed) return { ok: false, code: closed }
   const explained = await explainHomeworkText({
     userId: auth.user.id,
     locale,
@@ -225,13 +240,14 @@ export async function explainTypedHomework(input: {
   })
   if (explained === 'ai_unavailable') return { ok: false, code: 'ai_unavailable' }
   if (!explained.problems.length) return { ok: false, code: 'missing_text' }
-  await rememberTurn({
+  const saved = await rememberTurn({
     userId: auth.user.id,
     locale,
     text: text.slice(0, 8000),
     imageCount: 0,
     guide: explained,
   })
+  if (!saved) return { ok: false, code: 'chat_closed' }
   return { ok: true, data: explained }
 }
 

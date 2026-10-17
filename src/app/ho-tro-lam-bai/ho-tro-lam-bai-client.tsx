@@ -30,6 +30,9 @@ import {
   startHomeworkThread,
 } from '@/app/ho-tro-lam-bai/actions'
 import { StudyCacheMark } from '@/components/student-study/study-cache-mark'
+import { HomeworkPlotFigure } from '@/components/student-study/homework-plot-figure'
+import { StudyFormulaText } from '@/components/student-study/study-formula-text'
+import { studyTextHasFormula } from '@/lib/homework-help/homework-formula-text'
 import { StudentStudyPaywall } from '@/components/student-study/student-study-paywall'
 import {
   revealStudyComposer,
@@ -111,7 +114,12 @@ function linesFromStored(messages: HomeworkThreadMessage[]): ChatLine[] {
   return lines
 }
 
+function threadIsClosed(lines: ChatLine[]): boolean {
+  return lines.some((line) => line.role === 'user')
+}
+
 function PhotoReadReview({
+  locale,
   copy,
   note,
   statements,
@@ -121,6 +129,7 @@ function PhotoReadReview({
   onReread,
   onCancel,
 }: {
+  locale: WebLocale
   copy: HomeworkHelpCopy
   note: string
   statements: string[]
@@ -152,6 +161,12 @@ function PhotoReadReview({
             rows={4}
             onChange={(event) => onChange(index, event.target.value)}
           />
+          {studyTextHasFormula(statement) ? (
+            <div className="rounded-md bg-muted/50 px-3 py-2 text-sm leading-7">
+              <StudyFormulaText text={statement} />
+            </div>
+          ) : null}
+          <HomeworkPlotFigure statement={statement} title={copy.figure} locale={locale} />
         </div>
       ))}
       <div className="flex flex-wrap gap-2">
@@ -206,6 +221,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
   const [paidSolutions, setPaidSolutions] = useState<Set<string>>(() => new Set())
   const [review, setReview] = useState<PhotoReview | null>(null)
+  const [chatClosed, setChatClosed] = useState(false)
   const [waitLabel, setWaitLabel] = useState<'reading' | 'replying'>('replying')
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
@@ -242,7 +258,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         if (!busyRef.current) {
           setNeedsPlan(false)
           setSessionId(result.data.sessionId)
-          setMessages(linesFromStored(result.data.messages))
+          const lines = linesFromStored(result.data.messages)
+          setMessages(lines)
+          setChatClosed(threadIsClosed(lines))
           setPaidSolutions((current) => {
             const next = new Set(current)
             for (const statement of result.data.unlockedStatements) next.add(statement)
@@ -315,7 +333,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   function queuePhotos(list: FileList | readonly File[] | null) {
-    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0 || review) return
+    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0 || review || chatClosed) return
     const incoming = [...list].filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
     const picked = incoming.slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
@@ -371,6 +389,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     })
     setError('')
     setReview(null)
+    setChatClosed(false)
   }
 
   const loadHistory = useCallback(async () => {
@@ -441,6 +460,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return
     }
     const lines = linesFromStored(result.data.messages)
+    setChatClosed(threadIsClosed(lines))
     setMessages((current) => {
       for (const message of current) {
         if (message.role === 'user') {
@@ -496,7 +516,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     const question = text.trim()
     const shot = files
     const shotPreviews = previews
-    if (busyRef.current || !ready || review) return
+    if (busyRef.current || !ready || review || chatClosed) return
     if (!question && shot.length === 0) {
       setError(copy.errors.missing_text)
       return
@@ -554,6 +574,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         return
       }
       await showGuide(result.data, startedAt)
+      setChatClosed(true)
     } catch {
       restoreDraft()
       setError(copy.errors.ai_unavailable)
@@ -637,6 +658,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       }
       setReview(null)
       await showGuide(result.data, startedAt)
+      setChatClosed(true)
     } catch {
       setError(copy.errors.ai_unavailable)
     } finally {
@@ -675,7 +697,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             <UserBubble key={message.id} message={message} photoLabel={copy.photoTurn} />
           ) : message.kind === 'note' ? (
             <article key={message.id} className="max-w-[92%] rounded-xl border bg-background p-4">
-              <p className="whitespace-pre-wrap text-sm leading-6">{message.text}</p>
+              <p className="text-sm leading-7">
+                <StudyFormulaText text={message.text} />
+              </p>
             </article>
           ) : (
             <ProblemBubble
@@ -701,6 +725,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         )}
         {review && !busy ? (
           <PhotoReadReview
+            locale={locale}
             copy={copy}
             note={review.note}
             statements={review.statements}
@@ -732,7 +757,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         className="sr-only"
-        disabled={!ready || busy || cropQueue.length > 0 || review != null}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -744,7 +769,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="sr-only md:hidden"
-        disabled={!ready || busy || cropQueue.length > 0 || review != null}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -832,6 +857,9 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         </div>
       ) : null}
 
+      {chatClosed && !review ? (
+        <p className="shrink-0 px-3 pt-2 text-sm leading-6 text-muted-foreground">{copy.chatClosed}</p>
+      ) : null}
       {error ? <p className="shrink-0 px-3 pt-2 text-sm text-destructive">{error}</p> : null}
       <StudyMessengerComposer
         id="ho-tro-lam-bai-composer"
@@ -843,8 +871,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         sendLabel={copy.send}
         showToolsLabel={copy.showTools}
         emojiLabel={copy.emoji}
-        disabled={!ready || busy || review != null}
-        canSend={(Boolean(text.trim()) || files.length > 0) && review == null}
+        disabled={!ready || busy || review != null || chatClosed}
+        canSend={(Boolean(text.trim()) || files.length > 0) && review == null && !chatClosed}
         onPasteImages={(incoming) => queuePhotos(incoming)}
         onPasteImageError={(code) => setError(code === 'too-large' ? copy.errors.too_large : copy.errors.paste_failed)}
         tools={
@@ -853,7 +881,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
               <StudyComposerTool
                 label={copy.takePhoto}
                 htmlFor="homework-help-camera"
-                disabled={!ready || busy || cropQueue.length > 0 || review != null}
+                disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
               >
                 <Camera strokeWidth={1.75} aria-hidden />
               </StudyComposerTool>
@@ -861,7 +889,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             <StudyComposerTool
               label={copy.pickPhoto}
               htmlFor="homework-help-gallery"
-              disabled={!ready || busy || cropQueue.length > 0 || review != null}
+              disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
             >
               <ImageIcon strokeWidth={1.75} aria-hidden />
             </StudyComposerTool>
@@ -899,7 +927,9 @@ function UserBubble({ message, photoLabel }: { message: UserTurn; photoLabel: st
         <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6">{photoLabel}</p>
       ) : null}
       {message.text ? (
-        <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-6">{message.text}</p>
+        <p className="rounded-2xl bg-primary/10 px-3 py-2 text-sm leading-7">
+          <StudyFormulaText text={message.text} />
+        </p>
       ) : null}
     </div>
   )
@@ -1007,7 +1037,9 @@ function ProblemBubble({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.statement}</h3>
           {problem.cached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
         </div>
-        <h2 className="text-base font-semibold">{problem.statement}</h2>
+        <h2 className="text-base font-normal leading-7">
+          <StudyFormulaText text={problem.statement} />
+        </h2>
       </section>
 
       {problem.knowledge.length > 0 || tags.length > 0 ? (
@@ -1024,7 +1056,7 @@ function ProblemBubble({
                   disabled={tagBusy}
                   onClick={() => void openTag(tag)}
                 >
-                  {tag.title}
+                  <StudyFormulaText text={tag.title} />
                 </Button>
               ))}
             </div>
@@ -1032,7 +1064,9 @@ function ProblemBubble({
           {problem.knowledge.length > 0 ? (
             <ul className="list-disc space-y-1 pl-5 text-sm leading-6">
               {problem.knowledge.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>
+                  <StudyFormulaText text={item} />
+                </li>
               ))}
             </ul>
           ) : null}
@@ -1046,16 +1080,22 @@ function ProblemBubble({
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.thinking}</h3>
           <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
             {problem.thinking.map((item) => (
-              <li key={item}>{item}</li>
+              <li key={item}>
+                <StudyFormulaText text={item} />
+              </li>
             ))}
           </ol>
         </section>
       ) : null}
 
+      <HomeworkPlotFigure statement={problem.statement} title={copy.figure} locale={locale} />
+
       {shownHints > 0 ? (
         <ol className="list-decimal space-y-1 pl-5 text-sm leading-6" start={problem.thinking.length + 1}>
           {problem.hints.slice(0, shownHints).map((item) => (
-            <li key={item}>{item}</li>
+            <li key={item}>
+              <StudyFormulaText text={item} />
+            </li>
           ))}
         </ol>
       ) : null}
@@ -1082,7 +1122,9 @@ function ProblemBubble({
       {answerOpen && problem.answer ? (
         <section className="space-y-1">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.answer}</h3>
-          <p className="whitespace-pre-wrap text-sm leading-6">{problem.answer}</p>
+          <p className="text-sm leading-7">
+            <StudyFormulaText text={problem.answer} />
+          </p>
         </section>
       ) : null}
 
@@ -1099,7 +1141,9 @@ function ProblemBubble({
                 </h3>
                 {solutionCached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
               </div>
-              <p className="whitespace-pre-wrap text-sm leading-6">{solution}</p>
+              <p className="text-sm leading-7">
+                <StudyFormulaText text={solution} />
+              </p>
             </div>
           ) : (
             <Button type="button" variant="outline" size="sm" onClick={() => void openSolution()} disabled={solutionBusy}>
@@ -1143,12 +1187,16 @@ function ProblemBubble({
                 {tagAnswer.share !== 'private' ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
                 <section className="space-y-1">
                   <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.explain}</h3>
-                  <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.explanation}</p>
+                  <p className="text-sm leading-7">
+                    <StudyFormulaText text={tagAnswer.explanation} />
+                  </p>
                 </section>
                 {tagAnswer.practice ? (
                   <section className="space-y-1 rounded-lg bg-muted p-3">
                     <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.practice}</h3>
-                    <p className="whitespace-pre-wrap text-sm leading-6">{tagAnswer.practice}</p>
+                    <p className="text-sm leading-7">
+                      <StudyFormulaText text={tagAnswer.practice} />
+                    </p>
                   </section>
                 ) : null}
               </div>

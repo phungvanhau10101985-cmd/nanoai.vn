@@ -81,6 +81,7 @@ export type HomeworkHelpErrorCode =
   | 'new_thread_failed'
   | 'payment_required'
   | 'insufficient_credits'
+  | 'chat_closed'
 
 export type HomeworkImagePart = {
   mimeType: string

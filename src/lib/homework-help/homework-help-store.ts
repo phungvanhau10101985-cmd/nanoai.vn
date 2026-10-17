@@ -174,18 +174,41 @@ export async function listHomeworkMessages(sessionId: string): Promise<HomeworkT
   }
 }
 
+/** Hội thoại đã có một đề thì khóa, không nhận câu hỏi thêm. */
+export async function homeworkSessionHasSubmission(sessionId: string): Promise<boolean> {
+  if (!isPgConfigured() || !sessionId) return false
+  try {
+    const row = await pgQueryOne<{ n: number }>(
+      `select count(*)::int as n
+       from public.homework_messages
+       where session_id = $1::uuid and role = 'user'`,
+      [sessionId]
+    )
+    return (row?.n ?? 0) > 0
+  } catch (error) {
+    console.warn('[homework-help] session gate', error instanceof Error ? error.message : error)
+    return false
+  }
+}
+
+/** Ghi một lượt. Hội thoại đã có đề thì không ghi và trả false. */
 export async function appendHomeworkExchange(input: {
   sessionId: string
   userId: string
   text: string
   imageCount: number
   guide: HomeworkGuide
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const imageCount = Math.min(3, Math.max(0, Math.floor(input.imageCount)))
-    await pgQuery(
+    const userRow = await pgQueryOne<{ id: string }>(
       `insert into public.homework_messages (session_id, user_id, role, body, kind, payload)
-       values ($1::uuid, $2::uuid, 'user', $3, $4, $5::jsonb)`,
+       select $1::uuid, $2::uuid, 'user', $3, $4, $5::jsonb
+       where not exists (
+         select 1 from public.homework_messages
+         where session_id = $1::uuid and role = 'user'
+       )
+       returning id::text`,
       [
         input.sessionId,
         input.userId,
@@ -194,6 +217,7 @@ export async function appendHomeworkExchange(input: {
         JSON.stringify(imageCount > 0 ? { imageCount } : {}),
       ]
     )
+    if (!userRow?.id) return false
     if (input.guide.problems.length === 0) {
       await pgQuery(
         `insert into public.homework_messages (session_id, user_id, role, body, kind, payload)
@@ -210,7 +234,9 @@ export async function appendHomeworkExchange(input: {
       }
     }
     await pgQuery(`update public.homework_sessions set updated_at = now() where id = $1::uuid`, [input.sessionId])
+    return true
   } catch (error) {
     console.warn('[homework-help] message write', error instanceof Error ? error.message : error)
+    return false
   }
 }
