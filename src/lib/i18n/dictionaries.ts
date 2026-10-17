@@ -3640,6 +3640,7 @@ export type Dictionary = {
     backgroundEmptyPreview: string
     downloadCreated: string
     back: string
+    generateStyleLabel: string
   }
   weddingCardAiStyle: {
     sectionTitle: string
@@ -7643,7 +7644,7 @@ export const VI_DICTIONARY: Dictionary = {
     openEffectPreview: 'Xem thử',
     loginGateLead:
       'Đăng nhập để tạo thiệp cưới AI, xem trước nội dung miễn phí và xuất bản link RSVP cho khách mời.',
-    loginGateHint: 'Chọn phong cách, soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',
+    loginGateHint: 'Soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',
     loginGateCta: 'Đăng nhập để tạo thiệp',
   },
   weddingCardAiImage: {
@@ -7676,12 +7677,13 @@ export const VI_DICTIONARY: Dictionary = {
     backgroundLibraryEmpty: 'Kho còn trống. Tạo nền mới để lưu vào kho — lần sau chọn lại không mất credit.',
     createBackgroundAi: 'Tạo nền mới AI',
     createBackgroundModalTitle: 'Tạo nền mới bằng AI',
-    createBackgroundButton: 'Tạo ảnh nền - 1 credit',
-    createBackgroundAgain: 'Tạo lại ảnh nền - 1 credit',
+    createBackgroundButton: 'Tạo ảnh nền - {n} credit',
+    createBackgroundAgain: 'Tạo lại ảnh nền - {n} credit',
     pickOutsideBackground: 'Chọn ảnh ngoài · 0 credit',
     backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn trong kho hoặc tạo nền mới.',
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
+    generateStyleLabel: 'Phong cách',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. Chọn phong cách',
@@ -7689,7 +7691,7 @@ export const VI_DICTIONARY: Dictionary = {
       'Chọn chủ đề màu và cảm giác cho nền AI — miễn phí, không tốn credit. Mỗi phong cách có thumbnail mô phỏng để dễ nhận biết.',
   },
   weddingCardAiCover: {
-    sectionTitle: '1b. Chọn vỏ thiệp',
+    sectionTitle: '1. Chọn vỏ thiệp',
     sectionDescription:
       'Mỗi vỏ là một khung khác nhau, lỗ giữa để ảnh — miễn phí, không tốn credit. Ảnh nền full màn vẫn dùng chung một ảnh nền chính.',
     tagNew: 'Mới',
@@ -7708,17 +7710,17 @@ export const VI_DICTIONARY: Dictionary = {
     removeCustomCover: 'Gỡ ảnh giữa thiệp',
     aiCoverHint: 'Nền phía sau khung thiệp là ảnh nền chính, dùng chung cả thiệp. Bấm Chọn nền ở trên.',
     aiFrameButton: 'Tạo khung AI',
-    aiFrameHint: 'AI vẽ khung rồi xóa nền bằng công cụ có sẵn, lỗ giữa trong suốt để đặt ảnh. Chỉ trừ 2,5 credit khi khung dùng được.',
+    aiFrameHint: 'AI vẽ khung theo model đang chọn, rồi đục lỗ giữa ({hole} credit) để đặt ảnh. Chỉ trừ {n} credit khi khung dùng được.',
     aiFramePromptPlaceholder: 'Gợi ý thêm (tùy chọn): hoa mẫu đơn, viền vàng…',
     aiFrameDone: 'Đã tạo khung AI',
-    aiFrameDoneDetail: 'Đã trừ 2,5 credit. Khung vào kho chung — khách sau chọn lại không tốn credit.',
+    aiFrameDoneDetail: 'Đã trừ {n} credit (vẽ khung + đục lỗ {hole}). Khung vào kho chung — khách sau chọn lại không tốn credit.',
     aiFrameUsing: 'Đang dùng khung AI. Chọn một vỏ có sẵn để trở lại khung mẫu.',
     aiFrameUseStock: 'Dùng khung có sẵn',
     coverLibraryHint: 'Chọn ảnh AI trong kho chung, hoặc tải ảnh từ máy. Ảnh kho không tốn credit. Ảnh từ máy chỉ gắn thiệp này.',
     coverUploadDevice: 'Tải từ máy',
     coverLibraryEmpty: 'Kho ảnh AI còn trống. Tạo ảnh chính ở bước sau — ảnh đó vào kho cho mọi khách.',
     aiFrameLibraryHeading: 'Kho khung AI',
-    aiFrameLibraryHint: 'Bấm một khung đã tạo để dùng. Không trừ credit. Tạo mới vẫn 2,5 credit và khung mới vào kho chung.',
+    aiFrameLibraryHint: 'Bấm một khung đã tạo để dùng. Không trừ credit. Tạo mới tốn {n} credit: credit model đang chọn cộng {hole} credit đục lỗ. Khung mới vào kho chung.',
     aiFrameLibraryEmpty: 'Kho khung còn trống. Tạo khung AI để lưu — khách sau chọn lại không mất credit.',
     aiFrameLibraryApplied: 'Đã chọn khung từ kho. Không trừ credit.',
     frameModeNone: 'Không khung',

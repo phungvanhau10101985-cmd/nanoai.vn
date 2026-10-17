@@ -27,27 +27,36 @@ export function ImageEnginePicker({
   onGeminiQualityChange,
   gptQuality,
   onGptQualityChange,
-  geminiCost2k,
+  gptQualities = ['low', 'medium', 'high'],
+  geminiCost2k = 1,
   geminiCost4k,
+  engines = ['gemini', 'gpt'],
 }: {
   locale: string
   engine: ImageEngine
   onEngineChange: (engine: ImageEngine) => void
-  geminiQuality: '2K' | '4K'
-  onGeminiQualityChange: (quality: '2K' | '4K') => void
+  geminiQuality?: '2K' | '4K'
+  onGeminiQualityChange?: (quality: '2K' | '4K') => void
   gptQuality: GptImageQuality
   onGptQualityChange: (quality: GptImageQuality) => void
-  geminiCost2k: number
+  /** Mức GPT hiện trong hộp. Mặc định đủ low, medium, high. */
+  gptQualities?: readonly GptImageQuality[]
+  geminiCost2k?: number
   /** `null` hoặc bỏ trống: tool khóa 2K, không hiện nút 4K. */
   geminiCost4k?: number | null
+  /** Engine được chọn. Một phần tử thì ẩn hàng đổi model. */
+  engines?: readonly ImageEngine[]
 }) {
   const webLocale: WebLocale = locale === 'en' || locale === 'zh' || locale === 'ja' || locale === 'ko' ? locale : 'vi'
   const t = getDictionary(webLocale).imageGenerationClient
-  const shownGeminiQuality = geminiCost4k == null ? '2K' : geminiQuality
+  const allowGemini = engines.includes('gemini')
+  const allowGpt = engines.includes('gpt')
+  const lockedEngine: ImageEngine | null = allowGemini && !allowGpt ? 'gemini' : allowGpt && !allowGemini ? 'gpt' : null
+  const shownGeminiQuality = geminiCost4k == null ? '2K' : (geminiQuality ?? '2K')
   const [open, setOpen] = useState(false)
   /** Engine đang xem trong hộp. Khác engine đã lưu thì mọi mức chất lượng đều chưa chọn. */
   const [draftEngine, setDraftEngine] = useState<ImageEngine | null>(null)
-  const shownEngine = draftEngine ?? engine
+  const shownEngine = lockedEngine ?? draftEngine ?? engine
   const qualityPending = draftEngine != null && draftEngine !== engine
   const engineName = shownEngine === 'gemini' ? t.imageEngineGemini : t.imageEngineGpt
   const qualityLabel = qualityPending
@@ -55,7 +64,15 @@ export function ImageEnginePicker({
     : shownEngine === 'gemini'
       ? `${shownGeminiQuality} (${formatCredit(shownGeminiQuality === '4K' && geminiCost4k != null ? geminiCost4k : geminiCost2k, webLocale)})`
       : `${gptQuality} (${formatCredit(GPT_IMAGE_CREDITS[gptQuality], webLocale)})`
-  const qualityCols = shownEngine === 'gpt' ? 'grid-cols-3' : geminiCost4k != null ? 'grid-cols-2' : 'grid-cols-1'
+  const qualityCols = shownEngine === 'gpt'
+    ? gptQualities.length <= 1
+      ? 'grid-cols-1'
+      : gptQualities.length === 2
+        ? 'grid-cols-2'
+        : 'grid-cols-3'
+    : geminiCost4k != null
+      ? 'grid-cols-2'
+      : 'grid-cols-1'
   const geminiQualityChosen = !qualityPending && engine === 'gemini'
   const gptQualityChosen = !qualityPending && engine === 'gpt'
 
@@ -66,13 +83,14 @@ export function ImageEnginePicker({
   }
 
   function chooseEngine(next: ImageEngine) {
+    if (lockedEngine || !engines.includes(next)) return
     setDraftEngine(next === engine ? null : next)
   }
 
   function chooseGeminiQuality(quality: '2K' | '4K') {
-    if (shownEngine !== 'gemini') return
+    if (shownEngine !== 'gemini' || !allowGemini) return
     if (engine !== 'gemini') onEngineChange('gemini')
-    onGeminiQualityChange(quality)
+    onGeminiQualityChange?.(quality)
     setDraftEngine(null)
     setOpen(false)
   }
@@ -118,9 +136,11 @@ export function ImageEnginePicker({
         }}
       >
         <div className="space-y-3">
+          {lockedEngine ? null : (
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineLabel}</p>
-            <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted/60 p-1">
+            <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', allowGemini && allowGpt ? 'grid-cols-2' : 'grid-cols-1')}>
+              {allowGemini ? (
               <button
                 type="button"
                 onClick={() => chooseEngine('gemini')}
@@ -129,6 +149,8 @@ export function ImageEnginePicker({
               >
                 {t.imageEngineGemini}
               </button>
+              ) : null}
+              {allowGpt ? (
               <button
                 type="button"
                 onClick={() => chooseEngine('gpt')}
@@ -137,8 +159,10 @@ export function ImageEnginePicker({
               >
                 {t.imageEngineGpt}
               </button>
+              ) : null}
             </div>
           </div>
+          )}
           <div className="space-y-1.5">
             <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{t.imageEngineQuality}</p>
             {qualityPending ? <p className="text-[11px] leading-snug text-amber-700">{t.imageEnginePickQuality}</p> : null}
@@ -164,8 +188,8 @@ export function ImageEnginePicker({
                 ) : null}
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-1 rounded-lg bg-muted/60 p-1">
-                {(['low', 'medium', 'high'] as const).map((quality) => (
+              <div className={cn('grid gap-1 rounded-lg bg-muted/60 p-1', qualityCols)}>
+                {gptQualities.map((quality) => (
                   <button
                     key={quality}
                     type="button"

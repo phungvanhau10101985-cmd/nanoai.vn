@@ -25,7 +25,8 @@ import {
   saveWeddingCardBrief,
 } from './actions'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { GPT_IMAGE_CREDITS, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { REMOVE_BG_PNG_CREDIT, requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
 import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
@@ -105,15 +106,14 @@ import {
 import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
-import { WeddingStylePresetPicker } from '@/components/wedding/wedding-style-preset-picker'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingCoverShellCard, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingCountdownBlock } from '@/components/wedding/wedding-countdown-block'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
+import { getWeddingStylePreset, labelForWeddingStylePreset, WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
 import { guestInviteVenueLabel, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
-import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
 
 const AUTO_SAVE_DEBOUNCE_MS = 800
 const LOCAL_DRAFT_VERSION = 1
@@ -393,6 +393,46 @@ function waitForNextPaint(): Promise<void> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 }
 
+function formatFrameCredit(value: number, locale: string): string {
+  return value.toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { maximumFractionDigits: 1 })
+}
+
+function fillFrameCreditText(template: string, total: string, hole: string): string {
+  return template.replaceAll('{n}', total).replaceAll('{hole}', hole)
+}
+
+function WeddingGenerateStyleSelect({
+  locale,
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  locale: WebLocale
+  label: string
+  value: string
+  disabled?: boolean
+  onChange: (styleId: string) => void
+}) {
+  return (
+    <label className="block space-y-1.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <select
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+        className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+      >
+        {WEDDING_STYLE_PRESETS.map((preset) => (
+          <option key={preset.id} value={preset.id}>
+            {labelForWeddingStylePreset(locale, preset)}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 export default function WeddingCardAiClientPage() {
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
@@ -427,12 +467,12 @@ export default function WeddingCardAiClientPage() {
   const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
   const [generating, setGenerating] = useState(false)
   const [frameGenerating, setFrameGenerating] = useState(false)
-  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
   const [frameImageEngine, setFrameImageEngine] = useState<ImageEngine>('gemini')
   const [frameGeminiQuality, setFrameGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [frameGptQuality, setFrameGptQuality] = useState<GptImageQuality>('medium')
+  const [backgroundStyleId, setBackgroundStyleId] = useState('luxury')
+  const [frameStyleId, setFrameStyleId] = useState('luxury')
   const [framePrompt, setFramePrompt] = useState('')
   const [frameOpening, setFrameOpening] = useState<WeddingCoverFrameOpening>('ellipse')
   const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | null>(null)
@@ -472,7 +512,6 @@ export default function WeddingCardAiClientPage() {
   const txGift = useMemo(() => getDictionary(uiLocale).weddingGiftBox, [uiLocale])
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
   const tImage = useMemo(() => getDictionary(uiLocale).weddingCardAiImage, [uiLocale])
-  const txStyle = useMemo(() => getDictionary(uiLocale).weddingCardAiStyle, [uiLocale])
   const coverPhotoCopy = useMemo(
     () => invitationCoverPhotoCopy(card.occasionKey, uiLocale),
     [card.occasionKey, uiLocale],
@@ -485,6 +524,27 @@ export default function WeddingCardAiClientPage() {
       uploadLabel: coverPhotoCopy.uploadLabel,
     }
   }, [card.occasionKey, coverPhotoCopy.uploadLabel, uiLocale])
+  const frameCredit = useMemo(() => {
+    const draw = imageEngineCredit({
+      engine: frameImageEngine,
+      gptQuality: frameGptQuality,
+      geminiCost: 1,
+    })
+    return {
+      hole: REMOVE_BG_PNG_CREDIT,
+      total: requiredCreditsForLogoCreate(draw, true),
+    }
+  }, [frameGptQuality, frameImageEngine])
+  const frameCreditText = useMemo(() => {
+    const total = formatFrameCredit(frameCredit.total, uiLocale)
+    const hole = formatFrameCredit(frameCredit.hole, uiLocale)
+    return {
+      total,
+      hole,
+      hint: fillFrameCreditText(txCover.aiFrameHint, total, hole),
+      libraryHint: fillFrameCreditText(txCover.aiFrameLibraryHint, total, hole),
+    }
+  }, [frameCredit.hole, frameCredit.total, txCover.aiFrameHint, txCover.aiFrameLibraryHint, uiLocale])
   const txPublic = useMemo(() => getDictionary(uiLocale).weddingCardPublic, [uiLocale])
   const genClient = useMemo(() => getDictionary(uiLocale).imageGenerationClient, [uiLocale])
 
@@ -628,7 +688,6 @@ export default function WeddingCardAiClientPage() {
     () => weddingSharedCopyAddresses(card),
     [card.venue, card.groomHometown, card.brideHometown, card.groomInviteAddress, card.brideInviteAddress],
   )
-  const selectedStylePreset = useMemo(() => getWeddingStylePreset(card.selectedStyleId), [card.selectedStyleId])
   const selectedTheme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
@@ -1386,6 +1445,7 @@ export default function WeddingCardAiClientPage() {
     formData.append('gptQuality', frameGptQuality)
     formData.append('extraPrompt', framePrompt)
     formData.append('openingShape', frameOpening)
+    if (!frameReferenceFile && !frameReferenceUrl.trim()) formData.append('styleId', frameStyleId)
     formData.append('sectionConfig', persistInputsRef.current.card.sectionConfig || '{}')
     if (frameReferenceFile) formData.append('customReferenceImage', frameReferenceFile)
     if (frameReferenceUrl.trim()) formData.append('customReferenceImageUrl', frameReferenceUrl.trim())
@@ -1409,7 +1469,15 @@ export default function WeddingCardAiClientPage() {
         setFrameLibrary((prev) => [result.libraryItem!, ...prev.filter((item) => item.imageUrl !== result.libraryItem!.imageUrl)])
       }
       setFrameCreateOpen(false)
-      toast({ title: txCover.aiFrameDone, description: txCover.aiFrameDoneDetail })
+      const charged = typeof result.creditsCharged === 'number' ? result.creditsCharged : frameCredit.total
+      toast({
+        title: txCover.aiFrameDone,
+        description: fillFrameCreditText(
+          txCover.aiFrameDoneDetail,
+          formatFrameCredit(charged, uiLocale),
+          formatFrameCredit(frameCredit.hole, uiLocale),
+        ),
+      })
     } catch {
       toast({
         title: txCover.aiFrameButton,
@@ -1428,10 +1496,11 @@ export default function WeddingCardAiClientPage() {
     await waitForNextPaint()
     const formData = new FormData()
     formData.append('cardId', card.id)
-    formData.append('imageEngine', imageEngine)
+    formData.append('imageEngine', 'gpt')
     formData.append('gptQuality', gptQuality)
     formData.append('type', 'master')
     formData.append('extraPrompt', extraPrompt)
+    if (!styleReferenceFile && !styleReferenceUrl.trim()) formData.append('styleId', backgroundStyleId)
     if (styleReferenceFile) formData.append('customReferenceImage', styleReferenceFile)
     if (styleReferenceUrl.trim()) formData.append('customReferenceImageUrl', styleReferenceUrl.trim())
     setBackgroundNotice(null)
@@ -1458,7 +1527,7 @@ export default function WeddingCardAiClientPage() {
       setBackgroundConfirmOpen(true)
       setBackgroundNotice({
         title: 'Đã tạo ảnh chính',
-        description: 'Đã trừ 1 credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.',
+        description: `Đã trừ ${formatFrameCredit(GPT_IMAGE_CREDITS[gptQuality], uiLocale)} credit. Ảnh đã vào kho — khách khác chọn lại thì không mất credit.`,
       })
     } catch {
       setBackgroundNotice({
@@ -1767,7 +1836,7 @@ export default function WeddingCardAiClientPage() {
               <p className="text-sm font-medium text-rose-600">AI Wedding Invitation</p>
               <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">Tạo thiệp cưới AI – thiệp mời cưới online</h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Chọn phong cách miễn phí, xem trước nội dung, chỉ tốn credit khi AI sinh ảnh mới. Chữ tiếng Việt do hệ thống render riêng.
+                Xem trước nội dung, chỉ tốn credit khi AI sinh ảnh mới. Chữ tiếng Việt do hệ thống render riêng.
               </p>
             </div>
             <div className="flex flex-col gap-3">
@@ -1783,7 +1852,7 @@ export default function WeddingCardAiClientPage() {
                 Tạo thiệp mới
               </Button>
               <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-                <b>Credit:</b> Tạo ảnh mới = 1 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+                <b>Credit:</b> Tạo ảnh nền GPT medium = 1 credit, high = 2 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
               </div>
             </div>
           </div>
@@ -1977,6 +2046,15 @@ export default function WeddingCardAiClientPage() {
             {backgroundNoticeBlock}
             <div className="min-h-0 space-y-4 overflow-y-auto">
                 <Textarea value={extraPrompt} onChange={(e) => setExtraPrompt(e.target.value)} placeholder="Prompt chỉnh thêm nếu cần, ví dụ: thêm hoa sen, ánh sáng vàng nhẹ..." />
+                {styleReferencePreviewUrl ? null : (
+                  <WeddingGenerateStyleSelect
+                    locale={uiLocale}
+                    label={tImage.generateStyleLabel}
+                    value={backgroundStyleId}
+                    disabled={generating}
+                    onChange={setBackgroundStyleId}
+                  />
+                )}
                 <WeddingReferenceChoice
                   label={tImage.customReferenceLabel}
                   hint={tImage.customReferenceHint}
@@ -1996,17 +2074,19 @@ export default function WeddingCardAiClientPage() {
                 <div className="flex flex-wrap items-center gap-2">
                 <ImageEnginePicker
                   locale={uiLocale}
-                  engine={imageEngine}
-                  onEngineChange={setImageEngine}
-                  geminiQuality={geminiQuality}
-                  onGeminiQualityChange={setGeminiQuality}
+                  engine="gpt"
+                  onEngineChange={() => undefined}
                   gptQuality={gptQuality}
                   onGptQualityChange={setGptQuality}
-                  geminiCost2k={1}
+                  gptQualities={['medium', 'high']}
+                  engines={['gpt']}
                 />
                 <Button onClick={() => void generateImage()} disabled={generating || Boolean(applyingLibraryId) || uploadingOutside || !card.id}>
                   {generating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  {masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton}
+                  {(masterImage ? tImage.createBackgroundAgain : tImage.createBackgroundButton).replaceAll(
+                    '{n}',
+                    formatFrameCredit(GPT_IMAGE_CREDITS[gptQuality], uiLocale),
+                  )}
                 </Button>
                 </div>
             </div>
@@ -2019,7 +2099,7 @@ export default function WeddingCardAiClientPage() {
           >
             <DialogHeader className="shrink-0 pr-10">
               <DialogTitle>{txCover.aiFrameButton}</DialogTitle>
-              <DialogDescription>{txCover.aiFrameHint}</DialogDescription>
+              <DialogDescription>{frameCreditText.hint}</DialogDescription>
             </DialogHeader>
             <div className="min-h-0 space-y-3 overflow-y-auto">
               <WeddingReferenceChoice
@@ -2038,6 +2118,15 @@ export default function WeddingCardAiClientPage() {
                 onOpenLibrary={() => setReferencePickKind('background')}
                 onClear={clearFrameReference}
               />
+              {frameReferencePreviewUrl ? null : (
+                <WeddingGenerateStyleSelect
+                  locale={uiLocale}
+                  label={tImage.generateStyleLabel}
+                  value={frameStyleId}
+                  disabled={frameGenerating}
+                  onChange={setFrameStyleId}
+                />
+              )}
               <p className="text-xs text-muted-foreground">{txCover.frameShapeLabel}</p>
               <div className="flex flex-wrap gap-1.5">
                 {WEDDING_COVER_FRAME_OPENINGS.map((shape) => {
@@ -2087,7 +2176,7 @@ export default function WeddingCardAiClientPage() {
                 />
                 <Button type="button" size="sm" disabled={frameGenerating || generating || !card.id} onClick={() => void generateCoverFrame()}>
                   {frameGenerating ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
-                  {txCover.aiFrameButton}
+                  {txCover.aiFrameButton} · {frameCreditText.total}
                 </Button>
               </div>
             </div>
@@ -2125,22 +2214,6 @@ export default function WeddingCardAiClientPage() {
         </Dialog>
         <div id="wedding-card-editor" className="grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="w-full min-w-0 max-w-full space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>{txStyle.sectionTitle}</CardTitle>
-                <CardDescription>{txStyle.sectionDescription}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <WeddingStylePresetPicker
-                  locale={uiLocale}
-                  selectedId={card.selectedStyleId}
-                  onSelect={(styleId, palette) => {
-                    update('selectedStyleId', styleId)
-                    update('colorPalette', palette)
-                  }}
-                />
-              </CardContent>
-            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>{tImage.backgroundSectionTitle}</CardTitle>
@@ -2850,7 +2923,7 @@ export default function WeddingCardAiClientPage() {
                           >
                             <DialogHeader className="shrink-0 pr-10">
                               <DialogTitle>{txCover.chooseFrame}</DialogTitle>
-                              <DialogDescription>{txCover.aiFrameLibraryHint}</DialogDescription>
+                              <DialogDescription>{frameCreditText.libraryHint}</DialogDescription>
                             </DialogHeader>
                             <div className="min-h-0 space-y-4 overflow-y-auto">
                               <div className="overflow-hidden rounded-2xl border bg-[#fffaf2]">
@@ -2881,7 +2954,7 @@ export default function WeddingCardAiClientPage() {
                               <div className="flex flex-wrap gap-2">
                                 <Button type="button" size="sm" disabled={!card.id} onClick={() => setFrameCreateOpen(true)}>
                                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                                  {txCover.aiFrameButton}
+                                  {txCover.aiFrameButton} · {frameCreditText.total}
                                 </Button>
                                 <Button
                                   type="button"
@@ -3263,9 +3336,6 @@ export default function WeddingCardAiClientPage() {
                           {(card.musicUrl || musicFile) && !musicClearOnSave ? (
                             <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>Có nhạc nền</span>
                           ) : null}
-                          <span className={cn('rounded-full px-2.5 py-1', selectedTheme.panelStrong)}>
-                            {labelForWeddingStylePreset(uiLocale, selectedStylePreset)}
-                          </span>
                         </div>
                       </div>
                     </WeddingReadableGlass>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -268,8 +268,14 @@ function AlbumStageEditor(props: {
   )
 }
 
-function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; className?: string; compact?: boolean }) {
+/** Thẻ chồng rộng 82% khung, tối đa 26rem, căn giữa. Nút bám mép thẻ. */
+const STACK_CARD_INSET = 'max(0.4rem, calc(50% - min(41%, 13rem) + 0.7rem))'
+
+function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; className?: string; compact?: boolean; edge?: string; style?: CSSProperties }) {
   const Icon = props.dir < 0 ? ChevronLeft : ChevronRight
+  const edge =
+    props.edge ??
+    (props.dir < 0 ? (props.compact ? 'left-1' : 'left-1.5 sm:left-3') : props.compact ? 'right-1' : 'right-1.5 sm:right-3')
   return (
     <button
       type="button"
@@ -279,10 +285,11 @@ function Arrow(props: { dir: -1 | 1; label: string; onClick: () => void; classNa
         props.onClick()
       }}
       data-album-chrome=""
+      style={props.style}
       className={cn(
         'absolute top-1/2 z-30 flex -translate-y-1/2 items-center justify-center rounded-full border border-white/70 bg-white/90 text-stone-800 shadow-md transition hover:bg-white',
         props.compact ? 'h-7 w-7' : 'h-9 w-9 sm:h-10 sm:w-10',
-        props.dir < 0 ? (props.compact ? 'left-1' : 'left-1.5 sm:left-3') : (props.compact ? 'right-1' : 'right-1.5 sm:right-3'),
+        edge,
         props.className,
       )}
     >
@@ -574,8 +581,22 @@ export function WeddingAlbumStage(props: {
         </div>
         {count > 1 && !isGrid ? (
           <>
-            <Arrow dir={-1} label={prevLabel} onClick={() => nudge(-1)} compact={props.compact} />
-            <Arrow dir={1} label={nextLabel} onClick={() => nudge(1)} compact={props.compact} />
+            <Arrow
+              dir={-1}
+              label={prevLabel}
+              onClick={() => nudge(-1)}
+              compact={props.compact}
+              edge={layout === 'stack' ? '' : undefined}
+              style={layout === 'stack' ? { left: STACK_CARD_INSET, right: 'auto' } : undefined}
+            />
+            <Arrow
+              dir={1}
+              label={nextLabel}
+              onClick={() => nudge(1)}
+              compact={props.compact}
+              edge={layout === 'stack' ? '' : undefined}
+              style={layout === 'stack' ? { right: STACK_CARD_INSET, left: 'auto' } : undefined}
+            />
           </>
         ) : null}
         {props.onExpand && !props.edit && !isGrid ? (
@@ -584,7 +605,8 @@ export function WeddingAlbumStage(props: {
             aria-label={expandLabel}
             data-album-chrome=""
             onClick={() => props.onExpand?.(safeIndex)}
-            className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white shadow"
+            className="absolute top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/45 text-white shadow"
+            style={layout === 'stack' ? { right: STACK_CARD_INSET } : { right: '0.75rem' }}
           >
             <Maximize2 className="h-4 w-4" />
           </button>
@@ -1111,7 +1133,8 @@ function AlbumFrame(props: {
       <div className={cn(frame, 'overflow-hidden')}>
         {urls.map((url, i) => {
           const d = wrappedDelta(i, focus, count)
-          if (d < -1.25 || d > 2.4) return null
+          // d = -1 là ảnh vừa xem khi đứng yên. Không vẽ nó — nếu không nó nằm đè mép trái và kéo cả chồng lệch.
+          if (d <= -0.999 || d > 2.4) return null
           const away = d < 0
           const lift = Math.max(0, d)
           return (

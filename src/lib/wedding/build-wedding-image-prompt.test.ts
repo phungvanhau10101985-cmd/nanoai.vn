@@ -13,6 +13,7 @@ test('background plate prompt forbids a frame and keeps dense pattern on the sid
     extraPrompt: 'hoa sen',
     hasReference: true,
     hasCustomReference: true,
+    applyStyle: false,
   })
   assert.match(prompt, /NO FRAME LINES/)
   assert.match(prompt, /SIDE PATTERN ONLY/)
@@ -24,4 +25,22 @@ test('background plate prompt forbids a frame and keeps dense pattern on the sid
   assert.doesNotMatch(prompt, /luxury outer frame/)
   assert.doesNotMatch(prompt, /centerpiece energy/)
   assert.match(prompt, /Do NOT paste the wreath/)
+  assert.doesNotMatch(prompt, /Vintage heirloom/)
+  assert.doesNotMatch(prompt, /Global style preset/)
+})
+
+test('background prompt keeps the chosen style when there is no reference image', () => {
+  const prompt = buildWeddingPrompt({
+    type: 'master',
+    style: 'floral',
+    palette: 'rose, cream',
+    groomName: 'An',
+    brideName: 'Lan',
+    venue: '',
+    extraPrompt: '',
+    hasReference: false,
+    applyStyle: true,
+  })
+  assert.match(prompt, /Romantic floral wedding design/)
+  assert.match(prompt, /rose, cream/)
 })

@@ -78,6 +78,8 @@ export function buildWeddingPrompt(input: {
   hasCustomReference?: boolean
   /** Nhãn khung xuất. Gemini dùng 9:16; GPT dùng size 1104x3312. */
   canvasLabel?: string
+  /** false khi đã có ảnh tham khảo: style preset nhường cho ảnh. */
+  applyStyle?: boolean
 }): string {
   const faceWord = input.type === 'master' ? 'PRIMARY master hero invitation visual' : `secondary "${input.type}" invitation face background`
   const ref = input.hasReference
@@ -96,9 +98,13 @@ export function buildWeddingPrompt(input: {
     `Target plate: ${faceWord}.`,
     FACE_ART_DIRECTION[input.type],
     PLATE_COMPOSITION,
-    `Global style preset (keep consistent tone): ${input.style || 'luxury'}.`,
-    STYLE_ART_DIRECTION[input.style] ?? STYLE_ART_DIRECTION.luxury,
-    `Color palette direction (harmonious family across all faces): ${input.palette || 'elegant warm cream, champagne gold, soft blush'}.`,
+    ...(input.applyStyle === false
+      ? []
+      : [
+          `Global style preset (keep consistent tone): ${input.style || 'luxury'}.`,
+          STYLE_ART_DIRECTION[input.style] ?? STYLE_ART_DIRECTION.luxury,
+          `Color palette direction (harmonious family across all faces): ${input.palette || 'elegant warm cream, champagne gold, soft blush'}.`,
+        ]),
     `Couple story hint (ambient only, no spelled names rendered): ${input.groomName || 'groom'} & ${input.brideName || 'bride'}.`,
     input.venue ? `Venue mood ambience only: ${input.venue}.` : '',
     'ABSOLUTE: Do not render readable Latin/Vietnamese/Chinese letters, digits, logos, stamps, seals with text — leave negative space.',

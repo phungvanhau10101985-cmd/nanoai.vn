@@ -28,7 +28,9 @@ export function buildWeddingCoverFramePrompt(input: {
   const opening = readWeddingCoverFrameOpening(input.openingShape)
   return [
     'Create a single wedding invitation logo mark: a closed ornamental wreath frame, portrait 3:4.',
-    `Style: ${input.styleLabel}. Palette accents: ${input.palette || 'ivory, gold, rose'}.`,
+    input.hasReference || !input.styleLabel.trim()
+      ? ''
+      : `Style: ${input.styleLabel}. Palette accents: ${input.palette || 'ivory, gold, rose'}.`,
     'The logo mark is only the decorative ring — flowers, leaves, and fine linework forming one closed wreath.',
     OPENING_PROMPT[opening],
     input.hasReference

@@ -158,7 +158,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       'Thu RSVP và lời chúc từ khách mời trên cùng một trang thiệp',
     ],
     tips: [
-      'Chọn phong cách và vỏ thiệp trước, rồi mới sinh ảnh nền AI',
+      'Chọn vỏ thiệp, rồi sinh ảnh nền AI',
       'Điền đủ tên, ngày, giờ và địa điểm để thiệp và lịch sự kiện đồng bộ',
       'Xuất bản link rồi gửi từng khách bản cá nhân từ danh sách khách mời',
     ],
@@ -166,7 +166,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Tạo thiệp cưới AI có miễn phí không?',
         answer:
-          'Chọn phong cách, soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi bạn yêu cầu AI sinh ảnh nền mới.',
+          'Soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi bạn yêu cầu AI sinh ảnh nền mới.',
       },
       {
         question: 'Gói khách mời thiệp cưới giá bao nhiêu?',

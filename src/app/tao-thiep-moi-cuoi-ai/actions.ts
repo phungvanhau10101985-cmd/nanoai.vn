@@ -380,6 +380,12 @@ export async function generateWeddingCardImage(formData: FormData) {
 
   const priced = imageChargeFromForm(formData, COST)
   if (priced.error) return { error: priced.error }
+  if (priced.engine !== 'gpt') {
+    return { error: 'Nền thiệp chỉ tạo bằng GPT Image.' }
+  }
+  if (priced.gptQuality === 'low') {
+    return { error: 'Nền thiệp chỉ dùng GPT medium hoặc high.' }
+  }
   const imageCost = priced.cost
   const balance = await getCreditBalanceByUserId(userId)
   if (balance < imageCost) return { error: `Không đủ credit. Cần ${imageCost} credit để tạo ảnh AI.` }
@@ -388,10 +394,11 @@ export async function generateWeddingCardImage(formData: FormData) {
     Boolean(customReferenceImageUrl) ||
     (customReferenceImageFile instanceof File && customReferenceImageFile.size > 0)
 
+  const chosenStyle = getWeddingStylePreset(clean(formData.get('styleId'), 80) || 'luxury')
   const prompt = buildWeddingPrompt({
     type,
-    style: card.selectedStyleId,
-    palette: card.colorPalette,
+    style: hasCustomReference ? card.selectedStyleId : chosenStyle.id,
+    palette: hasCustomReference ? card.colorPalette : chosenStyle.palette,
     groomName: card.groomName,
     brideName: card.brideName,
     venue: card.venue,
@@ -400,7 +407,8 @@ export async function generateWeddingCardImage(formData: FormData) {
       (type !== 'master' && Boolean(card.masterImageUrl)) ||
       hasCustomReference,
     hasCustomReference,
-    canvasLabel: priced.engine === 'gpt' ? `${WEDDING_GPT_BACKGROUND_SIZE} (1:3)` : WEDDING_BACKGROUND_ASPECT_RATIO,
+    canvasLabel: `${WEDDING_GPT_BACKGROUND_SIZE} (1:3)`,
+    applyStyle: !hasCustomReference,
   })
   const imageId = await insertWeddingAiImageProcessing({
     userId,
@@ -412,23 +420,6 @@ export async function generateWeddingCardImage(formData: FormData) {
 
   let charged = false
   try {
-    let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-    if (priced.engine !== 'gpt') {
-      const genAI = new GoogleGenerativeAI((await requireGoogleApiKeyForUser(userId)).apiKey)
-      model = genAI.getGenerativeModel({
-        model: GEMINI_3_PRO_IMAGE.model,
-        generationConfig: {
-          responseModalities: ['TEXT', 'IMAGE'],
-          imageConfig: { imageSize: '2K', aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO },
-        },
-      })
-    }
-    const safetySettings = [
-      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    ]
     const parts: (string | object)[] = [prompt]
     const referenceParts = await Promise.all([
       type !== 'master' ? getReferenceImagePart(card.masterImageUrl) : null,
@@ -439,12 +430,14 @@ export async function generateWeddingCardImage(formData: FormData) {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
     const genResult = await runImageContent({
-      engine: priced.engine,
+      engine: 'gpt',
       gptQuality: priced.gptQuality,
       aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO,
-      gptSize: priced.engine === 'gpt' ? WEDDING_GPT_BACKGROUND_SIZE : null,
+      gptSize: WEDDING_GPT_BACKGROUND_SIZE,
       parts,
-      gemini: () => model!.generateContent(parts as never, { safetySettings } as never),
+      gemini: () => {
+        throw new Error('Nền thiệp chỉ tạo bằng GPT Image.')
+      },
     })
     const response = genResult.response
     trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-thiep-moi-cuoi-ai', userId, '2K')
@@ -504,13 +497,13 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   const frameCost = requiredCreditsForLogoCreate(imageCost, true)
   const balance = await getCreditBalanceByUserId(userId)
   if (balance < frameCost) {
-    return { error: `Không đủ credit. Cần ${frameCost} credit để tạo khung và xóa nền.` }
+    return { error: `Không đủ credit. Cần ${frameCost} credit để vẽ khung và đục lỗ.` }
   }
 
-  const style = getWeddingStylePreset(card.selectedStyleId)
+  const frameStyle = getWeddingStylePreset(clean(formData.get('styleId'), 80) || 'luxury')
   const prompt = buildWeddingCoverFramePrompt({
-    styleLabel: style.label.en,
-    palette: card.colorPalette.trim() || style.palette,
+    styleLabel: hasCustomReference ? '' : frameStyle.label.en,
+    palette: hasCustomReference ? '' : frameStyle.palette,
     extraPrompt,
     openingShape,
     hasReference: hasCustomReference,
@@ -619,6 +612,7 @@ export async function generateWeddingCoverFrame(formData: FormData) {
       panel: COVER_AI_FRAME_PANEL,
       ink: 'dark' as const,
       libraryItem,
+      creditsCharged: chargeAmount,
     }
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)

@@ -17,6 +17,15 @@ test('cover frame prompt keeps one flat canvas so the logo mask can open the cen
   assert.match(prompt, /letter O/)
   assert.match(prompt, /vertical ellipse/)
   assert.match(prompt, /peonies/)
+  assert.match(prompt, /Style: Luxury/)
+  const referenced = buildWeddingCoverFramePrompt({
+    styleLabel: 'Luxury',
+    palette: 'champagne gold',
+    extraPrompt: '',
+    hasReference: true,
+  })
+  assert.doesNotMatch(referenced, /Style: Luxury/)
+  assert.match(referenced, /REFERENCE IMAGE/)
   const heart = buildWeddingCoverFramePrompt({
     styleLabel: 'Luxury',
     palette: 'rose',
