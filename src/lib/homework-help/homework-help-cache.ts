@@ -14,6 +14,7 @@ type ProblemCacheRow = {
   hints: unknown
   answer: string
   tags: unknown
+  check_model?: string
 }
 
 type PhotoCacheRow = {
@@ -31,6 +32,9 @@ function asProblem(row: ProblemCacheRow): HomeworkProblem | null {
         hints: row.hints,
         answer: row.answer,
         tags: row.tags,
+        ...(row.check_model === 'D' || row.check_model === 'G' || row.check_model === 'P'
+          ? { answerMark: row.check_model }
+          : {}),
       },
     ],
   })
@@ -44,7 +48,7 @@ export async function fetchHomeworkProblemCache(
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<ProblemCacheRow>(
-      `select statement, knowledge, thinking, hints, answer, tags
+      `select statement, knowledge, thinking, hints, answer, tags, check_model
        from public.homework_help_problem_cache
        where fingerprint = $1 and locale = $2
        limit 1`,
@@ -96,7 +100,7 @@ export async function rememberHomeworkProblem(
         problem.answer,
         JSON.stringify(problem.tags ?? []),
         HOMEWORK_HELP_DRAFT_MODEL,
-        verifyModel,
+        problem.answerMark ?? verifyModel,
       ]
     )
     if (inserted.length > 0) return problem

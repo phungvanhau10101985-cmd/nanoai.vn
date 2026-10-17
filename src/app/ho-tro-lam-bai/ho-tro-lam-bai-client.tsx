@@ -14,7 +14,12 @@ import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
 import { HOMEWORK_SOLUTION_CREDIT_COST } from '@/lib/homework-help/homework-help-solution-cost'
 import type { TutorAnswer, TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
-import { knowledgeLinesAsTags, type HomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
+import {
+  knowledgeLinesAsTags,
+  type HomeworkGuide,
+  type HomeworkModelMark,
+  type HomeworkProblem,
+} from '@/lib/homework-help/homework-help-guide'
 import { tutorNextBubbleDelayMs, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
 import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
 import {
@@ -118,6 +123,14 @@ function threadIsClosed(lines: ChatLine[]): boolean {
   return lines.some((line) => line.role === 'user')
 }
 
+function ModelMark({ mark }: { mark: HomeworkModelMark }) {
+  return (
+    <span className="inline-flex h-5 min-w-5 items-center justify-center rounded bg-muted px-1 text-[10px] font-bold leading-none text-muted-foreground">
+      {mark}
+    </span>
+  )
+}
+
 function PhotoReadReview({
   locale,
   copy,
@@ -145,8 +158,9 @@ function PhotoReadReview({
       {statements.map((statement, index) => (
         <div key={index} className="space-y-1.5">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {copy.problemLabel.replace('{n}', String(index + 1))}
+              <ModelMark mark="G" />
             </p>
             {statements.length > 1 ? (
               <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => onRemove(index)}>
@@ -1005,6 +1019,7 @@ function ProblemBubble({
       <section className="space-y-1">
         <div className="flex items-center gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.statement}</h3>
+          {problem.statementMark ? <ModelMark mark={problem.statementMark} /> : null}
           {problem.cached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
         </div>
         <h2 className="text-base font-normal leading-7">
@@ -1014,7 +1029,10 @@ function ProblemBubble({
 
       {problem.knowledge.length > 0 || tags.length > 0 ? (
         <section className="space-y-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.knowledge}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.knowledge}</h3>
+            <ModelMark mark="D" />
+          </div>
           {tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {tags.map((tag) => (
@@ -1047,7 +1065,10 @@ function ProblemBubble({
 
       {problem.thinking.length > 0 ? (
         <section className="space-y-1 rounded-lg bg-muted p-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.thinking}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.thinking}</h3>
+            <ModelMark mark="D" />
+          </div>
           <ol className="list-decimal space-y-1 pl-5 text-sm leading-6">
             {problem.thinking.map((item) => (
               <li key={item}>
@@ -1061,13 +1082,16 @@ function ProblemBubble({
       <HomeworkPlotFigure statement={problem.statement} title={copy.figure} locale={locale} />
 
       {shownHints > 0 ? (
-        <ol className="list-decimal space-y-1 pl-5 text-sm leading-6" start={problem.thinking.length + 1}>
-          {problem.hints.slice(0, shownHints).map((item) => (
-            <li key={item}>
-              <StudyFormulaText text={item} />
-            </li>
-          ))}
-        </ol>
+        <div className="space-y-1">
+          <ModelMark mark="D" />
+          <ol className="list-decimal space-y-1 pl-5 text-sm leading-6" start={problem.thinking.length + 1}>
+            {problem.hints.slice(0, shownHints).map((item) => (
+              <li key={item}>
+                <StudyFormulaText text={item} />
+              </li>
+            ))}
+          </ol>
+        </div>
       ) : null}
 
       {hintsLeft || canShowAnswer ? (
@@ -1091,7 +1115,10 @@ function ProblemBubble({
 
       {answerOpen && problem.answer ? (
         <section className="space-y-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.answer}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{copy.answer}</h3>
+            {problem.answerMark ? <ModelMark mark={problem.answerMark} /> : null}
+          </div>
           <p className="text-sm leading-7">
             <StudyFormulaText text={problem.answer} />
           </p>
@@ -1109,6 +1136,7 @@ function ProblemBubble({
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {copy.solutionTitle}
                 </h3>
+                <ModelMark mark="D" />
                 {solutionCached ? <StudyCacheMark label={copy.cachedFromDb} /> : null}
               </div>
               <p className="text-sm leading-7">

@@ -30,6 +30,7 @@ import {
   mergeAdjudicatedProblem,
   mergeCheckedProblem,
   mergeVisionPair,
+  shownAnswerMark,
   parseHomeworkChecks,
   parseHomeworkSame,
   parseHomeworkSide,
@@ -758,6 +759,14 @@ function withSharedTags(problem: HomeworkProblem, saved: TutorTopicName[]): Home
   return { ...problem, tags: attachHomeworkTags(problem, saved) }
 }
 
+function withPhotoStatementMark(guide: HomeworkGuide, images: HomeworkImagePart[]): HomeworkGuide {
+  if (!images.length) return guide
+  return {
+    ...guide,
+    problems: guide.problems.map((problem) => ({ ...problem, statementMark: 'G' as const })),
+  }
+}
+
 async function explainStatements(input: {
   userId: string
   locale: WebLocale
@@ -951,7 +960,17 @@ async function explainStatements(input: {
           gptAnswer,
         })
       }
-      const tagged = withSharedTags(merged.problem, savedTopics)
+      const answerMark = shownAnswerMark({
+        pictured: picturedItem,
+        visionAgreed: Boolean(vision?.agreed),
+        agreed,
+        side,
+        hasAnswer: Boolean(merged.problem.answer.trim()),
+      })
+      const tagged = withSharedTags(
+        answerMark ? { ...merged.problem, answerMark } : merged.problem,
+        savedTopics
+      )
       const fingerprint = homeworkStatementFingerprint(item.problem.statement)
       compareEvents.push({
         checkpoint: 'answer',
@@ -961,7 +980,12 @@ async function explainStatements(input: {
       const cacheable = Boolean(merged.problem.answer.trim()) && (merged.cacheable || Boolean(side))
       const verifyModel = side === 'check' || side === 'draft' ? HOMEWORK_HELP_GPT_MODEL : HOMEWORK_HELP_FALLBACK_MODEL
       problems[item.index] = cacheable
-        ? await rememberHomeworkProblem(fingerprint, input.locale, tagged, agreed ? HOMEWORK_HELP_FALLBACK_MODEL : verifyModel)
+        ? await rememberHomeworkProblem(
+            fingerprint,
+            input.locale,
+            tagged,
+            tagged.answerMark ?? (agreed ? HOMEWORK_HELP_FALLBACK_MODEL : verifyModel)
+          )
         : tagged
       if (!cacheable) everyProblemCacheable = false
     }
@@ -1053,10 +1077,13 @@ export async function explainReviewedStatements(input: {
     if (cachedPhoto && same && cachedPhoto.problems.length > 0) {
       await touchHomeworkPhotoCache(photoKey, input.locale)
       const savedTopics = await listTutorTopicNames(input.locale)
-      return {
-        note: cachedPhoto.note || input.note,
-        problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
-      }
+      return withPhotoStatementMark(
+        {
+          note: cachedPhoto.note || input.note,
+          problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
+        },
+        input.images ?? []
+      )
     }
   }
 
@@ -1069,10 +1096,11 @@ export async function explainReviewedStatements(input: {
     startedAt: Date.now(),
   })
   if (!explained) return 'ai_unavailable'
+  const guide = withPhotoStatementMark(explained.guide, input.images ?? [])
   if (photoKey && explained.everyProblemCacheable) {
-    await rememberHomeworkPhotoCache(photoKey, input.locale, explained.guide)
+    await rememberHomeworkPhotoCache(photoKey, input.locale, guide)
   }
-  return explained.guide
+  return guide
 }
 
 export async function explainHomeworkImages(input: {

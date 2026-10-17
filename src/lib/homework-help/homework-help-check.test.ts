@@ -6,6 +6,7 @@ import {
   mergeAdjudicatedProblem,
   mergeCheckedProblem,
   mergeVisionPair,
+  shownAnswerMark,
   alignSolverAnswers,
   parseHomeworkChecks,
   parseHomeworkPicks,
@@ -269,6 +270,14 @@ test('judge parser keeps a side and drops an unknown index', () => {
   assert.equal(picks?.length, 1)
   assert.equal(picks?.[0]?.pick, 'check')
   assert.equal(picks?.[0]?.answer, 'x = 5')
+})
+
+test('the visible answer is marked with the model that wrote it', () => {
+  assert.equal(shownAnswerMark({ pictured: true, visionAgreed: true, agreed: false, side: 'check', hasAnswer: true }), 'G')
+  assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: true, side: '', hasAnswer: true }), 'D')
+  assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'draft', hasAnswer: true }), 'D')
+  assert.equal(shownAnswerMark({ pictured: false, visionAgreed: false, agreed: false, side: 'check', hasAnswer: true }), 'P')
+  assert.equal(shownAnswerMark({ pictured: true, visionAgreed: false, agreed: false, side: '', hasAnswer: false }), '')
 })
 
 test('a figure problem keeps the study guide and shows an answer only when both vision models agree', () => {

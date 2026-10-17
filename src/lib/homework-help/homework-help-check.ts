@@ -390,6 +390,21 @@ export function mergeCheckedProblem(
   }
 }
 
+/** Chữ đáp án đang hiện thuộc model nào. Đề có hình lấy lời Gemini. Đề chữ lấy DeepSeek, hoặc GPT khi GPT là bên được chọn. */
+export function shownAnswerMark(input: {
+  pictured: boolean
+  visionAgreed: boolean
+  agreed: boolean
+  side: '' | 'draft' | 'check'
+  hasAnswer: boolean
+}): 'D' | 'G' | 'P' | '' {
+  if (!input.hasAnswer) return ''
+  if (input.pictured) return input.visionAgreed ? 'G' : ''
+  if (input.agreed || input.side === 'draft') return 'D'
+  if (input.side === 'check') return 'P'
+  return ''
+}
+
 /** Đề có hình. DeepSeek không bỏ phiếu. Gemini và GPT khớp thì hiện lời Gemini và giữ phần học. */
 export function mergeVisionPair(
   guide: HomeworkProblem,

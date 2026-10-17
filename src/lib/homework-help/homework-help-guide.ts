@@ -1,6 +1,9 @@
 import { parseTutorLabels, tutorTopicKey } from '@/lib/ai-tutor/ai-tutor-parse'
 import type { TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
 
+/** D = DeepSeek, G = Gemini, P = GPT. */
+export type HomeworkModelMark = 'D' | 'G' | 'P'
+
 export type HomeworkProblem = {
   statement: string
   knowledge: string[]
@@ -9,6 +12,10 @@ export type HomeworkProblem = {
   answer: string
   /** Nhãn kiến thức dùng chung với gia sư. Bấm nhãn mở đúng chủ đề trong kho đó. */
   tags: TutorLabel[]
+  /** Đề đọc từ ảnh bằng Gemini. */
+  statementMark?: 'G'
+  /** Model viết câu đáp án đang hiện. */
+  answerMark?: HomeworkModelMark
   /** Bản này đọc từ cache DB, không phải lần soạn mới. */
   cached?: boolean
 }
@@ -65,6 +72,8 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
     const statement = cleanLine(item.statement, 4000)
     if (!statement) continue
     const knowledge = asLines(item.knowledge, 5, 280)
+    const statementMark = item.statementMark === 'G' ? 'G' : undefined
+    const answerMark = item.answerMark === 'D' || item.answerMark === 'G' || item.answerMark === 'P' ? item.answerMark : undefined
     problems.push({
       statement,
       knowledge,
@@ -72,6 +81,8 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
       hints: asLines(item.hints, 4, 320),
       answer: cleanLine(item.answer, 2000),
       tags: parseTutorLabels(item.tags),
+      ...(statementMark ? { statementMark } : {}),
+      ...(answerMark ? { answerMark } : {}),
       ...(item.cached === true ? { cached: true } : {}),
     })
     if (problems.length >= MAX_PROBLEMS) break
