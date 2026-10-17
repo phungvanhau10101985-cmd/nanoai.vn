@@ -221,7 +221,7 @@ export function getWeddingMapButtonColors(themeId: string | null | undefined): W
  * Nền phía sau khối chữ.
  * Kem ngà ấm trên thiệp sáng, nâu espresso ấm trên thiệp tối.
  * Trắng tinh, đen tuyền, neon và xám lạnh khó nhìn trên ảnh hoa — không dùng.
- * Hai mép trái và phải trong suốt 100%; càng vào giữa càng đậm.
+ * Hai dải hoa văn trái phải giữ nguyên. Cột giữa một độ đậm, không nhạt dần.
  */
 export function weddingTextPlateStyle(
   themeId: string | null | undefined,
@@ -230,7 +230,8 @@ export function weddingTextPlateStyle(
   const dark = isWeddingDarkTheme(themeId)
   const peak = dark ? (strength === 'hero' ? 0.78 : 0.7) : strength === 'hero' ? 0.94 : 0.92
   const rgb = dark ? '28, 20, 14' : '255, 248, 236'
-  const mask = 'linear-gradient(90deg, transparent 0%, rgba(0,0,0,1) 50%, transparent 100%)'
+  const mask =
+    'linear-gradient(90deg, transparent 0%, transparent 24%, #000 28%, #000 72%, transparent 76%, transparent 100%)'
   return {
     backgroundColor: `rgba(${rgb},${peak})`,
     WebkitMaskImage: mask,

@@ -17,7 +17,7 @@ type Props = {
   plate?: boolean
 }
 
-/** Khối chữ nội dung thiệp: hai mép trái phải trong suốt, giữa đậm nhất. */
+/** Khối chữ nội dung thiệp: hoa văn hai bên giữ nguyên, cột giữa một độ đậm. */
 export function WeddingReadableGlass({ className, children, id, reveal, theme, strength = 'section', plate = true }: Props) {
   return (
     <div
