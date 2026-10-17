@@ -126,7 +126,6 @@ function PhotoReadReview({
   onChange,
   onRemove,
   onConfirm,
-  onReread,
   onCancel,
 }: {
   locale: WebLocale
@@ -136,7 +135,6 @@ function PhotoReadReview({
   onChange: (index: number, value: string) => void
   onRemove: (index: number) => void
   onConfirm: () => void
-  onReread: () => void
   onCancel: () => void
 }) {
   return (
@@ -171,10 +169,7 @@ function PhotoReadReview({
       ))}
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={onConfirm}>
-          {copy.reviewConfirm}
-        </Button>
-        <Button type="button" variant="outline" onClick={onReread}>
-          {copy.reviewReread}
+          {copy.send}
         </Button>
         <Button type="button" variant="ghost" onClick={onCancel}>
           {copy.reviewCancel}
@@ -334,6 +329,10 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   function queuePhotos(list: FileList | readonly File[] | null) {
     if (!list?.length || busyRef.current || !ready || cropQueue.length > 0 || review || chatClosed) return
+    if (text.trim()) {
+      setError(copy.errors.photo_blocked)
+      return
+    }
     const incoming = [...list].filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
     const picked = incoming.slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
@@ -347,6 +346,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   async function acceptCroppedPhoto(file: File) {
     const compressed = await compressEssayImageForUpload(file)
+    setText('')
     setFiles((current) => [...current, compressed].slice(0, MAX_IMAGES))
     setPreviews((current) => [...current, remember(URL.createObjectURL(compressed))])
     const next = cropIndex + 1
@@ -513,8 +513,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   async function send() {
-    const question = text.trim()
     const shot = files
+    const question = shot.length > 0 ? '' : text.trim()
     const shotPreviews = previews
     if (busyRef.current || !ready || review || chatClosed) return
     if (!question && shot.length === 0) {
@@ -596,40 +596,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setError('')
   }
 
-  async function rereadPhoto() {
-    if (!review || busyRef.current || review.files.length === 0) return
-    busyRef.current = true
-    setBusy(true)
-    setWaitLabel('reading')
-    setError('')
-    try {
-      const formData = new FormData()
-      formData.set('locale', locale)
-      formData.set('force', '1')
-      for (const file of review.files) formData.append('images', file)
-      const result = await readHomeworkPhoto(formData)
-      if (!result.ok) {
-        failHomework(result.code)
-        return
-      }
-      setReview((current) =>
-        current
-          ? {
-              ...current,
-              note: result.data.note,
-              statements: result.data.statements.length ? result.data.statements : [''],
-              photoKey: result.data.photoKey,
-            }
-          : current
-      )
-    } catch {
-      setError(copy.errors.ai_unavailable)
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
-
   async function confirmReview() {
     if (!review || busyRef.current) return
     const statements = review.statements.map((item) => item.trim()).filter(Boolean)
@@ -644,14 +610,15 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     setError('')
     const startedAt = Date.now()
     try {
-      const result = await confirmHomeworkRead({
-        locale,
-        note: draft.note,
-        statements,
-        photoKey: draft.photoKey,
-        imageCount: draft.imageCount,
-        caption: draft.caption,
-      })
+      const formData = new FormData()
+      formData.set('locale', locale)
+      formData.set('note', draft.note)
+      formData.set('statements', JSON.stringify(statements))
+      formData.set('photoKey', draft.photoKey)
+      formData.set('imageCount', String(draft.imageCount))
+      formData.set('caption', draft.caption)
+      for (const file of draft.files) formData.append('images', file)
+      const result = await confirmHomeworkRead(formData)
       if (!result.ok) {
         failHomework(result.code)
         return
@@ -744,7 +711,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
               })
             }}
             onConfirm={() => void confirmReview()}
-            onReread={() => void rereadPhoto()}
             onCancel={cancelReview}
           />
         ) : null}
@@ -757,7 +723,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         className="sr-only"
-        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -769,7 +735,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="sr-only md:hidden"
-        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -865,9 +831,13 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         id="ho-tro-lam-bai-composer"
         inputRef={composerRef}
         value={text}
-        onChange={setText}
+        onChange={(value) => {
+          if (files.length > 0) return
+          setText(value)
+        }}
         onSubmit={() => void send()}
-        placeholder={copy.placeholder}
+        placeholder={files.length > 0 ? copy.photoPlaceholder : copy.placeholder}
+        inputLocked={files.length > 0}
         sendLabel={copy.send}
         showToolsLabel={copy.showTools}
         emojiLabel={copy.emoji}
@@ -881,7 +851,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
               <StudyComposerTool
                 label={copy.takePhoto}
                 htmlFor="homework-help-camera"
-                disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
+                disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
               >
                 <Camera strokeWidth={1.75} aria-hidden />
               </StudyComposerTool>
@@ -889,7 +859,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             <StudyComposerTool
               label={copy.pickPhoto}
               htmlFor="homework-help-gallery"
-              disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed}
+              disabled={!ready || busy || cropQueue.length > 0 || review != null || chatClosed || text.trim().length > 0}
             >
               <ImageIcon strokeWidth={1.75} aria-hidden />
             </StudyComposerTool>

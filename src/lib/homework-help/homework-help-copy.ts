@@ -4,6 +4,7 @@ export type HomeworkHelpCopy = {
   intro: string
   empty: string
   placeholder: string
+  photoPlaceholder: string
   send: string
   showTools: string
   emoji: string
@@ -32,8 +33,6 @@ export type HomeworkHelpCopy = {
   reading: string
   reviewTitle: string
   reviewHint: string
-  reviewConfirm: string
-  reviewReread: string
   reviewCancel: string
   reviewRemove: string
   problemLabel: string
@@ -60,6 +59,7 @@ const VI: HomeworkHelpCopy = {
     'Chat riêng để làm bài. Gõ hoặc chụp một câu. Giáo viên nêu kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi bạn bấm bước cuối.',
   empty: 'Gõ hoặc chụp một câu bạn đang làm. Giáo viên hướng cho riêng bạn.',
   placeholder: 'Gõ một câu bài tập…',
+  photoPlaceholder: 'Đề lấy từ ảnh. Gỡ ảnh nếu muốn gõ.',
   send: 'Gửi',
   showTools: 'Hiện nút',
   emoji: 'Biểu cảm',
@@ -87,18 +87,16 @@ const VI: HomeworkHelpCopy = {
   solutionTitle: 'Bài giải',
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
   reading: 'Đang đọc đề trong ảnh',
-  reviewTitle: 'Đọc lại đề',
-  reviewHint:
-    'Đọc lại đề trước khi gửi. AI có thể đọc nhầm chữ, số hoặc công thức. Sửa cho đúng rồi mới chữa bài.',
-  reviewConfirm: 'Đề đúng, gửi chữa',
-  reviewReread: 'Đọc lại ảnh',
+  reviewTitle: 'Đề trong ảnh',
+  reviewHint: 'Sửa nếu chỗ nào đọc sai. Đúng rồi thì bấm Gửi.',
   reviewCancel: 'Hủy',
   reviewRemove: 'Bỏ câu này',
   problemLabel: 'Câu {n}',
   chatClosed: 'Bài này đã gửi. Mỗi bài là một hội thoại. Mở hội thoại mới để làm bài khác.',
   removeImage: 'Gỡ ảnh',
   cropTitle: 'Chọn vùng cần gửi',
-  cropHint: 'Kéo khung hoặc các góc để chỉ giữ phần bài. Phần ngoài khung không gửi lên máy chủ.',
+  cropHint:
+    'Kéo khung để khoanh phần bài, rồi bấm Dùng vùng này để gửi vùng đó. Chọn cả ảnh gửi nguyên bức ảnh ngay.',
   cropConfirm: 'Dùng vùng này',
   cropCancel: 'Hủy',
   cropWhole: 'Chọn cả ảnh',
@@ -124,6 +122,7 @@ const VI: HomeworkHelpCopy = {
     insufficient_credits: 'Không đủ credit để mở bài giải.',
     paste_failed: 'Không lấy được ảnh từ clipboard hoặc link. Thử lại, hoặc chọn ảnh từ máy.',
     chat_closed: 'Hội thoại này đã khóa. Mở hội thoại mới để làm bài khác.',
+    photo_blocked: 'Đã gõ đề thì không gửi ảnh. Xóa chữ nếu muốn chụp bài.',
   },
 }
 
@@ -132,6 +131,7 @@ const EN: HomeworkHelpCopy = {
     'A private chat for homework. Type or photograph one question. The teacher lists the related knowledge and a way to think it through. Hints open one step at a time. The answer appears only when you open the last step.',
   empty: 'Type or photograph one question you are working on. The teacher guides only you.',
   placeholder: 'Type one homework question…',
+  photoPlaceholder: 'The problem comes from the photo. Remove it to type.',
   send: 'Send',
   showTools: 'Show buttons',
   emoji: 'Emoji',
@@ -159,18 +159,16 @@ const EN: HomeworkHelpCopy = {
   solutionTitle: 'Worked solution',
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
   reading: 'Reading the problem in the photo',
-  reviewTitle: 'Check the problem',
-  reviewHint:
-    'Read the problem again before sending. The reader can misread letters, numbers, or formulas. Correct it, then send it to be solved.',
-  reviewConfirm: 'This is right, solve it',
-  reviewReread: 'Read the photo again',
+  reviewTitle: 'Problem from the photo',
+  reviewHint: 'Correct anything read wrong. If it is right, tap Send.',
   reviewCancel: 'Cancel',
   reviewRemove: 'Remove this question',
   problemLabel: 'Question {n}',
   chatClosed: 'This problem is in. Each problem has its own chat. Start a new chat for the next one.',
   removeImage: 'Remove',
   cropTitle: 'Choose what to send',
-  cropHint: 'Drag the frame or its corners so only the work stays inside. Anything outside is not sent to the server.',
+  cropHint:
+    'Drag the frame around the work, then tap Use this area to send that part. Select the whole photo sends the entire picture now.',
   cropConfirm: 'Use this area',
   cropCancel: 'Cancel',
   cropWhole: 'Select the whole photo',
@@ -196,6 +194,7 @@ const EN: HomeworkHelpCopy = {
     insufficient_credits: 'Not enough credits to open the worked solution.',
     paste_failed: 'Could not read that image from the clipboard or link. Try again, or choose a file.',
     chat_closed: 'This chat is closed. Start a new chat for another problem.',
+    photo_blocked: 'You already typed the problem, so a photo cannot be added. Clear the text to use a photo.',
   },
 }
 
@@ -203,6 +202,7 @@ const ZH: HomeworkHelpCopy = {
   intro: '单独聊天来做作业。输入或拍一道题。老师列出相关知识和思考步骤。提示逐条打开。答案只在最后一步出现。',
   empty: '输入或拍一道你正在做的题。老师只辅导你。',
   placeholder: '输入一道作业题…',
+  photoPlaceholder: '题目以照片为准。移除照片后才能输入。',
   send: '发送',
   showTools: '显示按钮',
   emoji: '表情',
@@ -229,17 +229,15 @@ const ZH: HomeworkHelpCopy = {
   solutionTitle: '详解',
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
   reading: '正在读取照片里的题目',
-  reviewTitle: '核对题目',
-  reviewHint: '发给老师之前请再读一遍题目。识别可能看错字、数字或公式。改对后再提交批改。',
-  reviewConfirm: '题目无误，开始批改',
-  reviewReread: '重新读照片',
+  reviewTitle: '照片里的题目',
+  reviewHint: '读错的地方请改。没错就点发送。',
   reviewCancel: '取消',
   reviewRemove: '去掉这题',
   problemLabel: '第 {n} 题',
   chatClosed: '这道题已经提交。每道题一个对话。请开新对话做下一题。',
   removeImage: '移除',
   cropTitle: '选择要发送的区域',
-  cropHint: '拖动方框或四角，只保留要交的内容。框外的部分不会发到服务器。',
+  cropHint: '拖动方框圈出要交的部分，再点使用此区域即可发送。选择整张照片会立刻发送整张图。',
   cropConfirm: '使用此区域',
   cropCancel: '取消',
   cropWhole: '选择整张照片',
@@ -265,6 +263,7 @@ const ZH: HomeworkHelpCopy = {
     insufficient_credits: '积分不足，无法打开详解。',
     paste_failed: '无法从剪贴板或链接读取图片。请重试，或从设备选择图片。',
     chat_closed: '这个对话已关闭。请开新对话做另一题。',
+    photo_blocked: '已经输入题目，就不能再上传照片。清空文字后才能拍照。',
   },
 }
 
@@ -273,6 +272,7 @@ const JA: HomeworkHelpCopy = {
     '宿題用の個別チャットです。問題を入力するか撮影します。先生が関連知識と考え方を出します。ヒントは一段ずつ開き、答えは最後のステップでだけ表示します。',
   empty: '取り組んでいる問題を入力するか撮影してください。先生はあなただけに案内します。',
   placeholder: '問題を入力…',
+  photoPlaceholder: '問題は写真から読みます。入力するなら写真を外してください。',
   send: '送信',
   showTools: 'ボタンを表示',
   emoji: '絵文字',
@@ -300,18 +300,15 @@ const JA: HomeworkHelpCopy = {
   solutionTitle: '詳しい解説',
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
   reading: '写真の問題を読んでいます',
-  reviewTitle: '問題を読み直す',
-  reviewHint:
-    '送る前にもう一度問題を読んでください。文字、数字、式を読み間違えることがあります。直してから添削に出します。',
-  reviewConfirm: '問題は正しいので添削する',
-  reviewReread: '写真を読み直す',
+  reviewTitle: '写真の問題',
+  reviewHint: '読み間違いがあれば直してください。合っていれば送信を押します。',
   reviewCancel: 'キャンセル',
   reviewRemove: 'この問題を外す',
   problemLabel: '問 {n}',
   chatClosed: 'この問題は送信済みです。問題ごとに会話は一つです。次は新しい会話を開いてください。',
   removeImage: '外す',
   cropTitle: '送る範囲を選ぶ',
-  cropHint: '枠や角をドラッグして、必要な部分だけ残してください。枠の外はサーバーに送りません。',
+  cropHint: '枠をドラッグして範囲を決め、この範囲を使うでその部分を送ります。写真全体を選ぶと、写真全体をすぐ送ります。',
   cropConfirm: 'この範囲を使う',
   cropCancel: 'キャンセル',
   cropWhole: '写真全体を選ぶ',
@@ -337,6 +334,7 @@ const JA: HomeworkHelpCopy = {
     insufficient_credits: 'クレジットが足りないため、解説を開けません。',
     paste_failed: 'クリップボードまたはリンクから画像を読めませんでした。もう一度試すか、端末から選んでください。',
     chat_closed: 'この会話は閉じています。別の問題は新しい会話で出してください。',
+    photo_blocked: '問題を入力済みなので写真は送れません。写真にするなら文字を消してください。',
   },
 }
 
@@ -345,6 +343,7 @@ const KO: HomeworkHelpCopy = {
     '숙제용 개인 채팅입니다. 문제를 입력하거나 찍으세요. 선생님이 관련 지식과 생각 순서를 보여 줍니다. 힌트는 한 단계씩 열리고, 답은 마지막 단계에서만 나옵니다.',
   empty: '풀고 있는 문제 하나를 입력하거나 찍으세요. 선생님은 당신만 안내합니다.',
   placeholder: '숙제 문제를 입력…',
+  photoPlaceholder: '문제는 사진에서 읽습니다. 입력하려면 사진을 빼세요.',
   send: '보내기',
   showTools: '버튼 표시',
   emoji: '이모티콘',
@@ -372,18 +371,15 @@ const KO: HomeworkHelpCopy = {
   solutionTitle: '자세한 풀이',
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',
   reading: '사진 속 문제를 읽는 중',
-  reviewTitle: '문제를 다시 읽기',
-  reviewHint:
-    '보내기 전에 문제를 다시 읽어 주세요. 글자, 숫자, 식을 잘못 읽을 수 있습니다. 고친 다음 첨삭에 보냅니다.',
-  reviewConfirm: '문제가 맞으면 첨삭 보내기',
-  reviewReread: '사진을 다시 읽기',
+  reviewTitle: '사진 속 문제',
+  reviewHint: '잘못 읽은 곳이 있으면 고치세요. 맞으면 보내기를 누르세요.',
   reviewCancel: '취소',
   reviewRemove: '이 문제 빼기',
   problemLabel: '문제 {n}',
   chatClosed: '이 문제는 보냈습니다. 문제마다 대화는 하나입니다. 다음 문제는 새 대화에서 내세요.',
   removeImage: '빼기',
   cropTitle: '보낼 영역 선택',
-  cropHint: '틀이나 모서리를 끌어 필요한 부분만 남기세요. 틀 밖은 서버로 보내지 않습니다.',
+  cropHint: '틀을 끌어 범위를 정한 뒤 이 영역 사용을 누르면 그 부분만 보냅니다. 사진 전체 선택은 사진 전체를 바로 보냅니다.',
   cropConfirm: '이 영역 사용',
   cropCancel: '취소',
   cropWhole: '사진 전체 선택',
@@ -409,6 +405,7 @@ const KO: HomeworkHelpCopy = {
     insufficient_credits: '크레딧이 부족해 풀이를 열 수 없습니다.',
     paste_failed: '클립보드나 링크에서 이미지를 읽지 못했습니다. 다시 시도하거나 기기에서 고르세요.',
     chat_closed: '이 대화는 잠겼습니다. 다른 문제는 새 대화에서 내세요.',
+    photo_blocked: '문제를 입력했으면 사진을 올릴 수 없습니다. 사진을 쓰려면 글을 지우세요.',
   },
 }
 

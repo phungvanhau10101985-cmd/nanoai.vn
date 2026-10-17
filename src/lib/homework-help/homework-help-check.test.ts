@@ -5,6 +5,8 @@ import {
   matchingDeepSeekAnswer,
   mergeAdjudicatedProblem,
   mergeCheckedProblem,
+  mergeVisionPair,
+  alignSolverAnswers,
   parseHomeworkChecks,
   parseHomeworkPicks,
   parseHomeworkSame,
@@ -14,6 +16,7 @@ import {
 import {
   homeworkReadIsThin,
   homeworkStatementFingerprint,
+  homeworkStatementNeedsPhoto,
   normalizeHomeworkStatement,
   splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
@@ -266,6 +269,106 @@ test('judge parser keeps a side and drops an unknown index', () => {
   assert.equal(picks?.length, 1)
   assert.equal(picks?.[0]?.pick, 'check')
   assert.equal(picks?.[0]?.answer, 'x = 5')
+})
+
+test('a figure problem keeps the study guide and shows an answer only when both vision models agree', () => {
+  const guide = {
+    statement: 'Mạch dao động (hình 1). Tính dòng cực đại.',
+    knowledge: ['Năng lượng dao động bảo toàn'],
+    thinking: ['Đổi vị trí khoá rồi viết chu kỳ'],
+    hints: ['Năng lượng tụ và cuộn bằng nhau sau mỗi phần tư chu kỳ'],
+    answer: 'I = 9 A',
+    tags: [{ key: 'lc-circuit', title: 'Mạch dao động LC' }],
+  }
+  const agreed = mergeVisionPair(guide, 'x = 2', 'X = 2')
+  assert.equal(agreed.agreed, true)
+  assert.equal(agreed.cacheable, true)
+  assert.equal(agreed.problem.answer, 'x = 2')
+  assert.deepEqual(agreed.problem.knowledge, ['Năng lượng dao động bảo toàn'])
+  assert.deepEqual(agreed.problem.thinking, ['Đổi vị trí khoá rồi viết chu kỳ'])
+
+  const split = mergeVisionPair(guide, 'x = 2', 'x = 9')
+  assert.equal(split.agreed, false)
+  assert.equal(split.cacheable, false)
+  assert.equal(split.problem.answer, '')
+  assert.deepEqual(split.problem.knowledge, ['Năng lượng dao động bảo toàn'])
+
+  const trusted = mergeVisionPair(guide, 'x = 2', 'hai', { trust: true })
+  assert.equal(trusted.agreed, true)
+  assert.equal(trusted.problem.answer, 'x = 2')
+})
+
+test('only a problem that cites a printed figure needs the photo', () => {
+  assert.equal(
+    homeworkStatementNeedsPhoto(
+      'Trong mạch dao động (hình 1) bộ tụ điện gồm hai tụ C1. Chuyển khoá K từ vị trí 1 sang vị trí 2.'
+    ),
+    true
+  )
+  assert.equal(homeworkStatementNeedsPhoto('Xem hình vẽ bên và tính cường độ dòng điện.'), true)
+  assert.equal(homeworkStatementNeedsPhoto('As shown in the figure, find the current.'), true)
+  assert.equal(
+    homeworkStatementNeedsPhoto(
+      'Điện tích dao động theo q = Q0 sinωt. Viết biểu thức năng lượng. Vẽ đồ thị phụ thuộc thời gian.'
+    ),
+    false
+  )
+  assert.equal(homeworkStatementNeedsPhoto('Giải phương trình 2x + 3 = 7.'), false)
+  assert.equal(homeworkStatementNeedsPhoto('Phản ứng hình thành kết tủa AgCl.'), false)
+})
+
+test('solver answers stay on the requested index', () => {
+  const aligned = alignSolverAnswers(
+    [0, 1],
+    [
+      { index: 0, answer: 'x = 2', knowledge: [] },
+      { index: 1, answer: '  ', knowledge: [] },
+    ]
+  )
+  assert.equal(aligned.get(0), 'x = 2')
+  assert.equal(aligned.has(1), false)
+})
+
+test('a 1-based batch shifts back when no requested index hit', () => {
+  const aligned = alignSolverAnswers(
+    [0, 1],
+    [
+      { index: 1, answer: 'W = 4 J', knowledge: [] },
+      { index: 2, answer: 'I = 0,393 A', knowledge: [] },
+    ]
+  )
+  assert.equal(aligned.get(0), 'W = 4 J')
+  assert.equal(aligned.get(1), 'I = 0,393 A')
+})
+
+test('unrelated indexes follow answer order only when every requested index missed', () => {
+  const aligned = alignSolverAnswers(
+    [0, 1],
+    [
+      { index: 4, answer: 'first', knowledge: [] },
+      { index: 5, answer: 'second', knowledge: [] },
+    ]
+  )
+  assert.equal(aligned.get(0), 'first')
+  assert.equal(aligned.get(1), 'second')
+})
+
+test('one answer at the second index stays there', () => {
+  const aligned = alignSolverAnswers([0, 1], [{ index: 1, answer: 'only the second', knowledge: [] }])
+  assert.equal(aligned.has(0), false)
+  assert.equal(aligned.get(1), 'only the second')
+})
+
+test('one exact hit is kept and the other index is left blank for a retry', () => {
+  const aligned = alignSolverAnswers(
+    [0, 1],
+    [
+      { index: 0, answer: 'x = 2', knowledge: [] },
+      { index: 5, answer: 'other', knowledge: [] },
+    ]
+  )
+  assert.equal(aligned.get(0), 'x = 2')
+  assert.equal(aligned.has(1), false)
 })
 
 test('check parser ignores a line the model did not mark', () => {

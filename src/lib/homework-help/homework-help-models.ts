@@ -5,18 +5,19 @@ import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 export const HOMEWORK_HELP_READ_MODEL = GEMINI_25_FLASH_NO_THINKING.model
 
 /**
- * Soạn kiến thức, hướng tư duy, gợi ý và đáp án nháp.
- * DeepSeek V4 Pro, thinking bật (reasoner). Chỉ chữ, không gửi lại ảnh.
+ * Soạn kiến thức, hướng tư duy và gợi ý.
+ * DeepSeek V4 Pro, thinking bật (reasoner). API này chỉ nhận chữ.
+ * Đề có hình thì để trống đáp án, không tham gia phiếu.
  */
 export const HOMEWORK_HELP_DRAFT_MODEL = DEEPSEEK_V4_PRO
 
 /**
  * Gemini 2.5 Pro chỉ trả kết quả để đối chiếu với DeepSeek.
- * Không viết kiến thức, gợi ý hay bước giải.
+ * Đề có hình minh họa thì gửi kèm ảnh. Không viết kiến thức, gợi ý hay bước giải.
  */
 export const HOMEWORK_HELP_FALLBACK_MODEL = GEMINI_25_PRO.model
 
-/** GPT giải lại khi chữ khác và lượt hỏi cũng nói là khác kết quả. */
+/** GPT giải lại khi chữ khác và lượt hỏi cũng nói là khác kết quả. Chỉ đề có hình minh họa mới kèm ảnh. */
 export const HOMEWORK_HELP_GPT_MODEL = 'gpt-5'
 
 /** Trần token nghĩ của Pro, để còn chỗ viết JSON trước khi hết giờ. */

@@ -24,10 +24,12 @@ import {
   homeworkCallTimeoutMs,
 } from '@/lib/homework-help/homework-help-budget'
 import {
+  alignSolverAnswers,
   answersAgree,
   matchingDeepSeekAnswer,
   mergeAdjudicatedProblem,
   mergeCheckedProblem,
+  mergeVisionPair,
   parseHomeworkChecks,
   parseHomeworkSame,
   parseHomeworkSide,
@@ -41,6 +43,7 @@ import {
   homeworkPhotoCacheKey,
   homeworkReadIsThin,
   homeworkStatementFingerprint,
+  homeworkStatementNeedsPhoto,
   splitTypedHomework,
 } from '@/lib/homework-help/homework-help-fingerprint'
 import { parseHomeworkSolution, type HomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
@@ -301,6 +304,7 @@ Rules:
 - One string per exam item, at most 8, in page order.
 - A data paragraph and its sub-questions 1. 2. 3. are ONE problem. Keep the whole paragraph, every formula, every equation, every number, every unit, and every sub-question in that same string.
 - Transcribe. Do not summarize, do not solve, and do not add facts.
+- When a figure, circuit, graph, or table is part of the question, write its components, connections, labels, and printed values into that same statement.
 - Write formulas with plain letters and digits: FeCO3, HNO3, H2SO4, Ba(OH)2. Keep the printed numbers.
 - Skip a question cut off at the edge when its data is not visible. Ignore student names.
 - If the photo is not schoolwork, return an empty statements array and a short note.`
@@ -324,6 +328,12 @@ Rules:
     read = raw.status === 'ok' && raw.value != null ? parseHomeworkStatements(raw.value) : null
   }
   return read
+}
+
+function figureAnswerRule(statements: Array<{ index: number; statement: string }>): string {
+  const indexes = statements.filter((item) => homeworkStatementNeedsPhoto(item.statement)).map((item) => item.index)
+  if (!indexes.length) return ''
+  return `- Indexes ${indexes.join(', ')} cite a printed figure you cannot see. Leave answer empty for those indexes. Do not guess the figure. Knowledge, thinking, and hints may name the law, not a final number.\n`
 }
 
 function tutorCatalogBlock(rows: TutorTopicName[]): string {
@@ -354,7 +364,7 @@ Rules:
 - thinking: ordered steps that show how to start. Do not finish the calculation or name the final choice.
 - hints: up to 4 shorter nudges. Still no final result.
 - answer: the final results only, one line. Join sub-questions with " | " in the same order as the problem. Each part is plain formulas and numbers with the units used in the problem (g, ml, mol). Example: "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No working, no "1." labels.
-- Leave answer empty only when a needed number or formula is missing from the statement.
+${figureAnswerRule(input.statements)}- Leave answer empty only when a needed number or formula is missing from the statement, or when the figure rule above says to leave it empty.
 - Do not put the final number, option letter, formula of the result, or completed result inside knowledge, thinking, hints, or tag titles.`
   const call = () =>
     generateReasonerJson({
@@ -401,46 +411,140 @@ function alignDrafts(
 }
 
 const ANSWER_RULES = `Rules:
+- One object per listed index, using that same index number. Do not omit an index and do not renumber.
 - answer is your own final results, one line. Join sub-questions with " | " in problem order. Plain formulas and the units used in the problem, such as "Cu(NO3)2 ; Cu + 4HNO3 → Cu(NO3)2 + 2NO2 + 2H2O | Cu 6,4 g | 40 ml". If a sub-question asks to complete equations, include each balanced equation with the smallest integers. No "1." labels and no working.
-- Leave answer empty only when a needed number or formula is missing from the statement.`
+- Write a non-empty answer for every index. A figure, switch, or circuit named in the statement is not a reason to leave it blank when the numbers and relations are already written. Solve from that text.
+- Leave answer empty only when a required numeric value is absent from the statement.`
+
+type SolverStatement = { index: number; statement: string }
+
+function solverAnswerPrompt(
+  locale: WebLocale,
+  statements: SolverStatement[],
+  insist: boolean,
+  hasPhoto: boolean
+): string {
+  const blocks = statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
+  const insistLine = insist
+    ? `A previous pass left these answers empty. Compute each result from the statement${hasPhoto ? ' and the attached photo' : ''} and return a non-empty answer for every listed index.\n`
+    : ''
+  const photoLine = hasPhoto
+    ? 'The homework photo is attached. Read every figure, circuit, graph, table, label, and printed value from that photo. The text below is the student\'s checked transcription of the same page.\n'
+    : ''
+  return `Solve each homework question yourself. Write entirely in ${languageName(locale)}.
+You are not shown any other solution.
+${photoLine}${insistLine}${blocks}
+Return ONLY JSON:
+{"problems":[{"index":0,"answer":"..."}]}
+${ANSWER_RULES}`
+}
+
+function filledSolverChecks(statements: SolverStatement[], solved: HomeworkProblemCheck[] | null): HomeworkProblemCheck[] {
+  const aligned = alignSolverAnswers(
+    statements.map((item) => item.index),
+    solved
+  )
+  return statements.flatMap((item) => {
+    const answer = aligned.get(item.index)?.trim() ?? ''
+    return answer ? [{ index: item.index, answer, knowledge: [] }] : []
+  })
+}
+
+function blankSolverStatements(statements: SolverStatement[], checks: HomeworkProblemCheck[]): SolverStatement[] {
+  const filled = new Set(checks.map((row) => row.index))
+  return statements.filter((item) => !filled.has(item.index))
+}
+
+/** Ảnh chỉ đi kèm câu có hình minh họa. Câu chữ đi lượt riêng, không gửi ảnh. */
+function solverPhotoGroups(
+  statements: SolverStatement[],
+  images: HomeworkImagePart[]
+): Array<{ statements: SolverStatement[]; images: HomeworkImagePart[] }> {
+  if (!images.length || statements.length === 0) return [{ statements, images: [] }]
+  const pictured = statements.filter((item) => homeworkStatementNeedsPhoto(item.statement))
+  const plain = statements.filter((item) => !homeworkStatementNeedsPhoto(item.statement))
+  const groups: Array<{ statements: SolverStatement[]; images: HomeworkImagePart[] }> = []
+  if (pictured.length) groups.push({ statements: pictured, images })
+  if (plain.length) groups.push({ statements: plain, images: [] })
+  return groups
+}
+
+async function solveGeminiGroup(input: {
+  userId: string
+  locale: WebLocale
+  statements: SolverStatement[]
+  images: HomeworkImagePart[]
+  startedAt: number
+}): Promise<HomeworkProblemCheck[] | null> {
+  const ask = (statements: SolverStatement[], insist: boolean) =>
+    generateJson({
+      userId: input.userId,
+      feature: 'homework-help-fallback',
+      model: HOMEWORK_HELP_FALLBACK_MODEL,
+      temperature: 0,
+      prompt: solverAnswerPrompt(input.locale, statements, insist, input.images.length > 0),
+      images: input.images,
+      startedAt: input.startedAt,
+      preferredMs: HOMEWORK_GEMINI_CALL_MS,
+      maxOutputTokens: HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
+      thinkingBudget: HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
+    })
+  const raw = await ask(input.statements, false)
+  if (raw.status !== 'ok') {
+    console.warn('[homework-help] gemini pro failed', raw.status)
+    return null
+  }
+  let checks = filledSolverChecks(input.statements, parseHomeworkChecks(raw.value))
+  const missing = blankSolverStatements(input.statements, checks)
+  if (missing.length > 0) {
+    console.warn('[homework-help] gemini blank, retry', missing.length)
+    const again = await ask(missing, true)
+    if (again.status === 'ok') {
+      checks = [...checks, ...filledSolverChecks(missing, parseHomeworkChecks(again.value))]
+    }
+  }
+  if (!checks.length) {
+    console.warn('[homework-help] gemini pro failed', 'blank')
+    return null
+  }
+  return checks
+}
 
 async function solveWithGemini(input: {
   userId: string
   locale: WebLocale
-  statements: Array<{ index: number; statement: string }>
+  statements: SolverStatement[]
+  images: HomeworkImagePart[]
   startedAt: number
 }): Promise<HomeworkProblemCheck[] | null> {
-  const blocks = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
-  const prompt = `Solve each homework question yourself. Write entirely in ${languageName(input.locale)}.
-You are not shown any other solution.
-${blocks}
-Return ONLY JSON:
-{"problems":[{"index":0,"answer":""}]}
-${ANSWER_RULES}`
-  const raw = await generateJson({
-    userId: input.userId,
-    feature: 'homework-help-fallback',
-    model: HOMEWORK_HELP_FALLBACK_MODEL,
-    temperature: 0,
-    prompt,
-    startedAt: input.startedAt,
-    preferredMs: HOMEWORK_GEMINI_CALL_MS,
-    maxOutputTokens: HOMEWORK_HELP_FALLBACK_MAX_TOKENS,
-    thinkingBudget: HOMEWORK_HELP_FALLBACK_THINKING_BUDGET,
-  })
-  const solved = raw.status === 'ok' ? parseHomeworkChecks(raw.value) : null
-  if (!solved?.length) {
-    console.warn('[homework-help] gemini pro failed', raw.status)
-    return null
-  }
-  return solved
+  const groups = solverPhotoGroups(input.statements, input.images)
+  if (groups.length === 1) return solveGeminiGroup({ ...input, ...groups[0] })
+  const parts = await Promise.all(groups.map((group) => solveGeminiGroup({ ...input, ...group })))
+  const checks = parts.flatMap((part) => part ?? [])
+  return checks.length ? checks : null
 }
 
-async function solveWithGpt(input: {
+function gptUserContent(
+  prompt: string,
+  images: HomeworkImagePart[]
+): string | Array<{ type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail: 'high' } }> {
+  if (!images.length) return prompt
+  return [
+    { type: 'text', text: prompt },
+    ...images.map((image) => ({
+      type: 'image_url' as const,
+      image_url: { url: `data:${image.mimeType};base64,${image.base64}`, detail: 'high' as const },
+    })),
+  ]
+}
+
+async function requestGptAnswers(input: {
   userId: string
   locale: WebLocale
-  statements: Array<{ index: number; statement: string }>
+  statements: SolverStatement[]
+  images: HomeworkImagePart[]
   startedAt: number
+  insist: boolean
 }): Promise<HomeworkProblemCheck[] | null> {
   const timeoutMs = homeworkCallTimeoutMs(input.startedAt, Date.now(), HOMEWORK_GPT_CALL_MS)
   if (timeoutMs == null) {
@@ -452,21 +556,14 @@ async function solveWithGpt(input: {
     console.warn('[homework-help] missing OpenAI key')
     return null
   }
-  console.warn('[homework-help] answers differ, gpt', input.statements.length)
-  const blocks = input.statements.map((item) => `[${item.index}] ${item.statement}`).join('\n')
-  const prompt = `Solve each homework question yourself. Write entirely in ${languageName(input.locale)}.
-You are not shown any other solution.
-${blocks}
-Return ONLY JSON:
-{"problems":[{"index":0,"answer":""}]}
-${ANSWER_RULES}`
+  const prompt = solverAnswerPrompt(input.locale, input.statements, input.insist, input.images.length > 0)
   const model = HOMEWORK_HELP_GPT_MODEL
   const body: Record<string, unknown> = {
     model,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: 'Return only a JSON object. No markdown.' },
-      { role: 'user', content: prompt },
+      { role: 'user', content: gptUserContent(prompt, input.images) },
     ],
   }
   if (model.startsWith('gpt-5') || model.startsWith('o')) {
@@ -519,6 +616,43 @@ ${ANSWER_RULES}`
     console.warn('[homework-help] gpt failed', `${Date.now() - started}ms`, error instanceof Error ? error.message : error)
     return null
   }
+}
+
+async function solveGptGroup(input: {
+  userId: string
+  locale: WebLocale
+  statements: SolverStatement[]
+  images: HomeworkImagePart[]
+  startedAt: number
+}): Promise<HomeworkProblemCheck[] | null> {
+  const first = await requestGptAnswers({ ...input, insist: false })
+  if (!first) return null
+  let checks = filledSolverChecks(input.statements, first)
+  const missing = blankSolverStatements(input.statements, checks)
+  if (missing.length > 0) {
+    console.warn('[homework-help] gpt blank, retry', missing.length)
+    const again = await requestGptAnswers({ ...input, statements: missing, insist: true })
+    if (again) checks = [...checks, ...filledSolverChecks(missing, again)]
+  }
+  if (!checks.length) {
+    console.warn('[homework-help] gpt blank')
+    return null
+  }
+  return checks
+}
+
+async function solveWithGpt(input: {
+  userId: string
+  locale: WebLocale
+  statements: SolverStatement[]
+  images: HomeworkImagePart[]
+  startedAt: number
+}): Promise<HomeworkProblemCheck[] | null> {
+  console.warn('[homework-help] answers differ, gpt', input.statements.length)
+  const groups = solverPhotoGroups(input.statements, input.images)
+  const parts = await Promise.all(groups.map((group) => solveGptGroup({ ...input, ...group })))
+  const checks = parts.flatMap((part) => part ?? [])
+  return checks.length ? checks : null
 }
 
 const SAME_RESULT_RULES = `Rules:
@@ -629,6 +763,7 @@ async function explainStatements(input: {
   locale: WebLocale
   note: string
   statements: string[]
+  images: HomeworkImagePart[]
   startedAt: number
 }): Promise<{ guide: HomeworkGuide; everyProblemCacheable: boolean } | null> {
   const savedTopics = await listTutorTopicNames(input.locale)
@@ -661,6 +796,7 @@ async function explainStatements(input: {
         userId: input.userId,
         locale: input.locale,
         statements: pending,
+        images: input.images,
         startedAt: input.startedAt,
       }),
     ])
@@ -669,11 +805,19 @@ async function explainStatements(input: {
       if (!kept.length) return null
       return { guide: { note: input.note, problems: kept }, everyProblemCacheable: false }
     }
-    const aligned = alignDrafts(pending, drafted)
+    const aligned = alignDrafts(pending, drafted).map((item) =>
+      homeworkStatementNeedsPhoto(item.problem.statement)
+        ? { ...item, problem: { ...item.problem, answer: '' } }
+        : item
+    )
+    const pictured = new Set(
+      aligned.filter((item) => homeworkStatementNeedsPhoto(item.problem.statement)).map((item) => item.index)
+    )
     const geminiByIndex = new Map((geminiSolved ?? []).map((row) => [row.index, row.answer]))
     const textAgreed = new Set(
       aligned
         .filter((item) => {
+          if (pictured.has(item.index)) return false
           const geminiAnswer = geminiByIndex.get(item.index) ?? ''
           return (
             Boolean(item.problem.answer.trim()) &&
@@ -684,7 +828,7 @@ async function explainStatements(input: {
         .map((item) => item.index)
     )
     const judgeRows = aligned.flatMap((item) => {
-      if (textAgreed.has(item.index)) return []
+      if (pictured.has(item.index) || textAgreed.has(item.index)) return []
       const geminiAnswer = geminiByIndex.get(item.index) ?? ''
       if (!item.problem.answer.trim() || !geminiAnswer.trim()) return []
       return [{ index: item.index, statement: item.problem.statement, first: item.problem.answer, second: geminiAnswer }]
@@ -695,6 +839,7 @@ async function explainStatements(input: {
       startedAt: input.startedAt,
     })
     const needsGpt = aligned.flatMap((item) => {
+      if (pictured.has(item.index)) return [{ index: item.index, statement: item.problem.statement }]
       if (textAgreed.has(item.index) || judgedSame.has(item.index)) return []
       return [{ index: item.index, statement: item.problem.statement }]
     })
@@ -704,6 +849,7 @@ async function explainStatements(input: {
             userId: input.userId,
             locale: input.locale,
             statements: needsGpt,
+            images: input.images,
             startedAt: input.startedAt,
           })
         : null
@@ -711,7 +857,16 @@ async function explainStatements(input: {
     const draftByIndex = new Map(aligned.map((item) => [item.index, item.problem]))
     const sideByText = new Map<number, 'draft' | 'check'>()
     const sideJudgeRows: Array<{ index: number; statement: string; first: string; second: string; third: string }> = []
+    const visionJudgeRows = aligned.flatMap((item) => {
+      if (!pictured.has(item.index)) return []
+      const geminiAnswer = geminiByIndex.get(item.index) ?? ''
+      const gptAnswer = gptByIndex.get(item.index) ?? ''
+      if (!geminiAnswer.trim() || !gptAnswer.trim()) return []
+      if (answersAgree(geminiAnswer, gptAnswer, item.problem.statement)) return []
+      return [{ index: item.index, statement: item.problem.statement, first: geminiAnswer, second: gptAnswer }]
+    })
     for (const item of needsGpt) {
+      if (pictured.has(item.index)) continue
       const problem = draftByIndex.get(item.index)
       if (!problem) continue
       const geminiAnswer = geminiByIndex.get(item.index) ?? ''
@@ -730,11 +885,18 @@ async function explainStatements(input: {
         third: gptAnswer,
       })
     }
-    const judgedSide = await judgeGptSide({
-      userId: input.userId,
-      rows: sideJudgeRows,
-      startedAt: input.startedAt,
-    })
+    const [judgedSide, visionSame] = await Promise.all([
+      judgeGptSide({
+        userId: input.userId,
+        rows: sideJudgeRows,
+        startedAt: input.startedAt,
+      }),
+      judgeSameAnswers({
+        userId: input.userId,
+        rows: visionJudgeRows,
+        startedAt: input.startedAt,
+      }),
+    ])
     const gptIndexes = new Set(needsGpt.map((row) => row.index))
     everyProblemCacheable = true
     const unsolved: Array<{
@@ -751,24 +913,36 @@ async function explainStatements(input: {
     for (const item of aligned) {
       const geminiAnswer = geminiByIndex.get(item.index) ?? ''
       const gptAnswer = gptByIndex.get(item.index) ?? ''
-      const agreed = textAgreed.has(item.index) || judgedSame.has(item.index)
+      const picturedItem = pictured.has(item.index)
+      const vision = picturedItem
+        ? mergeVisionPair(item.problem, geminiAnswer, gptAnswer, { trust: visionSame.has(item.index) })
+        : null
+      const agreed = !picturedItem && (textAgreed.has(item.index) || judgedSame.has(item.index))
       const judged = judgedSide.get(item.index)
-      const side = gptIndexes.has(item.index) ? (sideByText.get(item.index) ?? (judged && judged !== 'none' ? judged : '')) : ''
+      const side = picturedItem
+        ? vision?.agreed
+          ? 'check'
+          : ''
+        : gptIndexes.has(item.index)
+          ? (sideByText.get(item.index) ?? (judged && judged !== 'none' ? judged : ''))
+          : ''
       const geminiCheck = { index: item.index, answer: geminiAnswer, knowledge: [] }
-      const merged = agreed
-        ? mergeCheckedProblem(item.problem, geminiCheck, { trust: judgedSame.has(item.index) })
-        : mergeAdjudicatedProblem(
-            item.problem,
-            geminiCheck,
-            side
-              ? {
-                  index: item.index,
-                  pick: side,
-                  answer: side === 'draft' ? item.problem.answer : gptAnswer,
-                }
-              : { index: item.index, pick: 'none', answer: '' },
-            { trust: Boolean(side) }
-          )
+      const merged = vision
+        ? { problem: vision.problem, cacheable: vision.cacheable }
+        : agreed
+          ? mergeCheckedProblem(item.problem, geminiCheck, { trust: judgedSame.has(item.index) })
+          : mergeAdjudicatedProblem(
+              item.problem,
+              geminiCheck,
+              side
+                ? {
+                    index: item.index,
+                    pick: side,
+                    answer: side === 'draft' ? item.problem.answer : gptAnswer,
+                  }
+                : { index: item.index, pick: 'none', answer: '' },
+              { trust: Boolean(side) }
+            )
       if (!merged.problem.answer.trim()) {
         unsolved.push({
           statement: item.problem.statement,
@@ -856,13 +1030,14 @@ export async function readHomeworkImages(input: {
   return { note: read.note, statements: read.statements, photoKey }
 }
 
-/** Chữa các đề học sinh đã đọc lại và sửa tay. Model giải chỉ nhận chữ này, không nhận ảnh. */
+/** Chữa các đề học sinh đã đọc lại và sửa tay. Ảnh chỉ gửi kèm câu có hình minh họa. DeepSeek chỉ nhận chữ. */
 export async function explainReviewedStatements(input: {
   userId: string
   locale: WebLocale
   note: string
   statements: string[]
   photoKey: string
+  images?: HomeworkImagePart[]
 }): Promise<HomeworkGuide | 'ai_unavailable'> {
   const statements = input.statements.map(statementKey).filter(Boolean).slice(0, 8)
   if (!statements.length) return { note: input.note, problems: [] }
@@ -890,6 +1065,7 @@ export async function explainReviewedStatements(input: {
     locale: input.locale,
     note: input.note,
     statements,
+    images: input.images ?? [],
     startedAt: Date.now(),
   })
   if (!explained) return 'ai_unavailable'
@@ -913,6 +1089,7 @@ export async function explainHomeworkImages(input: {
     note: read.note,
     statements: read.statements,
     photoKey: read.photoKey,
+    images: input.images,
   })
 }
 
@@ -928,6 +1105,7 @@ export async function explainHomeworkText(input: {
     locale: input.locale,
     note: '',
     statements,
+    images: [],
     startedAt: Date.now(),
   })
   return explained?.guide ?? 'ai_unavailable'

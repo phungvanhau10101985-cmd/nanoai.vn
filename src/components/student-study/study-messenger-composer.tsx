@@ -48,6 +48,8 @@ type Props = {
   showToolsLabel: string
   emojiLabel: string
   disabled?: boolean
+  /** Khóa ô gõ và biểu cảm. Nút gửi vẫn bấm được. */
+  inputLocked?: boolean
   canSend: boolean
   sending?: boolean
   tools: ReactNode
@@ -113,6 +115,7 @@ export function StudyMessengerComposer({
   showToolsLabel,
   emojiLabel,
   disabled,
+  inputLocked = false,
   canSend,
   sending = false,
   tools,
@@ -272,7 +275,7 @@ export function StudyMessengerComposer({
           id={id}
           rows={1}
           value={value}
-          disabled={disabled}
+          disabled={disabled || inputLocked}
           enterKeyHint="send"
           placeholder={placeholder}
           data-guest-composer-input={guestComposerInput ? '1' : undefined}
@@ -309,7 +312,7 @@ export function StudyMessengerComposer({
             aria-label={emojiLabel}
             title={emojiLabel}
             aria-expanded={emojiOpen}
-            disabled={disabled}
+            disabled={disabled || inputLocked}
             onClick={() => setEmojiOpen((open) => !open)}
           >
             <Smile className="h-6 w-6" strokeWidth={1.75} aria-hidden />

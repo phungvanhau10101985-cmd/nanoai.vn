@@ -126,6 +126,51 @@ export function parseHomeworkChecks(raw: unknown): HomeworkProblemCheck[] | null
   return out
 }
 
+/**
+ * Ghép đáp án vào đúng index đã hỏi.
+ * Khớp hết thì lấy theo index. Bộ index đúng bằng dãy đã hỏi cộng 1 thì hạ một bậc.
+ * Không khớp index nào nhưng đủ số câu thì lấy theo thứ tự model trả.
+ */
+export function alignSolverAnswers(
+  requestedIndexes: number[],
+  solved: HomeworkProblemCheck[] | null
+): Map<number, string> {
+  const aligned = new Map<number, string>()
+  if (!solved?.length || requestedIndexes.length === 0) return aligned
+  const requested = requestedIndexes.filter((index, position) => requestedIndexes.indexOf(index) === position)
+  const byIndex = new Map<number, string>()
+  const inOrder: string[] = []
+  for (const row of solved) {
+    const answer = row.answer.trim()
+    if (!answer || byIndex.has(row.index)) continue
+    byIndex.set(row.index, answer)
+    inOrder.push(answer)
+  }
+  const exactHits = requested.filter((index) => byIndex.has(index)).length
+  if (exactHits === requested.length) {
+    for (const index of requested) aligned.set(index, byIndex.get(index) ?? '')
+    return aligned
+  }
+  const minRequested = Math.min(...requested)
+  const oneBased =
+    !byIndex.has(minRequested) &&
+    byIndex.size === requested.length &&
+    requested.every((index) => byIndex.has(index + 1))
+  if (oneBased) {
+    for (const index of requested) aligned.set(index, byIndex.get(index + 1) ?? '')
+    return aligned
+  }
+  if (exactHits === 0 && inOrder.length === requested.length) {
+    requested.forEach((index, position) => aligned.set(index, inOrder[position] ?? ''))
+    return aligned
+  }
+  for (const index of requested) {
+    const answer = byIndex.get(index)
+    if (answer) aligned.set(index, answer)
+  }
+  return aligned
+}
+
 export type HomeworkSameVerdict = {
   index: number
   same: boolean
@@ -343,6 +388,25 @@ export function mergeCheckedProblem(
     },
     cacheable: false,
   }
+}
+
+/** Đề có hình. DeepSeek không bỏ phiếu. Gemini và GPT khớp thì hiện lời Gemini và giữ phần học. */
+export function mergeVisionPair(
+  guide: HomeworkProblem,
+  geminiAnswer: string,
+  gptAnswer: string,
+  options?: { trust?: boolean }
+): { problem: HomeworkProblem; agreed: boolean; cacheable: boolean } {
+  const gemini = geminiAnswer.trim()
+  const gpt = gptAnswer.trim()
+  const trust = options?.trust === true && Boolean(gemini) && Boolean(gpt)
+  const agreed = Boolean(gemini) && Boolean(gpt) && (trust || answersAgree(gemini, gpt, guide.statement))
+  const merged = mergeCheckedProblem(
+    { ...guide, answer: gemini },
+    { index: 0, answer: gpt, knowledge: [] },
+    { trust: agreed }
+  )
+  return { problem: merged.problem, agreed, cacheable: agreed && merged.cacheable }
 }
 
 /** Đáp án thứ ba trùng bên nào thì trả về bên đó. Trùng cả hai thì lấy bản DeepSeek. */

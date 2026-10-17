@@ -127,6 +127,7 @@ export function ImageRegionPicker({
   const [working, setWorking] = useState(false)
   const [failed, setFailed] = useState(false)
   const [cursor, setCursor] = useState('crosshair')
+  const [pending, setPending] = useState<'region' | 'whole' | null>(null)
   const locked = busy || working
 
   useEffect(() => {
@@ -136,6 +137,7 @@ export function ImageRegionPicker({
       setRect(DEFAULT_CROP_RECT)
       setFailed(false)
       setWorking(false)
+      setPending(null)
       return
     }
     const next = URL.createObjectURL(file)
@@ -143,6 +145,7 @@ export function ImageRegionPicker({
     setReady(false)
     setRect(DEFAULT_CROP_RECT)
     setFailed(false)
+    setPending(null)
     setImgBox({ x: 0, y: 0, w: 0, h: 0 })
     return () => URL.revokeObjectURL(next)
   }, [file])
@@ -250,12 +253,13 @@ export function ImageRegionPicker({
     setRect(drag.origin)
   }
 
-  async function confirm() {
+  async function confirmRect(next: NormRect, kind: 'region' | 'whole') {
     if (!file || locked || !ready) return
     setWorking(true)
+    setPending(kind)
     setFailed(false)
     try {
-      const cropped = await cropImageFile(file, rect)
+      const cropped = await cropImageFile(file, next)
       if (!cropped) {
         setFailed(true)
         return
@@ -265,6 +269,7 @@ export function ImageRegionPicker({
       setFailed(true)
     } finally {
       setWorking(false)
+      setPending(null)
     }
   }
 
@@ -390,23 +395,16 @@ export function ImageRegionPicker({
 
         {failed ? <p className="shrink-0 text-sm text-destructive">{failedLabel}</p> : null}
 
-        <DialogFooter className="shrink-0 gap-2 sm:gap-2">
+        <DialogFooter className="shrink-0 gap-2 sm:justify-end sm:gap-2">
           <Button type="button" variant="outline" disabled={locked} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={locked || !ready}
-            onClick={() => {
-              setRect(FULL_IMAGE_RECT)
-              setFailed(false)
-            }}
-          >
+          <Button type="button" variant="outline" disabled={locked || !ready} onClick={() => void confirmRect(FULL_IMAGE_RECT, 'whole')}>
+            {pending === 'whole' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
             {wholeLabel}
           </Button>
-          <Button type="button" disabled={locked || !ready} onClick={() => void confirm()}>
-            {locked ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
+          <Button type="button" disabled={locked || !ready} onClick={() => void confirmRect(rect, 'region')}>
+            {pending === 'region' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
             {confirmLabel}
           </Button>
         </DialogFooter>

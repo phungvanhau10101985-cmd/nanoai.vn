@@ -131,12 +131,13 @@ export async function openHomeworkHistoryThread(
 }
 
 async function imagesFromForm(
-  formData: FormData
+  formData: FormData,
+  required = true
 ): Promise<{ images: HomeworkImagePart[] } | { code: HomeworkHelpErrorCode }> {
   const files = formData
     .getAll('images')
     .filter((item): item is File => item instanceof File && item.size > 0)
-  if (!files.length) return { code: 'missing_image' }
+  if (!files.length) return required ? { code: 'missing_image' } : { images: [] }
   if (files.length > MAX_IMAGES) return { code: 'too_many' }
 
   const images: HomeworkImagePart[] = []
@@ -181,36 +182,40 @@ export async function readHomeworkPhoto(
   return { ok: true, data: read }
 }
 
-/** Gửi đề đã đọc lại cho model chữa. Không gửi ảnh ở bước này. */
-export async function confirmHomeworkRead(input: {
-  locale: string
-  note: string
-  statements: string[]
-  photoKey: string
-  imageCount: number
-  caption: string
-}): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
+/** Gửi đề đã đọc lại. Ảnh chỉ kèm câu có hình minh họa. DeepSeek chỉ nhận chữ. */
+export async function confirmHomeworkRead(formData: FormData): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
   const student = await requireHomeworkStudent()
   if ('code' in student) return { ok: false, code: student.code }
-  const statements = input.statements.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8)
+  const statements = (() => {
+    try {
+      const parsed = JSON.parse(String(formData.get('statements') ?? '[]')) as unknown
+      if (!Array.isArray(parsed)) return []
+      return parsed.map((item) => String(item).replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8)
+    } catch {
+      return []
+    }
+  })()
   if (!statements.length) return { ok: false, code: 'missing_text' }
-  const locale = localeOf(input.locale)
+  const parsedImages = await imagesFromForm(formData, false)
+  if ('code' in parsedImages) return { ok: false, code: parsedImages.code }
+  const locale = localeFrom(formData.get('locale'))
   const closed = await closedChatCode(student.userId, locale)
   if (closed) return { ok: false, code: closed }
   const explained = await explainReviewedStatements({
     userId: student.userId,
     locale,
-    note: input.note.trim().slice(0, 300),
+    note: String(formData.get('note') ?? '').trim().slice(0, 300),
     statements,
-    photoKey: input.photoKey,
+    photoKey: String(formData.get('photoKey') ?? ''),
+    images: parsedImages.images,
   })
   if (explained === 'ai_unavailable') return { ok: false, code: 'ai_unavailable' }
   if (!explained.problems.length) return { ok: false, code: 'missing_text' }
-  const imageCount = Math.min(MAX_IMAGES, Math.max(0, Math.floor(input.imageCount)))
+  const imageCount = Math.min(MAX_IMAGES, Math.max(parsedImages.images.length, Math.floor(Number(formData.get('imageCount')) || 0)))
   const saved = await rememberTurn({
     userId: student.userId,
     locale,
-    text: input.caption.trim().slice(0, 8000),
+    text: String(formData.get('caption') ?? '').trim().slice(0, 8000),
     imageCount,
     guide: explained,
   })

@@ -95,6 +95,20 @@ export function splitTypedHomework(raw: string): string[] {
   return pieces.slice(0, 8)
 }
 
+const GIVEN_ILLUSTRATION =
+  /(?:hình\s*(?:minh\s*họa|minh\s*hoa|vẽ|bên|dưới|trên|sau|kèm|đính\s*kèm|\d+|[a-d]\b)|như\s+hình|xem\s+hình|theo\s+hình|trên\s+hình|ở\s+hình|\(\s*hình|figure\s*\d|fig\.?\s*\d|as\s+shown|shown\s+in\s+the\s+(?:figure|diagram|graph)|sơ\s*đồ\s*(?:mạch|bên|sau|dưới|\d)|如图|见图|图\s*\d|図\s*\d|그림\s*\d)/i
+
+/** Đề trỏ tới hình có sẵn trên ảnh. Câu chỉ bảo học sinh tự vẽ thì không cần gửi ảnh. */
+export function homeworkStatementNeedsPhoto(statement: string): boolean {
+  const text = statement.normalize('NFKC').replace(/\s+/g, ' ').trim()
+  if (!text) return false
+  const withoutDrawTask = text.replace(
+    /(?:hãy\s+)?(?:vẽ|draw|sketch|plot)\s+(?:lại\s+)?(?:một\s+|các\s+|the\s+|a\s+)?(?:đồ thị|hình|sơ đồ|biểu đồ|graph|figure|diagram|chart)/gi,
+    ' '
+  )
+  return GIVEN_ILLUSTRATION.test(withoutDrawTask)
+}
+
 export function homeworkPhotoCacheKey(images: Array<{ base64: string }>): string {
   const parts = images.map((image) =>
     createHash('sha256').update(Buffer.from(image.base64, 'base64')).digest('hex')
