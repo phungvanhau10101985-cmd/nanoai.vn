@@ -570,9 +570,6 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
   const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
   return (
     <WeddingReadableGlass
-      theme={theme}
-      strength="hero"
-      plate={false}
       className={cn(
         'w-full text-center',
         compact ? 'max-w-[200px] rounded-[1.2rem] p-3' : props.fitViewport ? 'rounded-[1.35rem] p-3 sm:p-4' : 'rounded-[1.5rem] p-4 sm:rounded-[2rem] sm:p-6 lg:p-5',

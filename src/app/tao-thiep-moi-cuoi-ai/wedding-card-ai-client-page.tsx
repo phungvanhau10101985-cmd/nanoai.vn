@@ -2837,8 +2837,6 @@ export default function WeddingCardAiClientPage() {
                     )}
                   >
                     <WeddingReadableGlass
-                      theme={selectedTheme}
-                      strength="hero"
                       className="w-full rounded-2xl px-3 py-3.5"
                     >
                       <div className="flex w-full min-w-0 flex-col items-stretch gap-2 text-center">

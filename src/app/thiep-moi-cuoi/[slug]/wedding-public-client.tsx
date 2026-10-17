@@ -166,6 +166,12 @@ export default function WeddingPublicClient({
   const contentSurface = pageBackground
     ? { background: 'transparent' }
     : weddingBackgroundStyle(pageBackground, theme, 0)
+  const contentWash = pageBackground
+    ? weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.cover, {
+        readingVignette: true,
+        omitImage: true,
+      })
+    : null
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
@@ -756,6 +762,9 @@ export default function WeddingPublicClient({
           urls={backgroundPlateUrls.length > 0 ? backgroundPlateUrls : pageBackground ? [pageBackground] : []}
           fallbackColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
         />
+        {contentWash ? (
+          <div aria-hidden className="pointer-events-none fixed inset-0 z-[1]" style={contentWash} />
+        ) : null}
         {!opened && (
           <>
             <div
@@ -830,7 +839,7 @@ export default function WeddingPublicClient({
           </>
         )}
         {/* Vỏ: tên bay từ hai bên một lần lúc hiện. Bấm mở thì gỡ vỏ và chạy chữ bên trong, không phát lại vỏ. */}
-        <div style={{ opacity: contentVisible ? 1 : 0 }}>
+        <div className="relative z-10" style={{ opacity: contentVisible ? 1 : 0 }}>
         <WeddingInvitationMotion enabled={card.effectsEnabled}>
         <nav
           className={cn(
@@ -850,7 +859,7 @@ export default function WeddingPublicClient({
           className="relative flex min-h-[100svh] items-center justify-center bg-cover bg-center px-3 py-8 sm:px-4 sm:py-12"
           style={contentSurface}
         >
-          <WeddingReadableGlass theme={theme} strength="hero" className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
+          <WeddingReadableGlass className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
             <WeddingCoupleNames
               groomName={card.groomName}
@@ -978,7 +987,7 @@ export default function WeddingPublicClient({
         >
           <div className={PUBLIC_COLUMN}>
             {(groomFamilyLine.trim() || groomHometownLine.trim() || brideFamilyLine.trim() || brideHometownLine.trim()) ? (
-            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.familiesIntro}</p>
               <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 {(groomFamilyLine.trim() || groomHometownLine.trim()) ? (
@@ -1011,7 +1020,7 @@ export default function WeddingPublicClient({
             </WeddingReadableGlass>
             ) : null}
             {(card.groomImageUrl.trim() || card.brideImageUrl.trim()) ? (
-              <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] px-4 py-5 text-center sm:rounded-[2rem] sm:px-6 sm:py-7">
+              <WeddingReadableGlass reveal className="rounded-[1.75rem] px-4 py-5 text-center sm:rounded-[2rem] sm:px-6 sm:py-7">
                 <WeddingCouplePortraits
                   groomName={card.groomName}
                   brideName={card.brideName}
@@ -1029,7 +1038,7 @@ export default function WeddingPublicClient({
                 />
               </WeddingReadableGlass>
             ) : null}
-            <WeddingReadableGlass id="story" theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass id="story" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.coupleIntroTitle}</p>
               <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>
                 {renderWeddingHighlightedText(
@@ -1079,8 +1088,6 @@ export default function WeddingPublicClient({
                   return (
                     <WeddingReadableGlass
                       key={side}
-                      theme={theme}
-                      strength="section"
                       reveal
                       className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-5"
                     >
@@ -1154,7 +1161,7 @@ export default function WeddingPublicClient({
                 })}
               </div>
             ) : (
-            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-5">
+            <WeddingReadableGlass reveal className="rounded-[1.75rem] p-4 text-center sm:rounded-[2rem] sm:p-5">
               {(displayWeddingDateIso ?? weddingDateIso) ? (
                 <WeddingEventCalendarBlock
                   weddingDateIso={(displayWeddingDateIso ?? weddingDateIso)!}
@@ -1215,7 +1222,7 @@ export default function WeddingPublicClient({
             </WeddingReadableGlass>
             )}
             {showBothHouses && !displayDressCode ? null : (
-            <WeddingReadableGlass theme={theme} strength="section" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
+            <WeddingReadableGlass reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               {showBothHouses ? null : (
                 <>
               <p className={cn('flex items-center justify-center gap-2 text-[11px] uppercase tracking-[0.22em] sm:text-xs sm:tracking-[0.3em]', theme.accentText, theme.textGlow)}>
@@ -1395,7 +1402,7 @@ export default function WeddingPublicClient({
           className="bg-cover bg-center px-3 py-12 text-center sm:px-4 sm:py-20"
           style={contentSurface}
         >
-          <WeddingReadableGlass theme={theme} strength="hero" reveal className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
+          <WeddingReadableGlass reveal className="mx-auto max-w-2xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />
             <h2 className={cn('mt-4 font-serif text-3xl font-semibold italic sm:text-4xl', theme.text, theme.textGlowHeading)}>{tx.thankYouTitle}</h2>
             <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}>

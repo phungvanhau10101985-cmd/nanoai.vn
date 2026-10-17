@@ -217,29 +217,6 @@ export function getWeddingMapButtonColors(themeId: string | null | undefined): W
   return WEDDING_MAP_BUTTON_COLORS[themeId || 'luxury'] ?? WEDDING_MAP_BUTTON_COLORS.luxury
 }
 
-/**
- * Nền phía sau khối chữ.
- * Kem ngà ấm trên thiệp sáng, nâu espresso ấm trên thiệp tối.
- * Trắng tinh, đen tuyền, neon và xám lạnh khó nhìn trên ảnh hoa — không dùng.
- * Hai dải hoa văn trái phải giữ nguyên. Cột giữa một độ đậm, không nhạt dần.
- */
-export function weddingTextPlateStyle(
-  themeId: string | null | undefined,
-  strength: 'hero' | 'section' = 'section',
-): { backgroundColor: string; WebkitMaskImage: string; maskImage: string; maskMode: 'alpha' } {
-  const dark = isWeddingDarkTheme(themeId)
-  const peak = dark ? (strength === 'hero' ? 0.78 : 0.7) : strength === 'hero' ? 0.94 : 0.92
-  const rgb = dark ? '28, 20, 14' : '255, 248, 236'
-  const mask =
-    'linear-gradient(90deg, transparent 0%, transparent 24%, #000 28%, #000 72%, transparent 76%, transparent 100%)'
-  return {
-    backgroundColor: `rgba(${rgb},${peak})`,
-    WebkitMaskImage: mask,
-    maskImage: mask,
-    maskMode: 'alpha',
-  }
-}
-
 /** Lớp phủ nhẹ — nền hoa/ảnh AI vẫn hiện rõ, chữ đọc được nhờ textGlow trên theme. */
 export const WEDDING_BG_OVERLAY = {
   cover: 0.22,
