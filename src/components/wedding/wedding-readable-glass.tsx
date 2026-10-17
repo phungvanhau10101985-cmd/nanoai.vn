@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
-import { weddingTextPlateBackground, type WeddingTheme } from '@/lib/wedding/wedding-theme'
+import { weddingTextPlateStyle, type WeddingTheme } from '@/lib/wedding/wedding-theme'
 
 type Props = {
   theme: WeddingTheme
@@ -17,7 +17,7 @@ type Props = {
   plate?: boolean
 }
 
-/** Khối chữ nội dung thiệp: nền kem mờ từ mép vào, giữa rõ nhất. */
+/** Khối chữ nội dung thiệp: hai mép trái phải trong suốt, giữa đậm nhất. */
 export function WeddingReadableGlass({ className, children, id, reveal, theme, strength = 'section', plate = true }: Props) {
   return (
     <div
@@ -30,7 +30,7 @@ export function WeddingReadableGlass({ className, children, id, reveal, theme, s
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 z-0"
-          style={{ background: weddingTextPlateBackground(theme.id, strength) }}
+          style={weddingTextPlateStyle(theme.id, strength)}
         />
       ) : null}
       <div className="relative z-10 w-full min-w-0 [container-type:inline-size]">{children}</div>
