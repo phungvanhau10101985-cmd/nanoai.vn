@@ -236,6 +236,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
+  const acceptingCropRef = useRef(false)
+  const cropBatchRef = useRef<{ files: File[]; previews: string[] }>({ files: [], previews: [] })
   const submitPhotosRef = useRef<(shot: File[], shotPreviews: string[]) => Promise<void>>(async () => {})
   const urlsRef = useRef<string[]>([])
   const frame = useMobileToolChatFrame()
@@ -348,37 +350,60 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       setError(copy.errors.photo_blocked)
       return
     }
-    const incoming = [...list].filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
-    const picked = incoming.slice(0, MAX_IMAGES - files.length)
+    const seen = new Set<string>()
+    const incoming = [...list].filter((file) => {
+      if (file.size <= 0 || !file.type.startsWith('image/') || file.type === 'image/svg+xml') return false
+      const key = `${file.name}|${file.size}|${file.lastModified}|${file.type}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    const picked = incoming.slice(0, MAX_IMAGES)
     if (!picked.length) {
       setError(incoming.length ? copy.errors.too_many : copy.errors.bad_type)
       return
     }
     setError('')
+    cropBatchRef.current = { files: [], previews: [] }
+    setFiles([])
+    setPreviews((current) => {
+      for (const url of current) dropPreview(url)
+      return []
+    })
     setCropIndex(0)
     setCropQueue(picked)
   }
 
   async function acceptCroppedPhoto(file: File) {
-    const compressed = await compressEssayImageForUpload(file)
-    const nextFiles = [...files, compressed].slice(0, MAX_IMAGES)
-    const nextPreviews = [...previews, remember(URL.createObjectURL(compressed))]
-    const next = cropIndex + 1
-    const queueDone = next >= cropQueue.length || nextFiles.length >= MAX_IMAGES
-    setText('')
-    if (!queueDone) {
-      setFiles(nextFiles)
-      setPreviews(nextPreviews)
-      setCropIndex(next)
-      return
+    if (acceptingCropRef.current) return
+    acceptingCropRef.current = true
+    try {
+      const compressed = await compressEssayImageForUpload(file)
+      const batch = cropBatchRef.current
+      const nextFiles = [...batch.files, compressed].slice(0, MAX_IMAGES)
+      const nextPreviews = [...batch.previews, remember(URL.createObjectURL(compressed))].slice(0, MAX_IMAGES)
+      batch.files = nextFiles
+      batch.previews = nextPreviews
+      const next = cropIndex + 1
+      const queueDone = next >= cropQueue.length || nextFiles.length >= MAX_IMAGES
+      setText('')
+      if (!queueDone) {
+        setFiles(nextFiles)
+        setPreviews(nextPreviews)
+        setCropIndex(next)
+        return
+      }
+      cropBatchRef.current = { files: [], previews: [] }
+      flushSync(() => {
+        setCropQueue([])
+        setCropIndex(0)
+        setFiles([])
+        setPreviews([])
+      })
+      await submitPhotosRef.current(nextFiles, nextPreviews)
+    } finally {
+      acceptingCropRef.current = false
     }
-    flushSync(() => {
-      setCropQueue([])
-      setCropIndex(0)
-      setFiles([])
-      setPreviews([])
-    })
-    await submitPhotosRef.current(nextFiles, nextPreviews)
   }
 
   function cancelCrop() {
@@ -857,6 +882,12 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         cancelLabel={copy.cropCancel}
         wholeLabel={copy.cropWhole}
         failedLabel={copy.cropFailed}
+        preview={{
+          title: copy.cropPreviewTitle,
+          hint: copy.cropPreviewHint,
+          confirmLabel: copy.cropPreviewConfirm,
+          retryLabel: copy.cropPreviewRetry,
+        }}
         stepLabel={
           cropQueue.length > 1
             ? copy.cropProgress.replace('{current}', String(cropIndex + 1)).replace('{total}', String(cropQueue.length))

@@ -15,6 +15,13 @@ import {
   type NormRect,
 } from '@/lib/image-region-crop'
 
+export type ImageRegionPreviewCopy = {
+  title: string
+  hint: string
+  confirmLabel: string
+  retryLabel: string
+}
+
 type Props = {
   file: File | null
   busy?: boolean
@@ -25,6 +32,8 @@ type Props = {
   wholeLabel: string
   failedLabel: string
   stepLabel?: string
+  /** Có thì nút chọn khung cắt ảnh rồi mở modal xác nhận / chọn lại. Xác nhận mới gửi đi. */
+  preview?: ImageRegionPreviewCopy
   onConfirm: (file: File) => void | Promise<void>
   onCancel: () => void
 }
@@ -110,6 +119,7 @@ export function ImageRegionPicker({
   wholeLabel,
   failedLabel,
   stepLabel,
+  preview,
   onConfirm,
   onCancel,
 }: Props) {
@@ -120,6 +130,7 @@ export function ImageRegionPicker({
   }, [])
   const stageRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<DragState | null>(null)
+  const confirmLockRef = useRef(false)
   const [url, setUrl] = useState('')
   const [rect, setRect] = useState<NormRect>(DEFAULT_CROP_RECT)
   const [imgBox, setImgBox] = useState<ImgBox>({ x: 0, y: 0, w: 0, h: 0 })
@@ -128,6 +139,9 @@ export function ImageRegionPicker({
   const [failed, setFailed] = useState(false)
   const [cursor, setCursor] = useState('crosshair')
   const [pending, setPending] = useState<'region' | 'whole' | null>(null)
+  const [previewFile, setPreviewFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const choosing = previewFile != null
   const locked = busy || working
 
   useEffect(() => {
@@ -138,6 +152,7 @@ export function ImageRegionPicker({
       setFailed(false)
       setWorking(false)
       setPending(null)
+      setPreviewFile(null)
       return
     }
     const next = URL.createObjectURL(file)
@@ -146,9 +161,20 @@ export function ImageRegionPicker({
     setRect(DEFAULT_CROP_RECT)
     setFailed(false)
     setPending(null)
+    setPreviewFile(null)
     setImgBox({ x: 0, y: 0, w: 0, h: 0 })
     return () => URL.revokeObjectURL(next)
   }, [file])
+
+  useEffect(() => {
+    if (!previewFile) {
+      setPreviewUrl('')
+      return
+    }
+    const next = URL.createObjectURL(previewFile)
+    setPreviewUrl(next)
+    return () => URL.revokeObjectURL(next)
+  }, [previewFile])
 
   useLayoutEffect(() => {
     if (!file) return
@@ -253,8 +279,14 @@ export function ImageRegionPicker({
     setRect(drag.origin)
   }
 
+  function clearPreview() {
+    setPreviewFile(null)
+    setFailed(false)
+  }
+
   async function confirmRect(next: NormRect, kind: 'region' | 'whole') {
-    if (!file || locked || !ready) return
+    if (!file || locked || choosing || !ready || confirmLockRef.current) return
+    confirmLockRef.current = true
     setWorking(true)
     setPending(kind)
     setFailed(false)
@@ -264,12 +296,32 @@ export function ImageRegionPicker({
         setFailed(true)
         return
       }
+      if (kind === 'region' && preview) {
+        setPreviewFile(cropped)
+        return
+      }
       await onConfirm(cropped)
     } catch {
       setFailed(true)
     } finally {
+      confirmLockRef.current = false
       setWorking(false)
       setPending(null)
+    }
+  }
+
+  async function acceptPreview() {
+    if (!previewFile || locked || confirmLockRef.current) return
+    confirmLockRef.current = true
+    setWorking(true)
+    setFailed(false)
+    try {
+      await onConfirm(previewFile)
+    } catch {
+      setFailed(true)
+    } finally {
+      confirmLockRef.current = false
+      setWorking(false)
     }
   }
 
@@ -283,10 +335,11 @@ export function ImageRegionPicker({
     : null
 
   return (
+    <>
     <Dialog
       open={file != null}
       onOpenChange={(next) => {
-        if (!next && !locked) onCancel()
+        if (!next && !locked && !choosing) onCancel()
       }}
     >
       <DialogContent
@@ -396,14 +449,14 @@ export function ImageRegionPicker({
         {failed ? <p className="shrink-0 text-sm text-destructive">{failedLabel}</p> : null}
 
         <DialogFooter className="shrink-0 gap-2 sm:justify-end sm:gap-2">
-          <Button type="button" variant="outline" disabled={locked} onClick={onCancel}>
+          <Button type="button" variant="outline" disabled={locked || choosing} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button type="button" variant="outline" disabled={locked || !ready} onClick={() => void confirmRect(FULL_IMAGE_RECT, 'whole')}>
+          <Button type="button" variant="outline" disabled={locked || choosing || !ready} onClick={() => void confirmRect(FULL_IMAGE_RECT, 'whole')}>
             {pending === 'whole' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
             {wholeLabel}
           </Button>
-          <Button type="button" disabled={locked || !ready} onClick={() => void confirmRect(rect, 'region')}>
+          <Button type="button" disabled={locked || choosing || !ready} onClick={() => void confirmRect(rect, 'region')}>
             {pending === 'region' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
             {confirmLabel}
           </Button>
@@ -411,5 +464,51 @@ export function ImageRegionPicker({
         </div>
       </DialogContent>
     </Dialog>
+    {preview ? (
+      <Dialog
+        open={choosing}
+        onOpenChange={(next) => {
+          if (!next && !locked) clearPreview()
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="z-[100] flex max-h-[min(40rem,90dvh)] w-[calc(100%-1.5rem)] max-w-lg flex-col gap-3 overflow-hidden p-4 sm:p-6"
+          overlayClassName="z-[90]"
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+          }}
+          onPointerDownOutside={(event) => {
+            event.preventDefault()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (locked) event.preventDefault()
+          }}
+        >
+          <DialogHeader className="space-y-1 text-left">
+            <DialogTitle>{preview.title}</DialogTitle>
+            <DialogDescription>{preview.hint}</DialogDescription>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-md bg-black">
+            {previewUrl ? (
+              // Ảnh cắt local: blob vừa tạo, next/image không dùng được.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={previewUrl} alt="" className="max-h-[min(52vh,24rem)] w-full object-contain" />
+            ) : null}
+          </div>
+          {failed ? <p className="text-sm text-destructive">{failedLabel}</p> : null}
+          <DialogFooter className="gap-2 sm:justify-end sm:gap-2">
+            <Button type="button" variant="outline" disabled={locked} onClick={clearPreview}>
+              {preview.retryLabel}
+            </Button>
+            <Button type="button" disabled={locked || !previewFile} onClick={() => void acceptPreview()}>
+              {locked ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden /> : null}
+              {preview.confirmLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ) : null}
+    </>
   )
 }
