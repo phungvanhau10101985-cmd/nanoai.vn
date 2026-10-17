@@ -15,10 +15,12 @@ import {
   homeworkSolutionEventKey,
 } from '@/lib/homework-help/homework-help-solution-cost'
 import {
-  explainHomeworkImages,
   explainHomeworkText,
+  explainReviewedStatements,
+  readHomeworkImages,
   writeHomeworkSolution,
   type HomeworkHelpErrorCode,
+  type HomeworkImagePart,
 } from '@/lib/homework-help/homework-help-ai'
 import type { HomeworkGuide } from '@/lib/homework-help/homework-help-guide'
 import {
@@ -120,44 +122,84 @@ export async function openHomeworkHistoryThread(
   return { ok: true, data: { sessionId, messages, unlockedStatements } }
 }
 
-export async function explainHomeworkPhoto(
+async function imagesFromForm(
   formData: FormData
-): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
-  const auth = await getUserForAction()
-  if ('error' in auth) return { ok: false, code: 'unauthorized' }
-  await beginFeatureTrial(auth.user.id, 'student')
-  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) {
-    return { ok: false, code: 'payment_required' }
-  }
-
+): Promise<{ images: HomeworkImagePart[] } | { code: HomeworkHelpErrorCode }> {
   const files = formData
     .getAll('images')
     .filter((item): item is File => item instanceof File && item.size > 0)
-  if (!files.length) return { ok: false, code: 'missing_image' }
-  if (files.length > MAX_IMAGES) return { ok: false, code: 'too_many' }
+  if (!files.length) return { code: 'missing_image' }
+  if (files.length > MAX_IMAGES) return { code: 'too_many' }
 
-  const images: { mimeType: string; base64: string }[] = []
+  const images: HomeworkImagePart[] = []
   for (const file of files) {
-    if (file.size > MAX_BYTES) return { ok: false, code: 'too_large' }
+    if (file.size > MAX_BYTES) return { code: 'too_large' }
     const mimeType = file.type || 'image/jpeg'
-    if (!ALLOWED.has(mimeType)) return { ok: false, code: 'bad_type' }
+    if (!ALLOWED.has(mimeType)) return { code: 'bad_type' }
     const base64 = Buffer.from(await file.arrayBuffer()).toString('base64')
     images.push({ mimeType, base64 })
   }
+  return { images }
+}
 
-  const locale = localeFrom(formData.get('locale'))
-  const explained = await explainHomeworkImages({
-    userId: auth.user.id,
-    locale,
-    images,
+async function requireHomeworkStudent(): Promise<
+  { userId: string } | { code: HomeworkHelpErrorCode }
+> {
+  const auth = await getUserForAction()
+  if ('error' in auth) return { code: 'unauthorized' }
+  await beginFeatureTrial(auth.user.id, 'student')
+  if (!(await hasStudentStudyAccess({ userId: auth.user.id }))) return { code: 'payment_required' }
+  return { userId: auth.user.id }
+}
+
+/** Chỉ đọc đề trên ảnh. Học sinh sửa tay trước khi model chữa. */
+export async function readHomeworkPhoto(
+  formData: FormData
+): Promise<HomeworkHelpActionResult<{ note: string; statements: string[]; photoKey: string }>> {
+  const student = await requireHomeworkStudent()
+  if ('code' in student) return { ok: false, code: student.code }
+  const parsed = await imagesFromForm(formData)
+  if ('code' in parsed) return { ok: false, code: parsed.code }
+
+  const read = await readHomeworkImages({
+    userId: student.userId,
+    locale: localeFrom(formData.get('locale')),
+    images: parsed.images,
+    force: String(formData.get('force') ?? '') === '1',
   })
-  if (explained === 'unreadable' || explained === 'ai_unavailable') return { ok: false, code: explained }
-  const caption = String(formData.get('text') ?? '').trim().slice(0, 8000)
-  await rememberTurn({
-    userId: auth.user.id,
+  if (read === 'unreadable') return { ok: false, code: 'unreadable' }
+  return { ok: true, data: read }
+}
+
+/** Gửi đề đã đọc lại cho model chữa. Không gửi ảnh ở bước này. */
+export async function confirmHomeworkRead(input: {
+  locale: string
+  note: string
+  statements: string[]
+  photoKey: string
+  imageCount: number
+  caption: string
+}): Promise<HomeworkHelpActionResult<HomeworkGuide>> {
+  const student = await requireHomeworkStudent()
+  if ('code' in student) return { ok: false, code: student.code }
+  const statements = input.statements.map((item) => item.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8)
+  if (!statements.length) return { ok: false, code: 'missing_text' }
+  const locale = localeOf(input.locale)
+  const explained = await explainReviewedStatements({
+    userId: student.userId,
     locale,
-    text: caption,
-    imageCount: images.length,
+    note: input.note.trim().slice(0, 300),
+    statements,
+    photoKey: input.photoKey,
+  })
+  if (explained === 'ai_unavailable') return { ok: false, code: 'ai_unavailable' }
+  if (!explained.problems.length) return { ok: false, code: 'missing_text' }
+  const imageCount = Math.min(MAX_IMAGES, Math.max(0, Math.floor(input.imageCount)))
+  await rememberTurn({
+    userId: student.userId,
+    locale,
+    text: input.caption.trim().slice(0, 8000),
+    imageCount,
     guide: explained,
   })
   return { ok: true, data: explained }

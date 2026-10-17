@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom'
 import { useMobileToolChatFrame } from '@/hooks/use-mobile-tool-chat-frame'
 import { Camera, History, Image as ImageIcon, Loader2, MessageSquarePlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { StudyComposerTool, StudyMessengerComposer } from '@/components/student-study/study-messenger-composer'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -13,12 +14,13 @@ import { compressEssayImageForUpload } from '@/lib/exam-essay-client-image'
 import { homeworkHelpCopy, type HomeworkHelpCopy } from '@/lib/homework-help/homework-help-copy'
 import { HOMEWORK_SOLUTION_CREDIT_COST } from '@/lib/homework-help/homework-help-solution-cost'
 import type { TutorAnswer, TutorLabel } from '@/lib/ai-tutor/ai-tutor-types'
-import { knowledgeLinesAsTags, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
+import { knowledgeLinesAsTags, type HomeworkGuide, type HomeworkProblem } from '@/lib/homework-help/homework-help-guide'
 import { tutorNextBubbleDelayMs, tutorReplyHoldMs } from '@/lib/ai-tutor/ai-tutor-pace'
 import type { HomeworkSessionSummary, HomeworkThreadMessage } from '@/lib/homework-help/homework-help-thread'
 import {
-  explainHomeworkPhoto,
+  confirmHomeworkRead,
   explainTypedHomework,
+  readHomeworkPhoto,
   listHomeworkHistory,
   listUnlockedHomeworkSolutions,
   loadHomeworkThread,
@@ -54,6 +56,16 @@ type TeacherTurn =
   | { id: string; role: 'teacher'; kind: 'note'; text: string }
 
 type ChatLine = UserTurn | TeacherTurn
+
+type PhotoReview = {
+  turnId: string
+  note: string
+  statements: string[]
+  photoKey: string
+  imageCount: number
+  caption: string
+  files: File[]
+}
 
 function sleep(ms: number): Promise<void> {
   if (ms <= 0) return Promise.resolve()
@@ -99,6 +111,64 @@ function linesFromStored(messages: HomeworkThreadMessage[]): ChatLine[] {
   return lines
 }
 
+function PhotoReadReview({
+  copy,
+  note,
+  statements,
+  onChange,
+  onRemove,
+  onConfirm,
+  onReread,
+  onCancel,
+}: {
+  copy: HomeworkHelpCopy
+  note: string
+  statements: string[]
+  onChange: (index: number, value: string) => void
+  onRemove: (index: number) => void
+  onConfirm: () => void
+  onReread: () => void
+  onCancel: () => void
+}) {
+  return (
+    <article className="max-w-[92%] space-y-3 rounded-xl border bg-background p-4">
+      <h2 className="text-sm font-semibold">{copy.reviewTitle}</h2>
+      <p className="text-sm leading-6 text-muted-foreground">{copy.reviewHint}</p>
+      {note ? <p className="text-sm leading-6">{note}</p> : null}
+      {statements.map((statement, index) => (
+        <div key={index} className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {copy.problemLabel.replace('{n}', String(index + 1))}
+            </p>
+            {statements.length > 1 ? (
+              <button type="button" className="text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={() => onRemove(index)}>
+                {copy.reviewRemove}
+              </button>
+            ) : null}
+          </div>
+          <Textarea
+            value={statement}
+            rows={4}
+            onChange={(event) => onChange(index, event.target.value)}
+          />
+        </div>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" onClick={onConfirm}>
+          {copy.reviewConfirm}
+        </Button>
+        <Button type="button" variant="outline" onClick={onReread}>
+          {copy.reviewReread}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          {copy.reviewCancel}
+        </Button>
+      </div>
+    </article>
+  )
+}
+
 function TeacherReplying({ label }: { label: string }) {
   return (
     <article
@@ -135,6 +205,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [sessions, setSessions] = useState<HomeworkSessionSummary[]>([])
   const [paidSolutions, setPaidSolutions] = useState<Set<string>>(() => new Set())
+  const [review, setReview] = useState<PhotoReview | null>(null)
+  const [waitLabel, setWaitLabel] = useState<'reading' | 'replying'>('replying')
   const scrollerRef = useRef<HTMLDivElement | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
@@ -225,11 +297,12 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
   }, [locale, problemStatementKey])
 
+  const reviewing = review != null
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
     scroller.scrollTo({ top: scroller.scrollHeight })
-  }, [messages, busy, previews.length])
+  }, [messages, busy, previews.length, reviewing])
 
   function remember(url: string) {
     urlsRef.current.push(url)
@@ -242,7 +315,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }
 
   function queuePhotos(list: FileList | readonly File[] | null) {
-    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0) return
+    if (!list?.length || busyRef.current || !ready || cropQueue.length > 0 || review) return
     const incoming = [...list].filter((file) => file.size > 0 && file.type.startsWith('image/') && file.type !== 'image/svg+xml')
     const picked = incoming.slice(0, MAX_IMAGES - files.length)
     if (!picked.length) {
@@ -297,6 +370,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return []
     })
     setError('')
+    setReview(null)
   }
 
   const loadHistory = useCallback(async () => {
@@ -382,6 +456,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
       return []
     })
     setSessionId(result.data.sessionId)
+    setReview(null)
     setPaidSolutions((current) => {
       const next = new Set(current)
       for (const statement of result.data.unlockedStatements) next.add(statement)
@@ -390,17 +465,45 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     placeComposerSoon()
   }
 
+  async function showGuide(guide: HomeworkGuide, startedAt: number) {
+    const hold = tutorReplyHoldMs(startedAt, Date.now())
+    if (hold > 0) await sleep(hold)
+    const problems = guide.problems
+    if (problems.length === 0) {
+      setMessages((current) => [
+        ...current,
+        { id: localId(), role: 'teacher', kind: 'note', text: guide.note || copy.emptyPhoto },
+      ])
+      return
+    }
+    for (let index = 0; index < problems.length; index += 1) {
+      if (index > 0) await sleep(tutorNextBubbleDelayMs(problems[index - 1].statement))
+      const problem = problems[index]
+      setMessages((current) => [...current, { id: localId(), role: 'teacher', kind: 'problem', problem }])
+    }
+  }
+
+  function failHomework(code: string) {
+    if (code === 'payment_required') {
+      setNeedsPlan(true)
+      setError('')
+      return
+    }
+    setError(copy.errors[code] ?? copy.errors.ai_unavailable)
+  }
+
   async function send() {
     const question = text.trim()
     const shot = files
     const shotPreviews = previews
-    if (busyRef.current || !ready) return
+    if (busyRef.current || !ready || review) return
     if (!question && shot.length === 0) {
       setError(copy.errors.missing_text)
       return
     }
     busyRef.current = true
     setBusy(true)
+    setWaitLabel(shot.length ? 'reading' : 'replying')
     setError('')
     setText('')
     setFiles([])
@@ -422,45 +525,119 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
 
     try {
-      const result = shot.length
-        ? await (async () => {
-            const formData = new FormData()
-            formData.set('locale', locale)
-            if (question) formData.set('text', question)
-            for (const file of shot) formData.append('images', file)
-            return explainHomeworkPhoto(formData)
-          })()
-        : await explainTypedHomework({ locale, text: question })
-
-      if (!result.ok) {
-        restoreDraft()
-        if (result.code === 'payment_required') {
-          setNeedsPlan(true)
-          setError('')
-        } else setError(copy.errors[result.code] ?? copy.errors.ai_unavailable)
+      if (shot.length) {
+        const formData = new FormData()
+        formData.set('locale', locale)
+        for (const file of shot) formData.append('images', file)
+        const result = await readHomeworkPhoto(formData)
+        if (!result.ok) {
+          restoreDraft()
+          failHomework(result.code)
+          return
+        }
+        setReview({
+          turnId: pending.id,
+          note: result.data.note,
+          statements: result.data.statements.length ? result.data.statements : [''],
+          photoKey: result.data.photoKey,
+          imageCount: shot.length,
+          caption: question,
+          files: shot,
+        })
         return
       }
 
-      const hold = tutorReplyHoldMs(startedAt, Date.now())
-      if (hold > 0) await sleep(hold)
-      const problems = result.data.problems
-      if (problems.length === 0) {
-        setMessages((current) => [
-          ...current,
-          { id: localId(), role: 'teacher', kind: 'note', text: result.data.note || copy.emptyPhoto },
-        ])
-      } else {
-        for (let index = 0; index < problems.length; index += 1) {
-          if (index > 0) await sleep(tutorNextBubbleDelayMs(problems[index - 1].statement))
-          const problem = problems[index]
-          setMessages((current) => [
-            ...current,
-            { id: localId(), role: 'teacher', kind: 'problem', problem },
-          ])
-        }
+      const result = await explainTypedHomework({ locale, text: question })
+      if (!result.ok) {
+        restoreDraft()
+        failHomework(result.code)
+        return
       }
+      await showGuide(result.data, startedAt)
     } catch {
       restoreDraft()
+      setError(copy.errors.ai_unavailable)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  function cancelReview() {
+    if (!review || busyRef.current) return
+    const draft = review
+    const turn = messages.find((message) => message.id === draft.turnId)
+    setMessages((current) => current.filter((message) => message.id !== draft.turnId))
+    setText(draft.caption)
+    setFiles(draft.files)
+    setPreviews(turn && turn.role === 'user' ? turn.images : [])
+    setReview(null)
+    setError('')
+  }
+
+  async function rereadPhoto() {
+    if (!review || busyRef.current || review.files.length === 0) return
+    busyRef.current = true
+    setBusy(true)
+    setWaitLabel('reading')
+    setError('')
+    try {
+      const formData = new FormData()
+      formData.set('locale', locale)
+      formData.set('force', '1')
+      for (const file of review.files) formData.append('images', file)
+      const result = await readHomeworkPhoto(formData)
+      if (!result.ok) {
+        failHomework(result.code)
+        return
+      }
+      setReview((current) =>
+        current
+          ? {
+              ...current,
+              note: result.data.note,
+              statements: result.data.statements.length ? result.data.statements : [''],
+              photoKey: result.data.photoKey,
+            }
+          : current
+      )
+    } catch {
+      setError(copy.errors.ai_unavailable)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+
+  async function confirmReview() {
+    if (!review || busyRef.current) return
+    const statements = review.statements.map((item) => item.trim()).filter(Boolean)
+    if (!statements.length) {
+      setError(copy.errors.missing_text)
+      return
+    }
+    const draft = review
+    busyRef.current = true
+    setBusy(true)
+    setWaitLabel('replying')
+    setError('')
+    const startedAt = Date.now()
+    try {
+      const result = await confirmHomeworkRead({
+        locale,
+        note: draft.note,
+        statements,
+        photoKey: draft.photoKey,
+        imageCount: draft.imageCount,
+        caption: draft.caption,
+      })
+      if (!result.ok) {
+        failHomework(result.code)
+        return
+      }
+      setReview(null)
+      await showGuide(result.data, startedAt)
+    } catch {
       setError(copy.errors.ai_unavailable)
     } finally {
       busyRef.current = false
@@ -522,7 +699,31 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             />
           )
         )}
-        {busy ? <TeacherReplying label={copy.replying} /> : null}
+        {review && !busy ? (
+          <PhotoReadReview
+            copy={copy}
+            note={review.note}
+            statements={review.statements}
+            onChange={(index, value) => {
+              setReview((current) => {
+                if (!current) return current
+                const statements = current.statements.slice()
+                statements[index] = value
+                return { ...current, statements }
+              })
+            }}
+            onRemove={(index) => {
+              setReview((current) => {
+                if (!current || current.statements.length < 2) return current
+                return { ...current, statements: current.statements.filter((_, item) => item !== index) }
+              })
+            }}
+            onConfirm={() => void confirmReview()}
+            onReread={() => void rereadPhoto()}
+            onCancel={cancelReview}
+          />
+        ) : null}
+        {busy ? <TeacherReplying label={waitLabel === 'reading' ? copy.reading : copy.replying} /> : null}
       </div>
 
       <input
@@ -531,7 +732,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         className="sr-only"
-        disabled={!ready || busy || cropQueue.length > 0}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -543,7 +744,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         accept="image/jpeg,image/png,image/webp"
         capture="environment"
         className="sr-only md:hidden"
-        disabled={!ready || busy || cropQueue.length > 0}
+        disabled={!ready || busy || cropQueue.length > 0 || review != null}
         onChange={(event) => {
           queuePhotos(event.target.files)
           event.target.value = ''
@@ -642,8 +843,8 @@ export default function HoTroLamBaiClient({ locale }: Props) {
         sendLabel={copy.send}
         showToolsLabel={copy.showTools}
         emojiLabel={copy.emoji}
-        disabled={!ready || busy}
-        canSend={Boolean(text.trim()) || files.length > 0}
+        disabled={!ready || busy || review != null}
+        canSend={(Boolean(text.trim()) || files.length > 0) && review == null}
         onPasteImages={(incoming) => queuePhotos(incoming)}
         onPasteImageError={(code) => setError(code === 'too-large' ? copy.errors.too_large : copy.errors.paste_failed)}
         tools={
@@ -652,7 +853,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
               <StudyComposerTool
                 label={copy.takePhoto}
                 htmlFor="homework-help-camera"
-                disabled={!ready || busy || cropQueue.length > 0}
+                disabled={!ready || busy || cropQueue.length > 0 || review != null}
               >
                 <Camera strokeWidth={1.75} aria-hidden />
               </StudyComposerTool>
@@ -660,7 +861,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
             <StudyComposerTool
               label={copy.pickPhoto}
               htmlFor="homework-help-gallery"
-              disabled={!ready || busy || cropQueue.length > 0}
+              disabled={!ready || busy || cropQueue.length > 0 || review != null}
             >
               <ImageIcon strokeWidth={1.75} aria-hidden />
             </StudyComposerTool>

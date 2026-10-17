@@ -815,19 +815,32 @@ async function explainStatements(input: {
   }
 }
 
-export async function explainHomeworkImages(input: {
+export type HomeworkPhotoRead = {
+  note: string
+  statements: string[]
+  photoKey: string
+}
+
+function statementKey(value: string): string {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+/** Đọc chữ trên ảnh. Chưa chữa. `force` bỏ cache để đọc lại ảnh. */
+export async function readHomeworkImages(input: {
   userId: string
   locale: WebLocale
   images: HomeworkImagePart[]
-}): Promise<HomeworkGuide | 'unreadable' | 'ai_unavailable'> {
+  force?: boolean
+}): Promise<HomeworkPhotoRead | 'unreadable'> {
   const photoKey = homeworkPhotoCacheKey(input.images)
-  const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
-  if (cachedPhoto && cachedPhoto.problems.length > 0) {
-    await touchHomeworkPhotoCache(photoKey, input.locale)
-    const savedTopics = await listTutorTopicNames(input.locale)
-    return {
-      note: cachedPhoto.note,
-      problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
+  if (!input.force) {
+    const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
+    if (cachedPhoto && cachedPhoto.problems.length > 0) {
+      return {
+        note: cachedPhoto.note,
+        statements: cachedPhoto.problems.map((problem) => problem.statement),
+        photoKey,
+      }
     }
   }
 
@@ -839,20 +852,67 @@ export async function explainHomeworkImages(input: {
     const again = await readStatements({ ...input, startedAt })
     if (again && !homeworkReadIsThin(again.statements)) read = again
   }
-  if (read.statements.length === 0) return { note: read.note, problems: [] }
+  return { note: read.note, statements: read.statements, photoKey }
+}
+
+/** Chữa các đề học sinh đã đọc lại và sửa tay. Model giải chỉ nhận chữ này, không nhận ảnh. */
+export async function explainReviewedStatements(input: {
+  userId: string
+  locale: WebLocale
+  note: string
+  statements: string[]
+  photoKey: string
+}): Promise<HomeworkGuide | 'ai_unavailable'> {
+  const statements = input.statements.map(statementKey).filter(Boolean).slice(0, 8)
+  if (!statements.length) return { note: input.note, problems: [] }
+
+  const photoKey = /^[a-f0-9]{64}$/.test(input.photoKey) ? input.photoKey : ''
+  if (photoKey) {
+    const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
+    const cachedStatements = cachedPhoto?.problems.map((problem) => statementKey(problem.statement)) ?? []
+    const same =
+      cachedPhoto != null &&
+      cachedStatements.length === statements.length &&
+      cachedStatements.every((item, index) => item === statements[index])
+    if (cachedPhoto && same && cachedPhoto.problems.length > 0) {
+      await touchHomeworkPhotoCache(photoKey, input.locale)
+      const savedTopics = await listTutorTopicNames(input.locale)
+      return {
+        note: cachedPhoto.note || input.note,
+        problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
+      }
+    }
+  }
 
   const explained = await explainStatements({
     userId: input.userId,
     locale: input.locale,
-    note: read.note,
-    statements: read.statements,
-    startedAt,
+    note: input.note,
+    statements,
+    startedAt: Date.now(),
   })
   if (!explained) return 'ai_unavailable'
-  if (explained.everyProblemCacheable) {
+  if (photoKey && explained.everyProblemCacheable) {
     await rememberHomeworkPhotoCache(photoKey, input.locale, explained.guide)
   }
   return explained.guide
+}
+
+export async function explainHomeworkImages(input: {
+  userId: string
+  locale: WebLocale
+  images: HomeworkImagePart[]
+}): Promise<HomeworkGuide | 'unreadable' | 'ai_unavailable'> {
+  const read = await readHomeworkImages(input)
+  if (read === 'unreadable') return 'unreadable'
+  if (read.statements.length === 0) return { note: read.note, problems: [] }
+  return explainReviewedStatements({
+    userId: input.userId,
+    locale: input.locale,
+    note: read.note,
+    statements: read.statements,
+    photoKey: read.photoKey,
+  })
 }
 
 export async function explainHomeworkText(input: {

@@ -28,6 +28,14 @@ export type HomeworkHelpCopy = {
   solutionOpening: string
   solutionTitle: string
   emptyPhoto: string
+  reading: string
+  reviewTitle: string
+  reviewHint: string
+  reviewConfirm: string
+  reviewReread: string
+  reviewCancel: string
+  reviewRemove: string
+  problemLabel: string
   removeImage: string
   cropTitle: string
   cropHint: string
@@ -75,6 +83,15 @@ const VI: HomeworkHelpCopy = {
   solutionOpening: 'Đang mở bài giải…',
   solutionTitle: 'Bài giải',
   emptyPhoto: 'Không thấy câu bài tập trong ảnh. Chụp rõ một câu.',
+  reading: 'Đang đọc đề trong ảnh',
+  reviewTitle: 'Đọc lại đề',
+  reviewHint:
+    'Đọc lại đề trước khi gửi. AI có thể đọc nhầm chữ, số hoặc công thức. Sửa cho đúng rồi mới chữa bài.',
+  reviewConfirm: 'Đề đúng, gửi chữa',
+  reviewReread: 'Đọc lại ảnh',
+  reviewCancel: 'Hủy',
+  reviewRemove: 'Bỏ câu này',
+  problemLabel: 'Câu {n}',
   removeImage: 'Gỡ ảnh',
   cropTitle: 'Chọn vùng cần gửi',
   cropHint: 'Kéo khung hoặc các góc để chỉ giữ phần bài. Phần ngoài khung không gửi lên máy chủ.',
@@ -135,6 +152,15 @@ const EN: HomeworkHelpCopy = {
   solutionOpening: 'Opening the worked solution…',
   solutionTitle: 'Worked solution',
   emptyPhoto: 'No homework question in this photo. Photograph one question clearly.',
+  reading: 'Reading the problem in the photo',
+  reviewTitle: 'Check the problem',
+  reviewHint:
+    'Read the problem again before sending. The reader can misread letters, numbers, or formulas. Correct it, then send it to be solved.',
+  reviewConfirm: 'This is right, solve it',
+  reviewReread: 'Read the photo again',
+  reviewCancel: 'Cancel',
+  reviewRemove: 'Remove this question',
+  problemLabel: 'Question {n}',
   removeImage: 'Remove',
   cropTitle: 'Choose what to send',
   cropHint: 'Drag the frame or its corners so only the work stays inside. Anything outside is not sent to the server.',
@@ -193,6 +219,14 @@ const ZH: HomeworkHelpCopy = {
   solutionOpening: '正在打开详解…',
   solutionTitle: '详解',
   emptyPhoto: '照片里没有题目。请拍清楚一道题。',
+  reading: '正在读取照片里的题目',
+  reviewTitle: '核对题目',
+  reviewHint: '发给老师之前请再读一遍题目。识别可能看错字、数字或公式。改对后再提交批改。',
+  reviewConfirm: '题目无误，开始批改',
+  reviewReread: '重新读照片',
+  reviewCancel: '取消',
+  reviewRemove: '去掉这题',
+  problemLabel: '第 {n} 题',
   removeImage: '移除',
   cropTitle: '选择要发送的区域',
   cropHint: '拖动方框或四角，只保留要交的内容。框外的部分不会发到服务器。',
@@ -253,6 +287,15 @@ const JA: HomeworkHelpCopy = {
   solutionOpening: '解説を開いています…',
   solutionTitle: '詳しい解説',
   emptyPhoto: '写真に問題がありません。1問をはっきり撮ってください。',
+  reading: '写真の問題を読んでいます',
+  reviewTitle: '問題を読み直す',
+  reviewHint:
+    '送る前にもう一度問題を読んでください。文字、数字、式を読み間違えることがあります。直してから添削に出します。',
+  reviewConfirm: '問題は正しいので添削する',
+  reviewReread: '写真を読み直す',
+  reviewCancel: 'キャンセル',
+  reviewRemove: 'この問題を外す',
+  problemLabel: '問 {n}',
   removeImage: '外す',
   cropTitle: '送る範囲を選ぶ',
   cropHint: '枠や角をドラッグして、必要な部分だけ残してください。枠の外はサーバーに送りません。',
@@ -313,6 +356,15 @@ const KO: HomeworkHelpCopy = {
   solutionOpening: '풀이를 여는 중…',
   solutionTitle: '자세한 풀이',
   emptyPhoto: '사진에 문제가 없습니다. 한 문제를 선명하게 찍으세요.',
+  reading: '사진 속 문제를 읽는 중',
+  reviewTitle: '문제를 다시 읽기',
+  reviewHint:
+    '보내기 전에 문제를 다시 읽어 주세요. 글자, 숫자, 식을 잘못 읽을 수 있습니다. 고친 다음 첨삭에 보냅니다.',
+  reviewConfirm: '문제가 맞으면 첨삭 보내기',
+  reviewReread: '사진을 다시 읽기',
+  reviewCancel: '취소',
+  reviewRemove: '이 문제 빼기',
+  problemLabel: '문제 {n}',
   removeImage: '빼기',
   cropTitle: '보낼 영역 선택',
   cropHint: '틀이나 모서리를 끌어 필요한 부분만 남기세요. 틀 밖은 서버로 보내지 않습니다.',
