@@ -1,5 +1,6 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
 import { getUserOrBypass } from '@/lib/auth'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { fetchClassesAsMemberForUserPg, fetchClassesMineListForTeacherPg } from '@/lib/db/classes-pg'
 import { buildMetadata } from '@/lib/seo'
 import { getServerDictionary } from '@/lib/i18n/server'
@@ -30,7 +31,13 @@ function mapMineToClassItem(
 
 export default async function LopPage() {
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path="/lop" />
+      </div>
+    )
+  }
 
   const myRows = await fetchClassesMineListForTeacherPg(user.id)
   const memberRows = await fetchClassesAsMemberForUserPg(user.id)

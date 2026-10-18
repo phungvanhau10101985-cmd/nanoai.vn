@@ -1,4 +1,5 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
 import DichAnhTaiLieuClientPage from './dich-anh-tai-lieu-client-page'
 import { Metadata } from 'next'
@@ -32,7 +33,14 @@ export default async function DichAnhTaiLieuPage() {
             ? '문서 이미지 번역 도구를 불러오는 중...'
             : 'Đang tải công cụ dịch ảnh tài liệu...'
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path={seo.path} title={seo.pageTitle} overview={seo.overview} />
+        <FeatureSeoSection seo={seo} showCatalogPrice={false} />
+      </div>
+    )
+  }
 
   const jsonLd = buildJsonLdService(
     seo.serviceName,

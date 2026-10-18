@@ -1,5 +1,6 @@
-import { redirect } from 'next/navigation'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
 import { getUserOrBypass } from '@/lib/auth'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getServerDictionary, getCurrentWebLocale } from '@/lib/i18n/server'
 import { buildMetadata } from '@/lib/seo'
 import { AccountPlanClientPage } from './account-plan-client'
@@ -23,14 +24,19 @@ export async function generateMetadata() {
     path,
     keywords: ['NanoAI', 'giáo trình', 'curriculum', 'trial', 'credits', 'gói giáo trình'],
     locale: OG_LOCALE[locale] ?? 'vi_VN',
-    noIndex: true,
+    noIndex: false,
   })
 }
 
 export default async function AccountPlanPage() {
   const user = await getUserOrBypass()
-  if (!user) {
-    redirect('/auth/login?next=/account/plan')
+  if (!isCatalogShopper(user)) {
+    const { t } = getServerDictionary()
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path="/account/plan" overview={t.featureCatalogOffer.note} />
+      </div>
+    )
   }
 
   const { t } = await getServerDictionary()

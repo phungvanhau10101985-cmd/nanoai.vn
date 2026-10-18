@@ -224,6 +224,19 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
   return items
 }
 
+/** Giá và link đúng hàng trong nguồn cấp dữ liệu cho đúng URL trang. */
+export function catalogOfferForPath(path: string): NanoAiFacebookCatalogItem | null {
+  const normalized = path.startsWith('/') ? path : `/${path}`
+  const key = normalized.length > 1 ? normalized.replace(/\/$/, '') : normalized
+  const items = listNanoAiFacebookCatalogItems()
+  const exact = items.find((item) => item.linkPath === key)
+  if (exact) return exact
+  const prefix = items
+    .filter((item) => key.startsWith(`${item.linkPath}/`))
+    .sort((a, b) => b.linkPath.length - a.linkPath.length)[0]
+  return prefix ?? null
+}
+
 function csvEscapeCell(value: string): string {
   const s = value.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
   if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`

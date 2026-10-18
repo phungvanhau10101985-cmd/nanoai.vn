@@ -1,5 +1,6 @@
 import { Metadata } from 'next'
 import dynamic from 'next/dynamic'
+import { FeatureCatalogPriceLine } from '@/components/catalog/feature-catalog-price-line'
 import { buildMetadata } from '@/lib/seo'
 
 const HocTiengAnhAiClientPage = dynamic(() => import('./hoc-tieng-anh-ai-client-page'), { ssr: false })
@@ -15,6 +16,7 @@ export const metadata: Metadata = buildMetadata({
 export default function HocTiengAnhAiPage() {
   return (
     <div className="app-shell">
+      <FeatureCatalogPriceLine path="/hoc-tieng-anh-ai" withSchema />
       <HocTiengAnhAiClientPage />
     </div>
   )

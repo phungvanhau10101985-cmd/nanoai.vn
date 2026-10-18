@@ -3,7 +3,6 @@ import { JsonLd } from '@/components/seo-json-ld'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import { WeddingCardLanding } from '@/components/wedding/wedding-card-landing'
 import { getUserOrBypass } from '@/lib/auth'
-import { listWeddingBackgroundLibrary } from '@/lib/db/wedding-cards-pg'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildJsonLdService, buildMetadata, SITE_URL } from '@/lib/seo'
@@ -20,17 +19,13 @@ export const metadata: Metadata = buildMetadata({
   keywords: seo.keywords,
 })
 
-async function loadLandingPlates(): Promise<string[]> {
-  try {
-    const rows = await listWeddingBackgroundLibrary(48)
-    return rows
-      .filter((row) => row.imageType === 'master' && row.imageUrl && !row.imageUrl.includes('private_bg'))
-      .slice(0, 6)
-      .map((row) => row.imageUrl)
-  } catch {
-    return []
-  }
-}
+const WEDDING_LANDING_DEMOS = [
+  '/wedding/landing-demo/red-rose.png',
+  '/wedding/landing-demo/rainbow.png',
+  '/wedding/landing-demo/crane.png',
+  '/wedding/landing-demo/peony.png',
+  '/wedding/landing-demo/cream-rose.png',
+]
 
 export default async function TaoThiepMoiCuoiAiPage() {
   const user = await getUserOrBypass()
@@ -39,7 +34,7 @@ export default async function TaoThiepMoiCuoiAiPage() {
   const productJsonLd = buildWeddingCommerceProductJsonLd(`${SITE_URL}${seo.path}`, seo.pageDescription)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
   const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
-  const plates = user ? [] : await loadLandingPlates()
+  const plates = user ? [] : [...WEDDING_LANDING_DEMOS]
 
   return (
     <div className="app-shell">

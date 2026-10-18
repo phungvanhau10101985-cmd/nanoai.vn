@@ -1,4 +1,5 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoVideoTuAnhClientPage from './tao-video-tu-anh-client-page'
 import { Metadata } from 'next'
@@ -22,7 +23,14 @@ export const metadata: Metadata = buildMetadata({
 
 export default async function TaoVideoTuAnhPage() {
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path={seo.path} title={seo.pageTitle} overview={seo.overview} />
+        <FeatureSeoSection seo={seo} showCatalogPrice={false} />
+      </div>
+    )
+  }
 
   const jsonLd = buildJsonLdService(
     seo.serviceName,

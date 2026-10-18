@@ -1,4 +1,5 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
 import TaoNhanGioiThieuSanPhamClientPage from './tao-nhan-gioi-thieu-san-pham-client-page'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
@@ -18,7 +19,14 @@ export const metadata = buildMetadata({
 
 export default async function TaoNhanGioiThieuSanPhamPage() {
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path={seo.path} title={seo.pageTitle} overview={seo.overview} />
+        <FeatureSeoSection seo={seo} showCatalogPrice={false} />
+      </div>
+    )
+  }
 
   const jsonLd = buildJsonLdService(
     seo.serviceName,

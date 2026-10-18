@@ -1,14 +1,17 @@
 import Link from 'next/link'
 import type { FeatureSeoData } from '@/lib/feature-seo'
+import { FeatureCatalogPriceLine } from '@/components/catalog/feature-catalog-price-line'
 import { JsonLd } from '@/components/seo-json-ld'
 import { SITE_URL } from '@/lib/seo'
 import { getCurrentWebLocale } from '@/lib/i18n/server'
 
 interface FeatureSeoSectionProps {
   seo: FeatureSeoData
+  /** Trang đã có khối giá phía trên thì không lặp lại. */
+  showCatalogPrice?: boolean
 }
 
-export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
+export function FeatureSeoSection({ seo, showCatalogPrice = true }: FeatureSeoSectionProps) {
   const locale = getCurrentWebLocale()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) =>
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
@@ -66,6 +69,10 @@ export function FeatureSeoSection({ seo }: FeatureSeoSectionProps) {
           <li className="text-foreground font-medium">{seo.pageTitle}</li>
         </ol>
       </nav>
+
+      {showCatalogPrice ? (
+        <FeatureCatalogPriceLine path={seo.path} title={seo.pageTitle} description={seo.overview} withSchema />
+      ) : null}
 
       <section className="mx-auto mt-10 max-w-4xl rounded-xl border border-border/80 bg-white/80 p-5 sm:p-7 lg:mt-12 lg:max-w-5xl lg:rounded-2xl lg:border-border/60 lg:bg-card/75 lg:p-8 lg:shadow-md lg:backdrop-blur-sm dark:lg:bg-card/50">
         <h2 className="text-xl font-bold text-foreground sm:text-2xl lg:text-[1.65rem] lg:tracking-tight">{seo.h2}</h2>

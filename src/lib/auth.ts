@@ -9,9 +9,6 @@ import {
 import { isValidUuidString } from '@/lib/validate-uuid'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQueryOne } from '@/lib/db/pg-query'
-import { readLoginNextFromHeaders } from '@/lib/auth/app-request-headers'
-import { sanitizeLoginNext } from '@/lib/auth/sanitize-login-next'
-import { isCreditTrialRoute } from '@/lib/credit-trial-routes'
 import {
   buildGuestTrialEmail,
   canGuestUseCreditTrial,
@@ -21,17 +18,6 @@ import {
 } from '@/lib/guest-credit-trial'
 
 const FORCE_REAL_LOGIN_COOKIE = 'force_real_login'
-function getRequestPathForAuth(): string {
-  try {
-    const h = headers()
-    const fromHeader = readLoginNextFromHeaders((name) => h.get(name))
-    if (fromHeader) return sanitizeLoginNext(fromHeader)
-    const raw = h.get('next-url')?.trim() || h.get('x-pathname')?.trim() || '/'
-    return sanitizeLoginNext(raw)
-  } catch {
-    return '/'
-  }
-}
 
 async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
   const email = String(user.email ?? '').trim().toLowerCase()
@@ -65,12 +51,12 @@ async function canonicalizeUserByEmail(user: AppUser): Promise<AppUser> {
   return user
 }
 
-/** Kiểm tra request có phải từ crawler tìm kiếm (Google, Bing...) – để render trang cho SEO thay vì redirect login */
+/** Crawler và bot mua sắm phải thấy cùng HTML với khách chưa đăng nhập. */
 function isSearchEngineCrawler(): boolean {
   try {
     const h = headers()
     const ua = (h.get('user-agent') || '').toLowerCase()
-    return /googlebot|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|embedly|pinterest|whatsapp|telegrambot/i.test(ua)
+    return /googlebot|adsbot-google|storebot-google|google-inspectiontool|mediapartners-google|bingbot|slurp|duckduckbot|baiduspider|yandexbot|facebookexternalhit|twitterbot|linkedinbot|embedly|pinterest|whatsapp|telegrambot/i.test(ua)
   } catch {
     return false
   }
@@ -117,27 +103,19 @@ function getDevUser(): AppUser {
 }
 
 /**
- * Lấy user hiện tại (JWT email) hoặc user giả khi bypass local / crawler.
+ * Lấy user hiện tại (JWT email) hoặc user giả khi bypass local.
+ * Crawler không nhận user giả: trang tính năng render bản công khai giống khách chưa đăng nhập.
  */
 export async function getUserOrBypass(): Promise<AppUser | null> {
   // On localhost (non-prod): dev bypass takes priority — no login needed.
   // Only check real email session when auth is required (production or force_real_login cookie).
   if (!isAuthRequired()) return canonicalizeUserByEmail(getDevUser())
-  if (isSearchEngineCrawler()) return canonicalizeUserByEmail(getDevUser())
+  if (isSearchEngineCrawler()) return null
 
   const emailUser = await getEmailSessionUser()
   if (emailUser) {
     if (!isValidUuidString(emailUser.id)) return null
     return canonicalizeUserByEmail(emailUser)
-  }
-  if (isCreditTrialRoute(getRequestPathForAuth())) {
-    if (await canGuestUseCreditTrial()) {
-      const guest = await resolveGuestTrialUser()
-      if (guest) return guest
-    } else {
-      // Trial exhausted: clear trial user session so UI falls back to Login.
-      clearGuestTrialUserIdCookie()
-    }
   }
   return null
 }

@@ -3605,6 +3605,11 @@ export type Dictionary = {
     loginGateHint: string
     loginGateCta: string
   }
+  featureCatalogOffer: {
+    priceLabel: string
+    cta: string
+    note: string
+  }
   weddingCardAiLanding: {
     eyebrow: string
     title: string
@@ -3613,6 +3618,14 @@ export type Dictionary = {
     samplesTitle: string
     samplesHint: string
     sampleAlt: string
+    guestSectionTitle: string
+    guestSectionLead: string
+    guestNameTitle: string
+    guestNameBody: string
+    guestRsvpTitle: string
+    guestRsvpBody: string
+    guestCountTitle: string
+    guestCountBody: string
     featuresTitle: string
     featureBgTitle: string
     featureBgBody: string
@@ -7709,14 +7722,27 @@ export const VI_DICTIONARY: Dictionary = {
     loginGateHint: 'Soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',
     loginGateCta: 'Đăng nhập để tạo thiệp',
   },
+  featureCatalogOffer: {
+    priceLabel: 'Giá',
+    cta: 'Dùng ngay',
+    note: 'Một lượt dùng tính năng trên NanoAI.',
+  },
   weddingCardAiLanding: {
     eyebrow: 'Thiệp cưới điện tử',
-    title: 'Tạo thiệp cưới, gửi khách một đường dẫn',
-    promise: 'Soạn lời mời và xem trước miễn phí. Xuất bản link để gửi Zalo. Credit chỉ trừ khi AI sinh ảnh nền mới.',
+    title: 'Lời mời gọi đúng tên từng khách',
+    promise: 'Mỗi khách một lời mời riêng. Khách chọn đi hoặc không đi và ghi số người. Bạn thấy rõ từng nhà còn bao nhiêu người để tính cỗ.',
     cta: 'Tạo thiệp ngay',
-    samplesTitle: 'Hoa văn nền',
-    samplesHint: 'Vuốt ngang để xem. Chọn lại trong kho không tốn credit.',
-    sampleAlt: 'Mẫu nền thiệp cưới',
+    samplesTitle: 'Thiệp mẫu',
+    samplesHint: 'Vuốt ngang để xem lời mời gọi tên khách, và nút đi hoặc không đi.',
+    sampleAlt: 'Mẫu thiệp cưới gọi tên khách',
+    guestSectionTitle: 'Biết ai đi, mấy người, để làm cỗ',
+    guestSectionLead: 'Không chỉ một link chung. Lời mời gọi đúng danh xưng và tên. Danh sách đi và không đi tách nhà trai, nhà gái.',
+    guestNameTitle: 'Lời mời riêng từng khách',
+    guestNameBody: 'Gọi đúng chú, cô, anh, chị và tên. Mỗi khách một link, mở ra thấy lời mời của mình.',
+    guestRsvpTitle: 'Đi hoặc không đi',
+    guestRsvpBody: 'Khách bấm đi hoặc không đi trên thiệp, kèm số người lớn và trẻ em.',
+    guestCountTitle: 'Đếm người để tính cỗ',
+    guestCountBody: 'Mỗi nhà một số: người đi, người không đi, và khách chưa trả lời.',
     featuresTitle: 'Đủ thứ để gửi khách',
     featureBgTitle: 'Nền hoa văn',
     featureBgBody: 'Kho nền AI hoặc ảnh của bạn. Xem hoa văn lớn rồi mới chọn.',
@@ -7732,8 +7758,8 @@ export const VI_DICTIONARY: Dictionary = {
     featureMusicBody: 'Nhạc nền, hoa bung khi mở thiệp, cánh hoa khi lướt.',
     featureAlbumTitle: 'Album',
     featureAlbumBody: 'Ảnh cưới xếp trên thiệp. Khách xem không cần tải app.',
-    featureGuestTitle: 'Link và RSVP',
-    featureGuestBody: 'Link chung hoặc link từng khách. Khách xác nhận tham dự và gửi lời chúc.',
+    featureGuestTitle: 'Khách đi, khách không đi',
+    featureGuestBody: 'Lời mời riêng, danh sách từng nhà, số người đi để tính cỗ.',
     featureGiftTitle: 'QR và mừng cưới',
     featureGiftBody: 'Mã QR thiệp và thông tin chuyển khoản trên cùng trang.',
     stepsTitle: 'Ba bước',
@@ -7741,8 +7767,8 @@ export const VI_DICTIONARY: Dictionary = {
     step1Body: 'Xem hoa văn lớn, chọn trong kho hoặc tạo nền AI.',
     step2Title: 'Điền thiệp',
     step2Body: 'Tên, ngày, giờ, địa điểm và lời mời hai bên.',
-    step3Title: 'Gửi link',
-    step3Body: 'Xuất bản rồi gửi Zalo, hoặc gửi từng khách một link riêng.',
+    step3Title: 'Gửi và theo dõi',
+    step3Body: 'Gửi link riêng từng khách. Khi họ trả lời, số người đi hiện rõ để tính cỗ.',
     priceTitle: 'Gói khách mời',
     priceLead: 'Ba khách đầu mỗi bên dùng thử.',
     priceTrialName: 'Dùng thử',
@@ -7759,10 +7785,10 @@ export const VI_DICTIONARY: Dictionary = {
     faq1a: 'Soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi AI sinh ảnh nền mới.',
     faq2q: 'Gói khách mời giá bao nhiêu?',
     faq2a: 'Ba khách đầu mỗi bên dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng.',
-    faq3q: 'Khách xem thiệp thế nào?',
-    faq3a: 'Sau khi xuất bản, bạn có một link. Gửi link chung hoặc link từng khách. Khách mở trên điện thoại, không cần tải app.',
-    faq4q: 'Có RSVP không?',
-    faq4a: 'Có. Khách xác nhận tham dự trên thiệp. Bạn xem danh sách, trạng thái và lời chúc trong trang khách mời.',
+    faq3q: 'Lời mời có gọi đúng tên khách không?',
+    faq3a: 'Có. Mỗi khách một link và một lời mời theo danh xưng, tên. Khách mở thiệp thấy lời của mình, không cần tải app.',
+    faq4q: 'Làm sao biết mấy người để làm cỗ?',
+    faq4a: 'Khách chọn đi hoặc không đi, ghi người lớn và trẻ em. Bạn xem số người đi, số người không đi và khách chưa trả lời. Nhà trai và nhà gái tính riêng.',
     faq5q: 'Chữ tiếng Việt có bị lỗi font không?',
     faq5a: 'Tên, lời mời, ngày giờ do hệ thống sắp chữ, không phụ thuộc chữ vẽ trong ảnh AI, nên tiếng Việt giữ dấu.',
     faq6q: 'Gửi Zalo hoặc Facebook được không?',

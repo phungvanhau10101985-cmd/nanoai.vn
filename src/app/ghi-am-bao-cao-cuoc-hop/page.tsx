@@ -1,4 +1,5 @@
-import { redirectToLogin } from '@/lib/auth/login-redirect'
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { getUserOrBypass } from '@/lib/auth'
 import { Metadata } from 'next'
 import dynamic from 'next/dynamic'
@@ -23,7 +24,14 @@ export const metadata: Metadata = buildMetadata({
 
 export default async function GhiAmBaoCaoCuocHopPage() {
   const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer path={seo.path} title={seo.pageTitle} overview={seo.overview} />
+        <FeatureSeoSection seo={seo} showCatalogPrice={false} />
+      </div>
+    )
+  }
 
   const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)

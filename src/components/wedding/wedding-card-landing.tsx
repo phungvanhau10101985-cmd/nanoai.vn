@@ -22,7 +22,13 @@ function CreateCta(props: { href: string; label: string; id?: string; className?
 export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plates: string[] }) {
   const { copy, loginHref, plates } = props
   const hero = plates[0] ?? ''
+  const guestPoints = [
+    [copy.guestNameTitle, copy.guestNameBody],
+    [copy.guestRsvpTitle, copy.guestRsvpBody],
+    [copy.guestCountTitle, copy.guestCountBody],
+  ] as const
   const features = [
+    [copy.featureGuestTitle, copy.featureGuestBody],
     [copy.featureBgTitle, copy.featureBgBody],
     [copy.featureFrameTitle, copy.featureFrameBody],
     [copy.featureTextTitle, copy.featureTextBody],
@@ -30,7 +36,6 @@ export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plate
     [copy.featurePlanTitle, copy.featurePlanBody],
     [copy.featureMusicTitle, copy.featureMusicBody],
     [copy.featureAlbumTitle, copy.featureAlbumBody],
-    [copy.featureGuestTitle, copy.featureGuestBody],
     [copy.featureGiftTitle, copy.featureGiftBody],
   ] as const
   const steps = [
@@ -71,6 +76,28 @@ export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plate
         ) : null}
       </section>
 
+      <section className="mt-10">
+        <h2 className="text-xl font-bold text-slate-950">{copy.guestSectionTitle}</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{copy.guestSectionLead}</p>
+        <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+          {guestPoints.map(([title, body], index) => (
+            <li
+              key={title}
+              className={
+                index === guestPoints.length - 1
+                  ? 'rounded-2xl bg-rose-700 px-4 py-4 text-white shadow-sm'
+                  : 'rounded-2xl border border-rose-100 bg-white px-4 py-4 shadow-sm'
+              }
+            >
+              <p className="font-semibold">{title}</p>
+              <p className={index === guestPoints.length - 1 ? 'mt-1 text-sm leading-6 text-rose-50' : 'mt-1 text-sm leading-6 text-slate-600'}>
+                {body}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {plates.length > 0 ? (
         <section className="mt-10">
           <h2 className="text-xl font-bold text-slate-950">{copy.samplesTitle}</h2>
@@ -82,7 +109,7 @@ export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plate
                 src={url}
                 alt={copy.sampleAlt}
                 loading="lazy"
-                className="h-72 w-auto shrink-0 snap-start rounded-2xl bg-[#fffaf2] object-contain ring-1 ring-rose-100"
+                className="h-[32rem] w-auto shrink-0 snap-start rounded-2xl bg-[#fffaf2] object-contain ring-1 ring-rose-100"
               />
             ))}
           </div>

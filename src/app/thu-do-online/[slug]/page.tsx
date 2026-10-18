@@ -1,5 +1,6 @@
+import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
 import { notFound } from 'next/navigation'
-import { redirectToLogin } from '@/lib/auth/login-redirect'
 import { getUserOrBypass } from '@/lib/auth'
 import TryOnClientPage from '../try-on-client-page'
 import { Metadata } from 'next'
@@ -45,14 +46,25 @@ export default async function TryOnSlugPage({ params }: { params: { slug: string
   const config = MODE_MAP[params.slug]
   if (!config) notFound()
 
-  const user = await getUserOrBypass()
-  if (!user) redirectToLogin()
-
-  const rawGender = (user?.user_metadata?.gender as string) || 'male'
-  const gender = rawGender === 'female' ? 'female' : 'male'
-
   const seoKey = SEO_KEYS[params.slug]
   const seo = seoKey ? getFeatureSeo(seoKey) : null
+  const pagePath = `/thu-do-online/${params.slug}`
+  const user = await getUserOrBypass()
+  if (!isCatalogShopper(user)) {
+    return (
+      <div className="app-shell">
+        <FeatureCatalogPublicOffer
+          path={pagePath}
+          title={seo?.pageTitle ?? config.title}
+          overview={seo?.overview ?? config.description}
+        />
+        {seo ? <FeatureSeoSection seo={seo} showCatalogPrice={false} /> : null}
+      </div>
+    )
+  }
+
+  const rawGender = (user.user_metadata?.gender as string) || 'male'
+  const gender = rawGender === 'female' ? 'female' : 'male'
 
   const jsonLd = buildJsonLdService(
     seo?.serviceName ?? config.title,
