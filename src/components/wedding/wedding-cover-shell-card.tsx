@@ -42,6 +42,8 @@ type WeddingCoverShellCardProps = {
   coverPhotoEdit?: CoverPhotoEdit
   /** Editor: bấm lỗ khung để chọn / đổi ảnh. Thiệp công khai không truyền. */
   onChoosePhoto?: () => void
+  /** Editor: ngón tay chạm đúng input file, Android Chrome mới mở thư viện ảnh. */
+  onPhotoFile?: (file: File) => void
   choosePhotoLabel?: string
   changePhotoLabel?: string
   /** Editor: nút chọn khung ngay trên ảnh, cùng chỗ với nút chọn ảnh. */
@@ -317,7 +319,7 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
     style: (edit ? { touchAction: 'none' } : undefined) as CSSProperties | undefined,
     onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
       const current = editRef.current
-      if (!current || (event.target as HTMLElement).closest('button')) return
+      if (!current || (event.target as HTMLElement).closest('button, label, input, a')) return
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -602,10 +604,11 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
               breathe={props.breathe}
               openSlowly={props.namesFlyIn && !compact}
             />
-            {props.onChoosePhoto ? (
+            {props.onChoosePhoto || props.onPhotoFile ? (
               <CoverFrameActions
                 hasPhoto
                 onChoosePhoto={props.onChoosePhoto}
+                onPhotoFile={props.onPhotoFile}
                 onChooseFrame={props.onChooseFrame}
                 changePhotoLabel={props.changePhotoLabel}
                 chooseFrameLabel={props.chooseFrameLabel}
@@ -614,6 +617,16 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
             ) : null}
           </CoverPhotoPan>
         </FrameResizeChrome>
+      ) : props.onPhotoFile ? (
+        <CoverDevicePhotoControl
+          label={props.choosePhotoLabel || ''}
+          onFile={props.onPhotoFile}
+          className={cn(
+            'mx-auto flex w-full rounded-xl border border-dashed border-white/50 bg-white/20 font-medium',
+            compact ? 'my-2 h-24 text-[11px]' : 'my-2 h-[clamp(11rem,32dvh,15rem)] text-sm sm:my-3',
+            theme.text,
+          )}
+        />
       ) : props.onChoosePhoto ? (
         <button
           type="button"
@@ -717,10 +730,11 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
                 breathe={props.breathe}
                 openSlowly={props.namesFlyIn && !compact}
               />
-              {props.onChoosePhoto ? (
+              {props.onChoosePhoto || props.onPhotoFile ? (
                 <CoverFrameActions
                   hasPhoto
                   onChoosePhoto={props.onChoosePhoto}
+                  onPhotoFile={props.onPhotoFile}
                   onChooseFrame={props.onChooseFrame}
                   changePhotoLabel={props.changePhotoLabel}
                   chooseFrameLabel={props.chooseFrameLabel}
@@ -729,6 +743,15 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
               ) : null}
             </CoverPhotoPan>
           </FrameResizeChrome>
+        ) : props.onPhotoFile ? (
+          <CoverDevicePhotoControl
+            label={props.choosePhotoLabel || ''}
+            onFile={props.onPhotoFile}
+            className={cn(
+              'mx-auto flex w-full rounded-2xl border border-dashed border-rose-300 bg-white/80 font-medium text-rose-700',
+              compact ? 'h-20 text-[11px]' : 'h-48 text-sm',
+            )}
+          />
         ) : props.onChoosePhoto ? (
           <button
             type="button"
@@ -939,9 +962,37 @@ function CoverFrameViewport(props: {
   )
 }
 
+function CoverDevicePhotoControl(props: {
+  label: string
+  className?: string
+  onFile: (file: File) => void
+}) {
+  return (
+    <label
+      className={cn('relative inline-flex cursor-pointer items-center justify-center', props.className)}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <input
+        type="file"
+        accept="image/*"
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+        style={{ touchAction: 'manipulation' }}
+        onPointerDown={(event) => event.stopPropagation()}
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null
+          event.target.value = ''
+          if (file) props.onFile(file)
+        }}
+      />
+      <span className="pointer-events-none">{props.label}</span>
+    </label>
+  )
+}
+
 function CoverFrameActions(props: {
   hasPhoto: boolean
   onChoosePhoto?: () => void
+  onPhotoFile?: (file: File) => void
   onChooseFrame?: () => void
   choosePhotoLabel?: string
   changePhotoLabel?: string
@@ -949,14 +1000,21 @@ function CoverFrameActions(props: {
   className?: string
   style?: CSSProperties
 }) {
-  if (!props.onChoosePhoto && !props.onChooseFrame) return null
+  if (!props.onChoosePhoto && !props.onPhotoFile && !props.onChooseFrame) return null
+  const photoLabel = (props.hasPhoto ? props.changePhotoLabel : props.choosePhotoLabel) || ''
   return (
     <div
       className={cn('pointer-events-auto absolute z-[8] flex -translate-x-1/2 items-center justify-center gap-1', props.className)}
       style={props.style}
       onPointerDown={(event) => event.stopPropagation()}
     >
-      {props.onChoosePhoto ? (
+      {props.onPhotoFile ? (
+        <CoverDevicePhotoControl
+          label={photoLabel}
+          onFile={props.onPhotoFile}
+          className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow"
+        />
+      ) : props.onChoosePhoto ? (
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -966,7 +1024,7 @@ function CoverFrameActions(props: {
           }}
           className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow"
         >
-          {props.hasPhoto ? props.changePhotoLabel : props.choosePhotoLabel}
+          {photoLabel}
         </button>
       ) : null}
       {props.onChooseFrame ? (
@@ -1135,6 +1193,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       <CoverFrameActions
         hasPhoto={Boolean(props.coverPhotoUrl)}
         onChoosePhoto={props.onChoosePhoto}
+        onPhotoFile={props.onPhotoFile}
         onChooseFrame={props.onChooseFrame}
         choosePhotoLabel={props.choosePhotoLabel}
         changePhotoLabel={props.changePhotoLabel}
@@ -1268,6 +1327,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
               <CoverFrameActions
                 hasPhoto={Boolean(props.coverPhotoUrl)}
                 onChoosePhoto={props.onChoosePhoto}
+                onPhotoFile={props.onPhotoFile}
                 onChooseFrame={props.onChooseFrame}
                 choosePhotoLabel={props.choosePhotoLabel}
                 changePhotoLabel={props.changePhotoLabel}

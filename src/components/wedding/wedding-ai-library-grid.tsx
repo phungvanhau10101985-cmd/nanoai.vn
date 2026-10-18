@@ -181,20 +181,21 @@ export function WeddingReferenceChoice(props: {
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <label className={cn('inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted', props.disabled && 'pointer-events-none opacity-50')}>
-          <Upload className="h-4 w-4" />
-          {props.uploadLabel}
+        <label className={cn('relative inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted', props.disabled && 'pointer-events-none opacity-50')}>
           <input
             type="file"
             accept="image/*"
-            className="sr-only"
             disabled={props.disabled}
+            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+            style={{ touchAction: 'manipulation' }}
             onChange={(event) => {
               const file = event.target.files?.[0]
               event.target.value = ''
               if (file) props.onUpload(file)
             }}
           />
+          <Upload className="pointer-events-none h-4 w-4" />
+          <span className="pointer-events-none">{props.uploadLabel}</span>
         </label>
         <Button type="button" variant="outline" size="sm" disabled={props.disabled} onClick={props.onOpenLibrary}>
           {props.libraryLabel}
