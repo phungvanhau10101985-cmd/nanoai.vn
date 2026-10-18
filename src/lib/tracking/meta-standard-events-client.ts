@@ -51,6 +51,16 @@ function sendMetaStandardEventToServer(params: {
   customData?: Record<string, unknown>
 }): void {
   if (!canUseDom()) return
+  let externalId = ''
+  try {
+    externalId =
+      window.localStorage.getItem('app_guest_account_id') ||
+      window.localStorage.getItem('nanoai_guest_account_id') ||
+      window.localStorage.getItem('app_guest_session_id') ||
+      ''
+  } catch {
+    externalId = ''
+  }
   const body = {
     eventName: params.eventName,
     eventId: params.eventId,
@@ -58,6 +68,7 @@ function sendMetaStandardEventToServer(params: {
     customData: params.customData,
     fbc: readCookie('_fbc'),
     fbp: readCookie('_fbp'),
+    externalId,
   }
   void fetch('/api/tracking/meta-standard-event', {
     method: 'POST',

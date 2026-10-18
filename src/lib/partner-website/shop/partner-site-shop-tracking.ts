@@ -22,6 +22,11 @@ import {
   trackShopGa4PurchaseEvent,
 } from '@/app/messaging/p/[slug]/shop-ga4-ecommerce'
 import { ensureFbqPixelInitialized } from '@/app/messaging/p/[slug]/meta-pixel-session'
+import {
+  partnerSiteMetaMatchingParams,
+  readPartnerSiteMetaClickIds,
+  readPartnerSiteMetaCustomer,
+} from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { parseVndFromPriceHint } from '@/lib/partner-website/shop/cart-line-utils'
 import type { PartnerSiteShopProduct } from '@/lib/partner-website/shop/inventory-to-shop-product'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
@@ -216,18 +221,23 @@ function sendPartnerSiteMetaCapi(
   eventName: MetaCapiEventName,
   eventId: string,
   customData: Record<string, unknown>,
-  options?: { useBeacon?: boolean; customerEmail?: string; customerPhone?: string }
+  options?: { useBeacon?: boolean; customerEmail?: string; customerPhone?: string; externalId?: string }
 ): void {
   const slug = (siteSlug ?? '').trim()
   if (!slug || typeof window === 'undefined') return
+  const clicks = readPartnerSiteMetaClickIds(slug)
+  const customer = readPartnerSiteMetaCustomer()
   const url = `/api/site/${encodeURIComponent(slug)}/tracking/meta-capi`
   const payload = JSON.stringify({
     eventName,
     eventId,
     eventSourceUrl: window.location.href,
     customData,
-    customerEmail: options?.customerEmail,
-    customerPhone: options?.customerPhone,
+    customerEmail: options?.customerEmail || customer.email,
+    customerPhone: options?.customerPhone || customer.phone,
+    externalId: options?.externalId || customer.externalId,
+    fbc: clicks.fbc,
+    fbp: clicks.fbp,
   })
   if (options?.useBeacon && typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
     const sent = navigator.sendBeacon(url, new Blob([payload], { type: 'text/plain' }))
@@ -245,15 +255,30 @@ function trackMetaEvent(
   config: { facebookPixelId?: string | null; siteSlug?: string | null },
   eventName: MetaCapiEventName,
   custom: Record<string, unknown>,
-  options?: { skip?: boolean; eventId?: string; useBeacon?: boolean; customerEmail?: string; customerPhone?: string }
+  options?: {
+    skip?: boolean
+    eventId?: string
+    useBeacon?: boolean
+    customerEmail?: string
+    customerPhone?: string
+    externalId?: string
+  }
 ): void {
   if (options?.skip) return
   const pid = (config.facebookPixelId ?? '').trim()
   if (!pid) return
   if (eventName === 'ViewContent' && shouldDedupeViewContent(custom)) return
   const eventId = options?.eventId ?? randomEventId(eventName)
+  const customer = readPartnerSiteMetaCustomer()
+  const matching = partnerSiteMetaMatchingParams({
+    email: options?.customerEmail || customer.email,
+    phone: options?.customerPhone || customer.phone,
+    externalId: options?.externalId || customer.externalId,
+  })
   const firePixel = () => {
-    if (!ensureFbqPixelInitialized(pid) || typeof window.fbq !== 'function') return
+    if (!ensureFbqPixelInitialized(pid, Object.keys(matching).length ? matching : undefined) || typeof window.fbq !== 'function') {
+      return
+    }
     window.fbq('track', eventName, custom, { eventID: eventId })
   }
   if (isShopFbqReady()) firePixel()
@@ -262,6 +287,7 @@ function trackMetaEvent(
     useBeacon: options?.useBeacon,
     customerEmail: options?.customerEmail,
     customerPhone: options?.customerPhone,
+    externalId: options?.externalId,
   })
 }
 

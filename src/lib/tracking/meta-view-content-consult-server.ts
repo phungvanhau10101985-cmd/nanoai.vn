@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { cookies, headers } from 'next/headers'
 import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-inventory-pg'
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import {
   buildMetaCommerceCustomDataFromInventoryRow,
   buildMetaViewContentFromInventoryRow,
@@ -32,15 +33,11 @@ function getClientIpFromHeaders(): string | null {
 }
 
 function normalizeFbc(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  if (/^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(v)) return v
-  return null
+  return normalizeMetaFbc(raw)
 }
 
 function normalizeFbp(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  if (/^fb\.1\.\d+\.\d+$/.test(v)) return v
-  return null
+  return normalizeMetaFbp(raw)
 }
 
 function buildFbcFromPathFbclid(pathWithQuery: string): string | null {

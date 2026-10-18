@@ -1,10 +1,12 @@
 'use client'
 
+import { metaClickSubdomainIndex, normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
+
 const COOKIE_MAX_AGE_SEC = 90 * 24 * 60 * 60
 const META_CLICK_ID_MAX_AGE_MS = COOKIE_MAX_AGE_SEC * 1000
 const META_CLOCK_SKEW_MS = 5 * 60 * 1000
-const FBP_RE = /^fb\.\d+\.(\d{13})\.\d+$/
-const FBC_RE = /^fb\.\d+\.(\d{13})\.[A-Za-z0-9_-]+$/
+const FBP_RE = /^fb\.\d{1,3}\.(\d{13})\.\d+$/
+const FBC_RE = /^fb\.\d{1,3}\.(\d{13})\.\S+$/
 
 function lsKey(kind: 'fbclid' | 'fbc' | 'fbp', siteSlug: string): string {
   return `pw_meta_${kind}:${siteSlug.trim().toLowerCase()}`
@@ -58,15 +60,16 @@ function hasValidMetaCreationTime(value: string | null | undefined, pattern: Reg
 }
 
 export function isValidMetaFbp(value: string | null | undefined): value is string {
-  return hasValidMetaCreationTime(value, FBP_RE)
+  return Boolean(normalizeMetaFbp(value) && hasValidMetaCreationTime(value, FBP_RE))
 }
 
 export function isValidMetaFbc(value: string | null | undefined): value is string {
-  return Boolean(value && value.trim().length <= 512 && hasValidMetaCreationTime(value, FBC_RE))
+  return Boolean(normalizeMetaFbc(value) && hasValidMetaCreationTime(value, FBC_RE))
 }
 
 function newFbp(): string {
-  return `fb.1.${Date.now()}.${Math.floor(Math.random() * 1e16)}`
+  const idx = typeof location !== 'undefined' ? metaClickSubdomainIndex(location.hostname) : 1
+  return `fb.${idx}.${Date.now()}.${Math.floor(Math.random() * 1e16)}`
 }
 
 function fbcFromFbclid(fbclid: string, existing?: string | null): string {
@@ -74,7 +77,8 @@ function fbcFromFbclid(fbclid: string, existing?: string | null): string {
   if (existing && isValidMetaFbc(existing) && existing.endsWith(`.${clid}`)) {
     return existing
   }
-  return `fb.1.${Date.now()}.${clid}`
+  const idx = typeof location !== 'undefined' ? metaClickSubdomainIndex(location.hostname) : 1
+  return `fb.${idx}.${Date.now()}.${clid}`
 }
 
 /** Persist `fbclid` → `_fbc` + scoped localStorage before Pixel init. */
@@ -108,6 +112,55 @@ export function persistPartnerSiteMetaClickIds(siteSlug: string): { fbp?: string
   return {
     ...(isValidMetaFbp(fbp) ? { fbp } : {}),
     ...(isValidMetaFbc(fbc) ? { fbc } : {}),
+  }
+}
+
+/** Đọc `_fbc` / `_fbp` đã lưu. Không tạo id mới. */
+export function readPartnerSiteMetaClickIds(siteSlug?: string | null): { fbp?: string; fbc?: string } {
+  const slug = (siteSlug ?? '').trim().toLowerCase()
+  const cookieFbc = readCookie('_fbc')
+  const storedFbc = slug ? lsGet(lsKey('fbc', slug)) : ''
+  const fbc = isValidMetaFbc(cookieFbc) ? cookieFbc : isValidMetaFbc(storedFbc) ? storedFbc : ''
+  const cookieFbp = readCookie('_fbp')
+  const storedFbp = slug ? lsGet(lsKey('fbp', slug)) : ''
+  const fbp = isValidMetaFbp(cookieFbp) ? cookieFbp : isValidMetaFbp(storedFbp) ? storedFbp : ''
+  return {
+    ...(fbp ? { fbp } : {}),
+    ...(fbc ? { fbc } : {}),
+  }
+}
+
+const cachedCustomer: { email?: string; phone?: string; externalId?: string } = {}
+
+function readStoredAccountId(): string {
+  return (
+    lsGet('app_guest_account_id') ||
+    lsGet('nanoai_guest_account_id') ||
+    readCookie('app_guest_account_id') ||
+    readCookie('app_guest_account_sync') ||
+    lsGet('app_guest_session_id') ||
+    lsGet('nanoai_guest_session_id') ||
+    readCookie('app_guest_session_id') ||
+    ''
+  )
+}
+
+/** Nhớ email / SĐT / ID khách để mọi sự kiện CAPI sau đó gửi kèm. */
+export function rememberPartnerSiteMetaCustomer(src: PartnerSiteMetaAdvancedMatching): void {
+  const email = (src.email || '').trim().toLowerCase()
+  const phone = (src.phone || '').trim()
+  const externalId = String(src.externalId ?? '').trim()
+  if (email.includes('@')) cachedCustomer.email = email
+  if (phone) cachedCustomer.phone = phone
+  if (externalId) cachedCustomer.externalId = externalId
+}
+
+export function readPartnerSiteMetaCustomer(): { email?: string; phone?: string; externalId?: string } {
+  const externalId = cachedCustomer.externalId || readStoredAccountId()
+  return {
+    ...(cachedCustomer.email ? { email: cachedCustomer.email } : {}),
+    ...(cachedCustomer.phone ? { phone: cachedCustomer.phone } : {}),
+    ...(externalId ? { externalId } : {}),
   }
 }
 

@@ -334,6 +334,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
           partnerId: partner.partnerId,
           order: done.order,
           request,
+          externalId: thread.linkedUserId || thread.guestAccountId,
         }).catch((e) => console.warn('[order PATCH cart] meta purchase', e))
       } else {
         try {
@@ -341,6 +342,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
             partnerId: partner.partnerId,
             order: done.order,
             request,
+            externalId: thread.linkedUserId || thread.guestAccountId,
           })
         } catch (e) {
           console.warn('[order PATCH cart] meta purchase', e)
@@ -409,6 +411,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ slug:
         partnerId: partner.partnerId,
         order: done.order,
         request,
+        externalId: thread.linkedUserId || thread.guestAccountId,
       })
     } catch (e) {
       console.warn('[order PATCH] meta purchase', e)

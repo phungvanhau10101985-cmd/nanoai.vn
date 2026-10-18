@@ -13,6 +13,7 @@ import {
 import {
   persistPartnerSiteMetaClickIds,
   partnerSiteMetaMatchingParams,
+  rememberPartnerSiteMetaCustomer,
 } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import { PW_SHOP_SOFT_NAV_EVENT } from '@/components/partner-website/shop/partner-site-soft-nav-relay'
 import { sanitizePartnerShopCustomEmbedHtml } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
@@ -145,19 +146,23 @@ async function applyAdvancedMatching(siteSlug: string, pixelId: string): Promise
     })
     if (!res.ok) return
     const json = (await res.json()) as {
-      email?: string
-      customer_name?: string
-      greeting_name?: string
-      phone?: string
-      guest_account_id?: string
-      linked_user_id?: string
+      external_id?: string | null
+      profile?: {
+        email?: string | null
+        customer_name?: string | null
+        greeting_name?: string | null
+        customer_phone?: string | null
+      } | null
     }
-    const params = partnerSiteMetaMatchingParams({
-      email: json.email,
-      phone: json.phone,
-      fullName: json.customer_name || json.greeting_name,
-      externalId: json.linked_user_id || json.guest_account_id,
-    })
+    const profile = json.profile
+    const customer = {
+      email: profile?.email,
+      phone: profile?.customer_phone,
+      fullName: profile?.customer_name || profile?.greeting_name,
+      externalId: json.external_id,
+    }
+    rememberPartnerSiteMetaCustomer(customer)
+    const params = partnerSiteMetaMatchingParams(customer)
     if (Object.keys(params).length) ensureFbqPixelInitialized(pixelId, params)
   } catch {
     /* ignore */

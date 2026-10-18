@@ -8,6 +8,7 @@ import {
 import { fetchPartnerWebsiteByPartnerIdPg } from '@/lib/db/messaging-partner-websites-pg'
 import { normalizePartnerShopCurrency } from '@/lib/partner-website/shop/partner-shop-currency'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
+import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import {
   buildMetaPurchaseCustomDataFromOrder,
   sendMetaPurchaseConversionsApi,
@@ -55,13 +56,11 @@ function eventSourceUrlFromRequest(request: NextRequest): string {
 }
 
 function normalizeFbc(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  return /^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(v) ? v : null
+  return normalizeMetaFbc(raw)
 }
 
 function normalizeFbp(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  return /^fb\.1\.\d+\.\d+$/.test(v) ? v : null
+  return normalizeMetaFbp(raw)
 }
 
 /**
@@ -71,6 +70,8 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
   partnerId: string
   order: PartnerOrderRow
   request: NextRequest
+  /** ID khách thô (user hoặc guest account). */
+  externalId?: string | null
 }): Promise<MetaPurchaseClientPayload | null> {
   const secrets = await fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg(params.partnerId)
   const pixelId = secrets?.facebook_pixel_id?.trim() ?? ''
@@ -111,6 +112,7 @@ export async function runMetaPurchaseAfterOrderComplete(params: {
       fbp: normalizeFbp(params.request.cookies.get('_fbp')?.value),
       customerEmail: params.order.customer_email,
       customerPhone: params.order.customer_phone,
+      externalId: params.externalId,
       customData: base,
     }).then((r) => {
       if (!r.ok) console.warn('[Meta CAPI Purchase]', r.error)
@@ -135,6 +137,11 @@ export async function sendPartnerMetaPurchaseCapiOnPaymentConfirmed(params: {
   partnerId: string
   order: PartnerOrderRow
   eventSourceUrl?: string | null
+  externalId?: string | null
+  fbc?: string | null
+  fbp?: string | null
+  clientIp?: string | null
+  userAgent?: string | null
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const secrets = await fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg(params.partnerId)
   const pixelId = secrets?.facebook_pixel_id?.trim() ?? ''
@@ -168,10 +175,13 @@ export async function sendPartnerMetaPurchaseCapiOnPaymentConfirmed(params: {
     accessToken: capi,
     eventId,
     eventSourceUrl,
-    clientIp: null,
-    userAgent: null,
+    clientIp: params.clientIp ?? null,
+    userAgent: params.userAgent ?? null,
+    fbc: normalizeFbc(params.fbc),
+    fbp: normalizeFbp(params.fbp),
     customerEmail: params.order.customer_email,
     customerPhone: params.order.customer_phone,
+    externalId: params.externalId,
     customData,
   })
 }

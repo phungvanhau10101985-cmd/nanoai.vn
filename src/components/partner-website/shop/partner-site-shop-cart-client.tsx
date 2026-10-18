@@ -71,6 +71,7 @@ import { nextPartnerSaleRefreshDelayMs } from '@/lib/partner-website/promotions/
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
 import { PW_SHOP_CART_PAGE_CSS } from '@/lib/partner-website/shop/partner-site-cart-page-css'
 import { scrollPartnerShopViewportToTop } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
+import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import {
   PartnerSiteShopEmptyState,
   PartnerSiteShopSkeleton,
@@ -1103,6 +1104,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
     setCheckoutBusy(true)
     setStatus('')
     setNeedsAuth(false)
+    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
     const quoteByLineId = new Map((quote?.lines ?? []).map((line) => [line.lineId, line]))
     const checkoutLines = selectedItems.map((item) => ({
       itemId: item.card.inventory_id || item.id,
@@ -1238,6 +1240,7 @@ export function PartnerSiteShopCartClient({ siteSlug, partnerSlug, locale, chatP
             transactionId: created.id,
             value: partnerOrderPayableTotal(created),
             lines: checkoutLines,
+            customerEmail: created.customer_email?.trim() || undefined,
             customerPhone: orderPhone.trim() || undefined,
           })
         }

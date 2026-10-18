@@ -43,6 +43,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     {
       ok: true,
       profile,
+      external_id: visitor.thread.linkedUserId || visitor.thread.guestAccountId || visitor.accountKey || null,
       shopAdmin: shopAdmin
         ? { href: shopAdmin.href, inboxHref: shopAdmin.inboxHref, role: shopAdmin.role }
         : null,

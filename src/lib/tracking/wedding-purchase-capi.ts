@@ -1,11 +1,27 @@
 import { loadAdminIntegrationsValueJsonByKey } from '@/lib/db/admin-integrations-settings-pg'
 import { getAuthUserEmailFromPg } from '@/lib/db/auth-user-email-pg'
 import { getPublicAppUrlForServer } from '@/lib/auth/public-app-url'
+import { normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import { sendMetaPurchaseConversionsApi } from '@/lib/tracking/meta-purchase-events'
 import { weddingPackPaymentCustomData, weddingPurchaseEventId } from '@/lib/wedding/wedding-commerce-events'
 import type { WeddingGuestPackId } from '@/lib/wedding/wedding-guest-pack'
 
 const INTEGRATIONS_KEY = 'admin_integrations_config'
+
+function cookieFromRequest(request: Request, name: string): string | null {
+  const raw = request.headers.get('cookie') || ''
+  for (const part of raw.split(';')) {
+    const trimmed = part.trim()
+    if (!trimmed.startsWith(`${name}=`)) continue
+    const value = trimmed.slice(name.length + 1)
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
+  }
+  return null
+}
 
 function clientIpFromRequest(request: Request): string | null {
   const xff = request.headers.get('x-forwarded-for')
@@ -55,7 +71,10 @@ export async function sendWeddingGuestPackPurchaseCapi(input: {
     eventSourceUrl: `${origin}/tao-thiep-moi-cuoi-ai/khach-moi`,
     clientIp: clientIpFromRequest(input.request),
     userAgent: input.request.headers.get('user-agent'),
+    fbc: normalizeMetaFbc(cookieFromRequest(input.request, '_fbc')),
+    fbp: normalizeMetaFbp(cookieFromRequest(input.request, '_fbp')),
     customerEmail: email,
+    externalId: input.userId,
     customData: {
       value: custom.value,
       currency: custom.currency,

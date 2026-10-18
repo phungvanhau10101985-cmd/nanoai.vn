@@ -74,6 +74,7 @@ type DepositOrder = PartnerOrderDiscountFields & {
   status: string
   payment_reference?: string | null
   customer_email?: string | null
+  customer_phone?: string | null
   created_at?: string | null
   required_amount?: number | null
   paid_amount?: number | null
@@ -358,6 +359,8 @@ export function PartnerSiteShopDepositClient({
           transactionId: order.id,
           value,
           lines: catalogTrackingLines(order, catalogItems),
+          customerEmail: order.customer_email?.trim() || undefined,
+          customerPhone: order.customer_phone?.trim() || undefined,
         })
       }
     }

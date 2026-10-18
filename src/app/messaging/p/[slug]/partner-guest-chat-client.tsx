@@ -66,6 +66,7 @@ import {
   trackingProductFromGa4Input,
   trackingProductFromMetaViewContent,
 } from '@/lib/partner-website/shop/partner-site-shop-tracking'
+import { rememberPartnerSiteMetaCustomer } from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
 import type { ShopGa4ProductInput } from './shop-ga4-ecommerce'
 import { GuestWidgetOrderDetailDialog } from '@/components/messaging/guest-widget-order-detail-dialog'
@@ -518,6 +519,8 @@ type GuestOrderGa4Snapshot = {
   subtotal_amount?: number | null
   amount_after_discount?: number | null
   required_amount?: number | null
+  customer_email?: string | null
+  customer_phone?: string | null
 }
 
 type CurrentOrderPickedLine = {
@@ -939,6 +942,8 @@ function trackGuestPurchaseFromOrderSnapshot(
           quantity: qty,
         },
       ],
+      customerEmail: order?.customer_email?.trim() || undefined,
+      customerPhone: order?.customer_phone?.trim() || undefined,
     },
     options
   )
@@ -976,6 +981,8 @@ function trackGuestPurchaseFromCatalogItems(
           quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
         }
       }),
+      customerEmail: order?.customer_email?.trim() || undefined,
+      customerPhone: order?.customer_phone?.trim() || undefined,
     },
     options
   )
@@ -3983,6 +3990,7 @@ export function PartnerGuestChatClient({
       toast({ title: `Vui lòng điền: ${missing.join(', ')}`, variant: 'destructive' })
       return
     }
+    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
     trackPartnerSiteBeginCheckout(
       adsTracking,
       cartItems.map((item) => guestCardToTrackingProduct(item.card, item.quantity))
@@ -4477,6 +4485,7 @@ export function PartnerGuestChatClient({
     }
     const picked = buildCurrentOrderSelection()
     if (!picked) return
+    rememberPartnerSiteMetaCustomer({ phone: orderPhone.trim() })
     if (activeOrderCard) {
       trackPartnerSiteBeginCheckout(adsTracking, [
         guestCardToTrackingProduct(activeOrderCard, picked.totalQty),

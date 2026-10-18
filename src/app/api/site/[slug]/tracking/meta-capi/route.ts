@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { loadPartnerSiteShopContext } from '@/lib/partner-website/shop/load-partner-site-shop-context'
 import { fetchMessagingPartnerFacebookMetaSecretsByPartnerIdFromPg } from '@/lib/db/messaging-partners-pg'
+import { normalizeMetaExternalId, normalizeMetaFbc, normalizeMetaFbp } from '@/lib/tracking/meta-click-ids'
 import { type MetaCommerceCustomData } from '@/lib/tracking/meta-view-content'
 
 export const dynamic = 'force-dynamic'
@@ -19,14 +20,15 @@ function clientIpFromRequest(request: NextRequest): string | null {
   return null
 }
 
-function normalizeFbc(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  return /^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(v) ? v : null
-}
-
-function normalizeFbp(raw: string | null | undefined): string | null {
-  const v = String(raw ?? '').trim()
-  return /^fb\.1\.\d+\.\d+$/.test(v) ? v : null
+function firstMetaId(
+  normalize: (raw: string | null | undefined) => string | null,
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const raw of candidates) {
+    const hit = normalize(raw)
+    if (hit) return hit
+  }
+  return null
 }
 
 /**
@@ -49,6 +51,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     customData?: MetaCommerceCustomData
     customerEmail?: string
     customerPhone?: string
+    externalId?: string
+    fbc?: string
+    fbp?: string
   }
   try {
     // sendBeacon gửi Content-Type `text/plain` — body vẫn là JSON string, parse thủ công.
@@ -89,10 +94,11 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     eventSourceUrl,
     clientIp: clientIpFromRequest(request),
     userAgent: request.headers.get('user-agent'),
-    fbc: normalizeFbc(request.cookies.get('_fbc')?.value),
-    fbp: normalizeFbp(request.cookies.get('_fbp')?.value),
+    fbc: firstMetaId(normalizeMetaFbc, request.cookies.get('_fbc')?.value, body.fbc),
+    fbp: firstMetaId(normalizeMetaFbp, request.cookies.get('_fbp')?.value, body.fbp),
     customerEmail: body.customerEmail,
     customerPhone: body.customerPhone,
+    externalId: normalizeMetaExternalId(body.externalId),
     events: [{ event_name: eventName as EventName, event_id: eventId, custom_data: customData }],
   })
 

@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       fbp: (p.fbp as string | null) ?? null,
       customerEmail: (p.customerEmail as string | null) ?? null,
       customerPhone: (p.customerPhone as string | null) ?? null,
+      externalId: (p.externalId as string | null) ?? null,
       events: [
         {
           event_name: ev.event_name,

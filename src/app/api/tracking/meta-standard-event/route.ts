@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getJwtUserFromRequest } from '@/lib/auth/email-jwt-middleware'
 import { loadAdminIntegrationsValueJsonByKey } from '@/lib/db/admin-integrations-settings-pg'
+import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
 
 export const dynamic = 'force-dynamic'
 
@@ -131,13 +133,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, skipped: true, reason: 'missing_pixel_or_token' })
   }
 
-  const user_data: Record<string, string> = {}
-  const ip = clientIpFromRequest(request)
-  if (ip) user_data.client_ip_address = ip
-  const ua = request.headers.get('user-agent')?.trim()
-  if (ua) user_data.client_user_agent = ua.slice(0, 512)
-  if (/^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(fbc)) user_data.fbc = fbc
-  if (/^fb\.1\.\d+\.\d+$/.test(fbp)) user_data.fbp = fbp
+  const sessionUser = await getJwtUserFromRequest(request).catch(() => null)
+  const user_data = buildMetaCapiUserData({
+    clientIp: clientIpFromRequest(request),
+    userAgent: request.headers.get('user-agent'),
+    fbc: fbc || request.cookies.get('_fbc')?.value,
+    fbp: fbp || request.cookies.get('_fbp')?.value,
+    customerEmail: sessionUser?.email || readString(body, 'customerEmail'),
+    customerPhone: readString(body, 'customerPhone'),
+    externalId: sessionUser?.sub || readString(body, 'externalId'),
+  })
 
   const custom_data = sanitizeCustomData(body.customData)
   if (datasetId) {

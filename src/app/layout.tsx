@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 import Script from "next/script";
 import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
 import { normalizeGoogleAdsConversionLabel } from "@/lib/partner-website/shop/normalize-ads-conversion-label";
+import { metaClickIdHeadBootstrapJs } from "@/lib/tracking/meta-click-ids";
 import { fetchMessagingPartnerBySlugFromPg } from "@/lib/db/messaging-partners-pg";
 import { isPgConfigured } from "@/lib/db/pool";
 import { headers } from "next/headers";
@@ -699,6 +700,7 @@ export default async function RootLayout({
           <>
             <Script id="meta-pixel-base" strategy="afterInteractive">
               {`
+                ${metaClickIdHeadBootstrapJs()}
                 !function(f,b,e,v,n,t,s)
                 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
                 n.callMethod.apply(n,arguments):n.queue.push(arguments)};

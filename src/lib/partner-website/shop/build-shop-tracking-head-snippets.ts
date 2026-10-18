@@ -3,6 +3,7 @@
  * cấm import `pg` / `pool` ở đây. Đọc DB nằm ở `load-partner-shop-google-tag-ids.ts`.
  */
 import type { PartnerSiteShopTrackingConfig } from '@/lib/partner-website/shop/partner-site-shop-tracking-types'
+import { metaClickIdHeadBootstrapJs } from '@/lib/tracking/meta-click-ids'
 import {
   partnerShopVerifyMetaTags,
   sanitizePartnerShopCustomEmbedHtml,
@@ -76,7 +77,7 @@ export function buildShopTrackingHeadSnippets(config: PartnerSiteShopTrackingCon
   if (meta) {
     const pid = escapeScriptString(meta)
     snippets.push(`<!-- Meta Pixel -->
-<script>!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('set','autoConfig',false,'${pid}');fbq('init','${pid}');</script>`)
+<script>${metaClickIdHeadBootstrapJs()}!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod? n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');fbq('set','autoConfig',false,'${pid}');fbq('init','${pid}');</script>`)
   }
 
   const tiktok = (config.tiktokPixelId ?? '').trim()
@@ -122,6 +123,7 @@ export function buildPartnerShopMetaPixelInstall(
   return {
     pixelId: id,
     inlineJs: [
+      metaClickIdHeadBootstrapJs(),
       `!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');`,
       `fbq('set','autoConfig',false,'${id}');`,
       `fbq('init','${id}');`,

@@ -2,7 +2,7 @@ import type { MessagingPartnerInventoryRow } from '@/lib/db/messaging-partner-in
 import { catalogContentId } from '@/lib/messaging/catalog-content-id'
 import { decodeHtmlEntitiesLite } from '@/lib/tracking/decode-html-entities-lite'
 import { parseVndAmountFromPriceHint } from '@/lib/tracking/parse-vnd-from-price-hint'
-import { hashMetaCapiEmail, hashMetaCapiPhone } from '@/lib/tracking/meta-capi-hash'
+import { buildMetaCapiUserData } from '@/lib/tracking/meta-capi-user-data'
 
 export type MetaViewContentClientPayload = {
   eventId: string
@@ -99,6 +99,8 @@ export async function sendMetaConversionsApiBatch(params: {
   /** Email/SĐT thô — hash SHA-256 nội bộ trước khi gửi (Advanced Matching, xem meta-capi-hash.ts). */
   customerEmail?: string | null
   customerPhone?: string | null
+  /** ID khách thô. Meta không bắt buộc băm. */
+  externalId?: string | null
   events: Array<{
     event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
     event_id: string
@@ -110,25 +112,7 @@ export async function sendMetaConversionsApiBatch(params: {
   if (params.events.length === 0) return { ok: false, error: 'no_events' }
   const url = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(params.pixelId.trim())}/events`
   const eventTime = Math.floor(Date.now() / 1000)
-  const user_data: Record<string, string | string[]> = {}
-  if (params.clientIp && /^[\d.:a-fA-Fx]+$/.test(params.clientIp.trim())) {
-    user_data.client_ip_address = params.clientIp.trim()
-  }
-  if (params.userAgent && params.userAgent.trim()) {
-    user_data.client_user_agent = params.userAgent.trim().slice(0, 512)
-  }
-  const fbc = String(params.fbc ?? '').trim()
-  if (/^fb\.1\.\d+\.[A-Za-z0-9_-]+$/.test(fbc)) {
-    user_data.fbc = fbc
-  }
-  const fbp = String(params.fbp ?? '').trim()
-  if (/^fb\.1\.\d+\.\d+$/.test(fbp)) {
-    user_data.fbp = fbp
-  }
-  const emHash = hashMetaCapiEmail(params.customerEmail)
-  if (emHash) user_data.em = [emHash]
-  const phHash = hashMetaCapiPhone(params.customerPhone)
-  if (phHash) user_data.ph = [phHash]
+  const user_data = buildMetaCapiUserData(params)
   const body = {
     data: params.events.map((ev) => ({
       event_name: ev.event_name,
@@ -170,6 +154,7 @@ export async function sendMetaConversionsApiBatchWithOutbox(params: {
   fbp?: string | null
   customerEmail?: string | null
   customerPhone?: string | null
+  externalId?: string | null
   events: Array<{
     event_name: 'ViewContent' | 'AddToCart' | 'InitiateCheckout' | 'Purchase'
     event_id: string
@@ -197,6 +182,7 @@ export async function sendMetaConversionsApiBatchWithOutbox(params: {
           fbp: params.fbp ?? null,
           customerEmail: params.customerEmail ?? null,
           customerPhone: params.customerPhone ?? null,
+          externalId: params.externalId ?? null,
           event: ev,
         },
         lastError: result.error,

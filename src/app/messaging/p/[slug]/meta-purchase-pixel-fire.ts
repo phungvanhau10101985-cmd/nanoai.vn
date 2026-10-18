@@ -1,5 +1,9 @@
 'use client'
 
+import {
+  partnerSiteMetaMatchingParams,
+  readPartnerSiteMetaCustomer,
+} from '@/lib/partner-website/shop/partner-site-meta-attribution'
 import type { MetaPurchaseClientPayload } from '@/lib/tracking/meta-purchase-events'
 import { ensureFbqPixelInitialized } from './meta-pixel-session'
 
@@ -11,7 +15,8 @@ declare global {
 
 export function fireMetaPurchasePixelEvents(payload: MetaPurchaseClientPayload): void {
   if (typeof window === 'undefined') return
-  if (!ensureFbqPixelInitialized(payload.pixelId)) return
+  const matching = partnerSiteMetaMatchingParams(readPartnerSiteMetaCustomer())
+  if (!ensureFbqPixelInitialized(payload.pixelId, Object.keys(matching).length ? matching : undefined)) return
   const w = window
   if (!w.fbq) return
 

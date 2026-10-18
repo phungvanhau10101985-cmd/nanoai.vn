@@ -123,6 +123,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ partnerId:
         partnerId,
         order: done.order,
         request: req,
+        externalId: customerRef,
       })
     } catch (e) {
       console.warn('[headless checkout] meta purchase', e)
