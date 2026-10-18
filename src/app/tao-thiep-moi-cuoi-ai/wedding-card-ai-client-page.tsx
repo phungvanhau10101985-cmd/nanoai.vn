@@ -107,6 +107,7 @@ import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingCoverShellCard, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
+import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingCountdownBlock } from '@/components/wedding/wedding-countdown-block'
@@ -3560,29 +3561,14 @@ function DeviceImagePicker(props: {
   onFiles: (files: File[]) => void
 }) {
   return (
-    <label
-      className={cn(
-        'relative inline-flex cursor-pointer items-center justify-center gap-2',
-        props.className,
-        props.disabled && 'pointer-events-none opacity-60',
-      )}
-    >
-      <input
-        type="file"
-        accept={props.accept ?? 'image/*'}
-        multiple={props.multiple}
-        disabled={props.disabled}
-        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-        style={{ touchAction: 'manipulation' }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onChange={(event) => {
-          const files = Array.from(event.target.files ?? [])
-          event.target.value = ''
-          if (files.length) props.onFiles(files)
-        }}
-      />
-      <span className="pointer-events-none inline-flex items-center justify-center gap-2">{props.label}</span>
-    </label>
+    <WeddingDeviceFileInput
+      className={cn('gap-2', props.className)}
+      label={props.label}
+      accept={props.accept}
+      multiple={props.multiple}
+      disabled={props.disabled}
+      onFiles={props.onFiles}
+    />
   )
 }
 
@@ -3612,24 +3598,15 @@ function ImageUploadField(props: {
   const shell = props.shell ?? null
   const photoActions = (
     <div className="pointer-events-auto absolute inset-x-0 bottom-2 z-[6] flex justify-center gap-1.5 px-2">
-      <label
-        className="relative inline-flex cursor-pointer rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
-        onPointerDown={(event) => event.stopPropagation()}
-      >
-        <input
-          id={props.inputId}
-          type="file"
-          accept="image/*"
-          className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-          style={{ touchAction: 'manipulation' }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onChange={(event) => {
-            props.onFileChange(event.target.files?.[0] ?? null)
-            event.target.value = ''
-          }}
-        />
-        <span className="pointer-events-none">{props.choosePhotoLabel ?? 'Chọn ảnh'}</span>
-      </label>
+      <WeddingDeviceFileInput
+        inputId={props.inputId}
+        className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
+        label={props.choosePhotoLabel ?? 'Chọn ảnh'}
+        onFiles={(files) => {
+          const file = files[0]
+          if (file) props.onFileChange(file)
+        }}
+      />
       {props.onChooseFrame ? (
         <button
           type="button"
@@ -3782,7 +3759,7 @@ function CoverPhotoCropEditor(props: {
         aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {
           const target = event.target
-          if (target instanceof Element && target.closest('button, label, input, a')) return
+          if (target instanceof Element && target.closest('button, label, input, a, [data-wedding-file-anchor]')) return
           dragRef.current = {
             pointerId: event.pointerId,
             startX: event.clientX,

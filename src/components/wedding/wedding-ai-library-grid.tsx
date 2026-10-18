@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Eye, Loader2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { cn } from '@/lib/utils'
 
 export type WeddingAiLibraryTile = {
@@ -181,22 +182,20 @@ export function WeddingReferenceChoice(props: {
         </div>
       )}
       <div className="mt-3 flex flex-wrap gap-2">
-        <label className={cn('relative inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted', props.disabled && 'pointer-events-none opacity-50')}>
-          <input
-            type="file"
-            accept="image/*"
-            disabled={props.disabled}
-            className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-            style={{ touchAction: 'manipulation' }}
-            onChange={(event) => {
-              const file = event.target.files?.[0]
-              event.target.value = ''
-              if (file) props.onUpload(file)
-            }}
-          />
-          <Upload className="pointer-events-none h-4 w-4" />
-          <span className="pointer-events-none">{props.uploadLabel}</span>
-        </label>
+        <WeddingDeviceFileInput
+          disabled={props.disabled}
+          className={cn('gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted', props.disabled && 'opacity-50')}
+          label={
+            <>
+              <Upload className="h-4 w-4" />
+              {props.uploadLabel}
+            </>
+          }
+          onFiles={(files) => {
+            const file = files[0]
+            if (file) props.onUpload(file)
+          }}
+        />
         <Button type="button" variant="outline" size="sm" disabled={props.disabled} onClick={props.onOpenLibrary}>
           {props.libraryLabel}
         </Button>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
+import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
@@ -319,7 +320,7 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
     style: (edit ? { touchAction: 'none' } : undefined) as CSSProperties | undefined,
     onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
       const current = editRef.current
-      if (!current || (event.target as HTMLElement).closest('button, label, input, a')) return
+      if (!current || (event.target as HTMLElement).closest('button, label, input, a, [data-wedding-file-anchor]')) return
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -968,24 +969,14 @@ function CoverDevicePhotoControl(props: {
   onFile: (file: File) => void
 }) {
   return (
-    <label
-      className={cn('relative inline-flex cursor-pointer items-center justify-center', props.className)}
-      onPointerDown={(event) => event.stopPropagation()}
-    >
-      <input
-        type="file"
-        accept="image/*"
-        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
-        style={{ touchAction: 'manipulation' }}
-        onPointerDown={(event) => event.stopPropagation()}
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null
-          event.target.value = ''
-          if (file) props.onFile(file)
-        }}
-      />
-      <span className="pointer-events-none">{props.label}</span>
-    </label>
+    <WeddingDeviceFileInput
+      className={props.className}
+      label={props.label}
+      onFiles={(files) => {
+        const file = files[0]
+        if (file) props.onFile(file)
+      }}
+    />
   )
 }
 
