@@ -1,9 +1,9 @@
-import Link from 'next/link'
 import { Metadata } from 'next'
 import { JsonLd } from '@/components/seo-json-ld'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
-import { Button } from '@/components/ui/button'
+import { WeddingCardLanding } from '@/components/wedding/wedding-card-landing'
 import { getUserOrBypass } from '@/lib/auth'
+import { listWeddingBackgroundLibrary } from '@/lib/db/wedding-cards-pg'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildJsonLdService, buildMetadata, SITE_URL } from '@/lib/seo'
@@ -20,6 +20,18 @@ export const metadata: Metadata = buildMetadata({
   keywords: seo.keywords,
 })
 
+async function loadLandingPlates(): Promise<string[]> {
+  try {
+    const rows = await listWeddingBackgroundLibrary(48)
+    return rows
+      .filter((row) => row.imageType === 'master' && row.imageUrl && !row.imageUrl.includes('private_bg'))
+      .slice(0, 6)
+      .map((row) => row.imageUrl)
+  } catch {
+    return []
+  }
+}
+
 export default async function TaoThiepMoiCuoiAiPage() {
   const user = await getUserOrBypass()
   const { t } = getServerDictionary()
@@ -27,28 +39,22 @@ export default async function TaoThiepMoiCuoiAiPage() {
   const productJsonLd = buildWeddingCommerceProductJsonLd(`${SITE_URL}${seo.path}`, seo.pageDescription)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
   const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
+  const plates = user ? [] : await loadLandingPlates()
 
   return (
     <div className="app-shell">
       <JsonLd data={jsonLd} />
       <JsonLd data={productJsonLd} />
       <JsonLd data={faqJsonLd} />
-      <CreationToolPageShell currentHref={seo.path}>
-        {user ? (
+      {user ? (
+        <CreationToolPageShell currentHref={seo.path}>
           <WeddingCardAiClientPage />
-        ) : (
-          <section className="mx-auto max-w-3xl rounded-3xl bg-gradient-to-br from-rose-50 via-white to-amber-50 p-6 shadow-sm ring-1 ring-rose-100 sm:p-8">
-            <p className="text-sm font-medium text-rose-600">{t.tool.wedding_invitation_ai}</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-950 md:text-3xl">{seo.pageTitle}</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">{t.weddingCardAiBrief.loginGateLead}</p>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">{t.weddingCardAiBrief.loginGateHint}</p>
-            <Button asChild className="mt-5">
-              <Link href={loginHref}>{t.weddingCardAiBrief.loginGateCta}</Link>
-            </Button>
-          </section>
-        )}
-      </CreationToolPageShell>
+        </CreationToolPageShell>
+      ) : (
+        <WeddingCardLanding copy={t.weddingCardAiLanding} loginHref={loginHref} plates={plates} />
+      )}
       <FeatureSeoSection seo={seo} />
+      {user ? null : <div className="h-16 lg:hidden" aria-hidden />}
     </div>
   )
 }

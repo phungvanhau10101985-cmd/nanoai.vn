@@ -3605,6 +3605,65 @@ export type Dictionary = {
     loginGateHint: string
     loginGateCta: string
   }
+  weddingCardAiLanding: {
+    eyebrow: string
+    title: string
+    promise: string
+    cta: string
+    samplesTitle: string
+    samplesHint: string
+    sampleAlt: string
+    featuresTitle: string
+    featureBgTitle: string
+    featureBgBody: string
+    featureFrameTitle: string
+    featureFrameBody: string
+    featureTextTitle: string
+    featureTextBody: string
+    featureSidesTitle: string
+    featureSidesBody: string
+    featurePlanTitle: string
+    featurePlanBody: string
+    featureMusicTitle: string
+    featureMusicBody: string
+    featureAlbumTitle: string
+    featureAlbumBody: string
+    featureGuestTitle: string
+    featureGuestBody: string
+    featureGiftTitle: string
+    featureGiftBody: string
+    stepsTitle: string
+    step1Title: string
+    step1Body: string
+    step2Title: string
+    step2Body: string
+    step3Title: string
+    step3Body: string
+    priceTitle: string
+    priceLead: string
+    priceTrialName: string
+    priceTrialDetail: string
+    price100Name: string
+    price100Detail: string
+    price200Name: string
+    price200Detail: string
+    priceUnlimitedName: string
+    priceUnlimitedDetail: string
+    priceNote: string
+    faqTitle: string
+    faq1q: string
+    faq1a: string
+    faq2q: string
+    faq2a: string
+    faq3q: string
+    faq3a: string
+    faq4q: string
+    faq4a: string
+    faq5q: string
+    faq5a: string
+    faq6q: string
+    faq6a: string
+  }
   weddingCardAiImage: {
     customReferenceLabel: string
     customReferenceHint: string
@@ -3632,6 +3691,9 @@ export type Dictionary = {
     backgroundLibraryTitle: string
     backgroundLibraryHint: string
     backgroundLibraryEmpty: string
+    backgroundPreviewOpen: string
+    backgroundPreviewTitle: string
+    backgroundPreviewSelect: string
     createBackgroundAi: string
     createBackgroundModalTitle: string
     createBackgroundButton: string
@@ -7647,6 +7709,65 @@ export const VI_DICTIONARY: Dictionary = {
     loginGateHint: 'Soạn lời mời tiếng Việt và gửi thiệp điện tử chỉ với một đường dẫn. Chỉ tốn credit khi AI sinh ảnh mới.',
     loginGateCta: 'Đăng nhập để tạo thiệp',
   },
+  weddingCardAiLanding: {
+    eyebrow: 'Thiệp cưới điện tử',
+    title: 'Tạo thiệp cưới, gửi khách một đường dẫn',
+    promise: 'Soạn lời mời và xem trước miễn phí. Xuất bản link để gửi Zalo. Credit chỉ trừ khi AI sinh ảnh nền mới.',
+    cta: 'Tạo thiệp ngay',
+    samplesTitle: 'Hoa văn nền',
+    samplesHint: 'Vuốt ngang để xem. Chọn lại trong kho không tốn credit.',
+    sampleAlt: 'Mẫu nền thiệp cưới',
+    featuresTitle: 'Đủ thứ để gửi khách',
+    featureBgTitle: 'Nền hoa văn',
+    featureBgBody: 'Kho nền AI hoặc ảnh của bạn. Xem hoa văn lớn rồi mới chọn.',
+    featureFrameTitle: 'Khung và ảnh',
+    featureFrameBody: 'Vỏ thiệp, ảnh cặp đôi và khung chân dung.',
+    featureTextTitle: 'Chữ tiếng Việt',
+    featureTextBody: 'Tên, ngày giờ và lời mời do hệ thống sắp chữ, không phụ thuộc chữ vẽ trong ảnh.',
+    featureSidesTitle: 'Nhà trai và nhà gái',
+    featureSidesBody: 'Mỗi bên một ngày, giờ, địa điểm và bản đồ.',
+    featurePlanTitle: 'Lịch trình',
+    featurePlanBody: 'Đón khách, làm lễ, khai tiệc — từng mốc trên thiệp.',
+    featureMusicTitle: 'Nhạc và hiệu ứng',
+    featureMusicBody: 'Nhạc nền, hoa bung khi mở thiệp, cánh hoa khi lướt.',
+    featureAlbumTitle: 'Album',
+    featureAlbumBody: 'Ảnh cưới xếp trên thiệp. Khách xem không cần tải app.',
+    featureGuestTitle: 'Link và RSVP',
+    featureGuestBody: 'Link chung hoặc link từng khách. Khách xác nhận tham dự và gửi lời chúc.',
+    featureGiftTitle: 'QR và mừng cưới',
+    featureGiftBody: 'Mã QR thiệp và thông tin chuyển khoản trên cùng trang.',
+    stepsTitle: 'Ba bước',
+    step1Title: 'Chọn nền',
+    step1Body: 'Xem hoa văn lớn, chọn trong kho hoặc tạo nền AI.',
+    step2Title: 'Điền thiệp',
+    step2Body: 'Tên, ngày, giờ, địa điểm và lời mời hai bên.',
+    step3Title: 'Gửi link',
+    step3Body: 'Xuất bản rồi gửi Zalo, hoặc gửi từng khách một link riêng.',
+    priceTitle: 'Gói khách mời',
+    priceLead: 'Ba khách đầu mỗi bên dùng thử.',
+    priceTrialName: 'Dùng thử',
+    priceTrialDetail: '3 khách mỗi bên',
+    price100Name: '100 khách',
+    price100Detail: '149.000đ',
+    price200Name: '200 khách',
+    price200Detail: '199.000đ',
+    priceUnlimitedName: 'Không giới hạn',
+    priceUnlimitedDetail: '299.000đ',
+    priceNote: 'Nhà trai và nhà gái tính riêng. Soạn, xem trước và xuất bản không tốn credit.',
+    faqTitle: 'Câu hỏi thường gặp',
+    faq1q: 'Tạo thiệp cưới AI có miễn phí không?',
+    faq1a: 'Soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi AI sinh ảnh nền mới.',
+    faq2q: 'Gói khách mời giá bao nhiêu?',
+    faq2a: 'Ba khách đầu mỗi bên dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng.',
+    faq3q: 'Khách xem thiệp thế nào?',
+    faq3a: 'Sau khi xuất bản, bạn có một link. Gửi link chung hoặc link từng khách. Khách mở trên điện thoại, không cần tải app.',
+    faq4q: 'Có RSVP không?',
+    faq4a: 'Có. Khách xác nhận tham dự trên thiệp. Bạn xem danh sách, trạng thái và lời chúc trong trang khách mời.',
+    faq5q: 'Chữ tiếng Việt có bị lỗi font không?',
+    faq5a: 'Tên, lời mời, ngày giờ do hệ thống sắp chữ, không phụ thuộc chữ vẽ trong ảnh AI, nên tiếng Việt giữ dấu.',
+    faq6q: 'Gửi Zalo hoặc Facebook được không?',
+    faq6a: 'Được. Link thiệp là đường dẫn web, chia sẻ như mọi link khác.',
+  },
   weddingCardAiImage: {
     customReferenceLabel: 'Ảnh tham khảo tùy chỉnh (tùy chọn)',
     customReferenceHint:
@@ -7673,8 +7794,11 @@ export const VI_DICTIONARY: Dictionary = {
     backgroundSectionTitle: 'Nền thiệp',
     backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Bấm Chọn nền để xem kho, hoặc tạo nền mới bằng AI.',
     backgroundLibraryTitle: 'Kho ảnh nền',
-    backgroundLibraryHint: 'Bấm một ảnh đã tạo để dùng làm ảnh chính cho cả thiệp. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
+    backgroundLibraryHint: 'Bấm Xem trước để phóng to hoa văn, rồi chọn nền. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
     backgroundLibraryEmpty: 'Kho còn trống. Tạo nền mới để lưu vào kho — lần sau chọn lại không mất credit.',
+    backgroundPreviewOpen: 'Xem trước',
+    backgroundPreviewTitle: 'Xem hoa văn nền',
+    backgroundPreviewSelect: 'Chọn nền này',
     createBackgroundAi: 'Tạo nền mới AI',
     createBackgroundModalTitle: 'Tạo nền mới bằng AI',
     createBackgroundButton: 'Tạo ảnh nền - {n} credit',

@@ -452,6 +452,7 @@ export default function WeddingCardAiClientPage() {
     error?: boolean
   } | null>(null)
   const [backgroundConfirmOpen, setBackgroundConfirmOpen] = useState(false)
+  const [backgroundPreviewLarge, setBackgroundPreviewLarge] = useState(false)
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [uploadingOutside, setUploadingOutside] = useState(false)
@@ -1791,6 +1792,7 @@ export default function WeddingCardAiClientPage() {
     setBackgroundCreateOpen(false)
     setBackgroundConfirmOpen(false)
     setBackgroundNotice(null)
+    setBackgroundPreviewLarge(false)
   }
 
   const openBackgroundPicker = () => {
@@ -1950,11 +1952,22 @@ export default function WeddingCardAiClientPage() {
           <DialogContent
             overlayClassName="z-[200]"
             showCloseButton={!backgroundPicked}
-            className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg"
+            className={cn(
+              'z-[200] flex flex-col overflow-hidden',
+              backgroundPreviewLarge
+                ? 'h-[96dvh] max-h-[96dvh] w-[min(96vw,44rem)] max-w-[96vw] sm:max-w-[44rem]'
+                : 'max-h-[85vh] sm:max-w-lg',
+            )}
           >
             <DialogHeader className={backgroundPicked ? 'shrink-0' : 'shrink-0 pr-10'}>
-              <DialogTitle>{backgroundPicked ? tImage.backgroundPickedTitle : tImage.backgroundLibraryTitle}</DialogTitle>
-              <DialogDescription className={backgroundPicked ? 'sr-only' : undefined}>
+              <DialogTitle>
+                {backgroundPicked
+                  ? tImage.backgroundPickedTitle
+                  : backgroundPreviewLarge
+                    ? tImage.backgroundPreviewTitle
+                    : tImage.backgroundLibraryTitle}
+              </DialogTitle>
+              <DialogDescription className={backgroundPicked || backgroundPreviewLarge ? 'sr-only' : undefined}>
                 {backgroundPicked
                   ? backgroundNotice?.description || tImage.backgroundPickedTitle
                   : tImage.backgroundLibraryHint}
@@ -1971,8 +1984,10 @@ export default function WeddingCardAiClientPage() {
                 </Button>
               </div>
             ) : (
-            <div className="min-h-0 space-y-4 overflow-y-auto">
+            <div className={cn('min-h-0 flex-1', backgroundPreviewLarge ? 'flex flex-col overflow-hidden' : 'space-y-4 overflow-y-auto')}>
             {backgroundNotice?.error ? backgroundNoticeBlock : null}
+            {backgroundPreviewLarge ? null : (
+            <>
             <div className="overflow-hidden rounded-2xl border bg-[#fffaf2]">
               {masterImage?.imageUrl ? (
                 <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full object-contain" />
@@ -2006,6 +2021,8 @@ export default function WeddingCardAiClientPage() {
                 </Button>
               ) : null}
             </div>
+            </>
+            )}
             <WeddingAiLibraryGrid
               recommended={backgroundGroups.recommended}
               rest={backgroundGroups.rest}
@@ -2016,6 +2033,13 @@ export default function WeddingCardAiClientPage() {
               emptyLabel={tImage.backgroundLibraryEmpty}
               disabled={generating || Boolean(applyingLibraryId) || uploadingOutside}
               busyId={applyingLibraryId}
+              preview={{
+                openLabel: tImage.backgroundPreviewOpen,
+                title: tImage.backgroundPreviewTitle,
+                selectLabel: tImage.backgroundPreviewSelect,
+                backLabel: tImage.back,
+              }}
+              onPreviewChange={setBackgroundPreviewLarge}
             />
             <input
               ref={outsideFileRef}
