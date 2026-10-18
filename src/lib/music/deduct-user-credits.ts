@@ -1,4 +1,5 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { rememberDesignCreditPurchase } from '@/lib/tracking/nanoai-platform-purchase-queue'
 import {
   consumeGuestCreditTrialUse,
   isGuestTrialUser,
@@ -161,7 +162,10 @@ export async function deductUserCredits(
     }
   }
 
-  return await deductUserCreditsPg(userId, cost, normalizeSpendFeature(feature))
+  const featureKey = normalizeSpendFeature(feature)
+  const result = await deductUserCreditsPg(userId, cost, featureKey)
+  if (result.ok && result.charged > 0) rememberDesignCreditPurchase(featureKey, result.charged)
+  return result
 }
 
 export async function refundUserCredits(userId: string, amount: number, feature = 'unknown'): Promise<void> {

@@ -15,6 +15,7 @@ import { readFeatureTrialStartedAt } from '@/lib/feature-trial-start'
 import { purchaseStudentStudyPlan, readStudentStudyStatus } from '@/lib/student-study-access'
 import { STUDENT_STUDY_PLANS, studentStudyPlanById, studentStudyPlanCredits } from '@/lib/student-study-package'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { rememberCurriculumPurchase } from '@/lib/tracking/nanoai-platform-purchase-queue'
 import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
 import {
   SERVICE_FREE_TRIAL_DAYS,
@@ -257,6 +258,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: charged.error || 'Không thể trừ credits.' }, { status: 500 })
     }
 
+    if (!charged.alreadyApplied) {
+      rememberCurriculumPurchase({
+        orderId: charged.eventKey,
+        priceVnd: estimatedVndForMonthlyCredits(charged.amount),
+      })
+    }
     return NextResponse.json({
       ok: true,
       charged: !charged.alreadyApplied,

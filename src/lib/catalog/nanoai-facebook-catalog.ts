@@ -17,6 +17,8 @@ export type NanoAiFacebookCatalogItem = {
   linkPath: string
   imagePath: string
   brand: string
+  /** Breadcrumb riêng của NanoAI. Google gọi là product_type. */
+  productType: string
 }
 
 const DEFAULT_FEATURE_PRICE_VND = CREDIT_UNIT_PRICE_VND
@@ -188,6 +190,7 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
       linkPath: href,
       imagePath: pickImagePathForToolHref(href),
       brand: 'NanoAI',
+      productType: groupName ? `NanoAI > ${groupName} > ${title}` : `NanoAI > ${title}`,
     })
   }
 
@@ -202,6 +205,7 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
     linkPath: '/account/plan',
     imagePath: pickImagePathForToolHref('/giao-trinh'),
     brand: 'NanoAI',
+    productType: 'NanoAI > Tài khoản > Gói học sinh',
   })
 
   items.push({
@@ -214,6 +218,7 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
     linkPath: '/wallet',
     imagePath: TOOL_ICON_FALLBACK,
     brand: 'NanoAI',
+    productType: 'NanoAI > Tài khoản > Nạp credit',
   })
 
   return items
@@ -261,6 +266,8 @@ export function buildNanoAiFacebookCatalogFeedCsv(origin: string): Buffer {
     'link',
     'image_link',
     'brand',
+    'google_product_category',
+    'product_type',
   ]
   const rows = listNanoAiFacebookCatalogItems().map((item) => [
     item.id,
@@ -272,6 +279,8 @@ export function buildNanoAiFacebookCatalogFeedCsv(origin: string): Buffer {
     toAbsoluteUrl(origin, item.linkPath),
     withVersionQuery(toAbsoluteUrl(origin, item.imagePath), IMAGE_LINK_VERSION_TOKEN),
     item.brand,
+    '313',
+    item.productType,
   ])
   const csv = [headers, ...rows]
     .map((line) => line.map((cell) => csvEscapeCell(String(cell))).join(','))

@@ -7,6 +7,8 @@
 import { createHash } from 'crypto'
 import { CURRICULUM_UI_CREDITS } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
 import { getCreditBalanceByUserId, spendCreditsIdempotent } from '@/lib/db/credits-balance'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
+import { rememberCurriculumPurchase } from '@/lib/tracking/nanoai-platform-purchase-queue'
 
 export const CURRICULUM_AI_CHARGE_TYPES = {
   /** POST /api/curriculum-from-image — tạo giáo trình từ ảnh (+ slide trong cùng pipeline) */
@@ -55,6 +57,12 @@ export async function spendCurriculumAiCredits(input: {
     sessionId: null,
     metadataJson: JSON.stringify(input.metadata ?? {}),
   })
+  if (r.ok && !r.alreadyApplied && input.amount > 0) {
+    rememberCurriculumPurchase({
+      orderId: input.eventKey,
+      priceVnd: Math.round(input.amount * CREDIT_UNIT_PRICE_VND),
+    })
+  }
   return {
     ok: r.ok,
     alreadyApplied: r.alreadyApplied,

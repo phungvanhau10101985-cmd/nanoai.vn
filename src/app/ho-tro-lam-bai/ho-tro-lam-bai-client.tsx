@@ -253,6 +253,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   const [chatClosed, setChatClosed] = useState(false)
   const [waitLabel, setWaitLabel] = useState<'reading' | 'replying'>('replying')
   const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const followTopRef = useRef(true)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const cancelRevealRef = useRef<(() => void) | null>(null)
   const busyRef = useRef(false)
@@ -272,8 +273,6 @@ export default function HoTroLamBaiClient({ locale }: Props) {
   }, [])
 
   function placeComposer() {
-    const scroller = scrollerRef.current
-    if (scroller) scroller.scrollTop = scroller.scrollHeight
     revealStudyComposer(composerRef.current)
   }
 
@@ -348,11 +347,31 @@ export default function HoTroLamBaiClient({ locale }: Props) {
     }
   }, [locale, problemStatementKey])
 
-  const reviewing = review != null
+  useEffect(() => {
+    followTopRef.current = true
+  }, [sessionId])
+
   useEffect(() => {
     const scroller = scrollerRef.current
     if (!scroller) return
-    scroller.scrollTo({ top: scroller.scrollHeight })
+    const onScroll = () => {
+      if (scroller.scrollTop > 32) followTopRef.current = false
+    }
+    scroller.addEventListener('scroll', onScroll, { passive: true })
+    return () => scroller.removeEventListener('scroll', onScroll)
+  }, [ready, needsPlan])
+
+  const reviewing = review != null
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller || !followTopRef.current) return
+    const showFromTop = () => {
+      if (!followTopRef.current) return
+      scroller.scrollTop = 0
+    }
+    showFromTop()
+    const frame = window.requestAnimationFrame(showFromTop)
+    return () => window.cancelAnimationFrame(frame)
   }, [messages, busy, previews.length, reviewing])
 
   function remember(url: string) {
@@ -805,7 +824,7 @@ export default function HoTroLamBaiClient({ locale }: Props) {
 
   return (
     <div className={shellClass} style={shellStyle} data-study-chat="">
-      <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4">
+      <div ref={scrollerRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 [overflow-anchor:none]">
         <p className="text-sm leading-6 text-muted-foreground">{copy.intro}</p>
         {ready && messages.length === 0 ? <p className="text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
         {messages.map((message) =>

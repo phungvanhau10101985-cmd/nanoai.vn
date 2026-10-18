@@ -9,6 +9,7 @@ import {
 } from '@/lib/db/admin-integrations-settings-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { assertStepUp, STEP_UP_REQUIRED } from '@/lib/auth/step-up-guard'
+import { normalizeGoogleAdsConversionLabel } from '@/lib/partner-website/shop/normalize-ads-conversion-label'
 
 const SETTINGS_KEY = 'admin_integrations_config'
 
@@ -20,6 +21,12 @@ type DomainVerificationTag = {
 type IntegrationSettings = {
   googleAnalyticsId: string
   googleTagManagerId: string
+  googleAdsId: string
+  googleAdsViewLabel: string
+  googleAdsAddToCartLabel: string
+  googleAdsPurchaseLabel: string
+  tiktokPixelId: string
+  tiktokEventsApiToken: string
   facebookPixelId: string
   facebookCapiAccessToken: string
   facebookDatasetId: string
@@ -51,6 +58,18 @@ function sanitizeSettings(input: Partial<IntegrationSettings>, fallbackEmbedCode
   const normalizedGtm = String(input.googleTagManagerId || '').trim()
   const googleAnalyticsId = normalizedGa || (legacyGoogleTag.startsWith('G-') ? legacyGoogleTag : '')
   const googleTagManagerId = normalizedGtm || (legacyGoogleTag.startsWith('GTM-') ? legacyGoogleTag : '')
+  const googleAdsRaw = String(input.googleAdsId || '').trim().toUpperCase()
+  const googleAdsId = /^AW-[A-Z0-9]+$/.test(googleAdsRaw) ? googleAdsRaw : ''
+  const googleAdsViewLabel = normalizeGoogleAdsConversionLabel(input.googleAdsViewLabel) || ''
+  const googleAdsAddToCartLabel = normalizeGoogleAdsConversionLabel(input.googleAdsAddToCartLabel) || ''
+  const googleAdsPurchaseLabel = normalizeGoogleAdsConversionLabel(input.googleAdsPurchaseLabel) || ''
+  const tiktokRaw = String(input.tiktokPixelId || '').trim()
+  const tiktokPixelId = /^[A-Z0-9]{10,64}$/i.test(tiktokRaw) ? tiktokRaw : ''
+  const tiktokTokenRaw = String(input.tiktokEventsApiToken || '').trim()
+  const tiktokEventsApiToken =
+    tiktokTokenRaw.length >= 16 && tiktokTokenRaw.length <= 512 && /^[A-Za-z0-9._~+/-]+=*$/.test(tiktokTokenRaw)
+      ? tiktokTokenRaw
+      : ''
   const rawDomainTags = Array.isArray(input.domainVerificationTags) ? input.domainVerificationTags : []
   const domainVerificationTags = rawDomainTags
     .map((row) => ({
@@ -67,6 +86,12 @@ function sanitizeSettings(input: Partial<IntegrationSettings>, fallbackEmbedCode
   return {
     googleAnalyticsId,
     googleTagManagerId,
+    googleAdsId,
+    googleAdsViewLabel,
+    googleAdsAddToCartLabel,
+    googleAdsPurchaseLabel,
+    tiktokPixelId,
+    tiktokEventsApiToken,
     facebookPixelId: String(input.facebookPixelId || '').trim(),
     facebookCapiAccessToken: String(input.facebookCapiAccessToken || '').trim(),
     facebookDatasetId: String(input.facebookDatasetId || '').trim(),

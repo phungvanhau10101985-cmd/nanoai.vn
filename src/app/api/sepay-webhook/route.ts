@@ -40,6 +40,8 @@ import { fetchMessagingPartnersByIdsFromPg } from '@/lib/db/messaging-partners-p
 import { queuePartnerOrderGoogleSheetsSync } from '@/lib/messaging/partner-order-google-sheets-sync'
 import { emitPartnerOutboundPaymentPaid } from '@/lib/messaging/partner-outbound-webhook-emit'
 import { sendPartnerMetaPurchaseCapiOnPaymentConfirmed } from '@/lib/tracking/meta-purchase-after-order'
+import { sendWeddingGuestPackPurchaseCapi } from '@/lib/tracking/wedding-purchase-capi'
+import { sendWeddingGuestPackPurchaseTikTok } from '@/lib/tracking/wedding-purchase-tiktok'
 import {
   notifyPartnerOwnerPaymentNeedsReview,
   notifyPartnerOwnerPaymentVerified,
@@ -272,6 +274,23 @@ export async function POST(request: NextRequest) {
           console.error('Failed to complete wedding guest pack payment:', completed.error)
           return NextResponse.json({ error: completed.error }, { status: 500 })
         }
+        sendWeddingGuestPackPurchaseCapi({
+          request,
+          paymentId: pendingGuestPack.id,
+          packId: pendingGuestPack.pack_id,
+          amountVnd: amountIn,
+          userId: pendingGuestPack.user_id,
+        }).catch((error) => {
+          console.warn('[sepay-webhook] Wedding Purchase CAPI', error)
+        })
+        sendWeddingGuestPackPurchaseTikTok({
+          request,
+          paymentId: pendingGuestPack.id,
+          amountVnd: amountIn,
+          userId: pendingGuestPack.user_id,
+        }).catch((error) => {
+          console.warn('[sepay-webhook] Wedding Purchase TikTok', error)
+        })
         return NextResponse.json({
           success: true,
           message: 'Wedding guest pack payment processed successfully',

@@ -1,7 +1,7 @@
 'use client'
 
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
-import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { broadcastNanoAiCommerce } from '@/lib/tracking/nanoai-platform-commerce-client'
 import {
   WEDDING_COMMERCE_CONTENT_ID,
   weddingAddToCartCustomData,
@@ -20,46 +20,8 @@ declare global {
   }
 }
 
-const GA4_EVENT: Record<WeddingCommerceEventName, string> = {
-  ViewContent: 'view_item',
-  AddToCart: 'add_to_cart',
-  InitiateCheckout: 'begin_checkout',
-  Purchase: 'purchase',
-}
-
 function canTrack(): boolean {
   return typeof window !== 'undefined' && !isLikelyBotTraffic() && window.top === window.self
-}
-
-function pushCommerce(eventName: WeddingCommerceEventName, custom: WeddingCommerceCustomData): void {
-  const gaEvent = GA4_EVENT[eventName]
-  const item = {
-    item_id: WEDDING_COMMERCE_CONTENT_ID,
-    item_name: custom.content_name,
-    price: custom.value,
-    quantity: 1,
-    item_category: custom.content_category,
-  }
-  const params: Record<string, unknown> = {
-    currency: custom.currency,
-    value: custom.value,
-    items: [item],
-  }
-  if (custom.order_id && eventName === 'Purchase') params.transaction_id = custom.order_id
-  if (typeof window.gtag === 'function') {
-    window.gtag('event', gaEvent, params)
-  }
-  window.dataLayer = window.dataLayer || []
-  window.dataLayer.push({ ecommerce: null })
-  window.dataLayer.push({
-    event: gaEvent,
-    ecommerce: {
-      currency: custom.currency,
-      value: custom.value,
-      ...(custom.order_id && eventName === 'Purchase' ? { transaction_id: custom.order_id } : {}),
-      items: [item],
-    },
-  })
 }
 
 function fire(
@@ -68,12 +30,17 @@ function fire(
   options?: { dedupeKey?: string; skipDedupe?: boolean; eventId?: string },
 ): boolean {
   if (!canTrack()) return false
-  pushCommerce(eventName, custom)
-  return fireMetaStandardEvent(eventName, {
-    customData: { ...custom },
+  return broadcastNanoAiCommerce({
+    event: eventName,
+    contentId: WEDDING_COMMERCE_CONTENT_ID,
+    contentName: custom.content_name,
+    valueVnd: custom.value,
+    orderId: custom.order_id,
+    eventId: options?.eventId,
     dedupeKey: options?.dedupeKey,
     skipDedupe: options?.skipDedupe,
-    eventId: options?.eventId,
+    category: custom.content_category,
+    extra: { ...custom },
   })
 }
 
@@ -82,7 +49,7 @@ export function trackWeddingViewContent(): boolean {
   return fire('ViewContent', weddingViewContentCustomData(), { skipDedupe: true })
 }
 
-/** Bấm Lưu và xuất bản thành công. */
+/** Tạo thiệp mới thành công. Cùng sự kiện thêm giỏ, id và giá niêm yết khớp feed catalog. */
 export function trackWeddingAddToCart(cardId: string): boolean {
   const id = cardId.trim()
   if (!id) return false
@@ -104,7 +71,7 @@ export function trackWeddingGuestPackCheckout(input: {
   })
 }
 
-/** Ngân hàng báo tiền về (quét QR thành công). Giá = số tiền của gói đang trả. */
+/** Ngân hàng báo tiền về (quét QR thành công). Giá trị đơn = số tiền của gói vừa trả. */
 export function trackWeddingGuestPackPurchase(input: {
   packId: WeddingGuestPackId
   amountVnd: number

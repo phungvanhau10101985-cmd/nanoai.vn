@@ -27,6 +27,20 @@ type Props = {
   googleAnalyticsPlaceholder: string
   googleTagManagerLabel: string
   googleTagManagerPlaceholder: string
+  googleAdsLabel: string
+  googleAdsPlaceholder: string
+  googleAdsViewLabel: string
+  googleAdsViewPlaceholder: string
+  googleAdsAddToCartLabel: string
+  googleAdsAddToCartPlaceholder: string
+  googleAdsPurchaseLabel: string
+  googleAdsPurchasePlaceholder: string
+  googleAdsLabelHint: string
+  tiktokPixelLabel: string
+  tiktokPixelPlaceholder: string
+  tiktokEventsTokenLabel: string
+  tiktokEventsTokenPlaceholder: string
+  tiktokEventsTokenHint: string
   facebookPixelLabel: string
   facebookPixelPlaceholder: string
   facebookCapiTokenLabel: string
@@ -39,6 +53,12 @@ type Props = {
   facebookCatalogFeedHint: string
   copyFacebookCatalogFeedButton: string
   facebookCatalogFeedUrl: string
+  tiktokCatalogFeedLabel: string
+  tiktokCatalogFeedHint: string
+  tiktokCatalogFeedUrl: string
+  googleMerchantFeedLabel: string
+  googleMerchantFeedHint: string
+  googleMerchantFeedUrl: string
   webConsoleVerificationLabel: string
   webConsoleVerificationPlaceholder: string
   domainVerificationTitle: string
@@ -62,6 +82,8 @@ type Props = {
   saveOkToast: string
   invalidGoogleAnalyticsToast: string
   invalidGoogleTagManagerToast: string
+  invalidGoogleAdsToast: string
+  invalidTiktokPixelToast: string
 }
 
 export function AdminIntegrationsClient(props: Props) {
@@ -69,6 +91,12 @@ export function AdminIntegrationsClient(props: Props) {
   const { runWithStepUp } = useStepUpOtp()
   const [googleAnalyticsId, setGoogleAnalyticsId] = useState('')
   const [googleTagManagerId, setGoogleTagManagerId] = useState('')
+  const [googleAdsId, setGoogleAdsId] = useState('')
+  const [googleAdsViewLabel, setGoogleAdsViewLabel] = useState('')
+  const [googleAdsAddToCartLabel, setGoogleAdsAddToCartLabel] = useState('')
+  const [googleAdsPurchaseLabel, setGoogleAdsPurchaseLabel] = useState('')
+  const [tiktokPixelId, setTiktokPixelId] = useState('')
+  const [tiktokEventsApiToken, setTiktokEventsApiToken] = useState('')
   const [facebookPixelId, setFacebookPixelId] = useState('')
   const [facebookCapiAccessToken, setFacebookCapiAccessToken] = useState('')
   const [facebookDatasetId, setFacebookDatasetId] = useState('')
@@ -90,6 +118,12 @@ export function AdminIntegrationsClient(props: Props) {
       }
       setGoogleAnalyticsId(res.data.googleAnalyticsId)
       setGoogleTagManagerId(res.data.googleTagManagerId)
+      setGoogleAdsId(res.data.googleAdsId || '')
+      setGoogleAdsViewLabel(res.data.googleAdsViewLabel || '')
+      setGoogleAdsAddToCartLabel(res.data.googleAdsAddToCartLabel || '')
+      setGoogleAdsPurchaseLabel(res.data.googleAdsPurchaseLabel || '')
+      setTiktokPixelId(res.data.tiktokPixelId || '')
+      setTiktokEventsApiToken(res.data.tiktokEventsApiToken || '')
       setFacebookPixelId(res.data.facebookPixelId)
       setFacebookCapiAccessToken(res.data.facebookCapiAccessToken || '')
       setFacebookDatasetId(res.data.facebookDatasetId || '')
@@ -120,6 +154,14 @@ export function AdminIntegrationsClient(props: Props) {
       toast({ title: props.invalidGoogleTagManagerToast, variant: 'destructive' })
       return
     }
+    if (googleAdsId.trim() && !/^AW-[A-Z0-9]+$/i.test(googleAdsId.trim())) {
+      toast({ title: props.invalidGoogleAdsToast, variant: 'destructive' })
+      return
+    }
+    if (tiktokPixelId.trim() && !/^[A-Z0-9]{10,64}$/i.test(tiktokPixelId.trim())) {
+      toast({ title: props.invalidTiktokPixelToast, variant: 'destructive' })
+      return
+    }
 
     startSaving(async () => {
       const res = await runWithStepUp(() =>
@@ -127,6 +169,12 @@ export function AdminIntegrationsClient(props: Props) {
           {
             googleAnalyticsId,
             googleTagManagerId,
+            googleAdsId,
+            googleAdsViewLabel,
+            googleAdsAddToCartLabel,
+            googleAdsPurchaseLabel,
+            tiktokPixelId,
+            tiktokEventsApiToken,
             facebookPixelId,
             facebookCapiAccessToken,
             facebookDatasetId,
@@ -194,6 +242,65 @@ export function AdminIntegrationsClient(props: Props) {
               placeholder={props.googleTagManagerPlaceholder}
             />
             <p className="text-[11px] text-muted-foreground">Format: GTM-XXXXXXX</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.googleAdsLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={googleAdsId}
+              onChange={(e) => setGoogleAdsId(e.target.value)}
+              placeholder={props.googleAdsPlaceholder}
+            />
+            <p className="text-[11px] text-muted-foreground">Format: AW-XXXXXXXXX</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.tiktokPixelLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={tiktokPixelId}
+              onChange={(e) => setTiktokPixelId(e.target.value)}
+              placeholder={props.tiktokPixelPlaceholder}
+            />
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.googleAdsViewLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={googleAdsViewLabel}
+              onChange={(e) => setGoogleAdsViewLabel(e.target.value)}
+              placeholder={props.googleAdsViewPlaceholder}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.googleAdsAddToCartLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={googleAdsAddToCartLabel}
+              onChange={(e) => setGoogleAdsAddToCartLabel(e.target.value)}
+              placeholder={props.googleAdsAddToCartPlaceholder}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">{props.googleAdsPurchaseLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              value={googleAdsPurchaseLabel}
+              onChange={(e) => setGoogleAdsPurchaseLabel(e.target.value)}
+              placeholder={props.googleAdsPurchasePlaceholder}
+            />
+            <p className="text-[11px] text-muted-foreground">{props.googleAdsLabelHint}</p>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.tiktokEventsTokenLabel}</Label>
+            <Input
+              className="h-9 text-sm"
+              type="password"
+              value={tiktokEventsApiToken}
+              onChange={(e) => setTiktokEventsApiToken(e.target.value)}
+              placeholder={props.tiktokEventsTokenPlaceholder}
+              autoComplete="off"
+            />
+            <p className="text-[11px] text-muted-foreground">{props.tiktokEventsTokenHint}</p>
           </div>
           <div className="space-y-1.5 md:col-span-2">
             <Label className="text-xs font-medium">{props.webConsoleVerificationLabel}</Label>
@@ -267,6 +374,52 @@ export function AdminIntegrationsClient(props: Props) {
             </div>
             <p className="text-[11px] text-muted-foreground">
               {props.facebookCatalogFeedHint}
+            </p>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.tiktokCatalogFeedLabel}</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="h-9 text-xs font-mono"
+                value={props.tiktokCatalogFeedUrl}
+                readOnly
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 sm:h-9"
+                onClick={() => copyText(props.tiktokCatalogFeedUrl)}
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                {props.copyFacebookCatalogFeedButton}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {props.tiktokCatalogFeedHint}
+            </p>
+          </div>
+          <div className="space-y-1.5 md:col-span-2">
+            <Label className="text-xs font-medium">{props.googleMerchantFeedLabel}</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                className="h-9 text-xs font-mono"
+                value={props.googleMerchantFeedUrl}
+                readOnly
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5 sm:h-9"
+                onClick={() => copyText(props.googleMerchantFeedUrl)}
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden />
+                {props.copyFacebookCatalogFeedButton}
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              {props.googleMerchantFeedHint}
             </p>
           </div>
         </div>

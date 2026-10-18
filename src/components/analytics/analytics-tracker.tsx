@@ -4,15 +4,23 @@ import { useEffect } from 'react'
 import { subscribeToUrlChanges } from '@/lib/client-history-navigation'
 import { isLikelyBotTraffic } from '@/lib/analytics-bot-filter'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
+import { nanoAiFeatureRemarketing } from '@/lib/catalog/nanoai-feature-remarketing'
+import { isFeatureCreateLabel } from '@/lib/tracking/nanoai-platform-commerce'
+import {
+  broadcastNanoAiCommerce,
+  flushPlatformPurchaseCookie,
+} from '@/lib/tracking/nanoai-platform-commerce-client'
+import { trackNanoAiFeatureView } from '@/lib/tracking/feature-remarketing-client'
 import { trackWeddingViewContent } from '@/lib/tracking/wedding-commerce-client'
 import { WEDDING_COMMERCE_PATH } from '@/lib/wedding/wedding-commerce-events'
-import { isPathMatchedByFeatureRoute, toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
+import { isPathMatchedByFeatureRoute } from '@/lib/catalog/nanoai-feature-catalog-id'
 
 declare global {
   interface Window {
     gtag?: (...args: unknown[]) => void
     __nanoMetaLastViewContentKey?: string
     __nanoMetaLastViewContentAt?: number
+    __nanoCartClickAt?: Record<string, number>
   }
 }
 
@@ -21,6 +29,8 @@ const FEATURE_ROUTES = [
   '/giao-trinh',
   '/tao-bai-thi',
   '/tao-bai-tap-ve-nha',
+  '/ho-tro-lam-bai',
+  '/gia-su-ai',
   '/lop',
   '/hoc-tieng-anh-ai',
   '/ghi-am-bao-cao-cuoc-hop',
@@ -30,6 +40,7 @@ const FEATURE_ROUTES = [
   '/lam-dep-anh',
   '/ghep-anh',
   '/tao-banner',
+  '/tao-anh-ban-hang',
   '/tao-thiep-moi-cuoi-ai',
   '/tao-anh-tu-chu',
   '/du-anh-tu-phac-thao',
@@ -40,11 +51,14 @@ const FEATURE_ROUTES = [
   '/tao-nhan-gian',
   '/tao-nhan-gioi-thieu-san-pham',
   '/tao-tem-niem-phong-bao-hanh',
+  '/thiet-ke-con-dau',
+  '/thiet-ke-bao-bi',
   '/tao-ma-vach',
   '/che-anh',
   '/xoa-vat-the',
   '/xoa-nen-png',
   '/thay-nen-san-pham',
+  '/sua-anh-theo-yeu-cau',
   '/tao-anh-3d',
   '/tao-mo-hinh-3d-tu-anh',
   '/thiet-ke-noi-ngoai-that',
@@ -97,18 +111,8 @@ function fireMetaFeatureViewContent() {
     trackWeddingViewContent()
     return
   }
-  const contentId = toNanoAiFeatureCatalogIdFromHref(matched)
   const contentName = document.title?.trim().slice(0, 200) || matched
-  fireMetaStandardEvent('ViewContent', {
-    skipDedupe: true,
-    customData: {
-      content_type: 'product',
-      content_category: 'ai_feature',
-      content_ids: [contentId],
-      content_name: contentName,
-      feature_route: matched,
-    },
-  })
+  trackNanoAiFeatureView(matched, contentName)
 }
 
 function handleMetaSignupFlagsFromUrl() {
@@ -132,11 +136,23 @@ export function AnalyticsTracker() {
   useEffect(() => {
     firePageView()
     fireMetaFeatureViewContent()
+    flushPlatformPurchaseCookie()
     handleMetaSignupFlagsFromUrl()
-    return subscribeToUrlChanges(() => {
+    const origFetch = window.fetch.bind(window)
+    window.fetch = async (...args) => {
+      const response = await origFetch(...args)
+      flushPlatformPurchaseCookie()
+      return response
+    }
+    const unsubscribe = subscribeToUrlChanges(() => {
       firePageView()
       fireMetaFeatureViewContent()
+      flushPlatformPurchaseCookie()
     })
+    return () => {
+      window.fetch = origFetch
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -167,6 +183,45 @@ export function AnalyticsTracker() {
           const matchedFeature = findMatchedFeatureRoute(url.pathname)
           if (matchedFeature) {
             track('feature_open', { feature_route: matchedFeature, from_route: window.location.pathname })
+            const { contentId, valueVnd } = nanoAiFeatureRemarketing(matchedFeature)
+            const viewKey = `${matchedFeature}|${url.pathname}|`
+            window.__nanoMetaLastViewContentKey = viewKey
+            window.__nanoMetaLastViewContentAt = Date.now()
+            broadcastNanoAiCommerce({
+              event: 'ViewContent',
+              contentId,
+              contentName: link.textContent?.trim().slice(0, 200) || matchedFeature,
+              valueVnd,
+              skipDedupe: true,
+              extra: { feature_route: matchedFeature },
+            })
+          }
+        }
+      }
+
+      const control = target.closest<HTMLElement>('button, input[type="submit"]')
+      const featureRoute = findMatchedFeatureRoute(window.location.pathname || '/')
+      if (control && featureRoute && control.getAttribute('data-nano-cart') !== '0') {
+        const label = (control.textContent || control.getAttribute('aria-label') || control.getAttribute('value') || '').trim()
+        const explicit = control.getAttribute('data-nano-cart') === '1'
+        if (explicit || isFeatureCreateLabel(label)) {
+          const weddingClick = /thiệp/.test(label.toLowerCase())
+          const cartKey = weddingClick ? featureRoute : `${featureRoute}|${label.slice(0, 40).toLowerCase()}`
+          const now = Date.now()
+          const lastMap = window.__nanoCartClickAt || {}
+          const gap = weddingClick ? 20000 : 1200
+          if (now - (lastMap[cartKey] || 0) >= gap) {
+            lastMap[cartKey] = now
+            window.__nanoCartClickAt = lastMap
+            const { contentId, valueVnd } = nanoAiFeatureRemarketing(featureRoute)
+            broadcastNanoAiCommerce({
+              event: 'AddToCart',
+              contentId,
+              contentName: label.slice(0, 200) || featureRoute,
+              valueVnd,
+              skipDedupe: true,
+              extra: { feature_route: featureRoute },
+            })
           }
         }
       }

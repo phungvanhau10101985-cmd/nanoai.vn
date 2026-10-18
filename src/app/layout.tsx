@@ -6,6 +6,7 @@ import nextDynamic from "next/dynamic";
 export const dynamic = "force-dynamic";
 import Script from "next/script";
 import { loadAdminIntegrationsValueJsonByKey } from "@/lib/db/admin-integrations-settings-pg";
+import { normalizeGoogleAdsConversionLabel } from "@/lib/partner-website/shop/normalize-ads-conversion-label";
 import { fetchMessagingPartnerBySlugFromPg } from "@/lib/db/messaging-partners-pg";
 import { isPgConfigured } from "@/lib/db/pool";
 import { headers } from "next/headers";
@@ -105,6 +106,11 @@ type AdminIntegrationsSettings = {
   googleAnalyticsId?: string;
   googleTagManagerId?: string;
   facebookPixelId?: string;
+  googleAdsId?: string;
+  googleAdsViewLabel?: string;
+  googleAdsAddToCartLabel?: string;
+  googleAdsPurchaseLabel?: string;
+  tiktokPixelId?: string;
   webConsoleVerificationTag?: string;
   domainVerificationTags?: DomainVerificationTag[];
   /** Mã nhúng chat (tên mới). */
@@ -399,6 +405,14 @@ export default async function RootLayout({
   const gtmContainerId = String(settings.googleTagManagerId || "").trim()
     || (legacyGoogleTag.startsWith("GTM-") ? legacyGoogleTag : "");
   const facebookPixelId = String(settings.facebookPixelId || '').trim()
+  const googleAdsIdRaw = String(settings.googleAdsId || '').trim().toUpperCase()
+  const googleAdsId = /^AW-[A-Z0-9]+$/.test(googleAdsIdRaw) ? googleAdsIdRaw : ''
+  const googleAdsLabelsJson = JSON.stringify({
+    view: normalizeGoogleAdsConversionLabel(settings.googleAdsViewLabel) || '',
+    addToCart: normalizeGoogleAdsConversionLabel(settings.googleAdsAddToCartLabel) || '',
+    purchase: normalizeGoogleAdsConversionLabel(settings.googleAdsPurchaseLabel) || '',
+  })
+  const tiktokPixelIdRaw = String(settings.tiktokPixelId || '').trim()
   const metaTagCandidates = [
     String(settings.webConsoleVerificationTag || ""),
     ...((Array.isArray(settings.domainVerificationTags) ? settings.domainVerificationTags : [])
@@ -514,6 +528,7 @@ export default async function RootLayout({
     !isCustomerOwnedSurface
   const shouldRenderGlobalGoogleTags = !isCustomerOwnedSurface
   const shouldRenderNanoAiSiteTags = !isCustomerOwnedSurface
+  const platformTiktok = shouldRenderNanoAiSiteTags ? buildPartnerShopTiktokPixelInstall(tiktokPixelIdRaw) : null
   const shopGoogleTagSlug = isPartnerWebsitePage
     ? partnerSiteSlug
     : isMessagingGuestPage
@@ -670,10 +685,15 @@ export default async function RootLayout({
                 gtag('js', new Date());
                 if (!__gaIsLikelyBot) {
                   gtag('config', '${gaMeasurementId}');
+                  ${googleAdsId ? `gtag('config', '${googleAdsId}'); window.__nanoPlatformGoogleAdsId='${googleAdsId}';` : ''}
+                  window.__nanoPlatformGoogleAdsLabels=${googleAdsLabelsJson};
                 }
               `}
             </Script>
           </>
+        ) : null}
+        {platformTiktok ? (
+          <script id="nano-platform-tiktok-pixel" dangerouslySetInnerHTML={{ __html: platformTiktok.inlineJs }} />
         ) : null}
         {shouldRenderGlobalMetaPixel ? (
           <>

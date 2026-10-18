@@ -23,7 +23,10 @@ export default function AdminIntegrationsPage() {
   const defaultChatSlug = process.env.NEXT_PUBLIC_CHAT_WIDGET_SLUG || 'nanoai-ws-wdh5'
   const nanoaiEmbedCodeDefault = `<iframe src="${baseUrl.replace(/\/$/, '')}/messaging/p/${encodeURIComponent(defaultChatSlug)}?embed=1" title="Chat NanoAI" width="100%" height="560" style="border:0;border-radius:12px;max-width:100%" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>`
   const catalogVersionToken = getNanoAiCatalogVersionToken()
-  const facebookCatalogFeedUrl = `${publicOrigin.replace(/\/$/, '')}/catalog/nanoai-facebook-feed.csv?v=${encodeURIComponent(catalogVersionToken)}`
+  const originBase = publicOrigin.replace(/\/$/, '')
+  const facebookCatalogFeedUrl = `${originBase}/catalog/nanoai-facebook-feed.csv?v=${encodeURIComponent(catalogVersionToken)}`
+  const tiktokCatalogFeedUrl = `${originBase}/catalog/nanoai-tiktok-feed.csv?v=${encodeURIComponent(catalogVersionToken)}`
+  const googleMerchantFeedUrl = `${originBase}/catalog/nanoai-google-merchant-feed.tsv?v=${encodeURIComponent(catalogVersionToken)}`
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 py-2">
@@ -72,6 +75,98 @@ export default function AdminIntegrationsPage() {
           '例如：GTM-XXXXXXX',
           '例: GTM-XXXXXXX',
           '예: GTM-XXXXXXX'
+        )}
+        googleAdsLabel={tr(
+          'Google Ads ID (AW-)',
+          'Google Ads ID (AW-)',
+          'Google Ads ID（AW-）',
+          'Google Ads ID（AW-）',
+          'Google Ads ID (AW-)'
+        )}
+        googleAdsPlaceholder={tr(
+          'Ví dụ: AW-123456789',
+          'Example: AW-123456789',
+          '例如：AW-123456789',
+          '例: AW-123456789',
+          '예: AW-123456789'
+        )}
+        tiktokPixelLabel={tr('TikTok Pixel ID', 'TikTok Pixel ID', 'TikTok Pixel ID', 'TikTok Pixel ID', 'TikTok Pixel ID')}
+        tiktokPixelPlaceholder={tr(
+          'Ví dụ: CXXXXXXXXXXXXXXX',
+          'Example: CXXXXXXXXXXXXXXX',
+          '例如：CXXXXXXXXXXXXXXX',
+          '例: CXXXXXXXXXXXXXXX',
+          '예: CXXXXXXXXXXXXXXX'
+        )}
+        googleAdsViewLabel={tr(
+          'Google Ads — nhãn xem nội dung',
+          'Google Ads — view content label',
+          'Google Ads — 浏览内容转化标签',
+          'Google Ads — コンテンツ表示ラベル',
+          'Google Ads — 콘텐츠 조회 라벨'
+        )}
+        googleAdsViewPlaceholder={tr(
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj'
+        )}
+        googleAdsAddToCartLabel={tr(
+          'Google Ads — nhãn thêm giỏ',
+          'Google Ads — add to cart label',
+          'Google Ads — 加入购物车转化标签',
+          'Google Ads — カート追加ラベル',
+          'Google Ads — 장바구니 라벨'
+        )}
+        googleAdsAddToCartPlaceholder={tr(
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj'
+        )}
+        googleAdsPurchaseLabel={tr(
+          'Google Ads — nhãn mua hàng',
+          'Google Ads — purchase label',
+          'Google Ads — 购买转化标签',
+          'Google Ads — 購入ラベル',
+          'Google Ads — 구매 라벨'
+        )}
+        googleAdsPurchasePlaceholder={tr(
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj',
+          'AW-123456789/AbCdEfGhIj'
+        )}
+        googleAdsLabelHint={tr(
+          'Dán send_to (AW-…/nhãn) hoặc cả đoạn gtag conversion. Xem nội dung, thêm giỏ và mua hàng mỗi cái một nhãn.',
+          'Paste send_to (AW-…/label) or the whole gtag conversion snippet. One label each for view, add to cart, and purchase.',
+          '粘贴 send_to（AW-…/标签）或整段 gtag 转化代码。浏览、加购、购买各一个标签。',
+          'send_to（AW-…/ラベル）または gtag コンバージョンのコードを貼り付けます。表示・カート・購入で各1つ。',
+          'send_to(AW-…/라벨) 또는 gtag 전환 코드를 붙여 넣으세요. 조회, 장바구니, 구매마다 라벨 하나.'
+        )}
+        tiktokEventsTokenLabel={tr(
+          'TikTok Events API token',
+          'TikTok Events API token',
+          'TikTok Events API token',
+          'TikTok Events API token',
+          'TikTok Events API 토큰'
+        )}
+        tiktokEventsTokenPlaceholder={tr(
+          'Dán Access Token Events API',
+          'Paste the Events API access token',
+          '粘贴 Events API Access Token',
+          'Events API の Access Token を貼り付け',
+          'Events API Access Token 붙여넣기'
+        )}
+        tiktokEventsTokenHint={tr(
+          'API chuyển đổi máy chủ. Dùng cùng TikTok Pixel ID. Để trống nếu chỉ dùng pixel trên trình duyệt.',
+          'Server conversion API. Used with the TikTok Pixel ID. Leave empty to use the browser pixel only.',
+          '服务器转化 API。与 TikTok Pixel ID 一起使用。仅用浏览器像素可留空。',
+          'サーバー側のコンバージョン API。TikTok Pixel ID と併用します。ブラウザのピクセルのみなら空欄。',
+          '서버 전환 API. TikTok Pixel ID와 함께 씁니다. 브라우저 픽셀만 쓰면 비워 두세요.'
         )}
         facebookPixelLabel={tr('Facebook Pixel / Meta Pixel', 'Facebook Pixel / Meta Pixel', 'Facebook Pixel / Meta Pixel', 'Facebook Pixel / Meta Pixel', 'Facebook Pixel / Meta Pixel')}
         facebookPixelPlaceholder={tr(
@@ -145,6 +240,36 @@ export default function AdminIntegrationsPage() {
           '피드 URL 복사'
         )}
         facebookCatalogFeedUrl={facebookCatalogFeedUrl}
+        tiktokCatalogFeedLabel={tr(
+          'TikTok Catalog Feed URL (CSV)',
+          'TikTok Catalog Feed URL (CSV)',
+          'TikTok 商品目录 Feed URL（CSV）',
+          'TikTok カタログフィード URL（CSV）',
+          'TikTok 카탈로그 피드 URL(CSV)'
+        )}
+        tiktokCatalogFeedHint={tr(
+          'Dán URL này vào TikTok Ads Manager → Catalog → Data sources. Cột sku_id trùng id nội dung remarketing của mọi tính năng.',
+          'Paste this URL into TikTok Ads Manager → Catalog → Data sources. The sku_id column matches the remarketing content id of every feature.',
+          '将此 URL 粘贴到 TikTok Ads Manager → Catalog → Data sources。sku_id 列与每个功能的再营销内容 ID 一致。',
+          'この URL を TikTok Ads Manager → Catalog → Data sources に貼り付けます。sku_id 列は各機能のリマーケティング用コンテンツ ID と一致します。',
+          '이 URL을 TikTok Ads Manager → Catalog → Data sources에 붙여 넣으세요. sku_id 열은 모든 기능의 리마케팅 콘텐츠 ID와 같습니다.'
+        )}
+        tiktokCatalogFeedUrl={tiktokCatalogFeedUrl}
+        googleMerchantFeedLabel={tr(
+          'Google Merchant Center Feed URL (TSV)',
+          'Google Merchant Center Feed URL (TSV)',
+          'Google Merchant Center Feed URL（TSV）',
+          'Google Merchant Center フィード URL（TSV）',
+          'Google Merchant Center 피드 URL(TSV)'
+        )}
+        googleMerchantFeedHint={tr(
+          'Dán vào Merchant Center → Nguồn cấp dữ liệu. Quốc gia Việt Nam, ngôn ngữ Tiếng Việt. Đủ cột quảng cáo mua sắm: id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category (313 Software), shipping. Cột id trùng content id.',
+          'Paste into Merchant Center → Data sources. Country Vietnam, language Vietnamese. Includes Shopping columns: id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category (313 Software), shipping. The id column matches the content id.',
+          '粘贴到 Merchant Center → 数据源。国家：越南，语言：越南语。包含购物广告必填列：id、title、description、link、image_link、availability、price、brand、condition、identifier_exists、google_product_category（313 Software）、shipping。id 列与内容 ID 一致。',
+          'Merchant Center → データソースに貼り付けます。対象国ベトナム、言語ベトナム語。ショッピング広告の列（id、title、description、link、image_link、availability、price、brand、condition、identifier_exists、google_product_category（313 Software）、shipping）を含みます。id 列はコンテンツ ID と一致します。',
+          'Merchant Center → 데이터 소스에 붙여 넣으세요. 국가 베트남, 언어 베트남어. 쇼핑 광고 열(id, title, description, link, image_link, availability, price, brand, condition, identifier_exists, google_product_category(313 Software), shipping)이 포함됩니다. id 열은 콘텐츠 ID와 같습니다.'
+        )}
+        googleMerchantFeedUrl={googleMerchantFeedUrl}
         webConsoleVerificationLabel={tr(
           'Thẻ xác minh Google Search Console',
           'Google Search Console verification tag',
@@ -233,6 +358,20 @@ export default function AdminIntegrationsPage() {
           'Google Tag Manager ID 无效。正确格式：GTM-XXXXXXX',
           'Google Tag Manager ID が無効です。形式: GTM-XXXXXXX',
           'Google Tag Manager ID 형식이 올바르지 않습니다. 형식: GTM-XXXXXXX'
+        )}
+        invalidGoogleAdsToast={tr(
+          'Google Ads ID không hợp lệ. Đúng định dạng: AW-123456789',
+          'Invalid Google Ads ID. Expected format: AW-123456789',
+          'Google Ads ID 无效。正确格式：AW-123456789',
+          'Google Ads ID が無効です。形式: AW-123456789',
+          'Google Ads ID 형식이 올바르지 않습니다. 형식: AW-123456789'
+        )}
+        invalidTiktokPixelToast={tr(
+          'TikTok Pixel ID không hợp lệ. Dùng mã pixel, ví dụ CXXXXXXXXXXXXXXX',
+          'Invalid TikTok Pixel ID. Use the pixel code, for example CXXXXXXXXXXXXXXX',
+          'TikTok Pixel ID 无效。请使用像素代码，例如 CXXXXXXXXXXXXXXX',
+          'TikTok Pixel ID が無効です。ピクセルコード（例 CXXXXXXXXXXXXXXX）を入力してください',
+          'TikTok Pixel ID 형식이 올바르지 않습니다. 픽셀 코드(예: CXXXXXXXXXXXXXXX)를 입력하세요'
         )}
       />
     </div>

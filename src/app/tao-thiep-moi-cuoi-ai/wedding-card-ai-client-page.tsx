@@ -41,7 +41,6 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
-import { trackWeddingAddToCart } from '@/lib/tracking/wedding-commerce-client'
 import { WEDDING_COVER_FRAME_OPENINGS, type WeddingCoverFrameOpening } from '@/lib/wedding/build-wedding-cover-frame-prompt'
 import {
   INVITATION_OCCASION_GROUPS,
@@ -1644,7 +1643,6 @@ export default function WeddingCardAiClientPage() {
         weddingDate: prev.weddingDate,
       }))
       setSavedCards((prev) => [summaryFromCard(result.card), ...prev.filter((item) => item.id !== result.card.id)])
-      trackWeddingAddToCart(result.card.id)
       toast({ title: 'Đã xuất bản link thiệp', description: 'Nội dung đã tự lưu. Không tốn credit.' })
     }
   }

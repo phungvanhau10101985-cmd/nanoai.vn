@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { getFeatureSeo } from '@/lib/feature-seo'
 import { listNanoAiFacebookCatalogItems } from '@/lib/catalog/nanoai-facebook-catalog'
+import { nanoAiFeatureRemarketing } from '@/lib/catalog/nanoai-feature-remarketing'
+import { toNanoAiFeatureCatalogIdFromHref } from '@/lib/catalog/nanoai-feature-catalog-id'
 import {
   WEDDING_ADD_TO_CART_VALUE_VND,
   WEDDING_COMMERCE_CONTENT_ID,
@@ -18,6 +20,18 @@ test('wedding catalog price matches the default add-to-cart value', () => {
   assert.equal(item.id, WEDDING_COMMERCE_CONTENT_ID)
   assert.equal(item.priceVnd, 149_000)
   assert.equal(WEDDING_ADD_TO_CART_VALUE_VND, 149_000)
+})
+
+test('each catalog feature content id matches the feed id and price', () => {
+  const items = listNanoAiFacebookCatalogItems().filter(
+    (row) => toNanoAiFeatureCatalogIdFromHref(row.linkPath) === row.id,
+  )
+  assert.ok(items.length > 10)
+  for (const item of items) {
+    const remarketing = nanoAiFeatureRemarketing(item.linkPath)
+    assert.equal(remarketing.contentId, item.id)
+    assert.equal(remarketing.valueVnd, item.priceVnd)
+  }
 })
 
 test('view content and add to cart use 149k and the catalog content id', () => {

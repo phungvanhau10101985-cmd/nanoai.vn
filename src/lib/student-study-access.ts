@@ -1,4 +1,5 @@
 import { spendCreditsIdempotent } from '@/lib/db/credits-balance'
+import { rememberStudentPlanPurchase } from '@/lib/tracking/nanoai-platform-purchase-queue'
 import { pgQuery } from '@/lib/db/pg-query'
 import { isPgConfigured } from '@/lib/db/pool'
 import { readFeatureTrialStartedAt } from '@/lib/feature-trial-start'
@@ -137,6 +138,9 @@ export async function purchaseStudentStudyPlan(input: {
   })
   if (!charged.ok) {
     return { ok: false, error: charged.error || 'charge_failed', credits, priceVnd: plan.priceVnd }
+  }
+  if (!charged.alreadyApplied) {
+    rememberStudentPlanPurchase({ orderId: eventKey, priceVnd: plan.priceVnd })
   }
   return {
     ok: true,
