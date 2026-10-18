@@ -1,6 +1,6 @@
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { asPartnerProductCard, sanitizeHeadlessCartItems } from '@/lib/messaging/partner-headless-cart-utils'
-import { shopCardDisplaySrc } from '@/lib/partner-website/shop/inventory-shop-detail'
+import { shopCardDisplaySrc, shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 
 export type SiteCartLine = {
   id: string
@@ -17,15 +17,37 @@ export function cartLineMergeKey(card: PartnerAiProductCard, color: string, size
   return `${pu}|${color.trim().toLowerCase()}|${size.trim().toLowerCase()}`
 }
 
+function httpsCartImage(raw: string | undefined): string {
+  const url = String(raw || '').trim()
+  return /^https?:\/\//i.test(url) ? url : ''
+}
+
+/** Ảnh đúng màu khách chọn. Ảnh gốc sản phẩm chỉ khi dòng không có ảnh màu. */
+export function cartLineChosenImage(line: Pick<SiteCartLine, 'card' | 'variantLineImages' | 'color'>): string {
+  const variant = (line.variantLineImages ?? []).map((url) => url.trim()).find((url) => /^https?:\/\//i.test(url))
+  if (line.color.trim() && variant) return variant
+  return line.card.image_url
+}
+
+/** Cỡ ảnh giống modal (`_1200x1200`) khi dòng có màu — `_600x600q90` hay ra ảnh khác. */
+export function cartLineDisplaySrc(line: Pick<SiteCartLine, 'card' | 'variantLineImages' | 'color'>): string {
+  const raw = cartLineChosenImage(line)
+  if (line.color.trim()) return shopPdpPageSrc(raw) || shopCardDisplaySrc(raw) || raw
+  return shopCardDisplaySrc(raw) || raw
+}
+
 export function mergeSiteCartLine(items: SiteCartLine[], line: SiteCartLine): SiteCartLine[] {
   const key = cartLineMergeKey(line.card, line.color, line.size)
   const idx = items.findIndex((x) => cartLineMergeKey(x.card, x.color, x.size) === key)
   const next = [...items]
   if (idx >= 0) {
+    const chosen = line.color.trim() ? httpsCartImage(cartLineChosenImage(line)) : ''
     next[idx] = {
       ...next[idx],
+      card: chosen ? { ...next[idx].card, image_url: chosen } : next[idx].card,
       quantity: Math.min(99, next[idx].quantity + line.quantity),
       note: line.note || next[idx].note,
+      color: line.color || next[idx].color,
       variantLineImages: line.variantLineImages ?? next[idx].variantLineImages,
     }
   } else {

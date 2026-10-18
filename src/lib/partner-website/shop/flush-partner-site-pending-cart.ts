@@ -52,7 +52,10 @@ async function resolvePendingCard(
   }
   const p = json.product
   const name = String(p?.name || item.name || '').trim() || 'Product'
-  const image_url = String(p?.imageUrl || item.image_url || '').trim()
+  const picked = String(item.image_url || '').trim()
+  const main = String(p?.imageUrl || '').trim()
+  const image_url =
+    (item.color?.trim() && /^https?:\/\//i.test(picked) ? picked : '') || main || picked
   const product_url = String(p?.productUrl || item.product_url || '').trim()
   if (!res.ok || !p || !/^https?:\/\//i.test(image_url) || !/^https?:\/\//i.test(product_url)) return null
   return {

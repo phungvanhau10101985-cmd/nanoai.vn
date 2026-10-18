@@ -160,6 +160,53 @@ test('mobile variant modal thumb opens a full-size viewer that returns to the mo
   assert.doesNotThrow(() => new Function(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS))
 })
 
+test('variant modal cart line keeps the color photo the customer selected', () => {
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /image_url:hero/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /var hero=variantCartImage\(\(color&&color\.img\)\|\|st\.imageUrl\)/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /image_from_color:!!\(color&&color\.img\)/)
+  assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /data-pw-full-src/)
+  const imgStart = PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS.indexOf('function variantImg')
+  const imgEnd = PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS.indexOf('function variantZoomSrc')
+  assert.ok(imgStart >= 0 && imgEnd > imgStart)
+  const variantCartImage = new Function(
+    `var location={origin:'https://shop.example'};\n${PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS.slice(imgStart, imgEnd)}\nreturn variantCartImage;`
+  )() as (url: string) => string
+  assert.equal(
+    variantCartImage('https://cbu01.alicdn.com/img/ibank/red.jpg'),
+    'https://img.alicdn.com/img/ibank/red.jpg_1200x1200.jpg'
+  )
+  assert.equal(
+    variantCartImage('https://img.alicdn.com/imgextra/red.jpg_600x600q90.jpg'),
+    'https://img.alicdn.com/imgextra/red.jpg_1200x1200.jpg'
+  )
+  const script = buildPartnerSiteShopActionsBootstrapScript({ siteSlug: 'demo-shop', locale: 'vi' })
+  const start = script.indexOf('function cartHttps')
+  const end = script.indexOf('function resolveCartCard')
+  assert.ok(start >= 0 && end > start)
+  const cartColorImage = new Function(`${script.slice(start, end)}\nreturn cartColorImage;`)() as (
+    product: { image_url?: string; image_from_color?: boolean; color?: string },
+    matched: { img?: string; name?: string } | null,
+    main: string
+  ) => string
+  assert.equal(
+    cartColorImage(
+      { image_url: 'https://img.alicdn.com/red.jpg', image_from_color: true, color: 'Đỏ' },
+      { name: 'Đỏ', img: 'https://img.alicdn.com/other.jpg' },
+      'https://img.alicdn.com/main.jpg'
+    ),
+    'https://img.alicdn.com/red.jpg'
+  )
+  assert.equal(
+    cartColorImage(
+      { image_url: 'https://img.alicdn.com/first-swatch.jpg', color: 'Xanh' },
+      { name: 'Xanh', img: 'https://img.alicdn.com/xanh.jpg' },
+      'https://img.alicdn.com/main.jpg'
+    ),
+    'https://img.alicdn.com/xanh.jpg'
+  )
+  assert.doesNotMatch(script, /if\(!\(chosen>0\)\)break/)
+})
+
 test('variant modal size guide requires a kind href, not leftover sizes alone', () => {
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /if\(st\.sizes\.length && st\.sizeGuideHref\)/)
   assert.match(PW_PRODUCT_VARIANT_MODAL_RUNTIME_JS, /base\.charAt\(base\.length-1\)==='\/'\?base\.slice\(0,-1\):base/)

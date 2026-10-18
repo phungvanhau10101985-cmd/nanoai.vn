@@ -678,7 +678,6 @@ export function PartnerSiteShopProductClient({
         priceHint: options?.price_hint || product.priceHint,
         imageUrl: nextImage,
       })
-      const colorImg = options?.colors.find((c) => c.name === nextColor)?.img || pick?.imageUrl
       const line: SiteCartLine = {
         id: crypto.randomUUID(),
         card,
@@ -686,7 +685,7 @@ export function PartnerSiteShopProductClient({
         color: nextColor,
         size: nextSize,
         note: '',
-        ...(colorImg ? { variantLineImages: [colorImg] } : {}),
+        ...(nextColor && nextImage ? { variantLineImages: [nextImage] } : {}),
       }
       const cartRes = await fetch(`/api/messaging/guest/${encodeURIComponent(partnerSlug)}/cart`, {
         credentials: 'same-origin',

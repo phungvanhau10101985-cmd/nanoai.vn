@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { shopCardDisplaySrc, shopPdpPageSrc } from '@/lib/partner-website/shop/inventory-shop-detail'
 import {
+  cartLineDisplaySrc,
   cartLinesQuantity,
   cartLinesSignature,
   formatVnd,
   formatVndOrZero,
+  mergeSiteCartLine,
   parseSiteCartLines,
+  type SiteCartLine,
 } from '@/lib/partner-website/shop/cart-line-utils'
 
 test('parseSiteCartLines keeps display cards and drops leftover PDP fields', () => {
@@ -42,6 +46,47 @@ test('parseSiteCartLines keeps display cards and drops leftover PDP fields', () 
   assert.match(lines[0]?.card.image_url ?? '', /_600x600q90/)
   assert.equal(cartLinesQuantity(lines), 2)
   assert.equal(cartLinesSignature(lines), 'line-1:2:Đen:')
+})
+
+test('cart shows the color photo the customer picked, with that color name', () => {
+  const line: SiteCartLine = {
+    id: 'a',
+    quantity: 1,
+    color: 'Đỏ',
+    size: 'M',
+    note: '',
+    card: {
+      name: 'Áo',
+      image_url: 'https://img.alicdn.com/imgextra/main.jpg',
+      product_url: 'https://shop.example/p/1',
+    },
+  }
+  const picked: SiteCartLine = {
+    ...line,
+    variantLineImages: ['https://img.alicdn.com/imgextra/red.jpg'],
+  }
+  const src = cartLineDisplaySrc(picked)
+  assert.match(src, /red\.jpg_1200x1200\.jpg/)
+  assert.doesNotMatch(src, /main\.jpg/)
+  const hero = 'https://img.alicdn.com/imgextra/red.jpg_1200x1200.jpg'
+  assert.equal(shopPdpPageSrc(shopCardDisplaySrc(hero)), hero)
+  const merged = mergeSiteCartLine([line], {
+    id: 'b',
+    quantity: 1,
+    color: 'Đỏ',
+    size: 'M',
+    note: '',
+    card: {
+      name: 'Áo',
+      image_url: 'https://img.alicdn.com/imgextra/red.jpg',
+      product_url: 'https://shop.example/p/1',
+    },
+    variantLineImages: ['https://img.alicdn.com/imgextra/red.jpg'],
+  })
+  assert.equal(merged.length, 1)
+  assert.equal(merged[0]?.quantity, 2)
+  assert.equal(merged[0]?.color, 'Đỏ')
+  assert.match(merged[0]?.card.image_url ?? '', /red\.jpg/)
 })
 
 test('formatVnd and formatVndOrZero format currency correctly', () => {

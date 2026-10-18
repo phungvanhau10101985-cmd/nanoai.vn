@@ -335,7 +335,7 @@ export function PartnerSiteProductVariantModal({
       color: selectedColor?.name || '',
       size,
       quantity: effectiveQty,
-      imageUrl: selectedColor?.img || product.imageUrl || '',
+      imageUrl: displayImage || selectedColor?.img || product.imageUrl || '',
     }
     if (buyNow) onBuyNow(pick)
     else onAddToCart(pick)

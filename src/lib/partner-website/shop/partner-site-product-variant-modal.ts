@@ -520,6 +520,17 @@ function variantImg(url, page){
   }catch(e){}
   return url;
 }
+function variantCartImage(url){
+  var shown=variantImg(url,true)||String(url||'').trim();
+  if(shown.indexOf('/api/fetch-image')===0){
+    try{
+      var inner=decodeURIComponent((shown.split('url=')[1]||'').split('&')[0]||'');
+      if(/^https?:\\/\\//i.test(inner))return inner;
+    }catch(e){}
+  }
+  if(shown.indexOf('//')===0)shown='https:'+shown;
+  return shown;
+}
 function variantZoomSrc(url){
   url=String(url||'').trim();
   if(!url)return '';
@@ -597,7 +608,8 @@ function readPdpOptionList(kind){
     if(!name||seen[name])continue;
     seen[name]=1;
     var img=pills[i].querySelector('img');
-    out.push({name:name,img:img?img.getAttribute('src')||'':'',price:Math.round(Number(pills[i].getAttribute('data-pw-variant-price'))||0)});
+    var raw=img?(img.getAttribute('data-pw-full-src')||img.getAttribute('src')||''):'';
+    out.push({name:name,img:raw,price:Math.round(Number(pills[i].getAttribute('data-pw-variant-price'))||0)});
   }
   return out;
 }
@@ -863,6 +875,7 @@ function confirmVariantModal(buyNow){
   var st=window.__pwVariantState;if(!st||st.busy)return;
   var color=st.colors[st.colorIndex]||null;
   var picked=st.unitPrice>0?st.unitPrice:variantColorPrice(color);
+  var hero=variantCartImage((color&&color.img)||st.imageUrl);
   var product={
     inventory_id:st.inventoryId,
     id:st.inventoryId,
@@ -870,7 +883,8 @@ function confirmVariantModal(buyNow){
     price_hint:picked>0?variantMoney(picked):st.priceHint,
     priceAmount:picked>0?picked:0,
     price_amount:picked>0?picked:0,
-    image_url:(color&&color.img)||st.imageUrl,
+    image_url:hero,
+    image_from_color:!!(color&&color.img),
     product_url:st.productUrl,
     sku:(color&&color.sku)||st.sku,
     remarketingId:st.remarketingId||'',
