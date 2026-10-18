@@ -951,14 +951,34 @@ function CoverFrameActions(props: {
 }) {
   if (!props.onChoosePhoto && !props.onChooseFrame) return null
   return (
-    <div className={cn('absolute z-[2] flex -translate-x-1/2 items-center justify-center gap-1', props.className)} style={props.style}>
+    <div
+      className={cn('pointer-events-auto absolute z-[8] flex -translate-x-1/2 items-center justify-center gap-1', props.className)}
+      style={props.style}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       {props.onChoosePhoto ? (
-        <button type="button" onClick={props.onChoosePhoto} className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onChoosePhoto?.()
+          }}
+          className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow"
+        >
           {props.hasPhoto ? props.changePhotoLabel : props.choosePhotoLabel}
         </button>
       ) : null}
       {props.onChooseFrame ? (
-        <button type="button" onClick={props.onChooseFrame} className="rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow">
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            props.onChooseFrame?.()
+          }}
+          className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow"
+        >
           {props.chooseFrameLabel}
         </button>
       ) : null}
@@ -1068,11 +1088,12 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             : undefined
         }
       >
+        <div className="absolute inset-0" style={{ backgroundColor: panel }} aria-hidden />
         <CoverPhotoPan
           edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
           hideZoom
           className="pointer-events-auto absolute overflow-hidden"
-          style={{ left: `${photoFrame.x}%`, top: `${photoFrame.y}%`, width: `${photoFrame.w}%`, height: `${photoFrame.h}%` }}
+          style={{ left: `${photoFrame.x}%`, top: `${photoFrame.y}%`, width: `${photoFrame.w}%`, height: `${photoFrame.h}%`, backgroundColor: panel }}
         >
           {props.coverPhotoUrl && holeMask !== undefined ? (
             <div className={cn('h-full w-full', photoMotion, props.breathe && !compact && 'wedding-cover-breathe')}>
@@ -1138,6 +1159,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             <CoverPhotoPan
               edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
               className="relative aspect-square w-full overflow-hidden rounded-full"
+              style={{ backgroundColor: panel }}
             >
               {props.coverPhotoUrl ? (
                 <img

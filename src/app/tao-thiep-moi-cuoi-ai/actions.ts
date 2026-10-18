@@ -88,7 +88,8 @@ async function uploadWeddingReferenceImage(
   file: FormDataEntryValue | null,
 ) {
   if (!(file instanceof File) || file.size <= 0) return null
-  if (!file.type.startsWith('image/')) {
+  const nameLooksLikeImage = /\.(jpe?g|png|webp|gif|heic|heif|bmp|avif)$/i.test(file.name)
+  if (!file.type.startsWith('image/') && !nameLooksLikeImage) {
     const roleLabel = role === 'groom' ? 'chú rể' : role === 'bride' ? 'cô dâu' : 'vỏ thiệp'
     throw new Error(`Ảnh ${roleLabel} phải là file ảnh hợp lệ.`)
   }

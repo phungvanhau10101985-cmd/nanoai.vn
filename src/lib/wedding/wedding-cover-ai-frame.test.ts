@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell } from './wedding-section-config'
+import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell } from './wedding-section-config'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -197,4 +197,13 @@ test('open celebration defaults to bloom and falling petals, and a chosen none i
   assert.equal(JSON.parse(timed).openFallSeconds, 30)
   const clamped = mergeWeddingSectionConfig(saved, { openFallSeconds: 999 })
   assert.equal(resolveOpenFallSeconds(parseWeddingSectionConfig(clamped)), 120)
+})
+
+test('cover photo slot drops the card background and keeps a customer upload', () => {
+  const background = 'https://cdn.example/floral-background.jpg'
+  const upload = 'https://cdn.example/cards/cover-upload.jpg'
+  assert.equal(coverPhotoUrlUnlessBackground(background, background), '')
+  assert.equal(coverPhotoUrlUnlessBackground(` ${background} `, background), '')
+  assert.equal(coverPhotoUrlUnlessBackground(upload, background), upload)
+  assert.equal(coverPhotoUrlUnlessBackground('', background), '')
 })

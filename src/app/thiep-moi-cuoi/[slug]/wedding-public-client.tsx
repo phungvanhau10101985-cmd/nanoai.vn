@@ -52,6 +52,7 @@ import {
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
+  coverPhotoUrlUnlessBackground,
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
@@ -182,7 +183,7 @@ export default function WeddingPublicClient({
   const openFallEffect = useMemo(() => resolveOpenFallEffect(sectionConfig), [sectionConfig])
   const openFallSeconds = useMemo(() => resolveOpenFallSeconds(sectionConfig), [sectionConfig])
   const albumLayoutId = resolveWeddingAlbumLayoutId(sectionConfig.albumLayoutId)
-  const coverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
+  const coverPhotoUrl = coverPhotoUrlUnlessBackground(resolveCoverPhotoUrl(sectionConfig), pageBackground)
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
   const weddingDateIso = useMemo(
@@ -464,7 +465,8 @@ export default function WeddingPublicClient({
     [sharedCopyAddresses],
   )
   const displayPersonalInvite = initialPersonalInvite.trim()
-  const displayCoverPhotoUrl = guestInviteLocation.coverImageUrl || coverPhotoUrl
+  const displayCoverPhotoUrl =
+    coverPhotoUrlUnlessBackground(guestInviteLocation.coverImageUrl, pageBackground) || coverPhotoUrl
   const displayInvitationText = withoutPartyAddress(guestInviteLocation.invitationText || card.invitationText)
   const displayInvitationTextEn = withoutPartyAddress(guestInviteLocation.invitationTextEn || card.invitationTextEn)
   const displayTimeline = useMemo(

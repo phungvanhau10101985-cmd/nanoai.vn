@@ -495,6 +495,17 @@ export function resolveCoverPhotoUrl(config: WeddingSectionConfig): string {
   return config.coverPhotoUrl?.trim() || ''
 }
 
+/** Ảnh nền của thiệp không được đứng vào ô ảnh khách tải lên. */
+export function coverPhotoUrlUnlessBackground(
+  photoUrl: string | null | undefined,
+  backgroundUrl: string | null | undefined,
+): string {
+  const photo = photoUrl?.trim() || ''
+  const background = backgroundUrl?.trim() || ''
+  if (!photo || (background && photo === background)) return ''
+  return photo
+}
+
 /** Khung AI đã lưu. Thiếu URL hoặc lỗ thì vỏ mẫu thắng. */
 export function resolveCoverAiFrame(config: WeddingSectionConfig): {
   src: string

@@ -88,6 +88,7 @@ import {
   resolveCoverPhotoObjectPosition,
   resolveCoverPhotoOpen,
   resolveCoverPhotoScale,
+  coverPhotoUrlUnlessBackground,
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
@@ -441,7 +442,6 @@ export default function WeddingCardAiClientPage() {
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
   const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
-  const [coverPhotoPickerOpen, setCoverPhotoPickerOpen] = useState(false)
   const [backgroundPageOpen, setBackgroundPageOpen] = useState(false)
   const [backgroundCreateOpen, setBackgroundCreateOpen] = useState(false)
   const [frameCreateOpen, setFrameCreateOpen] = useState(false)
@@ -489,8 +489,10 @@ export default function WeddingCardAiClientPage() {
   const [musicEndInput, setMusicEndInput] = useState('')
   const [pickedMusicPreviewUrl, setPickedMusicPreviewUrl] = useState<string | null>(null)
   const [albumImageFiles, setAlbumImageFiles] = useState<File[]>([])
+  const albumFileRef = useRef<HTMLInputElement>(null)
   const [albumPendingPreviews, setAlbumPendingPreviews] = useState<string[]>([])
   const [coverImageFile, setCoverImageFile] = useState<File | null>(null)
+  const coverFileRef = useRef<HTMLInputElement>(null)
   const [coverClearOnSave, setCoverClearOnSave] = useState(false)
   const [groomPortraitFile, setGroomPortraitFile] = useState<File | null>(null)
   const [bridePortraitFile, setBridePortraitFile] = useState<File | null>(null)
@@ -717,12 +719,29 @@ export default function WeddingCardAiClientPage() {
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
-  const coverPhotoPreviewUrl = coverClearOnSave
-    ? ''
-    : pickedCoverPreviewUrl || resolveCoverPhotoUrl(sectionConfig)
+  const coverBackgroundUrl = masterImage?.imageUrl?.trim() || ''
+  const storedCoverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
+  const storedCoverIsBackground =
+    Boolean(storedCoverPhotoUrl) &&
+    (!coverPhotoUrlUnlessBackground(storedCoverPhotoUrl, coverBackgroundUrl) ||
+      library.some((item) => item.imageUrl === storedCoverPhotoUrl))
+  const coverPhotoPreviewUrl =
+    coverClearOnSave || (!pickedCoverPreviewUrl && storedCoverIsBackground)
+      ? ''
+      : pickedCoverPreviewUrl || storedCoverPhotoUrl
   const groomPortraitPreviewUrl = groomPortraitClear ? '' : pickedGroomPortraitUrl || card.groomImageUrl
   const bridePortraitPreviewUrl = bridePortraitClear ? '' : pickedBridePortraitUrl || card.brideImageUrl
-  const coverBackgroundUrl = masterImage?.imageUrl?.trim() || ''
+  useEffect(() => {
+    if (loading || coverImageFile || coverClearOnSave || !storedCoverIsBackground) return
+    setCard((prev) => {
+      const current = resolveCoverPhotoUrl(parseWeddingSectionConfig(prev.sectionConfig))
+      if (!current || current !== storedCoverPhotoUrl) return prev
+      return {
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, { coverPhotoUrl: '' }),
+      }
+    })
+  }, [loading, coverImageFile, coverClearOnSave, storedCoverIsBackground, storedCoverPhotoUrl])
   const publishUrl = card.isPublished && card.slug && origin ? `${origin}/thiep-moi-cuoi/${card.slug}` : ''
   const weddingDateIso = useMemo(
     () => resolveWeddingDateIso(card.weddingDate),
@@ -1409,16 +1428,11 @@ export default function WeddingCardAiClientPage() {
     none: tBrief.openEffectNone,
   }
 
-  const pickCoverFromLibrary = (imageUrl: string) => {
-    const url = imageUrl.trim()
-    if (!library.some((item) => item.imageUrl === url)) return
-    setCoverImageFile(null)
-    setCoverClearOnSave(false)
-    setCoverPhotoPickerOpen(false)
-    setCard((prev) => ({
-      ...prev,
-      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, { coverPhotoUrl: url }),
-    }))
+  const openCoverPhotoUpload = () => {
+    const input = coverFileRef.current
+    if (!input) return
+    input.value = ''
+    input.click()
   }
 
   const applyCoverFrameFromLibrary = (item: WeddingCoverFrameLibraryItem) => {
@@ -2312,60 +2326,34 @@ export default function WeddingCardAiClientPage() {
                       choosePhotoLabel={txCover.choosePhoto}
                       changePhotoLabel={txCover.changePhoto}
                       chooseFrameLabel={txCover.chooseFrame}
-                      onChoosePhoto={() => setCoverPhotoPickerOpen(true)}
+                      onChoosePhoto={openCoverPhotoUpload}
                       onChooseFrame={() => setPortraitFrameSide('cover')}
                       compact
                     />
                   </div>
                 </div>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted sm:w-auto"
+                  onClick={openCoverPhotoUpload}
+                >
+                  <Upload className="h-4 w-4" />
+                  {txCover.coverUploadDevice}
+                </button>
                 <input
+                  ref={coverFileRef}
                   id="wedding-cover-frame-photo"
                   type="file"
                   accept="image/*"
-                  className="sr-only"
+                  className="fixed left-0 top-0 h-px w-px opacity-0"
                   onChange={(event) => {
                     const file = event.target.files?.[0] ?? null
                     event.target.value = ''
                     if (!file) return
                     setCoverImageFile(file)
                     setCoverClearOnSave(false)
-                    setCoverPhotoPickerOpen(false)
                   }}
                 />
-                <Dialog open={coverPhotoPickerOpen} onOpenChange={setCoverPhotoPickerOpen}>
-                  <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-                    <DialogHeader>
-                      <DialogTitle>{coverPhotoPreviewUrl ? txCover.changePhoto : txCover.choosePhoto}</DialogTitle>
-                      <DialogDescription>{txCover.coverLibraryHint}</DialogDescription>
-                    </DialogHeader>
-                    <Button type="button" variant="outline" onClick={() => document.getElementById('wedding-cover-frame-photo')?.click()}>
-                      <Upload className="mr-2 h-4 w-4" />
-                      {txCover.coverUploadDevice}
-                    </Button>
-                    {library.length ? (
-                      <div className="grid grid-cols-3 gap-2">
-                        {library.map((item) => {
-                          const active = resolveCoverPhotoUrl(sectionConfig) === item.imageUrl && !coverImageFile
-                          return (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => pickCoverFromLibrary(item.imageUrl)}
-                              className={cn(
-                                'overflow-hidden rounded-xl border bg-muted',
-                                active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
-                              )}
-                            >
-                              <img src={item.imageUrl} alt="" className="h-24 w-full object-cover" />
-                            </button>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="rounded-xl bg-muted px-3 py-4 text-center text-xs text-muted-foreground">{txCover.coverLibraryEmpty}</p>
-                    )}
-                  </DialogContent>
-                </Dialog>
                 <p className="text-xs text-muted-foreground">{txCover.uploadHint}</p>
                 {!coverImageFile && resolveCoverPhotoUrl(sectionConfig) ? (
                   <Button type="button" variant="outline" size="sm" onClick={() => setCoverClearOnSave(true)}>
@@ -2441,6 +2429,7 @@ export default function WeddingCardAiClientPage() {
                           }
                         : undefined
                     }
+                    choosePhotoLabel={txCover.choosePhoto}
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('groom')}
                     shell={groomPortraitShell}
@@ -2471,6 +2460,7 @@ export default function WeddingCardAiClientPage() {
                           }
                         : undefined
                     }
+                    choosePhotoLabel={txCover.choosePhoto}
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('bride')}
                     shell={bridePortraitShell}
@@ -2588,25 +2578,30 @@ export default function WeddingCardAiClientPage() {
                   <p className="text-xs text-muted-foreground">
                     Trên khung xem album: kéo ảnh để căn góc, lăn chuột hoặc thanh zoom để phóng, nút X để xóa. Nút mũi tên vẫn chuyển ảnh. Nhấp đúp để về vị trí ban đầu. Ảnh mới tự lưu.
                   </p>
-                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted"
+                    onClick={() => albumFileRef.current?.click()}
+                  >
                     <Upload className="h-4 w-4" />
                     Chọn nhiều ảnh album
-                    <input
-                      type="file"
-                      accept="image/*"
-                      multiple
-                      className="sr-only"
-                      onChange={(event) => {
-                        const picked = Array.from(event.target.files ?? [])
-                        event.target.value = ''
-                        if (picked.length === 0) return
-                        setAlbumImageFiles((prev) => {
-                          const room = Math.max(0, 30 - card.albumImageUrls.length - prev.length)
-                          return room > 0 ? [...prev, ...picked.slice(0, room)] : prev
-                        })
-                      }}
-                    />
-                  </label>
+                  </button>
+                  <input
+                    ref={albumFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="sr-only"
+                    onChange={(event) => {
+                      const picked = Array.from(event.target.files ?? [])
+                      event.target.value = ''
+                      if (picked.length === 0) return
+                      setAlbumImageFiles((prev) => {
+                        const room = Math.max(0, 30 - card.albumImageUrls.length - prev.length)
+                        return room > 0 ? [...prev, ...picked.slice(0, room)] : prev
+                      })
+                    }}
+                  />
                   {(card.albumImageUrls.length > 0 || albumPendingPreviews.length > 0) && (
                     <div className="grid w-full min-w-0 max-w-full grid-cols-3 gap-2 sm:gap-3">
                       {card.albumImageUrls.map((url, index) => {
@@ -3601,33 +3596,31 @@ function ImageUploadField(props: {
   }
   onFileChange: (file: File | null) => void
   onRemove?: () => void
+  choosePhotoLabel?: string
   chooseFrameLabel?: string
   onChooseFrame?: () => void
   shell?: WeddingPortraitShellFrame | null
   frameScale?: number
   frameScaleEdit?: FrameScaleEdit
 }) {
+  const fileRef = useRef<HTMLInputElement>(null)
   const previewUrl = props.file ? URL.createObjectURL(props.file) : props.currentUrl
   const portrait = props.frame === 'portrait'
   const shell = props.shell ?? null
+  const openPhotoFile = () => fileRef.current?.click()
   const photoActions = (
-    <div className="absolute inset-x-0 bottom-2 z-[2] flex justify-center gap-1.5 px-2">
-      <label
-        className="cursor-pointer rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
+    <div className="pointer-events-auto absolute inset-x-0 bottom-2 z-[6] flex justify-center gap-1.5 px-2">
+      <button
+        type="button"
+        className="pointer-events-auto rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"
         onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          openPhotoFile()
+        }}
       >
-        Chọn ảnh
-        <input
-          id={props.inputId}
-          type="file"
-          accept="image/*"
-          className="sr-only"
-          onChange={(event) => {
-            props.onFileChange(event.target.files?.[0] ?? null)
-            event.target.value = ''
-          }}
-        />
-      </label>
+        {props.choosePhotoLabel ?? 'Chọn ảnh'}
+      </button>
       {props.onChooseFrame ? (
         <button
           type="button"
@@ -3644,6 +3637,17 @@ function ImageUploadField(props: {
   return (
     <div className="space-y-2 rounded-2xl border p-3">
       <Label>{props.label}</Label>
+      <input
+        ref={fileRef}
+        id={props.inputId}
+        type="file"
+        accept="image/*"
+        className="sr-only"
+        onChange={(event) => {
+          props.onFileChange(event.target.files?.[0] ?? null)
+          event.target.value = ''
+        }}
+      />
       {previewUrl && props.crop ? (
         <CoverPhotoCropEditor
           bare
@@ -3779,6 +3783,8 @@ function CoverPhotoCropEditor(props: {
         role="application"
         aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {
+          const target = event.target
+          if (target instanceof Element && target.closest('button, label, input, a')) return
           dragRef.current = {
             pointerId: event.pointerId,
             startX: event.clientX,
