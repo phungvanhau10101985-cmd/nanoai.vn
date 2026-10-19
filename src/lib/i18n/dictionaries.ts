@@ -2815,6 +2815,14 @@ export type Dictionary = {
     privacyPolicyLink: string
     /** Liên kết chân trang → /terms */
     termsOfServiceLink: string
+    /** Liên kết chân trang → /chinh-sach-doi-tra */
+    returnPolicyLink: string
+    /** Liên kết chân trang → /chinh-sach-giao-hang */
+    shippingPolicyLink: string
+    /** Liên kết chân trang → /chinh-sach-thanh-toan */
+    paymentPolicyLink: string
+    /** Liên kết chân trang → /lien-he */
+    contactPageLink: string
     /** Liên kết chân trang → /data-deletion (Facebook: user data deletion URL) */
     dataDeletionLink: string
   }
@@ -6923,6 +6931,10 @@ export const VI_DICTIONARY: Dictionary = {
     rights: '© NanoAI. All rights reserved.',
     privacyPolicyLink: 'Chính sách quyền riêng tư',
     termsOfServiceLink: 'Điều khoản dịch vụ',
+    returnPolicyLink: 'Chính sách đổi trả',
+    shippingPolicyLink: 'Chính sách giao hàng',
+    paymentPolicyLink: 'Chính sách thanh toán',
+    contactPageLink: 'Liên hệ',
     dataDeletionLink: 'Xóa dữ liệu người dùng',
   },
   navGroup: {

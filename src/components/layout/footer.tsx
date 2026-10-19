@@ -30,6 +30,30 @@ export function Footer() {
             <li>
               <Link
                 className="text-blue-600 underline underline-offset-2 hover:text-foreground"
+                href="/chinh-sach-doi-tra"
+              >
+                {t.footer.returnPolicyLink}
+              </Link>
+            </li>
+            <li>
+              <Link
+                className="text-blue-600 underline underline-offset-2 hover:text-foreground"
+                href="/chinh-sach-giao-hang"
+              >
+                {t.footer.shippingPolicyLink}
+              </Link>
+            </li>
+            <li>
+              <Link
+                className="text-blue-600 underline underline-offset-2 hover:text-foreground"
+                href="/chinh-sach-thanh-toan"
+              >
+                {t.footer.paymentPolicyLink}
+              </Link>
+            </li>
+            <li>
+              <Link
+                className="text-blue-600 underline underline-offset-2 hover:text-foreground"
                 href="/data-deletion"
               >
                 {t.footer.dataDeletionLink}
@@ -47,6 +71,11 @@ export function Footer() {
             </a>
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{t.footer.supportHours}</p>
+          <p className="mt-2 text-sm">
+            <Link className="text-blue-600 underline underline-offset-2 hover:text-foreground" href="/lien-he">
+              {t.footer.contactPageLink}
+            </Link>
+          </p>
         </section>
       </div>
 

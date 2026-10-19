@@ -2860,7 +2860,8 @@ export default function WeddingCardAiClientPage() {
 
           </div>
 
-          <div className="w-full min-w-0 max-w-full space-y-6 lg:sticky lg:top-24 lg:self-start">
+          {/* Cao hơn màn hình thì Chrome kéo cả trang xuống đáy mỗi lần preview đổi chiều cao. */}
+          <div className="w-full min-w-0 max-w-full space-y-6 [overflow-anchor:none] lg:sticky lg:top-24 lg:z-[1] lg:max-h-[calc(100dvh-7rem)] lg:self-start lg:overflow-y-auto lg:overscroll-contain">
             <Card>
               <CardHeader className="gap-2">
                 <div className="flex items-start justify-between gap-3">

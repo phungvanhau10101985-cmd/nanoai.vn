@@ -22,6 +22,7 @@ export type HomeworkHelpCopy = {
   thinking: string
   figure: string
   nextHint: string
+  answerEncourage: string
   showAnswer: string
   answer: string
   solutionWarning: string
@@ -81,6 +82,8 @@ const VI: HomeworkHelpCopy = {
   thinking: 'Hướng tư duy',
   figure: 'Hình minh họa',
   nextHint: 'Gợi ý tiếp',
+  answerEncourage:
+    'Nên làm bài trước và lấy kết quả của mình, rồi hãy đối chiếu với đáp án. Làm xong rồi mới mở sẽ hay hơn mở xem rồi mới làm.',
   showAnswer: 'Xem đáp án',
   answer: 'Đáp án',
   solutionWarning:
@@ -157,6 +160,8 @@ const EN: HomeworkHelpCopy = {
   thinking: 'How to think',
   figure: 'Figure',
   nextHint: 'Next hint',
+  answerEncourage:
+    'Work it out first and keep your own result, then compare it with the answer. Finishing first and then opening the answer teaches more than opening it and doing the work afterward.',
   showAnswer: 'Show answer',
   answer: 'Answer',
   solutionWarning:
@@ -232,6 +237,7 @@ const ZH: HomeworkHelpCopy = {
   thinking: '思考方向',
   figure: '图示',
   nextHint: '下一条提示',
+  answerEncourage: '先自己做完并记下结果，再和答案对照。先做完再打开，比先看答案再做更有收获。',
   showAnswer: '查看答案',
   answer: '答案',
   solutionWarning: '请先自己做。看完详解后，大脑会更懒于思考：你记住的是别人走过的路，下次就容易不再自己推理。',
@@ -306,6 +312,8 @@ const JA: HomeworkHelpCopy = {
   thinking: '考え方',
   figure: '図',
   nextHint: '次のヒント',
+  answerEncourage:
+    '先に自分で解いて結果を出してから、答えと照合してください。答えを見てから解くより、解き終えてから開く方が身になります。',
   showAnswer: '答えを見る',
   answer: '答え',
   solutionWarning:
@@ -382,6 +390,8 @@ const KO: HomeworkHelpCopy = {
   thinking: '생각 방향',
   figure: '그림',
   nextHint: '다음 힌트',
+  answerEncourage:
+    '먼저 직접 풀어 자기 결과를 낸 다음, 답과 대조하세요. 답을 보고 나서 푸는 것보다, 풀고 나서 여는 편이 더 좋습니다.',
   showAnswer: '답 보기',
   answer: '답',
   solutionWarning:

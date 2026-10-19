@@ -34,22 +34,30 @@ export function WeddingDeviceFileInput(props: {
     const anchor = anchorRef.current
     const input = inputRef.current
     if (!anchor || !input) return
-    if (props.disabled) {
+    const park = () => {
+      input.style.left = '0px'
+      input.style.top = '0px'
+      input.style.width = '0px'
+      input.style.height = '0px'
       input.style.visibility = 'hidden'
       input.style.pointerEvents = 'none'
+    }
+    if (props.disabled) {
+      park()
       return
     }
     let frame = 0
     const sync = () => {
       const rect = anchor.getBoundingClientRect()
-      const usable = rect.width >= 8 && rect.height >= 8
-      input.style.left = `${rect.left}px`
-      input.style.top = `${rect.top}px`
-      input.style.width = `${Math.max(0, rect.width)}px`
-      input.style.height = `${Math.max(0, rect.height)}px`
-      if (!usable) {
-        input.style.visibility = 'hidden'
-        input.style.pointerEvents = 'none'
+      const inView =
+        rect.width >= 8 &&
+        rect.height >= 8 &&
+        rect.bottom > 0 &&
+        rect.right > 0 &&
+        rect.top < window.innerHeight &&
+        rect.left < window.innerWidth
+      if (!inView) {
+        park()
         return
       }
       const cx = rect.left + rect.width / 2
@@ -57,8 +65,16 @@ export function WeddingDeviceFileInput(props: {
       const hits = document.elementsFromPoint(cx, cy).filter((el) => el !== input)
       const top = hits[0]
       const open = top === anchor || (top != null && anchor.contains(top))
-      input.style.visibility = open ? 'visible' : 'hidden'
-      input.style.pointerEvents = open ? 'auto' : 'none'
+      if (!open) {
+        park()
+        return
+      }
+      input.style.left = `${rect.left}px`
+      input.style.top = `${rect.top}px`
+      input.style.width = `${rect.width}px`
+      input.style.height = `${rect.height}px`
+      input.style.visibility = 'visible'
+      input.style.pointerEvents = 'auto'
     }
     const loop = () => {
       sync()
@@ -67,8 +83,7 @@ export function WeddingDeviceFileInput(props: {
     frame = requestAnimationFrame(loop)
     return () => {
       cancelAnimationFrame(frame)
-      input.style.visibility = 'hidden'
-      input.style.pointerEvents = 'none'
+      park()
     }
   }, [mounted, props.disabled])
 
@@ -95,6 +110,16 @@ export function WeddingDeviceFileInput(props: {
         zIndex: FILE_LAYER_Z,
         cursor: 'pointer',
         visibility: 'hidden',
+        overflowAnchor: 'none',
+      }}
+      onFocus={() => {
+        const x = window.scrollX
+        const y = window.scrollY
+        const restore = () => {
+          if (Math.abs(window.scrollY - y) > 80 || Math.abs(window.scrollX - x) > 80) window.scrollTo(x, y)
+        }
+        queueMicrotask(restore)
+        requestAnimationFrame(restore)
       }}
       onChange={(event) => {
         const files = Array.from(event.target.files ?? [])

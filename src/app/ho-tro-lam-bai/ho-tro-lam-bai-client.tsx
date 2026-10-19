@@ -1257,18 +1257,17 @@ function ProblemBubble({
         </div>
       ) : null}
 
-      {hintsLeft || canShowAnswer ? (
-        <div className="flex flex-wrap gap-2">
-          {hintsLeft ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setShownHints((count) => count + 1)}>
-              {copy.nextHint}
-            </Button>
-          ) : null}
-          {canShowAnswer ? (
-            <Button type="button" variant="outline" size="sm" onClick={() => setAnswerOpen(true)}>
-              {copy.showAnswer}
-            </Button>
-          ) : null}
+      {hintsLeft ? (
+        <Button type="button" variant="outline" size="sm" onClick={() => setShownHints((count) => count + 1)}>
+          {copy.nextHint}
+        </Button>
+      ) : null}
+      {canShowAnswer ? (
+        <div className="space-y-2">
+          <p className="rounded-lg bg-muted px-3 py-2 text-sm leading-6">{copy.answerEncourage}</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setAnswerOpen(true)}>
+            {copy.showAnswer}
+          </Button>
         </div>
       ) : null}
 

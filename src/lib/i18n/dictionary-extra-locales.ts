@@ -2780,6 +2780,10 @@ const EN_DICTIONARY: Dictionary = {
     rights: '© NanoAI. All rights reserved.',
     privacyPolicyLink: 'Privacy policy',
     termsOfServiceLink: 'Terms of service',
+    returnPolicyLink: 'Returns and refunds',
+    shippingPolicyLink: 'Shipping and delivery',
+    paymentPolicyLink: 'Payment policy',
+    contactPageLink: 'Contact',
     dataDeletionLink: 'User data deletion',
   },
   navGroup: {
@@ -4432,6 +4436,10 @@ const ZH_DICTIONARY: Dictionary = {
     rights: '© NanoAI. 保留所有权利。',
     privacyPolicyLink: '隐私政策',
     termsOfServiceLink: '服务条款',
+    returnPolicyLink: '退换与退款政策',
+    shippingPolicyLink: '配送政策',
+    paymentPolicyLink: '付款政策',
+    contactPageLink: '联系我们',
     dataDeletionLink: '用户数据删除说明',
   },
   menu: {
@@ -8415,6 +8423,10 @@ const JA_DICTIONARY: Dictionary = {
     rights: '© NanoAI. All rights reserved.',
     privacyPolicyLink: 'プライバシーポリシー',
     termsOfServiceLink: '利用規約',
+    returnPolicyLink: '返品・返金ポリシー',
+    shippingPolicyLink: '配送ポリシー',
+    paymentPolicyLink: '支払いポリシー',
+    contactPageLink: 'お問い合わせ',
     dataDeletionLink: 'ユーザーデータの削除',
   },
   menu: {
@@ -12490,6 +12502,10 @@ const KO_DICTIONARY: Dictionary = {
     rights: '© NanoAI. All rights reserved.',
     privacyPolicyLink: '개인정보 처리방침',
     termsOfServiceLink: '서비스 이용약관',
+    returnPolicyLink: '교환·환불 정책',
+    shippingPolicyLink: '배송 정책',
+    paymentPolicyLink: '결제 정책',
+    contactPageLink: '문의',
     dataDeletionLink: '사용자 데이터 삭제 안내',
   },
   menu: {

@@ -13,13 +13,25 @@ export const metadata: Metadata = buildMetadata({
 })
 
 const extraLinks = (t: {
-  footer: { privacyPolicyLink: string; termsOfServiceLink: string; dataDeletionLink: string }
+  footer: {
+    privacyPolicyLink: string
+    termsOfServiceLink: string
+    returnPolicyLink: string
+    shippingPolicyLink: string
+    paymentPolicyLink: string
+    contactPageLink: string
+    dataDeletionLink: string
+  }
 }) => [
   { href: '/', label: 'Home' },
   { href: '/sitemap.xml', label: 'Sitemap XML' },
   { href: '/robots.txt', label: 'Robots.txt' },
   { href: '/privacy', label: t.footer.privacyPolicyLink },
   { href: '/terms', label: t.footer.termsOfServiceLink },
+  { href: '/chinh-sach-doi-tra', label: t.footer.returnPolicyLink },
+  { href: '/chinh-sach-giao-hang', label: t.footer.shippingPolicyLink },
+  { href: '/chinh-sach-thanh-toan', label: t.footer.paymentPolicyLink },
+  { href: '/lien-he', label: t.footer.contactPageLink },
   { href: '/data-deletion', label: t.footer.dataDeletionLink },
 ]
 
