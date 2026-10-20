@@ -11,6 +11,7 @@ import WorksheetViewWithEdit from './worksheet-view-with-edit'
 import { PresentWorksheetButton } from './present-worksheet-button'
 import { WorksheetSharePanel } from './worksheet-share-panel'
 import { worksheetDisplayMarkdownFromDb } from '@/app/tao-giao-trinh/lib/merge-worksheet-content'
+import { getUserForAction } from '@/lib/auth'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchWorksheetSheetPublicViewByIdFromPg, fetchWorksheetTopicByIdFromPg } from '@/lib/db/worksheet-pg'
 
@@ -51,9 +52,11 @@ export default async function PhieuBaiTapPage({ params }: { params: { id: string
     locale === 'en' ? en : locale === 'zh' ? zh : locale === 'ja' ? ja : locale === 'ko' ? ko : vi
 
   const questionIds = data.question_ids
+  const auth = await getUserForAction()
+  const viewerId = 'user' in auth ? auth.user.id : null
   const displayMarkdown =
     questionIds.length > 0
-      ? await worksheetDisplayMarkdownFromDb(data.content_markdown ?? '', questionIds)
+      ? await worksheetDisplayMarkdownFromDb(data.content_markdown ?? '', questionIds, viewerId)
       : (data.content_markdown ?? '')
 
   const updatedAt =

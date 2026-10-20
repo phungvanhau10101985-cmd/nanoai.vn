@@ -5,7 +5,6 @@ import { isPgConfigured } from '@/lib/db/pool'
 import {
   collectAllowedQuestionIdsFromCurriculaPg,
   fetchLessonTopicsFromCurriculumIdsPg,
-  fetchOfficialQuestionsBankPg,
   fetchWorksheetEssayRowsByIdsPg,
   fetchWorksheetQuizRowsByIdsPg,
   insertExamQuestionRowsPg,
@@ -38,20 +37,6 @@ type WorksheetQuestionPick = {
   difficulty?: unknown
   content_json?: unknown
 }
-type OfficialBankRow = {
-  question_text?: unknown
-  options?: unknown
-  correct_index?: unknown
-  difficulty?: unknown
-}
-type OfficialPoolItem = {
-  question_text: string
-  options: string[]
-  correct_index: number
-  source: 'official'
-  difficulty: string
-}
-
 /** Tổng điểm tối đa toàn đề (TN + TL) — khớp UI tạo đề */
 const EXAM_TARGET_TOTAL_POINTS = 100
 
@@ -401,7 +386,7 @@ export async function POST(req: NextRequest) {
       if (scopedQuizIds.length > 0) {
         const poolRowsRaw = await fetchWorksheetQuizRowsByIdsPg(scopedQuizIds)
         if (poolRowsRaw === null) {
-          return NextResponse.json({ error: 'Không thể đọc ngân hàng câu trắc nghiệm.' }, { status: 503 })
+          return NextResponse.json({ error: 'Không thể đọc câu trắc nghiệm đã chọn.' }, { status: 503 })
         }
         const poolRowsTyped = poolRowsRaw as WorksheetQuestionPick[]
         const pool = poolRowsTyped.map((r) => {
@@ -460,62 +445,10 @@ export async function POST(req: NextRequest) {
           )
         }
       } else {
-        const officialRows = await fetchOfficialQuestionsBankPg({
-          subjectId,
-          gradeLevelId,
-          lessonTopics,
-          difficulty: difficulty as string | undefined,
-          limit: Math.max(30, requestedQuizCount * 4),
-        })
-        if (officialRows === null) {
-          return NextResponse.json({ error: 'Không thể đọc ngân hàng câu chính thức.' }, { status: 503 })
-        }
-        const bankRows = officialRows as OfficialBankRow[]
-        const pool: OfficialPoolItem[] = bankRows
-          .map((r) => ({
-            question_text: String(r.question_text ?? '').trim(),
-            options: Array.isArray(r.options) ? r.options.map((x: unknown) => String(x ?? '').trim()).filter(Boolean).slice(0, 4) : [],
-            correct_index: typeof r.correct_index === 'number' ? r.correct_index : Number(r.correct_index ?? 0),
-            source: 'official' as const,
-            difficulty: String(r.difficulty ?? ''),
-          }))
-          .filter((r): r is OfficialPoolItem => Boolean(r.question_text && r.options.length >= 2))
-        const easyPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'easy'))
-        const mediumPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'medium'))
-        const hardPool = sampleShuffle(pool.filter((x) => normalizeDifficulty(x.difficulty) === 'hard'))
-        if (
-          easyPool.length < requestedQuizByDifficulty.easy
-          || mediumPool.length < requestedQuizByDifficulty.medium
-          || hardPool.length < requestedQuizByDifficulty.hard
-        ) {
-          return NextResponse.json(
-            { error: 'Không đủ câu trắc nghiệm theo mức độ trong ngân hàng câu hỏi.' },
-            { status: 400 }
-          )
-        }
-        const picked: OfficialPoolItem[] = [
-          ...easyPool.slice(0, requestedQuizByDifficulty.easy),
-          ...mediumPool.slice(0, requestedQuizByDifficulty.medium),
-          ...hardPool.slice(0, requestedQuizByDifficulty.hard),
-        ]
-        pickedQuestions.push(
-          ...picked.map((qz: OfficialPoolItem) => ({
-            question_text: qz.question_text,
-            options: qz.options,
-            correct_index: Number.isFinite(qz.correct_index) ? Math.max(0, Math.min(3, Math.floor(qz.correct_index))) : 0,
-            source: 'official',
-            points: pointsForQuizDifficulty(qz.difficulty),
-          }))
+        return NextResponse.json(
+          { error: 'Hãy chọn câu trắc nghiệm từ giáo trình của bạn.' },
+          { status: 400 }
         )
-        for (const item of picked) {
-          perQuestionMinutes.push(
-            quizMinutesForDifficulty(item.difficulty, {
-              easy: quizMinutesEasy,
-              medium: quizMinutesMedium,
-              hard: quizMinutesHard,
-            })
-          )
-        }
       }
     }
 

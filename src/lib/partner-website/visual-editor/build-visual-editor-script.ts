@@ -12153,15 +12153,57 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     var s = String(html || '')
     return /data-pw-related\s*=|data-pw-outfit\s*=|data-pw-grid-kind\s*=\s*["']?(related|outfit)/.test(s)
   }
-  function insertProductGrid(html) {
-    if (/data-pw-personalize\s*=\s*["']flash-sale["']/.test(String(html || ''))) {
-      var existingFlash = document.querySelector('[data-pw-personalize="flash-sale"]')
-      if (existingFlash) {
-        selectEl(existingFlash)
-        try { existingFlash.scrollIntoView({ block: 'center' }) } catch (eFlashHave) {}
-        return
-      }
+  function currentEditDeviceName() {
+    var html = document.documentElement
+    var d = String((html && (html.getAttribute('data-pw-edit-device') || html.getAttribute('data-pw-scene-lock'))) || '').toLowerCase()
+    if (d === 'laptop' || d === 'tablet' || d === 'mobile' || d === 'desktop') return d
+    return 'desktop'
+  }
+  function currentDeviceRoot() {
+    var d = currentEditDeviceName()
+    var sel = d === 'laptop' ? '.pw-visual-laptop' : d === 'tablet' ? '.pw-visual-tablet' : d === 'mobile' ? '.pw-visual-mobile' : '.pw-visual-desktop'
+    var root = document.querySelector(sel)
+    return root || document.body
+  }
+  function flashSaleHostsHere() {
+    var root = currentDeviceRoot()
+    if (!root || !root.querySelectorAll) return []
+    return root.querySelectorAll('[data-pw-personalize="flash-sale"]')
+  }
+  function revealFlashSaleHost(el, force) {
+    if (!el || !el.removeAttribute) return
+    if (!force && el.getAttribute('data-pw-hidden') === '1') return
+    try { el.hidden = false } catch (eHid) {}
+    try { el.removeAttribute('hidden') } catch (eHid2) {}
+    if (force) {
+      try { el.removeAttribute('data-pw-hidden') } catch (eHid3) {}
     }
+    if (el.getAttribute('data-pw-live-products') === 'loading') el.setAttribute('data-pw-live-products', 'ready')
+    if (el.style && el.style.display === 'none') el.style.removeProperty('display')
+  }
+  function revealEditorFlashSales() {
+    try { if (window.__pwReleaseFlashForEditor) window.__pwReleaseFlashForEditor() } catch (eRel) {}
+    var nodes = flashSaleHostsHere()
+    for (var i = 0; i < nodes.length; i++) revealFlashSaleHost(nodes[i])
+  }
+  function dropFlashSaleHostsForInsert() {
+    var nodes = flashSaleHostsHere()
+    var anchorHost = null
+    var unit = hasInsertAnchor() ? insertAnchor.unit : null
+    var i
+    for (i = 0; i < nodes.length; i++) {
+      if (unit && nodes[i].contains && nodes[i].contains(unit)) anchorHost = nodes[i]
+    }
+    for (i = nodes.length - 1; i >= 0; i--) {
+      if (nodes[i] === anchorHost) continue
+      if (nodes[i].parentNode) nodes[i].parentNode.removeChild(nodes[i])
+    }
+    return anchorHost
+  }
+  function insertProductGrid(html) {
+    var flashInsert = /data-pw-personalize\s*=\s*["']flash-sale["']/.test(String(html || ''))
+    var flashAnchorHost = flashInsert ? dropFlashSaleHostsForInsert() : null
+    var selectedBeforeFlash = selected
     if (/data-pw-featured-categories/.test(String(html || ''))) {
       insertInFlowSection(html, 'data-pw-featured-categories')
       return
@@ -12176,6 +12218,11 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       return
     }
     insertInFlowSection(html, 'data-pw-added-catalog')
+    if (!flashInsert) return
+    if (flashAnchorHost && flashAnchorHost.parentNode && selected && selected !== flashAnchorHost && selected !== selectedBeforeFlash) {
+      flashAnchorHost.parentNode.removeChild(flashAnchorHost)
+    }
+    if (selected && selected !== selectedBeforeFlash) revealFlashSaleHost(selected, true)
   }
   function insertBanner(html, opts) {
     opts = opts && typeof opts === 'object' ? opts : {}
@@ -15555,6 +15602,8 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
       'html{overflow-x:visible!important;max-width:100%}',
       'body{overflow-x:hidden!important;max-width:100%}',
       'html.nanoai-ve-active,body.nanoai-ve-active{overflow-y:visible!important}',
+      'body.nanoai-ve-active [data-pw-personalize="flash-sale"]:not([data-pw-hidden="1"]){display:block!important;visibility:visible!important;height:auto!important}',
+      'body.nanoai-ve-active [data-pw-personalize="flash-sale"]:not([data-pw-hidden="1"]) [data-pw-grid],body.nanoai-ve-active [data-pw-personalize="flash-sale"]:not([data-pw-hidden="1"]) [data-pw-grid] *{visibility:visible!important}',
       'main,.pw-shop-main,.pw-main{overflow:visible!important}',
       ${JSON.stringify(PW_PAPER_CSS)},
       '[data-pw-added-bg="1"]{overflow:visible}',
@@ -15988,6 +16037,7 @@ const RUNTIME_BODY = `(function (MSG, COPY, SCENE) {
     try { pwApplyDemoChromeCountBadges(document) } catch (errDemo) {}
     try { restoreWidgetColors(document) } catch (errWidget) {}
     document.body.classList.add('nanoai-ve-active')
+    try { revealEditorFlashSales() } catch (errFlashShow) {}
     try { freezeLiveChromeForEditor() } catch (errFreeze) {}
     try { hideLayerSwitches() } catch (errHide) {}
     try { stampPwUiContract() } catch (errStamp2) {}

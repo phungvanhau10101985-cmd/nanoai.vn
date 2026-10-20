@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { pgQuery } from '@/lib/db/pg-query'
 
 const EXCEL_MAX_CELL = 32767
 
@@ -27,64 +26,6 @@ export async function GET() {
   }
 
   const results: Array<{ table: string; id: string; column: string; length: number; preview: string }> = []
-
-  const PAGE_SIZE = 1000
-  let offset = 0
-  let hasMore = true
-  while (hasMore) {
-    const questions = await pgQuery<{
-      id: string
-      question_text: string | null
-      explanation: string | null
-      options: unknown
-    }>(
-      `select id::text, question_text, explanation, options
-       from public.worksheet_official_questions
-       order by id
-       limit $1 offset $2`,
-      [PAGE_SIZE, offset]
-    )
-    if (!questions.length) break
-    for (const row of questions) {
-      const q = row.question_text ?? ''
-      if (q.length > EXCEL_MAX_CELL) {
-        results.push({
-          table: 'worksheet_official_questions',
-          id: row.id,
-          column: 'question_text',
-          length: q.length,
-          preview: q.slice(0, 100) + '...',
-        })
-      }
-      const exp = (row.explanation ?? '') as string
-      if (exp.length > EXCEL_MAX_CELL) {
-        results.push({
-          table: 'worksheet_official_questions',
-          id: row.id,
-          column: 'explanation',
-          length: exp.length,
-          preview: exp.slice(0, 100) + '...',
-        })
-      }
-      const opts = row.options as string[] | null
-      if (Array.isArray(opts)) {
-        const flattened = opts.map((s, i) => `${String.fromCharCode(65 + i)}. ${s}`).join(' | ')
-        if (flattened.length > EXCEL_MAX_CELL) {
-          results.push({
-            table: 'worksheet_official_questions',
-            id: row.id,
-            column: 'options',
-            length: flattened.length,
-            preview: flattened.slice(0, 100) + '...',
-          })
-        }
-      }
-    }
-    hasMore = questions.length === PAGE_SIZE
-    offset += PAGE_SIZE
-  }
-
-  results.sort((a, b) => b.length - a.length)
 
   return NextResponse.json({
     maxCellChars: EXCEL_MAX_CELL,

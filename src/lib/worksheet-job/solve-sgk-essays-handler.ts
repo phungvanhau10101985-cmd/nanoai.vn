@@ -11,28 +11,12 @@ import {
   updateWorksheetSheetContentMarkdownPg,
 } from '@/lib/db/worksheet-verify-run-pg'
 
-function essayNeedsImage(problem: string): boolean {
-  const text = String(problem ?? '').toLowerCase()
-  if (!text) return false
-  return /đồ thị|hình vẽ|hình\s*\d+|hình minh họa|quan sát hình|biểu đồ|dựa vào hình|trên hình/.test(text)
-}
-
-async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Fetch image failed: ${url}`)
-  const buf = Buffer.from(await res.arrayBuffer())
-  const contentType = res.headers.get('content-type') || 'image/png'
-  const mimeType = contentType.split(';')[0]?.trim() || 'image/png'
-  return { data: buf.toString('base64'), mimeType }
-}
-
 async function generateEssaySolution(
   problem: string,
   topic: string,
   curriculumMarkdown: string,
   apiKey: string,
-  userId: string,
-  imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>
+  userId: string
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
@@ -49,12 +33,11 @@ ${problem}
 
 Chủ đề: ${topic}
 
-QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước.
-QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án".
+QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước, do bạn viết cho đề này.
+QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án". Không chép lời giải in sẵn.
 Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
 
-  const useVision = Array.isArray(imageParts) && imageParts.length > 0
-  const result = useVision ? await model.generateContent([prompt, ...imageParts]) : await model.generateContent(prompt)
+  const result = await model.generateContent(prompt)
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_PRO.model,
@@ -135,13 +118,6 @@ export async function runSolveSgkEssays(userId: string, params: SolveSgkEssaysPa
     return { worksheetId, worksheetMarkdown, solvedCount: 0, pendingCount: 0, totalEssayCount: 0 }
   }
 
-  const imageUrls = ws.sgk_image_urls
-  const imageParts = imageUrls.length
-    ? await Promise.all(
-        imageUrls.slice(0, 10).map((url: string) => fetchImageAsBase64(url).then((r) => ({ inlineData: { data: r.data, mimeType: r.mimeType } })))
-      )
-    : []
-
   const topic = String(ws.topic ?? 'Phiếu bài tập')
   let solvedCount = 0
 
@@ -157,8 +133,7 @@ export async function runSolveSgkEssays(userId: string, params: SolveSgkEssaysPa
       topic,
       curriculumMarkdown,
       apiKey,
-      userId,
-      essayNeedsImage(problem) ? imageParts : undefined
+      userId
     )
     if (!generated) continue
 

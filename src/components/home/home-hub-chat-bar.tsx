@@ -125,6 +125,7 @@ import {
   isLogoDesignStep,
 } from '@/lib/hub-chat/hub-studio-presets'
 import { getActiveStepKey } from '@/lib/hub-chat/hub-studio-preset-intent'
+import { hubThreadListLabel } from '@/lib/hub-chat/hub-thread-list-label'
 import { buildPendingStepStudio } from '@/lib/hub-chat/hub-studio-step-retry'
 import {
   isForwardOnlyStudioPreset,
@@ -488,13 +489,6 @@ function formatThreadUpdatedAt(iso: string, locale: WebLocale): string {
   }
 }
 
-function threadListLabel(thread: HubChatThreadSummary, locale: WebLocale): string {
-  const title = thread.projectTitle?.trim() || thread.title.trim()
-  if (title && title !== 'NanoAI chat') return title
-  if (thread.presetId) return presetTitle(locale, thread.presetId)
-  if (thread.lastMessagePreview) return thread.lastMessagePreview.slice(0, 80)
-  return thread.title.trim() || 'NanoAI chat'
-}
 
 
 export function HomeHubChatBar() {
@@ -3520,7 +3514,7 @@ export function HomeHubChatBar() {
                         : 'hover:bg-indigo-50 dark:hover:bg-indigo-950/30'
                     }`}
                   >
-                    <span className="line-clamp-1 font-medium">{threadListLabel(thread, uiLocale)}</span>
+                    <span className="line-clamp-1 font-medium">{hubThreadListLabel(thread, uiLocale)}</span>
                     <span className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
                       {formatThreadUpdatedAt(thread.updatedAt, uiLocale)}
                       {subtitle ? ` · ${subtitle}` : null}

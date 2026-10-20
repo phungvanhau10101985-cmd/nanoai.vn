@@ -8,6 +8,7 @@ import { Toaster } from '@/components/ui/toaster'
 import { worksheetMarkdownToHtml } from './worksheet-view'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown, type WorksheetQuestionBlock } from '@/app/tao-giao-trinh/lib/worksheet-parse-questions'
 import { saveWorksheetContent } from '@/app/tao-giao-trinh/actions'
+import { WorksheetQuestionProposals } from '@/app/tao-giao-trinh/components/worksheet-question-proposals'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { toEditableBlockContent } from '@/app/tao-giao-trinh/lib/worksheet-editable-block-content'
 import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
@@ -266,9 +267,17 @@ export default function WorksheetViewWithEdit({
         setWorksheetEditCheckResult(null)
         toast({
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-          description: skipAiCheck
-            ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-            : tr('AI đã kiểm tra và lưu câu đã sửa.', 'AI checked and saved the edited question.', 'AI已检查并保存修改的题目。', 'AIが確認して修正した問題を保存しました。', 'AI가 확인 후 수정한 문제를 저장했습니다.'),
+          description: saveRes.personal
+            ? tr(
+                'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
+                'Saved your copy. The shared question changes after 7 other teachers agree.',
+                '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
+                'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
+                '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+              )
+            : skipAiCheck
+              ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
+              : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })
         router.refresh()
       } finally {
@@ -354,6 +363,7 @@ export default function WorksheetViewWithEdit({
   if (worksheetEditBlocks.length === 0) {
     return (
       <>
+        <WorksheetQuestionProposals worksheetId={worksheetId} locale={locale} />
         <article className={proseArticleClass} dangerouslySetInnerHTML={{ __html: worksheetMarkdownToHtml(markdown, questionBadge) }} />
         <Toaster />
       </>
@@ -362,6 +372,7 @@ export default function WorksheetViewWithEdit({
 
   return (
     <>
+      <WorksheetQuestionProposals worksheetId={worksheetId} locale={locale} />
       <article className={proseArticleClass}>
         <div className="space-y-0">
           {parts.map((p) =>

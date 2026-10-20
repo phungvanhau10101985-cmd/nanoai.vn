@@ -169,6 +169,7 @@ import {
   pgInsertHubChatMessage,
   pgReplaceLatestHubStudioImageMessage,
   pgSaveHubThreadSession,
+  pgSetHubChatThreadTitleIfPlaceholder,
   pgUpdateLatestHubStudioImageUrl,
   pgUpdateHubChatMessageContent,
 } from '@/lib/db/hub-chat-pg'
@@ -3702,6 +3703,11 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
     const featureKey = String(input.featureKey ?? '').trim()
     const catalogEntry = getHubFeatureCatalogEntry(input.locale, featureKey)
     const selection = resolveHubFeatureSelection(featureKey, input.locale)
+    const featureTitle =
+      catalogEntry?.label?.trim() || (selection?.kind === 'standalone' ? selection.label.trim() : '')
+    if (featureTitle) {
+      await pgSetHubChatThreadTitleIfPlaceholder(input.threadId, featureTitle)
+    }
     if (selection?.kind === 'standalone' && selection.href === '/tao-anh-ban-hang') {
       const copy = catalogPhotoCopy(input.locale)
       const workflow: HubChatWorkflowSuggestion = {
@@ -3845,6 +3851,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         requiresOpenConfirm: true,
       }
       reply = copy.intro
+      await pgSetHubChatThreadTitleIfPlaceholder(input.threadId, copy.title)
       await pgInsertHubChatMessage({
         threadId: input.threadId,
         role: 'assistant',
@@ -3875,6 +3882,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
         error: t.studioNewFlowThreadRequired,
       }
     }
+    await pgSetHubChatThreadTitleIfPlaceholder(input.threadId, presetTitle(input.locale, presetId))
     const steps = buildStepsFromPreset(input.locale, presetId)
     session = {
       ...emptyStudioSession(),
@@ -7562,6 +7570,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       const shared = sharedFeatureOpenFromMatch(idleFeatureMatch, input.locale)
       const workflow = sharedFeatureOpenToWorkflow(shared, message)
       reply = shared.message
+      await pgSetHubChatThreadTitleIfPlaceholder(input.threadId, shared.open.label)
       await pgInsertHubChatMessage({
         threadId: input.threadId,
         role: 'assistant',
@@ -7710,6 +7719,10 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       !hadPreset && Boolean(ai.suggestedPresetId && isValidStudioPresetId(ai.suggestedPresetId))
     if (!session.presetId && ai.suggestedPresetId && isValidStudioPresetId(ai.suggestedPresetId)) {
       session = applySuggestedPreset(session, input.locale, ai.suggestedPresetId)
+      await pgSetHubChatThreadTitleIfPlaceholder(
+        input.threadId,
+        presetTitle(input.locale, ai.suggestedPresetId)
+      )
       // Rule-matched studio start (e.g. "tạo lại bản thiết kế") — skip AI clarify fluff.
       const ruleStartedStudio =
         idleFeatureMatch?.kind === 'studio' && idleFeatureMatch.presetId === ai.suggestedPresetId

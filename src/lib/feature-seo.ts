@@ -1027,23 +1027,51 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-giao-trinh': {
     key: 'tao-giao-trinh',
-    pageTitle: 'Tạo giáo trình bằng AI cho mọi môn học',
-    pageDescription: 'AI tạo giáo trình chi tiết cho giáo viên. Chọn môn Toán, Văn, Anh, Lý, Hóa, Sinh, Sử, Địa... cấp Tiểu học đến Đại học. Xuất Markdown.',
+    pageTitle: 'Tạo giáo trình — một bài thành giáo trình, slide theo tiết và phiếu',
+    pageDescription:
+      'Chọn môn, lớp, bộ sách. Gõ chủ đề hoặc chụp trang sách. Ra giáo trình theo tiết, slide để chiếu và phiếu bám bài. Ba bài mới mỗi ngày không trừ credit.',
     path: '/giao-trinh',
-    keywords: ['tạo giáo trình', 'giáo án AI', 'thiết kế bài giảng', 'giáo trình môn học', 'AI cho giáo viên'],
-    serviceName: 'Tạo giáo trình bằng AI',
-    serviceDescription: 'AI tạo giáo trình chi tiết cho mọi môn học, từ Tiểu học đến Đại học. Xuất Markdown, dễ chỉnh sửa.',
-    h2: 'Tạo giáo trình bằng AI cho mọi môn học',
-    overview: 'Giáo viên cần soạn giáo án, giáo trình cho nhiều môn và cấp độ. Công cụ AI giúp tạo giáo trình có cấu trúc: mục tiêu, nội dung theo tiết, hoạt động dạy-học, đánh giá. Phù hợp chương trình giáo dục Việt Nam.',
-    benefits: ['Hỗ trợ 14+ môn học', 'Từ Tiểu học đến Đại học', 'Cấu trúc rõ: mục tiêu, nội dung, hoạt động, đánh giá', 'Xuất Markdown, dễ chỉnh sửa'],
-    useCases: ['Soạn giáo án mới', 'Tham khảo cấu trúc bài', 'Chuẩn bị bài giảng nhanh', 'Ôn tập chương trình'],
-    tips: ['Nhập chủ đề cụ thể để kết quả chính xác hơn', 'Thêm mục tiêu bổ sung nếu cần yêu cầu đặc biệt', 'Xuất .md để chỉnh trong Word hoặc Google Docs'],
+    keywords: ['tạo giáo trình', 'giáo án', 'slide theo tiết', 'phiếu bài tập', 'sách giáo khoa', 'giáo viên'],
+    serviceName: 'Tạo giáo trình',
+    serviceDescription:
+      'Tạo giáo trình theo tiết, slide để chiếu và phiếu bám bài từ chủ đề hoặc ảnh trang sách.',
+    h2: 'Một bài thành giáo trình, slide theo tiết và phiếu',
+    overview:
+      'Soạn một file chữ rồi vẫn phải cắt slide, làm phiếu và mở phần mềm chiếu khác. Ở đây chọn môn, lớp và bộ sách, gõ chủ đề hoặc chụp trang sách. Giáo trình, slide theo tiết và phiếu nằm cùng một bài. Học sinh thấy bản trình chiếu. Giáo viên sửa trên bản của mình.',
+    benefits: [
+      'Hai màn hình đồng bộ: giáo viên và học sinh',
+      'Tạo slide, ảnh tóm tắt, thí nghiệm PhET và biểu đồ',
+      'Giáo trình theo tiết và phiếu bám bài',
+    ],
+    useCases: ['Soạn bài mới', 'Chiếu một tiết', 'Gắn phiếu vào bài vừa soạn'],
+    tips: [
+      'Chọn đúng bộ sách và số bài trước khi tạo',
+      'Chụp rõ một trang sách nếu tạo từ ảnh',
+      'Ba bài mới mỗi ngày không trừ credit. Bài thứ tư hoặc lần tạo lại mới trừ',
+    ],
     faqs: [
-      { question: 'Có mất phí không?', answer: 'Hiện tại miễn phí. Cần đăng nhập.' },
-      { question: 'Hỗ trợ môn nào?', answer: 'Toán, Ngữ văn, Tiếng Anh, Vật lý, Hóa học, Sinh học, Lịch sử, Địa lý, GDCD, Tin học, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và Khác.' },
-      { question: 'Cấp độ nào?', answer: 'Tiểu học (1–5), THCS (6–9), THPT (10–12), Đại học.' },
-      { question: 'Xuất file thế nào?', answer: 'Tải file .md (Markdown), có thể mở bằng Word, Google Docs hoặc editor.' },
-      { question: 'Có phù hợp chương trình VN không?', answer: 'Có, prompt được thiết kế phù hợp chương trình giáo dục Việt Nam.' },
+      {
+        question: 'Có phải tự cắt slide không?',
+        answer: 'Không. Giáo trình sinh kèm slide theo tiết. Giáo viên chọn tiết rồi chiếu.',
+      },
+      {
+        question: 'Có bám sách giáo khoa không?',
+        answer: 'Có. Chọn Kết nối tri thức, Cánh diều, Chân trời sáng tạo, hoặc sách khác. Có thể chụp trang sách.',
+      },
+      {
+        question: 'Học sinh thấy gì?',
+        answer: 'Màn trình chiếu đồng bộ với giáo viên: đúng slide, ảnh tóm tắt, thí nghiệm PhET và biểu đồ. Nút sửa nằm ở màn giáo viên.',
+      },
+      {
+        question: 'Môn và lớp nào?',
+        answer:
+          'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+      },
+      {
+        question: 'Khi nào trừ credit?',
+        answer:
+          'Ba bài giáo trình mới mỗi ngày không trừ. Bài thứ tư, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
+      },
     ],
   },
   'tao-bai-thi': {
@@ -1067,39 +1095,57 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'ho-tro-lam-bai': {
     key: 'ho-tro-lam-bai',
-    pageTitle: 'Hỗ trợ làm bài – chụp hoặc gõ đề, xem kiến thức và hướng tư duy',
+    pageTitle: 'Chữa bài tập — hiểu bài và tự suy luận, không nhận lời giải sẵn',
     pageDescription:
-      'Học sinh chụp ảnh hoặc gõ bài tập. Mỗi câu hiện kiến thức liên quan và hướng tư duy. Gợi ý mở từng bước. Đáp án chỉ hiện khi học sinh bấm bước cuối.',
+      'Chụp hoặc gõ đề. Học sinh đọc kiến thức và hướng tư duy, mở gợi ý từng bước, tự làm rồi mới đối chiếu đáp án. Không đưa bài giải sẵn khiến não lười suy luận.',
     path: '/ho-tro-lam-bai',
-    keywords: ['hỗ trợ làm bài', 'chụp ảnh bài tập', 'gõ đề bài', 'hướng tư duy', 'homework help'],
-    serviceName: 'Hỗ trợ làm bài',
-    serviceDescription:
-      'Đọc ảnh hoặc chữ đề bài, tách từng câu, liệt kê kiến thức liên quan và hướng tư duy trước khi hiện đáp án.',
-    h2: 'Chụp hoặc gõ bài, đọc từng câu, nghĩ theo hướng làm',
-    overview:
-      'Học sinh chụp một câu, một trang bài, hoặc gõ đề. Trang đọc lại đề, liệt kê kiến thức cần nhớ và các bước tư duy. Gợi ý mở lần lượt. Đáp án nằm ở bước cuối.',
-    benefits: [
-      'Mỗi câu một thẻ: đề, kiến thức, hướng tư duy',
-      'Gợi ý mở lần lượt trước đáp án',
-      'Đáp án không hiện ngay',
+    keywords: [
+      'chữa bài tập',
+      'hỗ trợ làm bài',
+      'hướng tư duy',
+      'không đưa lời giải sẵn',
+      'học sinh tự suy luận',
+      'homework help',
     ],
-    useCases: ['Ôn một câu chưa hiểu', 'Xem hướng làm trước khi tính', 'Đối chiếu đáp án sau khi tự làm'],
+    serviceName: 'Chữa bài tập',
+    serviceDescription:
+      'Đọc ảnh hoặc chữ đề, nêu kiến thức và hướng tư duy trước. Gợi ý mở từng bước. Đáp án chỉ hiện khi học sinh bấm bước cuối.',
+    h2: 'Hiểu bài và tự suy luận, không nhận lời giải sẵn',
+    overview:
+      'Nhiều chỗ đưa ngay bài giải. Học sinh chép, không nghĩ, rồi dần mất khả năng suy luận và lập luận logic. Trang này gọi tên kiến thức cần nhớ, chỉ hướng tư duy, mở gợi ý từng bước. Học sinh tự làm. Đáp án nằm ở bước cuối để đối chiếu.',
+    benefits: [
+      'Hiểu bài: biết mình đang dùng kiến thức nào',
+      'Tư duy: đi từng bước, không nhảy tới kết quả',
+      'Nắm vững: tự ra kết quả rồi mới đối chiếu',
+    ],
+    useCases: ['Một câu đang bí', 'Ôn lại cách lập luận', 'Đối chiếu sau khi tự làm'],
     tips: [
-      'Chụp rõ một câu nếu trang có nhiều bài, hoặc gõ đề và cách các câu bằng một dòng trống',
-      'Đọc hướng tư duy rồi tự làm trước khi bấm đáp án',
+      'Chụp rõ một câu, hoặc gõ đề và cách các câu bằng một dòng trống',
+      'Đọc hướng tư duy và tự làm trước khi bấm đáp án',
+      'Lời giải chi tiết không nằm sẵn. Đọc xong dễ nhớ đường người khác đã đi và lần sau ngừng tự suy luận',
     ],
     faqs: [
       {
         question: 'Có đưa đáp án ngay không?',
-        answer: 'Không. Trang hiện kiến thức và hướng tư duy trước. Đáp án chỉ hiện khi bạn bấm bước cuối.',
+        answer: 'Không. Kiến thức và hướng tư duy hiện trước. Gợi ý mở từng bước. Đáp án chỉ hiện khi học sinh bấm bước cuối.',
       },
       {
-        question: 'Khác bài tập về nhà của giáo viên ở đâu?',
-        answer: 'Tạo bài tập về nhà là giáo viên giao đề và học sinh nộp bài. Hỗ trợ làm bài là chỗ học sinh tự chụp đề giấy để được hướng dẫn từng câu.',
+        question: 'Khác chỗ đưa lời giải sẵn ở đâu?',
+        answer:
+          'Lời giải sẵn khiến học sinh chép và lười tư duy, dần mất khả năng suy luận và lập luận logic. Ở đây học sinh phải đi hướng làm và tự ra kết quả trước khi đối chiếu.',
       },
       {
-        question: 'Chụp được mấy ảnh?',
-        answer: 'Tối đa 3 ảnh mỗi lượt, mỗi ảnh tối đa 6MB.',
+        question: 'Vẫn xem được lời giải chi tiết không?',
+        answer:
+          'Có, sau khi đã đi hướng tư duy. Lời giải mở riêng, kèm lời nhắc nên tự làm trước: đọc xong dễ nhớ đường người khác đã đi và lần sau ngừng tự suy luận.',
+      },
+      {
+        question: 'Môn nào, cấp nào?',
+        answer: 'Toán, Ngữ văn, Tiếng Anh, Vật lý, Hóa học, Sinh học, Lịch sử, Địa lý, GDCD, Tin học, Công nghệ và môn khác. Mọi cấp.',
+      },
+      {
+        question: 'Học thử thế nào?',
+        answer: 'Đăng nhập rồi gửi bài chữa hoặc hỏi gia sư. Sáu ngày tính từ lần đầu. Credit chỉ trừ khi mua gói sau thời gian thử.',
       },
     ],
   },

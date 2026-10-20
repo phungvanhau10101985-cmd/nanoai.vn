@@ -172,7 +172,7 @@ export function ExportDataClient({ locale = 'vi' }: { locale?: string }) {
         <CardHeader>
           <CardTitle>{tr(locale, 'Kiểm tra ô quá dài', 'Check long cells', '检查超长单元格', '長いセルをチェック', '긴 셀 확인')}</CardTitle>
           <CardDescription>
-            {tr(locale, 'Excel giới hạn 32.767 ký tự/ô. Bấm để tìm ô vượt giới hạn (bảng worksheet_official_questions).', 'Excel limits 32,767 chars/cell. Click to find violations in worksheet_official_questions.', 'Excel 每单元格限制 32,767 字符。点击查找 worksheet_official_questions 中的违规。', 'Excelは1セル32,767文字まで。worksheet_official_questionsの違反を検索。', 'Excel 셀당 32,767자 제한. worksheet_official_questions 위반 검색.')}
+            {tr(locale, 'Excel giới hạn 32.767 ký tự/ô.', 'Excel limits 32,767 chars/cell.', 'Excel 每单元格限制 32,767 字符。', 'Excelは1セル32,767文字まで。', 'Excel 셀당 32,767자 제한.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

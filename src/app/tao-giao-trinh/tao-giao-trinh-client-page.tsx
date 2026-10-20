@@ -23,6 +23,7 @@ import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib
 import { parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
+import { WorksheetQuestionProposals } from './components/worksheet-question-proposals'
 import {
   ensureCurriculumLessonSlidesPreparedAction,
   getCurriculumLessonMetaAction,
@@ -1089,6 +1090,7 @@ export default function TaoGiaoTrinhClientPage({
       setTopic(finalTopic)
       const saveFd = new FormData()
       saveFd.append('curriculumMarkdown', md)
+      saveFd.append('bodyPolicy', 'original-knowledge')
       saveFd.append('topic', finalTopic)
       if (overwriteCurriculumId) saveFd.append('curriculumId', overwriteCurriculumId)
       saveFd.append('subjectId', subjectId)
@@ -1641,6 +1643,7 @@ export default function TaoGiaoTrinhClientPage({
                   topic: displayTopic,
                   currentIndex: 0,
                   curriculumId: curriculumId ?? null,
+                  subjectId,
                   slideMode: mode === 'personal' ? 'personal' : mode === 'shared' ? 'shared' : mode === 'original' ? 'original' : null,
                   personalViewSubMode: 'current',
                   hasOriginalSlides: hasOriginalOrSharedVersion,
@@ -1660,7 +1663,7 @@ export default function TaoGiaoTrinhClientPage({
         setTimeout(send, 700)
       }
     },
-    [curriculumMarkdown, displayTopic, curriculumId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr]
+    [curriculumMarkdown, displayTopic, curriculumId, subjectId, hasOriginalOrSharedVersion, infographicShared, infographicOriginal, infographicPersonal, toast, tr]
   )
 
   const clearSlideVersionCaches = useCallback(() => {
@@ -1827,6 +1830,14 @@ export default function TaoGiaoTrinhClientPage({
         void refreshPersonalSlides()
         return
       }
+      if (e.data?.type === 'curriculum-lesson-reviewed') {
+        const lesson = typeof e.data.lessonMarkdown === 'string' ? e.data.lessonMarkdown : ''
+        const full = typeof e.data.fullCurriculumMarkdown === 'string' ? e.data.fullCurriculumMarkdown : ''
+        if (full.trim()) setCurriculumMarkdown(full)
+        else if (lesson.trim()) setCurriculumMarkdown(lesson)
+        if (lesson.trim()) activeOpenedLessonMarkdownRef.current = lesson
+        return
+      }
       if (e.data?.type !== 'request-curriculum') return
       const target = e.source as Window | null
       if (!target) return
@@ -1870,6 +1881,7 @@ export default function TaoGiaoTrinhClientPage({
             topic: displayTopic,
             currentIndex: 0,
             curriculumId: curriculumId ?? null,
+            subjectId,
             slideMode: slideVersionChoice ?? null,
             personalViewSubMode: 'current',
             hasOriginalSlides: hasOriginalOrSharedVersion,
@@ -1886,7 +1898,7 @@ export default function TaoGiaoTrinhClientPage({
     }
     window.addEventListener('message', handler)
     return () => window.removeEventListener('message', handler)
-  }, [curriculumMarkdown, displayTopic, curriculumId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
+  }, [curriculumMarkdown, displayTopic, curriculumId, subjectId, aiSlides, curriculumSlides, slideVersionChoice, hasOriginalOrSharedVersion, refreshPersonalSlides, infographicShared, infographicOriginal, infographicPersonal])
 
   const handleOpenSlides = async () => {
     if (!curriculumMarkdown.trim()) return
@@ -2708,9 +2720,17 @@ export default function TaoGiaoTrinhClientPage({
       setWorksheetEditCheckResult(null)
       toast({
         title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-        description: skipAiCheck
-          ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-          : tr('AI đã kiểm tra và lưu câu đã sửa.', 'AI checked and saved the edited question.', 'AI已检查并保存修改的题目。', 'AIが確認して修正した問題を保存しました。', 'AI가 확인 후 수정한 문제를 저장했습니다.'),
+        description: saveRes.personal
+          ? tr(
+              'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
+              'Saved your copy. The shared question changes after 7 other teachers agree.',
+              '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
+              'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
+              '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+            )
+          : skipAiCheck
+            ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
+            : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
       })
     } finally {
       setWorksheetEditSaving(false)
@@ -3175,7 +3195,7 @@ export default function TaoGiaoTrinhClientPage({
   const handleParseSgk = async () => {
     if (sgkSubmitLockRef.current) return
     if (sgkImages.length === 0) {
-      toast({ title: tr('Chọn ảnh', 'Select images', '选择图片', '画像を選択', '이미지 선택'), description: tr('Vui lòng chọn ảnh bài tập SGK.', 'Please select SGK exercise images.', '请选择教材练习图片。', 'SGKの練習画像を選択してください。', 'SGK 연습 이미지를 선택하세요.'), variant: 'destructive' })
+      toast({ title: tr('Chọn ảnh', 'Select images', '选择图片', '画像を選択', '이미지 선택'), description: tr('Vui lòng chọn ảnh trang bài tập để nhận dạng dạng bài.', 'Please select an exercise-page photo so the exercise type can be read.', '请选择练习页图片以识别题型。', '問題の型を読むため、練習ページの写真を選んでください。', '문제 유형을 읽도록 연습 페이지 사진을 선택해 주세요.'), variant: 'destructive' })
       return
     }
     if (!curriculumMarkdown.trim()) {
@@ -3366,6 +3386,7 @@ export default function TaoGiaoTrinhClientPage({
   return (
     <>
       <Toaster />
+      <WorksheetQuestionProposals worksheetId={worksheetId ?? ''} locale={uiLocale} />
       <SlideVersionDialog
         open={showSlideVersionDialog}
         onOpenChange={handleSlideVersionDialogOpenChange}
@@ -4333,7 +4354,7 @@ export default function TaoGiaoTrinhClientPage({
             <div className="w-full max-w-lg px-4">
               {sgkLoading && (
                 <AIProgressLoader
-                  title={tr('Đang tách câu trắc nghiệm + tự luận từ ảnh SGK', 'Extracting quiz + essay from SGK images', '正在从教材图片提取选择题+主观题', 'SGK画像から選択式+記述式を抽出中', 'SGK 이미지에서 객관식+서술형 추출 중')}
+                  title={tr('Đang tạo bài tập mới cùng dạng', 'Creating new exercises of the same type', '正在生成同类型新练习', '同じ型の新しい問題を作成中', '같은 유형의 새 문제를 만드는 중')}
                   description={tr('AI đang đọc ảnh và tách từng câu. Vui lòng chờ.', 'AI is reading images and extracting each question. Please wait.', 'AI正在读取图片并逐题提取。请稍候。', 'AIが画像を読み1問ずつ抽出中です。お待ちください。', 'AI가 이미지를 읽고 문항별 추출 중입니다. 잠시만 기다려 주세요.')}
                 />
               )}
@@ -4512,7 +4533,7 @@ export default function TaoGiaoTrinhClientPage({
                       {tr('Tạo phiếu bài tập từ ảnh SGK', 'Create worksheet from SGK images', '从教材图片创建练习', 'SGK画像からワークシート作成', 'SGK 이미지로 워크시트 생성')}
                     </h4>
                     <p className="text-xs text-amber-700/90 dark:text-amber-300/90 mb-3">
-                      {tr('Chọn ảnh trang bài tập SGK. AI tách câu trắc nghiệm + tự luận (có đáp án), thêm vào phiếu. Không giới hạn số câu.', 'Select SGK exercise page images. AI extracts quiz + essay questions (with answers), adds to worksheet. No limit.', '选择教材练习页图片。AI 提取选择题+主观题（含答案），添加到练习。无限制。', 'SGKの練習ページ画像を選択。AIが選択式+記述式（解答付き）を抽出して追加。制限なし。', 'SGK 연습 페이지 이미지 선택. AI가 객관식+서술형(정답 포함) 추출·추가. 제한 없음.')}
+                      {tr('Chọn ảnh trang bài tập để AI nhận dạng dạng bài, rồi viết câu mới cùng dạng vào phiếu. Ảnh không được lưu, đề in trong sách không được chép.', 'Select an exercise-page photo so AI can see the exercise type, then write new questions of that type. The photo is not stored and printed questions are not copied.', '选择练习页图片，让 AI 识别题型后编写同类型新题。不保存图片，不抄写书上的题目。', '練習ページの写真を選ぶと、AIが問題の型を読み、同じ型の新しい問題を作ります。写真は保存せず、本の問題は写しません。', '연습 페이지 사진을 고르면 AI가 문제 유형을 읽고 같은 유형의 새 문제를 씁니다. 사진은 저장하지 않고, 책의 문제는 베끼지 않습니다.')}
                     </p>
                     <div className="flex flex-wrap gap-2 items-center">
                       <input

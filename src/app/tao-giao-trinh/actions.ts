@@ -4,6 +4,14 @@
 import { normalizeTopicForSearch, topicsMatch } from './lib/topic-normalize'
 import { normalizeCurriculumInput, parseCurriculumLessonNumber } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
+import {
+  curriculumMarkdownIsOriginalBody,
+  curriculumOriginalLessonRules,
+  stampCurriculumOriginalBody,
+  stripCurriculumOriginalBodyMarker,
+} from './lib/curriculum-original-body'
+import { applyCurriculumMathMarks, curriculumMarkdownForStudents } from './lib/curriculum-math-check'
+import { repairThenMarkLessonMarkdown } from './lib/curriculum-math-repair'
 import { getUserForCreditAction } from '@/lib/auth'
 import { beginFeatureTrial } from '@/lib/feature-trial-start'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
@@ -43,7 +51,6 @@ import {
   fetchTextbookLessonsForTitleMapPg,
   listCurriculaForExamPg,
   listTextbookLessonsPg,
-  fetchOfficialQuestionsForCurriculumPg,
   fetchTextbookLessonTitleByOrderPg,
   insertTextbookLessonFromImageIfMissingPg,
   fetchCurriculaForCreateDuplicateCheckPg,
@@ -89,9 +96,17 @@ import {
   insertWorksheetQuestionEditedFromPg,
   insertWorksheetSheetFromCreateFromPg,
   listWorksheetSheetsFromPg,
-  updateWorksheetQuestionContentJsonFromPg,
   updateWorksheetSheetMarkdownQuestionIdsFromPg,
 } from '@/lib/db/worksheet-pg'
+import {
+  fetchQuestionReviewRowsPg,
+  listSheetsContainingQuestionPg,
+  personalBodiesForUser,
+  proposalsFromRows,
+  recordQuestionEditPg,
+  sameQuestionContent,
+  voteQuestionReviewPg,
+} from '@/lib/db/worksheet-question-review-pg'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { CurriculumApiFeature, trackCurriculumGeminiResult } from '@/lib/curriculum-api-usage'
@@ -314,6 +329,7 @@ Mỗi phần tử lesson phải có:
 Yêu cầu:
 - Không bỏ sót nội dung.
 - Không trộn nội dung giữa các tiết.
+- Giữ nguyên dòng <!-- check ... -->, <!-- curriculum-math-teacher-ok -->, khối <!-- curriculum-math-fail -->, câu «Bài này AI viết sai, cần tính lại.» và câu «Bài này code chưa kiểm được, giáo viên cần xem.»
 - Ưu tiên đúng theo heading "### Tiết X".
 - Số tiết kỳ vọng: ${Math.max(1, Math.floor(params.expectedLessonCount || 1))}
 - Chỉ trả về JSON hợp lệ theo dạng:
@@ -399,7 +415,7 @@ function shouldDropTeacherPlanLine(line: string): boolean {
 }
 
 function sanitizeStudentFacingText(text: string): string {
-  const lines = String(text || '').replace(/\r/g, '').split('\n')
+  const lines = curriculumMarkdownForStudents(String(text || '')).replace(/\r/g, '').split('\n')
   const kept = lines.filter((line) => !shouldDropTeacherPlanLine(line))
   return kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
@@ -457,11 +473,13 @@ Trả JSON:
 
 Yêu cầu:
 - Tạo khoảng ${estimatedSlides} slide.
-- Bám sát giáo trình tiết đã cho, không bỏ sót ý quan trọng.
+- Bám mạch kiến thức của giáo trình tiết đã cho, không bỏ sót ý quan trọng.
 - Slide là để CHIẾU CHO HỌC SINH: diễn đạt dễ hiểu, dẫn dắt cuốn hút, tập trung kiến thức học sinh cần nắm.
 - Mỗi slide 1 ý chính nhưng phải diễn giải đủ ý học tập, không ghi quá cụt.
-- Ví dụ/bài mẫu trong giáo trình nếu có lời giải thì phải đưa đủ bước vào slide tương ứng.
+- Ví dụ và lời giải trên slide chỉ lấy từ ví dụ do giáo trình tự đặt. Nếu ví dụ đó có lời giải thì đưa đủ bước.
+- Không thêm đề, số bài tập, số trang hay lời giải in trong sách.
 - Sắp xếp mạch nội dung theo đúng trình tự giáo trình (khởi động -> kiến thức -> luyện tập -> vận dụng nếu có).
+- Không đưa lên slide bài nằm trong dấu «Bài này AI viết sai, cần tính lại» hoặc «Bài này code chưa kiểm được, giáo viên cần xem», và không đưa dòng kiểm tra <!-- check ... -->.
 - Không đưa lên slide các nhãn/ghi chú kiểu giáo án cho giáo viên: "Hình thành kiến thức (20 phút)", "Hoạt động 1", "HĐ4 (SGK trang ...)", "Yêu cầu HS", "Tách/Gộp slide", "Tạo câu hỏi ... credits", "GV/HS: ...".
 - Mỗi block content tối đa ${LESSON_SLIDE_MAX_CONTENT_PER_SLIDE} ký tự.
 - Không dùng LaTeX $...$, dùng Unicode dễ đọc.
@@ -567,8 +585,6 @@ const SUBJECT_NAMES: Record<string, string> = {
   khac: 'Khác',
 }
 
-const OPTION_LABELS = ['A', 'B', 'C', 'D']
-
 function topicTokens(input: string): string[] {
   const normalized = normalizeTopicForSearch(input)
   if (!normalized) return []
@@ -644,85 +660,7 @@ Ràng buộc:
   }
 }
 
-function finalizeOfficialQuestionsForCurriculumRows(
-  rows: Array<{ question_text: string; options: unknown; correct_index: number }>,
-  limit: number
-): Array<{ question_text: string; options: string[]; correct_index: number }> {
-  if (!rows.length) return []
-  const noImageRe = /hình bên|đồ thị trong hình|đường cong trong hình/i
-  const filtered = rows.filter((r) => !noImageRe.test(String(r.question_text ?? '')))
-  const shuffled = [...filtered].sort(() => Math.random() - 0.5).slice(0, limit)
-  return shuffled.map((r) => ({
-    question_text: r.question_text,
-    options: Array.isArray(r.options) ? (r.options as string[]) : [],
-    correct_index: r.correct_index,
-  }))
-}
-
-/** Lấy câu hỏi có sẵn từ ngân hàng (VNHSGE, Bộ GD). Nếu lessonTopics có ≥1 phần tử thì lọc theo topic khớp. */
-async function getOfficialQuestions(
-  subjectId: string,
-  gradeLevelId: string,
-  limit: number = 5,
-  lessonTopics?: string[]
-) {
-  const fetchCap = Math.max(1, limit * 5)
-  if (!isPgConfigured()) {
-    return finalizeOfficialQuestionsForCurriculumRows([], limit)
-  }
-  const raw = await fetchOfficialQuestionsForCurriculumPg(subjectId, gradeLevelId, fetchCap, lessonTopics)
-  return finalizeOfficialQuestionsForCurriculumRows(raw, limit)
-}
-
-/** Format câu hỏi ngân hàng để chèn vào giáo trình (trong phần Luyện tập). */
-function formatOfficialQuestionsForCurriculum(questions: Array<{ question_text: string; options: string[]; correct_index: number }>) {
-  const lines: string[] = ['**Câu hỏi trắc nghiệm (ngân hàng Bộ GD):**', '']
-  const answers: string[] = []
-  questions.forEach((q, i) => {
-    const opts = Array.isArray(q.options) ? q.options : []
-    const idx = Math.min(q.correct_index, opts.length - 1)
-    const label = OPTION_LABELS[idx] ?? String(idx + 1)
-    answers.push(`${i + 1}. ${label}`)
-    lines.push(`${i + 1}. ${q.question_text}`)
-    opts.forEach((opt, j) => {
-      lines.push(`   ${OPTION_LABELS[j] ?? String(j + 1)}. ${opt}`)
-    })
-    lines.push('')
-  })
-  lines.push('*Đáp án:* ' + answers.join(', '))
-  return lines.join('\n')
-}
-
-/** Ghép câu hỏi từ ngân hàng Bộ GD vào phần Luyện tập của mỗi Tiết trong giáo trình. */
-export async function mergeOfficialQuestionsIntoCurriculum(
-  text: string,
-  subjectId: string,
-  gradeLevelId: string,
-  lessonTopics: string[]
-): Promise<string> {
-  const TIET_REGEX = /(^###\s+Tiết\s+\d+[^\n]*$)/im
-  const LUYEN_TAP_REGEX = /\*\*3\.\s*Luyện tập\s*\([^)]*\)\*\*\s*\n/
-  const parts = text.split(TIET_REGEX)
-  if (parts.length < 3) return text
-
-  const merged: string[] = [parts[0]]
-  for (let i = 1; i < parts.length; i += 2) {
-    const tietHeader = parts[i] ?? ''
-    let block = parts[i + 1] ?? ''
-    const tiếtTopics = lessonTopics.length >= 1 ? lessonTopics : []
-    const questions = tiếtTopics.length >= 1
-      ? await getOfficialQuestions(subjectId, gradeLevelId, 2, tiếtTopics)
-      : null
-    if (questions && questions.length >= 1) {
-      const quizBlock = '\n\n' + formatOfficialQuestionsForCurriculum(questions) + '\n\n'
-      block = block.replace(LUYEN_TAP_REGEX, (m) => m + quizBlock)
-    }
-    merged.push(tietHeader, block)
-  }
-  return merged.join('')
-}
-
-/** AI trích tối đa 5 chủ đề từ nội dung giáo trình – dùng để khớp câu hỏi (khớp 1 trong 5 là ok). */
+/** AI trích tối đa 5 chủ đề từ nội dung giáo trình. */
 async function extractLessonTopicsFromContent(
   content: string,
   genAI: GoogleGenerativeAI,
@@ -861,56 +799,35 @@ export async function createCurriculum(formData: FormData) {
   }
 
   if (match) {
-    return { success: true, curriculumMarkdown: match.content_markdown ?? '', curriculumId: match.id, matched: true }
+    return {
+      success: true,
+      curriculumMarkdown: stripCurriculumOriginalBodyMarker(match.content_markdown),
+      curriculumId: match.id,
+      matched: true,
+    }
   }
 
   // Tra cứu tên bài từ mục lục SGK trong DB (chỉ mode textbook)
   const lessonTitle: string | null = isTopicMode ? null : await loadLessonTitleFromDb()
 
-  const directPrompt = isTopicMode
-    ? `Soạn giáo trình theo CHỦ ĐỀ và trả về JSON từng tiết trực tiếp.
-Môn: ${subjectName}
-Khối lớp: ${gradeLabel}
-Chủ đề: ${topic}
-Loại bài: ${lessonTypeName}
-Thời lượng: ${numTiet} tiết x ${thoiLuong} phút
-${goals ? `Mục tiêu bổ sung: ${goals}` : ''}
-${textbookSetId === 'khac' ? 'Không bám sát SGK cụ thể.' : `Bộ sách tham khảo: ${textbookName}`}
-
-Ràng buộc bắt buộc:
-- Mỗi tiết gồm 4 hoạt động: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
-- Dùng tiếng Việt, ký hiệu Unicode, không LaTeX.
-- Chia rõ thời lượng từng phần.
-- Không bỏ sót mạch nội dung.
-- Mỗi tiết phải đủ các thành phần chi tiết: mục tiêu cụ thể, kiến thức trọng tâm, ví dụ minh họa, câu hỏi gợi mở, bài tập luyện tập có đáp án/tiêu chí chấm ngắn.
-- Nếu nội dung gốc còn ngắn/sơ sài thì được phép bổ sung ý mở rộng hợp lý, nhưng phải bám chuẩn chương trình và đúng chủ đề lớp học.
-- Mỗi lesson.markdown cần đủ sâu để giáo viên có thể dạy trọn ${thoiLuong} phút, tránh ghi quá ngắn kiểu gạch đầu dòng sơ lược.
-- Ví dụ minh họa phải sát SGK tham khảo (nếu có), không dùng ví dụ quá xa ngữ cảnh bài học.
-- Nếu SGK có ví dụ mẫu kèm lời giải thì phải trình bày đầy đủ các bước lời giải (không tóm tắt), nêu kết luận rõ ràng.
-
-Chỉ trả JSON hợp lệ:
-{"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
-`
-    : `Soạn giáo trình theo BÀI SGK và trả về JSON từng tiết trực tiếp.
-Môn: ${subjectName}
-Khối lớp: ${gradeLabel}
-Bài: ${lessonNum}
+  const bookScope = isTopicMode
+    ? textbookSetId === 'khac'
+      ? 'Phạm vi: chủ đề tự do, không gắn một cuốn SGK cụ thể.'
+      : `Phạm vi kiến thức: bộ sách ${textbookName}. Bộ sách chỉ để xác định bài đang dạy, không phải nguồn để chép.`
+    : `Bài: ${lessonNum}${lessonTitle ? ` — ${lessonTitle}` : ''}
 Bộ sách: ${textbookName}
+Phạm vi: dạy đúng kiến thức của bài này. Tên bài và số bài chỉ là nhãn.`
+
+  const directPrompt = `Soạn giáo trình và trả về JSON từng tiết trực tiếp.
+Môn: ${subjectName}
+Khối lớp: ${gradeLabel}
+${isTopicMode ? `Chủ đề: ${topic}` : ''}
 Loại bài: ${lessonTypeName}
 Thời lượng: ${numTiet} tiết x ${thoiLuong} phút
 ${goals ? `Mục tiêu bổ sung: ${goals}` : ''}
+${bookScope}
 
-Ràng buộc bắt buộc:
-- Bám sát nội dung SGK, chuẩn GDPT 2018 + Công văn 5512.
-- Mỗi tiết gồm 4 hoạt động: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
-- Dùng tiếng Việt, ký hiệu Unicode, không LaTeX.
-- Chia rõ thời lượng từng phần.
-- Không được viết sơ lược: phải triển khai chi tiết từng ý SGK (định nghĩa, tính chất, nhận xét, ví dụ, phản ví dụ nếu cần, lỗi sai thường gặp).
-- Mỗi tiết cần có hệ thống câu hỏi dẫn dắt + bài tập luyện tập theo mức độ (nhận biết/thông hiểu/vận dụng) và gợi ý đáp án ngắn.
-- Nếu SGK trình bày ngắn, có thể bổ sung ý để đầy đủ hơn (nêu "Mở rộng"), nhưng tuyệt đối không trái nội dung SGK.
-- lesson.markdown phải đủ độ sâu để dạy đủ ${thoiLuong} phút/tiết.
-- Ví dụ minh họa phải sát đúng ví dụ trong SGK (hoặc biến thể rất gần).
-- Nếu SGK có lời giải mẫu thì bắt buộc ghi đầy đủ các bước lời giải, lập luận và kết luận cuối; không được rút gọn thành 1-2 dòng.
+${curriculumOriginalLessonRules(thoiLuong, subjectId)}
 
 Chỉ trả JSON hợp lệ:
 {"lessons":[{"lessonNo":1,"title":"...","markdown":"..."}]}
@@ -927,10 +844,19 @@ Chỉ trả JSON hợp lệ:
     }
 
     const topicFinal = isTopicMode ? topic : (topic.trim() ? topic : (lessonTitle ?? `Bài ${lessonNum}`))
-    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    const markedOutline = []
+    for (const item of lessonOutline) {
+      markedOutline.push({
+        ...item,
+        markdown: await repairThenMarkLessonMarkdown(item.markdown, user.id, subjectId),
+      })
+    }
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(markedOutline)
     if (!markdownFromLessons.trim()) {
       return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
     }
+    const storedMarkdown = stampCurriculumOriginalBody(markdownFromLessons)
+    const visibleMarkdown = stripCurriculumOriginalBodyMarker(storedMarkdown)
     const apiKey = process.env.GOOGLE_API_KEY
     let lessonTopics: string[] = []
     if (apiKey) {
@@ -941,7 +867,7 @@ Chỉ trả JSON hợp lệ:
     if (!isPgConfigured()) {
       return {
         success: true,
-        curriculumMarkdown: markdownFromLessons,
+        curriculumMarkdown: visibleMarkdown,
         curriculumId: null,
         saveFailed: 'Thiếu DATABASE_URL — không thể lưu giáo trình vào kho.',
       }
@@ -960,16 +886,16 @@ Chỉ trả JSON hợp lệ:
       numLessons: numTiet,
       lessonDurationMinutes: thoiLuong,
       goals: goals.trim() || null,
-      contentMarkdown: markdownFromLessons,
+      contentMarkdown: storedMarkdown,
       lessonTopics: lessonTopics.length >= 1 ? lessonTopics : null,
     })
     if ('error' in ins) {
       console.warn('[createCurriculum] Insert failed:', ins.error)
-      return { success: true, curriculumMarkdown: markdownFromLessons, curriculumId: null, saveFailed: ins.error }
+      return { success: true, curriculumMarkdown: visibleMarkdown, curriculumId: null, saveFailed: ins.error }
     }
     const curriculumId = ins.id ?? null
-    if (curriculumId) await upsertCurriculumLessonRows(curriculumId, lessonOutline)
-    return { success: true, curriculumMarkdown: markdownFromLessons, curriculumId }
+    if (curriculumId) await upsertCurriculumLessonRows(curriculumId, markedOutline)
+    return { success: true, curriculumMarkdown: visibleMarkdown, curriculumId }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return { error: `Tạo giáo trình thất bại: ${msg}` }
@@ -982,7 +908,8 @@ export async function saveCurriculum(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ.' }
   }
-  const curriculumMarkdown = (formData.get('curriculumMarkdown') as string)?.trim() || ''
+  const curriculumMarkdownRaw = (formData.get('curriculumMarkdown') as string)?.trim() || ''
+  const curriculumMarkdown = stripCurriculumOriginalBodyMarker(curriculumMarkdownRaw)
   const lessonOutlineJsonRaw = (formData.get('lessonOutlineJson') as string)?.trim() || ''
   const topic = (formData.get('topic') as string)?.trim() || ''
   const goals = (formData.get('goals') as string)?.trim() || ''
@@ -1019,6 +946,16 @@ export async function saveCurriculum(formData: FormData) {
   }
 
   const topicFinal = topic || `Bài ${lessonNum}`
+  const requestOriginalBody = String(formData.get('bodyPolicy') || '').trim() === 'original-knowledge'
+  const submittedOriginalBody = curriculumMarkdownIsOriginalBody(curriculumMarkdownRaw)
+  let existingOriginalBody = false
+  if (curriculumId) {
+    const existing = await fetchCurriculumContentTopicByIdPg(curriculumId)
+    existingOriginalBody = curriculumMarkdownIsOriginalBody(existing?.content_markdown)
+  }
+  const shouldStampOriginalBody = requestOriginalBody || submittedOriginalBody || existingOriginalBody
+  const applyBodyPolicy = (markdown: string) =>
+    shouldStampOriginalBody ? stampCurriculumOriginalBody(markdown) : stripCurriculumOriginalBodyMarker(markdown)
   if (textbookSetId === 'khac' && lessonNum) {
     if (!bookIsbn) return { error: 'Vui lòng nhập ISBN cho sách khác NXB.' }
     if (!isValidBookIsbn(bookIsbn)) return { error: 'ISBN không hợp lệ (chấp nhận ISBN-10 hoặc ISBN-13).' }
@@ -1044,7 +981,11 @@ export async function saveCurriculum(formData: FormData) {
     if (lessonOutline.length <= 0) {
       return { error: 'AI chưa tách được giáo trình JSON theo từng tiết. Vui lòng thử lưu lại.' }
     }
-    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    const markedOutline = lessonOutline.map((item) => ({
+      ...item,
+      markdown: applyCurriculumMathMarks(item.markdown, { subjectId }),
+    }))
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(markedOutline)
     if (!markdownFromLessons.trim()) {
       return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
     }
@@ -1061,10 +1002,10 @@ export async function saveCurriculum(formData: FormData) {
       numLessons: numTiet,
       lessonDurationMinutes: thoiLuong,
       goals: goals || null,
-      contentMarkdown: markdownFromLessons,
+      contentMarkdown: applyBodyPolicy(markdownFromLessons),
     })
     if (upd.error) return { error: `Cập nhật thất bại: ${upd.error}` }
-    await upsertCurriculumLessonRows(curriculumId, lessonOutline)
+    await upsertCurriculumLessonRows(curriculumId, markedOutline)
     await deleteWorksheetCurriculumLessonSlidesByCurriculumIdPg(curriculumId)
     return {
       success: true,
@@ -1087,7 +1028,7 @@ export async function saveCurriculum(formData: FormData) {
     numLessons: numTiet,
     lessonDurationMinutes: thoiLuong,
     goals: goals || null,
-    contentMarkdown: curriculumMarkdown,
+    contentMarkdown: applyBodyPolicy(curriculumMarkdown),
     lessonTopics,
   })
   if ('error' in ins) return { error: `Lưu thất bại: ${ins.error}` }
@@ -1106,15 +1047,19 @@ export async function saveCurriculum(formData: FormData) {
       if (d.error) return { error: d.error }
       return { error: 'AI chưa tách được giáo trình JSON theo từng tiết. Vui lòng thử lưu lại.' }
     }
-    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(lessonOutline)
+    const markedOutline = lessonOutline.map((item) => ({
+      ...item,
+      markdown: applyCurriculumMathMarks(item.markdown, { subjectId }),
+    }))
+    const markdownFromLessons = composeCurriculumMarkdownFromLessonOutline(markedOutline)
     if (!markdownFromLessons.trim()) {
       const d = await deleteWorksheetCurriculumByIdPg(newCurriculumId)
       if (d.error) return { error: d.error }
       return { error: 'Không thể tổng hợp content_markdown từ JSON theo từng tiết.' }
     }
-    const u = await updateWorksheetCurriculumContentMarkdownOnlyPg(newCurriculumId, markdownFromLessons)
+    const u = await updateWorksheetCurriculumContentMarkdownOnlyPg(newCurriculumId, applyBodyPolicy(markdownFromLessons))
     if (u.error) return { error: u.error }
-    await upsertCurriculumLessonRows(newCurriculumId, lessonOutline)
+    await upsertCurriculumLessonRows(newCurriculumId, markedOutline)
   }
   return { success: true, curriculumId: newCurriculumId }
 }
@@ -1233,7 +1178,9 @@ export async function checkCurriculumExists(opts: {
       return {
         exists: true,
         curriculumId: best.id,
-        curriculumMarkdown: (bestRow as { content_markdown?: string | null } | null)?.content_markdown ?? null,
+        curriculumMarkdown: stripCurriculumOriginalBodyMarker(
+          (bestRow as { content_markdown?: string | null } | null)?.content_markdown
+        ),
         topic: best.topic,
         similarItems,
       }
@@ -1263,7 +1210,12 @@ export async function checkCurriculumExists(opts: {
     textbookIsbnWhenKhac: n.textbookSetId === 'khac' ? normalizedIsbn : null,
   })
   if (row) {
-    return { exists: true, curriculumId: row.id, curriculumMarkdown: row.content_markdown, topic: row.topic }
+    return {
+      exists: true,
+      curriculumId: row.id,
+      curriculumMarkdown: stripCurriculumOriginalBodyMarker(row.content_markdown),
+      topic: row.topic,
+    }
   }
   return { exists: false }
 }
@@ -1621,7 +1573,13 @@ export async function getCurriculumById(id: string) {
   }
   const row = await fetchWorksheetCurriculumRowByIdPg(id)
   if (!row) return { error: 'Không tìm thấy giáo trình.' }
-  return { success: true, curriculum: row }
+  return {
+    success: true,
+    curriculum: {
+      ...row,
+      content_markdown: stripCurriculumOriginalBodyMarker(String(row.content_markdown ?? '')),
+    },
+  }
 }
 
 /** Kiểm tra người dùng hiện tại có phải chủ sở hữu giáo trình không */
@@ -1665,14 +1623,12 @@ export async function getWorksheetById(id: string) {
   let contentMarkdown = (data.content_markdown ?? '') as string
   if (questionIds.length) {
     const { worksheetDisplayMarkdownFromDb } = await import('./lib/merge-worksheet-content')
-    contentMarkdown = await worksheetDisplayMarkdownFromDb(contentMarkdown, questionIds)
+    contentMarkdown = await worksheetDisplayMarkdownFromDb(contentMarkdown, questionIds, authResult.user?.id ?? null)
   }
   return { success: true, worksheet: { ...data, content_markdown: contentMarkdown } }
 }
 
-/** Cập nhật nội dung phiếu bài tập – đồng bộ cả worksheet_questions để giáo viên khác dùng lại câu đã sửa.
- * Trắc nghiệm và tự luận xử lý giống nhau – parse block → content_json → lưu.
- */
+/** Lưu phiếu. Câu mới vào bản chung ngay. Câu đã có thì người sửa dùng bản riêng; bản chung đổi khi 7 giáo viên khác đồng ý. */
 export async function saveWorksheetContent(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ.' }
@@ -1693,20 +1649,33 @@ export async function saveWorksheetContent(formData: FormData) {
   const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
   if (!ws) return { error: 'Không tìm thấy phiếu bài tập.' }
 
+  if (!userId) return { error: 'Vui lòng đăng nhập để lưu phiếu.' }
+
   const blocks = parseWorksheetIntoBlocks(contentMarkdown)
   const questionIds = (ws.question_ids ?? []) as string[]
   const qRows = questionIds.length > 0 ? await fetchWorksheetQuestionIdTypeRowsFromPg(questionIds) : []
   const ordered = questionIds.map((id) => qRows?.find((r) => r.id === id)).filter(Boolean) as Array<{ id: string; type: string }>
   const toSync = blocksToContentJson(blocks, ordered)
+  const sharedRows = questionIds.length > 0 ? await fetchWorksheetQuestionsFullByIdsFromPg(questionIds) : []
+  const sharedById = new Map(sharedRows.map((row) => [row.id, row.content_json]))
+  const personalById = personalBodiesForUser(await fetchQuestionReviewRowsPg(questionIds), userId)
 
   const newQuestionIds: string[] = []
+  let personal = false
   for (let i = 0; i < toSync.length; i++) {
     const item = toSync[i]
     if (!item?.content_json) continue
 
     if (item.id) {
-      const u = await updateWorksheetQuestionContentJsonFromPg(item.id, item.content_json)
-      if (u.error) return { error: u.error }
+      const baseline = personalById.has(item.id) ? personalById.get(item.id) : sharedById.get(item.id)
+      if (!sameQuestionContent(baseline, item.content_json)) {
+        try {
+          await recordQuestionEditPg({ questionId: item.id, userId, body: item.content_json })
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : 'Không lưu được bản sửa.' }
+        }
+        personal = true
+      }
       newQuestionIds.push(item.id)
     } else {
       const ins = await insertWorksheetQuestionEditedFromPg({
@@ -1724,9 +1693,44 @@ export async function saveWorksheetContent(formData: FormData) {
     }
   }
 
-  const up = await updateWorksheetSheetMarkdownQuestionIdsFromPg(worksheetId, contentMarkdown, newQuestionIds)
+  const { worksheetDisplayMarkdownFromDb } = await import('./lib/merge-worksheet-content')
+  const sharedMarkdown = newQuestionIds.length
+    ? await worksheetDisplayMarkdownFromDb('', newQuestionIds)
+    : contentMarkdown
+  const up = await updateWorksheetSheetMarkdownQuestionIdsFromPg(worksheetId, sharedMarkdown, newQuestionIds)
   if (up.error) return { error: up.error }
-  return { success: true }
+  return { success: true, personal }
+}
+
+export async function listWorksheetQuestionProposals(worksheetId: string) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId || !worksheetId) return { proposals: [] }
+  const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
+  const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
+  if (!ids.length) return { proposals: [] }
+  const proposals = proposalsFromRows(await fetchQuestionReviewRowsPg(ids), userId)
+  return { proposals }
+}
+
+export async function voteWorksheetQuestion(questionId: string, vote: 'agree' | 'reject') {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId) return { error: 'Vui lòng đăng nhập.' }
+  const result = await voteQuestionReviewPg({ questionId, userId, vote })
+  if (result.error) return { error: result.error }
+  if (result.applied) {
+    const { worksheetDisplayMarkdownFromDb } = await import('./lib/merge-worksheet-content')
+    const sheets = await listSheetsContainingQuestionPg(questionId)
+    for (const sheet of sheets) {
+      const ids = (sheet.question_ids ?? []).map(String).filter(Boolean)
+      const sharedMarkdown = await worksheetDisplayMarkdownFromDb('', ids)
+      await updateWorksheetSheetMarkdownQuestionIdsFromPg(sheet.id, sharedMarkdown, ids)
+    }
+  }
+  return { success: true, applied: result.applied }
 }
 
 /** Merge câu mới vào phiếu có sẵn: trắc nghiệm nối tiếp trắc nghiệm, tự luận nối tiếp tự luận. */
@@ -1832,7 +1836,7 @@ export async function getWorksheetsByCurriculumId(curriculumId: string) {
       const qids = (row.question_ids ?? []) as string[]
       const md =
         qids.length > 0
-          ? await worksheetDisplayMarkdownFromDb(row.content_markdown ?? '', qids)
+          ? await worksheetDisplayMarkdownFromDb(row.content_markdown ?? '', qids, authResult.user?.id ?? null)
           : (row.content_markdown ?? '')
       const { question_ids: _questionIdsOmit, ...rest } = row as typeof row & { question_ids?: string[] | null }
       void _questionIdsOmit
@@ -2412,7 +2416,7 @@ async function rebuildLessonRowsForCurriculum(curriculumId: string, userId?: str
   let expectedLessonCount = 1
   if (isPgConfigured()) {
     const data = await fetchWorksheetCurriculumMarkdownAndNumLessonsPg(curriculumId)
-    markdown = String(data?.content_markdown ?? '').trim()
+    markdown = stripCurriculumOriginalBodyMarker(String(data?.content_markdown ?? ''))
     expectedLessonCount = Math.max(1, Number(data?.num_lessons ?? 1) || 1)
   }
   if (!markdown) return 0
@@ -2478,6 +2482,13 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
   }
 
   const cache = await loadLessonSlidesCacheByMode(user.id, curriculumId, mode, safeLessonNo)
+  if (mode === 'shared' && cache.slides.length > 0) {
+    const personal = await loadLessonSlidesCacheByMode(user.id, curriculumId, 'personal', safeLessonNo)
+    if (personal.slides.length > 0) {
+      const merged = cache.slides.map((slide, index) => personal.slides[index] ?? slide)
+      cache.slides.splice(0, cache.slides.length, ...merged)
+    }
+  }
   if (cache.slides.length > 0) {
     console.log('[lesson-slides] cache-hit', { curriculumId, mode, lessonNo: safeLessonNo, slideCount: cache.slides.length })
     return {
@@ -2522,7 +2533,7 @@ export async function getCurriculumSlidesByLesson(curriculumId: string, mode: Cu
     })
     const generated = await generateSlidesForLessonByAI({
       lessonTitle: lesson.lesson_title || `Tiết ${safeLessonNo}`,
-      lessonMarkdown: lesson.lesson_markdown,
+      lessonMarkdown: curriculumMarkdownForStudents(lesson.lesson_markdown),
       userId: user.id,
     })
     if (generated.slides.length > 0) {
@@ -3456,11 +3467,18 @@ export async function adminReviewCurriculumEdit(reviewId: string, action: 'appro
 
   if (action === 'approve') {
     const vol = r.textbook_volume === '1' || r.textbook_volume === '2' ? r.textbook_volume : null
+    const existingForPolicy = r.curriculum_id ? await fetchCurriculumContentTopicByIdPg(r.curriculum_id) : null
+    const keepOriginalBody =
+      curriculumMarkdownIsOriginalBody(existingForPolicy?.content_markdown) ||
+      curriculumMarkdownIsOriginalBody(r.content_markdown)
+    const reviewedMarkdown = keepOriginalBody
+      ? stampCurriculumOriginalBody(r.content_markdown)
+      : stripCurriculumOriginalBodyMarker(r.content_markdown)
     if (r.curriculum_id) {
       const upd = await updateWorksheetCurriculumTopicAndContentPg(
         r.curriculum_id,
         r.topic,
-        r.content_markdown
+        reviewedMarkdown
       )
       if (upd.error) return { error: upd.error }
     } else {
@@ -3476,7 +3494,7 @@ export async function adminReviewCurriculumEdit(reviewId: string, action: 'appro
         numLessons: r.num_lessons,
         lessonDurationMinutes: r.lesson_duration_minutes,
         goals: r.goals || null,
-        contentMarkdown: r.content_markdown,
+        contentMarkdown: reviewedMarkdown,
       })
       if (ins.error) return { error: ins.error }
     }

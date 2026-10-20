@@ -13,6 +13,7 @@ import { parseWorksheetToSlides, questionsToSlides } from '@/lib/worksheet-to-sl
 import { latexToReadable } from '../lib/latex-to-readable'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
+import { WorksheetQuestionProposals } from '../components/worksheet-question-proposals'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
@@ -52,7 +53,9 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { getCurriculumSlidesByLessonCachedAction, saveCurriculumLessonInfographicAction } from '../lesson-actions'
+import { getCurriculumSlidesByLessonCachedAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction } from '../lesson-actions'
+import { replaceCurriculumExercise } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
+import { LessonExampleReviewDialog, patchSlidesWithReviewedExercise } from './lesson-example-review-dialog'
 
 const TEACHER_CURRICULUM_RUNTIME_CACHE_KEY = 'tao-giao-trinh:teacher-curriculum-runtime:v1'
 
@@ -821,6 +824,9 @@ export default function CurriculumViewPage() {
   const [presentationSyncId] = useState(() => getOrCreatePresentationSyncId('teacher-curriculum'))
   const [content, setContent] = useState('')
   const [fullCurriculumMarkdown, setFullCurriculumMarkdown] = useState('')
+  const [lessonSubjectId, setLessonSubjectId] = useState('')
+  const [exampleReviewOpen, setExampleReviewOpen] = useState(false)
+  const fullReviewRef = useRef('')
   const [topic, setTopic] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)
   const [slideTitles, setSlideTitles] = useState<string[]>([])
@@ -4042,7 +4048,7 @@ export default function CurriculumViewPage() {
     return () => ro.disconnect()
   }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
 
-  const openStudentView = useCallback(() => {
+  const openStudentViewNow = useCallback(() => {
     if (typeof window === 'undefined') return
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
     const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
@@ -4093,7 +4099,7 @@ export default function CurriculumViewPage() {
     const sendState = () => {
       try {
         if (targetWin.closed) return
-        sendCurriculumDataToStudent(slides, currentIndex)
+        sendCurriculumDataToStudent(slidesRef.current.length > 0 ? slidesRef.current : slides, currentIndex)
         if (worksheetId || curriculumId) {
           targetWin.postMessage(
             {
@@ -4130,6 +4136,15 @@ export default function CurriculumViewPage() {
     sendState()
     setTimeout(sendState, 300)
   }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+
+  const openStudentView = useCallback(() => {
+    if (!worksheetId && slidesRef.current.length > 0) {
+      fullReviewRef.current = fullCurriculumMarkdown
+      setExampleReviewOpen(true)
+      return
+    }
+    openStudentViewNow()
+  }, [worksheetId, fullCurriculumMarkdown, openStudentViewNow])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -4609,9 +4624,17 @@ export default function CurriculumViewPage() {
         resetGvWorksheetEdit()
         toast({
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-          description: skipAiCheck
-            ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-            : tr('AI đã kiểm tra và lưu câu đã sửa.', 'AI checked and saved the edited question.', 'AI已检查并保存修改的题目。', 'AIが確認して修正した問題を保存しました。', 'AI가 확인 후 수정한 문제를 저장했습니다.'),
+          description: saveRes.personal
+            ? tr(
+                'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
+                'Saved your copy. The shared question changes after 7 other teachers agree.',
+                '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
+                'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
+                '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+              )
+            : skipAiCheck
+              ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
+              : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })
         await reloadWorksheetSlidesAfterSave()
       } finally {
@@ -5136,6 +5159,9 @@ export default function CurriculumViewPage() {
         // Tránh payload rỗng từ tab trung gian làm "rơi" trang GV về màn Tải giáo trình.
         if (!incomingHasMaterial && currentHasMaterial) return
 
+        if (typeof e.data.subjectId === 'string' && e.data.subjectId.trim()) {
+          setLessonSubjectId(e.data.subjectId.trim())
+        }
         setContent(incomingContent)
         setFullCurriculumMarkdown(
           typeof e.data.fullCurriculumMarkdown === 'string'
@@ -5369,8 +5395,61 @@ export default function CurriculumViewPage() {
     return () => window.removeEventListener('keydown', onKey)
   }, [visualFullscreenOpen, infographicFullscreenOpen, closeTeacherVisualFullscreen, closeTeacherInfographicFullscreen])
 
+  const replaceLessonTextOnce = (haystack: string, from: string, to: string) => replaceCurriculumExercise(haystack, from, to)
+
   return (
     <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
+      <WorksheetQuestionProposals worksheetId={worksheetId ?? ''} locale={uiLocale} />
+      {exampleReviewOpen ? (
+        <LessonExampleReviewDialog
+          markdown={content}
+          slides={slides}
+          subjectId={lessonSubjectId || 'toan'}
+          curriculumId={curriculumId}
+          lessonNo={activeLessonNo}
+          tr={tr}
+          onCancel={() => setExampleReviewOpen(false)}
+          onEdit={(before, after) => {
+            setContent((prev) => replaceLessonTextOnce(prev, before, after))
+            setFullCurriculumMarkdown((prev) => {
+              const next = replaceLessonTextOnce(prev, before, after)
+              fullReviewRef.current = next
+              return next
+            })
+            setSlides((prev) => {
+              const next = patchSlidesWithReviewedExercise(prev, before, after)
+              slidesRef.current = next
+              setSlideTitles(next.map((slide) => slide.title ?? ''))
+              return next
+            })
+          }}
+          onPass={(nextMarkdown) => {
+            setContent(nextMarkdown)
+            const full = fullReviewRef.current.trim() ? fullReviewRef.current : fullCurriculumMarkdown
+            setExampleReviewOpen(false)
+            if (curriculumId && activeLessonNo) {
+              void saveReviewedLessonMarkdownAction({
+                curriculumId,
+                lessonNo: activeLessonNo,
+                lessonMarkdown: nextMarkdown,
+                fullMarkdown: full,
+              })
+            }
+            if (window.opener && !window.opener.closed) {
+              window.opener.postMessage(
+                {
+                  type: 'curriculum-lesson-reviewed',
+                  curriculumId,
+                  lessonMarkdown: nextMarkdown,
+                  fullCurriculumMarkdown: full,
+                },
+                window.location.origin
+              )
+            }
+            openStudentViewNow()
+          }}
+        />
+      ) : null}
       {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
         className="flex-1 flex flex-col min-h-0 shrink-0 w-full"

@@ -1,3 +1,4 @@
+import { CURRICULUM_ORIGINAL_BODY_SQL } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
@@ -991,6 +992,7 @@ export async function fetchCurriculaForCreateDuplicateCheckPg(opts: {
          and num_lessons = $5
          and lesson_duration_minutes = $6
          and ($7::text is null or textbook_isbn = $7)
+         and ${CURRICULUM_ORIGINAL_BODY_SQL}
        limit 100`,
       [
         opts.subjectId,
@@ -1119,6 +1121,45 @@ export async function updateWorksheetCurriculumSavePg(input: {
   }
 }
 
+export async function updateReviewedCurriculumLessonPg(input: {
+  curriculumId: string
+  userId: string
+  lessonNo: number
+  lessonMarkdown: string
+  fullMarkdown?: string | null
+}): Promise<{ error?: string }> {
+  if (!isPgConfigured()) return { error: 'DATABASE_URL is not set' }
+  const lessonNo = Math.max(1, Math.floor(Number(input.lessonNo) || 1))
+  try {
+    const updated = await pgQuery<{ lesson_no: number }>(
+      `update public.worksheet_curriculum_lessons as lesson
+       set lesson_markdown = $4, updated_at = now()
+       where lesson.curriculum_id = $1::uuid
+         and lesson.lesson_no = $3::int
+         and exists (
+           select 1 from public.worksheet_curricula as curriculum
+           where curriculum.id = lesson.curriculum_id
+             and curriculum.user_id = $2::uuid
+         )
+       returning lesson.lesson_no`,
+      [input.curriculumId, input.userId, lessonNo, input.lessonMarkdown]
+    )
+    if (updated.length === 0) return { error: 'lesson_not_updated' }
+    const full = String(input.fullMarkdown || '').trim()
+    if (full) {
+      await pgQuery(
+        `update public.worksheet_curricula
+         set content_markdown = $3
+         where id = $1::uuid and user_id = $2::uuid`,
+        [input.curriculumId, input.userId, full]
+      )
+    }
+    return {}
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 export async function updateWorksheetCurriculumContentMarkdownOnlyPg(
   curriculumId: string,
   contentMarkdown: string
@@ -1166,6 +1207,7 @@ export async function listCurriculaTopicModeCandidatesPg(
        where subject_id = $1
          and grade_level_id = $2
          and lesson_number is null
+         and ${CURRICULUM_ORIGINAL_BODY_SQL}
        order by created_at desc
        limit $3`,
       [subjectId, gradeLevelId, Math.min(200, Math.max(1, limit))]
@@ -1237,6 +1279,7 @@ export async function findCurriculumTextbookExactMatchPg(opts: {
          and lesson_duration_minutes = $6
          and lesson_number = $7::numeric
          and ($8::text is null or textbook_isbn = $8)
+         and ${CURRICULUM_ORIGINAL_BODY_SQL}
          ${volClause}
        limit 1`,
       params
@@ -1314,52 +1357,3 @@ export async function insertWorksheetCurriculumAdminReviewPg(input: {
   }
 }
 
-/** Hàng cho ghép câu ngân hàng vào giáo trình (khớp `getOfficialQuestions` trong actions). */
-export type OfficialQuestionCurriculumRowPg = {
-  question_text: string
-  options: unknown
-  correct_index: number
-}
-
-/**
- * Lấy câu từ `worksheet_official_questions` — tương đương truy vấn REST trước đây:
- * lọc theo topic_normalized khi `lessonTopics` có ít nhất 1 phần tử.
- */
-export async function fetchOfficialQuestionsForCurriculumPg(
-  subjectId: string,
-  gradeLevelId: string,
-  fetchLimit: number,
-  lessonTopics?: string[]
-): Promise<OfficialQuestionCurriculumRowPg[]> {
-  if (!isPgConfigured()) return []
-  const lim = Math.max(1, Math.min(2000, fetchLimit))
-  try {
-    if (lessonTopics && lessonTopics.length >= 1) {
-      return await pgQuery<OfficialQuestionCurriculumRowPg>(
-        `select question_text,
-                options,
-                correct_index
-         from public.worksheet_official_questions
-         where subject_id = $1
-           and grade_level_id = $2
-           and topic_normalized is not null
-           and topic_normalized = any($3::text[])
-         limit $4`,
-        [subjectId, gradeLevelId, lessonTopics, lim]
-      )
-    }
-    return await pgQuery<OfficialQuestionCurriculumRowPg>(
-      `select question_text,
-              options,
-              correct_index
-       from public.worksheet_official_questions
-       where subject_id = $1
-         and grade_level_id = $2
-       limit $3`,
-      [subjectId, gradeLevelId, lim]
-    )
-  } catch (e) {
-    console.error('[tao-giao-trinh-curriculum-pg] fetchOfficialQuestionsForCurriculumPg', e)
-    return []
-  }
-}

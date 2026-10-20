@@ -5,7 +5,9 @@ import {
   fetchWorksheetQuestionsTypeContentOrderedFromPg,
   fetchWorksheetSheetMinimalByIdFromPg,
 } from '@/lib/db/worksheet-pg'
+import { fetchQuestionReviewRowsPg, overlayRowsById, personalBodiesForUser } from '@/lib/db/worksheet-question-review-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { getUserForAction } from '@/lib/auth'
 
 /** Lấy phiếu bài tập theo id – dùng cho giao-vien mở trình chiếu phiếu.
  * Trả về content_markdown (build từ worksheet_questions khi có question_ids) và questions – để build slides chuẩn mỗi câu 1 slide, đáp án riêng ẩn/hiện được. */
@@ -29,13 +31,19 @@ export async function GET(
   let contentMarkdown = data.content_markdown
 
   if (questionIds.length) {
+    const auth = await getUserForAction()
+    const viewerId = 'user' in auth ? auth.user.id : null
+    const personal = viewerId
+      ? personalBodiesForUser(await fetchQuestionReviewRowsPg(questionIds), viewerId)
+      : new Map<string, unknown>()
     const mdRows = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(questionIds)
     if (mdRows === null) {
       return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
     }
-    if (mdRows.length > 0) {
+    const visibleMd = overlayRowsById(mdRows, personal)
+    if (visibleMd.length > 0) {
       contentMarkdown = questionsToMarkdown(
-        mdRows as Parameters<typeof questionsToMarkdown>[0]
+        visibleMd as Parameters<typeof questionsToMarkdown>[0]
       )
     }
 
@@ -44,8 +52,9 @@ export async function GET(
     if (typeRows === null) {
       return NextResponse.json({ error: 'Lỗi đọc câu hỏi.' }, { status: 500 })
     }
-    if (typeRows.length > 0) {
-      questions = typeRows.map((r) => ({ type: r.type, content_json: r.content_json }))
+    const visibleQuestions = overlayRowsById(typeRows, personal)
+    if (visibleQuestions.length > 0) {
+      questions = visibleQuestions.map((r) => ({ type: r.type, content_json: r.content_json }))
     }
     return NextResponse.json({
       id: data.id,

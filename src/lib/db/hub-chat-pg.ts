@@ -68,6 +68,8 @@ export type HubChatThreadSummary = {
   updatedAt: string
   presetId: string | null
   projectTitle: string | null
+  /** First user line — chip label or the sentence that opened the feature. */
+  firstUserMessage: string | null
   lastMessagePreview: string | null
   messageCount: number
 }
@@ -156,6 +158,25 @@ export async function pgEnsureHubChatThread(
     [userId, title, locale]
   )
   return ins.rows[0]?.id ?? null
+}
+
+/** Replace a generic placeholder title once the feature name is known. */
+export async function pgSetHubChatThreadTitleIfPlaceholder(threadId: string, title: string): Promise<void> {
+  if (!isPgConfigured()) return
+  const next = title.trim().slice(0, 120)
+  if (!next) return
+  const pool = getPgPool()
+  await pool.query(
+    `update public.hub_chat_threads
+     set title = $2
+     where id = $1::uuid
+       and (
+         title is null
+         or btrim(title) = ''
+         or lower(btrim(title)) in ('studio', 'nanoai chat')
+       )`,
+    [threadId, next]
+  )
 }
 
 export async function pgInsertHubChatMessage(params: {
@@ -670,6 +691,10 @@ function mapThreadSummaryRow(r: Record<string, unknown>): HubChatThreadSummary {
     updatedAt: String(r.updated_at),
     presetId: r.preset_id ? String(r.preset_id) : null,
     projectTitle: r.project_title ? String(r.project_title).trim().slice(0, 120) || null : null,
+    firstUserMessage:
+      typeof r.first_user_message === 'string' && r.first_user_message.trim()
+        ? r.first_user_message.trim().slice(0, 120)
+        : null,
     lastMessagePreview,
     messageCount: Number(r.message_count ?? 0),
   }
@@ -691,6 +716,13 @@ export async function pgListHubChatThreads(
        t.updated_at::text,
        t.session_json->>'presetId' as preset_id,
        t.session_json->>'projectTitle' as project_title,
+       (
+         select left(m.content, 120)
+         from public.hub_chat_messages m
+         where m.thread_id = t.id and m.role = 'user'
+         order by m.created_at asc
+         limit 1
+       ) as first_user_message,
        (
          select left(m.content, 160)
          from public.hub_chat_messages m

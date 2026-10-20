@@ -6,6 +6,7 @@ import {
   fetchWorksheetQuestionsMarkdownRowsOrderedFromPg,
   fetchWorksheetQuestionsTypeContentOrderedFromPg,
 } from '@/lib/db/worksheet-pg'
+import { fetchQuestionReviewRowsPg, overlayRowsById, personalBodiesForUser } from '@/lib/db/worksheet-question-review-pg'
 import { questionsToMarkdown } from './questions-to-markdown'
 import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './worksheet-parse-questions'
 import { blockToContentJson } from './markdown-to-questions'
@@ -85,7 +86,8 @@ type QuestionRowForDisplay = {
  */
 export async function worksheetDisplayMarkdownFromDb(
   contentMarkdownFallback: string,
-  questionIds: string[] | null | undefined
+  questionIds: string[] | null | undefined,
+  viewerUserId?: string | null
 ): Promise<string> {
   const ids = (questionIds ?? []).filter(Boolean)
   if (!ids.length) return contentMarkdownFallback ?? ''
@@ -93,7 +95,12 @@ export async function worksheetDisplayMarkdownFromDb(
   const qRows = await fetchWorksheetQuestionsMarkdownRowsOrderedFromPg(ids)
   if (!qRows?.length) return contentMarkdownFallback ?? ''
 
-  const ordered = qRows.map(
+  const personal = viewerUserId
+    ? personalBodiesForUser(await fetchQuestionReviewRowsPg(ids), viewerUserId)
+    : new Map<string, unknown>()
+  const visibleRows = overlayRowsById(qRows, personal)
+
+  const ordered = visibleRows.map(
     (r) =>
       ({
         id: r.id,

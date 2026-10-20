@@ -25,7 +25,8 @@ import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { isValidHubStudioMessage } from '@/lib/hub-chat/hub-studio-message'
 import { handleHubStudio, type HubStudioAction } from '@/lib/hub-chat/hub-studio-handler'
 import { parseLogoStripBackgroundFlag } from '@/lib/remove-background-png'
-import { detachRetiredStudioPreset, isRetiredStudioPreset, presetTitle } from '@/lib/hub-chat/hub-studio-presets'
+import { detachRetiredStudioPreset, isRetiredStudioPreset } from '@/lib/hub-chat/hub-studio-presets'
+import { hubThreadCreateTitle } from '@/lib/hub-chat/hub-thread-list-label'
 import { reconcilePackagingProcessSteps } from '@/lib/packaging/face-print-style'
 import { applyStudioSessionLabels } from '@/lib/packaging/packaging-face-labels'
 
@@ -384,12 +385,13 @@ export async function POST(request: NextRequest) {
       if (action === 'select_feature' && !featureKey) {
         return NextResponse.json({ error: t.errorGeneric }, { status: 400 })
       }
-      const threadTitle =
-        action === 'start_preset' && presetId
-          ? presetTitle(locale, presetId).slice(0, 80)
-          : action === 'classify_flow_switch' || action === 'classify_feature_intent'
-            ? 'Studio'
-            : message.slice(0, 80) || 'Studio'
+      const threadTitle = hubThreadCreateTitle({
+        action,
+        locale,
+        presetId,
+        featureKey,
+        message,
+      })
       const threadId = await pgEnsureHubChatThread(user.id, body?.threadId, locale, threadTitle)
       if (!threadId) return NextResponse.json({ error: 'Không tạo được hội thoại.' }, { status: 500 })
 

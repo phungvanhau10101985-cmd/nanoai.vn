@@ -7,7 +7,7 @@ import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
 const MAX_IMAGES = 10
 
-/** Endpoint 1: chỉ tách câu từ SGK (không giải tự luận). */
+/** Ảnh trang bài tập chỉ để nhận dạng dạng bài. Phiếu nhận câu mới cùng dạng, không lưu ảnh. */
 export async function POST(req: NextRequest) {
   try {
     const auth = await getUserForAction()

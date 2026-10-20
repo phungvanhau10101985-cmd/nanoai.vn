@@ -7,7 +7,13 @@ import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import {
+  findCurriculumMathFailures,
+  isCurriculumMathSubject,
+  stripCurriculumMathCheckComments,
+} from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 import { isPgConfigured } from '@/lib/db/pool'
+import { removeTryOnStorageFromPublicUrls } from '@/lib/storage/try-on-public-upload'
 import {
   fetchLatestWorksheetSheetByCurriculumIdPg,
   fetchWorksheetCurriculumTopicLessonTopicsPg,
@@ -17,7 +23,6 @@ import {
   fetchWorksheetSheetIdQuestionIdsPg,
   insertWorksheetQuestionPg,
   insertWorksheetSheetSlideBuildFromPg,
-  mergeWorksheetSheetSgkImageUrlsPg,
   updateWorksheetSheetMarkdownQuestionIdsPg,
 } from '@/lib/db/worksheet-pg'
 
@@ -25,11 +30,12 @@ function stripOptionPrefix(opt: string): string {
   return String(opt ?? '').replace(/^[A-D]\.\s*/i, '').trim() || String(opt ?? '')
 }
 
-/** Số hiệu bài SGK từ AI (vd: "1.3 1") — chỉ lưu khi chuỗi hợp lệ. */
-function pickExerciseNumber(raw: unknown): string | undefined {
-  if (typeof raw !== 'string') return undefined
-  const t = raw.replace(/\s+/g, ' ').trim().slice(0, 48)
-  return t || undefined
+function acceptedMathSolution(problem: string, solution: string, subjectId: string): string | null {
+  if (!isCurriculumMathSubject(subjectId)) return solution
+  const markdown = `### Bài\n\n${problem}\n\n**Lời giải:**\n\n${solution}`
+  const failures = findCurriculumMathFailures(markdown, { subjectId })
+  if (failures.length > 0) return null
+  return stripCurriculumMathCheckComments(solution)
 }
 
 function shuffleCorrectPosition(options: string[], correctIndex: number): { options: string[]; correctIndex: number } {
@@ -58,8 +64,7 @@ async function generateEssaySolution(
   topic: string,
   curriculumMarkdown: string,
   apiKey: string,
-  userId: string,
-  imageParts?: Array<{ inlineData: { data: string; mimeType: string } }>
+  userId: string
 ): Promise<string> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
@@ -76,12 +81,11 @@ ${problem}
 
 Chủ đề: ${topic}
 
-QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước.
-QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án".
+QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước, do bạn viết cho đề này.
+QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án". Không chép lời giải in sẵn.
 Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
 
-  const useVision = Array.isArray(imageParts) && imageParts.length > 0
-  const result = useVision ? await model.generateContent([prompt, ...imageParts]) : await model.generateContent(prompt)
+  const result = await model.generateContent(prompt)
   void trackFromUsageMetadata(
     result.response.usageMetadata,
     GEMINI_25_PRO.model,
@@ -96,12 +100,6 @@ Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi v�
   } catch {
     return ''
   }
-}
-
-function essayNeedsImage(problem: string): boolean {
-  const text = String(problem ?? '').toLowerCase()
-  if (!text) return false
-  return /đồ thị|hình vẽ|hình\s*\d+|hình minh họa|quan sát hình|biểu đồ|dựa vào hình|trên hình/.test(text)
 }
 
 async function fetchImageAsBase64(url: string): Promise<{ data: string; mimeType: string }> {
@@ -135,7 +133,7 @@ export type ParseSgkResult = {
   essayCount: number
 }
 
-export async function runParseSgk(
+async function runParseSgkWork(
   userId: string,
   params: ParseSgkParams,
   options?: ParseSgkOptions
@@ -200,27 +198,26 @@ export async function runParseSgk(
 
   const imageParts = await Promise.all(imageUrls.map((url) => fetchImageAsBase64(url).then((r) => ({ inlineData: { data: r.data, mimeType: r.mimeType } }))))
 
-  const prompt = `Đây là ảnh trang bài tập sách giáo khoa. Nhiệm vụ: TÁCH TỪNG CÂU BÀI TẬP thành JSON.
+  const prompt = `Ảnh này chỉ để nhận DẠNG bài và kiến thức đang luyện. Nhiệm vụ: viết BÀI TẬP MỚI cùng dạng, không chép trang sách.
 ${existingBlock}
 
 QUY TẮC:
-- Mỗi câu = 1 item. Trắc nghiệm: có 4 đáp án A/B/C/D. Tự luận: có đề bài + lời giải.
-- Trắc nghiệm: difficulty = easy | medium | hard (Dễ/Trung bình/Khó).
-- Tự luận: difficulty = nhan-biet | thong-hieu | van-dung-thap | van-dung-cao | thuc-te (Bloom).
+- Nhìn ảnh để biết kỹ năng đang luyện và khoảng bao nhiêu câu. Sau đó đặt câu mới.
+- Không giữ câu chữ của sách rồi chỉ đổi một số. Đổi tình huống, số liệu, tên điểm và hình mô tả ngay trong đề.
+- Không chép đề, số liệu, hình, đáp án hay lời giải in trong ảnh. Không điền số bài của sách.
+- Nếu dạng bài cần đồ thị hoặc hình, hãy nêu hàm hoặc dữ liệu mới ngay trong đề để học sinh làm được mà không cần ảnh sách.
+- Môn Toán: cuối lời giải thêm đúng một dòng <!-- check {"kind":"expr","expr":"2+3","shown":5} -->. expr chỉ gồm số và + - * / ^ ( ). shown là kết quả đã viết trong lời giải.
+- Mỗi câu = 1 item. Trắc nghiệm: 4 đáp án. Tự luận: đề mới + lời giải do bạn viết.
+- Trắc nghiệm: difficulty = easy | medium | hard.
+- Tự luận: difficulty = nhan-biet | thong-hieu | van-dung-thap | van-dung-cao | thuc-te.
 - Unicode: π, ∫, x², √, ∈, ℝ. KHÔNG LaTeX. options: CHỈ nội dung, KHÔNG thêm "A." "B." vào đầu.
 - KHÔNG tạo câu trùng với danh sách đã có ở trên.
-- BÀI TỰ LUẬN: BẮT BUỘC trích xuất ĐẦY ĐỦ lời giải từ SGK nếu có trong ảnh. Nếu sách có phần "Đáp án", "Lời giải", "Hướng dẫn" thì copy toàn bộ vào trường solution. Không được để solution rỗng nếu có trong ảnh. CHỈ đưa MỘT lần lời giải, KHÔNG lặp lại nội dung. Trường solution CHỈ chứa nội dung lời giải thuần, KHÔNG thêm tiêu đề như "Lời giải:", "**Lời giải:**", "Đáp án:".
-
-TÁCH Ý (a)(b)(c) — BẮT BUỘC áp dụng đúng:
-- Nếu một số bài có nhiều ý (a), (b), (c)... mà MỖI Ý LÀ MỘT YÊU CẦU ĐỘC LẬP (ví dụ: mỗi ý cho một hàm số/biểu thức khác nhau cùng dạng bài; mỗi ý một phương trình riêng; các câu không dùng chung kết quả của nhau) → tách thành NHIỀU phần tử riêng trong "essays" (hoặc "quizzes" nếu là TN), mỗi phần tử một problem/question + solution/đáp án tương ứng CHỈ của ý đó.
-- Với mỗi phần tử đã tách, BẮT BUỘC thêm trường "exerciseNumber" dạng "X.Y 1", "X.Y 2", "X.Y 3"... trong đó X.Y là số bài gốc trên SGK (ví dụ 1.3), số sau dấu cách là thứ tự ý đã tách. Ví dụ bài 1.3 có (a)(b) độc lập → hai item essays: exerciseNumber "1.3 1" và "1.3 2". Trong "problem" của từng item: có thể lặp lại câu dẫn chung (nếu có) + nội dung đúng một ý (a) hoặc (b) và lời giải tương ứng trong "solution".
-- Nếu các ý PHỤ THUỘC LẪN NHAU hoặc cùng một bài toán nhiều bước (ví dụ: (a) chứng minh, (b) dùng kết quả (a); (b) tiếp nối ngữ cảnh (a); "từ (a) suy ra (b)"; các câu trong cùng một tình huống không tách được) → GIỮ MỘT phần tử duy nhất, "problem" ghi đầy đủ cả bài kèm các ý. Khi đó "exerciseNumber" chỉ cần "X.Y" hoặc có thể bỏ qua trường này.
-- Cùng quy tắc với trắc nghiệm: nhiều câu TN độc lập trong cùng khung số bài → tách nhiều quiz, mỗi cái có exerciseNumber "1.1 1", "1.1 2" nếu cần.
+- Lời giải tự luận viết đủ bước cho chính đề mới. Không để solution rỗng. Không thêm tiêu đề "Lời giải:" hay "Đáp án:".
 
 Trả về JSON:
 {
-  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard", "exerciseNumber": "1.1 1 (tùy chọn, khi tách ý hoặc số SGK)" } ],
-  "essays": [ { "problem": "...", "solution": "...", "difficulty": "nhan-biet|thong-hieu|van-dung-thap|van-dung-cao|thuc-te", "exerciseNumber": "1.3 1 (tùy chọn)" } ]
+  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard" } ],
+  "essays": [ { "problem": "...", "solution": "...", "difficulty": "nhan-biet|thong-hieu|van-dung-thap|van-dung-cao|thuc-te" } ]
 }
 
 Chỉ trả về JSON, không markdown.`
@@ -262,7 +259,6 @@ Chỉ trả về JSON, không markdown.`
     const idx = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
     const diff = ['easy', 'medium', 'hard'].includes(String(q.difficulty ?? '')) ? q.difficulty : 'medium'
     const { options, correctIndex } = shuffleCorrectPosition(opts, idx)
-    const exNum = pickExerciseNumber(q.exerciseNumber)
     const ins = await insertWorksheetQuestionPg({
       userId,
       curriculumId: curriculumId || null,
@@ -272,8 +268,8 @@ Chỉ trả về JSON, không markdown.`
       topic: resolvedTopic || null,
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'medium',
-      contentJson: { question: q.question, options, correctIndex, ...(exNum ? { exerciseNumber: exNum } : {}) },
-      source: 'sgk',
+      contentJson: { question: q.question, options, correctIndex },
+      source: 'ai',
       order: order++,
     })
     if (ins?.id) questionIds.push(ins.id)
@@ -289,14 +285,15 @@ Chỉ trả về JSON, không markdown.`
         resolvedTopic,
         curriculumMarkdown,
         apiKey,
-        userId,
-        essayNeedsImage(e.problem) ? imageParts : undefined
+        userId
       )
       if (generated) solution = generated
     }
-    if (!solution) solution = '(Chưa có lời giải)'
+    if (!solution || solution === '(Chưa có lời giải)') continue
+    const checked = acceptedMathSolution(e.problem, solution, subjectId)
+    if (!checked) continue
+    solution = checked
     const diff = ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'].includes(String(e.difficulty ?? '')) ? e.difficulty : 'thong-hieu'
-    const exNum = pickExerciseNumber(e.exerciseNumber)
     const insEssay = await insertWorksheetQuestionPg({
       userId,
       curriculumId: curriculumId || null,
@@ -306,14 +303,14 @@ Chỉ trả về JSON, không markdown.`
       topic: resolvedTopic || null,
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'thong-hieu',
-      contentJson: { problem: e.problem, solution, ...(exNum ? { exerciseNumber: exNum } : {}) },
-      source: 'sgk',
+      contentJson: { problem: e.problem, solution },
+      source: 'ai',
       order: order++,
     })
     if (insEssay?.id) questionIds.push(insEssay.id)
   }
 
-  if (questionIds.length === 0) throw new Error('Không tách được câu nào từ ảnh.')
+  if (questionIds.length === 0) throw new Error('Không tạo được bài tập mới cùng dạng.')
 
   const newTypesFull = await fetchWorksheetQuestionIdTypesPg(questionIds)
   if (!newTypesFull) throw new Error('Không đọc được loại câu mới.')
@@ -369,15 +366,28 @@ Chỉ trả về JSON, không markdown.`
     targetWorksheetId = newSheetId
   }
 
-  if (targetWorksheetId && imageUrls.length > 0) {
-    await mergeWorksheetSheetSgkImageUrlsPg(targetWorksheetId, imageUrls)
-  }
-
   return {
     worksheetId: targetWorksheetId,
     worksheetMarkdown: finalMarkdown,
     addedCount: questionIds.length,
     quizCount: questionIds.filter((id) => newTypesMap.get(id) === 'quiz').length,
     essayCount: questionIds.filter((id) => newTypesMap.get(id) === 'essay').length,
+  }
+}
+
+/** Đọc dạng bài từ ảnh rồi xóa file ảnh. Phiếu chỉ nhận câu mới. */
+export async function runParseSgk(
+  userId: string,
+  params: ParseSgkParams,
+  options?: ParseSgkOptions
+): Promise<ParseSgkResult> {
+  try {
+    return await runParseSgkWork(userId, params, options)
+  } finally {
+    try {
+      await removeTryOnStorageFromPublicUrls(params.imageUrls ?? [])
+    } catch (e) {
+      console.warn('[parse-sgk] không xóa được ảnh tạm', e)
+    }
   }
 }

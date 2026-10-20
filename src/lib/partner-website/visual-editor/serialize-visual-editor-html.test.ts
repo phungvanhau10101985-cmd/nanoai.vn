@@ -289,6 +289,22 @@ test('visual serializer keeps banner and categories in document flow', () => {
   assert.ok(bodyOrder.indexOf('id="cats"') < bodyOrder.indexOf('id="banner"'))
 })
 
+test('visual serializer drops runtime flash-sale hide so Sửa nhanh can show the block again', () => {
+  const doc = parseForSerializer(`<!doctype html>
+    <html data-pw-edit-device="desktop"><body>
+      <main>
+        <section data-pw-personalize="flash-sale" hidden data-pw-live-products="loading">
+          <h2>FLASH SALE</h2>
+          <div data-pw-grid><article data-pw-el="card">A</article></div>
+        </section>
+      </main>
+    </body></html>`)
+  const saved = serializeVisualEditorHtml(doc, 'desktop')
+  assert.match(saved, /data-pw-personalize="flash-sale"/)
+  assert.doesNotMatch(saved, /\shidden(?:=|"|\s|>)/)
+  assert.doesNotMatch(saved, /data-pw-live-products/)
+})
+
 test('visual serializer strips editor-only product-grid row preview hide', () => {
   const doc = parseForSerializer(`<!doctype html>
     <html data-pw-edit-device="mobile"><body>

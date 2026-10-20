@@ -13,7 +13,6 @@ export const PUBLIC_TABLES = [
   'worksheet_slides',
   'worksheet_slides_original',
   'worksheet_slide_edit_history',
-  'worksheet_official_questions',
   'worksheet_textbook_lessons',
   'exam_sessions',
   'exam_questions',

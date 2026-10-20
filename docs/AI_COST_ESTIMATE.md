@@ -52,7 +52,7 @@ Tài liệu này ước tính chi phí API khi tạo **một bộ giáo trình h
 | Verify tự luận | DeepSeek Reasoner | 5 | ~4.000 | ~250 | 5 × (0.0022 + 0.0005) ≈ **0.014** |
 | **Tổng** | | | | | **~0.072** |
 
-*Trường hợp có câu Bộ GD: số lần verify giảm (chỉ verify câu Bộ GD + câu AI). Retry khi verify fail: thêm ~1–2 lần Gemini Pro + DeepSeek.*
+*Retry khi verify fail: thêm ~1–2 lần Gemini Pro + DeepSeek.*
 
 #### 3b. Tạo từng câu (createWorksheetFromQuestions)
 
@@ -89,9 +89,8 @@ Tài liệu này ước tính chi phí API khi tạo **một bộ giáo trình h
 1. **Độ dài giáo trình**: Giáo trình dài hơn → input/output nhiều hơn → chi phí tăng.
 2. **Số slide**: Nhiều slide hơn → output JSON lớn hơn, nhiều lần tìm ảnh hơn.
 3. **Pexels vs Google Search**: Dùng Pexels API cho ảnh → không tốn chi phí grounding Search.
-4. **Câu Bộ GD**: Nếu có 1–5 câu trắc nghiệm từ ngân hàng Bộ GD → giảm số lần generate quiz AI.
-5. **Verify fail + retry**: Mỗi lần retry thêm ~0.01–0.02 USD.
-6. **Free tier**: Gemini có free tier; DeepSeek có thể có free credits → chi phí thực tế có thể thấp hơn.
+4. **Verify fail + retry**: Mỗi lần retry thêm ~0.01–0.02 USD.
+5. **Free tier**: Gemini có free tier; DeepSeek có thể có free credits → chi phí thực tế có thể thấp hơn.
 
 ---
 

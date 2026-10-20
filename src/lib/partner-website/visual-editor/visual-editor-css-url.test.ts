@@ -197,6 +197,8 @@ describe('visual-editor runtime script', () => {
     expect(s).toContain('[data-pw-chrome-kit="actions"]')
     expect(s).toContain('data-pw-chrome-kit="dock"')
     expect(s).toContain('insertProductGrid')
+    expect(s).toContain('function dropFlashSaleHostsForInsert')
+    expect(s).toContain('function flashSaleHostsHere')
     expect(s).toContain("insertInFlowSection(html, 'data-pw-related')")
     expect(s).toContain("insertInFlowSection(html, 'data-pw-outfit')")
     expect(s).toContain('insertBanner')

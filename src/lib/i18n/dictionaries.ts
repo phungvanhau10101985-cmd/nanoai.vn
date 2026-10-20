@@ -3618,6 +3618,128 @@ export type Dictionary = {
     cta: string
     note: string
   }
+  homeworkHelpLanding: {
+    eyebrow: string
+    title: string
+    promise: string
+    parentLine: string
+    cta: string
+    ctaNote: string
+    flowStatement: string
+    flowKnowledge: string
+    flowThinking: string
+    flowHint: string
+    flowAnswer: string
+    flowAnswerLock: string
+    contrastTitle: string
+    contrastLead: string
+    othersTitle: string
+    othersBody: string
+    oursTitle: string
+    oursBody: string
+    strengthsTitle: string
+    strengthUnderstandTitle: string
+    strengthUnderstandBody: string
+    strengthThinkTitle: string
+    strengthThinkBody: string
+    strengthMasterTitle: string
+    strengthMasterBody: string
+    stepsTitle: string
+    step1Title: string
+    step1Body: string
+    step2Title: string
+    step2Body: string
+    step3Title: string
+    step3Body: string
+    step4Title: string
+    step4Body: string
+    priceTitle: string
+    priceLead: string
+    priceTrialName: string
+    priceTrialDetail: string
+    priceMonthName: string
+    priceQuarterName: string
+    priceYearName: string
+    priceYearBadge: string
+    priceIncludes: string
+    priceNote: string
+    faqTitle: string
+    faq1q: string
+    faq1a: string
+    faq2q: string
+    faq2a: string
+    faq3q: string
+    faq3a: string
+    faq4q: string
+    faq4a: string
+    faq5q: string
+    faq5a: string
+    finalTitle: string
+    finalBody: string
+  }
+  curriculumLanding: {
+    eyebrow: string
+    title: string
+    promise: string
+    teacherLine: string
+    cta: string
+    ctaNote: string
+    flowSubject: string
+    flowSource: string
+    flowCurriculum: string
+    flowSlides: string
+    flowWorksheet: string
+    contrastTitle: string
+    contrastLead: string
+    othersTitle: string
+    othersBody: string
+    oursTitle: string
+    oursBody: string
+    strengthsTitle: string
+    strengthScreensTitle: string
+    strengthScreensBody: string
+    strengthSlidesTitle: string
+    strengthSlidesBody: string
+    strengthSummaryTitle: string
+    strengthSummaryBody: string
+    strengthLabTitle: string
+    strengthLabBody: string
+    strengthChartTitle: string
+    strengthChartBody: string
+    stepsTitle: string
+    step1Title: string
+    step1Body: string
+    step2Title: string
+    step2Body: string
+    step3Title: string
+    step3Body: string
+    step4Title: string
+    step4Body: string
+    priceTitle: string
+    priceLead: string
+    priceFreeName: string
+    priceFreeDetail: string
+    priceImageName: string
+    priceImageDetail: string
+    priceSlideName: string
+    priceSlideDetail: string
+    priceAgainName: string
+    priceAgainDetail: string
+    priceNote: string
+    faqTitle: string
+    faq1q: string
+    faq1a: string
+    faq2q: string
+    faq2a: string
+    faq3q: string
+    faq3a: string
+    faq4q: string
+    faq4a: string
+    faq5q: string
+    faq5a: string
+    finalTitle: string
+    finalBody: string
+  }
   weddingCardAiLanding: {
     eyebrow: string
     title: string
@@ -7738,6 +7860,139 @@ export const VI_DICTIONARY: Dictionary = {
     priceLabel: 'Giá',
     cta: 'Dùng ngay',
     note: 'Một lượt dùng tính năng trên NanoAI.',
+  },
+  homeworkHelpLanding: {
+    eyebrow: 'Chữa bài tập',
+    title: 'Hiểu bài và tự suy luận, không nhận lời giải sẵn',
+    promise:
+      'Chụp hoặc gõ một câu. Giáo viên gọi tên kiến thức cần nhớ, chỉ hướng tư duy, rồi mở gợi ý từng bước. Học sinh tự làm. Đáp án chỉ hiện khi bấm bước cuối.',
+    parentLine: 'Phụ huynh thấy con phải tự nghĩ trước khi đối chiếu đáp án.',
+    cta: 'Học thử {days} ngày',
+    ctaNote: 'Đăng nhập là học thử. Credit chỉ trừ khi mua gói sau thời gian thử.',
+    flowStatement: 'Đề',
+    flowKnowledge: 'Kiến thức liên quan',
+    flowThinking: 'Hướng tư duy',
+    flowHint: 'Gợi ý mở từng bước',
+    flowAnswer: 'Đáp án',
+    flowAnswerLock: 'Chỉ hiện khi bấm bước cuối',
+    contrastTitle: 'Lời giải sẵn làm não lười',
+    contrastLead:
+      'Đưa sẵn bài giải thì học sinh chép. Chép nhiều thì quên cách lập luận. Dần dần mất khả năng suy luận và lập luận logic.',
+    othersTitle: 'Chỗ khác',
+    othersBody:
+      'Bài giải nằm sẵn trên màn hình. Học sinh đọc đường người khác đã đi, không tự nối các ý. Lần sau gặp bài gần giống thì đứng lại, vì chưa từng tự nghĩ.',
+    oursTitle: 'Chữa bài ở đây',
+    oursBody:
+      'Kiến thức và hướng tư duy hiện trước. Gợi ý mở lần lượt. Học sinh ra kết quả của mình rồi mới đối chiếu. Nhớ đường mình đã đi nên hiểu bài và nắm vững kiến thức.',
+    strengthsTitle: 'Ba việc trang này làm cho học sinh',
+    strengthUnderstandTitle: 'Hiểu bài',
+    strengthUnderstandBody: 'Gọi tên kiến thức đang dùng. Học sinh thấy mình đang áp dụng ý nào, không nhảy cóc tới con số.',
+    strengthThinkTitle: 'Có tư duy',
+    strengthThinkBody: 'Hướng làm đi từng bước. Học sinh phải tự nối các ý, không nhận một đoạn chép vào vở.',
+    strengthMasterTitle: 'Nắm vững kiến thức',
+    strengthMasterBody: 'Tự làm xong mới đối chiếu đáp án. Kiến thức ở lại vì học sinh đã đi đường đó một lần.',
+    stepsTitle: 'Một câu, bốn bước',
+    step1Title: 'Gửi một câu',
+    step1Body: 'Chụp bài hoặc gõ đề. Mỗi câu là một hội thoại riêng.',
+    step2Title: 'Đọc kiến thức',
+    step2Body: 'Thấy ý cần nhớ trước khi tính. Bấm để nghe giải thích và một tình huống thật.',
+    step3Title: 'Đi hướng tư duy',
+    step3Body: 'Gợi ý mở lần lượt. Chưa xong bước này thì chưa có đáp án.',
+    step4Title: 'Tự làm, rồi đối chiếu',
+    step4Body: 'Lấy kết quả của mình trước. Bấm bước cuối mới thấy đáp án để so.',
+    priceTitle: 'Học thử, rồi mới chọn gói',
+    priceLead: 'Thử {days} ngày kể từ lần đầu gửi bài chữa hoặc hỏi gia sư.',
+    priceTrialName: 'Học thử',
+    priceTrialDetail: '{days} ngày',
+    priceMonthName: '1 tháng',
+    priceQuarterName: '3 tháng',
+    priceYearName: '1 năm',
+    priceYearBadge: 'Để thói quen tự nghĩ kịp thành',
+    priceIncludes: 'Cùng gói có gia sư: chat riêng, lời dễ hiểu và ví dụ thực tế.',
+    priceNote:
+      'Lời giải chi tiết không nằm sẵn. Muốn mở thì có lời nhắc: đọc xong dễ nhớ đường người khác đã đi, và lần sau ngừng tự suy luận.',
+    faqTitle: 'Câu hỏi thường gặp',
+    faq1q: 'Có đưa đáp án ngay không?',
+    faq1a: 'Không. Kiến thức và hướng tư duy hiện trước. Gợi ý mở từng bước. Đáp án chỉ hiện khi bấm bước cuối.',
+    faq2q: 'Khác chỗ đưa lời giải sẵn ở đâu?',
+    faq2a:
+      'Lời giải sẵn khiến học sinh chép và lười tư duy, dần mất khả năng suy luận và lập luận logic. Ở đây học sinh phải đi hướng làm và tự ra kết quả trước khi đối chiếu.',
+    faq3q: 'Vẫn xem được lời giải chi tiết không?',
+    faq3a:
+      'Có, sau khi đã đi hướng tư duy. Lời giải mở riêng, kèm lời nhắc nên tự làm trước. Đọc xong dễ nhớ đường người khác đã đi và lần sau ngừng tự suy luận.',
+    faq4q: 'Môn nào, cấp nào?',
+    faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ và môn khác. Mọi cấp.',
+    faq5q: 'Học thử tính thế nào?',
+    faq5a: 'Đăng nhập, gửi bài chữa hoặc hỏi gia sư. {days} ngày tính từ lần đầu. Credit chỉ trừ khi mua gói sau thời gian thử.',
+    finalTitle: 'Để học sinh nghĩ được, đừng đưa bài giải trước',
+    finalBody: 'Học thử {days} ngày. Chụp một câu đang bí.',
+  },
+  curriculumLanding: {
+    eyebrow: 'Tạo giáo trình',
+    title: 'Một bài thành giáo trình, slide theo tiết và phiếu',
+    promise:
+      'Chọn môn, lớp và bộ sách. Gõ chủ đề hoặc chụp trang sách. Ra giáo trình theo tiết, slide để chiếu, phiếu bám đúng bài.',
+    teacherLine: 'Màn giáo viên và màn học sinh đi cùng một slide, ảnh tóm tắt, thí nghiệm và biểu đồ.',
+    cta: 'Đăng nhập để tạo',
+    ctaNote: 'Ba bài giáo trình mới mỗi ngày không trừ credit. Bài thứ tư, hoặc khi tạo lại, mới trừ.',
+    flowSubject: 'Môn, lớp, bộ sách',
+    flowSource: 'Chủ đề hoặc ảnh trang sách',
+    flowCurriculum: 'Giáo trình theo tiết',
+    flowSlides: 'Slide để chiếu',
+    flowWorksheet: 'Phiếu bài tập',
+    contrastTitle: 'Một file chữ chưa phải bài dạy',
+    contrastLead: 'Soạn xong vẫn phải cắt slide, làm phiếu và mở phần mềm chiếu khác. Bài dễ lệch bộ sách lớp đang học.',
+    othersTitle: 'Soạn rời',
+    othersBody:
+      'Giáo án một file. Slide làm chỗ khác. Phiếu làm chỗ khác. Chiếu lên lớp thì học sinh có thể thấy cả phần giáo viên đang sửa.',
+    oursTitle: 'Tạo giáo trình ở đây',
+    oursBody:
+      'Giáo trình, slide theo tiết và phiếu nằm cùng một bài. Chiếu bản sạch cho học sinh. Sửa một đoạn thì hai AI đối chiếu trước khi lưu.',
+    strengthsTitle: 'Điểm mạnh khi lên lớp',
+    strengthScreensTitle: 'Hai màn hình đồng bộ',
+    strengthScreensBody: 'Màn giáo viên và màn học sinh đi cùng nhau. Đổi slide, gõ lời giải, bật ảnh hay biểu đồ thì màn học sinh hiện đúng chỗ đó.',
+    strengthSlidesTitle: 'Tạo slide',
+    strengthSlidesBody: 'Mỗi tiết có slide để chiếu. Giáo viên gộp, tách, rồi chọn tiết để mở. Màn học sinh theo đúng tiết đó.',
+    strengthSummaryTitle: 'Tạo ảnh tóm tắt',
+    strengthSummaryBody: 'Một ảnh infographic cho cả bài hoặc cho một tiết. Học sinh xem cùng ảnh trên màn của mình.',
+    strengthLabTitle: 'Thí nghiệm trên slide',
+    strengthLabBody: 'Gắn mô phỏng thí nghiệm PhET vào ô visual. Học sinh thấy đúng thí nghiệm giáo viên đang mở, không cần tab khác.',
+    strengthChartTitle: 'Vẽ biểu đồ',
+    strengthChartBody: 'Biểu đồ GeoGebra hoặc plot nằm trên slide. Đồ thị hiện cùng lúc ở màn giáo viên và màn học sinh.',
+    stepsTitle: 'Bốn bước lên lớp',
+    step1Title: 'Chọn môn và lớp',
+    step1Body: 'Chọn bộ sách và loại bài: hình thành kiến thức, luyện tập, hoặc thực hành.',
+    step2Title: 'Đưa nội dung',
+    step2Body: 'Gõ chủ đề, hoặc gửi ảnh trang sách. Có thể đọc ISBN trên sách.',
+    step3Title: 'Chiếu đúng tiết',
+    step3Body: 'Chọn tiết, mở slide. Bản học sinh là màn trình chiếu.',
+    step4Title: 'Gắn phiếu và câu hỏi',
+    step4Body: 'Phiếu từ bài vừa soạn. Câu trắc nghiệm tạo trên slide.',
+    priceTitle: 'Ba bài mỗi ngày, chưa trừ credit',
+    priceLead: 'Đăng nhập là tạo. {freeBodies} bài giáo trình mới trong ngày không trừ credit.',
+    priceFreeName: 'Mỗi ngày',
+    priceFreeDetail: '{freeBodies} bài · 0 credit',
+    priceImageName: 'Ảnh trang sách',
+    priceImageDetail: '{image} credit',
+    priceSlideName: 'Slide một tiết, lần đầu',
+    priceSlideDetail: '0 credit',
+    priceAgainName: 'Tạo lại',
+    priceAgainDetail: '{slide} và {infographic} credit',
+    priceNote:
+      'Ảnh trang sách trừ {image} credit khi đã đủ {freeBodies} bài miễn phí trong ngày, hoặc khi ghi đè bài cũ. Slide một tiết lần đầu không trừ. Tạo lại slide trừ {slide} credit. Tạo lại infographic trừ {infographic} credit. Mở bản đã lưu, không gọi AI, thì không trừ.',
+    faqTitle: 'Câu hỏi thường gặp',
+    faq1q: 'Có phải tự cắt slide không?',
+    faq1a: 'Không. Giáo trình sinh kèm slide theo tiết. Giáo viên chọn tiết rồi chiếu.',
+    faq2q: 'Có bám sách giáo khoa không?',
+    faq2a: 'Có. Chọn Kết nối tri thức, Cánh diều, Chân trời sáng tạo, hoặc sách khác. Có thể chụp trang sách.',
+    faq3q: 'Học sinh thấy gì?',
+    faq3a: 'Màn trình chiếu đồng bộ với giáo viên: đúng slide, ảnh tóm tắt, thí nghiệm và biểu đồ. Nút sửa nằm ở màn giáo viên.',
+    faq4q: 'Môn và lớp nào?',
+    faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
+    faq5q: 'Khi nào trừ credit?',
+    faq5a: 'Ba bài mới mỗi ngày không trừ. Bài thứ tư, tạo từ ảnh khi vượt mức hoặc ghi đè, và lần tạo lại slide hoặc infographic thì trừ.',
+    finalTitle: 'Soạn một lần, lên lớp được ngay',
+    finalBody: 'Đăng nhập. Chọn môn, lớp, rồi gõ chủ đề hoặc chụp một trang sách.',
   },
   weddingCardAiLanding: {
     eyebrow: 'Thiệp cưới điện tử',

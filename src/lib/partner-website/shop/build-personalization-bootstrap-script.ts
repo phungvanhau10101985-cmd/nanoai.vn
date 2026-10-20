@@ -805,6 +805,11 @@ function loadFlashSale(el){
   }
   function done(res){
     if(el._pwFlashGen!==gen)return;
+    if(typeof pwShopLiveUiOff==='function'&&pwShopLiveUiOff()){
+      st.loading=false;
+      if(window.__pwReleaseFlashForEditor)window.__pwReleaseFlashForEditor();
+      return;
+    }
     var failed=!res||res.ok===false||!!(res.j&&res.j.retry);
     if(failed){
       if(tries<2){
@@ -1006,9 +1011,11 @@ function hydratePersonalizeHosts(){
       if(el.getAttribute('data-pw-featured-categories')==='1')return;
       if(el.getAttribute('data-pw-personalize')==='featured-categories')return;
       if(el.getAttribute('data-pw-personalize')==='flash-sale'){
+        if(typeof pwShopLiveUiOff==='function'&&pwShopLiveUiOff())return;
         if(el.hasAttribute('hidden')||el.getAttribute('data-pw-hidden')==='1')return;
         var flashGrid=el.querySelector('[data-pw-grid]');
         if(flashGrid&&!el._pwFlashPainted){
+          if(el._pwFlashSeedHtml==null)el._pwFlashSeedHtml=flashGrid.innerHTML;
           flashGrid.innerHTML='';
           el.setAttribute('data-pw-live-products','loading');
         }
@@ -1082,6 +1089,23 @@ function runFeaturedAndBind(editor){
     });
   }
   apiFetch('/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:'page_view'})}).catch(function(){});
+}
+function releaseFlashForEditor(){
+  if(typeof pwShopLiveUiOff!=='function'||!pwShopLiveUiOff())return;
+  document.querySelectorAll('[data-pw-personalize="flash-sale"]').forEach(function(el){
+    if(el.getAttribute('data-pw-hidden')==='1')return;
+    var grid=el.querySelector('[data-pw-grid]');
+    if(el._pwFlashSeedHtml&&grid&&!grid.querySelector('[data-pw-el="card"],.pw-product-card,article'))grid.innerHTML=el._pwFlashSeedHtml;
+    el.hidden=false;
+    try{el.removeAttribute('hidden');}catch(eFlashRel){}
+    if(el.getAttribute('data-pw-live-products')==='loading')el.setAttribute('data-pw-live-products','ready');
+    if(el._pwGrid)el._pwGrid.loading=false;
+  });
+}
+window.__pwReleaseFlashForEditor=releaseFlashForEditor;
+if(window.MutationObserver&&document.body){
+  var flashEditorMo=new MutationObserver(function(){releaseFlashForEditor();});
+  flashEditorMo.observe(document.body,{attributes:true,attributeFilter:['class']});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
 document.addEventListener('pw-shop-visual-ready',function(){

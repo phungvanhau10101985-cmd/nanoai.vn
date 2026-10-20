@@ -112,68 +112,6 @@ export async function fetchWorksheetEssayRowsByIdsPg(ids: string[]): Promise<Wor
   }
 }
 
-export type OfficialBankRowPg = {
-  question_text: string
-  options: unknown
-  correct_index: unknown
-  difficulty: string | null
-}
-
-export async function fetchOfficialQuestionsBankPg(params: {
-  subjectId: string
-  gradeLevelId: string
-  lessonTopics: string[]
-  difficulty: string | undefined
-  limit: number
-}): Promise<OfficialBankRowPg[] | null> {
-  if (!isPgConfigured()) return null
-  try {
-    const lim = Math.max(1, Math.min(500, params.limit))
-    if (params.lessonTopics.length >= 1) {
-      if (params.difficulty) {
-        return await pgQuery<OfficialBankRowPg>(
-          `select question_text, options, correct_index, difficulty::text as difficulty
-           from public.worksheet_official_questions
-           where subject_id = $1 and grade_level_id = $2
-             and topic_normalized is not null
-             and topic_normalized = any($3::text[])
-             and difficulty = $4
-           limit $5`,
-          [params.subjectId, params.gradeLevelId, params.lessonTopics, params.difficulty, lim]
-        )
-      }
-      return await pgQuery<OfficialBankRowPg>(
-        `select question_text, options, correct_index, difficulty::text as difficulty
-         from public.worksheet_official_questions
-         where subject_id = $1 and grade_level_id = $2
-           and topic_normalized is not null
-           and topic_normalized = any($3::text[])
-         limit $4`,
-        [params.subjectId, params.gradeLevelId, params.lessonTopics, lim]
-      )
-    }
-    if (params.difficulty) {
-      return await pgQuery<OfficialBankRowPg>(
-        `select question_text, options, correct_index, difficulty::text as difficulty
-         from public.worksheet_official_questions
-         where subject_id = $1 and grade_level_id = $2 and difficulty = $3
-         limit $4`,
-        [params.subjectId, params.gradeLevelId, params.difficulty, lim]
-      )
-    }
-    return await pgQuery<OfficialBankRowPg>(
-      `select question_text, options, correct_index, difficulty::text as difficulty
-       from public.worksheet_official_questions
-       where subject_id = $1 and grade_level_id = $2
-       limit $3`,
-      [params.subjectId, params.gradeLevelId, lim]
-    )
-  } catch (e) {
-    console.error('[exam-session-admin-pg] fetchOfficialQuestionsBankPg', e)
-    return null
-  }
-}
-
 export async function insertExamSessionCreatePg(params: {
   code: string
   teacherId: string

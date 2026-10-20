@@ -20,6 +20,8 @@ import {
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
 import { formatCurriculumLessonNoDisplay, parseCurriculumLessonNumber } from '@/app/tao-giao-trinh/lib/curriculum-input-normalize'
+import { curriculumOriginalLessonRules, normalizeKnowledgePoints } from '@/app/tao-giao-trinh/lib/curriculum-original-body'
+import { repairThenMarkLessonMarkdown } from '@/app/tao-giao-trinh/lib/curriculum-math-repair'
 
 const SUBJECT_NAMES: Record<string, string> = {
   toan: 'Toán học',
@@ -46,47 +48,25 @@ const TEXTBOOK_NAMES: Record<string, string> = {
   khac: 'Không chỉ định',
 }
 
-/** Giới hạn số ảnh – Gemini có trần payload/request; 20 ảnh nếu mỗi file không quá lớn */
+/** Giới hạn số ảnh – 20 ảnh nếu mỗi file không quá lớn */
 const MAX_IMAGES = 20
 
-/** Model OpenAI khi Gemini quá tải / 503 — ghi đè bằng CURRICULUM_FROM_IMAGE_OPENAI_MODEL */
+/** Đọc ảnh và viết giáo trình. Ghi đè bằng CURRICULUM_FROM_IMAGE_OPENAI_MODEL */
 const CURRICULUM_FROM_IMAGE_OPENAI_MODEL =
-  process.env.CURRICULUM_FROM_IMAGE_OPENAI_MODEL?.trim() || 'gpt-5'
+  process.env.CURRICULUM_FROM_IMAGE_OPENAI_MODEL?.trim() || 'gpt-5.1'
 
 type LessonOutlineItem = { lessonNo: number; title: string; markdown: string }
 
 type ImagePartForAi = { mimeType: string; base64: string }
 
-/** Lỗi Gemini tạm thời → được phép fallback OpenAI (tránh gọi GPT khi sai API key / payload 400 rõ ràng). */
-function isGeminiTransientForOpenAIFallback(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err)
-  if (/API key not valid|API_KEY_INVALID|invalid api key/i.test(msg)) return false
-  const m = msg.toLowerCase()
-  return (
-    /\b503\b/.test(msg) ||
-    /\b502\b/.test(msg) ||
-    /\b429\b/.test(msg) ||
-    m.includes('service unavailable') ||
-    m.includes('high demand') ||
-    m.includes('overloaded') ||
-    m.includes('resource_exhausted') ||
-    (m.includes('unavailable') && m.includes('model')) ||
-    m.includes('try again later') ||
-    m.includes('econnreset') ||
-    m.includes('fetch failed') ||
-    m.includes('too many requests') ||
-    m.includes('deadline exceeded') ||
-    m.includes('internal error')
-  )
-}
-
 async function generateCurriculumJsonTextWithOpenAI(
   prompt: string,
   images: ImagePartForAi[],
-  userId: string | null
+  userId: string | null,
+  maxTokens: number
 ): Promise<string> {
   const openaiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!openaiKey) throw new Error('Thiếu OPENAI_API_KEY cho fallback.')
+  if (!openaiKey) throw new Error('Thiếu OPENAI_API_KEY.')
 
   const userContent: Array<
     | { type: 'text'; text: string }
@@ -108,9 +88,9 @@ async function generateCurriculumJsonTextWithOpenAI(
   }
   const m = modelId.toLowerCase()
   if (m.startsWith('gpt-5') || m.startsWith('o1') || m.startsWith('o3') || m.startsWith('o4')) {
-    body.max_completion_tokens = 16384
+    body.max_completion_tokens = maxTokens
   } else {
-    body.max_tokens = 16384
+    body.max_tokens = maxTokens
   }
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -147,13 +127,77 @@ async function generateCurriculumJsonTextWithOpenAI(
     void trackApiUsage({
       userId,
       model: modelId,
-      feature: 'curriculum-from-image-openai-fallback',
+      feature: CurriculumApiFeature.fromImage,
       promptTokenCount: promptTok,
       candidatesTokenCount: outTok,
       totalTokenCount: Math.max(1, totalTok),
     })
   }
   return content
+}
+
+async function generateCurriculumModelText(
+  prompt: string,
+  images: ImagePartForAi[],
+  userId: string | null,
+  maxTokens: number
+): Promise<string> {
+  const openaiKeyConfigured = Boolean(process.env.OPENAI_API_KEY?.trim())
+  let openaiError: unknown = null
+  if (openaiKeyConfigured) {
+    try {
+      const text = await generateCurriculumJsonTextWithOpenAI(prompt, images, userId, maxTokens)
+      if (text) return text
+      openaiError = new Error('OpenAI trả về rỗng.')
+    } catch (e) {
+      openaiError = e
+      const msg = e instanceof Error ? e.message : String(e)
+      console.warn('[curriculum-from-image] GPT lỗi:', msg.slice(0, 500))
+    }
+  }
+
+  const apiKey = process.env.GOOGLE_API_KEY?.trim()
+  if (!apiKey) {
+    if (openaiError instanceof Error) throw openaiError
+    if (openaiError) throw new Error(String(openaiError))
+    throw new Error('Thiếu OPENAI_API_KEY hoặc GOOGLE_API_KEY.')
+  }
+
+  try {
+    if (openaiError || !openaiKeyConfigured) {
+      console.warn('[curriculum-from-image] Fallback Gemini', GEMINI_25_PRO.model)
+    }
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({
+      ...GEMINI_25_PRO,
+      generationConfig: { temperature: 0.3 },
+    })
+    const imageParts = images.map(({ mimeType, base64 }) => ({
+      inlineData: { data: base64, mimeType },
+    }))
+    const result = images.length
+      ? await model.generateContent([prompt, ...imageParts])
+      : await model.generateContent(prompt)
+    trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, 'curriculum-from-image-gemini-fallback', userId)
+    const text = result.response.text()?.trim() || ''
+    if (text) return text
+  } catch (geminiErr) {
+    const gmsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
+    if (openaiError) {
+      const omsg = openaiError instanceof Error ? openaiError.message : String(openaiError)
+      throw new Error(`OpenAI: ${omsg.slice(0, 280)} | Gemini: ${gmsg.slice(0, 280)}`)
+    }
+    throw geminiErr instanceof Error ? geminiErr : new Error(gmsg)
+  }
+
+  if (openaiError instanceof Error) throw openaiError
+  throw new Error('AI không trả về nội dung.')
+}
+
+function parseCurriculumJson(text: string): Record<string, unknown> {
+  const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+  if (!cleaned) throw new Error('AI không trả về nội dung.')
+  return JSON.parse(cleaned) as Record<string, unknown>
 }
 
 function composeCurriculumMarkdownFromLessons(lessons: LessonOutlineItem[]): string {
@@ -171,7 +215,7 @@ function composeCurriculumMarkdownFromLessons(lessons: LessonOutlineItem[]): str
   return parts.join('\n\n')
 }
 
-/** Tạo giáo trình từ ảnh trang sách giáo khoa – dùng Gemini vision */
+/** Tạo giáo trình từ ảnh trang sách: GPT-5.1 đọc ảnh và viết bài. Với môn Toán, Gemini viết lại bài code báo sai hoặc chưa kiểm được. Gemini cũng chạy khi GPT lỗi. */
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -287,85 +331,72 @@ export async function POST(req: NextRequest) {
       })
     )
 
-    const imageParts = imageBuffers.map(({ mimeType, base64 }) => ({
-      inlineData: { data: base64, mimeType },
-    }))
-
     const imgLabel = files.length > 1 ? `${files.length} ảnh trang sách` : 'ảnh trang sách'
-    const prompt = `Đây là ${imgLabel} giáo khoa ${subjectName} ${gradeLevelId}, bộ ${textbookName}.
-Hãy trả về JSON theo schema:
+    const outlinePrompt = `Đây là ${imgLabel} để nhận diện bài học ${subjectName}, khối ${gradeLevelId}, bộ ${textbookName}.
+Chỉ đọc nhãn bài và mạch kiến thức. Trả JSON:
 {
-  "lessonNumber": <số bài trích từ ảnh; có thể số thập phân như 1.5, 2.5 nếu SGK ghi vậy>,
-  "lessonTitle": "<tên bài>",
-  "lessons": [
-    { "lessonNo": 1, "title": "...", "markdown": "..." }
-  ]
+  "lessonNumber": <số đứng ngay sau chữ "Bài" trên nhãn đầu trang>,
+  "lessonTitle": "<tên bài in cạnh nhãn Bài, tối đa 12 từ>",
+  "knowledgePoints": ["ý kiến thức ngắn", "..."]
 }
 
-Ràng buộc:
-- lessons phải có đúng ${numLessons} tiết (hoặc sát nhất có thể nếu dữ liệu ảnh thiếu).
-- Mỗi tiết gồm 4 hoạt động theo Công văn 5512: Khởi động, Hình thành kiến thức, Luyện tập, Vận dụng.
-- Mỗi hoạt động chia phần nhỏ, có thời lượng, tổng mỗi tiết = ${lessonDurationMinutes} phút.
-- Bám sát SGK trong ảnh, không thêm bớt sai nội dung.
-- Viết chi tiết theo ý SGK: nêu rõ kiến thức trọng tâm, ví dụ minh họa, câu hỏi dẫn dắt, bài tập luyện tập và gợi ý đáp án ngắn.
-- Nếu SGK trong ảnh ghi quá ngắn, được bổ sung ý hợp lý để bài dạy đầy đủ hơn (ghi rõ phần "Mở rộng"), nhưng không được mâu thuẫn SGK.
-- lesson.markdown phải đủ nội dung để dạy đủ ${lessonDurationMinutes} phút/tiết, tránh viết sơ sài.
-- Ví dụ minh họa phải sát SGK trong ảnh.
-- Nếu SGK có ví dụ/lời giải mẫu thì phải ghi đầy đủ các bước lời giải và kết luận, không tóm tắt.
-- Dùng tiếng Việt + Unicode, không LaTeX.
+Ràng buộc số bài:
+- lessonNumber chỉ lấy từ nhãn "Bài" ở đầu trang. "Bài 8" → 8. "Bài 1.5" → 1.5.
+- Cấm lấy số từ hình, trang, mục, hoạt động, ví dụ, bài tập. "Hình 2.47" là số hình, không phải bài 2. Số trang ở góc không phải số bài. Mục "1." không phải số bài.
+- knowledgePoints từ 4 đến 12 ý. Mỗi ý là khái niệm, công thức hoặc kỹ năng, tối đa 12 từ. Không ghi số hình, số trang, số bài tập.
+- Không chép câu chữ, đề, số liệu, lời giải. Không mô tả hình vẽ trong sách.
+- Không trả lessons, không viết giáo án trong bước này.
+- Chỉ trả JSON hợp lệ.`
+
+    let outlineParsed: Record<string, unknown>
+    try {
+      const outlineText = await generateCurriculumModelText(outlinePrompt, imageBuffers, trackUserId, 4096)
+      outlineParsed = parseCurriculumJson(outlineText)
+    } catch (outlineErr) {
+      const msg = outlineErr instanceof Error ? outlineErr.message : String(outlineErr)
+      const status = /Gemini:|OpenAI|503|429|502/.test(msg) ? 503 : 500
+      return NextResponse.json({ error: msg }, { status })
+    }
+
+    const knowledgePoints = normalizeKnowledgePoints(outlineParsed.knowledgePoints)
+    if (knowledgePoints.length < 2) {
+      return NextResponse.json(
+        { error: 'Không đọc được mạch kiến thức từ ảnh. Ảnh không được lưu.' },
+        { status: 422 }
+      )
+    }
+
+    const outlineTitle = String(outlineParsed.lessonTitle || '').replace(/\s+/g, ' ').trim().slice(0, 120)
+    const outlineLessonNumber = parseCurriculumLessonNumber(outlineParsed.lessonNumber as number | string | null)
+    const writerPrompt = `Soạn giáo trình từ mạch kiến thức dưới đây. Không có trang sách trong bước này.
+Môn: ${subjectName}
+Khối lớp: ${gradeLevelId}
+Bộ sách: ${textbookName}
+Số bài: ${outlineLessonNumber != null ? formatCurriculumLessonNoDisplay(outlineLessonNumber) : formatCurriculumLessonNoDisplay(lessonNumber)}
+Tên bài: ${outlineTitle || 'theo mạch kiến thức'}
+Số tiết: ${numLessons}
+- Trường lessonNumber phải đúng số bài đã ghi ở trên. Không tự đổi số bài.
+${curriculumOriginalLessonRules(lessonDurationMinutes, subjectId)}
+
+Mạch kiến thức:
+${knowledgePoints.map((point, i) => `${i + 1}. ${point}`).join('\n')}
+
+Trả JSON:
+{
+  "lessonNumber": <số bài>,
+  "lessonTitle": "<tên bài>",
+  "lessons": [ { "lessonNo": 1, "title": "...", "markdown": "..." } ]
+}
+- lessons phải có đúng ${numLessons} tiết.
 - Chỉ trả JSON hợp lệ, không markdown/code fence.`
 
     let text = ''
-    let geminiError: unknown = null
-    if (apiKey) {
-      try {
-        const genAI = new GoogleGenerativeAI(apiKey)
-        const model = genAI.getGenerativeModel({
-          ...GEMINI_25_PRO,
-          generationConfig: { temperature: 0.3 },
-        })
-        const result = await model.generateContent([prompt, ...imageParts])
-        trackCurriculumGeminiResult(result, GEMINI_25_PRO.model, CurriculumApiFeature.fromImage, trackUserId)
-        text = result.response.text()?.trim() || ''
-      } catch (e) {
-        geminiError = e
-        const msg = e instanceof Error ? e.message : String(e)
-        console.warn('[curriculum-from-image] Gemini lỗi:', msg.slice(0, 500))
-      }
-    }
-
-    if (!text && openaiKeyConfigured) {
-      const allowFallback =
-        !apiKey || (geminiError != null && isGeminiTransientForOpenAIFallback(geminiError)) || (!text && geminiError == null)
-      if (allowFallback) {
-        try {
-          console.warn(
-            '[curriculum-from-image] Fallback OpenAI',
-            CURRICULUM_FROM_IMAGE_OPENAI_MODEL,
-            geminiError ? '(sau lỗi Gemini)' : '(không có GOOGLE_API_KEY hoặc Gemini trả rỗng)'
-          )
-          text = await generateCurriculumJsonTextWithOpenAI(prompt, imageBuffers, trackUserId)
-        } catch (openaiErr) {
-          const omsg = openaiErr instanceof Error ? openaiErr.message : String(openaiErr)
-          console.error('[curriculum-from-image] OpenAI fallback thất bại:', omsg.slice(0, 500))
-          if (geminiError) {
-            const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
-            return NextResponse.json(
-              {
-                error: `Gemini: ${gmsg.slice(0, 280)} | OpenAI: ${omsg.slice(0, 280)}`,
-              },
-              { status: 503 }
-            )
-          }
-          return NextResponse.json({ error: omsg }, { status: 503 })
-        }
-      } else if (geminiError) {
-        const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
-        return NextResponse.json({ error: gmsg }, { status: 500 })
-      }
-    } else if (!text && geminiError) {
-      const gmsg = geminiError instanceof Error ? geminiError.message : String(geminiError)
-      return NextResponse.json({ error: gmsg }, { status: 500 })
+    try {
+      text = await generateCurriculumModelText(writerPrompt, [], trackUserId, 32000)
+    } catch (writerErr) {
+      const msg = writerErr instanceof Error ? writerErr.message : String(writerErr)
+      const status = /Gemini:|OpenAI|503|429|502/.test(msg) ? 503 : 500
+      return NextResponse.json({ error: msg }, { status })
     }
 
     if (!text) {
@@ -375,15 +406,18 @@ Ràng buộc:
       )
     }
 
-    const cleaned = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    if (!cleaned) {
-      return NextResponse.json({ error: 'AI không trả về nội dung.' }, { status: 500 })
-    }
-    const parsed = JSON.parse(cleaned) as {
+    let parsed: {
       lessonNumber?: number | string
       lessonTitle?: string
       lessons?: Array<{ lessonNo?: number; title?: string; markdown?: string }>
     }
+    try {
+      parsed = parseCurriculumJson(text) as typeof parsed
+    } catch {
+      return NextResponse.json({ error: 'AI trả về JSON giáo trình không hợp lệ.' }, { status: 500 })
+    }
+    if (outlineLessonNumber != null) parsed.lessonNumber = outlineLessonNumber
+    if (!parsed.lessonTitle && outlineTitle) parsed.lessonTitle = outlineTitle
     const lessonOutline = (parsed.lessons ?? [])
       .map((item, idx) => ({
         lessonNo: Math.max(1, Math.floor(Number(item.lessonNo) || idx + 1)),
@@ -394,8 +428,10 @@ Ràng buộc:
     if (lessonOutline.length === 0) {
       return NextResponse.json({ error: 'AI chưa trả về JSON tiết học hợp lệ.' }, { status: 500 })
     }
-    const fromJson = parseCurriculumLessonNumber(parsed.lessonNumber)
-    const extractedLessonNumber = fromJson ?? lessonNumber
+    for (const lesson of lessonOutline) {
+      lesson.markdown = await repairThenMarkLessonMarkdown(lesson.markdown, trackUserId, subjectId)
+    }
+    const extractedLessonNumber = outlineLessonNumber ?? lessonNumber
     const extractedTitle =
       String(parsed.lessonTitle || '').trim() ||
       `Bài ${formatCurriculumLessonNoDisplay(extractedLessonNumber)}`

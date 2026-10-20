@@ -1,11 +1,10 @@
-import { FeatureCatalogPublicOffer } from '@/components/catalog/feature-catalog-public-offer'
+import { getEmailSessionUser } from '@/lib/auth/email-session-user'
 import { isCatalogShopper } from '@/lib/catalog/catalog-shopper'
-import { getUserOrBypass } from '@/lib/auth'
 import { buildMetadata, buildJsonLdService, SITE_URL } from '@/lib/seo'
 import { JsonLd } from '@/components/seo-json-ld'
 import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
-import { FeatureSeoSection } from '@/components/feature-seo-section'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
+import { HomeworkHelpLanding } from '@/components/student-study/homework-help-landing'
 import { getServerDictionary } from '@/lib/i18n/server'
 import HoTroLamBaiClient from '@/app/ho-tro-lam-bai/ho-tro-lam-bai-client'
 
@@ -22,19 +21,21 @@ export const metadata = buildMetadata({
 })
 
 export default async function HoTroLamBaiPage() {
-  const user = await getUserOrBypass()
-  if (!isCatalogShopper(user)) {
-    return (
-      <div className="app-shell">
-        <FeatureCatalogPublicOffer path={seo.path} title={seo.pageTitle} overview={seo.overview} />
-        <FeatureSeoSection seo={seo} showCatalogPrice={false} />
-      </div>
-    )
-  }
-
+  const sessionUser = await getEmailSessionUser()
   const { locale, t } = getServerDictionary()
   const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}/ho-tro-lam-bai`)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
+  if (!isCatalogShopper(sessionUser)) {
+    const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
+    return (
+      <div className="app-shell">
+        <JsonLd data={jsonLd} />
+        <JsonLd data={faqJsonLd} />
+        <HomeworkHelpLanding copy={t.homeworkHelpLanding} loginHref={loginHref} />
+        <div className="h-16 lg:hidden" aria-hidden />
+      </div>
+    )
+  }
 
   return (
     <div className="app-shell">
@@ -44,7 +45,6 @@ export default async function HoTroLamBaiPage() {
         <h1 className="mb-4 text-2xl font-semibold tracking-tight max-md:sr-only">{t.tool.homework_help}</h1>
         <HoTroLamBaiClient locale={locale} />
       </CreationToolPageShell>
-      <FeatureSeoSection seo={seo} />
     </div>
   )
 }

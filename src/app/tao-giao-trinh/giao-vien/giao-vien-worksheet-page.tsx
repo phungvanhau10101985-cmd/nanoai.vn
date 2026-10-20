@@ -13,6 +13,7 @@ import { parseWorksheetToSlides, questionsToSlides, examReviewQuestionsToSlides,
 import { latexToReadable } from '../lib/latex-to-readable'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
+import { WorksheetQuestionProposals } from '../components/worksheet-question-proposals'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
@@ -2632,9 +2633,17 @@ export default function GiaoVienWorksheetPage() {
         resetGvWorksheetEdit()
         toast({
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
-          description: skipAiCheck
-            ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-            : tr('AI đã kiểm tra và lưu câu đã sửa.', 'AI checked and saved the edited question.', 'AI已检查并保存修改的题目。', 'AIが確認して修正した問題を保存しました。', 'AI가 확인 후 수정한 문제를 저장했습니다.'),
+          description: saveRes.personal
+            ? tr(
+                'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
+                'Saved your copy. The shared question changes after 7 other teachers agree.',
+                '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
+                'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
+                '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+              )
+            : skipAiCheck
+              ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
+              : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })
         await reloadWorksheetSlidesAfterSave()
       } finally {
@@ -3167,6 +3176,7 @@ export default function GiaoVienWorksheetPage() {
 
   return (
     <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
+      <WorksheetQuestionProposals worksheetId={worksheetId ?? ''} locale={uiLocale} />
       {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
         className="flex-1 flex flex-col min-h-0 shrink-0 w-full"

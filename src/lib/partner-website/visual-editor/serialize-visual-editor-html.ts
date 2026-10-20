@@ -328,6 +328,11 @@ function stripEditorAndRuntimeNodes(clone: Element) {
   clone.querySelectorAll('[data-pw-grid-preview-hide]').forEach((el) => {
     el.removeAttribute('data-pw-grid-preview-hide')
   })
+  clone.querySelectorAll('[data-pw-personalize="flash-sale"]').forEach((el) => {
+    if (el.getAttribute('data-pw-hidden') === '1') return
+    el.removeAttribute('hidden')
+    if (el.getAttribute('data-pw-live-products') === 'loading') el.removeAttribute('data-pw-live-products')
+  })
   clone.querySelectorAll('[data-pw-ve-dup-center]').forEach((el) => {
     const pos = el.getAttribute('data-pw-ve-dup-pos')
     const left = el.getAttribute('data-pw-ve-dup-left')

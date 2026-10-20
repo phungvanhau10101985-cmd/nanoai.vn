@@ -26,7 +26,7 @@ NanoAI (https://nanoai.vn) là hệ sinh thái AI đa năng dành cho cá nhân,
 - [Định nghĩa MCP Server](https://nanoai.vn/api/agent/mcp.json): Danh sách công cụ Model Context Protocol để tích hợp trực tiếp vào AI Assistant
 - [Chính sách bảo mật](https://nanoai.vn/privacy): Cam kết bảo vệ quyền riêng tư và dữ liệu người dùng
 - [Điều khoản dịch vụ](https://nanoai.vn/terms): Quy định sử dụng và trách nhiệm trên nền tảng NanoAI
-- [Chính sách đổi trả](https://nanoai.vn/chinh-sach-doi-tra): Hoàn tiền trong 30 ngày cho dịch vụ khiếm khuyết và trường hợp đổi ý, phí trả hàng 0 VND
+- [Chính sách đổi trả](https://nanoai.vn/chinh-sach-doi-tra): Dịch vụ IT đã thanh toán thì không trả lại và không hoàn tiền, không có hạn 30 ngày
 - [Chính sách giao hàng](https://nanoai.vn/chinh-sach-giao-hang): Phí giao 0 VND, xử lý 0 ngày, giao trong ngày thanh toán từ Việt Nam
 - [Chính sách thanh toán](https://nanoai.vn/chinh-sach-thanh-toan): Chuyển khoản VND, số tiền hiển thị trước khi thanh toán
 - [Liên hệ](https://nanoai.vn/lien-he): support@nanoai.vn

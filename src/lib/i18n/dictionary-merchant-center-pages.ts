@@ -78,7 +78,7 @@ const vi: MerchantCenterPages = {
         heading: '3. Sau khi thanh toán',
         paragraphs: [
           'Khi khoản chuyển được ghi nhận, dịch vụ hoặc số dư tín dụng tương ứng được cộng trên tài khoản.',
-          'Hoàn tiền theo https://nanoai.vn/chinh-sach-doi-tra. Giao dịch vụ theo https://nanoai.vn/chinh-sach-giao-hang.',
+          'Khoản đã thanh toán không được trả lại và không được hoàn tiền, theo https://nanoai.vn/chinh-sach-doi-tra. Giao dịch vụ theo https://nanoai.vn/chinh-sach-giao-hang.',
         ],
       },
       {
@@ -201,7 +201,7 @@ const en: MerchantCenterPages = {
         heading: '3. After payment',
         paragraphs: [
           'When the transfer is recorded, the service or the matching credit balance is added to the account.',
-          'Refunds follow https://nanoai.vn/chinh-sach-doi-tra. Delivery follows https://nanoai.vn/chinh-sach-giao-hang.',
+          'Paid amounts are not returnable and are not refundable, under https://nanoai.vn/chinh-sach-doi-tra. Delivery follows https://nanoai.vn/chinh-sach-giao-hang.',
         ],
       },
       {
@@ -318,7 +318,7 @@ const zh: MerchantCenterPages = {
         heading: '3. 付款之后',
         paragraphs: [
           '转账入账后，相应服务或积分余额记入账户。',
-          '退款见 https://nanoai.vn/chinh-sach-doi-tra。交付见 https://nanoai.vn/chinh-sach-giao-hang。',
+          '已付款项不退货、不退款，见 https://nanoai.vn/chinh-sach-doi-tra。交付见 https://nanoai.vn/chinh-sach-giao-hang。',
         ],
       },
       {
@@ -430,7 +430,7 @@ const ja: MerchantCenterPages = {
         heading: '3. 支払い後',
         paragraphs: [
           '振込が記録されると、サービスまたは対応するクレジット残高がアカウントに追加されます。',
-          '返金は https://nanoai.vn/chinh-sach-doi-tra、提供は https://nanoai.vn/chinh-sach-giao-hang に従います。',
+          '支払い済みの金額は返品も返金もできません。https://nanoai.vn/chinh-sach-doi-tra に従います。提供は https://nanoai.vn/chinh-sach-giao-hang に従います。',
         ],
       },
       {
@@ -545,7 +545,7 @@ const ko: MerchantCenterPages = {
         heading: '3. 결제 후',
         paragraphs: [
           '이체가 기록되면 서비스 또는 해당 크레딧 잔액이 계정에 추가됩니다.',
-          '환불은 https://nanoai.vn/chinh-sach-doi-tra, 제공은 https://nanoai.vn/chinh-sach-giao-hang 를 따릅니다.',
+          '결제된 금액은 반품과 환불이 없습니다. https://nanoai.vn/chinh-sach-doi-tra 를 따릅니다. 제공은 https://nanoai.vn/chinh-sach-giao-hang 를 따릅니다.',
         ],
       },
       {

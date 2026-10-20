@@ -21,18 +21,7 @@ const returnPolicyJsonLd = {
     applicableCountry: 'VN',
     returnPolicyCountry: 'VN',
     merchantReturnLink: RETURN_POLICY_URL,
-    returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-    merchantReturnDays: 30,
-    itemCondition: [
-      'https://schema.org/NewCondition',
-      'https://schema.org/UsedCondition',
-      'https://schema.org/DamagedCondition',
-    ],
-    returnFees: 'https://schema.org/FreeReturn',
-    customerRemorseReturnFees: 'https://schema.org/FreeReturn',
-    itemDefectReturnFees: 'https://schema.org/FreeReturn',
-    refundType: 'https://schema.org/FullRefund',
-    restockingFee: 0,
+    returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted',
   },
 }
 

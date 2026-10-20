@@ -24,7 +24,7 @@ Script xóa dữ liệu do AI tạo ra để test lại, **giữ nguyên** dữ 
 | `profiles` | Hồ sơ người dùng |
 | `credits` | Số dư credit |
 | `transactions` | Lịch sử giao dịch nạp/rút |
-| `worksheet_official_questions` | Câu hỏi đã up lên (ngân hàng Bộ GD, VNHSGE, SGK) |
+| `worksheet_official_questions` | Bảng cũ, phần mềm không còn đọc hay nhập câu từ đây |
 | `worksheet_textbook_lessons` | Mục lục bài học chuẩn SGK (seed) |
 
 ## Dữ liệu BỊ XÓA
