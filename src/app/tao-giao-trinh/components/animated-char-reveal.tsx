@@ -12,6 +12,10 @@ export function AnimatedCharReveal({
   showCursor,
   /** Với `visibleCount` cố định: hiện bút khi chưa gõ ký tự nào (leader đầu slide). */
   penWhenEmpty,
+  /** Chữ chưa gõ: giữ chỗ, không animate. Mặc định ẩn nhưng vẫn chiếm chỗ. */
+  pendingClassName = 'invisible',
+  /** Chỉ số ký tự (trong `text`) phải xuống dòng — khớp hàng với bên kia. */
+  breakBefore,
 }: {
   text: string
   trigger?: string | number
@@ -19,6 +23,8 @@ export function AnimatedCharReveal({
   visibleCount?: number
   showCursor?: boolean
   penWhenEmpty?: boolean
+  pendingClassName?: string
+  breakBefore?: readonly number[]
 }) {
   const segments = useMemo(() => {
     const out: Array<{ type: 'char'; value: string } | { type: 'br' }> = []
@@ -47,6 +53,7 @@ export function AnimatedCharReveal({
   }, [trigger, delayMs, segments.length, controlledVisibleCount])
 
   const visibleCount = controlledVisibleCount ?? internalCount
+  const breakAt = useMemo(() => new Set(breakBefore ?? []), [breakBefore])
   const isTyping = visibleCount > 0 && visibleCount < segments.length
   const showPen =
     !!showCursor &&
@@ -55,25 +62,22 @@ export function AnimatedCharReveal({
     (isTyping || (!!penWhenEmpty && controlledVisibleCount != null && visibleCount === 0))
 
   return (
-    <span>
-      {segments.slice(0, visibleCount).map((seg, i) =>
-        seg.type === 'br' ? (
-          <br key={i} />
-        ) : (
-          <span
-            key={i}
-            className="inline align-baseline animate-in fade-in duration-75"
-            style={{ animationTimingFunction: 'ease-out', animationFillMode: 'forwards' }}
-          >
-            {seg.value}
-          </span>
-        )
-      )}
-      {showPen && (
-        <span className="inline-flex align-baseline ml-1 animate-write" aria-hidden>
-          <PenLine className="h-4 w-4 text-violet-600 drop-shadow-sm" strokeWidth={2.5} />
+    <span className="whitespace-pre-wrap" data-sync-char-reveal="">
+      {segments.map((seg, i) => (
+        <span key={i}>
+          {showPen && i === visibleCount ? (
+            <span className="relative inline-block w-0 align-baseline" aria-hidden>
+              <PenLine className="absolute left-0 top-0 h-4 w-4 -translate-y-0.5 text-violet-400" strokeWidth={2.5} />
+            </span>
+          ) : null}
+          {seg.type === 'br' || breakAt.has(i) ? <br /> : null}
+          {seg.type === 'br' ? null : (
+            <span className={i < visibleCount ? 'inline align-baseline' : `inline align-baseline ${pendingClassName}`}>
+              {seg.value}
+            </span>
+          )}
         </span>
-      )}
+      ))}
     </span>
   )
 }

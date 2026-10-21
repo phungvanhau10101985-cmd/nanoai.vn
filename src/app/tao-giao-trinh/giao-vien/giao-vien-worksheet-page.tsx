@@ -1760,6 +1760,22 @@ export default function GiaoVienWorksheetPage() {
       const now = Date.now()
       if (now - pointerThrottleRef.current < 8) return
       pointerThrottleRef.current = now
+      try {
+        const anchor = (e.target as HTMLElement | null)?.closest('[data-pointer-sync-id]') as HTMLElement | null
+        const id = anchor?.getAttribute('data-pointer-sync-id') || ''
+        if (id.startsWith('ctrl-')) {
+          const rect = anchor!.getBoundingClientRect()
+          if (rect.width > 0 && rect.height > 0) {
+            sendToStudentView({
+              type: 'mouse-pos',
+              syncAnchor: id,
+              relX: Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)),
+              relY: Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)),
+            })
+            return
+          }
+        }
+      } catch { /* ignore */ }
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
       if (quizPopupOpen) {
@@ -1900,7 +1916,20 @@ export default function GiaoVienWorksheetPage() {
       }
     }
     const sendPointerClick = (e: MouseEvent) => {
-      if ((e.target as HTMLElement)?.closest('[data-control="xem-học-sinh"]')) return
+      const clickTarget = e.target as HTMLElement | null
+      const syncEl = clickTarget?.closest('[data-pointer-sync-id]') as HTMLElement | null
+      const syncId = syncEl?.getAttribute('data-pointer-sync-id') || ''
+      if (syncId.startsWith('ctrl-')) {
+        const rect = syncEl!.getBoundingClientRect()
+        sendToStudentView({
+          type: 'control-press',
+          syncAnchor: syncId,
+          relX: rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0.5,
+          relY: rect.height > 0 ? Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)) : 0.5,
+        })
+        return
+      }
+      if (clickTarget?.closest('[data-control="xem-học-sinh"]')) return
       const w = window.innerWidth || 1
       const h = window.innerHeight || 1
       if (quizPopupOpen) {
@@ -3978,9 +4007,6 @@ export default function GiaoVienWorksheetPage() {
                                             )}
                                             {showProposalUi && !worksheetId && (
                                               <>
-                                                <button type="button" disabled={false} onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'edit', originalContent: b.content, blockHeader: b.header })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', curriculumId ? 'text-amber-300 hover:text-amber-200 bg-amber-500/20 border border-amber-400/30' : 'text-amber-400/60 bg-amber-500/10 border border-amber-400/20 cursor-not-allowed opacity-60')}>
-                                                  <Edit3 className="h-3.5 w-3.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                                </button>
                                                 <button type="button" disabled={false} onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'add', blockHeader: b.header })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', curriculumId ? 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30' : 'text-emerald-400/60 bg-emerald-500/10 border border-emerald-400/20 cursor-not-allowed opacity-60')}>
                                                   <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                                 </button>
@@ -4119,9 +4145,6 @@ export default function GiaoVienWorksheetPage() {
                                     )}
                                     {(slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && (
                                       <>
-                                        <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: 0, type: 'edit', originalContent: s.content })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', 'text-amber-300 hover:text-amber-200 bg-amber-500/20 border border-amber-400/30')}>
-                                          <Edit3 className="h-3.5 w-3.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                        </button>
                                         <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: 0, type: 'add' })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30')}>
                                           <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                         </button>
@@ -4437,9 +4460,6 @@ export default function GiaoVienWorksheetPage() {
                                     )}
                                     {showProposalUi && !worksheetId && (
                                       <>
-                                        <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: i, type: 'edit', originalContent: b.content, blockHeader: b.header })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-amber-300 hover:text-amber-200 bg-amber-500/20' : 'text-amber-400/60 bg-amber-500/10 cursor-not-allowed opacity-60')}>
-                                          <Edit3 className="h-2.5 w-2.5" />{tr('Đề xuất sửa', 'Propose', '建议', '提案', '제안')}
-                                        </button>
                                         <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: i, type: 'add', blockHeader: b.header })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20' : 'text-emerald-400/60 bg-emerald-500/10 cursor-not-allowed opacity-60')}>
                                           <Plus className="h-2.5 w-2.5" />{tr('Đề xuất thêm', 'Propose add', '建议添加', '追加提案', '추가 제안')}
                                         </button>
@@ -4529,9 +4549,6 @@ export default function GiaoVienWorksheetPage() {
                               )}
                               {isCurrent && (slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && !examCode && (
                                 <div className="mt-1.5 flex flex-wrap gap-1">
-                                  <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'edit', originalContent: s.content })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-amber-400 hover:text-amber-300 bg-slate-700/50 border border-amber-500/50">
-                                    <Edit3 className="h-2.5 w-2.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                  </button>
                                   <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'add' })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300 bg-slate-700/50 border border-emerald-500/50">
                                     <Plus className="h-2.5 w-2.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                   </button>

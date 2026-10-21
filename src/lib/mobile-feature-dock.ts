@@ -2,6 +2,7 @@
  * Chân trang mobile: vuốt ngang mọi tính năng.
  * Cụm giữa là tính năng liên quan rồi tới tính năng vừa xem.
  */
+import { notifyFeatureUsage } from '@/lib/feature-usage-signal'
 import type { ToolKey } from '@/lib/i18n/dictionaries'
 import {
   CREATION_SIDEBAR_POPULAR_LINKS,
@@ -134,6 +135,7 @@ export function rememberFeatureVisit(pathname: string): string[] {
     /* ignore */
   }
   bumpFeatureVisitCount(feature.href)
+  notifyFeatureUsage()
   return next
 }
 

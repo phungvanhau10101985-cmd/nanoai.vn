@@ -1,20 +1,19 @@
 'use client'
 
 import { useMemo } from 'react'
-import { PenLine } from 'lucide-react'
 import {
   ContentEmbed,
   parseQuizData,
   type EmbedType,
 } from './content-embed'
+import { slideMarkdownToHtml } from './slide-markdown-to-html'
+import { AnimatedCharReveal } from './animated-char-reveal'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { MoreVertical, Trash2, Flag, Edit3, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   worksheetAnswerParts,
   worksheetAnswerSegmentCount,
-  sliceWorksheetAnswerPartsToSegments,
-  sliceWorksheetAnswerPartsAfterSegments,
   type WorksheetAnswerPart,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from './slide-sync-markdown-classes'
@@ -77,17 +76,27 @@ function renderPartNodes(
     showProposalUi: boolean
     onRemoveEmbed: WorksheetAnswerTypedBodyProps['onRemoveEmbed']
     textClassName?: string
+    /** Quiz nằm ngoài khung chữ — HS ẩn quiz trong thân slide. */
+    skipQuiz?: boolean
+    appendPen?: boolean
   }
 ) {
   return partList.map((p, j) => {
     const key = `${keyPrefix}-${j}`
-    if (p.type === 'text')
-      return p.value ? (
-        <span key={key} className={opts.textClassName}>
-          {p.value}
-        </span>
-      ) : null
+    if (p.type === 'text') {
+      if (!p.value) return null
+      const html = slideMarkdownToHtml(p.value)
+      if (!html) return null
+      return (
+        <div
+          key={key}
+          className={cn('min-w-0 max-w-full [&_p:last-child]:mb-0', opts.textClassName)}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      )
+    }
     if (p.type === 'embed' && p.embedType === 'quiz') {
+      if (opts.skipQuiz) return null
       const q = parseQuizData(p.urlOrId)
       if (!q) return null
       const hideAns = !!opts.worksheetId
@@ -123,7 +132,7 @@ function renderPartNodes(
       const ep = p as { type: 'embed'; embedType: EmbedType; urlOrId: string; rawMarker: string }
       return (
         <div key={key} className="rounded-lg overflow-hidden border border-slate-600/60 relative group">
-          <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={280} height={160} tr={opts.tr} />
+          <ContentEmbed type={ep.embedType} urlOrId={ep.urlOrId} width={560} height={350} tr={opts.tr} />
           {opts.curriculumId && (opts.showDirectEdit || opts.showProposalUi) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -174,7 +183,6 @@ export function WorksheetAnswerTypedBody({
   quizReportLoading,
   onRemoveEmbed,
   onEditBlock,
-  onProposeEdit,
   onProposeAdd,
   showWorksheetMarkdownEdit,
   onEditWorksheetMarkdown,
@@ -190,9 +198,6 @@ export function WorksheetAnswerTypedBody({
     : typingEnabled
       ? Math.min(Math.max(0, revealedSegments), total)
       : total
-
-  const revealedPartList = useMemo(() => sliceWorksheetAnswerPartsToSegments(parts, revealN), [parts, revealN])
-  const restPartList = useMemo(() => sliceWorksheetAnswerPartsAfterSegments(parts, revealN), [parts, revealN])
 
   const showSplit = isRevealPreview || typingEnabled
   const leaderOk = isSequentialTypingLeader !== false
@@ -215,8 +220,44 @@ export function WorksheetAnswerTypedBody({
     onRemoveEmbed,
   }
 
+  const proseOpts = { ...renderOpts, skipQuiz: true as const }
+  let typedConsumed = 0
+  const stableNodes = showSplit
+    ? parts.map((p, j) => {
+        const key = `stable-${j}`
+        if (p.type === 'text') {
+          const len = p.value.length
+          const start = typedConsumed
+          typedConsumed += len
+          if (!p.value) return null
+          const count = Math.max(0, Math.min(len, revealN - start))
+          const penHere = showCursor && revealN >= start && revealN < start + len
+          return (
+            <div key={key} className="min-w-0 max-w-full text-emerald-300/95">
+              <AnimatedCharReveal
+                text={p.value}
+                visibleCount={count}
+                showCursor={penHere}
+                penWhenEmpty={penHere && count === 0}
+                pendingClassName="text-slate-500/75"
+              />
+            </div>
+          )
+        }
+        if (p.type === 'embed' && p.embedType === 'quiz') return null
+        const start = typedConsumed
+        typedConsumed += 1
+        if (revealN <= start) return <div key={key} className="invisible h-0 overflow-hidden" aria-hidden />
+        return <div key={key}>{renderPartNodes([p], key, proseOpts)}</div>
+      })
+    : null
+  const showTeacherActionRow =
+    ((curriculumId || worksheetId) && parts.some((x) => x.type === 'embed' && x.embedType === 'quiz')) ||
+    showDirectEdit ||
+    (showProposalUi && !!showWorksheetMarkdownEdit && !!onEditWorksheetMarkdown) ||
+    (showProposalUi && !showWorksheetMarkdownEdit)
   return (
-    <>
+    <div>
       <div
         {...{ [POINTER_PROSE_ROOT_ATTR]: '' }}
         data-slide-index={slideIndex}
@@ -224,20 +265,18 @@ export function WorksheetAnswerTypedBody({
         className={SLIDE_SYNC_MARKDOWN_CLASS}
       >
         {!showSplit ? (
-          <div className="text-slate-200/95">{renderPartNodes(parts, 'all', { ...renderOpts })}</div>
+          <div className="min-w-0 max-w-full text-slate-200/95 [&_p:last-child]:mb-0">
+            {renderPartNodes(parts, 'all', proseOpts)}
+          </div>
         ) : (
-          <>
-            <span className="text-emerald-300/95">{renderPartNodes(revealedPartList, 'rev', { ...renderOpts, textClassName: 'text-emerald-300/95' })}</span>
-            <span className="text-slate-500/80">{renderPartNodes(restPartList, 'rest', { ...renderOpts, textClassName: 'text-slate-500/80' })}</span>
-            {showCursor ? (
-              <span className="inline-flex align-baseline ml-0.5 animate-pulse" aria-hidden>
-                <PenLine className="h-4 w-4 text-amber-400/90" strokeWidth={2.5} />
-              </span>
-            ) : null}
-          </>
+          <div className="min-w-0 max-w-full text-emerald-300/95 [&_p:last-child]:mb-0">{stableNodes}</div>
         )}
       </div>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      {showTeacherActionRow ? (
+      <div
+        data-teacher-chrome
+        className="mt-2 flex flex-wrap gap-1.5"
+      >
         {(curriculumId || worksheetId) &&
           parts.some((x) => x.type === 'embed' && x.embedType === 'quiz') &&
           parts
@@ -304,25 +343,6 @@ export function WorksheetAnswerTypedBody({
                   ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만')
                   : undefined
               }
-              onClick={() => !worksheetBlocksProposalDisabled && onProposeEdit()}
-              className={cn(
-                'text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1',
-                curriculumId
-                  ? 'text-amber-300 hover:text-amber-200 bg-amber-500/20 border border-amber-400/30'
-                  : 'text-amber-400/60 bg-amber-500/10 border border-amber-400/20 cursor-not-allowed opacity-60'
-              )}
-            >
-              <Edit3 className="h-3.5 w-3.5" />
-              {tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-            </button>
-            <button
-              type="button"
-              disabled={worksheetBlocksProposalDisabled}
-              title={
-                worksheetBlocksProposalDisabled
-                  ? tr('Chỉ cho giáo trình đã lưu', 'Only for saved curriculum', '仅限已保存课程', '保存済みカリキュラムのみ', '저장된 교육과정만')
-                  : undefined
-              }
               onClick={() => !worksheetBlocksProposalDisabled && onProposeAdd()}
               className={cn(
                 'text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1',
@@ -337,6 +357,7 @@ export function WorksheetAnswerTypedBody({
           </>
         )}
       </div>
-    </>
+      ) : null}
+    </div>
   )
 }

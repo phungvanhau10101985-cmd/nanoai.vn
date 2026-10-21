@@ -4,6 +4,7 @@ import { useMemo } from 'react'
 import { PenLine } from 'lucide-react'
 import { ContentEmbed, splitContentWithEmbeds, type EmbedType } from './content-embed'
 import { slideMarkdownToHtml } from './slide-markdown-to-html'
+import { AnimatedCharReveal } from './animated-char-reveal'
 import { worksheetAnswerDisplaySegmentCount } from '../lib/worksheet-answer-segments'
 import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from './slide-sync-markdown-classes'
 import { cn } from '@/lib/utils'
@@ -13,10 +14,10 @@ function getTextSegmentCount(text: string): number {
 }
 
 /** Giống lucide `PenLine` (stroke 2.5 ≈ 2 trong SVG 24px) — dùng HTML để bút nằm inline sau chữ, xuống dòng vẫn đúng. */
-const WORKSHEET_TYPING_PEN_HTML = `<span class="inline-flex shrink-0 items-baseline align-baseline ml-0.5 translate-y-px animate-write text-violet-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm"><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>`
+export const WORKSHEET_TYPING_PEN_HTML = `<span class="inline-flex shrink-0 items-baseline align-baseline ml-0.5 translate-y-px animate-write text-violet-600" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="drop-shadow-sm"><path d="M13 21h8"/><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></span>`
 
 /** Chèn bút vào *trong* khối cuối (trước `</p>` / `</li>`…) để flow inline theo chữ, không dùng cột grid. */
-function appendWorksheetTypingPenInline(html: string, penSnippet: string): string {
+export function appendWorksheetTypingPenInline(html: string, penSnippet: string): string {
   const t = html.trimEnd()
   if (!t) return penSnippet
   const blockEnds = ['</p>', '</li>', '</h1>', '</h2>', '</h3>', '</h4>']
@@ -31,7 +32,7 @@ function appendWorksheetTypingPenInline(html: string, penSnippet: string): strin
 
 function WorksheetTypingPen() {
   return (
-    <span className="inline-flex shrink-0 items-baseline animate-write align-baseline" aria-hidden>
+    <span className="inline-flex shrink-0 items-baseline align-baseline" aria-hidden>
       <PenLine className="h-4 w-4 text-violet-600 drop-shadow-sm" strokeWidth={2.5} />
     </span>
   )
@@ -72,6 +73,8 @@ export type WorksheetBlockContentWithEmbedsProps = {
    * @default true
    */
   allowTypingPenAtRevealStart?: boolean
+  /** Mỗi phần chữ: chỉ số ký tự phải xuống dòng, theo đúng hàng bên giáo viên. */
+  lineBreaks?: number[][]
 }
 
 /**
@@ -88,6 +91,7 @@ export function WorksheetBlockContentWithEmbeds({
   visibleSegmentCount,
   suppressTypingPenAtZero = false,
   allowTypingPenAtRevealStart = true,
+  lineBreaks,
 }: WorksheetBlockContentWithEmbedsProps) {
   const parts = splitContentWithEmbeds(content)
   const displaySegmentTotal = useMemo(
@@ -101,6 +105,7 @@ export function WorksheetBlockContentWithEmbeds({
     (visibleSegmentCount > 0 || (!suppressTypingPenAtZero && allowTypingPenAtRevealStart))
 
   let consumed = 0
+  let textRevealIndex = 0
   const pointerAttrs =
     pointerSyncSlideIndex != null && pointerSyncBlockIndex != null
       ? ({
@@ -115,34 +120,30 @@ export function WorksheetBlockContentWithEmbeds({
       {parts.map((p, i) => {
         if (p.type === 'text') {
           const partLen = getTextSegmentCount(p.value)
-          if (visibleSegmentCount == null) {
+          const breaks = p.value ? lineBreaks?.[textRevealIndex] : undefined
+          if (p.value) textRevealIndex += 1
+          if (visibleSegmentCount == null && !(breaks && breaks.length > 0)) {
             consumed += partLen
             return <div key={i} dangerouslySetInnerHTML={{ __html: slideMarkdownToHtml(p.value) }} />
           }
           const segmentStart = consumed
-          const remaining = visibleSegmentCount - segmentStart
+          const remaining = visibleSegmentCount == null ? partLen : visibleSegmentCount - segmentStart
           const showCount = Math.max(0, Math.min(partLen, remaining))
           consumed += partLen
-          const sliceText = showCount >= partLen ? p.value : p.value.slice(0, showCount)
-          const v = visibleSegmentCount
-          const penHere = penFollowsSegment(showTypingPen, v, segmentStart, partLen)
-          if (!sliceText && !penHere) return null
-          const rawHtml = sliceText ? slideMarkdownToHtml(sliceText) : ''
-          const htmlWithPen =
-            sliceText && penHere ? appendWorksheetTypingPenInline(rawHtml, WORKSHEET_TYPING_PEN_HTML) : rawHtml
+          const penHere =
+            visibleSegmentCount != null &&
+            penFollowsSegment(showTypingPen, visibleSegmentCount, segmentStart, partLen)
+          if (!p.value && !penHere) return null
           return (
-            <div
-              key={i}
-              className="min-w-0 max-w-full text-slate-800 [&_p:last-child]:mb-0"
-              dangerouslySetInnerHTML={{
-                __html:
-                  sliceText && penHere
-                    ? htmlWithPen
-                    : sliceText
-                      ? rawHtml
-                      : `<span class="inline-block min-h-[1.25em] min-w-0" aria-hidden="true"></span>${WORKSHEET_TYPING_PEN_HTML}`,
-              }}
-            />
+            <div key={i} className="min-w-0 max-w-full text-slate-800">
+              <AnimatedCharReveal
+                text={p.value}
+                visibleCount={showCount}
+                showCursor={penHere}
+                penWhenEmpty={penHere && showCount === 0}
+                breakBefore={breaks}
+              />
+            </div>
           )
         }
         const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }

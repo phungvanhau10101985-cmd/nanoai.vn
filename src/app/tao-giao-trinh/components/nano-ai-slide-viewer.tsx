@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- slide/editor previews rely on dynamic/blob URLs */
 
-import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X, ArrowRight, TrendingUp, CalendarCheck, Lightbulb, BookOpen, Target, ClipboardList, Maximize2, MonitorPlay, Timer, Link2, Copy, ExternalLink, FileText, Square } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,19 @@ import { CurriculumBlockContentWithEmbeds } from './curriculum-block-content-wit
 import { WorksheetBlockContentWithEmbeds } from './worksheet-block-content-with-embeds'
 import { EmbedInsertDialog } from './embed-insert-dialog'
 import { PresentationControlBar } from './presentation-control-bar'
+import {
+  SLIDE_POINTER_CHAIN_BLOCK_CLASS,
+  SLIDE_POINTER_CHAIN_BLOCKS_CLASS,
+  SLIDE_POINTER_CHAIN_CARD_CLASS,
+  SLIDE_POINTER_CHAIN_HEADER_CLASS,
+  SLIDE_POINTER_CHAIN_TITLE_CLASS,
+  SLIDE_POINTER_SINGLE_BLOCK_CLASS,
+  SLIDE_POINTER_SINGLE_BLOCKS_CLASS,
+  SLIDE_POINTER_SINGLE_BODY_CLASS,
+  SLIDE_POINTER_SINGLE_HEADER_CLASS,
+  SLIDE_POINTER_SINGLE_TITLE_CLASS,
+} from './slide-sync-markdown-classes'
+import { clientPointForPointerTextHit } from './slide-pointer-text-hit'
 import { QuizPopupDialog, extractQuizFromSlide } from './quiz-popup-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { saveSlidesToCurriculum, saveUserCustomizedSlides } from '../actions'
@@ -1144,6 +1157,60 @@ function getBaseSlides(
   return topic ? [{ title: topic, content: '' }, ...parsed] : parsed
 }
 
+function chainGapClientPoint(data: {
+  aboveSlideIndex?: unknown
+  belowSlideIndex?: unknown
+  gapRelY?: unknown
+  relX?: unknown
+}): { x: number; y: number } | null {
+  const aboveIndex = typeof data.aboveSlideIndex === 'number' ? Math.floor(data.aboveSlideIndex) : NaN
+  const belowIndex = typeof data.belowSlideIndex === 'number' ? Math.floor(data.belowSlideIndex) : NaN
+  if (!Number.isFinite(aboveIndex) || !Number.isFinite(belowIndex)) return null
+  const above = document.getElementById(`nano-student-md-slide-${aboveIndex}`)
+  const below = document.getElementById(`nano-student-md-slide-${belowIndex}`)
+  if (!(above instanceof HTMLElement) || !(below instanceof HTMLElement)) return null
+  const ar = above.getBoundingClientRect()
+  const br = below.getBoundingClientRect()
+  if (ar.height < 1 || br.height < 1) return null
+  const gapRel = typeof data.gapRelY === 'number' ? Math.max(0, Math.min(1, data.gapRelY)) : 0.5
+  const relX = typeof data.relX === 'number' ? Math.max(0, Math.min(1, data.relX)) : 0.5
+  return {
+    x: ar.left + relX * ar.width,
+    y: ar.bottom + gapRel * (br.top - ar.bottom),
+  }
+}
+
+function slideProseClientPoint(data: {
+  pointerTextOffset?: unknown
+  pointerLineRelX?: unknown
+  pointerLineRelY?: unknown
+  pointerSlideIndex?: unknown
+  pointerBlockIndex?: unknown
+}): { x: number; y: number } | null {
+  if (typeof data.pointerTextOffset !== 'number') return null
+  if (typeof data.pointerSlideIndex !== 'number' || typeof data.pointerBlockIndex !== 'number') return null
+  const nodes = document.querySelectorAll(
+    `[data-pointer-prose-root][data-slide-index="${data.pointerSlideIndex}"][data-block-index="${data.pointerBlockIndex}"]`
+  )
+  let proseEl: HTMLElement | null = null
+  let bestArea = 0
+  for (const node of nodes) {
+    if (!(node instanceof HTMLElement)) continue
+    const r = node.getBoundingClientRect()
+    const area = r.width * r.height
+    if (area > bestArea) {
+      bestArea = area
+      proseEl = node
+    }
+  }
+  if (!proseEl) return null
+  return clientPointForPointerTextHit(proseEl, {
+    textOffset: data.pointerTextOffset,
+    lineRelX: typeof data.pointerLineRelX === 'number' ? data.pointerLineRelX : 0,
+    lineRelY: typeof data.pointerLineRelY === 'number' ? data.pointerLineRelY : 0.5,
+  })
+}
+
 export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides, curriculumId, subjectId, gradeLevelId, tr, onSlidesSaved, slideMode, originalSlides, initialSlideIndex, isTeacherView = true, onOpenStudentView: onOpenStudentViewProp, worksheetPresentation = false, worksheetAnswerReveal, worksheetAnswerTypingEnabled, presentationBroadcastSyncId = null, syncedStudentCurriculumRightMode = null, syncedStudentCurriculumLeftPane = null, curriculumInfographic: curriculumInfographicProp }: NanoAISlideViewerProps) {
   const { toast } = useToast()
   const [memoryDebugEnabled, setMemoryDebugEnabled] = useState(false)
@@ -1257,14 +1324,20 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const studentMdRightColumnScrollRef = useRef<HTMLDivElement | null>(null)
   const lastMdAutoScrollIndexRef = useRef<number | null>(null)
   const lastMdAutoScrollAtRef = useRef(0)
+  /** Mép trên khung GV — HS áp lại sau khi chữ xuống dòng / đổi rộng. */
+  const chainScrollAnchorRef = useRef<Record<string, unknown> | null>(null)
   /** Con của scroll: cùng chiều rộng nội dung với GV → xuống dòng khớp; map chuột theo toàn khối nội dung. */
   const studentSlideContentLayoutRef = useRef<HTMLDivElement | null>(null)
   /** Phần thân slide sau tiêu đề — map chuột ảo theo `slidePointerBody` từ GV. */
   const studentSlidePointerSyncRef = useRef<HTMLDivElement | null>(null)
   /** Chiều rộng cột nội dung GV (px) — ép khối HS để wrap giống GV. */
   const [syncedTeacherSlideLayoutW, setSyncedTeacherSlideLayoutW] = useState<number | null>(null)
-  /** clientWidth của vùng cuộn cột phải HS (để min(width, khả dụng)). */
-  const [studentMdScrollClientW, setStudentMdScrollClientW] = useState(0)
+  /** Bề rộng khối chữ GV (px) — HS giữ đúng số chữ mỗi dòng. */
+  const [syncedTeacherProseW, setSyncedTeacherProseW] = useState<number | null>(null)
+  /** Chỗ GV xuống dòng — HS ngắt đúng các chữ đó để hàng trên/giữa/dưới trùng. */
+  const [syncedProseBreaks, setSyncedProseBreaks] = useState<
+    { slideIndex: number; blockIndex: number; reveals: number[][] }[]
+  >([])
   /** Khoảng trống cuộn thêm dưới cùng chuỗi slide ≈ ½ chiều cao slide đang chọn. */
   const [studentMdChainBottomSpacerPx, setStudentMdChainBottomSpacerPx] = useState(160)
   const [timerSeconds, setTimerSeconds] = useState(0)
@@ -1452,23 +1525,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   /** Dưới 768px: visual + nội dung xếp dọc full width; từ md: giữ neo phải + minWidth như desktop */
   const narrowSlideLayout = viewportW < 768
 
-  useEffect(() => {
-    if (isTeacherView) return
-    const el = studentMdRightColumnScrollRef.current
-    if (!el) return
-    const upd = () => setStudentMdScrollClientW(el.clientWidth)
-    upd()
-    const ro = new ResizeObserver(upd)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [isTeacherView, narrowSlideLayout, presentationMode, slides.length, currentIndex])
-
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   /** Buffer batch các mẫu chuột ảo theo rAF để giảm áp lực state-update khi GV gửi cao tần. */
   const pendingMouseSamplesRef = useRef<Array<{ x: number; y: number; snap: boolean }>>([])
   const mousePosRafScheduledRef = useRef(false)
   const [mouseClicks, setMouseClicks] = useState<Array<{ id: number; x: number; y: number }>>([])
+  const [highlightedControl, setHighlightedControl] = useState<string | null>(null)
+  const highlightClearRef = useRef<number | null>(null)
   /** Nét vẽ infographic theo phiên mở (không lưu DB), key theo slideIndex */
   const [infographicDrawStrokesBySlide, setInfographicDrawStrokesBySlide] = useState<Record<number, InfographicDrawStroke[]>>({})
   const [infographicDrawTool, setInfographicDrawTool] = useState<InfographicDrawTool>('pen')
@@ -2407,6 +2471,46 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     return () => clearInterval(id)
   }, [teacherTimerRunning])
 
+  const applyStudentChainPaneScroll = useCallback((data: Record<string, unknown> | null) => {
+    const pane = studentMdRightColumnScrollRef.current
+    if (!pane || !data) return
+    if (data.anchor === 'start') {
+      if (Math.abs(pane.scrollTop) > 1) pane.scrollTop = 0
+      return
+    }
+    const rel = Number(data.rel)
+    const offsetPx = Number(data.offsetPx)
+    let el: HTMLElement | null = null
+    if (data.anchor === 'prose') {
+      const si = data.slideIndex
+      const bi = data.blockIndex
+      el = pane.querySelector(
+        `[data-pointer-prose-root][data-slide-index="${si}"][data-block-index="${bi}"]`
+      )
+      if (!el && typeof si === 'number') el = document.getElementById(`nano-student-md-slide-${si}`)
+    } else if (
+      data.anchor === 'sync' &&
+      typeof data.syncId === 'string' &&
+      /^slide-[\w-]+$/.test(data.syncId)
+    ) {
+      el = pane.querySelector(`[data-pointer-sync-id="${data.syncId}"]`)
+    } else if (data.anchor === 'card' && typeof data.slideIndex === 'number') {
+      el = document.getElementById(`nano-student-md-slide-${data.slideIndex}`)
+    } else if (data.anchor === 'layout') {
+      el = studentSlideContentLayoutRef.current
+    }
+    if (!el || !pane.contains(el)) return
+    const rect = el.getBoundingClientRect()
+    const line = pane.getBoundingClientRect().top + pane.clientTop + 1
+    const usedRel = Number.isFinite(rel)
+      ? rel
+      : rect.height > 1 && Number.isFinite(offsetPx)
+        ? offsetPx / rect.height
+        : 0
+    const delta = rect.top - (line - usedRel * rect.height)
+    if (Math.abs(delta) >= 1) pane.scrollTop += delta
+  }, [])
+
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
@@ -2601,7 +2705,36 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         if (!isTeacherView) {
           const lw = Math.round(e.data.layoutW)
           setSyncedTeacherSlideLayoutW((prev) => (prev != null && Math.abs(prev - lw) < 2 ? prev : lw))
+          const proseW = Number(e.data?.proseW)
+          if (Number.isFinite(proseW) && proseW > 0) {
+            const pw = Math.round(proseW)
+            setSyncedTeacherProseW((prev) => (prev != null && Math.abs(prev - pw) < 2 ? prev : pw))
+          }
+          const incoming = e.data?.proseBreaks
+          if (Array.isArray(incoming)) {
+            const next: { slideIndex: number; blockIndex: number; reveals: number[][] }[] = []
+            for (const item of incoming) {
+              if (!item || typeof item !== 'object') continue
+              const row = item as { slideIndex?: unknown; blockIndex?: unknown; reveals?: unknown }
+              const slideIndex = Number(row.slideIndex)
+              const blockIndex = Number(row.blockIndex)
+              if (!Number.isFinite(slideIndex) || !Number.isFinite(blockIndex) || !Array.isArray(row.reveals)) continue
+              const reveals = row.reveals
+                .filter((line): line is unknown[] => Array.isArray(line))
+                .map((line) => line.map((n) => Number(n)).filter((n) => Number.isFinite(n)))
+              next.push({ slideIndex, blockIndex, reveals })
+            }
+            setSyncedProseBreaks((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
+          }
         }
+      }
+      else if (t === 'chain-pane-scroll' && !isTeacherView) {
+        chainScrollAnchorRef.current = e.data as Record<string, unknown>
+        applyStudentChainPaneScroll(chainScrollAnchorRef.current)
+        window.requestAnimationFrame(() => {
+          applyStudentChainPaneScroll(chainScrollAnchorRef.current)
+          window.requestAnimationFrame(() => applyStudentChainPaneScroll(chainScrollAnchorRef.current))
+        })
       }
       else if (t === 'infographic-draw-start' && typeof e.data?.slideIndex === 'number' && e.data?.stroke) {
         const stroke = e.data.stroke as InfographicDrawStroke
@@ -2762,6 +2895,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           typeof e.data?.relX === 'number' &&
           typeof e.data?.relY === 'number'
         ) {
+          if (e.data?.chainGap === true) {
+            const gapPt = chainGapClientPoint(e.data)
+            if (!gapPt) return
+            px = gapPt.x
+            py = gapPt.y
+          } else {
+          const textPt = slideProseClientPoint(e.data)
+          if (textPt) {
+            px = textPt.x
+            py = textPt.y
+          } else {
           const preferProseBlock =
             e.data.pointerProseBlock === true &&
             typeof e.data.pointerSlideIndex === 'number' &&
@@ -2810,6 +2954,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               px = rect.left + e.data.relX * rect.width
               py = rect.top + e.data.relY * rect.height
             } else return
+          }
+          }
           }
         } else if (
           e.data?.visualFrame &&
@@ -2977,6 +3123,25 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           })
         }
       }
+      else if (t === 'control-press' && typeof e.data?.syncAnchor === 'string') {
+        const id = String(e.data.syncAnchor)
+        const exact = document.querySelector(`[data-pointer-sync-id="${CSS.escape(id)}"]`) as HTMLElement | null
+        const exactRect = exact?.getBoundingClientRect()
+        const found = Boolean(exactRect && exactRect.width > 0 && exactRect.height > 0)
+        const el = found ? exact : (document.querySelector('[data-pointer-sync-id="ctrl-sand"]') as HTMLElement | null)
+        const r = el?.getBoundingClientRect()
+        if (r && r.width > 0 && r.height > 0) {
+          const relX = typeof e.data?.relX === 'number' ? Math.max(0, Math.min(1, Number(e.data.relX))) : 0.5
+          const relY = typeof e.data?.relY === 'number' ? Math.max(0, Math.min(1, Number(e.data.relY))) : 0.5
+          const x = r.left + (found ? relX : 0.5) * r.width
+          const y = r.top + (found ? relY : 0.5) * r.height
+          setVirtualMousePos({ x, y })
+          setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x, y }].slice(-5))
+        }
+        setHighlightedControl(found ? id : 'ctrl-sand')
+        if (highlightClearRef.current != null) window.clearTimeout(highlightClearRef.current)
+        highlightClearRef.current = window.setTimeout(() => setHighlightedControl(null), 800)
+      }
       else if (t === 'mouse-click' && presentationMode === 'slide-interaction') {
         let px: number
         let py: number
@@ -3039,6 +3204,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           typeof e.data?.relX === 'number' &&
           typeof e.data?.relY === 'number'
         ) {
+          if (e.data?.chainGap === true) {
+            const gapPt = chainGapClientPoint(e.data)
+            if (!gapPt) return
+            px = gapPt.x
+            py = gapPt.y
+          } else {
+          const textPt = slideProseClientPoint(e.data)
+          if (textPt) {
+            px = textPt.x
+            py = textPt.y
+          } else {
           const preferProseBlock =
             e.data.pointerProseBlock === true &&
             typeof e.data.pointerSlideIndex === 'number' &&
@@ -3087,6 +3263,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               px = rect.left + e.data.relX * rect.width
               py = rect.top + e.data.relY * rect.height
             } else return
+          }
+          }
           }
         } else if (
           e.data?.visualFrame &&
@@ -3229,8 +3407,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             el.closest('[role="button"]') ||
             (el.tagName === 'BUTTON' || el.tagName === 'A' || el.tagName === 'INPUT' || el.tagName === 'LABEL' ? el : null)
           if (clickable && typeof (clickable as HTMLElement).click === 'function') {
+            const syncId = (clickable as HTMLElement).closest('[data-pointer-sync-id]')?.getAttribute('data-pointer-sync-id') || ''
+            if (syncId.startsWith('ctrl-')) return
             const ctrl = (clickable as HTMLElement).closest('[data-control]')?.getAttribute('data-control')
-            if (ctrl === 'prev' || ctrl === 'next') return
+            if (ctrl === 'prev' || ctrl === 'next' || ctrl === 'tự-chạy' || ctrl === 'tự-chạy-interval' || ctrl === 'đồng-hồ-cát' || ctrl === 'teacher-timer') return
             ;(clickable as HTMLElement).click()
           }
         })
@@ -3252,7 +3432,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       }
     }
     return () => window.removeEventListener('message', handler)
-  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation, mergeIncomingInfographicStrokes, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke])
+  }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation, mergeIncomingInfographicStrokes, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke, applyStudentChainPaneScroll])
 
   useEffect(() => {
     if (isTeacherView || typeof BroadcastChannel === 'undefined') return
@@ -4026,6 +4206,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   /** Chế độ “Chuỗi slide” trên cột phải: cuộn để đỉnh slide đang chọn nằm phía trên khung (dễ nhìn từ xa). */
   useEffect(() => {
     if (isTeacherView || worksheetPresentation) return
+    if (presentationMode === 'slide-interaction') return
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) return
     if (studentCurriculumRightMode !== 'markdown-all') return
     if (!STUDENT_MD_CHAIN_AUTO_FOLLOW) return
     if (slides.length === 0) return
@@ -4060,7 +4242,53 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       lastMdAutoScrollAtRef.current = now
     }, 100)
     return () => window.clearTimeout(t)
-  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation])
+  }, [currentIndex, studentCurriculumRightMode, slides.length, isTeacherView, worksheetPresentation, presentationMode])
+
+  useEffect(() => {
+    if (isTeacherView) return
+    const pane = studentMdRightColumnScrollRef.current
+    if (!pane) return
+    let raf = 0
+    const schedule = () => {
+      if (raf) return
+      raf = window.requestAnimationFrame(() => {
+        raf = 0
+        applyStudentChainPaneScroll(chainScrollAnchorRef.current)
+      })
+    }
+    const ro = new ResizeObserver(schedule)
+    ro.observe(pane)
+    const content = studentSlideContentLayoutRef.current
+    if (content) ro.observe(content)
+    return () => {
+      if (raf) window.cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
+  }, [isTeacherView, applyStudentChainPaneScroll, studentCurriculumRightMode, syncedTeacherSlideLayoutW, currentIndex, slides.length])
+
+  /** Khóa bề rộng chữ chuỗi slide bằng đúng cột chữ bên giáo viên. */
+  useLayoutEffect(() => {
+    if (isTeacherView) return
+    const root = studentSlideContentLayoutRef.current
+    if (!root) return
+    if (syncedTeacherSlideLayoutW != null && syncedTeacherSlideLayoutW > 0) {
+      root.style.width = `${syncedTeacherSlideLayoutW}px`
+      root.style.maxWidth = `${syncedTeacherSlideLayoutW}px`
+      root.style.flex = '0 0 auto'
+    }
+    if (syncedTeacherProseW == null || syncedTeacherProseW <= 0) return
+    const px = `${syncedTeacherProseW}px`
+    const nodes = root.querySelectorAll(
+      '[data-pointer-prose-root], [data-pointer-sync-id^="slide-title-"]'
+    )
+    nodes.forEach((node) => {
+      if (!(node instanceof HTMLElement)) return
+      node.style.boxSizing = 'border-box'
+      node.style.width = px
+      node.style.minWidth = px
+      node.style.maxWidth = px
+    })
+  }, [isTeacherView, syncedTeacherSlideLayoutW, syncedTeacherProseW, slides, currentIndex, studentCurriculumRightMode])
 
   /** Chuỗi slide (HS): thêm vùng cuộn dưới cùng ~½ chiều cao slide hiện tại để slide không dính sát đáy khung. */
   useLayoutEffect(() => {
@@ -4173,8 +4401,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             slideViewMode={undefined}
             onSlideViewModeChange={undefined}
             onOpenStudentView={effectiveOnOpenStudentView}
-            highlightedControl={null}
-            hideTeacherTimer
+            highlightedControl={highlightedControl}
+            hideTeacherTimer={presentationMode !== 'slide-interaction'}
             hideInsert
             hideIndex={presentationMode === 'slide-interaction'}
             printHidden={false}
@@ -4231,7 +4459,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           {virtualMousePos && (
             <div
               className="fixed z-[200] pointer-events-none"
-              style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-2px, -2px)' }}
+              style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-3.33px, -3.33px)' }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="drop-shadow-lg">
                 <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="white" stroke="rgba(0,0,0,0.6)" strokeWidth="1.2" strokeLinejoin="round" />
@@ -4694,7 +4922,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           style={
             narrowSlideLayout
               ? undefined
-              : { width: stableLayoutWidth, minWidth: Math.max(stableLayoutWidth, 1200) }
+              : {
+                  width: stableLayoutWidth,
+                  minWidth: Math.max(stableLayoutWidth, !isTeacherView && !worksheetPresentation ? 1280 : 1200),
+                }
           }
         >
         {/* Visual: GV desktop 45%; HS desktop 50% (chia đôi cân với cột nội dung); mobile full width + max-height */}
@@ -5205,10 +5436,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         >
           {!isTeacherView && !worksheetPresentation && slides.length > 0 && (
             <div
-              className="flex h-12 shrink-0 items-center overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-6 lg:px-8 landscape:px-6"
+              className="flex h-12 shrink-0 items-center gap-2 overflow-x-auto border-b border-slate-200 bg-white px-3 shadow-sm print:hidden md:h-14 md:px-4"
               data-control="student-curriculum-mode"
             >
-              <div className="-ml-[12px] flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:flex-none md:gap-2.5 md:whitespace-normal">
+              <div className="flex min-w-0 flex-1 items-center gap-2 whitespace-nowrap md:flex-none md:gap-2.5">
               <button
                 type="button"
                 data-control="student-curriculum-all"
@@ -5260,26 +5491,40 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 {tr('Slide đơn', 'Single slide', '单张幻灯片', '1枚のスライド', '슬라이드 한 장')}
               </button>
               </div>
+              {extractQuizFromSlide(slide).length > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setQuizPopupOpen(true)}
+                  className="ml-auto shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50"
+                >
+                  <ClipboardList className="mr-1.5 h-4 w-4" />
+                  {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴ズ 보기')}
+                </Button>
+              ) : null}
             </div>
           )}
           <div
             ref={studentMdRightColumnScrollRef}
-            className="min-h-0 flex-1 overflow-y-auto p-3 pb-6 md:p-8 lg:p-12 landscape:p-8"
+            className={cn(
+              'min-h-0 flex-1 overflow-y-auto pb-8',
+              !isTeacherView && !worksheetPresentation ? 'px-3 py-3' : 'p-3 pb-6 md:p-8 lg:p-12 landscape:p-8'
+            )}
           >
           <div
             ref={studentSlideContentLayoutRef}
             className={cn(
               'min-w-0',
-              presentationMode === 'slide-interaction' && !isTeacherView && syncedTeacherSlideLayoutW != null && 'mx-auto',
+              !isTeacherView && syncedTeacherSlideLayoutW != null && 'mx-auto',
             )}
             style={
-              presentationMode === 'slide-interaction' &&
-              !isTeacherView &&
-              syncedTeacherSlideLayoutW != null &&
-              studentMdScrollClientW > 0
+              !isTeacherView && syncedTeacherSlideLayoutW != null
                 ? {
-                    width: Math.min(syncedTeacherSlideLayoutW, studentMdScrollClientW),
-                    maxWidth: '100%',
+                    width: syncedTeacherSlideLayoutW,
+                    maxWidth: 'none',
+                    ...(syncedTeacherProseW
+                      ? ({ ['--slide-sync-prose-w' as string]: `${syncedTeacherProseW}px` } as CSSProperties)
+                      : {}),
                   }
                 : undefined
             }
@@ -5299,15 +5544,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     ? parseContentToBlocks(s.content ?? '')
                     : rawBlks
                 const isCurrent = si === currentIndex
+                /** Cùng cách xuống dòng với GV khi chế độ gõ đang bật, kể cả lúc đã gõ hết — chuột ảo không lệch. */
+                const mdChainTypingLayout =
+                  mdAllStudentCurriculum && isCurrent && (hasSegmentTypingWork || (!!curriculumId && !worksheetPresentation))
                 /** Slide hiện tại: chỉ khi còn gõ segment đáp án (đồng bộ GV). */
-                const mdChainLiveTyping =
-                  mdAllStudentCurriculum && isCurrent && hasSegmentTypingWork && !segmentTypingCompleted
+                const mdChainLiveTyping = mdChainTypingLayout && !segmentTypingCompleted
                 const estimatedSlideBodyMinHeight = Math.min(1400, Math.max(220, blksForSlide.length * 170))
-                const shouldLazyMountMarkdownBody = mdAllStudentCurriculum && !isCurrent && !mdChainLiveTyping
+                const shouldLazyMountMarkdownBody =
+                  mdAllStudentCurriculum && !isCurrent && !mdChainLiveTyping && presentationMode !== 'slide-interaction'
 
                 const renderFullSlideBody = () =>
                   blksForSlide.length > 0 ? (
-                    <div className="space-y-4">
+                    <div className={SLIDE_POINTER_CHAIN_BLOCKS_CLASS}>
                       {blksForSlide.map((b, bi) => {
                         const bExt = b as { studentAnswerHidden?: boolean }
                         if (!isTeacherView && bExt.studentAnswerHidden) return null
@@ -5315,6 +5563,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           <CurriculumBlockContentWithEmbeds
                             content={b.content ?? ''}
                             liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: bi } : undefined}
+                            pointerSyncSlideIndex={si}
+                            pointerSyncBlockIndex={bi}
                             tr={tr}
                             hideQuiz
                           />
@@ -5324,9 +5574,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           Math.max(140, Math.ceil((b.content ?? '').trim().length / 5))
                         )
                         return (
-                          <div key={bi} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
+                          <div key={bi} className={cn(SLIDE_POINTER_CHAIN_BLOCK_CLASS, 'border-slate-200')}>
                             {b.header ? (
-                              <div className="mb-2 text-xs font-bold text-violet-800">{b.header}</div>
+                              <div
+                                data-pointer-sync-id={`slide-block-header-${si}-${bi}`}
+                                className={cn(SLIDE_POINTER_CHAIN_HEADER_CLASS, 'text-violet-800')}
+                              >
+                                {b.header}
+                              </div>
                             ) : null}
                             <div className="text-slate-800">
                               {shouldLazyMountMarkdownBody ? (
@@ -5354,6 +5609,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                           <CurriculumBlockContentWithEmbeds
                             content={s.content ?? ''}
                             liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
+                            pointerSyncSlideIndex={si}
+                            pointerSyncBlockIndex={0}
                             tr={tr}
                             hideQuiz
                           />
@@ -5363,6 +5620,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       <CurriculumBlockContentWithEmbeds
                         content={s.content ?? ''}
                         liveQuizContext={curriculumId ? { curriculumId, slideIndex: si, blockIndex: 0 } : undefined}
+                        pointerSyncSlideIndex={si}
+                        pointerSyncBlockIndex={0}
                         tr={tr}
                         hideQuiz
                       />
@@ -5373,7 +5632,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                   if (!slide) return null
                   if (hasBlocks) {
                     return (
-                      <div className="space-y-4">
+                      <div className={SLIDE_POINTER_CHAIN_BLOCKS_CLASS}>
                         {blocks.map((b, i) => {
                           const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
                           if (!isTeacherView && bExt.studentAnswerHidden) return null
@@ -5391,15 +5650,22 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                             visibleForBlock = undefined
                           }
                           return (
-                            <div key={i} className="border-t border-slate-200 pt-4 first:border-t-0 first:pt-0">
+                            <div key={i} className={cn(SLIDE_POINTER_CHAIN_BLOCK_CLASS, 'border-slate-200')}>
                               {b.header ? (
-                                <div className="mb-2 text-xs font-bold text-violet-800">{b.header}</div>
+                                <div
+                                  data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}
+                                  className={cn(SLIDE_POINTER_CHAIN_HEADER_CLASS, 'text-violet-800')}
+                                >
+                                  {b.header}
+                                </div>
                               ) : null}
                               <div className="text-slate-800">
                                 {solutionSegmentBlock ? (
                                   <WorksheetBlockContentWithEmbeds
                                     content={b.content}
                                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                                    pointerSyncSlideIndex={currentIndex}
+                                    pointerSyncBlockIndex={i}
                                     tr={tr}
                                     hideQuiz
                                     visibleSegmentCount={visibleForBlock}
@@ -5407,11 +5673,18 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                                     allowTypingPenAtRevealStart={
                                       sequentialSolutionPenBlockIndex != null && sequentialSolutionPenBlockIndex === i
                                     }
+                                    lineBreaks={
+                                      syncedProseBreaks.find(
+                                        (row) => row.slideIndex === currentIndex && row.blockIndex === i
+                                      )?.reveals
+                                    }
                                   />
                                 ) : (
                                   <CurriculumBlockContentWithEmbeds
                                     content={b.content}
                                     liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: i } : undefined}
+                                    pointerSyncSlideIndex={currentIndex}
+                                    pointerSyncBlockIndex={i}
                                     tr={tr}
                                     hideQuiz
                                   />
@@ -5429,6 +5702,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         <CurriculumBlockContentWithEmbeds
                           content={slide.content ?? ''}
                           liveQuizContext={curriculumId ? { curriculumId, slideIndex: currentIndex, blockIndex: 0 } : undefined}
+                          pointerSyncSlideIndex={currentIndex}
+                          pointerSyncBlockIndex={0}
                           tr={tr}
                           hideQuiz
                         />
@@ -5443,13 +5718,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     key={si}
                     id={`nano-student-md-slide-${si}`}
                     className={cn(
-                      'scroll-mt-6 scroll-mb-8 rounded-xl border border-slate-200 bg-slate-50/90 p-4 shadow-sm md:p-5 md:scroll-mt-10 md:scroll-mb-12',
+                      SLIDE_POINTER_CHAIN_CARD_CLASS,
+                      'scroll-mt-6 scroll-mb-8 border-slate-200 bg-slate-50/90 shadow-sm md:scroll-mt-10 md:scroll-mb-12',
                       si === currentIndex && 'ring-2 ring-amber-400'
                     )}
                   >
-                    <h3 className="mb-3 text-lg font-bold text-slate-900 md:text-xl">
+                    <h3
+                      data-pointer-sync-id={`slide-title-${si}`}
+                      className={cn(SLIDE_POINTER_CHAIN_TITLE_CLASS, 'text-slate-900')}
+                    >
                       {si + 1}.{' '}
-                      {mdChainLiveTyping &&
+                      {mdChainTypingLayout &&
                       isCurrent &&
                       curriculumId &&
                       worksheetAnswerSegmentCount(s.title ?? '') > 0 &&
@@ -5457,15 +5736,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                         <AnimatedCharReveal
                           text={s.title}
                           visibleCount={worksheetAnswerReveal?.[curriculumSlideTitleRevealKey(si)] ?? 0}
-                          showCursor={sequentialSolutionPenBlockIndex === -1}
-                          penWhenEmpty={sequentialSolutionPenBlockIndex === -1}
+                          showCursor={mdChainLiveTyping && sequentialSolutionPenBlockIndex === -1}
+                          penWhenEmpty={mdChainLiveTyping && sequentialSolutionPenBlockIndex === -1}
                         />
                       ) : (
                         s.title
                       )}
                     </h3>
                     <div data-pointer-slide-body={si} className="w-full min-w-0">
-                    {mdChainLiveTyping && isCurrent ? (
+                    {mdChainTypingLayout && isCurrent ? (
                       renderCurrentSlideTypingBody()
                     ) : shouldLazyMountMarkdownBody ? (
                       <LazyHeavyMount
@@ -5490,8 +5769,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             </div>
           ) : (
             <>
-              <div className="mb-4 flex flex-wrap items-start gap-2 md:mb-6 landscape:mb-6">
-                <h2 className="flex-1 text-xl font-bold text-slate-900 md:text-2xl lg:text-3xl landscape:text-2xl">
+              <div className={cn(!(!isTeacherView && !worksheetPresentation) && 'mb-4 flex flex-wrap items-start gap-2 md:mb-6 landscape:mb-6')}>
+                <h2
+                  data-pointer-sync-id={!isTeacherView ? `slide-title-${currentIndex}` : undefined}
+                  className={cn(
+                    !isTeacherView && !worksheetPresentation
+                      ? cn(SLIDE_POINTER_SINGLE_TITLE_CLASS, 'text-slate-900')
+                      : 'flex-1 text-xl font-bold text-slate-900 md:text-2xl lg:text-3xl landscape:text-2xl'
+                  )}
+                >
                   {!isTeacherView &&
                   !worksheetPresentation &&
                   curriculumId &&
@@ -5508,15 +5794,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                     slide.title
                   )}
                 </h2>
-                {extractQuizFromSlide(slide).length > 0 ? (
+                {(worksheetPresentation || isTeacherView) && extractQuizFromSlide(slide).length > 0 ? (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setQuizPopupOpen(true)}
-                    className={cn(
-                      'shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden',
-                      !isTeacherView && !worksheetPresentation && !!curriculumId ? 'mt-[19.5px]' : 'mt-[9.5px]'
-                    )}
+                    className="mt-[9.5px] shrink-0 border-violet-400 text-violet-700 hover:bg-violet-50 print:hidden"
                   >
                     <ClipboardList className="mr-1.5 h-4 w-4" />
                     {tr('Xem câu hỏi trắc nghiệm', 'View quiz', '查看测验', 'クイズを見る', '퀴즈 보기')}
@@ -5525,7 +5808,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
               </div>
               <div ref={studentSlidePointerSyncRef} className="w-full min-w-0">
               {hasBlocks ? (
-                <div className="space-y-4">
+                <div className={!isTeacherView && !worksheetPresentation ? SLIDE_POINTER_SINGLE_BLOCKS_CLASS : 'space-y-4'}>
                   {blocks.map((b, i) => {
                     const bExt = b as { isAnswer?: boolean; studentAnswerHidden?: boolean }
                     if (!isTeacherView && bExt.studentAnswerHidden) return null
@@ -5570,16 +5853,15 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                       />
                     )
                     return stackCurriculumBlockChrome ? (
-                      <div key={i} className="rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-2 border-b border-violet-100 bg-violet-50/90 px-4 py-2.5">
-                          <div className="text-violet-600 shrink-0">{getIconForHeader(b.header ?? '')}</div>
-                          <span className="text-xs font-bold text-violet-700">
+                      <div key={i} className={cn(SLIDE_POINTER_SINGLE_BLOCK_CLASS, 'border-slate-100 bg-white shadow-sm')}>
+                        <div className={cn(SLIDE_POINTER_SINGLE_HEADER_CLASS, 'border-violet-100 bg-violet-50/90 text-violet-700')}>
+                          <span data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}>
                             {(b.header ?? '').trim()
                               ? b.header
                               : tr('Nội dung', 'Content', '内容', '内容', '내용')}
                           </span>
                         </div>
-                        <div className="p-2.5 text-slate-800">{blockBody}</div>
+                        <div className={cn(SLIDE_POINTER_SINGLE_BODY_CLASS, 'text-slate-800')}>{blockBody}</div>
                       </div>
                     ) : (
                       <div key={i} className="flex rounded-lg overflow-hidden bg-white shadow-sm border border-slate-100">

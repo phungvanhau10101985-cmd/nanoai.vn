@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check } from 'lucide-react'
 import {
   CURRICULUM_MATH_TEACHER_OK,
@@ -25,8 +25,10 @@ type Props = {
   lessonNo?: number | null
   tr: Tr
   onCancel: () => void
-  onEdit: (before: string, after: string) => void
+  onEdit: (before: string, after: string, slideIndex: number) => void
   onPass: (nextMarkdown: string) => void
+  /** Mở từ nút học sinh: nếu người này đã xác nhận rồi thì vào thẳng, không bắt xác nhận lại. */
+  skipIfAlreadyConfirmed?: boolean
 }
 
 export function patchSlidesWithReviewedExercise<T extends {
@@ -37,7 +39,7 @@ export function patchSlidesWithReviewedExercise<T extends {
   visualEmbed?: string
   visualCells?: unknown
   blocks?: Array<{ header?: string; content?: string }>
-}>(slides: T[], before: string, after: string): T[] {
+}>(slides: T[], before: string, after: string, slideIndex?: number): T[] {
   const oldStudent = curriculumMarkdownForStudents(before).replace(/\s+/g, ' ').trim()
   const nextStudent = curriculumMarkdownForStudents(after).trim()
   if (!nextStudent) return slides
@@ -67,27 +69,23 @@ export function patchSlidesWithReviewedExercise<T extends {
       content: contentHit ? nextStudent : raw,
     }
   })
-  if (found || !needle || slides.length === 0) return next
-  return [
-    ...next,
-    {
-      ...slides[0],
-      title: 'Ví dụ đã sửa',
-      blocks: [{ header: 'Ví dụ', content: nextStudent }],
-      content: nextStudent,
-      teacherNotes: '',
-      imageUrl: undefined,
-      visualEmbed: undefined,
-      visualCells: undefined,
-    },
-  ]
+  if (found || slideIndex == null || slideIndex < 0 || slideIndex >= next.length) return next
+  const current = next[slideIndex]
+  const header = current?.blocks?.[0]?.header || 'Nội dung'
+  const replaced = [...next]
+  replaced[slideIndex] = {
+    ...current,
+    blocks: [{ header, content: nextStudent }],
+    content: nextStudent,
+  }
+  return replaced
 }
 
 function shownSlideText(text: string): string {
   return curriculumMarkdownForStudents(text).trim() || text.trim()
 }
 
-export function LessonExampleReviewDialog({ markdown, slides, subjectId, curriculumId, lessonNo, tr, onCancel, onEdit, onPass }: Props) {
+export function LessonExampleReviewDialog({ markdown, slides, subjectId, curriculumId, lessonNo, tr, onCancel, onEdit, onPass, skipIfAlreadyConfirmed }: Props) {
   const initial = useMemo(
     () => listPresentationSlideReviews(slides, { subjectId }),
     [slides, subjectId]
@@ -97,6 +95,8 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [draft, setDraft] = useState('')
   const [stats, setStats] = useState<SlideReviewStat[]>([])
+  const slideRefs = useRef<Array<HTMLElement | null>>([])
+  const continuedRef = useRef(false)
   const total = items.length
   const slideTexts = items.map((row) => shownSlideText(row.text))
 
@@ -113,7 +113,31 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     // Chỉ đọc một lần khi mở bảng. Lượt xác nhận sau cập nhật stats tại chỗ.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [curriculumId, lessonNo])
-  const pending = items.filter((row) => row.status !== 'pass').length
+
+  useEffect(() => {
+    if (stats.length === 0) return
+    setItems((prev) =>
+      prev.map((row, index) => {
+        const stat = stats[index]
+        if (!stat || editingIndex === index) return row
+        if (stat.confirmedByMe || stat.proposalAuthorIsMe) {
+          return {
+            text: stat.proposalAuthorIsMe && stat.proposalText ? stat.proposalText : row.text,
+            status: 'pass',
+            message: 'seen',
+          }
+        }
+        return row
+      })
+    )
+  }, [stats, editingIndex])
+
+  useEffect(() => {
+    if (!skipIfAlreadyConfirmed || continuedRef.current || stats.length === 0 || stats.length < items.length) return
+    if (!stats.slice(0, items.length).every((stat) => stat.confirmedByMe)) return
+    continuedRef.current = true
+    onPass(source)
+  }, [skipIfAlreadyConfirmed, stats, items.length, onPass, source])
 
   const acceptEdit = (index: number, before: string, after: string, verdict: CurriculumExerciseReview) => {
     const nextSource = replaceCurriculumExercise(source, before, after)
@@ -122,9 +146,9 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     setItems(nextItems)
     setDraft(after.trim())
     setEditingIndex(verdict.status === 'pass' ? null : index)
-    if (verdict.status === 'pass' && before.trim() !== after.trim()) onEdit(before, after)
-    const nextTexts = nextItems.map((row) => shownSlideText(row.text))
     const changed = shownSlideText(before) !== shownSlideText(after)
+    const nextTexts = nextItems.map((row) => shownSlideText(row.text))
+    if (verdict.status === 'pass' && changed) onEdit(before, after, index)
     if (changed) void remember(index, 'edit', shownSlideText(after), nextTexts)
     else if (verdict.status === 'pass') void remember(index, 'confirm', shownSlideText(after), nextTexts)
   }
@@ -143,6 +167,14 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     })
   }
 
+  const scrollToNextSlide = (index: number) => {
+    const next = slideRefs.current[index + 1]
+    if (!next) return
+    window.requestAnimationFrame(() => {
+      next.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
+
   const confirmSlide = (index: number, withTeacherOk: boolean) => {
     const item = items[index]
     if (!item) return
@@ -153,20 +185,28 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     const verdict = judgeKnowledgeBlock(body, { subjectId })
     const exercise = judgeCurriculumExercise(body, { subjectId })
     const next = exercise.status === 'wrong' ? exercise : verdict.status === 'wrong' ? verdict : exercise.status === 'pass' && verdict.status === 'unverified' ? verdict : exercise
-    if (next.status === 'pass') next.message = 'seen'
+    if (next.status === 'pass') {
+      next.message = 'seen'
+      scrollToNextSlide(index)
+    }
     acceptEdit(index, item.text, next.text || body, next)
   }
 
-  const recheck = (index: number, withTeacherOk = false) => {
+  const saveTeacherEdit = (index: number) => {
     const item = items[index]
-    if (!item) return
-    const body = withTeacherOk && !draft.includes(CURRICULUM_MATH_TEACHER_OK)
-      ? `${draft.trim()}\n${CURRICULUM_MATH_TEACHER_OK}`
-      : draft
-    const verdict = judgeKnowledgeBlock(body, { subjectId })
-    const exercise = judgeCurriculumExercise(body, { subjectId })
-    const next = exercise.status === 'wrong' ? exercise : verdict.status === 'wrong' ? verdict : exercise.status === 'pass' && verdict.status === 'unverified' ? verdict : exercise
-    acceptEdit(index, item.text, next.text || body, next)
+    const after = draft.trim()
+    if (!item || after.length < 1) return
+    const nextSource = replaceCurriculumExercise(source, item.text, after)
+    const nextItems = items.map((row, i) =>
+      i === index ? { text: after, status: 'pass' as const, message: 'seen' } : row
+    )
+    setSource(nextSource)
+    setItems(nextItems)
+    setEditingIndex(null)
+    const changed = shownSlideText(item.text) !== shownSlideText(after)
+    if (changed) onEdit(item.text, after, index)
+    const nextTexts = nextItems.map((row) => shownSlideText(row.text))
+    void remember(index, changed ? 'edit' : 'confirm', shownSlideText(after), nextTexts)
   }
 
   const confirmRead = (index: number) => {
@@ -175,11 +215,12 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     const nextItems = items.map((row, i) => (i === index ? { ...row, status: 'pass' as const, message: 'seen' } : row))
     setItems(nextItems)
     remember(index, 'confirm', shownSlideText(item.text), nextItems.map((row) => shownSlideText(row.text)))
+    scrollToNextSlide(index)
   }
 
   if (total === 0) return null
-  const seenCount = items.filter((row) => row.status === 'pass' && row.message === 'seen').length
-  const ready = pending === 0 && seenCount === total
+  const seenCount = items.filter((row, index) => (row.status === 'pass' && row.message === 'seen') || stats[index]?.confirmedByMe).length
+  const ready = seenCount === total
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-3 md:p-4">
@@ -210,14 +251,21 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
             const editing = editingIndex === index
             const passed = item.status === 'pass'
             const seen = passed && item.message === 'seen'
-            const stat = stats[index] ?? { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null }
+            const stat = stats[index] ?? { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null, confirmedByMe: false }
+            const alreadyMine = seen || stat.confirmedByMe
             return (
-              <article key={`${index}-${title}`} className="rounded-lg border border-slate-700 bg-slate-950/70">
+              <article
+                key={`${index}-${title}`}
+                ref={(node) => {
+                  slideRefs.current[index] = node
+                }}
+                className="rounded-lg border border-slate-700 bg-slate-950/70 scroll-mt-3"
+              >
                 <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-3 py-2">
                   <p className="text-sm font-medium text-amber-200">
                     {index + 1}/{total}. {title}
                   </p>
-                  {seen ? (
+                  {alreadyMine ? (
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-emerald-300">
                       <Check className="h-4 w-4" aria-hidden />
                       {tr('Đã xem', 'Seen', '已看', '確認済', '확인함')}
@@ -314,25 +362,14 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     </>
                   ) : null}
                   {editing ? (
-                    <>
-                      {item.status !== 'wrong' ? (
-                        <button
-                          type="button"
-                          onClick={() => recheck(index, true)}
-                          className="rounded-md border border-amber-500/70 px-3 py-1.5 text-sm text-amber-100 hover:bg-amber-500/10"
-                        >
-                          {tr('Xác nhận nội dung này đúng', 'Confirm this content', '确认这段内容正确', 'この内容は正しい', '이 내용이 맞음')}
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => recheck(index, false)}
-                        className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500"
-                      >
-                        {tr('Kiểm lại', 'Check again', '重新验算', '再検算', '다시 검산')}
-                      </button>
-                    </>
-                  ) : passed && !seen ? (
+                    <button
+                      type="button"
+                      onClick={() => saveTeacherEdit(index)}
+                      className="rounded-md bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-500"
+                    >
+                      {tr('Dùng bản này', 'Use this version', '使用此版本', 'この版を使う', '이 버전 사용')}
+                    </button>
+                  ) : passed && !seen && !stat.confirmedByMe ? (
                     <button
                       type="button"
                       onClick={() => confirmRead(index)}
@@ -340,7 +377,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     >
                       {tr('Nội dung đúng', 'Content is correct', '内容正确', '内容は正しい', '내용이 맞음')}
                     </button>
-                  ) : !passed ? (
+                  ) : !passed && !stat.confirmedByMe ? (
                     <>
                       {item.status === 'unverified' ? (
                         <button

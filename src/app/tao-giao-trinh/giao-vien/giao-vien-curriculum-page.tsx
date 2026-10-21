@@ -5,7 +5,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, ClipboardCheck, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -18,8 +18,23 @@ import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
 import { AnimatedCharReveal } from '../components/animated-char-reveal'
+import { CurriculumBlockContentWithEmbeds } from '../components/curriculum-block-content-with-embeds'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
-import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from '../components/slide-sync-markdown-classes'
+import {
+  POINTER_PROSE_ROOT_ATTR,
+  SLIDE_POINTER_CHAIN_BLOCK_CLASS,
+  SLIDE_POINTER_CHAIN_BLOCKS_CLASS,
+  SLIDE_POINTER_CHAIN_CARD_CLASS,
+  SLIDE_POINTER_CHAIN_HEADER_CLASS,
+  SLIDE_POINTER_CHAIN_TITLE_CLASS,
+  SLIDE_POINTER_SINGLE_BLOCK_CLASS,
+  SLIDE_POINTER_SINGLE_BLOCKS_CLASS,
+  SLIDE_POINTER_SINGLE_BODY_CLASS,
+  SLIDE_POINTER_SINGLE_HEADER_CLASS,
+  SLIDE_POINTER_SINGLE_TITLE_CLASS,
+  SLIDE_SYNC_MARKDOWN_CLASS,
+} from '../components/slide-sync-markdown-classes'
+import { readCharRevealLineBreaks, readPointerTextHit } from '../components/slide-pointer-text-hit'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
 import {
   curriculumSlideTitleRevealKey,
@@ -53,7 +68,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { getCurriculumSlidesByLessonCachedAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction } from '../lesson-actions'
+import { getCurriculumSlidesByLessonCachedAction, markTeacherReviewedLessonAction, saveCurriculumLessonInfographicAction, saveReviewedLessonMarkdownAction, teacherHasReviewedLessonAction } from '../lesson-actions'
 import { replaceCurriculumExercise } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 import { LessonExampleReviewDialog, patchSlidesWithReviewedExercise } from './lesson-example-review-dialog'
 
@@ -73,6 +88,10 @@ type SlideItem = {
   visualInput2?: string
   visualInput3?: string
   visualInput4?: string
+}
+
+function withoutAutoAddedReviewSlides(slides: SlideItem[]): SlideItem[] {
+  return slides.filter((slide) => String(slide.title || '').trim() !== 'Ví dụ đã sửa')
 }
 
 type InfographicDrawTool = 'pen' | 'eraser'
@@ -816,6 +835,28 @@ function getSectionIndexForSlide(sections: string[], slides: SlideItem[], curren
   return Math.min(currentIndex, Math.max(0, sections.length - 1))
 }
 
+function lessonReviewStorageKey(userId: string, curriculumId: string, lessonNo: number) {
+  return `nanoai-lesson-reviewed:v1:${userId}:${curriculumId}:${lessonNo}`
+}
+
+function readLessonReviewDone(userId: string | null, curriculumId: string | null, lessonNo: number | null) {
+  if (!userId || !curriculumId || !lessonNo || typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(lessonReviewStorageKey(userId, curriculumId, lessonNo)) === '1'
+  } catch {
+    return false
+  }
+}
+
+function writeLessonReviewDone(userId: string | null, curriculumId: string | null, lessonNo: number | null) {
+  if (!userId || !curriculumId || !lessonNo || typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(lessonReviewStorageKey(userId, curriculumId, lessonNo), '1')
+  } catch {
+    /* bộ nhớ trình duyệt đầy hoặc bị chặn */
+  }
+}
+
 /** Giáo trình — mở từ Tạo giáo trình (`?t=`). Phiếu bài tập: `giao-vien-worksheet-page.tsx`. */
 export default function CurriculumViewPage() {
   const searchParams = useSearchParams()
@@ -826,6 +867,12 @@ export default function CurriculumViewPage() {
   const [fullCurriculumMarkdown, setFullCurriculumMarkdown] = useState('')
   const [lessonSubjectId, setLessonSubjectId] = useState('')
   const [exampleReviewOpen, setExampleReviewOpen] = useState(false)
+  const [lessonReviewDone, setLessonReviewDone] = useState(false)
+  const lessonReviewDoneRef = useRef(false)
+  lessonReviewDoneRef.current = lessonReviewDone
+  const reviewGateRef = useRef(false)
+  const [reviewIsGate, setReviewIsGate] = useState(false)
+  const reviewedThisSessionRef = useRef(new Set<string>())
   const fullReviewRef = useRef('')
   const [topic, setTopic] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -1077,7 +1124,7 @@ export default function CurriculumViewPage() {
     const iconSz = compact ? 'h-3 w-3' : 'h-3.5 w-3.5'
     const wrapCls = compact
       ? 'mb-1 flex flex-wrap items-center gap-1 rounded-md border border-amber-500/25 bg-slate-900/40 px-1.5 py-1'
-      : 'mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-900/50 px-2 py-1.5'
+      : 'flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-900/80 px-2 py-1.5'
 
     return (
       <div className={wrapCls}>
@@ -1595,7 +1642,9 @@ export default function CurriculumViewPage() {
         infographicSourceView?: 'visual' | 'lesson' | 'curriculum'
         infographicDrawStrokesBySlide?: Record<string, InfographicDrawStroke[]>
       }
-      const cachedSlides = Array.isArray(cached?.slides) ? cached.slides.map((s) => normalizeSlideVisualInputs(s)) : []
+      const cachedSlides = withoutAutoAddedReviewSlides(
+        Array.isArray(cached?.slides) ? cached.slides.map((s) => normalizeSlideVisualInputs(s)) : []
+      )
       const cachedContent = typeof cached?.content === 'string' ? cached.content : ''
       if (cachedContent.trim().length <= 0 && cachedSlides.length <= 0) return
       const safeIndexRaw = Number.isFinite(Number(cached?.currentIndex)) ? Number(cached.currentIndex) : 0
@@ -3405,9 +3454,89 @@ export default function CurriculumViewPage() {
       const el = document.querySelector('[data-quiz-popup]')
       return el ? (el as HTMLElement).getBoundingClientRect() : null
     }
+    const readEarlierChainPointer = (clientX: number, clientY: number, scrollEl: HTMLElement) => {
+      const currentBody = teacherSlidePointerSyncRef.current
+      const prose = (document.elementsFromPoint(clientX, clientY) as HTMLElement[])
+        .map((el) => el.closest('[data-pointer-prose-root]') as HTMLElement | null)
+        .find((el): el is HTMLElement => !!el && scrollEl.contains(el) && !currentBody?.contains(el))
+      if (prose) {
+        const rr = prose.getBoundingClientRect()
+        const pointerSlideIndex = Number(prose.getAttribute('data-slide-index'))
+        const pointerBlockIndex = Number(prose.getAttribute('data-block-index'))
+        if (rr.width > 0 && rr.height > 0 && Number.isFinite(pointerSlideIndex) && Number.isFinite(pointerBlockIndex)) {
+          const textHit = readPointerTextHit(prose, clientX, clientY)
+          return {
+            slideContentPane: true as const,
+            slidePointerBody: true as const,
+            pointerProseBlock: true as const,
+            pointerSlideIndex,
+            pointerBlockIndex,
+            relX: Math.max(0, Math.min(1, (clientX - rr.left) / rr.width)),
+            relY: Math.max(0, Math.min(1, (clientY - rr.top) / rr.height)),
+            ...(textHit
+              ? { pointerTextOffset: textHit.textOffset, pointerLineRelX: textHit.lineRelX, pointerLineRelY: textHit.lineRelY }
+              : {}),
+          }
+        }
+      }
+      const chainCard = (document.elementsFromPoint(clientX, clientY) as HTMLElement[])
+        .map((el) => el.closest('[data-teacher-chain-slide]') as HTMLElement | null)
+        .find((el): el is HTMLElement => !!el && scrollEl.contains(el))
+      if (!chainCard) return null
+      if (currentBody && chainCard.contains(currentBody)) return null
+      const pointerSlideIndex = Number(chainCard.getAttribute('data-teacher-chain-slide'))
+      if (!Number.isFinite(pointerSlideIndex)) return null
+      const body = chainCard.querySelector(`[data-pointer-slide-body="${pointerSlideIndex}"]`) as HTMLElement | null
+      const rect = (body ?? chainCard).getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return null
+      return {
+        slideContentPane: true as const,
+        slidePointerBody: !!body,
+        pointerProseBlock: false as const,
+        pointerSlideIndex,
+        relX: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
+        relY: Math.max(0, Math.min(1, (clientY - rect.top) / rect.height)),
+      }
+    }
+    const readChainGapPointer = (clientX: number, clientY: number, scrollEl: HTMLElement) => {
+      const cards = Array.from(scrollEl.querySelectorAll('[data-teacher-chain-slide]'))
+        .filter((el): el is HTMLElement => el instanceof HTMLElement)
+        .map((el) => ({
+          index: Number(el.getAttribute('data-teacher-chain-slide')),
+          rect: el.getBoundingClientRect(),
+        }))
+        .filter((card) => Number.isFinite(card.index) && card.rect.width > 8 && card.rect.height > 8)
+        .sort((a, b) => a.rect.top - b.rect.top)
+      if (cards.length === 0) return null
+      const inside = cards.some(
+        (card) =>
+          clientX >= card.rect.left &&
+          clientX <= card.rect.right &&
+          clientY >= card.rect.top &&
+          clientY <= card.rect.bottom
+      )
+      if (inside) return null
+      let above: (typeof cards)[number] | null = null
+      let below: (typeof cards)[number] | null = null
+      for (const card of cards) {
+        if (card.rect.bottom <= clientY + 0.5) above = card
+        else if (!below && card.rect.top >= clientY - 0.5) below = card
+      }
+      if (!above || !below) return null
+      const span = below.rect.top - above.rect.bottom
+      const gapRelY = span > 1 ? (clientY - above.rect.bottom) / span : 0.5
+      const relX = above.rect.width > 0 ? (clientX - above.rect.left) / above.rect.width : 0.5
+      return {
+        slideContentPane: true as const,
+        chainGap: true as const,
+        aboveSlideIndex: above.index,
+        belowSlideIndex: below.index,
+        gapRelY: Math.max(0, Math.min(1, gapRelY)),
+        relX: Math.max(0, Math.min(1, relX)),
+        relY: Math.max(0, Math.min(1, gapRelY)),
+      }
+    }
     const sendPointerMove = (e: MouseEvent | PointerEvent) => {
-      const w = window.innerWidth || 1
-      const h = window.innerHeight || 1
       // Ưu tiên anchor [data-pointer-sync-id]: khớp vị trí giữa 2 cửa sổ dù layout khác nhau (vd nút "Chuỗi slide / Slide đơn").
       try {
         const anchor = (document.elementsFromPoint(e.clientX, e.clientY) as HTMLElement[])
@@ -3423,6 +3552,10 @@ export default function CurriculumViewPage() {
             return
           }
         }
+      } catch { /* ignore */ }
+      try {
+        const hit = e.target as HTMLElement | null
+        if (hit?.closest?.('[data-teacher-chrome]')) return
       } catch { /* ignore */ }
       if (quizPopupOpen) {
         const rect = getQuizPopupRect()
@@ -3647,6 +3780,11 @@ export default function CurriculumViewPage() {
         const scrollEl = teacherSlideContentPaneRef.current
         const sr = scrollEl.getBoundingClientRect()
         if (e.clientX >= sr.left && e.clientX <= sr.right && e.clientY >= sr.top && e.clientY <= sr.bottom) {
+          const earlier = readEarlierChainPointer(e.clientX, e.clientY, scrollEl)
+          if (earlier) {
+            sendToStudentView({ type: 'mouse-pos', ...earlier })
+            return
+          }
           const syncEl = teacherSlidePointerSyncRef.current
           if (syncEl) {
             const pr = syncEl.getBoundingClientRect()
@@ -3677,6 +3815,7 @@ export default function CurriculumViewPage() {
                 }
                 const relX = (e.clientX - targetRect.left) / targetRect.width
                 const relY = (e.clientY - targetRect.top) / targetRect.height
+                const textHit = proseRoot ? readPointerTextHit(proseRoot, e.clientX, e.clientY) : null
                 sendToStudentView( {
                   type: 'mouse-pos',
                   slideContentPane: true,
@@ -3686,15 +3825,30 @@ export default function CurriculumViewPage() {
                   pointerBlockIndex,
                   relX: Math.max(0, Math.min(1, relX)),
                   relY: Math.max(0, Math.min(1, relY)),
+                  ...(textHit
+                    ? { pointerTextOffset: textHit.textOffset, pointerLineRelX: textHit.lineRelX, pointerLineRelY: textHit.lineRelY }
+                    : {}),
                 })
                 return
               }
             }
           }
+          const gap = readChainGapPointer(e.clientX, e.clientY, scrollEl)
+          if (gap) {
+            sendToStudentView({ type: 'mouse-pos', ...gap })
+            return
+          }
           const layoutEl = teacherSlideContentLayoutRef.current
           if (layoutEl) {
             const lr = layoutEl.getBoundingClientRect()
-            if (lr.width > 0 && lr.height > 0) {
+            const insideCard =
+              lr.width > 0 &&
+              lr.height > 0 &&
+              e.clientX >= lr.left &&
+              e.clientX <= lr.right &&
+              e.clientY >= lr.top &&
+              e.clientY <= lr.bottom
+            if (insideCard) {
               const relX = (e.clientX - lr.left) / lr.width
               const relY = (e.clientY - lr.top) / lr.height
               sendToStudentView( {
@@ -3710,18 +3864,25 @@ export default function CurriculumViewPage() {
           }
         }
       }
-      sendToStudentView( {
-        type: 'mouse-pos',
-        normX: Math.max(0, Math.min(1, e.clientX / w)),
-        normY: Math.max(0, Math.min(1, e.clientY / h)),
-        xrPx: Math.max(0, w - e.clientX),
-        yPx: Math.max(0, Math.min(h, e.clientY)),
-      })
+      return
     }
     const sendPointerClick = (e: MouseEvent) => {
-      if ((e.target as HTMLElement)?.closest('[data-control="xem-học-sinh"]')) return
-      const w = window.innerWidth || 1
-      const h = window.innerHeight || 1
+      const clickTarget = e.target as HTMLElement | null
+      const syncEl = clickTarget?.closest('[data-pointer-sync-id]') as HTMLElement | null
+      const syncId = syncEl?.getAttribute('data-pointer-sync-id') || ''
+      if (syncId.startsWith('ctrl-')) {
+        const rect = syncEl!.getBoundingClientRect()
+        sendToStudentView({
+          type: 'control-press',
+          syncAnchor: syncId,
+          relX: rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0.5,
+          relY: rect.height > 0 ? Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height)) : 0.5,
+        })
+        return
+      }
+      if (clickTarget?.closest('[data-control="xem-học-sinh"]')) return
+      if (clickTarget?.closest('[data-teacher-chrome]')) return
+      if (clickTarget?.closest('[data-pointer-sync-id]')) return
       if (quizPopupOpen) {
         const rect = getQuizPopupRect()
         if (rect && e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
@@ -3943,6 +4104,11 @@ export default function CurriculumViewPage() {
         const scrollEl = teacherSlideContentPaneRef.current
         const sr = scrollEl.getBoundingClientRect()
         if (e.clientX >= sr.left && e.clientX <= sr.right && e.clientY >= sr.top && e.clientY <= sr.bottom) {
+          const earlier = readEarlierChainPointer(e.clientX, e.clientY, scrollEl)
+          if (earlier) {
+            sendToStudentView({ type: 'mouse-click', ...earlier })
+            return
+          }
           const syncEl = teacherSlidePointerSyncRef.current
           if (syncEl) {
             const pr = syncEl.getBoundingClientRect()
@@ -3973,6 +4139,7 @@ export default function CurriculumViewPage() {
                 }
                 const relX = (e.clientX - targetRect.left) / targetRect.width
                 const relY = (e.clientY - targetRect.top) / targetRect.height
+                const textHit = proseRoot ? readPointerTextHit(proseRoot, e.clientX, e.clientY) : null
                 sendToStudentView({
                   type: 'mouse-click',
                   slideContentPane: true,
@@ -3982,21 +4149,37 @@ export default function CurriculumViewPage() {
                   pointerBlockIndex,
                   relX: Math.max(0, Math.min(1, relX)),
                   relY: Math.max(0, Math.min(1, relY)),
+                  ...(textHit
+                    ? { pointerTextOffset: textHit.textOffset, pointerLineRelX: textHit.lineRelX, pointerLineRelY: textHit.lineRelY }
+                    : {}),
                 })
                 return
               }
             }
           }
+          const gap = readChainGapPointer(e.clientX, e.clientY, scrollEl)
+          if (gap) {
+            sendToStudentView({ type: 'mouse-click', ...gap })
+            return
+          }
           const layoutEl = teacherSlideContentLayoutRef.current
           if (layoutEl) {
             const lr = layoutEl.getBoundingClientRect()
-            if (lr.width > 0 && lr.height > 0) {
+            const insideCard =
+              lr.width > 0 &&
+              lr.height > 0 &&
+              e.clientX >= lr.left &&
+              e.clientX <= lr.right &&
+              e.clientY >= lr.top &&
+              e.clientY <= lr.bottom
+            if (insideCard) {
               const relX = (e.clientX - lr.left) / lr.width
               const relY = (e.clientY - lr.top) / lr.height
               sendToStudentView({
                 type: 'mouse-click',
                 slideContentPane: true,
                 slidePointerBody: false,
+                pointerSlideIndex: currentIndex,
                 relX: Math.max(0, Math.min(1, relX)),
                 relY: Math.max(0, Math.min(1, relY)),
               })
@@ -4005,13 +4188,7 @@ export default function CurriculumViewPage() {
           }
         }
       }
-      sendToStudentView({
-        type: 'mouse-click',
-        normX: Math.max(0, Math.min(1, e.clientX / w)),
-        normY: Math.max(0, Math.min(1, e.clientY / h)),
-        xrPx: Math.max(0, w - e.clientX),
-        yPx: Math.max(0, Math.min(h, e.clientY)),
-      })
+      return
     }
     // Dùng pointermove + getCoalescedEvents để khớp với luồng infographic — đường di chuột mượt hơn mousemove.
     const handlePointerMove = (e: PointerEvent) => {
@@ -4036,17 +4213,163 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     if (!studentViewOpened) return
     if (slideViewMode !== 'single') return
-    const el = teacherSlidePointerSyncRef.current ?? teacherSlideContentLayoutRef.current
+    const el = teacherSlideContentLayoutRef.current
     if (!el) return
     const emit = () => {
       const w = Math.round(el.getBoundingClientRect().width)
-      if (w > 0) sendTickToStudent('slide-content-layout', { type: 'slide-content-layout', layoutW: w }, 120)
+      const prose = Array.from(el.querySelectorAll('[data-pointer-prose-root]')).find((node) => {
+        if (!(node instanceof HTMLElement)) return false
+        const rect = node.getBoundingClientRect()
+        return rect.width > 40 && rect.height > 8
+      }) as HTMLElement | undefined
+      const proseW = prose ? Math.round(prose.clientWidth) : 0
+      const proseBreaks: { slideIndex: number; blockIndex: number; reveals: number[][] }[] = []
+      el.querySelectorAll('[data-pointer-prose-root]').forEach((node) => {
+        if (!(node instanceof HTMLElement)) return
+        const rect = node.getBoundingClientRect()
+        if (rect.width <= 40 || rect.height <= 8) return
+        const slideIndex = Number(node.getAttribute('data-slide-index'))
+        const blockIndex = Number(node.getAttribute('data-block-index'))
+        if (!Number.isFinite(slideIndex) || !Number.isFinite(blockIndex)) return
+        const reveals: number[][] = []
+        node.querySelectorAll('[data-sync-char-reveal]').forEach((reveal) => {
+          if (reveal instanceof HTMLElement) reveals.push(readCharRevealLineBreaks(reveal))
+        })
+        if (reveals.some((line) => line.length > 0)) proseBreaks.push({ slideIndex, blockIndex, reveals })
+      })
+      if (w > 0) {
+        sendTickToStudent(
+          'slide-content-layout',
+          { type: 'slide-content-layout', layoutW: w, proseW, proseBreaks },
+          120
+        )
+      }
     }
     emit()
     const ro = new ResizeObserver(() => emit())
     ro.observe(el)
+    el.querySelectorAll('[data-pointer-prose-root], [data-sync-char-reveal]').forEach((node) => ro.observe(node))
     return () => ro.disconnect()
   }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
+
+  useEffect(() => {
+    if (worksheetId || studentCurriculumRemoteMode !== 'markdown-all' || slideViewMode !== 'single') return
+    const container = teacherSlideContentPaneRef.current
+    const el = document.getElementById(`teacher-chain-slide-${currentIndex}`)
+    if (!container || !el) return
+    const timer = window.setTimeout(() => {
+      const cRect = container.getBoundingClientRect()
+      const eRect = el.getBoundingClientRect()
+      const elTop = eRect.top - cRect.top + container.scrollTop
+      const bias = Math.max(56, Math.round(container.clientHeight * 0.18))
+      const extra = Math.max(16, Math.min(180, Math.round(eRect.height * 0.1)))
+      const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight)
+      container.scrollTo({ top: Math.min(maxScroll, Math.max(0, elTop - bias + extra)), behavior: 'smooth' })
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [worksheetId, studentCurriculumRemoteMode, slideViewMode, currentIndex, slides.length])
+
+  useEffect(() => {
+    if (!studentViewOpened || slideViewMode !== 'single') return
+    const scrollEl = teacherSlideContentPaneRef.current
+    if (!scrollEl) return
+    const readAnchor = () => {
+      const paneRect = scrollEl.getBoundingClientRect()
+      const line = paneRect.top + scrollEl.clientTop + 1
+      const midX = paneRect.left + Math.min(scrollEl.clientWidth * 0.5, Math.max(24, scrollEl.clientWidth - 28))
+      const relOf = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect()
+        if (r.height < 1) return 0
+        return (line - r.top) / r.height
+      }
+      const pack = (el: HTMLElement) => {
+        const rel = relOf(el)
+        if (el.hasAttribute('data-pointer-prose-root')) {
+          const slideIndex = Number(el.getAttribute('data-slide-index'))
+          const blockIndex = Number(el.getAttribute('data-block-index'))
+          if (Number.isFinite(slideIndex) && Number.isFinite(blockIndex)) {
+            return { type: 'chain-pane-scroll', anchor: 'prose', slideIndex, blockIndex, rel }
+          }
+        }
+        if (el.hasAttribute('data-pointer-sync-id')) {
+          const syncId = el.getAttribute('data-pointer-sync-id') || ''
+          if (/^slide-[\w-]+$/.test(syncId)) {
+            return { type: 'chain-pane-scroll', anchor: 'sync', syncId, rel }
+          }
+        }
+        const slideIndex = Number(el.getAttribute('data-teacher-chain-slide'))
+        if (Number.isFinite(slideIndex)) {
+          return { type: 'chain-pane-scroll', anchor: 'card', slideIndex, rel }
+        }
+        return null
+      }
+      const fromPoint = () => {
+        const stack = document.elementsFromPoint(midX, Math.min(line + 1, paneRect.bottom - 2))
+        for (const node of stack) {
+          if (!(node instanceof HTMLElement) || !scrollEl.contains(node)) continue
+          if (node.closest('[data-teacher-chrome]')) continue
+          const sync = node.closest('[data-pointer-sync-id]') as HTMLElement | null
+          if (sync && scrollEl.contains(sync)) {
+            const packed = pack(sync)
+            if (packed) return packed
+          }
+          const prose = node.closest('[data-pointer-prose-root]') as HTMLElement | null
+          if (prose && scrollEl.contains(prose)) {
+            const packed = pack(prose)
+            if (packed) return packed
+          }
+          const card = node.closest('[data-teacher-chain-slide]') as HTMLElement | null
+          if (card && scrollEl.contains(card)) {
+            const packed = pack(card)
+            if (packed) return packed
+          }
+        }
+        return null
+      }
+      const hit = fromPoint()
+      if (hit) return hit
+      let nextTop = Infinity
+      let nextEl: HTMLElement | null = null
+      scrollEl.querySelectorAll('[data-pointer-sync-id], [data-teacher-chain-slide]').forEach((node) => {
+        const el = node as HTMLElement
+        if (el.closest('[data-teacher-chrome]')) return
+        const top = el.getBoundingClientRect().top
+        if (top >= line - 1 && top < nextTop) {
+          nextTop = top
+          nextEl = el
+        }
+      })
+      if (nextEl) {
+        const packed = pack(nextEl)
+        if (packed) return packed
+      }
+      const layout = teacherSlideContentLayoutRef.current
+      if (layout && scrollEl.contains(layout)) {
+        const r = layout.getBoundingClientRect()
+        if (r.bottom > line && r.height > 1) {
+          return { type: 'chain-pane-scroll', anchor: 'layout', rel: (line - r.top) / r.height }
+        }
+      }
+      return { type: 'chain-pane-scroll', anchor: 'start', rel: 0 }
+    }
+    const emit = () => {
+      sendTickToStudent('chain-pane-scroll', readAnchor(), 32)
+    }
+    emit()
+    const retrySoon = window.setTimeout(emit, 140)
+    const retryLater = window.setTimeout(emit, 420)
+    scrollEl.addEventListener('scroll', emit, { passive: true })
+    const ro = new ResizeObserver(() => emit())
+    ro.observe(scrollEl)
+    const content = scrollEl.firstElementChild
+    if (content) ro.observe(content)
+    return () => {
+      window.clearTimeout(retrySoon)
+      window.clearTimeout(retryLater)
+      scrollEl.removeEventListener('scroll', emit)
+      ro.disconnect()
+    }
+  }, [studentViewOpened, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
 
   const openStudentViewNow = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -4137,14 +4460,81 @@ export default function CurriculumViewPage() {
     setTimeout(sendState, 300)
   }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
 
+  const openStudentViewNowRef = useRef(openStudentViewNow)
+  openStudentViewNowRef.current = openStudentViewNow
+
+  const reviewLessonKey = curriculumId && activeLessonNo ? `${curriculumId}:${activeLessonNo}` : ''
+
+  useEffect(() => {
+    if (worksheetId || !reviewLessonKey || !curriculumId || !activeLessonNo || slides.length === 0) {
+      setLessonReviewDone(false)
+      return
+    }
+    const cached = readLessonReviewDone(currentUserId, curriculumId, activeLessonNo)
+    const sessionDone = reviewedThisSessionRef.current.has(reviewLessonKey)
+    setLessonReviewDone(cached || sessionDone)
+    if (!currentUserId) return
+    let cancelled = false
+    const lessonNo = activeLessonNo
+    const slideCount = slides.length
+    void teacherHasReviewedLessonAction({ curriculumId, lessonNo, slideCount }).then((res) => {
+      if (cancelled || !res || !('done' in res)) return
+      if (res.done) {
+        writeLessonReviewDone(currentUserId, curriculumId, lessonNo)
+        reviewedThisSessionRef.current.add(reviewLessonKey)
+        setLessonReviewDone(true)
+        if (reviewGateRef.current) {
+          reviewGateRef.current = false
+          setReviewIsGate(false)
+          setExampleReviewOpen(false)
+          openStudentViewNowRef.current()
+        }
+        return
+      }
+      if (!reviewedThisSessionRef.current.has(reviewLessonKey) && !readLessonReviewDone(currentUserId, curriculumId, lessonNo)) {
+        setLessonReviewDone(false)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [worksheetId, reviewLessonKey, curriculumId, activeLessonNo, slides.length, currentUserId])
+
+  const prepareLessonReview = useCallback(() => {
+    const cleaned = withoutAutoAddedReviewSlides(slidesRef.current)
+    if (cleaned.length !== slidesRef.current.length) {
+      slidesRef.current = cleaned
+      setSlides(cleaned)
+      setSlideTitles(cleaned.map((slide) => slide.title ?? ''))
+      if (curriculumId) void persistSlidesRef.current(cleaned)
+    }
+    fullReviewRef.current = fullCurriculumMarkdown
+  }, [curriculumId, fullCurriculumMarkdown])
+
+  const openLessonReview = useCallback(() => {
+    if (worksheetId || slidesRef.current.length === 0) return
+    reviewGateRef.current = false
+    setReviewIsGate(false)
+    prepareLessonReview()
+    setExampleReviewOpen(true)
+  }, [worksheetId, prepareLessonReview])
+
+  const lessonAlreadyReviewed = useCallback(() => {
+    if (lessonReviewDoneRef.current) return true
+    if (reviewLessonKey && reviewedThisSessionRef.current.has(reviewLessonKey)) return true
+    return readLessonReviewDone(currentUserId, curriculumId, activeLessonNo)
+  }, [reviewLessonKey, currentUserId, curriculumId, activeLessonNo])
+
   const openStudentView = useCallback(() => {
-    if (!worksheetId && slidesRef.current.length > 0) {
-      fullReviewRef.current = fullCurriculumMarkdown
+    if (!worksheetId && slidesRef.current.length > 0 && !lessonAlreadyReviewed()) {
+      reviewGateRef.current = true
+      setReviewIsGate(true)
+      prepareLessonReview()
       setExampleReviewOpen(true)
       return
     }
     openStudentViewNow()
-  }, [worksheetId, fullCurriculumMarkdown, openStudentViewNow])
+  }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -5214,7 +5604,7 @@ export default function CurriculumViewPage() {
           }
           setInfographicDrawStrokesBySlide((prev) => foldInfographicStrokesToCurriculumKey({ ...prev, ...normalized }))
         }
-        const sanitizedSlides = sl.map((s: SlideItem) => normalizeSlideVisualInputs(s))
+        const sanitizedSlides = withoutAutoAddedReviewSlides(sl.map((s: SlideItem) => normalizeSlideVisualInputs(s)))
         setSlideTitles(sanitizedSlides.map((s: SlideItem) => s?.title ?? ''))
         setSlides(sanitizedSlides)
         slidesRef.current = sanitizedSlides
@@ -5408,8 +5798,13 @@ export default function CurriculumViewPage() {
           curriculumId={curriculumId}
           lessonNo={activeLessonNo}
           tr={tr}
-          onCancel={() => setExampleReviewOpen(false)}
-          onEdit={(before, after) => {
+          skipIfAlreadyConfirmed={reviewIsGate}
+          onCancel={() => {
+            reviewGateRef.current = false
+            setReviewIsGate(false)
+            setExampleReviewOpen(false)
+          }}
+          onEdit={(before, after, slideIndex) => {
             setContent((prev) => replaceLessonTextOnce(prev, before, after))
             setFullCurriculumMarkdown((prev) => {
               const next = replaceLessonTextOnce(prev, before, after)
@@ -5417,17 +5812,24 @@ export default function CurriculumViewPage() {
               return next
             })
             setSlides((prev) => {
-              const next = patchSlidesWithReviewedExercise(prev, before, after)
+              const next = patchSlidesWithReviewedExercise(prev, before, after, slideIndex)
               slidesRef.current = next
               setSlideTitles(next.map((slide) => slide.title ?? ''))
               return next
             })
           }}
           onPass={(nextMarkdown) => {
+            reviewGateRef.current = false
+            setReviewIsGate(false)
             setContent(nextMarkdown)
             const full = fullReviewRef.current.trim() ? fullReviewRef.current : fullCurriculumMarkdown
             setExampleReviewOpen(false)
             if (curriculumId && activeLessonNo) {
+              const key = `${curriculumId}:${activeLessonNo}`
+              reviewedThisSessionRef.current.add(key)
+              writeLessonReviewDone(currentUserId, curriculumId, activeLessonNo)
+              setLessonReviewDone(true)
+              void markTeacherReviewedLessonAction({ curriculumId, lessonNo: activeLessonNo })
               void saveReviewedLessonMarkdownAction({
                 curriculumId,
                 lessonNo: activeLessonNo,
@@ -6280,6 +6682,20 @@ export default function CurriculumViewPage() {
               <div data-control="slide-mode-xem-hoc-sinh" className="flex rounded-lg border border-slate-600/80 overflow-hidden bg-slate-800/50 shrink-0">
                 <button type="button" onClick={() => setSlideViewMode('single')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'single' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="1 slide"><Square className="h-3.5 w-3.5 inline mr-1" />1</button>
                 <button type="button" onClick={() => setSlideViewMode('triple')} className={cn('px-2.5 py-1.5 text-xs font-medium transition-colors', slideViewMode === 'triple' ? 'bg-amber-500/30 text-amber-300' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700/50')} title="3 slide"><LayoutGrid className="h-3.5 w-3.5 inline mr-1" />3</button>
+                {!worksheetId ? (
+                  <button
+                    type="button"
+                    data-teacher-chrome
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={openLessonReview}
+                    disabled={slides.length === 0}
+                    className="flex h-9 shrink-0 items-center gap-1 border-l border-slate-600/70 px-1.5 text-[11px] font-medium normal-case tracking-normal text-amber-200 hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                    title={tr('Duyệt giáo trình', 'Review the lesson', '核对课程', '授業を確認', '교육과정 검토')}
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5 shrink-0" />
+                    {tr('Duyệt', 'Review', '核对', '確認', '검토')}
+                  </button>
+                ) : null}
                 <button
                   data-control="xem-học-sinh"
                   type="button"
@@ -6291,73 +6707,57 @@ export default function CurriculumViewPage() {
                   }}
                   onClick={(e) => e.preventDefault()}
                   disabled={slides.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/25 border-l border-slate-600/70 text-emerald-300 hover:bg-emerald-500/35 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium shrink-0 h-9"
+                  className="flex h-9 shrink-0 items-center gap-1 border-l border-slate-600/70 bg-emerald-500/25 px-1.5 text-[11px] font-medium normal-case tracking-normal text-emerald-300 hover:bg-emerald-500/35 disabled:cursor-not-allowed disabled:opacity-50"
                   title={studentViewOpened
                     ? tr('Xem lại cửa sổ học sinh đã mở', 'View opened student window', '查看已打开的学生窗口', '開いている生徒ウィンドウを表示', '열려 있는 학생 창 보기')
                     : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
                 >
-                  <Presentation className="h-4 w-4" />
-                  {studentViewOpened
-                    ? tr('Xem giao diện học sinh', 'View student interface', '查看学生界面', '生徒画面を見る', '학생 인터페이스 보기')
-                    : tr('Mở giao diện học sinh', 'Open student interface', '打开学生界面', '生徒画面を開く', '학생 인터페이스 열기')}
+                  <Presentation className="h-3.5 w-3.5 shrink-0" />
+                  {tr('Học sinh', 'Students', '学生', '生徒', '학생')}
                 </button>
               </div>
             </div>
             {slideViewMode === 'single' ? (
-              <div ref={teacherSlideContentPaneRef} className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-2 md:p-3">
+              <>
+              {(() => {
+                const slide = slides[currentIndex]
+                const slideBlocks = !slide
+                  ? []
+                  : Array.isArray(slide.blocks) && slide.blocks.length
+                    ? slide.blocks
+                    : slide.content
+                      ? parseContentToBlocks(slide.content ?? '')
+                      : []
+                const typingBar = slideBlocks.length > 0 ? renderSlideLevelTypingToolbar(currentIndex, slideBlocks, 'comfortable') : null
+                if (!typingBar) return null
+                return (
+                  <div data-teacher-chrome className="shrink-0 border-b border-slate-700/60 bg-slate-950 px-3 py-2">
+                    {typingBar}
+                  </div>
+                )
+              })()}
+              <div ref={teacherSlideContentPaneRef} className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain px-3 py-2">
                 {(() => {
                   const s = slides[currentIndex]
                   const blks = !s ? [] : (Array.isArray(s.blocks) && s.blocks.length ? s.blocks : s.content ? parseContentToBlocks(s.content ?? '') : [])
                   const showDirectEdit = Boolean(curriculumId && slideMode === 'personal' && personalViewSubMode === 'current')
+                  const mirrorChain = !worksheetId && studentCurriculumRemoteMode === 'markdown-all'
                   return (
                     <div className="w-full flex flex-col gap-2 items-stretch text-left">
                       {slideMode === 'personal' && personalViewSubMode === 'current' && !curriculumId && (
-                        <div className="rounded-lg bg-violet-500/15 border border-violet-400/30 px-4 py-2 text-sm text-violet-200">
+                        <div data-teacher-chrome className="rounded-lg bg-violet-500/15 border border-violet-400/30 px-4 py-2 text-sm text-violet-200">
                           {tr('Lưu giáo trình vào kho để sửa bản riêng.', 'Save curriculum to library to edit personal version.', '保存课程到库以编辑个人版。', 'カリキュラムを保存して個人版を編集。', '교육과정 저장 후 개인 버전 편집.')}
                         </div>
                       )}
-                      <div className="w-full rounded-xl bg-amber-500/10 ring-2 ring-amber-400/40 border border-amber-400/30 p-2.5 shadow-lg flex flex-col">
-                        <div ref={teacherSlideContentLayoutRef} className="w-full min-w-0 flex flex-col">
-                        {blks.length > 0 ? renderSlideLevelTypingToolbar(currentIndex, blks, 'comfortable') : null}
-                        <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap shrink-0">
-                          {editingTitle === currentIndex ? (
-                            <div className="flex-1 flex gap-2 items-center flex-wrap min-w-0">
-                              <input value={editingTitleValue} onChange={(e) => setEditingTitleValue(e.target.value)} className="min-w-[140px] flex-1 rounded-lg border border-slate-600 bg-slate-700/80 px-3 py-2 font-bold text-amber-300 text-xl focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 md:text-2xl lg:text-3xl landscape:text-2xl" placeholder={tr('Tiêu đề slide', 'Slide title', '幻灯片标题', 'スライドタイトル', '슬라이드 제목')} />
-                              <button type="button" onClick={() => { setSlides((prev) => { const next = prev.map((sl, j) => j === currentIndex ? { ...sl, title: editingTitleValue } : sl); if (curriculumId) void persistSlidesRef.current(next); return next }); sendUpdateSlideTitle(currentIndex, editingTitleValue); setEditingTitle(null) }} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
-                              <button type="button" onClick={() => setEditingTitle(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
-                            </div>
-                          ) : (
-                            <>
-                              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 pr-2">
-                                <span className="shrink-0 text-sm font-medium tabular-nums text-slate-400">
-                                  {currentIndex + 1}/{slides.length}
-                                </span>
-                                <h2 className="m-0 min-w-0 max-w-full flex-1 break-words text-xl font-bold leading-tight text-amber-300 md:text-2xl lg:text-3xl landscape:text-2xl">
-                                  {(() => {
-                                    const titleK = curriculumSlideTitleRevealKey(currentIndex)
-                                    const titleTypingOn =
-                                      !!curriculumId &&
-                                      blks.length > 0 &&
-                                      answerTypingEnabled[titleK] !== false &&
-                                      worksheetAnswerSegmentCount(s?.title ?? '') > 0
-                                    if (!titleTypingOn) return s?.title ?? ''
-                                    const preview =
-                                      answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
-                                        ? answerRevealJumpPreviewByBlock[titleK]
-                                        : undefined
-                                    const revealed = answerRevealProgress[titleK] ?? 0
-                                    return (
-                                      <AnimatedCharReveal
-                                        text={s?.title ?? ''}
-                                        visibleCount={preview ?? revealed}
-                                        showCursor={sequentialSolutionLeaderBlockIndex === -1}
-                                        penWhenEmpty={sequentialSolutionLeaderBlockIndex === -1}
-                                      />
-                                    )
-                                  })()}
-                                </h2>
-                              </div>
-                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <div data-teacher-chrome className="flex flex-col gap-2">
+                        {editingTitle === currentIndex ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input value={editingTitleValue} onChange={(e) => setEditingTitleValue(e.target.value)} className="min-w-[140px] flex-1 rounded-lg border border-slate-600 bg-slate-700/80 px-3 py-2 font-bold text-amber-300 text-base focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30" placeholder={tr('Tiêu đề slide', 'Slide title', '幻灯片标题', 'スライドタイトル', '슬라이드 제목')} />
+                            <button type="button" onClick={() => { setSlides((prev) => { const next = prev.map((sl, j) => j === currentIndex ? { ...sl, title: editingTitleValue } : sl); if (curriculumId) void persistSlidesRef.current(next); return next }); sendUpdateSlideTitle(currentIndex, editingTitleValue); setEditingTitle(null) }} className="text-xs font-medium text-emerald-400 hover:text-emerald-300 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-400/30">{tr('Lưu', 'Save', '保存', '保存', '저장')}</button>
+                            <button type="button" onClick={() => setEditingTitle(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
+                          </div>
+                        ) : (
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
                                 {(curriculumId || worksheetId) && ((slideMode === 'personal' && personalViewSubMode === 'current') || slideMode === 'shared' || slideMode === 'original') && (currentIndex > 0 || currentIndex < slides.length - 1) && (
                                   <button
                                     type="button"
@@ -6432,13 +6832,113 @@ export default function CurriculumViewPage() {
                                     </button>
                                   )
                                 )}
-                              </div>
-                            </>
-                          )}
+                          </div>
+                        )}
+                      </div>
+                      {mirrorChain && currentIndex > 0 ? (
+                        <div className="w-full space-y-6">
+                          {slides.slice(0, currentIndex).map((past, si) => {
+                            const raw = Array.isArray(past.blocks) && past.blocks.length > 0 ? past.blocks : past.content ? parseContentToBlocks(past.content ?? '') : []
+                            const pastBlks = raw.length > 0 && raw.every((b) => !(b.content ?? '').trim()) && (past.content ?? '').trim()
+                              ? parseContentToBlocks(past.content ?? '')
+                              : raw
+                            return (
+                              <section
+                                key={si}
+                                id={`teacher-chain-slide-${si}`}
+                                data-teacher-chain-slide={si}
+                                className={cn(SLIDE_POINTER_CHAIN_CARD_CLASS, 'w-full border-slate-600/50 bg-slate-900/25')}
+                              >
+                                <h2
+                                  data-pointer-sync-id={`slide-title-${si}`}
+                                  className={cn(SLIDE_POINTER_CHAIN_TITLE_CLASS, 'text-amber-200/90')}
+                                >
+                                  {si + 1}. {past.title ?? ''}
+                                </h2>
+                                <div data-pointer-slide-body={si} className="w-full min-w-0">
+                                  {pastBlks.length > 0 ? (
+                                    <div className={SLIDE_POINTER_CHAIN_BLOCKS_CLASS}>
+                                      {pastBlks.map((b, bi) => (
+                                        <div key={bi} className={cn(SLIDE_POINTER_CHAIN_BLOCK_CLASS, 'border-slate-600/45')}>
+                                          {(b.header ?? '').trim() ? (
+                                            <div
+                                              data-pointer-sync-id={`slide-block-header-${si}-${bi}`}
+                                              className={cn(SLIDE_POINTER_CHAIN_HEADER_CLASS, 'text-violet-300')}
+                                            >
+                                              {b.header}
+                                            </div>
+                                          ) : null}
+                                          <CurriculumBlockContentWithEmbeds
+                                            content={b.content ?? ''}
+                                            pointerSyncSlideIndex={si}
+                                            pointerSyncBlockIndex={bi}
+                                            tr={tr}
+                                            hideQuiz
+                                            className="text-slate-200"
+                                          />
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (past.content ?? '').trim() ? (
+                                    <CurriculumBlockContentWithEmbeds
+                                      content={past.content ?? ''}
+                                      pointerSyncSlideIndex={si}
+                                      pointerSyncBlockIndex={0}
+                                      tr={tr}
+                                      hideQuiz
+                                      className="text-slate-200"
+                                    />
+                                  ) : null}
+                                </div>
+                              </section>
+                            )
+                          })}
                         </div>
-                        <div ref={teacherSlidePointerSyncRef} className="w-full min-w-0">
+                      ) : null}
+                      <div
+                        id={mirrorChain ? `teacher-chain-slide-${currentIndex}` : undefined}
+                        data-teacher-chain-slide={mirrorChain ? currentIndex : undefined}
+                        ref={teacherSlideContentLayoutRef}
+                        className={cn(
+                          'w-full min-w-0',
+                          mirrorChain && cn(SLIDE_POINTER_CHAIN_CARD_CLASS, 'border-amber-400/35 bg-slate-900/35'),
+                          mirrorChain && currentIndex > 0 && 'mt-6'
+                        )}
+                      >
+                        <h2
+                          data-pointer-sync-id={`slide-title-${currentIndex}`}
+                          className={cn(
+                            mirrorChain ? SLIDE_POINTER_CHAIN_TITLE_CLASS : SLIDE_POINTER_SINGLE_TITLE_CLASS,
+                            'text-amber-200'
+                          )}
+                        >
+                          {mirrorChain ? `${currentIndex + 1}. ` : null}
+                          {(() => {
+                            const titleK = curriculumSlideTitleRevealKey(currentIndex)
+                            const titleTypingOn =
+                              !!curriculumId &&
+                              blks.length > 0 &&
+                              answerTypingEnabled[titleK] !== false &&
+                              worksheetAnswerSegmentCount(s?.title ?? '') > 0
+                            if (!titleTypingOn) return s?.title ?? ''
+                            const preview =
+                              answerRevealJumpPopoverSlideIndex === currentIndex && answerRevealJumpPreviewByBlock
+                                ? answerRevealJumpPreviewByBlock[titleK]
+                                : undefined
+                            const revealed = answerRevealProgress[titleK] ?? 0
+                            return (
+                              <AnimatedCharReveal
+                                text={s?.title ?? ''}
+                                visibleCount={preview ?? revealed}
+                                showCursor={sequentialSolutionLeaderBlockIndex === -1}
+                                penWhenEmpty={sequentialSolutionLeaderBlockIndex === -1}
+                              />
+                            )
+                          })()}
+                        </h2>
+                        <div ref={teacherSlidePointerSyncRef} data-pointer-slide-body={mirrorChain ? currentIndex : undefined} className="w-full min-w-0">
                         {blks.length > 0 ? (
-                          <div className="space-y-2 min-h-0 overflow-y-auto">
+                          <div className={mirrorChain ? SLIDE_POINTER_CHAIN_BLOCKS_CLASS : SLIDE_POINTER_SINGLE_BLOCKS_CLASS}>
                             {blks.map((b, i) => {
                               const blockProposals = proposals.filter((p) => p.slide_index === currentIndex && p.block_index === i)
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
@@ -6450,9 +6950,17 @@ export default function CurriculumViewPage() {
                                 (!!worksheetId && !!(b as { isAnswer?: boolean }).isAnswer) ||
                                 (!worksheetId && !!curriculumId)
                               return (
-                                <div key={i} className="rounded-lg bg-slate-800/60 p-2.5 border border-slate-600/60 hover:border-slate-500/50 transition-colors">
+                                <div
+                                  key={i}
+                                  className={cn(
+                                    'group relative',
+                                    mirrorChain
+                                      ? cn(SLIDE_POINTER_CHAIN_BLOCK_CLASS, 'border-slate-600/45')
+                                      : cn(SLIDE_POINTER_SINGLE_BLOCK_CLASS, 'border-slate-600/60 bg-slate-800/40')
+                                  )}
+                                >
                                     {isEditingHeader ? (
-                                    <div className="mb-2 flex gap-1.5 flex-wrap">
+                                    <div data-teacher-chrome className="mb-2 flex gap-1.5 flex-wrap">
                                       <input value={editingHeaderValue} onChange={(e) => setEditingHeaderValue(e.target.value)} className="flex-1 min-w-[120px] rounded-lg bg-slate-700/80 px-3 py-2 text-amber-300 text-xs font-bold border border-slate-600 focus:border-amber-500/50" placeholder={tr('Tiêu đề block', 'Block header', '块标题', 'ブロックタイトル', '블록 제목')} />
                                       <button type="button" onClick={() => {
                                         const newBlocks = blks.map((bl, j) => j === i ? { ...bl, header: editingHeaderValue } : bl)
@@ -6462,9 +6970,27 @@ export default function CurriculumViewPage() {
                                       <button type="button" onClick={() => setEditingHeader(null)} className="text-xs text-slate-400 hover:text-slate-300 px-2 py-1.5">{tr('Hủy', 'Cancel', '取消', 'キャンセル', '취소')}</button>
                                     </div>
                                   ) : (
-                                    (b.header || (b as { isAnswer?: boolean }).isAnswer || (!!curriculumId && !worksheetId)) && (
-                                      <div className="flex flex-wrap items-center gap-1.5 mb-2">
-                                        <div className="text-amber-300/95 font-bold text-xs">{b.header || tr('Đáp án', 'Answer', '答案', '解答', '정답')}</div>
+                                    <>
+                                    {(mirrorChain ? !!(b.header ?? '').trim() : true) && (
+                                      mirrorChain ? (
+                                        <div
+                                          data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}
+                                          className={cn(SLIDE_POINTER_CHAIN_HEADER_CLASS, 'text-amber-200')}
+                                        >
+                                          {b.header}
+                                        </div>
+                                      ) : (
+                                        <div className={cn(SLIDE_POINTER_SINGLE_HEADER_CLASS, 'border-slate-600/50 text-amber-200')}>
+                                          <span data-pointer-sync-id={`slide-block-header-${currentIndex}-${i}`}>
+                                            {(b.header ?? '').trim()
+                                              ? b.header
+                                              : tr('Nội dung', 'Content', '内容', '内容', '내용')}
+                                          </span>
+                                        </div>
+                                      )
+                                    )}
+                                    {(worksheetId && showSolutionTypingToolbar) || showDirectEdit ? (
+                                      <div data-teacher-chrome className="pointer-events-none absolute right-1 top-1 z-10 flex flex-wrap justify-end gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
                                         {worksheetId && showSolutionTypingToolbar && (
                                           <button
                                             type="button"
@@ -6483,10 +7009,12 @@ export default function CurriculumViewPage() {
                                           <button type="button" onClick={() => { setEditingHeader({ slideIndex: currentIndex, blockIndex: i }); setEditingHeaderValue(b.header ?? '') }} className="text-[11px] text-slate-400 hover:text-amber-400 px-1.5 py-0.5 rounded hover:bg-slate-700/50 transition-colors">{tr('Sửa', 'Edit', '编辑', '編集', '편집')}</button>
                                         )}
                                       </div>
-                                    )
+                                    ) : null}
+                                    </>
                                   )}
+                                  <div className={mirrorChain ? undefined : SLIDE_POINTER_SINGLE_BODY_CLASS}>
                                   {isEditing ? (
-                                    <div className="space-y-2">
+                                    <div data-teacher-chrome className="space-y-2">
                                       <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} className="w-full rounded-lg bg-slate-700/80 p-2.5 text-slate-200 text-base md:text-lg min-h-[80px] border border-slate-600 focus:border-amber-500/40 resize-y" placeholder={tr('Nội dung block...', 'Block content...', '块内容...', 'ブロック内容...', '블록 내용...')} />
                                       <div className="flex gap-2">
                                         <button type="button" onClick={() => {
@@ -6639,9 +7167,6 @@ export default function CurriculumViewPage() {
                                             )}
                                             {showProposalUi && !worksheetId && (
                                               <>
-                                                <button type="button" disabled={false} onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'edit', originalContent: b.content, blockHeader: b.header })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', curriculumId ? 'text-amber-300 hover:text-amber-200 bg-amber-500/20 border border-amber-400/30' : 'text-amber-400/60 bg-amber-500/10 border border-amber-400/20 cursor-not-allowed opacity-60')}>
-                                                  <Edit3 className="h-3.5 w-3.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                                </button>
                                                 <button type="button" disabled={false} onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: i, type: 'add', blockHeader: b.header })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', curriculumId ? 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30' : 'text-emerald-400/60 bg-emerald-500/10 border border-emerald-400/20 cursor-not-allowed opacity-60')}>
                                                   <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                                 </button>
@@ -6651,7 +7176,7 @@ export default function CurriculumViewPage() {
                                         </>
                                       )}
                                       {blockProposals.length > 0 && (
-                                        <div className="mt-2 space-y-1.5">
+                                        <div data-teacher-chrome className="mt-2 space-y-1.5">
                                           {blockProposals.map((p) => (
                                             <SlideProposalVote key={p.id} proposal={p} currentUserId={currentUserId} tr={tr} onVoted={refreshProposals} onDeleted={refreshProposals} />
                                           ))}
@@ -6659,11 +7184,12 @@ export default function CurriculumViewPage() {
                                       )}
                                     </>
                                   )}
+                                  </div>
                                 </div>
                               )
                             })}
                             {slideMode === 'personal' && personalViewSubMode === 'current' && curriculumId && (
-                              <button type="button" onClick={() => {
+                              <button data-teacher-chrome type="button" onClick={() => {
                                 const newBlocks = [...blks, { header: tr('Nội dung', 'Content', '内容', '内容', '내용'), content: '' }]
                                 updateSlideBlocksAndPersist(currentIndex, newBlocks)
                               }} className="w-full py-2 rounded-lg border-2 border-dashed border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/15 hover:border-emerald-400/60 text-xs font-medium flex items-center justify-center gap-1.5 transition-colors">
@@ -6782,9 +7308,6 @@ export default function CurriculumViewPage() {
                                     )}
                                     {(slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && (
                                       <>
-                                        <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: 0, type: 'edit', originalContent: s.content })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', 'text-amber-300 hover:text-amber-200 bg-amber-500/20 border border-amber-400/30')}>
-                                          <Edit3 className="h-3.5 w-3.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                        </button>
                                         <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: currentIndex, blockIndex: 0, type: 'add' })} className={cn('text-xs font-medium px-2 py-1 rounded-lg flex items-center gap-1', 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20 border border-emerald-400/30')}>
                                           <Plus className="h-3.5 w-3.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                         </button>
@@ -6812,7 +7335,7 @@ export default function CurriculumViewPage() {
                         </div>
                         </div>
                         {(curriculumId || worksheetId) && leftPanelMode === 'visual' && (
-                          <div className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2.5 space-y-2">
+                          <div data-teacher-chrome className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-500/10 p-2.5 space-y-2">
                             <div className="text-[11px] text-cyan-200/90">
                               {tr(
                                 'Dữ liệu Visual theo slide (4 ô): dán công thức (y=x^2 hoặc y=f(x), y=g(x) nhiều đồ thị), link GeoGebra/YouTube/Desmos/PhET/Maps, link ảnh/audio, markdown ảnh ![](url), marker [geogebra:], [youtube:], [image:]... hoặc dán trực tiếp ảnh chụp màn hình bằng Ctrl+V.',
@@ -6858,8 +7381,7 @@ export default function CurriculumViewPage() {
                             </div>
                           </div>
                         )}
-                      </div>
-                      <div className="w-full rounded-lg bg-slate-800/50 p-3 border border-slate-600/60 shrink-0">
+                      <div data-teacher-chrome className="w-full rounded-lg bg-slate-800/50 p-3 border border-slate-600/60 shrink-0">
                         <label className="block text-amber-300/95 font-medium mb-1.5 text-sm">{tr('Ghi chú', 'Notes', '备注', 'メモ', '메모')}</label>
                         <textarea value={notesValue} onChange={(e) => { setNotesValue(e.target.value); setNotesDirty(true) }} onBlur={handleBlur} placeholder={tr('Gợi ý câu hỏi, ví dụ...', 'Question hints, examples...', '问题提示、示例...', '質問のヒント、例...', '질문 힌트, 예시...')} className="w-full rounded-lg bg-slate-700/60 p-3 min-h-[64px] max-h-[120px] text-slate-200 placeholder-slate-500 border border-slate-600 focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 text-sm resize-y transition-colors" />
                       </div>
@@ -6867,6 +7389,7 @@ export default function CurriculumViewPage() {
                   )
                 })()}
               </div>
+              </>
             ) : (
             <div className="flex-1 min-h-0 flex flex-col gap-1.5 p-3 overflow-hidden">
               {([tripleIdxPrev, tripleIdxCur, tripleIdxNext] as const).map((idx, step) => {
@@ -7097,9 +7620,6 @@ export default function CurriculumViewPage() {
                                     )}
                                     {showProposalUi && !worksheetId && (
                                       <>
-                                        <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: i, type: 'edit', originalContent: b.content, blockHeader: b.header })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-amber-300 hover:text-amber-200 bg-amber-500/20' : 'text-amber-400/60 bg-amber-500/10 cursor-not-allowed opacity-60')}>
-                                          <Edit3 className="h-2.5 w-2.5" />{tr('Đề xuất sửa', 'Propose', '建议', '提案', '제안')}
-                                        </button>
                                         <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: i, type: 'add', blockHeader: b.header })} className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded flex items-center gap-0.5', curriculumId ? 'text-emerald-300 hover:text-emerald-200 bg-emerald-500/20' : 'text-emerald-400/60 bg-emerald-500/10 cursor-not-allowed opacity-60')}>
                                           <Plus className="h-2.5 w-2.5" />{tr('Đề xuất thêm', 'Propose add', '建议添加', '追加提案', '추가 제안')}
                                         </button>
@@ -7198,9 +7718,6 @@ export default function CurriculumViewPage() {
                               )}
                               {isCurrent && (slideMode === 'shared' || slideMode === 'original' || slideMode === null) && curriculumId && !worksheetId && (
                                 <div className="mt-1.5 flex flex-wrap gap-1">
-                                  <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'edit', originalContent: s.content })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-amber-400 hover:text-amber-300 bg-slate-700/50 border border-amber-500/50">
-                                    <Edit3 className="h-2.5 w-2.5" />{tr('Đề xuất sửa', 'Propose edit', '建议编辑', '編集提案', '편집 제안')}
-                                  </button>
                                   <button type="button" onClick={() => setProposalDialog({ open: true, slideIndex: idx, blockIndex: 0, type: 'add' })} className="text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5 text-emerald-400 hover:text-emerald-300 bg-slate-700/50 border border-emerald-500/50">
                                     <Plus className="h-2.5 w-2.5" />{tr('Đề xuất bổ sung', 'Propose addition', '建议补充', '追加提案', '추가 제안')}
                                   </button>

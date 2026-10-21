@@ -15,6 +15,8 @@ export type SlideReviewStat = {
   proposalText: string | null
   proposalAuthorIsMe: boolean
   myVote: 'agree' | 'reject' | null
+  /** Người này đã xác nhận hoặc sửa slide này một lần. */
+  confirmedByMe: boolean
 }
 
 type ReviewRow = {
@@ -32,10 +34,16 @@ export function hashSlideReviewText(text: string): string {
 }
 
 function emptyStat(): SlideReviewStat {
-  return { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null }
+  return { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null, confirmedByMe: false }
 }
 
 export function statsFromReviewRows(rows: ReviewRow[], hashes: string[], userId: string): SlideReviewStat[] {
+  const me = userId.toLowerCase()
+  const myConfirmedHashes = new Set(
+    rows
+      .filter((row) => row.user_id.toLowerCase() === me && (row.action === 'confirm' || row.action === 'edit'))
+      .map((row) => row.content_hash)
+  )
   return hashes.map((contentHash, slideIndex) => {
     const mine = rows.filter((row) => row.slide_index === slideIndex)
     const edits = mine.filter((row) => row.action === 'edit')
@@ -60,7 +68,9 @@ export function statsFromReviewRows(rows: ReviewRow[], hashes: string[], userId:
             new Date(row.created_at).getTime() > new Date(lastEdit.created_at).getTime()
         ).at(-1)
       : undefined
-    void contentHash
+    const confirmedByMe =
+      myConfirmedHashes.has(contentHash) ||
+      mine.some((row) => row.user_id.toLowerCase() === me && (row.action === 'confirm' || row.action === 'edit'))
     return {
       confirmCount: agreeUsers.size,
       editCount: edits.length,
@@ -68,6 +78,7 @@ export function statsFromReviewRows(rows: ReviewRow[], hashes: string[], userId:
       proposalText: warn && lastEdit?.body ? lastEdit.body : null,
       proposalAuthorIsMe: Boolean(warn && lastEdit && lastEdit.user_id === userId),
       myVote: myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null,
+      confirmedByMe,
     }
   })
 }
@@ -136,7 +147,20 @@ export async function fetchSlideReviewStatsPg(params: {
        order by created_at asc, id asc`,
       [params.curriculumId, params.lessonNo]
     )
-    return statsFromReviewRows(rows, hashes, params.userId)
+    const stats = statsFromReviewRows(rows, hashes, params.userId)
+    try {
+      const acked = await pgQuery<{ ok: boolean }>(
+        `select exists (
+           select 1 from public.worksheet_lesson_teacher_reviews
+           where curriculum_id = $1::uuid and lesson_no = $2 and user_id = $3::uuid
+         ) as ok`,
+        [params.curriculumId, params.lessonNo, params.userId]
+      )
+      if (acked[0]?.ok) return stats.map((stat) => ({ ...stat, confirmedByMe: true }))
+    } catch (e) {
+      console.error('[slide-content-review-pg] fetchSlideReviewStatsPg ack', e)
+    }
+    return stats
   } catch (e) {
     console.error('[slide-content-review-pg] fetchSlideReviewStatsPg', e)
     return null
@@ -250,6 +274,63 @@ export async function recordSlideReviewPg(params: {
   } catch (e) {
     console.error('[slide-content-review-pg] recordSlideReviewPg', e)
     return null
+  }
+}
+
+/** Giáo viên đã duyệt hết tiết này một lần (cờ tiết, hoặc đã xác nhận đủ slide hiện có). */
+export async function teacherHasReviewedLessonPg(params: {
+  curriculumId: string
+  lessonNo: number
+  userId: string
+  slideCount: number
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    const acked = await pgQuery<{ ok: boolean }>(
+      `select exists (
+         select 1 from public.worksheet_lesson_teacher_reviews
+         where curriculum_id = $1::uuid and lesson_no = $2 and user_id = $3::uuid
+       ) as ok`,
+      [params.curriculumId, params.lessonNo, params.userId]
+    )
+    if (acked[0]?.ok) return true
+  } catch (e) {
+    console.error('[slide-content-review-pg] teacherHasReviewedLessonPg ack', e)
+  }
+  const slideCount = Math.max(0, Math.floor(params.slideCount))
+  if (slideCount < 1) return false
+  try {
+    const rows = await pgQuery<{ n: number }>(
+      `select count(distinct slide_index)::int as n
+       from public.worksheet_slide_content_reviews
+       where curriculum_id = $1::uuid and lesson_no = $2 and user_id = $3::uuid
+         and action in ('confirm', 'edit')`,
+      [params.curriculumId, params.lessonNo, params.userId]
+    )
+    return (rows[0]?.n ?? 0) >= slideCount
+  } catch (e) {
+    console.error('[slide-content-review-pg] teacherHasReviewedLessonPg slides', e)
+    return false
+  }
+}
+
+export async function markTeacherReviewedLessonPg(params: {
+  curriculumId: string
+  lessonNo: number
+  userId: string
+}): Promise<boolean> {
+  if (!isPgConfigured()) return false
+  try {
+    await pgQuery(
+      `insert into public.worksheet_lesson_teacher_reviews (curriculum_id, lesson_no, user_id)
+       values ($1::uuid, $2, $3::uuid)
+       on conflict (curriculum_id, lesson_no, user_id) do nothing`,
+      [params.curriculumId, params.lessonNo, params.userId]
+    )
+    return true
+  } catch (e) {
+    console.error('[slide-content-review-pg] markTeacherReviewedLessonPg', e)
+    return false
   }
 }
 

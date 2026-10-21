@@ -8,6 +8,7 @@ import { studioFeatureKey, toolFeatureKey } from '@/lib/hub-chat/hub-feature-cat
 import { matchFeatureFlowByMessage, STANDALONE_REPLACED_BY_STUDIO } from '@/lib/hub-chat/hub-feature-flow-registry'
 import { isRetiredStudioPreset } from '@/lib/hub-chat/hub-studio-presets'
 import type { WebLocale } from '@/lib/i18n/config'
+import { notifyFeatureUsage } from '@/lib/feature-usage-signal'
 import { normalizeFeaturePath } from '@/lib/mobile-feature-dock'
 
 export const HUB_PICKER_RECENT_KEYS = 'nanoai_hub_picker_recent_v1'
@@ -25,6 +26,7 @@ export type HubFeatureUsageThread = {
   presetId?: string | null
   title?: string | null
   projectTitle?: string | null
+  firstUserMessage?: string | null
   lastMessagePreview?: string | null
 }
 
@@ -62,6 +64,7 @@ export function rememberHubPickerFeature(key: string): string[] {
   } catch {
     /* ignore */
   }
+  notifyFeatureUsage()
   return next
 }
 
@@ -98,6 +101,11 @@ export function recentFeatureKeysFromThreads(
     const fromTitle = featureKeyFromMatchText(thread.title ?? '', locale)
     if (fromTitle) {
       push(fromTitle)
+      continue
+    }
+    const fromFirst = featureKeyFromMatchText(thread.firstUserMessage ?? '', locale)
+    if (fromFirst) {
+      push(fromFirst)
       continue
     }
     push(featureKeyFromMatchText(thread.lastMessagePreview ?? '', locale))

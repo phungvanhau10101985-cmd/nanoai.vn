@@ -21,6 +21,7 @@ export type CurriculumBlockContentWithEmbedsProps = {
   pointerSyncBlockIndex?: number
   tr?: (vi: string, en: string, zh: string, ja: string, ko: string) => string
   hideQuiz?: boolean
+  className?: string
   animateReveal?: boolean
   animateTrigger?: string | number
   wordDelayMs?: number
@@ -39,6 +40,7 @@ export function CurriculumBlockContentWithEmbeds({
   liveQuizContext,
   tr,
   hideQuiz,
+  className,
   animateReveal,
   animateTrigger,
   wordDelayMs,
@@ -57,7 +59,7 @@ export function CurriculumBlockContentWithEmbeds({
         } as const)
       : {}
   return (
-    <div {...pointerAttrs} className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-800')}>
+    <div {...pointerAttrs} className={cn(SLIDE_SYNC_MARKDOWN_CLASS, 'text-slate-800', className)}>
       {parts.map((p, i) => {
         if (p.type === 'text') {
           const partLen = getTextSegmentCount(p.value)
@@ -81,7 +83,13 @@ export function CurriculumBlockContentWithEmbeds({
               )
             }
           }
-          return <div key={i} dangerouslySetInnerHTML={{ __html: slideMarkdownToHtml(p.value) }} />
+          return (
+            <div
+              key={i}
+              className="min-w-0 max-w-full [&_p:last-child]:mb-0"
+              dangerouslySetInnerHTML={{ __html: slideMarkdownToHtml(p.value) }}
+            />
+          )
         }
         const ep = p as { type: 'embed'; embedType: string; urlOrId: string; rawMarker: string }
         if (hideQuiz && ep.embedType === 'quiz') return null

@@ -179,7 +179,8 @@ export function PresentationControlBar({
 
   const theme = isStudent ? studentTheme : teacherTheme
   const highlightClass = (control: string) =>
-    highlightedControl === control ? 'ring-2 ring-amber-300/90 ring-offset-1 ring-offset-black/40' : ''
+    highlightedControl === control ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-950 scale-[0.96] brightness-125' : ''
+  const press = (id: string) => highlightClass(id)
   const isRealTeacherBar = isTeacher && teacherTimerInteractive
   // Student view: prioritize keeping right controls visible on narrow widths.
   const prioritizeRightControls = hideIndex || isStudent
@@ -275,10 +276,10 @@ export function PresentationControlBar({
               <span className={cn('font-mono font-semibold min-w-[2.5rem]', theme.teacherTimerText)}>{formatTimer(teacherTimerSeconds)}</span>
               {teacherTimerInteractive && (
                 <>
-                  <button type="button" onClick={teacherTimerRunning ? onTeacherTimerStop : onTeacherTimerStart} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={teacherTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Bắt đầu', 'Start', '开始', '開始', '시작')}>
+                  <button type="button" data-pointer-sync-id="ctrl-teacher-timer-play" onClick={teacherTimerRunning ? onTeacherTimerStop : onTeacherTimerStart} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText, press('ctrl-teacher-timer-play'))} title={teacherTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Bắt đầu', 'Start', '开始', '開始', '시작')}>
                     {teacherTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                   </button>
-                  <button type="button" onClick={onTeacherTimerReset} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText)} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
+                  <button type="button" data-pointer-sync-id="ctrl-teacher-timer-reset" onClick={onTeacherTimerReset} className={cn('p-1 rounded-md', theme.sandTimerBg, theme.teacherTimerText, press('ctrl-teacher-timer-reset'))} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
                     <RotateCcw className="h-3.5 w-3.5" />
                   </button>
                 </>
@@ -320,12 +321,12 @@ export function PresentationControlBar({
         )}
         {/* 3. Tự chạy + interval */}
         <div className="flex items-center gap-1.5">
-          <button data-control="tự-chạy" type="button" onClick={onAutoPlayToggle} className={cn(SHARED_LAYOUT.btnAutoPlay, autoPlay ? theme.btnActive : theme.btnInactive, highlightClass('tự-chạy'))} title={tr('Tự chạy slide', 'Auto-play slides', '自动播放', '自動再生', '자동 재생')}>
+          <button data-control="tự-chạy" data-pointer-sync-id="ctrl-auto-play" type="button" onClick={onAutoPlayToggle} className={cn(SHARED_LAYOUT.btnAutoPlay, autoPlay ? theme.btnActive : theme.btnInactive, highlightClass('tự-chạy'), press('ctrl-auto-play'))} title={tr('Tự chạy slide', 'Auto-play slides', '自动播放', '自動再生', '자동 재생')}>
             {autoPlay ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
             {autoPlay ? tr('Dừng', 'Stop', '停止', '停止', '중지') : tr('Tự chạy', 'Auto', '自动', '自動', '자동')}
           </button>
           <Select value={String(autoPlayIntervalMs)} onValueChange={(v) => onAutoPlayIntervalChange(Number(v))}>
-            <SelectTrigger data-control="tự-chạy-interval" className={cn(SHARED_LAYOUT.selectInterval, isStudent ? 'text-white hover:bg-white/20 border-white/30 bg-transparent [&>span]:text-white' : 'bg-slate-600/50 border-slate-500/50 text-slate-200', highlightClass('tự-chạy-interval'))} title={tr('Thời gian mỗi slide', 'Time per slide', '每页时间', '各スライドの時間', '슬라이드당 시간')}>
+            <SelectTrigger data-control="tự-chạy-interval" data-pointer-sync-id="ctrl-auto-interval" className={cn(SHARED_LAYOUT.selectInterval, isStudent ? 'text-white hover:bg-white/20 border-white/30 bg-transparent [&>span]:text-white' : 'bg-slate-600/50 border-slate-500/50 text-slate-200', highlightClass('tự-chạy-interval'), press('ctrl-auto-interval'))} title={tr('Thời gian mỗi slide', 'Time per slide', '每页时间', '各スライドの時間', '슬라이드당 시간')}>
               <Settings2 className="h-4 w-4 mr-1 shrink-0" />
               <SelectValue />
             </SelectTrigger>
@@ -338,21 +339,21 @@ export function PresentationControlBar({
         </div>
 
         {/* 4. Đồng hồ cát – teacher: luôn nút start (gửi lệnh). student: countdown khi chạy */}
-        <div data-control="đồng-hồ-cát" className={cn(SHARED_LAYOUT.sandTimer, theme.sandTimerBorder, highlightClass('đồng-hồ-cát'))}>
+        <div data-control="đồng-hồ-cát" data-pointer-sync-id="ctrl-sand" className={cn(SHARED_LAYOUT.sandTimer, theme.sandTimerBorder, highlightClass('đồng-hồ-cát'), highlightedControl === 'ctrl-sand' || highlightedControl?.startsWith('ctrl-sand-') ? 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-950 brightness-125' : '')}>
           <Timer className={cn('h-4 w-4 shrink-0', theme.sandTimerText)} />
           {(isTeacher || sandTimerSeconds <= 0) ? (
             SANDS_SECONDS.map((sec) => (
-              <button key={sec} type="button" onClick={() => onSandTimerStart?.(sec)} className={cn('h-7 px-2 rounded text-xs font-medium', theme.sandTimerText, theme.sandTimerBg)} title={tr('Bấm để bắt đầu', 'Click to start', '点击开始', 'クリックで開始', '클릭하여 시작')}>
+              <button key={sec} type="button" data-pointer-sync-id={`ctrl-sand-${sec}`} onClick={() => onSandTimerStart?.(sec)} className={cn('h-7 px-2 rounded text-xs font-medium', theme.sandTimerText, theme.sandTimerBg, press(`ctrl-sand-${sec}`))} title={tr('Bấm để bắt đầu', 'Click to start', '点击开始', 'クリックで開始', '클릭하여 시작')}>
                 {sec / 60}{tr('ph', 'm', '分', '分', '분')}
               </button>
             ))
           ) : (
             <>
               <span className={cn('font-mono text-sm min-w-[3.5rem]', sandTimerSeconds <= 30 && 'text-amber-300 font-bold', theme.sandTimerText)}>{formatTimer(sandTimerSeconds)}</span>
-              <button type="button" onClick={onSandTimerToggle} className={cn('h-7 w-7 flex items-center justify-center rounded', theme.sandTimerBg)} title={sandTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Tiếp tục', 'Resume', '继续', '再開', '재개')}>
+              <button type="button" data-pointer-sync-id="ctrl-sand-toggle" onClick={onSandTimerToggle} className={cn('h-7 w-7 flex items-center justify-center rounded', theme.sandTimerBg, press('ctrl-sand-toggle'))} title={sandTimerRunning ? tr('Tạm dừng', 'Pause', '暂停', '一時停止', '일시정지') : tr('Tiếp tục', 'Resume', '继续', '再開', '재개')}>
                 {sandTimerRunning ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
               </button>
-              <button type="button" onClick={onSandTimerReset} className={cn('h-7 w-7 flex items-center justify-center rounded', theme.sandTimerBg)} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
+              <button type="button" data-pointer-sync-id="ctrl-sand-reset" onClick={onSandTimerReset} className={cn('h-7 w-7 flex items-center justify-center rounded', theme.sandTimerBg, press('ctrl-sand-reset'))} title={tr('Đặt lại', 'Reset', '重置', 'リセット', '초기화')}>
                 <RotateCcw className="h-3.5 w-3.5" />
               </button>
             </>
@@ -360,10 +361,10 @@ export function PresentationControlBar({
         </div>
 
         {/* 5. Prev / Next */}
-        <button data-control="prev" type="button" onClick={onPrev} disabled={currentIndex === 0} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('prev'))} title={tr('Slide trước', 'Prev slide', '上一张', '前へ', '이전')}>
+        <button data-control="prev" data-pointer-sync-id="ctrl-prev" type="button" onClick={onPrev} disabled={currentIndex === 0} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('prev'), press('ctrl-prev'))} title={tr('Slide trước', 'Prev slide', '上一张', '前へ', '이전')}>
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <button data-control="next" type="button" onClick={onNext} disabled={currentIndex >= totalSlides - 1} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('next'))} title={tr('Slide sau', 'Next slide', '下一张', '次へ', '다음')}>
+        <button data-control="next" data-pointer-sync-id="ctrl-next" type="button" onClick={onNext} disabled={currentIndex >= totalSlides - 1} className={cn(SHARED_LAYOUT.btnNav, theme.navBtn, 'disabled:opacity-35 disabled:cursor-not-allowed focus:outline-none focus-visible:outline-none', highlightClass('next'), press('ctrl-next'))} title={tr('Slide sau', 'Next slide', '下一张', '次へ', '다음')}>
           <ChevronRight className="h-5 w-5" />
         </button>
 

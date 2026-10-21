@@ -1,8 +1,7 @@
 import { Metadata } from 'next'
 import { Suspense } from 'react'
 import { buildMetadata } from '@/lib/seo'
-import { NAV_GROUPS } from '@/lib/nav-config'
-import { NavHubLinkTile } from '@/components/layout/nav-hub-link-tile'
+import { HomeFeatureGroups } from '@/components/home/home-feature-groups'
 import { HomeHubChatBar } from '@/components/home/home-hub-chat-bar'
 import { getServerDictionary } from '@/lib/i18n/server'
 
@@ -32,7 +31,7 @@ function HomeHubChatBarSkeleton() {
 }
 
 export default function Home() {
-  const { t } = getServerDictionary()
+  const { locale, t } = getServerDictionary()
   return (
     <div className="max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden md:min-h-screen">
       <section className="w-full max-md:flex max-md:min-h-0 max-md:flex-1 max-md:flex-col max-md:overflow-hidden max-md:p-0 md:pb-14 md:pt-8 pb-10 pt-5">
@@ -45,23 +44,7 @@ export default function Home() {
               <HomeHubChatBar />
             </Suspense>
             <div className="hidden space-y-6 md:block md:space-y-8">
-            {NAV_GROUPS.map((group) => {
-              const homeLinks = group.links.filter((item) => item.showOnHomepage !== false)
-              if (homeLinks.length === 0) return null
-              return (
-                <div key={group.titleKey} className="surface-card p-3 sm:p-4 md:p-5">
-                  <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 sm:text-base">
-                    <span className="h-1.5 w-9 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500" />
-                    {t.navGroup[group.titleKey]}
-                  </h2>
-                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 lg:grid-cols-5">
-                    {homeLinks.map((item) => (
-                      <NavHubLinkTile key={item.href} item={item} t={t} variant="surface" />
-                    ))}
-                  </div>
-                </div>
-              )
-            })}
+              <HomeFeatureGroups locale={locale} />
             </div>
           </div>
         </div>

@@ -1,7 +1,13 @@
 'use server'
 
 import { getUserForCreditAction } from '@/lib/auth'
-import { fetchSlideReviewStatsPg, recordSlideReviewPg, type SlideReviewStat } from '@/lib/db/slide-content-review-pg'
+import {
+  fetchSlideReviewStatsPg,
+  markTeacherReviewedLessonPg,
+  recordSlideReviewPg,
+  teacherHasReviewedLessonPg,
+  type SlideReviewStat,
+} from '@/lib/db/slide-content-review-pg'
 import { updateReviewedCurriculumLessonPg } from '@/lib/db/tao-giao-trinh-curriculum-pg'
 import {
   ensureCurriculumLessonSlidesPrepared as ensureCurriculumLessonSlidesPreparedCore,
@@ -91,6 +97,43 @@ export async function recordSlideReviewAction(input: {
   })
   if (!stats) return { error: 'Không lưu được lượt duyệt slide.' }
   return { stats }
+}
+
+export async function teacherHasReviewedLessonAction(input: {
+  curriculumId: string
+  lessonNo: number
+  slideCount: number
+}): Promise<{ done: boolean } | { error: string }> {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  if (!input.curriculumId || !Number.isFinite(input.lessonNo) || input.lessonNo < 1) {
+    return { error: 'Thiếu giáo trình hoặc tiết học.' }
+  }
+  const done = await teacherHasReviewedLessonPg({
+    curriculumId: input.curriculumId,
+    lessonNo: input.lessonNo,
+    userId: auth.user.id,
+    slideCount: input.slideCount,
+  })
+  return { done }
+}
+
+export async function markTeacherReviewedLessonAction(input: {
+  curriculumId: string
+  lessonNo: number
+}): Promise<{ ok: true } | { error: string }> {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  if (!input.curriculumId || !Number.isFinite(input.lessonNo) || input.lessonNo < 1) {
+    return { error: 'Thiếu giáo trình hoặc tiết học.' }
+  }
+  const ok = await markTeacherReviewedLessonPg({
+    curriculumId: input.curriculumId,
+    lessonNo: input.lessonNo,
+    userId: auth.user.id,
+  })
+  if (!ok) return { error: 'Không lưu được lượt duyệt tiết.' }
+  return { ok: true }
 }
 
 export async function saveReviewedLessonMarkdownAction(input: {
