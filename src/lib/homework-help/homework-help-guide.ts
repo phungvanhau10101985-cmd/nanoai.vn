@@ -61,6 +61,28 @@ function asLines(value: unknown, maxItems: number, maxLen: number): string[] {
   return out
 }
 
+/** Ghép một câu từ các phần đã lưu. `statement` là đề của request hiện tại, không lấy từ kho. */
+export function homeworkProblemFromParts(raw: unknown, statement: string): HomeworkProblem | null {
+  if (!raw || typeof raw !== 'object') return null
+  const item = raw as Record<string, unknown>
+  const statementMark = item.statementMark === 'G' ? 'G' : undefined
+  const guideMark = item.guideMark === 'G' || item.guideMark === 'D' ? item.guideMark : undefined
+  const answerMark =
+    item.answerMark === 'D' || item.answerMark === 'G' || item.answerMark === 'P' ? item.answerMark : undefined
+  return {
+    statement: cleanLine(statement, 4000),
+    knowledge: asLines(item.knowledge, 5, 280),
+    thinking: asLines(item.thinking, 6, 320),
+    hints: asLines(item.hints, 4, 320),
+    answer: cleanLine(item.answer, 2000),
+    tags: parseTutorLabels(item.tags),
+    ...(statementMark ? { statementMark } : {}),
+    ...(guideMark ? { guideMark } : {}),
+    ...(answerMark ? { answerMark } : {}),
+    ...(item.cached === true ? { cached: true } : {}),
+  }
+}
+
 export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
   if (!raw || typeof raw !== 'object') return null
   const record = raw as Record<string, unknown>
@@ -69,26 +91,10 @@ export function parseHomeworkGuide(raw: unknown): HomeworkGuide | null {
   if (!Array.isArray(problemsRaw)) return null
   const problems: HomeworkProblem[] = []
   for (const row of problemsRaw) {
-    if (!row || typeof row !== 'object') continue
-    const item = row as Record<string, unknown>
-    const statement = cleanLine(item.statement, 4000)
-    if (!statement) continue
-    const knowledge = asLines(item.knowledge, 5, 280)
-    const statementMark = item.statementMark === 'G' ? 'G' : undefined
-    const guideMark = item.guideMark === 'G' || item.guideMark === 'D' ? item.guideMark : undefined
-    const answerMark = item.answerMark === 'D' || item.answerMark === 'G' || item.answerMark === 'P' ? item.answerMark : undefined
-    problems.push({
-      statement,
-      knowledge,
-      thinking: asLines(item.thinking, 6, 320),
-      hints: asLines(item.hints, 4, 320),
-      answer: cleanLine(item.answer, 2000),
-      tags: parseTutorLabels(item.tags),
-      ...(statementMark ? { statementMark } : {}),
-      ...(guideMark ? { guideMark } : {}),
-      ...(answerMark ? { answerMark } : {}),
-      ...(item.cached === true ? { cached: true } : {}),
-    })
+    const text = row && typeof row === 'object' ? cleanLine((row as { statement?: unknown }).statement, 4000) : ''
+    const problem = text ? homeworkProblemFromParts(row, text) : null
+    if (!problem?.statement) continue
+    problems.push(problem)
     if (problems.length >= MAX_PROBLEMS) break
   }
   return { note, problems }

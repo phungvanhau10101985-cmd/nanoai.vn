@@ -9,6 +9,8 @@ import {
   fetchHomeworkPhotoCache,
   fetchHomeworkProblemCache,
   fetchHomeworkSolution,
+  homeworkPhotoCacheMatches,
+  homeworkPhotoCacheWithStatements,
   homeworkStoredGuideIsThin,
   rememberHomeworkPhotoCache,
   rememberHomeworkProblem,
@@ -869,10 +871,10 @@ async function explainStatements(input: {
   for (let index = 0; index < input.statements.length; index += 1) {
     const statement = input.statements[index] ?? ''
     const fingerprint = homeworkStatementFingerprint(statement)
-    const cached = await fetchHomeworkProblemCache(fingerprint, input.locale)
+    const cached = await fetchHomeworkProblemCache(fingerprint, input.locale, statement)
     if (cached && !homeworkStoredGuideIsThin(cached)) {
       await touchHomeworkProblemCache(fingerprint, input.locale)
-      problems[index] = withSharedTags({ ...cached, cached: true }, savedTopics)
+      problems[index] = withSharedTags({ ...cached, statement, cached: true }, savedTopics)
       continue
     }
     pending.push({ index, statement })
@@ -1205,7 +1207,7 @@ function statementKey(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
 }
 
-/** Đọc chữ trên ảnh. Chưa chữa. `force` bỏ cache để đọc lại ảnh. */
+/** Đọc chữ trên ảnh vừa gửi. Không lấy đề từ kho. */
 export async function readHomeworkImages(input: {
   userId: string
   locale: WebLocale
@@ -1213,17 +1215,6 @@ export async function readHomeworkImages(input: {
   force?: boolean
 }): Promise<HomeworkPhotoRead | 'unreadable'> {
   const photoKey = homeworkPhotoCacheKey(input.images)
-  if (!input.force) {
-    const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
-    if (cachedPhoto && cachedPhoto.problems.length > 0) {
-      return {
-        note: cachedPhoto.note,
-        statements: cachedPhoto.problems.map((problem) => problem.statement),
-        photoKey,
-      }
-    }
-  }
-
   const startedAt = Date.now()
   let read = await readStatements({ ...input, startedAt })
   if (!read) return 'unreadable'
@@ -1250,22 +1241,18 @@ export async function explainReviewedStatements(input: {
   const photoKey = /^[a-f0-9]{64}$/.test(input.photoKey) ? input.photoKey : ''
   if (photoKey) {
     const cachedPhoto = await fetchHomeworkPhotoCache(photoKey, input.locale)
-    const cachedStatements = cachedPhoto?.problems.map((problem) => statementKey(problem.statement)) ?? []
-    const same =
-      cachedPhoto != null &&
-      cachedStatements.length === statements.length &&
-      cachedStatements.every((item, index) => item === statements[index])
     const cachedPhotoIsThin =
       cachedPhoto != null &&
       cachedPhoto.problems.length > 0 &&
       cachedPhoto.problems.every(homeworkStoredGuideIsThin)
-    if (cachedPhoto && same && cachedPhoto.problems.length > 0 && !cachedPhotoIsThin) {
+    if (cachedPhoto && !cachedPhotoIsThin && homeworkPhotoCacheMatches(cachedPhoto, statements)) {
       await touchHomeworkPhotoCache(photoKey, input.locale)
       const savedTopics = await listTutorTopicNames(input.locale)
+      const withStatements = homeworkPhotoCacheWithStatements(cachedPhoto, statements)
       return withPhotoStatementMark(
         {
           note: cachedPhoto.note || input.note,
-          problems: cachedPhoto.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
+          problems: withStatements.problems.map((problem) => withSharedTags({ ...problem, cached: true }, savedTopics)),
         },
         input.images ?? []
       )
@@ -1354,6 +1341,7 @@ Return ONLY JSON:
 Rules:
 - solution is the working a student reads after they chose to open it. Several short lines, separated by newline characters.
 - Show each formula, rearrangement, and arithmetic step.
+- Do not copy or quote the question text. Start at the first working step.
 - The last line is the final result. When a checked answer is given above, repeat that result, unchanged.
 - Do not stop at a hint. Do not omit the calculations.`
   const startedAt = Date.now()
@@ -1379,7 +1367,6 @@ Rules:
   await rememberHomeworkSolution({
     fingerprint,
     locale: input.locale,
-    statement,
     answer,
     solution,
   })

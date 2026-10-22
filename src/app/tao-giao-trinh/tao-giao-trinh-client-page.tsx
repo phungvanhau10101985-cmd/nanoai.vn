@@ -211,21 +211,46 @@ function stripWorksheetAnswerSections(markdown: string): string {
 }
 
 type Step = 'INPUT' | 'GENERATING' | 'RESULT'
+
+const CURRICULUM_LESSON_DURATION_OPTIONS = [35, 40, 45, 60, 90] as const
+
+const CURRICULUM_CREATE_FIELD_LABELS = {
+  mode: ['Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식'],
+  topic: ['Chủ đề', 'Topic', '主题', '主題', '주제'],
+  subject: ['Môn học', 'Subject', '科目', '科目', '과목'],
+  grade: ['Cấp độ', 'Grade level', '年级', '学年', '학년'],
+  textbook: ['Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서'],
+  isbn: ['Mã ISBN sách', 'Book ISBN', '教材 ISBN', '書籍ISBN', '교재 ISBN'],
+  lessonNumber: ['Bài số', 'Lesson number', '课号', '課番号', '차시 번호'],
+  numLessons: ['Số tiết', 'Number of lessons', '课时数', '時限数', '차시 수'],
+  duration: ['Thời gian mỗi tiết', 'Duration per lesson', '每课时长', '1時限の時間', '차시당 시간'],
+  images: ['Ảnh trang sách', 'Textbook page image', '教材页面图片', '教科書ページ画像', '교과서 페이지 이미지'],
+} as const
+
+type CurriculumCreateFieldKey = keyof typeof CURRICULUM_CREATE_FIELD_LABELS
+
+function curriculumCountField(value: number | null): string {
+  return value == null ? '' : String(value)
+}
+
+function joinCurriculumCreateFieldLabels(keys: CurriculumCreateFieldKey[], index: 0 | 1 | 2 | 3 | 4): string {
+  return keys.map((key) => CURRICULUM_CREATE_FIELD_LABELS[key][index]).join(', ')
+}
 export default function TaoGiaoTrinhClientPage({
   initialWebLocale = DEFAULT_WEB_LOCALE,
 }: { initialWebLocale?: WebLocale } = {}) {
   const [uiLocale, setUiLocale] = useState<UiLocale>(initialWebLocale as UiLocale)
   const [step, setStep] = useState<Step>('INPUT')
-  const [subjectId, setSubjectId] = useState('toan')
-  const [gradeLevelId, setGradeLevelId] = useState('lop-12')
-  const [textbookSetId, setTextbookSetId] = useState('ket-noi-tri-thuc')
+  const [subjectId, setSubjectId] = useState('')
+  const [gradeLevelId, setGradeLevelId] = useState('')
+  const [textbookSetId, setTextbookSetId] = useState('')
   const [textbookVolume, setTextbookVolume] = useState<string>('')
   const [bookIsbn, setBookIsbn] = useState('')
-  const [lessonNumber, setLessonNumber] = useState<string>('1')
+  const [lessonNumber, setLessonNumber] = useState<string>('')
   const [lessonTypeId, setLessonTypeId] = useState('hinh-thanh-kien-thuc')
   const [topic, setTopic] = useState('')
-  const [numLessons, setNumLessons] = useState(3)
-  const [lessonDurationMinutes, setLessonDurationMinutes] = useState(45)
+  const [numLessons, setNumLessons] = useState<number | null>(null)
+  const [lessonDurationMinutes, setLessonDurationMinutes] = useState<number | null>(null)
   const [goals, setGoals] = useState('')
   const [curriculumMarkdown, setCurriculumMarkdown] = useState('')
   const [curriculumId, setCurriculumId] = useState<string | null>(null)
@@ -308,7 +333,8 @@ export default function TaoGiaoTrinhClientPage({
   const isbnImageInputRef = useRef<HTMLInputElement>(null)
   const isbnCameraInputRef = useRef<HTMLInputElement>(null)
   const [isbnScanLoading, setIsbnScanLoading] = useState(false)
-  const [createMode, setCreateMode] = useState<'textbook' | 'topic'>('textbook')
+  const [createMode, setCreateMode] = useState<'textbook' | 'topic' | null>(null)
+  const [createFieldErrors, setCreateFieldErrors] = useState<CurriculumCreateFieldKey[]>([])
   const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam' | 'homework'>('create')
   const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
   const [wsStepByStepEssayCount, setWsStepByStepEssayCount] = useState(5)
@@ -858,23 +884,31 @@ export default function TaoGiaoTrinhClientPage({
   }, [showBrowse, browseSubjectFilter, browseGradeFilter])
 
   useEffect(() => {
-    if (createMode === 'topic' && (!topic.trim() || topic.trim().length < 2)) {
+    const clearMatch = () => {
       setCurriculumExists(null)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
       setSimilarTopicCurricula([])
       setCheckLoading(false)
+    }
+    if (createMode !== 'textbook' && createMode !== 'topic') {
+      clearMatch()
+      return
+    }
+    if (!subjectId || !gradeLevelId || numLessons == null || lessonDurationMinutes == null) {
+      clearMatch()
+      return
+    }
+    if (createMode === 'topic' && (!topic.trim() || topic.trim().length < 2)) {
+      clearMatch()
       return
     }
     const parsedLesson = parseCurriculumLessonNumber(lessonNumber)
-    if (createMode !== 'topic' && parsedLesson == null) {
-      setCurriculumExists(null)
-      setExistingCurriculumId(null)
-      setExistingCurriculumTopic(null)
-      setSimilarTopicCurricula([])
+    if (createMode === 'textbook' && (parsedLesson == null || !textbookSetId)) {
+      clearMatch()
       return
     }
-    if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
+    if (createMode === 'textbook' && textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
       setCurriculumExists(false)
       setExistingCurriculumId(null)
       setExistingCurriculumTopic(null)
@@ -888,7 +922,7 @@ export default function TaoGiaoTrinhClientPage({
       topic: createMode === 'topic' ? topic.trim() : undefined,
       subjectId,
       gradeLevelId,
-      textbookSetId,
+      textbookSetId: createMode === 'topic' ? 'khac' : textbookSetId,
       textbookVolume: textbookVolume.trim() || undefined,
       bookIsbn: textbookSetId === 'khac' ? bookIsbn.trim() : undefined,
       lessonNumber: createMode === 'topic' ? undefined : parsedLesson ?? undefined,
@@ -934,6 +968,7 @@ export default function TaoGiaoTrinhClientPage({
     const forceOverwrite = !!opts?.forceOverwrite
     const parsedLesson = parseCurriculumLessonNumber(lessonNumber)
     if (parsedLesson == null || lessonImages.length === 0) return
+    if (numLessons == null || lessonDurationMinutes == null || !subjectId || !gradeLevelId || !textbookSetId) return
     if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
       toast({
         title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
@@ -957,8 +992,8 @@ export default function TaoGiaoTrinhClientPage({
       fd.append('gradeLevelId', gradeLevelId)
       fd.append('textbookSetId', textbookSetId)
       fd.append('lessonNumber', lessonNumber)
-      fd.append('numLessons', String(numLessons))
-      fd.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      fd.append('numLessons', curriculumCountField(numLessons))
+      fd.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       if (textbookVolume.trim()) fd.append('textbookVolume', textbookVolume.trim())
       if (textbookSetId === 'khac' && bookIsbn.trim()) fd.append('bookIsbn', bookIsbn.trim())
       if (forceOverwrite && existingCurriculumId) {
@@ -1099,8 +1134,8 @@ export default function TaoGiaoTrinhClientPage({
       saveFd.append('textbookVolume', textbookVolume.trim())
       saveFd.append('lessonNumber', finalLessonNum)
       saveFd.append('lessonTypeId', lessonTypeId)
-      saveFd.append('numLessons', String(numLessons))
-      saveFd.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      saveFd.append('numLessons', curriculumCountField(numLessons))
+      saveFd.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       saveFd.append('goals', goals)
       saveFd.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       if (Array.isArray(lessonOutline) && lessonOutline.length > 0) {
@@ -1135,16 +1170,55 @@ export default function TaoGiaoTrinhClientPage({
     }
   }
 
+  const listMissingCreateFields = useCallback((includeImages: boolean): CurriculumCreateFieldKey[] => {
+    const missing: CurriculumCreateFieldKey[] = []
+    if (createMode !== 'textbook' && createMode !== 'topic') missing.push('mode')
+    if (createMode === 'topic' && topic.trim().length < 2) missing.push('topic')
+    if (!subjectId) missing.push('subject')
+    if (!gradeLevelId) missing.push('grade')
+    if (createMode === 'textbook' && !textbookSetId) missing.push('textbook')
+    if (createMode === 'textbook' && textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) missing.push('isbn')
+    if (createMode === 'textbook' && parseCurriculumLessonNumber(lessonNumber) == null) missing.push('lessonNumber')
+    if (numLessons == null || numLessons < 1 || numLessons > 10) missing.push('numLessons')
+    if (
+      lessonDurationMinutes == null ||
+      !(CURRICULUM_LESSON_DURATION_OPTIONS as readonly number[]).includes(lessonDurationMinutes)
+    ) {
+      missing.push('duration')
+    }
+    if (includeImages && createMode === 'textbook' && lessonImages.length === 0) missing.push('images')
+    return missing
+  }, [bookIsbn, createMode, gradeLevelId, lessonDurationMinutes, lessonImages.length, lessonNumber, numLessons, subjectId, textbookSetId, topic])
+
+  const remindMissingCreateFields = useCallback((keys: CurriculumCreateFieldKey[]) => {
+    if (keys.length === 0) return
+    toast({
+      title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
+      description: tr(
+        `Vui lòng chọn hoặc điền: ${joinCurriculumCreateFieldLabels(keys, 0)}.`,
+        `Please choose or fill in: ${joinCurriculumCreateFieldLabels(keys, 1)}.`,
+        `请选择或填写：${joinCurriculumCreateFieldLabels(keys, 2)}。`,
+        `選択または入力してください：${joinCurriculumCreateFieldLabels(keys, 3)}。`,
+        `선택하거나 입력해 주세요: ${joinCurriculumCreateFieldLabels(keys, 4)}.`
+      ),
+      variant: 'destructive',
+    })
+    curriculumInfoCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [toast, tr])
+
+  const shownCreateFieldErrors = createFieldErrors.filter((key) => listMissingCreateFields(true).includes(key))
+  const createFieldErrorClass = (key: CurriculumCreateFieldKey) =>
+    shownCreateFieldErrors.includes(key) ? 'border-red-500 ring-1 ring-red-400' : ''
+
   const handleSubmit = async () => {
+    const missing = listMissingCreateFields(true)
+    if (missing.length > 0) {
+      setCreateFieldErrors(missing)
+      remindMissingCreateFields(missing)
+      return
+    }
+    if (!createMode || numLessons == null || lessonDurationMinutes == null || !subjectId || !gradeLevelId) return
     if (createMode === 'topic') {
-      if (!topic.trim() || topic.trim().length < 2) {
-        toast({
-          title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-          description: tr('Vui lòng nhập chủ đề (ít nhất 2 ký tự).', 'Please enter topic (at least 2 characters).', '请输入主题（至少2个字符）。', '主題を入力してください（2文字以上）。', '주제를 입력해 주세요 (최소 2자).'),
-          variant: 'destructive',
-        })
-        return
-      }
       setStep('GENERATING')
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
       const formData = new FormData()
@@ -1155,8 +1229,8 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('textbookVolume', '')
       formData.append('topic', topic.trim())
       formData.append('lessonTypeId', lessonTypeId)
-      formData.append('numLessons', String(numLessons))
-      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('numLessons', curriculumCountField(numLessons))
+      formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals.trim())
       formData.append('bookIsbn', '')
       const result = await createCurriculum(formData)
@@ -1175,57 +1249,17 @@ export default function TaoGiaoTrinhClientPage({
       return
     }
 
-    const parsedSubmitLesson = parseCurriculumLessonNumber(lessonNumber)
-    if (parsedSubmitLesson == null) {
-      toast({
-        title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-        description: tr(
-          'Vui lòng nhập bài số (1–999; có thể 1.5, 2.5…).',
-          'Please enter lesson number (1–999; e.g. 1.5, 2.5).',
-          '请输入课号（1–999；可为 1.5、2.5 等）。',
-          '課番号を入力（1–999；1.5、2.5 など可）。',
-          '차시 번호 입력 (1–999; 1.5, 2.5 등 가능).'
-        ),
-        variant: 'destructive',
-      })
-      return
-    }
     if (createMode === 'textbook') {
-      if (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)) {
-        toast({
-          title: tr('Thiếu thông tin', 'Missing information', '缺少信息', '情報不足', '정보 누락'),
-          description: tr(
-            'Vui lòng gửi ảnh mã ISBN/barcode trên sách để hệ thống đọc tự động (Gemini).',
-            'Please upload a photo of the book ISBN/barcode so the system can read it automatically (Gemini).',
-            '请上传教材上的 ISBN/条码照片，由系统自动识别（Gemini）。',
-            '書籍のISBN/バーコードの写真をアップロードし、システムが自動読み取り（Gemini）してください。',
-            '교재의 ISBN/바코드 사진을 업로드하면 시스템이 자동 인식(Gemini)합니다.'
-          ),
-          variant: 'destructive',
-        })
-        return
-      }
-      if (lessonImages.length === 0) {
-        toast({
-          title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
-          description: tr('Vui lòng gửi ảnh trang sách để tạo giáo trình.', 'Please upload a textbook page image to create curriculum.', '请上传教材页面图片以创建课程。', '教科書のページ画像をアップロードしてください。', '교과서 페이지 이미지를 업로드해 주세요.'),
-          variant: 'destructive',
-        })
-        return
-      }
       await handleSubmitFromImage()
-      return
     }
   }
 
   const handleOverwriteFromExisting = async () => {
     if (!existingCurriculumId) return
-    if (lessonImages.length === 0) {
-      toast({
-        title: tr('Cần gửi ảnh bài học', 'Upload lesson image required', '需要上传课程图片', '授業画像のアップロードが必要', '수업 이미지 업로드 필요'),
-        description: tr('Vui lòng gửi ảnh trang sách rồi bấm Tạo lại giáo trình.', 'Please upload textbook page image(s) before recreating curriculum.', '请先上传教材页面图片，再重建课程。', '教科書ページ画像をアップロードしてから再作成してください。', '교과서 페이지 이미지를 업로드한 뒤 다시 만들기를 진행해 주세요.'),
-        variant: 'destructive',
-      })
+    const missing = listMissingCreateFields(true)
+    if (missing.length > 0) {
+      setCreateFieldErrors(missing)
+      remindMissingCreateFields(missing)
       return
     }
     setOverwriteFromExistingLoading(true)
@@ -1237,6 +1271,13 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const handleOpenExistingCurriculum = async () => {
+    const missing = listMissingCreateFields(false)
+    if (missing.length > 0) {
+      setCreateFieldErrors(missing)
+      remindMissingCreateFields(missing)
+      return
+    }
+    if (numLessons == null || lessonDurationMinutes == null) return
     setOpenExistingLoading(true)
     try {
       let targetId = existingCurriculumId
@@ -2148,6 +2189,20 @@ export default function TaoGiaoTrinhClientPage({
     setLastOverwriteAt(null)
     setSimilarTopicCurricula([])
     setBookIsbn('')
+    setCreateMode(null)
+    setSubjectId('')
+    setGradeLevelId('')
+    setTextbookSetId('')
+    setTextbookVolume('')
+    setTopic('')
+    setLessonNumber('')
+    setNumLessons(null)
+    setLessonDurationMinutes(null)
+    setGoals('')
+    setCreateFieldErrors([])
+    setCurriculumExists(null)
+    setExistingCurriculumId(null)
+    setExistingCurriculumTopic(null)
     setLessonImages([])
     if (lessonImageInputRef.current) lessonImageInputRef.current.value = ''
     try {
@@ -2214,8 +2269,8 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('textbookVolume', textbookVolume.trim())
       formData.append('lessonNumber', createMode === 'topic' ? '' : lessonNumber.trim())
       formData.append('lessonTypeId', lessonTypeId)
-      formData.append('numLessons', String(numLessons))
-      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('numLessons', curriculumCountField(numLessons))
+      formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals)
       formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       const result = await saveCurriculum(formData)
@@ -2291,8 +2346,8 @@ export default function TaoGiaoTrinhClientPage({
               formData.append('textbookVolume', s.textbookVolume)
               formData.append('lessonNumber', s.createMode === 'topic' ? '' : s.lessonNumber)
               formData.append('lessonTypeId', s.lessonTypeId)
-              formData.append('numLessons', String(s.numLessons))
-              formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
+              formData.append('numLessons', curriculumCountField(s.numLessons))
+              formData.append('lessonDurationMinutes', curriculumCountField(s.lessonDurationMinutes))
               formData.append('goals', s.goals)
               formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
               const result = await saveCurriculum(formData)
@@ -2346,10 +2401,10 @@ export default function TaoGiaoTrinhClientPage({
     textbookSetId: '',
     textbookVolume: '',
     bookIsbn: '',
-    createMode: 'topic' as 'textbook' | 'topic',
+    createMode: null as 'textbook' | 'topic' | null,
     lessonTypeId: '',
-    numLessons: 3,
-    lessonDurationMinutes: 45,
+    numLessons: null as number | null,
+    lessonDurationMinutes: null as number | null,
     goals: '',
   })
   useEffect(() => {
@@ -2389,8 +2444,8 @@ export default function TaoGiaoTrinhClientPage({
     formData.append('textbookVolume', s.textbookVolume)
     formData.append('lessonNumber', s.createMode === 'topic' ? '' : s.lessonNumber)
     formData.append('lessonTypeId', s.lessonTypeId)
-    formData.append('numLessons', String(s.numLessons))
-    formData.append('lessonDurationMinutes', String(s.lessonDurationMinutes))
+    formData.append('numLessons', curriculumCountField(s.numLessons))
+    formData.append('lessonDurationMinutes', curriculumCountField(s.lessonDurationMinutes))
     formData.append('goals', s.goals)
     formData.append('bookIsbn', s.textbookSetId === 'khac' ? s.bookIsbn.trim() : '')
 
@@ -2509,8 +2564,8 @@ export default function TaoGiaoTrinhClientPage({
       formData.append('textbookVolume', textbookVolume.trim())
       formData.append('lessonNumber', createMode === 'topic' ? '' : lessonNumber.trim())
       formData.append('lessonTypeId', lessonTypeId)
-      formData.append('numLessons', String(numLessons))
-      formData.append('lessonDurationMinutes', String(lessonDurationMinutes))
+      formData.append('numLessons', curriculumCountField(numLessons))
+      formData.append('lessonDurationMinutes', curriculumCountField(lessonDurationMinutes))
       formData.append('goals', goals)
       formData.append('bookIsbn', textbookSetId === 'khac' ? bookIsbn.trim() : '')
       saveCurriculum(formData).then((result) => {
@@ -3722,11 +3777,12 @@ export default function TaoGiaoTrinhClientPage({
                 ref={curriculumCreateModeRef}
                 className={cn(
                   'space-y-2 rounded-md',
-                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'mode' && 'ring-2 ring-violet-300'
+                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'mode' && 'ring-2 ring-violet-300',
+                  createFieldErrorClass('mode') && 'ring-2 ring-red-400'
                 )}
               >
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  {tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}
+                  {tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')} <span className="text-red-500">*</span>
                   <HelpHint
                     title={tr('Cách tạo', 'Create mode', '创建方式', '作成方法', '생성 방식')}
                     description={tr(
@@ -3747,10 +3803,6 @@ export default function TaoGiaoTrinhClientPage({
                       onChange={() => {
                         setCreateMode('textbook')
                         setSimilarTopicCurricula([])
-                        if (textbookSetId === 'khac') {
-                          setTextbookSetId('ket-noi-tri-thuc')
-                          setBookIsbn('')
-                        }
                       }}
                       className="rounded-full border-input"
                     />
@@ -3763,9 +3815,7 @@ export default function TaoGiaoTrinhClientPage({
                       checked={createMode === 'topic'}
                       onChange={() => {
                         setCreateMode('topic')
-                        setTextbookSetId('khac')
                         setSimilarTopicCurricula([])
-                        setBookIsbn('')
                         setLessonImages([])
                       }}
                       className="rounded-full border-input"
@@ -3776,7 +3826,9 @@ export default function TaoGiaoTrinhClientPage({
                 <p className="text-xs text-muted-foreground">
                   {createMode === 'textbook'
                     ? tr('Chọn bộ sách, nhập bài số. Gửi ảnh trang sách (bắt buộc) – AI lấy sơ đồ, hình minh họa từ ảnh.', 'Select textbook set, enter lesson #. Upload page image (required) – AI extracts diagrams, figures from images.', '选择教材、输入课号。上传教材页面（必填）– AI 从图片提取图表、示意图。', '教科書・課番号を入力。ページ画像をアップロード（必須）– AIが画像から図表を抽出。', '교과서·차시 입력. 페이지 이미지 업로드 (필수) – AI가 이미지에서 도표·그림 추출.')
-                    : tr('Chỉ cần nhập chủ đề. Không cần bài số hay ảnh. Có thể gửi ảnh để AI bám sát hơn.', 'Just enter topic. No lesson # or image required. Optional: upload image for better accuracy.', '只需输入主题。无需课号或图片。可选：上传图片提高准确性。', '主題のみ入力。課番号・画像不要。任意：画像で精度向上。', '주제만 입력. 차시·이미지 불필요. 선택: 이미지로 정확도 향상.')}
+                    : createMode === 'topic'
+                      ? tr('Chỉ cần nhập chủ đề. Không cần bài số hay ảnh. Có thể gửi ảnh để AI bám sát hơn.', 'Just enter topic. No lesson # or image required. Optional: upload image for better accuracy.', '只需输入主题。无需课号或图片。可选：上传图片提高准确性。', '主題のみ入力。課番号・画像不要。任意：画像で精度向上。', '주제만 입력. 차시·이미지 불필요. 선택: 이미지로 정확도 향상.')
+                      : tr('Chọn cách tạo. Các mục bên dưới để trống — hãy tự chọn từng mục.', 'Choose how to create. Fields below are empty — select each one.', '请选择创建方式。下方各项为空，请逐项选择。', '作成方法を選択。下の項目は空です。それぞれ選んでください。', '생성 방식을 선택하세요. 아래 항목은 비어 있으니 각각 선택하세요.')}
                 </p>
               </div>
               {createMode === 'topic' && (
@@ -3789,18 +3841,19 @@ export default function TaoGiaoTrinhClientPage({
                     placeholder={tr('Ví dụ: Nguyên hàm, Tích phân, Phương trình bậc hai...', 'e.g. Antiderivative, Integral, Quadratic equation...', '例如：原函数、积分、一元二次方程...', '例：原始関数、積分、二次方程式...', '예: 부정적분, 적분, 이차방정식...')}
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
-                    className="bg-white/80"
+                    className={cn('bg-white/80', createFieldErrorClass('topic'))}
                   />
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject', '科目', '科目', '과목')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject', '科目', '科目', '과목')} <span className="text-red-500">*</span></label>
                   <select
                     value={subjectId}
                     onChange={(e) => setSubjectId(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    className={cn('w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm', createFieldErrorClass('subject'))}
                   >
+                    <option value="">{tr('Chọn môn học', 'Select subject', '选择科目', '科目を選択', '과목 선택')}</option>
                     {SUBJECTS.map((s) => (
                       <option key={s.id} value={s.id}>
                         {uiLocale === 'en' ? s.labelEn : s.labelVi}
@@ -3809,12 +3862,13 @@ export default function TaoGiaoTrinhClientPage({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Cấp độ', 'Grade level', '年级', '学年', '학년')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Cấp độ', 'Grade level', '年级', '学年', '학년')} <span className="text-red-500">*</span></label>
                   <select
                     value={gradeLevelId}
                     onChange={(e) => setGradeLevelId(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    className={cn('w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm', createFieldErrorClass('grade'))}
                   >
+                    <option value="">{tr('Chọn cấp độ', 'Select grade', '选择年级', '学年を選択', '학년 선택')}</option>
                     {GRADE_LEVEL_GROUPS.map((grp) => (
                       <optgroup key={grp.labelVi} label={uiLocale === 'en' ? grp.labelEn : grp.labelVi}>
                         {grp.ids.map((id) => {
@@ -3828,7 +3882,7 @@ export default function TaoGiaoTrinhClientPage({
               </div>
               {createMode === 'textbook' && (
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Bộ sách giáo khoa', 'Textbook set', '教材', '教科書', '교과서')} <span className="text-red-500">*</span></label>
                   <select
                     value={textbookSetId}
                     onChange={(e) => {
@@ -3836,8 +3890,9 @@ export default function TaoGiaoTrinhClientPage({
                       setTextbookSetId(next)
                       setBookIsbn('')
                     }}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    className={cn('w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm', createFieldErrorClass('textbook'))}
                   >
+                    <option value="">{tr('Chọn bộ sách', 'Select textbook set', '选择教材', '教科書を選択', '교과서 선택')}</option>
                     {TEXTBOOK_SETS.map((t) => (
                       <option key={t.id} value={t.id}>
                         {uiLocale === 'en' ? t.labelEn : t.labelVi}
@@ -3847,7 +3902,7 @@ export default function TaoGiaoTrinhClientPage({
                 </div>
               )}
               {createMode === 'textbook' && textbookSetId === 'khac' && (
-                <div className="space-y-2 rounded-lg border border-dashed border-amber-300 dark:border-amber-700 p-4 bg-amber-50/40 dark:bg-amber-950/20">
+                <div className={cn('space-y-2 rounded-lg border border-dashed border-amber-300 dark:border-amber-700 p-4 bg-amber-50/40 dark:bg-amber-950/20', createFieldErrorClass('isbn'))}>
                   <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                     {tr(
                       'Mã ISBN sách (ảnh mã vạch / số / QR) *',
@@ -3981,29 +4036,51 @@ export default function TaoGiaoTrinhClientPage({
                     )}
                     value={lessonNumber}
                     onChange={(e) => setLessonNumber(e.target.value)}
-                    className="w-28 h-9 bg-white/80"
+                    className={cn('w-28 h-9 bg-white/80', createFieldErrorClass('lessonNumber'))}
                   />
                 </div>
               )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Số tiết (1–10)', 'Lessons (1–10)', '课时 (1–10)', '時限 (1–10)', '차시 (1–10)')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Số tiết (1–10)', 'Lessons (1–10)', '课时 (1–10)', '時限 (1–10)', '차시 (1–10)')} <span className="text-red-500">*</span></label>
                   <Input
                     type="number"
                     min={1}
                     max={10}
-                    value={numLessons}
-                    onChange={(e) => setNumLessons(Math.min(10, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-                    className="w-24 bg-white/80"
+                    placeholder={tr('Chọn', 'Choose', '选择', '選択', '선택')}
+                    value={numLessons ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value.trim()
+                      if (!raw) {
+                        setNumLessons(null)
+                        return
+                      }
+                      const parsed = parseInt(raw, 10)
+                      if (!Number.isFinite(parsed)) {
+                        setNumLessons(null)
+                        return
+                      }
+                      setNumLessons(Math.min(10, Math.max(1, parsed)))
+                    }}
+                    className={cn('w-24 bg-white/80', createFieldErrorClass('numLessons'))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-xs font-medium text-muted-foreground">{tr('Thời gian mỗi tiết', 'Duration per lesson', '每课时长', '1時限の時間', '차시당 시간')}</label>
+                  <label className="text-xs font-medium text-muted-foreground">{tr('Thời gian mỗi tiết', 'Duration per lesson', '每课时长', '1時限の時間', '차시당 시간')} <span className="text-red-500">*</span></label>
                   <select
-                    value={lessonDurationMinutes}
-                    onChange={(e) => setLessonDurationMinutes(parseInt(e.target.value, 10))}
-                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm bg-white/80"
+                    value={lessonDurationMinutes ?? ''}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (!raw) {
+                        setLessonDurationMinutes(null)
+                        return
+                      }
+                      const parsed = parseInt(raw, 10)
+                      setLessonDurationMinutes(Number.isFinite(parsed) ? parsed : null)
+                    }}
+                    className={cn('h-9 rounded-md border border-input bg-background px-3 py-1 text-sm bg-white/80', createFieldErrorClass('duration'))}
                   >
+                    <option value="">{tr('Chọn thời gian', 'Select duration', '选择时长', '時間を選択', '시간 선택')}</option>
                     <option value={35}>35 {tr('phút', 'min', '分钟', '分', '분')}</option>
                     <option value={40}>40 {tr('phút', 'min', '分钟', '分', '분')}</option>
                     <option value={45}>45 {tr('phút', 'min', '分钟', '分', '분')}</option>
@@ -4066,7 +4143,8 @@ export default function TaoGiaoTrinhClientPage({
                 ref={curriculumLessonImageRef}
                 className={cn(
                   'space-y-2 rounded-lg border border-dashed border-violet-300 dark:border-violet-700 p-4 bg-violet-50/50 dark:bg-violet-950/20',
-                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'upload' && 'ring-2 ring-violet-400'
+                  curriculumHelpTourOpen && currentCurriculumTourStep?.key === 'upload' && 'ring-2 ring-violet-400',
+                  createFieldErrorClass('images')
                 )}
               >
                 <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -4194,6 +4272,17 @@ export default function TaoGiaoTrinhClientPage({
                   {tr('Nếu tên bài khớp, mở bản có sẵn. Nếu không khớp, gửi ảnh rồi bấm "Tạo lại giáo trình (ghi đè)".', 'If lesson title matches, open existing. If not, upload image then click "Recreate curriculum (overwrite)".', '若课名匹配，请打开已有课程；若不匹配，请上传图片后点击“重建课程（覆盖）”。', '題名が一致すれば既存を開き、不一致なら画像をアップロードして「再作成（上書き）」を押してください。', '제목이 맞으면 기존을 열고, 맞지 않으면 이미지를 업로드한 뒤 "다시 만들기(덮어쓰기)"를 누르세요.')}
                 </p>
               )}
+              {shownCreateFieldErrors.length > 0 ? (
+                <p className="text-sm font-medium text-red-600">
+                  {tr(
+                    `Vui lòng chọn hoặc điền: ${joinCurriculumCreateFieldLabels(shownCreateFieldErrors, 0)}.`,
+                    `Please choose or fill in: ${joinCurriculumCreateFieldLabels(shownCreateFieldErrors, 1)}.`,
+                    `请选择或填写：${joinCurriculumCreateFieldLabels(shownCreateFieldErrors, 2)}。`,
+                    `選択または入力してください：${joinCurriculumCreateFieldLabels(shownCreateFieldErrors, 3)}。`,
+                    `선택하거나 입력해 주세요: ${joinCurriculumCreateFieldLabels(shownCreateFieldErrors, 4)}.`
+                  )}
+                </p>
+              ) : null}
               {createMode === 'textbook' && curriculumExists === true ? (
                 <div
                   ref={curriculumActionButtonsRef}
@@ -4219,9 +4308,7 @@ export default function TaoGiaoTrinhClientPage({
                     disabled={
                       overwriteFromExistingLoading ||
                       (step as Step) === 'GENERATING' ||
-                      lessonImages.length === 0 ||
-                      isbnScanLoading ||
-                      (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn))
+                      isbnScanLoading
                     }
                     className="w-full bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50"
                   >
@@ -4262,12 +4349,8 @@ export default function TaoGiaoTrinhClientPage({
                     disabled={
                       (step as Step) === 'GENERATING' ||
                       overwriteFromExistingLoading ||
-                      (createMode === 'topic'
-                        ? !topic.trim() || topic.trim().length < 2
-                        : checkLoading ||
-                          lessonImages.length === 0 ||
-                          isbnScanLoading ||
-                          (textbookSetId === 'khac' && !isValidBookIsbn(bookIsbn)))
+                      isbnScanLoading ||
+                      (createMode != null && checkLoading)
                     }
                     className="w-full bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50"
                   >
