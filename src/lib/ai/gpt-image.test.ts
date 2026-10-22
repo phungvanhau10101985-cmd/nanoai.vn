@@ -105,6 +105,24 @@ describe('gpt image endpoints', () => {
     assert.equal(body.size, '1104x3312')
   })
 
+  it('reads a spaced b64_json without parsing the whole image string twice', async () => {
+    process.env.OPENAI_API_KEY = 'sk-test-key-1234567890'
+    const payload = Buffer.alloc(1_200_000, 7)
+    const b64 = payload.toString('base64')
+    globalThis.fetch = (async () =>
+      new Response(
+        `{ "data": [ { "b64_json": "${b64}" } ], "usage": { "input_tokens": 10, "output_tokens": 20 } }`,
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )) as typeof fetch
+    const out = await generateGptImage({ prompt: 'wide lesson chart', quality: 'medium', aspectRatio: '16:9' })
+    assert.equal(out.buffer.length, payload.length)
+    assert.equal(out.buffer[0], 7)
+    assert.equal(out.buffer[payload.length - 1], 7)
+    assert.equal(out.usage.logImageSize, 'gpt-medium')
+    assert.equal(out.usage.promptTokenCount, 10)
+    assert.equal(out.usage.candidatesTokenCount, 20)
+  })
+
   it('puts billable GPT usage on the Gemini-shaped response', async () => {
     process.env.OPENAI_API_KEY = 'sk-test-key-1234567890'
     globalThis.fetch = (async () =>

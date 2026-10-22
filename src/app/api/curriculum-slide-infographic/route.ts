@@ -16,7 +16,7 @@ import {
 } from '@/lib/curriculum-ai-charge-policy'
 import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
 import { imageEngineCredit, parseGptImageQuality, parseImageEngine } from '@/lib/ai/image-engine'
-import { runImageContent } from '@/lib/ai/gpt-image'
+import { produceImageBytes } from '@/lib/ai/gpt-image'
 
 const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
@@ -55,31 +55,55 @@ function parseFlashJson(text: string): { summary: string; mermaid: string } {
   return { summary, mermaid }
 }
 
+const SHARP_READ = { sequentialRead: true, limitInputPixels: 32_000_000 } as const
+const WEBP_QUALITIES = [84, 78, 72, 66, 60, 54] as const
+const RESIZE_SCALES = [1, 0.92, 0.84, 0.76, 0.68] as const
+
+type RawFrame = { data: Buffer; width: number; height: number; channels: 1 | 2 | 3 | 4 }
+
+async function decodeFittedFrame(source: Buffer | RawFrame, width: number, height: number): Promise<RawFrame> {
+  const pipeline = Buffer.isBuffer(source)
+    ? sharp(source, SHARP_READ).rotate()
+    : sharp(source.data, { raw: { width: source.width, height: source.height, channels: source.channels } })
+  const decoded = await pipeline
+    .resize({ width, height, fit: 'inside', withoutEnlargement: true })
+    .raw()
+    .toBuffer({ resolveWithObject: true })
+  const channels = decoded.info.channels
+  if (channels !== 1 && channels !== 2 && channels !== 3 && channels !== 4) {
+    throw new Error('Ảnh infographic có số kênh không hỗ trợ.')
+  }
+  return { data: decoded.data, width: decoded.info.width, height: decoded.info.height, channels }
+}
+
+async function encodeFrameWebp(frame: RawFrame, quality: number): Promise<Buffer> {
+  return sharp(frame.data, { raw: { width: frame.width, height: frame.height, channels: frame.channels } })
+    .webp({ quality, effort: 6, smartSubsample: true })
+    .toBuffer()
+}
+
+/** Một lần giải nén, rồi nén WebP từ pixel đã resize. Cùng trần 2048px và cùng mốc ≤ 820KB. */
 async function compressInfographicForProjection(rawPng: Buffer): Promise<{ buffer: Buffer; ext: 'webp'; contentType: 'image/webp' }> {
-  const meta = await sharp(rawPng).metadata().catch(() => null)
+  const meta = await sharp(rawPng, SHARP_READ).metadata().catch(() => null)
   const srcW = Math.max(1, Number(meta?.width || INFOGRAPHIC_MAX_DIMENSION))
   const srcH = Math.max(1, Number(meta?.height || Math.round(INFOGRAPHIC_MAX_DIMENSION * 9 / 16)))
-  const resizeScales = [1, 0.92, 0.84, 0.76, 0.68]
-  const qualityLevels = [84, 78, 72, 66, 60, 54]
+  let frame: RawFrame | null = null
+  let best: Buffer | null = null
 
-  let best = await sharp(rawPng).webp({ quality: 84, effort: 6 }).toBuffer()
-
-  for (const scale of resizeScales) {
+  for (const scale of RESIZE_SCALES) {
     const targetW = Math.max(640, Math.min(INFOGRAPHIC_MAX_DIMENSION, Math.round(srcW * scale)))
     const targetH = Math.max(360, Math.min(INFOGRAPHIC_MAX_DIMENSION, Math.round(srcH * scale)))
-    for (const q of qualityLevels) {
-      const out = await sharp(rawPng)
-        .rotate()
-        .resize({ width: targetW, height: targetH, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: q, effort: 6, smartSubsample: true })
-        .toBuffer()
-      if (out.length < best.length) best = out
+    frame = await decodeFittedFrame(frame ?? rawPng, targetW, targetH)
+    for (const quality of WEBP_QUALITIES) {
+      const out = await encodeFrameWebp(frame, quality)
+      if (!best || out.length < best.length) best = out
       if (out.length <= INFOGRAPHIC_TARGET_BYTES) {
         return { buffer: out, ext: 'webp', contentType: 'image/webp' }
       }
     }
   }
 
+  if (!best) throw new Error('Không nén được ảnh infographic.')
   return { buffer: best, ext: 'webp', contentType: 'image/webp' }
 }
 
@@ -243,52 +267,60 @@ ${FLASH_INSTRUCTION}`
     if (!bunnyReady.ok) {
       return NextResponse.json({ error: bunnyReady.error }, { status: 503 })
     }
-    let imageResult: Awaited<ReturnType<NonNullable<typeof imageModel>['generateContent']>>
+    const imageSafety = [
+      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    ] as const
+    let rawPng: Buffer
     try {
-      imageResult = await runImageContent({
-        engine,
-        gptQuality,
-        aspectRatio: '16:9',
-        parts: [imagePrompt],
-        gemini: () => {
-          if (!imageModel) throw new Error('Thiếu model ảnh.')
-          return imageModel.generateContent(imagePrompt, {
-            safetySettings: [
-              { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-              { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-              { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-              { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-            ],
-          } as never)
-        },
-      })
+      if (engine === 'gpt') {
+        rawPng = await produceImageBytes({
+          engine,
+          gptQuality,
+          prompt: imagePrompt,
+          aspectRatio: '16:9',
+          gemini: async () => {
+            throw new Error('Thiếu model ảnh.')
+          },
+        })
+      } else {
+        if (!imageModel) throw new Error('Thiếu model ảnh.')
+        const imageResult = await imageModel.generateContent(imagePrompt, { safetySettings: imageSafety } as never)
+        void trackFromUsageMetadata(
+          imageResult.response.usageMetadata,
+          GEMINI_3_PRO_IMAGE.model,
+          'curriculum-slide-infographic',
+          user.id,
+          '2K'
+        )
+        const imagePart = imageResult.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
+        const inline = imagePart && 'inlineData' in imagePart
+          ? (imagePart as { inlineData: { data: string } }).inlineData
+          : null
+        if (!inline?.data) {
+          return NextResponse.json({ error: 'AI không trả về ảnh infographic hợp lệ.' }, { status: 502 })
+        }
+        rawPng = Buffer.from(inline.data, 'base64')
+        inline.data = ''
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không tạo được ảnh infographic. Thử lại sau.'
       return NextResponse.json({ error: msg }, { status: 502 })
     }
-    const imageResponse = imageResult.response
-    if (engine !== 'gpt') {
-      void trackFromUsageMetadata(
-        imageResponse.usageMetadata,
-        GEMINI_3_PRO_IMAGE.model,
-        'curriculum-slide-infographic',
-        user.id,
-        '2K'
-      )
-    }
-    const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!imagePart || !('inlineData' in imagePart)) {
+    if (!rawPng.length) {
       return NextResponse.json({ error: 'AI không trả về ảnh infographic hợp lệ.' }, { status: 502 })
     }
-    const rawPng = Buffer.from((imagePart as { inlineData: { data: string } }).inlineData.data, 'base64')
     let resultBuffer = rawPng
     let resultExt: 'png' | 'webp' = 'png'
     let resultContentType: 'image/png' | 'image/webp' = 'image/png'
     try {
       const optimized = await compressInfographicForProjection(rawPng)
-      resultBuffer = Buffer.from(optimized.buffer)
+      resultBuffer = optimized.buffer
       resultExt = optimized.ext
       resultContentType = optimized.contentType
+      rawPng = Buffer.alloc(0)
     } catch (e) {
       console.warn('[curriculum-slide-infographic] projection compress skipped, fallback png:', e)
       resultBuffer = rawPng

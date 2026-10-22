@@ -21,9 +21,11 @@ module.exports = {
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
-      // Restart before Node default ~2GB heap dies uncleanly (504 + zombie).
+      // RSS kill stays at 2560M. Heap must sit under that line so V8 collects
+      // before PM2 SIGKILLs an in-flight request (image jobs were cut at ~2.6GB
+      // while the heap ceiling was still 3072 and had not started hard GC).
       max_memory_restart: '2560M',
-      node_args: '--max-old-space-size=3072',
+      node_args: '--max-old-space-size=2048',
       kill_timeout: 10000,
       listen_timeout: 10000,
       exp_backoff_restart_delay: 200,
@@ -32,7 +34,7 @@ module.exports = {
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
-        NODE_OPTIONS: '--max-old-space-size=3072',
+        NODE_OPTIONS: '--max-old-space-size=2048',
         // Keep inventory embed lighter under concurrent dashboard use.
         GEMINI_IMAGE_SEARCH_PARALLEL: '2',
         GEMINI_IMAGE_EMBED_SYNC_LIMIT: '400',

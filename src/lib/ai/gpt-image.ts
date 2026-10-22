@@ -30,6 +30,58 @@ function mimeToExt(mime: string): string {
   return 'jpg'
 }
 
+/** Giải base64 theo khối 1MB để không giữ một chuỗi UTF-16 bằng cả file ảnh. */
+function decodeBase64Ascii(ascii: Buffer): Buffer {
+  const chunkSize = 1024 * 1024
+  if (ascii.length <= chunkSize) return Buffer.from(ascii.toString('latin1'), 'base64')
+  const parts: Buffer[] = []
+  for (let offset = 0; offset < ascii.length; offset += chunkSize) {
+    const end = Math.min(ascii.length, offset + chunkSize)
+    parts.push(Buffer.from(ascii.subarray(offset, end).toString('latin1'), 'base64'))
+  }
+  return Buffer.concat(parts)
+}
+
+function sliceJsonStringField(raw: Buffer, field: string): Buffer | null {
+  const marker = Buffer.from(`"${field}"`)
+  const idx = raw.indexOf(marker)
+  if (idx < 0) return null
+  let cursor = idx + marker.length
+  while (cursor < raw.length && (raw[cursor] === 0x20 || raw[cursor] === 0x09 || raw[cursor] === 0x0a || raw[cursor] === 0x0d || raw[cursor] === 0x3a)) {
+    cursor += 1
+  }
+  if (raw[cursor] !== 0x22) return null
+  const start = cursor + 1
+  const end = raw.indexOf(0x22, start)
+  if (end < 0) return null
+  return raw.subarray(start, end)
+}
+
+function readUsageObject(raw: Buffer): OpenAiImageUsage | null {
+  const marker = Buffer.from('"usage"')
+  const idx = raw.lastIndexOf(marker)
+  if (idx < 0) return null
+  const slice = raw.subarray(idx, Math.min(raw.length, idx + 2000)).toString('utf8')
+  const start = slice.indexOf('{')
+  if (start < 0) return null
+  let depth = 0
+  for (let i = start; i < slice.length; i += 1) {
+    const ch = slice[i]
+    if (ch === '{') depth += 1
+    else if (ch === '}') {
+      depth -= 1
+      if (depth === 0) {
+        try {
+          return JSON.parse(slice.slice(start, i + 1)) as OpenAiImageUsage
+        } catch {
+          return null
+        }
+      }
+    }
+  }
+  return null
+}
+
 async function readImageBuffer(res: Response): Promise<{ buffer: Buffer; usage: OpenAiImageUsage | null }> {
   if (!res.ok) {
     let detail = (await res.text().catch(() => '')).slice(0, 800)
@@ -41,13 +93,12 @@ async function readImageBuffer(res: Response): Promise<{ buffer: Buffer; usage: 
     }
     throw new ImageEngineError(`OpenAI image lỗi HTTP ${res.status}: ${detail}`)
   }
-  const body = (await res.json().catch(() => null)) as {
-    data?: Array<{ b64_json?: string }>
-    usage?: OpenAiImageUsage
-  } | null
-  const b64 = body?.data?.[0]?.b64_json
-  if (!b64) throw new ImageEngineError('OpenAI không trả b64_json.')
-  return { buffer: Buffer.from(b64, 'base64'), usage: body?.usage ?? null }
+  const raw = Buffer.from(await res.arrayBuffer())
+  const b64 = sliceJsonStringField(raw, 'b64_json')
+  if (!b64 || b64.length === 0) throw new ImageEngineError('OpenAI không trả b64_json.')
+  const usage = readUsageObject(raw)
+  const buffer = decodeBase64Ascii(b64)
+  return { buffer, usage }
 }
 
 export type GptImageCallResult = {
