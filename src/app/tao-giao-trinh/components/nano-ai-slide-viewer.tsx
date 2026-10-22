@@ -1588,6 +1588,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const narrowSlideLayout = viewportW < 768
 
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
+  /** Học sinh chỉ thấy chuột ảo khi giáo viên đang vẽ trên ảnh tóm tắt. */
+  const [studentDrawCursorOn, setStudentDrawCursorOn] = useState(false)
+  const studentDrawCursorHideTimerRef = useRef<number | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   /** Buffer batch các mẫu chuột ảo theo rAF để giảm áp lực state-update khi GV gửi cao tần. */
   const pendingMouseSamplesRef = useRef<Array<{ x: number; y: number; snap: boolean }>>([])
@@ -2123,6 +2126,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
       flushQueuedPoints()
       d.removeListeners?.()
       infographicDrawingRef.current = null
+      sendInfographicDrawMessage({ type: 'infographic-draw-end', slideIndex: d.slideIndex })
     }
     const removeListeners = () => {
       window.removeEventListener('pointermove', onMove)
@@ -2638,42 +2642,57 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       const t = e.data?.type
+      const hideStudentDrawCursor = () => {
+        if (studentDrawCursorHideTimerRef.current != null) {
+          window.clearTimeout(studentDrawCursorHideTimerRef.current)
+          studentDrawCursorHideTimerRef.current = null
+        }
+        setStudentDrawCursorOn(false)
+        setVirtualMousePos(null)
+        setMouseTrail([])
+      }
       const syncVirtualCursorFromInfographicUv = (point: { u?: number; v?: number } | null | undefined) => {
         if (isTeacherView || !point) return
         const u = clamp01(Number(point.u) || 0)
         const v = clamp01(Number(point.v) || 0)
-        const candidates: HTMLImageElement[] = []
-        if (infographicFullscreenImageRef.current) candidates.push(infographicFullscreenImageRef.current)
-        if (infographicPaneImageRef.current) candidates.push(infographicPaneImageRef.current)
-        const queried = Array.from(document.querySelectorAll('[data-student-curriculum-infographic-pane-img]')) as HTMLImageElement[]
-        candidates.push(...queried)
-        let chosen: HTMLImageElement | null = null
-        let chosenArea = 0
-        for (const img of candidates) {
-          if (!img) continue
+        const pickVisibleImage = (img: HTMLImageElement | null | undefined) => {
+          if (!img) return null
           const vis = getVisibleImageBounds(img)
-          if (vis.width <= 40 || vis.height <= 40) continue
-          const area = vis.width * vis.height
-          if (area > chosenArea) {
-            chosen = img
-            chosenArea = area
-          }
+          if (vis.width <= 40 || vis.height <= 40) return null
+          const rect = img.getBoundingClientRect()
+          if (rect.bottom < 0 || rect.right < 0 || rect.top > window.innerHeight || rect.left > window.innerWidth) return null
+          return vis
         }
-        if (!chosen) return
-        const vis = getVisibleImageBounds(chosen)
-        const px = vis.left + u * vis.width
-        const py = vis.top + v * vis.height
-        const nextPos = { x: px, y: py }
+        let vis: { left: number; top: number; width: number; height: number } | null = null
+        if (infographicFullscreenOpen) vis = pickVisibleImage(infographicFullscreenImageRef.current)
+        if (!vis) {
+          let bestArea = 0
+          document.querySelectorAll('[data-infographic-draw-pane-stage]').forEach((node) => {
+            const stage = node as HTMLElement
+            const stageRect = stage.getBoundingClientRect()
+            if (stageRect.width <= 40 || stageRect.height <= 40) return
+            if (stageRect.bottom < 0 || stageRect.right < 0 || stageRect.top > window.innerHeight || stageRect.left > window.innerWidth) return
+            const img = stage.querySelector('img') as HTMLImageElement | null
+            const candidate = pickVisibleImage(img)
+            const area = candidate ? candidate.width * candidate.height : stageRect.width * stageRect.height
+            if (area <= bestArea) return
+            bestArea = area
+            vis = candidate ?? { left: stageRect.left, top: stageRect.top, width: stageRect.width, height: stageRect.height }
+          })
+        }
+        if (!vis) return
+        const nextPos = { x: vis.left + u * vis.width, y: vis.top + v * vis.height }
         lastMouseScopeRef.current = 'visual'
         lastRenderedVirtualMouseRef.current = nextPos
+        setStudentDrawCursorOn(true)
         setVirtualMousePos(nextPos)
-        setMouseTrail((prev) => {
-          const last = prev[prev.length - 1]
-          if (!last) return [nextPos]
-          const jumpPx = Math.hypot(nextPos.x - last.x, nextPos.y - last.y)
-          if (jumpPx > 120) return [nextPos]
-          return [...prev, nextPos].slice(-48)
-        })
+        setMouseTrail([])
+        if (studentDrawCursorHideTimerRef.current != null) window.clearTimeout(studentDrawCursorHideTimerRef.current)
+        studentDrawCursorHideTimerRef.current = window.setTimeout(() => {
+          studentDrawCursorHideTimerRef.current = null
+          setStudentDrawCursorOn(false)
+          setVirtualMousePos(null)
+        }, 700)
       }
       if (
         t === 'curriculum-data' &&
@@ -2887,8 +2906,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
         syncVirtualCursorFromInfographicUv(points[points.length - 1])
       }
+      else if (t === 'infographic-draw-end' && !isTeacherView) {
+        hideStudentDrawCursor()
+      }
       else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
         clearInfographicStrokes(e.data.slideIndex)
+        if (!isTeacherView) hideStudentDrawCursor()
       }
       else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
         undoInfographicStroke(e.data.slideIndex)
@@ -2927,6 +2950,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         closeInfographicFullscreenRef.current({ fromMessage: true })
       }
       else if (t === 'mouse-pos') {
+        if (!isTeacherView) return
         const mouseScope: 'quiz' | 'slide-content' | 'visual' | 'global' =
           e.data?.quizPopup
             ? 'quiz'
@@ -3243,7 +3267,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const found = Boolean(exactRect && exactRect.width > 0 && exactRect.height > 0)
         const el = found ? exact : (document.querySelector('[data-pointer-sync-id="ctrl-sand"]') as HTMLElement | null)
         const r = el?.getBoundingClientRect()
-        if (r && r.width > 0 && r.height > 0) {
+        if (isTeacherView && r && r.width > 0 && r.height > 0) {
           const relX = typeof e.data?.relX === 'number' ? Math.max(0, Math.min(1, Number(e.data.relX))) : 0.5
           const relY = typeof e.data?.relY === 'number' ? Math.max(0, Math.min(1, Number(e.data.relY))) : 0.5
           const x = r.left + (found ? relX : 0.5) * r.width
@@ -3507,7 +3531,9 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           px = Math.max(0, Math.min(w, w - e.data.xrPx))
           py = Math.max(0, Math.min(h, e.data.yPx))
         } else return
-        setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-5))
+        if (isTeacherView) {
+          setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-5))
+        }
         // Mô phỏng click DOM để chuột ảo (từ giáo viên) có thể điều khiển nút, popup, radio, label...
         requestAnimationFrame(() => {
           const el = document.elementFromPoint(px, py)
@@ -4559,7 +4585,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         </div>
       )}
       {/* Chuột ảo + đường di chuột – render qua portal để hiện trên popup (z-[200] > popup z-[110]) */}
-      {typeof document !== 'undefined' && (virtualMousePos || mouseTrail.length > 1 || mouseClicks.length > 0) && createPortal(
+      {typeof document !== 'undefined' && !isTeacherView && studentDrawCursorOn && virtualMousePos && createPortal(
+        <div
+          className="pointer-events-none fixed z-[220]"
+          style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-4px, -3px)' }}
+        >
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+            <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="#f97316" stroke="#ffffff" strokeWidth="2.4" strokeLinejoin="round" />
+            <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="none" stroke="#111827" strokeWidth="0.8" strokeLinejoin="round" />
+          </svg>
+        </div>,
+        document.body
+      )}
+      {typeof document !== 'undefined' && isTeacherView && (virtualMousePos || mouseTrail.length > 1 || mouseClicks.length > 0) && createPortal(
         <>
           {mouseTrail.length > 1 && (
             <svg className="fixed inset-0 z-[198] pointer-events-none" style={{ width: '100%', height: '100%' }}>
@@ -4834,17 +4872,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
                 </div>
               )}
               <div className="flex items-center gap-2">
-                {showSingleCell && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setExpandedCellIndex(null) }}
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/20 hover:bg-white/30 text-white font-medium transition-colors"
-                    title={tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-                  >
-                    <Maximize2 className="h-4 w-4" />
-                    {tr('Mở rộng tất cả', 'Expand all', '展开全部', 'すべて展開', '모두 확장')}
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); closeVisualFullscreen() }}

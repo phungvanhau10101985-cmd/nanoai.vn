@@ -2188,6 +2188,7 @@ export default function CurriculumViewPage() {
       flushQueuedPoints()
       d.removeListeners?.()
       infographicDrawingRef.current = null
+      sendToStudentView({ type: 'infographic-draw-end', slideIndex: activeInfographicStrokeKey })
     }
     const removeListeners = () => {
       window.removeEventListener('pointermove', onMove)
