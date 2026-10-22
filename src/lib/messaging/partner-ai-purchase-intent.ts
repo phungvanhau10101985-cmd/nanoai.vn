@@ -179,12 +179,27 @@ const POLICY_REFUND_OR_CANCEL_RE = new RegExp(
     String.raw`(?:không|ko|khong)\s*dung\s*y`,
     String.raw`đổi\s*trả`,
     String.raw`doi\s*tra`,
-    String.raw`(?<!kiểm\s)(?<!kiem\s)trả\s*hàng`,
-    String.raw`(?<!kiểm\s)(?<!kiem\s)tra\s*hang`,
     String.raw`cancel.{0,20}(?:order|refund)`,
   ].join('|'),
   'i'
 )
+
+/**
+ * «trả hàng» / «tra hang», trừ cụm «kiểm tra hàng».
+ * Không dùng lookbehind: Safari iOS 15 và 16.0–16.3 ném
+ * `Invalid regular expression: invalid group specifier name` ngay lúc nạp module,
+ * trắng trang shop vì widget chat import file này.
+ */
+function hasReturnGoodsPhraseOutsideOrderCheck(message: string): boolean {
+  const re = /trả\s*hàng|tra\s*hang/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(message))) {
+    const before = message.slice(Math.max(0, match.index - 8), match.index)
+    if (/(?:kiểm|kiem)\s$/i.test(before)) continue
+    return true
+  }
+  return false
+}
 
 /** Câu hỏi tình trạng / tracking rõ — vẫn đi nhánh tra cứu. */
 const EXPLICIT_ORDER_TRACK_RE = new RegExp(
@@ -222,7 +237,8 @@ const EXPLICIT_ORDER_TRACK_RE = new RegExp(
 export function inboundTextLooksLikePolicyRefundOrCancelAsk(raw: string): boolean {
   const msg = normalizeCustomerMessageForInventorySearch(raw)
   if (!msg) return false
-  return POLICY_REFUND_OR_CANCEL_RE.test(msg)
+  if (POLICY_REFUND_OR_CANCEL_RE.test(msg)) return true
+  return hasReturnGoodsPhraseOutsideOrderCheck(msg)
 }
 
 /**

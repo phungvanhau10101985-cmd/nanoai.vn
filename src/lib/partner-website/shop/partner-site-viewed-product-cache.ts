@@ -28,19 +28,37 @@ function storageKeys(storage: ViewedProductStorage): string[] {
   return []
 }
 
+/**
+ * Safari throws SecurityError ("The operation is insecure.") on `typeof localStorage`
+ * when cookies/storage are blocked. That throw was taking down the shop error boundary.
+ */
+function browserStorage(kind: 'localStorage' | 'sessionStorage'): ViewedProductStorage | null {
+  try {
+    if (typeof window === 'undefined') return null
+    const box = kind === 'localStorage' ? window.localStorage : window.sessionStorage
+    if (!box || typeof box.getItem !== 'function' || typeof box.removeItem !== 'function') return null
+    return box
+  } catch {
+    return null
+  }
+}
+
 /** Drop every saved product HTML preview on this browser. */
 export function discardViewedProductSnapshots(storage?: ViewedProductStorage | null): void {
-  const box =
-    storage ??
-    (typeof localStorage === 'undefined'
-      ? null
-      : (localStorage as ViewedProductStorage))
-  if (!box) return
-  const drop = storageKeys(box).filter((key) => key.startsWith(STORAGE_PREFIX))
-  for (const key of drop) box.removeItem(key)
+  const box = storage ?? browserStorage('localStorage')
+  if (box) {
+    try {
+      const drop = storageKeys(box).filter((key) => key.startsWith(STORAGE_PREFIX))
+      for (const key of drop) box.removeItem(key)
+    } catch {
+      /* blocked storage */
+    }
+  }
   try {
-    if (typeof sessionStorage === 'undefined') return
-    for (const key of SESSION_KEYS) sessionStorage.removeItem(key)
+    const session = browserStorage('sessionStorage')
+    if (session) {
+      for (const key of SESSION_KEYS) session.removeItem(key)
+    }
   } catch {
     /* private mode */
   }

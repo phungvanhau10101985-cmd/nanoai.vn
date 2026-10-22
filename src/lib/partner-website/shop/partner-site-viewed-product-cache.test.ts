@@ -38,6 +38,23 @@ test('discardViewedProductSnapshots removes saved product html and leaves other 
   assert.equal(storage.data.get('pw-account-cache-v1:gudo'), '{"name":"A"}')
 })
 
+test('discardViewedProductSnapshots ignores storage that throws', () => {
+  const storage: ViewedProductStorage = {
+    get length() {
+      throw new Error('The operation is insecure.')
+    },
+    key: () => {
+      throw new Error('The operation is insecure.')
+    },
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {
+      throw new Error('The operation is insecure.')
+    },
+  }
+  assert.doesNotThrow(() => discardViewedProductSnapshots(storage))
+})
+
 test('snapshot boot script only deletes saved pages and does not paint one', () => {
   const script = buildViewedProductSnapshotBootScript()
   assert.doesNotThrow(() => new Function(script))

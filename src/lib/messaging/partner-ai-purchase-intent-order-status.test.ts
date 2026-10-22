@@ -18,6 +18,13 @@ test('refund/cancel policy is not order-status lookup', () => {
   assert.equal(inboundTextLooksLikePurchasePickListIntent(refund), false)
 })
 
+test('return-goods phrase is policy, order-check phrase is not', () => {
+  assert.equal(inboundTextLooksLikePolicyRefundOrCancelAsk('shop ơi cho em trả hàng'), true)
+  assert.equal(inboundTextLooksLikePolicyRefundOrCancelAsk('em muon tra hang'), true)
+  assert.equal(inboundTextLooksLikePolicyRefundOrCancelAsk('Kiểm tra hàng giúp em'), false)
+  assert.equal(inboundTextLooksLikePolicyRefundOrCancelAsk('kiem tra hang dum anh'), false)
+})
+
 test('order tracking phrases still open shipping lookup', () => {
   assert.equal(inboundTextLooksLikeOrderStatusAsk('Đơn DH393 gửi chưa shop'), true)
   assert.equal(
