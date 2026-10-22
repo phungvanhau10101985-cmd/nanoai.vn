@@ -45,6 +45,68 @@ import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName, LEG
 import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync, STUDENT_WINDOW_NAME_CURRICULUM, STUDENT_WINDOW_NAME_WORKSHEET } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
+/** Phần tử đang fullscreen (Fullscreen API, kể cả webkit). */
+function readFullscreenElement(): Element | null {
+  if (typeof document === 'undefined') return null
+  return (
+    document.fullscreenElement ??
+    (document as Document & { webkitFullscreenElement?: Element | null }).webkitFullscreenElement ??
+    null
+  )
+}
+
+/**
+ * Trình chiếu học sinh: fullscreen trên `documentElement` / `body` (nút Trình chiếu HS).
+ * Khác với overlay ảnh tóm tắt tự gọi `requestFullscreen`.
+ */
+function isStudentProjectorFullscreen(el: Element | null = readFullscreenElement()): boolean {
+  if (!el || typeof document === 'undefined') return false
+  return el === document.documentElement || el === document.body
+}
+
+/** F11 / trình chiếu cửa sổ: không có `fullscreenElement` nhưng viewport đang fullscreen. */
+function isDisplayModeFullscreen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  try {
+    return window.matchMedia('(display-mode: fullscreen)').matches
+  } catch {
+    return false
+  }
+}
+
+function fullscreenOwnedBy(owner: Element | null): boolean {
+  if (!owner) return false
+  const fs = readFullscreenElement()
+  return !!fs && (fs === owner || owner.contains(fs))
+}
+
+/** Đưa fullscreen về cả trang học sinh, không thoát phiên trình chiếu. */
+function requestStudentProjectorFullscreen() {
+  if (typeof document === 'undefined') return
+  if (isStudentProjectorFullscreen()) return
+  const root = document.documentElement
+  const req =
+    root.requestFullscreen ??
+    (root as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
+  try {
+    const pending = req?.call(root) as Promise<void> | undefined
+    pending?.catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Chỉ thoát fullscreen khi chính overlay ảnh đang chiếm. Giữ fullscreen trình chiếu của cả trang. */
+function exitFullscreenIfOwnedBy(owner: Element | null) {
+  if (!fullscreenOwnedBy(owner)) return
+  try {
+    const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
+    exitFs?.()?.catch(() => {})
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Phát tiếng chuông khi hết giờ (đồng hồ cát học sinh) */
 function playTimerEndBell() {
   try {
@@ -1563,6 +1625,16 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const closeInfographicFullscreenRef = useRef<(opts?: { fromMessage?: boolean }) => void>(() => {})
   const lastLocalInfographicOpenRef = useRef<number>(0)
   const infographicFullscreenOpenedFromTeacherRef = useRef(false)
+  /** Học sinh đã vào trình chiếu (nút Trình chiếu HS hoặc F11) trước khi mở ảnh. */
+  const studentProjectorLatchedRef = useRef(false)
+  const restoringStudentProjectorRef = useRef(false)
+
+  const studentIsPresenting = useCallback(() => {
+    if (isTeacherView) return false
+    if (studentProjectorLatchedRef.current || isStudentProjectorFullscreen()) return true
+    // F11 đang bật, và overlay ảnh chưa chiếm Fullscreen API.
+    return !readFullscreenElement() && isDisplayModeFullscreen()
+  }, [isTeacherView])
 
   const { receivedStream: screenShareStream, isReceiving: isScreenShareActive } = useScreenShare({
     role: 'student',
@@ -1572,6 +1644,36 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   useEffect(() => {
     if (isScreenShareActive) setScreenShareOverlayVisible(true)
   }, [isScreenShareActive])
+
+  useEffect(() => {
+    if (isTeacherView || typeof document === 'undefined') return
+    const sync = () => {
+      if (restoringStudentProjectorRef.current && (isStudentProjectorFullscreen() || isDisplayModeFullscreen())) {
+        restoringStudentProjectorRef.current = false
+        studentProjectorLatchedRef.current = true
+        return
+      }
+      if (isStudentProjectorFullscreen()) {
+        studentProjectorLatchedRef.current = true
+        return
+      }
+      // F11: viewport fullscreen nhưng Fullscreen API không gắn element.
+      if (!readFullscreenElement() && isDisplayModeFullscreen()) {
+        studentProjectorLatchedRef.current = true
+        return
+      }
+      if (!readFullscreenElement() && !restoringStudentProjectorRef.current) {
+        studentProjectorLatchedRef.current = false
+      }
+    }
+    document.addEventListener('fullscreenchange', sync)
+    document.addEventListener('webkitfullscreenchange', sync)
+    sync()
+    return () => {
+      document.removeEventListener('fullscreenchange', sync)
+      document.removeEventListener('webkitfullscreenchange', sync)
+    }
+  }, [isTeacherView])
 
   const openVisualFullscreen = useCallback((cellIndex?: number, fromMessage?: boolean) => {
     setInfographicFullscreenOpen(false)
@@ -1583,6 +1685,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         } catch { /* ignore */ }
       }
     }
+    if (!isTeacherView && studentIsPresenting()) studentProjectorLatchedRef.current = true
     setExpandedCellIndex(cellIndex ?? null)
     setVisualFullscreenOpen(true)
     visualFullscreenOpenedFromTeacherRef.current = !!fromMessage
@@ -1594,7 +1697,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         } catch { /* ignore */ }
       }
     }
-  }, [])
+  }, [isTeacherView, studentIsPresenting])
 
   const openInfographicFullscreen = useCallback((fromMessage?: boolean) => {
     if (!curriculumInfographic) {
@@ -1622,6 +1725,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         } catch { /* ignore */ }
       }
     }
+    if (!isTeacherView && studentIsPresenting()) studentProjectorLatchedRef.current = true
     setInfographicFullscreenOpen(true)
     infographicFullscreenOpenedFromTeacherRef.current = !!fromMessage
     if (!fromMessage) {
@@ -1632,20 +1736,23 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         } catch { /* ignore */ }
       }
     }
-  }, [curriculumInfographic, isStudentCurriculumSlide, toast, tr])
+  }, [curriculumInfographic, isStudentCurriculumSlide, isTeacherView, studentIsPresenting, toast, tr])
+
+  const releaseOverlayFullscreen = useCallback((owner: Element | null) => {
+    if (studentIsPresenting()) {
+      if (fullscreenOwnedBy(owner)) {
+        restoringStudentProjectorRef.current = true
+        requestStudentProjectorFullscreen()
+      }
+      return
+    }
+    exitFullscreenIfOwnedBy(owner)
+  }, [studentIsPresenting])
 
   const closeInfographicFullscreen = useCallback((opts?: { fromMessage?: boolean }) => {
     const fromMessage = !!opts?.fromMessage
     const shouldReturnTeacher = infographicFullscreenOpenedFromTeacherRef.current && !fromMessage
-    try {
-      const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-      if (isFs) {
-        const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
-        exitFs?.()?.catch(() => {})
-      }
-    } catch {
-      /* ignore */
-    }
+    releaseOverlayFullscreen(infographicFullscreenOverlayRef.current)
     setInfographicFullscreenOpen(false)
     infographicFullscreenOpenedFromTeacherRef.current = false
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
@@ -1677,18 +1784,26 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setTimeout(focusTeacherWindow, 280)
       }
     }
-  }, [])
+  }, [releaseOverlayFullscreen])
   closeInfographicFullscreenRef.current = closeInfographicFullscreen
 
   const tryRequestFullscreen = useCallback(() => {
     const el = fullscreenOverlayRef.current
+    if (el && fullscreenOwnedBy(el)) return true
+    // Đang trình chiếu cả trang hoặc F11: phủ overlay, không gọi requestFullscreen
+    // kẻo trình duyệt thoát phiên trình chiếu.
+    if (studentIsPresenting()) {
+      studentProjectorLatchedRef.current = true
+      return true
+    }
     if (el) {
       const reqFs = el.requestFullscreen ?? (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
-      reqFs?.()?.catch(() => {})
+      const pending = reqFs?.call(el) as Promise<void> | undefined
+      pending?.catch(() => {})
       return true
     }
     return false
-  }, [])
+  }, [studentIsPresenting])
 
   useLayoutEffect(() => {
     if (!visualFullscreenOpen) return
@@ -1701,13 +1816,19 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   const tryRequestInfographicFullscreen = useCallback(() => {
     const el = infographicFullscreenOverlayRef.current
+    if (el && fullscreenOwnedBy(el)) return true
+    if (studentIsPresenting()) {
+      studentProjectorLatchedRef.current = true
+      return true
+    }
     if (el) {
       const reqFs = el.requestFullscreen ?? (el as HTMLElement & { webkitRequestFullscreen?: () => Promise<void> }).webkitRequestFullscreen
-      reqFs?.()?.catch(() => {})
+      const pending = reqFs?.call(el) as Promise<void> | undefined
+      pending?.catch(() => {})
       return true
     }
     return false
-  }, [])
+  }, [studentIsPresenting])
 
   useLayoutEffect(() => {
     if (!infographicFullscreenOpen) return
@@ -1721,15 +1842,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const closeVisualFullscreen = useCallback((opts?: { fromMessage?: boolean }) => {
     const fromMessage = !!opts?.fromMessage
     const shouldReturnTeacher = visualFullscreenOpenedFromTeacherRef.current && !fromMessage
-    try {
-      const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-      if (isFs) {
-        const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
-        exitFs?.()?.catch(() => {})
-      }
-    } catch {
-      /* ignore */
-    }
+    releaseOverlayFullscreen(fullscreenOverlayRef.current)
     setVisualFullscreenOpen(false)
     setExpandedCellIndex(null)
     visualFullscreenOpenedFromTeacherRef.current = false
@@ -1762,7 +1875,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         setTimeout(focusTeacherWindow, 280)
       }
     }
-  }, [])
+  }, [releaseOverlayFullscreen])
   closeVisualFullscreenRef.current = closeVisualFullscreen
 
   /** Phiếu bài tập: mở giao diện học sinh, sync qua postMessage + BroadcastChannel */
@@ -3995,51 +4108,55 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
 
   useEffect(() => {
     if (!visualFullscreenOpen) return
+    const owner = fullscreenOverlayRef.current
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement && !(document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement) {
-        setVisualFullscreenOpen(false)
+      const fs = readFullscreenElement()
+      if (!isTeacherView && (studentProjectorLatchedRef.current || isStudentProjectorFullscreen(fs) || (!fs && isDisplayModeFullscreen()))) {
+        return
       }
+      if (!fs) setVisualFullscreenOpen(false)
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     document.addEventListener('webkitfullscreenchange', onFullscreenChange)
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
-      try {
-        const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-        if (isFs) {
-          const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
-          exitFs?.()?.catch(() => {})
+      if (!isTeacherView && (restoringStudentProjectorRef.current || studentProjectorLatchedRef.current || isStudentProjectorFullscreen() || (!readFullscreenElement() && isDisplayModeFullscreen()))) {
+        if (fullscreenOwnedBy(owner)) {
+          restoringStudentProjectorRef.current = true
+          requestStudentProjectorFullscreen()
         }
-      } catch {
-        /* ignore */
+        return
       }
+      exitFullscreenIfOwnedBy(owner)
     }
-  }, [visualFullscreenOpen])
+  }, [visualFullscreenOpen, isTeacherView])
 
   useEffect(() => {
     if (!infographicFullscreenOpen) return
+    const owner = infographicFullscreenOverlayRef.current
     const onFullscreenChange = () => {
-      if (!document.fullscreenElement && !(document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement) {
-        setInfographicFullscreenOpen(false)
+      const fs = readFullscreenElement()
+      if (!isTeacherView && (studentProjectorLatchedRef.current || isStudentProjectorFullscreen(fs) || (!fs && isDisplayModeFullscreen()))) {
+        return
       }
+      if (!fs) setInfographicFullscreenOpen(false)
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     document.addEventListener('webkitfullscreenchange', onFullscreenChange)
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
-      try {
-        const isFs = document.fullscreenElement ?? (document as Document & { webkitFullscreenElement?: Element }).webkitFullscreenElement
-        if (isFs) {
-          const exitFs = document.exitFullscreen ?? (document as Document & { webkitExitFullscreen?: () => Promise<void> }).webkitExitFullscreen
-          exitFs?.()?.catch(() => {})
+      if (!isTeacherView && (restoringStudentProjectorRef.current || studentProjectorLatchedRef.current || isStudentProjectorFullscreen() || (!readFullscreenElement() && isDisplayModeFullscreen()))) {
+        if (fullscreenOwnedBy(owner)) {
+          restoringStudentProjectorRef.current = true
+          requestStudentProjectorFullscreen()
         }
-      } catch {
-        /* ignore */
+        return
       }
+      exitFullscreenIfOwnedBy(owner)
     }
-  }, [infographicFullscreenOpen])
+  }, [infographicFullscreenOpen, isTeacherView])
 
   useEffect(() => {
     setVisualFullscreenOpen(false)
@@ -4759,10 +4876,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           </div>
         )
       })()}
-      {infographicFullscreenOpen && curriculumInfographic && (
+      {infographicFullscreenOpen && curriculumInfographic && (() => {
+        const node = (
         <div
           ref={infographicFullscreenOverlayRef}
-          className="fixed inset-0 z-[106] flex min-h-0 flex-col bg-black outline-none"
+          className={cn(
+            'fixed inset-0 flex min-h-0 flex-col bg-black outline-none',
+            isTeacherView ? 'z-[106]' : 'z-[180]'
+          )}
           aria-label={tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
         >
           <div className="z-20 flex h-14 w-full shrink-0 items-center justify-between bg-black/70 px-4">
@@ -4895,7 +5016,10 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             </div>
           </div>
         </div>
-      )}
+        )
+        if (!isTeacherView && typeof document !== 'undefined') return createPortal(node, document.body)
+        return node
+      })()}
       {/* Đồng hồ cát nổi – học sinh thấy khi giáo viên chia sẻ màn hình */}
       {timerSeconds > 0 && (
         <div className={cn('fixed bottom-4 right-4 md:bottom-6 md:right-6 z-[102] flex items-center gap-2 px-4 py-2 rounded-xl bg-black/80 text-white shadow-xl border border-amber-400/50 pb-[max(0.5rem,env(safe-area-inset-bottom))]', timerRunning && timerSeconds <= 30 && 'animate-pulse')}>
