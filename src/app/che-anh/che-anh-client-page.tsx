@@ -19,7 +19,7 @@ import { Upload, Sparkles, RefreshCw, Link2, Plus, X } from 'lucide-react'
 import { DepositCreditButton } from '@/components/deposit-credit-button'
 import { useCredits } from '@/hooks/use-credits'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { imageEngineCredit, type GptImageQuality } from '@/lib/ai/image-engine'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { BeforeAfterResultDisplay } from '@/components/image-tools/before-after-result-display'
@@ -91,9 +91,8 @@ export default function CheAnhClientPage() {
   const [step, setStep] = useState<Step>('UPLOAD')
   const [images, setImages] = useState<{ file: File; preview: string; note: string }[]>([])
   const [memeStyle, setMemeStyle] = useState('')
-  const [imageQuality, setImageQuality] = useState<'2K' | '4K'>('2K')
-  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
+  const memeGptQuality: GptImageQuality = gptQuality === 'low' ? 'low' : 'medium'
   const [aspectRatio, setAspectRatio] = useState<string>('1:1')
   const [note, setNote] = useState('')
   const [imageUrl, setImageUrl] = useState('')
@@ -103,9 +102,9 @@ export default function CheAnhClientPage() {
   const { checkCreditsAndProceed } = useCredits()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const cost = imageEngineCredit({
-    engine: imageEngine,
-    gptQuality,
-    geminiCost: imageQuality === '2K' ? 1.5 : 3,
+    engine: 'gpt',
+    gptQuality: memeGptQuality,
+    geminiCost: 1,
   })
 
   const addImage = (file: File) => {
@@ -212,9 +211,8 @@ export default function CheAnhClientPage() {
     await waitForNextPaintClient()
     const formData = new FormData()
     formData.append('memeStyle', memeStyle)
-    formData.append('imageQuality', imageQuality)
-    formData.append('imageEngine', imageEngine)
-    formData.append('gptQuality', gptQuality)
+    formData.append('imageEngine', 'gpt')
+    formData.append('gptQuality', memeGptQuality)
     formData.append('aspectRatio', aspectRatio)
     formData.append('note', note)
     images.forEach((img, i) => {
@@ -411,14 +409,12 @@ export default function CheAnhClientPage() {
                                         <div className="flex flex-wrap items-center justify-center gap-2">
                       <ImageEnginePicker
                       locale={uiLocale}
-                      engine={imageEngine}
-                      onEngineChange={setImageEngine}
-                      geminiQuality={imageQuality}
-                      onGeminiQualityChange={setImageQuality}
-                      gptQuality={gptQuality}
+                      engine="gpt"
+                      onEngineChange={() => {}}
+                      gptQuality={memeGptQuality}
                       onGptQualityChange={setGptQuality}
-                      geminiCost2k={1.5}
-                      geminiCost4k={3}
+                      gptQualities={['low', 'medium']}
+                      engines={['gpt']}
                       />
                       <Button
                       onClick={() => checkCreditsAndProceed(cost, handleSubmit)}

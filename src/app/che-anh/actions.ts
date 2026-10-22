@@ -8,16 +8,12 @@ import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
 import { revalidatePath } from 'next/cache'
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
-import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
-import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
-import { runImageContent } from '@/lib/ai/gpt-image'
+import { GPT_IMAGE_MODEL, imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
+import { generateGptImage } from '@/lib/ai/gpt-image'
 
-const CHE_ANH_COSTS = { '2K': 1.5, '4K': 3 } as const
 const VALID_ASPECT_RATIOS = ['1:1', '4:5', '3:4', '9:16', '16:9', '4:3'] as const
 const toTenths = (value: number) => Math.round(value * 10)
 const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximumFractionDigits: 1 })
@@ -35,13 +31,12 @@ const MEME_STYLE_PROMPTS: Record<string, string> = {
   co_dien: 'Classic meme style: LOLcats, Condescending Wonka, Chuck Norris Facts, Gangnam Style.',
 }
 
-/** Chế ảnh: chỉnh sửa, biến tấu ảnh theo yêu cầu. 2K: 1,5 credit, 4K: 3 credit. Tối đa 13 ảnh. */
+/** Chế ảnh: GPT low (0,5 credit) hoặc medium (1 credit). Tối đa 13 ảnh. */
 export async function cheAnh(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ. Vui lòng thử lại.' }
   }
   const memeStyle = (formData.get('memeStyle') as string)?.trim() || ''
-  const imageQuality = (formData.get('imageQuality') as '2K' | '4K') || '2K'
   const aspectRatioRaw = (formData.get('aspectRatio') as string)?.trim() || '1:1'
   const aspectRatio = VALID_ASPECT_RATIOS.includes(aspectRatioRaw as (typeof VALID_ASPECT_RATIOS)[number])
     ? aspectRatioRaw
@@ -75,9 +70,12 @@ export async function cheAnh(formData: FormData) {
   if (perImageParts.length) promptExtras += `PER-IMAGE NOTES: ${perImageParts.join('. ')}. `
   const prompt = PROMPT_BASE.replace('Chỉ trả về ảnh kết quả, không chèn chữ.', `${promptExtras}Chỉ trả về ảnh kết quả, không chèn chữ.`)
 
-  const charge = imageChargeFromForm(formData, CHE_ANH_COSTS[imageQuality] ?? CHE_ANH_COSTS['2K'])
-  if (charge.error) return { error: charge.error }
-  const COST = charge.cost
+  const rawEngine = String(formData.get('imageEngine') ?? '').trim().toLowerCase()
+  const gptQuality = parseGptImageQuality(formData.get('gptQuality'))
+  if (rawEngine !== 'gpt' || (gptQuality !== 'low' && gptQuality !== 'medium')) {
+    return { error: 'Ảnh chế chỉ dùng GPT low hoặc medium.' }
+  }
+  const COST = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
 
   const result = await getUserForCreditAction()
   if ('error' in result) return { error: result.error }
@@ -106,54 +104,28 @@ export async function cheAnh(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  let model: ReturnType<GoogleGenerativeAI['getGenerativeModel']> | null = null
-  if (charge.engine !== 'gpt') {
-    const { apiKey } = await requireGoogleApiKeyForUser(user.id)
-    const genAI = new GoogleGenerativeAI(apiKey)
-    model = genAI.getGenerativeModel({
-      model: GEMINI_3_PRO_IMAGE.model,
-      generationConfig: {
-        responseModalities: ['TEXT', 'IMAGE'],
-        imageConfig: { imageSize: imageQuality, aspectRatio },
-      },
-    } as Parameters<GoogleGenerativeAI['getGenerativeModel']>[0])
-  }
-  const contentParts = await Promise.all([
-    { text: prompt },
-    ...images.map(async (img) => ({
-      inlineData: { data: Buffer.from(await img.arrayBuffer()).toString('base64'), mimeType: img.type },
+  const gptImages = await Promise.all(
+    images.map(async (img) => ({
+      bytes: Buffer.from(await img.arrayBuffer()),
+      mimeType: img.type || 'image/png',
     })),
-  ])
-  const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  ]
+  )
 
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const result = await runImageContent({
-      engine: charge.engine,
-      gptQuality: charge.gptQuality,
+    const generated = await generateGptImage({
+      prompt,
+      quality: gptQuality,
       aspectRatio,
-      parts: contentParts,
-      gemini: () => model!.generateContent(contentParts, { safetySettings } as never),
+      images: gptImages,
     })
-    const response = result.response
-    trackFromUsageMetadata(response.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'che-anh', user.id, imageQuality)
-    const imagePartRes = response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!imagePartRes || !('inlineData' in imagePartRes)) {
+    trackFromUsageMetadata(generated.usage, GPT_IMAGE_MODEL, 'che-anh', user.id, generated.usage.logImageSize)
+    if (!generated.buffer?.length) {
       await deleteTryOnHistoryRowAndStorage(historyItem.id)
       return { error: 'AI không trả về ảnh hợp lệ.' }
     }
-    const inlineData = imagePartRes.inlineData
-    if (!inlineData?.data) {
-      await deleteTryOnHistoryRowAndStorage(historyItem.id)
-      return { error: 'AI không trả về ảnh hợp lệ.' }
-    }
-    const resultBuffer = Buffer.from(inlineData.data, 'base64')
+    const resultBuffer = generated.buffer
     const resultPath = `results/${user.id}/che_${Date.now()}.png`
     const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, resultBuffer, {
       contentType: 'image/png',
@@ -174,7 +146,7 @@ export async function cheAnh(formData: FormData) {
     await deleteTryOnHistoryRowAndStorage(historyItem.id)
     const msg = e instanceof Error ? e.message : String(e)
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
-      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
+      return { error: 'Hệ thống quá tải. Thử lại sau ít phút.' }
     }
     return { error: `Chế ảnh thất bại: ${msg}` }
   }
