@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { buildNanoAiFacebookCatalogFeedCsv, listNanoAiFacebookCatalogItems } from '@/lib/catalog/nanoai-facebook-catalog'
+import {
+  buildNanoAiFacebookCatalogFeedCsv,
+  listNanoAiFacebookCatalogItems,
+  NANOAI_FACEBOOK_CATALOG_HEADERS,
+} from '@/lib/catalog/nanoai-facebook-catalog'
+import { FACEBOOK_CATALOG_CSV_HEADERS } from '@/lib/messaging/facebook-catalog-feed'
+import { GOOGLE_MERCHANT_TSV_HEADERS } from '@/lib/messaging/google-merchant-catalog-feed'
+import { TIKTOK_CATALOG_CSV_HEADERS } from '@/lib/messaging/tiktok-catalog-feed'
 import {
   NANOAI_GOOGLE_MERCHANT_HEADERS,
   NANOAI_GOOGLE_PRODUCT_CATEGORY,
@@ -86,6 +93,30 @@ describe('nanoai platform catalog feeds', () => {
     assert.ok(wedding)
     assert.equal(wedding[google[0].indexOf('price')], '149000.00 VND')
     assert.equal(wedding[google[0].indexOf('link')], 'https://nanoai.vn/tao-thiep-moi-cuoi-ai')
+
+    assert.deepEqual([...NANOAI_FACEBOOK_CATALOG_HEADERS], [...FACEBOOK_CATALOG_CSV_HEADERS])
+    assert.deepEqual([...NANOAI_TIKTOK_CATALOG_HEADERS], [...TIKTOK_CATALOG_CSV_HEADERS])
+    assert.deepEqual([...NANOAI_GOOGLE_MERCHANT_HEADERS], [...GOOGLE_MERCHANT_TSV_HEADERS, 'shipping', 'adult'])
+    const facebookHeader = buildNanoAiFacebookCatalogFeedCsv(ORIGIN).toString('utf8').replace(/^\uFEFF/, '').split(/\r\n/)[0]
+    assert.equal(facebookHeader, NANOAI_FACEBOOK_CATALOG_HEADERS.join(','))
+
+    const curriculum = google.find((row) => row[0] === 'feature_tao_giao_trinh')
+    assert.ok(curriculum)
+    assert.equal(curriculum.length, google[0].length)
+    const g = (name: string) => curriculum[google[0].indexOf(name)]
+    assert.equal(g('price'), '6000.00 VND')
+    assert.equal(g('availability'), 'in_stock')
+    assert.equal(g('identifier_exists'), 'no')
+    assert.equal(g('gtin'), '')
+    assert.equal(g('mpn'), '')
+    assert.equal(g('google_product_category'), NANOAI_GOOGLE_PRODUCT_CATEGORY)
+    assert.equal(g('shipping'), NANOAI_GOOGLE_SHIPPING)
+    assert.equal(g('adult'), 'no')
+    assert.equal(g('custom_label_0'), 'under_50k')
+    assert.equal(g('custom_label_2'), 'software')
+    assert.match(g('description'), /YouTube/)
+    assert.match(g('description'), /PhET/)
+    assert.match(g('image_link'), /^https:\/\//)
   })
 
   it('every AI_TOOLS href is already in the three feeds', () => {

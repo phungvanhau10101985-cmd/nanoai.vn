@@ -82,9 +82,14 @@ const TOOL_IMAGE_BY_HREF: Record<string, string> = {
   '/tao-bai-hat-lyria-3': 'https://nanoai.b-cdn.net/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/sticker_1776514289804.png',
 }
 
+const FEATURE_DESCRIPTION_BY_HREF: Record<string, string> = {
+  '/tao-giao-trinh':
+    'Tạo giáo trình AI cho giáo viên. Hai giao diện tách riêng: màn giáo viên giữ ghi chú và nút sửa, màn học sinh chỉ bài chiếu, thao tác đồng bộ. Vẽ biểu đồ và đồ thị, gắn thí nghiệm mô phỏng PhET, nhúng video YouTube vào bài. Slide theo tiết và phiếu bài tập trên cùng một bài. Giá 6.000₫ cho 1 credit khi tạo vượt mức. Ba bài mới mỗi ngày không trừ credit.',
+}
+
 const FRIENDLY_FEATURE_TITLE_BY_HREF: Record<string, string> = {
   '/thu-do-online': 'Thử đồ ảo AI',
-  '/tao-giao-trinh': 'Tạo giáo trình AI',
+  '/tao-giao-trinh': 'Tạo giáo trình AI — hai màn giáo viên và học sinh',
   '/giao-trinh': 'Quản lý giáo trình',
   '/tao-bai-thi': 'Tạo đề thi online',
   '/tao-bai-tap-ve-nha': 'Tạo bài tập về nhà',
@@ -176,9 +181,11 @@ export function listNanoAiFacebookCatalogItems(): NanoAiFacebookCatalogItem[] {
     const title = FRIENDLY_FEATURE_TITLE_BY_HREF[href] || dict.tool[tool.labelKey] || tool.labelKey
     const groupLabelKey = groupByHref.get(href)
     const groupName = groupLabelKey ? (dict.navGroup[groupLabelKey] || '') : ''
-    const description = groupName
-      ? `${title} — công cụ AI trên NanoAI, thuộc nhóm ${groupName}.`
-      : `${title} — công cụ AI trên NanoAI.`
+    const description =
+      FEATURE_DESCRIPTION_BY_HREF[href] ||
+      (groupName
+        ? `${title} — công cụ AI trên NanoAI, thuộc nhóm ${groupName}.`
+        : `${title} — công cụ AI trên NanoAI.`)
 
     items.push({
       id: toNanoAiFeatureCatalogIdFromHref(href),
@@ -268,33 +275,117 @@ function formatPriceVnd(v: number): string {
   return `${Math.max(0, Math.round(v))} VND`
 }
 
+/** Cùng cột Meta Commerce với feed shop. Phần mềm để trống màu, size, giới tính. */
+export const NANOAI_FACEBOOK_CATALOG_HEADERS = [
+  'id',
+  'title',
+  'description',
+  'availability',
+  'condition',
+  'price',
+  'link',
+  'image_link',
+  'brand',
+  'additional_image_link',
+  'google_product_category',
+  'fb_product_category',
+  'product_type',
+  'color',
+  'size',
+  'sale_price',
+  'sale_price_effective_date',
+  'item_group_id',
+  'gender',
+  'age_group',
+  'custom_label_0',
+  'custom_label_1',
+  'custom_label_2',
+  'custom_label_3',
+  'custom_label_4',
+  'internal_label',
+  'video_url',
+  'shipping_weight',
+] as const
+
+function adsPriceBand(priceVnd: number): string {
+  const n = Math.max(0, Math.round(priceVnd))
+  if (n < 50_000) return 'under_50k'
+  if (n < 200_000) return 'under_200k'
+  return 'from_200k'
+}
+
+function slugLabel(raw: string): string {
+  return raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/gi, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 100)
+}
+
+function internalLabel(productType: string): string {
+  const parts = productType
+    .split('>')
+    .map((s) => slugLabel(s.trim()))
+    .filter(Boolean)
+    .slice(0, 8)
+  if (!parts.length) return ''
+  return `[${parts.map((p) => `'${p}'`).join(',')}]`
+}
+
+/** Cột quảng cáo dùng chung ba feed. Không bịa GTIN, màu, size. */
+export function nanoAiFeatureCatalogAdCells(item: NanoAiFacebookCatalogItem): Record<string, string> {
+  const group = item.productType.split('>').map((s) => s.trim()).filter(Boolean)[1] || ''
+  return {
+    additional_image_link: '',
+    fb_product_category: '313',
+    color: '',
+    size: '',
+    sale_price: '',
+    sale_price_effective_date: '',
+    item_group_id: '',
+    gender: '',
+    age_group: '',
+    custom_label_0: adsPriceBand(item.priceVnd),
+    custom_label_1: group,
+    custom_label_2: 'software',
+    custom_label_3: '',
+    custom_label_4: '',
+    internal_label: internalLabel(item.productType),
+    video_url: '',
+    video_link: '',
+    video: '',
+    shipping_weight: '',
+    material: '',
+    gtin: '',
+    mpn: '',
+    cost_of_goods_sold: '',
+    auto_pricing_min_price: '',
+  }
+}
+
 export function buildNanoAiFacebookCatalogFeedCsv(origin: string): Buffer {
-  const headers = [
-    'id',
-    'title',
-    'description',
-    'availability',
-    'condition',
-    'price',
-    'link',
-    'image_link',
-    'brand',
-    'google_product_category',
-    'product_type',
-  ]
-  const rows = listNanoAiFacebookCatalogItems().map((item) => [
-    item.id,
-    item.title,
-    item.description,
-    item.availability,
-    item.condition,
-    formatPriceVnd(item.priceVnd),
-    toAbsoluteUrl(origin, item.linkPath),
-    withVersionQuery(toAbsoluteUrl(origin, item.imagePath), IMAGE_LINK_VERSION_TOKEN),
-    item.brand,
-    '313',
-    item.productType,
-  ])
+  const headers = NANOAI_FACEBOOK_CATALOG_HEADERS
+  const rows = listNanoAiFacebookCatalogItems().map((item) => {
+    const ad = nanoAiFeatureCatalogAdCells(item)
+    const cells: Record<string, string> = {
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      availability: item.availability,
+      condition: item.condition,
+      price: formatPriceVnd(item.priceVnd),
+      link: toAbsoluteUrl(origin, item.linkPath),
+      image_link: withVersionQuery(toAbsoluteUrl(origin, item.imagePath), IMAGE_LINK_VERSION_TOKEN),
+      brand: item.brand,
+      google_product_category: '313',
+      product_type: item.productType,
+      ...ad,
+    }
+    return headers.map((name) => cells[name] ?? '')
+  })
   const csv = [headers, ...rows]
     .map((line) => line.map((cell) => csvEscapeCell(String(cell))).join(','))
     .join('\r\n')

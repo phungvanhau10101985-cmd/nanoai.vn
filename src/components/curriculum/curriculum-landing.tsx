@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '@/app/tao-giao-trinh/lib/curriculum-credit-costs'
+import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { HomeworkHelpLandingStickyCta } from '@/components/student-study/homework-help-landing-sticky-cta'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { CURRICULUM_DAILY_FREE_BODIES } from '@/lib/curriculum-ai-charge-policy'
@@ -30,6 +31,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
     image: formatCurriculumCredits(CURRICULUM_UI_CREDITS.createOrFromImage),
     slide: formatCurriculumCredits(CURRICULUM_UI_CREDITS.lessonSlideGenerate),
     infographic: formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideInfographic2K),
+    creditVnd: new Intl.NumberFormat('vi-VN').format(CREDIT_UNIT_PRICE_VND),
   }
   const text = (template: string) => fill(template, values)
   const flow = [copy.flowSubject, copy.flowSource, copy.flowCurriculum, copy.flowSlides, copy.flowWorksheet]
@@ -39,6 +41,7 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
     [copy.strengthSummaryTitle, copy.strengthSummaryBody],
     [copy.strengthLabTitle, copy.strengthLabBody],
     [copy.strengthChartTitle, copy.strengthChartBody],
+    [copy.strengthVideoTitle, copy.strengthVideoBody],
   ] as const
   const steps = [
     [copy.step1Title, copy.step1Body],
@@ -86,6 +89,62 @@ export function CurriculumLanding(props: { copy: Copy; loginHref: string }) {
             </li>
           ))}
         </ol>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.summaryShotTitle}</h2>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{copy.summaryShotBody}</p>
+        <figure className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-lg">
+          <img
+            src="/curriculum/tom-tat-bai.webp"
+            alt={copy.summaryShotAlt}
+            width={1024}
+            height={500}
+            className="h-auto w-full"
+          />
+        </figure>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.labShotTitle}</h2>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{copy.labShotBody}</p>
+        <figure className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-lg">
+          <img
+            src="/curriculum/thi-nghiem-phet.webp"
+            alt={copy.labShotAlt}
+            width={1024}
+            height={500}
+            className="h-auto w-full"
+          />
+        </figure>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.chartShotTitle}</h2>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{copy.chartShotBody}</p>
+        <figure className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-lg">
+          <img
+            src="/curriculum/do-thi.webp"
+            alt={copy.chartShotAlt}
+            width={1024}
+            height={487}
+            className="h-auto w-full"
+          />
+        </figure>
+      </section>
+
+      <section className="mt-14">
+        <h2 className="text-2xl font-bold tracking-tight text-foreground">{copy.videoShotTitle}</h2>
+        <p className="mt-2 max-w-3xl text-base leading-7 text-muted-foreground">{copy.videoShotBody}</p>
+        <figure className="mt-5 overflow-hidden rounded-3xl border border-border bg-card shadow-lg">
+          <img
+            src="/curriculum/youtube.webp"
+            alt={copy.videoShotAlt}
+            width={1024}
+            height={491}
+            className="h-auto w-full"
+          />
+        </figure>
       </section>
 
       <section className="mt-14">

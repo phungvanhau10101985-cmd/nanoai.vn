@@ -1027,20 +1027,29 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
   },
   'tao-giao-trinh': {
     key: 'tao-giao-trinh',
-    pageTitle: 'Tạo giáo trình — một bài thành giáo trình, slide theo tiết và phiếu',
+    pageTitle: 'Tạo giáo trình AI — hai màn giáo viên và học sinh, biểu đồ, PhET, YouTube',
     pageDescription:
-      'Chọn môn, lớp, bộ sách. Gõ chủ đề hoặc chụp trang sách. Ra giáo trình theo tiết, slide để chiếu và phiếu bám bài. Ba bài mới mỗi ngày không trừ credit.',
+      'Hai giao diện tách riêng, thao tác đồng bộ. Vẽ biểu đồ và đồ thị, gắn thí nghiệm PhET, nhúng video YouTube vào bài. Slide theo tiết và phiếu. 1 credit = 6.000₫. Ba bài mới mỗi ngày không trừ credit.',
     path: '/giao-trinh',
-    keywords: ['tạo giáo trình', 'giáo án', 'slide theo tiết', 'phiếu bài tập', 'sách giáo khoa', 'giáo viên'],
-    serviceName: 'Tạo giáo trình',
+    keywords: [
+      'tạo giáo trình',
+      'giáo án',
+      'slide theo tiết',
+      'giao diện giáo viên học sinh',
+      'vẽ biểu đồ',
+      'thí nghiệm PhET',
+      'nhúng YouTube',
+      'phiếu bài tập',
+    ],
+    serviceName: 'Tạo giáo trình AI',
     serviceDescription:
-      'Tạo giáo trình theo tiết, slide để chiếu và phiếu bám bài từ chủ đề hoặc ảnh trang sách.',
-    h2: 'Một bài thành giáo trình, slide theo tiết và phiếu',
+      'Giáo trình theo tiết với hai màn giáo viên và học sinh đồng bộ, biểu đồ, thí nghiệm PhET và video YouTube.',
+    h2: 'Hai màn tách riêng, một bài để chiếu',
     overview:
-      'Soạn một file chữ rồi vẫn phải cắt slide, làm phiếu và mở phần mềm chiếu khác. Ở đây chọn môn, lớp và bộ sách, gõ chủ đề hoặc chụp trang sách. Giáo trình, slide theo tiết và phiếu nằm cùng một bài. Học sinh thấy bản trình chiếu. Giáo viên sửa trên bản của mình.',
+      'Màn giáo viên giữ ghi chú và nút sửa. Màn học sinh chỉ là bài chiếu. Đổi slide, gõ lời giải, vẽ đồ thị, mở thí nghiệm PhET hoặc video YouTube thì hai màn đi cùng một chỗ. Giáo trình, slide theo tiết và phiếu nằm trong một bài.',
     benefits: [
-      'Hai màn hình đồng bộ: giáo viên và học sinh',
-      'Tạo slide, ảnh tóm tắt, thí nghiệm PhET và biểu đồ',
+      'Hai giao diện tách riêng, thao tác đồng bộ',
+      'Vẽ biểu đồ, đồ thị, thí nghiệm PhET và video YouTube trên cùng bài',
       'Giáo trình theo tiết và phiếu bám bài',
     ],
     useCases: ['Soạn bài mới', 'Chiếu một tiết', 'Gắn phiếu vào bài vừa soạn'],
@@ -1060,7 +1069,13 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       },
       {
         question: 'Học sinh thấy gì?',
-        answer: 'Màn trình chiếu đồng bộ với giáo viên: đúng slide, ảnh tóm tắt, thí nghiệm PhET và biểu đồ. Nút sửa nằm ở màn giáo viên.',
+        answer:
+          'Một giao diện riêng, chỉ bài chiếu. Đúng slide, đồ thị, thí nghiệm PhET và video YouTube mà giáo viên đang mở. Nút sửa và ghi chú nằm ở màn giáo viên.',
+      },
+      {
+        question: 'Có vẽ biểu đồ và nhúng YouTube không?',
+        answer:
+          'Có. Ô visual nhận công thức đồ thị, GeoGebra, Desmos, mô phỏng PhET và link YouTube. Cùng một bài, linh hoạt đổi từng ô. Hai màn thấy cùng nội dung.',
       },
       {
         question: 'Môn và lớp nào?',

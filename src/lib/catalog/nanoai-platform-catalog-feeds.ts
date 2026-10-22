@@ -14,8 +14,11 @@ import { rewriteLegacyBunnyCdnUrl } from '@/lib/bunny-cdn-url'
 import {
   getNanoAiCatalogVersionToken,
   listNanoAiFacebookCatalogItems,
+  nanoAiFeatureCatalogAdCells,
   type NanoAiFacebookCatalogItem,
 } from '@/lib/catalog/nanoai-facebook-catalog'
+import { GOOGLE_MERCHANT_TSV_HEADERS } from '@/lib/messaging/google-merchant-catalog-feed'
+import { TIKTOK_CATALOG_CSV_HEADERS } from '@/lib/messaging/tiktok-catalog-feed'
 
 /** Google product taxonomy: Software. */
 export const NANOAI_GOOGLE_PRODUCT_CATEGORY = '313'
@@ -23,37 +26,15 @@ export const NANOAI_GOOGLE_PRODUCT_CATEGORY = '313'
 /** Digital goods: no parcel. Country Vietnam, price 0. */
 export const NANOAI_GOOGLE_SHIPPING = 'VN:::0.00 VND'
 
+/** Cột Google Merchant của shop, cộng shipping và adult cho hàng số. */
 export const NANOAI_GOOGLE_MERCHANT_HEADERS = [
-  'id',
-  'title',
-  'description',
-  'link',
-  'mobile_link',
-  'image_link',
-  'availability',
-  'price',
-  'brand',
-  'condition',
-  'identifier_exists',
-  'google_product_category',
-  'product_type',
+  ...GOOGLE_MERCHANT_TSV_HEADERS,
   'shipping',
   'adult',
 ] as const
 
-export const NANOAI_TIKTOK_CATALOG_HEADERS = [
-  'sku_id',
-  'title',
-  'description',
-  'availability',
-  'condition',
-  'price',
-  'link',
-  'image_link',
-  'brand',
-  'google_product_category',
-  'product_type',
-] as const
+/** Cùng cột TikTok Catalog với feed shop. */
+export const NANOAI_TIKTOK_CATALOG_HEADERS = TIKTOK_CATALOG_CSV_HEADERS
 
 function toAbsoluteUrl(origin: string, path: string): string {
   const rewritten = rewriteLegacyBunnyCdnUrl(String(path || '').trim())
@@ -112,46 +93,90 @@ function googleAvailability(item: NanoAiFacebookCatalogItem): 'in_stock' | 'out_
   return item.availability === 'in stock' ? 'in_stock' : 'out_of_stock'
 }
 
+function googleCells(origin: string, item: NanoAiFacebookCatalogItem): Record<string, string> {
+  const link = landingLink(origin, item)
+  const ad = nanoAiFeatureCatalogAdCells(item)
+  return {
+    id: clip(item.id, 50),
+    title: clip(item.title, 150),
+    description: clip(item.description, 5000),
+    link,
+    mobile_link: link,
+    image_link: imageLink(origin, item),
+    additional_image_link: ad.additional_image_link,
+    availability: googleAvailability(item),
+    price: formatGoogleMerchantPriceVnd(item.priceVnd),
+    custom_label_0: ad.custom_label_0,
+    custom_label_1: ad.custom_label_1,
+    custom_label_2: ad.custom_label_2,
+    custom_label_3: ad.custom_label_3,
+    custom_label_4: ad.custom_label_4,
+    sale_price: ad.sale_price,
+    sale_price_effective_date: ad.sale_price_effective_date,
+    cost_of_goods_sold: ad.cost_of_goods_sold,
+    auto_pricing_min_price: ad.auto_pricing_min_price,
+    brand: clip(item.brand, 70),
+    condition: item.condition,
+    identifier_exists: 'no',
+    gtin: ad.gtin,
+    mpn: ad.mpn,
+    google_product_category: NANOAI_GOOGLE_PRODUCT_CATEGORY,
+    product_type: clip(item.productType, 750),
+    gender: ad.gender,
+    age_group: ad.age_group,
+    color: ad.color,
+    size: ad.size,
+    material: ad.material,
+    shipping_weight: ad.shipping_weight,
+    item_group_id: ad.item_group_id,
+    video: ad.video,
+    shipping: NANOAI_GOOGLE_SHIPPING,
+    adult: 'no',
+  }
+}
+
+function tiktokCells(origin: string, item: NanoAiFacebookCatalogItem): Record<string, string> {
+  const ad = nanoAiFeatureCatalogAdCells(item)
+  return {
+    sku_id: item.id,
+    title: clip(item.title, 150),
+    description: clip(item.description, 5000),
+    availability: item.availability,
+    condition: item.condition,
+    price: formatPlainPriceVnd(item.priceVnd),
+    link: landingLink(origin, item),
+    image_link: imageLink(origin, item),
+    brand: item.brand,
+    google_product_category: NANOAI_GOOGLE_PRODUCT_CATEGORY,
+    additional_image_link: ad.additional_image_link,
+    product_type: clip(item.productType, 750),
+    color: ad.color,
+    size: ad.size,
+    sale_price: ad.sale_price,
+    sale_price_effective_date: ad.sale_price_effective_date,
+    item_group_id: ad.item_group_id,
+    gender: ad.gender,
+    age_group: ad.age_group,
+    shipping_weight: ad.shipping_weight,
+    video_link: ad.video_link,
+    video_url: ad.video_url,
+  }
+}
+
 export function buildNanoAiGoogleMerchantFeedTsv(origin: string): Buffer {
   const lines = [NANOAI_GOOGLE_MERCHANT_HEADERS.join('\t')]
   for (const item of listNanoAiFacebookCatalogItems()) {
-    const link = landingLink(origin, item)
-    const cells = [
-      clip(item.id, 50),
-      clip(item.title, 150),
-      clip(item.description, 5000),
-      link,
-      link,
-      imageLink(origin, item),
-      googleAvailability(item),
-      formatGoogleMerchantPriceVnd(item.priceVnd),
-      clip(item.brand, 70),
-      item.condition,
-      'no',
-      NANOAI_GOOGLE_PRODUCT_CATEGORY,
-      clip(item.productType, 750),
-      NANOAI_GOOGLE_SHIPPING,
-      'no',
-    ]
-    lines.push(cells.map(tsvCell).join('\t'))
+    const cells = googleCells(origin, item)
+    lines.push(NANOAI_GOOGLE_MERCHANT_HEADERS.map((name) => tsvCell(cells[name] ?? '')).join('\t'))
   }
   return Buffer.from(`${lines.join('\n')}\n`, 'utf8')
 }
 
 export function buildNanoAiTikTokCatalogFeedCsv(origin: string): Buffer {
-  const rows = listNanoAiFacebookCatalogItems().map((item) => [
-    item.id,
-    clip(item.title, 150),
-    clip(item.description, 5000),
-    item.availability,
-    item.condition,
-    formatPlainPriceVnd(item.priceVnd),
-    landingLink(origin, item),
-    imageLink(origin, item),
-    item.brand,
-    NANOAI_GOOGLE_PRODUCT_CATEGORY,
-    clip(item.productType, 750),
-  ])
+  const rows = listNanoAiFacebookCatalogItems().map((item) => {
+    const cells = tiktokCells(origin, item)
+    return NANOAI_TIKTOK_CATALOG_HEADERS.map((name) => cells[name] ?? '')
+  })
   const csv = [NANOAI_TIKTOK_CATALOG_HEADERS, ...rows]
     .map((line) => line.map((cell) => csvCell(String(cell))).join(','))
     .join('\r\n')

@@ -3702,10 +3702,24 @@ export type Dictionary = {
     strengthSlidesBody: string
     strengthSummaryTitle: string
     strengthSummaryBody: string
+    summaryShotTitle: string
+    summaryShotBody: string
+    summaryShotAlt: string
+    labShotTitle: string
+    labShotBody: string
+    labShotAlt: string
+    chartShotTitle: string
+    chartShotBody: string
+    chartShotAlt: string
+    videoShotTitle: string
+    videoShotBody: string
+    videoShotAlt: string
     strengthLabTitle: string
     strengthLabBody: string
     strengthChartTitle: string
     strengthChartBody: string
+    strengthVideoTitle: string
+    strengthVideoBody: string
     stepsTitle: string
     step1Title: string
     step1Body: string
@@ -7931,8 +7945,8 @@ export const VI_DICTIONARY: Dictionary = {
     eyebrow: 'Tạo giáo trình',
     title: 'Một bài thành giáo trình, slide theo tiết và phiếu',
     promise:
-      'Chọn môn, lớp và bộ sách. Gõ chủ đề hoặc chụp trang sách. Ra giáo trình theo tiết, slide để chiếu, phiếu bám đúng bài.',
-    teacherLine: 'Màn giáo viên và màn học sinh đi cùng một slide, ảnh tóm tắt, thí nghiệm và biểu đồ.',
+      'Hai giao diện tách riêng. Giáo viên giữ ghi chú và nút sửa. Học sinh chỉ thấy bài chiếu. Đổi slide, vẽ đồ thị, mở thí nghiệm PhET hoặc video YouTube thì hai màn đi cùng một chỗ.',
+    teacherLine: 'Chiếu lên tivi chỉ màn học sinh. Màn giáo viên ở lại máy tính.',
     cta: 'Đăng nhập để tạo',
     ctaNote: 'Ba bài giáo trình mới mỗi ngày không trừ credit. Bài thứ tư, hoặc khi tạo lại, mới trừ.',
     flowSubject: 'Môn, lớp, bộ sách',
@@ -7947,18 +7961,35 @@ export const VI_DICTIONARY: Dictionary = {
       'Giáo án một file. Slide làm chỗ khác. Phiếu làm chỗ khác. Chiếu lên lớp thì học sinh có thể thấy cả phần giáo viên đang sửa.',
     oursTitle: 'Tạo giáo trình ở đây',
     oursBody:
-      'Giáo trình, slide theo tiết và phiếu nằm cùng một bài. Chiếu bản sạch cho học sinh. Sửa một đoạn thì hai AI đối chiếu trước khi lưu.',
+      'Giáo trình, slide theo tiết và phiếu nằm cùng một bài. Hai màn tách riêng, thao tác đồng bộ. Biểu đồ, thí nghiệm PhET và video YouTube nằm trên chính slide.',
     strengthsTitle: 'Điểm mạnh khi lên lớp',
-    strengthScreensTitle: 'Hai màn hình đồng bộ',
-    strengthScreensBody: 'Màn giáo viên và màn học sinh đi cùng nhau. Đổi slide, gõ lời giải, bật ảnh hay biểu đồ thì màn học sinh hiện đúng chỗ đó.',
+    strengthScreensTitle: 'Hai giao diện, một thao tác',
+    strengthScreensBody:
+      'Màn giáo viên và màn học sinh là hai cửa sổ riêng. Ghi chú và nút sửa không lọt sang màn học sinh. Đổi slide, gõ lời giải, mở đồ thị, thí nghiệm hay video thì màn học sinh theo đúng chỗ đó.',
     strengthSlidesTitle: 'Tạo slide',
     strengthSlidesBody: 'Mỗi tiết có slide để chiếu. Giáo viên gộp, tách, rồi chọn tiết để mở. Màn học sinh theo đúng tiết đó.',
     strengthSummaryTitle: 'Tạo ảnh tóm tắt',
     strengthSummaryBody: 'Một ảnh infographic cho cả bài hoặc cho một tiết. Học sinh xem cùng ảnh trên màn của mình.',
+    summaryShotTitle: 'Tạo ảnh tóm tắt ngay trên giáo trình',
+    summaryShotBody: 'Một nút cho tiết đang dạy, một nút cho cả bài. Ảnh nằm trên slide. Học sinh xem cùng ảnh.',
+    summaryShotAlt: 'Giáo trình với ảnh tóm tắt công thức tọa độ vectơ và nút tạo infographic cho tiết hoặc cả bài',
+    labShotTitle: 'Thêm thí nghiệm PhET ngay trên bài giảng',
+    labShotBody: 'Dán link mô phỏng PhET vào ô visual. Thí nghiệm chạy trên slide. Học sinh thao tác cùng thí nghiệm giáo viên đang mở.',
+    labShotAlt: 'Giáo trình với thí nghiệm PhET Quang hình học gắn trên bài và link phet.colorado.edu trong ô visual',
+    chartShotTitle: 'Hiển thị đồ thị ngay trong bài giảng',
+    chartShotBody: 'Dán công thức vào ô visual. Đồ thị hiện trên slide. Học sinh xem cùng đồ thị giáo viên đang mở.',
+    chartShotAlt: 'Giáo trình với đồ thị hàm y = x³ − 5x² − x + 1 hiện trong bài',
+    videoShotTitle: 'Nhúng video YouTube hoặc ảnh ngay trong bài',
+    videoShotBody: 'Dán link YouTube hoặc một ảnh vào ô visual. Video và ảnh nằm trên slide. Học sinh xem đúng nội dung giáo viên đang mở.',
+    videoShotAlt: 'Giáo trình với video YouTube về vectơ nhúng trong bài và link youtube.com trong ô visual',
     strengthLabTitle: 'Thí nghiệm trên slide',
     strengthLabBody: 'Gắn mô phỏng thí nghiệm PhET vào ô visual. Học sinh thấy đúng thí nghiệm giáo viên đang mở, không cần tab khác.',
-    strengthChartTitle: 'Vẽ biểu đồ',
-    strengthChartBody: 'Biểu đồ GeoGebra hoặc plot nằm trên slide. Đồ thị hiện cùng lúc ở màn giáo viên và màn học sinh.',
+    strengthChartTitle: 'Vẽ biểu đồ và đồ thị',
+    strengthChartBody:
+      'Dán công thức, nhiều đồ thị trên một hình, GeoGebra hoặc Desmos. Đồ thị hiện cùng lúc ở hai màn. Đổi ô visual mà không phải rời bài.',
+    strengthVideoTitle: 'Nhúng video YouTube',
+    strengthVideoBody:
+      'Dán link YouTube vào bài. Video nằm trên slide, cạnh biểu đồ hoặc thí nghiệm. Học sinh xem đúng video giáo viên đang mở.',
     stepsTitle: 'Bốn bước lên lớp',
     step1Title: 'Chọn môn và lớp',
     step1Body: 'Chọn bộ sách và loại bài: hình thành kiến thức, luyện tập, hoặc thực hành.',
@@ -7979,14 +8010,15 @@ export const VI_DICTIONARY: Dictionary = {
     priceAgainName: 'Tạo lại',
     priceAgainDetail: '{slide} credit, infographic 1 hoặc 2',
     priceNote:
-      'Ảnh trang sách trừ {image} credit khi đã đủ {freeBodies} bài miễn phí trong ngày, hoặc khi ghi đè bài cũ. Slide một tiết lần đầu không trừ. Tạo lại slide trừ {slide} credit. Tạo lại infographic trừ 1 credit (medium) hoặc 2 credit (high). Mở bản đã lưu, không gọi AI, thì không trừ.',
+      'Ảnh trang sách trừ {image} credit khi đã đủ {freeBodies} bài miễn phí trong ngày, hoặc khi ghi đè bài cũ. Slide một tiết lần đầu không trừ. Tạo lại slide trừ {slide} credit. Tạo lại infographic trừ 1 credit (medium) hoặc 2 credit (high). Mở bản đã lưu, không gọi AI, thì không trừ. 1 credit = {creditVnd}₫.',
     faqTitle: 'Câu hỏi thường gặp',
     faq1q: 'Có phải tự cắt slide không?',
     faq1a: 'Không. Giáo trình sinh kèm slide theo tiết. Giáo viên chọn tiết rồi chiếu.',
     faq2q: 'Có bám sách giáo khoa không?',
     faq2a: 'Có. Chọn Kết nối tri thức, Cánh diều, Chân trời sáng tạo, hoặc sách khác. Có thể chụp trang sách.',
     faq3q: 'Học sinh thấy gì?',
-    faq3a: 'Màn trình chiếu đồng bộ với giáo viên: đúng slide, ảnh tóm tắt, thí nghiệm và biểu đồ. Nút sửa nằm ở màn giáo viên.',
+    faq3a:
+      'Giao diện riêng, chỉ bài chiếu. Đúng slide, đồ thị, thí nghiệm PhET và video YouTube. Nút sửa và ghi chú ở lại màn giáo viên.',
     faq4q: 'Môn và lớp nào?',
     faq4a: 'Toán, Ngữ văn, Tiếng Anh, Lý, Hóa, Sinh, Sử, Địa, GDCD, Tin, Công nghệ, Âm nhạc, Mỹ thuật, Thể dục và môn khác. Lớp 1 đến 12, và các bậc sau phổ thông.',
     faq5q: 'Khi nào trừ credit?',
