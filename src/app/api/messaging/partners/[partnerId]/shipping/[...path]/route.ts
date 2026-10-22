@@ -43,6 +43,8 @@ import {
   filterRecordsForImportPeriod,
   filterRecordsForReceivedPeriod,
   matchesOpsBucket,
+  receivedPeriodCalendar,
+  type TimelineGranularity,
 } from '@/lib/messaging/shipping/shipping-ops'
 import { assertPartnerDashboardAccess } from '@/lib/partner-website/partner-website-auth'
 
@@ -234,14 +236,22 @@ export async function GET(req: NextRequest, ctx: Ctx) {
     }
     if (route === 'operations-stats/received-timeline/records') {
       const q = timelineQuery(req)
-      const records = filterRecordsForReceivedPeriod(await listAllPartnerEmsRecordsFromPg(partnerId), q.bucket, q).filter(
-        (r) => matchesOpsBucket(r, q.bucket as OpsBucketKey),
-      )
+      const receivedBucket = q.bucket === 'return_shop_received' ? 'shop_return_received' : q.bucket
+      if (receivedBucket !== 'cod_received_in_period' && receivedBucket !== 'shop_return_received') {
+        return jsonError('Nhóm thống kê thực nhận không hợp lệ.')
+      }
+      const records = filterRecordsForReceivedPeriod(await listAllPartnerEmsRecordsFromPg(partnerId), receivedBucket, q)
       const page = paginate(records, q.skip, q.pageLimit)
+      const baseLabel = receivedBucket === 'cod_received_in_period' ? 'COD nhận trong kỳ' : 'Hoàn admin nhận trong kỳ'
+      let bucketLabel = baseLabel
+      const gran = (q.granularity || 'month') as TimelineGranularity
+      if (q.periodKey && ['year', 'month', 'week', 'day'].includes(gran)) {
+        bucketLabel = `${baseLabel} — ${receivedPeriodCalendar(q.periodKey, gran).label}`
+      }
       return NextResponse.json({
         ok: true,
-        bucket: q.bucket,
-        bucket_label: OPS_BUCKET_LABELS[q.bucket] || q.bucket,
+        bucket: receivedBucket,
+        bucket_label: bucketLabel,
         period_key: q.periodKey,
         granularity: q.granularity,
         ...page,

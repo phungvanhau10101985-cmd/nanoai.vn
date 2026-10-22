@@ -718,7 +718,7 @@ export async function polishWeddingCardText(formData: FormData) {
       return {
         error:
           charge.code === 'INSUFFICIENT_CREDITS'
-            ? 'Không đủ credit. Mỗi lần cải thiện tốn 0,1 credit.'
+            ? 'Không đủ credit. Mỗi lần Tối ưu AI tốn 0,1 credit.'
             : charge.error,
       }
     }

@@ -9,7 +9,10 @@ import { useToast } from '@/hooks/use-toast'
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { omitWeddingAddressesFromSharedCopy } from '@/lib/wedding/wedding-shared-copy'
 import type { WeddingPolishField } from '@/lib/wedding/wedding-text-polish-deepseek'
-import { weddingPolishFieldCostsCredit } from '@/lib/wedding/wedding-text-polish-credit'
+import {
+  WEDDING_TEXT_POLISH_CREDIT_LABEL,
+  weddingPolishFieldCostsCredit,
+} from '@/lib/wedding/wedding-text-polish-credit'
 import { polishWeddingCardText } from './actions'
 
 type Props = {
@@ -45,7 +48,7 @@ export function WeddingAiPolishTextarea({
     if (!value.trim()) {
       toast({
         title: 'Chưa có nội dung',
-        description: 'Gõ sơ ý của bạn rồi bấm «Tối ưu AI» — AI sẽ viết lại cho hay và mượt hơn.',
+        description: `Gõ sơ ý của bạn rồi bấm «Tối ưu AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}» — AI sẽ viết lại cho hay và mượt hơn.`,
         variant: 'destructive',
       })
       return
@@ -67,10 +70,10 @@ export function WeddingAiPolishTextarea({
       onChange(omitWeddingAddressesFromSharedCopy(result.text, omitAddresses ?? []))
       const charged = 'charged' in result ? Number(result.charged) || 0 : 0
       toast({
-        title: costsCredit ? 'Đã cải thiện bằng AI' : 'Đã tối ưu bằng AI',
+        title: 'Đã tối ưu bằng AI',
         description:
           charged > 0
-            ? 'Đã trừ 0,1 credit. Bạn có thể chỉnh thêm hoặc bấm lại nếu chưa ưng ý.'
+            ? `Đã trừ ${WEDDING_TEXT_POLISH_CREDIT_LABEL}. Bạn có thể chỉnh thêm hoặc bấm lại nếu chưa ưng ý.`
             : 'Bạn có thể chỉnh thêm hoặc bấm lại nếu chưa ưng ý.',
       })
     }
@@ -87,10 +90,14 @@ export function WeddingAiPolishTextarea({
           className="h-7 shrink-0 px-2 text-xs"
           disabled={polishing}
           onClick={() => void polish()}
-          title={costsCredit ? 'Viết lại cho hay hơn. Mỗi lần 0,1 credit.' : 'DeepSeek viết lại cho hay, mượt — giữ ý bạn đã nhập'}
+          title={
+            costsCredit
+              ? `Viết lại cho hay hơn. Mỗi lần ${WEDDING_TEXT_POLISH_CREDIT_LABEL}.`
+              : 'DeepSeek viết lại cho hay, mượt — giữ ý bạn đã nhập'
+          }
         >
           {polishing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
-          {costsCredit ? 'Cải thiện AI · 0,1' : 'Tối ưu AI'}
+          {costsCredit ? `Tối ưu AI · ${WEDDING_TEXT_POLISH_CREDIT_LABEL}` : 'Tối ưu AI'}
         </Button>
       </div>
       <Textarea

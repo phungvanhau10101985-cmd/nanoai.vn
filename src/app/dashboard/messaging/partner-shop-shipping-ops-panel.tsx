@@ -201,6 +201,17 @@ function periodRangeLabel(start?: string, end?: string): string | null {
   return `${day(start)} – ${day(end)}/${end.slice(0, 4)}`
 }
 
+function receivedTotalsBounds(
+  items: Array<{ period_start?: string; period_end?: string }>,
+  filtered: boolean,
+): { dateFrom?: string; dateTo?: string } | null {
+  if (filtered || !items.length) return null
+  const starts = items.map((item) => item.period_start).filter((v): v is string => Boolean(v)).sort()
+  const ends = items.map((item) => item.period_end).filter((v): v is string => Boolean(v)).sort()
+  if (!starts.length || !ends.length) return null
+  return { dateFrom: starts[0], dateTo: ends[ends.length - 1] }
+}
+
 function moneyOrDash(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(Number(n))) return '—'
   return vnd(n)
@@ -557,7 +568,17 @@ export function PartnerShopShippingOpsPanel({
   const [opsStats, setOpsStats] = useState<OpsStats | null>(null)
   const [opsLoading, setOpsLoading] = useState(false)
   const [timeline, setTimeline] = useState<{ items: TimelineItem[]; granularity: string; available_years?: number[] } | null>(null)
-  const [received, setReceived] = useState<{ items: TimelineItem[]; granularity: string } | null>(null)
+  const [received, setReceived] = useState<{
+    items: TimelineItem[]
+    granularity: string
+    filter_label?: string | null
+    totals?: {
+      cod_received_count: number
+      cod_received_total: number
+      return_received_count: number
+      return_received_cod_total: number
+    }
+  } | null>(null)
   const [granularity, setGranularity] = useState<'year' | 'month' | 'week' | 'day'>('month')
   const [timelinePreset, setTimelinePreset] = useState<string>('')
   const [timelineYear, setTimelineYear] = useState('')
@@ -570,6 +591,9 @@ export function PartnerShopShippingOpsPanel({
     axis: 'ops' | 'import' | 'received'
     periodKey?: string
     periodLabel?: string
+    dateFrom?: string
+    dateTo?: string
+    omitPeriod?: boolean
   } | null>(null)
   const [bucketRows, setBucketRows] = useState<PartnerEmsRecord[]>([])
   const [bucketSkip, setBucketSkip] = useState(0)
@@ -668,8 +692,22 @@ export function PartnerShopShippingOpsPanel({
       ])
       setOpsStats(stats as unknown as OpsStats)
       setTimeline({ items: (tl.items as TimelineItem[]) || [], granularity: String(tl.granularity || granularity), available_years: (tl.available_years as number[]) || [] })
-      setReceived({ items: (recv.items as TimelineItem[]) || [], granularity: String(recv.granularity || granularity) })
-      setAvailableYears((tl.available_years as number[]) || [])
+      setReceived({
+        items: (recv.items as TimelineItem[]) || [],
+        granularity: String(recv.granularity || granularity),
+        filter_label: (recv.filter_label as string | null) || null,
+        totals: recv.totals as {
+          cod_received_count: number
+          cod_received_total: number
+          return_received_count: number
+          return_received_cod_total: number
+        },
+      })
+      const yearSet = new Set<number>([
+        ...((tl.available_years as number[]) || []),
+        ...((recv.available_years as number[]) || []),
+      ])
+      setAvailableYears([...yearSet].sort((a, b) => b - a))
       const emsList = (batches.batches as Array<Record<string, unknown>>) || []
       const codList = (cod.batches as Array<Record<string, unknown>>) || []
       const freightList = (freight.batches as Array<Record<string, unknown>>) || []
@@ -760,11 +798,23 @@ export function PartnerShopShippingOpsPanel({
     axis?: 'ops' | 'import' | 'received'
     periodKey?: string
     periodLabel?: string
+    dateFrom?: string
+    dateTo?: string
+    omitPeriod?: boolean
     skip?: number
   }) => {
     const axis = opts.axis || 'ops'
     const skip = opts.skip ?? 0
-    setActiveBucket({ key: opts.key, label: opts.label, axis, periodKey: opts.periodKey, periodLabel: opts.periodLabel })
+    setActiveBucket({
+      key: opts.key,
+      label: opts.label,
+      axis,
+      periodKey: opts.periodKey,
+      periodLabel: opts.periodLabel,
+      dateFrom: opts.dateFrom,
+      dateTo: opts.dateTo,
+      omitPeriod: opts.omitPeriod,
+    })
     setBucketSkip(skip)
     setBucketLoading(true)
     try {
@@ -774,7 +824,9 @@ export function PartnerShopShippingOpsPanel({
         q.set('period_key', opts.periodKey || '')
         path = `operations-stats/timeline/records?${timelineQs}&${q.toString()}`
       } else if (axis === 'received') {
-        q.set('period_key', opts.periodKey || '')
+        if (!opts.omitPeriod && opts.periodKey) q.set('period_key', opts.periodKey)
+        if (opts.dateFrom) q.set('date_from', opts.dateFrom)
+        if (opts.dateTo) q.set('date_to', opts.dateTo)
         path = `operations-stats/received-timeline/records?${timelineQs}&${q.toString()}`
       }
       const data = await jsonGet(path)
@@ -1336,35 +1388,100 @@ export function PartnerShopShippingOpsPanel({
             </tbody>
           </table>
           {!timeline?.items.length ? <p className="py-3 text-sm text-muted-foreground">{t.noRows}</p> : null}
-          <h3 className="mt-4 text-sm font-medium">{t.receivedTitle}</h3>
-          <table className="mt-1 w-full text-xs">
-            <thead className="bg-teal-50/80 text-teal-900">
-              <tr>
-                <th className="py-1 pr-2 text-left font-medium">{granLabel}</th>
-                <th className="py-1 pr-2 text-right font-medium">{t.grid.receivedCod}</th>
-                <th className="py-1 text-right font-medium">{t.grid.receivedReturn}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(received?.items || []).map((it) => {
-                const range = periodRangeLabel(it.period_start, it.period_end)
-                return (
-                  <tr key={`r-${it.period_key}`} className="border-t border-border/60">
-                    <td className="py-1.5 pr-2">
-                      <div className="font-medium">{it.period_label}</div>
-                      {range ? <div className="text-[10px] text-muted-foreground">{range}</div> : null}
-                    </td>
-                    <td className="py-1.5 pr-2">
-                      <TimelineMoney n={it.cod_received_count ?? 0} amount={it.cod_received_total} countClass="text-teal-800" amountClass="text-teal-700/90" onClick={() => void openRecords({ key: 'cod_received_in_period', label: `${it.period_label} · ${t.grid.receivedCod}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
-                    </td>
-                    <td className="py-1.5">
-                      <TimelineMoney n={it.return_received_count ?? 0} amount={it.return_received_cod_total} countClass="text-orange-900" amountClass="text-orange-800/90" onClick={() => void openRecords({ key: 'shop_return_received', label: `${it.period_label} · ${t.grid.receivedReturn}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div className="mt-4 space-y-3 border-t border-border/70 pt-4">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">{t.receivedTitle}</h3>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t.receivedHint}</p>
+            </div>
+            {opsLoading && !received ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">{t.receivedLoading}</p>
+            ) : received && received.items.length ? (
+              <div className="space-y-3">
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <table className="w-full min-w-[520px] text-xs">
+                    <thead className="bg-teal-50/80 text-teal-900">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">{granLabel}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t.grid.receivedCod}</th>
+                        <th className="px-3 py-2 text-right font-medium">{t.grid.receivedReturn}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {received.items.map((it) => {
+                        const range = periodRangeLabel(it.period_start, it.period_end)
+                        return (
+                          <tr key={`r-${it.period_key}`} className="hover:bg-muted/40">
+                            <td className="px-3 py-2.5">
+                              <div className="font-medium">{it.period_label}</div>
+                              {range ? <div className="text-[10px] text-muted-foreground">{range}</div> : null}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <TimelineMoney n={it.cod_received_count ?? 0} amount={it.cod_received_total} countClass="text-teal-800" amountClass="text-teal-700/90" onClick={() => void openRecords({ key: 'cod_received_in_period', label: `${it.period_label} · ${t.grid.receivedCod}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <TimelineMoney n={it.return_received_count ?? 0} amount={it.return_received_cod_total} countClass="text-orange-900" amountClass="text-orange-800/90" onClick={() => void openRecords({ key: 'shop_return_received', label: `${it.period_label} · ${t.grid.receivedReturn}`, axis: 'received', periodKey: it.period_key, periodLabel: it.period_label })} />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    {(received.totals?.cod_received_count || 0) > 0 || (received.totals?.return_received_count || 0) > 0 ? (
+                      <tfoot className="bg-teal-50/70 text-teal-950">
+                        <tr>
+                          <td className="px-3 py-2.5 font-semibold">{t.receivedTotal.replace('{n}', String(received.items.length))}</td>
+                          <td className="px-3 py-2.5">
+                            <TimelineMoney
+                              n={received.totals?.cod_received_count ?? 0}
+                              amount={received.totals?.cod_received_total}
+                              countClass="text-teal-900"
+                              amountClass="text-teal-800"
+                              onClick={() => {
+                                const rangeLabel = received.filter_label || t.receivedTotalsRange
+                                const bounds = receivedTotalsBounds(received.items, Boolean(timelinePreset || timelineYear || dateFrom || dateTo))
+                                void openRecords({
+                                  key: 'cod_received_in_period',
+                                  label: `${rangeLabel} · ${t.grid.receivedCod}`,
+                                  axis: 'received',
+                                  omitPeriod: true,
+                                  dateFrom: bounds?.dateFrom,
+                                  dateTo: bounds?.dateTo,
+                                })
+                              }}
+                            />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <TimelineMoney
+                              n={received.totals?.return_received_count ?? 0}
+                              amount={received.totals?.return_received_cod_total}
+                              countClass="text-orange-950"
+                              amountClass="text-orange-900"
+                              onClick={() => {
+                                const rangeLabel = received.filter_label || t.receivedTotalsRange
+                                const bounds = receivedTotalsBounds(received.items, Boolean(timelinePreset || timelineYear || dateFrom || dateTo))
+                                void openRecords({
+                                  key: 'shop_return_received',
+                                  label: `${rangeLabel} · ${t.grid.receivedReturn}`,
+                                  axis: 'received',
+                                  omitPeriod: true,
+                                  dateFrom: bounds?.dateFrom,
+                                  dateTo: bounds?.dateTo,
+                                })
+                              }}
+                            />
+                          </td>
+                        </tr>
+                      </tfoot>
+                    ) : null}
+                  </table>
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">{t.receivedFootnote}</p>
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                {received?.filter_label ? t.receivedEmptyFiltered : t.receivedEmpty}
+              </p>
+            )}
+          </div>
         </CardContent>
       </Card>
 

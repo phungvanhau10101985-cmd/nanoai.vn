@@ -1853,7 +1853,7 @@ export default function WeddingCardAiClientPage() {
                 Tạo thiệp mới
               </Button>
               <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-                <b>Credit:</b> Tạo ảnh nền GPT medium = 1 credit, high = 2 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Cải thiện Dress code hoặc lời cảm ơn = 0,1 credit/lần. Sửa text khác, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+                <b>Credit:</b> Tạo ảnh nền GPT medium = 1 credit, high = 2 credit. Chọn ảnh kho hoặc ảnh ngoài của riêng thiệp = 0 credit. Mỗi lần Tối ưu AI (đoạn mở, quote, dress code, câu chuyện, lời cảm ơn) = 0,1 credit. Sửa tay, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
               </div>
             </div>
           </div>

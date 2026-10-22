@@ -288,12 +288,102 @@ export function recordPeriodDate(record: PartnerEmsRecord): Date | null {
 
 export function recordCodPaidDate(record: PartnerEmsRecord): Date | null {
   if (!record.cod_paid_date) return null
-  const d = new Date(`${record.cod_paid_date}T00:00:00+07:00`)
+  const raw = String(record.cod_paid_date).slice(0, 10)
+  const d = new Date(`${raw}T00:00:00+07:00`)
   return Number.isNaN(d.getTime()) ? null : d
 }
 
+const RECEIVED_DELIVERED_PHASES = new Set(['delivered', 'cod_collected', 'cod_settled'])
+
+/** Cùng điều kiện 188: bỏ vận đơn đã giao và vận đơn EMS đã trả COD. */
+export function shipmentQualifiesAsReceivedShopReturn(record: Pick<PartnerEmsRecord, 'ems_status' | 'ems_phase' | 'cod_settlement_status'>): boolean {
+  if ((record.cod_settlement_status || '').trim().toLowerCase() === 'matched') return false
+  const phase = (record.ems_phase || '').trim().toLowerCase()
+  if (RECEIVED_DELIVERED_PHASES.has(phase)) return false
+  const text = (record.ems_status || '').toLowerCase()
+  const compact = text.replace(/\s+/g, '')
+  if (compact.includes('[cod]đãthutiền') || compact.includes('đãthutiềnbưutá')) return false
+  if (compact.includes('[cod]trảtiền') || compact.includes('trảtiềnchongườigửi')) return false
+  if (text.includes('phát thành công') && !text.includes('phát hoàn')) return false
+  return isEmsReturnPendingShop(record.ems_status)
+}
+
 export function recordShopReturnReceivedDate(record: PartnerEmsRecord): Date | null {
+  if (!record.shop_return_received_at) return null
+  if (!shipmentQualifiesAsReceivedShopReturn(record)) return null
   return vnDate(record.shop_return_received_at)
+}
+
+function isoWeekOf(y: number, m: number, d: number): { weekYear: number; week: number } {
+  const date = new Date(Date.UTC(y, m - 1, d))
+  const day = date.getUTCDay() || 7
+  date.setUTCDate(date.getUTCDate() + 4 - day)
+  const weekYear = date.getUTCFullYear()
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1))
+  const week = Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7)
+  return { weekYear, week }
+}
+
+function dateFromIsoWeek(weekYear: number, week: number, weekday: number): { y: number; m: number; d: number } {
+  const jan4 = new Date(Date.UTC(weekYear, 0, 4))
+  const jan4Day = jan4.getUTCDay() || 7
+  const monday = new Date(jan4)
+  monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1) + (week - 1) * 7 + (weekday - 1))
+  return { y: monday.getUTCFullYear(), m: monday.getUTCMonth() + 1, d: monday.getUTCDate() }
+}
+
+function ymd(y: number, m: number, d: number): string {
+  return `${y}-${pad2(m)}-${pad2(d)}`
+}
+
+/** Khóa kỳ thực nhận giống admin 188 (tháng `YYYY-MM`, tuần ISO `YYYY-Www`). */
+export function receivedPeriodKey(date: Date, granularity: TimelineGranularity): string {
+  const { y, m, d } = vnCalendarParts(date)
+  if (granularity === 'year') return String(y).padStart(4, '0')
+  if (granularity === 'month') return `${y}-${pad2(m)}`
+  if (granularity === 'day') return ymd(y, m, d)
+  const iso = isoWeekOf(y, m, d)
+  return `${String(iso.weekYear).padStart(4, '0')}-W${pad2(iso.week)}`
+}
+
+export function receivedPeriodCalendar(
+  key: string,
+  granularity: TimelineGranularity,
+): { startYmd: string; endYmd: string; label: string } {
+  if (granularity === 'year') {
+    const y = Number(key)
+    return { startYmd: ymd(y, 1, 1), endYmd: ymd(y, 12, 31), label: String(y) }
+  }
+  if (granularity === 'month') {
+    const [ys, ms] = key.split('-')
+    const y = Number(ys)
+    const m = Number(ms)
+    const last = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    return { startYmd: ymd(y, m, 1), endYmd: ymd(y, m, last), label: `${pad2(m)}/${y}` }
+  }
+  if (granularity === 'week') {
+    const [ys, ws] = key.split('-W')
+    const start = dateFromIsoWeek(Number(ys), Number(ws), 1)
+    const end = dateFromIsoWeek(Number(ys), Number(ws), 7)
+    return {
+      startYmd: ymd(start.y, start.m, start.d),
+      endYmd: ymd(end.y, end.m, end.d),
+      label: `Tuần ${pad2(Number(ws))}/${ys}`,
+    }
+  }
+  const [ys, ms, ds] = key.split('-')
+  return { startYmd: key, endYmd: key, label: `${pad2(Number(ds))}/${pad2(Number(ms))}/${ys}` }
+}
+
+function receivedPeriodInstantRange(key: string, granularity: TimelineGranularity): { start: Date; end: Date } {
+  const cal = receivedPeriodCalendar(key, granularity)
+  const [ys, ms, ds] = cal.startYmd.split('-').map(Number)
+  const [ye, me, de] = cal.endYmd.split('-').map(Number)
+  const next = new Date(Date.UTC(ye, me - 1, de + 1))
+  return {
+    start: dateFromVnParts(ys, ms, ds),
+    end: dateFromVnParts(next.getUTCFullYear(), next.getUTCMonth() + 1, next.getUTCDate()),
+  }
 }
 
 export type TimelineGranularity = 'year' | 'month' | 'week' | 'day'
@@ -304,6 +394,13 @@ const TIMELINE_DEFAULT_LIMITS: Record<TimelineGranularity, number> = {
   month: 24,
   week: 16,
   day: 31,
+}
+
+const RECEIVED_TIMELINE_DEFAULT_LIMITS: Record<TimelineGranularity, number> = {
+  year: 20,
+  month: 36,
+  week: 52,
+  day: 90,
 }
 
 function pad2(n: number): string {
@@ -519,7 +616,7 @@ export function buildReceivedTimeline(records: PartnerEmsRecord[], input: {
     throw new Error('granularity phải là year, month, week hoặc day.')
   }
   const filter = resolveTimelineFilter(input)
-  const maxItems = Math.max(1, Math.min(200, Math.floor(input.limit ?? TIMELINE_DEFAULT_LIMITS[granularity])))
+  const maxItems = Math.max(1, Math.min(200, Math.floor(input.limit ?? RECEIVED_TIMELINE_DEFAULT_LIMITS[granularity])))
   const grouped = new Map<string, { cod_received_count: number; cod_received_total: number; return_received_count: number; return_received_cod_total: number }>()
   const years = new Set<number>()
   const ensure = (key: string) => {
@@ -534,7 +631,7 @@ export function buildReceivedTimeline(records: PartnerEmsRecord[], input: {
       if (paid) {
         years.add(vnCalendarParts(paid).y)
         if (inRange(paid, filter.start, filter.end)) {
-          const b = ensure(periodKey(paid, granularity))
+          const b = ensure(receivedPeriodKey(paid, granularity))
           b.cod_received_count += 1
           b.cod_received_total += Math.max(0, Math.round(Number(record.cod_paid_amount || record.cod_amount || 0)))
         }
@@ -544,7 +641,7 @@ export function buildReceivedTimeline(records: PartnerEmsRecord[], input: {
     if (recv) {
       years.add(vnCalendarParts(recv).y)
       if (inRange(recv, filter.start, filter.end)) {
-        const b = ensure(periodKey(recv, granularity))
+        const b = ensure(receivedPeriodKey(recv, granularity))
         b.return_received_count += 1
         b.return_received_cod_total += recordCodAmount(record)
       }
@@ -558,19 +655,19 @@ export function buildReceivedTimeline(records: PartnerEmsRecord[], input: {
     totals.cod_received_total += bucket.cod_received_total
     totals.return_received_count += bucket.return_received_count
     totals.return_received_cod_total += bucket.return_received_cod_total
-    const { start, end } = periodBounds(key, granularity)
+    const cal = receivedPeriodCalendar(key, granularity)
     return {
       period_key: key,
-      period_label: periodLabel(key, granularity),
-      period_start: start.toISOString(),
-      period_end: end.toISOString(),
+      period_label: cal.label,
+      period_start: cal.startYmd,
+      period_end: cal.endYmd,
       ...bucket,
     }
   })
   return {
     granularity,
     timezone: 'Asia/Ho_Chi_Minh',
-    date_field: 'cod_paid_date|shop_return_received_at',
+    date_field: 'received',
     limit: maxItems,
     filter_from: filter.start?.toISOString() ?? null,
     filter_to: filter.end?.toISOString() ?? null,
@@ -617,10 +714,13 @@ export function filterRecordsForReceivedPeriod(
   },
 ): PartnerEmsRecord[] {
   const granularity = ((input.granularity || 'month').trim().toLowerCase() || 'month') as TimelineGranularity
-  const axisDate = (r: PartnerEmsRecord) =>
-    bucket === 'shop_return_received' ? recordShopReturnReceivedDate(r) : recordCodPaidDate(r)
+  const axisDate = (r: PartnerEmsRecord) => {
+    if (bucket === 'shop_return_received' || bucket === 'return_shop_received') return recordShopReturnReceivedDate(r)
+    if (bucket === 'cod_received_in_period') return isCodPaid(r) ? recordCodPaidDate(r) : null
+    return null
+  }
   if (input.periodKey) {
-    const { start, end } = periodBounds(input.periodKey, granularity)
+    const { start, end } = receivedPeriodInstantRange(input.periodKey, granularity)
     return records.filter((r) => inRange(axisDate(r), start, end))
   }
   const filter = resolveTimelineFilter(input)

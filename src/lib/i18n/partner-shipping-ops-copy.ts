@@ -62,6 +62,13 @@ export type PartnerShippingOpsCopy = {
   opsRefresh: string
   timelineTitle: string
   receivedTitle: string
+  receivedHint: string
+  receivedFootnote: string
+  receivedEmpty: string
+  receivedEmptyFiltered: string
+  receivedLoading: string
+  receivedTotal: string
+  receivedTotalsRange: string
   importEmsTitle: string
   importEmsHint: string
   importCodTitle: string
@@ -298,6 +305,15 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     opsRefresh: 'Làm mới',
     timelineTitle: 'Theo dõi theo đơn nhập',
     receivedTitle: 'Theo dữ liệu thực nhận',
+    receivedHint:
+      'COD theo ngày EMS chuyển tiền về shop · Hoàn theo ngày admin xác nhận nhận đúng vận đơn EMS báo hoàn (không theo ngày import, không gồm vận đơn đã giao hoặc EMS đã trả COD cho shop).',
+    receivedFootnote:
+      'Bấm số để xem danh sách · COD nhận = ngày EMS trả tiền (file đối soát) · Hoàn admin nhận = ngày xác nhận nhận hoàn trên vận đơn EMS báo hoàn, chưa trả COD.',
+    receivedEmpty: 'Chưa có dữ liệu COD/hoàn thực nhận để thống kê.',
+    receivedEmptyFiltered: 'Không có dữ liệu thực nhận trong khoảng đã chọn.',
+    receivedLoading: 'Đang tải thống kê thực nhận…',
+    receivedTotal: 'Tổng ({n} kỳ hiển thị)',
+    receivedTotalsRange: 'Tổng các kỳ hiển thị',
     importEmsTitle: '1. Upload file Excel gửi EMS',
     importEmsHint:
       'File gui ems.xlsx (hoặc .xls): cột A mã vận đơn, I mã đơn shop, G COD, D tên khách. Cột TRONG_LUONG đơn vị gram (g), không phải kg. Import lần 2: mã cột A đã có thì cập nhật. Sau import tự tra MyEMS nền; xem báo cáo từng dòng bên dưới.',
@@ -531,6 +547,15 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     opsRefresh: 'Refresh',
     timelineTitle: 'By import date',
     receivedTitle: 'Actually received',
+    receivedHint:
+      'COD uses the date EMS transferred money to the shop. Returns use the date an admin confirmed the EMS return waybill (not the import date; delivered waybills and waybills whose COD EMS already paid the shop are left out).',
+    receivedFootnote:
+      'Click a number to open the list. COD received = EMS payout date (settlement file). Admin returns = confirmation date on EMS return waybills that have not had COD paid.',
+    receivedEmpty: 'No received COD or return data to summarize yet.',
+    receivedEmptyFiltered: 'No received data in the selected range.',
+    receivedLoading: 'Loading received stats…',
+    receivedTotal: 'Total ({n} periods shown)',
+    receivedTotalsRange: 'Total of shown periods',
     importEmsTitle: '1. Upload EMS handover Excel',
     importEmsHint: 'gui ems.xlsx / .xls: A tracking, I shop order, G COD, D name. TRONG_LUONG is grams (g), not kg. Re-import updates existing A codes. MyEMS tracking starts automatically; see the row report below.',
     importCodTitle: '2. Import COD settlement',
@@ -760,6 +785,15 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     opsRefresh: '刷新',
     timelineTitle: '按导入日期',
     receivedTitle: '实际到账/收回',
+    receivedHint:
+      'COD 按 EMS 打款到店的日期。退货按管理员确认收到 EMS 退回运单的日期（不是导入日期；已签收、或 EMS 已把 COD 付给店铺的运单不计入）。',
+    receivedFootnote:
+      '点击数字查看清单。COD 到账 = EMS 打款日（对账文件）。管理员收退 = 在 EMS 报退且尚未支付 COD 的运单上的确认日。',
+    receivedEmpty: '还没有可统计的 COD 或退货实际到账数据。',
+    receivedEmptyFiltered: '所选范围内没有实际到账数据。',
+    receivedLoading: '正在加载实际到账统计…',
+    receivedTotal: '合计（显示 {n} 期）',
+    receivedTotalsRange: '所显示各期合计',
     importEmsTitle: '1. 上传 EMS 交接 Excel',
     importEmsHint: 'gui ems.xlsx / .xls：A 运单、I 订单、G COD、D 姓名。TRONG_LUONG 单位为克 (g)，不是千克。再次导入会更新已有 A 码。导入后自动查询 MyEMS，见下方逐行报告。',
     importCodTitle: '2. 导入 COD 对账',
@@ -990,6 +1024,15 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     opsRefresh: '更新',
     timelineTitle: '取込日別',
     receivedTitle: '実入金・実受領',
+    receivedHint:
+      'COD は EMS が店舗へ入金した日です。返品は管理者が EMS の返送伝票を確認した日です（取込日ではありません。配達済み、または EMS が COD を店舗へ支払済みの伝票は含めません）。',
+    receivedFootnote:
+      '数字をクリックすると一覧を開きます。COD 受領 = EMS 入金日（照合ファイル）。管理者の返品受領 = COD 未払いの EMS 返送伝票を確認した日。',
+    receivedEmpty: '集計できる COD / 返品の受領データはまだありません。',
+    receivedEmptyFiltered: '選択した期間に受領データはありません。',
+    receivedLoading: '受領統計を読み込み中…',
+    receivedTotal: '合計（表示 {n} 期間）',
+    receivedTotalsRange: '表示中の期間の合計',
     importEmsTitle: '1. EMS 引渡し Excel をアップロード',
     importEmsHint: 'gui ems.xlsx / .xls：A 追跡、I 注文、G 代引、D 氏名。TRONG_LUONG の単位はグラム (g) で、kg ではありません。再取込は既存 A を更新。取込後 MyEMS を自動照会し、下の行レポートを確認。',
     importCodTitle: '2. 代引照合を取込',
@@ -1220,6 +1263,15 @@ const COPY: Record<WebLocale, PartnerShippingOpsCopy> = {
     opsRefresh: '새로고침',
     timelineTitle: '가져오기 날짜별',
     receivedTitle: '실제 수령',
+    receivedHint:
+      'COD는 EMS가 매장으로 입금한 날짜입니다. 반품은 관리자가 EMS 반송 운송장을 확인한 날짜입니다(가져오기 날짜가 아니며, 배송 완료되었거나 EMS가 이미 COD를 매장에 지급한 운송장은 빠집니다).',
+    receivedFootnote:
+      '숫자를 누르면 목록이 열립니다. COD 수령 = EMS 입금일(정산 파일). 관리자 반품 수령 = COD가 아직 지급되지 않은 EMS 반송 운송장의 확인일.',
+    receivedEmpty: '집계할 COD/반품 수령 데이터가 아직 없습니다.',
+    receivedEmptyFiltered: '선택한 기간에 실제 수령 데이터가 없습니다.',
+    receivedLoading: '실제 수령 통계를 불러오는 중…',
+    receivedTotal: '합계 (표시 {n}기간)',
+    receivedTotalsRange: '표시된 기간 합계',
     importEmsTitle: '1. EMS 인계 엑셀 업로드',
     importEmsHint: 'gui ems.xlsx / .xls: A 운송장, I 주문, G COD, D 이름. TRONG_LUONG 단위는 그램(g)이며 kg가 아닙니다. 재가져오기는 기존 A를 갱신. 가져온 뒤 MyEMS를 자동 조회하며 아래 행 보고서를 봅니다.',
     importCodTitle: '2. COD 대사 가져오기',
