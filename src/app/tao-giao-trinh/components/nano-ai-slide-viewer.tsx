@@ -1242,6 +1242,38 @@ function chainGapClientPoint(data: {
   }
 }
 
+function usableClientRect(el: Element | null | undefined): DOMRect | null {
+  if (!(el instanceof HTMLElement)) return null
+  const rect = el.getBoundingClientRect()
+  return rect.width > 0 && rect.height > 0 ? rect : null
+}
+
+/**
+ * Khung map chuột nội dung.
+ * `slidePointerBody: false` là dải tiêu đề / padding trên thân — dùng thẻ slide, không dùng cả cột đã cuộn.
+ */
+function slideContentPointerRect(
+  data: { slidePointerBody?: unknown; pointerSlideIndex?: unknown },
+  singleBody: HTMLElement | null,
+  singleLayout: HTMLElement | null,
+): DOMRect | null {
+  const slideIdx = typeof data.pointerSlideIndex === 'number' ? Math.floor(data.pointerSlideIndex) : null
+  const preferBody = data.slidePointerBody === true
+  if (slideIdx != null && preferBody) {
+    const body = usableClientRect(document.querySelector(`[data-pointer-slide-body="${slideIdx}"]`))
+    if (body) return body
+  }
+  if (slideIdx != null) {
+    const card = usableClientRect(document.getElementById(`nano-student-md-slide-${slideIdx}`))
+    if (card) return card
+  }
+  if (preferBody) {
+    const body = usableClientRect(singleBody)
+    if (body) return body
+  }
+  return usableClientRect(singleLayout)
+}
+
 function slideProseClientPoint(data: {
   pointerTextOffset?: unknown
   pointerLineRelX?: unknown
@@ -1588,9 +1620,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
   const narrowSlideLayout = viewportW < 768
 
   const [virtualMousePos, setVirtualMousePos] = useState<{ x: number; y: number } | null>(null)
-  /** Học sinh chỉ thấy chuột ảo khi giáo viên đang vẽ trên ảnh tóm tắt. */
-  const [studentDrawCursorOn, setStudentDrawCursorOn] = useState(false)
-  const studentDrawCursorHideTimerRef = useRef<number | null>(null)
   const [mouseTrail, setMouseTrail] = useState<Array<{ x: number; y: number }>>([])
   /** Buffer batch các mẫu chuột ảo theo rAF để giảm áp lực state-update khi GV gửi cao tần. */
   const pendingMouseSamplesRef = useRef<Array<{ x: number; y: number; snap: boolean }>>([])
@@ -2642,15 +2671,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         }
       }
       const t = e.data?.type
-      const hideStudentDrawCursor = () => {
-        if (studentDrawCursorHideTimerRef.current != null) {
-          window.clearTimeout(studentDrawCursorHideTimerRef.current)
-          studentDrawCursorHideTimerRef.current = null
-        }
-        setStudentDrawCursorOn(false)
-        setVirtualMousePos(null)
-        setMouseTrail([])
-      }
       const syncVirtualCursorFromInfographicUv = (point: { u?: number; v?: number } | null | undefined) => {
         if (isTeacherView || !point) return
         const u = clamp01(Number(point.u) || 0)
@@ -2684,15 +2704,14 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const nextPos = { x: vis.left + u * vis.width, y: vis.top + v * vis.height }
         lastMouseScopeRef.current = 'visual'
         lastRenderedVirtualMouseRef.current = nextPos
-        setStudentDrawCursorOn(true)
         setVirtualMousePos(nextPos)
-        setMouseTrail([])
-        if (studentDrawCursorHideTimerRef.current != null) window.clearTimeout(studentDrawCursorHideTimerRef.current)
-        studentDrawCursorHideTimerRef.current = window.setTimeout(() => {
-          studentDrawCursorHideTimerRef.current = null
-          setStudentDrawCursorOn(false)
-          setVirtualMousePos(null)
-        }, 700)
+        setMouseTrail((prev) => {
+          const last = prev[prev.length - 1]
+          if (!last) return [nextPos]
+          const jumpPx = Math.hypot(nextPos.x - last.x, nextPos.y - last.y)
+          if (jumpPx > 120) return [nextPos]
+          return [...prev, nextPos].slice(-48)
+        })
       }
       if (
         t === 'curriculum-data' &&
@@ -2906,12 +2925,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         appendInfographicStrokePoints(e.data.slideIndex, e.data.strokeId, points)
         syncVirtualCursorFromInfographicUv(points[points.length - 1])
       }
-      else if (t === 'infographic-draw-end' && !isTeacherView) {
-        hideStudentDrawCursor()
-      }
       else if (t === 'infographic-draw-clear' && typeof e.data?.slideIndex === 'number') {
         clearInfographicStrokes(e.data.slideIndex)
-        if (!isTeacherView) hideStudentDrawCursor()
       }
       else if (t === 'infographic-draw-undo' && typeof e.data?.slideIndex === 'number') {
         undoInfographicStroke(e.data.slideIndex)
@@ -2950,7 +2965,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         closeInfographicFullscreenRef.current({ fromMessage: true })
       }
       else if (t === 'mouse-pos') {
-        if (!isTeacherView) return
         const mouseScope: 'quiz' | 'slide-content' | 'visual' | 'global' =
           e.data?.quizPopup
             ? 'quiz'
@@ -2966,8 +2980,8 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const isUsableRect = (r: DOMRect | null | undefined): r is DOMRect => !!r && r.width > 40 && r.height > 40
         if (typeof e.data?.syncAnchor === 'string' && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
           const anchorId = String(e.data.syncAnchor)
-          const relX = Math.max(0, Math.min(1, Number(e.data.relX)))
-          const relY = Math.max(0, Math.min(1, Number(e.data.relY)))
+          const relX = Math.max(-1, Math.min(2, Number(e.data.relX)))
+          const relY = Math.max(-1.5, Math.min(4, Number(e.data.relY)))
           const el = document.querySelector(`[data-pointer-sync-id="${CSS.escape(anchorId)}"]`) as HTMLElement | null
           const r = el?.getBoundingClientRect()
           if (r && r.width > 0 && r.height > 0) {
@@ -3047,9 +3061,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             e.data.pointerProseBlock === true &&
             typeof e.data.pointerSlideIndex === 'number' &&
             typeof e.data.pointerBlockIndex === 'number'
-          const preferBody = e.data.slidePointerBody === true
-          const inMarkdownAll = !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
-          const slideIdxFromMsg = typeof e.data.pointerSlideIndex === 'number' ? Math.floor(e.data.pointerSlideIndex) : null
           let lr: DOMRect | undefined
           if (preferProseBlock) {
             const proseEl = document.querySelector(
@@ -3058,28 +3069,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             const rr = proseEl?.getBoundingClientRect()
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
-          if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
-            // Ưu tiên body của slide (loại trừ tiêu đề) → khớp đúng với teacherSlidePointerSyncRef bên GV.
-            const bodyEl = document.querySelector(
-              `[data-pointer-slide-body="${slideIdxFromMsg}"]`
-            ) as HTMLElement | null
-            const br = bodyEl?.getBoundingClientRect()
-            if (br && br.width > 0 && br.height > 0) lr = br
-            else {
-              const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
-              const rr = slideEl?.getBoundingClientRect()
-              if (rr && rr.width > 0 && rr.height > 0) lr = rr
-            }
-          }
-          if (!lr && !inMarkdownAll && preferBody) {
-            const bodyEl = studentSlidePointerSyncRef.current
-            const br = bodyEl?.getBoundingClientRect()
-            if (br && br.width > 0 && br.height > 0) lr = br
-          }
-          if (!lr && !inMarkdownAll) {
-            const layoutEl = studentSlideContentLayoutRef.current
-            const gr = layoutEl?.getBoundingClientRect()
-            if (gr && gr.width > 0 && gr.height > 0) lr = gr
+          if (!lr) {
+            lr = slideContentPointerRect(
+              e.data,
+              studentSlidePointerSyncRef.current,
+              studentSlideContentLayoutRef.current,
+            ) ?? undefined
           }
           if (lr) {
             px = lr.left + e.data.relX * lr.width
@@ -3267,7 +3262,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         const found = Boolean(exactRect && exactRect.width > 0 && exactRect.height > 0)
         const el = found ? exact : (document.querySelector('[data-pointer-sync-id="ctrl-sand"]') as HTMLElement | null)
         const r = el?.getBoundingClientRect()
-        if (isTeacherView && r && r.width > 0 && r.height > 0) {
+        if (r && r.width > 0 && r.height > 0) {
           const relX = typeof e.data?.relX === 'number' ? Math.max(0, Math.min(1, Number(e.data.relX))) : 0.5
           const relY = typeof e.data?.relY === 'number' ? Math.max(0, Math.min(1, Number(e.data.relY))) : 0.5
           const x = r.left + (found ? relX : 0.5) * r.width
@@ -3283,7 +3278,17 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
         let px: number
         let py: number
         const isUsableRect = (r: DOMRect | null | undefined): r is DOMRect => !!r && r.width > 40 && r.height > 40
-        if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+        if (typeof e.data?.syncAnchor === 'string' && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
+          const anchorId = String(e.data.syncAnchor)
+          const relX = Math.max(-1, Math.min(2, Number(e.data.relX)))
+          const relY = Math.max(-1.5, Math.min(4, Number(e.data.relY)))
+          const el = document.querySelector(`[data-pointer-sync-id="${CSS.escape(anchorId)}"]`) as HTMLElement | null
+          const r = el?.getBoundingClientRect()
+          if (r && r.width > 0 && r.height > 0) {
+            px = r.left + relX * r.width
+            py = r.top + relY * r.height
+          } else return
+        } else if (e.data?.quizPopup && typeof e.data?.relX === 'number' && typeof e.data?.relY === 'number') {
           const el = document.querySelector('[data-quiz-popup]')
           const rect = el ? (el as HTMLElement).getBoundingClientRect() : null
           if (rect) {
@@ -3356,9 +3361,6 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             e.data.pointerProseBlock === true &&
             typeof e.data.pointerSlideIndex === 'number' &&
             typeof e.data.pointerBlockIndex === 'number'
-          const preferBody = e.data.slidePointerBody === true
-          const inMarkdownAll = !isTeacherView && !worksheetPresentation && studentCurriculumRightMode === 'markdown-all'
-          const slideIdxFromMsg = typeof e.data.pointerSlideIndex === 'number' ? Math.floor(e.data.pointerSlideIndex) : null
           let lr: DOMRect | undefined
           if (preferProseBlock) {
             const proseEl = document.querySelector(
@@ -3367,28 +3369,12 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
             const rr = proseEl?.getBoundingClientRect()
             if (rr && rr.width > 0 && rr.height > 0) lr = rr
           }
-          if (!lr && inMarkdownAll && slideIdxFromMsg != null) {
-            // Ưu tiên body của slide (loại trừ tiêu đề) → khớp đúng với teacherSlidePointerSyncRef bên GV.
-            const bodyEl = document.querySelector(
-              `[data-pointer-slide-body="${slideIdxFromMsg}"]`
-            ) as HTMLElement | null
-            const br = bodyEl?.getBoundingClientRect()
-            if (br && br.width > 0 && br.height > 0) lr = br
-            else {
-              const slideEl = document.getElementById(`nano-student-md-slide-${slideIdxFromMsg}`)
-              const rr = slideEl?.getBoundingClientRect()
-              if (rr && rr.width > 0 && rr.height > 0) lr = rr
-            }
-          }
-          if (!lr && !inMarkdownAll && preferBody) {
-            const bodyEl = studentSlidePointerSyncRef.current
-            const br = bodyEl?.getBoundingClientRect()
-            if (br && br.width > 0 && br.height > 0) lr = br
-          }
-          if (!lr && !inMarkdownAll) {
-            const layoutEl = studentSlideContentLayoutRef.current
-            const gr = layoutEl?.getBoundingClientRect()
-            if (gr && gr.width > 0 && gr.height > 0) lr = gr
+          if (!lr) {
+            lr = slideContentPointerRect(
+              e.data,
+              studentSlidePointerSyncRef.current,
+              studentSlideContentLayoutRef.current,
+            ) ?? undefined
           }
           if (lr) {
             px = lr.left + e.data.relX * lr.width
@@ -3531,9 +3517,7 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           px = Math.max(0, Math.min(w, w - e.data.xrPx))
           py = Math.max(0, Math.min(h, e.data.yPx))
         } else return
-        if (isTeacherView) {
-          setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-5))
-        }
+        setMouseClicks((prev) => [...prev, { id: Date.now() + Math.floor(Math.random() * 1000), x: px, y: py }].slice(-5))
         // Mô phỏng click DOM để chuột ảo (từ giáo viên) có thể điều khiển nút, popup, radio, label...
         requestAnimationFrame(() => {
           const el = document.elementFromPoint(px, py)
@@ -3572,6 +3556,26 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
     }
     return () => window.removeEventListener('message', handler)
   }, [onSlidesSaved, openVisualFullscreen, closeVisualFullscreen, openInfographicFullscreen, closeInfographicFullscreen, presentationMode, visualFullscreenOpen, infographicFullscreenOpen, presentationBroadcastChannelName, isTeacherView, worksheetPresentation, mergeIncomingInfographicStrokes, upsertInfographicStroke, appendInfographicStrokePoint, appendInfographicStrokePoints, clearInfographicStrokes, undoInfographicStroke, applyStudentChainPaneScroll])
+
+  useEffect(() => {
+    if (isTeacherView || typeof window === 'undefined') return
+    const ready = { type: 'student-viewer-ready' }
+    try {
+      window.opener?.postMessage(ready, window.location.origin)
+    } catch {
+      /* ignore */
+    }
+    let channel: BroadcastChannel | null = null
+    if (typeof BroadcastChannel !== 'undefined') {
+      channel = new BroadcastChannel(presentationBroadcastChannelName)
+      try {
+        channel.postMessage(ready)
+      } catch {
+        /* ignore */
+      }
+    }
+    return () => channel?.close()
+  }, [isTeacherView, presentationBroadcastChannelName])
 
   useEffect(() => {
     if (isTeacherView || typeof BroadcastChannel === 'undefined') return
@@ -4584,17 +4588,42 @@ export function NanoAISlideViewer({ curriculumMarkdown, topic, onClose, aiSlides
           </div>
         </div>
       )}
-      {/* Chuột ảo + đường di chuột – render qua portal để hiện trên popup (z-[200] > popup z-[110]) */}
-      {typeof document !== 'undefined' && !isTeacherView && studentDrawCursorOn && virtualMousePos && createPortal(
-        <div
-          className="pointer-events-none fixed z-[220]"
-          style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-4px, -3px)' }}
-        >
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
-            <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="#f97316" stroke="#ffffff" strokeWidth="2.4" strokeLinejoin="round" />
-            <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="none" stroke="#111827" strokeWidth="0.8" strokeLinejoin="round" />
-          </svg>
-        </div>,
+      {/* Chuột ảo học sinh: luôn hiện khi giáo viên di chuột, kể cả lúc vẽ. */}
+      {typeof document !== 'undefined' && !isTeacherView && (virtualMousePos || mouseTrail.length > 1 || mouseClicks.length > 0) && createPortal(
+        <>
+          {mouseTrail.length > 1 && (
+            <svg className="pointer-events-none fixed inset-0 z-[218]" style={{ width: '100%', height: '100%' }}>
+              <path
+                d={buildSmoothMouseTrailPath(mouseTrail)}
+                fill="none"
+                stroke="rgba(249,115,22,0.55)"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+          {virtualMousePos && (
+            <div
+              className="pointer-events-none fixed z-[220]"
+              style={{ left: virtualMousePos.x, top: virtualMousePos.y, transform: 'translate(-4px, -3px)' }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.85)]">
+                <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="#f97316" stroke="#ffffff" strokeWidth="2.4" strokeLinejoin="round" />
+                <path d="M4 4l7 16 2.5-6 5.5-2.5L4 4z" fill="none" stroke="#111827" strokeWidth="0.8" strokeLinejoin="round" />
+              </svg>
+            </div>
+          )}
+          {mouseClicks.map((p) => (
+            <div
+              key={p.id}
+              className="pointer-events-none fixed z-[219]"
+              style={{ left: p.x, top: p.y, transform: 'translate(-50%, -50%)' }}
+            >
+              <span className="block h-12 w-12 rounded-full border-2 border-orange-400/90 animate-ping" />
+            </div>
+          ))}
+        </>,
         document.body
       )}
       {typeof document !== 'undefined' && isTeacherView && (virtualMousePos || mouseTrail.length > 1 || mouseClicks.length > 0) && createPortal(

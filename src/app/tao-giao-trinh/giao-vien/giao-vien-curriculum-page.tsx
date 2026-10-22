@@ -1234,6 +1234,10 @@ export default function CurriculumViewPage() {
 
   const prevSlideModeRef = useRef<string | null>(null)
   const studentViewWindowRef = useRef<Window | null>(null)
+  /** Nút Trình chiếu HS đang chờ cửa sổ học sinh vừa mở lắng nghe tín hiệu fullscreen. */
+  const projectorPendingRef = useRef(false)
+  const projectorBusyRef = useRef(false)
+  const flushPendingProjectorRef = useRef<(w: Window | null) => void>(() => {})
   const [studentViewOpened, setStudentViewOpened] = useState(false)
   /** Slide index trước lần đổi `currentIndex` — kế thừa trạng thái tạm dừng gõ sang slide sau. */
   const prevSlideIndexForTypingPauseRef = useRef<number | null>(null)
@@ -3146,6 +3150,10 @@ export default function CurriculumViewPage() {
     const channel = new BroadcastChannel(getPresentationBroadcastChannelName(presentationSyncId))
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'student-viewer-ready') {
+        flushPendingProjectorRef.current(studentViewWindowRef.current)
+        return
+      }
       if (event.data?.type !== 'request-curriculum') return
       if (event.source && event.source !== window) {
         studentViewWindowRef.current = event.source as Window
@@ -3486,11 +3494,27 @@ export default function CurriculumViewPage() {
       const pointerSlideIndex = Number(chainCard.getAttribute('data-teacher-chain-slide'))
       if (!Number.isFinite(pointerSlideIndex)) return null
       const body = chainCard.querySelector(`[data-pointer-slide-body="${pointerSlideIndex}"]`) as HTMLElement | null
-      const rect = (body ?? chainCard).getBoundingClientRect()
+      const bodyRect = body?.getBoundingClientRect() ?? null
+      const inBody = !!bodyRect && bodyRect.width > 0 && bodyRect.height > 0
+        && clientX >= bodyRect.left && clientX <= bodyRect.right
+        && clientY >= bodyRect.top && clientY <= bodyRect.bottom
+      if (!inBody) {
+        const title = chainCard.querySelector(`[data-pointer-sync-id="slide-title-${pointerSlideIndex}"]`) as HTMLElement | null
+        const titleRect = title?.getBoundingClientRect()
+        const aboveBody = !bodyRect || clientY < bodyRect.top
+        if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+          return {
+            syncAnchor: `slide-title-${pointerSlideIndex}`,
+            relX: (clientX - titleRect.left) / titleRect.width,
+            relY: (clientY - titleRect.top) / titleRect.height,
+          }
+        }
+      }
+      const rect = inBody && bodyRect ? bodyRect : chainCard.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return null
       return {
         slideContentPane: true as const,
-        slidePointerBody: !!body,
+        slidePointerBody: inBody,
         pointerProseBlock: false as const,
         pointerSlideIndex,
         relX: Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)),
@@ -3848,6 +3872,19 @@ export default function CurriculumViewPage() {
               e.clientY >= lr.top &&
               e.clientY <= lr.bottom
             if (insideCard) {
+              const bodyTop = teacherSlidePointerSyncRef.current?.getBoundingClientRect().top
+              const aboveBody = bodyTop == null || e.clientY < bodyTop
+              const title = layoutEl.querySelector(`[data-pointer-sync-id="slide-title-${currentIndex}"]`) as HTMLElement | null
+              const titleRect = title?.getBoundingClientRect()
+              if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+                sendToStudentView({
+                  type: 'mouse-pos',
+                  syncAnchor: `slide-title-${currentIndex}`,
+                  relX: (e.clientX - titleRect.left) / titleRect.width,
+                  relY: (e.clientY - titleRect.top) / titleRect.height,
+                })
+                return
+              }
               const relX = (e.clientX - lr.left) / lr.width
               const relY = (e.clientY - lr.top) / lr.height
               sendToStudentView( {
@@ -4172,6 +4209,19 @@ export default function CurriculumViewPage() {
               e.clientY >= lr.top &&
               e.clientY <= lr.bottom
             if (insideCard) {
+              const bodyTop = teacherSlidePointerSyncRef.current?.getBoundingClientRect().top
+              const aboveBody = bodyTop == null || e.clientY < bodyTop
+              const title = layoutEl.querySelector(`[data-pointer-sync-id="slide-title-${currentIndex}"]`) as HTMLElement | null
+              const titleRect = title?.getBoundingClientRect()
+              if (aboveBody && titleRect && titleRect.width > 0 && titleRect.height > 0) {
+                sendToStudentView({
+                  type: 'mouse-click',
+                  syncAnchor: `slide-title-${currentIndex}`,
+                  relX: (e.clientX - titleRect.left) / titleRect.width,
+                  relY: (e.clientY - titleRect.top) / titleRect.height,
+                })
+                return
+              }
               const relX = (e.clientX - lr.left) / lr.width
               const relY = (e.clientY - lr.top) / lr.height
               sendToStudentView({
@@ -4370,8 +4420,44 @@ export default function CurriculumViewPage() {
     }
   }, [studentViewOpened, slideViewMode, studentCurriculumRemoteMode, currentIndex, sendToStudentView])
 
+  const studentSlideWindowIsLive = useCallback((w: Window | null): w is Window => {
+    if (!w || w.closed) return false
+    try {
+      const kind = worksheetId ? 'worksheet' : 'curriculum'
+      const path = w.location.pathname || ''
+      const syncOk = new URLSearchParams(w.location.search || '').get('sync') === presentationSyncId
+      return isPathMatchingStudentSlideKind(path, kind) && syncOk && w.document.readyState === 'complete'
+    } catch {
+      return false
+    }
+  }, [worksheetId, presentationSyncId])
+
+  const activateStudentProjector = useCallback((w: Window) => {
+    if (!w || w.closed) return
+    if (projectorBusyRef.current) return
+    projectorBusyRef.current = true
+    window.setTimeout(() => {
+      projectorBusyRef.current = false
+    }, 1500)
+    studentViewWindowRef.current = w
+    setStudentViewOpened(true)
+    try { w.focus() } catch { /* ignore */ }
+    try {
+      w.postMessage({ type: 'request-projector-mode' }, window.location.origin)
+    } catch { /* ignore */ }
+    void moveWindowToExternalScreen(w).catch(() => {})
+  }, [])
+
+  const flushPendingProjector = useCallback((w: Window | null) => {
+    if (!projectorPendingRef.current) return
+    if (!w || w.closed) return
+    projectorPendingRef.current = false
+    activateStudentProjector(w)
+  }, [activateStudentProjector])
+  flushPendingProjectorRef.current = flushPendingProjector
+
   const openStudentViewNow = useCallback(() => {
-    if (typeof window === 'undefined') return
+    if (typeof window === 'undefined') return null
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
     const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
     const features = `width=${sw},height=${sh},left=0,top=0,scrollbars=no,resizable=yes`
@@ -4389,22 +4475,27 @@ export default function CurriculumViewPage() {
     }
     if (!targetWin) {
       setStudentViewOpened(false)
+      projectorPendingRef.current = false
       toast({
         title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'),
         description: tr('Trình duyệt đã chặn popup hoặc quyền focus cửa sổ.', 'Popup or window-focus permission was blocked by browser.', '浏览器阻止了弹窗或窗口聚焦权限。', 'ブラウザがポップアップまたはフォーカス権限をブロックしました。', '브라우저가 팝업 또는 창 포커스 권한을 차단했습니다.'),
         variant: 'destructive',
       })
-      return
+      return null
     }
     studentViewWindowRef.current = targetWin
     setStudentViewOpened(true)
 
     // Cùng phương thức với chiều Học sinh -> Giáo viên:
     // dùng named window trước, nếu sai URL thì điều hướng một lần.
+    let navigated = false
     try {
       const path = targetWin.location.pathname || ''
       const syncOk = new URLSearchParams(targetWin.location.search || '').get('sync') === presentationSyncId
-      if (!isPathMatchingStudentSlideKind(path, kind) || !syncOk) targetWin.location.href = urlWithSync
+      if (!isPathMatchingStudentSlideKind(path, kind) || !syncOk) {
+        targetWin.location.href = urlWithSync
+        navigated = true
+      }
     } catch {
       /* ignore access errors */
     }
@@ -4457,7 +4548,9 @@ export default function CurriculumViewPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire])
+    if (!navigated) flushPendingProjector(targetWin)
+    return targetWin
+  }, [sendCurriculumDataToStudent, content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, infographicFullscreenOpen, toast, tr, worksheetId, answerRevealProgress, answerTypingEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, activeVisualInfographic, lessonInfographic, leftPanelMode, infographicDrawStrokesBySlide, compactSlidesForStudentWire, flushPendingProjector])
 
   const openStudentViewNowRef = useRef(openStudentViewNow)
   openStudentViewNowRef.current = openStudentViewNow
@@ -4534,6 +4627,17 @@ export default function CurriculumViewPage() {
     }
     openStudentViewNow()
   }, [worksheetId, lessonAlreadyReviewed, prepareLessonReview, openStudentViewNow])
+
+  const startStudentProjector = useCallback(() => {
+    const existing = studentViewWindowRef.current
+    if (studentSlideWindowIsLive(existing)) {
+      projectorPendingRef.current = false
+      activateStudentProjector(existing)
+      return
+    }
+    projectorPendingRef.current = true
+    openStudentView()
+  }, [studentSlideWindowIsLive, activateStudentProjector, openStudentView])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -5289,6 +5393,14 @@ export default function CurriculumViewPage() {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'student-viewer-ready') {
+        const src = e.source
+        if (src && src !== window && typeof (src as Window).closed === 'boolean' && !(src as Window).closed) {
+          studentViewWindowRef.current = src as Window
+          setStudentViewOpened(true)
+        }
+        flushPendingProjectorRef.current(studentViewWindowRef.current)
+      }
       if (e.data?.type === 'request-curriculum' && e.source) {
         try {
           const src = e.source as Window
@@ -5800,6 +5912,7 @@ export default function CurriculumViewPage() {
           skipIfAlreadyConfirmed={reviewIsGate}
           onCancel={() => {
             reviewGateRef.current = false
+            projectorPendingRef.current = false
             setReviewIsGate(false)
             setExampleReviewOpen(false)
           }}
@@ -8101,36 +8214,7 @@ export default function CurriculumViewPage() {
 
       <button
         type="button"
-        onClick={async () => {
-          const w = studentViewWindowRef.current
-          if (!w || w.closed) {
-            toast({
-              title: tr(
-                'Chưa có giao diện học sinh đang mở',
-                'Student window is not open',
-                '学生界面尚未打开',
-                '生徒画面が開いていません',
-                '학생 화면이 열려 있지 않습니다'
-              ),
-              description: tr(
-                'Hãy bấm "Mở giao diện học sinh" trước khi bật trình chiếu.',
-                'Click "Open student view" before enabling projector mode.',
-                '请先点击"打开学生界面"再开启投影。',
-                '先に「生徒画面を開く」を押してから投影モードを有効化してください。',
-                '"학생 화면 열기"를 먼저 눌러주세요.'
-              ),
-            })
-            return
-          }
-          // Tự đẩy cửa sổ HS sang màn hình máy chiếu nếu trình duyệt hỗ trợ Window Management API.
-          try {
-            await moveWindowToExternalScreen(w)
-          } catch { /* ignore */ }
-          try { w.focus() } catch { /* ignore */ }
-          try {
-            w.postMessage({ type: 'request-projector-mode' }, window.location.origin)
-          } catch { /* ignore */ }
-        }}
+        onClick={() => startStudentProjector()}
         title={tr(
           'Bật trình chiếu cho cửa sổ học sinh (toàn màn hình cho máy chiếu)',
           'Enable projector mode on student window (fullscreen for projector)',
