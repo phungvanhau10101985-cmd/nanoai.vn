@@ -3,7 +3,6 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
-import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
@@ -27,13 +26,26 @@ const formatCredits = (value: number) => value.toLocaleString('vi-VN', { maximum
 
 const OUTPUT_LOCALES = new Set(['vi', 'en', 'zh', 'ja', 'ko'])
 
-const FLASH_INSTRUCTION = `You are an assistant for teachers. Given the full lesson / curriculum text (all slides combined), output ONLY valid JSON (no markdown fences) with keys:
-- "summary": string, 3–6 short bullet lines separated by newline, teaching-friendly, in the OUTPUT_LANGUAGE specified by the user. Capture the big picture of the whole lesson.
-- "mermaid": string, valid Mermaid diagram code (prefer flowchart TD or mindmap). Max ~1200 characters. No HTML. Use simple node labels (ASCII or the same language as summary).
+const OUTPUT_LANGUAGE_NAME = {
+  vi: 'Vietnamese',
+  en: 'English',
+  zh: 'Chinese',
+  ja: 'Japanese',
+  ko: 'Korean',
+} as const
 
-The diagram should reflect the main concepts and relationships across the entire lesson (not one slide only).`
+const FLASH_INSTRUCTION = `You are an assistant for teachers. Given the full lesson / curriculum text (all slides combined), output ONLY valid JSON (no markdown fences) with keys:
+- "summary": string, 3–6 short bullet lines separated by newline, teaching-friendly, in the OUTPUT_LANGUAGE specified by the user. Capture the big picture of the whole lesson. Do not translate into English when OUTPUT_LANGUAGE is not English.
+- "mermaid": string, valid Mermaid diagram code (prefer flowchart TD or mindmap). Max ~1200 characters. No HTML. Every word in node labels must be in the same OUTPUT_LANGUAGE as the summary. Do not use English headings when OUTPUT_LANGUAGE is Vietnamese.
+
+The diagram should reflect the main concepts and relationships across the entire lesson (not one slide only). Keep mathematical notation as symbols.`
 
 const IMAGE_INSTRUCTION_PREFIX = `Create ONE high-quality educational infographic image for classroom projection (16:9). Clean modern layout, readable typography, clear visual hierarchy, harmonious colors, professional look. Interpret the diagram structure conceptually—do not render raw code or syntax as text. No watermark.`
+
+function imageTextLanguageLock(locale: keyof typeof OUTPUT_LANGUAGE_NAME): string {
+  const name = OUTPUT_LANGUAGE_NAME[locale]
+  return `TEXT ON THE IMAGE (mandatory): Every readable word — title, headings, labels, captions, objectives, callouts — must be written in ${name}. Do not translate those words into English or any other language. Keep mathematical notation as symbols (variables, coordinates, formulas, arrows). Do not print Mermaid syntax, code, or English section names such as "Vector addition" or "Objectives" when the required language is not English.`
+}
 
 function parseFlashJson(text: string): { summary: string; mermaid: string } {
   const trimmed = text.trim()
@@ -248,10 +260,9 @@ ${FLASH_INSTRUCTION}`
       return NextResponse.json({ error: 'AI không trả về cấu trúc infographic hợp lệ. Thử lại.' }, { status: 502 })
     }
 
-    const summaryForImage = (await normalizeToEnglish(summary).catch(() => summary)) || summary
-    const mermaidForImage = (await normalizeToEnglish(mermaid).catch(() => mermaid)) || mermaid
+    const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]
     const imagePrompt =
-      `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
+      `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON CONTEXT (print these ideas in ${languageName}):\n${summary}\n\nSTRUCTURE / RELATIONSHIPS (node labels stay in ${languageName}; do not print the diagram code):\n${mermaid}`
 
     const imageModel =
       engine === 'gpt'
