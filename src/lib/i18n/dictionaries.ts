@@ -7977,9 +7977,9 @@ export const VI_DICTIONARY: Dictionary = {
     priceSlideName: 'Slide một tiết, lần đầu',
     priceSlideDetail: '0 credit',
     priceAgainName: 'Tạo lại',
-    priceAgainDetail: '{slide} và {infographic} credit',
+    priceAgainDetail: '{slide} credit, infographic 1 hoặc 2',
     priceNote:
-      'Ảnh trang sách trừ {image} credit khi đã đủ {freeBodies} bài miễn phí trong ngày, hoặc khi ghi đè bài cũ. Slide một tiết lần đầu không trừ. Tạo lại slide trừ {slide} credit. Tạo lại infographic trừ {infographic} credit. Mở bản đã lưu, không gọi AI, thì không trừ.',
+      'Ảnh trang sách trừ {image} credit khi đã đủ {freeBodies} bài miễn phí trong ngày, hoặc khi ghi đè bài cũ. Slide một tiết lần đầu không trừ. Tạo lại slide trừ {slide} credit. Tạo lại infographic trừ 1 credit (medium) hoặc 2 credit (high). Mở bản đã lưu, không gọi AI, thì không trừ.',
     faqTitle: 'Câu hỏi thường gặp',
     faq1q: 'Có phải tự cắt slide không?',
     faq1a: 'Không. Giáo trình sinh kèm slide theo tiết. Giáo viên chọn tiết rồi chiếu.',

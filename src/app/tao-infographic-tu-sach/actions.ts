@@ -6,9 +6,9 @@ import { insertTryOnHistoryProcessingPg, updateTryOnHistoryCompletedPg } from '@
 import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
-import { imageChargeFromForm } from '@/lib/ai/image-engine'
-import { runImageContent } from '@/lib/ai/gpt-image'
-import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
+import { generateGptImage } from '@/lib/ai/gpt-image'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import { normalizeToEnglish } from '@/lib/ai-normalize'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
@@ -17,7 +17,6 @@ import { uploadTryOnImagePublic, getTryOnPublicUrlFromPath } from '@/lib/storage
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 
-const COST_2K = 1.5
 const MAX_CONTENT_TEXT = 28000
 const MAX_TEACHER_NOTES = 12000
 const MAX_TOPIC_LEN = 500
@@ -208,9 +207,12 @@ export async function createInfographicFromBook(formData: FormData) {
   } catch {
     return { error: 'Không đọc được số dư credits.' }
   }
-  const priced = imageChargeFromForm(formData, COST_2K)
-  if (priced.error) return { error: priced.error }
-  const imageCost = priced.cost
+  const rawEngine = String(formData.get('imageEngine') ?? '').trim().toLowerCase()
+  const gptQuality = parseGptImageQuality(formData.get('gptQuality'))
+  if (rawEngine !== 'gpt' || (gptQuality !== 'medium' && gptQuality !== 'high')) {
+    return { error: 'Ảnh tóm tắt chỉ tạo bằng GPT medium hoặc high.' }
+  }
+  const imageCost = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
   if (toTenths(openBalance) < toTenths(imageCost)) {
     return { error: `Không đủ credits. Cần ${formatCredits(imageCost)} credits, hiện có ${formatCredits(openBalance)}.` }
   }
@@ -333,35 +335,22 @@ ${flashInstruction}`
   const imagePrompt =
     `${IMAGE_INSTRUCTION_PREFIX}\n\nLESSON CONTEXT:\n${summaryForImage}\n\nSTRUCTURE / RELATIONSHIPS (from diagram):\n${mermaidForImage}`
 
-  const imageModel =
-    priced.engine === 'gpt'
-      ? null
-      : genAI.getGenerativeModel({
-          model: GEMINI_3_PRO_IMAGE.model,
-          generationConfig: {
-            responseModalities: ['TEXT', 'IMAGE'],
-            imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
-          },
-        })
-
   try {
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const imageResult = await runImageContent({
-      engine: priced.engine,
-      gptQuality: priced.gptQuality,
+    const generated = await generateGptImage({
+      prompt: imagePrompt,
+      quality: gptQuality,
       aspectRatio: '16:9',
-      parts: [imagePrompt],
-      gemini: () => imageModel!.generateContent(imagePrompt, { safetySettings: [...safetySettings] } as never),
     })
-    const imageResponse = imageResult.response
-    void trackFromUsageMetadata(imageResponse.usageMetadata, GEMINI_3_PRO_IMAGE.model, 'tao-infographic-tu-sach', user.id, '2K')
-    const imagePart = imageResponse.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-    if (!imagePart || !('inlineData' in imagePart)) {
-      await deleteTryOnHistoryRowAndStorage( historyItem.id)
-      return { error: 'AI không trả về ảnh infographic hợp lệ.' }
-    }
-    const rawPng = Buffer.from((imagePart as { inlineData: { data: string } }).inlineData.data, 'base64')
+    void trackFromUsageMetadata(
+      generated.usage,
+      'gpt-image-2',
+      'tao-infographic-tu-sach',
+      user.id,
+      generated.usage.logImageSize
+    )
+    const rawPng = generated.buffer
     let resultBuffer: Buffer = rawPng
     let resultExt: 'png' | 'webp' = 'png'
     let resultContentType: 'image/png' | 'image/webp' = 'image/png'

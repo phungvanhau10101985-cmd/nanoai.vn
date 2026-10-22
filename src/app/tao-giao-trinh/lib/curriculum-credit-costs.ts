@@ -9,7 +9,7 @@
  * Đã gắn trừ server (có miễn phí lần đầu — xem `curriculum-ai-charge-policy`):
  * - `POST /api/curriculum-from-image`: 1 credit khi ghi đè / vượt 3 bài mới/ngày
  * - slide theo tiết: 0.5 credit khi tạo lại (lần đầu/tiết miễn phí)
- * - infographic: 1.5 credit khi tạo lại (lần đầu miễn phí)
+ * - infographic: GPT medium 1 credit, high 2 credit khi tạo lại (lần đầu miễn phí)
  * Chưa gắn spend: curriculum-from-paste, curriculum-edit-check, worksheet-edit-check,
  * worksheet-generate-*, worksheet jobs — v.v.
  */
@@ -38,8 +38,8 @@ export const CURRICULUM_UI_CREDITS = {
   slideGenerateQuiz: 0.5,
   /** Tạo slide theo 1 tiết (chỉ khi tiết đó chưa có cache) */
   lessonSlideGenerate: 0.5,
-  /** Infographic slide (Flash + ảnh 2K gemini-3-pro-image) — POST /api/curriculum-slide-infographic */
-  slideInfographic2K: 1.5,
+  /** Infographic giáo trình, mức mặc định GPT medium. High là 2. POST /api/curriculum-slide-infographic */
+  slideInfographic2K: 1,
 } as const
 
 export function formatCurriculumCredits(n: number): string {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import sharp from 'sharp'
 import { getUserForCreditAction } from '@/lib/auth'
-import { GEMINI_25_FLASH_NO_THINKING, GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
+import { GEMINI_25_FLASH_NO_THINKING } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { bunnyStorageConfigured, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
@@ -14,10 +14,9 @@ import {
   estimateCurriculumAiPrecheckAmount,
 } from '@/lib/curriculum-ai-charge-policy'
 import { readUserCreditBalance } from '@/lib/curriculum-ai-credits'
-import { imageEngineCredit, parseGptImageQuality, parseImageEngine } from '@/lib/ai/image-engine'
-import { produceImageBytes } from '@/lib/ai/gpt-image'
+import { imageEngineCredit, parseGptImageQuality } from '@/lib/ai/image-engine'
+import { generateGptImage } from '@/lib/ai/gpt-image'
 
-const COST_2K = 1.5
 const MAX_SLIDE_TEXT = 28000
 const INFOGRAPHIC_TARGET_BYTES = 820 * 1024
 const INFOGRAPHIC_MAX_DIMENSION = 2048
@@ -35,16 +34,26 @@ const OUTPUT_LANGUAGE_NAME = {
 } as const
 
 const FLASH_INSTRUCTION = `You are an assistant for teachers. Given the full lesson / curriculum text (all slides combined), output ONLY valid JSON (no markdown fences) with keys:
-- "summary": string, 3–6 short bullet lines separated by newline, teaching-friendly, in the OUTPUT_LANGUAGE specified by the user. Capture the big picture of the whole lesson. Do not translate into English when OUTPUT_LANGUAGE is not English.
-- "mermaid": string, valid Mermaid diagram code (prefer flowchart TD or mindmap). Max ~1200 characters. No HTML. Every word in node labels must be in the same OUTPUT_LANGUAGE as the summary. Do not use English headings when OUTPUT_LANGUAGE is Vietnamese.
+- "summary": string, KEY KNOWLEDGE only, in the OUTPUT_LANGUAGE specified by the user. 4–8 very short lines separated by newline. Each line is one formula or one concept name (about 2–8 words) a student must remember. Do not write learning objectives, lesson goals, "students will be able to", teaching advice, checklists, or long sentences. Do not translate into English when OUTPUT_LANGUAGE is not English.
+- "mermaid": string, valid Mermaid diagram code (prefer flowchart TD). Max ~900 characters. No HTML. Node labels are short concept names or formulas in the same OUTPUT_LANGUAGE as the summary (2–6 words). Do not put learning objectives, paragraphs, or checklist text in nodes. Do not use English headings when OUTPUT_LANGUAGE is Vietnamese.
 
-The diagram should reflect the main concepts and relationships across the entire lesson (not one slide only). Keep mathematical notation as symbols.`
+The diagram maps the main formulas and how they relate across the whole lesson. Keep mathematical notation as symbols.`
 
-const IMAGE_INSTRUCTION_PREFIX = `Create ONE high-quality educational infographic image for classroom projection (16:9). Clean modern layout, readable typography, clear visual hierarchy, harmonious colors, professional look. Interpret the diagram structure conceptually—do not render raw code or syntax as text. No watermark.`
+const IMAGE_INSTRUCTION_PREFIX = `Create ONE student knowledge-summary poster (16:9, classroom projection). It is a visual cheat-sheet: a student should understand the lesson's core ideas at a glance and read every word easily from a seat.
+
+LAYOUT:
+- One large title.
+- 3 to 5 big cards. Each card has a short heading, one large formula or a simple diagram, and at most one short label.
+- Generous whitespace, high contrast, large type. Harmonious colors, clean modern look. No watermark.
+
+DO NOT INCLUDE:
+- No "Mục tiêu", "Objectives", "Learning goals", "Ghi nhớ", "Remember", goals column, or checklist of lesson aims.
+- No paragraphs, numbered essay lists, fine print, footnotes, or tiny captions.
+- Do not render raw Mermaid code or syntax as text.`
 
 function imageTextLanguageLock(locale: keyof typeof OUTPUT_LANGUAGE_NAME): string {
   const name = OUTPUT_LANGUAGE_NAME[locale]
-  return `TEXT ON THE IMAGE (mandatory): Every readable word — title, headings, labels, captions, objectives, callouts — must be written in ${name}. Do not translate those words into English or any other language. Keep mathematical notation as symbols (variables, coordinates, formulas, arrows). Do not print Mermaid syntax, code, or English section names such as "Vector addition" or "Objectives" when the required language is not English.`
+  return `TEXT ON THE IMAGE (mandatory): Every readable word — the title, short headings, and formula labels — must be written in ${name}, in large type a student can read. Do not translate those words into English or any other language. Keep mathematical notation as symbols (variables, coordinates, formulas, arrows). Do not print Mermaid syntax, code, or English section names when the required language is not English. Do not add an objectives panel or any small body text.`
 }
 
 function parseFlashJson(text: string): { summary: string; mermaid: string } {
@@ -175,12 +184,12 @@ export async function POST(req: NextRequest) {
     const scope = body.scope === 'lesson' ? 'lesson' : 'curriculum'
     const lessonNo = scope === 'lesson' ? Math.max(1, Math.floor(Number(body.lessonNo) || 1)) : undefined
     const isRegenerate = body.regenerate === true
-    const engine = parseImageEngine(body.imageEngine)
+    const rawEngine = String(body.imageEngine ?? '').trim().toLowerCase()
     const gptQuality = parseGptImageQuality(body.gptQuality)
-    if (engine === 'gpt' && !gptQuality) {
-      return NextResponse.json({ error: 'Chọn chất lượng GPT: low, medium hoặc high.' }, { status: 400 })
+    if (rawEngine !== 'gpt' || (gptQuality !== 'medium' && gptQuality !== 'high')) {
+      return NextResponse.json({ error: 'Ảnh tóm tắt chỉ tạo bằng GPT medium hoặc high.' }, { status: 400 })
     }
-    const listPrice = imageEngineCredit({ engine, gptQuality, geminiCost: COST_2K })
+    const listPrice = imageEngineCredit({ engine: 'gpt', gptQuality, geminiCost: 1 })
     const infographicArtifactKey = buildInfographicArtifactKey(curriculumId, scope, lessonNo)
     const infographicKind = scope === 'lesson' ? 'infographic_lesson' : 'infographic_curriculum'
 
@@ -262,60 +271,27 @@ ${FLASH_INSTRUCTION}`
 
     const languageName = OUTPUT_LANGUAGE_NAME[outputLocale]
     const imagePrompt =
-      `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON CONTEXT (print these ideas in ${languageName}):\n${summary}\n\nSTRUCTURE / RELATIONSHIPS (node labels stay in ${languageName}; do not print the diagram code):\n${mermaid}`
+      `${IMAGE_INSTRUCTION_PREFIX}\n${imageTextLanguageLock(outputLocale)}\n\nLESSON KNOWLEDGE (show each line as a large formula or a short heading in ${languageName}, never as a paragraph or an objectives list):\n${summary}\n\nHOW THE IDEAS CONNECT (layout only; labels stay short and in ${languageName}; do not print the diagram code):\n${mermaid}`
 
-    const imageModel =
-      engine === 'gpt'
-        ? null
-        : genAI.getGenerativeModel({
-            model: GEMINI_3_PRO_IMAGE.model,
-            generationConfig: {
-              responseModalities: ['TEXT', 'IMAGE'],
-              imageConfig: { imageSize: '2K', aspectRatio: '16:9' },
-            },
-          })
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) {
       return NextResponse.json({ error: bunnyReady.error }, { status: 503 })
     }
-    const imageSafety = [
-      { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-      { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-    ] as const
     let rawPng: Buffer
     try {
-      if (engine === 'gpt') {
-        rawPng = await produceImageBytes({
-          engine,
-          gptQuality,
-          prompt: imagePrompt,
-          aspectRatio: '16:9',
-          gemini: async () => {
-            throw new Error('Thiếu model ảnh.')
-          },
-        })
-      } else {
-        if (!imageModel) throw new Error('Thiếu model ảnh.')
-        const imageResult = await imageModel.generateContent(imagePrompt, { safetySettings: imageSafety } as never)
-        void trackFromUsageMetadata(
-          imageResult.response.usageMetadata,
-          GEMINI_3_PRO_IMAGE.model,
-          'curriculum-slide-infographic',
-          user.id,
-          '2K'
-        )
-        const imagePart = imageResult.response.candidates?.[0]?.content?.parts?.find((p) => 'inlineData' in p)
-        const inline = imagePart && 'inlineData' in imagePart
-          ? (imagePart as { inlineData: { data: string } }).inlineData
-          : null
-        if (!inline?.data) {
-          return NextResponse.json({ error: 'AI không trả về ảnh infographic hợp lệ.' }, { status: 502 })
-        }
-        rawPng = Buffer.from(inline.data, 'base64')
-        inline.data = ''
-      }
+      const generated = await generateGptImage({
+        prompt: imagePrompt,
+        quality: gptQuality,
+        aspectRatio: '16:9',
+      })
+      rawPng = generated.buffer
+      void trackFromUsageMetadata(
+        generated.usage,
+        'gpt-image-2',
+        'curriculum-slide-infographic',
+        user.id,
+        generated.usage.logImageSize
+      )
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Không tạo được ảnh infographic. Thử lại sau.'
       return NextResponse.json({ error: msg }, { status: 502 })

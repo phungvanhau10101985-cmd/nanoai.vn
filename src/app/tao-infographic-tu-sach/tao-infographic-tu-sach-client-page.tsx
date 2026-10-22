@@ -21,7 +21,7 @@ import { useCredits } from '@/hooks/use-credits'
 import { DownloadImageButton } from '@/components/download-image-button'
 import { ImagePreview } from '@/components/ui/image-preview'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { imageEngineCredit, type GptImageQuality } from '@/lib/ai/image-engine'
 import { ImageProcessingLoader } from '@/components/image-processing-loader'
 import { cn } from '@/lib/utils'
 import { MAX_BOOK_PAGE_IMAGES } from './infographic-limits'
@@ -87,10 +87,9 @@ export default function TaoInfographicTuSachClientPage() {
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
   const { checkCreditsAndProceed } = useCredits()
-  const [imageEngine, setImageEngine] = useState<ImageEngine>('gemini')
-  const [geminiQuality, setGeminiQuality] = useState<'2K' | '4K'>('2K')
   const [gptQuality, setGptQuality] = useState<GptImageQuality>('medium')
-  const cost = imageEngineCredit({ engine: imageEngine, gptQuality, geminiCost: 1.5 })
+  const summaryQuality: GptImageQuality = gptQuality === 'high' ? 'high' : 'medium'
+  const cost = imageEngineCredit({ engine: 'gpt', gptQuality: summaryQuality, geminiCost: 1 })
 
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
@@ -188,8 +187,8 @@ export default function TaoInfographicTuSachClientPage() {
     formData.append('contentText', contentText.trim())
     formData.append('teacherNotes', teacherNotes.trim())
     formData.append('outputLocale', getWebLocaleFromCookie())
-    formData.append('imageEngine', imageEngine)
-    formData.append('gptQuality', gptQuality)
+    formData.append('imageEngine', 'gpt')
+    formData.append('gptQuality', summaryQuality)
     bookSlots.forEach((s) => formData.append('bookPage', s.file))
 
     try {
@@ -258,11 +257,11 @@ export default function TaoInfographicTuSachClientPage() {
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">
             {tr(
-              'Gemini 2.5 Flash đọc ảnh trang sách và chữ bạn nhập → sơ đồ tư duy (tóm tắt) → ảnh infographic 16:9 (2K). 1,5 credits/lần.',
-              'Gemini 2.5 Flash reads textbook photos and your text → mind-map summary → 16:9 infographic (2K). 1.5 credits per run.',
-              'Gemini 2.5 Flash 读取教材照片与文本 → 思维导图摘要 → 16:9 信息图（2K）。每次 1.5 积分。',
-              'Gemini 2.5 Flash が写真とテキストを読み取り → マインドマップ要約 → 16:9 インフォグラフィック（2K）。1.5クレジット/回。',
-              'Gemini 2.5 Flash가 사진·텍스트 읽기 → 마인드맵 요약 → 16:9 인포그래픽(2K). 회당 1.5 크레딧.'
+              'Đọc ảnh trang sách và chữ bạn nhập, rồi tạo ảnh tóm tắt 16:9. GPT medium 1 credit, high 2 credit.',
+              'Reads textbook photos and your text, then creates a 16:9 summary image. GPT medium is 1 credit, high is 2 credits.',
+              '读取教材照片与文字，再生成 16:9 总结图。GPT medium 1 积分，high 2 积分。',
+              '教科書の写真と文字を読み、16:9 の要約画像を作ります。GPT medium は 1 クレジット、high は 2 クレジット。',
+              '교과서 사진과 글을 읽고 16:9 요약 이미지를 만듭니다. GPT medium 1크레딧, high 2크레딧.'
             )}
           </p>
         </div>
@@ -400,13 +399,12 @@ export default function TaoInfographicTuSachClientPage() {
                 <div className="flex flex-wrap items-center justify-end gap-2">
                 <ImageEnginePicker
                   locale={uiLocale}
-                  engine={imageEngine}
-                  onEngineChange={setImageEngine}
-                  geminiQuality={geminiQuality}
-                  onGeminiQualityChange={setGeminiQuality}
-                  gptQuality={gptQuality}
+                  engine="gpt"
+                  onEngineChange={() => {}}
+                  gptQuality={summaryQuality}
                   onGptQualityChange={setGptQuality}
-                  geminiCost2k={1.5}
+                  gptQualities={['medium', 'high']}
+                  engines={['gpt']}
                 />
                 <Button
                   type="button"

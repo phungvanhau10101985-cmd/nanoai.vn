@@ -56,7 +56,7 @@ import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
 import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
-import { imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
+import { imageEngineCredit, type GptImageQuality } from '@/lib/ai/image-engine'
 import { getInfographicStrokeBucketKey, type SlideInfographic } from '../lib/slide-infographic'
 import {
   applyInfographicToDefaultVisualCells,
@@ -933,7 +933,6 @@ export default function CurriculumViewPage() {
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual' | 'infographic'>('curriculum')
   const [infographicGenerating, setInfographicGenerating] = useState(false)
   const [lessonInfographicGenerating, setLessonInfographicGenerating] = useState(false)
-  const [infographicEngine, setInfographicEngine] = useState<ImageEngine>('gemini')
   const [infographicGptQuality, setInfographicGptQuality] = useState<GptImageQuality>('medium')
   const runtimeHydratedRef = useRef(false)
   useEffect(() => {
@@ -1392,14 +1391,14 @@ export default function CurriculumViewPage() {
   const infographicImageCost = useMemo(() => {
     try {
       return imageEngineCredit({
-        engine: infographicEngine,
-        gptQuality: infographicGptQuality,
-        geminiCost: CURRICULUM_UI_CREDITS.slideInfographic2K,
+        engine: 'gpt',
+        gptQuality: infographicGptQuality === 'high' ? 'high' : 'medium',
+        geminiCost: 1,
       })
     } catch {
       return CURRICULUM_UI_CREDITS.slideInfographic2K
     }
-  }, [infographicEngine, infographicGptQuality])
+  }, [infographicGptQuality])
   const lessonInfographicCostLabel = useMemo(
     () => formatCurriculumCredits(infographicImageCost),
     [infographicImageCost]
@@ -1407,13 +1406,12 @@ export default function CurriculumViewPage() {
   const renderInfographicEnginePicker = () => (
     <ImageEnginePicker
       locale={uiLocale}
-      engine={infographicEngine}
-      onEngineChange={setInfographicEngine}
-      geminiQuality="2K"
-      onGeminiQualityChange={() => {}}
-      gptQuality={infographicGptQuality}
+      engine="gpt"
+      onEngineChange={() => {}}
+      gptQuality={infographicGptQuality === 'high' ? 'high' : 'medium'}
       onGptQualityChange={setInfographicGptQuality}
-      geminiCost2k={CURRICULUM_UI_CREDITS.slideInfographic2K}
+      gptQualities={['medium', 'high']}
+      engines={['gpt']}
     />
   )
   useEffect(() => {
@@ -2816,8 +2814,8 @@ export default function CurriculumViewPage() {
           outputLocale: getWebLocaleFromCookie(),
           scope: 'curriculum',
           regenerate: Boolean(curriculumInfographic?.imageUrl),
-          imageEngine: infographicEngine,
-          gptQuality: infographicGptQuality,
+          imageEngine: 'gpt',
+          gptQuality: infographicGptQuality === 'high' ? 'high' : 'medium',
         }),
       })
       let data: {
@@ -2878,7 +2876,7 @@ export default function CurriculumViewPage() {
     } finally {
       setInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicEngine, infographicGptQuality])
+  }, [curriculumId, worksheetId, slides, fullCurriculumMarkdown, content, topic, currentIndex, curriculumInfographic, lessonInfographicCostLabel, toast, tr, sendCurriculumDataToStudent, infographicGptQuality])
 
   const generateLessonInfographic = useCallback(async () => {
     if (!curriculumId || worksheetId) return
@@ -2945,8 +2943,8 @@ export default function CurriculumViewPage() {
           scope: 'lesson',
           lessonNo: activeLessonNo,
           regenerate: lessonInfographicExists,
-          imageEngine: infographicEngine,
-          gptQuality: infographicGptQuality,
+          imageEngine: 'gpt',
+          gptQuality: infographicGptQuality === 'high' ? 'high' : 'medium',
         }),
       })
       let data: {
@@ -3015,7 +3013,7 @@ export default function CurriculumViewPage() {
     } finally {
       setLessonInfographicGenerating(false)
     }
-  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex, infographicEngine, infographicGptQuality])
+  }, [curriculumId, worksheetId, activeLessonNo, content, slides, topic, tr, toast, lessonInfographicCostLabel, slideMode, personalViewSubMode, sendCurriculumDataToStudent, currentIndex, infographicGptQuality])
 
   const infographicCostSuffix = useCallback(
     (hasExisting: boolean, costLabel: string) =>
