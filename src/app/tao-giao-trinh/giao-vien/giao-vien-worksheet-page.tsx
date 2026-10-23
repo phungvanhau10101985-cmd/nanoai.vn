@@ -790,8 +790,8 @@ export default function GiaoVienWorksheetPage() {
       : 'text-[11px] px-2 py-1 rounded-md bg-slate-600/50 hover:bg-slate-600/70 text-slate-300 hover:text-white transition-colors flex items-center gap-1 disabled:opacity-40 disabled:pointer-events-none'
     const iconSz = compact ? 'h-3 w-3' : 'h-3.5 w-3.5'
     const wrapCls = compact
-      ? 'mb-1 flex flex-wrap items-center gap-1 rounded-md border border-amber-500/25 bg-slate-900/40 px-1.5 py-1'
-      : 'mb-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-900/50 px-2 py-1.5'
+      ? 'flex flex-wrap items-center gap-1 rounded-md border border-amber-500/25 bg-slate-900/40 px-1.5 py-1'
+      : 'flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-500/30 bg-slate-900/80 px-2 py-1.5'
 
     const typableIdx = typableSolutionBlockIndices(blks, answerRevealJumpOpts)
     const typableKeys = typableIdx.map((bi) => `${slideIndex}-${bi}`)
@@ -2089,6 +2089,120 @@ export default function GiaoVienWorksheetPage() {
     ro.observe(el)
     return () => ro.disconnect()
   }, [studentViewOpened, slideViewMode, sendToStudentView, currentIndex])
+
+  /** Cuộn bài tập (1 slide) → học sinh giữ cùng mốc chữ, không lệch vì bộ gõ chỉ có bên giáo viên. */
+  useEffect(() => {
+    if (!studentViewOpened || slideViewMode !== 'single') return
+    const scrollEl = teacherSlideContentPaneRef.current
+    if (!scrollEl) return
+    const readAnchor = (): Record<string, unknown> => {
+      const paneRect = scrollEl.getBoundingClientRect()
+      const line = paneRect.top + scrollEl.clientTop + 1
+      const midX = paneRect.left + Math.min(scrollEl.clientWidth * 0.5, Math.max(24, scrollEl.clientWidth - 28))
+      const relOf = (el: HTMLElement) => {
+        const r = el.getBoundingClientRect()
+        if (r.height < 1) return 0
+        return (line - r.top) / r.height
+      }
+      const pack = (el: HTMLElement): Record<string, unknown> | null => {
+        const rel = relOf(el)
+        if (el.hasAttribute('data-pointer-prose-root')) {
+          const slideIndex = Number(el.getAttribute('data-slide-index'))
+          const blockIndex = Number(el.getAttribute('data-block-index'))
+          if (Number.isFinite(slideIndex) && Number.isFinite(blockIndex)) {
+            return { type: 'chain-pane-scroll', anchor: 'prose', slideIndex, blockIndex, rel }
+          }
+        }
+        if (el.hasAttribute('data-pointer-sync-id')) {
+          const syncId = el.getAttribute('data-pointer-sync-id') || ''
+          if (/^slide-[\w-]+$/.test(syncId)) {
+            return { type: 'chain-pane-scroll', anchor: 'sync', syncId, rel }
+          }
+        }
+        return null
+      }
+      const fromPoint = () => {
+        const stack = document.elementsFromPoint(midX, Math.min(line + 1, paneRect.bottom - 2))
+        for (const node of stack) {
+          if (!(node instanceof HTMLElement) || !scrollEl.contains(node)) continue
+          if (node.closest('[data-teacher-chrome]')) continue
+          const sync = node.closest('[data-pointer-sync-id]') as HTMLElement | null
+          if (sync && scrollEl.contains(sync)) {
+            const packed = pack(sync)
+            if (packed) return packed
+          }
+          const prose = node.closest('[data-pointer-prose-root]') as HTMLElement | null
+          if (prose && scrollEl.contains(prose)) {
+            const packed = pack(prose)
+            if (packed) return packed
+          }
+        }
+        return null
+      }
+      const hit = fromPoint()
+      if (hit) return hit
+      let nextTop = Infinity
+      let nextEl: HTMLElement | null = null
+      scrollEl.querySelectorAll('[data-pointer-sync-id], [data-pointer-prose-root]').forEach((node) => {
+        const el = node as HTMLElement
+        if (el.closest('[data-teacher-chrome]')) return
+        const top = el.getBoundingClientRect().top
+        if (top >= line - 1 && top < nextTop) {
+          nextTop = top
+          nextEl = el
+        }
+      })
+      if (nextEl) {
+        const packed = pack(nextEl)
+        if (packed) return packed
+      }
+      const layout = teacherSlideContentLayoutRef.current
+      if (layout && scrollEl.contains(layout)) {
+        const r = layout.getBoundingClientRect()
+        if (r.height > 1) {
+          const rel = r.bottom <= line ? 1 : (line - r.top) / r.height
+          return { type: 'chain-pane-scroll', anchor: 'layout', rel }
+        }
+      }
+      return { type: 'chain-pane-scroll', anchor: 'start', rel: 0 }
+    }
+    let timer: number | null = null
+    let lastSent = 0
+    const emit = () => {
+      const now = Date.now()
+      const wait = 32 - (now - lastSent)
+      const fire = () => {
+        lastSent = Date.now()
+        timer = null
+        sendToStudentView(readAnchor())
+      }
+      if (wait <= 0) {
+        if (timer != null) {
+          window.clearTimeout(timer)
+          timer = null
+        }
+        fire()
+        return
+      }
+      if (timer != null) return
+      timer = window.setTimeout(fire, wait)
+    }
+    emit()
+    const retrySoon = window.setTimeout(emit, 140)
+    const retryLater = window.setTimeout(emit, 420)
+    scrollEl.addEventListener('scroll', emit, { passive: true })
+    const ro = new ResizeObserver(() => emit())
+    ro.observe(scrollEl)
+    const content = scrollEl.firstElementChild
+    if (content) ro.observe(content)
+    return () => {
+      window.clearTimeout(retrySoon)
+      window.clearTimeout(retryLater)
+      if (timer != null) window.clearTimeout(timer)
+      scrollEl.removeEventListener('scroll', emit)
+      ro.disconnect()
+    }
+  }, [studentViewOpened, slideViewMode, currentIndex, slides.length, sendToStudentView])
 
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -3648,6 +3762,24 @@ export default function GiaoVienWorksheetPage() {
               </div>
             </div>
             {slideViewMode === 'single' ? (
+              <>
+              {(() => {
+                const slide = slides[currentIndex]
+                const slideBlocks = !slide
+                  ? []
+                  : Array.isArray(slide.blocks) && slide.blocks.length
+                    ? slide.blocks
+                    : slide.content
+                      ? parseContentToBlocks(slide.content ?? '')
+                      : []
+                const typingBar = slideBlocks.length > 0 ? renderSlideLevelTypingToolbar(currentIndex, slideBlocks, 'comfortable') : null
+                if (!typingBar) return null
+                return (
+                  <div data-teacher-chrome className="shrink-0 border-b border-slate-700/60 bg-slate-950 px-3 py-2">
+                    {typingBar}
+                  </div>
+                )
+              })()}
               <div ref={teacherSlideContentPaneRef} className="flex-1 flex items-start justify-start min-h-0 overflow-y-auto overflow-x-hidden overscroll-y-contain p-2 md:p-3">
                 {(() => {
                   const s = slides[currentIndex]
@@ -3671,7 +3803,7 @@ export default function GiaoVienWorksheetPage() {
                             </div>
                           ) : (
                             <>
-                              <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 pr-2">
+                              <div data-pointer-sync-id={`slide-title-${currentIndex}`} className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1 pr-2">
                                 <span className="shrink-0 text-sm font-medium tabular-nums text-slate-400">
                                   {currentIndex + 1}/{slides.length}
                                 </span>
@@ -3679,7 +3811,7 @@ export default function GiaoVienWorksheetPage() {
                                   {s?.title ?? ''}
                                 </h2>
                               </div>
-                              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                              <div data-teacher-chrome className="flex shrink-0 flex-wrap items-center gap-2">
                                 {(curriculumId || worksheetId) && ((slideMode === 'personal' && personalViewSubMode === 'current') || slideMode === 'shared' || slideMode === 'original') && (currentIndex > 0 || currentIndex < slides.length - 1) && (
                                   <button
                                     type="button"
@@ -3760,8 +3892,7 @@ export default function GiaoVienWorksheetPage() {
                         </div>
                         <div ref={teacherSlidePointerSyncRef} className="w-full min-w-0">
                         {blks.length > 0 ? (
-                          <div className="space-y-2 min-h-0 overflow-y-auto">
-                            {renderSlideLevelTypingToolbar(currentIndex, blks, 'comfortable')}
+                          <div className="space-y-2 min-h-0">
                             {blks.map((b, i) => {
                               const blockProposals = proposals.filter((p) => p.slide_index === currentIndex && p.block_index === i)
                               const isEditing = editingBlock?.slideIndex === currentIndex && editingBlock?.blockIndex === i
@@ -4227,6 +4358,7 @@ export default function GiaoVienWorksheetPage() {
                   )
                 })()}
               </div>
+              </>
             ) : (
             <div className="flex-1 min-h-0 flex flex-col gap-1.5 p-3 overflow-hidden">
               {([tripleIdxPrev, tripleIdxCur, tripleIdxNext] as const).map((idx, step) => {
@@ -4341,10 +4473,14 @@ export default function GiaoVienWorksheetPage() {
                         )}
                       </div>
                     </div>
+                    {blks.length > 0 ? (
+                      <div data-teacher-chrome className="mb-1 shrink-0">
+                        {renderSlideLevelTypingToolbar(idx, blks, 'compact')}
+                      </div>
+                    ) : null}
                     <div className="flex-1 min-h-0 overflow-y-auto space-y-1 text-base md:text-lg">
                       {blks.length > 0 ? (
                         <>
-                          {renderSlideLevelTypingToolbar(idx, blks, 'compact')}
                           {blks.map((b, i) => {
                           const blockProposals = isCurrent && curriculumId ? proposals.filter((p) => p.slide_index === idx && p.block_index === i) : []
                           const isEditing = isCurrent && editingBlock?.slideIndex === idx && editingBlock?.blockIndex === i

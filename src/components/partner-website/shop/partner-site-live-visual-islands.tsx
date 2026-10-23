@@ -2,6 +2,7 @@
 
 import { useLayoutEffect } from 'react'
 import { PartnerSiteChatWidgetProvider } from '@/components/partner-website/shop/partner-site-chat-widget-provider'
+import { PartnerSitePwaInstallPromptModal } from '@/components/partner-website/shop/partner-site-pwa-install-prompt-modal'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import type { WebLocale } from '@/lib/i18n/config'
 import { persistPartnerLiveVisualDeviceCookie } from '@/lib/partner-website/shop/infer-live-visual-request-device'
@@ -13,6 +14,7 @@ import {
 import type { VisualDeviceVariant } from '@/lib/partner-website/visual-editor/visual-device-query'
 
 export function PartnerSiteLiveVisualIslands({
+  siteSlug,
   locale,
   chatPath,
   shopName,
@@ -53,6 +55,9 @@ export function PartnerSiteLiveVisualIslands({
       hideLauncher={hideChatLauncher}
     >
       {tracking ? <PartnerSiteShopTrackingBootstrap tracking={tracking} /> : null}
+      {siteSlug ? (
+        <PartnerSitePwaInstallPromptModal siteSlug={siteSlug} shopTitle={shopName} locale={locale} />
+      ) : null}
     </PartnerSiteChatWidgetProvider>
   )
 }

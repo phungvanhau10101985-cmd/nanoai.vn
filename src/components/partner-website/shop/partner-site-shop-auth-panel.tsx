@@ -226,6 +226,7 @@ export function PartnerSiteShopAuthPanel({
 
   function beginGoogleLogin() {
     clearPartnerSiteShopSkipAuthSync(siteSlug)
+    markPartnerSiteFreshLoginSession(siteSlug)
   }
 
   async function requestOtp() {

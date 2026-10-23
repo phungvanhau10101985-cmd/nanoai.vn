@@ -3,6 +3,7 @@ import { PW_SHOP_LIVE_UI_OFF_FN } from '@/lib/partner-website/shop/pw-shop-live-
 import { PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 import {
   PWA_INSTALL_PROMPT_COPY,
+  PW_PWA_INSTALL_PROMPT_CSS,
   pwaInstallPromptLead,
 } from '@/lib/partner-website/shop/partner-site-pwa-install-prompt'
 
@@ -22,11 +23,13 @@ export function buildPartnerSitePwaInstallPromptScript(input: {
 ${PW_SHOP_LIVE_UI_OFF_FN};
 var SLUG=${JSON.stringify(siteSlug)};
 var COPY=${JSON.stringify({ ...copy, lead })};
+var PROMPT_CSS=${JSON.stringify(PW_PWA_INSTALL_PROMPT_CSS)};
 var SHOP_TITLE=${JSON.stringify(shopTitle)};
 var SETTLED=${JSON.stringify(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT)};
 var FRESH_KEY='pw_fresh_login_after_auth:'+SLUG;
 var PENDING_KEY='pw_pwa_install_prompt_pending:'+SLUG;
 var DISMISS_KEY='pw_pwa_install_prompt_dismissed:'+SLUG;
+var SEEN_KEY='pw_pwa_install_prompt_seen:'+SLUG;
 var INSTALLED_KEY='pw_pwa_installed:'+SLUG;
 var SKIP_KEY='pw_shop_skip_auth_sync_'+SLUG;
 var ACCOUNT_KEY='app_guest_account_id';
@@ -36,7 +39,9 @@ function ssGet(k){try{return sessionStorage.getItem(k);}catch(e){return null;}}
 function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
 function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function remembered(){try{return localStorage.getItem(INSTALLED_KEY)==='1';}catch(e){return false;}}
-function markInstalled(){try{localStorage.setItem(INSTALLED_KEY,'1');}catch(e){}ssDel(PENDING_KEY);}
+function seen(){try{return localStorage.getItem(SEEN_KEY)==='1';}catch(e){return false;}}
+function markSeen(){try{localStorage.setItem(SEEN_KEY,'1');}catch(e){}}
+function markInstalled(){try{localStorage.setItem(INSTALLED_KEY,'1');}catch(e){}markSeen();ssDel(PENDING_KEY);}
 function clearInstalled(){try{localStorage.removeItem(INSTALLED_KEY);}catch(e){}}
 function accountId(){try{return localStorage.getItem(ACCOUNT_KEY)||localStorage.getItem(ACCOUNT_KEY_LEGACY)||'';}catch(e){return '';}}
 function skipAuth(){try{return sessionStorage.getItem(SKIP_KEY)==='1';}catch(e){return false;}}
@@ -55,13 +60,22 @@ function canOpen(){
   if(!accountId())return false;
   if(isStandalone()){markInstalled();return false;}
   if(ssGet(DISMISS_KEY)==='1'){ssDel(PENDING_KEY);return false;}
-  if(ssGet(PENDING_KEY)!=='1')return false;
+  if(ssGet(PENDING_KEY)!=='1'&&seen())return false;
   if(remembered()&&!deferred)return false;
   return true;
 }
 function closePrompt(root){if(root&&root.parentNode)root.parentNode.removeChild(root);document.body.style.overflow='';}
+function ensureCss(){
+  if(document.getElementById('pw-pwa-install-css'))return;
+  var st=document.createElement('style');
+  st.id='pw-pwa-install-css';
+  st.textContent=PROMPT_CSS;
+  (document.head||document.documentElement).appendChild(st);
+}
 function render(){
   if(!claim())return;
+  ensureCss();
+  markSeen();
   ssDel(PENDING_KEY);
   var root=document.createElement('div');
   root.id='pw-pwa-install-prompt';
@@ -121,11 +135,16 @@ function openPrompt(fromBirth){
     },400);
   });
 }
+var armTries=0;
 function arm(){
   if(pwShopLiveUiOff())return;
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',arm);return;}
+  if(!accountId()&&armTries<20){armTries++;setTimeout(arm,200);return;}
   if(ssGet(FRESH_KEY)==='1'){
-    window.addEventListener(SETTLED,function onS(){window.removeEventListener(SETTLED,onS);openPrompt(true);});
+    var released=false;
+    function go(){if(released)return;released=true;openPrompt(true);}
+    window.addEventListener(SETTLED,function onS(){window.removeEventListener(SETTLED,onS);go();});
+    setTimeout(function(){if(!blocker())go();},1600);
     return;
   }
   openPrompt(false);

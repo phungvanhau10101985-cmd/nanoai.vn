@@ -18,6 +18,11 @@ export function partnerSitePwaInstalledStorageKey(siteSlug: string): string {
   return `pw_pwa_installed:${siteSlug.trim()}`
 }
 
+/** Đã hiện hộp cài trên máy này. Lần đăng nhập sau xóa cờ để nhắc lại. */
+export function partnerSitePwaInstallPromptSeenKey(siteSlug: string): string {
+  return `pw_pwa_install_prompt_seen:${siteSlug.trim()}`
+}
+
 export function partnerSiteBirthGenderPromptDismissKey(siteSlug: string): string {
   return `pw_birth_gender_prompt_dismissed:${siteSlug.trim()}`
 }
@@ -38,6 +43,11 @@ export function markPartnerSiteFreshLoginSession(siteSlug: string): void {
     sessionStorage.setItem(partnerSitePwaInstallPromptPendingKey(slug), '1')
   } catch {
     /* quota / private mode */
+  }
+  try {
+    localStorage.removeItem(partnerSitePwaInstallPromptSeenKey(slug))
+  } catch {
+    /* ignore */
   }
 }
 
@@ -78,6 +88,26 @@ export function clearPartnerSitePwaInstallPromptPending(siteSlug: string): void 
   }
 }
 
+export function isPartnerSitePwaInstallPromptSeen(siteSlug: string): boolean {
+  if (typeof localStorage === 'undefined') return false
+  try {
+    return localStorage.getItem(partnerSitePwaInstallPromptSeenKey(siteSlug.trim())) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function markPartnerSitePwaInstallPromptSeen(siteSlug: string): void {
+  if (typeof localStorage === 'undefined') return
+  const slug = siteSlug.trim()
+  if (!slug) return
+  try {
+    localStorage.setItem(partnerSitePwaInstallPromptSeenKey(slug), '1')
+  } catch {
+    /* ignore */
+  }
+}
+
 export function dismissPartnerSitePwaInstallPrompt(siteSlug: string): void {
   if (typeof sessionStorage === 'undefined') return
   const slug = siteSlug.trim()
@@ -87,6 +117,7 @@ export function dismissPartnerSitePwaInstallPrompt(siteSlug: string): void {
   } catch {
     /* ignore */
   }
+  markPartnerSitePwaInstallPromptSeen(slug)
   clearPartnerSitePwaInstallPromptPending(slug)
 }
 
@@ -106,6 +137,7 @@ export function markPartnerSitePwaInstalled(siteSlug: string): void {
   } catch {
     /* ignore */
   }
+  markPartnerSitePwaInstallPromptSeen(siteSlug)
   clearPartnerSitePwaInstallPromptPending(siteSlug)
 }
 

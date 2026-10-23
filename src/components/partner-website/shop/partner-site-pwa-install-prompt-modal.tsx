@@ -13,8 +13,10 @@ import {
   isPartnerSiteFreshLoginSession,
   isPartnerSitePwaInstallPromptDismissed,
   isPartnerSitePwaInstallPromptPending,
+  isPartnerSitePwaInstallPromptSeen,
   isPartnerSitePwaRememberedInstalled,
   isPartnerSiteShopLoginPath,
+  markPartnerSitePwaInstallPromptSeen,
   markPartnerSitePwaInstalled,
 } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 import {
@@ -66,7 +68,13 @@ export function PartnerSitePwaInstallPromptModal({ siteSlug, shopTitle, locale }
     }
     const onSettled = () => setRelease(true)
     window.addEventListener(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT, onSettled)
-    return () => window.removeEventListener(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT, onSettled)
+    const timer = window.setTimeout(() => {
+      if (!document.querySelector('[data-pw-birth-gender-prompt]')) setRelease(true)
+    }, 1600)
+    return () => {
+      window.removeEventListener(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT, onSettled)
+      window.clearTimeout(timer)
+    }
   }, [authResolved, isAuthenticated, ready, siteSlug])
 
   const close = useCallback(() => {
@@ -96,6 +104,7 @@ export function PartnerSitePwaInstallPromptModal({ siteSlug, shopTitle, locale }
         rememberedInstalled: isPartnerSitePwaRememberedInstalled(siteSlug),
         nativePromptReady: Boolean(deferredInstall),
         blockedByOtherPrompt: otherPromptOpen(),
+        alreadySeen: isPartnerSitePwaInstallPromptSeen(siteSlug),
       })
 
     const tryOpen = () => {
@@ -116,6 +125,7 @@ export function PartnerSitePwaInstallPromptModal({ siteSlug, shopTitle, locale }
         }
         if (!offer()) return
         if (!claimPartnerPwaInstallPrompt()) return
+        markPartnerSitePwaInstallPromptSeen(siteSlug)
         clearPartnerSitePwaInstallPromptPending(siteSlug)
         setFailed(false)
         setOpen(true)

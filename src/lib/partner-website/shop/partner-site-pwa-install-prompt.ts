@@ -88,13 +88,16 @@ export type PwaInstallPromptOfferInput = {
   nativePromptReady: boolean
   /** Ngày sinh / giỏ vừa thêm đang chiếm màn, hoặc phiên login chưa xử lý xong hộp đó. */
   blockedByOtherPrompt: boolean
+  /** Đã hiện hộp trên máy này kể từ lần đăng nhập trước. */
+  alreadySeen: boolean
 }
 
-/** Nhắc cài sau đăng nhập. Đã cài (standalone hoặc nhớ máy) thì im, trừ khi trình duyệt lại đưa được hộp cài. */
+/** Nhắc cài sau đăng nhập, hoặc lần đầu khách đã đăng nhập mở shop. Đã cài thì im, trừ khi trình duyệt lại đưa được hộp cài. */
 export function shouldOfferPartnerPwaInstallPrompt(input: PwaInstallPromptOfferInput): boolean {
   if (input.editor || input.loginPath || !input.authenticated) return false
   if (input.standalone || input.blockedByOtherPrompt) return false
-  if (!input.pending || input.dismissed) return false
+  if (input.dismissed) return false
+  if (!input.pending && input.alreadySeen) return false
   if (input.rememberedInstalled && !input.nativePromptReady) return false
   return true
 }

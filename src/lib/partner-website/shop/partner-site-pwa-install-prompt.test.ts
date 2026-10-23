@@ -63,8 +63,10 @@ test('PWA install prompt is offered once per login until the app is installed', 
     rememberedInstalled: false,
     nativePromptReady: false,
     blockedByOtherPrompt: false,
+    alreadySeen: true,
   }
   assert.equal(shouldOfferPartnerPwaInstallPrompt(base), true)
+  assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, pending: false, alreadySeen: false }), true)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, standalone: true }), false)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, dismissed: true }), false)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, pending: false }), false)
@@ -129,6 +131,8 @@ test('PWA install CSS uses buy token and live HTML injects one script', () => {
   assert.match(script, /Hotel/)
   assert.match(script, /beforeinstallprompt/)
   assert.match(script, /isLoginPath/)
+  assert.match(script, /pw_pwa_install_prompt_seen:'\+SLUG/)
+  assert.match(script, /setTimeout\(function\(\)\{if\(!blocker\(\)\)go\(\);\},1600\)/)
   assert.doesNotMatch(script, /#ea580c|#f97316/)
   const body = script.replace(/<\/?script\b[^>]*>/gi, '')
   assert.doesNotThrow(() => new Function(body))
@@ -148,4 +152,9 @@ test('React shop shell mounts the install prompt next to the birthday prompt', (
     /import \{ PartnerSitePwaInstallPromptModal \} from '@\/components\/partner-website\/shop\/partner-site-pwa-install-prompt-modal'/
   )
   assert.match(src, /<PartnerSitePwaInstallPromptModal siteSlug=\{siteSlug\} shopTitle=\{title\} locale=\{locale\} \/>/)
+  const islands = readFileSync(
+    join(here, '../../../components/partner-website/shop/partner-site-live-visual-islands.tsx'),
+    'utf8'
+  )
+  assert.match(islands, /<PartnerSitePwaInstallPromptModal siteSlug=\{siteSlug\} shopTitle=\{shopName\} locale=\{locale\} \/>/)
 })

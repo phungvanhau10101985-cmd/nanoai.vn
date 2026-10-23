@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Timer } from 'lucide-react'
 import QRCode from 'qrcode'
+import { GeoGebraApplet } from './geogebra-applet'
 
 /**
  * Nhúng nhiều loại nội dung vào slide: GeoGebra, Desmos, YouTube, PhET, Maps, Image, Audio, Quiz, Code, LaTeX
@@ -172,11 +173,27 @@ export function ContentEmbed({ type, urlOrId, width = 560, height = 350, classNa
     return () => observer.disconnect()
   }, [isIframeEmbed, src, fill])
 
-  // Iframe nhúng (GeoGebra/Desmos/YouTube/PhET/Maps/CodePen) luôn hiển thị khi nằm trong viewport — KHÔNG
-  // tạm nghỉ vì idle hay vì memory-pressure để đảm bảo GV/HS luôn xem được visual trong suốt buổi chiếu.
-  // Lazy unmount qua IntersectionObserver vẫn áp dụng (slide cuộn rất xa thì gỡ tạm để giảm RAM nhẹ).
+  // GeoGebra vẽ bằng applet (trang /calculator trên iOS mở bàn phím và không hiện đồ thị).
+  // Desmos/YouTube/PhET/Maps/CodePen vẫn là iframe khi nằm trong viewport — không tạm nghỉ vì idle.
+  // Slide cuộn rất xa thì gỡ tạm để giảm RAM.
 
   if (isIframeEmbed) {
+    if (type === 'geogebra') {
+      if (!urlOrId.trim()) return null
+      return (
+        <div ref={wrapperRef} className={wrapperClass} style={{ pointerEvents: 'auto' }}>
+          {iframeInViewport ? (
+            <GeoGebraApplet urlOrId={urlOrId} fill={!!fill} height={height} tr={tr} />
+          ) : (
+            <div
+              aria-hidden
+              className={fill ? 'min-h-0 w-full flex-1 bg-transparent' : 'w-full bg-transparent'}
+              style={fill ? { minHeight: 160 } : { height }}
+            />
+          )}
+        </div>
+      )
+    }
     if (!src) return null
     const iframeActive = iframeInViewport
     return (
