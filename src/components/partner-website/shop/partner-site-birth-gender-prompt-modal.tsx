@@ -14,6 +14,7 @@ import {
   isPartnerSiteBirthGenderPromptDismissed,
   isPartnerSiteFreshLoginSession,
   isPartnerSiteShopLoginPath,
+  notifyPartnerSiteBirthGenderPromptSettled,
 } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 import { shouldPartnerSiteShopSkipAuthSync } from '@/lib/partner-website/shop/partner-site-shop-auth-skip-sync'
 import { partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
@@ -100,7 +101,7 @@ export function PartnerSiteBirthGenderPromptModal({ siteSlug, shopTitle, locale 
         }
         applyProfile(profile)
       } catch {
-        /* keep shopping; user can still fill account later */
+        notifyPartnerSiteBirthGenderPromptSettled()
       }
     })()
 

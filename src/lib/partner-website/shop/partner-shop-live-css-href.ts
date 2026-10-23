@@ -10,7 +10,7 @@ import {
 } from '@/lib/partner-website/template/partner-website-template-types'
 
 /** Bump when the live CSS pack contents change so HTML cache + `?v=` cannot reuse a stale sheet. */
-export const PARTNER_SHOP_LIVE_CSS_PACK_VERSION = '2'
+export const PARTNER_SHOP_LIVE_CSS_PACK_VERSION = '3'
 export const PARTNER_SHOP_LIVE_CSS_LINK_ID = 'pw-shop-live-css'
 /** Bust the cached visual HTML shell when served chrome/chat markup changes. */
 export const PARTNER_SHOP_LIVE_HTML_CACHE_EXTRA = 'home-chat-ctx-1'

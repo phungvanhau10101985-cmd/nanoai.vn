@@ -30,6 +30,7 @@ import {
 import { PartnerSiteShopSearchBar } from '@/components/partner-website/shop/partner-site-shop-search-bar'
 import { PartnerSiteShopTrackingBootstrap } from '@/components/partner-website/shop/partner-site-shop-tracking-bootstrap'
 import { PartnerSiteBirthGenderPromptModal } from '@/components/partner-website/shop/partner-site-birth-gender-prompt-modal'
+import { PartnerSitePwaInstallPromptModal } from '@/components/partner-website/shop/partner-site-pwa-install-prompt-modal'
 import { PartnerSiteLoginChromeLink } from '@/components/partner-website/shop/partner-site-login-chrome-link'
 import { PartnerSiteCartAddedModal } from '@/components/partner-website/shop/partner-site-cart-added-modal'
 import { ShopCdnImg } from '@/components/ui/shop-cdn-img'
@@ -868,7 +869,10 @@ function PartnerSiteShopShellInner({
       <PartnerSiteLiveDeviceCookieSync />
       <PartnerSiteShopTrackingBootstrap tracking={tracking} />
       {hideChrome || hideAccountNav ? null : (
-        <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+        <>
+          <PartnerSiteBirthGenderPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+          <PartnerSitePwaInstallPromptModal siteSlug={siteSlug} shopTitle={title} locale={locale} />
+        </>
       )}
       <link id={PARTNER_SHOP_LIVE_CSS_LINK_ID} rel="stylesheet" href={partnerShopLiveCssHref(siteSlug, theme)} />
       <style

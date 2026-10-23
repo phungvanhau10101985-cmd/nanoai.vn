@@ -12,6 +12,7 @@ import { stampPartnerSiteChromeWidgetHooksInHtml } from '@/lib/partner-website/s
 import { stampPartnerListingFilterAttrsInHtml } from '@/lib/partner-website/shop/stamp-partner-listing-filters'
 import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/visual-editor/pw-bg-stack'
 import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
+import { buildPartnerSitePwaInstallPromptScript } from '@/lib/partner-website/shop/build-partner-site-pwa-install-prompt-script'
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
 import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-newsletter-bootstrap-script'
@@ -23,7 +24,7 @@ import { buildPartnerShopCdnImageRetryScript } from '@/lib/partner-website/shop/
 import { buildPartnerSiteAgentTreeScript } from '@/lib/partner-website/shop/partner-site-agent-tree'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry|agent-tree)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|pwa-install-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry|agent-tree)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
   /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
@@ -213,6 +214,11 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
     out = injectMarketingBannerRuntime(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
   }
   out = appendBeforeBody(out, buildPartnerSiteBirthGenderPromptScript({
+    siteSlug,
+    locale,
+    shopTitle: input.shopTitle,
+  }))
+  out = appendBeforeBody(out, buildPartnerSitePwaInstallPromptScript({
     siteSlug,
     locale,
     shopTitle: input.shopTitle,

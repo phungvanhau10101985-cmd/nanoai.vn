@@ -992,7 +992,7 @@ export async function fetchCurriculaForCreateDuplicateCheckPg(opts: {
          and num_lessons = $5
          and lesson_duration_minutes = $6
          and ($7::text is null or textbook_isbn = $7)
-         and ${CURRICULUM_ORIGINAL_BODY_SQL}
+       order by created_at desc
        limit 100`,
       [
         opts.subjectId,
@@ -1279,8 +1279,8 @@ export async function findCurriculumTextbookExactMatchPg(opts: {
          and lesson_duration_minutes = $6
          and lesson_number = $7::numeric
          and ($8::text is null or textbook_isbn = $8)
-         and ${CURRICULUM_ORIGINAL_BODY_SQL}
          ${volClause}
+       order by created_at desc
        limit 1`,
       params
     )

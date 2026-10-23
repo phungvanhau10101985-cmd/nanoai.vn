@@ -5,6 +5,7 @@ import {
   BIRTH_GENDER_PROMPT_COPY,
   birthGenderPromptLead,
 } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt'
+import { PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt-session'
 import { partnerSitePersonalizationApiPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 import { partnerShopBirthYearOptions } from '@/lib/partner-website/shop/partner-site-profile-demographics'
 
@@ -50,7 +51,7 @@ function ssSet(k,v){try{sessionStorage.setItem(k,v);}catch(e){}}
 function ssDel(k){try{sessionStorage.removeItem(k);}catch(e){}}
 function isLoginPath(){var p=location.pathname||'';return /\\/login\\/?$/i.test(p)||/\\/auth\\//i.test(p);}
 function isFresh(){return ssGet(FRESH_KEY)==='1';}
-function clearFresh(){ssDel(FRESH_KEY);}
+function clearFresh(){ssDel(FRESH_KEY);try{window.dispatchEvent(new Event(${JSON.stringify(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT)}));}catch(e){}}
 function dismiss(){ssSet(DISMISS_KEY,'1');clearFresh();}
 function daysInMonth(y,m){return new Date(y,m,0).getDate();}
 function validDate(y,m,d){if(m<1||m>12||d<1)return false;if(d>daysInMonth(y,m))return false;var dt=new Date(y,m-1,d);return dt.getFullYear()===y&&dt.getMonth()===m-1&&dt.getDate()===d;}
@@ -172,7 +173,7 @@ function tryOpen(){
       if(!needs(p)){clearFresh();return;}
       render(p);
     })
-    .catch(function(){});
+    .catch(function(){try{window.dispatchEvent(new Event(${JSON.stringify(PW_BIRTH_GENDER_PROMPT_SETTLED_EVENT)}));}catch(e){}});
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',tryOpen);
 else tryOpen();

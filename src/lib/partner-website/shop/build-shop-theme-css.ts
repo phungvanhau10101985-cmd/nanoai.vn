@@ -20,6 +20,7 @@ import {
 import { PW_CART_ADDED_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-cart-added-modal'
 import { PW_LISTING_FACET_PICKER_CSS } from '@/lib/partner-website/shop/partner-site-listing-facet-picker'
 import { PW_BIRTH_GENDER_PROMPT_CSS } from '@/lib/partner-website/shop/partner-site-birth-gender-prompt'
+import { PW_PWA_INSTALL_PROMPT_CSS } from '@/lib/partner-website/shop/partner-site-pwa-install-prompt'
 import { PW_PRODUCT_VARIANT_MODAL_CSS } from '@/lib/partner-website/shop/partner-site-product-variant-modal'
 import { PW_SITE_SALE_CARD_CSS } from '@/lib/partner-website/promotions/partner-site-sale-display'
 import { PARTNER_CATEGORY_MEGA_LAYOUT_CSS } from '@/lib/partner-website/shop/partner-site-category-mega-menu'
@@ -160,6 +161,7 @@ ${buildPartnerSiteAccountPanelCss()}
 ${PW_CART_ADDED_MODAL_CSS}
 ${PW_LISTING_FACET_PICKER_CSS}
 ${PW_BIRTH_GENDER_PROMPT_CSS}
+${PW_PWA_INSTALL_PROMPT_CSS}
 ${PW_PRODUCT_VARIANT_MODAL_CSS}
 ${PARTNER_CATEGORY_MEGA_LAYOUT_CSS}`
 }

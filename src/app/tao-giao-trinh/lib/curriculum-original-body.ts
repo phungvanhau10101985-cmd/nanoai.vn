@@ -1,6 +1,6 @@
 import { CURRICULUM_MATH_CHECK_RULES } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 
-/** Bản giáo án tự viết theo mạch kiến thức. Cache cũ không có dấu này thì không phát lại. */
+/** Dấu gắn khi lưu giáo án soạn theo mạch kiến thức. Tra bài theo SGK không dùng dấu này. */
 export const CURRICULUM_ORIGINAL_BODY_MARKER = '<!-- curriculum-body-policy:original-knowledge -->'
 
 const MARKER_RE = /<!--\s*curriculum-body-policy:original-knowledge\s*-->\s*/g
@@ -19,7 +19,7 @@ export function stampCurriculumOriginalBody(markdown: string | null | undefined)
   return `${CURRICULUM_ORIGINAL_BODY_MARKER}\n${body}`
 }
 
-/** Điều kiện SQL: chỉ khớp giáo án soạn theo mạch kiến thức, không khớp bản cache chép sách. */
+/** Điều kiện SQL cho chế độ theo chủ đề. Tra bài theo số bài SGK không lọc theo dấu này. */
 export const CURRICULUM_ORIGINAL_BODY_SQL = `position('curriculum-body-policy:original-knowledge' in content_markdown) > 0`
 
 /** Ý kiến thức ngắn. Bỏ câu dài, đề bài, lời giải. */

@@ -211,6 +211,7 @@ export async function insertClassMinePg(params: {
   if (!isPgConfigured()) return null
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
+      // Postgres chạy SELECT ngoài cùng snapshot với CTE INSERT, nên đọc lại public.classes sẽ không thấy dòng vừa ghi.
       `with ins as (
          insert into public.classes (teacher_id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name)
          values (
@@ -219,13 +220,12 @@ export async function insertClassMinePg(params: {
            nullif(trim(coalesce($6::text, '')), ''),
            nullif(trim(coalesce($7::text, '')), '')
          )
-         returning id
+         returning id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name, created_at
        )
        select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id, c.subject_label, c.teacher_display_name,
               c.created_at::text, sch.name as school_name
-       from public.classes c
-       left join public.schools sch on sch.id = c.school_id
-       where c.id = (select id from ins)`,
+       from ins c
+       left join public.schools sch on sch.id = c.school_id`,
       [
         params.teacherId,
         params.name,
