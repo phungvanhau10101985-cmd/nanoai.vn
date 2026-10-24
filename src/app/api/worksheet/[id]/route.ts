@@ -60,6 +60,7 @@ export async function GET(
       id: data.id,
       topic: data.topic,
       content_markdown: contentMarkdown,
+      questionIds,
       questions,
     })
   }

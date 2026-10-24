@@ -48,12 +48,25 @@ function skipAuth(){try{return sessionStorage.getItem(SKIP_KEY)==='1';}catch(e){
 function isLoginPath(){var p=location.pathname||'';return /\\/login\\/?$/i.test(p)||/\\/auth\\//i.test(p);}
 function isStandalone(){try{if(window.navigator.standalone===true)return true;if(window.matchMedia('(display-mode: standalone)').matches)return true;if(document.referrer&&String(document.referrer).indexOf('android-app')>=0)return true;}catch(e){}return false;}
 function isIos(){return /iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;}
+function isPhone(){
+  var ua=String(navigator.userAgent||'');
+  if(/ipad|tablet|kindle|silk/i.test(ua))return false;
+  if(/iphone|ipod/i.test(ua))return true;
+  if(/android/i.test(ua))return /mobile/i.test(ua);
+  if(/mobile/i.test(ua))return true;
+  if((navigator.maxTouchPoints||0)>1&&/macintosh/i.test(ua))return false;
+  var scr=window.screen||{};
+  var screenW=Math.max(Number(scr.width)||0,Number(scr.availWidth)||0);
+  var w=window.outerWidth||screenW||window.innerWidth||0;
+  return w>0&&w<768;
+}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function shopName(){if(SHOP_TITLE)return SHOP_TITLE;var w=document.querySelector('.pw-wordmark,[data-pw-el="wordmark"]');var t=w&&String(w.textContent||'').trim();return t||'';}
 function leadText(){var shop=shopName();if(shop&&COPY.leadNamed)return String(COPY.leadNamed).replace(/\\{shop\\}/g,shop);return COPY.lead;}
 function blocker(){return document.querySelector('[data-pw-birth-gender-prompt],[data-pw-cart-added-popup]');}
 function claim(){if(window.__pwPwaInstallPromptClaimed)return false;if(document.getElementById('pw-pwa-install-prompt'))return false;window.__pwPwaInstallPromptClaimed=true;return true;}
 function canOpen(){
+  if(!isPhone())return false;
   if(pwShopLiveUiOff())return false;
   if(isLoginPath())return false;
   if(skipAuth())return false;

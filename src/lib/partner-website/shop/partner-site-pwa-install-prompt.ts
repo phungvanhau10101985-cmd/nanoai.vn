@@ -90,10 +90,13 @@ export type PwaInstallPromptOfferInput = {
   blockedByOtherPrompt: boolean
   /** Đã hiện hộp trên máy này kể từ lần đăng nhập trước. */
   alreadySeen: boolean
+  /** Chỉ điện thoại. Laptop, tablet và desktop không nhắc. */
+  phone: boolean
 }
 
-/** Nhắc cài sau đăng nhập, hoặc lần đầu khách đã đăng nhập mở shop. Đã cài thì im, trừ khi trình duyệt lại đưa được hộp cài. */
+/** Nhắc cài sau đăng nhập trên điện thoại. Máy tính không nhắc và không ghi đã xem. */
 export function shouldOfferPartnerPwaInstallPrompt(input: PwaInstallPromptOfferInput): boolean {
+  if (!input.phone) return false
   if (input.editor || input.loginPath || !input.authenticated) return false
   if (input.standalone || input.blockedByOtherPrompt) return false
   if (input.dismissed) return false

@@ -1,4 +1,5 @@
-import { getEssayProblem, getEssaySolution } from './worksheet-content-json'
+import { coalesceEssayParts, getEssayProblem, getEssaySolution } from './worksheet-content-json'
+import { parseWorksheetIntoBlocks } from './worksheet-parse-questions'
 
 const QUIZ_TAG: Record<string, string> = { easy: 'Dễ', medium: 'Trung bình', hard: 'Khó' }
 const ESSAY_TAG: Record<string, string> = {
@@ -26,11 +27,27 @@ function getExerciseNumberFromContent(contentJson: unknown): string {
   return n.replace(/\s+/g, ' ').trim().slice(0, 48)
 }
 
+export type WorksheetMarkdownQuestion = {
+  type: string
+  content_json: unknown
+  difficulty?: string
+  source?: string
+  verified_at?: string | null
+}
+
+/** Một câu, đúng khối giáo viên sửa — không kèm tiêu đề phiếu. */
+export function questionBlockMarkdown(question: WorksheetMarkdownQuestion): string {
+  const blocks = parseWorksheetIntoBlocks(questionsToMarkdown([question]))
+  return blocks[0]?.content?.trim() ?? ''
+}
+
 /** Chuyển danh sách câu hỏi (worksheet_questions) sang content_markdown.
  * Thêm tiêu đề ## Phần trắc nghiệm / ## Phần tự luận để splitWorksheetSections phân tách đúng.
- * Hiển thị tag: [Bài tập SGK] khi source=sgk; [Chưa verify]/[Đã verify]; Dễ/TB/Khó (quiz); Nhận biết/... (essay). */
-export function questionsToMarkdown(questions: Array<{ type: string; content_json: unknown; difficulty?: string; source?: string; verified_at?: string | null }>): string {
+ * Hiển thị tag: [Tham khảo theo SGK] khi source=sgk; [Chưa verify]/[Đã verify]; Dễ/TB/Khó (quiz); Nhận biết/... (essay).
+ * Phiếu không có trắc nghiệm thì tự luận là phần 1, không ghi số 2. */
+export function questionsToMarkdown(questions: WorksheetMarkdownQuestion[]): string {
   const lines: string[] = ['## Phiếu bài tập', '']
+  const hasQuiz = questions.some((q) => q.type === 'quiz')
   let quizNum = 0
   let essayNum = 0
   let lastType: 'quiz' | 'essay' | null = null
@@ -43,7 +60,7 @@ export function questionsToMarkdown(questions: Array<{ type: string; content_jso
       }
       const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number }
       quizNum++
-      const sgkTag = q.source === 'sgk' ? '**[Bài tập SGK]** ' : ''
+      const sgkTag = q.source === 'sgk' ? '**[Tham khảo theo SGK]** ' : ''
       const tag = getQuizTag(q.difficulty)
       const quizLabel = getExerciseNumberFromContent(c) || String(quizNum)
       lines.push(`${quizLabel}. ${verifyTag}${sgkTag}**[${tag}]** ${c.question ?? ''}`)
@@ -52,17 +69,25 @@ export function questionsToMarkdown(questions: Array<{ type: string; content_jso
       lines.push(`**Đáp án:** ${String.fromCharCode(65 + (c.correctIndex ?? 0))}`, '')
     } else if (q.type === 'essay') {
       if (lastType !== 'essay') {
-        lines.push('## 2. Phần tự luận', '')
+        lines.push(hasQuiz ? '## 2. Phần tự luận' : '## 1. Phần tự luận', '')
         lastType = 'essay'
       }
       const c = q.content_json as { problem?: string; solution?: string }
-      const problem = getEssayProblem(c) || c.problem || ''
-      const solution = getEssaySolution(c) || c.solution || ''
+      const parts = coalesceEssayParts(getEssayProblem(c) || String(c.problem ?? ''), getEssaySolution(c) || String(c.solution ?? ''))
       essayNum++
-      const sgkTag = q.source === 'sgk' ? '**[Bài tập SGK]** ' : ''
+      const sgkTag = q.source === 'sgk' ? '**[Tham khảo theo SGK]** ' : ''
       const tag = getEssayTag(q.difficulty)
       const essayLabel = getExerciseNumberFromContent(c) || String(essayNum)
-      lines.push(`### Bài ${essayLabel}. ${verifyTag}${sgkTag}**[${tag}]**`, '', problem, '', '**Lời giải:**', '', solution, '')
+      lines.push(
+        `### Bài ${essayLabel}. ${verifyTag}${sgkTag}**[${tag}]**`,
+        '',
+        parts.problem,
+        '',
+        '**Lời giải:**',
+        '',
+        parts.solution || '(Chưa có lời giải)',
+        ''
+      )
     }
   }
   return lines.join('\n').trim() || 'Chưa có nội dung.'

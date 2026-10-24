@@ -19,6 +19,10 @@ export const CURRICULUM_AI_CHARGE_TYPES = {
   lessonSlideGenerate: 'curriculum_lesson_slide_generate',
   /** POST /api/curriculum-slide-infographic */
   slideInfographic: 'curriculum_slide_infographic',
+  /** Câu trắc nghiệm / tự luận tạo từng câu, sau suất miễn phí. */
+  worksheetQuestion: 'curriculum_worksheet_question',
+  /** Tách phiếu từ ảnh SGK khi tạo lại hoặc vượt suất miễn phí trong ngày. */
+  worksheetSgkExtract: 'curriculum_worksheet_sgk_extract',
 } as const
 
 /** Tắt trừ credit (local / debug): CURRICULUM_AI_CREDITS_DISABLED=1 */

@@ -153,6 +153,7 @@ export default async function PhieuBaiTapPage({ params }: { params: { id: string
                 <WorksheetViewWithEdit
                   worksheetId={data.id}
                   initialMarkdown={displayMarkdown}
+                  questionIds={questionIds}
                   questionBadge={ws.questionBadge}
                   locale={locale}
                 />

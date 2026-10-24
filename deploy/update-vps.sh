@@ -516,8 +516,12 @@ if [[ "${DEPLOY_SETUP_CRONS}" == "1" ]]; then
     echo "  Cảnh báo: thiếu PARTNER_DOMAIN_SSL_CRON_SECRET/CRON_SECRET, bỏ qua cron partner-custom-domain-ssl."
   fi
 
+  # Heap spiral keeps PM2 "online" under the RSS kill line. Probe :3000 every minute.
+  chmod +x "${APP_DIR}/deploy/nanoai-health-watchdog.sh" 2>/dev/null || true
+  ensure_cron "nanoai-health-watchdog" "* * * * * ${APP_DIR}/deploy/nanoai-health-watchdog.sh >> /root/logs/nanoai-health-watchdog.log 2>&1"
+
   echo "  Cron hiện tại:"
-  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|partner-email-daily|partner-order-shipment-timeline|partner-review-reminders|partner-outfit-picks|partner-ladipage-on-view|wedding-reminder|partner-custom-domain-ssl|vision-" || true
+  crontab -l | grep -E "messaging-partner-ai|messaging-inventory-embed-backfill|messaging-external-catalog-sync|messaging-logo-cleanup|partner-marketing-campaign|partner-customer-notifications|partner-marketing-banners|partner-email-daily|partner-order-shipment-timeline|partner-review-reminders|partner-outfit-picks|partner-ladipage-on-view|wedding-reminder|partner-custom-domain-ssl|nanoai-health-watchdog|vision-" || true
 else
   echo "  Bỏ qua (DEPLOY_SETUP_CRONS=${DEPLOY_SETUP_CRONS})."
 fi

@@ -64,8 +64,10 @@ test('PWA install prompt is offered once per login until the app is installed', 
     nativePromptReady: false,
     blockedByOtherPrompt: false,
     alreadySeen: true,
+    phone: true,
   }
   assert.equal(shouldOfferPartnerPwaInstallPrompt(base), true)
+  assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, phone: false }), false)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, pending: false, alreadySeen: false }), true)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, standalone: true }), false)
   assert.equal(shouldOfferPartnerPwaInstallPrompt({ ...base, dismissed: true }), false)
@@ -131,6 +133,8 @@ test('PWA install CSS uses buy token and live HTML injects one script', () => {
   assert.match(script, /Hotel/)
   assert.match(script, /beforeinstallprompt/)
   assert.match(script, /isLoginPath/)
+  assert.match(script, /function isPhone\(\)/)
+  assert.match(script, /if\(!isPhone\(\)\)return false/)
   assert.match(script, /pw_pwa_install_prompt_seen:'\+SLUG/)
   assert.match(script, /setTimeout\(function\(\)\{if\(!blocker\(\)\)go\(\);\},1600\)/)
   assert.doesNotMatch(script, /#ea580c|#f97316/)

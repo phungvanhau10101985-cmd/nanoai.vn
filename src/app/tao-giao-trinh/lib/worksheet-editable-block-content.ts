@@ -20,7 +20,7 @@ export function normalizeEssayEditorContent(text: string): string {
   }
 
   const readable = latexToReadable(text)
-  const markerRegex = /\*\*Lời giải\*\*:\s*|\*\*Đáp án\*\*:\s*/i
+  const markerRegex = /\*\*Lời giải:\*\*\s*|\*\*Lời giải\*\*:\s*|\*\*Đáp án:\*\*\s*|\*\*Đáp án\*\*:\s*/i
   const m = readable.match(markerRegex)
   if (!m || m.index == null) return readable
   const markerStart = m.index
@@ -28,7 +28,7 @@ export function normalizeEssayEditorContent(text: string): string {
   const before = readable.slice(0, markerStart).trim()
   const afterRaw = readable.slice(markerEnd).trim()
 
-  const nestedMarker = afterRaw.search(/(?:^|\n)\s*\*\*Lời giải\*\*:\s*/i)
+  const nestedMarker = afterRaw.search(/\*\*Lời giải:\*\*\s*|\*\*Lời giải\*\*:\s*/i)
   const afterNoNested = nestedMarker >= 0 ? afterRaw.slice(0, nestedMarker).trim() : afterRaw
 
   let after = afterNoNested

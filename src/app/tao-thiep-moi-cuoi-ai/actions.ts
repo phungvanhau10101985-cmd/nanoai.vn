@@ -159,6 +159,10 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
   let card = requested ? await getWeddingCardForUser(requested, ownerUserId) : null
   if (!card) card = await getLatestWeddingCardForUser(ownerUserId)
   if (!card) card = await createWeddingCardDraft(ownerUserId)
+  if (card && !card.isPublished && (card.groomName.trim() || card.brideName.trim())) {
+    card = (await publishWeddingCard(card.id, ownerUserId)) ?? card
+    if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
+  }
   return weddingCardWorkspace(ownerUserId, card)
 }
 
@@ -170,7 +174,9 @@ export async function createNewWeddingCard(occasionKey?: string) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
-  const card = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
+  const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
+  const card = (await publishWeddingCard(draft.id, ownerUserId)) ?? draft
+  if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   return weddingCardWorkspace(ownerUserId, card)
 }
 
@@ -358,11 +364,13 @@ export async function saveWeddingCardBrief(formData: FormData) {
       })
     : briefCard
   if (!card) return { error: 'Không lưu được phần nhà trai / nhà gái.' }
+  const published = card.isPublished ? card : await publishWeddingCard(card.id, ownerUserId)
+  const saved = published ?? card
   revalidatePath('/tao-thiep-moi-cuoi-ai')
   revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
-  revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
+  revalidatePath(`/thiep-moi-cuoi/${saved.slug}`)
   const musicLibrary = await listWeddingMusicLibrary()
-  return { card, musicLibrary }
+  return { card: saved, musicLibrary }
 }
 
 export async function generateWeddingCardImage(formData: FormData) {

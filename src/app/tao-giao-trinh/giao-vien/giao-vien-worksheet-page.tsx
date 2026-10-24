@@ -38,7 +38,7 @@ import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
-import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../lib/worksheet-content-json'
+import { coalesceEssayParts, getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../lib/worksheet-content-json'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -594,13 +594,7 @@ export default function GiaoVienWorksheetPage() {
   const [gvWorksheetEditFilter, setGvWorksheetEditFilter] = useState<'quiz' | 'essay' | null>(null)
   const [gvWorksheetEditBlockIndex, setGvWorksheetEditBlockIndex] = useState<number | null>(null)
   const [gvWorksheetEditBlockContent, setGvWorksheetEditBlockContent] = useState('')
-  const [gvWorksheetEditImages, setGvWorksheetEditImages] = useState<File[]>([])
   const [gvWorksheetEditSaving, setGvWorksheetEditSaving] = useState(false)
-  const [gvWorksheetEditCheckLoading, setGvWorksheetEditCheckLoading] = useState(false)
-  const [gvWorksheetEditCheckResult, setGvWorksheetEditCheckResult] = useState<{
-    issues: Array<{ field: string; location: string; issue: string; suggested: string }>
-    correctedContent: string | null
-  } | null>(null)
   const [leftPanelMode, setLeftPanelMode] = useState<'curriculum' | 'slide' | 'visual'>('curriculum')
   useEffect(() => {
     if (leftPanelMode === 'slide') setLeftPanelMode('curriculum')
@@ -989,14 +983,6 @@ export default function GiaoVienWorksheetPage() {
     return vi
   }, [uiLocale])
 
-  const worksheetEditCheckCreditSuffix = useMemo(
-    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditCheck)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
-    [tr]
-  )
-  const worksheetEditSaveCreditSuffix = useMemo(
-    () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.worksheetEditSave)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
-    [tr]
-  )
   const slideQuizGenCreditSuffix = useMemo(
     () => ` (${formatCurriculumCredits(CURRICULUM_UI_CREDITS.slideGenerateQuiz)} ${tr('credits', 'credits', '积分', 'クレジット', '크레딧')})`,
     [tr]
@@ -2567,8 +2553,6 @@ export default function GiaoVienWorksheetPage() {
     setGvWorksheetEditFilter(null)
     setGvWorksheetEditBlockIndex(null)
     setGvWorksheetEditBlockContent('')
-    setGvWorksheetEditImages([])
-    setGvWorksheetEditCheckResult(null)
   }, [])
 
   const reloadWorksheetSlidesAfterSave = useCallback(async () => {
@@ -2616,16 +2600,16 @@ export default function GiaoVienWorksheetPage() {
         const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
         if (row && block.type === 'essay') {
           const heading = (nextContent.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
-          const problem = latexToReadable(getEssayProblem(row.content_json) || '')
-          const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
-          nextContent = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
+          const parts = coalesceEssayParts(
+            latexToReadable(getEssayProblem(row.content_json) || ''),
+            normalizeSolutionToStr(getEssaySolution(row.content_json))
+          )
+          nextContent = [heading, parts.problem, '**Lời giải:**', parts.solution || '(Chưa có lời giải)'].filter(Boolean).join('\n\n')
         }
       } catch {
         /* giữ markdown */
       }
       setGvWorksheetEditBlockContent(nextContent)
-      setGvWorksheetEditImages([])
-      setGvWorksheetEditCheckResult(null)
     },
     [worksheetId, worksheetMarkdownSource]
   )
@@ -2664,12 +2648,12 @@ export default function GiaoVienWorksheetPage() {
   )
 
   const handleGvSaveWorksheetBlockEdit = useCallback(
-    async (opts?: { skipAiCheck?: boolean; contentOverride?: string }) => {
+    async () => {
       const id = worksheetId?.trim()
       const blockIdx = gvWorksheetEditBlockIndex
       if (!id || blockIdx == null || blockIdx < 0 || blockIdx >= gvWorksheetEditBlocks.length) return
       const block = gvWorksheetEditBlocks[blockIdx]
-      const edited = opts?.contentOverride ?? gvWorksheetEditBlockContent
+      const edited = gvWorksheetEditBlockContent
       if (!edited || edited.trim().length < 3) {
         toast({
           title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
@@ -2678,88 +2662,12 @@ export default function GiaoVienWorksheetPage() {
         })
         return
       }
-      const originalContent = worksheetMarkdownSource.slice(block.startOffset, block.endOffset)
-      if (originalContent === edited) {
+      if (worksheetMarkdownSource.slice(block.startOffset, block.endOffset) === edited) {
         resetGvWorksheetEdit()
         return
       }
-      const skipAiCheck = opts?.skipAiCheck === true
-      const curriculumContext = ''
       setGvWorksheetEditSaving(true)
       try {
-        if (!skipAiCheck) {
-          if (gvWorksheetEditImages.length > 0) {
-            const blockType = block?.type ?? 'quiz'
-            const fdCheck = new FormData()
-            fdCheck.append('content', edited)
-            fdCheck.append('blockType', blockType)
-            fdCheck.append('curriculum', curriculumContext)
-            gvWorksheetEditImages.forEach((f) => fdCheck.append('images', f))
-            const checkRes = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fdCheck })
-            const checkData = await checkRes.json().catch(() => ({}))
-            if (checkData.error) {
-              toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: checkData.error, variant: 'destructive' })
-              return
-            }
-            setGvWorksheetEditCheckResult({ issues: checkData.issues ?? [], correctedContent: checkData.correctedContent ?? null })
-            if (Array.isArray(checkData.issues) && checkData.issues.length > 0) {
-              toast({
-                title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
-                description: tr(
-                  'Có lỗi theo ảnh đính kèm. Vui lòng sửa rồi lưu lại.',
-                  'There are issues based on attached images. Please fix and save again.',
-                  '根据附图检测到问题，请修改后再保存。',
-                  '添付画像ベースで問題が見つかりました。修正して再保存してください。',
-                  '첨부 이미지 기준 오류가 있습니다. 수정 후 다시 저장하세요.',
-                ),
-                variant: 'destructive',
-              })
-              return
-            }
-          } else {
-            const CONTEXT_CHARS = 250
-            const contextStart = Math.max(0, block.startOffset - CONTEXT_CHARS)
-            const originalRegion = worksheetMarkdownSource.slice(contextStart, block.endOffset)
-            const editedRegion = worksheetMarkdownSource.slice(contextStart, block.startOffset) + edited
-            const res = await fetch('/api/curriculum-edit-check', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ originalRegion, editedRegion }),
-            })
-            const data = await res.json().catch(() => ({}))
-            const rc = data.regionCompare
-            const canSave = !!(data.ok && data.bothAgree && rc?.correctVersion === 'edited')
-            if (!canSave) {
-              let restored = toEditableBlockContent(originalContent, block.type)
-              try {
-                const wres = await fetch(`/api/worksheet/${encodeURIComponent(id)}`)
-                const wdata = await wres.json().catch(() => ({}))
-                const list = Array.isArray(wdata?.questions) ? (wdata.questions as Array<{ type?: string; content_json?: unknown }>) : []
-                const sameTypeIdx = gvWorksheetEditBlocks.slice(0, blockIdx + 1).filter((b2) => b2.type === block.type).length - 1
-                const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
-                if (row && block.type === 'essay') {
-                  const heading = (restored.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
-                  const problem = latexToReadable(getEssayProblem(row.content_json) || '')
-                  const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
-                  restored = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
-                }
-              } catch {
-                /* fallback */
-              }
-              setGvWorksheetEditBlockContent(restored)
-              setGvWorksheetEditCheckResult(null)
-              toast({
-                title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
-                description:
-                  (data.reasonNotSaved || rc?.explanation || tr('AI chưa đồng ý bản sửa.', 'AI did not approve this edit.', 'AI尚未同意该修改。', 'AIがこの編集を承認していません。', 'AI가 이 수정을 승인하지 않았습니다.')) +
-                  ' ' +
-                  tr('Đã hoàn nguyên nội dung gốc.', 'Reverted to original content.', '已恢复原内容。', '元の内容に戻しました。', '원본 내용으로 복원했습니다.'),
-                variant: 'destructive',
-              })
-              return
-            }
-          }
-        }
         const newMarkdown = replaceBlockInMarkdown(worksheetMarkdownSource, block, edited)
         const fd = new FormData()
         fd.append('worksheetId', id)
@@ -2778,15 +2686,13 @@ export default function GiaoVienWorksheetPage() {
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
           description: saveRes.personal
             ? tr(
-                'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
-                'Saved your copy. The shared question changes after 7 other teachers agree.',
-                '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
-                'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
-                '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+                'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa. 7 người không duyệt thì giữ bản gốc.',
+                'Saved your edit. You use it now. Later people can read both versions. 7 approvals replace the original. 7 rejections keep it.',
+                '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。7 人通过则采用修改。7 人不通过则保留原版。',
+                '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。7人が承認すると修正版を採用し、7人が不承認なら元の版を残します。',
+                '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 7명이 승인하면 수정본을 쓰고, 7명이 거절하면 원본을 유지합니다.'
               )
-            : skipAiCheck
-              ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-              : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
+            : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })
         await reloadWorksheetSlidesAfterSave()
       } finally {
@@ -2798,7 +2704,6 @@ export default function GiaoVienWorksheetPage() {
       gvWorksheetEditBlockIndex,
       gvWorksheetEditBlockContent,
       gvWorksheetEditBlocks,
-      gvWorksheetEditImages,
       worksheetMarkdownSource,
       toast,
       tr,
@@ -2806,55 +2711,6 @@ export default function GiaoVienWorksheetPage() {
       reloadWorksheetSlidesAfterSave,
     ]
   )
-
-  const handleGvCheckWorksheetBlock = useCallback(async () => {
-    const content = gvWorksheetEditBlockContent.trim()
-    if (!content || content.length < 5) {
-      toast({
-        title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
-        description: tr('Nội dung câu quá ngắn.', 'Content too short.', '内容太短。', '内容が短すぎます。', '내용이 너무 짧습니다.'),
-        variant: 'destructive',
-      })
-      return
-    }
-    const blockIdx = gvWorksheetEditBlockIndex
-    const block = blockIdx != null ? gvWorksheetEditBlocks[blockIdx] : null
-    const blockType = block?.type ?? 'quiz'
-    setGvWorksheetEditCheckLoading(true)
-    setGvWorksheetEditCheckResult(null)
-    try {
-      let res: Response
-      if (gvWorksheetEditImages.length > 0) {
-        const fd = new FormData()
-        fd.append('content', content)
-        fd.append('blockType', blockType)
-        fd.append('curriculum', '')
-        gvWorksheetEditImages.forEach((f) => fd.append('images', f))
-        res = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fd })
-      } else {
-        res = await fetch('/api/worksheet-edit-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content, blockType, curriculum: '' }),
-        })
-      }
-      const data = await res.json().catch(() => ({}))
-      if (data.error) {
-        toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: data.error, variant: 'destructive' })
-        return
-      }
-      setGvWorksheetEditCheckResult({ issues: data.issues ?? [], correctedContent: data.correctedContent ?? null })
-      if (!data.issues?.length) {
-        toast({
-          title: tr('Không có lỗi', 'No issues', '无问题', '問題なし', '문제 없음'),
-          description: tr('Câu đã đúng, có thể lưu.', 'Question is correct, you can save.', '题目正确，可以保存。', '問題は正しいです。保存できます。', '문제가 맞습니다. 저장하세요.'),
-          duration: 2000,
-        })
-      }
-    } finally {
-      setGvWorksheetEditCheckLoading(false)
-    }
-  }, [gvWorksheetEditBlockIndex, gvWorksheetEditBlockContent, gvWorksheetEditBlocks, gvWorksheetEditImages, toast, tr])
 
   const reportQuizWrong = useCallback(async (opts: {
     curriculumId: string
@@ -3319,7 +3175,13 @@ export default function GiaoVienWorksheetPage() {
 
   return (
     <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
-      <WorksheetQuestionProposals worksheetId={worksheetId ?? ''} locale={uiLocale} />
+      <WorksheetQuestionProposals
+        worksheetId={worksheetId ?? ''}
+        locale={uiLocale}
+        onChanged={() => {
+          void reloadWorksheetSlidesAfterSave()
+        }}
+      />
       {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
         className="flex-1 flex flex-col min-h-0 shrink-0 w-full"
@@ -4908,6 +4770,7 @@ export default function GiaoVienWorksheetPage() {
         <WorksheetEditSectionPopup
           open={true}
           onClose={resetGvWorksheetEdit}
+          worksheetId={worksheetId}
           filter={gvWorksheetEditFilter}
           blocks={gvWorksheetEditBlocks}
           blockIndex={gvWorksheetEditBlockIndex}
@@ -4915,29 +4778,8 @@ export default function GiaoVienWorksheetPage() {
           onBlockContentChange={setGvWorksheetEditBlockContent}
           onSelectBlock={(idx) => void loadGvWorksheetEditorAtGlobalIndex(idx)}
           onCancelEdit={resetGvWorksheetEdit}
-          checkResult={gvWorksheetEditCheckResult}
-          onApplyFix={() => {
-            const corrected = gvWorksheetEditCheckResult?.correctedContent
-            if (corrected) {
-              setGvWorksheetEditBlockContent(corrected)
-              setGvWorksheetEditCheckResult(null)
-              void handleGvSaveWorksheetBlockEdit({ skipAiCheck: true, contentOverride: corrected })
-            }
-          }}
-          onCheck={() => void handleGvCheckWorksheetBlock()}
           onSave={() => void handleGvSaveWorksheetBlockEdit()}
-          editImages={gvWorksheetEditImages}
-          onPickImages={(files) => {
-            const list = Array.from(files ?? []).filter((f) => f && f.size > 0)
-            if (list.length === 0) return
-            setGvWorksheetEditImages((prev) => [...prev, ...list].slice(0, 6))
-          }}
-          onRemoveImage={(idx) => setGvWorksheetEditImages((prev) => prev.filter((_, i) => i !== idx))}
-          onClearImages={() => setGvWorksheetEditImages([])}
-          checkLoading={gvWorksheetEditCheckLoading}
           saving={gvWorksheetEditSaving}
-          checkCreditSuffix={worksheetEditCheckCreditSuffix}
-          saveCreditSuffix={worksheetEditSaveCreditSuffix}
           saveDisabled={
             !worksheetId?.trim() ||
             gvWorksheetEditBlockContent.trim() ===

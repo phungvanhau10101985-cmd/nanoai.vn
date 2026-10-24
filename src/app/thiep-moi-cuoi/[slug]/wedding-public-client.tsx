@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell } from 'lucide-react'
+import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -68,6 +68,7 @@ import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-port
 import { WeddingWishPresetPicker } from '@/components/wedding/wedding-wish-preset-picker'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CLASS } from '@/components/wedding/wedding-guest-name-font'
+import { WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
 import {
   guestInviteVenueLabel,
   normalizeGuestInviteVenue,
@@ -131,6 +132,7 @@ export default function WeddingPublicClient({
   initialPersonalInvite = '',
   initialGuestRsvp = null,
   backgroundPlateUrls = [],
+  hostPreview = false,
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -141,6 +143,7 @@ export default function WeddingPublicClient({
   initialPersonalInvite?: string
   initialGuestRsvp?: PublishedGuestRsvpSnapshot | null
   backgroundPlateUrls?: string[]
+  hostPreview?: boolean
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -1482,6 +1485,17 @@ export default function WeddingPublicClient({
           />
         )}
       </main>
+      {hostPreview ? (
+        <WeddingDraggableFab
+          label={tx.exitPreviewFab}
+          storageKey="wedding-exit-preview-fab"
+          defaultCorner="top-left"
+          icon={<X className="h-4 w-4" />}
+          onClick={() => {
+            router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+          }}
+        />
+      ) : null}
     </>
   )
 }

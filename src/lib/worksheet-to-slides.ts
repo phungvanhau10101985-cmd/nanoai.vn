@@ -4,6 +4,7 @@
  * Nếu không có đánh số câu hỏi thì dùng ## / ### như curriculum.
  */
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
+import { coalesceEssayParts, getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import type { AISlideData, ContentBlock, Slide } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { parseCurriculumToSlides, parseContentToBlocks } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { compareExerciseIndexParsed, parseExerciseIndex } from '@/lib/worksheet-exercise-sort'
@@ -202,9 +203,10 @@ export function questionsToSlides(questions: Array<{ type: string; content_json:
       blocks.push({ header: 'Đáp án', content: ans, isAnswer: true })
     } else if (q.type === 'essay') {
       const c = q.content_json as { problem?: string; solution?: string }
-      preview = c.problem ?? ''
-      blocks.push({ header: 'Đề bài', content: c.problem ?? '' })
-      blocks.push({ header: 'Lời giải', content: c.solution ?? '', isAnswer: true })
+      const parts = coalesceEssayParts(getEssayProblem(c) || String(c.problem ?? ''), getEssaySolution(c) || String(c.solution ?? ''))
+      preview = parts.problem
+      blocks.push({ header: 'Đề bài', content: parts.problem })
+      blocks.push({ header: 'Lời giải', content: parts.solution || '(Chưa có lời giải)', isAnswer: true })
     }
     if (blocks.length > 0) {
       rows.push({

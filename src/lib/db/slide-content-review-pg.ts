@@ -3,6 +3,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import {
   fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg,
+  fetchWorksheetCurriculumLessonSlidesRowsForLessonPg,
   saveWorksheetCurriculumLessonSlidesCacheRowPg,
 } from '@/lib/db/tao-giao-trinh-curriculum-pg'
 
@@ -10,9 +11,14 @@ export const SLIDE_REVIEW_WARN_PASSES = 7
 
 export type SlideReviewStat = {
   confirmCount: number
+  rejectCount: number
   editCount: number
   warn: boolean
   proposalText: string | null
+  /** Bản gốc đang dùng chung, để đối chiếu với bản sửa. */
+  sharedText: string | null
+  /** Bản người này đang dùng: bản sửa nếu là người sửa hoặc đã duyệt, bản gốc nếu vòng sửa đã bị bác. */
+  adoptedText: string | null
   proposalAuthorIsMe: boolean
   myVote: 'agree' | 'reject' | null
   /** Người này đã xác nhận hoặc sửa slide này một lần. */
@@ -33,11 +39,29 @@ export function hashSlideReviewText(text: string): string {
   return createHash('sha256').update(normalized).digest('hex').slice(0, 32)
 }
 
-function emptyStat(): SlideReviewStat {
-  return { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null, confirmedByMe: false }
+function voterIdsAfterEdit(mine: ReviewRow[], lastEdit: ReviewRow, action: 'agree' | 'reject'): string[] {
+  const afterEdit = new Date(lastEdit.created_at).getTime()
+  return [
+    ...new Set(
+      mine
+        .filter(
+          (row) =>
+            row.action === action &&
+            row.content_hash === lastEdit.content_hash &&
+            row.user_id.trim().toLowerCase() !== lastEdit.user_id.trim().toLowerCase() &&
+            new Date(row.created_at).getTime() > afterEdit
+        )
+        .map((row) => row.user_id.trim().toLowerCase())
+    ),
+  ]
 }
 
-export function statsFromReviewRows(rows: ReviewRow[], hashes: string[], userId: string): SlideReviewStat[] {
+export function statsFromReviewRows(
+  rows: ReviewRow[],
+  hashes: string[],
+  userId: string,
+  sharedTexts: string[] = []
+): SlideReviewStat[] {
   const me = userId.toLowerCase()
   const myConfirmedHashes = new Set(
     rows
@@ -48,36 +72,42 @@ export function statsFromReviewRows(rows: ReviewRow[], hashes: string[], userId:
     const mine = rows.filter((row) => row.slide_index === slideIndex)
     const edits = mine.filter((row) => row.action === 'edit')
     const lastEdit = edits[edits.length - 1]
-    const agrees = lastEdit
-      ? mine.filter(
-          (row) =>
-            row.action === 'agree' &&
-            row.content_hash === lastEdit.content_hash &&
-            row.user_id !== lastEdit.user_id &&
-            new Date(row.created_at).getTime() > new Date(lastEdit.created_at).getTime()
-        )
-      : []
-    const agreeUsers = new Set(agrees.map((row) => row.user_id))
-    const warn = Boolean(lastEdit) && agreeUsers.size < SLIDE_REVIEW_WARN_PASSES
+    const agreeUsers = new Set(lastEdit ? voterIdsAfterEdit(mine, lastEdit, 'agree') : [])
+    const rejectUsers = new Set(lastEdit ? voterIdsAfterEdit(mine, lastEdit, 'reject') : [])
+    const closed =
+      agreeUsers.size >= SLIDE_REVIEW_WARN_PASSES || rejectUsers.size >= SLIDE_REVIEW_WARN_PASSES
+    const warn = Boolean(lastEdit) && !closed
     const myVoteRow = lastEdit
       ? mine.filter(
           (row) =>
             (row.action === 'agree' || row.action === 'reject') &&
-            row.user_id === userId &&
+            row.user_id.trim().toLowerCase() === userId.trim().toLowerCase() &&
             row.content_hash === lastEdit.content_hash &&
             new Date(row.created_at).getTime() > new Date(lastEdit.created_at).getTime()
         ).at(-1)
       : undefined
+    const myVote = myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null
+    const author = Boolean(lastEdit && lastEdit.user_id.trim().toLowerCase() === userId.trim().toLowerCase())
+    const sharedText = String(sharedTexts[slideIndex] || '').trim() || null
+    let adoptedText: string | null = null
+    if (lastEdit?.body) {
+      if (agreeUsers.size >= SLIDE_REVIEW_WARN_PASSES) adoptedText = lastEdit.body
+      else if (rejectUsers.size >= SLIDE_REVIEW_WARN_PASSES) adoptedText = sharedText
+      else if (author || myVote === 'agree') adoptedText = lastEdit.body
+    }
     const confirmedByMe =
       myConfirmedHashes.has(contentHash) ||
       mine.some((row) => row.user_id.toLowerCase() === me && (row.action === 'confirm' || row.action === 'edit'))
     return {
       confirmCount: agreeUsers.size,
+      rejectCount: rejectUsers.size,
       editCount: edits.length,
       warn,
       proposalText: warn && lastEdit?.body ? lastEdit.body : null,
-      proposalAuthorIsMe: Boolean(warn && lastEdit && lastEdit.user_id === userId),
-      myVote: myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null,
+      sharedText: warn ? sharedText : null,
+      adoptedText,
+      proposalAuthorIsMe: Boolean(warn && author),
+      myVote,
       confirmedByMe,
     }
   })
@@ -96,6 +126,16 @@ function slideListFromJson(raw: unknown): { slides: Array<Record<string, unknown
   return null
 }
 
+function readSlideText(raw: unknown, slideIndex: number): string {
+  const parsed = slideListFromJson(raw)
+  if (!parsed || slideIndex < 0 || slideIndex >= parsed.slides.length) return ''
+  const current = parsed.slides[slideIndex] ?? {}
+  const block = Array.isArray(current.blocks) && current.blocks[0] && typeof current.blocks[0] === 'object'
+    ? String((current.blocks[0] as { content?: unknown }).content || '')
+    : ''
+  return (block || String(current.content || '')).trim()
+}
+
 function patchSlideList(raw: unknown, slideIndex: number, text: string): unknown | null {
   const parsed = slideListFromJson(raw)
   if (!parsed || slideIndex < 0 || slideIndex >= parsed.slides.length) return null
@@ -106,6 +146,30 @@ function patchSlideList(raw: unknown, slideIndex: number, text: string): unknown
   const next = [...parsed.slides]
   next[slideIndex] = { ...current, content: text, blocks: [{ header, content: text }] }
   return parsed.wrap(next)
+}
+
+async function restorePersonalSlideFromShared(params: {
+  curriculumId: string
+  lessonNo: number
+  slideIndex: number
+  userId: string
+}): Promise<void> {
+  const own = await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(
+    params.curriculumId,
+    params.lessonNo,
+    'personal',
+    params.userId
+  )
+  if (!own?.slides_json) return
+  const shared = await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(
+    params.curriculumId,
+    params.lessonNo,
+    'shared',
+    params.userId
+  )
+  const text = readSlideText(shared?.slides_json, params.slideIndex)
+  if (!text) return
+  await writeSlideText({ ...params, mode: 'personal', text })
 }
 
 async function writeSlideText(params: {
@@ -147,7 +211,14 @@ export async function fetchSlideReviewStatsPg(params: {
        order by created_at asc, id asc`,
       [params.curriculumId, params.lessonNo]
     )
-    const stats = statsFromReviewRows(rows, hashes, params.userId)
+    const shared = await fetchWorksheetCurriculumLessonSlidesJsonForLessonModePg(
+      params.curriculumId,
+      params.lessonNo,
+      'shared',
+      params.userId
+    )
+    const sharedTexts = params.slideTexts.map((_, index) => readSlideText(shared?.slides_json, index))
+    const stats = statsFromReviewRows(rows, hashes, params.userId, sharedTexts)
     try {
       const acked = await pgQuery<{ ok: boolean }>(
         `select exists (
@@ -197,7 +268,7 @@ export async function recordSlideReviewPg(params: {
         [params.curriculumId, params.lessonNo, params.slideIndex]
       )
       const lastEdit = proposal[0]
-      if (lastEdit && lastEdit.user_id !== params.userId && lastEdit.body) {
+      if (lastEdit && lastEdit.user_id.trim().toLowerCase() !== params.userId.trim().toLowerCase() && lastEdit.body) {
         await pgQuery(
           `delete from public.worksheet_slide_content_reviews
            where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
@@ -234,6 +305,14 @@ export async function recordSlideReviewPg(params: {
           lastEdit.body,
         ])
         if (params.action === 'agree') {
+          await writeSlideText({
+            curriculumId: params.curriculumId,
+            lessonNo: params.lessonNo,
+            slideIndex: params.slideIndex,
+            text: lastEdit.body,
+            userId: params.userId,
+            mode: 'personal',
+          })
           const agrees = await pgQuery<{ user_id: string }>(
             `select distinct user_id::text as user_id
              from public.worksheet_slide_content_reviews
@@ -251,6 +330,51 @@ export async function recordSlideReviewPg(params: {
               userId: params.userId,
               mode: 'shared',
             })
+            const copies = await fetchWorksheetCurriculumLessonSlidesRowsForLessonPg(params.curriculumId, params.lessonNo)
+            for (const copy of copies) {
+              if (copy.mode !== 'personal' || !copy.user_id) continue
+              await writeSlideText({
+                curriculumId: params.curriculumId,
+                lessonNo: params.lessonNo,
+                slideIndex: params.slideIndex,
+                text: lastEdit.body,
+                userId: copy.user_id,
+                mode: 'personal',
+              })
+            }
+          }
+        } else {
+          await restorePersonalSlideFromShared({
+            curriculumId: params.curriculumId,
+            lessonNo: params.lessonNo,
+            slideIndex: params.slideIndex,
+            userId: params.userId,
+          })
+          const rejects = await pgQuery<{ user_id: string }>(
+            `select distinct user_id::text as user_id
+             from public.worksheet_slide_content_reviews
+             where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
+               and action = 'reject' and content_hash = $4 and user_id <> $5::uuid
+               and created_at > $6::timestamptz`,
+            [params.curriculumId, params.lessonNo, params.slideIndex, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
+          )
+          if (rejects.length >= SLIDE_REVIEW_WARN_PASSES) {
+            const keepers = await pgQuery<{ user_id: string }>(
+              `select distinct user_id::text as user_id
+               from public.worksheet_slide_content_reviews
+               where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
+                 and content_hash = $4
+                 and (user_id = $5::uuid or (action = 'agree' and created_at > $6::timestamptz))`,
+              [params.curriculumId, params.lessonNo, params.slideIndex, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
+            )
+            for (const keeper of keepers) {
+              await restorePersonalSlideFromShared({
+                curriculumId: params.curriculumId,
+                lessonNo: params.lessonNo,
+                slideIndex: params.slideIndex,
+                userId: keeper.user_id,
+              })
+            }
           }
         }
       }
@@ -333,5 +457,3 @@ export async function markTeacherReviewedLessonPg(params: {
     return false
   }
 }
-
-export { emptyStat }

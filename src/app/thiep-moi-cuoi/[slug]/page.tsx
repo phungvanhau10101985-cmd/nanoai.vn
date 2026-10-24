@@ -53,7 +53,7 @@ export async function generateMetadata({ params, searchParams }: Props): Promise
       : [invitationSeoCopy(card.occasionKey).title, card.groomName, card.brideName]
     ).filter(Boolean),
     ogImage: weddingPublicShareImageUrl(SITE_URL, card, searchParams?.guest),
-    noIndex: personalized,
+    noIndex: personalized || !(card.groomName.trim() || card.brideName.trim()),
   })
 }
 
@@ -147,6 +147,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
         backgroundPlateUrls={backgroundPlateUrls}
+        hostPreview={demoPreview}
       />
     </>
   )

@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { insertWorksheetJobFromPg } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { preflightSgkExtract, WorksheetCreditsError } from '@/lib/db/worksheet-ai-quota-pg'
 import { getUserForAction } from '@/lib/auth'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 
@@ -33,6 +34,26 @@ export async function POST(req: NextRequest) {
 
     const curriculumId = (formData.get('curriculumId') as string)?.trim() || null
     const worksheetId = (formData.get('worksheetId') as string)?.trim() || null
+
+    try {
+      const gate = await preflightSgkExtract({ userId: userId!, curriculumId })
+      if (!gate.ok) {
+        const denied = new WorksheetCreditsError(gate.required, gate.balance, gate.freeRemaining)
+        return NextResponse.json(
+          {
+            error: denied.message,
+            code: denied.code,
+            required: denied.required,
+            balance: denied.balance,
+            freeRemaining: denied.freeRemaining,
+          },
+          { status: 402 }
+        )
+      }
+    } catch (quotaError) {
+      const msg = quotaError instanceof Error ? quotaError.message : String(quotaError)
+      return NextResponse.json({ error: msg }, { status: 503 })
+    }
     const topic = (formData.get('topic') as string)?.trim() || 'Phiếu bài tập'
     const subjectId = (formData.get('subjectId') as string)?.trim() || 'toan'
     const gradeLevelId = (formData.get('gradeLevelId') as string)?.trim() || 'lop-6'

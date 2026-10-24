@@ -5,6 +5,12 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import {
+  beginQuestionTurn,
+  chargeWorksheetQuestion,
+  discardWorksheetQuestion,
+  WorksheetCreditsError,
+} from '@/lib/db/worksheet-ai-quota-pg'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { isPgConfigured } from '@/lib/db/pool'
@@ -36,6 +42,60 @@ const ESSAY_BLOOM_PROMPT: Record<EssayBloomLevel, string> = {
   'van-dung-thap': 'Mức 3 – Vận dụng thấp: áp dụng kiến thức vào bài toán quen thuộc.',
   'van-dung-cao': 'Mức 4 – Vận dụng cao: phân tích, tổng hợp, bài phức tạp hơn.',
   'thuc-te': 'Mức 4 – Vận dụng cao (Thực tế): bài toán thực tế, tình huống đời sống.',
+}
+
+class InvalidModelDraftError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'InvalidModelDraftError'
+  }
+}
+
+function draftExcerpt(raw: string): string {
+  const excerpt = raw.replace(/\s+/g, ' ').trim().slice(0, 500)
+  return excerpt ? ` Mẫu: ${excerpt}` : ''
+}
+
+function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number } | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown }
+  if (typeof row.question !== 'string' || !row.question.trim()) return null
+  if (!Array.isArray(row.options) || row.options.length < 4) return null
+  const options = row.options.slice(0, 4).map((item) => String(item ?? ''))
+  const correctIndex = Math.max(0, Math.min(Number(row.correctIndex ?? 0) || 0, 3))
+  return { question: row.question.trim(), options, correctIndex }
+}
+
+function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number } | null {
+  const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+  const parsed = JSON.parse(cleaned) as { quizzes?: unknown }
+  if (parsed && typeof parsed === 'object' && Array.isArray(parsed.quizzes)) {
+    return readQuizCandidate(parsed.quizzes[0])
+  }
+  return readQuizCandidate(parsed)
+}
+
+function explainQuizDraft(raw: string): string {
+  if (!raw.trim()) return 'Gemini không trả nội dung.'
+  let parsed: unknown
+  try {
+    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
+    parsed = JSON.parse(cleaned)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'JSON hỏng'
+    return `Gemini trả JSON không đọc được (${message}).${draftExcerpt(raw)}`
+  }
+  if (!parsed || typeof parsed !== 'object') return `Gemini không trả object JSON.${draftExcerpt(raw)}`
+  const body = parsed as { quizzes?: unknown }
+  if (!Array.isArray(body.quizzes)) {
+    const keys = Object.keys(parsed as object).slice(0, 8).join(', ')
+    return `Gemini không trả mảng quizzes (các khóa: ${keys || 'không có'}).${draftExcerpt(raw)}`
+  }
+  if (body.quizzes.length === 0) return `Gemini trả quizzes rỗng.${draftExcerpt(raw)}`
+  const first = body.quizzes[0] as { question?: unknown; options?: unknown }
+  const optionCount = Array.isArray(first?.options) ? first.options.length : 0
+  if (typeof first?.question !== 'string' || !first.question.trim()) return `Gemini thiếu đề câu.${draftExcerpt(raw)}`
+  return `Gemini trả ${optionCount} đáp án, cần đủ 4.${draftExcerpt(raw)}`
 }
 
 function stripOptionPrefix(opt: string): string {
@@ -114,7 +174,7 @@ Chủ đề: ${topic}
 Schema: ${QUIZ_SCHEMA}`
 
   const apiKey = process.env.GOOGLE_API_KEY
-  if (!apiKey) return null
+  if (!apiKey) throw new InvalidModelDraftError('Thiếu GOOGLE_API_KEY.')
 
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
@@ -129,23 +189,13 @@ Schema: ${QUIZ_SCHEMA}`
     userId
   )
   const raw = result.response.text()?.trim() || ''
-  let quizzes: Array<{ question: string; options: string[]; correctIndex: number }> | null = null
+  let last: { question: string; options: string[]; correctIndex: number } | null = null
   try {
-    const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned) as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number }> }
-    const list = Array.isArray(p?.quizzes) ? p.quizzes : []
-    const q = list[0]
-    if (q?.question && Array.isArray(q.options) && q.options.length >= 4) {
-      const opts = (q.options ?? []).slice(0, 4)
-      const idx = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
-      quizzes = [{ question: q.question, options: opts, correctIndex: idx }]
-    }
+    last = readQuizDraft(raw)
   } catch {
-    /* */
+    last = null
   }
-  if (!quizzes?.length) return null
-
-  const last = quizzes[0]!
+  if (!last) throw new InvalidModelDraftError(explainQuizDraft(raw))
   const sanitized = last.options.map(stripOptionPrefix)
   const { options, correctIndex } = shuffleCorrectPosition(sanitized, last.correctIndex)
 
@@ -163,7 +213,8 @@ Schema: ${QUIZ_SCHEMA}`
     source: 'ai',
   })
 
-  return row ? { id: row.id } : null
+  if (!row) throw new InvalidModelDraftError('Đã có câu hợp lệ nhưng không ghi được vào database.')
+  return { id: row.id }
 }
 
 async function createOneEssay(
@@ -241,6 +292,50 @@ Schema: ${ESSAY_SCHEMA}`
   return row ? { id: row.id } : null
 }
 
+/** Giữ suất miễn phí hoặc trừ 0,5 credit sau khi câu tạo xong. Trả false khi phải dừng vòng. */
+async function acceptQuestionTurn(
+  userId: string,
+  curriculumId: string | null,
+  kind: 'quiz' | 'essay',
+  ids: string[],
+  stoppedForCredits: { value: boolean; balance: number; required: number },
+  rejectedDraft: { reason: string },
+  create: () => Promise<string | null>
+): Promise<boolean> {
+  const turn = await beginQuestionTurn(userId, curriculumId, kind)
+  if (turn.action === 'stop') {
+    stoppedForCredits.value = true
+    stoppedForCredits.balance = turn.balance
+    stoppedForCredits.required = turn.required
+    return false
+  }
+  let questionId: string | null = null
+  try {
+    questionId = await create()
+  } catch (error) {
+    if (turn.action === 'free') await turn.undo()
+    if (error instanceof InvalidModelDraftError) {
+      rejectedDraft.reason = error.message
+      return true
+    }
+    throw error
+  }
+  if (!questionId) {
+    if (turn.action === 'free') await turn.undo()
+    return true
+  }
+  if (turn.action === 'pay') {
+    const charged = await chargeWorksheetQuestion({ userId, curriculumId, kind, questionId })
+    if (!charged.ok) {
+      await discardWorksheetQuestion(questionId)
+      stoppedForCredits.value = true
+      return false
+    }
+  }
+  ids.push(questionId)
+  return true
+}
+
 export async function runStepByStep(
   userId: string,
   params: StepByStepParams,
@@ -251,31 +346,42 @@ export async function runStepByStep(
   const ids: string[] = []
   const count = Math.max(1, Math.min(params.count, type === 'quiz' ? 20 : 10))
 
+  const stoppedForCredits = { value: false, balance: 0, required: 0.5 }
+  const rejectedDraft = { reason: '' }
   if (type === 'quiz') {
     const existingQuizContents: Array<{ question: string; options?: string[] }> = []
     for (let i = 0; i < count; i++) {
-      const row = await createOneQuiz(userId, params, existingQuizContents, ids.length)
-      if (row) {
-        ids.push(row.id)
+      const accepted = await acceptQuestionTurn(userId, params.curriculumId, 'quiz', ids, stoppedForCredits, rejectedDraft, async () => {
+        const row = await createOneQuiz(userId, params, existingQuizContents, ids.length)
+        if (!row) return null
         const cj = await fetchWorksheetQuestionContentJsonByIdPg(row.id)
         const c = cj?.content_json as { question?: string; options?: string[] } | undefined
         if (c?.question) existingQuizContents.push({ question: c.question, options: (c.options ?? []).slice(0, 4) })
-      }
+        return row.id
+      })
+      if (!accepted) break
     }
   } else {
     const existingEssayProblems: string[] = []
     for (let i = 0; i < count; i++) {
-      const row = await createOneEssay(userId, params, existingEssayProblems, ids.length)
-      if (row) {
-        ids.push(row.id)
+      const accepted = await acceptQuestionTurn(userId, params.curriculumId, 'essay', ids, stoppedForCredits, rejectedDraft, async () => {
+        const row = await createOneEssay(userId, params, existingEssayProblems, ids.length)
+        if (!row) return null
         const cj = await fetchWorksheetQuestionContentJsonByIdPg(row.id)
         const c = cj?.content_json as { problem?: string } | undefined
         if (c?.problem) existingEssayProblems.push(c.problem)
-      }
+        return row.id
+      })
+      if (!accepted) break
     }
   }
 
-  if (ids.length === 0) throw new Error('Không tạo được câu hỏi nào.')
+  if (ids.length === 0) {
+    if (stoppedForCredits.value) {
+      throw new WorksheetCreditsError(stoppedForCredits.required, stoppedForCredits.balance, 0)
+    }
+    throw new Error(rejectedDraft.reason || 'Không tạo được câu hỏi nào.')
+  }
 
   const { curriculumId, topic, subjectId, gradeLevelId } = params
   const newTypes = (await fetchWorksheetQuestionIdTypesPg(ids)) ?? new Map<string, string>()

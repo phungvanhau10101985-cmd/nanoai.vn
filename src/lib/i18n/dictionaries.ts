@@ -3944,6 +3944,8 @@ export type Dictionary = {
     brideRole: string
     letterViewAsk: string
     letterViewBoth: string
+    previewTryFab: string
+    exitPreviewFab: string
     hometownLabel: string
     coupleIntroTitle: string
     timelineTitle: string
@@ -8219,6 +8221,8 @@ export const VI_DICTIONARY: Dictionary = {
     brideRole: 'Cô dâu',
     letterViewAsk: 'Xem thiệp nhà nào?',
     letterViewBoth: 'Gộp 2 nhà',
+    previewTryFab: 'Xem thử',
+    exitPreviewFab: 'Thoát chế độ xem thử',
     hometownLabel: 'Quê quán',
     coupleIntroTitle: 'Câu chuyện của chúng tôi',
     timelineTitle: 'Lịch trình buổi tiệc',

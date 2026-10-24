@@ -17,6 +17,47 @@ function pickString(v: unknown): string {
   return ''
 }
 
+const EMPTY_SOLUTION = '(Chưa có lời giải)'
+
+export function isPlaceholderSolution(value: string): boolean {
+  const text = value.replace(/\s+/g, ' ').trim()
+  return !text || text === EMPTY_SOLUTION || text === 'Chưa có lời giải.' || text === 'Chưa có lời giải'
+}
+
+/** `**Lời giải:**` (dấu hai chấm nằm trong chữ đậm) và `**Lời giải**:`. */
+export const ESSAY_SOLUTION_MARKER =
+  /\*\*Lời giải:\*\*\s*|\*\*Đáp án:\*\*\s*|\*\*Lời giải\*\*:\s*|\*\*Đáp án\*\*:\s*|(?:^|\n)\s*Lời giải:\s*|(?:^|\n)\s*Đáp án:\s*/i
+
+/** Bỏ mục «Lời giải: (Chưa có lời giải)» gắn sau một lời giải thật. */
+function takeRealSolution(text: string): string {
+  const cleaned = text.trim()
+  const nested = cleaned.search(ESSAY_SOLUTION_MARKER)
+  const body = nested > 0 ? cleaned.slice(0, nested).trim() : cleaned
+  return body.replace(/\n+\(Chưa có lời giải\)\s*$/i, '').trim()
+}
+
+/**
+ * Đề đã chứa mục lời giải, còn field solution chỉ là placeholder thì lấy lời giải trong đề.
+ * Khi in markdown chỉ in một lần.
+ */
+export function coalesceEssayParts(problem: string, solution: string): { problem: string; solution: string } {
+  const marker = new RegExp(ESSAY_SOLUTION_MARKER.source, 'i')
+  const found = marker.exec(problem)
+  let nextProblem = problem.trim()
+  let nextSolution = solution.trim()
+  if (found && found.index != null) {
+    const head = problem.slice(0, found.index).trim()
+    const tail = takeRealSolution(problem.slice(found.index + found[0].length))
+    if (head) {
+      nextProblem = head
+      if (isPlaceholderSolution(nextSolution) && !isPlaceholderSolution(tail)) nextSolution = tail
+    }
+  }
+  nextSolution = takeRealSolution(nextSolution)
+  if (isPlaceholderSolution(nextSolution)) nextSolution = ''
+  return { problem: nextProblem, solution: nextSolution }
+}
+
 /** Đọc đề bài tự luận từ content_json, tương thích nhiều schema cũ. */
 export function getEssayProblem(contentJson: unknown): string {
   const c = (contentJson ?? null) as JsonLike

@@ -21,10 +21,12 @@ module.exports = {
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
-      // RSS kill stays at 2560M. Heap must sit under that line so V8 collects
-      // before PM2 SIGKILLs an in-flight request (image jobs were cut at ~2.6GB
-      // while the heap ceiling was still 3072 and had not started hard GC).
-      max_memory_restart: '2560M',
+      // Heap ceiling is 2048. When V8 cannot collect it sits in a GC spiral
+      // around RSS ~2.25GB and stops accepting connections, but it does not
+      // exit, so a 2560M kill line never fires (gudo.vn 2026-10-24: 499s,
+      // Recv-Q full, PM2 still "online"). 2200M is above a healthy working
+      // set and below that wedge, so PM2 restarts instead of hanging shops.
+      max_memory_restart: '2200M',
       node_args: '--max-old-space-size=2048',
       kill_timeout: 10000,
       listen_timeout: 10000,

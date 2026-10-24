@@ -120,13 +120,18 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
       prev.map((row, index) => {
         const stat = stats[index]
         if (!stat || editingIndex === index) return row
-        if (stat.confirmedByMe || stat.proposalAuthorIsMe) {
+        if (stat.myVote === 'reject') {
+          return { ...row, text: stat.sharedText || row.text }
+        }
+        if (stat.proposalAuthorIsMe || stat.myVote === 'agree') {
           return {
-            text: stat.proposalAuthorIsMe && stat.proposalText ? stat.proposalText : row.text,
+            text: stat.proposalText || stat.adoptedText || row.text,
             status: 'pass',
             message: 'seen',
           }
         }
+        if (stat.adoptedText) return { ...row, text: stat.adoptedText }
+        if (stat.confirmedByMe) return { ...row, status: 'pass', message: 'seen' }
         return row
       })
     )
@@ -165,6 +170,23 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     }).then((result) => {
       if ('stats' in result) setStats(result.stats)
     })
+  }
+
+  const useChosenVersion = (index: number, choice: 'agree' | 'reject') => {
+    const stat = stats[index]
+    const item = items[index]
+    const edited = String(stat?.proposalText || '').trim()
+    if (!item || !edited) return
+    const original = String(stat?.sharedText || '').trim() || shownSlideText(item.text)
+    const next = choice === 'agree' ? edited : original
+    const before = shownSlideText(item.text)
+    const nextItems = items.map((row, i) => (i === index ? { ...row, text: next, status: 'pass' as const, message: 'seen' } : row))
+    setItems(nextItems)
+    if (before && next && before !== next) {
+      setSource((prev) => replaceCurriculumExercise(prev, before, next))
+      onEdit(before, next, index)
+    }
+    remember(index, choice, edited, nextItems.map((row) => shownSlideText(row.text)))
   }
 
   const scrollToNextSlide = (index: number) => {
@@ -251,7 +273,18 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
             const editing = editingIndex === index
             const passed = item.status === 'pass'
             const seen = passed && item.message === 'seen'
-            const stat = stats[index] ?? { confirmCount: 0, editCount: 0, warn: false, proposalText: null, proposalAuthorIsMe: false, myVote: null, confirmedByMe: false }
+            const stat = stats[index] ?? {
+              confirmCount: 0,
+              rejectCount: 0,
+              editCount: 0,
+              warn: false,
+              proposalText: null,
+              sharedText: null,
+              adoptedText: null,
+              proposalAuthorIsMe: false,
+              myVote: null,
+              confirmedByMe: false,
+            }
             const alreadyMine = seen || stat.confirmedByMe
             return (
               <article
@@ -287,6 +320,29 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                     className="min-h-36 w-full border-0 bg-transparent p-3 text-sm leading-relaxed text-slate-100 outline-none"
                     spellCheck={false}
                   />
+                ) : stat.warn && stat.proposalText ? (
+                  <div className="space-y-3 px-3 py-3">
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-emerald-300">
+                        {stat.proposalAuthorIsMe || stat.myVote === 'agree'
+                          ? tr('Đang dùng bản sửa', 'Using the edit', '正在使用修改版', '修正版を使用中', '수정본 사용 중')
+                          : tr('Đang dùng bản gốc', 'Using the original', '正在使用原版', '元の版を使用中', '원본 사용 중')}
+                      </p>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-100">
+                        {stat.proposalAuthorIsMe || stat.myVote === 'agree' ? stat.proposalText : (stat.sharedText || shown)}
+                      </pre>
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                        {stat.proposalAuthorIsMe || stat.myVote === 'agree'
+                          ? tr('Bản gốc để đối chiếu', 'Original, for comparison', '原版，供对照', '照合用の元の版', '비교용 원본')
+                          : tr('Bản sửa để đối chiếu', 'Edit, for comparison', '修改版，供对照', '照合用の修正版', '비교용 수정본')}
+                      </p>
+                      <pre className="whitespace-pre-wrap text-sm leading-relaxed text-slate-300">
+                        {stat.proposalAuthorIsMe || stat.myVote === 'agree' ? (stat.sharedText || shown) : stat.proposalText}
+                      </pre>
+                    </div>
+                  </div>
                 ) : (
                   <pre className="whitespace-pre-wrap px-3 py-3 text-sm leading-relaxed text-slate-200">{shown}</pre>
                 )}
@@ -296,11 +352,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                 {stat.warn && stat.proposalAuthorIsMe ? (
                   <p className="mx-3 mb-2 rounded-md border border-violet-400/50 bg-violet-500/15 px-3 py-2 text-sm text-violet-100">
                     {tr(
-                      'Bạn đang dùng bản bạn vừa sửa. Sai thì bạn tự chịu. Bản chung chỉ đổi khi đủ 7 giáo viên khác đồng ý.',
-                      'You are using your own edit. If it is wrong, that is on you. The shared slide changes only after 7 other teachers agree.',
-                      '你正在使用自己的修改。若有误由你承担。要有 7 位其他教师同意，共享幻灯片才会更换。',
-                      '自分の修正版を使用中です。誤りは自分の責任です。共有版は他の教員7人が同意してから変わります。',
-                      '본인 수정본을 사용 중입니다. 틀리면 본인 책임입니다. 다른 교사 7명이 동의한 뒤에만 공유본이 바뀝니다.'
+                      'Bạn đang dùng bản vừa sửa. Người sau xem được cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa làm gốc. 7 người không duyệt thì giữ gốc và bỏ bản sửa. Có người sửa mới thì đếm lại.',
+                      'You are using your edit. Later teachers can read both versions. 7 approvals replace the original. 7 rejections keep the original and drop the edit. A new edit starts the count over.',
+                      '你正在使用刚改的版本。后面的人可以同时看原版和修改版。7 人通过则用修改版替换原版。7 人不通过则保留原版并丢掉修改。有人再改就重新计数。',
+                      '自分の修正版を使用中です。後の人は元の版と修正版の両方を読めます。7人が承認すると修正版が原本になります。7人が不承認なら原本を残し修正版を捨てます。誰かが直すと数え直します。',
+                      '방금 수정한 버전을 사용 중입니다. 다음 사람은 원본과 수정본을 함께 볼 수 있습니다. 7명이 승인하면 수정본이 원본이 됩니다. 7명이 거절하면 원본을 유지하고 수정본을 버립니다. 누군가 다시 수정하면 다시 셉니다.'
                     )}
                   </p>
                 ) : null}
@@ -308,24 +364,23 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                   <div className="mx-3 mb-2 rounded-md border border-amber-400/50 bg-amber-500/15 px-3 py-2 text-sm text-amber-100">
                     <p>
                       {tr(
-                        'Chú ý: có đề xuất sửa. Hãy đọc kỹ rồi đồng ý hoặc không. Bạn cũng có thể tự sửa.',
-                        'Note: there is an edit proposal. Read it, then agree or disagree. You can also edit it yourself.',
-                        '注意：有一条修改提议。请仔细阅读后同意或反对。你也可以自己修改。',
-                        '注意：修正案があります。読んで同意か反対を。自分で修正もできます。',
-                        '주의: 수정 제안이 있습니다. 읽고 동의하거나 반대하세요. 직접 수정할 수도 있습니다.'
+                        'Đọc cả bản gốc và bản sửa. Đồng ý thì bạn dùng ngay bản sửa. Không đồng ý thì bạn vẫn dùng bản gốc. 7 người cùng một phía thì vòng này kết thúc.',
+                        'Read both the original and the edit. Agree to use the edit now. Disagree to keep the original. Seven people on the same side end this round.',
+                        '请同时看原版和修改版。同意就立即使用修改版。不同意则继续用原版。同一边满 7 人，这一轮就结束。',
+                        '元の版と修正版の両方を読んでください。同意すると修正版をすぐ使います。反対すると元の版のままです。同じ側が7人になるとこの回は終わります。',
+                        '원본과 수정본을 함께 읽으세요. 동의하면 수정본을 바로 씁니다. 반대하면 원본을 유지합니다. 같은 쪽이 7명이 되면 이 라운드가 끝납니다.'
                       )}
                     </p>
-                    <pre className="mt-2 whitespace-pre-wrap text-slate-100">{stat.proposalText}</pre>
                   </div>
                 ) : null}
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 px-3 py-2">
                   <p className="text-xs text-slate-300">
                     {tr(
-                      `${stat.confirmCount}/7 giáo viên khác đồng ý`,
-                      `${stat.confirmCount}/7 other teachers agreed`,
-                      `${stat.confirmCount}/7 位其他教师同意`,
-                      `他の教員 ${stat.confirmCount}/7 人が同意`,
-                      `다른 교사 ${stat.confirmCount}/7명 동의`
+                      `${stat.confirmCount}/7 đồng ý · ${stat.rejectCount}/7 không đồng ý`,
+                      `${stat.confirmCount}/7 agreed · ${stat.rejectCount}/7 disagreed`,
+                      `${stat.confirmCount}/7 同意 · ${stat.rejectCount}/7 不同意`,
+                      `同意 ${stat.confirmCount}/7 · 不承認 ${stat.rejectCount}/7`,
+                      `동의 ${stat.confirmCount}/7 · 반대 ${stat.rejectCount}/7`
                     )}
                     {' · '}
                     {tr(
@@ -342,7 +397,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                       <button
                         type="button"
                         disabled={stat.myVote === 'agree'}
-                        onClick={() => remember(index, 'agree', stat.proposalText || '', slideTexts)}
+                        onClick={() => useChosenVersion(index, 'agree')}
                         className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
                       >
                         {stat.myVote === 'agree'
@@ -352,7 +407,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                       <button
                         type="button"
                         disabled={stat.myVote === 'reject'}
-                        onClick={() => remember(index, 'reject', stat.proposalText || '', slideTexts)}
+                        onClick={() => useChosenVersion(index, 'reject')}
                         className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
                       >
                         {stat.myVote === 'reject'

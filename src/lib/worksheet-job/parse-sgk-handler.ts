@@ -13,6 +13,7 @@ import {
   stripCurriculumMathCheckComments,
 } from '@/app/tao-giao-trinh/lib/curriculum-math-check'
 import { isPgConfigured } from '@/lib/db/pool'
+import { beginSgkExtractBilling } from '@/lib/db/worksheet-ai-quota-pg'
 import { removeTryOnStorageFromPublicUrls } from '@/lib/storage/try-on-public-upload'
 import {
   fetchLatestWorksheetSheetByCurriculumIdPg,
@@ -269,7 +270,7 @@ Chỉ trả về JSON, không markdown.`
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'medium',
       contentJson: { question: q.question, options, correctIndex },
-      source: 'ai',
+      source: 'sgk',
       order: order++,
     })
     if (ins?.id) questionIds.push(ins.id)
@@ -304,7 +305,7 @@ Chỉ trả về JSON, không markdown.`
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'thong-hieu',
       contentJson: { problem: e.problem, solution },
-      source: 'ai',
+      source: 'sgk',
       order: order++,
     })
     if (insEssay?.id) questionIds.push(insEssay.id)
@@ -381,8 +382,15 @@ export async function runParseSgk(
   params: ParseSgkParams,
   options?: ParseSgkOptions
 ): Promise<ParseSgkResult> {
+  const billing = await beginSgkExtractBilling(userId, params.curriculumId)
   try {
-    return await runParseSgkWork(userId, params, options)
+    const result = await runParseSgkWork(userId, params, options)
+    if (result.addedCount > 0) await billing.commit()
+    else await billing.rollback()
+    return result
+  } catch (error) {
+    await billing.rollback()
+    throw error
   } finally {
     try {
       await removeTryOnStorageFromPublicUrls(params.imageUrls ?? [])

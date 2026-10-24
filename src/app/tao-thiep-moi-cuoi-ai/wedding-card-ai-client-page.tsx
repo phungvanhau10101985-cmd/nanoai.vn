@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Download, ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -30,6 +31,7 @@ import { REMOVE_BG_PNG_CREDIT, requiredCreditsForLogoCreate } from '@/lib/remove
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
 import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
+import { WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
 import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import {
   WeddingInvitationAudio,
@@ -435,6 +437,7 @@ function WeddingGenerateStyleSelect({
 }
 
 export default function WeddingCardAiClientPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [card, setCard] = useState<WeddingCard>(() => emptyBrief())
@@ -462,6 +465,8 @@ export default function WeddingCardAiClientPage() {
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
   const [letterAskOpen, setLetterAskOpen] = useState(false)
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const previewBusyRef = useRef(false)
   const [occasionPickerOpen, setOccasionPickerOpen] = useState(false)
   const [pickedOccasion, setPickedOccasion] = useState<InvitationOccasionKey>('wedding')
   const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
@@ -875,16 +880,35 @@ export default function WeddingCardAiClientPage() {
   const previewIntro = card.coupleIntro.trim()
   const previewThanks = card.thankYouText.trim()
   const previewDress = card.dressCode.trim()
-  const openLetterView = (view: 'groom' | 'bride') => {
+  const openLetterView = async (view: 'groom' | 'bride') => {
     setPreviewLetterView(view)
     setLetterAskOpen(false)
-    if (!publishUrl) return
-    const url = new URL(publishUrl)
-    url.searchParams.set('view', view)
-    url.searchParams.set('demo', '1')
-    url.searchParams.set('venue', view === 'bride' ? 'bride_home' : 'groom_home')
-    url.searchParams.set('guest', previewDemo.guestDisplayName)
-    window.open(url.toString(), '_blank', 'noopener,noreferrer')
+    const current = persistInputsRef.current
+    if (!current.card.id || previewBusyRef.current) return
+    previewBusyRef.current = true
+    setPreviewBusy(true)
+    try {
+      const unchanged = buildPersistSnapshot(current) === lastSavedPersistRef.current
+      if (!unchanged) {
+        const saved = await commitSaveBrief(false, { hideSuccess: true })
+        if (!saved) return
+      }
+      const cardId = persistInputsRef.current.card.id
+      const result = await publishCurrentWeddingCard(cardId)
+      if ('error' in result) {
+        toast({ title: 'Chưa mở được xem thử', description: result.error, variant: 'destructive' })
+        return
+      }
+      const url = new URL(`/thiep-moi-cuoi/${encodeURIComponent(result.card.slug)}`, window.location.origin)
+      url.searchParams.set('view', view)
+      url.searchParams.set('demo', '1')
+      url.searchParams.set('venue', view === 'bride' ? 'bride_home' : 'groom_home')
+      url.searchParams.set('guest', previewDemo.guestDisplayName)
+      router.push(`${url.pathname}${url.search}`)
+    } finally {
+      previewBusyRef.current = false
+      setPreviewBusy(false)
+    }
   }
 
   const selectAlbumLayout = (albumLayoutId: string) => {
@@ -1231,6 +1255,11 @@ export default function WeddingCardAiClientPage() {
       lastSavedPersistRef.current = hasNewerLocalChanges ? submittedFingerprint : buildSavedSnapshotForCard(result.card)
       if (hasNewerLocalChanges) {
         setMusicLibrary(result.musicLibrary)
+        setCard((prev) =>
+          prev.isPublished === result.card.isPublished && prev.publishedAt === result.card.publishedAt
+            ? prev
+            : { ...prev, isPublished: result.card.isPublished, publishedAt: result.card.publishedAt },
+        )
         if (silent) {
           setAutosaveBanner({ message: tBrief.autoSavedLabel, variant: 'success' })
         } else if (!options?.hideSuccess) {
@@ -1741,7 +1770,10 @@ export default function WeddingCardAiClientPage() {
       }
       showWorkspace(result)
       setOccasionPickerOpen(false)
-      toast({ title: 'Đã lưu thiệp và mở thiệp mới', description: 'Thiệp vừa rồi vẫn nằm trong danh sách.' })
+      toast({
+        title: 'Đã tạo thiệp và xuất link',
+        description: 'Link công khai có ngay. Thiệp vừa rồi vẫn nằm trong danh sách.',
+      })
       document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } finally {
       setSwitchingCard(false)
@@ -1819,11 +1851,29 @@ export default function WeddingCardAiClientPage() {
     </div>
   ) : null
 
+  const previewFab = (
+    <WeddingDraggableFab
+      label={txPublic.previewTryFab}
+      storageKey="wedding-editor-preview-fab"
+      defaultCorner="bottom-left"
+      disabled={loading || previewBusy || !card.id}
+      zIndex={2147483001}
+      icon={previewBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
+      onClick={() => {
+        if (singleOccasion) void openLetterView('groom')
+        else setLetterAskOpen(true)
+      }}
+    />
+  )
+
   if (loading) {
     return (
-      <div className="flex min-h-[420px] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
-      </div>
+      <>
+        <div className="flex min-h-[420px] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-rose-500" />
+        </div>
+        {previewFab}
+      </>
     )
   }
 
@@ -3334,14 +3384,18 @@ export default function WeddingCardAiClientPage() {
 
             <Card>
               <CardHeader>
-                <CardTitle>9. Xuất bản</CardTitle>
-                <CardDescription>Nội dung đã tự lưu. Bấm để tạo link thiệp công khai. RSVP, lời chúc, QR: 0 credit.</CardDescription>
+                <CardTitle>9. Link thiệp</CardTitle>
+                <CardDescription>
+                  Chọn dịp và bấm Tạo thiệp là có link công khai ngay. Điền tên rồi lưu cũng xuất link, không cần bấm thêm. RSVP, lời chúc, QR: 0 credit.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button onClick={publish} disabled={!card.id || saving || missing.includes('ảnh chính')} className="w-full">
+                {publishUrl ? null : (
+                <Button onClick={publish} disabled={!card.id || saving} className="w-full">
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Xuất bản link thiệp
+                  Xuất link thiệp
                 </Button>
+                )}
                 {card.id ? (
                   <>
                   <div className={singleOccasion ? 'grid gap-2' : 'grid gap-2 sm:grid-cols-2'}>
@@ -3401,7 +3455,7 @@ export default function WeddingCardAiClientPage() {
           <DialogHeader>
             <DialogTitle>Thiệp này dùng cho dịp nào?</DialogTitle>
             <DialogDescription>
-              Chọn một dịp rồi tạo. Form mở ra đúng tên và địa điểm của dịp đó. Thiệp đã lưu không hỏi lại.
+              Chọn một dịp rồi tạo. Tạo xong là có link công khai ngay. Form mở ra đúng tên và địa điểm của dịp đó.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -3472,13 +3526,11 @@ export default function WeddingCardAiClientPage() {
       <Dialog open={letterAskOpen} onOpenChange={setLetterAskOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Xem thiệp</DialogTitle>
+            <DialogTitle>Xem thử</DialogTitle>
             <DialogDescription>
-              {publishUrl
-                ? occasionKey === 'wedding'
-                  ? 'Chọn nhà trai hoặc nhà gái.'
-                  : `Chọn ${occasionCopy.letterPrimary} hoặc ${occasionCopy.letterSecondary}.`
-                : 'Thiệp chưa xuất bản. Bản nháp bên cạnh sẽ đổi theo lựa chọn này.'}
+              {occasionKey === 'wedding'
+                ? 'Chọn nhà trai hoặc nhà gái để mở xem thử.'
+                : `Chọn ${occasionCopy.letterPrimary} hoặc ${occasionCopy.letterSecondary} để mở xem thử.`}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2">
@@ -3491,6 +3543,7 @@ export default function WeddingCardAiClientPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {previewFab}
     </>
   )
 }

@@ -102,8 +102,10 @@ import {
   fetchQuestionReviewRowsPg,
   listSheetsContainingQuestionPg,
   personalBodiesForUser,
+  previewQuestionBody,
   proposalsFromRows,
   recordQuestionEditPg,
+  reviewCountForQuestion,
   sameQuestionContent,
   voteQuestionReviewPg,
 } from '@/lib/db/worksheet-question-review-pg'
@@ -1628,7 +1630,7 @@ export async function getWorksheetById(id: string) {
   return { success: true, worksheet: { ...data, content_markdown: contentMarkdown } }
 }
 
-/** Lưu phiếu. Câu mới vào bản chung ngay. Câu đã có thì người sửa dùng bản riêng; bản chung đổi khi 7 giáo viên khác đồng ý. */
+/** Lưu phiếu. Câu mới vào bản chung ngay. Câu đã có thì giáo viên sửa tay và dùng ngay bản đó. Người sau xem cả bản gốc và bản sửa. Duyệt thì dùng bản sửa, không duyệt thì giữ bản gốc. Đủ 7 duyệt thì thay bản gốc. Đủ 7 không duyệt thì bỏ bản sửa. Mỗi lần sửa đếm lại. */
 export async function saveWorksheetContent(formData: FormData) {
   if (!formData || typeof formData.get !== 'function') {
     return { error: 'Dữ liệu không hợp lệ.' }
@@ -1702,6 +1704,20 @@ export async function saveWorksheetContent(formData: FormData) {
   return { success: true, personal }
 }
 
+/** Số người đã duyệt và không duyệt câu đang sửa. Mỗi người một phiếu, tính sau lần sửa mới nhất. */
+export async function getWorksheetBlockReviewCount(worksheetId: string, blockIndex: number) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { agreeCount: 0, rejectCount: 0, editCount: 0 }
+  const userId = authResult.user?.id
+  if (!userId || !worksheetId || blockIndex < 0) return { agreeCount: 0, rejectCount: 0, editCount: 0 }
+  const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
+  const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
+  const questionId = ids[blockIndex]
+  if (!questionId) return { agreeCount: 0, rejectCount: 0, editCount: 0 }
+  const rows = await fetchQuestionReviewRowsPg([questionId])
+  return reviewCountForQuestion(rows.filter((row) => row.question_id === questionId))
+}
+
 export async function listWorksheetQuestionProposals(worksheetId: string) {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -1710,8 +1726,33 @@ export async function listWorksheetQuestionProposals(worksheetId: string) {
   const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
   const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
   if (!ids.length) return { proposals: [] }
-  const proposals = proposalsFromRows(await fetchQuestionReviewRowsPg(ids), userId)
-  return { proposals }
+  const [reviewRows, sharedRows] = await Promise.all([
+    fetchQuestionReviewRowsPg(ids),
+    fetchWorksheetQuestionsFullByIdsFromPg(ids),
+  ])
+  const sharedById = new Map(sharedRows.map((row) => [row.id, row.content_json]))
+  const sharedMeta = new Map(sharedRows.map((row) => [row.id, row]))
+  const { questionBlockMarkdown } = await import('./lib/questions-to-markdown')
+  const proposals = proposalsFromRows(reviewRows, userId, sharedById)
+  return {
+    proposals: proposals.map((item) => {
+      const meta = sharedMeta.get(item.questionId)
+      const shared = sharedById.get(item.questionId)
+      const base = {
+        type: meta?.type ?? 'essay',
+        difficulty: meta?.difficulty ?? undefined,
+        source: meta?.source ?? undefined,
+        verified_at: meta?.verified_at ?? null,
+      }
+      const { editedBody, ...rest } = item
+      return {
+        ...rest,
+        originalPreview: previewQuestionBody(shared),
+        originalBlock: questionBlockMarkdown({ ...base, content_json: shared }),
+        editedBlock: questionBlockMarkdown({ ...base, content_json: editedBody }),
+      }
+    }),
+  }
 }
 
 export async function voteWorksheetQuestion(questionId: string, vote: 'agree' | 'reject') {

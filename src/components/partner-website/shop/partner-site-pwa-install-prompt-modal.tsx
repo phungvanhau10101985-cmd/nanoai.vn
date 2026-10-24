@@ -26,6 +26,7 @@ import {
   shouldOfferPartnerPwaInstallPrompt,
 } from '@/lib/partner-website/shop/partner-site-pwa-install-prompt'
 import { usePartnerPwaInstall } from '@/lib/partner-website/shop/partner-site-pwa-install'
+import { readLiveDomDeviceFromWindow } from '@/lib/partner-website/shop/infer-live-visual-request-device'
 
 type Props = {
   siteSlug: string
@@ -105,6 +106,7 @@ export function PartnerSitePwaInstallPromptModal({ siteSlug, shopTitle, locale }
         nativePromptReady: Boolean(deferredInstall),
         blockedByOtherPrompt: otherPromptOpen(),
         alreadySeen: isPartnerSitePwaInstallPromptSeen(siteSlug),
+        phone: readLiveDomDeviceFromWindow() === 'mobile',
       })
 
     const tryOpen = () => {

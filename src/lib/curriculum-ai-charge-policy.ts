@@ -14,8 +14,8 @@ import {
   type CurriculumAiArtifactKind,
 } from '@/lib/db/curriculum-ai-first-use-pg'
 
-/** Số bài mới (curriculum_body) miễn phí AI mỗi ngày — từ bài thứ 4 trừ credit. */
-export const CURRICULUM_DAILY_FREE_BODIES = 3
+/** Số bài giáo trình mới miễn phí AI mỗi ngày. Bài thứ 3 trong ngày trừ credit. Giáo trình đã có thì mở không trừ. */
+export const CURRICULUM_DAILY_FREE_BODIES = 2
 
 export type CurriculumAiChargeReason =
   | 'disabled'

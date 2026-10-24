@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { insertWorksheetJobFromPg } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
+import { preflightWorksheetQuestions, WorksheetCreditsError } from '@/lib/db/worksheet-ai-quota-pg'
 import { getUserForAction } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
@@ -26,6 +27,33 @@ export async function POST(req: NextRequest) {
         ? 'Nhập số câu trắc nghiệm ≥ 1.'
         : 'Nhập số bài tự luận ≥ 1.'
       return NextResponse.json({ error: msg }, { status: 400 })
+    }
+
+    const kind = jobType === 'step_by_step_quiz' ? 'quiz' : 'essay'
+    const curriculumIdForQuota = (body?.curriculumId as string)?.trim() || null
+    try {
+      const gate = await preflightWorksheetQuestions({
+        userId: userId!,
+        curriculumId: curriculumIdForQuota,
+        kind,
+        count,
+      })
+      if (!gate.ok) {
+        const denied = new WorksheetCreditsError(gate.required, gate.balance, gate.freeRemaining)
+        return NextResponse.json(
+          {
+            error: denied.message,
+            code: denied.code,
+            required: denied.required,
+            balance: denied.balance,
+            freeRemaining: denied.freeRemaining,
+          },
+          { status: 402 }
+        )
+      }
+    } catch (quotaError) {
+      const msg = quotaError instanceof Error ? quotaError.message : String(quotaError)
+      return NextResponse.json({ error: msg }, { status: 503 })
     }
 
     const params = {

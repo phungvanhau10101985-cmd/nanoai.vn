@@ -3,6 +3,7 @@
  * để cập nhật worksheet_questions khi giáo viên sửa phiếu.
  */
 import type { WorksheetQuestionBlock } from './worksheet-parse-questions'
+import { ESSAY_SOLUTION_MARKER, coalesceEssayParts } from './worksheet-content-json'
 
 /** Parse block quiz markdown → { question, options, correctIndex } */
 function parseQuizBlockContent(content: string): { question: string; options: string[]; correctIndex: number } | null {
@@ -43,18 +44,13 @@ function parseQuizBlockContent(content: string): { question: string; options: st
 
 /** Parse block essay markdown → { problem, solution } */
 function parseEssayBlockContent(content: string): { problem: string; solution: string } | null {
-  // Hỗ trợ: **Lời giải:**\n... hoặc **Lời giải:** ... (cùng dòng)
-  const loiGiaiMatch =
-    content.match(/\*\*Lời giải\*\*:\s*\n([\s\S]*)$/i) ||
-    content.match(/\*\*Đáp án\*\*:\s*\n([\s\S]*)$/i) ||
-    content.match(/\*\*Lời giải\*\*:\s*(.+)$/is) ||
-    content.match(/\*\*Đáp án\*\*:\s*(.+)$/is)
+  const loiGiaiMatch = new RegExp(ESSAY_SOLUTION_MARKER.source, 'i').exec(content)
   let problem = ''
   let solution = ''
 
-  if (loiGiaiMatch) {
-    solution = (loiGiaiMatch[1] ?? '').trim()
-    const before = content.slice(0, content.indexOf(loiGiaiMatch[0]))
+  if (loiGiaiMatch && loiGiaiMatch.index != null) {
+    solution = content.slice(loiGiaiMatch.index + loiGiaiMatch[0].length).trim()
+    const before = content.slice(0, loiGiaiMatch.index)
     problem = before
       .replace(/^#+\s*Bài\s+(?:\d+(?:\.\d+)*(?:\s+\d+)?)\.\s*[^\n]*\n?/i, '')
       .replace(/^\*\*Bài\s+(?:\d+(?:\.\d+)*(?:\s+\d+)?)\.?\s*\*?\s*[^\n]*\n?/i, '')
@@ -67,7 +63,8 @@ function parseEssayBlockContent(content: string): { problem: string; solution: s
   }
 
   if (!problem && !solution) return null
-  return { problem: problem || '(Chưa có đề bài)', solution: solution || '(Chưa có lời giải)' }
+  const parts = coalesceEssayParts(problem, solution)
+  return { problem: parts.problem || '(Chưa có đề bài)', solution: parts.solution || '(Chưa có lời giải)' }
 }
 
 /** Chuyển 1 block sang content_json (dùng cho update hoặc insert) */

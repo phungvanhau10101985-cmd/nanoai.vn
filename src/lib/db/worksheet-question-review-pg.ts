@@ -1,17 +1,28 @@
 import { createHash } from 'crypto'
+import { WORKSHEET_REVIEW_AGREES } from '@/app/tao-giao-trinh/lib/worksheet-review-count'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import { updateWorksheetQuestionContentJsonFromPg } from '@/lib/db/worksheet-pg'
+import { coalesceEssayParts } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
-export const WORKSHEET_REVIEW_AGREES = 7
+export { WORKSHEET_REVIEW_AGREES }
 
 export type WorksheetQuestionProposal = {
   questionId: string
+  /** Bản sửa đang chờ. */
   preview: string
+  /** Bản gốc đang dùng chung, để người sau đối chiếu. */
+  originalPreview: string
   agreeCount: number
+  rejectCount: number
   editCount: number
   authorIsMe: boolean
   myVote: 'agree' | 'reject' | null
+  /** Khối markdown bản gốc, giữ xuống dòng. */
+  originalBlock: string
+  /** Khối markdown bản sửa, giữ xuống dòng. */
+  editedBlock: string
+  editedBody?: unknown
 }
 
 type ReviewRow = {
@@ -27,14 +38,20 @@ function hashBody(body: unknown): string {
   return createHash('sha256').update(JSON.stringify(body ?? null)).digest('hex').slice(0, 32)
 }
 
+function normQuestionText(value: unknown): string {
+  return String(value ?? '').replace(/\s+/g, ' ').trim()
+}
+
+/** So phần người đọc thấy. Tách lời giải ra khỏi đề, hoặc chỉ xuống dòng, không tính là sửa. */
 export function sameQuestionContent(prev: unknown, next: unknown): boolean {
-  const norm = (value: unknown) => String(value ?? '').replace(/\s+/g, ' ').trim()
   const left = (prev ?? {}) as Record<string, unknown>
   const right = (next ?? {}) as Record<string, unknown>
-  if (norm(left.question || left.problem) !== norm(right.question || right.problem)) return false
-  if (norm(left.solution) !== norm(right.solution)) return false
-  const leftOptions = Array.isArray(left.options) ? left.options.map(norm).join('|') : ''
-  const rightOptions = Array.isArray(right.options) ? right.options.map(norm).join('|') : ''
+  const leftParts = coalesceEssayParts(String(left.question || left.problem || ''), String(left.solution || ''))
+  const rightParts = coalesceEssayParts(String(right.question || right.problem || ''), String(right.solution || ''))
+  if (normQuestionText(leftParts.problem) !== normQuestionText(rightParts.problem)) return false
+  if (normQuestionText(leftParts.solution) !== normQuestionText(rightParts.solution)) return false
+  const leftOptions = Array.isArray(left.options) ? left.options.map(normQuestionText).join('|') : ''
+  const rightOptions = Array.isArray(right.options) ? right.options.map(normQuestionText).join('|') : ''
   if (leftOptions !== rightOptions) return false
   if (left.correctIndex != null || right.correctIndex != null) {
     if (Number(left.correctIndex) !== Number(right.correctIndex)) return false
@@ -50,13 +67,14 @@ export function overlayRowsById<T extends { id: string; content_json: unknown }>
   return rows.map((row) => (personal.has(row.id) ? { ...row, content_json: personal.get(row.id) } : row))
 }
 
-function previewBody(body: unknown): string {
+export function previewQuestionBody(body: unknown): string {
   if (!body || typeof body !== 'object') return ''
   const row = body as { question?: unknown; problem?: unknown; solution?: unknown }
-  const stem = String(row.question || row.problem || '').replace(/\s+/g, ' ').trim()
-  const solution = String(row.solution || '').replace(/\s+/g, ' ').trim()
+  const parts = coalesceEssayParts(String(row.question || row.problem || ''), String(row.solution || ''))
+  const stem = parts.problem.replace(/\s+/g, ' ').trim()
+  const solution = parts.solution.replace(/\s+/g, ' ').trim()
   const text = solution ? `${stem} — ${solution}` : stem
-  return text.slice(0, 420)
+  return text.slice(0, 1600)
 }
 
 export async function fetchQuestionReviewRowsPg(questionIds: string[]): Promise<ReviewRow[]> {
@@ -75,54 +93,129 @@ export async function fetchQuestionReviewRowsPg(questionIds: string[]): Promise<
   }
 }
 
-export function personalBodiesForUser(rows: ReviewRow[], userId: string): Map<string, unknown> {
-  const map = new Map<string, unknown>()
-  for (const row of rows) {
-    if (row.action === 'edit' && row.user_id === userId) map.set(row.question_id, row.body)
-  }
-  return map
+type PendingQuestionReview = {
+  questionId: string
+  lastEdit: ReviewRow
+  agreeCount: number
+  rejectCount: number
+  editCount: number
+  authorIsMe: boolean
+  myVote: 'agree' | 'reject' | null
 }
 
-export function proposalsFromRows(rows: ReviewRow[], userId: string): WorksheetQuestionProposal[] {
+function sameUser(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase()
+}
+
+function rowsByQuestion(rows: ReviewRow[]): Map<string, ReviewRow[]> {
   const byQuestion = new Map<string, ReviewRow[]>()
   for (const row of rows) {
     const list = byQuestion.get(row.question_id) ?? []
     list.push(row)
     byQuestion.set(row.question_id, list)
   }
-  const proposals: WorksheetQuestionProposal[] = []
-  for (const [questionId, mine] of byQuestion) {
-    const edits = mine.filter((row) => row.action === 'edit')
-    const lastEdit = edits[edits.length - 1]
-    if (!lastEdit) continue
-    const agrees = new Set(
+  return byQuestion
+}
+
+/** Mỗi người một phiếu. Sửa mới thì chỉ đếm phiếu sau lần sửa đó, không tính người sửa. */
+export function voterIdsForLastEdit(mine: ReviewRow[], action: 'agree' | 'reject'): string[] {
+  const lastEdit = mine.filter((row) => row.action === 'edit').at(-1)
+  if (!lastEdit) return []
+  const afterEdit = new Date(lastEdit.created_at).getTime()
+  return [
+    ...new Set(
       mine
         .filter(
           (row) =>
-            row.action === 'agree' &&
+            row.action === action &&
             row.content_hash === lastEdit.content_hash &&
-            row.user_id !== lastEdit.user_id &&
-            new Date(row.created_at).getTime() > new Date(lastEdit.created_at).getTime()
+            !sameUser(row.user_id, lastEdit.user_id) &&
+            new Date(row.created_at).getTime() > afterEdit
         )
-        .map((row) => row.user_id)
+        .map((row) => row.user_id.trim().toLowerCase())
+    ),
+  ]
+}
+
+export function approverIdsForLastEdit(mine: ReviewRow[]): string[] {
+  return voterIdsForLastEdit(mine, 'agree')
+}
+
+export function reviewCountForQuestion(mine: ReviewRow[]): { agreeCount: number; rejectCount: number; editCount: number } {
+  const edits = mine.filter((row) => row.action === 'edit')
+  return {
+    agreeCount: voterIdsForLastEdit(mine, 'agree').length,
+    rejectCount: voterIdsForLastEdit(mine, 'reject').length,
+    editCount: edits.length,
+  }
+}
+
+/** Bản sửa mới nhất còn chờ. Đủ 7 duyệt hoặc 7 không duyệt thì vòng này kết thúc. Sửa mới thì đếm lại. */
+export function pendingQuestionReview(mine: ReviewRow[], userId: string, questionId: string): PendingQuestionReview | null {
+  const edits = mine.filter((row) => row.action === 'edit')
+  const lastEdit = edits[edits.length - 1]
+  if (!lastEdit) return null
+  const afterEdit = new Date(lastEdit.created_at).getTime()
+  const agrees = new Set(voterIdsForLastEdit(mine, 'agree'))
+  const rejects = new Set(voterIdsForLastEdit(mine, 'reject'))
+  if (agrees.size >= WORKSHEET_REVIEW_AGREES || rejects.size >= WORKSHEET_REVIEW_AGREES) return null
+  const myVoteRow = [...mine]
+    .reverse()
+    .find(
+      (row) =>
+        (row.action === 'agree' || row.action === 'reject') &&
+        sameUser(row.user_id, userId) &&
+        row.content_hash === lastEdit.content_hash &&
+        new Date(row.created_at).getTime() > afterEdit
     )
-    if (agrees.size >= WORKSHEET_REVIEW_AGREES) continue
-    const myVoteRow = [...mine]
-      .reverse()
-      .find(
-        (row) =>
-          (row.action === 'agree' || row.action === 'reject') &&
-          row.user_id === userId &&
-          row.content_hash === lastEdit.content_hash &&
-          new Date(row.created_at).getTime() > new Date(lastEdit.created_at).getTime()
-      )
+  return {
+    questionId,
+    lastEdit,
+    agreeCount: agrees.size,
+    rejectCount: rejects.size,
+    editCount: edits.length,
+    authorIsMe: sameUser(lastEdit.user_id, userId),
+    myVote: myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null,
+  }
+}
+
+export function personalBodiesForUser(rows: ReviewRow[], userId: string): Map<string, unknown> {
+  const map = new Map<string, unknown>()
+  for (const [questionId, mine] of rowsByQuestion(rows)) {
+    const pending = pendingQuestionReview(mine, userId, questionId)
+    if (!pending) continue
+    if (pending.authorIsMe || pending.myVote === 'agree') map.set(questionId, pending.lastEdit.body)
+  }
+  return map
+}
+
+export function proposalsFromRows(
+  rows: ReviewRow[],
+  userId: string,
+  sharedById?: Map<string, unknown>
+): WorksheetQuestionProposal[] {
+  const proposals: WorksheetQuestionProposal[] = []
+  for (const [questionId, mine] of rowsByQuestion(rows)) {
+    const pending = pendingQuestionReview(mine, userId, questionId)
+    if (!pending) continue
+    if (sharedById?.has(questionId)) {
+      const shared = sharedById.get(questionId)
+      const edit = pending.lastEdit.body
+      const sameWords = sameQuestionContent(shared, edit) || previewQuestionBody(shared) === previewQuestionBody(edit)
+      if (sameWords) continue
+    }
     proposals.push({
       questionId,
-      preview: previewBody(lastEdit.body),
-      agreeCount: agrees.size,
-      editCount: edits.length,
-      authorIsMe: lastEdit.user_id === userId,
-      myVote: myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null,
+      preview: previewQuestionBody(pending.lastEdit.body),
+      originalPreview: '',
+      agreeCount: pending.agreeCount,
+      rejectCount: pending.rejectCount,
+      editCount: pending.editCount,
+      authorIsMe: pending.authorIsMe,
+      myVote: pending.myVote,
+      originalBlock: '',
+      editedBlock: '',
+      editedBody: pending.lastEdit.body,
     })
   }
   return proposals
@@ -146,13 +239,13 @@ export async function voteQuestionReviewPg(params: {
   questionId: string
   userId: string
   vote: 'agree' | 'reject'
-}): Promise<{ applied: boolean; error?: string }> {
+}): Promise<{ applied: boolean; discarded?: boolean; error?: string }> {
   if (!isPgConfigured()) return { applied: false, error: 'DATABASE_URL is not set' }
   const rows = await fetchQuestionReviewRowsPg([params.questionId])
   const edits = rows.filter((row) => row.action === 'edit')
   const lastEdit = edits[edits.length - 1]
   if (!lastEdit) return { applied: false, error: 'Chưa có đề xuất để duyệt.' }
-  if (lastEdit.user_id === params.userId) return { applied: false, error: 'Người sửa không tự duyệt đề xuất của mình.' }
+  if (sameUser(lastEdit.user_id, params.userId)) return { applied: false, error: 'Người sửa không tự duyệt đề xuất của mình.' }
   await pgQuery(
     `delete from public.worksheet_question_reviews
      where question_id = $1::uuid and content_hash = $2 and user_id = $3::uuid and action = $4`,
@@ -168,15 +261,16 @@ export async function voteQuestionReviewPg(params: {
        values ($1::uuid, $2, $3::uuid, 'reject', $4::jsonb)
        on conflict (question_id, content_hash, user_id) where action = 'reject' do nothing`
   await pgQuery(voteSql, [params.questionId, lastEdit.content_hash, params.userId, JSON.stringify(lastEdit.body ?? null)])
-  if (params.vote !== 'agree') return { applied: false }
-  const agrees = await pgQuery<{ user_id: string }>(
+  const side = params.vote === 'agree' ? 'agree' : 'reject'
+  const votes = await pgQuery<{ user_id: string }>(
     `select distinct user_id::text as user_id
      from public.worksheet_question_reviews
-     where question_id = $1::uuid and action = 'agree' and content_hash = $2
-       and user_id <> $3::uuid and created_at > $4::timestamptz`,
-    [params.questionId, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
+     where question_id = $1::uuid and action = $2 and content_hash = $3
+       and user_id <> $4::uuid and created_at > $5::timestamptz`,
+    [params.questionId, side, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
   )
-  if (agrees.length < WORKSHEET_REVIEW_AGREES) return { applied: false }
+  if (votes.length < WORKSHEET_REVIEW_AGREES) return { applied: false }
+  if (params.vote !== 'agree') return { applied: false, discarded: true }
   const updated = await updateWorksheetQuestionContentJsonFromPg(params.questionId, lastEdit.body)
   if (updated.error) return { applied: false, error: updated.error }
   return { applied: true }

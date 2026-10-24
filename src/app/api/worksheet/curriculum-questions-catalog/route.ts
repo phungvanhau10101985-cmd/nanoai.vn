@@ -19,14 +19,14 @@ const CHUNK = 120
 /** Giới hạn an toàn (một câu cực dài / base64 lạ) — vẫn cho hiển thị gần như toàn bộ. */
 const PREVIEW_MAX_LEN = 120_000
 
-/** Loại bỏ tag cũ nằm trong text đề (vd: [Đã verify], [Trung bình], [Bài tập SGK]...). */
+/** Loại bỏ tag cũ nằm trong text đề (vd: [Đã verify], [Trung bình], [Tham khảo theo SGK]...). */
 function stripLegacyInlineTags(input: string): string {
   let out = String(input ?? '')
     .replace(/\*\*/g, '')
     .trim()
   for (let i = 0; i < 6; i++) {
     const next = out
-      .replace(/^\s*\[(?:Đã verify|Chưa verify|Bài tập SGK|Dễ|Trung bình|Khó|Nhận biết|Thông hiểu|Vận dụng thấp|Vận dụng cao|Thực tế)\]\s*/i, '')
+      .replace(/^\s*\[(?:Đã verify|Chưa verify|Bài tập SGK|Tham khảo theo SGK|Dễ|Trung bình|Khó|Nhận biết|Thông hiểu|Vận dụng thấp|Vận dụng cao|Thực tế)\]\s*/i, '')
       .trim()
     if (next === out) break
     out = next

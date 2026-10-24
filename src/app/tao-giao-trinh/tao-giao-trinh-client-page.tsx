@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2, CircleHelp } from 'lucide-react'
+import { Sparkles, Copy, FileDown, RefreshCw, FileSpreadsheet, FolderOpen, BookOpen, FileText, Presentation, Trash2, Upload, Camera, ImageIcon, FileQuestion, ListChecks, ChevronDown, Users, NotebookPen, Link2, CircleHelp, Plus } from 'lucide-react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { latexToReadable } from './lib/latex-to-readable'
@@ -23,7 +23,7 @@ import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib
 import { parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
-import { WorksheetQuestionProposals } from './components/worksheet-question-proposals'
+import { useWorksheetQuestionProposals, WorksheetQuestionCompare } from './components/worksheet-question-proposals'
 import {
   ensureCurriculumLessonSlidesPreparedAction,
   getCurriculumLessonMetaAction,
@@ -35,7 +35,7 @@ import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './lib/workshee
 import { mergeContentWithQuestions } from './lib/merge-worksheet-content-pure'
 import { toEditableBlockContent } from './lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from './components/worksheet-edit-section-popup'
-import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './lib/worksheet-content-json'
+import { coalesceEssayParts, getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './lib/worksheet-content-json'
 import { AIProgressLoader } from '@/components/ai-progress-loader'
 import {
   DropdownMenu,
@@ -51,6 +51,7 @@ import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useHubPrefill } from '@/lib/hub-chat/use-hub-prefill'
 import { HubPlanStepBanner } from '@/components/hub-chat/hub-plan-step-banner'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from './lib/curriculum-credit-costs'
+import { quoteSgkExtract, quoteWorksheetQuestionBatch } from './lib/worksheet-ai-quota'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
 import {
   AlertDialog,
@@ -75,6 +76,34 @@ function matchesDestructiveConfirm(input: string, phrase: string): boolean {
 }
 
 const WS_ACTIVE_JOB_KEY = 'worksheet_active_job'
+
+type WsStepKind = 'quiz' | 'essay'
+type WsStepRow = { id: string; kind: WsStepKind; count: number; difficulty: string }
+type WsCreateReportRow = {
+  id: string
+  kind: WsStepKind
+  difficulty: string
+  label: string
+  requested: number
+  created: number
+  status: 'created' | 'failed' | 'skipped'
+  reason: string
+}
+
+const WS_QUIZ_DIFFS = ['easy', 'medium', 'hard'] as const
+const WS_ESSAY_BLOOMS = ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'] as const
+
+function wsStepDiffs(kind: WsStepKind): readonly string[] {
+  return kind === 'quiz' ? WS_QUIZ_DIFFS : WS_ESSAY_BLOOMS
+}
+
+function wsStepCap(kind: WsStepKind): number {
+  return kind === 'quiz' ? 10 : 6
+}
+
+function wsStepBatchMax(kind: WsStepKind): number {
+  return kind === 'quiz' ? 20 : 10
+}
 const LAST_OPENED_CURRICULUM_KEY = 'tao_giao_trinh_last_opened_curriculum_id'
 /** Ảnh trang sách gửi lên POST /api/curriculum-from-image — khớp MAX_IMAGES trong route. */
 const MAX_CURRICULUM_LESSON_IMAGES = 20
@@ -236,6 +265,84 @@ function curriculumCountField(value: number | null): string {
 function joinCurriculumCreateFieldLabels(keys: CurriculumCreateFieldKey[], index: 0 | 1 | 2 | 3 | 4): string {
   return keys.map((key) => CURRICULUM_CREATE_FIELD_LABELS[key][index]).join(', ')
 }
+
+function WorksheetCreateReport({
+  report,
+  tr,
+  onFillRetry,
+}: {
+  report: WsCreateReportRow[]
+  tr: (vi: string, en: string, zh: string, ja: string, ko: string) => string
+  onFillRetry: (rows: WsStepRow[]) => void
+}) {
+  const made = report.filter((row) => row.created > 0)
+  const missed = report.filter((row) => row.status === 'failed' || (row.created > 0 && row.created < row.requested))
+  const retry = report.filter((row) => row.created < row.requested)
+  const none = tr('Không có.', 'None.', '无。', 'なし。', '없음.')
+  const lineOf = (row: WsCreateReportRow, count: number) => `${count} ${row.label}`
+  return (
+    <div className="max-h-[60vh] space-y-3 overflow-y-auto text-sm">
+      <div>
+        <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+          {tr('Đã tạo', 'Created', '已创建', '作成済み', '생성됨')}
+        </p>
+        {made.length === 0 ? <p className="text-muted-foreground">{none}</p> : (
+          <ul className="list-disc pl-4">
+            {made.map((row) => <li key={`made-${row.id}`}>{lineOf(row, row.created)}</li>)}
+          </ul>
+        )}
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-red-700 dark:text-red-300">
+          {tr('Chưa tạo được', 'Not created', '未能创建', '作成できず', '만들지 못함')}
+        </p>
+        {missed.length === 0 ? <p className="text-muted-foreground">{none}</p> : (
+          <ul className="list-disc pl-4">
+            {missed.map((row) => (
+              <li key={`miss-${row.id}`}>
+                {lineOf(row, row.requested - row.created)}
+                {row.reason ? ` — ${row.reason}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-amber-800 dark:text-amber-200">
+          {tr('Cần tạo lại', 'Create again', '需要重做', '再作成', '다시 만들기')}
+        </p>
+        {retry.length === 0 ? <p className="text-muted-foreground">{none}</p> : (
+          <ul className="list-disc pl-4">
+            {retry.map((row) => (
+              <li key={`retry-${row.id}`}>
+                {lineOf(row, row.requested - row.created)}
+                {row.status === 'skipped' && row.reason ? ` — ${row.reason}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      {retry.length > 0 && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            onFillRetry(retry.map((row) => ({
+              id: `retry-${row.kind}-${row.difficulty}`,
+              kind: row.kind,
+              difficulty: row.difficulty,
+              count: row.requested - row.created,
+            })))
+          }}
+        >
+          {tr('Điền lại các câu cần tạo', 'Fill in the questions to create again', '填入需要重做的题', '再作成する問題を入れる', '다시 만들 문항 채우기')}
+        </Button>
+      )}
+    </div>
+  )
+}
+
 export default function TaoGiaoTrinhClientPage({
   initialWebLocale = DEFAULT_WEB_LOCALE,
 }: { initialWebLocale?: WebLocale } = {}) {
@@ -261,6 +368,35 @@ export default function TaoGiaoTrinhClientPage({
   )
   const worksheetParts = useMemo(() => splitWorksheetSections(worksheetStudentMarkdown), [worksheetStudentMarkdown])
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
+  const [worksheetQuestionIds, setWorksheetQuestionIds] = useState<string[]>([])
+  const reloadOpenWorksheet = useCallback(() => {
+    const id = worksheetId?.trim()
+    if (!id) return
+    void fetch(`/api/worksheet/${encodeURIComponent(id)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (typeof data?.content_markdown === 'string' && data.content_markdown) {
+          setWorksheetMarkdown(data.content_markdown)
+        }
+        if (Array.isArray(data?.questionIds)) {
+          setWorksheetQuestionIds(data.questionIds.map((item: unknown) => String(item)).filter(Boolean))
+        }
+      })
+      .catch(() => undefined)
+  }, [worksheetId])
+  const { items: worksheetProposals, vote: voteWorksheetProposal, busyId: worksheetProposalBusyId } =
+    useWorksheetQuestionProposals(worksheetId ?? '', reloadOpenWorksheet)
+  const worksheetProposalById = useMemo(
+    () => new Map(worksheetProposals.map((item) => [item.questionId, item])),
+    [worksheetProposals]
+  )
+  useEffect(() => {
+    if (!worksheetId) {
+      setWorksheetQuestionIds([])
+      return
+    }
+    reloadOpenWorksheet()
+  }, [worksheetId, reloadOpenWorksheet])
   const [worksheetVerifyPollUntil, setWorksheetVerifyPollUntil] = useState(0)
   const [showBrowse, setShowBrowse] = useState(true)
   const [curriculaList, setCurriculaList] = useState<
@@ -336,14 +472,24 @@ export default function TaoGiaoTrinhClientPage({
   const [createMode, setCreateMode] = useState<'textbook' | 'topic' | null>(null)
   const [createFieldErrors, setCreateFieldErrors] = useState<CurriculumCreateFieldKey[]>([])
   const [featureSection, setFeatureSection] = useState<'create' | 'library' | 'exam' | 'homework'>('create')
-  const [wsStepByStepQuizCount, setWsStepByStepQuizCount] = useState(5)
-  const [wsStepByStepEssayCount, setWsStepByStepEssayCount] = useState(5)
-  const [wsStepByStepQuizDiff, setWsStepByStepQuizDiff] = useState<'easy' | 'medium' | 'hard'>('medium')
-  const [wsStepByStepEssayBloom, setWsStepByStepEssayBloom] = useState<'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'>('thong-hieu')
+  const [wsStepRows, setWsStepRows] = useState<WsStepRow[]>([
+    { id: 'quiz-default', kind: 'quiz', count: 5, difficulty: 'medium' },
+    { id: 'essay-default', kind: 'essay', count: 5, difficulty: 'thong-hieu' },
+  ])
   const [, setWsStepByStepQuestionIds] = useState<string[]>([])
   const [wsStepByStepLoading, setWsStepByStepLoading] = useState(false)
   const [wsStepByStepStatus, setWsStepByStepStatus] = useState<string>('')
+  const [wsCreateReport, setWsCreateReport] = useState<WsCreateReportRow[] | null>(null)
   const [wsStepByStepExpanded, setWsStepByStepExpanded] = useState(false) // Đóng mặc định; mở khi bấm "Tạo từng câu"
+  const [wsAiQuota, setWsAiQuota] = useState({
+    quizCurriculumCreated: 0,
+    essayCurriculumCreated: 0,
+    quizUserWaivedToday: 0,
+    essayUserWaivedToday: 0,
+    sgkCurriculumExtracts: 0,
+    sgkUserWaivedToday: 0,
+  })
+  const [wsAiQuotaNonce, setWsAiQuotaNonce] = useState(0)
   const [wsStepByStepCounts, setWsStepByStepCounts] = useState<{ quiz: Record<string, number>; essay: Record<string, number> } | null>(null)
   const [wsStepByStepSessionCounts, setWsStepByStepSessionCounts] = useState<{ quiz: Record<string, number>; essay: Record<string, number> }>({ quiz: {}, essay: {} })
   /** Mặc định mở khối tạo phiếu từ ảnh SGK khi đã có giáo trình (vẫn chỉ render khi có curriculumMarkdown). */
@@ -450,7 +596,48 @@ export default function TaoGiaoTrinhClientPage({
   }
 
   const creditsWord = tr('credits', 'credits', '积分', 'クレジット', '크레딧')
+  const freeWord = tr('miễn phí', 'free', '免费', '無料', '무료')
   const creditLabel = (n: number) => ` (${formatCurriculumCredits(n)} ${creditsWord})`
+  const questionQuotePhrase = (requested: number, curriculumCreated: number) => {
+    const quote = quoteWorksheetQuestionBatch({
+      requested,
+      curriculumCreated,
+      hasCurriculum: Boolean(curriculumId),
+    })
+    if (quote.paid <= 0) return freeWord
+    if (quote.free <= 0) return `${formatCurriculumCredits(quote.credits)} ${creditsWord}`
+    return `${quote.free} ${freeWord} + ${formatCurriculumCredits(quote.credits)} ${creditsWord}`
+  }
+  const stepKindLabel = (kind: WsStepKind) =>
+    kind === 'quiz'
+      ? tr('trắc nghiệm', 'quiz', '选择题', 'クイズ', '퀴즈')
+      : tr('tự luận', 'essay', '主观题', '記述式', '서술형')
+  const stepDiffLabel = (kind: WsStepKind, difficulty: string) => {
+    if (kind === 'quiz') {
+      if (difficulty === 'easy') return tr('Dễ', 'Easy', '简单', '易', '쉬움')
+      if (difficulty === 'hard') return tr('Khó', 'Hard', '困难', '難', '어려움')
+      return tr('Trung bình', 'Medium', '中等', '中', '보통')
+    }
+    if (difficulty === 'nhan-biet') return tr('Nhận biết', 'Recall', '识记', '知識', '인지')
+    if (difficulty === 'van-dung-thap') return tr('Vận dụng thấp', 'Apply (low)', '应用（低）', '応用（低）', '적용(하)')
+    if (difficulty === 'van-dung-cao') return tr('Vận dụng cao', 'Apply (high)', '应用（高）', '応用（高）', '적용(상)')
+    if (difficulty === 'thuc-te') return tr('Thực tế', 'Real-world', '实际', '実践', '실전')
+    return tr('Thông hiểu', 'Understand', '理解', '理解', '이해')
+  }
+  const insufficientCreditDescription = (data: { error?: string; required?: number; balance?: number }) => {
+    if (typeof data.required === 'number') {
+      const required = formatCurriculumCredits(data.required)
+      const balance = formatCurriculumCredits(Number(data.balance) || 0)
+      return tr(
+        `Cần ${required} credits. Số dư ${balance}.`,
+        `Needs ${required} credits. Balance ${balance}.`,
+        `需要 ${required} 积分。余额 ${balance}。`,
+        `${required} クレジットが必要です。残高 ${balance}。`,
+        `${required} 크레딧이 필요합니다. 잔액 ${balance}.`
+      )
+    }
+    return data.error
+  }
   const curriculumTourSteps = [
       {
         key: 'info',
@@ -853,19 +1040,57 @@ export default function TaoGiaoTrinhClientPage({
   }, [wsStepByStepExpanded, curriculumId])
 
   useEffect(() => {
+    const ac = new AbortController()
+    const query = curriculumId ? `?curriculumId=${encodeURIComponent(curriculumId)}` : ''
+    fetch(`/api/worksheet-ai-quote${query}`, { signal: ac.signal })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data?.ok) return
+        setWsAiQuota({
+          quizCurriculumCreated: Number(data.quizCurriculumCreated) || 0,
+          essayCurriculumCreated: Number(data.essayCurriculumCreated) || 0,
+          quizUserWaivedToday: Number(data.quizUserWaivedToday) || 0,
+          essayUserWaivedToday: Number(data.essayUserWaivedToday) || 0,
+          sgkCurriculumExtracts: Number(data.sgkCurriculumExtracts) || 0,
+          sgkUserWaivedToday: Number(data.sgkUserWaivedToday) || 0,
+        })
+      })
+      .catch(() => {})
+    return () => ac.abort()
+  }, [curriculumId, wsAiQuotaNonce])
+
+  useEffect(() => {
+    if (wsStepByStepLoading) return
     const quizTotal: Record<string, number> = { easy: 0, medium: 0, hard: 0 }
     const essayTotal: Record<string, number> = { 'nhan-biet': 0, 'thong-hieu': 0, 'van-dung-thap': 0, 'van-dung-cao': 0, 'thuc-te': 0 }
-    for (const d of ['easy', 'medium', 'hard']) quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
-    for (const d of ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te']) essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
-    const quizAvailable = (['easy', 'medium', 'hard'] as const).filter((d) => quizTotal[d] < 10)
-    const essayAvailable = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'] as const).filter((d) => essayTotal[d] < 6)
-    if (quizAvailable.length > 0 && !quizAvailable.includes(wsStepByStepQuizDiff)) setWsStepByStepQuizDiff(quizAvailable[0])
-    if (essayAvailable.length > 0 && !essayAvailable.includes(wsStepByStepEssayBloom)) setWsStepByStepEssayBloom(essayAvailable[0])
-    const quizMax = Math.min(20, 10 - (quizTotal[wsStepByStepQuizDiff] ?? 0))
-    const essayMax = Math.min(10, 6 - (essayTotal[wsStepByStepEssayBloom] ?? 0))
-    if (wsStepByStepQuizCount > quizMax && quizMax >= 0) setWsStepByStepQuizCount(quizMax)
-    if (wsStepByStepEssayCount > essayMax && essayMax >= 0) setWsStepByStepEssayCount(essayMax)
-  }, [wsStepByStepCounts, wsStepByStepSessionCounts, wsStepByStepQuizDiff, wsStepByStepEssayBloom])
+    for (const d of WS_QUIZ_DIFFS) quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
+    for (const d of WS_ESSAY_BLOOMS) essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
+    setWsStepRows((prev) => {
+      const taken = (kind: WsStepKind, difficulty: string, exceptId: string) =>
+        prev.some((row) => row.id !== exceptId && row.kind === kind && row.difficulty === difficulty)
+      let changed = false
+      const next = prev.map((row) => {
+        const diffs = wsStepDiffs(row.kind)
+        const totals = row.kind === 'quiz' ? quizTotal : essayTotal
+        const cap = wsStepCap(row.kind)
+        let difficulty = row.difficulty
+        const blocked = !diffs.includes(difficulty) || taken(row.kind, difficulty, row.id) || (totals[difficulty] ?? 0) >= cap
+        if (blocked) {
+          const alt = diffs.find((d) => !taken(row.kind, d, row.id) && (totals[d] ?? 0) < cap)
+          if (alt) difficulty = alt
+        }
+        const slots = Math.max(0, cap - (totals[difficulty] ?? 0))
+        const max = Math.min(wsStepBatchMax(row.kind), slots)
+        const count = Math.max(0, Math.min(row.count, max))
+        if (count !== row.count || difficulty !== row.difficulty) {
+          changed = true
+          return { ...row, count, difficulty }
+        }
+        return row
+      })
+      return changed ? next : prev
+    })
+  }, [wsStepByStepCounts, wsStepByStepSessionCounts, wsStepByStepLoading])
 
   useEffect(() => {
     if (!showBrowse) return
@@ -1587,7 +1812,6 @@ export default function TaoGiaoTrinhClientPage({
     setWorksheetEditBlockIndex(null)
     setWorksheetEditBlockContent('')
     setWorksheetEditSaving(false)
-    setWorksheetEditCheckResult(null)
   }
 
   const handleCopy = () => {
@@ -2237,13 +2461,7 @@ export default function TaoGiaoTrinhClientPage({
   const [editCompareErrors, setEditCompareErrors] = useState<string[]>([])
   const [worksheetEditBlockIndex, setWorksheetEditBlockIndex] = useState<number | null>(null)
   const [worksheetEditBlockContent, setWorksheetEditBlockContent] = useState('')
-  const [worksheetEditImages, setWorksheetEditImages] = useState<File[]>([])
   const [worksheetEditSaving, setWorksheetEditSaving] = useState(false)
-  const [worksheetEditCheckLoading, setWorksheetEditCheckLoading] = useState(false)
-  const [worksheetEditCheckResult, setWorksheetEditCheckResult] = useState<{
-    issues: Array<{ field: string; location: string; issue: string; suggested: string }>
-    correctedContent: string | null
-  } | null>(null)
   const [worksheetEditFilter, setWorksheetEditFilter] = useState<'quiz' | 'essay' | null>(null)
   const worksheetEditBlocks = useMemo(
     () => parseWorksheetIntoBlocks(worksheetMarkdown),
@@ -2665,11 +2883,11 @@ export default function TaoGiaoTrinhClientPage({
     }
   }, [editOriginalText, editEditedText, editMatchStatus, curriculumMarkdown, handleApplyEditFromSheet, tr, toast])
 
-  const handleSaveWorksheetBlockEdit = useCallback(async (opts?: { skipAiCheck?: boolean; contentOverride?: string }) => {
+  const handleSaveWorksheetBlockEdit = useCallback(async () => {
     const blockIdx = worksheetEditBlockIndex
     if (blockIdx == null || blockIdx < 0 || blockIdx >= worksheetEditBlocks.length) return
     const block = worksheetEditBlocks[blockIdx]
-    const edited = opts?.contentOverride ?? worksheetEditBlockContent
+    const edited = worksheetEditBlockContent
     if (!worksheetId) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Phiếu bài tập chưa được lưu nên chưa thể sửa.', 'Worksheet is not saved yet, cannot edit now.', '练习尚未保存，暂无法编辑。', 'ワークシート未保存のため編集できません。', '워크시트가 아직 저장되지 않아 수정할 수 없습니다.'), variant: 'destructive' })
       return
@@ -2678,84 +2896,14 @@ export default function TaoGiaoTrinhClientPage({
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nội dung câu quá ngắn.', 'Question content is too short.', '题目内容太短。', '問題の内容が短すぎます。', '문제 내용이 너무 짧습니다.'), variant: 'destructive' })
       return
     }
-    const originalContent = worksheetMarkdown.slice(block.startOffset, block.endOffset)
-    if (originalContent === edited) {
+    if (worksheetMarkdown.slice(block.startOffset, block.endOffset) === edited) {
       setWorksheetEditBlockIndex(null)
       setWorksheetEditBlockContent('')
       return
     }
-    const skipAiCheck = opts?.skipAiCheck === true
 
     setWorksheetEditSaving(true)
     try {
-      if (!skipAiCheck) {
-        if (worksheetEditImages.length > 0) {
-          const blockType = block?.type ?? 'quiz'
-          const fdCheck = new FormData()
-          fdCheck.append('content', edited)
-          fdCheck.append('blockType', blockType)
-          fdCheck.append('curriculum', curriculumMarkdown.slice(0, 4000))
-          worksheetEditImages.forEach((f) => fdCheck.append('images', f))
-          const checkRes = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fdCheck })
-          const checkData = await checkRes.json().catch(() => ({}))
-          if (checkData.error) {
-            toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: checkData.error, variant: 'destructive' })
-            return
-          }
-          setWorksheetEditCheckResult({ issues: checkData.issues ?? [], correctedContent: checkData.correctedContent ?? null })
-          if (Array.isArray(checkData.issues) && checkData.issues.length > 0) {
-            toast({
-              title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
-              description: tr('Có lỗi theo ảnh đính kèm. Vui lòng sửa rồi lưu lại.', 'There are issues based on attached images. Please fix and save again.', '根据附图检测到问题，请修改后再保存。', '添付画像ベースで問題が見つかりました。修正して再保存してください。', '첨부 이미지 기준 오류가 있습니다. 수정 후 다시 저장하세요.'),
-              variant: 'destructive',
-            })
-            return
-          }
-        } else {
-        const CONTEXT_CHARS = 250
-        const contextStart = Math.max(0, block.startOffset - CONTEXT_CHARS)
-        const originalRegion = worksheetMarkdown.slice(contextStart, block.endOffset)
-        const editedRegion = worksheetMarkdown.slice(contextStart, block.startOffset) + edited
-
-        const res = await fetch('/api/curriculum-edit-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ originalRegion, editedRegion }),
-        })
-        const data = await res.json().catch(() => ({}))
-        const rc = data.regionCompare
-        const canSave = !!(data.ok && data.bothAgree && rc?.correctVersion === 'edited')
-        if (!canSave) {
-          let restored = toEditableBlockContent(originalContent, block.type)
-          if (worksheetId) {
-            try {
-              const res = await fetch(`/api/worksheet/${encodeURIComponent(worksheetId)}`)
-              const data = await res.json().catch(() => ({}))
-              const list = Array.isArray(data?.questions) ? data.questions as Array<{ type?: string; content_json?: unknown }> : []
-              const sameTypeIdx = worksheetEditBlocks.slice(0, blockIdx + 1).filter((b) => b.type === block.type).length - 1
-              const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
-              if (row && block.type === 'essay') {
-                const heading = (restored.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
-                const problem = latexToReadable(getEssayProblem(row.content_json) || '')
-                const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
-                restored = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
-              }
-            } catch {
-              /* fallback dùng markdown hiện tại */
-            }
-          }
-          setWorksheetEditBlockContent(restored)
-          setWorksheetEditCheckResult(null)
-          toast({
-            title: tr('Chưa lưu', 'Not saved', '未保存', '未保存', '저장 안 됨'),
-            description: (data.reasonNotSaved || rc?.explanation || tr('AI chưa đồng ý bản sửa.', 'AI did not approve this edit.', 'AI尚未同意该修改。', 'AIがこの編集を承認していません。', 'AI가 이 수정을 승인하지 않았습니다.')) + ' ' + tr('Đã hoàn nguyên nội dung gốc.', 'Reverted to original content.', '已恢复原内容。', '元の内容に戻しました。', '원본 내용으로 복원했습니다.'),
-            variant: 'destructive',
-          })
-          return
-        }
-        }
-      }
-
       const newMarkdown = replaceBlockInMarkdown(worksheetMarkdown, block, edited)
       const fd = new FormData()
       fd.append('worksheetId', worksheetId)
@@ -2771,74 +2919,22 @@ export default function TaoGiaoTrinhClientPage({
       )
       setWorksheetEditBlockIndex(null)
       setWorksheetEditBlockContent('')
-      setWorksheetEditImages([])
-      setWorksheetEditCheckResult(null)
       toast({
         title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
         description: saveRes.personal
           ? tr(
-              'Đã lưu bản của bạn. Bản chung đổi khi 7 giáo viên khác đồng ý.',
-              'Saved your copy. The shared question changes after 7 other teachers agree.',
-              '已保存你的版本。另外 7 位老师同意后，共用题目才会改变。',
-              'あなたの版を保存しました。共有問題は他の教師7人が同意してから変わります。',
-              '내 버전을 저장했습니다. 다른 교사 7명이 동의하면 공유 문제가 바뀝니다.'
+              'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa. 7 người không duyệt thì giữ bản gốc.',
+              'Saved your edit. You use it now. Later people can read both versions. 7 approvals replace the original. 7 rejections keep it.',
+              '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。7 人通过则采用修改。7 人不通过则保留原版。',
+              '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。7人が承認すると修正版を採用し、7人が不承認なら元の版を残します。',
+              '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 7명이 승인하면 수정본을 쓰고, 7명이 거절하면 원본을 유지합니다.'
             )
-          : skipAiCheck
-            ? tr('Đã áp dụng sửa và lưu.', 'Applied fixes and saved.', '已应用修改并保存。', '修正を適用して保存しました。', '수정 적용 후 저장했습니다.')
-            : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
+          : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
       })
     } finally {
       setWorksheetEditSaving(false)
     }
-  }, [worksheetEditBlockIndex, worksheetEditBlockContent, worksheetEditBlocks, worksheetEditImages, worksheetMarkdown, worksheetId, curriculumMarkdown, tr, toast])
-
-  const handleCheckWorksheetBlock = useCallback(async () => {
-    const content = worksheetEditBlockContent.trim()
-    if (!content || content.length < 5) {
-      toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Nội dung câu quá ngắn.', 'Content too short.', '内容太短。', '内容が短すぎます。', '내용이 너무 짧습니다.'), variant: 'destructive' })
-      return
-    }
-    const blockIdx = worksheetEditBlockIndex
-    const block = blockIdx != null ? worksheetEditBlocks[blockIdx] : null
-    const blockType = block?.type ?? 'quiz'
-    setWorksheetEditCheckLoading(true)
-    setWorksheetEditCheckResult(null)
-    try {
-      let res: Response
-      if (worksheetEditImages.length > 0) {
-        const fd = new FormData()
-        fd.append('content', content)
-        fd.append('blockType', blockType)
-        fd.append('curriculum', curriculumMarkdown.slice(0, 4000))
-        worksheetEditImages.forEach((f) => fd.append('images', f))
-        res = await fetch('/api/worksheet-edit-check', { method: 'POST', body: fd })
-      } else {
-        res = await fetch('/api/worksheet-edit-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            content,
-            blockType,
-            curriculum: curriculumMarkdown.slice(0, 4000),
-          }),
-        })
-      }
-      const data = await res.json().catch(() => ({}))
-      if (data.error) {
-        toast({ title: tr('Lỗi kiểm tra', 'Check failed', '检查失败', 'チェック失敗', '검사 실패'), description: data.error, variant: 'destructive' })
-        return
-      }
-      setWorksheetEditCheckResult({
-        issues: data.issues ?? [],
-        correctedContent: data.correctedContent ?? null,
-      })
-      if (!data.issues?.length) {
-        toast({ title: tr('Không có lỗi', 'No issues', '无问题', '問題なし', '문제 없음'), description: tr('Câu đã đúng, có thể lưu.', 'Question is correct, you can save.', '题目正确，可以保存。', '問題は正しいです。保存できます。', '문제가 맞습니다. 저장하세요.'), duration: 2000 })
-      }
-    } finally {
-      setWorksheetEditCheckLoading(false)
-    }
-  }, [worksheetEditBlockIndex, worksheetEditBlockContent, worksheetEditBlocks, worksheetEditImages, curriculumMarkdown, tr, toast])
+  }, [worksheetEditBlockIndex, worksheetEditBlockContent, worksheetEditBlocks, worksheetMarkdown, worksheetId, tr, toast])
 
   const handleEscalateToAdmin = async (errorsToSend?: string[]) => {
     const errs = errorsToSend ?? regionCheckErrors
@@ -3271,7 +3367,13 @@ export default function TaoGiaoTrinhClientPage({
       const res = await fetch('/api/worksheet-extract-sgk', { method: 'POST', body: fd })
       const data = await res.json().catch(() => ({}))
       if (data.error) {
-        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data.error, variant: 'destructive' })
+        toast({
+          title: data.code === 'INSUFFICIENT_CREDITS'
+            ? tr('Không đủ credits', 'Not enough credits', '积分不足', 'クレジット不足', '크레딧 부족')
+            : tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
+          description: data.code === 'INSUFFICIENT_CREDITS' ? insufficientCreditDescription(data) : data.error,
+          variant: 'destructive',
+        })
         return
       }
       const jobId = data.jobId
@@ -3309,6 +3411,7 @@ export default function TaoGiaoTrinhClientPage({
             description: tr('Đã tách', 'Extracted', '已提取', '抽出済み', '추출 완료') + ` ${r.addedCount ?? 0} ${tr('câu vào phiếu', 'questions to worksheet', '道题到练习', '問を追加', '문항 추가됨')}`,
             duration: 3000,
           })
+          setWsAiQuotaNonce((n) => n + 1)
           scrollToWorksheetSection()
           break
         }
@@ -3325,22 +3428,28 @@ export default function TaoGiaoTrinhClientPage({
     }
   }
 
-  const runCreateStepByStep = async (type: 'quiz' | 'essay') => {
+  const runCreateStepRows = async () => {
     if (wsStepByStepSubmitLockRef.current) return
     if (!curriculumMarkdown.trim()) {
       toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: tr('Vui lòng tạo giáo trình trước.', 'Please create curriculum first.', '请先创建课程。', '先にカリキュラムを作成してください。', '먼저 교육과정을 만드세요.'), variant: 'destructive' })
       return
     }
-    const quizCount = Math.max(0, Math.min(wsStepByStepQuizCount, 20))
-    const essayCount = Math.max(0, Math.min(wsStepByStepEssayCount, 10))
-    const count = type === 'quiz' ? quizCount : essayCount
-    const diff = type === 'quiz' ? wsStepByStepQuizDiff : wsStepByStepEssayBloom
-    if (count === 0) {
+    const quizTotal: Record<string, number> = { easy: 0, medium: 0, hard: 0 }
+    const essayTotal: Record<string, number> = { 'nhan-biet': 0, 'thong-hieu': 0, 'van-dung-thap': 0, 'van-dung-cao': 0, 'thuc-te': 0 }
+    for (const d of WS_QUIZ_DIFFS) quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
+    for (const d of WS_ESSAY_BLOOMS) essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
+    const batch = wsStepRows
+      .map((row) => {
+        const totals = row.kind === 'quiz' ? quizTotal : essayTotal
+        const slots = Math.max(0, wsStepCap(row.kind) - (totals[row.difficulty] ?? 0))
+        const count = Math.max(0, Math.min(Math.floor(row.count) || 0, wsStepBatchMax(row.kind), slots))
+        return { ...row, count }
+      })
+      .filter((row) => row.count > 0)
+    if (batch.length === 0) {
       toast({
         title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'),
-        description: type === 'quiz'
-          ? tr('Nhập số câu trắc nghiệm ≥ 1.', 'Enter quiz count ≥ 1.', '输入选择题数≥1。', 'クイズ数を1以上。', '퀴즈 수 ≥ 1 입력.')
-          : tr('Nhập số bài tự luận ≥ 1.', 'Enter essay count ≥ 1.', '输入主观题数≥1。', '記述式数を1以上。', '서술형 수 ≥ 1 입력.'),
+        description: tr('Nhập số câu ≥ 1 cho ít nhất một loại.', 'Enter a count ≥ 1 for at least one type.', '至少一种题型的题数≥1。', '少なくとも1種類は1問以上。', '최소 한 유형은 1문항 이상 입력하세요.'),
         variant: 'destructive',
       })
       return
@@ -3354,82 +3463,200 @@ export default function TaoGiaoTrinhClientPage({
       const c = curRes?.curriculum as { lesson_topics?: string[] } | undefined
       lessonTopics = Array.isArray(c?.lesson_topics) && c.lesson_topics.length >= 1 ? c.lesson_topics : undefined
     }
+    const sessionQuiz: Record<string, number> = {
+      easy: wsStepByStepSessionCounts.quiz?.easy ?? 0,
+      medium: wsStepByStepSessionCounts.quiz?.medium ?? 0,
+      hard: wsStepByStepSessionCounts.quiz?.hard ?? 0,
+    }
+    const sessionEssay: Record<string, number> = {
+      'nhan-biet': wsStepByStepSessionCounts.essay?.['nhan-biet'] ?? 0,
+      'thong-hieu': wsStepByStepSessionCounts.essay?.['thong-hieu'] ?? 0,
+      'van-dung-thap': wsStepByStepSessionCounts.essay?.['van-dung-thap'] ?? 0,
+      'van-dung-cao': wsStepByStepSessionCounts.essay?.['van-dung-cao'] ?? 0,
+      'thuc-te': wsStepByStepSessionCounts.essay?.['thuc-te'] ?? 0,
+    }
+    let finished = 0
+    let lastWorksheetId: string | null = null
+    const report: WsCreateReportRow[] = []
+    let stopRest = false
+    const notSentReason = tr(
+      'Chưa gửi. Cần tạo lại.',
+      'Not sent. Create again.',
+      '未发送。需要重新创建。',
+      '未送信。再作成が必要。',
+      '보내지 않음. 다시 만들어야 합니다.'
+    )
     try {
-      const res = await fetch('/api/worksheet-submit-job', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: type === 'quiz' ? 'quiz' : 'essay',
-          count,
-          curriculumMarkdown,
-          topic: displayTopic,
-          subjectId,
-          gradeLevelId,
-          curriculumId,
-          lessonTopics,
-          difficulty: diff,
-          sessionQuizCountByDiff: { easy: wsStepByStepSessionCounts.quiz?.easy ?? 0, medium: wsStepByStepSessionCounts.quiz?.medium ?? 0, hard: wsStepByStepSessionCounts.quiz?.hard ?? 0 },
-          sessionEssayCountByBloom: { 'nhan-biet': wsStepByStepSessionCounts.essay?.['nhan-biet'] ?? 0, 'thong-hieu': wsStepByStepSessionCounts.essay?.['thong-hieu'] ?? 0, 'van-dung-thap': wsStepByStepSessionCounts.essay?.['van-dung-thap'] ?? 0, 'van-dung-cao': wsStepByStepSessionCounts.essay?.['van-dung-cao'] ?? 0, 'thuc-te': wsStepByStepSessionCounts.essay?.['thuc-te'] ?? 0 },
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (data.error) {
-        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: data.error, variant: 'destructive' })
-        return
-      }
-      const jobId = data.jobId
-      if (!jobId) {
-        toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: 'Không nhận được jobId', variant: 'destructive' })
-        return
-      }
-      try {
-        localStorage.setItem(WS_ACTIVE_JOB_KEY, JSON.stringify({ jobId, type: type === 'quiz' ? 'step_by_step_quiz' : 'step_by_step_essay', curriculumId, curriculumMarkdown }))
-      } catch {}
-      toast({
-        title: tr('Đang xử lý nền', 'Processing in background', '后台处理中', 'バックグラウンド処理中', '백그라운드 처리 중'),
-        description: tr('Bạn có thể đóng trang. Quay lại để xem kết quả.', 'You can close the page. Return to see results.', '可关闭页面，稍后查看结果。', 'ページを閉じても大丈夫。後で結果を確認。', '페이지를 닫아도 됩니다. 나중에 결과 확인.'),
-        duration: 5000,
-      })
-      setWsStepByStepStatus(tr('Đang tạo câu hỏi...', 'Creating questions...', '创建题目中...', '問題作成中...', '문항 생성 중...'))
-      while (true) {
-        const st = await pollJobStatus(jobId)
-        if (st.status === 'completed' && st.result) {
-          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
-          const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; questionIds?: string[] }
-          setWorksheetMarkdown(r.worksheetMarkdown ?? '')
-          setWorksheetId(r.worksheetId ?? null)
-          setWsStepByStepQuestionIds(r.questionIds ?? [])
-          resetWorksheetEditState()
-          if (r.worksheetId) {
-            void triggerWorksheetVerify(r.worksheetId, curriculumMarkdown)
-          }
-          if (curriculumId) {
-            const wsRes = await getWorksheetsByCurriculumId(curriculumId)
-            if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
-          }
-          setWsStepByStepExpanded(true)
-          setWsStepByStepSessionCounts({ quiz: {}, essay: {} })
-          if (curriculumId) {
-            fetch(`/api/worksheet-question-counts?curriculumId=${encodeURIComponent(curriculumId)}`)
-              .then((r) => r.json())
-              .then((d) => { if (d.quiz && d.essay) setWsStepByStepCounts({ quiz: d.quiz, essay: d.essay }) })
-              .catch(() => {})
-          }
-          toast({
-            title: tr('Thành công!', 'Success!', '成功！', '成功', '성공!'),
-            description: tr('Phiếu bài tập đã tạo từng câu và lưu.', 'Worksheet created from individual questions and saved.', '练习已逐题创建并保存。', '1問ずつ作成して保存しました。', '문항별로 생성 후 저장했습니다.'),
-            duration: 3000,
+      for (let i = 0; i < batch.length; i++) {
+        const row = batch[i]
+        const label = `${stepKindLabel(row.kind)} ${stepDiffLabel(row.kind, row.difficulty)}`
+        const counted = `${row.count} ${label}`
+        if (stopRest) {
+          report.push({
+            id: row.id,
+            kind: row.kind,
+            difficulty: row.difficulty,
+            label,
+            requested: row.count,
+            created: 0,
+            status: 'skipped',
+            reason: notSentReason,
           })
-          scrollToWorksheetSection()
-          break
+          continue
         }
-        if (st.status === 'failed') {
-          try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
-          toast({ title: tr('Lỗi', 'Error', '错误', 'エラー', '오류'), description: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'), variant: 'destructive' })
-          break
+        setWsStepByStepStatus(tr(
+          `Đang tạo ${counted} (${i + 1}/${batch.length})...`,
+          `Creating ${counted} (${i + 1}/${batch.length})...`,
+          `正在创建 ${counted}（${i + 1}/${batch.length}）...`,
+          `${counted} を作成中（${i + 1}/${batch.length}）...`,
+          `${counted} 생성 중 (${i + 1}/${batch.length})...`
+        ))
+        const res = await fetch('/api/worksheet-submit-job', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: row.kind === 'quiz' ? 'quiz' : 'essay',
+            count: row.count,
+            curriculumMarkdown,
+            topic: displayTopic,
+            subjectId,
+            gradeLevelId,
+            curriculumId,
+            lessonTopics,
+            difficulty: row.difficulty,
+            sessionQuizCountByDiff: sessionQuiz,
+            sessionEssayCountByBloom: sessionEssay,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (data.error) {
+          const creditStop = data.code === 'INSUFFICIENT_CREDITS'
+          report.push({
+            id: row.id,
+            kind: row.kind,
+            difficulty: row.difficulty,
+            label,
+            requested: row.count,
+            created: 0,
+            status: 'failed',
+            reason: creditStop ? insufficientCreditDescription(data) : String(data.error),
+          })
+          if (creditStop) stopRest = true
+          continue
         }
-        await new Promise((r) => setTimeout(r, 3000))
+        const jobId = data.jobId
+        if (!jobId) {
+          report.push({
+            id: row.id,
+            kind: row.kind,
+            difficulty: row.difficulty,
+            label,
+            requested: row.count,
+            created: 0,
+            status: 'failed',
+            reason: tr('Không nhận được job.', 'No job id returned.', '未收到任务编号。', 'ジョブIDが返りませんでした。', '작업 번호를 받지 못했습니다.'),
+          })
+          continue
+        }
+        try {
+          localStorage.setItem(WS_ACTIVE_JOB_KEY, JSON.stringify({ jobId, type: row.kind === 'quiz' ? 'step_by_step_quiz' : 'step_by_step_essay', curriculumId, curriculumMarkdown }))
+        } catch {}
+        if (i === 0) {
+          toast({
+            title: tr('Đang xử lý nền', 'Processing in background', '后台处理中', 'バックグラウンド処理中', '백그라운드 처리 중'),
+            description: tr('Bạn có thể đóng trang. Quay lại để xem kết quả.', 'You can close the page. Return to see results.', '可关闭页面，稍后查看结果。', 'ページを閉じても大丈夫。後で結果を確認。', '페이지를 닫아도 됩니다. 나중에 결과 확인.'),
+            duration: 5000,
+          })
+        }
+        let outcome: WsCreateReportRow | null = null
+        while (true) {
+          const st = await pollJobStatus(jobId)
+          if (st.status === 'completed' && st.result) {
+            try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+            const r = st.result as { worksheetId?: string; worksheetMarkdown?: string; questionIds?: string[] }
+            const created = Array.isArray(r.questionIds) ? r.questionIds.length : 0
+            setWorksheetMarkdown(r.worksheetMarkdown ?? '')
+            setWorksheetId(r.worksheetId ?? null)
+            setWsStepByStepQuestionIds(r.questionIds ?? [])
+            resetWorksheetEditState()
+            lastWorksheetId = r.worksheetId ?? lastWorksheetId
+            if (created > 0) {
+              if (row.kind === 'quiz') sessionQuiz[row.difficulty] = (sessionQuiz[row.difficulty] ?? 0) + created
+              else sessionEssay[row.difficulty] = (sessionEssay[row.difficulty] ?? 0) + created
+              setWsStepByStepSessionCounts({ quiz: { ...sessionQuiz }, essay: { ...sessionEssay } })
+              finished += 1
+            }
+            outcome = {
+              id: row.id,
+              kind: row.kind,
+              difficulty: row.difficulty,
+              label,
+              requested: row.count,
+              created,
+              status: created > 0 ? 'created' : 'failed',
+              reason: created >= row.count
+                ? ''
+                : created > 0
+                  ? tr(
+                    `Chỉ tạo được ${created}/${row.count} câu.`,
+                    `Only ${created}/${row.count} were created.`,
+                    `只创建了 ${created}/${row.count} 题。`,
+                    `${row.count}問中${created}問だけ作成されました。`,
+                    `${row.count}문항 중 ${created}문항만 만들었습니다.`
+                  )
+                  : tr('Job xong nhưng không có câu nào.', 'Job finished with no questions.', '任务完成但没有题目。', 'ジョブは完了しましたが問題がありません。', '작업은 끝났지만 문항이 없습니다.'),
+            }
+            break
+          }
+          if (st.status === 'failed') {
+            try { localStorage.removeItem(WS_ACTIVE_JOB_KEY) } catch {}
+            outcome = {
+              id: row.id,
+              kind: row.kind,
+              difficulty: row.difficulty,
+              label,
+              requested: row.count,
+              created: 0,
+              status: 'failed',
+              reason: st.error || tr('Xử lý thất bại', 'Processing failed', '处理失败', '処理失敗', '처리 실패'),
+            }
+            break
+          }
+          await new Promise((resolve) => setTimeout(resolve, 3000))
+        }
+        if (outcome) report.push(outcome)
       }
+      setWsCreateReport(report)
+      if (finished > 0) {
+        if (lastWorksheetId) void triggerWorksheetVerify(lastWorksheetId, curriculumMarkdown)
+        if (curriculumId) {
+          const wsRes = await getWorksheetsByCurriculumId(curriculumId)
+          if (wsRes && 'items' in wsRes) setCurriculumWorksheets(compactWorksheetList((wsRes.items ?? []) as CurriculumWorksheetListItem[]))
+          fetch(`/api/worksheet-question-counts?curriculumId=${encodeURIComponent(curriculumId)}`)
+            .then((r) => r.json())
+            .then((d) => { if (d.quiz && d.essay) setWsStepByStepCounts({ quiz: d.quiz, essay: d.essay }) })
+            .catch(() => {})
+        }
+        setWsStepByStepExpanded(true)
+        setWsStepByStepSessionCounts({ quiz: {}, essay: {} })
+        setWsAiQuotaNonce((n) => n + 1)
+        scrollToWorksheetSection()
+      }
+      const made = report.filter((row) => row.created > 0).length
+      const missing = report.filter((row) => row.created < row.requested).length
+      toast({
+        title: missing === 0
+          ? tr('Thành công!', 'Success!', '成功！', '成功', '성공!')
+          : tr('Báo cáo đã có', 'Report ready', '报告已出', '報告ができました', '보고서가 준비되었습니다'),
+        description: tr(
+          `Đã tạo ${made} loại. Cần tạo lại ${missing} loại.`,
+          `Created ${made} types. ${missing} types need another run.`,
+          `已创建 ${made} 种。还有 ${missing} 种需要重做。`,
+          `${made}種類を作成。${missing}種類は再作成が必要。`,
+          `${made}유형을 만들었습니다. ${missing}유형은 다시 만들어야 합니다.`
+        ),
+        duration: 6000,
+      })
     } finally {
       wsStepByStepSubmitLockRef.current = false
       setWsStepByStepLoading(false)
@@ -3437,11 +3664,41 @@ export default function TaoGiaoTrinhClientPage({
     }
   }
 
+  const renderWorksheetSection = (type: 'quiz' | 'essay', emptyLabel: string) => {
+    const blocks = worksheetEditBlocks
+      .map((block, globalIdx) => ({ block, globalIdx }))
+      .filter((item) => item.block.type === type)
+    if (!blocks.length) return emptyLabel
+    return (
+      <div className="space-y-3">
+        {blocks.map(({ block, globalIdx }) => {
+          const proposal = worksheetProposalById.get(worksheetQuestionIds[globalIdx] ?? '')
+          if (proposal) {
+            return (
+              <WorksheetQuestionCompare
+                key={proposal.questionId}
+                item={proposal}
+                locale={uiLocale}
+                busy={worksheetProposalBusyId === proposal.questionId}
+                onVote={(choice) => void voteWorksheetProposal(proposal.questionId, choice)}
+              />
+            )
+          }
+          const text = latexToReadable(stripWorksheetAnswerSections(block.content)).trim()
+          if (!text) return null
+          return (
+            <div key={`${type}-${globalIdx}`} className="whitespace-pre-wrap">
+              {text}
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
   return (
     <>
       <Toaster />
-      <WorksheetQuestionProposals worksheetId={worksheetId ?? ''} locale={uiLocale} />
       <SlideVersionDialog
         open={showSlideVersionDialog}
         onOpenChange={handleSlideVersionDialogOpenChange}
@@ -3449,6 +3706,14 @@ export default function TaoGiaoTrinhClientPage({
         onChoose={handleSlideVersionChoose}
         tr={tr}
       />
+      <Dialog open={wsCreateReport !== null} onOpenChange={(open) => { if (!open) setWsCreateReport(null) }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{tr('Báo cáo lần tạo này', 'This run', '本次创建报告', '今回の作成報告', '이번 생성 보고')}</DialogTitle>
+          </DialogHeader>
+          {wsCreateReport ? <WorksheetCreateReport report={wsCreateReport} tr={tr} onFillRetry={(rows) => { setWsStepRows(rows); setWsCreateReport(null) }} /> : null}
+        </DialogContent>
+      </Dialog>
       <Dialog open={lessonSelectOpen} onOpenChange={handleLessonSelectOpenChange}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -4655,99 +4920,245 @@ export default function TaoGiaoTrinhClientPage({
                         ) : (
                           <>
                             {tr('Tách và thêm vào phiếu', 'Extract and add to worksheet', '提取并添加到练习', '抽出して追加', '추출 후 추가')}
-                            {creditLabel(CURRICULUM_UI_CREDITS.sgkExtractJob)}
+                            {quoteSgkExtract({
+                              curriculumExtracts: wsAiQuota.sgkCurriculumExtracts,
+                              hasCurriculum: Boolean(curriculumId),
+                            }).waived
+                              ? ` (${freeWord})`
+                              : creditLabel(CURRICULUM_UI_CREDITS.sgkExtractJob)}
                           </>
                         )}
                       </Button>
+                      <p className="basis-full text-xs text-amber-800/80 dark:text-amber-200/80">
+                        {tr(
+                          'Mỗi giáo trình được tách ảnh SGK miễn phí một lần. Tách lại tính 1 credit.',
+                          'Each curriculum gets one free SGK extract. Running it again costs 1 credit.',
+                          '每份课程可免费提取一次教材图片。再次提取收取 1 积分。',
+                          '各カリキュラムでSGK抽出は1回無料。再実行は1クレジット。',
+                          '교육과정마다 SGK 추출은 한 번 무료입니다. 다시 추출하면 1크레딧입니다.'
+                        )}
+                      </p>
                     </div>
                   </div>
                 )}
                 {wsStepByStepExpanded && curriculumMarkdown && (() => {
-                  const QUIZ_LIMIT = 10
-                  const ESSAY_LIMIT = 6
                   const quizTotal: Record<string, number> = { easy: 0, medium: 0, hard: 0 }
                   const essayTotal: Record<string, number> = { 'nhan-biet': 0, 'thong-hieu': 0, 'van-dung-thap': 0, 'van-dung-cao': 0, 'thuc-te': 0 }
-                  for (const d of ['easy', 'medium', 'hard']) {
+                  for (const d of WS_QUIZ_DIFFS) {
                     quizTotal[d] = (wsStepByStepCounts?.quiz?.[d] ?? 0) + (wsStepByStepSessionCounts.quiz?.[d] ?? 0)
                   }
-                  for (const d of ['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te']) {
+                  for (const d of WS_ESSAY_BLOOMS) {
                     essayTotal[d] = (wsStepByStepCounts?.essay?.[d] ?? 0) + (wsStepByStepSessionCounts.essay?.[d] ?? 0)
                   }
-                  const quizAvailable = (['easy', 'medium', 'hard'] as const).filter((d) => quizTotal[d] < QUIZ_LIMIT)
-                  const essayAvailable = (['nhan-biet', 'thong-hieu', 'van-dung-thap', 'van-dung-cao', 'thuc-te'] as const).filter((d) => essayTotal[d] < ESSAY_LIMIT)
-                  const quizSlotsLeft = quizAvailable.includes(wsStepByStepQuizDiff) ? QUIZ_LIMIT - quizTotal[wsStepByStepQuizDiff] : 0
-                  const essaySlotsLeft = essayAvailable.includes(wsStepByStepEssayBloom) ? ESSAY_LIMIT - essayTotal[wsStepByStepEssayBloom] : 0
-                  const quizCountMax = Math.min(20, quizSlotsLeft)
-                  const essayCountMax = Math.min(10, essaySlotsLeft)
-                  const quizCountVal = Math.min(wsStepByStepQuizCount, quizCountMax)
-                  const essayCountVal = Math.min(wsStepByStepEssayCount, essayCountMax)
-                  const quizLabels: Record<string, string> = { easy: tr('Dễ', 'Easy', '简单', '易', '쉬움'), medium: tr('Trung bình', 'Medium', '中等', '中', '보통'), hard: tr('Khó', 'Hard', '困难', '難', '어려움') }
-                  const essayLabels: Record<string, string> = { 'nhan-biet': tr('Nhận biết', 'Recall', '识记', '知識', '인지'), 'thong-hieu': tr('Thông hiểu', 'Understand', '理解', '理解', '이해'), 'van-dung-thap': tr('Vận dụng thấp', 'Apply (low)', '应用（低）', '応用（低）', '적용(하)'), 'van-dung-cao': tr('Vận dụng cao', 'Apply (high)', '应用（高）', '応用（高）', '적용(상)'), 'thuc-te': tr('Thực tế', 'Real-world', '实际', '実践', '실전') }
+                  const totalsFor = (kind: WsStepKind) => (kind === 'quiz' ? quizTotal : essayTotal)
+                  const openDiff = (kind: WsStepKind, exceptId?: string) =>
+                    wsStepDiffs(kind).find((d) =>
+                      (totalsFor(kind)[d] ?? 0) < wsStepCap(kind)
+                      && !wsStepRows.some((row) => row.id !== exceptId && row.kind === kind && row.difficulty === d)
+                    )
+                  const canAddType = Boolean(openDiff('quiz') || openDiff('essay'))
+                  let quizCreatedCursor = wsAiQuota.quizCurriculumCreated
+                  let essayCreatedCursor = wsAiQuota.essayCurriculumCreated
+                  const planned = wsStepRows.map((row) => {
+                    const cap = wsStepCap(row.kind)
+                    const slots = Math.max(0, cap - (totalsFor(row.kind)[row.difficulty] ?? 0))
+                    const max = Math.min(wsStepBatchMax(row.kind), slots)
+                    const count = Math.max(0, Math.min(row.count, max))
+                    const created = row.kind === 'quiz' ? quizCreatedCursor : essayCreatedCursor
+                    const quote = quoteWorksheetQuestionBatch({
+                      requested: count,
+                      curriculumCreated: created,
+                      hasCurriculum: Boolean(curriculumId),
+                    })
+                    const phrase = count > 0 ? questionQuotePhrase(count, created) : ''
+                    if (row.kind === 'quiz') quizCreatedCursor += count
+                    else essayCreatedCursor += count
+                    const options = wsStepDiffs(row.kind).filter((d) =>
+                      d === row.difficulty
+                      || (
+                        (totalsFor(row.kind)[d] ?? 0) < cap
+                        && !wsStepRows.some((other) => other.id !== row.id && other.kind === row.kind && other.difficulty === d)
+                      )
+                    )
+                    return { ...row, count, max, phrase, quote, options }
+                  })
+                  const active = planned.filter((row) => row.count > 0)
+                  const planLines = active.map((row) => ({
+                    id: row.id,
+                    text: `${row.count} ${stepKindLabel(row.kind)} ${stepDiffLabel(row.kind, row.difficulty)} — ${row.phrase}`,
+                  }))
+                  const quizBatchCount = active.filter((row) => row.kind === 'quiz').reduce((sum, row) => sum + row.count, 0)
+                  const essayBatchCount = active.filter((row) => row.kind === 'essay').reduce((sum, row) => sum + row.count, 0)
+                  const createSummary = [
+                    quizBatchCount > 0 ? `${quizBatchCount} ${stepKindLabel('quiz')}` : '',
+                    essayBatchCount > 0 ? `${essayBatchCount} ${stepKindLabel('essay')}` : '',
+                  ].filter(Boolean).join(' + ')
+                  const totalFree = active.reduce((sum, row) => sum + row.quote.free, 0)
+                  const totalCredits = active.reduce((sum, row) => sum + row.quote.credits, 0)
+                  const totalPhrase = active.length === 0
+                    ? ''
+                    : totalCredits <= 0
+                      ? freeWord
+                      : totalFree <= 0
+                        ? `${formatCurriculumCredits(totalCredits)} ${creditsWord}`
+                        : `${totalFree} ${freeWord} + ${formatCurriculumCredits(totalCredits)} ${creditsWord}`
+                  const addStepRow = () => {
+                    const quizPick = openDiff('quiz')
+                    const essayPick = openDiff('essay')
+                    const kind: WsStepKind = quizPick ? 'quiz' : 'essay'
+                    const difficulty = quizPick ?? essayPick
+                    if (!difficulty) return
+                    const slots = Math.max(0, wsStepCap(kind) - (totalsFor(kind)[difficulty] ?? 0))
+                    setWsStepRows((prev) => [
+                      ...prev,
+                      {
+                        id: `ws-${Date.now().toString(36)}-${prev.length}`,
+                        kind,
+                        difficulty,
+                        count: Math.min(1, slots) || 1,
+                      },
+                    ])
+                  }
                   return (
                   <div className="mb-4 space-y-3">
                     <p className="text-xs text-violet-600/90 dark:text-violet-400/90">
                       {tr('AI tạo từng câu, kiểm tra từng câu. Chất lượng cao hơn.', 'AI creates each question, verifies each. Higher quality.', 'AI逐题创建并逐题验证。质量更高。', 'AIが1問ずつ作成・検証。品質更高。', 'AI가 문항별 생성·검증. 품질 더 높음.')}
+                      {' '}
+                      {tr(
+                        'Giáo trình này được 5 câu trắc nghiệm và 5 bài tự luận miễn phí. Câu thêm 0,5 credit.',
+                        'This curriculum includes 5 free quiz questions and 5 free essays. Extra questions cost 0.5 credit.',
+                        '本课程含 5 道免费选择题和 5 道免费主观题。超出每题 0.5 积分。',
+                        'このカリキュラムはクイズ5問と記述5問が無料。追加は1問0.5クレジット。',
+                        '이 교육과정은 퀴즈 5문항과 서술형 5문항이 무료입니다. 추가 문항은 0.5크레딧입니다.'
+                      )}
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="p-4 rounded-lg border-2 border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20">
-                        <h4 className="text-sm font-semibold text-violet-800 dark:text-violet-200 mb-2">
-                          {tr('Trắc nghiệm', 'Quiz', '选择题', 'クイズ', '퀴즈')}
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                          <div>
-                            <label className="text-xs font-medium block mb-1">{tr('Số câu', 'Count', '数量', '数', '수')}</label>
-                            <Input type="number" min={0} max={quizCountMax} value={quizCountVal} onChange={(e) => setWsStepByStepQuizCount(Math.min(Number(e.target.value) || 0, quizCountMax))} className="h-8" disabled={quizAvailable.length === 0} />
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium block mb-1">{tr('Độ khó', 'Difficulty', '难度', '難易度', '난이도')}</label>
-                            <select value={quizAvailable.includes(wsStepByStepQuizDiff) ? wsStepByStepQuizDiff : (quizAvailable[0] ?? 'medium')} onChange={(e) => setWsStepByStepQuizDiff((quizAvailable.includes(e.target.value as 'easy'|'medium'|'hard') ? e.target.value : quizAvailable[0]) as 'easy'|'medium'|'hard')} className="h-8 w-full rounded-md border px-2 text-sm bg-background" disabled={quizAvailable.length === 0}>
-                              {quizAvailable.length === 0 ? <option>{tr('Đã đủ 10/10 mỗi loại', 'All types full (10/10)', '各类已满10/10', '各10/10で満了', '각 10/10 완료')}</option> : quizAvailable.map((d) => <option key={d} value={d}>{quizLabels[d]} ({quizTotal[d]}/{QUIZ_LIMIT})</option>)}
-                            </select>
+                    <p className="text-xs text-muted-foreground">
+                      {tr(
+                        'Thêm từng loại, điền số câu và độ khó. Một lần bấm chạy hết. Xong sẽ báo loại nào đã tạo, loại nào lỗi, loại nào cần tạo lại.',
+                        'Add each type, enter the count and difficulty. One click runs every row. The report then lists what was created, what failed, and what to create again.',
+                        '添加每种题型，填写题数和难度。一次点击会跑完每一行。完成后会列出已创建、失败和需要重做的题。',
+                        '種類を追加し、数と難易度を入れて一度に実行。完了後、作成済み・失敗・再作成が必要なものを報告します。',
+                        '유형을 추가하고 문항 수와 난이도를 입력한 뒤 한 번에 실행합니다. 끝나면 생성됨, 실패, 다시 만들 항목을 보고합니다.'
+                      )}
+                    </p>
+                    <div className="space-y-2">
+                      {planned.map((row) => (
+                        <div
+                          key={row.id}
+                          className={cn(
+                            'rounded-lg border-2 p-3',
+                            row.kind === 'quiz'
+                              ? 'border-violet-200 dark:border-violet-800 bg-violet-50/50 dark:bg-violet-950/20'
+                              : 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20'
+                          )}
+                        >
+                          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.1fr)_5.5rem_minmax(0,1.5fr)_auto] gap-2 items-end">
+                            <div>
+                              <label className="text-xs font-medium block mb-1">{tr('Loại câu hỏi', 'Question type', '题型', '問題の種類', '문항 유형')}</label>
+                              <select
+                                value={row.kind}
+                                disabled={wsStepByStepLoading}
+                                onChange={(e) => {
+                                  const kind = e.target.value === 'essay' ? 'essay' : 'quiz'
+                                  setWsStepRows((prev) => prev.map((item) => {
+                                    if (item.id !== row.id) return item
+                                    const totals = kind === 'quiz' ? quizTotal : essayTotal
+                                    const difficulty = wsStepDiffs(kind).find((d) =>
+                                      (totals[d] ?? 0) < wsStepCap(kind)
+                                      && !prev.some((other) => other.id !== item.id && other.kind === kind && other.difficulty === d)
+                                    ) ?? wsStepDiffs(kind)[0]
+                                    const slots = Math.max(0, wsStepCap(kind) - (totals[difficulty] ?? 0))
+                                    const max = Math.min(wsStepBatchMax(kind), slots)
+                                    return { ...item, kind, difficulty, count: Math.min(item.count, max) }
+                                  }))
+                                }}
+                                className="h-8 w-full rounded-md border px-2 text-sm bg-background"
+                              >
+                                <option value="quiz">{tr('Trắc nghiệm', 'Quiz', '选择题', 'クイズ', '퀴즈')}</option>
+                                <option value="essay">{tr('Tự luận', 'Essay', '主观题', '記述式', '서술형')}</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium block mb-1">{tr('Số câu', 'Count', '题数', '問題数', '문항 수')}</label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={row.max}
+                                value={row.count}
+                                disabled={wsStepByStepLoading || row.max === 0}
+                                onChange={(e) => {
+                                  const next = Math.max(0, Math.min(Number(e.target.value) || 0, row.max))
+                                  setWsStepRows((prev) => prev.map((item) => item.id === row.id ? { ...item, count: next } : item))
+                                }}
+                                className="h-8"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs font-medium block mb-1">
+                                {row.kind === 'quiz'
+                                  ? tr('Độ khó', 'Difficulty', '难度', '難易度', '난이도')
+                                  : tr('Dạng bài', 'Question level', '题型层次', '問題レベル', '문항 수준')}
+                              </label>
+                              <select
+                                value={row.difficulty}
+                                disabled={wsStepByStepLoading || row.options.length === 0}
+                                onChange={(e) => {
+                                  const difficulty = e.target.value
+                                  setWsStepRows((prev) => prev.map((item) => {
+                                    if (item.id !== row.id) return item
+                                    const slots = Math.max(0, wsStepCap(item.kind) - (totalsFor(item.kind)[difficulty] ?? 0))
+                                    const max = Math.min(wsStepBatchMax(item.kind), slots)
+                                    return { ...item, difficulty, count: Math.min(item.count, max) }
+                                  }))
+                                }}
+                                className="h-8 w-full rounded-md border px-2 text-sm bg-background"
+                              >
+                                {row.options.map((d) => (
+                                  <option key={d} value={d}>
+                                    {stepDiffLabel(row.kind, d)} ({totalsFor(row.kind)[d] ?? 0}/{wsStepCap(row.kind)})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              disabled={wsStepByStepLoading}
+                              title={tr('Xóa loại này', 'Remove this type', '删除此题型', 'この種類を削除', '이 유형 삭제')}
+                              onClick={() => setWsStepRows((prev) => prev.filter((item) => item.id !== row.id))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
-                        <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('quiz')} disabled={wsStepByStepLoading || quizAvailable.length === 0 || quizCountVal === 0} className="bg-violet-600 hover:bg-violet-700">
-                          {wsStepByStepLoading ? (
-                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
-                          ) : quizAvailable.length === 0 ? (
-                            tr('Đã đủ câu', 'All full', '已满', '満了', '완료')
-                          ) : (
-                            <>
-                              {tr('Tạo trắc nghiệm từng câu', 'Create quiz per question', '逐题创建选择题', '1問ずつクイズ作成', '문항별 퀴즈 생성')}
-                              {creditLabel(quizCountVal * CURRICULUM_UI_CREDITS.worksheetQuestion)}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      <div className="p-4 rounded-lg border-2 border-emerald-200 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20">
-                        <h4 className="text-sm font-semibold text-emerald-800 dark:text-emerald-200 mb-2">
-                          {tr('Tự luận', 'Essay', '主观题', '記述式', '서술형')}
-                        </h4>
-                        <div className="grid grid-cols-2 gap-2 mb-3">
-                          <div>
-                            <label className="text-xs font-medium block mb-1">{tr('Số bài', 'Count', '数量', '数', '수')}</label>
-                            <Input type="number" min={0} max={essayCountMax} value={essayCountVal} onChange={(e) => setWsStepByStepEssayCount(Math.min(Number(e.target.value) || 0, essayCountMax))} className="h-8" disabled={essayAvailable.length === 0} />
-                          </div>
-                          <div>
-                            <label className="text-xs font-medium block mb-1">{tr('Dạng bài', 'Question type', '题型', '問題タイプ', '문항 유형')}</label>
-                            <select value={essayAvailable.includes(wsStepByStepEssayBloom) ? wsStepByStepEssayBloom : (essayAvailable[0] ?? 'thong-hieu')} onChange={(e) => setWsStepByStepEssayBloom((essayAvailable.includes(e.target.value as typeof wsStepByStepEssayBloom) ? e.target.value : essayAvailable[0]) as typeof wsStepByStepEssayBloom)} className="h-8 w-full rounded-md border px-2 text-sm bg-background" disabled={essayAvailable.length === 0}>
-                              {essayAvailable.length === 0 ? <option>{tr('Đã đủ 6/6 mỗi loại', 'All types full (6/6)', '各类已满6/6', '各6/6で満了', '각 6/6 완료')}</option> : essayAvailable.map((d) => <option key={d} value={d}>{essayLabels[d]} ({essayTotal[d]}/{ESSAY_LIMIT})</option>)}
-                            </select>
-                          </div>
-                        </div>
-                        <Button variant="default" size="sm" onClick={() => void runCreateStepByStep('essay')} disabled={wsStepByStepLoading || essayAvailable.length === 0 || essayCountVal === 0} className="bg-emerald-600 hover:bg-emerald-700">
-                          {wsStepByStepLoading ? (
-                            tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
-                          ) : essayAvailable.length === 0 ? (
-                            tr('Đã đủ bài', 'All full', '已满', '満了', '완료')
-                          ) : (
-                            <>
-                              {tr('Tạo tự luận từng câu', 'Create essay per question', '逐题创建主观题', '1問ずつ記述式作成', '문항별 서술형 생성')}
-                              {creditLabel(essayCountVal * CURRICULUM_UI_CREDITS.worksheetQuestion)}
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      ))}
                     </div>
+                    <Button type="button" variant="outline" size="sm" onClick={addStepRow} disabled={wsStepByStepLoading || !canAddType}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      {canAddType
+                        ? tr('Thêm loại câu hỏi', 'Add question type', '添加题型', '問題タイプを追加', '문항 유형 추가')
+                        : tr('Đã thêm hết loại còn chỗ', 'No more open types', '没有更多可用题型', '追加できる種類はありません', '더 추가할 유형이 없습니다')}
+                    </Button>
+                    {planLines.length > 0 && (
+                      <ul className="text-sm space-y-1 rounded-md border bg-background/70 px-3 py-2">
+                        {planLines.map((line) => (
+                          <li key={line.id}>{line.text}</li>
+                        ))}
+                      </ul>
+                    )}
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => void runCreateStepRows()}
+                      disabled={wsStepByStepLoading || active.length === 0}
+                      className="bg-violet-600 hover:bg-violet-700"
+                    >
+                      {wsStepByStepLoading
+                        ? tr('Đang tạo...', 'Creating...', '创建中...', '作成中...', '생성 중...')
+                        : `${tr('Tạo', 'Create', '创建', '作成', '생성')} ${createSummary}${totalPhrase ? ` (${totalPhrase})` : ''}`}
+                    </Button>
                     {wsStepByStepStatus && <p className="text-xs text-violet-600 dark:text-violet-400 animate-pulse">{wsStepByStepStatus}</p>}
                   </div>
                   )
@@ -5035,7 +5446,6 @@ export default function TaoGiaoTrinhClientPage({
                             setWorksheetEditFilter('quiz')
                             setWorksheetEditBlockIndex(null)
                             setWorksheetEditBlockContent('')
-                            setWorksheetEditCheckResult(null)
                           }}
                         >
                           {tr('Sửa trắc nghiệm', 'Edit quiz', '编辑选择题', '選択式を編集', '퀴즈 수정')}
@@ -5048,12 +5458,13 @@ export default function TaoGiaoTrinhClientPage({
                           worksheetParts.quiz.trim() ? 'text-foreground' : 'text-muted-foreground italic'
                         }`}
                       >
-                        {worksheetParts.quiz.trim()
-                          ? worksheetParts.quiz
-                          : tr('Chưa có phần trắc nghiệm', 'No quiz section', '暂无选择题部分', 'クイズ部分がありません', '퀴즈 섹션 없음')}
+                        {renderWorksheetSection(
+                          'quiz',
+                          tr('Chưa có phần trắc nghiệm', 'No quiz section', '暂无选择题部分', 'クイズ部分がありません', '퀴즈 섹션 없음')
+                        )}
                       </div>
                     </div>
-                    <div className="rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3">
+                    <div className={`rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3 ${worksheetEditBlocks.some((block, index) => block.type === 'essay' && worksheetProposalById.has(worksheetQuestionIds[index] ?? '')) ? 'md:col-span-2' : ''}`}>
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                           {tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}
@@ -5067,7 +5478,6 @@ export default function TaoGiaoTrinhClientPage({
                             setWorksheetEditFilter('essay')
                             setWorksheetEditBlockIndex(null)
                             setWorksheetEditBlockContent('')
-                            setWorksheetEditCheckResult(null)
                           }}
                         >
                           {tr('Sửa tự luận', 'Edit essay', '编辑主观题', '記述式を編集', '서술형 수정')}
@@ -5080,9 +5490,10 @@ export default function TaoGiaoTrinhClientPage({
                           worksheetParts.essay.trim() ? 'text-foreground' : 'text-muted-foreground italic'
                         }`}
                       >
-                        {worksheetParts.essay.trim()
-                          ? worksheetParts.essay
-                          : tr('Chưa có phần tự luận', 'No essay section', '暂无主观题部分', '記述式部分がありません', '서술형 섹션 없음')}
+                        {renderWorksheetSection(
+                          'essay',
+                          tr('Chưa có phần tự luận', 'No essay section', '暂无主观题部分', '記述式部分がありません', '서술형 섹션 없음')
+                        )}
                       </div>
                     </div>
                   </div>
@@ -5090,12 +5501,11 @@ export default function TaoGiaoTrinhClientPage({
                   {worksheetEditFilter && (
                     <WorksheetEditSectionPopup
                       open={true}
+                      worksheetId={worksheetId ?? ''}
                       onClose={() => {
                         setWorksheetEditFilter(null)
                         setWorksheetEditBlockIndex(null)
                         setWorksheetEditBlockContent('')
-                        setWorksheetEditImages([])
-                        setWorksheetEditCheckResult(null)
                       }}
                       filter={worksheetEditFilter}
                       blocks={worksheetEditBlocks}
@@ -5119,47 +5529,24 @@ export default function TaoGiaoTrinhClientPage({
                             const row = list.filter((q) => q?.type === block.type)[sameTypeIdx]
                             if (row && block.type === 'essay') {
                               const heading = (nextContent.match(/^([^\n]*Bài\s+\d+[^\n]*)/i)?.[1] ?? '').trim()
-                              const problem = latexToReadable(getEssayProblem(row.content_json) || '')
-                              const solution = normalizeSolutionToStr(getEssaySolution(row.content_json)) || '(Chưa có lời giải)'
-                              nextContent = [heading, problem, '**Lời giải:**', solution].filter(Boolean).join('\n\n')
+                              const parts = coalesceEssayParts(
+                                latexToReadable(getEssayProblem(row.content_json) || ''),
+                                normalizeSolutionToStr(getEssaySolution(row.content_json))
+                              )
+                              nextContent = [heading, parts.problem, '**Lời giải:**', parts.solution || '(Chưa có lời giải)'].filter(Boolean).join('\n\n')
                             }
                           } catch {
                             /* fallback dùng markdown hiện tại */
                           }
                         }
                         setWorksheetEditBlockContent(nextContent)
-                        setWorksheetEditImages([])
-                        setWorksheetEditCheckResult(null)
                       }}
                       onCancelEdit={() => {
                         setWorksheetEditBlockIndex(null)
                         setWorksheetEditBlockContent('')
-                        setWorksheetEditImages([])
-                        setWorksheetEditCheckResult(null)
                       }}
-                      checkResult={worksheetEditCheckResult}
-                      onApplyFix={() => {
-                        const corrected = worksheetEditCheckResult?.correctedContent
-                        if (corrected) {
-                          setWorksheetEditBlockContent(corrected)
-                          setWorksheetEditCheckResult(null)
-                          void handleSaveWorksheetBlockEdit({ skipAiCheck: true, contentOverride: corrected })
-                        }
-                      }}
-                      onCheck={() => void handleCheckWorksheetBlock()}
                       onSave={() => void handleSaveWorksheetBlockEdit()}
-                      editImages={worksheetEditImages}
-                      onPickImages={(files) => {
-                        const list = Array.from(files ?? []).filter((f) => f && f.size > 0)
-                        if (list.length === 0) return
-                        setWorksheetEditImages((prev) => [...prev, ...list].slice(0, 6))
-                      }}
-                      onRemoveImage={(idx) => setWorksheetEditImages((prev) => prev.filter((_, i) => i !== idx))}
-                      onClearImages={() => setWorksheetEditImages([])}
-                      checkLoading={worksheetEditCheckLoading}
                       saving={worksheetEditSaving}
-                      checkCreditSuffix={creditLabel(CURRICULUM_UI_CREDITS.worksheetEditCheck)}
-                      saveCreditSuffix={creditLabel(CURRICULUM_UI_CREDITS.worksheetEditSave)}
                       saveDisabled={
                         !worksheetId ||
                         worksheetEditBlockContent.trim() ===
