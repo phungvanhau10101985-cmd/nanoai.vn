@@ -99,15 +99,19 @@ import {
   updateWorksheetSheetMarkdownQuestionIdsFromPg,
 } from '@/lib/db/worksheet-pg'
 import {
+  acknowledgeQuestionsPg,
+  acknowledgedQuestionIdsPg,
   fetchQuestionReviewRowsPg,
   listSheetsContainingQuestionPg,
   personalBodiesForUser,
+  pendingQuestionReview,
   previewQuestionBody,
   proposalsFromRows,
   recordQuestionEditPg,
   reviewCountForQuestion,
   sameQuestionContent,
   voteQuestionReviewPg,
+  worksheetTeacherReviewRoundKey,
 } from '@/lib/db/worksheet-question-review-pg'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
@@ -1755,6 +1759,67 @@ export async function listWorksheetQuestionProposals(worksheetId: string) {
   }
 }
 
+/** Danh sách câu trước khi mở slide giáo viên. Mỗi câu một bản đang dùng, kèm số phiếu của vòng sửa hiện tại. */
+export async function listWorksheetTeacherReview(worksheetId: string) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId || !worksheetId) return { items: [], roundKey: '', viewerId: userId ?? '' }
+  const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
+  const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
+  if (!ids.length) return { items: [], roundKey: '', viewerId: userId }
+  const [reviewRows, sharedRows, ackedIds] = await Promise.all([
+    fetchQuestionReviewRowsPg(ids),
+    fetchWorksheetQuestionsFullByIdsFromPg(ids),
+    acknowledgedQuestionIdsPg(userId, ids),
+  ])
+  const acked = new Set(ackedIds)
+  const votedAlready = ids.filter((questionId) => {
+    if (acked.has(questionId)) return false
+    const mine = reviewRows.filter((row) => row.question_id === questionId)
+    return Boolean(pendingQuestionReview(mine, userId, questionId)?.myVote)
+  })
+  if (votedAlready.length) {
+    await acknowledgeQuestionsPg(userId, votedAlready)
+    for (const questionId of votedAlready) acked.add(questionId)
+  }
+  const sharedById = new Map(sharedRows.map((row) => [row.id, row]))
+  const personal = personalBodiesForUser(reviewRows, userId)
+  const { questionBlockMarkdown } = await import('./lib/questions-to-markdown')
+  const items = ids.filter((questionId) => !acked.has(questionId)).map((questionId) => {
+    const index = ids.indexOf(questionId)
+    const meta = sharedById.get(questionId)
+    const shared = meta?.content_json
+    const base = {
+      type: meta?.type ?? 'essay',
+      difficulty: meta?.difficulty ?? undefined,
+      source: meta?.source ?? undefined,
+      verified_at: meta?.verified_at ?? null,
+    }
+    const mine = reviewRows.filter((row) => row.question_id === questionId)
+    const pending = pendingQuestionReview(mine, userId, questionId)
+    const counts = reviewCountForQuestion(mine)
+    const usingIsEdit = Boolean(pending && (pending.authorIsMe || pending.myVote === 'agree'))
+    const usingBody = personal.has(questionId) ? personal.get(questionId) : shared
+    const otherBody = pending ? (usingIsEdit ? shared : pending.lastEdit.body) : null
+    return {
+      questionId,
+      index,
+      type: meta?.type ?? 'essay',
+      usingBlock: questionBlockMarkdown({ ...base, content_json: usingBody }),
+      otherBlock: otherBody == null ? null : questionBlockMarkdown({ ...base, content_json: otherBody }),
+      otherIsOriginal: usingIsEdit,
+      agreeCount: pending ? pending.agreeCount : 0,
+      rejectCount: pending ? pending.rejectCount : 0,
+      editCount: counts.editCount,
+      authorIsMe: pending?.authorIsMe ?? false,
+      myVote: pending?.myVote ?? null,
+      pending: Boolean(pending),
+    }
+  })
+  return { items, roundKey: worksheetTeacherReviewRoundKey(items), viewerId: userId }
+}
+
 export async function voteWorksheetQuestion(questionId: string, vote: 'agree' | 'reject') {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -1772,6 +1837,31 @@ export async function voteWorksheetQuestion(questionId: string, vote: 'agree' | 
     }
   }
   return { success: true, applied: result.applied }
+}
+
+/** Xác nhận một câu trước khi mở slide. Có bản sửa của người khác thì phiếu đúng/sai đi kèm. Không có lối bỏ qua. */
+export async function confirmWorksheetQuestionReview(questionId: string, choice: 'agree' | 'reject' = 'agree') {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId) return { error: 'Vui lòng đăng nhập.' }
+  if (!questionId) return { error: 'Thiếu câu cần duyệt.' }
+  const rows = await fetchQuestionReviewRowsPg([questionId])
+  const pending = pendingQuestionReview(rows, userId, questionId)
+  if (choice === 'reject' && (!pending || pending.authorIsMe)) {
+    return { error: 'Không có bản sửa để không đồng ý.' }
+  }
+  if (pending && !pending.authorIsMe && pending.myVote !== choice) {
+    const voted = await voteWorksheetQuestion(questionId, choice)
+    if (voted && 'error' in voted && voted.error) return { error: voted.error }
+  }
+  try {
+    await acknowledgeQuestionsPg(userId, [questionId])
+  } catch (e) {
+    console.error('[confirmWorksheetQuestionReview] ack', e)
+    return { error: 'Chưa lưu được xác nhận. Thử lại.' }
+  }
+  return { success: true }
 }
 
 /** Merge câu mới vào phiếu có sẵn: trắc nghiệm nối tiếp trắc nghiệm, tự luận nối tiếp tự luận. */

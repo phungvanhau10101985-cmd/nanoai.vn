@@ -175,11 +175,11 @@ export default function WorksheetViewWithEdit({
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
           description: saveRes.personal
             ? tr(
-                'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa. 7 người không duyệt thì giữ bản gốc.',
-                'Saved your edit. You use it now. Later people can read both versions. 7 approvals replace the original. 7 rejections keep it.',
-                '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。7 人通过则采用修改。7 人不通过则保留原版。',
-                '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。7人が承認すると修正版を採用し、7人が不承認なら元の版を残します。',
-                '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 7명이 승인하면 수정본을 쓰고, 7명이 거절하면 원본을 유지합니다.'
+                'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ bản gốc và bỏ bản sửa.',
+                'Saved your edit. You use it now. Later people can read both versions. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit.',
+                '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。',
+                '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。',
+                '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다.'
               )
             : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })

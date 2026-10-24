@@ -7,6 +7,7 @@ import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import {
   findCurriculumMathFailures,
   isCurriculumMathSubject,
@@ -208,7 +209,7 @@ QUY TẮC:
 - Không chép đề, số liệu, hình, đáp án hay lời giải in trong ảnh. Không điền số bài của sách.
 - Nếu dạng bài cần đồ thị hoặc hình, hãy nêu hàm hoặc dữ liệu mới ngay trong đề để học sinh làm được mà không cần ảnh sách.
 - Môn Toán: cuối lời giải thêm đúng một dòng <!-- check {"kind":"expr","expr":"2+3","shown":5} -->. expr chỉ gồm số và + - * / ^ ( ). shown là kết quả đã viết trong lời giải.
-- Mỗi câu = 1 item. Trắc nghiệm: 4 đáp án. Tự luận: đề mới + lời giải do bạn viết.
+- Mỗi câu = 1 item. Trắc nghiệm: 4 đáp án và ${QUIZ_SOLUTION_RULE} Tự luận: đề mới + lời giải do bạn viết.
 - Trắc nghiệm: difficulty = easy | medium | hard.
 - Tự luận: difficulty = nhan-biet | thong-hieu | van-dung-thap | van-dung-cao | thuc-te.
 - Unicode: π, ∫, x², √, ∈, ℝ. KHÔNG LaTeX. options: CHỈ nội dung, KHÔNG thêm "A." "B." vào đầu.
@@ -217,7 +218,7 @@ QUY TẮC:
 
 Trả về JSON:
 {
-  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard" } ],
+  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard", "solution": "Lời giải từng bước, chưa ghi A/B/C/D." } ],
   "essays": [ { "problem": "...", "solution": "...", "difficulty": "nhan-biet|thong-hieu|van-dung-thap|van-dung-cao|thuc-te" } ]
 }
 
@@ -239,7 +240,7 @@ Chỉ trả về JSON, không markdown.`
   if (!raw) throw new Error('AI không trả về nội dung.')
 
   let parsed: {
-    quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; difficulty?: string; exerciseNumber?: string }>
+    quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; difficulty?: string; exerciseNumber?: string; solution?: string }>
     essays?: Array<{ problem?: string; solution?: unknown; difficulty?: string; exerciseNumber?: string }>
   } = {}
   try {
@@ -255,7 +256,8 @@ Chỉ trả về JSON, không markdown.`
   let order = existingIds.length
 
   for (const q of quizzes) {
-    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4) continue
+    const solution = cleanQuizSolution(q?.solution)
+    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4 || !quizSolutionIsDetailed(solution)) continue
     const opts = q.options.slice(0, 4).map(stripOptionPrefix)
     const idx = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
     const diff = ['easy', 'medium', 'hard'].includes(String(q.difficulty ?? '')) ? q.difficulty : 'medium'
@@ -269,7 +271,7 @@ Chỉ trả về JSON, không markdown.`
       topic: resolvedTopic || null,
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'medium',
-      contentJson: { question: q.question, options, correctIndex },
+      contentJson: { question: q.question, options, correctIndex, solution },
       source: 'sgk',
       order: order++,
     })

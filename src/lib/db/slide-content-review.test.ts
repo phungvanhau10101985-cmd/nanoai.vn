@@ -70,9 +70,11 @@ test('duyệt thì dùng bản sửa, không duyệt thì giữ bản gốc', ()
   const agreed = statsFromReviewRows(rows, ['hash-goc'], 'reader', [original])[0]
   const rejected = statsFromReviewRows(rows, ['hash-goc'], 'other', [original])[0]
   assert.equal(agreed?.adoptedText, edited)
-  assert.equal(agreed?.confirmCount, 1)
+  assert.equal(agreed?.confirmCount, 0)
+  assert.equal(agreed?.rejectCount, 1)
   assert.equal(rejected?.adoptedText, null)
   assert.equal(rejected?.rejectCount, 1)
+  assert.equal(rejected?.confirmCount, 0)
   assert.equal(rejected?.myVote, 'reject')
 })
 
@@ -118,4 +120,41 @@ test('đủ 7 không duyệt thì bỏ bản sửa, đủ 7 duyệt thì lấy b
   assert.equal(adopted?.proposalText, null)
   assert.equal(adopted?.adoptedText, edited)
   assert.equal(adopted?.confirmCount, 7)
+})
+
+test('một phiếu sai xen giữa thì chuỗi đúng đếm lại, chưa thay gốc', () => {
+  const rows = [
+    row({
+      slide_index: 0,
+      content_hash: 'h1',
+      user_id: 'author',
+      action: 'edit',
+      body: edited,
+      created_at: '2026-10-23T10:00:00.000Z',
+    }),
+    ...Array.from({ length: 6 }, (_, index) =>
+      row({
+        slide_index: 0,
+        content_hash: 'h1',
+        user_id: `u${index}`,
+        action: 'agree' as const,
+        body: edited,
+        created_at: `2026-10-23T10:0${index + 1}:00.000Z`,
+      })
+    ),
+    row({
+      slide_index: 0,
+      content_hash: 'h1',
+      user_id: 'n0',
+      action: 'reject',
+      body: edited,
+      created_at: '2026-10-23T10:20:00.000Z',
+    }),
+  ]
+  const stat = statsFromReviewRows(rows, ['hash-goc'], 'u0', [original])[0]
+  assert.equal(stat?.warn, true)
+  assert.equal(stat?.confirmCount, 0)
+  assert.equal(stat?.rejectCount, 1)
+  assert.equal(stat?.adoptedText, edited)
+  assert.equal(stat?.proposalText, edited)
 })

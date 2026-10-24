@@ -13,6 +13,7 @@ import {
 } from '@/lib/db/worksheet-ai-quota-pg'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   fetchLatestWorksheetSheetByCurriculumIdPg,
@@ -27,7 +28,7 @@ import {
 type Difficulty = 'easy' | 'medium' | 'hard'
 type EssayBloomLevel = 'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'
 
-const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0}]}`
+const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0,"solution":"Tập xác định là ℝ. Xét dấu f'(x). f'(x) > 0 khi x > 2. Vậy hàm đồng biến trên khoảng đó."}]}`
 const ESSAY_SCHEMA = `{"problem":"Đề bài (câu hỏi)","solution":"Lời giải chi tiết từng bước"}`
 
 const DIFFICULTY_PROMPT: Record<Difficulty, string> = {
@@ -56,17 +57,19 @@ function draftExcerpt(raw: string): string {
   return excerpt ? ` Mẫu: ${excerpt}` : ''
 }
 
-function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number } | null {
+function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number; solution: string } | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown }
+  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown; solution?: unknown }
   if (typeof row.question !== 'string' || !row.question.trim()) return null
   if (!Array.isArray(row.options) || row.options.length < 4) return null
+  const solution = cleanQuizSolution(row.solution)
+  if (!quizSolutionIsDetailed(solution)) return null
   const options = row.options.slice(0, 4).map((item) => String(item ?? ''))
   const correctIndex = Math.max(0, Math.min(Number(row.correctIndex ?? 0) || 0, 3))
-  return { question: row.question.trim(), options, correctIndex }
+  return { question: row.question.trim(), options, correctIndex, solution }
 }
 
-function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number } | null {
+function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number; solution: string } | null {
   const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
   const parsed = JSON.parse(cleaned) as { quizzes?: unknown }
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.quizzes)) {
@@ -92,10 +95,12 @@ function explainQuizDraft(raw: string): string {
     return `Gemini không trả mảng quizzes (các khóa: ${keys || 'không có'}).${draftExcerpt(raw)}`
   }
   if (body.quizzes.length === 0) return `Gemini trả quizzes rỗng.${draftExcerpt(raw)}`
-  const first = body.quizzes[0] as { question?: unknown; options?: unknown }
+  const first = body.quizzes[0] as { question?: unknown; options?: unknown; solution?: unknown }
   const optionCount = Array.isArray(first?.options) ? first.options.length : 0
   if (typeof first?.question !== 'string' || !first.question.trim()) return `Gemini thiếu đề câu.${draftExcerpt(raw)}`
-  return `Gemini trả ${optionCount} đáp án, cần đủ 4.${draftExcerpt(raw)}`
+  if (optionCount < 4) return `Gemini trả ${optionCount} đáp án, cần đủ 4.${draftExcerpt(raw)}`
+  if (!quizSolutionIsDetailed(first?.solution)) return `Gemini thiếu lời giải chi tiết trước đáp án.${draftExcerpt(raw)}`
+  return `Gemini trả câu không đọc được.${draftExcerpt(raw)}`
 }
 
 function stripOptionPrefix(opt: string): string {
@@ -162,6 +167,7 @@ ${DIFFICULTY_PROMPT[diff] ?? DIFFICULTY_PROMPT.medium}
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ), 4 đáp án A/B/C/D, correctIndex 0-3. Tiếng Việt.
 options: CHỈ nội dung đáp án, KHÔNG thêm "A." "B." "C." "D." vào đầu.
+${QUIZ_SOLUTION_RULE}
 Chỉ trả về JSON, không markdown.
 
 GIÁO TRÌNH:
@@ -189,7 +195,7 @@ Schema: ${QUIZ_SCHEMA}`
     userId
   )
   const raw = result.response.text()?.trim() || ''
-  let last: { question: string; options: string[]; correctIndex: number } | null = null
+  let last: { question: string; options: string[]; correctIndex: number; solution: string } | null = null
   try {
     last = readQuizDraft(raw)
   } catch {
@@ -208,7 +214,7 @@ Schema: ${QUIZ_SCHEMA}`
     topic: topic || null,
     lessonTopics,
     difficulty: diff,
-    contentJson: { question: last.question, options, correctIndex },
+    contentJson: { question: last.question, options, correctIndex, solution: last.solution },
     order,
     source: 'ai',
   })

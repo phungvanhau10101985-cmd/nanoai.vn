@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { consecutiveReviewCounts, REVIEW_CONSECUTIVE_PASSES } from '@/app/tao-giao-trinh/lib/review-consecutive'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import {
@@ -7,7 +8,7 @@ import {
   saveWorksheetCurriculumLessonSlidesCacheRowPg,
 } from '@/lib/db/tao-giao-trinh-curriculum-pg'
 
-export const SLIDE_REVIEW_WARN_PASSES = 7
+export const SLIDE_REVIEW_WARN_PASSES = REVIEW_CONSECUTIVE_PASSES
 
 export type SlideReviewStat = {
   confirmCount: number
@@ -39,21 +40,22 @@ export function hashSlideReviewText(text: string): string {
   return createHash('sha256').update(normalized).digest('hex').slice(0, 32)
 }
 
-function voterIdsAfterEdit(mine: ReviewRow[], lastEdit: ReviewRow, action: 'agree' | 'reject'): string[] {
+function votesAfterEdit(mine: ReviewRow[], lastEdit: ReviewRow) {
   const afterEdit = new Date(lastEdit.created_at).getTime()
-  return [
-    ...new Set(
-      mine
-        .filter(
-          (row) =>
-            row.action === action &&
-            row.content_hash === lastEdit.content_hash &&
-            row.user_id.trim().toLowerCase() !== lastEdit.user_id.trim().toLowerCase() &&
-            new Date(row.created_at).getTime() > afterEdit
-        )
-        .map((row) => row.user_id.trim().toLowerCase())
-    ),
-  ]
+  const author = lastEdit.user_id.trim().toLowerCase()
+  return mine
+    .filter(
+      (row) =>
+        (row.action === 'agree' || row.action === 'reject') &&
+        row.content_hash === lastEdit.content_hash &&
+        row.user_id.trim().toLowerCase() !== author &&
+        new Date(row.created_at).getTime() > afterEdit
+    )
+    .map((row) => ({
+      userId: row.user_id,
+      action: row.action as 'agree' | 'reject',
+      at: new Date(row.created_at).getTime(),
+    }))
 }
 
 export function statsFromReviewRows(
@@ -72,10 +74,10 @@ export function statsFromReviewRows(
     const mine = rows.filter((row) => row.slide_index === slideIndex)
     const edits = mine.filter((row) => row.action === 'edit')
     const lastEdit = edits[edits.length - 1]
-    const agreeUsers = new Set(lastEdit ? voterIdsAfterEdit(mine, lastEdit, 'agree') : [])
-    const rejectUsers = new Set(lastEdit ? voterIdsAfterEdit(mine, lastEdit, 'reject') : [])
-    const closed =
-      agreeUsers.size >= SLIDE_REVIEW_WARN_PASSES || rejectUsers.size >= SLIDE_REVIEW_WARN_PASSES
+    const counts = lastEdit ? consecutiveReviewCounts(votesAfterEdit(mine, lastEdit)) : null
+    const confirmCount = counts?.agreeCount ?? 0
+    const rejectCount = counts?.rejectCount ?? 0
+    const closed = Boolean(counts?.closed)
     const warn = Boolean(lastEdit) && !closed
     const myVoteRow = lastEdit
       ? mine.filter(
@@ -91,16 +93,16 @@ export function statsFromReviewRows(
     const sharedText = String(sharedTexts[slideIndex] || '').trim() || null
     let adoptedText: string | null = null
     if (lastEdit?.body) {
-      if (agreeUsers.size >= SLIDE_REVIEW_WARN_PASSES) adoptedText = lastEdit.body
-      else if (rejectUsers.size >= SLIDE_REVIEW_WARN_PASSES) adoptedText = sharedText
+      if (confirmCount >= SLIDE_REVIEW_WARN_PASSES) adoptedText = lastEdit.body
+      else if (rejectCount >= SLIDE_REVIEW_WARN_PASSES) adoptedText = sharedText
       else if (author || myVote === 'agree') adoptedText = lastEdit.body
     }
     const confirmedByMe =
       myConfirmedHashes.has(contentHash) ||
       mine.some((row) => row.user_id.toLowerCase() === me && (row.action === 'confirm' || row.action === 'edit'))
     return {
-      confirmCount: agreeUsers.size,
-      rejectCount: rejectUsers.size,
+      confirmCount,
+      rejectCount,
       editCount: edits.length,
       warn,
       proposalText: warn && lastEdit?.body ? lastEdit.body : null,
@@ -304,6 +306,22 @@ export async function recordSlideReviewPg(params: {
           params.userId,
           lastEdit.body,
         ])
+        const voteRows = await pgQuery<{ user_id: string; action: 'agree' | 'reject'; created_at: string }>(
+          `select user_id::text as user_id, action, created_at
+           from public.worksheet_slide_content_reviews
+           where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
+             and action in ('agree', 'reject') and content_hash = $4 and user_id <> $5::uuid
+             and created_at > $6::timestamptz
+           order by created_at asc, id asc`,
+          [params.curriculumId, params.lessonNo, params.slideIndex, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
+        )
+        const tail = consecutiveReviewCounts(
+          voteRows.map((row) => ({
+            userId: row.user_id,
+            action: row.action,
+            at: new Date(row.created_at).getTime(),
+          }))
+        )
         if (params.action === 'agree') {
           await writeSlideText({
             curriculumId: params.curriculumId,
@@ -313,15 +331,7 @@ export async function recordSlideReviewPg(params: {
             userId: params.userId,
             mode: 'personal',
           })
-          const agrees = await pgQuery<{ user_id: string }>(
-            `select distinct user_id::text as user_id
-             from public.worksheet_slide_content_reviews
-             where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
-               and action = 'agree' and content_hash = $4 and user_id <> $5::uuid
-               and created_at > $6::timestamptz`,
-            [params.curriculumId, params.lessonNo, params.slideIndex, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
-          )
-          if (agrees.length >= SLIDE_REVIEW_WARN_PASSES) {
+          if (tail.agreeCount >= SLIDE_REVIEW_WARN_PASSES) {
             await writeSlideText({
               curriculumId: params.curriculumId,
               lessonNo: params.lessonNo,
@@ -350,15 +360,7 @@ export async function recordSlideReviewPg(params: {
             slideIndex: params.slideIndex,
             userId: params.userId,
           })
-          const rejects = await pgQuery<{ user_id: string }>(
-            `select distinct user_id::text as user_id
-             from public.worksheet_slide_content_reviews
-             where curriculum_id = $1::uuid and lesson_no = $2 and slide_index = $3
-               and action = 'reject' and content_hash = $4 and user_id <> $5::uuid
-               and created_at > $6::timestamptz`,
-            [params.curriculumId, params.lessonNo, params.slideIndex, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
-          )
-          if (rejects.length >= SLIDE_REVIEW_WARN_PASSES) {
+          if (tail.rejectCount >= SLIDE_REVIEW_WARN_PASSES) {
             const keepers = await pgQuery<{ user_id: string }>(
               `select distinct user_id::text as user_id
                from public.worksheet_slide_content_reviews

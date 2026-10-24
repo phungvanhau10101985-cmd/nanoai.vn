@@ -1,4 +1,5 @@
 import { coalesceEssayParts, getEssayProblem, getEssaySolution } from './worksheet-content-json'
+import { formatQuizAnswerBlock } from './worksheet-quiz-solution'
 import { parseWorksheetIntoBlocks } from './worksheet-parse-questions'
 
 const QUIZ_TAG: Record<string, string> = { easy: 'Dễ', medium: 'Trung bình', hard: 'Khó' }
@@ -58,7 +59,7 @@ export function questionsToMarkdown(questions: WorksheetMarkdownQuestion[]): str
         lines.push('## 1. Phần trắc nghiệm', '')
         lastType = 'quiz'
       }
-      const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number }
+      const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
       quizNum++
       const sgkTag = q.source === 'sgk' ? '**[Tham khảo theo SGK]** ' : ''
       const tag = getQuizTag(q.difficulty)
@@ -66,7 +67,11 @@ export function questionsToMarkdown(questions: WorksheetMarkdownQuestion[]): str
       lines.push(`${quizLabel}. ${verifyTag}${sgkTag}**[${tag}]** ${c.question ?? ''}`)
       const opts = (c.options ?? []).slice(0, 4).map((o) => String(o ?? '').replace(/^[A-D]\.\s*/i, '').trim() || String(o ?? ''))
       opts.forEach((o, i) => lines.push(`   ${String.fromCharCode(65 + i)}. ${o}`))
-      lines.push(`**Đáp án:** ${String.fromCharCode(65 + (c.correctIndex ?? 0))}`, '')
+      if (String(c.solution ?? '').trim()) {
+        lines.push('', '**Lời giải:**', '', formatQuizAnswerBlock(c.correctIndex ?? 0, c.solution), '')
+      } else {
+        lines.push(formatQuizAnswerBlock(c.correctIndex ?? 0, ''), '')
+      }
     } else if (q.type === 'essay') {
       if (lastType !== 'essay') {
         lines.push(hasQuiz ? '## 2. Phần tự luận' : '## 1. Phần tự luận', '')

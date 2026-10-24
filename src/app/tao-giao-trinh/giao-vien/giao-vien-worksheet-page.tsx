@@ -5,7 +5,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams, useParams } from 'next/navigation'
 import { createPortal } from 'react-dom'
-import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
+import { RotateCcw, LayoutGrid, Square, Sparkles, Edit3, Plus, Save, FileText, FileEdit, History, Maximize2, MonitorPlay, X, ClipboardList, Flag, Presentation, MoreVertical, Trash2, Eye, EyeOff, Keyboard, KeyboardOff, Pause, Play, Target } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { canSplitBlockAtQuiz, splitContentWithEmbeds, splitBlockContentAtQuizBoundary, parseQuizData, parseContentEmbeds, ContentEmbed, type EmbedType } from '../components/content-embed'
 import { parseContentToBlocks } from '../lib/curriculum-to-slides'
@@ -13,10 +13,10 @@ import { parseWorksheetToSlides, questionsToSlides, examReviewQuestionsToSlides,
 import { latexToReadable } from '../lib/latex-to-readable'
 import { SlideProposalDialog } from '../components/slide-proposal-dialog'
 import { SlideProposalVote } from '../components/slide-proposal-vote'
-import { WorksheetQuestionProposals } from '../components/worksheet-question-proposals'
 import { PersonalHistorySheet } from '../components/personal-history-sheet'
 import { SlideEditHistorySheet } from '../components/slide-edit-history-sheet'
 import { PresentationControlBar } from '../components/presentation-control-bar'
+import { WorksheetTeacherReviewGate } from './worksheet-teacher-review-gate'
 import { WorksheetAnswerTypedBody } from '../components/worksheet-answer-typed-body'
 import { POINTER_PROSE_ROOT_ATTR, SLIDE_SYNC_MARKDOWN_CLASS } from '../components/slide-sync-markdown-classes'
 import { AnswerTypingPositionPopover } from '../components/answer-typing-position-popover'
@@ -29,7 +29,7 @@ import {
   worksheetAnswerSegmentCount,
 } from '@/app/tao-giao-trinh/lib/worksheet-answer-segments'
 import { getOrCreatePresentationSyncId, getPresentationBroadcastChannelName } from '../lib/presentation-broadcast'
-import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, studentSlideUrlWithSync } from '../lib/student-slide-window'
+import { getStudentSlideWindowConfig, isPathMatchingStudentSlideKind, moveWindowToExternalScreen, studentSlideUrlWithSync } from '../lib/student-slide-window'
 import { TEACHER_SLIDE_WINDOW_TARGET_NAME } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { QuizPopupDialog } from '../components/quiz-popup-dialog'
 import { getSlideProposalsForCurriculum, resetPersonalToOriginal, saveSlidesToCurriculum, saveUserCustomizedSlides, saveWorksheetContent } from '../actions'
@@ -926,6 +926,9 @@ export default function GiaoVienWorksheetPage() {
 
   const prevSlideModeRef = useRef<string | null>(null)
   const studentViewWindowRef = useRef<Window | null>(null)
+  const projectorPendingRef = useRef(false)
+  const projectorBusyRef = useRef(false)
+  const flushPendingProjectorRef = useRef<(w: Window | null) => void>(() => {})
   const [studentViewOpened, setStudentViewOpened] = useState(false)
   /** Slide index trước lần đổi `currentIndex` — kế thừa trạng thái tạm dừng gõ sang slide sau. */
   const prevSlideIndexForTypingPauseRef = useRef<number | null>(null)
@@ -1529,6 +1532,10 @@ export default function GiaoVienWorksheetPage() {
     const channel = new BroadcastChannel(getPresentationBroadcastChannelName(presentationSyncId))
     syncChannelRef.current = channel
     const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'student-viewer-ready') {
+        flushPendingProjectorRef.current(studentViewWindowRef.current)
+        return
+      }
       if (event.data?.type !== 'request-curriculum' || !content) return
       channel.postMessage({
         type: 'curriculum-data',
@@ -2190,6 +2197,42 @@ export default function GiaoVienWorksheetPage() {
     }
   }, [studentViewOpened, slideViewMode, currentIndex, slides.length, sendToStudentView])
 
+  const studentSlideWindowIsLive = useCallback((w: Window | null): w is Window => {
+    if (!w || w.closed) return false
+    try {
+      const kind = isWorksheetSlideMode ? 'worksheet' : 'curriculum'
+      const path = w.location.pathname || ''
+      const syncOk = new URLSearchParams(w.location.search || '').get('sync') === presentationSyncId
+      return isPathMatchingStudentSlideKind(path, kind) && syncOk && w.document.readyState === 'complete'
+    } catch {
+      return false
+    }
+  }, [isWorksheetSlideMode, presentationSyncId])
+
+  const activateStudentProjector = useCallback((w: Window) => {
+    if (!w || w.closed) return
+    if (projectorBusyRef.current) return
+    projectorBusyRef.current = true
+    window.setTimeout(() => {
+      projectorBusyRef.current = false
+    }, 1500)
+    studentViewWindowRef.current = w
+    setStudentViewOpened(true)
+    try { w.focus() } catch { /* ignore */ }
+    try {
+      w.postMessage({ type: 'request-projector-mode' }, window.location.origin)
+    } catch { /* ignore */ }
+    void moveWindowToExternalScreen(w).catch(() => {})
+  }, [])
+
+  const flushPendingProjector = useCallback((w: Window | null) => {
+    if (!projectorPendingRef.current) return
+    if (!w || w.closed) return
+    projectorPendingRef.current = false
+    activateStudentProjector(w)
+  }, [activateStudentProjector])
+  flushPendingProjectorRef.current = flushPendingProjector
+
   const openStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
     const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
@@ -2209,6 +2252,7 @@ export default function GiaoVienWorksheetPage() {
     }
     if (!targetWin) {
       setStudentViewOpened(false)
+      projectorPendingRef.current = false
       toast({
         title: tr('Không mở được giao diện học sinh', 'Cannot open student view', '无法打开学生界面', '生徒画面を開けません', '학생 화면을 열 수 없습니다'),
         description: tr('Trình duyệt đã chặn popup hoặc quyền focus cửa sổ.', 'Popup or window-focus permission was blocked by browser.', '浏览器阻止了弹窗或窗口聚焦权限。', 'ブラウザがポップアップまたはフォーカス権限をブロックしました。', '브라우저가 팝업 또는 창 포커스 권한을 차단했습니다.'),
@@ -2221,10 +2265,14 @@ export default function GiaoVienWorksheetPage() {
 
     // Cùng phương thức với chiều Học sinh -> Giáo viên:
     // dùng named window trước, nếu sai URL thì điều hướng một lần.
+    let navigated = false
     try {
       const path = targetWin.location.pathname || ''
       const syncOk = new URLSearchParams(targetWin.location.search || '').get('sync') === presentationSyncId
-      if (!isPathMatchingStudentSlideKind(path, kind) || !syncOk) targetWin.location.href = urlWithSync
+      if (!isPathMatchingStudentSlideKind(path, kind) || !syncOk) {
+        targetWin.location.href = urlWithSync
+        navigated = true
+      }
     } catch {
       /* ignore access errors */
     }
@@ -2282,7 +2330,19 @@ export default function GiaoVienWorksheetPage() {
     }
     sendState()
     setTimeout(sendState, 300)
-  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode])
+    if (!navigated) flushPendingProjector(targetWin)
+  }, [content, topic, currentIndex, curriculumId, slideMode, personalViewSubMode, hasOriginalSlides, slides, teacherTimerSeconds, teacherTimerRunning, visualFullscreenOpen, teacherExpandedCellIndex, toast, tr, worksheetId, examCode, isWorksheetSlideMode, answerRevealProgress, answerTypingEnabled, worksheetTypingEffectsGloballyEnabled, toStudentSlidePayload, presentationSyncId, studentCurriculumRemoteMode, flushPendingProjector])
+
+  const startStudentProjector = useCallback(() => {
+    const existing = studentViewWindowRef.current
+    if (studentSlideWindowIsLive(existing)) {
+      projectorPendingRef.current = false
+      activateStudentProjector(existing)
+      return
+    }
+    projectorPendingRef.current = true
+    openStudentView()
+  }, [studentSlideWindowIsLive, activateStudentProjector, openStudentView])
 
   const viewOpenedStudentView = useCallback(() => {
     if (typeof window === 'undefined') return
@@ -2686,11 +2746,11 @@ export default function GiaoVienWorksheetPage() {
           title: tr('Đã lưu', 'Saved', '已保存', '保存しました', '저장됨'),
           description: saveRes.personal
             ? tr(
-                'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa. 7 người không duyệt thì giữ bản gốc.',
-                'Saved your edit. You use it now. Later people can read both versions. 7 approvals replace the original. 7 rejections keep it.',
-                '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。7 人通过则采用修改。7 人不通过则保留原版。',
-                '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。7人が承認すると修正版を採用し、7人が不承認なら元の版を残します。',
-                '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 7명이 승인하면 수정본을 쓰고, 7명이 거절하면 원본을 유지합니다.'
+                'Đã lưu bản sửa của bạn. Bạn dùng ngay bản này. Người sau xem cả bản gốc và bản sửa. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ bản gốc và bỏ bản sửa.',
+                'Saved your edit. You use it now. Later people can read both versions. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit.',
+                '已保存你的修改。你现在就用这一版。后面的人可以看原版和修改版。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。',
+                '修正版を保存しました。今すぐこの版を使います。後の人は元の版と修正版を読めます。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。',
+                '수정본을 저장했습니다. 지금 이 버전을 씁니다. 다음 사람은 원본과 수정본을 함께 봅니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다.'
               )
             : tr('Đã lưu câu mới vào phiếu chung.', 'Saved the new question to the shared sheet.', '新题目已保存到共用练习。', '新しい問題を共有シートに保存しました。', '새 문제를 공유 시트에 저장했습니다.'),
         })
@@ -2891,6 +2951,14 @@ export default function GiaoVienWorksheetPage() {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return
+      if (e.data?.type === 'student-viewer-ready') {
+        const src = e.source
+        if (src && src !== window && typeof (src as Window).closed === 'boolean' && !(src as Window).closed) {
+          studentViewWindowRef.current = src as Window
+          setStudentViewOpened(true)
+        }
+        flushPendingProjectorRef.current(studentViewWindowRef.current)
+      }
       if (e.data?.type === 'request-curriculum' && e.source && content) {
         try {
           const src = e.source as Window
@@ -3175,13 +3243,14 @@ export default function GiaoVienWorksheetPage() {
 
   return (
     <div className="fixed inset-0 z-50 h-screen w-screen overflow-x-hidden overflow-y-auto bg-slate-950 text-white flex flex-col items-stretch">
-      <WorksheetQuestionProposals
-        worksheetId={worksheetId ?? ''}
-        locale={uiLocale}
-        onChanged={() => {
-          void reloadWorksheetSlidesAfterSave()
-        }}
-      />
+      {worksheetId && !worksheetLoading && worksheetMarkdownSource.trim() ? (
+        <WorksheetTeacherReviewGate
+          worksheetId={worksheetId}
+          markdown={worksheetMarkdownSource}
+          tr={tr}
+          onReloadSlides={reloadWorksheetSlidesAfterSave}
+        />
+      ) : null}
       {/* Layout neo phải: thu nhỏ tới đâu chỉ bị cắt phần bên trái tới đó */}
       <div
         className="flex-1 flex flex-col min-h-0 shrink-0 w-full"
@@ -4814,6 +4883,21 @@ export default function GiaoVienWorksheetPage() {
         tr={tr}
       />
       <Toaster />
+      <button
+        type="button"
+        onClick={() => startStudentProjector()}
+        title={tr(
+          'Bật trình chiếu cho cửa sổ học sinh (toàn màn hình cho máy chiếu)',
+          'Enable projector mode on student window (fullscreen for projector)',
+          '在学生窗口开启投影（全屏适配投影仪）',
+          '生徒画面で投影モード（フルスクリーン）',
+          '학생 화면 투영 모드 (전체 화면)'
+        )}
+        className="fixed bottom-3 right-3 z-[120] inline-flex items-center gap-2 rounded-lg border border-white/20 bg-violet-700/90 px-3 py-2 text-xs font-semibold text-white shadow-xl hover:bg-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-300 print:hidden"
+      >
+        <MonitorPlay className="h-4 w-4" />
+        <span className="hidden sm:inline">{tr('Trình chiếu HS', 'Project to student', '投影至学生', '生徒画面投影', '학생 화면 투영')}</span>
+      </button>
     </div>
   )
 }

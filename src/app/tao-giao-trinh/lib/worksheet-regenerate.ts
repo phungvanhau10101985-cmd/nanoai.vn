@@ -6,9 +6,10 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_NO_THINKING, GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { normalizeSolutionToStr } from './worksheet-content-json'
+import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from './worksheet-quiz-solution'
 
 
-const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["A","B","C","D"],"correctIndex":0}]}`
+const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["A","B","C","D"],"correctIndex":0,"solution":"Thay số vào công thức. Tính từng bước. Kết quả khớp phương án đã chọn."}]}`
 const ESSAY_SCHEMA = `{"problem":"Đề bài (câu hỏi)","solution":"Lời giải chi tiết từng bước"}`
 
 function buildQuizPrompt(curriculum: string, topic: string): string {
@@ -17,6 +18,7 @@ function buildQuizPrompt(curriculum: string, topic: string): string {
 ⚠️ QUY TẮC SỐ 1 – KHÔNG tạo câu hỏi bắt buộc nhìn đồ thị/ảnh để trả lời. Phiếu tạo mới không kèm hình. Phải cho hàm số cụ thể hoặc bảng biến thiên bằng chữ.
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ), 4 đáp án A/B/C/D, correctIndex 0-3. Tiếng Việt.
+${QUIZ_SOLUTION_RULE}
 KHÔNG tạo câu trắc nghiệm thiếu phần mở đầu và phần đặt câu hỏi. Mỗi câu phải có: (1) phần mở đầu/ngữ cảnh, (2) phần đặt câu hỏi rõ ràng. CẤM mở đầu bằng bảng/số.
 CẤM hàm số ax⁴+bx²+c chưa cho a,b,c – phải ghi rõ giá trị cụ thể.
 Chỉ trả về JSON, không markdown.
@@ -52,15 +54,16 @@ Chủ đề: ${topic}
 Schema: ${ESSAY_SCHEMA}`
 }
 
-function parseQuiz(raw: string): { question: string; options: string[]; correctIndex: number } | null {
+function parseQuiz(raw: string): { question: string; options: string[]; correctIndex: number; solution: string } | null {
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned) as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number }> }
+    const p = JSON.parse(cleaned) as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; solution?: string }> }
     const q = Array.isArray(p?.quizzes) ? p.quizzes[0] : null
-    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4) return null
+    const solution = cleanQuizSolution(q?.solution)
+    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4 || !quizSolutionIsDetailed(solution)) return null
     const opts = q.options.slice(0, 4)
     const correctIndex = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
-    return { question: q.question, options: opts, correctIndex }
+    return { question: q.question, options: opts, correctIndex, solution }
   } catch {
     return null
   }
@@ -87,7 +90,7 @@ export async function regenerateQuiz(
   topic: string,
   model: RegenerateModel,
   userId?: string | null
-): Promise<{ question: string; options: string[]; correctIndex: number } | null> {
+): Promise<{ question: string; options: string[]; correctIndex: number; solution: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const genAI = new GoogleGenerativeAI(apiKey)
@@ -136,9 +139,9 @@ export async function regenerateEssay(
 /** Sửa câu trắc nghiệm khi verify sai nhưng không trả về fix. Gọi thêm 1 lần với prompt "sửa". */
 export async function fixQuizWhenVerifyFailed(
   curriculum: string,
-  q: { question: string; options: string[]; correctIndex: number },
+  q: { question: string; options: string[]; correctIndex: number; solution?: string },
   userId?: string | null
-): Promise<{ question: string; options: string[]; correctIndex: number } | null> {
+): Promise<{ question: string; options: string[]; correctIndex: number; solution: string } | null> {
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return null
   const prompt = `Câu trắc nghiệm sau SAI so với giáo trình. BẮT BUỘC sửa CÂU NÀY (không tạo câu khác, không lấy câu khác từ giáo trình). Chỉ sửa phần sai, giữ cấu trúc tương tự.
@@ -155,8 +158,10 @@ B. ${(q.options ?? [])[1] ?? ''}
 C. ${(q.options ?? [])[2] ?? ''}
 D. ${(q.options ?? [])[3] ?? ''}
 Đáp án hiện tại: ${String.fromCharCode(65 + q.correctIndex)}
+Lời giải hiện tại: ${q.solution || '(chưa có)'}
 
-Trả về JSON: {"question":"...","options":["A","B","C","D"],"correctIndex":0|1|2|3}`
+${QUIZ_SOLUTION_RULE}
+Trả về JSON: {"question":"...","options":["A","B","C","D"],"correctIndex":0|1|2|3,"solution":"Lời giải từng bước, chưa ghi A/B/C/D."}`
 
   const genAI = new GoogleGenerativeAI(apiKey)
   const m = genAI.getGenerativeModel({
@@ -172,11 +177,12 @@ Trả về JSON: {"question":"...","options":["A","B","C","D"],"correctIndex":0|
   )
   const raw = result.response.text()?.trim() || ''
   try {
-    const p = JSON.parse(raw.replace(/^```\w*\n?|```\s*$/g, '').trim()) as { question?: string; options?: string[]; correctIndex?: number }
-    if (!p?.question || !Array.isArray(p.options) || p.options.length < 4) return null
+    const p = JSON.parse(raw.replace(/^```\w*\n?|```\s*$/g, '').trim()) as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
+    const solution = cleanQuizSolution(p.solution) || cleanQuizSolution(q.solution)
+    if (!p?.question || !Array.isArray(p.options) || p.options.length < 4 || !quizSolutionIsDetailed(solution)) return null
     const opts = p.options.slice(0, 4)
     const idx = Math.max(0, Math.min(p.correctIndex ?? 0, 3))
-    return { question: p.question, options: opts, correctIndex: idx }
+    return { question: p.question, options: opts, correctIndex: idx, solution }
   } catch {
     return null
   }

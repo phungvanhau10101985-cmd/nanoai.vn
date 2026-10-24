@@ -108,6 +108,84 @@ function parseUiLocaleFromChatUrl(urlStr: string): WebLocale {
   return 'vi'
 }
 
+/** Vị trí nút nổi — chung với `public/embed/nanoai-chat-widget.js`. */
+const LAUNCHER_POS_KEY = 'nanoai_chat_launcher_pos_v1'
+const LAUNCHER_DRAG_THRESHOLD_PX = 8
+
+type LauncherPoint = { x: number; y: number }
+type SafeInsets = { top: number; right: number; bottom: number; left: number }
+
+let cachedSafeInsets: SafeInsets | null = null
+
+function measureSafeInsets(force = false): SafeInsets {
+  const empty: SafeInsets = { top: 0, right: 0, bottom: 0, left: 0 }
+  if (typeof document === 'undefined') return empty
+  if (cachedSafeInsets && !force) return cachedSafeInsets
+  const probe = document.createElement('div')
+  probe.style.cssText =
+    'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);'
+  document.body.appendChild(probe)
+  const cs = getComputedStyle(probe)
+  const insets: SafeInsets = {
+    top: parseFloat(cs.paddingTop) || 0,
+    right: parseFloat(cs.paddingRight) || 0,
+    bottom: parseFloat(cs.paddingBottom) || 0,
+    left: parseFloat(cs.paddingLeft) || 0,
+  }
+  probe.remove()
+  cachedSafeInsets = insets
+  return insets
+}
+
+function readLauncherPos(): LauncherPoint | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(LAUNCHER_POS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { x?: unknown; y?: unknown }
+    if (typeof parsed.x !== 'number' || typeof parsed.y !== 'number') return null
+    if (!Number.isFinite(parsed.x) || !Number.isFinite(parsed.y)) return null
+    return { x: parsed.x, y: parsed.y }
+  } catch {
+    return null
+  }
+}
+
+function writeLauncherPos(pos: LauncherPoint): void {
+  try {
+    window.localStorage.setItem(LAUNCHER_POS_KEY, JSON.stringify({ x: pos.x, y: pos.y }))
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+/** Giữ nút trong vùng nhìn thấy (visual viewport), kể cả notch iOS và bàn phím. */
+function clampLauncherVisual(x: number, y: number, size: number): LauncherPoint {
+  const vv = window.visualViewport
+  const insets = measureSafeInsets()
+  const viewW = vv?.width ?? window.innerWidth
+  const viewH = vv?.height ?? window.innerHeight
+  const margin = 8
+  const minX = margin + insets.left
+  const minY = margin + insets.top
+  let maxX = viewW - size - margin - insets.right
+  let maxY = viewH - size - margin - insets.bottom
+  if (maxX < minX) maxX = minX
+  if (maxY < minY) maxY = minY
+  return {
+    x: Math.min(maxX, Math.max(minX, x)),
+    y: Math.min(maxY, Math.max(minY, y)),
+  }
+}
+
+function visualEditorOwnsLauncher(): boolean {
+  if (typeof document === 'undefined') return false
+  return (
+    document.documentElement.classList.contains('nanoai-ve-active') ||
+    document.body.classList.contains('nanoai-ve-active')
+  )
+}
+
 type Props = {
   chatUrl: string
   title: string
@@ -153,6 +231,22 @@ export function FloatingChatWidget({
   leaveRoomBelowLauncher = false,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
+  const launcherBtnRef = useRef<HTMLButtonElement>(null)
+  const launcherPosRef = useRef<LauncherPoint | null>(null)
+  const launcherDragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originVisualX: number
+    originVisualY: number
+    adjustX: number
+    adjustY: number
+    moved: boolean
+  } | null>(null)
+  const suppressLauncherClickRef = useRef(false)
+  const suppressLauncherTimerRef = useRef(0)
+  const [launcherPos, setLauncherPos] = useState<LauncherPoint | null>(null)
+  const [launcherGrabbing, setLauncherGrabbing] = useState(false)
   const [duplicateMount, setDuplicateMount] = useState(false)
   // Mặc định đóng; chỉ mở khi người dùng chủ động bấm nút chat.
   const [closed, setClosed] = useState(true)
@@ -208,6 +302,72 @@ export function FloatingChatWidget({
     const all = document.querySelectorAll('[data-nanoai-widget-root]')
     if (all.length > 1 && all[0] !== rootRef.current) setDuplicateMount(true)
   }, [])
+
+  const commitLauncherPos = useCallback((next: LauncherPoint | null) => {
+    launcherPosRef.current = next
+    setLauncherPos(next)
+  }, [])
+
+  useLayoutEffect(() => {
+    const saved = readLauncherPos()
+    if (!saved) return
+    commitLauncherPos(saved)
+  }, [commitLauncherPos])
+
+  useLayoutEffect(() => {
+    if (!launcherPos || launcherDragRef.current?.moved) return
+    const el = launcherBtnRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const size = el.offsetWidth || 56
+    const visual = clampLauncherVisual(rect.left, rect.top, size)
+    if (Math.abs(visual.x - rect.left) < 1 && Math.abs(visual.y - rect.top) < 1) return
+    const next = {
+      x: launcherPos.x + (visual.x - rect.left),
+      y: launcherPos.y + (visual.y - rect.top),
+    }
+    writeLauncherPos(next)
+    commitLauncherPos(next)
+  }, [closed, commitLauncherPos, launcherPos])
+
+  useEffect(() => {
+    const el = launcherBtnRef.current
+    if (!el) return
+    const onTouchMove = (event: TouchEvent) => {
+      if (launcherDragRef.current?.moved && event.cancelable) event.preventDefault()
+    }
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => el.removeEventListener('touchmove', onTouchMove)
+  }, [closed, hideLauncher])
+
+  useEffect(() => {
+    const reclamp = () => {
+      measureSafeInsets(true)
+      const prev = launcherPosRef.current
+      const el = launcherBtnRef.current
+      if (!prev || !el || launcherDragRef.current) return
+      const rect = el.getBoundingClientRect()
+      const size = el.offsetWidth || 56
+      const visual = clampLauncherVisual(rect.left, rect.top, size)
+      if (Math.abs(visual.x - rect.left) < 1 && Math.abs(visual.y - rect.top) < 1) return
+      const next = {
+        x: prev.x + (visual.x - rect.left),
+        y: prev.y + (visual.y - rect.top),
+      }
+      writeLauncherPos(next)
+      commitLauncherPos(next)
+    }
+    window.addEventListener('resize', reclamp)
+    window.addEventListener('orientationchange', reclamp)
+    window.visualViewport?.addEventListener('resize', reclamp)
+    window.visualViewport?.addEventListener('scroll', reclamp)
+    return () => {
+      window.removeEventListener('resize', reclamp)
+      window.removeEventListener('orientationchange', reclamp)
+      window.visualViewport?.removeEventListener('resize', reclamp)
+      window.visualViewport?.removeEventListener('scroll', reclamp)
+    }
+  }, [commitLauncherPos])
 
   useEffect(() => {
     if (closed) return
@@ -330,6 +490,115 @@ export function FloatingChatWidget({
     setClosed(false)
   }, [chatUrl, resolveOpenUrl])
 
+  const armSuppressLauncherClick = useCallback(() => {
+    suppressLauncherClickRef.current = true
+    window.clearTimeout(suppressLauncherTimerRef.current)
+    suppressLauncherTimerRef.current = window.setTimeout(() => {
+      suppressLauncherClickRef.current = false
+      suppressLauncherTimerRef.current = 0
+    }, 400)
+  }, [])
+
+  const onLauncherPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 || visualEditorOwnsLauncher()) return
+    const el = e.currentTarget
+    const rect = el.getBoundingClientRect()
+    let adjustX = 0
+    let adjustY = 0
+    if (launcherPosRef.current) {
+      adjustX = launcherPosRef.current.x - rect.left
+      adjustY = launcherPosRef.current.y - rect.top
+    } else {
+      el.style.left = `${rect.left}px`
+      el.style.top = `${rect.top}px`
+      el.style.right = 'auto'
+      el.style.bottom = 'auto'
+      const shifted = el.getBoundingClientRect()
+      adjustX = rect.left - shifted.left
+      adjustY = rect.top - shifted.top
+      const pinned = { x: rect.left + adjustX, y: rect.top + adjustY }
+      el.style.left = `${pinned.x}px`
+      el.style.top = `${pinned.y}px`
+      launcherPosRef.current = pinned
+      setLauncherPos(pinned)
+    }
+    launcherDragRef.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originVisualX: rect.left,
+      originVisualY: rect.top,
+      adjustX,
+      adjustY,
+      moved: false,
+    }
+    el.setPointerCapture(e.pointerId)
+  }, [])
+
+  const onLauncherPointerMove = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = launcherDragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    const dx = e.clientX - drag.startX
+    const dy = e.clientY - drag.startY
+    if (!drag.moved && Math.hypot(dx, dy) < LAUNCHER_DRAG_THRESHOLD_PX) return
+    drag.moved = true
+    if (!suppressLauncherClickRef.current) armSuppressLauncherClick()
+    setLauncherGrabbing(true)
+    const size = e.currentTarget.offsetWidth || 56
+    const visual = clampLauncherVisual(drag.originVisualX + dx, drag.originVisualY + dy, size)
+    const next = { x: visual.x + drag.adjustX, y: visual.y + drag.adjustY }
+    launcherPosRef.current = next
+    setLauncherPos(next)
+  }, [armSuppressLauncherClick])
+
+  const endLauncherDrag = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
+    const drag = launcherDragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    const moved = drag.moved
+    launcherDragRef.current = null
+    setLauncherGrabbing(false)
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+    if (!moved) return
+    const size = e.currentTarget.offsetWidth || 56
+    const visual = clampLauncherVisual(
+      drag.originVisualX + (e.clientX - drag.startX),
+      drag.originVisualY + (e.clientY - drag.startY),
+      size
+    )
+    const next = { x: visual.x + drag.adjustX, y: visual.y + drag.adjustY }
+    launcherPosRef.current = next
+    setLauncherPos(next)
+    writeLauncherPos(next)
+    armSuppressLauncherClick()
+  }, [armSuppressLauncherClick])
+
+  const onLauncherClick = useCallback(
+    (e: React.MouseEvent<HTMLButtonElement>) => {
+      if (suppressLauncherClickRef.current) {
+        e.preventDefault()
+        e.stopPropagation()
+        suppressLauncherClickRef.current = false
+        window.clearTimeout(suppressLauncherTimerRef.current)
+        suppressLauncherTimerRef.current = 0
+        return
+      }
+      openPanelWithSavedChat()
+    },
+    [openPanelWithSavedChat]
+  )
+
+  const launcherPlaceClass = launcherPos ? '' : launcherAnchorClass
+  const launcherStyle: React.CSSProperties = {
+    touchAction: 'none',
+    WebkitTouchCallout: 'none',
+    ...(launcherPos
+      ? { left: launcherPos.x, top: launcherPos.y, right: 'auto' as const, bottom: 'auto' as const }
+      : null),
+    ...(launcherGrabbing ? { cursor: 'grabbing' } : null),
+  }
+
   const launcherSrc = typeof launcherLogoUrl === 'string' ? launcherLogoUrl.trim() : ''
   const showLauncherLogo = Boolean(launcherSrc && /^https?:\/\//i.test(launcherSrc))
 
@@ -341,37 +610,48 @@ export function FloatingChatWidget({
     if (hideLauncher) {
       return <div ref={rootRef} data-nanoai-widget-root className="hidden" aria-hidden />
     }
+    const renderLauncherButton = (className: string, children: React.ReactNode) => (
+      <button
+        ref={launcherBtnRef}
+        type="button"
+        className={className}
+        style={launcherStyle}
+        onPointerDown={onLauncherPointerDown}
+        onPointerMove={onLauncherPointerMove}
+        onPointerUp={endLauncherDrag}
+        onPointerCancel={endLauncherDrag}
+        onClick={onLauncherClick}
+        onContextMenu={(e) => e.preventDefault()}
+        onDragStart={(e) => e.preventDefault()}
+        title={openLabel}
+        aria-label={openLabel}
+      >
+        {children}
+      </button>
+    )
+
     if (showLauncherLogo) {
       return (
         <div ref={rootRef} data-nanoai-widget-root className="contents">
-          <button
-          type="button"
-          className={`fixed ${launcherAnchorClass} ${topLayerClass} h-14 w-14 cursor-pointer overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
-          onClick={openPanelWithSavedChat}
-          title={openLabel}
-          aria-label={openLabel}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={launcherSrc}
-            alt=""
-            className="pointer-events-none h-full w-full object-cover object-center select-none"
-          />
-        </button>
+          {renderLauncherButton(
+            `fixed ${launcherPlaceClass} ${topLayerClass} h-14 w-14 cursor-grab touch-none select-none overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={launcherSrc}
+              alt=""
+              draggable={false}
+              className="pointer-events-none h-full w-full select-none object-cover object-center"
+            />
+          )}
         </div>
       )
     }
     return (
       <div ref={rootRef} data-nanoai-widget-root className="contents">
-        <button
-        type="button"
-        className={`fixed ${launcherAnchorClass} ${topLayerClass} flex h-14 w-14 cursor-pointer items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`}
-        onClick={openPanelWithSavedChat}
-        title={openLabel}
-        aria-label={openLabel}
-      >
-        <MessageCircle className="h-7 w-7 text-muted-foreground" aria-hidden />
-      </button>
+        {renderLauncherButton(
+          `fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
+          <MessageCircle className="pointer-events-none h-7 w-7 text-muted-foreground" aria-hidden />
+        )}
       </div>
     )
   }

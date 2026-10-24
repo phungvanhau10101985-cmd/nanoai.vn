@@ -14,6 +14,7 @@ import { getUserForAction } from '@/lib/auth'
 import { verifyQuizWithDeepSeek, verifyEssayWithDeepSeek } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
 import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
 async function buildMarkdownForQuestionIds(questionIds: string[]): Promise<string | null> {
@@ -62,13 +63,13 @@ export async function POST(req: NextRequest) {
     const fullContent = topic ? `## ${topic}\n\n${curriculumMarkdown}` : curriculumMarkdown
 
     if (type === 'quiz') {
-      const q = body?.content as { question?: string; options?: string[]; correctIndex?: number }
+      const q = body?.content as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
       if (!q?.question || !Array.isArray(q.options) || q.options.length < 4) {
         return NextResponse.json({ error: 'Thiếu nội dung câu trắc nghiệm (question, options).' }, { status: 400 })
       }
       const opts = q.options.slice(0, 4)
       const correctIndex = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
-      const quiz = { question: q.question, options: opts, correctIndex }
+      const quiz = { question: q.question, options: opts, correctIndex, solution: cleanQuizSolution(q.solution) }
 
       const verifyResult = await verifyQuizWithDeepSeek(fullContent, quiz, userId ?? null)
       let finalQuiz = quiz
@@ -103,6 +104,7 @@ export async function POST(req: NextRequest) {
         question: finalQuiz.question,
         options: finalQuiz.options,
         correctIndex: finalQuiz.correctIndex,
+        ...(finalQuiz.solution ? { solution: finalQuiz.solution } : {}),
       }
 
       const ins = await insertWorksheetQuestionPg({

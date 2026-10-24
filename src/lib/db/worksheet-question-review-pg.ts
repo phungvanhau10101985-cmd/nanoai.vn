@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { consecutiveReviewCounts } from '@/app/tao-giao-trinh/lib/review-consecutive'
 import { WORKSHEET_REVIEW_AGREES } from '@/app/tao-giao-trinh/lib/worksheet-review-count'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
@@ -141,24 +142,52 @@ export function approverIdsForLastEdit(mine: ReviewRow[]): string[] {
   return voterIdsForLastEdit(mine, 'agree')
 }
 
+function votesAfterLastEdit(mine: ReviewRow[]) {
+  const lastEdit = mine.filter((row) => row.action === 'edit').at(-1)
+  if (!lastEdit) return []
+  const afterEdit = new Date(lastEdit.created_at).getTime()
+  return mine
+    .filter(
+      (row) =>
+        (row.action === 'agree' || row.action === 'reject') &&
+        row.content_hash === lastEdit.content_hash &&
+        !sameUser(row.user_id, lastEdit.user_id) &&
+        new Date(row.created_at).getTime() > afterEdit
+    )
+    .map((row) => ({
+      userId: row.user_id,
+      action: row.action as 'agree' | 'reject',
+      at: new Date(row.created_at).getTime(),
+    }))
+}
+
 export function reviewCountForQuestion(mine: ReviewRow[]): { agreeCount: number; rejectCount: number; editCount: number } {
   const edits = mine.filter((row) => row.action === 'edit')
+  const counts = consecutiveReviewCounts(votesAfterLastEdit(mine))
   return {
-    agreeCount: voterIdsForLastEdit(mine, 'agree').length,
-    rejectCount: voterIdsForLastEdit(mine, 'reject').length,
+    agreeCount: counts.agreeCount,
+    rejectCount: counts.rejectCount,
     editCount: edits.length,
   }
 }
 
-/** Bản sửa mới nhất còn chờ. Đủ 7 duyệt hoặc 7 không duyệt thì vòng này kết thúc. Sửa mới thì đếm lại. */
+/** Khóa vòng duyệt. Đổi khi có bản sửa mới, không đổi khi chỉ thêm một phiếu. */
+export function worksheetTeacherReviewRoundKey(
+  items: Array<{ questionId: string; editCount: number; pending: boolean; authorIsMe: boolean }>
+): string {
+  return items
+    .map((item) => `${item.questionId}:${item.pending ? item.editCount : 0}:${item.pending && item.authorIsMe ? 'a' : item.pending ? 'p' : 's'}`)
+    .join('|')
+}
+
+/** Bản sửa mới nhất còn chờ. 7 đúng liên tiếp thì thay gốc. 7 sai liên tiếp thì bỏ bản sửa. */
 export function pendingQuestionReview(mine: ReviewRow[], userId: string, questionId: string): PendingQuestionReview | null {
   const edits = mine.filter((row) => row.action === 'edit')
   const lastEdit = edits[edits.length - 1]
   if (!lastEdit) return null
   const afterEdit = new Date(lastEdit.created_at).getTime()
-  const agrees = new Set(voterIdsForLastEdit(mine, 'agree'))
-  const rejects = new Set(voterIdsForLastEdit(mine, 'reject'))
-  if (agrees.size >= WORKSHEET_REVIEW_AGREES || rejects.size >= WORKSHEET_REVIEW_AGREES) return null
+  const counts = consecutiveReviewCounts(votesAfterLastEdit(mine))
+  if (counts.closed) return null
   const myVoteRow = [...mine]
     .reverse()
     .find(
@@ -171,8 +200,8 @@ export function pendingQuestionReview(mine: ReviewRow[], userId: string, questio
   return {
     questionId,
     lastEdit,
-    agreeCount: agrees.size,
-    rejectCount: rejects.size,
+    agreeCount: counts.agreeCount,
+    rejectCount: counts.rejectCount,
     editCount: edits.length,
     authorIsMe: sameUser(lastEdit.user_id, userId),
     myVote: myVoteRow?.action === 'agree' || myVoteRow?.action === 'reject' ? myVoteRow.action : null,
@@ -261,19 +290,49 @@ export async function voteQuestionReviewPg(params: {
        values ($1::uuid, $2, $3::uuid, 'reject', $4::jsonb)
        on conflict (question_id, content_hash, user_id) where action = 'reject' do nothing`
   await pgQuery(voteSql, [params.questionId, lastEdit.content_hash, params.userId, JSON.stringify(lastEdit.body ?? null)])
-  const side = params.vote === 'agree' ? 'agree' : 'reject'
-  const votes = await pgQuery<{ user_id: string }>(
-    `select distinct user_id::text as user_id
+  const voteRows = await pgQuery<{ user_id: string; action: 'agree' | 'reject'; created_at: string }>(
+    `select user_id::text as user_id, action, created_at
      from public.worksheet_question_reviews
-     where question_id = $1::uuid and action = $2 and content_hash = $3
-       and user_id <> $4::uuid and created_at > $5::timestamptz`,
-    [params.questionId, side, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
+     where question_id = $1::uuid and content_hash = $2 and action in ('agree', 'reject')
+       and user_id <> $3::uuid and created_at > $4::timestamptz
+     order by created_at asc, id asc`,
+    [params.questionId, lastEdit.content_hash, lastEdit.user_id, lastEdit.created_at]
   )
-  if (votes.length < WORKSHEET_REVIEW_AGREES) return { applied: false }
-  if (params.vote !== 'agree') return { applied: false, discarded: true }
+  const tail = consecutiveReviewCounts(
+    voteRows.map((row) => ({
+      userId: row.user_id,
+      action: row.action,
+      at: new Date(row.created_at).getTime(),
+    }))
+  )
+  if (!tail.closed) return { applied: false }
+  if (tail.agreeCount < WORKSHEET_REVIEW_AGREES) return { applied: false, discarded: true }
   const updated = await updateWorksheetQuestionContentJsonFromPg(params.questionId, lastEdit.body)
   if (updated.error) return { applied: false, error: updated.error }
   return { applied: true }
+}
+
+export async function acknowledgedQuestionIdsPg(userId: string, questionIds: string[]): Promise<string[]> {
+  if (!isPgConfigured() || !userId || questionIds.length === 0) return []
+  const rows = await pgQuery<{ question_id: string }>(
+    `select question_id::text as question_id
+     from public.worksheet_question_teacher_acks
+     where user_id = $1::uuid and question_id = any($2::uuid[])`,
+    [userId, questionIds]
+  )
+  return rows.map((row) => row.question_id)
+}
+
+export async function acknowledgeQuestionsPg(userId: string, questionIds: string[]): Promise<void> {
+  const ids = [...new Set(questionIds.map((id) => id.trim()).filter(Boolean))]
+  if (!isPgConfigured() || !userId || ids.length === 0) return
+  await pgQuery(
+    `insert into public.worksheet_question_teacher_acks (question_id, user_id)
+     select id, $2::uuid
+     from unnest($1::uuid[]) as id
+     on conflict (question_id, user_id) do nothing`,
+    [ids, userId]
+  )
 }
 
 export async function listSheetsContainingQuestionPg(questionId: string): Promise<Array<{ id: string; question_ids: string[] }>> {

@@ -21,6 +21,7 @@ import {
 } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
 import { getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
 export type RunWorksheetVerifyStats = {
@@ -119,11 +120,12 @@ export async function runWorksheetVerifyForSheet(
   for (const row of ordered) {
     if (!reverifyAll && row.verified_at) continue
     if (row.type === 'quiz') {
-      const c = row.content_json as { question?: string; options?: string[]; correctIndex?: number }
+      const c = row.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
       const q = {
         question: c?.question ?? '',
         options: (c?.options ?? []).slice(0, 4),
         correctIndex: Math.max(0, Math.min(c?.correctIndex ?? 0, 3)),
+        solution: cleanQuizSolution(c?.solution),
       }
       if (!q.question || q.options.length < 4) {
         stats.skippedInvalid++
@@ -186,6 +188,7 @@ export async function runWorksheetVerifyForSheet(
           question: finalQ.question,
           options: finalQ.options,
           correctIndex: finalQ.correctIndex,
+          ...(finalQ.solution ? { solution: finalQ.solution } : {}),
         })
         if (ok) stats.contentUpdates++
         else stats.errors.push(`quiz update ${row.id}`)

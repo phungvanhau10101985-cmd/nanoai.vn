@@ -173,18 +173,24 @@
       bubbleSize +
       'px;height:' +
       bubbleSize +
-      'px;border:none;border-radius:9999px;cursor:pointer;' +
+      'px;border:none;border-radius:9999px;' +
+      (useCornerBubble
+        ? 'cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;'
+        : 'cursor:pointer;touch-action:manipulation;') +
       'background:linear-gradient(135deg,#7c3aed,#6366f1);box-shadow:0 10px 24px rgba(0,0,0,.25);' +
       'display:flex;align-items:center;justify-content:center;padding:0;overflow:hidden;'
 
     if (logoUrl) {
       var logoMask = document.createElement('span')
       logoMask.style.cssText =
-        'width:100%;height:100%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;'
+        'width:100%;height:100%;border-radius:9999px;overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;pointer-events:none;'
       var logo = document.createElement('img')
       logo.src = logoUrl
       logo.alt = 'NanoAI'
-      logo.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;border-radius:9999px;'
+      logo.draggable = false
+      logo.setAttribute('draggable', 'false')
+      logo.style.cssText =
+        'width:100%;height:100%;object-fit:cover;display:block;border-radius:9999px;pointer-events:none;-webkit-user-drag:none;'
       logo.onerror = function () {
         logoMask.style.display = 'none'
         bubble.textContent = primaryTryOn && tryOnBubbleLabel ? tryOnBubbleLabel.slice(0, 12) : 'AI'
@@ -980,8 +986,214 @@
     function closeChat() {
       panel.style.display = 'none'
       bubble.style.display = 'flex'
+      applyLayout()
     }
-    bubble.addEventListener('click', function () {
+    /** Kéo nút nổi — Pointer Events (chuột desktop, cảm ứng Android và iOS). Vị trí nhớ localStorage, chung key với FloatingChatWidget. */
+    var LAUNCHER_POS_KEY = 'nanoai_chat_launcher_pos_v1'
+    var LAUNCHER_DRAG_THRESHOLD_PX = 8
+    var dragPos = null
+    var dragPointer = null
+    var suppressBubbleClick = false
+    var suppressBubbleTimer = 0
+    var cachedSafeInsets = null
+
+    function readLauncherPos() {
+      try {
+        var raw = window.localStorage.getItem(LAUNCHER_POS_KEY)
+        if (!raw) return null
+        var parsed = JSON.parse(raw)
+        if (!parsed || typeof parsed.x !== 'number' || typeof parsed.y !== 'number') return null
+        if (!isFinite(parsed.x) || !isFinite(parsed.y)) return null
+        return { x: parsed.x, y: parsed.y }
+      } catch (_) {
+        return null
+      }
+    }
+
+    function writeLauncherPos(pos) {
+      try {
+        window.localStorage.setItem(LAUNCHER_POS_KEY, JSON.stringify({ x: pos.x, y: pos.y }))
+      } catch (_) {}
+    }
+
+    function safeAreaInsets() {
+      if (cachedSafeInsets) return cachedSafeInsets
+      var empty = { top: 0, right: 0, bottom: 0, left: 0 }
+      try {
+        var probe = document.createElement('div')
+        probe.style.cssText =
+          'position:fixed;left:0;top:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);'
+        document.body.appendChild(probe)
+        var cs = window.getComputedStyle(probe)
+        cachedSafeInsets = {
+          top: parseFloat(cs.paddingTop) || 0,
+          right: parseFloat(cs.paddingRight) || 0,
+          bottom: parseFloat(cs.paddingBottom) || 0,
+          left: parseFloat(cs.paddingLeft) || 0,
+        }
+        if (probe.parentNode) probe.parentNode.removeChild(probe)
+      } catch (_) {
+        cachedSafeInsets = empty
+      }
+      return cachedSafeInsets
+    }
+
+    function clampBubbleVisual(x, y, sizePx) {
+      var vv = window.visualViewport
+      var insets = safeAreaInsets()
+      var viewW = vv && vv.width ? vv.width : window.innerWidth || 800
+      var viewH = vv && vv.height ? vv.height : viewportHeight()
+      var margin = 8
+      var minX = margin + insets.left
+      var minY = margin + insets.top
+      var maxX = viewW - sizePx - margin - insets.right
+      var maxY = viewH - sizePx - margin - insets.bottom
+      if (maxX < minX) maxX = minX
+      if (maxY < minY) maxY = minY
+      return {
+        x: Math.min(maxX, Math.max(minX, x)),
+        y: Math.min(maxY, Math.max(minY, y)),
+      }
+    }
+
+    /** Ghim nút theo tọa độ nhìn thấy. Bù lệch position:fixed trên iOS/Android (thanh địa chỉ, bàn phím). */
+    function pinBubbleVisual(visualX, visualY) {
+      bubble.style.position = 'fixed'
+      bubble.style.margin = '0'
+      bubble.style.right = 'auto'
+      bubble.style.bottom = 'auto'
+      bubble.style.left = visualX + 'px'
+      bubble.style.top = visualY + 'px'
+      var rect = bubble.getBoundingClientRect()
+      var adjustX = visualX - rect.left
+      var adjustY = visualY - rect.top
+      if (Math.abs(adjustX) > 0.5 || Math.abs(adjustY) > 0.5) {
+        bubble.style.left = visualX + adjustX + 'px'
+        bubble.style.top = visualY + adjustY + 'px'
+      }
+      rect = bubble.getBoundingClientRect()
+      return { x: rect.left, y: rect.top }
+    }
+
+    function editorOwnsBubble() {
+      return (
+        (document.documentElement && document.documentElement.classList.contains('nanoai-ve-active')) ||
+        (document.body && document.body.classList.contains('nanoai-ve-active'))
+      )
+    }
+
+    function armSuppressBubbleClick() {
+      suppressBubbleClick = true
+      if (suppressBubbleTimer) window.clearTimeout(suppressBubbleTimer)
+      suppressBubbleTimer = window.setTimeout(function () {
+        suppressBubbleClick = false
+        suppressBubbleTimer = 0
+      }, 400)
+    }
+
+    function applyCornerBubblePosition(sizePx) {
+      if (!useCornerBubble) return
+      bubble.style.margin = '0'
+      if (dragPos) {
+        if (bubble.style.display === 'none') return
+        var placed = clampBubbleVisual(dragPos.x, dragPos.y, sizePx)
+        dragPos = pinBubbleVisual(placed.x, placed.y)
+        return
+      }
+      bubble.style.position = 'absolute'
+      var safeBottom = clampBottomOffset(sizePx)
+      bubble.style.top = 'auto'
+      bubble.style.bottom = safeBottom + 'px'
+      if (side === 'left') {
+        bubble.style.left = offsetX + 'px'
+        bubble.style.right = 'auto'
+      } else {
+        bubble.style.right = offsetX + 'px'
+        bubble.style.left = 'auto'
+      }
+    }
+
+    if (useCornerBubble) dragPos = readLauncherPos()
+
+    bubble.addEventListener('pointerdown', function (e) {
+      if (!useCornerBubble || editorOwnsBubble()) return
+      if (e.button != null && e.button !== 0) return
+      if (dragPointer) return
+      var rect = bubble.getBoundingClientRect()
+      dragPointer = {
+        id: e.pointerId,
+        sx: e.clientX,
+        sy: e.clientY,
+        ox: rect.left,
+        oy: rect.top,
+        moved: false,
+      }
+      try {
+        bubble.setPointerCapture(e.pointerId)
+      } catch (_) {}
+    })
+
+    bubble.addEventListener(
+      'touchmove',
+      function (e) {
+        if (dragPointer && dragPointer.moved && e.cancelable) e.preventDefault()
+      },
+      { passive: false }
+    )
+
+    bubble.addEventListener('pointermove', function (e) {
+      if (!dragPointer || dragPointer.id !== e.pointerId) return
+      var dx = e.clientX - dragPointer.sx
+      var dy = e.clientY - dragPointer.sy
+      if (!dragPointer.moved && Math.abs(dx) < LAUNCHER_DRAG_THRESHOLD_PX && Math.abs(dy) < LAUNCHER_DRAG_THRESHOLD_PX) return
+      dragPointer.moved = true
+      if (!suppressBubbleClick) armSuppressBubbleClick()
+      var size = bubble.offsetWidth || bubbleSize
+      var visual = clampBubbleVisual(dragPointer.ox + dx, dragPointer.oy + dy, size)
+      dragPos = pinBubbleVisual(visual.x, visual.y)
+      bubble.style.cursor = 'grabbing'
+    })
+
+    function endBubbleDrag(e) {
+      if (!dragPointer || !e || dragPointer.id !== e.pointerId) return
+      var moved = dragPointer.moved
+      var originX = dragPointer.ox
+      var originY = dragPointer.oy
+      var dx = e.clientX - dragPointer.sx
+      var dy = e.clientY - dragPointer.sy
+      dragPointer = null
+      bubble.style.cursor = useCornerBubble ? 'grab' : 'pointer'
+      try {
+        bubble.releasePointerCapture(e.pointerId)
+      } catch (_) {}
+      if (!moved) return
+      var size = bubble.offsetWidth || bubbleSize
+      var visual = clampBubbleVisual(originX + dx, originY + dy, size)
+      dragPos = pinBubbleVisual(visual.x, visual.y)
+      writeLauncherPos(dragPos)
+      armSuppressBubbleClick()
+    }
+
+    bubble.addEventListener('pointerup', endBubbleDrag)
+    bubble.addEventListener('pointercancel', endBubbleDrag)
+    bubble.addEventListener('contextmenu', function (e) {
+      if (useCornerBubble) e.preventDefault()
+    })
+    bubble.addEventListener('dragstart', function (e) {
+      e.preventDefault()
+    })
+
+    bubble.addEventListener('click', function (ev) {
+      if (suppressBubbleClick) {
+        suppressBubbleClick = false
+        if (suppressBubbleTimer) {
+          window.clearTimeout(suppressBubbleTimer)
+          suppressBubbleTimer = 0
+        }
+        ev.preventDefault()
+        ev.stopPropagation()
+        return
+      }
       openChat({ openTryOn: primaryTryOn })
     })
     document.addEventListener(
@@ -1045,7 +1257,6 @@
     })
 
     function placeDesktop() {
-      var safeBottom = clampBottomOffset(bubbleSize)
       var availableHeight = Math.max(220, viewportHeight() - panelBottom - 12)
       var finalHeight = Math.min(desktopHeight, availableHeight)
 
@@ -1053,17 +1264,6 @@
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
-      if (useCornerBubble) {
-        bubble.style.position = 'absolute'
-        bubble.style.bottom = safeBottom + 'px'
-        if (side === 'left') {
-          bubble.style.left = offsetX + 'px'
-          bubble.style.right = 'auto'
-        } else {
-          bubble.style.right = offsetX + 'px'
-          bubble.style.left = 'auto'
-        }
-      }
       panel.style.position = 'fixed'
       if (isExpanded) {
         panel.style.left = '8px'
@@ -1089,29 +1289,19 @@
       bubble.style.width = bubbleSize + 'px'
       bubble.style.height = bubbleSize + 'px'
       bubble.style.margin = '0'
+      applyCornerBubblePosition(bubbleSize)
       expandBtn.style.display = 'flex'
     }
 
     function placeMobile() {
-      var safeBottom = clampBottomOffset(mobileBubbleSize)
       root.style.top = '0'
       root.style.left = '0'
       root.style.right = '0'
       root.style.bottom = '0'
-      if (useCornerBubble) {
-        bubble.style.position = 'absolute'
-        bubble.style.bottom = safeBottom + 'px'
-        bubble.style.width = mobileBubbleSize + 'px'
-        bubble.style.height = mobileBubbleSize + 'px'
-        bubble.style.margin = '0'
-        if (side === 'left') {
-          bubble.style.left = offsetX + 'px'
-          bubble.style.right = 'auto'
-        } else {
-          bubble.style.right = offsetX + 'px'
-          bubble.style.left = 'auto'
-        }
-      }
+      bubble.style.width = mobileBubbleSize + 'px'
+      bubble.style.height = mobileBubbleSize + 'px'
+      bubble.style.margin = '0'
+      applyCornerBubblePosition(mobileBubbleSize)
       panel.style.position = 'fixed'
       panel.style.left = '0'
       panel.style.right = '0'
@@ -1157,11 +1347,17 @@
       syncCommerceHeaderButtons()
     }
     function onResize() {
+      cachedSafeInsets = null
       if (resizeTimer) window.clearTimeout(resizeTimer)
       resizeTimer = window.setTimeout(applyLayout, 100)
     }
     applyLayout()
     window.addEventListener('resize', onResize, { passive: true })
+    window.addEventListener('orientationchange', onResize, { passive: true })
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', onResize, { passive: true })
+      window.visualViewport.addEventListener('scroll', onResize, { passive: true })
+    }
 
     if (mountSel && !mountTarget && inlineHost) {
       var relocateAttempts = 0

@@ -98,20 +98,20 @@ export function WorksheetQuestionCompare({
             {item.authorIsMe
               ? line(
                   locale,
-                  'Bạn đang dùng bản vừa sửa. Người sau xem được cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa làm gốc. 7 người không duyệt thì giữ gốc và bỏ bản sửa. Có người sửa mới thì đếm lại.',
-                  'You are using your edit. Later people can read both versions. 7 approvals replace the original. 7 rejections keep the original and drop the edit. A new edit starts the count over.',
-                  '你正在使用刚改的版本。后面的人可以同时看原版和修改版。7 人通过则用修改版替换原版。7 人不通过则保留原版并丢掉修改。有人再改就重新计数。',
-                  '自分の修正版を使用中です。後の人は元の版と修正版の両方を読めます。7人が承認すると修正版が原本になります。7人が不承認なら原本を残し修正版を捨てます。誰かが直すと数え直します。',
-                  '방금 수정한 버전을 사용 중입니다. 다음 사람은 원본과 수정본을 함께 볼 수 있습니다. 7명이 승인하면 수정본이 원본이 됩니다. 7명이 거절하면 원본을 유지하고 수정본을 버립니다. 누군가 다시 수정하면 다시 셉니다.'
+                  'Bạn đang dùng bản vừa sửa. Người sau xem được cả bản gốc và bản sửa. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ gốc và bỏ bản sửa. Một phiếu khác phía thì chuỗi đó đếm lại.',
+                  'You are using your edit. Later people can read both versions. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit. An opposite vote restarts that streak.',
+                  '你正在使用刚改的版本。后面的人可以同时看原版和修改版。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。出现相反的一票，该连续计数重新开始。',
+                  '自分の修正版を使用中です。後の人は元の版と修正版の両方を読めます。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。反対の票が入るとその連続は数え直します。',
+                  '방금 수정한 버전을 사용 중입니다. 다음 사람은 원본과 수정본을 함께 볼 수 있습니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다. 반대 표가 나오면 그 연속은 다시 셉니다.'
                 )
               : item.myVote === 'agree'
                 ? line(
                     locale,
-                    'Bạn đã duyệt. Đang dùng bản sửa. Đủ 7 người duyệt thì bản sửa thành bản gốc. Đủ 7 người không duyệt thì bỏ bản sửa.',
-                    'You approved. You are using the edit. After 7 approvals it becomes the original. After 7 rejections the edit is dropped.',
-                    '你已通过，正在使用修改版。满 7 人通过后，修改版成为原版。满 7 人不通过则丢掉修改。',
-                    '承認済みで、修正版を使用中です。7人が承認すると原本になります。7人が不承認なら修正版は捨てられます。',
-                    '승인했습니다. 수정본을 사용 중입니다. 7명이 승인하면 원본이 됩니다. 7명이 거절하면 수정본을 버립니다.'
+                    'Bạn đã duyệt. Đang dùng bản sửa. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ gốc và bỏ bản sửa.',
+                    'You approved. You are using the edit. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit.',
+                    '你已通过，正在使用修改版。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。',
+                    '承認済みで、修正版を使用中です。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。',
+                    '승인했습니다. 수정본을 사용 중입니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다.'
                   )
                 : item.myVote === 'reject'
                   ? line(
@@ -156,11 +156,11 @@ export function WorksheetQuestionCompare({
           <p className="text-xs">
             {line(
               locale,
-              `${item.agreeCount}/7 người đã duyệt · ${item.rejectCount}/7 người không duyệt · Sửa ${item.editCount} lần`,
-              `${item.agreeCount}/7 approved · ${item.rejectCount}/7 rejected · Edited ${item.editCount} time(s)`,
-              `${item.agreeCount}/7 人已通过 · ${item.rejectCount}/7 人未通过 · 修改 ${item.editCount} 次`,
-              `${item.agreeCount}/7人が承認 · ${item.rejectCount}/7人が不承認 · 修正 ${item.editCount} 回`,
-              `${item.agreeCount}/7명 승인 · ${item.rejectCount}/7명 거절 · 수정 ${item.editCount}회`
+              `${item.agreeCount}/7 đúng liên tiếp · ${item.rejectCount}/7 sai liên tiếp · Sửa ${item.editCount} lần`,
+              `${item.agreeCount}/7 correct in a row · ${item.rejectCount}/7 wrong in a row · Edited ${item.editCount} time(s)`,
+              `连续判对 ${item.agreeCount}/7 · 连续判错 ${item.rejectCount}/7 · 修改 ${item.editCount} 次`,
+              `連続で正しい ${item.agreeCount}/7 · 連続で誤り ${item.rejectCount}/7 · 修正 ${item.editCount} 回`,
+              `연속 맞음 ${item.agreeCount}/7 · 연속 틀림 ${item.rejectCount}/7 · 수정 ${item.editCount}회`
             )}
           </p>
           {!item.authorIsMe ? (

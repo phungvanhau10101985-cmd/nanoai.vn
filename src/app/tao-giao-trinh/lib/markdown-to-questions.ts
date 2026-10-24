@@ -4,9 +4,10 @@
  */
 import type { WorksheetQuestionBlock } from './worksheet-parse-questions'
 import { ESSAY_SOLUTION_MARKER, coalesceEssayParts } from './worksheet-content-json'
+import { cleanQuizSolution } from './worksheet-quiz-solution'
 
-/** Parse block quiz markdown → { question, options, correctIndex } */
-function parseQuizBlockContent(content: string): { question: string; options: string[]; correctIndex: number } | null {
+/** Parse block quiz markdown → { question, options, correctIndex, solution } */
+function parseQuizBlockContent(content: string): { question: string; options: string[]; correctIndex: number; solution: string } | null {
   const lines = content.split('\n')
   if (lines.length < 2) return null
 
@@ -17,29 +18,40 @@ function parseQuizBlockContent(content: string): { question: string; options: st
 
   const questionParts: string[] = [quizMatch[2]?.trim() ?? '']
   const options: string[] = []
+  const solutionParts: string[] = []
   let correctIndex = 0
   let inQuestion = true
 
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i] ?? ''
     const optMatch = line.match(/^\s*([A-D])\.\s+(.*)$/i)
-    const ansMatch = line.match(/\*\*Đáp án\*\*:\s*([A-D])/i)
+    const ansMatch = line.match(/\*\*Đáp án:\*\*\s*([A-D])|\*\*Đáp án\*\*:\s*([A-D])/i)
+    const solutionMarker = /^Lời giải\s*:?\s*$/i.test(line.trim().replace(/\*\*/g, ''))
 
-    if (optMatch) {
+    if (optMatch && options.length < 4) {
       inQuestion = false
       options.push((optMatch[2] ?? '').trim())
     } else if (ansMatch) {
       inQuestion = false
-      const letter = (ansMatch[1] ?? 'A').toUpperCase()
+      const letter = (ansMatch[1] || ansMatch[2] || 'A').toUpperCase()
       correctIndex = Math.max(0, Math.min(letter.charCodeAt(0) - 65, 3))
+    } else if (solutionMarker) {
+      inQuestion = false
     } else if (inQuestion && questionParts.length > 0) {
       questionParts.push(line.trim())
+    } else if (!inQuestion) {
+      solutionParts.push(line)
     }
   }
 
   const question = questionParts.join('\n').trim() || '(Chưa có câu hỏi)'
   if (options.length < 4) return null
-  return { question, options: options.slice(0, 4), correctIndex }
+  return {
+    question,
+    options: options.slice(0, 4),
+    correctIndex,
+    solution: cleanQuizSolution(solutionParts.join('\n')),
+  }
 }
 
 /** Parse block essay markdown → { problem, solution } */

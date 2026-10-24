@@ -8,10 +8,11 @@ import { getUserForAction } from '@/lib/auth'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 
 const QUIZ_CREATE_MODEL = GEMINI_25_PRO
 const GPT_RETRY_MODEL = process.env.EDUCATIONAL_RETRY_MODEL?.trim() || 'gpt-4o'
-const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0}]}`
+const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0,"solution":"Tập xác định là ℝ. Xét dấu đạo hàm. Đạo hàm dương khi x > 2, nên hàm đồng biến trên khoảng đó."}]}`
 
 function stripOptionPrefix(opt: string): string {
   return String(opt ?? '').replace(/^[A-D]\.\s*/i, '').trim() || String(opt ?? '')
@@ -46,6 +47,7 @@ function buildPrompt(curriculumMarkdown: string, topic: string, difficulty: Diff
 ${diff}
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ), 4 đáp án A/B/C/D, correctIndex 0-3. Tiếng Việt.
+${QUIZ_SOLUTION_RULE}
 options: CHỈ nội dung đáp án, KHÔNG thêm "A." "B." "C." "D." vào đầu (vd: "(2; +∞)" không phải "A. (2; +∞)").
 BẮT BUỘC phân bổ đáp án đúng – KHÔNG để correctIndex luôn là 0 (A). Xoay vòng A/B/C/D (câu 1→A, 2→B, 3→C, 4→D, 5→A...) hoặc chọn ngẫu nhiên 0-3.
 KHÔNG tạo câu trắc nghiệm thiếu phần mở đầu và phần đặt câu hỏi. Mỗi câu phải có: (1) phần mở đầu/ngữ cảnh (Cho hàm số..., Cho bảng...), (2) phần đặt câu hỏi rõ ràng (Giá trị cực đại là?, Số điểm cực trị là?). CẤM mở đầu bằng bảng/số.
@@ -62,16 +64,17 @@ Chủ đề: ${topic}
 Schema: ${QUIZ_SCHEMA}`
 }
 
-function parseQuizzes(raw: string): Array<{ question: string; options: string[]; correctIndex: number }> | null {
+function parseQuizzes(raw: string): Array<{ question: string; options: string[]; correctIndex: number; solution: string }> | null {
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned) as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number }> }
+    const p = JSON.parse(cleaned) as { quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; solution?: string }> }
     const list = Array.isArray(p?.quizzes) ? p.quizzes : []
     const q = list[0]
-    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4) return null
+    const solution = cleanQuizSolution(q?.solution)
+    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4 || !quizSolutionIsDetailed(solution)) return null
     const opts = (q.options ?? []).slice(0, 4)
     const idx = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
-    return [{ question: q.question, options: opts, correctIndex: idx }]
+    return [{ question: q.question, options: opts, correctIndex: idx, solution }]
   } catch {
     return null
   }
@@ -191,7 +194,7 @@ export async function POST(req: NextRequest) {
     const sanitizedOpts = lastQuiz.options.map(stripOptionPrefix)
     const { options: shuffledOpts, correctIndex: shuffledCorrect } = shuffleCorrectPosition(sanitizedOpts, lastQuiz.correctIndex)
 
-    const contentJson = { question: lastQuiz.question, options: shuffledOpts, correctIndex: shuffledCorrect }
+    const contentJson = { question: lastQuiz.question, options: shuffledOpts, correctIndex: shuffledCorrect, solution: lastQuiz.solution }
     const row = await insertWorksheetQuestionPg({
       userId: userId!,
       curriculumId,

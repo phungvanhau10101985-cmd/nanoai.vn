@@ -135,11 +135,11 @@ export function WorksheetEditSectionPopup({
               />
               <p className="shrink-0 text-sm font-medium text-amber-900 dark:text-amber-100">
                 {tr(
-                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} người đã duyệt · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES} người không duyệt`,
-                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} approved · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES} rejected`,
-                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} 人已通过 · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES} 人未通过`,
-                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES}人が承認 · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES}人が不承認`,
-                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES}명 승인 · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES}명 거절`
+                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} đúng liên tiếp · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES} sai liên tiếp`,
+                  `${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} correct in a row · ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES} wrong in a row`,
+                  `连续判对 ${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} · 连续判错 ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES}`,
+                  `連続で正しい ${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} · 連続で誤り ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES}`,
+                  `연속 맞음 ${reviewCount.agreeCount}/${WORKSHEET_REVIEW_AGREES} · 연속 틀림 ${reviewCount.rejectCount}/${WORKSHEET_REVIEW_AGREES}`
                 )}
                 {' · '}
                 {tr(

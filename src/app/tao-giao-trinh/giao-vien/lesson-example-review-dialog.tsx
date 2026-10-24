@@ -352,11 +352,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                 {stat.warn && stat.proposalAuthorIsMe ? (
                   <p className="mx-3 mb-2 rounded-md border border-violet-400/50 bg-violet-500/15 px-3 py-2 text-sm text-violet-100">
                     {tr(
-                      'Bạn đang dùng bản vừa sửa. Người sau xem được cả bản gốc và bản sửa. 7 người duyệt thì lấy bản sửa làm gốc. 7 người không duyệt thì giữ gốc và bỏ bản sửa. Có người sửa mới thì đếm lại.',
-                      'You are using your edit. Later teachers can read both versions. 7 approvals replace the original. 7 rejections keep the original and drop the edit. A new edit starts the count over.',
-                      '你正在使用刚改的版本。后面的人可以同时看原版和修改版。7 人通过则用修改版替换原版。7 人不通过则保留原版并丢掉修改。有人再改就重新计数。',
-                      '自分の修正版を使用中です。後の人は元の版と修正版の両方を読めます。7人が承認すると修正版が原本になります。7人が不承認なら原本を残し修正版を捨てます。誰かが直すと数え直します。',
-                      '방금 수정한 버전을 사용 중입니다. 다음 사람은 원본과 수정본을 함께 볼 수 있습니다. 7명이 승인하면 수정본이 원본이 됩니다. 7명이 거절하면 원본을 유지하고 수정본을 버립니다. 누군가 다시 수정하면 다시 셉니다.'
+                      'Bạn đang dùng bản vừa sửa. Người sau xem được cả bản gốc và bản sửa. 7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ gốc và bỏ bản sửa. Một phiếu khác phía thì chuỗi đó đếm lại.',
+                      'You are using your edit. Later teachers can read both versions. 7 correct votes in a row replace the original with the edit. 7 wrong votes in a row keep the original and drop the edit. An opposite vote restarts that streak.',
+                      '你正在使用刚改的版本。后面的人可以同时看原版和修改版。连续 7 次判对则用修改版替换原版。连续 7 次判错则保留原版并丢掉修改。出现相反的一票，该连续计数重新开始。',
+                      '自分の修正版を使用中です。後の人は元の版と修正版の両方を読めます。正しい票が7回続くと修正版が原本になります。誤りの票が7回続くと原本を残し修正版を捨てます。反対の票が入るとその連続は数え直します。',
+                      '방금 수정한 버전을 사용 중입니다. 다음 사람은 원본과 수정본을 함께 볼 수 있습니다. 맞음이 7번 연속이면 수정본이 원본이 됩니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다. 반대 표가 나오면 그 연속은 다시 셉니다.'
                     )}
                   </p>
                 ) : null}
@@ -364,11 +364,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                   <div className="mx-3 mb-2 rounded-md border border-amber-400/50 bg-amber-500/15 px-3 py-2 text-sm text-amber-100">
                     <p>
                       {tr(
-                        'Đọc cả bản gốc và bản sửa. Đồng ý thì bạn dùng ngay bản sửa. Không đồng ý thì bạn vẫn dùng bản gốc. 7 người cùng một phía thì vòng này kết thúc.',
-                        'Read both the original and the edit. Agree to use the edit now. Disagree to keep the original. Seven people on the same side end this round.',
-                        '请同时看原版和修改版。同意就立即使用修改版。不同意则继续用原版。同一边满 7 人，这一轮就结束。',
-                        '元の版と修正版の両方を読んでください。同意すると修正版をすぐ使います。反対すると元の版のままです。同じ側が7人になるとこの回は終わります。',
-                        '원본과 수정본을 함께 읽으세요. 동의하면 수정본을 바로 씁니다. 반대하면 원본을 유지합니다. 같은 쪽이 7명이 되면 이 라운드가 끝납니다.'
+                        'Đọc cả bản gốc và bản sửa. Đồng ý thì bạn dùng ngay bản sửa. Không đồng ý thì bạn vẫn dùng bản gốc. 7 lần đúng liên tiếp thì thay gốc. 7 lần sai liên tiếp thì giữ gốc và bỏ bản sửa.',
+                        'Read both the original and the edit. Agree to use the edit now. Disagree to keep the original. 7 correct votes in a row replace the original. 7 wrong votes in a row keep the original and drop the edit.',
+                        '请同时看原版和修改版。同意就立即使用修改版。不同意则继续用原版。连续 7 次判对则替换原版。连续 7 次判错则保留原版并丢掉修改。',
+                        '元の版と修正版の両方を読んでください。同意すると修正版をすぐ使います。反対すると元の版のままです。正しい票が7回続くと原本を置き換えます。誤りの票が7回続くと原本を残し修正版を捨てます。',
+                        '원본과 수정본을 함께 읽으세요. 동의하면 수정본을 바로 씁니다. 반대하면 원본을 유지합니다. 맞음이 7번 연속이면 원본을 바꿉니다. 틀림이 7번 연속이면 원본을 유지하고 수정본을 버립니다.'
                       )}
                     </p>
                   </div>
@@ -376,11 +376,11 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-800 px-3 py-2">
                   <p className="text-xs text-slate-300">
                     {tr(
-                      `${stat.confirmCount}/7 đồng ý · ${stat.rejectCount}/7 không đồng ý`,
-                      `${stat.confirmCount}/7 agreed · ${stat.rejectCount}/7 disagreed`,
-                      `${stat.confirmCount}/7 同意 · ${stat.rejectCount}/7 不同意`,
-                      `同意 ${stat.confirmCount}/7 · 不承認 ${stat.rejectCount}/7`,
-                      `동의 ${stat.confirmCount}/7 · 반대 ${stat.rejectCount}/7`
+                      `${stat.confirmCount}/7 đúng liên tiếp · ${stat.rejectCount}/7 sai liên tiếp`,
+                      `${stat.confirmCount}/7 correct in a row · ${stat.rejectCount}/7 wrong in a row`,
+                      `连续判对 ${stat.confirmCount}/7 · 连续判错 ${stat.rejectCount}/7`,
+                      `連続で正しい ${stat.confirmCount}/7 · 連続で誤り ${stat.rejectCount}/7`,
+                      `연속 맞음 ${stat.confirmCount}/7 · 연속 틀림 ${stat.rejectCount}/7`
                     )}
                     {' · '}
                     {tr(

@@ -5,6 +5,7 @@
  */
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { coalesceEssayParts, getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { formatQuizAnswerBlock } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import type { AISlideData, ContentBlock, Slide } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { parseCurriculumToSlides, parseContentToBlocks } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { compareExerciseIndexParsed, parseExerciseIndex } from '@/lib/worksheet-exercise-sort'
@@ -194,13 +195,12 @@ export function questionsToSlides(questions: Array<{ type: string; content_json:
     const blocks: ContentBlock[] = []
     let preview = ''
     if (q.type === 'quiz') {
-      const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number }
+      const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
       preview = c.question ?? ''
       const opts = (c.options ?? []).slice(0, 4)
       const questionText = [c.question ?? '', ...opts.map((o, i) => `   ${String.fromCharCode(65 + i)}. ${o}`)].join('\n').trim()
       blocks.push({ header: 'Câu hỏi', content: questionText })
-      const ans = String.fromCharCode(65 + (c.correctIndex ?? 0))
-      blocks.push({ header: 'Đáp án', content: ans, isAnswer: true })
+      blocks.push({ header: 'Đáp án', content: formatQuizAnswerBlock(c.correctIndex ?? 0, c.solution), isAnswer: true })
     } else if (q.type === 'essay') {
       const c = q.content_json as { problem?: string; solution?: string }
       const parts = coalesceEssayParts(getEssayProblem(c) || String(c.problem ?? ''), getEssaySolution(c) || String(c.solution ?? ''))
