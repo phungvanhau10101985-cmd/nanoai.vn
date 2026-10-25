@@ -224,7 +224,6 @@ export default function WeddingPublicClient({
     () => seedParty(initialGuestRsvp).choice,
   )
   const rsvpSeq = useRef(0)
-  const partyTimer = useRef<number | null>(null)
   const [reminderEmail, setReminderEmail] = useState('')
   const [reminderDaysBefore, setReminderDaysBefore] = useState('3')
   const [reminderSubmitting, setReminderSubmitting] = useState(false)
@@ -602,7 +601,6 @@ export default function WeddingPublicClient({
       const reminded = await submitReminder()
       if (!reminded) return
     }
-    if (partyTimer.current) window.clearTimeout(partyTimer.current)
     setPartyAdult(safeAdult)
     setPartyChild(child)
     setPartyModalOpen(false)
@@ -614,21 +612,11 @@ export default function WeddingPublicClient({
 
   const chooseCoverNo = () => {
     if (coverRsvpChoice === 'no' || submitting) return
-    if (partyTimer.current) window.clearTimeout(partyTimer.current)
     setPartyModalOpen(false)
     setCoverRsvpChoice('no')
     setContentChoice('no')
     setAttending(false)
     void saveGuestRsvp(false, 0, 0)
-  }
-
-  const changeParty = (adult: number, child: number) => {
-    setPartyAdult(adult)
-    setPartyChild(child)
-    if (partyTimer.current) window.clearTimeout(partyTimer.current)
-    partyTimer.current = window.setTimeout(() => {
-      void saveGuestRsvp(true, adult, child, true)
-    }, 450)
   }
 
   const submitReminder = async (): Promise<boolean> => {
@@ -756,7 +744,8 @@ export default function WeddingPublicClient({
               type="button"
               disabled={submitting || reminderSubmitting || draftAdult + draftChild < 1}
               onClick={() => void confirmPartyModal()}
-              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full border-2 border-emerald-800 bg-emerald-800 font-bold text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] disabled:opacity-60"
+              className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full border-2 font-bold shadow-[0_6px_18px_rgba(0,0,0,0.28)] disabled:opacity-60"
+              {...buttonFill}
             >
               {submitting || reminderSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tx.coverPartyConfirm}
             </button>
@@ -1317,73 +1306,45 @@ export default function WeddingPublicClient({
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.guestNameLabel}</Label>
                   <Input className="min-h-11" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={tx.guestNamePlaceholder} />
                 </div>
-                <div className={cn('grid items-start gap-3', contentChoice === 'yes' ? 'grid-cols-1' : 'grid-cols-2')}>
-                  {contentChoice === 'yes' ? (
-                    <div className="overflow-hidden rounded-xl border-2 bg-white" style={{ borderColor: buttonColor.border }}>
-                      <button
-                        type="button"
-                        aria-pressed="true"
-                        onClick={() => {
-                          setContentChoice('yes')
-                          setAttending(true)
-                        }}
-                        className="flex min-h-11 w-full items-center justify-center px-3 text-sm font-semibold"
-                        {...buttonFill}
-                      >
-                        {tx.attendYes}
-                        <span className="ml-1.5 tabular-nums">{` · ${partyAdult + partyChild}`}</span>
-                      </button>
-                      <div className="bg-white px-3 py-3">
-                        <WeddingPartyCountFields
-                          adultCount={partyAdult}
-                          childCount={partyChild}
-                          adultLabel={tx.rsvpAdultLabel}
-                          childLabel={tx.rsvpChildLabel}
-                          disabled={submitting}
-                          onChange={(adult, child) => {
-                            if (coverRsvpChoice === 'yes') changeParty(adult, child)
-                            else {
-                              setPartyAdult(adult)
-                              setPartyChild(child)
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      aria-pressed="false"
-                      onClick={() => {
-                        setContentChoice('yes')
-                        setAttending(true)
-                      }}
-                      className="min-h-11 rounded-xl border-2 border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900 shadow-sm"
-                    >
-                      {tx.attendYes}
-                    </button>
-                  )}
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    aria-pressed={contentChoice === 'no'}
-                    onClick={() => {
-                      if (guestDisplayName) {
-                        chooseCoverNo()
-                        return
-                      }
-                      setContentChoice('no')
-                      setAttending(false)
-                    }}
+                    disabled={submitting || partyModalOpen}
+                    aria-pressed={contentChoice === 'yes'}
+                    onClick={openPartyModal}
                     className={cn(
-                      'min-h-11 rounded-xl border-2 px-3 text-sm font-semibold shadow-sm',
+                      'inline-flex min-h-11 items-center justify-center rounded-full border-2 px-3 text-sm font-bold transition-transform active:scale-[0.98] disabled:opacity-60',
+                      contentChoice === 'yes'
+                        ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
+                        : 'shadow-[0_6px_18px_rgba(0,0,0,0.28)]',
+                    )}
+                    {...buttonFill}
+                  >
+                    {tx.coverAttendYes}
+                    {contentChoice === 'yes' ? (
+                      <span className="ml-1.5 tabular-nums">{` · ${partyAdult + partyChild}`}</span>
+                    ) : null}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={submitting || partyModalOpen}
+                    aria-pressed={contentChoice === 'no'}
+                    onClick={chooseCoverNo}
+                    className={cn(
+                      'inline-flex min-h-11 items-center justify-center rounded-full border-2 px-3 text-sm font-bold shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition-transform active:scale-[0.98] disabled:opacity-60',
                       contentChoice === 'no'
-                        ? 'border-stone-800 bg-white text-stone-900 ring-2 ring-stone-300'
+                        ? 'border-stone-800 bg-white text-stone-900 ring-2 ring-stone-300 ring-offset-2 ring-offset-[#fff8f0]'
                         : 'border-stone-300 bg-white text-stone-900',
                     )}
                   >
-                    {tx.attendNo}
+                    {tx.coverAttendNo}
                   </button>
                 </div>
+                {contentChoice === 'yes' ? (
+                  <p className={cn('text-center text-xs font-medium', theme.accentText)} role="status">
+                    {tx.coverRsvpSavedYes}
+                  </p>
+                ) : null}
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.wishLabel}</Label>
                   <WeddingWishPresetPicker

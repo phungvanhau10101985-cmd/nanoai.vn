@@ -3863,6 +3863,9 @@ export type Dictionary = {
     downloadCreated: string
     back: string
     generateStyleLabel: string
+    creditShortTitle: string
+    creditShortKeep: string
+    creditReadyAgain: string
   }
   weddingCardAiStyle: {
     sectionTitle: string
@@ -8149,6 +8152,9 @@ export const VI_DICTIONARY: Dictionary = {
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
     generateStyleLabel: 'Phong cách',
+    creditShortTitle: 'Chưa đủ credit',
+    creditShortKeep: 'Phần đang nhập đã được giữ. Đóng được cửa sổ nạp, hoặc nạp xong rồi bấm tạo lại.',
+    creditReadyAgain: 'Đã nạp credit. Bấm tạo lại — nội dung vẫn nguyên.',
   },
   weddingCardAiStyle: {
     sectionTitle: '1. Chọn phong cách',
@@ -8211,7 +8217,7 @@ export const VI_DICTIONARY: Dictionary = {
     frameShapeRounded: 'Chữ nhật',
     buttonColorLabel: 'Màu nút',
     buttonColorHint:
-      'Dùng cho Mở thiệp, Sẽ tham dự sau khi khách bấm, Gửi phản hồi, nhắc lịch và bản đồ. Nút chưa chọn và Không tham dự vẫn trắng.',
+      'Dùng cho Mở thiệp, nút Có đi trên vỏ thiệp, Sẽ tham dự sau khi khách bấm, Gửi phản hồi, nhắc lịch và bản đồ. Không đi và Không tham dự vẫn trắng.',
     buttonColorBronze: 'Nâu đồng',
     buttonColorRed: 'Đỏ son',
     buttonColorPink: 'Hồng',
@@ -8262,7 +8268,7 @@ export const VI_DICTIONARY: Dictionary = {
     guestNamePlaceholder: 'Tên của bạn',
     attendYes: 'Sẽ tham dự',
     attendNo: 'Không tham dự',
-    rsvpChoiceRequired: 'Hãy chọn Sẽ tham dự hoặc Không tham dự.',
+    rsvpChoiceRequired: 'Hãy chọn Có đi hoặc Không đi.',
     coverAttendYes: 'Có đi',
     coverAttendNo: 'Không đi',
     coverRsvpSavedYes: 'Đã xác nhận có đi',

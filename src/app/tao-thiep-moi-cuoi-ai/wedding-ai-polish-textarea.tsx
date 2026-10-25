@@ -13,6 +13,8 @@ import {
   WEDDING_TEXT_POLISH_CREDIT_LABEL,
   weddingPolishFieldCostsCredit,
 } from '@/lib/wedding/wedding-text-polish-credit'
+import { useWeddingCreditTopUp } from '@/components/wedding/wedding-credit-topup'
+import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
 import { polishWeddingCardText } from './actions'
 
 type Props = {
@@ -41,6 +43,7 @@ export function WeddingAiPolishTextarea({
   hint,
 }: Props) {
   const { toast } = useToast()
+  const askCreditTopUp = useWeddingCreditTopUp()
   const [polishing, setPolishing] = useState(false)
   const costsCredit = weddingPolishFieldCostsCredit(field)
 
@@ -63,6 +66,10 @@ export function WeddingAiPolishTextarea({
     const result = await polishWeddingCardText(formData)
     setPolishing(false)
     if ('error' in result && result.error) {
+      if (isWeddingInsufficientCredit(result)) {
+        askCreditTopUp?.()
+        return
+      }
       toast({ title: 'Tối ưu thất bại', description: result.error, variant: 'destructive' })
       return
     }

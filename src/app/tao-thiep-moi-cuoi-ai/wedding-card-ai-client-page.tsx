@@ -29,6 +29,15 @@ import { ImageEnginePicker } from '@/components/ai/image-engine-picker'
 import { GPT_IMAGE_CREDITS, imageEngineCredit, type GptImageQuality, type ImageEngine } from '@/lib/ai/image-engine'
 import { REMOVE_BG_PNG_CREDIT, requiredCreditsForLogoCreate } from '@/lib/remove-background-png-prompts'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
+import { DepositCreditPopup } from '@/components/deposit-credit-popup'
+import { WeddingCreditTopUpProvider } from '@/components/wedding/wedding-credit-topup'
+import {
+  clearWeddingCreateDraft,
+  isWeddingInsufficientCredit,
+  readWeddingCreateDraft,
+  writeWeddingCreateDraft,
+  type WeddingCreateDraftKind,
+} from '@/lib/wedding/wedding-credit-shortfall'
 import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
 import { WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
@@ -463,6 +472,7 @@ export default function WeddingCardAiClientPage() {
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [uploadingOutside, setUploadingOutside] = useState(false)
   const [rsvps, setRsvps] = useState<WeddingRsvp[]>([])
+  const [coverRsvpPreview, setCoverRsvpPreview] = useState<'yes' | 'no' | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
@@ -489,6 +499,10 @@ export default function WeddingCardAiClientPage() {
   const [styleReferenceUrl, setStyleReferenceUrl] = useState('')
   const [frameReferenceFile, setFrameReferenceFile] = useState<File | null>(null)
   const [frameReferenceUrl, setFrameReferenceUrl] = useState('')
+  const [creditTopUpOpen, setCreditTopUpOpen] = useState(false)
+  const creditTopUpOpenRef = useRef(false)
+  const creditReturnDialogRef = useRef<WeddingCreateDraftKind | null>(null)
+  const createDraftRestoredFor = useRef('')
   const [origin, setOrigin] = useState('')
   const [musicFile, setMusicFile] = useState<File | null>(null)
   const [musicClearOnSave, setMusicClearOnSave] = useState(false)
@@ -996,6 +1010,30 @@ export default function WeddingCardAiClientPage() {
     })
   }
 
+  useEffect(() => {
+    if (!card.id || createDraftRestoredFor.current === card.id) return
+    createDraftRestoredFor.current = card.id
+    const draft = readWeddingCreateDraft(card.id)
+    if (!draft) return
+    setExtraPrompt(draft.extraPrompt)
+    setBackgroundStyleId(draft.backgroundStyleId || 'luxury')
+    setGptQuality(draft.gptQuality === 'high' || draft.gptQuality === 'low' ? draft.gptQuality : 'medium')
+    setStyleReferenceUrl(draft.styleReferenceUrl)
+    setFramePrompt(draft.framePrompt)
+    setFrameStyleId(draft.frameStyleId || 'luxury')
+    setFrameOpening(
+      (WEDDING_COVER_FRAME_OPENINGS as readonly string[]).includes(draft.frameOpening)
+        ? (draft.frameOpening as WeddingCoverFrameOpening)
+        : 'ellipse',
+    )
+    setFrameImageEngine(draft.frameImageEngine === 'gpt' ? 'gpt' : 'gemini')
+    setFrameGptQuality(draft.frameGptQuality === 'high' || draft.frameGptQuality === 'low' ? draft.frameGptQuality : 'medium')
+    setFrameGeminiQuality(draft.frameGeminiQuality === '4K' ? '4K' : '2K')
+    setFrameReferenceUrl(draft.frameReferenceUrl)
+    if (draft.kind === 'background') setBackgroundCreateOpen(true)
+    if (draft.kind === 'frame') setFrameCreateOpen(true)
+  }, [card.id])
+
   const previewMusicStartSec = useMemo(() => parseWeddingMusicTimeToSeconds(musicStartInput.trim()) ?? null, [musicStartInput])
   const previewMusicEndSec = useMemo(() => parseWeddingMusicTimeToSeconds(musicEndInput.trim()) ?? null, [musicEndInput])
   const musicPreviewSrc = pickedMusicPreviewUrl ?? (!musicClearOnSave && card.musicUrl ? card.musicUrl : '')
@@ -1473,8 +1511,45 @@ export default function WeddingCardAiClientPage() {
     toast({ title: txCover.aiFrameLibraryApplied })
   }
 
+  const snapshotCreateDraft = (kind: WeddingCreateDraftKind) => {
+    if (!card.id) return
+    writeWeddingCreateDraft({
+      cardId: card.id,
+      kind,
+      savedAt: Date.now(),
+      extraPrompt,
+      backgroundStyleId,
+      gptQuality,
+      styleReferenceUrl,
+      framePrompt,
+      frameStyleId,
+      frameOpening,
+      frameImageEngine,
+      frameGptQuality,
+      frameGeminiQuality,
+      frameReferenceUrl,
+    })
+  }
+
+  const revealCreditTopUp = async (kind: WeddingCreateDraftKind | 'none') => {
+    const dialog = kind === 'none' ? (frameCreateOpen ? 'frame' : backgroundCreateOpen ? 'background' : null) : kind
+    creditReturnDialogRef.current = dialog
+    if (dialog) snapshotCreateDraft(dialog)
+    creditTopUpOpenRef.current = true
+    await commitSaveBrief(true)
+    setCreditTopUpOpen(true)
+    toast({ title: tImage.creditShortTitle, description: tImage.creditShortKeep, duration: 7000 })
+  }
+
+  const closeCreateDialog = (kind: WeddingCreateDraftKind, open: boolean) => {
+    if (kind === 'background') setBackgroundCreateOpen(open)
+    else setFrameCreateOpen(open)
+    if (!open && !creditTopUpOpenRef.current && card.id) clearWeddingCreateDraft(card.id)
+  }
+
   const generateCoverFrame = async () => {
     if (!card.id || frameGenerating || generating) return
+    snapshotCreateDraft('frame')
     setFrameGenerating(true)
     await waitForNextPaint()
     const formData = new FormData()
@@ -1490,9 +1565,14 @@ export default function WeddingCardAiClientPage() {
     try {
       const result = await generateWeddingCoverFrame(formData)
       if ('error' in result) {
+        if (isWeddingInsufficientCredit(result)) {
+          await revealCreditTopUp('frame')
+          return
+        }
         toast({ title: txCover.aiFrameButton, description: result.error, variant: 'destructive', duration: 6000 })
         return
       }
+      clearWeddingCreateDraft(card.id)
       setCard((prev) => ({
         ...prev,
         sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
@@ -1530,6 +1610,7 @@ export default function WeddingCardAiClientPage() {
 
   const generateImage = async () => {
     if (!card.id || generating) return
+    snapshotCreateDraft('background')
     setGenerating(true)
     await waitForNextPaint()
     const formData = new FormData()
@@ -1545,9 +1626,14 @@ export default function WeddingCardAiClientPage() {
     try {
       const result = await generateWeddingCardImage(formData)
       if ('error' in result) {
+        if (isWeddingInsufficientCredit(result)) {
+          await revealCreditTopUp('background')
+          return
+        }
         setBackgroundNotice({ title: 'Tạo ảnh thất bại', description: result.error, error: true })
         return
       }
+      clearWeddingCreateDraft(card.id)
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
@@ -1882,7 +1968,24 @@ export default function WeddingCardAiClientPage() {
   }
 
   return (
+    <WeddingCreditTopUpProvider onShort={() => { void revealCreditTopUp('none') }}>
     <>
+      <DepositCreditPopup
+        open={creditTopUpOpen}
+        overlayClassName="z-[280]"
+        contentClassName="z-[280]"
+        onOpenChange={(open) => {
+          creditTopUpOpenRef.current = open
+          setCreditTopUpOpen(open)
+          if (open) return
+          const which = creditReturnDialogRef.current
+          if (which === 'frame') setFrameCreateOpen(true)
+          if (which === 'background') setBackgroundCreateOpen(true)
+        }}
+        onCreditsUpdated={() => {
+          toast({ title: tImage.creditReadyAgain, duration: 6000 })
+        }}
+      />
       <Toaster />
       <div className="mx-auto max-w-6xl space-y-6 px-2 pb-10">
         <div className="rounded-3xl bg-gradient-to-br from-rose-50 via-white to-amber-50 p-5 shadow-sm ring-1 ring-rose-100">
@@ -2105,7 +2208,7 @@ export default function WeddingCardAiClientPage() {
             )}
           </DialogContent>
         </Dialog>
-        <Dialog open={backgroundCreateOpen} onOpenChange={setBackgroundCreateOpen}>
+        <Dialog open={backgroundCreateOpen} onOpenChange={(open) => closeCreateDialog('background', open)}>
           <DialogContent
             overlayClassName="z-[200]"
             className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg"
@@ -2163,7 +2266,7 @@ export default function WeddingCardAiClientPage() {
             </div>
               </DialogContent>
             </Dialog>
-        <Dialog open={frameCreateOpen} onOpenChange={setFrameCreateOpen}>
+        <Dialog open={frameCreateOpen} onOpenChange={(open) => closeCreateDialog('frame', open)}>
           <DialogContent
             overlayClassName="z-[220]"
             className="z-[220] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg"
@@ -2372,6 +2475,20 @@ export default function WeddingCardAiClientPage() {
                       cordiallyInvitesLabel={txCover.previewGuestPrefix}
                       openButtonLabel={txCover.previewOpenButton}
                       buttonColor={buttonColor}
+                      quickRsvp={
+                        card.rsvpEnabled
+                          ? {
+                              yesLabel: previewPublic.coverAttendYes,
+                              noLabel: previewPublic.coverAttendNo,
+                              savedYesLabel: previewPublic.coverRsvpSavedYes,
+                              savedNoLabel: previewPublic.coverRsvpSavedNo,
+                              choice: coverRsvpPreview,
+                              partyCount: coverRsvpPreview === 'yes' ? 1 : undefined,
+                              onYes: () => setCoverRsvpPreview((choice) => (choice === 'yes' ? null : 'yes')),
+                              onNo: () => setCoverRsvpPreview((choice) => (choice === 'no' ? null : 'no')),
+                            }
+                          : undefined
+                      }
                       dateFallback={txPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
                       choosePhotoLabel={txCover.choosePhoto}
@@ -3566,6 +3683,7 @@ export default function WeddingCardAiClientPage() {
       </Dialog>
       {previewFab}
     </>
+    </WeddingCreditTopUpProvider>
   )
 }
 

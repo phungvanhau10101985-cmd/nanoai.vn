@@ -38,7 +38,7 @@ type WeddingCoverShellCardProps = {
   cordiallyInvitesLabel: string
   personalInviteText?: string
   openButtonLabel: string
-  /** Màu nút chính. Mở thiệp, Có đi khi đã chọn, và nút bản đồ trên vỏ. */
+  /** Màu nút chính. Mở thiệp, Có đi trên vỏ, và nút bản đồ trên vỏ. */
   buttonColor?: WeddingButtonColor
   dateFallback: string
   photoAlt: string
@@ -483,14 +483,16 @@ function CoverActions(props: {
               onClick={rsvp.onYes}
               className={cn(
                 'inline-flex items-center justify-center rounded-full border-2 font-bold transition-transform active:scale-[0.98] disabled:opacity-60',
-                yesOn && props.buttonColor
-                  ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
+                props.buttonColor
+                  ? yesOn
+                    ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
+                    : 'shadow-[0_6px_18px_rgba(0,0,0,0.28)]'
                   : yesOn
                     ? 'border-emerald-950 bg-emerald-800 text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-emerald-200 ring-offset-2 ring-offset-[#fff8f0]'
                     : 'border-stone-300 bg-white text-stone-900 shadow-[0_6px_18px_rgba(0,0,0,0.12)]',
                 size,
               )}
-              {...(yesOn && props.buttonColor ? bindWeddingButtonFill(props.buttonColor) : {})}
+              {...(props.buttonColor ? bindWeddingButtonFill(props.buttonColor) : {})}
             >
               {rsvp.yesLabel}
               {yesOn && rsvp.partyCount != null ? ` · ${rsvp.partyCount}` : ''}
@@ -513,16 +515,9 @@ function CoverActions(props: {
           </>
         ) : null}
       </div>
-      {rsvp?.choice ? (
-        <p
-          className={cn(
-            'font-medium',
-            rsvp.choice === 'yes' ? 'text-emerald-950' : 'text-stone-700',
-            props.compact ? 'text-[9px]' : 'text-xs',
-          )}
-          role="status"
-        >
-          {rsvp.choice === 'yes' ? rsvp.savedYesLabel : rsvp.savedNoLabel}
+      {rsvp?.choice === 'yes' ? (
+        <p className={cn('font-medium text-emerald-950', props.compact ? 'text-[9px]' : 'text-xs')} role="status">
+          {rsvp.savedYesLabel}
         </p>
       ) : null}
     </div>

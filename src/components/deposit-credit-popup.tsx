@@ -1,6 +1,7 @@
 "use client"
 /* eslint-disable @next/next/no-img-element -- payment QR image can be dynamic external URL */
 
+import { cn } from '@/lib/utils'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
@@ -68,9 +69,12 @@ interface DepositCreditPopupProps {
   onOpenChange: (open: boolean) => void
   returnPath?: string
   onCreditsUpdated?: () => void
+  /** Đè lớp khi modal nạp mở trên dialog tạo ảnh đang z cao hơn z-50. */
+  overlayClassName?: string
+  contentClassName?: string
 }
 
-export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated }: DepositCreditPopupProps) {
+export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated, overlayClassName, contentClassName }: DepositCreditPopupProps) {
   const router = useRouter()
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [amount, setAmount] = useState(CREDIT_UNIT_PRICE_VND)
@@ -266,7 +270,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain pb-6 p-4 sm:p-6">
+      <DialogContent
+        overlayClassName={overlayClassName}
+        className={cn(
+          'w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain pb-6 p-4 sm:p-6',
+          contentClassName,
+        )}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />

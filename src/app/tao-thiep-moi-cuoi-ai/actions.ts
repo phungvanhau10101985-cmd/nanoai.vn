@@ -397,7 +397,12 @@ export async function generateWeddingCardImage(formData: FormData) {
   }
   const imageCost = priced.cost
   const balance = await getCreditBalanceByUserId(userId)
-  if (balance < imageCost) return { error: `Không đủ credit. Cần ${imageCost} credit để tạo ảnh AI.` }
+  if (balance < imageCost) {
+    return {
+      error: `Không đủ credit. Cần ${imageCost} credit để tạo ảnh AI.`,
+      code: 'INSUFFICIENT_CREDITS' as const,
+    }
+  }
 
   const hasCustomReference =
     Boolean(customReferenceImageUrl) ||
@@ -462,7 +467,11 @@ export async function generateWeddingCardImage(formData: FormData) {
     })
     const charge = await deductUserCredits(userId, imageCost, 'tao-thiep-moi-cuoi-ai')
     if (!charge.ok) {
-      throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
+      if (charge.code === 'INSUFFICIENT_CREDITS') {
+        await failWeddingAiImage(imageId, userId, 'Không đủ credit.').catch(() => undefined)
+        return { error: 'Không đủ credit để hoàn tất.', code: 'INSUFFICIENT_CREDITS' as const }
+      }
+      throw new Error(charge.error)
     }
     charged = true
     await completeWeddingAiImage({ imageId, userId, imageUrl: publicUrl, makeMaster: type === 'master' })
@@ -479,6 +488,9 @@ export async function generateWeddingCardImage(formData: FormData) {
       await refundUserCredits(userId, imageCost, 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
     }
     await failWeddingAiImage(imageId, userId, message).catch(() => undefined)
+    if (/không đủ credit/i.test(message)) {
+      return { error: message, code: 'INSUFFICIENT_CREDITS' as const }
+    }
     return { error: `Tạo ảnh thất bại, credit chưa bị trừ nếu AI chưa ra ảnh: ${message}` }
   }
 }
@@ -506,7 +518,10 @@ export async function generateWeddingCoverFrame(formData: FormData) {
   const frameCost = requiredCreditsForLogoCreate(imageCost, true)
   const balance = await getCreditBalanceByUserId(userId)
   if (balance < frameCost) {
-    return { error: `Không đủ credit. Cần ${frameCost} credit để vẽ khung và đục lỗ.` }
+    return {
+      error: `Không đủ credit. Cần ${frameCost} credit để vẽ khung và đục lỗ.`,
+      code: 'INSUFFICIENT_CREDITS' as const,
+    }
   }
 
   const frameStyle = getWeddingStylePreset(clean(formData.get('styleId'), 80) || 'luxury')
@@ -590,7 +605,10 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     const chargeAmount = chargedCreditsForLogoCreate(imageCost, true)
     const charge = await deductUserCredits(userId, chargeAmount, 'tao-thiep-moi-cuoi-ai')
     if (!charge.ok) {
-      throw new Error(charge.code === 'INSUFFICIENT_CREDITS' ? 'Không đủ credit để hoàn tất.' : charge.error)
+      if (charge.code === 'INSUFFICIENT_CREDITS') {
+        return { error: 'Không đủ credit để hoàn tất.', code: 'INSUFFICIENT_CREDITS' as const }
+      }
+      throw new Error(charge.error)
     }
     charged = true
     const sectionConfig = mergeWeddingSectionConfig(baseConfig, {
@@ -627,6 +645,9 @@ export async function generateWeddingCoverFrame(formData: FormData) {
     const message = e instanceof Error ? e.message : String(e)
     if (charged) {
       await refundUserCredits(userId, chargedCreditsForLogoCreate(imageCost, true), 'tao-thiep-moi-cuoi-ai').catch(() => undefined)
+    }
+    if (/không đủ credit/i.test(message)) {
+      return { error: message, code: 'INSUFFICIENT_CREDITS' as const }
     }
     return { error: `Tạo khung thất bại, credit chưa bị trừ: ${message}` }
   }
@@ -728,6 +749,7 @@ export async function polishWeddingCardText(formData: FormData) {
           charge.code === 'INSUFFICIENT_CREDITS'
             ? 'Không đủ credit. Mỗi lần Tối ưu AI tốn 0,1 credit.'
             : charge.error,
+        ...(charge.code === 'INSUFFICIENT_CREDITS' ? { code: 'INSUFFICIENT_CREDITS' as const } : {}),
       }
     }
     chargedAmount = charge.charged
