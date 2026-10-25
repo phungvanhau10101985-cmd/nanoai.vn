@@ -38,8 +38,10 @@ type WeddingCoverShellCardProps = {
   cordiallyInvitesLabel: string
   personalInviteText?: string
   openButtonLabel: string
-  /** Màu nút chính. Mở thiệp, Có đi trên vỏ, và nút bản đồ trên vỏ. */
+  /** Màu nút Mở thiệp và nút bản đồ trên vỏ. */
   buttonColor?: WeddingButtonColor
+  /** Màu nút Có đi trên vỏ. Không đi giữ trắng. */
+  rsvpButtonColor?: WeddingButtonColor
   dateFallback: string
   photoAlt: string
   /** Editor: kéo và zoom ảnh ngay trong khung. Thiệp công khai không truyền. */
@@ -445,6 +447,7 @@ function useCoverIntroOnce(enabled: boolean) {
 function CoverActions(props: {
   themeId: string
   buttonColor?: WeddingButtonColor
+  rsvpButtonColor?: WeddingButtonColor
   compact?: boolean
   className?: string
   openLabel: string
@@ -483,7 +486,7 @@ function CoverActions(props: {
               onClick={rsvp.onYes}
               className={cn(
                 'inline-flex items-center justify-center rounded-full border-2 font-bold transition-transform active:scale-[0.98] disabled:opacity-60',
-                props.buttonColor
+                props.rsvpButtonColor
                   ? yesOn
                     ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
                     : 'shadow-[0_6px_18px_rgba(0,0,0,0.28)]'
@@ -492,7 +495,7 @@ function CoverActions(props: {
                     : 'border-stone-300 bg-white text-stone-900 shadow-[0_6px_18px_rgba(0,0,0,0.12)]',
                 size,
               )}
-              {...(props.buttonColor ? bindWeddingButtonFill(props.buttonColor) : {})}
+              {...(props.rsvpButtonColor ? bindWeddingButtonFill(props.rsvpButtonColor) : {})}
             >
               {rsvp.yesLabel}
               {yesOn && rsvp.partyCount != null ? ` · ${rsvp.partyCount}` : ''}
@@ -680,6 +683,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       <CoverActions
         themeId={theme.id}
         buttonColor={props.buttonColor}
+        rsvpButtonColor={props.rsvpButtonColor}
         compact={compact}
         className={compact ? 'mt-3' : props.fitViewport ? 'mt-1.5' : 'mt-3 sm:mt-4 lg:mt-3'}
         openLabel={props.openButtonLabel}
@@ -805,7 +809,8 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
         ) : null}
         <CoverActions
           themeId={theme.id}
-        buttonColor={props.buttonColor}
+          buttonColor={props.buttonColor}
+          rsvpButtonColor={props.rsvpButtonColor}
           compact={compact}
           className={compact ? 'mt-2' : props.fitViewport ? 'mt-1.5' : 'mt-2 sm:mt-3 lg:mt-2'}
           openLabel={props.openButtonLabel}
@@ -1382,7 +1387,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         ) : null}
         <CoverActions
           themeId={theme.id}
-        buttonColor={props.buttonColor}
+          buttonColor={props.buttonColor}
+          rsvpButtonColor={props.rsvpButtonColor}
           compact={compact}
           className={compact ? 'mt-2' : props.fitViewport ? 'mt-1.5' : 'mt-3'}
           openLabel={props.openButtonLabel}

@@ -71,7 +71,7 @@ import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
-import { resolveWeddingButtonColor, resolveWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
+import { resolveCoverRsvpButtonColor, resolveWeddingButtonColor, resolveWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingButtonColorPicker } from '@/components/wedding/wedding-button-color-picker'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
@@ -714,6 +714,8 @@ export default function WeddingCardAiClientPage() {
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
   const buttonColorId = resolveWeddingButtonColorId(sectionConfig.buttonColorId, card.selectedStyleId)
   const buttonColor = resolveWeddingButtonColor(buttonColorId)
+  const coverRsvpColor = resolveCoverRsvpButtonColor(sectionConfig.coverRsvpColorId, sectionConfig.buttonColorId, card.selectedStyleId)
+  const coverRsvpColorId = coverRsvpColor.id
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
   const coverFrameMode = resolveCoverFrameMode(sectionConfig)
@@ -922,7 +924,7 @@ export default function WeddingCardAiClientPage() {
       url.searchParams.set('demo', '1')
       url.searchParams.set('venue', view === 'bride' ? 'bride_home' : 'groom_home')
       url.searchParams.set('guest', previewDemo.guestDisplayName)
-      router.push(`${url.pathname}${url.search}`)
+      window.location.assign(`${url.pathname}${url.search}`)
     } finally {
       previewBusyRef.current = false
       setPreviewBusy(false)
@@ -2425,7 +2427,28 @@ export default function WeddingCardAiClientPage() {
                     cream: txCover.buttonColorCream,
                   }}
                   onChange={(id: WeddingButtonColorId) =>
-                    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { buttonColorId: id }))
+                    update(
+                      'sectionConfig',
+                      mergeWeddingSectionConfig(card.sectionConfig, {
+                        buttonColorId: id,
+                        coverRsvpColorId: coverRsvpColorId,
+                      }),
+                    )
+                  }
+                />
+                <WeddingButtonColorPicker
+                  value={coverRsvpColorId}
+                  label={txCover.attendColorLabel}
+                  hint={txCover.attendColorHint}
+                  names={{
+                    bronze: txCover.buttonColorBronze,
+                    red: txCover.buttonColorRed,
+                    pink: txCover.buttonColorPink,
+                    black: txCover.buttonColorBlack,
+                    cream: txCover.buttonColorCream,
+                  }}
+                  onChange={(id: WeddingButtonColorId) =>
+                    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverRsvpColorId: id }))
                   }
                 />
                 <div className="rounded-2xl border border-dashed p-4">
@@ -2475,6 +2498,7 @@ export default function WeddingCardAiClientPage() {
                       cordiallyInvitesLabel={txCover.previewGuestPrefix}
                       openButtonLabel={txCover.previewOpenButton}
                       buttonColor={buttonColor}
+                      rsvpButtonColor={coverRsvpColor}
                       quickRsvp={
                         card.rsvpEnabled
                           ? {

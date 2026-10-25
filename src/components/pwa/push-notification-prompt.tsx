@@ -124,7 +124,7 @@ export function PushNotificationPrompt() {
   if (!vapidPublic || !visible) return null
 
   return (
-    <div className="fixed bottom-36 left-4 right-4 z-[60] md:bottom-24 md:max-w-sm md:left-auto md:right-4 safe-area-pb">
+    <div data-nanoai-chrome="" className="fixed bottom-36 left-4 right-4 z-[60] md:bottom-24 md:max-w-sm md:left-auto md:right-4 safe-area-pb">
       <div className="relative flex items-start gap-3 rounded-xl border bg-background p-4 shadow-lg">
         <button
           type="button"

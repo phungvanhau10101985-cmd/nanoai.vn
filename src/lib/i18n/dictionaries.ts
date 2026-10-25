@@ -3926,6 +3926,8 @@ export type Dictionary = {
     frameShapeRounded: string
     buttonColorLabel: string
     buttonColorHint: string
+    attendColorLabel: string
+    attendColorHint: string
     buttonColorBronze: string
     buttonColorRed: string
     buttonColorPink: string
@@ -8215,9 +8217,10 @@ export const VI_DICTIONARY: Dictionary = {
     frameShapeArch: 'Vòm',
     frameShapeDiamond: 'Thoi',
     frameShapeRounded: 'Chữ nhật',
-    buttonColorLabel: 'Màu nút',
-    buttonColorHint:
-      'Dùng cho Mở thiệp, nút Có đi trên vỏ thiệp, Sẽ tham dự sau khi khách bấm, Gửi phản hồi, nhắc lịch và bản đồ. Không đi và Không tham dự vẫn trắng.',
+    buttonColorLabel: 'Màu nút Mở thiệp',
+    buttonColorHint: 'Dùng cho Mở thiệp, Gửi phản hồi, nhắc lịch và bản đồ. Không đổi màu nút Có đi / Không đi.',
+    attendColorLabel: 'Màu nút Có đi / Không đi',
+    attendColorHint: 'Chỉ nút Có đi trên vỏ thiệp và trong thiệp, kể cả nút xác nhận số khách. Không đi vẫn trắng. Không theo màu nút Mở thiệp.',
     buttonColorBronze: 'Nâu đồng',
     buttonColorRed: 'Đỏ son',
     buttonColorPink: 'Hồng',

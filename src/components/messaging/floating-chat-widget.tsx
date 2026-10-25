@@ -610,7 +610,7 @@ export function FloatingChatWidget({
 
   if (closed) {
     if (hideLauncher) {
-      return <div ref={rootRef} data-nanoai-widget-root className="hidden" aria-hidden />
+      return <div ref={rootRef} data-nanoai-chrome="" data-nanoai-widget-root className="hidden" aria-hidden />
     }
     const renderLauncherButton = (className: string, children: React.ReactNode) => (
       <DismissableLayerBranch asChild>
@@ -636,7 +636,7 @@ export function FloatingChatWidget({
 
     if (showLauncherLogo) {
       return (
-        <div ref={rootRef} data-nanoai-widget-root className="contents">
+        <div ref={rootRef} data-nanoai-chrome="" data-nanoai-widget-root className="contents">
           {renderLauncherButton(
             `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} h-14 w-14 cursor-grab touch-none select-none overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
             /* eslint-disable-next-line @next/next/no-img-element */
@@ -651,7 +651,7 @@ export function FloatingChatWidget({
       )
     }
     return (
-      <div ref={rootRef} data-nanoai-widget-root className="contents">
+      <div ref={rootRef} data-nanoai-chrome="" data-nanoai-widget-root className="contents">
         {renderLauncherButton(
           `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
           <MessageCircle className="pointer-events-none h-7 w-7 text-muted-foreground" aria-hidden />
@@ -663,6 +663,7 @@ export function FloatingChatWidget({
   return (
     <div
       ref={rootRef}
+      data-nanoai-chrome=""
       data-nanoai-widget-root
       data-pw-chat-panel="1"
       className={openPanelClass}

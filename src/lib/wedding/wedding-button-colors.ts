@@ -41,6 +41,11 @@ export function resolveWeddingButtonColor(savedId: unknown, styleId?: string | n
   return COLORS[resolveWeddingButtonColorId(savedId, styleId)]
 }
 
+/** Màu Có đi. Chưa chọn riêng thì giữ màu nút đang có, để thiệp cũ không đổi cho đến khi tách màu. */
+export function resolveCoverRsvpButtonColor(coverRsvpColorId: unknown, buttonColorId: unknown, styleId?: string | null): WeddingButtonColor {
+  return resolveWeddingButtonColor(isWeddingButtonColorId(coverRsvpColorId) ? coverRsvpColorId : buttonColorId, styleId)
+}
+
 export function listWeddingButtonColors(): WeddingButtonColor[] {
   return WEDDING_BUTTON_COLOR_IDS.map((id) => COLORS[id])
 }

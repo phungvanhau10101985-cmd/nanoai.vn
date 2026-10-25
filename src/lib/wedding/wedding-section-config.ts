@@ -101,8 +101,10 @@ export type WeddingSectionConfig = {
   bridePortraitShellUrl?: string
   bridePortraitShellHole?: WeddingCoverAiFrameHole
   bridePortraitShellPanel?: string
-  /** Màu các nút chính trên thiệp. Cô dâu chú rể chọn trong trang tạo thiệp. */
+  /** Màu nút Mở thiệp, gửi phản hồi, nhắc lịch và bản đồ. */
   buttonColorId?: WeddingButtonColorId
+  /** Màu nút Có đi trên vỏ thiệp và trong thiệp. Không theo màu nút Mở thiệp. */
+  coverRsvpColorId?: WeddingButtonColorId
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -299,6 +301,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       ...readPortraitShell(obj, 'groom'),
       ...readPortraitShell(obj, 'bride'),
       buttonColorId: isWeddingButtonColorId(obj.buttonColorId) ? obj.buttonColorId : undefined,
+      coverRsvpColorId: isWeddingButtonColorId(obj.coverRsvpColorId) ? obj.coverRsvpColorId : undefined,
     }
   } catch {
     return {}
@@ -352,6 +355,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   writePortraitShell(payload, 'groom', config)
   writePortraitShell(payload, 'bride', config)
   if (isWeddingButtonColorId(config.buttonColorId)) payload.buttonColorId = config.buttonColorId
+  if (isWeddingButtonColorId(config.coverRsvpColorId)) payload.coverRsvpColorId = config.coverRsvpColorId
   return JSON.stringify(payload)
 }
 

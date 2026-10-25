@@ -46,6 +46,7 @@ export function ScrollTopButton() {
   return (
     <button
       type="button"
+      data-nanoai-chrome=""
       className="fixed bottom-[7.25rem] right-3 z-[2147482990] flex h-11 w-11 items-center justify-center rounded-full border border-border/40 bg-background/95 text-foreground shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:bottom-6 md:right-4"
       aria-label={label}
       title={label}

@@ -95,7 +95,7 @@ export function InstallPrompt() {
   if (isStandalone || !showPrompt) return null
 
   return (
-    <div className="fixed bottom-20 md:bottom-4 left-4 right-4 z-50 md:max-w-sm md:left-auto">
+    <div data-nanoai-chrome="" className="fixed bottom-20 md:bottom-4 left-4 right-4 z-50 md:max-w-sm md:left-auto">
       <div className="flex items-start gap-3 p-4 rounded-xl bg-background border shadow-lg safe-area-pb">
         <button
           onClick={() => setShowPrompt(false)}

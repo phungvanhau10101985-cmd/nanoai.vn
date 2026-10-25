@@ -36,7 +36,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
-import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
+import { bindWeddingButtonFill, resolveCoverRsvpButtonColor, resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
@@ -182,7 +182,12 @@ export default function WeddingPublicClient({
     () => resolveWeddingButtonColor(sectionConfig.buttonColorId, card.selectedStyleId),
     [card.selectedStyleId, sectionConfig.buttonColorId],
   )
+  const coverRsvpColor = useMemo(
+    () => resolveCoverRsvpButtonColor(sectionConfig.coverRsvpColorId, sectionConfig.buttonColorId, card.selectedStyleId),
+    [card.selectedStyleId, sectionConfig.buttonColorId, sectionConfig.coverRsvpColorId],
+  )
   const buttonFill = useMemo(() => bindWeddingButtonFill(buttonColor), [buttonColor])
+  const rsvpFill = useMemo(() => bindWeddingButtonFill(coverRsvpColor), [coverRsvpColor])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
   const coverFrameMode = useMemo(() => resolveCoverFrameMode(sectionConfig), [sectionConfig])
@@ -227,7 +232,6 @@ export default function WeddingPublicClient({
   const [reminderEmail, setReminderEmail] = useState('')
   const [reminderDaysBefore, setReminderDaysBefore] = useState('3')
   const [reminderSubmitting, setReminderSubmitting] = useState(false)
-  const [coverReminderOn, setCoverReminderOn] = useState(false)
   const [letterView, setLetterView] = useState<'groom' | 'bride' | 'both' | null>(
     () => (askLetterView ? null : initialLetterView),
   )
@@ -597,7 +601,7 @@ export default function WeddingPublicClient({
     const adult = Math.max(0, Math.min(20, draftAdult))
     const child = Math.max(0, Math.min(20, draftChild))
     const safeAdult = adult + child > 0 ? adult : 1
-    if (coverReminderOn && displayWeddingDateIso) {
+    if (reminderEmail.trim() && (displayWeddingDateIso ?? weddingDateIso)) {
       const reminded = await submitReminder()
       if (!reminded) return
     }
@@ -654,6 +658,8 @@ export default function WeddingPublicClient({
 
   return (
     <>
+      <style>{`html:has([data-wedding-public]) [data-nanoai-chrome]{display:none !important}html:has([data-wedding-public]) [data-nanoai-shell]{padding-bottom:0 !important}`}</style>
+      <div data-wedding-public="" hidden />
       <WeddingGuestNameFontLink />
       <Toaster />
       {partyModalOpen ? (
@@ -694,50 +700,38 @@ export default function WeddingPublicClient({
                 setDraftChild(child)
               }}
             />
-            {displayWeddingDateIso ? (
-              <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-3">
-                <label className="flex items-start gap-2 text-left text-sm font-semibold text-stone-800">
+            {(displayWeddingDateIso ?? weddingDateIso) ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-white/80 p-3 text-left">
+                <p className="text-sm font-semibold text-stone-800">{tx.coverReminderOptIn}</p>
+                <p className="mt-1 text-[11px] leading-4 text-stone-500">{tx.reminderHint}</p>
+                <label className="mt-3 block">
+                  <span className="text-xs font-semibold text-stone-800">{tx.reminderEmailLabel}</span>
                   <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-emerald-800"
-                    checked={coverReminderOn}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={reminderEmail}
                     disabled={submitting || reminderSubmitting}
-                    onChange={(event) => setCoverReminderOn(event.target.checked)}
+                    onChange={(event) => setReminderEmail(event.target.value)}
+                    placeholder={tx.reminderEmailPlaceholder}
+                    className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-sm text-stone-900"
                   />
-                  <span>{tx.coverReminderOptIn}</span>
                 </label>
-                {coverReminderOn ? (
-                  <div className="mt-3 space-y-3">
-                    <label className="block text-left">
-                      <span className="text-xs font-semibold text-stone-800">{tx.reminderEmailLabel}</span>
-                      <input
-                        type="email"
-                        inputMode="email"
-                        autoComplete="email"
-                        value={reminderEmail}
-                        disabled={submitting || reminderSubmitting}
-                        onChange={(event) => setReminderEmail(event.target.value)}
-                        placeholder={tx.reminderEmailPlaceholder}
-                        className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-sm text-stone-900"
-                      />
-                    </label>
-                    <label className="block text-left">
-                      <span className="text-xs font-semibold text-stone-800">{tx.reminderDaysLabel}</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={90}
-                        inputMode="numeric"
-                        value={reminderDaysBefore}
-                        disabled={submitting || reminderSubmitting}
-                        onChange={(event) => setReminderDaysBefore(event.target.value)}
-                        placeholder={tx.reminderDaysPlaceholder}
-                        className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-center text-sm text-stone-900"
-                      />
-                      <span className="mt-1 block text-[11px] leading-4 text-stone-500">{tx.reminderDaysHint}</span>
-                    </label>
-                  </div>
-                ) : null}
+                <label className="mt-3 block">
+                  <span className="text-xs font-semibold text-stone-800">{tx.reminderDaysLabel}</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={90}
+                    inputMode="numeric"
+                    value={reminderDaysBefore}
+                    disabled={submitting || reminderSubmitting}
+                    onChange={(event) => setReminderDaysBefore(event.target.value)}
+                    placeholder={tx.reminderDaysPlaceholder}
+                    className="mt-1 h-9 w-full rounded-full border border-stone-300 bg-white px-3 text-center text-sm text-stone-900"
+                  />
+                  <span className="mt-1 block text-[11px] leading-4 text-stone-500">{tx.reminderDaysHint}</span>
+                </label>
               </div>
             ) : null}
             <button
@@ -745,7 +739,7 @@ export default function WeddingPublicClient({
               disabled={submitting || reminderSubmitting || draftAdult + draftChild < 1}
               onClick={() => void confirmPartyModal()}
               className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-full border-2 font-bold shadow-[0_6px_18px_rgba(0,0,0,0.28)] disabled:opacity-60"
-              {...buttonFill}
+              {...rsvpFill}
             >
               {submitting || reminderSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : tx.coverPartyConfirm}
             </button>
@@ -831,6 +825,7 @@ export default function WeddingPublicClient({
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
                     buttonColor={buttonColor}
+                    rsvpButtonColor={coverRsvpColor}
                     quickRsvp={
                       card.rsvpEnabled && guestDisplayName
                         ? {
@@ -1318,7 +1313,7 @@ export default function WeddingPublicClient({
                         ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
                         : 'shadow-[0_6px_18px_rgba(0,0,0,0.28)]',
                     )}
-                    {...buttonFill}
+                    {...rsvpFill}
                   >
                     {tx.coverAttendYes}
                     {contentChoice === 'yes' ? (
@@ -1520,7 +1515,7 @@ export default function WeddingPublicClient({
           defaultCorner="top-left"
           icon={<X className="h-4 w-4" />}
           onClick={() => {
-            router.push(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
+            window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)
           }}
         />
       ) : null}

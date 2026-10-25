@@ -759,7 +759,7 @@ export default async function RootLayout({
             <PlatformServiceWorkerRegistration />
             <Header />
             <DepositCreditProvider>
-              <main className="pb-16 md:pb-0">{children}</main>
+              <main data-nanoai-shell="" className="pb-16 md:pb-0">{children}</main>
               <Footer />
               <MobileBottomBar />
               <InstallPrompt />

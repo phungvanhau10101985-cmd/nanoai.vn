@@ -200,6 +200,7 @@ export function MobileBottomBar() {
 
   return (
     <nav
+      data-nanoai-chrome=""
       className="fixed bottom-0 left-0 right-0 z-40 px-2 pb-2 md:hidden safe-area-pb"
       aria-label={tr(
         'Mọi tính năng. Giữa là tính năng liên quan và vừa xem',
