@@ -58,6 +58,19 @@ export function shouldSuggestMoreSchools(names: string[], query: string): boolea
   return true
 }
 
+/** Đủ 7 giáo viên chọn một tên thì giữ tên đó và bỏ tên kia. */
+export const SCHOOL_NAME_VOTE_THRESHOLD = 7
+
+export function resolveSchoolNameVote(
+  originalVotes: number,
+  editedVotes: number,
+  justChose: 'original' | 'edited'
+): 'original' | 'edited' | null {
+  if (justChose === 'original' && originalVotes >= SCHOOL_NAME_VOTE_THRESHOLD) return 'original'
+  if (justChose === 'edited' && editedVotes >= SCHOOL_NAME_VOTE_THRESHOLD) return 'edited'
+  return null
+}
+
 export function filterSchoolSuggestions(names: string[], query: string, limit = 4): string[] {
   const seen = new Set<string>()
   const kept: string[] = []

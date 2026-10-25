@@ -5,7 +5,7 @@
  */
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { coalesceEssayParts, getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
-import { formatQuizAnswerBlock } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
+import { cleanQuizSolution, formatQuizAnswerBlock } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import type { AISlideData, ContentBlock, Slide } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { parseCurriculumToSlides, parseContentToBlocks } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { compareExerciseIndexParsed, parseExerciseIndex } from '@/lib/worksheet-exercise-sort'
@@ -241,6 +241,8 @@ export type ExamReviewQuestionInput = {
   correctIndex: number
   correctLabel: string | null
   correctOption: string
+  /** Lời giải từng bước của câu trắc nghiệm (ngân hàng câu). */
+  solution?: string
 }
 
 export function examReviewQuestionsToSlides(questions: ExamReviewQuestionInput[]): AISlideData[] {
@@ -254,11 +256,16 @@ export function examReviewQuestionsToSlides(questions: ExamReviewQuestionInput[]
         .filter(Boolean)
         .join('\n')
         .trim()
+      const optionText = String(q.correctOption ?? '').trim()
+      const letter = q.correctLabel || (q.correctIndex >= 0 ? String.fromCharCode(65 + q.correctIndex) : '')
+      const answerLine = [letter, optionText].filter(Boolean).join('. ')
+      const steps = cleanQuizSolution(q.solution)
+      const conclusion = answerLine ? `**Đáp án:** ${answerLine}` : formatQuizAnswerBlock(q.correctIndex, '')
       const blocks: ContentBlock[] = [
         { header: 'Câu hỏi', content: `${questionText}${sourceLine}`.trim() },
         {
           header: 'Đáp án',
-          content: q.correctLabel ? `${q.correctLabel}. ${q.correctOption}` : String(q.correctOption ?? ''),
+          content: steps ? `${steps}\n\n${conclusion}` : answerLine || conclusion,
           isAnswer: true,
         },
       ]

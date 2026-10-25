@@ -1,6 +1,7 @@
 ﻿'use client'
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { markExamTeacher } from '@/lib/exam-teacher-mark'
 
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -862,6 +863,9 @@ export default function CurriculumViewPage() {
   const worksheetId = searchParams?.get('worksheetId')
   /** Một tab GV = một kênh BroadcastChannel riêng — tránh hai cửa sổ HS nhận lẫn dữ liệu. */
   const [presentationSyncId] = useState(() => getOrCreatePresentationSyncId('teacher-curriculum'))
+  useEffect(() => {
+    markExamTeacher()
+  }, [])
   const [content, setContent] = useState('')
   const [fullCurriculumMarkdown, setFullCurriculumMarkdown] = useState('')
   const [lessonSubjectId, setLessonSubjectId] = useState('')

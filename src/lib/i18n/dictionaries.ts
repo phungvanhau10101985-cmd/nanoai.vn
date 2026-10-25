@@ -3292,6 +3292,7 @@ export type Dictionary = {
     showStudentsAction: string
     hideStudentsAction: string
     examReviewAction: string
+    examTeacherOpenExam: string
     /** Xóa phiên đề thi gắn lớp (GV) */
     examDeleteAction: string
     examDeleteConfirmTitle: string
@@ -3409,6 +3410,9 @@ export type Dictionary = {
     createClassSchoolSuggesting: string
     createClassSchoolSuggestions: string
     createClassSchoolTypeOwn: string
+    createClassSchoolEdit: string
+    createClassSchoolEditSave: string
+    createClassSchoolTypeOwnPlaceholder: string
     joinStudentDisplayName: string
     joinStudentBirthDate: string
     joinDobDayPlaceholder: string
@@ -3928,6 +3932,9 @@ export type Dictionary = {
     buttonColorHint: string
     attendColorLabel: string
     attendColorHint: string
+    buttonColorChoose: string
+    buttonColorOk: string
+    buttonColorCancel: string
     buttonColorBronze: string
     buttonColorRed: string
     buttonColorPink: string
@@ -4084,6 +4091,42 @@ export type Dictionary = {
     schoolLabel: string
     gradeLevelLabel: string
     reviewSlides: string
+    presetExamsTitle: string
+    presetExamsHint: string
+    presetExamsEmpty: string
+    presetExamsLoading: string
+    presetUseThis: string
+    presetReviewExam: string
+    /** {n} {points} {minutes} */
+    presetQuestionMeta: string
+    createQuizButton: string
+    createEssayButton: string
+    createQuestionCount: string
+    createQuestionLesson: string
+    createQuestionAddType: string
+    createQuestionRemoveType: string
+    createQuestionSubmit: string
+    /** {credits} */
+    createQuestionCharge: string
+    /** {free} {credits} */
+    createQuestionChargeMixed: string
+    createQuestionRunning: string
+    /** {n} */
+    createQuestionDone: string
+    createReportTitle: string
+    /** {created} {requested} */
+    createReportCreated: string
+    /** {n} */
+    createReportFailed: string
+    /** {credits} */
+    createReportCredits: string
+    createReportFree: string
+    /** {free} {credits} */
+    createReportMixed: string
+    createReportPlace: string
+    createReportClose: string
+    createdInExam: string
+    createdInWorksheet: string
     exportPdf: string
     exportWord: string
     createAnotherExam: string
@@ -4196,6 +4239,7 @@ export type Dictionary = {
     /** {n} */
     ptsOver: string
     equals100: string
+    selectionFullLock: string
     totalDurationNeeded: string
     totalPointsExam: string
     selectedExamType: string
@@ -4217,11 +4261,33 @@ export type Dictionary = {
     scanQrTitle: string
     qrFailedUseLink: string
     openOnThisDevice: string
+    teacherOpenExam: string
+    teacherPaperStart: string
+    teacherPaperTimeUp: string
+    teacherPaperLoading: string
+    teacherPaperForbidden: string
+    teacherPaperLoadFailed: string
+    teacherPaperEmpty: string
+    teacherPaperQuestion: string
     createNewClass: string
     selectSchoolAboveForClass: string
     newClassNamePlaceholder: string
     createClass: string
     quickViewTitle: string
+    quickViewEdit: string
+    quickViewSave: string
+    quickViewConfirm: string
+    quickViewDisagree: string
+    quickViewUsingEdit: string
+    quickViewUsingOriginal: string
+    quickViewOriginalCompare: string
+    quickViewEditCompare: string
+    /** {agree} {reject} {need} {edits} */
+    quickViewCounts: string
+    quickViewRule: string
+    quickViewEditShort: string
+    quickViewEditBad: string
+    examVerifyThenCreate: string
     problem: string
     noProblem: string
     solution: string
@@ -4236,6 +4302,27 @@ export type Dictionary = {
     sourceEdited: string
     sourceOther: string
     defaultExamTitle: string
+    /** {limit} {n} — phút còn lại cho tự luận sau phần trắc nghiệm */
+    quizRemainMinutesForEssay: string
+    /** {n} {limit} */
+    quizMinutesOverDuration: string
+    /** {limit} */
+    essayIntroDuration: string
+    /** {max} */
+    essayMaxMinutesLine: string
+    quizMaxMinutesLine: string
+    quizMaxPointsLine: string
+    /** {n} */
+    minutesShort: string
+    /** {n} */
+    minutesOver: string
+    /** {limit} */
+    equalsDuration: string
+    /** {limit} */
+    needDurationToCreate: string
+    totalMustMatchDuration: string
+    /** {total} {limit} */
+    totalMustMatchDurationDesc: string
     /** Luồng /tao-bai-tap-ve-nha — cùng form tạo đề, không bắt tổng 100 điểm */
     homeworkPageTitle: string
     homeworkPageSubtitle: string
@@ -7594,6 +7681,7 @@ export const VI_DICTIONARY: Dictionary = {
     showStudentsAction: 'Xem học sinh làm bài',
     hideStudentsAction: 'Ẩn danh sách',
     examReviewAction: 'Chữa bài',
+    examTeacherOpenExam: 'Giáo viên mở đề',
     examDeleteAction: 'Xóa bài thi',
     examDeleteConfirmTitle: 'Xóa bài thi này?',
     examDeleteConfirmDescription:
@@ -7698,6 +7786,9 @@ export const VI_DICTIONARY: Dictionary = {
     createClassSchoolSuggesting: 'Đang nhờ DeepSeek đề xuất tên trường…',
     createClassSchoolSuggestions: 'DeepSeek đề xuất',
     createClassSchoolTypeOwn: 'Tự điền',
+    createClassSchoolEdit: 'Sửa',
+    createClassSchoolEditSave: 'Lưu',
+    createClassSchoolTypeOwnPlaceholder: 'Tự điền tên trường',
     joinStudentDisplayName: 'Họ và tên học sinh',
     joinStudentBirthDate: 'Ngày sinh',
     joinDobDayPlaceholder: 'Ngày',
@@ -8221,6 +8312,9 @@ export const VI_DICTIONARY: Dictionary = {
     buttonColorHint: 'Dùng cho Mở thiệp, Gửi phản hồi, nhắc lịch và bản đồ. Không đổi màu nút Có đi / Không đi.',
     attendColorLabel: 'Màu nút Có đi / Không đi',
     attendColorHint: 'Chỉ nút Có đi trên vỏ thiệp và trong thiệp, kể cả nút xác nhận số khách. Không đi vẫn trắng. Không theo màu nút Mở thiệp.',
+    buttonColorChoose: 'Chọn màu',
+    buttonColorOk: 'OK',
+    buttonColorCancel: 'Hủy',
     buttonColorBronze: 'Nâu đồng',
     buttonColorRed: 'Đỏ son',
     buttonColorPink: 'Hồng',
@@ -8381,6 +8475,34 @@ export const VI_DICTIONARY: Dictionary = {
     schoolLabel: 'Trường',
     gradeLevelLabel: 'Lớp',
     reviewSlides: 'Chữa bài (slide)',
+    presetExamsTitle: 'Đề dựng sẵn',
+    presetExamsHint: 'Cùng môn, lớp, bài học và thời lượng. Chọn một đề có sẵn, hoặc ghép từng câu bên dưới.',
+    presetExamsEmpty: 'Chưa có đề dựng sẵn khớp các mục này. Ghép câu bên dưới để tạo đề mới — đề đó sẽ hiện cho giáo viên khác.',
+    presetExamsLoading: 'Đang tìm đề dựng sẵn...',
+    presetUseThis: 'Dùng đề này',
+    presetReviewExam: 'Chữa đề',
+    presetQuestionMeta: 'Câu {n} · {points} điểm · {minutes} phút',
+    createQuizButton: 'Tạo câu trắc nghiệm',
+    createEssayButton: 'Tạo bài tự luận',
+    createQuestionCount: 'Số câu',
+    createQuestionLesson: 'Gắn vào bài',
+    createQuestionAddType: 'Thêm loại',
+    createQuestionRemoveType: 'Xóa loại',
+    createQuestionSubmit: 'Tạo câu',
+    createQuestionCharge: 'Sẽ trừ {credits} credit nếu tạo thành công',
+    createQuestionChargeMixed: '{free} câu còn miễn phí. Sẽ trừ {credits} credit cho câu vượt suất, nếu tạo thành công',
+    createQuestionRunning: 'Đang tạo câu theo bài...',
+    createQuestionDone: 'Đã tạo {n} câu',
+    createReportTitle: 'Kết quả tạo câu',
+    createReportCreated: 'Tạo thành công {created}/{requested} câu',
+    createReportFailed: 'Không tạo được {n} câu',
+    createReportCredits: 'Đã trừ {credits} credit',
+    createReportFree: 'Nằm trong suất miễn phí, không trừ credit',
+    createReportMixed: '{free} câu miễn phí. Đã trừ {credits} credit',
+    createReportPlace: 'Nơi tạo: tạo khi làm đề',
+    createReportClose: 'Đóng',
+    createdInExam: 'Tạo khi làm đề',
+    createdInWorksheet: 'Tạo trong phiếu',
     exportPdf: 'Xuất PDF',
     exportWord: 'Xuất Word',
     createAnotherExam: 'Tạo bài thi khác',
@@ -8491,6 +8613,7 @@ export const VI_DICTIONARY: Dictionary = {
     ptsShort: 'Còn thiếu {n} điểm',
     ptsOver: 'Thừa {n} điểm',
     equals100: 'Đủ 100 điểm',
+    selectionFullLock: 'Đã đủ điểm và thời lượng',
     totalDurationNeeded: 'Tổng thời gian cần làm bài',
     totalPointsExam: 'Tổng điểm đề',
     selectedExamType: 'Loại bài thi đã chọn',
@@ -8511,11 +8634,32 @@ export const VI_DICTIONARY: Dictionary = {
     scanQrTitle: 'Quét mã QR làm bài',
     qrFailedUseLink: 'Không tạo được QR. Dùng link bên dưới.',
     openOnThisDevice: 'Mở trên máy này',
+    teacherOpenExam: 'Giáo viên mở đề',
+    teacherPaperStart: 'Bắt đầu làm',
+    teacherPaperTimeUp: 'Hết giờ',
+    teacherPaperLoading: 'Đang tải đề...',
+    teacherPaperForbidden: 'Chỉ giáo viên tạo đề hoặc mở đề này mới xem được.',
+    teacherPaperLoadFailed: 'Không tải được đề.',
+    teacherPaperEmpty: 'Đề chưa có câu hỏi.',
+    teacherPaperQuestion: 'Câu',
     createNewClass: 'Tạo lớp mới',
     selectSchoolAboveForClass: 'Vui lòng chọn trường ở trên trước khi tạo lớp mới.',
     newClassNamePlaceholder: 'Nhập tên lớp mới (VD: 12A6)',
     createClass: 'Tạo lớp mới',
     quickViewTitle: 'Xem nhanh đề và lời giải',
+    quickViewEdit: 'Sửa',
+    quickViewSave: 'Lưu',
+    quickViewConfirm: 'Xác nhận đúng',
+    quickViewDisagree: 'Không đồng ý',
+    quickViewUsingEdit: 'Đang dùng bản sửa',
+    quickViewUsingOriginal: 'Đang dùng bản gốc',
+    quickViewOriginalCompare: 'Bản gốc để đối chiếu',
+    quickViewEditCompare: 'Bản sửa để đối chiếu',
+    quickViewCounts: '{agree}/{need} đúng liên tiếp · {reject}/{need} sai liên tiếp · Sửa {edits} lần',
+    quickViewRule: '7 lần đúng liên tiếp thì thay bản gốc bằng bản sửa. 7 lần sai liên tiếp thì giữ bản gốc và bỏ bản sửa.',
+    quickViewEditShort: 'Nội dung câu quá ngắn.',
+    quickViewEditBad: 'Chưa đọc được câu vừa sửa. Giữ đầu câu và phần lời giải.',
+    examVerifyThenCreate: 'Đang duyệt câu chưa duyệt...',
     problem: 'Đề bài',
     noProblem: 'Không có nội dung đề bài.',
     solution: 'Lời giải',
@@ -8530,6 +8674,22 @@ export const VI_DICTIONARY: Dictionary = {
     sourceEdited: 'Chỉnh sửa',
     sourceOther: 'Nguồn khác',
     defaultExamTitle: 'Bài thi',
+    quizRemainMinutesForEssay:
+      'Trong thời lượng {limit} phút: sau phần TN còn tối đa {n} phút để phân cho tự luận.',
+    quizMinutesOverDuration:
+      'Cảnh báo: thời gian trắc nghiệm ({n} phút) đã vượt thời lượng đề ({limit} phút) — hãy giảm phút/câu hoặc số câu.',
+    essayIntroDuration:
+      'Tổng thời gian TN + TL phải đúng thời lượng loại bài thi đã chọn ({limit} phút). Thời gian tối đa mỗi bài tự luận không vượt quá phần còn lại (thời lượng đề trừ phút TN và trừ phút các bài TL khác).',
+    essayMaxMinutesLine: 'Có thể cho tối đa {max} phút (đã trừ TN và các bài TL khác).',
+    quizMaxMinutesLine: 'Có thể cho tối đa {max} phút (đã trừ các câu khác).',
+    quizMaxPointsLine: 'Có thể cho tối đa {max} điểm (đã trừ các câu khác).',
+    minutesShort: 'Còn thiếu {n} phút',
+    minutesOver: 'Thừa {n} phút',
+    equalsDuration: 'Đủ {limit} phút',
+    needDurationToCreate: 'Chưa tạo được: tổng thời gian toàn bài phải = {limit} phút (TN + TL nếu có)',
+    totalMustMatchDuration: 'Tổng thời gian chưa khớp thời lượng đề',
+    totalMustMatchDurationDesc:
+      'Hiện tổng thời gian là {total} phút. Chỉnh phút từng câu trắc nghiệm và từng câu tự luận sao cho cộng lại đúng {limit} phút.',
     homeworkPageTitle: 'Tạo bài tập về nhà',
     homeworkPageSubtitle:
       'Cùng bước như bài thi trực tuyến (môn, lớp, câu hỏi, QR/link) nhưng không bắt tổng 100 điểm; học sinh không thấy điểm sau khi nộp.',

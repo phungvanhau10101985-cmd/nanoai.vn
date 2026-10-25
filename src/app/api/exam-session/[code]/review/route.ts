@@ -4,6 +4,7 @@ import { fetchExamQuestionsForReviewPg, fetchExamSessionForTeacherReviewPg } fro
 import { fetchWorksheetQuestionsTypeContentByIdsFromPg } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 
 type ExamQuestionRow = {
   id: string
@@ -62,17 +63,20 @@ export async function GET(
           .filter((id): id is string => Boolean(id && String(id).trim()))
       )
     )
-    const solutionByWorksheetQid = new Map<string, string>()
+    const essaySolutionByWorksheetQid = new Map<string, string>()
+    const quizSolutionByWorksheetQid = new Map<string, string>()
     if (wsIds.length > 0) {
       const wsMap = await fetchWorksheetQuestionsTypeContentByIdsFromPg(wsIds)
       if (wsMap === null) {
         return NextResponse.json({ error: 'Lỗi đọc lời giải.' }, { status: 500 })
       }
       for (const [id, row] of wsMap) {
-        const type = row.type
-        if (type === 'essay') {
-          const sol = getEssaySolution(row.content_json).trim()
-          if (sol) solutionByWorksheetQid.set(id, sol)
+        const sol = getEssaySolution(row.content_json).trim()
+        if (!sol) continue
+        if (row.type === 'essay') essaySolutionByWorksheetQid.set(id, sol)
+        else if (row.type === 'quiz') {
+          const steps = cleanQuizSolution(sol)
+          if (steps) quizSolutionByWorksheetQid.set(id, steps)
         }
       }
     }
@@ -85,9 +89,14 @@ export async function GET(
       const correctLabel = correctIndex >= 0 ? indexToLetter(correctIndex) : null
       let correctOption = correctIndex >= 0 ? options[correctIndex] ?? '' : ''
       const wsq = String(q.worksheet_question_id ?? '').trim()
-      if (!hasChoice && wsq) {
-        const fromDb = solutionByWorksheetQid.get(wsq)
-        if (fromDb) correctOption = fromDb
+      let solution = ''
+      if (wsq) {
+        if (!hasChoice) {
+          const fromDb = essaySolutionByWorksheetQid.get(wsq)
+          if (fromDb) correctOption = fromDb
+        } else {
+          solution = quizSolutionByWorksheetQid.get(wsq) ?? ''
+        }
       }
       return {
         id: String(q.id),
@@ -98,6 +107,7 @@ export async function GET(
         correctIndex,
         correctLabel,
         correctOption,
+        solution,
       }
     })
 

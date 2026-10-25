@@ -194,7 +194,13 @@ export async function POST(req: NextRequest) {
     const sanitizedOpts = lastQuiz.options.map(stripOptionPrefix)
     const { options: shuffledOpts, correctIndex: shuffledCorrect } = shuffleCorrectPosition(sanitizedOpts, lastQuiz.correctIndex)
 
-    const contentJson = { question: lastQuiz.question, options: shuffledOpts, correctIndex: shuffledCorrect, solution: lastQuiz.solution }
+    const contentJson = {
+      question: lastQuiz.question,
+      options: shuffledOpts,
+      correctIndex: shuffledCorrect,
+      solution: lastQuiz.solution,
+      createdIn: 'worksheet' as const,
+    }
     const row = await insertWorksheetQuestionPg({
       userId: userId!,
       curriculumId,

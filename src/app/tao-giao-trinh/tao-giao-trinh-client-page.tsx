@@ -2,6 +2,8 @@
 /* eslint-disable @next/next/no-img-element -- authoring workspace uses dynamic/blob preview images */
 
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { markExamTeacher } from '@/lib/exam-teacher-mark'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -1913,13 +1915,7 @@ export default function TaoGiaoTrinhClientPage({
             : mode === 'shared'
               ? (infographicShared ?? infographicOriginal ?? infographicPersonal)
               : infographicShared ?? infographicOriginal ?? infographicPersonal)
-      const sw = typeof screen !== 'undefined' ? screen.width : 1920
-      const sh = typeof screen !== 'undefined' ? screen.height : 1080
-      const w = window.open(
-        '/giao-trinh/giao-vien?t=' + Date.now(),
-        'giao-vien-' + Date.now(),
-        `width=${sw},height=${sh},scrollbars=yes,left=0,top=0`
-      )
+      const w = openDetachedTeacherSlideWindow('/giao-trinh/giao-vien?t=' + Date.now())
       if (w) {
         const send = () => {
           try {
@@ -3080,6 +3076,7 @@ export default function TaoGiaoTrinhClientPage({
       setInfographicShared(hasShared ? sharedMeta.curriculumInfographic : undefined)
       setInfographicOriginal(hasOriginal ? originalMeta.curriculumInfographic : undefined)
       setInfographicPersonal(hasPersonal ? personalMeta.curriculumInfographic : undefined)
+      markExamTeacher()
       void recordCurriculumOpen(id)
       toast({ title: tr('Đã tải giáo trình', 'Curriculum loaded', '已加载课程', 'カリキュラムを読み込み', '교육과정 로드됨'), duration: 2000 })
       if (!options?.skipScroll) {
@@ -3163,17 +3160,19 @@ export default function TaoGiaoTrinhClientPage({
       toast({
         title: tr('Chưa có phiếu bài tập đã lưu', 'No saved worksheet yet', '尚无已保存的练习', '保存済みワークシートがありません', '저장된 워크시트 없음'),
         description: tr(
-          'Lưu phiếu bài tập (vào kho giáo trình) để mở trang xem đầy đủ như /phieu-bai-tap.',
-          'Save the worksheet to your curriculum to open the full view page like /phieu-bai-tap.',
-          '请将练习保存到课程，以打开与 /phieu-bai-tap 相同的完整页面。',
-          'カリキュラムにワークシートを保存すると、/phieu-bai-tap と同じ全体表示ページを開けます。',
-          '워크시트를 교육과정에 저장하면 /phieu-bai-tap 과 같은 전체 보기 페이지를 열 수 있습니다.',
+          'Lưu phiếu bài tập vào kho giáo trình để mở cửa sổ slide chữa bài.',
+          'Save the worksheet to your curriculum to open the review-slide window.',
+          '请将练习保存到课程，以打开讲评幻灯片窗口。',
+          'カリキュラムにワークシートを保存すると、解説スライドのウィンドウを開けます。',
+          '워크시트를 교육과정에 저장하면 해설 슬라이드 창을 열 수 있습니다.',
         ),
         duration: 6000,
       })
       return
     }
-    window.open(`${window.location.origin}/phieu-bai-tap/${targetWorksheetId}`, '_blank', 'noopener,noreferrer')
+    openDetachedTeacherSlideWindow(
+      `/giao-trinh/giao-vien?worksheetId=${encodeURIComponent(targetWorksheetId)}&t=${Date.now()}`
+    )
   }
 
   const openPickCurriculumExercises = () => {

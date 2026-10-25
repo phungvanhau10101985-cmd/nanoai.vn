@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { filterSchoolSuggestions, schoolSuggestionContainsQuery, shouldSuggestMoreSchools } from './school-name'
+import {
+  filterSchoolSuggestions,
+  resolveSchoolNameVote,
+  schoolSuggestionContainsQuery,
+  shouldSuggestMoreSchools,
+} from './school-name'
 
 test('đề xuất phải chứa cụm giáo viên gõ, bỏ tên không có cụm đó', () => {
   const names = filterSchoolSuggestions(
@@ -23,6 +28,13 @@ test('đề xuất phải chứa cụm giáo viên gõ, bỏ tên không có c�
 test('cụm không có trong tên thì không giữ', () => {
   assert.equal(schoolSuggestionContainsQuery('Trường Chu Văn An', 'quảng oai'), false)
   assert.equal(schoolSuggestionContainsQuery('THPT Quang Oai', 'Quảng Oai'), true)
+})
+
+test('đủ 7 phiếu cho tên vừa chọn thì giữ tên đó', () => {
+  assert.equal(resolveSchoolNameVote(6, 1, 'original'), null)
+  assert.equal(resolveSchoolNameVote(7, 1, 'original'), 'original')
+  assert.equal(resolveSchoolNameVote(2, 7, 'edited'), 'edited')
+  assert.equal(resolveSchoolNameVote(7, 7, 'edited'), 'edited')
 })
 
 test('một trường khác cụm đang gõ thì vẫn đề xuất thêm, đủ hai trường thì thôi', () => {

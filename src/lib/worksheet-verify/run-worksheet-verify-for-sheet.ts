@@ -37,6 +37,174 @@ export type RunWorksheetVerifyStats = {
 /**
  * Verify một phiếu — chỉ Postgres (DATABASE_URL).
  */
+async function verifyOrderedQuestions(input: {
+  ordered: Array<{
+    id: string
+    type: string
+    content_json: unknown
+    source?: string
+    verified_at?: string | null
+  }>
+  fullContent: string
+  sheetUserId: string | null
+  reverifyAll: boolean
+  stats: RunWorksheetVerifyStats
+  getSgkImageParts: () => Promise<Array<{ inlineData: { data: string; mimeType: string } }>>
+  sgkImageUrls: string[]
+}): Promise<void> {
+  const { ordered, fullContent, sheetUserId, reverifyAll, stats, getSgkImageParts, sgkImageUrls } = input
+  const nowIso = () => new Date().toISOString()
+
+  for (const row of ordered) {
+    if (!reverifyAll && row.verified_at) continue
+    if (row.type === 'quiz') {
+      const c = row.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
+      const q = {
+        question: c?.question ?? '',
+        options: (c?.options ?? []).slice(0, 4),
+        correctIndex: Math.max(0, Math.min(c?.correctIndex ?? 0, 3)),
+        solution: cleanQuizSolution(c?.solution),
+      }
+      if (!q.question || q.options.length < 4) {
+        stats.skippedInvalid++
+        continue
+      }
+
+      let finalQ = q
+      let needsUpdate = false
+      let skipTextVerifyPipeline = false
+      if (row.source === 'sgk' && sgkImageUrls.length > 0) {
+        const imageParts = await getSgkImageParts()
+        if (imageParts.length > 0) {
+          const visionFirst = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
+          if (visionFirst?.verified) {
+            skipTextVerifyPipeline = true
+          } else if (
+            visionFirst &&
+            !visionFirst.verified &&
+            (visionFirst.correctIndex != null || visionFirst.question || visionFirst.options)
+          ) {
+            if (visionFirst.question) finalQ = { ...finalQ, question: visionFirst.question }
+            if (visionFirst.options) finalQ = { ...finalQ, options: visionFirst.options }
+            if (typeof visionFirst.correctIndex === 'number' && visionFirst.correctIndex >= 0 && visionFirst.correctIndex <= 3) {
+              finalQ = { ...finalQ, correctIndex: visionFirst.correctIndex }
+            }
+            needsUpdate = true
+            skipTextVerifyPipeline = true
+          }
+        }
+      }
+
+      if (!skipTextVerifyPipeline) {
+        const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q, sheetUserId)
+        if (deepSeekResult && !deepSeekResult.verified) {
+          let geminiResult: { verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null = null
+          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
+            const imageParts = await getSgkImageParts()
+            if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
+          }
+          if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q, sheetUserId)
+          const verifyResult = geminiResult ?? deepSeekResult
+          if (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number') {
+            if (verifyResult.question) finalQ = { ...finalQ, question: verifyResult.question }
+            if (verifyResult.options) finalQ = { ...finalQ, options: verifyResult.options }
+            if (typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
+              finalQ = { ...finalQ, correctIndex: verifyResult.correctIndex }
+            }
+            needsUpdate = true
+          } else {
+            const fixed = await fixQuizWhenVerifyFailed(fullContent, q, sheetUserId)
+            if (fixed) {
+              finalQ = fixed
+              needsUpdate = true
+            }
+          }
+        }
+      }
+      if (needsUpdate) {
+        const createdIn = (row.content_json as { createdIn?: unknown } | null)?.createdIn
+        const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
+          question: finalQ.question,
+          options: finalQ.options,
+          correctIndex: finalQ.correctIndex,
+          ...(finalQ.solution ? { solution: finalQ.solution } : {}),
+          ...(createdIn === 'exam' || createdIn === 'worksheet' ? { createdIn } : {}),
+        })
+        if (ok) stats.contentUpdates++
+        else stats.errors.push(`quiz update ${row.id}`)
+      }
+      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
+      if (okMark) stats.markedVerified++
+      else stats.errors.push(`quiz verify mark ${row.id}`)
+    } else if (row.type === 'essay') {
+      const c = row.content_json as { problem?: string; solution?: unknown }
+      const problem = (c?.problem ?? '').trim()
+      const solution = normalizeSolutionToStr(c?.solution) || getEssaySolution(c) || ''
+      if (!problem || !solution) {
+        stats.skippedInvalid++
+        continue
+      }
+
+      let finalE = { problem, solution }
+      let needsUpdate = false
+      let skipTextVerifyPipeline = false
+      if (row.source === 'sgk' && sgkImageUrls.length > 0) {
+        const imageParts = await getSgkImageParts()
+        if (imageParts.length > 0) {
+          const visionFirst = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
+          if (visionFirst?.verified) {
+            skipTextVerifyPipeline = true
+          } else if (visionFirst && !visionFirst.verified && (visionFirst.problem || visionFirst.solution)) {
+            if (visionFirst.problem) finalE = { ...finalE, problem: visionFirst.problem }
+            if (visionFirst.solution) finalE = { ...finalE, solution: visionFirst.solution }
+            needsUpdate = true
+            skipTextVerifyPipeline = true
+          }
+        }
+      }
+
+      if (!skipTextVerifyPipeline) {
+        const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, sheetUserId)
+        if (deepSeekResult && !deepSeekResult.verified) {
+          let geminiResult: { verified: boolean; problem?: string; solution?: string } | null = null
+          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
+            const imageParts = await getSgkImageParts()
+            if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
+          }
+          if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution, sheetUserId)
+          const verifyResult = geminiResult ?? deepSeekResult
+          if (verifyResult.problem || verifyResult.solution) {
+            if (verifyResult.problem) finalE = { ...finalE, problem: verifyResult.problem }
+            if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
+            needsUpdate = true
+          } else {
+            const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
+            if (fixed) {
+              finalE = fixed
+              needsUpdate = true
+            }
+          }
+        }
+      }
+      if (needsUpdate) {
+        const solutionStr = normalizeSolutionToStr(finalE.solution) || String(finalE.solution ?? '').trim()
+        const createdIn = (row.content_json as { createdIn?: unknown } | null)?.createdIn
+        const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
+          problem: finalE.problem,
+          solution: solutionStr,
+          ...(createdIn === 'exam' || createdIn === 'worksheet' ? { createdIn } : {}),
+        })
+        if (ok) stats.contentUpdates++
+        else stats.errors.push(`essay update ${row.id}`)
+      }
+      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
+      if (okMark) stats.markedVerified++
+      else stats.errors.push(`essay verify mark ${row.id}`)
+    }
+  }
+
+}
+
 export async function runWorksheetVerifyForSheet(
   worksheetId: string,
   options?: { curriculumMarkdownOverride?: string; reverifyAll?: boolean }
@@ -115,148 +283,15 @@ export async function runWorksheetVerifyForSheet(
     return parts
   }
 
-  const nowIso = () => new Date().toISOString()
-
-  for (const row of ordered) {
-    if (!reverifyAll && row.verified_at) continue
-    if (row.type === 'quiz') {
-      const c = row.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
-      const q = {
-        question: c?.question ?? '',
-        options: (c?.options ?? []).slice(0, 4),
-        correctIndex: Math.max(0, Math.min(c?.correctIndex ?? 0, 3)),
-        solution: cleanQuizSolution(c?.solution),
-      }
-      if (!q.question || q.options.length < 4) {
-        stats.skippedInvalid++
-        continue
-      }
-
-      let finalQ = q
-      let needsUpdate = false
-      let skipTextVerifyPipeline = false
-      if (row.source === 'sgk' && sgkImageUrls.length > 0) {
-        const imageParts = await getSgkImageParts()
-        if (imageParts.length > 0) {
-          const visionFirst = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
-          if (visionFirst?.verified) {
-            skipTextVerifyPipeline = true
-          } else if (
-            visionFirst &&
-            !visionFirst.verified &&
-            (visionFirst.correctIndex != null || visionFirst.question || visionFirst.options)
-          ) {
-            if (visionFirst.question) finalQ = { ...finalQ, question: visionFirst.question }
-            if (visionFirst.options) finalQ = { ...finalQ, options: visionFirst.options }
-            if (typeof visionFirst.correctIndex === 'number' && visionFirst.correctIndex >= 0 && visionFirst.correctIndex <= 3) {
-              finalQ = { ...finalQ, correctIndex: visionFirst.correctIndex }
-            }
-            needsUpdate = true
-            skipTextVerifyPipeline = true
-          }
-        }
-      }
-
-      if (!skipTextVerifyPipeline) {
-        const deepSeekResult = await verifyQuizWithDeepSeek(fullContent, q, sheetUserId)
-        if (deepSeekResult && !deepSeekResult.verified) {
-          let geminiResult: { verified: boolean; correctIndex?: number; question?: string; options?: string[] } | null = null
-          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
-            const imageParts = await getSgkImageParts()
-            if (imageParts.length > 0) geminiResult = await verifyQuizWithGeminiVision(fullContent, q, imageParts, sheetUserId)
-          }
-          if (!geminiResult) geminiResult = await verifyQuizWithGemini(fullContent, q, sheetUserId)
-          const verifyResult = geminiResult ?? deepSeekResult
-          if (verifyResult.question || verifyResult.options || typeof verifyResult.correctIndex === 'number') {
-            if (verifyResult.question) finalQ = { ...finalQ, question: verifyResult.question }
-            if (verifyResult.options) finalQ = { ...finalQ, options: verifyResult.options }
-            if (typeof verifyResult.correctIndex === 'number' && verifyResult.correctIndex >= 0 && verifyResult.correctIndex <= 3) {
-              finalQ = { ...finalQ, correctIndex: verifyResult.correctIndex }
-            }
-            needsUpdate = true
-          } else {
-            const fixed = await fixQuizWhenVerifyFailed(fullContent, q, sheetUserId)
-            if (fixed) {
-              finalQ = fixed
-              needsUpdate = true
-            }
-          }
-        }
-      }
-      if (needsUpdate) {
-        const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
-          question: finalQ.question,
-          options: finalQ.options,
-          correctIndex: finalQ.correctIndex,
-          ...(finalQ.solution ? { solution: finalQ.solution } : {}),
-        })
-        if (ok) stats.contentUpdates++
-        else stats.errors.push(`quiz update ${row.id}`)
-      }
-      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
-      if (okMark) stats.markedVerified++
-      else stats.errors.push(`quiz verify mark ${row.id}`)
-    } else if (row.type === 'essay') {
-      const c = row.content_json as { problem?: string; solution?: unknown }
-      const problem = (c?.problem ?? '').trim()
-      const solution = normalizeSolutionToStr(c?.solution) || getEssaySolution(c) || ''
-      if (!problem || !solution) {
-        stats.skippedInvalid++
-        continue
-      }
-
-      let finalE = { problem, solution }
-      let needsUpdate = false
-      let skipTextVerifyPipeline = false
-      if (row.source === 'sgk' && sgkImageUrls.length > 0) {
-        const imageParts = await getSgkImageParts()
-        if (imageParts.length > 0) {
-          const visionFirst = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
-          if (visionFirst?.verified) {
-            skipTextVerifyPipeline = true
-          } else if (visionFirst && !visionFirst.verified && (visionFirst.problem || visionFirst.solution)) {
-            if (visionFirst.problem) finalE = { ...finalE, problem: visionFirst.problem }
-            if (visionFirst.solution) finalE = { ...finalE, solution: visionFirst.solution }
-            needsUpdate = true
-            skipTextVerifyPipeline = true
-          }
-        }
-      }
-
-      if (!skipTextVerifyPipeline) {
-        const deepSeekResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, sheetUserId)
-        if (deepSeekResult && !deepSeekResult.verified) {
-          let geminiResult: { verified: boolean; problem?: string; solution?: string } | null = null
-          if (deepSeekResult.needsImage && sgkImageUrls.length > 0 && row.source === 'sgk') {
-            const imageParts = await getSgkImageParts()
-            if (imageParts.length > 0) geminiResult = await verifyEssayWithGeminiVision(fullContent, problem, solution, imageParts, sheetUserId)
-          }
-          if (!geminiResult) geminiResult = await verifyEssayWithGemini(fullContent, problem, solution, sheetUserId)
-          const verifyResult = geminiResult ?? deepSeekResult
-          if (verifyResult.problem || verifyResult.solution) {
-            if (verifyResult.problem) finalE = { ...finalE, problem: verifyResult.problem }
-            if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
-            needsUpdate = true
-          } else {
-            const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
-            if (fixed) {
-              finalE = fixed
-              needsUpdate = true
-            }
-          }
-        }
-      }
-      if (needsUpdate) {
-        const solutionStr = normalizeSolutionToStr(finalE.solution) || String(finalE.solution ?? '').trim()
-        const ok = await updateWorksheetQuestionContentJsonPg(row.id, { problem: finalE.problem, solution: solutionStr })
-        if (ok) stats.contentUpdates++
-        else stats.errors.push(`essay update ${row.id}`)
-      }
-      const okMark = await updateWorksheetQuestionVerifiedAtNowPg(row.id, nowIso())
-      if (okMark) stats.markedVerified++
-      else stats.errors.push(`essay verify mark ${row.id}`)
-    }
-  }
+  await verifyOrderedQuestions({
+    ordered,
+    fullContent,
+    sheetUserId,
+    reverifyAll,
+    stats,
+    getSgkImageParts,
+    sgkImageUrls,
+  })
 
   if (stats.contentUpdates > 0 || stats.markedVerified > 0) {
     const freshRows = await fetchWorksheetQuestionsByIdsForVerifyPg(questionIds)
@@ -279,5 +314,50 @@ export async function runWorksheetVerifyForSheet(
     }
   }
 
+  return stats
+}
+
+/** Duyệt các câu chưa có verified_at. Câu đã duyệt thì bỏ qua, không duyệt lại. */
+export async function runWorksheetVerifyForQuestionIds(questionIds: string[]): Promise<RunWorksheetVerifyStats> {
+  const stats: RunWorksheetVerifyStats = {
+    contentUpdates: 0,
+    markedVerified: 0,
+    skippedInvalid: 0,
+    errors: [],
+  }
+  const ids = [...new Set(questionIds.map((id) => id.trim()).filter(Boolean))]
+  if (!isPgConfigured() || ids.length === 0) return stats
+  if (!process.env.GOOGLE_API_KEY?.trim()) {
+    stats.errors.push('GOOGLE_API_KEY chưa cấu hình')
+    return stats
+  }
+  const rows = await fetchWorksheetQuestionsByIdsForVerifyPg(ids)
+  if (rows === null) {
+    stats.errors.push('Không đọc được câu hỏi từ DB')
+    return stats
+  }
+  const pending = rows.filter((row) => !row.verified_at)
+  if (pending.length === 0) return stats
+  const byCurriculum = new Map<string, typeof pending>()
+  for (const row of pending) {
+    const key = row.curriculum_id || ''
+    const list = byCurriculum.get(key) ?? []
+    list.push(row)
+    byCurriculum.set(key, list)
+  }
+  for (const [curriculumId, group] of byCurriculum) {
+    const markdown = curriculumId ? (await fetchCurriculumContentMarkdownForVerifyPg(curriculumId)) ?? '' : ''
+    const fullContent = markdown ? `## Bài học\n\n${markdown}` : ''
+    const sheetUserId = group.find((row) => row.user_id)?.user_id ?? null
+    await verifyOrderedQuestions({
+      ordered: group,
+      fullContent,
+      sheetUserId,
+      reverifyAll: false,
+      stats,
+      sgkImageUrls: [],
+      getSgkImageParts: async () => [],
+    })
+  }
   return stats
 }

@@ -18,6 +18,7 @@ import {
   updateClassSchoolAndGradeIfUnsetPg,
 } from '@/lib/db/classes-pg'
 import { fetchSchoolByIdPg } from '@/lib/db/schools-repo'
+import { fetchCurriculumTopicTitlesPg } from '@/lib/db/exam-preset-pg'
 import {
   DEFAULT_WEB_LOCALE,
   LOCALE_COOKIE_NAME,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/i18n/config'
 import { resolveDefaultExamSessionTitle } from '@/lib/i18n/exam-session-default-titles'
 import { getEssayProblem } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { runWorksheetVerifyForQuestionIds } from '@/lib/worksheet-verify/run-worksheet-verify-for-sheet'
 import { shuffleArray } from '@/lib/exam-layout-token'
 import { defaultPublicOrigin } from '@/lib/public-app-origin'
 
@@ -42,6 +44,17 @@ const EXAM_TARGET_TOTAL_POINTS = 100
 
 function roundExamTotalPoints(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+function roundExamMinutes(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.round(n * 2) / 2
+}
+
+function readQuizMinutes(raw: unknown, duration: number, fallback: number): number {
+  const n = typeof raw === 'number' ? raw : Number(raw)
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(0, Math.min(duration, roundExamMinutes(n)))
 }
 
 const EXAM_TYPE_CONFIG: Record<string, { duration: number; minutesPerQuestion: number }> = {
@@ -172,6 +185,14 @@ export async function POST(req: NextRequest) {
       }
       lessonTopics = topicsFetched
     }
+    let curriculumTopics: string[] = []
+    if (curriculumIds.length > 0) {
+      const titles = await fetchCurriculumTopicTitlesPg(curriculumIds)
+      if (titles === null) {
+        return NextResponse.json({ error: 'Không thể đọc tên bài học.' }, { status: 503 })
+      }
+      curriculumTopics = titles
+    }
     const practiceHomework = body?.practiceHomework === true
     let titleLocale: WebLocale = DEFAULT_WEB_LOCALE
     const localeFromBody = normalizeWebLocale(
@@ -203,7 +224,7 @@ export async function POST(req: NextRequest) {
     for (const [qid, raw] of Object.entries(rawEssayMinutesById)) {
       const n = typeof raw === 'number' ? raw : Number(raw)
       if (!Number.isFinite(n)) continue
-      essayMinutesById[String(qid)] = Math.max(0.5, Math.min(20, n))
+      essayMinutesById[String(qid)] = Math.max(0, Math.min(config.duration, roundExamMinutes(n)))
     }
     const rawEssayPointsById = (body?.essayPointsById && typeof body.essayPointsById === 'object')
       ? (body.essayPointsById as Record<string, unknown>)
@@ -214,6 +235,25 @@ export async function POST(req: NextRequest) {
       if (!Number.isFinite(n)) continue
       essayPointsById[String(qid)] = clampEssayPointsMax(n, 10)
     }
+    const rawQuizMinutesById = (body?.quizMinutesById && typeof body.quizMinutesById === 'object')
+      ? (body.quizMinutesById as Record<string, unknown>)
+      : {}
+    const quizMinutesById: Record<string, number> = {}
+    for (const [qid, raw] of Object.entries(rawQuizMinutesById)) {
+      const n = typeof raw === 'number' ? raw : Number(raw)
+      if (!Number.isFinite(n)) continue
+      quizMinutesById[String(qid)] = Math.max(0, Math.min(config.duration, roundExamMinutes(n)))
+    }
+    const rawQuizPointsById = (body?.quizPointsById && typeof body.quizPointsById === 'object')
+      ? (body.quizPointsById as Record<string, unknown>)
+      : {}
+    const quizPointsById: Record<string, number> = {}
+    for (const [qid, raw] of Object.entries(rawQuizPointsById)) {
+      const n = typeof raw === 'number' ? raw : Number(raw)
+      if (!Number.isFinite(n)) continue
+      quizPointsById[String(qid)] = clampEssayPointsMax(n, 0)
+    }
+    const usePerQuestionQuizBudget = Object.keys(quizMinutesById).length > 0 || Object.keys(quizPointsById).length > 0
     const quizQuestionCountRaw = Number(body?.quizQuestionCount ?? 0)
     const quizQuestionCount = Number.isFinite(quizQuestionCountRaw) ? Math.max(0, Math.min(200, Math.floor(quizQuestionCountRaw))) : 0
     const quizCountEasyRaw = Number(body?.quizCountEasy ?? 0)
@@ -225,19 +265,17 @@ export async function POST(req: NextRequest) {
       hard: Number.isFinite(quizCountHardRaw) ? Math.max(0, Math.min(200, Math.floor(quizCountHardRaw))) : 0,
     }
 
-    const quizMinutesEasy = typeof body?.quizMinutesEasy === 'number' && body.quizMinutesEasy >= 0.5 && body.quizMinutesEasy <= 10
-      ? body.quizMinutesEasy
-      : config.minutesPerQuestion
-    const quizMinutesMedium = typeof body?.quizMinutesMedium === 'number' && body.quizMinutesMedium >= 0.5 && body.quizMinutesMedium <= 10
-      ? body.quizMinutesMedium
-      : (
-        typeof body?.minutesPerQuestion === 'number' && body.minutesPerQuestion >= 0.5 && body.minutesPerQuestion <= 10
-          ? body.minutesPerQuestion
-          : config.minutesPerQuestion
-      )
-    const quizMinutesHard = typeof body?.quizMinutesHard === 'number' && body.quizMinutesHard >= 0.5 && body.quizMinutesHard <= 10
-      ? body.quizMinutesHard
-      : Math.max(quizMinutesMedium, config.minutesPerQuestion)
+    const quizMinutesEasy = readQuizMinutes(body?.quizMinutesEasy, config.duration, config.minutesPerQuestion)
+    const quizMinutesMedium = readQuizMinutes(
+      body?.quizMinutesMedium ?? body?.minutesPerQuestion,
+      config.duration,
+      config.minutesPerQuestion
+    )
+    const quizMinutesHard = readQuizMinutes(
+      body?.quizMinutesHard,
+      config.duration,
+      Math.max(quizMinutesMedium, config.minutesPerQuestion)
+    )
 
     const quizPointsEasy = clampQuizPointsPerQuestion(
       typeof body?.quizPointsEasy === 'number' ? body.quizPointsEasy : Number(body?.quizPointsEasy),
@@ -340,6 +378,12 @@ export async function POST(req: NextRequest) {
       ? selectedEssayQuestionIds.filter((id) => allowedQuestionIds.has(id))
       : selectedEssayQuestionIds
 
+    try {
+      await runWorksheetVerifyForQuestionIds([...scopedQuizIds, ...scopedEssayIds])
+    } catch (verifyError) {
+      console.error('[exam-session/create] verify unverified questions', verifyError)
+    }
+
     if (selectionMode === 'manual' && scopedQuizIds.length > 0) {
       const selectedRows = await fetchWorksheetQuizRowsByIdsPg(scopedQuizIds)
       if (selectedRows === null) {
@@ -361,20 +405,27 @@ export async function POST(req: NextRequest) {
           correct_index: quiz.correctIndex,
           source: 'worksheet_quiz',
           worksheet_question_id: String(qid),
-          points: pointsForQuizDifficulty(String(row.difficulty ?? '')),
+          points: usePerQuestionQuizBudget
+            ? (quizPointsById[String(qid)] ?? 0)
+            : pointsForQuizDifficulty(String(row.difficulty ?? '')),
         })
         perQuestionMinutes.push(
-          quizMinutesForDifficulty(diff, {
-            easy: quizMinutesEasy,
-            medium: quizMinutesMedium,
-            hard: quizMinutesHard,
-          })
+          usePerQuestionQuizBudget
+            ? (quizMinutesById[String(qid)] ?? 0)
+            : quizMinutesForDifficulty(diff, {
+              easy: quizMinutesEasy,
+              medium: quizMinutesMedium,
+              hard: quizMinutesHard,
+            })
         )
       }
       if (
-        selectedByDifficulty.easy !== requestedQuizByDifficulty.easy
-        || selectedByDifficulty.medium !== requestedQuizByDifficulty.medium
-        || selectedByDifficulty.hard !== requestedQuizByDifficulty.hard
+        requestedQuizCountFromDiff > 0
+        && (
+          selectedByDifficulty.easy !== requestedQuizByDifficulty.easy
+          || selectedByDifficulty.medium !== requestedQuizByDifficulty.medium
+          || selectedByDifficulty.hard !== requestedQuizByDifficulty.hard
+        )
       ) {
         return NextResponse.json(
           { error: 'Số câu giáo viên chọn chưa đúng chỉ tiêu Dễ/Trung bình/Khó.' },
@@ -472,7 +523,7 @@ export async function POST(req: NextRequest) {
           worksheet_question_id: String(qid),
           points: essayPointsById[qid] ?? 10,
         })
-        perQuestionMinutes.push(essayMinutesById[qid] ?? 2)
+        perQuestionMinutes.push(essayMinutesById[qid] ?? 0)
       }
     }
 
@@ -512,11 +563,20 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const code = generateCode()
-    const calculatedDurationMinutes = Math.max(
-      1,
-      Math.ceil(perQuestionMinutes.reduce((sum, m) => sum + (Number.isFinite(m) ? m : 0), 0))
+    const plannedMinutes = roundExamMinutes(
+      perQuestionMinutes.reduce((sum, m) => sum + (Number.isFinite(m) ? m : 0), 0)
     )
+    if (!practiceHomework && Math.abs(plannedMinutes - config.duration) > 0.01) {
+      return NextResponse.json(
+        {
+          error: `Tổng thời gian trắc nghiệm + tự luận phải đúng ${config.duration} phút (hiện: ${plannedMinutes}).`,
+        },
+        { status: 400 },
+      )
+    }
+
+    const code = generateCode()
+    const calculatedDurationMinutes = Math.max(1, plannedMinutes || config.duration)
     const finalDurationMinutes = config.duration
     const calculatedMinutesPerQuestion = perQuestionMinutes.length > 0
       ? perQuestionMinutes.reduce((sum, m) => sum + (Number.isFinite(m) ? m : 0), 0) / perQuestionMinutes.length
@@ -534,6 +594,7 @@ export async function POST(req: NextRequest) {
       minutesPerQuestion: calculatedMinutesPerQuestion,
       config: {
         lessonTopics,
+        curriculumTopics,
         difficulty,
         selectionMode,
         requestedQuizCount,
@@ -547,6 +608,8 @@ export async function POST(req: NextRequest) {
         quizPointsHard,
         essayMinutesById,
         essayPointsById,
+        quizMinutesById,
+        quizPointsById,
         calculatedDurationMinutes,
         finalDurationMinutes,
         classId,

@@ -92,6 +92,33 @@ function detailFromRow(
   return { problem, solution }
 }
 
+function createdInFromContent(content: unknown): 'exam' | 'worksheet' {
+  const raw = content && typeof content === 'object' ? (content as { createdIn?: unknown }).createdIn : null
+  return raw === 'exam' ? 'exam' : 'worksheet'
+}
+
+/** Cùng một thứ tự ngẫu nhiên cho trang tạo đề và phiếu bài tập. */
+function stableShuffle<T>(items: T[], seed: string): T[] {
+  const arr = [...items]
+  let state = 2166136261
+  for (let i = 0; i < seed.length; i++) {
+    state ^= seed.charCodeAt(i)
+    state = Math.imul(state, 16777619)
+  }
+  state = state >>> 0 || 1
+  const next = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
+    return state / 4294967296
+  }
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1))
+    const tmp = arr[i]
+    arr[i] = arr[j]!
+    arr[j] = tmp!
+  }
+  return arr
+}
+
 function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = []
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
@@ -269,7 +296,7 @@ export async function GET(req: NextRequest) {
       )
     )
 
-    let ordered = withPreview.map((x) => x.row)
+    let ordered = stableShuffle(withPreview.map((x) => x.row), curriculumId)
 
     if (typeParam === 'quiz' || typeParam === 'essay') {
       ordered = ordered.filter((r) => r.type === typeParam)
@@ -289,6 +316,7 @@ export async function GET(req: NextRequest) {
       difficulty: row.difficulty ?? '',
       order: row.order,
       created_at: row.created_at,
+      created_in: createdInFromContent(row.content_json),
       verified_at: row.verified_at ?? null,
       preview: previewFromRow(row.type, row.content_json),
     }))

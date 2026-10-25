@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import {
+  appendSchoolSearchTokens,
   fetchSchoolByIdPg,
   findSchoolByNormalizedName,
   insertSchool,
-  searchSchoolsForTeacher,
+  proposeSchoolNameEdit,
+  searchSchoolsWithEdits,
   upsertTeacherDefaultSchool,
+  voteSchoolName,
 } from '@/lib/db/schools-repo'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
@@ -19,7 +22,7 @@ import {
   ensureSchoolPrefix,
   filterSchoolSuggestions,
   normalizeSchoolName,
-  shouldSuggestMoreSchools,
+  schoolSuggestionContainsQuery,
   toSearchTokens,
 } from '@/lib/school-name'
 import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
@@ -84,28 +87,44 @@ Không giải thích.`
       fallbackOutputChars: text.length,
     })
     if (!res.ok) return []
-    const known = new Set(already.map((name) => normalizeSchoolName(ensureSchoolPrefix(name))))
-    return filterSchoolSuggestions(parseSuggestedSchools(text), query, 8).filter((name) => {
-      const key = normalizeSchoolName(ensureSchoolPrefix(name))
-      return Boolean(key) && !known.has(key)
-    }).slice(0, 4)
+    const knownKeys = new Set(already.map((name) => normalizeSchoolName(ensureSchoolPrefix(name))))
+    const queryTokens = toSearchTokens(query)
+    const matched = parseSuggestedSchools(text).filter((name) => {
+      if (schoolSuggestionContainsQuery(name, query)) return true
+      if (queryTokens.length === 0) return false
+      const nameTokens = new Set(toSearchTokens(name))
+      return queryTokens.every((token) => nameTokens.has(token))
+    })
+    return filterSchoolSuggestions(matched, query, 8)
+      .concat(matched.filter((name) => !schoolSuggestionContainsQuery(name, query)))
+      .filter((name, index, all) => {
+        const key = normalizeSchoolName(ensureSchoolPrefix(name))
+        if (!key || knownKeys.has(key)) return false
+        return all.findIndex((item) => normalizeSchoolName(ensureSchoolPrefix(item)) === key) === index
+      })
+      .slice(0, 4)
   } catch {
     return []
   }
 }
 
-async function saveSchoolNames(names: string[], userId: string): Promise<void> {
+async function saveSchoolNames(names: string[], userId: string, query = ''): Promise<void> {
+  const extra = toSearchTokens(query).join(' ')
   for (const raw of names) {
     const canonicalName = ensureSchoolPrefix(raw)
     const normalized = normalizeSchoolName(canonicalName)
     if (!normalized) continue
     const existing = await findSchoolByNormalizedName(normalized)
-    if (existing?.id) continue
+    if (existing?.id) {
+      if (extra) await appendSchoolSearchTokens(existing.id, extra)
+      continue
+    }
+    const searchTokens = extra ? `${normalized} ${extra}` : normalized
     try {
       await insertSchool({
         name: canonicalName,
         normalizedName: normalized,
-        searchTokens: normalized,
+        searchTokens,
         createdBy: userId,
       })
     } catch {
@@ -119,21 +138,45 @@ type SchoolHit = {
   name: string
   normalized_name: string
   search_tokens: string
+  edited_name?: string | null
+  edited_normalized?: string | null
 }
 
-async function listMatchingSchools(q: string): Promise<Array<{ id: string; name: string }>> {
+function schoolTextMatches(hayRaw: string, normalized: string, queryTokens: string[]): boolean {
+  const hay = normalizeSchoolName(hayRaw)
+  if (!hay) return false
+  if (normalized && hay.includes(normalized)) return true
+  if (queryTokens.length === 0) return false
+  const rowTokens = new Set(toSearchTokens(hayRaw))
+  return queryTokens.every((token) => rowTokens.has(token))
+}
+
+async function listMatchingSchools(
+  q: string
+): Promise<Array<{ id: string; name: string; choice: 'original' | 'edited' | null }>> {
   const normalized = normalizeSchoolName(q)
   const queryTokens = toSearchTokens(q)
-  const firstToken = queryTokens[0] ?? normalized
-  const data = await searchSchoolsForTeacher(q, firstToken)
-  const filtered = (data || []).filter((row: SchoolHit) => {
-    const rowTokens = new Set(toSearchTokens(String(row.search_tokens || row.normalized_name || row.name || '')))
-    return queryTokens.some((token) => rowTokens.has(token))
-  })
-  return filtered.slice(0, 20).map((row) => ({
-    id: String(row.id),
-    name: String(row.name ?? '').trim(),
-  }))
+  const data = await searchSchoolsWithEdits(q, normalized)
+  const listed: Array<{ id: string; name: string; choice: 'original' | 'edited' | null }> = []
+  for (const row of data || []) {
+    const hit = row as SchoolHit
+    const originalHay = `${hit.name} ${hit.normalized_name} ${hit.search_tokens}`
+    const editedHay = `${hit.edited_name || ''} ${hit.edited_normalized || ''}`
+    const matched =
+      schoolTextMatches(originalHay, normalized, queryTokens) || schoolTextMatches(editedHay, normalized, queryTokens)
+    if (!matched) continue
+    const editedName = String(hit.edited_name ?? '').trim()
+    listed.push({
+      id: String(hit.id),
+      name: String(hit.name ?? '').trim(),
+      choice: editedName ? 'original' : null,
+    })
+    if (editedName) {
+      listed.push({ id: String(hit.id), name: editedName, choice: 'edited' })
+    }
+    if (listed.length >= 40) break
+  }
+  return listed
 }
 
 async function canonicalizeSchoolNameByAi(input: string, userId?: string | null): Promise<string | null> {
@@ -214,23 +257,23 @@ export async function GET(req: NextRequest) {
     ? [aiMatchedExisting, ...items.filter((x) => x.id !== aiMatchedExisting?.id)]
     : items
 
-  let listed = mergedItems
-  if (wantSuggest && auth.user?.id && shouldSuggestMoreSchools(listed.map((item) => item.name), q)) {
-    const names = await suggestSchoolNamesWithDeepseek(q, listed.map((item) => item.name), auth.user.id)
-    await saveSchoolNames(names, auth.user.id)
-    try {
-      const again = await listMatchingSchools(q)
-      if (again.length > 0) listed = again
-    } catch {
-      /* giữ danh sách đã có */
-    }
+  if (mergedItems.length > 0 || !wantSuggest || !auth.user?.id || normalized.length < 3) {
+    const listedExact = mergedItems.some((item) => normalizeSchoolName(item.name) === normalized)
+    return NextResponse.json({
+      items: mergedItems,
+      suggestions: [],
+      canCreate: normalized.length >= 3 && !listedExact,
+      suggestedName: q,
+      aiSuggestedName,
+      aiMatchedExisting,
+    })
   }
 
-  const listedExact = listed.some((item) => normalizeSchoolName(item.name) === normalized)
+  const suggestions = await suggestSchoolNamesWithDeepseek(q, [], auth.user.id)
   return NextResponse.json({
-    items: listed,
-    suggestions: [],
-    canCreate: normalized.length >= 3 && !listedExact,
+    items: [],
+    suggestions,
+    canCreate: true,
     suggestedName: q,
     aiSuggestedName,
     aiMatchedExisting,
@@ -246,17 +289,46 @@ export async function POST(req: NextRequest) {
   const schoolIdBody = String(body?.schoolId ?? '').trim()
   const setAsDefault = Boolean(body?.setAsDefault ?? true)
   if (schoolIdBody) {
-    const school = await fetchSchoolByIdPg(schoolIdBody)
-    if (!school?.id) return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
+    const action = String(body?.action ?? '').trim()
+    if (action === 'rename') {
+      const rawName = ensureSchoolPrefix(String(body?.name ?? '').trim())
+      const editedNormalized = normalizeSchoolName(rawName)
+      if (!editedNormalized || rawName.length < 3) {
+        return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
+      }
+      const proposed = await proposeSchoolNameEdit({
+        schoolId: schoolIdBody,
+        teacherId: user.id,
+        editedName: rawName,
+        editedNormalized,
+      })
+      if (!proposed.ok) return NextResponse.json({ error: proposed.error }, { status: 400 })
+      return NextResponse.json({ success: true, schoolId: schoolIdBody, canonicalName: proposed.canonicalName })
+    }
+    const choice = body?.choice === 'edited' || body?.choice === 'original' ? body.choice : null
+    let canonicalName = ''
+    if (choice) {
+      const voted = await voteSchoolName({ schoolId: schoolIdBody, teacherId: user.id, choice })
+      if (!voted.ok) return NextResponse.json({ error: voted.error }, { status: 400 })
+      canonicalName = voted.canonicalName
+    } else {
+      const school = await fetchSchoolByIdPg(schoolIdBody)
+      if (!school?.id) return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
+      canonicalName = school.name
+    }
     if (setAsDefault) {
-      const up = await upsertTeacherDefaultSchool(user.id, school.id)
+      const up = await upsertTeacherDefaultSchool(user.id, schoolIdBody)
       if (!up.ok) return NextResponse.json({ error: up.error ?? 'Không lưu trường mặc định.' }, { status: 500 })
     }
-    return NextResponse.json({ success: true, schoolId: school.id, canonicalName: school.name })
+    return NextResponse.json({ success: true, schoolId: schoolIdBody, canonicalName })
   }
 
   const name = String(body?.name ?? '').trim()
   const useAi = Boolean(body?.useAi ?? false)
+  const siblingNames = Array.isArray(body?.siblingNames)
+    ? (body.siblingNames as unknown[]).map((item) => String(item ?? '').trim()).filter((item) => item.length >= 3)
+    : []
+  const query = String(body?.query ?? name).trim()
   if (name.length < 3) {
     return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
   }
@@ -264,6 +336,10 @@ export async function POST(req: NextRequest) {
   const canonicalName = ensureSchoolPrefix(useAi ? (await canonicalizeSchoolNameByAi(name, user.id)) || name : name)
   const normalized = normalizeSchoolName(canonicalName)
   if (!normalized) return NextResponse.json({ error: 'Tên trường không hợp lệ.' }, { status: 400 })
+
+  if (siblingNames.length > 0) {
+    await saveSchoolNames([canonicalName, ...siblingNames], user.id, query)
+  }
 
   let schoolId = ''
   const existing = await findSchoolByNormalizedName(normalized)

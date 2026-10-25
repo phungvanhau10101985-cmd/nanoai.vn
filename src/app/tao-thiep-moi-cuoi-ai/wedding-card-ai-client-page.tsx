@@ -2417,15 +2417,12 @@ export default function WeddingCardAiClientPage() {
               <CardContent className="space-y-4">
                 <WeddingButtonColorPicker
                   value={buttonColorId}
+                  locale={uiLocale}
                   label={txCover.buttonColorLabel}
                   hint={txCover.buttonColorHint}
-                  names={{
-                    bronze: txCover.buttonColorBronze,
-                    red: txCover.buttonColorRed,
-                    pink: txCover.buttonColorPink,
-                    black: txCover.buttonColorBlack,
-                    cream: txCover.buttonColorCream,
-                  }}
+                  chooseLabel={txCover.buttonColorChoose}
+                  okLabel={txCover.buttonColorOk}
+                  cancelLabel={txCover.buttonColorCancel}
                   onChange={(id: WeddingButtonColorId) =>
                     update(
                       'sectionConfig',
@@ -2438,15 +2435,12 @@ export default function WeddingCardAiClientPage() {
                 />
                 <WeddingButtonColorPicker
                   value={coverRsvpColorId}
+                  locale={uiLocale}
                   label={txCover.attendColorLabel}
                   hint={txCover.attendColorHint}
-                  names={{
-                    bronze: txCover.buttonColorBronze,
-                    red: txCover.buttonColorRed,
-                    pink: txCover.buttonColorPink,
-                    black: txCover.buttonColorBlack,
-                    cream: txCover.buttonColorCream,
-                  }}
+                  chooseLabel={txCover.buttonColorChoose}
+                  okLabel={txCover.buttonColorOk}
+                  cancelLabel={txCover.buttonColorCancel}
                   onChange={(id: WeddingButtonColorId) =>
                     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverRsvpColorId: id }))
                   }

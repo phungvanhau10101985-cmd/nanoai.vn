@@ -11,6 +11,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { fillI18nTemplate } from '@/lib/i18n/fill-template'
 import { AttachExamToClassDialog } from '@/components/exam/attach-exam-to-class-dialog'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { BookOpen, Copy, ExternalLink, Link2, RefreshCw, Trash2 } from 'lucide-react'
 
 export type ClassHomeworkSession = {
@@ -192,11 +193,15 @@ export default function GanPhieuClient({
                   <Copy className="h-3.5 w-3.5" aria-hidden />
                   {examUi.copyLink}
                 </Button>
-                <Button type="button" variant="outline" size="sm" className="gap-1.5" asChild>
-                  <Link href={buildReviewUrl(s.code)} target="_blank" rel="noopener noreferrer">
-                    <BookOpen className="h-3.5 w-3.5" aria-hidden />
-                    {examUi.reviewSlides}
-                  </Link>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openDetachedTeacherSlideWindow(buildReviewUrl(s.code))}
+                >
+                  <BookOpen className="h-3.5 w-3.5" aria-hidden />
+                  {examUi.reviewSlides}
                 </Button>
                 <Button
                   type="button"

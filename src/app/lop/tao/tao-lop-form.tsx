@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
-import { RefreshCw } from 'lucide-react'
 import { createClass } from '../actions'
-import { shouldSuggestMoreSchools } from '@/lib/school-name'
+import { renameSavedSchool, savePickedSchool, useSchoolSearch, voteSavedSchool, type SchoolSearchHit } from '@/hooks/use-school-search'
+import { SchoolNameOptions } from '@/components/school/school-name-options'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
@@ -16,10 +16,14 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [result, setResult] = useState<{ classId: string; joinCode: string } | null>(null)
   const [schoolSearch, setSchoolSearch] = useState('')
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
-  const [schoolSearchLoading, setSchoolSearchLoading] = useState(false)
-  const [schoolSearchItems, setSchoolSearchItems] = useState<Array<{ id: string; name: string }>>([])
-  const [canCreateSchool, setCanCreateSchool] = useState(false)
-  const [schoolSuggestLoading, setSchoolSuggestLoading] = useState(false)
+  const {
+    items: schoolSearchItems,
+    suggestions: schoolSuggestions,
+    loading: schoolSearchLoading,
+    suggesting: schoolSuggestLoading,
+    reload: reloadSchools,
+  } = useSchoolSearch(schoolSearch)
+  const schoolPanelRef = useRef<HTMLDivElement>(null)
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
   const [addingSchool, setAddingSchool] = useState(false)
@@ -52,80 +56,27 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     }
   }, [])
 
-  useEffect(() => {
-    const needle = schoolSearch.trim()
-    if (needle.length < 2) {
-      setSchoolSearchItems([])
-      setCanCreateSchool(false)
-      setSchoolSuggestLoading(false)
-      return
-    }
-    let cancelled = false
-    const timer = window.setTimeout(async () => {
-      setSchoolSearchLoading(true)
-      setSchoolSuggestLoading(false)
-      try {
-        const res = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}`, { cache: 'no-store' })
-        const data = await res.json().catch(() => ({}))
-        if (cancelled) return
-        if (!res.ok) {
-          setSchoolSearchItems([])
-          setCanCreateSchool(false)
-          return
-        }
-        const items = Array.isArray(data?.items) ? data.items : []
-        setSchoolSearchItems(items)
-        setCanCreateSchool(Boolean(data?.canCreate))
-        setSchoolSearchLoading(false)
-        if (!shouldSuggestMoreSchools(items.map((item: { name?: string }) => String(item?.name ?? '')), needle)) return
-        setSchoolSuggestLoading(true)
-        const sugRes = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}&suggest=1`, { cache: 'no-store' })
-        const sug = await sugRes.json().catch(() => ({}))
-        if (cancelled) return
-        const found = Array.isArray(sug?.items) ? sug.items : []
-        if (found.length > 0) {
-          setSchoolSearchItems(found)
-          setCanCreateSchool(Boolean(sug?.canCreate))
-        }
-      } catch {
-        if (!cancelled) {
-          setSchoolSearchItems([])
-          setCanCreateSchool(false)
-        }
-      } finally {
-        if (!cancelled) {
-          setSchoolSearchLoading(false)
-          setSchoolSuggestLoading(false)
-        }
-      }
-    }, 300)
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [schoolSearch])
-
-  const chooseSavedSchool = useCallback(async (item: { id: string; name: string }) => {
+  const chooseSavedSchool = useCallback(async (item: SchoolSearchHit) => {
     setAddingSchool(true)
     try {
-      const res = await fetch('/api/schools/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ schoolId: item.id, setAsDefault: true }),
+      const saved = await voteSavedSchool({
+        schoolId: item.id,
+        choice: item.choice,
+        setAsDefault: true,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.schoolId) {
+      if (!saved.ok) {
         toast({
           variant: 'destructive',
-          description: typeof data?.error === 'string' ? data.error : t.createClassSchoolNotFound,
+          description: saved.error || t.createClassSchoolNotFound,
         })
         return
       }
-      const label = String(data.canonicalName ?? item.name).trim()
-      setSelectedSchoolId(String(data.schoolId))
+      const label = saved.canonicalName || item.name
+      setSelectedSchoolId(saved.schoolId)
       setSelectedSchoolName(label)
       setSchoolSearch(label)
       setSchoolDropdownOpen(false)
+      reloadSchools()
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -134,36 +85,40 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     } finally {
       setAddingSchool(false)
     }
-  }, [toast, t.createClassSchoolNotFound])
+  }, [reloadSchools, toast, t.createClassSchoolNotFound])
 
-  const addSchoolFromSearch = useCallback(async (rawName?: string) => {
+  const renameSchool = useCallback(async (schoolId: string, name: string) => {
+    const saved = await renameSavedSchool({ schoolId, name })
+    if (!saved.ok) {
+      toast({ variant: 'destructive', description: saved.error || t.createClassSchoolNotFound })
+      return false
+    }
+    reloadSchools()
+    return true
+  }, [reloadSchools, toast, t.createClassSchoolNotFound])
+
+  const addSchoolFromSearch = useCallback(async (rawName?: string, siblingNames?: string[]) => {
     const raw = (rawName ?? schoolSearch).trim()
     if (raw.length < 3) return
     setAddingSchool(true)
     try {
-      const res = await fetch('/api/schools/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: raw, useAi: false, setAsDefault: true }),
+      const saved = await savePickedSchool({
+        name: raw,
+        siblingNames,
+        query: schoolSearch.trim(),
+        setAsDefault: true,
       })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok || !data?.schoolId) {
+      if (!saved.ok) {
         toast({
           variant: 'destructive',
-          description: typeof data?.error === 'string' ? data.error : t.createClassSchoolNotFound,
+          description: saved.error || t.createClassSchoolNotFound,
         })
         return
       }
-      const sid = String(data.schoolId)
-      const label = String(data.canonicalName ?? raw).trim()
-      setSelectedSchoolId(sid)
-      setSelectedSchoolName(label)
-      setSchoolSearch(label)
+      setSelectedSchoolId(saved.schoolId)
+      setSelectedSchoolName(saved.canonicalName)
+      setSchoolSearch(saved.canonicalName)
       setSchoolDropdownOpen(false)
-      setSchoolSearchItems((prev) => {
-        const rest = prev.filter((x) => x.id !== sid)
-        return [{ id: sid, name: label }, ...rest]
-      })
     } catch (e) {
       toast({
         variant: 'destructive',
@@ -258,56 +213,50 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
                 }
               }}
               onFocus={() => setSchoolDropdownOpen(true)}
-              onBlur={() => window.setTimeout(() => setSchoolDropdownOpen(false), 150)}
+              onBlur={() => {
+                window.setTimeout(() => {
+                  if (schoolPanelRef.current?.contains(document.activeElement)) return
+                  setSchoolDropdownOpen(false)
+                }, 180)
+              }}
               placeholder={t.createClassSchoolPlaceholder}
               disabled={loading}
               className="w-full"
               autoComplete="off"
             />
             {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md">
-                {schoolSearchLoading ? (
-                  <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-                    <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                    {t.createClassSchoolSearching}
-                  </div>
-                ) : (
-                  <>
-                    {schoolSearchItems.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        className={`w-full rounded px-2 py-2 text-left text-sm hover:bg-muted ${
-                          selectedSchoolId === item.id ? 'bg-muted font-medium' : ''
-                        }`}
-                        disabled={addingSchool}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void chooseSavedSchool(item)}
-                      >
-                        {item.name}
-                      </button>
-                    ))}
-                    {schoolSuggestLoading ? (
-                      <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-                        <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
-                        {t.createClassSchoolSearching}
-                      </div>
-                    ) : null}
-                    {canCreateSchool && schoolSearch.trim().length >= 3 && (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="mt-1 h-auto w-full whitespace-normal py-2"
-                        disabled={addingSchool}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void addSchoolFromSearch(schoolSearch.trim())}
-                      >
-                        {addingSchool ? '…' : `${t.createClassSchoolTypeOwn}: “${schoolSearch.trim()}”`}
-                      </Button>
-                    )}
-                  </>
-                )}
+              <div
+                ref={schoolPanelRef}
+                className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md"
+                onMouseDown={(e) => {
+                  const target = e.target as HTMLElement
+                  if (target.closest('input, textarea')) return
+                  e.preventDefault()
+                }}
+              >
+                <SchoolNameOptions
+                  items={schoolSearchItems}
+                  suggestions={schoolSuggestions}
+                  loading={schoolSearchLoading}
+                  suggesting={schoolSuggestLoading}
+                  query={schoolSearch.trim()}
+                  selectedId={selectedSchoolId}
+                  selectedName={selectedSchoolName}
+                  busy={addingSchool}
+                  labels={{
+                    searching: t.createClassSchoolSearching,
+                    suggesting: t.createClassSchoolSuggesting,
+                    suggestions: t.createClassSchoolSuggestions,
+                    edit: t.createClassSchoolEdit,
+                    save: t.createClassSchoolEditSave,
+                    typeOwn: t.createClassSchoolTypeOwn,
+                    typeOwnPlaceholder: t.createClassSchoolTypeOwnPlaceholder,
+                  }}
+                  onPickSaved={(item) => void chooseSavedSchool(item)}
+                  onPickSuggestion={(name, siblingNames) => void addSchoolFromSearch(name, siblingNames)}
+                  onTypeOwn={(name) => void addSchoolFromSearch(name)}
+                  onRename={renameSchool}
+                />
               </div>
             )}
           </div>

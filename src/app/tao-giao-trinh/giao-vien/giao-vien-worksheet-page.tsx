@@ -587,7 +587,9 @@ export default function GiaoVienWorksheetPage() {
   const [saveAsPersonalLoading, setSaveAsPersonalLoading] = useState(false)
   const [personalHistoryOpen, setPersonalHistoryOpen] = useState(false)
   const [sharedHistoryOpen, setSharedHistoryOpen] = useState(false)
-  const [worksheetLoading, setWorksheetLoading] = useState(false)
+  const [worksheetLoading, setWorksheetLoading] = useState(
+    () => Boolean(examCode) || Boolean(worksheetId?.trim())
+  )
   /** Markdown phiếu (khớp API / lưu DB) — dùng map slide → block và popup sửa câu */
   const [worksheetMarkdownSource, setWorksheetMarkdownSource] = useState('')
   const [worksheetQuestionTypes, setWorksheetQuestionTypes] = useState<string[]>([])
@@ -1091,6 +1093,10 @@ export default function GiaoVienWorksheetPage() {
           return
         }
         const questions = Array.isArray(data.questions) ? data.questions : []
+        if (questions.length === 0) {
+          setExamLoadError(tr('Đề thi chưa có câu hỏi.', 'This exam has no questions.', '试卷还没有题目。', '試験に問題がありません。', '시험에 문제가 없습니다.'))
+          return
+        }
         const isHw = data.practiceHomework === true
         const title =
           String(data.title ?? '').trim()
@@ -1134,10 +1140,11 @@ export default function GiaoVienWorksheetPage() {
         setHasOriginalSlides(true)
         hasHydratedFromCurriculumRef.current = true
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (!cancelled) {
           setWorksheetLoading(false)
-          setExamLoadError(tr('Không tải được đề thi.', 'Could not load exam.', '无法加载试卷。', '試験を読み込めません。', '시험을 불러올 수 없습니다.'))
+          const detail = err instanceof Error ? err.message.trim() : ''
+          setExamLoadError(detail || tr('Không tải được đề thi.', 'Could not load exam.', '无法加载试卷。', '試験を読み込めません。', '시험을 불러올 수 없습니다.'))
         }
       })
     return () => {
@@ -3059,6 +3066,8 @@ export default function GiaoVienWorksheetPage() {
         }
       }
       if (e.data?.type === 'curriculum-data') {
+        // Chữa bài đề thi tự tải từ API. Tin curriculum-data (slideMode trống) từ cửa sổ khác sẽ xóa nội dung vừa tải.
+        if (examCode && !worksheetId?.trim()) return
         const incomingCurriculumId = typeof e.data.curriculumId === 'string' ? e.data.curriculumId : null
         const sl = Array.isArray(e.data.slides) ? e.data.slides : []
 

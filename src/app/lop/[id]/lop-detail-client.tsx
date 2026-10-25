@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import {
@@ -370,13 +371,26 @@ function TeacherClassExamGroupListItem({
               >
                 <Copy className="h-4 w-4" aria-hidden />
               </Button>
-              <Button type="button" variant="secondary" size="sm" className="shrink-0" asChild>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="shrink-0"
+                onClick={() =>
+                  openDetachedTeacherSlideWindow(
+                    `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`
+                  )
+                }
+              >
+                {t.examReviewAction}
+              </Button>
+              <Button type="button" size="sm" className="shrink-0" asChild>
                 <Link
-                  href={`/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`}
+                  href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(g.examCode)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  {t.examReviewAction}
+                  {t.examTeacherOpenExam}
                 </Link>
               </Button>
               <Button
@@ -1442,13 +1456,26 @@ export default function LopDetailClient({
                                 >
                                   <Copy className="h-4 w-4" aria-hidden />
                                 </Button>
-                                <Button type="button" variant="secondary" size="sm" className="shrink-0" asChild>
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  size="sm"
+                                  className="shrink-0"
+                                  onClick={() =>
+                                    openDetachedTeacherSlideWindow(
+                                      `/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`
+                                    )
+                                  }
+                                >
+                                  {t.examReviewAction}
+                                </Button>
+                                <Button type="button" size="sm" className="shrink-0" asChild>
                                   <Link
-                                    href={`/giao-trinh/giao-vien/de-thi/${encodeURIComponent(g.examCode)}?t=${Date.now()}`}
+                                    href={`/giao-trinh/giao-vien/mo-de/${encodeURIComponent(g.examCode)}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                   >
-                                    {t.examReviewAction}
+                                    {t.examTeacherOpenExam}
                                   </Link>
                                 </Button>
                                 <Button

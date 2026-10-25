@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
     if (!parsed) return NextResponse.json({ error: 'AI không tạo được bài tự luận hợp lệ.' }, { status: 500 })
 
     const solutionStr = normalizeSolutionToStr(parsed.solution) || String(parsed.solution ?? '').trim()
-    const contentJson = { problem: parsed.problem, solution: solutionStr }
+    const contentJson = { problem: parsed.problem, solution: solutionStr, createdIn: 'worksheet' as const }
 
     const row = await insertWorksheetQuestionPg({
       userId: userId!,

@@ -139,6 +139,7 @@ export type StepByStepParams = {
   difficulty: string
   sessionQuizCountByDiff?: Record<string, number>
   sessionEssayCountByBloom?: Record<string, number>
+  createdIn?: 'exam' | 'worksheet'
 }
 
 export type StepByStepResult = {
@@ -214,7 +215,13 @@ Schema: ${QUIZ_SCHEMA}`
     topic: topic || null,
     lessonTopics,
     difficulty: diff,
-    contentJson: { question: last.question, options, correctIndex, solution: last.solution },
+    contentJson: {
+      question: last.question,
+      options,
+      correctIndex,
+      solution: last.solution,
+      createdIn: params.createdIn === 'exam' ? 'exam' : 'worksheet',
+    },
     order,
     source: 'ai',
   })
@@ -290,7 +297,11 @@ Schema: ${ESSAY_SCHEMA}`
     topic: topic || null,
     lessonTopics,
     difficulty: diff,
-    contentJson: { problem: parsed.problem, solution: solutionStr },
+    contentJson: {
+      problem: parsed.problem,
+      solution: solutionStr,
+      createdIn: params.createdIn === 'exam' ? 'exam' : 'worksheet',
+    },
     order,
     source: 'ai',
   })

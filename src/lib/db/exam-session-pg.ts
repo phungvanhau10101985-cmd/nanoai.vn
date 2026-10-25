@@ -730,7 +730,13 @@ export async function fetchExamSessionForTeacherReviewPg(
   codeUpper: string,
   teacherId: string
 ): Promise<
-  | { id: string; code: string; title: string | null; is_practice_homework: boolean }
+  | {
+      id: string
+      code: string
+      title: string | null
+      is_practice_homework: boolean
+      duration_minutes: number
+    }
   | 'not_found'
   | 'forbidden'
   | null
@@ -743,8 +749,9 @@ export async function fetchExamSessionForTeacherReviewPg(
       title: string | null
       teacher_id: string
       is_practice_homework: boolean | null
+      duration_minutes: number | null
     }>(
-      `select id::text, code, title, teacher_id::text, is_practice_homework
+      `select id::text, code, title, teacher_id::text, is_practice_homework, duration_minutes
        from public.exam_sessions
        where code = $1
        limit 1`,
@@ -752,11 +759,13 @@ export async function fetchExamSessionForTeacherReviewPg(
     )
     if (!row) return 'not_found'
     if (row.teacher_id !== teacherId) return 'forbidden'
+    const duration = Number(row.duration_minutes)
     return {
       id: row.id,
       code: row.code,
       title: row.title,
       is_practice_homework: Boolean(row.is_practice_homework),
+      duration_minutes: Number.isFinite(duration) && duration > 0 ? duration : 15,
     }
   } catch (e) {
     console.error('[exam-session-pg] fetchExamSessionForTeacherReviewPg', e)

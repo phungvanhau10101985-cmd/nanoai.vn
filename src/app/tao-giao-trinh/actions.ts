@@ -1760,14 +1760,8 @@ export async function listWorksheetQuestionProposals(worksheetId: string) {
   }
 }
 
-/** Danh sách câu trước khi mở slide giáo viên. Mỗi câu một bản đang dùng, kèm số phiếu của vòng sửa hiện tại. */
-export async function listWorksheetTeacherReview(worksheetId: string) {
-  const authResult = await getUserForCreditAction()
-  if ('error' in authResult) return { error: authResult.error }
-  const userId = authResult.user?.id
-  if (!userId || !worksheetId) return { items: [], roundKey: '', viewerId: userId ?? '' }
-  const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
-  const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
+/** Câu giáo viên này chưa xác nhận. Câu đã duyệt thì không đưa vào danh sách. */
+async function buildTeacherReviewItems(userId: string, ids: string[]) {
   if (!ids.length) return { items: [], roundKey: '', viewerId: userId }
   const [reviewRows, sharedRows, ackedIds] = await Promise.all([
     fetchQuestionReviewRowsPg(ids),
@@ -1821,6 +1815,27 @@ export async function listWorksheetTeacherReview(worksheetId: string) {
   return { items, roundKey: worksheetTeacherReviewRoundKey(items), viewerId: userId }
 }
 
+/** Danh sách câu trước khi mở slide giáo viên. Mỗi câu một bản đang dùng, kèm số phiếu của vòng sửa hiện tại. */
+export async function listWorksheetTeacherReview(worksheetId: string) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId || !worksheetId) return { items: [], roundKey: '', viewerId: userId ?? '' }
+  const ws = await fetchWorksheetSheetMetaForSaveFromPg(worksheetId)
+  const ids = ((ws?.question_ids ?? []) as string[]).filter(Boolean)
+  return buildTeacherReviewItems(userId, ids)
+}
+
+/** Câu đã chọn trên trang tạo đề mà giáo viên này chưa duyệt. Câu đã duyệt thì bỏ qua. */
+export async function listExamTeacherReview(questionIds: string[]) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId) return { items: [], roundKey: '', viewerId: '' }
+  const ids = [...new Set(questionIds.map((id) => id.trim()).filter(Boolean))]
+  return buildTeacherReviewItems(userId, ids)
+}
+
 export async function voteWorksheetQuestion(questionId: string, vote: 'agree' | 'reject') {
   const authResult = await getUserForCreditAction()
   if ('error' in authResult) return { error: authResult.error }
@@ -1861,6 +1876,84 @@ export async function confirmWorksheetQuestionReview(questionId: string, choice:
   } catch (e) {
     console.error('[confirmWorksheetQuestionReview] ack', e)
     return { error: 'Chưa lưu được xác nhận. Thử lại.' }
+  }
+  return { success: true }
+}
+
+/** Một câu trên trang tạo đề: bản đang dùng, bản đối chiếu, số phiếu. Cùng luật 7 phiếu với phiếu bài tập. */
+export async function getWorksheetQuestionReviewItem(questionId: string) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId || !questionId) return { error: 'Thiếu câu cần xem.' }
+  const [reviewRows, sharedRows] = await Promise.all([
+    fetchQuestionReviewRowsPg([questionId]),
+    fetchWorksheetQuestionsFullByIdsFromPg([questionId]),
+  ])
+  const meta = sharedRows[0]
+  if (!meta) return { error: 'Không tìm thấy câu.' }
+  const shared = meta.content_json
+  const mine = reviewRows.filter((row) => row.question_id === questionId)
+  const pending = pendingQuestionReview(mine, userId, questionId)
+  const counts = reviewCountForQuestion(mine)
+  const personal = personalBodiesForUser(reviewRows, userId)
+  const usingIsEdit = Boolean(pending && (pending.authorIsMe || pending.myVote === 'agree'))
+  const usingBody = personal.has(questionId) ? personal.get(questionId) : shared
+  const otherBody = pending ? (usingIsEdit ? shared : pending.lastEdit.body) : null
+  const { questionBlockMarkdown } = await import('./lib/questions-to-markdown')
+  const base = {
+    type: meta.type ?? 'essay',
+    difficulty: meta.difficulty ?? undefined,
+    source: meta.source ?? undefined,
+    verified_at: meta.verified_at ?? null,
+  }
+  return {
+    questionId,
+    type: meta.type === 'quiz' ? 'quiz' as const : 'essay' as const,
+    usingBlock: questionBlockMarkdown({ ...base, content_json: usingBody }),
+    otherBlock: otherBody == null ? null : questionBlockMarkdown({ ...base, content_json: otherBody }),
+    otherIsOriginal: usingIsEdit,
+    agreeCount: pending ? pending.agreeCount : counts.agreeCount,
+    rejectCount: pending ? pending.rejectCount : counts.rejectCount,
+    editCount: counts.editCount,
+    authorIsMe: pending?.authorIsMe ?? false,
+    pending: Boolean(pending),
+  }
+}
+
+/** Sửa một câu đã có. Bản sửa dùng ngay với người sửa. Đủ 7 đúng thì thành bản gốc. Đủ 7 không đồng ý thì bỏ bản sửa. */
+export async function saveWorksheetQuestionPersonalEdit(questionId: string, blockMarkdown: string) {
+  const authResult = await getUserForCreditAction()
+  if ('error' in authResult) return { error: authResult.error }
+  const userId = authResult.user?.id
+  if (!userId) return { error: 'Vui lòng đăng nhập.' }
+  const text = blockMarkdown.trim()
+  if (text.length < 3) return { error: 'Nội dung câu quá ngắn.' }
+  const rows = await fetchWorksheetQuestionsFullByIdsFromPg([questionId])
+  const row = rows[0]
+  if (!row) return { error: 'Không tìm thấy câu.' }
+  const { blockToContentJson } = await import('./lib/markdown-to-questions')
+  const contentJson = blockToContentJson({
+    index: 0,
+    type: row.type === 'quiz' ? 'quiz' : 'essay',
+    content: text,
+    startOffset: 0,
+    endOffset: text.length,
+  })
+  if (!contentJson || typeof contentJson !== 'object') {
+    return { error: 'Chưa đọc được câu vừa sửa. Giữ đầu câu và phần lời giải.' }
+  }
+  const createdIn = (row.content_json as { createdIn?: unknown } | null)?.createdIn
+  const body = createdIn === 'exam' || createdIn === 'worksheet'
+    ? { ...(contentJson as Record<string, unknown>), createdIn }
+    : contentJson
+  const personal = personalBodiesForUser(await fetchQuestionReviewRowsPg([questionId]), userId)
+  const baseline = personal.has(questionId) ? personal.get(questionId) : row.content_json
+  if (sameQuestionContent(baseline, body)) return { success: true, unchanged: true }
+  try {
+    await recordQuestionEditPg({ questionId, userId, body })
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Không lưu được bản sửa.' }
   }
   return { success: true }
 }

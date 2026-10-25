@@ -381,6 +381,9 @@ export default async function RootLayout({
   const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
   const isPartnerWebsitePage =
     currentPathname.startsWith("/site/") || Boolean(partnerCustomDomain);
+  const isTeacherExamPaperPage =
+    currentPathname.startsWith("/giao-trinh/giao-vien/mo-de") ||
+    currentPathname.startsWith("/tao-giao-trinh/giao-vien/mo-de");
   const isCustomerOwnedSurface =
     isMessagingGuestPage ||
     currentPathname.startsWith("/hospitality/p/") ||
@@ -388,7 +391,7 @@ export default async function RootLayout({
     isPartnerWebsitePage;
   /** Trang chat khách / thiệp cưới / website shop: layout tối giản — không Header, Footer, chat widget. */
   const useMinimalEmbedLayout =
-    isMessagingGuestPage || isWeddingPublicPage || isPartnerWebsitePage;
+    isMessagingGuestPage || isWeddingPublicPage || isPartnerWebsitePage || isTeacherExamPaperPage;
 
   const settings = isPartnerWebsitePage ? ({} as AdminIntegrationsSettings) : await loadAdminIntegrationsSettings();
   const locale = getCurrentWebLocale()

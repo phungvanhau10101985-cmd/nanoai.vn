@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
       difficulty: String(body?.difficulty ?? (jobType === 'step_by_step_quiz' ? 'medium' : 'thong-hieu')),
       sessionQuizCountByDiff: body?.sessionQuizCountByDiff ?? {},
       sessionEssayCountByBloom: body?.sessionEssayCountByBloom ?? {},
+      createdIn: body?.createdIn === 'exam' ? 'exam' : 'worksheet',
     }
 
     if (!isPgConfigured()) {

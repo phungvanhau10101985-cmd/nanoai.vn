@@ -57,6 +57,8 @@ export type WorksheetQuestionVerifyRowPg = {
   difficulty?: string
   source?: string
   verified_at?: string | null
+  curriculum_id?: string | null
+  user_id?: string | null
 }
 
 export async function fetchWorksheetQuestionsByIdsForVerifyPg(
@@ -66,7 +68,7 @@ export async function fetchWorksheetQuestionsByIdsForVerifyPg(
   try {
     const rows = await pgQuery<Record<string, unknown>>(
       `select id::text, type::text, content_json, difficulty::text as difficulty,
-              source::text as source, verified_at
+              source::text as source, verified_at, curriculum_id::text, user_id::text
        from public.worksheet_questions
        where id = any($1::uuid[])`,
       [questionIds]
@@ -78,6 +80,8 @@ export async function fetchWorksheetQuestionsByIdsForVerifyPg(
       difficulty: r.difficulty != null ? String(r.difficulty) : undefined,
       source: r.source != null ? String(r.source) : undefined,
       verified_at: r.verified_at != null ? String(r.verified_at) : null,
+      curriculum_id: r.curriculum_id != null ? String(r.curriculum_id) : null,
+      user_id: r.user_id != null ? String(r.user_id) : null,
     }))
   } catch (e) {
     console.error('[worksheet-verify-run-pg] fetchWorksheetQuestionsByIdsForVerifyPg', e)

@@ -18,6 +18,10 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import {
+  navigateDetachedTeacherSlideWindow,
+  openDetachedTeacherSlideWindow,
+} from '@/lib/tao-giao-trinh/teacher-slide-window'
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,6 +44,7 @@ type CatalogItem = {
   difficulty: string
   order?: number
   created_at: string
+  created_in?: string
   preview: string
 }
 
@@ -287,6 +292,7 @@ export function CurriculumExerciseListDialog({
 
   const handleBuildSlides = async () => {
     if (!curriculumId || selectedIds.length === 0) return
+    const slideWindow = openDetachedTeacherSlideWindow('about:blank')
     setBuildLoading(true)
     try {
       const res = await fetch('/api/worksheet/build-review-slides', {
@@ -300,15 +306,19 @@ export function CurriculumExerciseListDialog({
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
+        if (slideWindow && !slideWindow.closed) slideWindow.close()
         toast({ title: t.toastErr, description: data.error ?? String(res.status), variant: 'destructive' })
         return
       }
       const path = data.teacherPath as string | undefined
       if (path) {
-        window.open(path, '_blank', 'noopener,noreferrer')
+        navigateDetachedTeacherSlideWindow(slideWindow, `${path}${path.includes('?') ? '&' : '?'}t=${Date.now()}`)
         onOpenChange(false)
+      } else if (slideWindow && !slideWindow.closed) {
+        slideWindow.close()
       }
     } catch (e) {
+      if (slideWindow && !slideWindow.closed) slideWindow.close()
       toast({
         title: t.toastErr,
         description: e instanceof Error ? e.message : String(e),
@@ -428,6 +438,18 @@ export function CurriculumExerciseListDialog({
                                 </Badge>
                                 <Badge variant="secondary" className="text-xs font-normal">
                                   {diffText}
+                                </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={cn(
+                                    'text-xs font-normal',
+                                    row.created_in === 'exam' && 'border-indigo-300 bg-indigo-50 text-indigo-800',
+                                  )}
+                                >
+                                  {row.created_in === 'exam'
+                                    ? tr('Tạo khi làm đề', 'Created in exam', '做试卷时创建', '試験作成時', '시험 작성 중 생성')
+                                    : tr('Tạo trong phiếu', 'Created in worksheet', '在练习卷中创建', 'ワークシートで作成', '학습지에서 생성')}
+                                  {row.created_at ? ` · ${new Date(row.created_at).toLocaleString()}` : ''}
                                 </Badge>
                                 <span className="font-mono text-xs text-muted-foreground">{row.id.slice(0, 8)}…</span>
                                 {row.topic ? (

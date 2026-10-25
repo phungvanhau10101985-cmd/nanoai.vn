@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import type { WebLocale } from '@/lib/i18n/config'
 import { cn } from '@/lib/utils'
+import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 
 export function PresentWorksheetButton({
   worksheetId,
@@ -19,12 +20,8 @@ export function PresentWorksheetButton({
   const label = dict.classes.presentWorksheet
 
   const handleClick = () => {
-    const sw = typeof screen !== 'undefined' ? screen.availWidth || 1920 : 1920
-    const sh = typeof screen !== 'undefined' ? screen.availHeight || 1080 : 1080
-    window.open(
-      `/giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}&t=${Date.now()}`,
-      `giao-vien-worksheet-${worksheetId}`,
-      `width=${sw},height=${sh},scrollbars=yes,left=0,top=0`
+    openDetachedTeacherSlideWindow(
+      `/giao-trinh/giao-vien?worksheetId=${encodeURIComponent(worksheetId)}&t=${Date.now()}`
     )
   }
 

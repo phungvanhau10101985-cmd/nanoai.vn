@@ -93,6 +93,7 @@ async function processJob(job: { id: string; user_id: string; type: string; para
         difficulty?: string
         sessionQuizCountByDiff?: Record<string, number>
         sessionEssayCountByBloom?: Record<string, number>
+        createdIn?: 'exam' | 'worksheet'
       }
       const result = await runStepByStep(
         userId,
@@ -107,6 +108,7 @@ async function processJob(job: { id: string; user_id: string; type: string; para
           difficulty: p.difficulty ?? (type === 'step_by_step_quiz' ? 'medium' : 'thong-hieu'),
           sessionQuizCountByDiff: p.sessionQuizCountByDiff,
           sessionEssayCountByBloom: p.sessionEssayCountByBloom,
+          createdIn: p.createdIn === 'exam' ? 'exam' : 'worksheet',
         },
         type === 'step_by_step_quiz' ? 'quiz' : 'essay'
       )
