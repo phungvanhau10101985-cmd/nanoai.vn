@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import { cn } from '@/lib/utils'
 
 type Norm = { nx: number; ny: number }
@@ -266,40 +267,43 @@ export function WeddingDraggableFab(props: {
   if (!mounted) return null
 
   return createPortal(
-    <button
-      ref={buttonRef}
-      type="button"
-      disabled={props.disabled}
-      aria-label={props.label}
-      className={cn(
-        'fixed left-0 top-0 flex min-h-11 items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-lg select-none',
-        'cursor-grab active:cursor-grabbing',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2',
-        props.disabled && 'cursor-default opacity-70',
-        props.className,
-      )}
-      style={{
-        zIndex: props.zIndex ?? 96,
-        visibility: 'hidden',
-        touchAction: 'none',
-        WebkitTouchCallout: 'none',
-        WebkitUserSelect: 'none',
-        WebkitTapHighlightColor: 'transparent',
-        transform: 'translate3d(0,0,0)',
-      }}
-      onPointerDown={onPointerDown}
-      onClick={() => {
-        if (suppressClickRef.current) {
-          suppressClickRef.current = false
-          return
-        }
-        if (props.disabled) return
-        props.onClick()
-      }}
-    >
-      {props.icon}
-      <span>{props.label}</span>
-    </button>,
+    <DismissableLayerBranch asChild>
+      <button
+        ref={buttonRef}
+        type="button"
+        disabled={props.disabled}
+        aria-label={props.label}
+        className={cn(
+          'pointer-events-auto fixed left-0 top-0 flex min-h-11 items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-lg select-none',
+          'cursor-grab active:cursor-grabbing',
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:ring-offset-2',
+          props.disabled && 'cursor-default opacity-70',
+          props.className,
+        )}
+        style={{
+          zIndex: props.zIndex ?? 96,
+          visibility: 'hidden',
+          pointerEvents: 'auto',
+          touchAction: 'none',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          transform: 'translate3d(0,0,0)',
+        }}
+        onPointerDown={onPointerDown}
+        onClick={() => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false
+            return
+          }
+          if (props.disabled) return
+          props.onClick()
+        }}
+      >
+        {props.icon}
+        <span>{props.label}</span>
+      </button>
+    </DismissableLayerBranch>,
     document.body,
   )
 }

@@ -215,6 +215,23 @@ function splitWorksheetSections(markdown: string): { quiz: string; essay: string
   return { quiz, essay }
 }
 
+function worksheetQuestionIdForBlock(
+  blocks: Array<{ type: 'quiz' | 'essay' }>,
+  globalIdx: number,
+  questionIds: string[],
+  questionTypes: Array<'quiz' | 'essay' | ''>
+): string {
+  const block = blocks[globalIdx]
+  if (!block) return ''
+  const typed =
+    questionTypes.length === questionIds.length &&
+    questionTypes.length > 0 &&
+    questionTypes.every((item) => item === 'quiz' || item === 'essay')
+  if (!typed) return questionIds[globalIdx] ?? ''
+  const nth = blocks.slice(0, globalIdx + 1).filter((item) => item.type === block.type).length - 1
+  return questionIds.filter((_, index) => questionTypes[index] === block.type)[nth] ?? ''
+}
+
 function stripWorksheetAnswerSections(markdown: string): string {
   const text = (markdown ?? '').trim()
   if (!text) return ''
@@ -369,6 +386,7 @@ export default function TaoGiaoTrinhClientPage({
   const worksheetParts = useMemo(() => splitWorksheetSections(worksheetStudentMarkdown), [worksheetStudentMarkdown])
   const [worksheetId, setWorksheetId] = useState<string | null>(null)
   const [worksheetQuestionIds, setWorksheetQuestionIds] = useState<string[]>([])
+  const [worksheetQuestionTypes, setWorksheetQuestionTypes] = useState<Array<'quiz' | 'essay' | ''>>([])
   const reloadOpenWorksheet = useCallback(() => {
     const id = worksheetId?.trim()
     if (!id) return
@@ -379,7 +397,14 @@ export default function TaoGiaoTrinhClientPage({
           setWorksheetMarkdown(data.content_markdown)
         }
         if (Array.isArray(data?.questionIds)) {
-          setWorksheetQuestionIds(data.questionIds.map((item: unknown) => String(item)).filter(Boolean))
+          const ids = data.questionIds.map((item: unknown) => String(item)).filter(Boolean)
+          const questions = Array.isArray(data?.questions) ? (data.questions as Array<{ type?: string }>) : []
+          setWorksheetQuestionIds(ids)
+          setWorksheetQuestionTypes(
+            questions.length === ids.length
+              ? questions.map((item) => (item?.type === 'quiz' ? 'quiz' : item?.type === 'essay' ? 'essay' : ''))
+              : []
+          )
         }
       })
       .catch(() => undefined)
@@ -393,6 +418,7 @@ export default function TaoGiaoTrinhClientPage({
   useEffect(() => {
     if (!worksheetId) {
       setWorksheetQuestionIds([])
+      setWorksheetQuestionTypes([])
       return
     }
     reloadOpenWorksheet()
@@ -3131,6 +3157,43 @@ export default function TaoGiaoTrinhClientPage({
     }
   }, [worksheetMarkdown, curriculumWorksheets])
 
+  const openAllCurriculumExercises = () => {
+    const targetWorksheetId = worksheetId ?? curriculumWorksheets[0]?.id
+    if (!targetWorksheetId) {
+      toast({
+        title: tr('Chưa có phiếu bài tập đã lưu', 'No saved worksheet yet', '尚无已保存的练习', '保存済みワークシートがありません', '저장된 워크시트 없음'),
+        description: tr(
+          'Lưu phiếu bài tập (vào kho giáo trình) để mở trang xem đầy đủ như /phieu-bai-tap.',
+          'Save the worksheet to your curriculum to open the full view page like /phieu-bai-tap.',
+          '请将练习保存到课程，以打开与 /phieu-bai-tap 相同的完整页面。',
+          'カリキュラムにワークシートを保存すると、/phieu-bai-tap と同じ全体表示ページを開けます。',
+          '워크시트를 교육과정에 저장하면 /phieu-bai-tap 과 같은 전체 보기 페이지를 열 수 있습니다.',
+        ),
+        duration: 6000,
+      })
+      return
+    }
+    window.open(`${window.location.origin}/phieu-bai-tap/${targetWorksheetId}`, '_blank', 'noopener,noreferrer')
+  }
+
+  const openPickCurriculumExercises = () => {
+    if (!curriculumId) {
+      toast({
+        title: tr('Cần lưu giáo trình', 'Save curriculum first', '请先保存课程', '先に保存', '교육과정 저장 필요'),
+        description: tr(
+          'Lưu giáo trình vào kho để xem danh sách câu hỏi và tạo slide chữa bài.',
+          'Save to the library to load questions and build review slides.',
+          '保存到库后可查看题目并生成讲评幻灯片。',
+          'ライブラリに保存すると設問一覧と解説スライド作成ができます。',
+          '라이브러리에 저장하면 문항 목록과 해설 슬라이드를 만들 수 있습니다.',
+        ),
+        duration: 5000,
+      })
+      return
+    }
+    setExerciseListOpen(true)
+  }
+
   const pollJobStatus = useCallback(
     async (jobId: string): Promise<{ status: string; result?: Record<string, unknown>; error?: string }> => {
       const res = await fetch(`/api/worksheet-job-status?jobId=${encodeURIComponent(jobId)}`)
@@ -3672,8 +3735,14 @@ export default function TaoGiaoTrinhClientPage({
     return (
       <div className="space-y-3">
         {blocks.map(({ block, globalIdx }) => {
-          const proposal = worksheetProposalById.get(worksheetQuestionIds[globalIdx] ?? '')
-          if (proposal) {
+          const questionId = worksheetQuestionIdForBlock(
+            worksheetEditBlocks,
+            globalIdx,
+            worksheetQuestionIds,
+            worksheetQuestionTypes
+          )
+          const proposal = worksheetProposalById.get(questionId)
+          if (proposal && (!proposal.type || proposal.type === type)) {
             return (
               <WorksheetQuestionCompare
                 key={proposal.questionId}
@@ -4783,61 +4852,22 @@ export default function TaoGiaoTrinhClientPage({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="start" className="z-[1000] max-w-[min(100vw-2rem,22rem)]">
-                        <DropdownMenuItem
-                          className="cursor-pointer whitespace-normal"
-                          onClick={() => {
-                            const targetWorksheetId = worksheetId ?? curriculumWorksheets[0]?.id
-                            if (!targetWorksheetId) {
-                              toast({
-                                title: tr('Chưa có phiếu bài tập đã lưu', 'No saved worksheet yet', '尚无已保存的练习', '保存済みワークシートがありません', '저장된 워크시트 없음'),
-                                description: tr(
-                                  'Lưu phiếu bài tập (vào kho giáo trình) để mở trang xem đầy đủ như /phieu-bai-tap.',
-                                  'Save the worksheet to your curriculum to open the full view page like /phieu-bai-tap.',
-                                  '请将练习保存到课程，以打开与 /phieu-bai-tap 相同的完整页面。',
-                                  'カリキュラムにワークシートを保存すると、/phieu-bai-tap と同じ全体表示ページを開けます。',
-                                  '워크시트를 교육과정에 저장하면 /phieu-bai-tap 과 같은 전체 보기 페이지를 열 수 있습니다.',
-                                ),
-                                duration: 6000,
-                              })
-                              return
-                            }
-                            window.open(`${window.location.origin}/phieu-bai-tap/${targetWorksheetId}`, '_blank', 'noopener,noreferrer')
-                          }}
-                        >
+                        <DropdownMenuItem className="cursor-pointer whitespace-normal" onClick={openAllCurriculumExercises}>
                           {tr(
-                            'Xem và tạo slide tất cả bài tập',
-                            'View and create slides for all exercises',
-                            '查看并为所有习题创建幻灯片',
-                            'すべての演習を表示してスライドを作成',
-                            '모든 문제 보고 슬라이드 만들기',
+                            'Mở tất cả bài tập',
+                            'Open all exercises',
+                            '打开全部习题',
+                            'すべての演習を開く',
+                            '모든 문제 열기',
                           )}
                         </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="cursor-pointer whitespace-normal"
-                          onClick={() => {
-                            if (!curriculumId) {
-                              toast({
-                                title: tr('Cần lưu giáo trình', 'Save curriculum first', '请先保存课程', '先に保存', '교육과정 저장 필요'),
-                                description: tr(
-                                  'Lưu giáo trình vào kho để xem danh sách câu hỏi và tạo slide chữa bài.',
-                                  'Save to the library to load questions and build review slides.',
-                                  '保存到库后可查看题目并生成讲评幻灯片。',
-                                  'ライブラリに保存すると設問一覧と解説スライド作成ができます。',
-                                  '라이브러리에 저장하면 문항 목록과 해설 슬라이드를 만들 수 있습니다.',
-                                ),
-                                duration: 5000,
-                              })
-                              return
-                            }
-                            setExerciseListOpen(true)
-                          }}
-                        >
+                        <DropdownMenuItem className="cursor-pointer whitespace-normal" onClick={openPickCurriculumExercises}>
                           {tr(
-                            'Xem và chọn những bài tập để tạo slide',
-                            'View list and pick exercises to create slides',
-                            '查看列表并选择要生成幻灯片的习题',
-                            '一覧を表示しスライド用の演習を選択',
-                            '목록 보기 및 슬라이드에 쓸 문제 선택',
+                            'Chọn bài tập để mở',
+                            'Pick exercises to open',
+                            '选择要打开的习题',
+                            '開く演習を選ぶ',
+                            '열 문제 선택',
                           )}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -5412,14 +5442,40 @@ export default function TaoGiaoTrinhClientPage({
                     {tr('Phiếu bài tập', 'Worksheet', '练习', 'ワークシート', '워크시트')}
                   </CardTitle>
                   <div className="flex flex-wrap gap-2">
-                    {worksheetId && (
-                      <Button asChild variant="outline" size="sm">
-                        <a href={`/phieu-bai-tap/${worksheetId}`} target="_blank" rel="noopener noreferrer">
-                          <FileText className="h-3.5 w-3.5 mr-1" />
-                          {tr('Mở trang phiếu bài tập', 'Open worksheet page', '打开练习页面', 'ワークシートページを開く', '워크시트 페이지 열기')}
-                        </a>
-                      </Button>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-400 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-600 dark:text-emerald-300 dark:hover:bg-emerald-950/30 gap-1"
+                        >
+                          <ListChecks className="h-3.5 w-3.5 shrink-0" />
+                          {tr('Xem danh sách bài tập', 'View exercise list', '查看习题列表', '演習一覧', '문제 목록 보기')}
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="z-[1000] max-w-[min(100vw-2rem,22rem)]">
+                        <DropdownMenuItem className="cursor-pointer whitespace-normal" onClick={openAllCurriculumExercises}>
+                          {tr(
+                            'Mở tất cả bài tập',
+                            'Open all exercises',
+                            '打开全部习题',
+                            'すべての演習を開く',
+                            '모든 문제 열기',
+                          )}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="cursor-pointer whitespace-normal" onClick={openPickCurriculumExercises}>
+                          {tr(
+                            'Chọn bài tập để mở',
+                            'Pick exercises to open',
+                            '选择要打开的习题',
+                            '開く演習を選ぶ',
+                            '열 문제 선택',
+                          )}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Button
                       variant="default"
                       size="sm"
@@ -5464,7 +5520,7 @@ export default function TaoGiaoTrinhClientPage({
                         )}
                       </div>
                     </div>
-                    <div className={`rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3 ${worksheetEditBlocks.some((block, index) => block.type === 'essay' && worksheetProposalById.has(worksheetQuestionIds[index] ?? '')) ? 'md:col-span-2' : ''}`}>
+                    <div className="rounded-lg border bg-emerald-50/70 dark:bg-emerald-950/20 p-3">
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
                           {tr('Phần tự luận', 'Essay section', '主观题部分', '記述式部分', '서술형 섹션')}

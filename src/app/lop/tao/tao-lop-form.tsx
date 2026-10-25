@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { RefreshCw } from 'lucide-react'
 import { createClass } from '../actions'
+import { shouldSuggestMoreSchools } from '@/lib/school-name'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 
 export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
@@ -18,6 +19,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [schoolSearchLoading, setSchoolSearchLoading] = useState(false)
   const [schoolSearchItems, setSchoolSearchItems] = useState<Array<{ id: string; name: string }>>([])
   const [canCreateSchool, setCanCreateSchool] = useState(false)
+  const [schoolSuggestLoading, setSchoolSuggestLoading] = useState(false)
   const [selectedSchoolId, setSelectedSchoolId] = useState('')
   const [selectedSchoolName, setSelectedSchoolName] = useState('')
   const [addingSchool, setAddingSchool] = useState(false)
@@ -55,11 +57,13 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     if (needle.length < 2) {
       setSchoolSearchItems([])
       setCanCreateSchool(false)
+      setSchoolSuggestLoading(false)
       return
     }
     let cancelled = false
     const timer = window.setTimeout(async () => {
       setSchoolSearchLoading(true)
+      setSchoolSuggestLoading(false)
       try {
         const res = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}`, { cache: 'no-store' })
         const data = await res.json().catch(() => ({}))
@@ -69,25 +73,71 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
           setCanCreateSchool(false)
           return
         }
-        setSchoolSearchItems(Array.isArray(data?.items) ? data.items : [])
+        const items = Array.isArray(data?.items) ? data.items : []
+        setSchoolSearchItems(items)
         setCanCreateSchool(Boolean(data?.canCreate))
+        setSchoolSearchLoading(false)
+        if (!shouldSuggestMoreSchools(items.map((item: { name?: string }) => String(item?.name ?? '')), needle)) return
+        setSchoolSuggestLoading(true)
+        const sugRes = await fetch(`/api/schools/search?q=${encodeURIComponent(needle)}&suggest=1`, { cache: 'no-store' })
+        const sug = await sugRes.json().catch(() => ({}))
+        if (cancelled) return
+        const found = Array.isArray(sug?.items) ? sug.items : []
+        if (found.length > 0) {
+          setSchoolSearchItems(found)
+          setCanCreateSchool(Boolean(sug?.canCreate))
+        }
       } catch {
         if (!cancelled) {
           setSchoolSearchItems([])
           setCanCreateSchool(false)
         }
       } finally {
-        if (!cancelled) setSchoolSearchLoading(false)
+        if (!cancelled) {
+          setSchoolSearchLoading(false)
+          setSchoolSuggestLoading(false)
+        }
       }
-    }, 250)
+    }, 300)
     return () => {
       cancelled = true
       window.clearTimeout(timer)
     }
   }, [schoolSearch])
 
-  const addSchoolFromSearch = useCallback(async () => {
-    const raw = schoolSearch.trim()
+  const chooseSavedSchool = useCallback(async (item: { id: string; name: string }) => {
+    setAddingSchool(true)
+    try {
+      const res = await fetch('/api/schools/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ schoolId: item.id, setAsDefault: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.schoolId) {
+        toast({
+          variant: 'destructive',
+          description: typeof data?.error === 'string' ? data.error : t.createClassSchoolNotFound,
+        })
+        return
+      }
+      const label = String(data.canonicalName ?? item.name).trim()
+      setSelectedSchoolId(String(data.schoolId))
+      setSelectedSchoolName(label)
+      setSchoolSearch(label)
+      setSchoolDropdownOpen(false)
+    } catch (e) {
+      toast({
+        variant: 'destructive',
+        description: e instanceof Error ? e.message : String(e),
+      })
+    } finally {
+      setAddingSchool(false)
+    }
+  }, [toast, t.createClassSchoolNotFound])
+
+  const addSchoolFromSearch = useCallback(async (rawName?: string) => {
+    const raw = (rawName ?? schoolSearch).trim()
     if (raw.length < 3) return
     setAddingSchool(true)
     try {
@@ -199,8 +249,13 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
               id="school"
               value={schoolSearch}
               onChange={(e) => {
-                setSchoolSearch(e.target.value)
+                const next = e.target.value
+                setSchoolSearch(next)
                 setSchoolDropdownOpen(true)
+                if (selectedSchoolName && next.trim() !== selectedSchoolName.trim()) {
+                  setSelectedSchoolId('')
+                  setSelectedSchoolName('')
+                }
               }}
               onFocus={() => setSchoolDropdownOpen(true)}
               onBlur={() => window.setTimeout(() => setSchoolDropdownOpen(false), 150)}
@@ -210,7 +265,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
               autoComplete="off"
             />
             {schoolDropdownOpen && schoolSearch.trim().length >= 2 && (
-              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-52 overflow-y-auto rounded-md border bg-background p-1 shadow-md">
+              <div className="absolute left-0 right-0 top-full z-20 mt-1 max-h-80 overflow-y-auto rounded-md border bg-background p-1 shadow-md">
                 {schoolSearchLoading ? (
                   <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
                     <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
@@ -225,31 +280,30 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
                         className={`w-full rounded px-2 py-2 text-left text-sm hover:bg-muted ${
                           selectedSchoolId === item.id ? 'bg-muted font-medium' : ''
                         }`}
+                        disabled={addingSchool}
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setSelectedSchoolId(item.id)
-                          setSelectedSchoolName(item.name)
-                          setSchoolSearch(item.name)
-                          setSchoolDropdownOpen(false)
-                        }}
+                        onClick={() => void chooseSavedSchool(item)}
                       >
                         {item.name}
                       </button>
                     ))}
-                    {schoolSearchItems.length === 0 && !schoolSearchLoading && (
-                      <p className="px-2 py-2 text-xs text-muted-foreground">{t.createClassSchoolTryOther}</p>
-                    )}
+                    {schoolSuggestLoading ? (
+                      <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+                        <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" aria-hidden />
+                        {t.createClassSchoolSearching}
+                      </div>
+                    ) : null}
                     {canCreateSchool && schoolSearch.trim().length >= 3 && (
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="mt-1 w-full"
+                        className="mt-1 h-auto w-full whitespace-normal py-2"
                         disabled={addingSchool}
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => void addSchoolFromSearch()}
+                        onClick={() => void addSchoolFromSearch(schoolSearch.trim())}
                       >
-                        {addingSchool ? '…' : `${t.createClassSchoolAddNew}: “${schoolSearch.trim()}”`}
+                        {addingSchool ? '…' : `${t.createClassSchoolTypeOwn}: “${schoolSearch.trim()}”`}
                       </Button>
                     )}
                   </>

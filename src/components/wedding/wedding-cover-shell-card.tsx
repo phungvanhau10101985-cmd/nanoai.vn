@@ -13,6 +13,7 @@ import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glas
 import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingSolidCtaButton } from '@/components/wedding/wedding-solid-cta-button'
+import { bindWeddingButtonFill, type WeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 
 type WeddingCoverShellCardProps = {
@@ -37,6 +38,8 @@ type WeddingCoverShellCardProps = {
   cordiallyInvitesLabel: string
   personalInviteText?: string
   openButtonLabel: string
+  /** Màu nút chính. Mở thiệp, Có đi khi đã chọn, và nút bản đồ trên vỏ. */
+  buttonColor?: WeddingButtonColor
   dateFallback: string
   photoAlt: string
   /** Editor: kéo và zoom ảnh ngay trong khung. Thiệp công khai không truyền. */
@@ -82,6 +85,8 @@ type WeddingCoverShellCardProps = {
     savedNoLabel: string
     busy?: boolean
     choice?: 'yes' | 'no' | null
+    /** Tổng người đi, hiện trên nút khi đã chọn có đi. */
+    partyCount?: number
     onYes: () => void
     onNo: () => void
   }
@@ -439,6 +444,7 @@ function useCoverIntroOnce(enabled: boolean) {
 
 function CoverActions(props: {
   themeId: string
+  buttonColor?: WeddingButtonColor
   compact?: boolean
   className?: string
   openLabel: string
@@ -453,12 +459,13 @@ function CoverActions(props: {
     <div className={cn('flex flex-col items-center gap-2', props.className)}>
       <div className="flex flex-wrap items-center justify-center gap-2">
         {props.onOpen ? (
-          <WeddingSolidCtaButton weddingThemeId={props.themeId} compact={props.compact} onClick={props.onOpen}>
+          <WeddingSolidCtaButton weddingThemeId={props.themeId} buttonColor={props.buttonColor} compact={props.compact} onClick={props.onOpen}>
             {props.openLabel}
           </WeddingSolidCtaButton>
         ) : (
           <WeddingSolidCtaButton
             weddingThemeId={props.themeId}
+            buttonColor={props.buttonColor}
             compact={props.compact}
             className="pointer-events-none"
             tabIndex={-1}
@@ -475,14 +482,18 @@ function CoverActions(props: {
               aria-pressed={yesOn}
               onClick={rsvp.onYes}
               className={cn(
-                'inline-flex items-center justify-center rounded-full border-2 font-bold shadow-[0_6px_18px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98] disabled:opacity-60',
-                yesOn
-                  ? 'border-emerald-950 bg-emerald-800 text-white ring-2 ring-emerald-200 ring-offset-2 ring-offset-[#fff8f0]'
-                  : 'border-emerald-800 bg-emerald-800 text-white',
+                'inline-flex items-center justify-center rounded-full border-2 font-bold transition-transform active:scale-[0.98] disabled:opacity-60',
+                yesOn && props.buttonColor
+                  ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
+                  : yesOn
+                    ? 'border-emerald-950 bg-emerald-800 text-white shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-emerald-200 ring-offset-2 ring-offset-[#fff8f0]'
+                    : 'border-stone-300 bg-white text-stone-900 shadow-[0_6px_18px_rgba(0,0,0,0.12)]',
                 size,
               )}
+              {...(yesOn && props.buttonColor ? bindWeddingButtonFill(props.buttonColor) : {})}
             >
               {rsvp.yesLabel}
+              {yesOn && rsvp.partyCount != null ? ` · ${rsvp.partyCount}` : ''}
             </button>
             <button
               type="button"
@@ -492,8 +503,8 @@ function CoverActions(props: {
               className={cn(
                 'inline-flex items-center justify-center rounded-full border-2 font-bold shadow-[0_6px_18px_rgba(0,0,0,0.18)] transition-transform active:scale-[0.98] disabled:opacity-60',
                 noOn
-                  ? 'border-stone-800 bg-stone-800 text-white ring-2 ring-stone-300 ring-offset-2 ring-offset-[#fff8f0]'
-                  : 'border-stone-400/90 bg-white/90 text-stone-800',
+                  ? 'border-stone-800 bg-white text-stone-900 shadow-[0_6px_18px_rgba(0,0,0,0.12)] ring-2 ring-stone-300 ring-offset-2 ring-offset-[#fff8f0]'
+                  : 'border-stone-300 bg-white text-stone-900 shadow-[0_6px_18px_rgba(0,0,0,0.12)]',
                 size,
               )}
             >
@@ -664,6 +675,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
           venueClassName={cn(theme.accentText, theme.textGlow)}
           addressClassName={cn(theme.mutedText, theme.textGlow)}
           weddingThemeId={theme.id}
+          buttonColor={props.buttonColor}
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
@@ -672,6 +684,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       ) : null}
       <CoverActions
         themeId={theme.id}
+        buttonColor={props.buttonColor}
         compact={compact}
         className={compact ? 'mt-3' : props.fitViewport ? 'mt-1.5' : 'mt-3 sm:mt-4 lg:mt-3'}
         openLabel={props.openButtonLabel}
@@ -788,6 +801,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
             venueClassName={theme.accentText}
             addressClassName={theme.mutedText}
             weddingThemeId={theme.id}
+          buttonColor={props.buttonColor}
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
@@ -796,6 +810,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
         ) : null}
         <CoverActions
           themeId={theme.id}
+        buttonColor={props.buttonColor}
           compact={compact}
           className={compact ? 'mt-2' : props.fitViewport ? 'mt-1.5' : 'mt-2 sm:mt-3 lg:mt-2'}
           openLabel={props.openButtonLabel}
@@ -1363,6 +1378,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             venueClassName={accentCls}
             addressClassName={mutedCls}
             weddingThemeId={theme.id}
+          buttonColor={props.buttonColor}
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
@@ -1371,6 +1387,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         ) : null}
         <CoverActions
           themeId={theme.id}
+        buttonColor={props.buttonColor}
           compact={compact}
           className={compact ? 'mt-2' : props.fitViewport ? 'mt-1.5' : 'mt-3'}
           openLabel={props.openButtonLabel}

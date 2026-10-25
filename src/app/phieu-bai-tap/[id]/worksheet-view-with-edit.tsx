@@ -220,7 +220,8 @@ export default function WorksheetViewWithEdit({
             if (p.kind === 'gap') {
               return <div key={p.key} dangerouslySetInnerHTML={{ __html: worksheetMarkdownToHtml(p.text, questionBadge) }} />
             }
-            const proposal = proposalById.get(questionIds[p.globalIdx] ?? '')
+            const proposalRaw = proposalById.get(questionIds[p.globalIdx] ?? '')
+            const proposal = proposalRaw && proposalRaw.type && proposalRaw.type !== p.block.type ? undefined : proposalRaw
             return (
               <div key={p.key} className="space-y-0">
                 {proposal ? (

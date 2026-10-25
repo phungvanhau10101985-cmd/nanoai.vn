@@ -1751,6 +1751,7 @@ export async function listWorksheetQuestionProposals(worksheetId: string) {
       const { editedBody, ...rest } = item
       return {
         ...rest,
+        type: meta?.type === 'quiz' ? 'quiz' as const : 'essay' as const,
         originalPreview: previewQuestionBody(shared),
         originalBlock: questionBlockMarkdown({ ...base, content_json: shared }),
         editedBlock: questionBlockMarkdown({ ...base, content_json: editedBody }),

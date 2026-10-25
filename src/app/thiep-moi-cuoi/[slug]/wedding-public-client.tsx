@@ -36,6 +36,7 @@ import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cook
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
+import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
@@ -177,6 +178,11 @@ export default function WeddingPublicClient({
       })
     : null
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
+  const buttonColor = useMemo(
+    () => resolveWeddingButtonColor(sectionConfig.buttonColorId, card.selectedStyleId),
+    [card.selectedStyleId, sectionConfig.buttonColorId],
+  )
+  const buttonFill = useMemo(() => bindWeddingButtonFill(buttonColor), [buttonColor])
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
   const coverFrameMode = useMemo(() => resolveCoverFrameMode(sectionConfig), [sectionConfig])
@@ -212,6 +218,9 @@ export default function WeddingPublicClient({
   const [message, setMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [coverRsvpChoice, setCoverRsvpChoice] = useState<'yes' | 'no' | null>(
+    () => seedParty(initialGuestRsvp).choice,
+  )
+  const [contentChoice, setContentChoice] = useState<'yes' | 'no' | null>(
     () => seedParty(initialGuestRsvp).choice,
   )
   const rsvpSeq = useRef(0)
@@ -539,6 +548,7 @@ export default function WeddingPublicClient({
       setGuestName(name)
       setAttending(willAttend)
       setCoverRsvpChoice(willAttend ? 'yes' : 'no')
+      setContentChoice(willAttend ? 'yes' : 'no')
       if (!quiet) toast({ title: tx.submitSuccessTitle, description: tx.submitSuccessDesc })
       router.refresh()
     },
@@ -546,12 +556,17 @@ export default function WeddingPublicClient({
   )
 
   const submit = async () => {
-    const adult = attending ? partyAdult : 0
-    const child = attending ? partyChild : 0
+    if (!contentChoice) {
+      toast({ title: tx.submitErrorTitle, description: tx.rsvpChoiceRequired, variant: 'destructive' })
+      return
+    }
+    const willAttend = contentChoice === 'yes'
+    const adult = willAttend ? partyAdult : 0
+    const child = willAttend ? partyChild : 0
     setSubmitting(true)
     const formData = new FormData()
     formData.append('guestName', guestName)
-    formData.append('attending', String(attending))
+    formData.append('attending', String(willAttend))
     formData.append('adultCount', String(adult))
     formData.append('childCount', String(child))
     formData.append('guestCount', String(adult + child))
@@ -563,7 +578,9 @@ export default function WeddingPublicClient({
       toast({ title: tx.submitErrorTitle, description: result.error, variant: 'destructive' })
       return
     }
-    setCoverRsvpChoice(attending ? 'yes' : 'no')
+    setAttending(willAttend)
+    setCoverRsvpChoice(willAttend ? 'yes' : 'no')
+    setContentChoice(willAttend ? 'yes' : 'no')
     toast({ title: tx.submitSuccessTitle, description: tx.submitSuccessDesc })
     setMessage('')
     router.refresh()
@@ -590,6 +607,7 @@ export default function WeddingPublicClient({
     setPartyChild(child)
     setPartyModalOpen(false)
     setCoverRsvpChoice('yes')
+    setContentChoice('yes')
     setAttending(true)
     void saveGuestRsvp(true, safeAdult, child)
   }
@@ -599,6 +617,7 @@ export default function WeddingPublicClient({
     if (partyTimer.current) window.clearTimeout(partyTimer.current)
     setPartyModalOpen(false)
     setCoverRsvpChoice('no')
+    setContentChoice('no')
     setAttending(false)
     void saveGuestRsvp(false, 0, 0)
   }
@@ -822,6 +841,7 @@ export default function WeddingPublicClient({
                     openButtonLabel={tx.openInvitation}
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
+                    buttonColor={buttonColor}
                     quickRsvp={
                       card.rsvpEnabled && guestDisplayName
                         ? {
@@ -831,6 +851,7 @@ export default function WeddingPublicClient({
                             savedNoLabel: tx.coverRsvpSavedNo,
                             busy: submitting || partyModalOpen,
                             choice: coverRsvpChoice,
+                            partyCount: partyAdult + partyChild,
                             onYes: openPartyModal,
                             onNo: chooseCoverNo,
                           }
@@ -923,6 +944,7 @@ export default function WeddingPublicClient({
                 venueClassName={cn(theme.accentText, theme.textGlow, 'tracking-wide')}
                 addressClassName={cn(theme.mutedText, theme.textGlow)}
                 weddingThemeId={theme.id}
+                buttonColor={buttonColor}
               />
             ) : (
               <>
@@ -1133,10 +1155,8 @@ export default function WeddingPublicClient({
                             href={loc.mapUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className={cn(
-                              'mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-sm transition-colors active:scale-[0.98]',
-                              theme.mapButton,
-                            )}
+                            className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border-2 px-4 text-sm font-semibold shadow-md transition-colors active:scale-[0.98] [&_svg]:text-current"
+                            {...buttonFill}
                           >
                             <MapPin className="h-4 w-4" aria-hidden />
                             {tx.openMaps}
@@ -1205,7 +1225,7 @@ export default function WeddingPublicClient({
                   downloadCalendarFile: tx.downloadCalendarFile,
                   shareZalo: tx.shareZalo,
                 }}
-                buttonClassName={theme.mapButton}
+                buttonColor={buttonColor}
               />
               {displayMapUrl && (
                 <>
@@ -1214,10 +1234,8 @@ export default function WeddingPublicClient({
                     href={displayMapUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className={cn(
-                      'mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-sm transition-colors active:scale-[0.98]',
-                      theme.mapButton,
-                    )}
+                    className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border-2 px-4 text-sm font-semibold shadow-md transition-colors active:scale-[0.98] [&_svg]:text-current"
+                    {...buttonFill}
                   >
                     <MapPin className="h-4 w-4" aria-hidden />
                     {tx.openMaps}
@@ -1299,26 +1317,73 @@ export default function WeddingPublicClient({
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.guestNameLabel}</Label>
                   <Input className="min-h-11" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={tx.guestNamePlaceholder} />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button className="min-h-11" variant={attending ? 'default' : 'outline'} onClick={() => setAttending(true)}>{tx.attendYes}</Button>
-                  <Button className="min-h-11" variant={!attending ? 'default' : 'outline'} onClick={() => (guestDisplayName ? chooseCoverNo() : setAttending(false))}>{tx.attendNo}</Button>
-                </div>
-                {attending ? (
-                  <WeddingPartyCountFields
-                    adultCount={partyAdult}
-                    childCount={partyChild}
-                    adultLabel={tx.rsvpAdultLabel}
-                    childLabel={tx.rsvpChildLabel}
-                    disabled={submitting}
-                    onChange={(adult, child) => {
-                      if (coverRsvpChoice === 'yes') changeParty(adult, child)
-                      else {
-                        setPartyAdult(adult)
-                        setPartyChild(child)
+                <div className={cn('grid items-start gap-3', contentChoice === 'yes' ? 'grid-cols-1' : 'grid-cols-2')}>
+                  {contentChoice === 'yes' ? (
+                    <div className="overflow-hidden rounded-xl border-2 bg-white" style={{ borderColor: buttonColor.border }}>
+                      <button
+                        type="button"
+                        aria-pressed="true"
+                        onClick={() => {
+                          setContentChoice('yes')
+                          setAttending(true)
+                        }}
+                        className="flex min-h-11 w-full items-center justify-center px-3 text-sm font-semibold"
+                        {...buttonFill}
+                      >
+                        {tx.attendYes}
+                        <span className="ml-1.5 tabular-nums">{` · ${partyAdult + partyChild}`}</span>
+                      </button>
+                      <div className="bg-white px-3 py-3">
+                        <WeddingPartyCountFields
+                          adultCount={partyAdult}
+                          childCount={partyChild}
+                          adultLabel={tx.rsvpAdultLabel}
+                          childLabel={tx.rsvpChildLabel}
+                          disabled={submitting}
+                          onChange={(adult, child) => {
+                            if (coverRsvpChoice === 'yes') changeParty(adult, child)
+                            else {
+                              setPartyAdult(adult)
+                              setPartyChild(child)
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-pressed="false"
+                      onClick={() => {
+                        setContentChoice('yes')
+                        setAttending(true)
+                      }}
+                      className="min-h-11 rounded-xl border-2 border-stone-300 bg-white px-3 text-sm font-semibold text-stone-900 shadow-sm"
+                    >
+                      {tx.attendYes}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-pressed={contentChoice === 'no'}
+                    onClick={() => {
+                      if (guestDisplayName) {
+                        chooseCoverNo()
+                        return
                       }
+                      setContentChoice('no')
+                      setAttending(false)
                     }}
-                  />
-                ) : null}
+                    className={cn(
+                      'min-h-11 rounded-xl border-2 px-3 text-sm font-semibold shadow-sm',
+                      contentChoice === 'no'
+                        ? 'border-stone-800 bg-white text-stone-900 ring-2 ring-stone-300'
+                        : 'border-stone-300 bg-white text-stone-900',
+                    )}
+                  >
+                    {tx.attendNo}
+                  </button>
+                </div>
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.wishLabel}</Label>
                   <WeddingWishPresetPicker
@@ -1337,7 +1402,8 @@ export default function WeddingPublicClient({
                   onClick={submit}
                   disabled={submitting}
                   variant="outline"
-                  className={cn('min-h-11 w-full rounded-full border-0 font-semibold', theme.button)}
+                  className="min-h-11 w-full rounded-full border-2 font-semibold shadow-md [&_svg]:text-current"
+                  {...buttonFill}
                 >
                   {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
                   {tx.submitResponse}
@@ -1379,7 +1445,8 @@ export default function WeddingPublicClient({
                   onClick={submitReminder}
                   disabled={reminderSubmitting}
                   variant="outline"
-                  className={cn('min-h-11 w-full rounded-full border-0 font-semibold', theme.button)}
+                  className="min-h-11 w-full rounded-full border-2 font-semibold shadow-md [&_svg]:text-current"
+                  {...buttonFill}
                 >
                   {reminderSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bell className="mr-2 h-4 w-4" />}
                   {tx.reminderSubmit}

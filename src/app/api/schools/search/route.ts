@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserForAction } from '@/lib/auth'
 import {
+  fetchSchoolByIdPg,
   findSchoolByNormalizedName,
   insertSchool,
   searchSchoolsForTeacher,
@@ -8,50 +9,131 @@ import {
 } from '@/lib/db/schools-repo'
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
-import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import {
+  buildDeepSeekCompletionBody,
+  DEEPSEEK_CHAT_COMPLETIONS_URL,
+  resolveDeepSeekChatModel,
+} from '@/lib/deepseek-api'
+import {
+  cleanSchoolLabel,
+  ensureSchoolPrefix,
+  filterSchoolSuggestions,
+  normalizeSchoolName,
+  shouldSuggestMoreSchools,
+  toSearchTokens,
+} from '@/lib/school-name'
+import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
-function normalizeSchoolName(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+function parseSuggestedSchools(raw: string): string[] {
+  const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim()
+  const start = cleaned.indexOf('{')
+  const end = cleaned.lastIndexOf('}')
+  if (start < 0 || end <= start) return []
+  try {
+    const parsed = JSON.parse(cleaned.slice(start, end + 1)) as { schools?: unknown }
+    if (!Array.isArray(parsed.schools)) return []
+    return parsed.schools.map((item) => cleanSchoolLabel(String(item ?? ''))).filter((item) => item.length >= 3)
+  } catch {
+    return []
+  }
 }
 
-function toTokens(input: string): string[] {
-  return normalizeSchoolName(input)
-    .split(' ')
-    .map((x) => x.trim())
-    .filter(Boolean)
+/** Danh sách còn thiếu thì DeepSeek đề xuất vài tên trường có chứa cụm giáo viên gõ. */
+async function suggestSchoolNamesWithDeepseek(
+  query: string,
+  already: string[],
+  userId?: string | null
+): Promise<string[]> {
+  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!key) return []
+  const model = resolveDeepSeekChatModel()
+  const known = already.map((name) => name.trim()).filter(Boolean).join('; ')
+  const prompt = `Giáo viên đang gõ cụm chữ để tìm trường ở Việt Nam: "${query}"
+Đã có trong danh sách: ${known || '(chưa có)'}
+Đề xuất đúng 4 tên trường KHÁC những tên đã có. Mỗi tên phải chứa cụm chữ giáo viên gõ (không phân biệt dấu và hoa thường).
+Viết hoa tên riêng. Ghi cấp nếu hợp lý: Tiểu học, THCS hoặc THPT.
+Trả về một dòng JSON: {"schools":["...","...","...","..."]}
+Không giải thích.`
+  try {
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('chat', {
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 400,
+          temperature: 0.3,
+        })
+      ),
+      signal: AbortSignal.timeout(15000),
+    })
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    }
+    const text = String(json.choices?.[0]?.message?.content ?? '')
+    trackOpenAiStyleCompletionUsage({
+      userId: userId ?? null,
+      model,
+      feature: 'schools-search-suggest-deepseek',
+      usage: json.usage,
+      fallbackPromptChars: prompt.length,
+      fallbackOutputChars: text.length,
+    })
+    if (!res.ok) return []
+    const known = new Set(already.map((name) => normalizeSchoolName(ensureSchoolPrefix(name))))
+    return filterSchoolSuggestions(parseSuggestedSchools(text), query, 8).filter((name) => {
+      const key = normalizeSchoolName(ensureSchoolPrefix(name))
+      return Boolean(key) && !known.has(key)
+    }).slice(0, 4)
+  } catch {
+    return []
+  }
 }
 
-const GENERIC_SCHOOL_TOKENS = new Set([
-  'truong', 'hoc', 'tieu', 'th', 'thcs', 'thpt', 'dai', 'cao', 'cap', 'co', 'so',
-  'lien', 'quan', 'huyen', 'xa', 'phuong', 'thi', 'tp', 'thanh', 'pho', '3', '2', '1',
-])
-
-function toSearchTokens(input: string): string[] {
-  const tokens = toTokens(input)
-  const filtered = tokens.filter((t) => t.length >= 2 && !GENERIC_SCHOOL_TOKENS.has(t))
-  return filtered.length > 0 ? filtered : tokens.filter((t) => t.length >= 2)
+async function saveSchoolNames(names: string[], userId: string): Promise<void> {
+  for (const raw of names) {
+    const canonicalName = ensureSchoolPrefix(raw)
+    const normalized = normalizeSchoolName(canonicalName)
+    if (!normalized) continue
+    const existing = await findSchoolByNormalizedName(normalized)
+    if (existing?.id) continue
+    try {
+      await insertSchool({
+        name: canonicalName,
+        normalizedName: normalized,
+        searchTokens: normalized,
+        createdBy: userId,
+      })
+    } catch {
+      /* tên vừa được lưu bởi request khác */
+    }
+  }
 }
 
-function cleanSchoolLabel(input: string): string {
-  return String(input || '')
-    .replace(/\s+/g, ' ')
-    .replace(/[^\p{L}\p{N}\s\-(),./:&]/gu, '')
-    .trim()
+type SchoolHit = {
+  id: string
+  name: string
+  normalized_name: string
+  search_tokens: string
 }
 
-function ensureSchoolPrefix(input: string): string {
-  const cleaned = cleanSchoolLabel(input)
-  if (!cleaned) return ''
-  const lower = cleaned.toLowerCase()
-  if (lower.includes('truong')) return cleaned
-  if (lower.includes('trường')) return cleaned
-  return `Trường ${cleaned}`.replace(/\s+/g, ' ').trim()
+async function listMatchingSchools(q: string): Promise<Array<{ id: string; name: string }>> {
+  const normalized = normalizeSchoolName(q)
+  const queryTokens = toSearchTokens(q)
+  const firstToken = queryTokens[0] ?? normalized
+  const data = await searchSchoolsForTeacher(q, firstToken)
+  const filtered = (data || []).filter((row: SchoolHit) => {
+    const rowTokens = new Set(toSearchTokens(String(row.search_tokens || row.normalized_name || row.name || '')))
+    return queryTokens.some((token) => rowTokens.has(token))
+  })
+  return filtered.slice(0, 20).map((row) => ({
+    id: String(row.id),
+    name: String(row.name ?? '').trim(),
+  }))
 }
 
 async function canonicalizeSchoolNameByAi(input: string, userId?: string | null): Promise<string | null> {
@@ -99,34 +181,17 @@ export async function GET(req: NextRequest) {
 
   const q = String(req.nextUrl.searchParams.get('q') ?? '').trim()
   const useAi = String(req.nextUrl.searchParams.get('ai') ?? '').trim() === '1'
-  if (!q) return NextResponse.json({ items: [], canCreate: false })
+  const wantSuggest = String(req.nextUrl.searchParams.get('suggest') ?? '').trim() === '1'
+  if (!q) return NextResponse.json({ items: [], suggestions: [], canCreate: false })
 
   const normalized = normalizeSchoolName(q)
-  const queryTokens = toSearchTokens(q)
-  const firstToken = queryTokens[0] ?? normalized
-  let data: Awaited<ReturnType<typeof searchSchoolsForTeacher>>
+  let items: Array<{ id: string; name: string }>
   try {
-    data = await searchSchoolsForTeacher(q, firstToken)
+    items = await listMatchingSchools(q)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 500 })
   }
-
-  const minTokenMatch = 1
-  const filtered = (data || []).filter((x) => {
-    const rowTokens = new Set(toSearchTokens(String(x.search_tokens || x.normalized_name || x.name || '')))
-    let matched = 0
-    for (const token of queryTokens) {
-      if (rowTokens.has(token)) matched += 1
-      if (matched >= minTokenMatch) return true
-    }
-    return false
-  })
-
-  const items = filtered.slice(0, 20).map((x) => ({
-    id: String(x.id),
-    name: String(x.name ?? '').trim(),
-  }))
   const existsExact = items.some((x) => normalizeSchoolName(x.name) === normalized)
 
   let aiSuggestedName: string | null = null
@@ -149,9 +214,23 @@ export async function GET(req: NextRequest) {
     ? [aiMatchedExisting, ...items.filter((x) => x.id !== aiMatchedExisting?.id)]
     : items
 
+  let listed = mergedItems
+  if (wantSuggest && auth.user?.id && shouldSuggestMoreSchools(listed.map((item) => item.name), q)) {
+    const names = await suggestSchoolNamesWithDeepseek(q, listed.map((item) => item.name), auth.user.id)
+    await saveSchoolNames(names, auth.user.id)
+    try {
+      const again = await listMatchingSchools(q)
+      if (again.length > 0) listed = again
+    } catch {
+      /* giữ danh sách đã có */
+    }
+  }
+
+  const listedExact = listed.some((item) => normalizeSchoolName(item.name) === normalized)
   return NextResponse.json({
-    items: mergedItems,
-    canCreate: normalized.length >= 3 && !existsExact,
+    items: listed,
+    suggestions: [],
+    canCreate: normalized.length >= 3 && !listedExact,
     suggestedName: q,
     aiSuggestedName,
     aiMatchedExisting,
@@ -164,9 +243,20 @@ export async function POST(req: NextRequest) {
   const { user } = auth
 
   const body = await req.json().catch(() => ({}))
+  const schoolIdBody = String(body?.schoolId ?? '').trim()
+  const setAsDefault = Boolean(body?.setAsDefault ?? true)
+  if (schoolIdBody) {
+    const school = await fetchSchoolByIdPg(schoolIdBody)
+    if (!school?.id) return NextResponse.json({ error: 'Không tìm thấy trường đã chọn.' }, { status: 404 })
+    if (setAsDefault) {
+      const up = await upsertTeacherDefaultSchool(user.id, school.id)
+      if (!up.ok) return NextResponse.json({ error: up.error ?? 'Không lưu trường mặc định.' }, { status: 500 })
+    }
+    return NextResponse.json({ success: true, schoolId: school.id, canonicalName: school.name })
+  }
+
   const name = String(body?.name ?? '').trim()
   const useAi = Boolean(body?.useAi ?? false)
-  const setAsDefault = Boolean(body?.setAsDefault ?? true)
   if (name.length < 3) {
     return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
   }
@@ -180,16 +270,22 @@ export async function POST(req: NextRequest) {
   if (existing?.id) {
     schoolId = String(existing.id)
   } else {
-    const inserted = await insertSchool({
-      name: ensureSchoolPrefix(canonicalName),
-      normalizedName: normalized,
-      searchTokens: normalized,
-      createdBy: user.id,
-    })
-    if (!inserted?.id) {
-      return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
+    try {
+      const inserted = await insertSchool({
+        name: ensureSchoolPrefix(canonicalName),
+        normalizedName: normalized,
+        searchTokens: normalized,
+        createdBy: user.id,
+      })
+      if (!inserted?.id) {
+        return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
+      }
+      schoolId = String(inserted.id)
+    } catch {
+      const again = await findSchoolByNormalizedName(normalized)
+      if (!again?.id) return NextResponse.json({ error: 'Không thể tạo trường.' }, { status: 500 })
+      schoolId = String(again.id)
     }
-    schoolId = String(inserted.id)
   }
 
   if (setAsDefault) {

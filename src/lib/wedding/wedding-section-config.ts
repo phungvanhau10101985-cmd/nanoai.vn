@@ -1,3 +1,4 @@
+import { isWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
 import { findWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 
 export type WeddingCoverAiFrameHole = { x: number; y: number; w: number; h: number }
@@ -100,6 +101,8 @@ export type WeddingSectionConfig = {
   bridePortraitShellUrl?: string
   bridePortraitShellHole?: WeddingCoverAiFrameHole
   bridePortraitShellPanel?: string
+  /** Màu các nút chính trên thiệp. Cô dâu chú rể chọn trong trang tạo thiệp. */
+  buttonColorId?: WeddingButtonColorId
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -295,6 +298,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       bridePortraitFrameScale: readFrameScale(obj.bridePortraitFrameScale),
       ...readPortraitShell(obj, 'groom'),
       ...readPortraitShell(obj, 'bride'),
+      buttonColorId: isWeddingButtonColorId(obj.buttonColorId) ? obj.buttonColorId : undefined,
     }
   } catch {
     return {}
@@ -347,6 +351,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   writeFrameScale(payload, 'bridePortraitFrameScale', config.bridePortraitFrameScale)
   writePortraitShell(payload, 'groom', config)
   writePortraitShell(payload, 'bride', config)
+  if (isWeddingButtonColorId(config.buttonColorId)) payload.buttonColorId = config.buttonColorId
   return JSON.stringify(payload)
 }
 

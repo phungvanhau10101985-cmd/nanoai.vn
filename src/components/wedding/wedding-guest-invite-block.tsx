@@ -5,6 +5,7 @@ import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CL
 import { cn } from '@/lib/utils'
 import { resolveGuestInviteMapUrl } from '@/lib/wedding/google-maps-embed-url'
 import { formatGuestInviteVenueDateTime } from '@/lib/wedding/wedding-calendar-utils'
+import { type WeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingMapButtonColors } from '@/lib/wedding/wedding-theme'
 import type { WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 
@@ -19,6 +20,7 @@ type Props = {
   mapUrl?: string
   viewMapLabel: string
   weddingThemeId?: string
+  buttonColor?: WeddingButtonColor
   className?: string
   panelClassName?: string
   cordiallyClassName?: string
@@ -42,7 +44,7 @@ export function WeddingGuestInviteBlock(props: Props) {
   const venueDateTime = formatGuestInviteVenueDateTime(props.weddingDateLabel, props.weddingTimeText)
   const address = props.addressText?.trim() ?? ''
   const mapsHref = resolveGuestInviteMapUrl(props.mapUrl ?? '', address)
-  const mapColors = getWeddingMapButtonColors(props.weddingThemeId)
+  const mapColors = props.buttonColor ?? getWeddingMapButtonColors(props.weddingThemeId)
 
   const guestNameClass = cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none', props.nameClassName)
 

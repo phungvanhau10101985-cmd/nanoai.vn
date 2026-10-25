@@ -20,8 +20,30 @@ function isQuizStart(line: string): boolean {
   return matchQuizStart(line) != null
 }
 
+function isSolutionMarker(line: string): boolean {
+  return /^\s*(?:\*\*)?(?:lời giải|đáp án)(?:\*\*)?\s*:/i.test(line)
+}
+
+/** Sau lời giải, dòng "1. Bước..." không phải câu trắc nghiệm mới. Câu mới có tag hoặc có phương án A–D. */
+function isRealQuizStem(lines: string[], index: number): boolean {
+  const line = lines[index] ?? ''
+  if (!isQuizStart(line)) return false
+  if (/\*\*\[(?:Đã verify|Chưa verify|Dễ|Trung bình|Khó|Tham khảo theo SGK)\]\*\*/.test(line)) return true
+  for (let k = index + 1; k < Math.min(lines.length, index + 8); k++) {
+    const ahead = lines[k] ?? ''
+    if (isQuizStart(ahead) || isEssayStart(ahead) || isSolutionMarker(ahead)) break
+    if (/^\s*[A-D]\.\s+\S/.test(ahead)) return true
+  }
+  return false
+}
+
 /** Nhãn số sau "Bài": 2 | 1.3 | 1.3 1 ... */
 const ESSAY_NUM_BODY = String.raw`(?:\d+(?:\.\d+)*(?:\s+\d+)?)`
+
+/** Tiêu đề phần (## Phần tự luận) không thuộc câu trắc nghiệm phía trước. */
+function isSectionBreak(line: string): boolean {
+  return /^#{2,3}\s+\S/.test(line) && !isEssayStart(line)
+}
 
 /** Kiểm tra dòng có phải đầu bài tự luận – gồm ### Bài 1.3 1. */
 function isEssayStart(line: string): boolean {
@@ -53,12 +75,15 @@ export function parseWorksheetIntoBlocks(markdown: string): WorksheetQuestionBlo
     if (quizMatch) {
       const startIdx = charOffset
       const blockLines: string[] = [line]
+      let inSolution = false
       i++
       charOffset += lineLen
       while (i < lines.length) {
         const next = lines[i] ?? ''
         const nextLen = next.length + (i < lines.length - 1 ? 1 : 0)
-        if (isQuizStart(next) || isEssayStart(next)) break
+        if (isEssayStart(next) || isSectionBreak(next)) break
+        if (isQuizStart(next) && (!inSolution || isRealQuizStem(lines, i))) break
+        if (isSolutionMarker(next)) inSolution = true
         blockLines.push(next)
         i++
         charOffset += nextLen

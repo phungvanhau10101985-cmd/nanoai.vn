@@ -3406,6 +3406,9 @@ export type Dictionary = {
     createClassSchoolSelected: string
     createClassSchoolNotFound: string
     createClassSchoolTryOther: string
+    createClassSchoolSuggesting: string
+    createClassSchoolSuggestions: string
+    createClassSchoolTypeOwn: string
     joinStudentDisplayName: string
     joinStudentBirthDate: string
     joinDobDayPlaceholder: string
@@ -3918,6 +3921,13 @@ export type Dictionary = {
     frameShapeArch: string
     frameShapeDiamond: string
     frameShapeRounded: string
+    buttonColorLabel: string
+    buttonColorHint: string
+    buttonColorBronze: string
+    buttonColorRed: string
+    buttonColorPink: string
+    buttonColorBlack: string
+    buttonColorCream: string
   }
   weddingCardPublic: {
     invitation: string
@@ -3963,6 +3973,7 @@ export type Dictionary = {
     guestNamePlaceholder: string
     attendYes: string
     attendNo: string
+    rsvpChoiceRequired: string
     coverAttendYes: string
     coverAttendNo: string
     coverRsvpSavedYes: string
@@ -7678,7 +7689,10 @@ export const VI_DICTIONARY: Dictionary = {
     createClassSchoolAddNew: 'Thêm trường này',
     createClassSchoolSelected: 'Trường đã chọn',
     createClassSchoolNotFound: 'Không tìm thấy trường đã chọn.',
-    createClassSchoolTryOther: 'Chưa có trường trùng khớp. Đổi từ khóa hoặc dùng nút thêm trường (khi hiện).',
+    createClassSchoolTryOther: 'Chưa có trường này trong danh sách. Chọn tên DeepSeek đề xuất hoặc tự điền tên vừa gõ.',
+    createClassSchoolSuggesting: 'Đang nhờ DeepSeek đề xuất tên trường…',
+    createClassSchoolSuggestions: 'DeepSeek đề xuất',
+    createClassSchoolTypeOwn: 'Tự điền',
     joinStudentDisplayName: 'Họ và tên học sinh',
     joinStudentBirthDate: 'Ngày sinh',
     joinDobDayPlaceholder: 'Ngày',
@@ -8195,6 +8209,14 @@ export const VI_DICTIONARY: Dictionary = {
     frameShapeArch: 'Vòm',
     frameShapeDiamond: 'Thoi',
     frameShapeRounded: 'Chữ nhật',
+    buttonColorLabel: 'Màu nút',
+    buttonColorHint:
+      'Dùng cho Mở thiệp, Sẽ tham dự sau khi khách bấm, Gửi phản hồi, nhắc lịch và bản đồ. Nút chưa chọn và Không tham dự vẫn trắng.',
+    buttonColorBronze: 'Nâu đồng',
+    buttonColorRed: 'Đỏ son',
+    buttonColorPink: 'Hồng',
+    buttonColorBlack: 'Đen',
+    buttonColorCream: 'Vàng kem',
   },
   weddingCardPublic: {
     invitation: 'Thiệp mời / Invitation',
@@ -8240,6 +8262,7 @@ export const VI_DICTIONARY: Dictionary = {
     guestNamePlaceholder: 'Tên của bạn',
     attendYes: 'Sẽ tham dự',
     attendNo: 'Không tham dự',
+    rsvpChoiceRequired: 'Hãy chọn Sẽ tham dự hoặc Không tham dự.',
     coverAttendYes: 'Có đi',
     coverAttendNo: 'Không đi',
     coverRsvpSavedYes: 'Đã xác nhận có đi',

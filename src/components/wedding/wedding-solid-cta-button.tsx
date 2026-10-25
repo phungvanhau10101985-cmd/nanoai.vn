@@ -2,17 +2,20 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
+import { type WeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingMapButtonColors } from '@/lib/wedding/wedding-theme'
 
 type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   weddingThemeId?: string
+  /** Màu cô dâu chú rể chọn. Có thì không lấy màu theo kiểu thiệp cũ. */
+  buttonColor?: WeddingButtonColor
   children: ReactNode
   compact?: boolean
 }
 
 /** Nút CTA đặc — đọc rõ trên panel kính / nền AI (Mở thiệp, Maps, …). */
-export function WeddingSolidCtaButton({ weddingThemeId, children, compact, className, ...rest }: Props) {
-  const colors = getWeddingMapButtonColors(weddingThemeId)
+export function WeddingSolidCtaButton({ weddingThemeId, buttonColor, children, compact, className, ...rest }: Props) {
+  const colors = buttonColor ?? getWeddingMapButtonColors(weddingThemeId)
 
   return (
     <button

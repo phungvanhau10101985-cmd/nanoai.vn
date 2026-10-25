@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { DismissableLayerBranch } from '@radix-ui/react-dismissable-layer'
 import { Maximize2, MessageCircle, Package, ShoppingCart, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
@@ -591,6 +592,7 @@ export function FloatingChatWidget({
 
   const launcherPlaceClass = launcherPos ? '' : launcherAnchorClass
   const launcherStyle: React.CSSProperties = {
+    pointerEvents: 'auto',
     touchAction: 'none',
     WebkitTouchCallout: 'none',
     ...(launcherPos
@@ -611,30 +613,32 @@ export function FloatingChatWidget({
       return <div ref={rootRef} data-nanoai-widget-root className="hidden" aria-hidden />
     }
     const renderLauncherButton = (className: string, children: React.ReactNode) => (
-      <button
-        ref={launcherBtnRef}
-        type="button"
-        className={className}
-        style={launcherStyle}
-        onPointerDown={onLauncherPointerDown}
-        onPointerMove={onLauncherPointerMove}
-        onPointerUp={endLauncherDrag}
-        onPointerCancel={endLauncherDrag}
-        onClick={onLauncherClick}
-        onContextMenu={(e) => e.preventDefault()}
-        onDragStart={(e) => e.preventDefault()}
-        title={openLabel}
-        aria-label={openLabel}
-      >
-        {children}
-      </button>
+      <DismissableLayerBranch asChild>
+        <button
+          ref={launcherBtnRef}
+          type="button"
+          className={className}
+          style={launcherStyle}
+          onPointerDown={onLauncherPointerDown}
+          onPointerMove={onLauncherPointerMove}
+          onPointerUp={endLauncherDrag}
+          onPointerCancel={endLauncherDrag}
+          onClick={onLauncherClick}
+          onContextMenu={(e) => e.preventDefault()}
+          onDragStart={(e) => e.preventDefault()}
+          title={openLabel}
+          aria-label={openLabel}
+        >
+          {children}
+        </button>
+      </DismissableLayerBranch>
     )
 
     if (showLauncherLogo) {
       return (
         <div ref={rootRef} data-nanoai-widget-root className="contents">
           {renderLauncherButton(
-            `fixed ${launcherPlaceClass} ${topLayerClass} h-14 w-14 cursor-grab touch-none select-none overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
+            `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} h-14 w-14 cursor-grab touch-none select-none overflow-hidden rounded-full border-0 bg-transparent p-0 shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={launcherSrc}
@@ -649,7 +653,7 @@ export function FloatingChatWidget({
     return (
       <div ref={rootRef} data-nanoai-widget-root className="contents">
         {renderLauncherButton(
-          `fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
+          `pointer-events-auto fixed ${launcherPlaceClass} ${topLayerClass} flex h-14 w-14 cursor-grab touch-none select-none items-center justify-center rounded-full border border-border/40 bg-background/95 p-0 shadow-lg transition hover:bg-muted/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`,
           <MessageCircle className="pointer-events-none h-7 w-7 text-muted-foreground" aria-hidden />
         )}
       </div>

@@ -62,7 +62,9 @@ import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
+import { resolveWeddingButtonColor, resolveWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
+import { WeddingButtonColorPicker } from '@/components/wedding/wedding-button-color-picker'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingAiLibraryGrid, WeddingReferenceChoice } from '@/components/wedding/wedding-ai-library-grid'
@@ -696,6 +698,8 @@ export default function WeddingCardAiClientPage() {
   const selectedTheme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
+  const buttonColorId = resolveWeddingButtonColorId(sectionConfig.buttonColorId, card.selectedStyleId)
+  const buttonColor = resolveWeddingButtonColor(buttonColorId)
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
   const coverFrameMode = resolveCoverFrameMode(sectionConfig)
@@ -2306,6 +2310,21 @@ export default function WeddingCardAiClientPage() {
                 <CardDescription>{txCover.sectionDescription}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <WeddingButtonColorPicker
+                  value={buttonColorId}
+                  label={txCover.buttonColorLabel}
+                  hint={txCover.buttonColorHint}
+                  names={{
+                    bronze: txCover.buttonColorBronze,
+                    red: txCover.buttonColorRed,
+                    pink: txCover.buttonColorPink,
+                    black: txCover.buttonColorBlack,
+                    cream: txCover.buttonColorCream,
+                  }}
+                  onChange={(id: WeddingButtonColorId) =>
+                    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { buttonColorId: id }))
+                  }
+                />
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
                     className="relative flex min-h-[360px] items-center justify-center overflow-x-clip overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
@@ -2352,6 +2371,7 @@ export default function WeddingCardAiClientPage() {
                       invitationLabel={txCover.previewLabel}
                       cordiallyInvitesLabel={txCover.previewGuestPrefix}
                       openButtonLabel={txCover.previewOpenButton}
+                      buttonColor={buttonColor}
                       dateFallback={txPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
                       choosePhotoLabel={txCover.choosePhoto}
@@ -3178,6 +3198,7 @@ export default function WeddingCardAiClientPage() {
                           venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
                           addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
                           weddingThemeId={selectedTheme.id}
+                          buttonColor={buttonColor}
                           compact
                         />
                         {previewDateIso ? (

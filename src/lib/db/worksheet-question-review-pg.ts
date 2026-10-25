@@ -10,6 +10,8 @@ export { WORKSHEET_REVIEW_AGREES }
 
 export type WorksheetQuestionProposal = {
   questionId: string
+  /** quiz hoặc essay, để cặp bản gốc / bản sửa đứng đúng cột. */
+  type?: 'quiz' | 'essay'
   /** Bản sửa đang chờ. */
   preview: string
   /** Bản gốc đang dùng chung, để người sau đối chiếu. */
