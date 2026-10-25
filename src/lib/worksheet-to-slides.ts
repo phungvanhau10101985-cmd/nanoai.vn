@@ -4,7 +4,7 @@
  * Nếu không có đánh số câu hỏi thì dùng ## / ### như curriculum.
  */
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
-import { coalesceEssayParts, getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { coalesceEssayParts, getEssayProblem, getEssaySolution, getThinkingGuide, splitThinkingGuide } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { cleanQuizSolution, formatQuizAnswerBlock } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import type { AISlideData, ContentBlock, Slide } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
 import { parseCurriculumToSlides, parseContentToBlocks } from '@/app/tao-giao-trinh/lib/curriculum-to-slides'
@@ -12,6 +12,17 @@ import { compareExerciseIndexParsed, parseExerciseIndex } from '@/lib/worksheet-
 
 /** Regex: dòng bắt đầu bằng Đáp án / Lời giải – tách block đáp án */
 const ANSWER_MARKER = /^\s*\*?\*?(?:Đáp án|Lời giải)\*?\*?\s*[:：]?\s*(.*)$/im
+/** Hướng tư duy đứng trước lời giải, học sinh nhìn thấy để tự nghĩ. */
+const GUIDE_MARKER = /^\s*\*?\*?Hướng tư duy\*?\*?\s*[:：]?\s*(.*)$/im
+
+function insertThinkingGuide(blocks: ContentBlock[], guide: string): ContentBlock[] {
+  const text = guide.trim()
+  if (!text) return blocks
+  const guideBlock: ContentBlock = { header: 'Hướng tư duy', content: text }
+  const answerAt = blocks.findIndex((block) => block.isAnswer)
+  if (answerAt < 0) return [...blocks, guideBlock]
+  return [...blocks.slice(0, answerAt), guideBlock, ...blocks.slice(answerAt)]
+}
 
 /**
  * Parse nội dung slide phiếu bài tập thành blocks – tách phần câu hỏi và phần đáp án.
@@ -31,19 +42,30 @@ function parseWorksheetContentToBlocks(content: string): ContentBlock[] {
       break
     }
   }
+  let guideIdx = -1
+  for (let i = 0; i < lines.length; i++) {
+    if (GUIDE_MARKER.test(lines[i] ?? '')) {
+      guideIdx = i
+      break
+    }
+  }
   if (splitIdx < 0) {
     const fromDefault = parseContentToBlocks(raw)
     return fromDefault.length > 0 ? fromDefault : [{ header: 'Nội dung', content: raw }]
   }
-  const questionLines = lines.slice(0, splitIdx)
+  const questionEnd = guideIdx >= 0 && guideIdx < splitIdx ? guideIdx : splitIdx
+  const questionLines = lines.slice(0, questionEnd)
+  const guideLines = guideIdx >= 0 && guideIdx < splitIdx ? lines.slice(guideIdx, splitIdx) : []
   const answerLines = lines.slice(splitIdx)
   const questionContent = questionLines.join('\n').trim()
   const answerContent = answerLines.join('\n').trim()
+  const guideContent = guideLines.join('\n').replace(/^\s*\*?\*?Hướng tư duy\*?\*?\s*[:：]?\s*/i, '').trim()
   const questionBlocks = questionContent ? parseContentToBlocks(questionContent) : []
-  const blocks: ContentBlock[] = questionBlocks.length > 0 ? questionBlocks : [{ header: 'Nội dung', content: questionContent || '' }]
+  let blocks: ContentBlock[] = questionBlocks.length > 0 ? questionBlocks : [{ header: 'Nội dung', content: questionContent || '' }]
   if (answerContent) {
     blocks.push({ header: answerHeader, content: answerContent, isAnswer: true })
   }
+  blocks = insertThinkingGuide(blocks, guideContent)
   return blocks
 }
 
@@ -75,7 +97,7 @@ function splitSlideByBaiBlocks(slide: Slide): Slide[] {
 function previewTextForSlideSort(s: AISlideData): string {
   const parts: string[] = [s.title]
   for (const b of s.blocks) {
-    if (!b.isAnswer && b.content) parts.push(b.content)
+    if (!b.isAnswer && b.content && !/hướng tư duy/i.test(b.header ?? '')) parts.push(b.content)
   }
   return parts.join('\n')
 }
@@ -196,17 +218,22 @@ export function questionsToSlides(questions: Array<{ type: string; content_json:
     let preview = ''
     if (q.type === 'quiz') {
       const c = q.content_json as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
-      preview = c.question ?? ''
+      const stem = splitThinkingGuide(String(c.question ?? ''))
+      preview = stem.body || String(c.question ?? '')
       const opts = (c.options ?? []).slice(0, 4)
-      const questionText = [c.question ?? '', ...opts.map((o, i) => `   ${String.fromCharCode(65 + i)}. ${o}`)].join('\n').trim()
+      const questionText = [preview, ...opts.map((o, i) => `   ${String.fromCharCode(65 + i)}. ${o}`)].join('\n').trim()
       blocks.push({ header: 'Câu hỏi', content: questionText })
       blocks.push({ header: 'Đáp án', content: formatQuizAnswerBlock(c.correctIndex ?? 0, c.solution), isAnswer: true })
+      const withGuide = insertThinkingGuide(blocks, getThinkingGuide(c) || stem.thinkingGuide)
+      blocks.splice(0, blocks.length, ...withGuide)
     } else if (q.type === 'essay') {
       const c = q.content_json as { problem?: string; solution?: string }
       const parts = coalesceEssayParts(getEssayProblem(c) || String(c.problem ?? ''), getEssaySolution(c) || String(c.solution ?? ''))
       preview = parts.problem
       blocks.push({ header: 'Đề bài', content: parts.problem })
       blocks.push({ header: 'Lời giải', content: parts.solution || '(Chưa có lời giải)', isAnswer: true })
+      const withGuide = insertThinkingGuide(blocks, getThinkingGuide(c))
+      blocks.splice(0, blocks.length, ...withGuide)
     }
     if (blocks.length > 0) {
       rows.push({
@@ -243,6 +270,8 @@ export type ExamReviewQuestionInput = {
   correctOption: string
   /** Lời giải từng bước của câu trắc nghiệm (ngân hàng câu). */
   solution?: string
+  /** Gợi ý hướng tư duy, học sinh nhìn thấy trước lời giải. */
+  thinkingGuide?: string
 }
 
 export function examReviewQuestionsToSlides(questions: ExamReviewQuestionInput[]): AISlideData[] {
@@ -261,24 +290,30 @@ export function examReviewQuestionsToSlides(questions: ExamReviewQuestionInput[]
       const answerLine = [letter, optionText].filter(Boolean).join('. ')
       const steps = cleanQuizSolution(q.solution)
       const conclusion = answerLine ? `**Đáp án:** ${answerLine}` : formatQuizAnswerBlock(q.correctIndex, '')
-      const blocks: ContentBlock[] = [
-        { header: 'Câu hỏi', content: `${questionText}${sourceLine}`.trim() },
-        {
-          header: 'Đáp án',
-          content: steps ? `${steps}\n\n${conclusion}` : answerLine || conclusion,
-          isAnswer: true,
-        },
-      ]
+      const blocks = insertThinkingGuide(
+        [
+          { header: 'Câu hỏi', content: `${questionText}${sourceLine}`.trim() },
+          {
+            header: 'Đáp án',
+            content: steps ? `${steps}\n\n${conclusion}` : answerLine || conclusion,
+            isAnswer: true,
+          },
+        ],
+        String(q.thinkingGuide ?? '')
+      )
       return { title: `Câu ${q.index}`, blocks }
     }
-    const blocks: ContentBlock[] = [
-      { header: 'Đề bài', content: `${String(q.questionText ?? '').trim()}${sourceLine}`.trim() },
-      {
-        header: 'Lời giải',
-        content: String(q.correctOption ?? '').trim() || '(Chưa có lời giải)',
-        isAnswer: true,
-      },
-    ]
+    const blocks = insertThinkingGuide(
+      [
+        { header: 'Đề bài', content: `${String(q.questionText ?? '').trim()}${sourceLine}`.trim() },
+        {
+          header: 'Lời giải',
+          content: String(q.correctOption ?? '').trim() || '(Chưa có lời giải)',
+          isAnswer: true,
+        },
+      ],
+      String(q.thinkingGuide ?? '')
+    )
     return { title: `Câu ${q.index}`, blocks }
   })
 }

@@ -9,6 +9,7 @@ import {
   listOosIdsInWindowFromPg,
   resetSourceStockPdpCycleFromPg,
   SourceStockSchemaMissingError,
+  invalidateSourceStockQueueStatsCache,
   sourceStockActivityReportFromPg,
   sourceStockQueueStatsFromPg,
 } from '@/lib/db/messaging-partner-source-stock-pg'
@@ -99,6 +100,12 @@ async function handleGet(req: NextRequest, ctx: Ctx) {
   }
 
   if (p === 'report') {
+    const sampleSets = (url.searchParams.get('sample_sets') || '')
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part): part is 'oos' | 'in_stock' | 'batch_ttl' =>
+        part === 'oos' || part === 'in_stock' || part === 'batch_ttl'
+      )
     const data = await sourceStockActivityReportFromPg({
       partnerId,
       domain: (url.searchParams.get('domain') || 'cssbuy').trim().toLowerCase(),
@@ -107,7 +114,9 @@ async function handleGet(req: NextRequest, ctx: Ctx) {
       samplesOosPage: Number(url.searchParams.get('samples_oos_page') || '1') || 1,
       samplesInStockPage: Number(url.searchParams.get('samples_in_stock_page') || '1') || 1,
       samplesBatchTtlPage: Number(url.searchParams.get('samples_batch_ttl_page') || '1') || 1,
-      samplePageSize: Number(url.searchParams.get('sample_page_size') || '200') || 200,
+      samplePageSize: Number(url.searchParams.get('sample_page_size') || '40') || 40,
+      sampleSets: sampleSets.length ? sampleSets : undefined,
+      includeQueue: boolParam(url.searchParams.get('include_queue'), true),
     })
     return NextResponse.json(data)
   }
@@ -170,6 +179,7 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
       body.active_only !== false
     )
     const mem = clearSourceStockMemoryQueue(partnerId)
+    invalidateSourceStockQueueStatsCache(partnerId)
     return NextResponse.json({
       ok: true,
       products_updated: updated,
@@ -182,6 +192,7 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
     const ids = Array.isArray(body.db_ids) ? body.db_ids.map((x) => String(x)).filter(Boolean) : []
     if (!ids.length) return jsonError('empty_db_ids')
     const ok = await deletePartnerInventoryByIdsForPartnerFromPg(partnerId, ids.slice(0, 50_000))
+    if (ok) invalidateSourceStockQueueStatsCache(partnerId)
     return NextResponse.json({ ok, deleted: ok ? ids.length : 0 })
   }
 
@@ -189,6 +200,7 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
     const id = String(body.db_id || '').trim()
     if (!id) return jsonError('product_not_found')
     const out = await clearOosFlagsFromPg(partnerId, [id])
+    invalidateSourceStockQueueStatsCache(partnerId)
     return NextResponse.json({ ok: true, ...out, restored_available: out.restored, product_db_id: id })
   }
 
@@ -205,6 +217,7 @@ async function handlePost(req: NextRequest, ctx: Ctx) {
         ? body.db_ids.map((x) => String(x)).filter(Boolean)
         : []
     const out = await clearOosFlagsFromPg(partnerId, ids)
+    invalidateSourceStockQueueStatsCache(partnerId)
     return NextResponse.json({ ok: true, ...out, restored_available: out.restored, all_in_window: allInWindow })
   }
 

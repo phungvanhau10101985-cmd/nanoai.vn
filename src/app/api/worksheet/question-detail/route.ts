@@ -9,7 +9,7 @@ import {
 } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
-import { getEssayProblem, getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { getEssayProblem, getEssaySolution, getThinkingGuide } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 export async function GET(req: NextRequest) {
   try {
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         options,
         correctIndex,
         correctLabel: String.fromCharCode(65 + correctIndex),
+        thinkingGuide: getThinkingGuide(cj),
       })
     }
 
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
         topic,
         problem,
         solution,
+        thinkingGuide: getThinkingGuide(cj),
       })
     }
 

@@ -66,3 +66,30 @@ test('bước 1. 2. 3. trong lời giải trắc nghiệm không thành câu m�
   assert.doesNotMatch(blocks[1]?.content ?? '', /Phần tự luận/)
   assert.match(blocks[2]?.content ?? '', /Bài 1/)
 })
+
+test('hướng tư duy trắc nghiệm nằm giữa phương án và lời giải, không chui vào đáp án', () => {
+  const guide = 'Nhớ phép cộng. Cộng hai số đã cho. Chưa chọn phương án.'
+  const markdown = questionsToMarkdown([
+    {
+      type: 'quiz',
+      difficulty: 'easy',
+      content_json: {
+        question: '1+1 bằng bao nhiêu?',
+        options: ['1', '2', '3', '4'],
+        correctIndex: 1,
+        thinkingGuide: guide,
+        solution,
+      },
+    },
+  ])
+  const guideAt = markdown.indexOf('**Hướng tư duy:**')
+  const solutionAt = markdown.indexOf('**Lời giải:**')
+  assert.ok(markdown.indexOf('A. 1') < guideAt && guideAt < solutionAt)
+  const parsed = parseWorksheetIntoBlocks(markdown).find((item) => item.type === 'quiz')
+  const saved = parsed
+    ? (blockToContentJson(parsed) as { thinkingGuide?: string; solution?: string; question?: string })
+    : null
+  assert.equal(saved?.thinkingGuide, guide)
+  assert.equal(saved?.solution, solution)
+  assert.equal(saved?.question?.includes('Hướng tư duy'), false)
+})

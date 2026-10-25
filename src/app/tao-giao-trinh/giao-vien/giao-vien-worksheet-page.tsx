@@ -38,7 +38,7 @@ import { resolveWorksheetEditBlockGlobalIndex } from '../lib/worksheet-slide-to-
 import { toEditableBlockContent } from '../lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from '../components/worksheet-edit-section-popup'
 import { CURRICULUM_UI_CREDITS, formatCurriculumCredits } from '../lib/curriculum-credit-costs'
-import { coalesceEssayParts, getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '../lib/worksheet-content-json'
+import { coalesceEssayParts, formatEssayEditText, getEssayProblem, getEssaySolution, getThinkingGuide, normalizeSolutionToStr } from '../lib/worksheet-content-json'
 import { useToast } from '@/hooks/use-toast'
 import { Toaster } from '@/components/ui/toaster'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -2671,7 +2671,12 @@ export default function GiaoVienWorksheetPage() {
             latexToReadable(getEssayProblem(row.content_json) || ''),
             normalizeSolutionToStr(getEssaySolution(row.content_json))
           )
-          nextContent = [heading, parts.problem, '**Lời giải:**', parts.solution || '(Chưa có lời giải)'].filter(Boolean).join('\n\n')
+          nextContent = formatEssayEditText({
+            heading,
+            problem: parts.problem,
+            thinkingGuide: getThinkingGuide(row.content_json),
+            solution: parts.solution,
+          })
         }
       } catch {
         /* giữ markdown */

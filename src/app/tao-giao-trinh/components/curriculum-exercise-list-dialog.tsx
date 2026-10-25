@@ -56,8 +56,9 @@ type QuickDetailPayload =
       options: string[]
       correctIndex: number
       correctLabel: string
+      thinkingGuide?: string
     }
-  | { type: 'essay'; topic: string; problem: string; solution: string }
+  | { type: 'essay'; topic: string; problem: string; solution: string; thinkingGuide?: string }
 
 const PAGE_SIZE = 50
 
@@ -170,6 +171,7 @@ export function CurriculumExerciseListDialog({
     detailLoading: tr('Đang tải chi tiết…', 'Loading details…', '正在加载详情…', '詳細を読み込み中…', '상세 불러오는 중…'),
     detailErr: tr('Không tải được chi tiết.', 'Could not load details.', '无法加载详情。', '詳細を読み込めません。', '상세를 불러올 수 없습니다.'),
     correctAnswer: tr('Đáp án đúng', 'Correct answer', '正确答案', '正解', '정답'),
+    thinkingGuide: tr('Hướng tư duy', 'Thinking guide', '思路提示', '考え方のヒント', '풀이 힌트'),
     essaySolution: tr('Lời giải', 'Solution', '解答', '解答', '해설'),
   }
 
@@ -559,6 +561,14 @@ export function CurriculumExerciseListDialog({
                       </li>
                     ))}
                   </ul>
+                  {detailData.thinkingGuide ? (
+                    <div className="space-y-1">
+                      <p className="font-semibold text-foreground">{t.thinkingGuide}</p>
+                      <div className="whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">
+                        {latexToReadable(detailData.thinkingGuide)}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="rounded-md border border-emerald-500/30 bg-emerald-50/80 px-3 py-2 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
                     <span className="font-semibold">{t.correctAnswer}:</span> {detailData.correctLabel}
                   </p>
@@ -568,6 +578,14 @@ export function CurriculumExerciseListDialog({
                   <div className="whitespace-pre-wrap break-words leading-relaxed font-medium">
                     {latexToReadable(detailData.problem)}
                   </div>
+                  {detailData.thinkingGuide ? (
+                    <div className="space-y-1">
+                      <p className="font-semibold text-foreground">{t.thinkingGuide}</p>
+                      <div className="whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">
+                        {latexToReadable(detailData.thinkingGuide)}
+                      </div>
+                    </div>
+                  ) : null}
                   <p className="font-semibold text-foreground">{t.essaySolution}</p>
                   <div className="whitespace-pre-wrap break-words leading-relaxed text-muted-foreground">
                     {latexToReadable(detailData.solution)}

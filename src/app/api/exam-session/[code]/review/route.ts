@@ -3,7 +3,7 @@ import { getUserForAction } from '@/lib/auth'
 import { fetchExamQuestionsForReviewPg, fetchExamSessionForTeacherReviewPg } from '@/lib/db/exam-session-pg'
 import { fetchWorksheetQuestionsTypeContentByIdsFromPg } from '@/lib/db/worksheet-pg'
 import { isPgConfigured } from '@/lib/db/pool'
-import { getEssaySolution } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { getEssaySolution, getThinkingGuide } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 
 type ExamQuestionRow = {
@@ -65,12 +65,15 @@ export async function GET(
     )
     const essaySolutionByWorksheetQid = new Map<string, string>()
     const quizSolutionByWorksheetQid = new Map<string, string>()
+    const thinkingGuideByWorksheetQid = new Map<string, string>()
     if (wsIds.length > 0) {
       const wsMap = await fetchWorksheetQuestionsTypeContentByIdsFromPg(wsIds)
       if (wsMap === null) {
         return NextResponse.json({ error: 'Lỗi đọc lời giải.' }, { status: 500 })
       }
       for (const [id, row] of wsMap) {
+        const guide = getThinkingGuide(row.content_json).trim()
+        if (guide) thinkingGuideByWorksheetQid.set(id, guide)
         const sol = getEssaySolution(row.content_json).trim()
         if (!sol) continue
         if (row.type === 'essay') essaySolutionByWorksheetQid.set(id, sol)
@@ -108,6 +111,7 @@ export async function GET(
         correctLabel,
         correctOption,
         solution,
+        thinkingGuide: wsq ? thinkingGuideByWorksheetQid.get(wsq) ?? '' : '',
       }
     })
 

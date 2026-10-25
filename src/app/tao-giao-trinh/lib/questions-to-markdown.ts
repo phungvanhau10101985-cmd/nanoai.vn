@@ -1,4 +1,4 @@
-import { coalesceEssayParts, getEssayProblem, getEssaySolution } from './worksheet-content-json'
+import { cleanThinkingGuide, coalesceEssayParts, getEssayProblem, getEssaySolution, getThinkingGuide, splitThinkingGuide } from './worksheet-content-json'
 import { formatQuizAnswerBlock } from './worksheet-quiz-solution'
 import { parseWorksheetIntoBlocks } from './worksheet-parse-questions'
 
@@ -20,6 +20,12 @@ function getEssayTag(difficulty?: string): string {
 }
 
 /** Số hiệu bài SGK do AI gán khi tách ý (vd: "1.3 1", "1.3 2"). */
+function thinkingGuideLines(contentJson: unknown): string[] {
+  const guide = cleanThinkingGuide(getThinkingGuide(contentJson))
+  if (!guide) return []
+  return ['', '**Hướng tư duy:**', '', guide]
+}
+
 function getExerciseNumberFromContent(contentJson: unknown): string {
   const c = contentJson as Record<string, unknown> | null
   if (!c || typeof c !== 'object') return ''
@@ -64,9 +70,11 @@ export function questionsToMarkdown(questions: WorksheetMarkdownQuestion[]): str
       const sgkTag = q.source === 'sgk' ? '**[Tham khảo theo SGK]** ' : ''
       const tag = getQuizTag(q.difficulty)
       const quizLabel = getExerciseNumberFromContent(c) || String(quizNum)
-      lines.push(`${quizLabel}. ${verifyTag}${sgkTag}**[${tag}]** ${c.question ?? ''}`)
+      const stem = splitThinkingGuide(String(c.question ?? ''))
+      lines.push(`${quizLabel}. ${verifyTag}${sgkTag}**[${tag}]** ${stem.body || c.question || ''}`)
       const opts = (c.options ?? []).slice(0, 4).map((o) => String(o ?? '').replace(/^[A-D]\.\s*/i, '').trim() || String(o ?? ''))
       opts.forEach((o, i) => lines.push(`   ${String.fromCharCode(65 + i)}. ${o}`))
+      lines.push(...thinkingGuideLines(c))
       if (String(c.solution ?? '').trim()) {
         lines.push('', '**Lời giải:**', '', formatQuizAnswerBlock(c.correctIndex ?? 0, c.solution), '')
       } else {
@@ -87,6 +95,7 @@ export function questionsToMarkdown(questions: WorksheetMarkdownQuestion[]): str
         `### Bài ${essayLabel}. ${verifyTag}${sgkTag}**[${tag}]**`,
         '',
         parts.problem,
+        ...thinkingGuideLines(c),
         '',
         '**Lời giải:**',
         '',

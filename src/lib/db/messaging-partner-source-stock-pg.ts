@@ -33,7 +33,10 @@ export class SourceStockSchemaMissingError extends Error {
   }
 }
 
+let sourceStockSchemaReady = false
+
 export async function assertSourceStockSchemaReadyFromPg(): Promise<void> {
+  if (sourceStockSchemaReady) return
   const { rows } = await getPgPool().query<{
     worker_table: string | null
     inventory_columns: number
@@ -59,6 +62,7 @@ export async function assertSourceStockSchemaReadyFromPg(): Promise<void> {
   if (!rows[0]?.worker_table || Number(rows[0]?.inventory_columns || 0) !== 6) {
     throw new SourceStockSchemaMissingError()
   }
+  sourceStockSchemaReady = true
 }
 
 function linkSql(alias: string, startIndex: number): string {
@@ -75,20 +79,29 @@ function domainLinkSql(alias: string, startIndex: number, domain: string): { sql
   }
 }
 
-function trafficSql(alias: string, partnerParam: string, sinceParam: string): string {
-  void partnerParam
-  return `exists (
-    select 1 from public.messaging_partner_visitor_personalization v
-    where v.partner_id = ${alias}.partner_id
-      and v.updated_at >= (${sinceParam})
-      and v.recently_viewed_ids @> to_jsonb(${alias}.id::text)
+/**
+ * ID vừa xem, unnest một lần rồi hash-join.
+ * EXISTS `recently_viewed_ids @> id` trên từng dòng kho làm count/claim chạy hàng chục giây và giữ khóa.
+ */
+function viewedInventoryCte(partnerParam: string | null, sinceSql: string): string {
+  const partnerSql = partnerParam ? `and v.partner_id = ${partnerParam}::uuid` : ''
+  return `viewed_ids as (
+    select distinct lower(trim(elem.item)) as inventory_id
+    from public.messaging_partner_visitor_personalization v
+    cross join lateral jsonb_array_elements_text(
+      case
+        when jsonb_typeof(v.recently_viewed_ids) = 'array' then v.recently_viewed_ids
+        else '[]'::jsonb
+      end
+    ) as elem(item)
+    where v.updated_at >= (${sinceSql})
+      ${partnerSql}
   )`
 }
 
 /** PDP traffic trước, rồi chưa TTL, rồi stamp cũ — khớp hàng đợi admin 188. */
-function duePriorityOrderSql(alias: string, viewDaysParam: string): string {
-  const traffic = trafficSql(alias, `${alias}.partner_id`, `now() - (${viewDaysParam}::int * interval '1 day')`)
-  return `case when ${traffic} then 0 else 1 end,
+function duePriorityOrderSql(alias: string): string {
+  return `case when viewed_ids.inventory_id is not null then 0 else 1 end,
     case when ${alias}.admin_source_batch_scanned_at is null then 0 else 1 end,
     ${alias}.admin_source_batch_scanned_at asc nulls first,
     ${alias}.source_stock_next_check_at is not null,
@@ -254,12 +267,11 @@ export async function fetchSourceStockInventoryByIdFromPg(
   return map.get(inventoryId) ?? null
 }
 
+/** Xem trước «sắp tới» lúc mở trang: index hạn kiểm tra, không sort cả kho theo lượt xem. Claim nền vẫn ưu tiên PDP. */
 export async function listDueSourceStockIdsFromPg(partnerId: string, limit: number): Promise<string[]> {
   const staleMin = sourceStockCheckStaleMinutes()
-  const viewDays = adminSourceBatchTrafficViewWindowDays()
   const staleIdx = LINK_ILIKE.length + 2
-  const viewIdx = LINK_ILIKE.length + 3
-  const limitIdx = LINK_ILIKE.length + 4
+  const limitIdx = LINK_ILIKE.length + 3
   const { rows } = await getPgPool().query<{ id: string }>(
     `select mpi.id::text as id
      from public.messaging_partner_inventory mpi
@@ -271,12 +283,12 @@ export async function listDueSourceStockIdsFromPg(partnerId: string, limit: numb
          mpi.source_stock_next_check_at is null
          or mpi.source_stock_next_check_at <= now()
          or mpi.source_stock_checked_at is null
-         or mpi.source_stock_checked_at <= now() - ($${staleIdx}::int * interval '1 minute')
+         or mpi.source_stock_checked_at <= now() - make_interval(mins => $${staleIdx}::int)
        )
        and ${inFlightLeaseSql('mpi')}
-     order by ${duePriorityOrderSql('mpi', `$${viewIdx}`)}
+     order by mpi.source_stock_next_check_at asc nulls first, mpi.id asc
      limit $${limitIdx}`,
-    [partnerId, ...LINK_ILIKE, staleMin, viewDays, Math.max(1, limit)]
+    [partnerId, ...LINK_ILIKE, staleMin, Math.max(1, limit)]
   )
   return rows.map((r) => r.id)
 }
@@ -295,24 +307,31 @@ export async function claimDueSourceStockFromPg(): Promise<{
   try {
     await client.query('begin')
     const { rows } = await client.query<{ partner_id: string; id: string; previous_status: string }>(
-      `select mpi.partner_id::text as partner_id, mpi.id::text as id,
+      `with ${viewedInventoryCte(null, `now() - make_interval(days => $${viewIdx}::int)`)},
+       candidate as materialized (
+         select mpi.id
+         from public.messaging_partner_inventory mpi
+         left join viewed_ids on viewed_ids.inventory_id = lower(mpi.id::text)
+         left join public.messaging_partner_source_stock_worker_state w
+           on w.partner_id = mpi.partner_id
+         where mpi.is_active = true
+           and coalesce(w.paused, false) = false
+           and length(trim(coalesce(mpi.product_url,''))) > 8
+           and ${linkSql('mpi', 1)}
+           and (
+             mpi.source_stock_next_check_at is null
+             or mpi.source_stock_next_check_at <= now()
+             or mpi.source_stock_checked_at is null
+             or mpi.source_stock_checked_at <= now() - make_interval(mins => $${staleIdx}::int)
+           )
+           and ${inFlightLeaseSql('mpi')}
+         order by ${duePriorityOrderSql('mpi')}
+         limit 1
+       )
+       select mpi.partner_id::text as partner_id, mpi.id::text as id,
               lower(coalesce(mpi.source_stock_status, '')) as previous_status
        from public.messaging_partner_inventory mpi
-       left join public.messaging_partner_source_stock_worker_state w
-         on w.partner_id = mpi.partner_id
-       where mpi.is_active = true
-         and coalesce(w.paused, false) = false
-         and length(trim(coalesce(mpi.product_url,''))) > 8
-         and ${linkSql('mpi', 1)}
-         and (
-           mpi.source_stock_next_check_at is null
-           or mpi.source_stock_next_check_at <= now()
-           or mpi.source_stock_checked_at is null
-           or mpi.source_stock_checked_at <= now() - ($${staleIdx}::int * interval '1 minute')
-         )
-         and ${inFlightLeaseSql('mpi')}
-       order by ${duePriorityOrderSql('mpi', `$${viewIdx}`)}
-       limit 1
+       join candidate c on c.id = mpi.id
        for update of mpi skip locked`,
       [...LINK_ILIKE, staleMin, viewDays]
     )
@@ -324,7 +343,7 @@ export async function claimDueSourceStockFromPg(): Promise<{
     await client.query(
       `update public.messaging_partner_inventory
        set source_stock_status = 'queued',
-           source_stock_next_check_at = now() + ($2::int * interval '1 minute'),
+           source_stock_next_check_at = now() + make_interval(mins => $2::int),
            source_stock_check_platform = null
        where id = $1::uuid`,
       [hit.id, sourceStockCheckClaimLeaseMinutes()]
@@ -350,7 +369,7 @@ export async function markInventoryCheckingFromPg(partnerId: string, inventoryId
     `update public.messaging_partner_inventory as mpi
      set source_stock_status = 'checking',
          source_stock_error = null,
-         source_stock_next_check_at = now() + ($3::int * interval '1 minute'),
+         source_stock_next_check_at = now() + make_interval(mins => $3::int),
          source_stock_check_platform = null,
          updated_at = now()
      from (
@@ -398,7 +417,7 @@ export async function commitSourceStockResultFromPg(opts: {
          source_stock_checked_at = now(),
          source_stock_error = $4,
          source_stock_check_platform = $5,
-         source_stock_next_check_at = now() + ($6::int * interval '1 minute'),
+         source_stock_next_check_at = now() + make_interval(mins => $6::int),
          admin_source_batch_scanned_at = case when $7 then now() else admin_source_batch_scanned_at end,
          stock_qty = $8,
          updated_at = now()
@@ -423,7 +442,7 @@ export async function enqueueSourceStockQueuedFromPg(partnerId: string, inventor
     `update public.messaging_partner_inventory
      set source_stock_status = 'queued',
          source_stock_error = null,
-         source_stock_next_check_at = now() + ($3::int * interval '1 minute'),
+         source_stock_next_check_at = now() + make_interval(mins => $3::int),
          source_stock_check_platform = null,
          updated_at = now()
      where partner_id = $1::uuid and id = $2::uuid
@@ -444,64 +463,63 @@ export async function listPausedPartnerIdsFromPg(): Promise<Set<string>> {
   return new Set(rows.map((r) => r.partner_id))
 }
 
+const queueStatsCache = new Map<string, { at: number; data: SourceStockQueueStats }>()
+const QUEUE_STATS_CACHE_MS = 12_000
+
+export function invalidateSourceStockQueueStatsCache(partnerId?: string): void {
+  if (!partnerId) {
+    queueStatsCache.clear()
+    return
+  }
+  for (const key of queueStatsCache.keys()) {
+    if (key.startsWith(`${partnerId}:`)) queueStatsCache.delete(key)
+  }
+}
+
 export async function sourceStockQueueStatsFromPg(
   partnerId: string,
   domain: string,
   activeOnly: boolean
 ): Promise<SourceStockQueueStats> {
   const normalizedDomain = normalizeSourceStockDomain(domain)
+  const cacheKey = `${partnerId}:${normalizedDomain}:${activeOnly ? '1' : '0'}`
+  const cached = queueStatsCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < QUEUE_STATS_CACHE_MS) return cached.data
   const ttlDays = adminSourceBatchScanCooldownDays()
   const viewDays = adminSourceBatchTrafficViewWindowDays()
   const gapDays = adminSourceBatchTrafficCheckGapDays()
   const pool = getPgPool()
   const activeSql = activeOnly ? 'and mpi.is_active = true' : ''
-  const viewSince = `now() - interval '${viewDays} days'`
-  const coldCut = `now() - interval '${ttlDays} days'`
-  const trafficCut = `now() - interval '${gapDays} days'`
-  const traffic = trafficSql('mpi', '$1', viewSince)
-  const ttlOk = `((not ${traffic} and (mpi.admin_source_batch_scanned_at is null or mpi.admin_source_batch_scanned_at <= ${coldCut}))
-    or (${traffic} and (mpi.admin_source_batch_scanned_at is null or mpi.admin_source_batch_scanned_at <= ${trafficCut})))`
   const domainScope = domainLinkSql('mpi', 2, normalizedDomain)
-
-  const baseParams: unknown[] = [partnerId, ...domainScope.params]
-  const { rows: tot } = await pool.query<{ n: string }>(
-    `select count(*)::text as n from public.messaging_partner_inventory mpi
-     where mpi.partner_id = $1::uuid ${activeSql}
-       and length(trim(coalesce(mpi.product_url,''))) > 8
-       and ${domainScope.sql}`,
-    baseParams
+  const viewIdx = 2 + domainScope.params.length
+  const ttlIdx = viewIdx + 1
+  const gapIdx = viewIdx + 2
+  const inScope = `length(trim(coalesce(mpi.product_url,''))) > 8 and ${domainScope.sql}`
+  const seen = 'viewed_ids.inventory_id is not null'
+  const ttlOk = `((not (${seen}) and (mpi.admin_source_batch_scanned_at is null or mpi.admin_source_batch_scanned_at <= now() - make_interval(days => $${ttlIdx}::int)))
+    or (${seen} and (mpi.admin_source_batch_scanned_at is null or mpi.admin_source_batch_scanned_at <= now() - make_interval(days => $${gapIdx}::int))))`
+  const { rows } = await pool.query<{
+    total_in_scope: number
+    eligible_now: number
+    eligible_traffic: number
+    never_scanned: number
+  }>(
+    `with ${viewedInventoryCte('$1', `now() - make_interval(days => $${viewIdx}::int)`)}
+     select
+       count(*) filter (where ${inScope})::int as total_in_scope,
+       count(*) filter (where ${inScope} and ${ttlOk})::int as eligible_now,
+       count(*) filter (where ${inScope} and ${ttlOk} and ${seen})::int as eligible_traffic,
+       count(*) filter (where ${inScope} and ${ttlOk} and mpi.admin_source_batch_scanned_at is null)::int as never_scanned
+     from public.messaging_partner_inventory mpi
+     left join viewed_ids on viewed_ids.inventory_id = lower(mpi.id::text)
+     where mpi.partner_id = $1::uuid ${activeSql}`,
+    [partnerId, ...domainScope.params, viewDays, ttlDays, gapDays]
   )
-  const { rows: elig } = await pool.query<{ n: string }>(
-    `select count(*)::text as n from public.messaging_partner_inventory mpi
-     where mpi.partner_id = $1::uuid ${activeSql}
-       and length(trim(coalesce(mpi.product_url,''))) > 8
-       and ${domainScope.sql}
-       and ${ttlOk}`,
-    baseParams
-  )
-  const { rows: trafficN } = await pool.query<{ n: string }>(
-    `select count(*)::text as n from public.messaging_partner_inventory mpi
-     where mpi.partner_id = $1::uuid ${activeSql}
-       and length(trim(coalesce(mpi.product_url,''))) > 8
-       and ${domainScope.sql}
-       and ${ttlOk}
-       and ${traffic}`,
-    baseParams
-  )
-  const { rows: neverN } = await pool.query<{ n: string }>(
-    `select count(*)::text as n from public.messaging_partner_inventory mpi
-     where mpi.partner_id = $1::uuid ${activeSql}
-       and length(trim(coalesce(mpi.product_url,''))) > 8
-       and ${domainScope.sql}
-       and ${ttlOk}
-       and mpi.admin_source_batch_scanned_at is null`,
-    baseParams
-  )
-  const total = Number(tot[0]?.n || 0)
-  const eligibleNow = Number(elig[0]?.n || 0)
-  const eligibleTraffic = Number(trafficN[0]?.n || 0)
-  const neverScanned = Number(neverN[0]?.n || 0)
-  return {
+  const total = Number(rows[0]?.total_in_scope || 0)
+  const eligibleNow = Number(rows[0]?.eligible_now || 0)
+  const eligibleTraffic = Number(rows[0]?.eligible_traffic || 0)
+  const neverScanned = Number(rows[0]?.never_scanned || 0)
+  const data: SourceStockQueueStats = {
     ok: true,
     domain: normalizedDomain,
     active_only: activeOnly,
@@ -519,6 +537,8 @@ export async function sourceStockQueueStatsFromPg(
     eligible_without_recent_customer_view: Math.max(0, eligibleNow - eligibleTraffic),
     in_cooldown: Math.max(0, total - eligibleNow),
   }
+  queueStatsCache.set(cacheKey, { at: Date.now(), data })
+  return data
 }
 
 function mapSample(r: Record<string, unknown>): SourceStockActivityReportSampleRow {
@@ -552,6 +572,9 @@ export async function sourceStockActivityReportFromPg(opts: {
   samplesInStockPage: number
   samplesBatchTtlPage: number
   samplePageSize: number
+  /** Bỏ qua = cả ba bảng. Mở trang chỉ xin `oos`, hai bảng còn lại tải sau. */
+  sampleSets?: Array<'oos' | 'in_stock' | 'batch_ttl'>
+  includeQueue?: boolean
 }): Promise<SourceStockActivityReport> {
   const normalizedDomain = normalizeSourceStockDomain(opts.domain)
   const wd = Math.max(1, Math.min(opts.windowDays, 366))
@@ -566,40 +589,55 @@ export async function sourceStockActivityReportFromPg(opts: {
     and length(trim(coalesce(mpi.product_url,''))) > 8
     and ${domainScope.sql}`
   const checkedWin = `mpi.source_stock_checked_at is not null and mpi.source_stock_checked_at >= $${sinceParam}::timestamptz`
+  const batchTtlSql = `mpi.admin_source_batch_scanned_at is not null and mpi.admin_source_batch_scanned_at >= $${sinceParam}::timestamptz`
 
-  async function count(extra: string): Promise<number> {
-    const { rows } = await pool.query<{ n: string }>(
-      `select count(*)::text as n from public.messaging_partner_inventory mpi where ${base} and ${extra}`,
+  const [aggResult, statusResult, queueFromDb] = await Promise.all([
+    pool.query<{
+      batch_ttl: number
+      checked_any: number
+      oos: number
+      in_stock: number
+      avail_pos: number
+      avail_zero: number
+    }>(
+      `select
+         count(*) filter (where ${batchTtlSql})::int as batch_ttl,
+         count(*) filter (where ${checkedWin})::int as checked_any,
+         count(*) filter (where ${checkedWin} and mpi.source_stock_status = 'out_of_stock')::int as oos,
+         count(*) filter (where ${checkedWin} and mpi.source_stock_status = 'in_stock')::int as in_stock,
+         count(*) filter (where ${checkedWin} and coalesce(mpi.stock_qty,0) > 0)::int as avail_pos,
+         count(*) filter (where ${checkedWin} and coalesce(mpi.stock_qty,0) <= 0)::int as avail_zero
+       from public.messaging_partner_inventory mpi
+       where ${base}`,
       params
-    )
-    return Number(rows[0]?.n || 0)
-  }
-
-  const batchTtl = await count(
-    `mpi.admin_source_batch_scanned_at is not null and mpi.admin_source_batch_scanned_at >= $${sinceParam}::timestamptz`
-  )
-  const checkedAny = await count(checkedWin)
-  const oos = await count(`${checkedWin} and mpi.source_stock_status = 'out_of_stock'`)
-  const inStock = await count(`${checkedWin} and mpi.source_stock_status = 'in_stock'`)
-  const availPos = await count(`${checkedWin} and coalesce(mpi.stock_qty,0) > 0`)
-  const availZero = await count(`${checkedWin} and coalesce(mpi.stock_qty,0) <= 0`)
-
-  const { rows: statusRows } = await pool.query<{ k: string; n: string }>(
-    `select lower(coalesce(nullif(trim(mpi.source_stock_status),''),'unknown')) as k, count(*)::text as n
-     from public.messaging_partner_inventory mpi
-     where ${base} and ${checkedWin}
-     group by 1`,
-    params
-  )
+    ),
+    pool.query<{ k: string; n: string }>(
+      `select lower(coalesce(nullif(trim(mpi.source_stock_status),''),'unknown')) as k, count(*)::text as n
+       from public.messaging_partner_inventory mpi
+       where ${base} and ${checkedWin}
+       group by 1`,
+      params
+    ),
+    opts.includeQueue === false
+      ? Promise.resolve(null)
+      : sourceStockQueueStatsFromPg(opts.partnerId, opts.domain, opts.activeOnly),
+  ])
+  const agg = aggResult.rows[0]
+  const batchTtl = Number(agg?.batch_ttl || 0)
+  const checkedAny = Number(agg?.checked_any || 0)
+  const oos = Number(agg?.oos || 0)
+  const inStock = Number(agg?.in_stock || 0)
+  const availPos = Number(agg?.avail_pos || 0)
+  const availZero = Number(agg?.avail_zero || 0)
   const byStatus: Record<string, number> = {}
-  for (const r of statusRows) byStatus[r.k] = Number(r.n || 0)
+  for (const r of statusResult.rows) byStatus[r.k] = Number(r.n || 0)
 
   async function samplePage(
     extra: string,
     orderCol: string,
-    page: number
+    page: number,
+    total: number
   ): Promise<{ rows: SourceStockActivityReportSampleRow[]; total: number; page: number; total_pages: number }> {
-    const total = await count(extra)
     const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
     const p = Math.max(1, Math.min(page, totalPages))
     const offset = (p - 1) * pageSize
@@ -622,14 +660,48 @@ export async function sourceStockActivityReportFromPg(opts: {
     }
   }
 
-  const oosS = await samplePage(`${checkedWin} and mpi.source_stock_status = 'out_of_stock'`, 'mpi.source_stock_checked_at', opts.samplesOosPage)
-  const inS = await samplePage(`${checkedWin} and mpi.source_stock_status = 'in_stock'`, 'mpi.source_stock_checked_at', opts.samplesInStockPage)
-  const ttlS = await samplePage(
-    `mpi.admin_source_batch_scanned_at is not null and mpi.admin_source_batch_scanned_at >= $${sinceParam}::timestamptz`,
-    'mpi.admin_source_batch_scanned_at',
-    opts.samplesBatchTtlPage
-  )
-  const queue = await sourceStockQueueStatsFromPg(opts.partnerId, opts.domain, opts.activeOnly)
+  const want = (name: 'oos' | 'in_stock' | 'batch_ttl') => !opts.sampleSets || opts.sampleSets.includes(name)
+  const blankSample = (total: number, page: number) => {
+    const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1)
+    const p = Math.max(1, Math.min(page, totalPages))
+    return {
+      rows: [] as SourceStockActivityReportSampleRow[],
+      total,
+      page: p,
+      total_pages: totalPages,
+    }
+  }
+  const [oosS, inS, ttlS] = await Promise.all([
+    want('oos')
+      ? samplePage(`${checkedWin} and mpi.source_stock_status = 'out_of_stock'`, 'mpi.source_stock_checked_at', opts.samplesOosPage, oos)
+      : Promise.resolve(blankSample(oos, opts.samplesOosPage)),
+    want('in_stock')
+      ? samplePage(`${checkedWin} and mpi.source_stock_status = 'in_stock'`, 'mpi.source_stock_checked_at', opts.samplesInStockPage, inStock)
+      : Promise.resolve(blankSample(inStock, opts.samplesInStockPage)),
+    want('batch_ttl')
+      ? samplePage(batchTtlSql, 'mpi.admin_source_batch_scanned_at', opts.samplesBatchTtlPage, batchTtl)
+      : Promise.resolve(blankSample(batchTtl, opts.samplesBatchTtlPage)),
+  ])
+  const queue =
+    queueFromDb ??
+    ({
+      ok: true,
+      domain: normalizedDomain,
+      active_only: opts.activeOnly,
+      admin_batch_scan_cooldown_days: 0,
+      admin_batch_traffic_view_window_days: 0,
+      admin_batch_traffic_check_gap_days: 0,
+      cooldown_cutoff_utc_iso: since,
+      traffic_recent_check_cutoff_utc_iso: since,
+      traffic_view_since_utc_iso: since,
+      total_in_scope: 0,
+      eligible_now: 0,
+      eligible_never_scanned: 0,
+      eligible_rescan_after_ttl: 0,
+      eligible_with_recent_customer_view: 0,
+      eligible_without_recent_customer_view: 0,
+      in_cooldown: 0,
+    } satisfies SourceStockQueueStats)
 
   return {
     ok: true,

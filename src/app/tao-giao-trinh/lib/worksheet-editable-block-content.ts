@@ -1,6 +1,6 @@
 import { latexToReadable } from './latex-to-readable'
 import { blockToContentJson } from './markdown-to-questions'
-import { normalizeSolutionToStr } from './worksheet-content-json'
+import { formatEssayEditText, normalizeSolutionToStr, splitThinkingGuide } from './worksheet-content-json'
 
 export function normalizeEssayEditorContent(text: string): string {
   const parsed = blockToContentJson({
@@ -15,8 +15,8 @@ export function normalizeEssayEditorContent(text: string): string {
     const heading = headingMatch?.[1]?.trim() || ''
     const problem = latexToReadable(String(parsed.problem ?? '').trim())
     const solution = normalizeSolutionToStr(parsed.solution ?? '')
-    const parts = [heading, problem, '**Lời giải:**', solution || '(Chưa có lời giải)'].filter(Boolean)
-    return parts.join('\n\n')
+    const thinkingGuide = latexToReadable(String((parsed as { thinkingGuide?: string }).thinkingGuide ?? '').trim())
+    return formatEssayEditText({ heading, problem, thinkingGuide, solution })
   }
 
   const readable = latexToReadable(text)
@@ -42,9 +42,14 @@ export function normalizeEssayEditorContent(text: string): string {
   if (!normalized) return readable
   const headingMatch = before.match(/^([^\n]*Bài\s+\d+[^\n]*)\n?/i)
   const heading = headingMatch?.[1]?.trim() || ''
-  const problem = heading ? before.slice((headingMatch?.[0] ?? '').length).trim() : before
-  const parts = [heading, problem, '**Lời giải:**', normalized].filter(Boolean)
-  return parts.join('\n\n')
+  const problemRaw = heading ? before.slice((headingMatch?.[0] ?? '').length).trim() : before
+  const guided = splitThinkingGuide(problemRaw)
+  return formatEssayEditText({
+    heading,
+    problem: guided.body,
+    thinkingGuide: guided.thinkingGuide,
+    solution: normalized,
+  })
 }
 
 export function toEditableBlockContent(content: string, type: 'quiz' | 'essay'): string {

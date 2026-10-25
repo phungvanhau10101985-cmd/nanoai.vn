@@ -62,6 +62,8 @@ export const sourceStockClient = {
       inStockPage?: number
       ttlPage?: number
       pageSize?: number
+      sampleSets?: Array<'oos' | 'in_stock' | 'batch_ttl'>
+      includeQueue?: boolean
     }
   ) {
     const u = new URL(base(partnerId) + '/report', window.location.origin)
@@ -71,7 +73,9 @@ export const sourceStockClient = {
     u.searchParams.set('samples_oos_page', String(opts.oosPage ?? 1))
     u.searchParams.set('samples_in_stock_page', String(opts.inStockPage ?? 1))
     u.searchParams.set('samples_batch_ttl_page', String(opts.ttlPage ?? 1))
-    u.searchParams.set('sample_page_size', String(opts.pageSize ?? 200))
+    u.searchParams.set('sample_page_size', String(opts.pageSize ?? 40))
+    if (opts.sampleSets?.length) u.searchParams.set('sample_sets', opts.sampleSets.join(','))
+    if (opts.includeQueue === false) u.searchParams.set('include_queue', '0')
     return json<SourceStockActivityReport>(u.pathname + u.search)
   },
   previewUrl(partnerId: string, url: string) {

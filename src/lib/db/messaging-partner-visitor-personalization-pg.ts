@@ -93,16 +93,8 @@ export async function removePartnerVisitorInventoryIdsFromPg(input: {
        where v.partner_id = $1::uuid
          and ($3::text is null or v.account_key = $3)
          and (
-           exists (
-             select 1
-             from jsonb_array_elements_text(${arrayOrEmpty('v.recently_viewed_ids')}) as rv(item)
-             where lower(trim(rv.item)) = any($2::text[])
-           )
-           or exists (
-             select 1
-             from jsonb_array_elements_text(${arrayOrEmpty('v.favorite_ids')}) as fv(item)
-             where lower(trim(fv.item)) = any($2::text[])
-           )
+           (${arrayOrEmpty('v.recently_viewed_ids')}) ?| $2::text[]
+           or (${arrayOrEmpty('v.favorite_ids')}) ?| $2::text[]
          )`,
       [partnerId, inventoryIds, accountKey]
     )

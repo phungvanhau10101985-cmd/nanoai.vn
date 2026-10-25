@@ -37,7 +37,7 @@ import { parseWorksheetIntoBlocks, replaceBlockInMarkdown } from './lib/workshee
 import { mergeContentWithQuestions } from './lib/merge-worksheet-content-pure'
 import { toEditableBlockContent } from './lib/worksheet-editable-block-content'
 import { WorksheetEditSectionPopup } from './components/worksheet-edit-section-popup'
-import { coalesceEssayParts, getEssayProblem, getEssaySolution, normalizeSolutionToStr } from './lib/worksheet-content-json'
+import { coalesceEssayParts, formatEssayEditText, getEssayProblem, getEssaySolution, getThinkingGuide, normalizeSolutionToStr } from './lib/worksheet-content-json'
 import { AIProgressLoader } from '@/components/ai-progress-loader'
 import {
   DropdownMenu,
@@ -5588,7 +5588,12 @@ export default function TaoGiaoTrinhClientPage({
                                 latexToReadable(getEssayProblem(row.content_json) || ''),
                                 normalizeSolutionToStr(getEssaySolution(row.content_json))
                               )
-                              nextContent = [heading, parts.problem, '**Lời giải:**', parts.solution || '(Chưa có lời giải)'].filter(Boolean).join('\n\n')
+                              nextContent = formatEssayEditText({
+                                heading,
+                                problem: parts.problem,
+                                thinkingGuide: getThinkingGuide(row.content_json),
+                                solution: parts.solution,
+                              })
                             }
                           } catch {
                             /* fallback dùng markdown hiện tại */

@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
-import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { THINKING_GUIDE_RULE, cleanThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import {
   findCurriculumMathFailures,
@@ -67,14 +67,14 @@ async function generateEssaySolution(
   curriculumMarkdown: string,
   apiKey: string,
   userId: string
-): Promise<string> {
+): Promise<{ solution: string; thinkingGuide: string }> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     ...GEMINI_25_PRO,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const context = curriculumMarkdown ? `\n\nGIÁO TRÌNH (tham khảo):\n---\n${curriculumMarkdown.slice(0, 4000)}\n---\n` : ''
-  const prompt = `Bạn là giáo viên. Viết LỜI GIẢI CHI TIẾT TỪNG BƯỚC cho bài tập sau.${context}
+  const prompt = `Bạn là giáo viên. Viết HƯỚNG TƯ DUY và LỜI GIẢI CHI TIẾT TỪNG BƯỚC cho bài tập sau.${context}
 
 ĐỀ BÀI:
 ---
@@ -84,8 +84,9 @@ ${problem}
 Chủ đề: ${topic}
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước, do bạn viết cho đề này.
-QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án". Không chép lời giải in sẵn.
-Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
+${THINKING_GUIDE_RULE}
+QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. solution là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án". Không chép lời giải in sẵn.
+Trả về JSON: {"thinkingGuide":"2 đến 4 ý hướng tư duy, không viết kết quả.","solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
 
   const result = await model.generateContent(prompt)
   void trackFromUsageMetadata(
@@ -97,10 +98,13 @@ Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi v�
   const raw = result.response.text()?.trim() || ''
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned) as { solution?: unknown }
-    return normalizeSolutionToStr(p?.solution) || ''
+    const p = JSON.parse(cleaned) as { solution?: unknown; thinkingGuide?: unknown }
+    return {
+      solution: normalizeSolutionToStr(p?.solution) || '',
+      thinkingGuide: cleanThinkingGuide(p?.thinkingGuide),
+    }
   } catch {
-    return ''
+    return { solution: '', thinkingGuide: '' }
   }
 }
 
@@ -210,6 +214,8 @@ QUY TẮC:
 - Nếu dạng bài cần đồ thị hoặc hình, hãy nêu hàm hoặc dữ liệu mới ngay trong đề để học sinh làm được mà không cần ảnh sách.
 - Môn Toán: cuối lời giải thêm đúng một dòng <!-- check {"kind":"expr","expr":"2+3","shown":5} -->. expr chỉ gồm số và + - * / ^ ( ). shown là kết quả đã viết trong lời giải.
 - Mỗi câu = 1 item. Trắc nghiệm: 4 đáp án và ${QUIZ_SOLUTION_RULE} Tự luận: đề mới + lời giải do bạn viết.
+- ${THINKING_GUIDE_RULE}
+- Mỗi câu bắt buộc có thinkingGuide. Không trả câu thiếu hướng tư duy.
 - Trắc nghiệm: difficulty = easy | medium | hard.
 - Tự luận: difficulty = nhan-biet | thong-hieu | van-dung-thap | van-dung-cao | thuc-te.
 - Unicode: π, ∫, x², √, ∈, ℝ. KHÔNG LaTeX. options: CHỈ nội dung, KHÔNG thêm "A." "B." vào đầu.
@@ -218,8 +224,8 @@ QUY TẮC:
 
 Trả về JSON:
 {
-  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard", "solution": "Lời giải từng bước, chưa ghi A/B/C/D." } ],
-  "essays": [ { "problem": "...", "solution": "...", "difficulty": "nhan-biet|thong-hieu|van-dung-thap|van-dung-cao|thuc-te" } ]
+  "quizzes": [ { "question": "...", "options": ["...","...","...","..."], "correctIndex": 0-3, "difficulty": "easy|medium|hard", "thinkingGuide": "2 đến 4 ý hướng tư duy, không nêu đáp án.", "solution": "Lời giải từng bước, chưa ghi A/B/C/D." } ],
+  "essays": [ { "problem": "...", "thinkingGuide": "2 đến 4 ý hướng tư duy, không viết kết quả.", "solution": "...", "difficulty": "nhan-biet|thong-hieu|van-dung-thap|van-dung-cao|thuc-te" } ]
 }
 
 Chỉ trả về JSON, không markdown.`
@@ -240,8 +246,8 @@ Chỉ trả về JSON, không markdown.`
   if (!raw) throw new Error('AI không trả về nội dung.')
 
   let parsed: {
-    quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; difficulty?: string; exerciseNumber?: string; solution?: string }>
-    essays?: Array<{ problem?: string; solution?: unknown; difficulty?: string; exerciseNumber?: string }>
+    quizzes?: Array<{ question?: string; options?: string[]; correctIndex?: number; difficulty?: string; exerciseNumber?: string; thinkingGuide?: unknown; solution?: string }>
+    essays?: Array<{ problem?: string; solution?: unknown; thinkingGuide?: unknown; difficulty?: string; exerciseNumber?: string }>
   } = {}
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
@@ -257,7 +263,8 @@ Chỉ trả về JSON, không markdown.`
 
   for (const q of quizzes) {
     const solution = cleanQuizSolution(q?.solution)
-    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4 || !quizSolutionIsDetailed(solution)) continue
+    const thinkingGuide = cleanThinkingGuide(q?.thinkingGuide)
+    if (!q?.question || !Array.isArray(q.options) || q.options.length < 4 || !quizSolutionIsDetailed(solution) || !thinkingGuideIsUsable(thinkingGuide)) continue
     const opts = q.options.slice(0, 4).map(stripOptionPrefix)
     const idx = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
     const diff = ['easy', 'medium', 'hard'].includes(String(q.difficulty ?? '')) ? q.difficulty : 'medium'
@@ -271,7 +278,7 @@ Chỉ trả về JSON, không markdown.`
       topic: resolvedTopic || null,
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'medium',
-      contentJson: { question: q.question, options, correctIndex, solution },
+      contentJson: { question: q.question, options, correctIndex, thinkingGuide, solution },
       source: 'sgk',
       order: order++,
     })
@@ -281,8 +288,9 @@ Chỉ trả về JSON, không markdown.`
   for (const e of essays) {
     if (!e?.problem) continue
     let solution = normalizeSolutionToStr(e.solution) || ''
+    let thinkingGuide = cleanThinkingGuide(e.thinkingGuide)
     const isEmpty = !solution || solution === '(Chưa có lời giải)' || solution.trim().length < 30
-    if (isEmpty && apiKey && solveMissingEssaySolutions) {
+    if ((isEmpty || !thinkingGuideIsUsable(thinkingGuide)) && apiKey && solveMissingEssaySolutions) {
       const generated = await generateEssaySolution(
         e.problem,
         resolvedTopic,
@@ -290,9 +298,12 @@ Chỉ trả về JSON, không markdown.`
         apiKey,
         userId
       )
-      if (generated) solution = generated
+      if (isEmpty && generated.solution) solution = generated.solution
+      if (!thinkingGuideIsUsable(thinkingGuide) && thinkingGuideIsUsable(generated.thinkingGuide)) {
+        thinkingGuide = generated.thinkingGuide
+      }
     }
-    if (!solution || solution === '(Chưa có lời giải)') continue
+    if (!solution || solution === '(Chưa có lời giải)' || !thinkingGuideIsUsable(thinkingGuide)) continue
     const checked = acceptedMathSolution(e.problem, solution, subjectId)
     if (!checked) continue
     solution = checked
@@ -306,7 +317,7 @@ Chỉ trả về JSON, không markdown.`
       topic: resolvedTopic || null,
       lessonTopics: resolvedLessonTopics ?? undefined,
       difficulty: diff ?? 'thong-hieu',
-      contentJson: { problem: e.problem, solution },
+      contentJson: { problem: e.problem, thinkingGuide, solution },
       source: 'sgk',
       order: order++,
     })

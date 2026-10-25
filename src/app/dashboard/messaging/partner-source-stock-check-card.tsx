@@ -14,7 +14,8 @@ import type {
 } from '@/lib/messaging/source-stock-check/source-stock-types'
 import { partnerSiteProductPath } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
-const SOURCE_STOCK_REPORT_SAMPLE_PAGE_SIZE = 200
+const SOURCE_STOCK_REPORT_SAMPLE_PAGE_SIZE = 40
+type SourceStockSampleSet = 'oos' | 'in_stock' | 'batch_ttl'
 const RESET_PDP_CONFIRM_PROMPT_VI = 'đồng ý reset tất cả'
 const DELETE_CHUNK_START = 25
 const DELETE_CHUNK_MIN = 1
@@ -507,10 +508,10 @@ export function PartnerSourceStockCheckCard({
 }) {
   const [domain, setDomain] = useState<SourceStockDomain>('cssbuy')
   const [queueStats, setQueueStats] = useState<SourceStockQueueStats | null>(null)
-  const [queueStatsLoading, setQueueStatsLoading] = useState(false)
+  const [queueStatsLoading, setQueueStatsLoading] = useState(true)
   const [workerState, setWorkerState] = useState<SourceStockWorkerState | null>(null)
   const [activityReport, setActivityReport] = useState<SourceStockActivityReport | null>(null)
-  const [activityReportLoading, setActivityReportLoading] = useState(false)
+  const [activityReportLoading, setActivityReportLoading] = useState(true)
   const [activityReportError, setActivityReportError] = useState<string | null>(null)
   const [reportSamplePages, setReportSamplePages] = useState({ oos: 1, in_stock: 1, batch_ttl_recent: 1 })
   const [lastError, setLastError] = useState<string | null>(null)
@@ -576,9 +577,11 @@ export function PartnerSourceStockCheckCard({
     [partnerId]
   )
 
-  const refreshActivityReport = useCallback(async () => {
-    setActivityReportLoading(true)
-    setActivityReportError(null)
+  const refreshActivityReport = useCallback(async (sets?: SourceStockSampleSet[], quiet = false) => {
+    if (!quiet) {
+      setActivityReportLoading(true)
+      setActivityReportError(null)
+    }
     try {
       const report = await sourceStockClient.report(partnerId, {
         domain,
@@ -586,22 +589,49 @@ export function PartnerSourceStockCheckCard({
         inStockPage: reportSamplePages.in_stock,
         ttlPage: reportSamplePages.batch_ttl_recent,
         pageSize: SOURCE_STOCK_REPORT_SAMPLE_PAGE_SIZE,
+        sampleSets: sets,
+        includeQueue: false,
       })
-      setActivityReport(report)
+      setActivityReport((prev) => {
+        if (!sets || !prev) return report
+        return {
+          ...report,
+          queue: prev.queue.total_in_scope ? prev.queue : report.queue,
+          samples: {
+            oos: sets.includes('oos') ? report.samples.oos : prev.samples.oos,
+            in_stock: sets.includes('in_stock') ? report.samples.in_stock : prev.samples.in_stock,
+            batch_ttl_recent: sets.includes('batch_ttl') ? report.samples.batch_ttl_recent : prev.samples.batch_ttl_recent,
+          },
+          samples_pagination: {
+            ...report.samples_pagination,
+            oos: sets.includes('oos') ? report.samples_pagination.oos : prev.samples_pagination.oos,
+            in_stock: sets.includes('in_stock') ? report.samples_pagination.in_stock : prev.samples_pagination.in_stock,
+            batch_ttl_recent: sets.includes('batch_ttl')
+              ? report.samples_pagination.batch_ttl_recent
+              : prev.samples_pagination.batch_ttl_recent,
+          },
+        }
+      })
     } catch (e) {
-      setActivityReportError(e instanceof Error ? e.message : String(e))
+      if (!quiet) setActivityReportError(e instanceof Error ? e.message : String(e))
     } finally {
-      setActivityReportLoading(false)
+      if (!quiet) setActivityReportLoading(false)
     }
   }, [partnerId, domain, reportSamplePages])
 
   useEffect(() => {
-    void refreshQueueStats()
-  }, [refreshQueueStats])
-
-  useEffect(() => {
-    void refreshActivityReport()
-  }, [refreshActivityReport])
+    let stop = false
+    void (async () => {
+      await refreshQueueStats()
+      if (stop) return
+      await refreshActivityReport(['oos'])
+      if (stop) return
+      await refreshActivityReport(['in_stock', 'batch_ttl'], true)
+    })()
+    return () => {
+      stop = true
+    }
+  }, [refreshQueueStats, refreshActivityReport])
 
   useEffect(() => {
     const id = window.setInterval(() => void refreshQueueStats(), 90_000)
@@ -1074,7 +1104,7 @@ export function PartnerSourceStockCheckCard({
               {fill(t.sourceStockReportNewestNote, { n: activityReport.samples_pagination.page_size })}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-2">
-              <MiniStat label={t.sourceStockStatEligible} value={activityReport.queue.eligible_now} variant="emerald" />
+              <MiniStat label={t.sourceStockStatEligible} value={queueStats?.eligible_now ?? activityReport.queue.eligible_now} variant="emerald" />
               <MiniStat label={t.sourceStockCountTtl} value={activityReport.counts.batch_ttl_stamped_in_window} variant="slate" />
               <MiniStat label={t.sourceStockCountChecked} value={activityReport.counts.source_stock_checked_any_in_window} variant="slate" />
               <MiniStat label={t.sourceStockCountOos} value={activityReport.counts.source_stock_oos_signal_in_window} variant="rose" />

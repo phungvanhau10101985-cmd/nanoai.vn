@@ -4,7 +4,7 @@ import { WORKSHEET_REVIEW_AGREES } from '@/app/tao-giao-trinh/lib/worksheet-revi
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery } from '@/lib/db/pg-query'
 import { updateWorksheetQuestionContentJsonFromPg } from '@/lib/db/worksheet-pg'
-import { coalesceEssayParts } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { coalesceEssayParts, getThinkingGuide } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 
 export { WORKSHEET_REVIEW_AGREES }
 
@@ -59,6 +59,7 @@ export function sameQuestionContent(prev: unknown, next: unknown): boolean {
   if (left.correctIndex != null || right.correctIndex != null) {
     if (Number(left.correctIndex) !== Number(right.correctIndex)) return false
   }
+  if (normQuestionText(getThinkingGuide(left)) !== normQuestionText(getThinkingGuide(right))) return false
   return true
 }
 

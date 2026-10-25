@@ -13,7 +13,7 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { getUserForAction } from '@/lib/auth'
 import { verifyQuizWithDeepSeek, verifyEssayWithDeepSeek } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
-import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { cleanThinkingGuide, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
@@ -63,13 +63,19 @@ export async function POST(req: NextRequest) {
     const fullContent = topic ? `## ${topic}\n\n${curriculumMarkdown}` : curriculumMarkdown
 
     if (type === 'quiz') {
-      const q = body?.content as { question?: string; options?: string[]; correctIndex?: number; solution?: string }
+      const q = body?.content as { question?: string; options?: string[]; correctIndex?: number; solution?: string; thinkingGuide?: unknown }
       if (!q?.question || !Array.isArray(q.options) || q.options.length < 4) {
         return NextResponse.json({ error: 'Thiếu nội dung câu trắc nghiệm (question, options).' }, { status: 400 })
       }
       const opts = q.options.slice(0, 4)
       const correctIndex = Math.max(0, Math.min(q.correctIndex ?? 0, 3))
-      const quiz = { question: q.question, options: opts, correctIndex, solution: cleanQuizSolution(q.solution) }
+      const quiz = {
+        question: q.question,
+        options: opts,
+        correctIndex,
+        solution: cleanQuizSolution(q.solution),
+        thinkingGuide: cleanThinkingGuide(q.thinkingGuide),
+      }
 
       const verifyResult = await verifyQuizWithDeepSeek(fullContent, quiz, userId ?? null)
       let finalQuiz = quiz
@@ -105,6 +111,7 @@ export async function POST(req: NextRequest) {
         options: finalQuiz.options,
         correctIndex: finalQuiz.correctIndex,
         ...(finalQuiz.solution ? { solution: finalQuiz.solution } : {}),
+        ...(finalQuiz.thinkingGuide ? { thinkingGuide: finalQuiz.thinkingGuide } : {}),
       }
 
       const ins = await insertWorksheetQuestionPg({
@@ -137,20 +144,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, verified: true, questionId: qRow.id })
     }
 
-    const e = body?.content as { problem?: string; solution?: unknown }
+    const e = body?.content as { problem?: string; solution?: unknown; thinkingGuide?: unknown }
     const problem = (e?.problem ?? '').trim()
     const solution = normalizeSolutionToStr(e?.solution) || String(e?.solution ?? '').trim()
+    const thinkingGuide = cleanThinkingGuide(e?.thinkingGuide)
     if (!problem || !solution) {
       return NextResponse.json({ error: 'Thiếu nội dung bài tự luận (problem, solution).' }, { status: 400 })
     }
 
     const verifyResult = await verifyEssayWithDeepSeek(fullContent, problem, solution, userId ?? null)
-    let finalEssay = { problem, solution }
+    let finalEssay = { problem, solution, thinkingGuide }
     if (verifyResult && !verifyResult.verified && (verifyResult.problem || verifyResult.solution)) {
       if (verifyResult.problem) finalEssay = { ...finalEssay, problem: verifyResult.problem }
       if (verifyResult.solution) finalEssay = { ...finalEssay, solution: normalizeSolutionToStr(verifyResult.solution) || verifyResult.solution }
     } else if (verifyResult && !verifyResult.verified) {
-      const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, userId ?? null)
+      const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution, thinkingGuide }, userId ?? null)
       if (fixed) finalEssay = fixed
       else
         return NextResponse.json({
@@ -171,6 +179,7 @@ export async function POST(req: NextRequest) {
     const contentJsonEssay = {
       problem: finalEssay.problem,
       solution: normalizeSolutionToStr(finalEssay.solution) || finalEssay.solution,
+      ...(cleanThinkingGuide(finalEssay.thinkingGuide) ? { thinkingGuide: cleanThinkingGuide(finalEssay.thinkingGuide) } : {}),
     }
 
     const insEssay = await insertWorksheetQuestionPg({

@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { GEMINI_25_PRO } from '@/lib/gemini-config'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
-import { getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { THINKING_GUIDE_RULE, cleanThinkingGuide, getEssayProblem, getEssaySolution, getThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { isPgConfigured } from '@/lib/db/pool'
 import { fetchWorksheetSheetOwnedByUserPg, fetchWorksheetQuestionsMarkdownRowsOrderedFromPg } from '@/lib/db/worksheet-pg'
 import {
@@ -17,14 +17,14 @@ async function generateEssaySolution(
   curriculumMarkdown: string,
   apiKey: string,
   userId: string
-): Promise<string> {
+): Promise<{ solution: string; thinkingGuide: string }> {
   const genAI = new GoogleGenerativeAI(apiKey)
   const model = genAI.getGenerativeModel({
     ...GEMINI_25_PRO,
     generationConfig: { temperature: 0.2, responseMimeType: 'application/json' },
   })
   const context = curriculumMarkdown ? `\n\nGIÁO TRÌNH (tham khảo):\n---\n${curriculumMarkdown.slice(0, 4000)}\n---\n` : ''
-  const prompt = `Bạn là giáo viên. Viết LỜI GIẢI CHI TIẾT TỪNG BƯỚC cho bài tập sau.${context}
+  const prompt = `Bạn là giáo viên. Viết HƯỚNG TƯ DUY và LỜI GIẢI CHI TIẾT TỪNG BƯỚC cho bài tập sau.${context}
 
 ĐỀ BÀI:
 ---
@@ -34,8 +34,9 @@ ${problem}
 Chủ đề: ${topic}
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ). Phân số: 1/2 hoặc ½. Lời giải phải đầy đủ, logic, từng bước, do bạn viết cho đề này.
+${THINKING_GUIDE_RULE}
 QUAN TRỌNG: Chỉ viết MỘT lần lời giải. KHÔNG lặp lại nội dung. Kết quả trả về trong trường solution phải là nội dung thuần, KHÔNG thêm tiêu đề "Lời giải"/"Đáp án". Không chép lời giải in sẵn.
-Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
+Trả về JSON: {"thinkingGuide":"2 đến 4 ý hướng tư duy, không viết kết quả.","solution":"Lời giải chi tiết từng bước (chuỗi văn bản thuần)"}`
 
   const result = await model.generateContent(prompt)
   void trackFromUsageMetadata(
@@ -47,10 +48,13 @@ Trả về JSON: {"solution":"Lời giải chi tiết từng bước (chuỗi v�
   const raw = result.response.text()?.trim() || ''
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
-    const p = JSON.parse(cleaned) as { solution?: unknown }
-    return normalizeSolutionToStr(p?.solution) || ''
+    const p = JSON.parse(cleaned) as { solution?: unknown; thinkingGuide?: unknown }
+    return {
+      solution: normalizeSolutionToStr(p?.solution) || '',
+      thinkingGuide: cleanThinkingGuide(p?.thinkingGuide),
+    }
   } catch {
-    return ''
+    return { solution: '', thinkingGuide: '' }
   }
 }
 
@@ -135,10 +139,17 @@ export async function runSolveSgkEssays(userId: string, params: SolveSgkEssaysPa
       apiKey,
       userId
     )
-    if (!generated) continue
+    if (!generated.solution) continue
 
     const content = (row.content_json && typeof row.content_json === 'object' ? row.content_json : {}) as Record<string, unknown>
-    const nextContent = { ...content, problem, solution: generated }
+    const keptGuide = getThinkingGuide(content)
+    const thinkingGuide = thinkingGuideIsUsable(keptGuide) ? keptGuide : generated.thinkingGuide
+    const nextContent = {
+      ...content,
+      problem,
+      solution: generated.solution,
+      ...(thinkingGuideIsUsable(thinkingGuide) ? { thinkingGuide } : {}),
+    }
     const ok = await updateWorksheetQuestionContentJsonPg(row.id, nextContent)
     if (ok) solvedCount++
   }

@@ -14,7 +14,7 @@ import {
 } from '@/app/tao-giao-trinh/components/worksheet-question-proposals'
 import { latexToReadable } from '@/app/tao-giao-trinh/lib/latex-to-readable'
 import { toEditableBlockContent } from '@/app/tao-giao-trinh/lib/worksheet-editable-block-content'
-import { coalesceEssayParts, getEssayProblem, getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { coalesceEssayParts, formatEssayEditText, getEssayProblem, getEssaySolution, getThinkingGuide, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import {
   WorksheetEditSectionPopup,
   type WorksheetEditTr,
@@ -112,7 +112,12 @@ export default function WorksheetViewWithEdit({
             latexToReadable(getEssayProblem(row.content_json) || ''),
             normalizeSolutionToStr(getEssaySolution(row.content_json))
           )
-          nextContent = [heading, parts.problem, '**Lời giải:**', parts.solution || '(Chưa có lời giải)'].filter(Boolean).join('\n\n')
+          nextContent = formatEssayEditText({
+            heading,
+            problem: parts.problem,
+            thinkingGuide: getThinkingGuide(row.content_json),
+            solution: parts.solution,
+          })
         }
       } catch {
         /* fallback markdown hiện tại */

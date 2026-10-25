@@ -20,7 +20,7 @@ import {
   verifyEssayWithGeminiVision,
 } from '@/app/tao-giao-trinh/lib/worksheet-verify-oneshot'
 import { fixQuizWhenVerifyFailed, fixEssayWhenVerifyFailed } from '@/app/tao-giao-trinh/lib/worksheet-regenerate'
-import { getEssaySolution, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { cleanThinkingGuide, getEssaySolution, getThinkingGuide, normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { cleanQuizSolution } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
 
@@ -64,6 +64,7 @@ async function verifyOrderedQuestions(input: {
         options: (c?.options ?? []).slice(0, 4),
         correctIndex: Math.max(0, Math.min(c?.correctIndex ?? 0, 3)),
         solution: cleanQuizSolution(c?.solution),
+        thinkingGuide: getThinkingGuide(row.content_json),
       }
       if (!q.question || q.options.length < 4) {
         stats.skippedInvalid++
@@ -123,11 +124,13 @@ async function verifyOrderedQuestions(input: {
       }
       if (needsUpdate) {
         const createdIn = (row.content_json as { createdIn?: unknown } | null)?.createdIn
+        const thinkingGuide = cleanThinkingGuide((finalQ as { thinkingGuide?: unknown }).thinkingGuide) || getThinkingGuide(row.content_json)
         const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
           question: finalQ.question,
           options: finalQ.options,
           correctIndex: finalQ.correctIndex,
           ...(finalQ.solution ? { solution: finalQ.solution } : {}),
+          ...(thinkingGuide ? { thinkingGuide } : {}),
           ...(createdIn === 'exam' || createdIn === 'worksheet' ? { createdIn } : {}),
         })
         if (ok) stats.contentUpdates++
@@ -145,7 +148,7 @@ async function verifyOrderedQuestions(input: {
         continue
       }
 
-      let finalE = { problem, solution }
+      let finalE = { problem, solution, thinkingGuide: getThinkingGuide(row.content_json) }
       let needsUpdate = false
       let skipTextVerifyPipeline = false
       if (row.source === 'sgk' && sgkImageUrls.length > 0) {
@@ -178,7 +181,7 @@ async function verifyOrderedQuestions(input: {
             if (verifyResult.solution) finalE = { ...finalE, solution: verifyResult.solution }
             needsUpdate = true
           } else {
-            const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution }, sheetUserId)
+            const fixed = await fixEssayWhenVerifyFailed(fullContent, { problem, solution, thinkingGuide: finalE.thinkingGuide }, sheetUserId)
             if (fixed) {
               finalE = fixed
               needsUpdate = true
@@ -189,9 +192,11 @@ async function verifyOrderedQuestions(input: {
       if (needsUpdate) {
         const solutionStr = normalizeSolutionToStr(finalE.solution) || String(finalE.solution ?? '').trim()
         const createdIn = (row.content_json as { createdIn?: unknown } | null)?.createdIn
+        const thinkingGuide = cleanThinkingGuide(finalE.thinkingGuide) || getThinkingGuide(row.content_json)
         const ok = await updateWorksheetQuestionContentJsonPg(row.id, {
           problem: finalE.problem,
           solution: solutionStr,
+          ...(thinkingGuide ? { thinkingGuide } : {}),
           ...(createdIn === 'exam' || createdIn === 'worksheet' ? { createdIn } : {}),
         })
         if (ok) stats.contentUpdates++

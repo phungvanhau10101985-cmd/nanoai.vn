@@ -19,6 +19,78 @@ function pickString(v: unknown): string {
 
 const EMPTY_SOLUTION = '(Chưa có lời giải)'
 
+/** Hướng tư duy đứng giữa đề và lời giải. Gợi ý cách nghĩ, không viết kết quả. */
+export const THINKING_GUIDE_MIN = 20
+
+export const THINKING_GUIDE_RULE =
+  'thinkingGuide là hướng tư duy cho học sinh, đặt giữa đề và lời giải. Viết 2 đến 4 ý ngắn: kiến thức cần nhớ và bước đầu nên làm. Không viết kết quả cuối, không nêu A/B/C/D, không ghi "Đáp án", không chép đề và không chép lời giải.'
+
+/** `**Hướng tư duy:**` và `Hướng tư duy:`. */
+export const THINKING_GUIDE_MARKER =
+  /\*\*Hướng tư duy:\*\*\s*|\*\*Hướng tư duy\*\*:\s*|(?:^|\n)\s*Hướng tư duy:\s*/i
+
+export function cleanThinkingGuide(raw: unknown): string {
+  let text = ''
+  if (typeof raw === 'string') text = raw.trim()
+  else if (Array.isArray(raw)) {
+    text = raw.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean).join('\n')
+  }
+  text = text.replace(/^(?:\*\*)?Hướng tư duy(?:\*\*)?\s*:\s*/i, '').trim()
+  text = text.replace(/\n+\s*(?:\*\*)?(?:Lời giải|Đáp án)(?:\*\*)?\s*:[\s\S]*$/i, '').trim()
+  return text
+}
+
+export function thinkingGuideIsUsable(raw: unknown): boolean {
+  const text = cleanThinkingGuide(raw)
+  if (text.length < THINKING_GUIDE_MIN) return false
+  if (/(?:\*\*)?Đáp án(?:\*\*)?\s*:/i.test(text)) return false
+  return true
+}
+
+/** Tách mục hướng tư duy khỏi đoạn đề. Không có mục thì giữ nguyên thân. */
+export function splitThinkingGuide(text: string): { body: string; thinkingGuide: string } {
+  const marker = new RegExp(THINKING_GUIDE_MARKER.source, 'i')
+  const found = marker.exec(text)
+  if (!found || found.index == null) return { body: text.trim(), thinkingGuide: '' }
+  const head = text.slice(0, found.index).trim()
+  const guide = cleanThinkingGuide(text.slice(found.index + found[0].length))
+  if (!head || !guide) return { body: text.trim(), thinkingGuide: '' }
+  return { body: head, thinkingGuide: guide }
+}
+
+/** Đọc hướng tư duy từ content_json. Nhận field riêng hoặc mục nằm trong đề. */
+export function getThinkingGuide(contentJson: unknown): string {
+  const c = (contentJson ?? null) as JsonLike
+  if (!c || typeof c !== 'object') return ''
+  const fromField = cleanThinkingGuide(
+    c.thinkingGuide ?? c.thinking_guide ?? c.hint ?? c.huongTuDuy ?? c.huong_tu_duy
+  )
+  if (fromField) return fromField
+  const embedded =
+    splitThinkingGuide(pickString(c.problem)).thinkingGuide ||
+    splitThinkingGuide(pickString(c.question)).thinkingGuide
+  return embedded
+}
+
+/** Khối sửa tự luận: đề, hướng tư duy, rồi lời giải. */
+export function formatEssayEditText(input: {
+  heading?: string
+  problem: string
+  thinkingGuide?: string
+  solution: string
+}): string {
+  const chunks: string[] = []
+  const heading = String(input.heading ?? '').trim()
+  const problem = String(input.problem ?? '').trim()
+  const guide = cleanThinkingGuide(input.thinkingGuide)
+  const solution = String(input.solution ?? '').trim()
+  if (heading) chunks.push(heading)
+  if (problem) chunks.push(problem)
+  if (guide) chunks.push(`**Hướng tư duy:**\n\n${guide}`)
+  chunks.push(`**Lời giải:**\n\n${solution || EMPTY_SOLUTION}`)
+  return chunks.join('\n\n')
+}
+
 export function isPlaceholderSolution(value: string): boolean {
   const text = value.replace(/\s+/g, ' ').trim()
   return !text || text === EMPTY_SOLUTION || text === 'Chưa có lời giải.' || text === 'Chưa có lời giải'
@@ -55,6 +127,8 @@ export function coalesceEssayParts(problem: string, solution: string): { problem
   }
   nextSolution = takeRealSolution(nextSolution)
   if (isPlaceholderSolution(nextSolution)) nextSolution = ''
+  const guided = splitThinkingGuide(nextProblem)
+  if (guided.thinkingGuide) nextProblem = guided.body
   return { problem: nextProblem, solution: nextSolution }
 }
 

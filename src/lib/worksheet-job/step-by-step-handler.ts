@@ -12,7 +12,7 @@ import {
   WorksheetCreditsError,
 } from '@/lib/db/worksheet-ai-quota-pg'
 import { questionsToMarkdown } from '@/app/tao-giao-trinh/lib/questions-to-markdown'
-import { normalizeSolutionToStr } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
+import { THINKING_GUIDE_RULE, cleanThinkingGuide, normalizeSolutionToStr, thinkingGuideIsUsable } from '@/app/tao-giao-trinh/lib/worksheet-content-json'
 import { QUIZ_SOLUTION_RULE, cleanQuizSolution, quizSolutionIsDetailed } from '@/app/tao-giao-trinh/lib/worksheet-quiz-solution'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
@@ -28,8 +28,8 @@ import {
 type Difficulty = 'easy' | 'medium' | 'hard'
 type EssayBloomLevel = 'nhan-biet' | 'thong-hieu' | 'van-dung-thap' | 'van-dung-cao' | 'thuc-te'
 
-const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0,"solution":"Tập xác định là ℝ. Xét dấu f'(x). f'(x) > 0 khi x > 2. Vậy hàm đồng biến trên khoảng đó."}]}`
-const ESSAY_SCHEMA = `{"problem":"Đề bài (câu hỏi)","solution":"Lời giải chi tiết từng bước"}`
+const QUIZ_SCHEMA = `{"quizzes":[{"question":"Câu hỏi?","options":["(2; +∞)","(−∞; 2)","(−∞; +∞)","(−2; 2)"],"correctIndex":0,"thinkingGuide":"Nhớ tập xác định. Tính đạo hàm rồi xét dấu. Khoảng đồng biến là nơi đạo hàm dương.","solution":"Tập xác định là ℝ. Xét dấu f'(x). f'(x) > 0 khi x > 2. Vậy hàm đồng biến trên khoảng đó."}]}`
+const ESSAY_SCHEMA = `{"problem":"Đề bài (câu hỏi)","thinkingGuide":"Xác định dữ kiện đã cho. Chọn công thức liên quan. Làm bước đầu trước khi tính kết quả.","solution":"Lời giải chi tiết từng bước"}`
 
 const DIFFICULTY_PROMPT: Record<Difficulty, string> = {
   easy: 'Độ khó DỄ: nhận biết, kiến thức cơ bản.',
@@ -57,19 +57,20 @@ function draftExcerpt(raw: string): string {
   return excerpt ? ` Mẫu: ${excerpt}` : ''
 }
 
-function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number; solution: string } | null {
+function readQuizCandidate(value: unknown): { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null {
   if (!value || typeof value !== 'object') return null
-  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown; solution?: unknown }
+  const row = value as { question?: unknown; options?: unknown; correctIndex?: unknown; thinkingGuide?: unknown; solution?: unknown }
   if (typeof row.question !== 'string' || !row.question.trim()) return null
   if (!Array.isArray(row.options) || row.options.length < 4) return null
   const solution = cleanQuizSolution(row.solution)
-  if (!quizSolutionIsDetailed(solution)) return null
+  const thinkingGuide = cleanThinkingGuide(row.thinkingGuide)
+  if (!quizSolutionIsDetailed(solution) || !thinkingGuideIsUsable(thinkingGuide)) return null
   const options = row.options.slice(0, 4).map((item) => String(item ?? ''))
   const correctIndex = Math.max(0, Math.min(Number(row.correctIndex ?? 0) || 0, 3))
-  return { question: row.question.trim(), options, correctIndex, solution }
+  return { question: row.question.trim(), options, correctIndex, thinkingGuide, solution }
 }
 
-function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number; solution: string } | null {
+function readQuizDraft(raw: string): { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null {
   const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
   const parsed = JSON.parse(cleaned) as { quizzes?: unknown }
   if (parsed && typeof parsed === 'object' && Array.isArray(parsed.quizzes)) {
@@ -95,10 +96,11 @@ function explainQuizDraft(raw: string): string {
     return `Gemini không trả mảng quizzes (các khóa: ${keys || 'không có'}).${draftExcerpt(raw)}`
   }
   if (body.quizzes.length === 0) return `Gemini trả quizzes rỗng.${draftExcerpt(raw)}`
-  const first = body.quizzes[0] as { question?: unknown; options?: unknown; solution?: unknown }
+  const first = body.quizzes[0] as { question?: unknown; options?: unknown; thinkingGuide?: unknown; solution?: unknown }
   const optionCount = Array.isArray(first?.options) ? first.options.length : 0
   if (typeof first?.question !== 'string' || !first.question.trim()) return `Gemini thiếu đề câu.${draftExcerpt(raw)}`
   if (optionCount < 4) return `Gemini trả ${optionCount} đáp án, cần đủ 4.${draftExcerpt(raw)}`
+  if (!thinkingGuideIsUsable(first?.thinkingGuide)) return `Gemini thiếu hướng tư duy cho học sinh.${draftExcerpt(raw)}`
   if (!quizSolutionIsDetailed(first?.solution)) return `Gemini thiếu lời giải chi tiết trước đáp án.${draftExcerpt(raw)}`
   return `Gemini trả câu không đọc được.${draftExcerpt(raw)}`
 }
@@ -168,6 +170,7 @@ ${DIFFICULTY_PROMPT[diff] ?? DIFFICULTY_PROMPT.medium}
 
 QUY TẮC: Unicode (π, ∫, x², √, ∈, ℝ), 4 đáp án A/B/C/D, correctIndex 0-3. Tiếng Việt.
 options: CHỈ nội dung đáp án, KHÔNG thêm "A." "B." "C." "D." vào đầu.
+${THINKING_GUIDE_RULE}
 ${QUIZ_SOLUTION_RULE}
 Chỉ trả về JSON, không markdown.
 
@@ -196,7 +199,7 @@ Schema: ${QUIZ_SCHEMA}`
     userId
   )
   const raw = result.response.text()?.trim() || ''
-  let last: { question: string; options: string[]; correctIndex: number; solution: string } | null = null
+  let last: { question: string; options: string[]; correctIndex: number; thinkingGuide: string; solution: string } | null = null
   try {
     last = readQuizDraft(raw)
   } catch {
@@ -219,6 +222,7 @@ Schema: ${QUIZ_SCHEMA}`
       question: last.question,
       options,
       correctIndex,
+      thinkingGuide: last.thinkingGuide,
       solution: last.solution,
       createdIn: params.createdIn === 'exam' ? 'exam' : 'worksheet',
     },
@@ -249,6 +253,8 @@ async function createOneEssay(
 ${ESSAY_BLOOM_PROMPT[diff] ?? ESSAY_BLOOM_PROMPT['thong-hieu']}
 
 QUY TẮC: Unicode, phân số 1/2, đề rõ ràng, lời giải từng bước. CẤM đề "nhìn hình". CHỈ viết MỘT lần lời giải, KHÔNG lặp lại.
+${THINKING_GUIDE_RULE}
+Ba phần bắt buộc: problem là đề, thinkingGuide là hướng tư duy, solution là lời giải.
 Chỉ trả về JSON, không markdown.
 
 GIÁO TRÌNH:
@@ -276,15 +282,19 @@ Schema: ${ESSAY_SCHEMA}`
     userId
   )
   const raw = result.response.text()?.trim() || ''
-  let parsed: { problem?: string; solution?: string } | null = null
+  let parsed: { problem?: string; thinkingGuide?: unknown; solution?: string } | null = null
   try {
     const cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim()
     const p = JSON.parse(cleaned)
-    if (p?.problem && p?.solution) parsed = { problem: p.problem, solution: p.solution }
+    if (p?.problem && p?.solution) parsed = { problem: p.problem, thinkingGuide: p.thinkingGuide, solution: p.solution }
   } catch {
     /* */
   }
-  if (!parsed) return null
+  if (!parsed) throw new InvalidModelDraftError('Gemini không trả bài tự luận hợp lệ.')
+  const thinkingGuide = cleanThinkingGuide(parsed.thinkingGuide)
+  if (!thinkingGuideIsUsable(thinkingGuide)) {
+    throw new InvalidModelDraftError('Gemini thiếu hướng tư duy cho học sinh.')
+  }
 
   const solutionStr = normalizeSolutionToStr(parsed.solution) || String(parsed.solution ?? '').trim()
 
@@ -299,6 +309,7 @@ Schema: ${ESSAY_SCHEMA}`
     difficulty: diff,
     contentJson: {
       problem: parsed.problem,
+      thinkingGuide,
       solution: solutionStr,
       createdIn: params.createdIn === 'exam' ? 'exam' : 'worksheet',
     },
