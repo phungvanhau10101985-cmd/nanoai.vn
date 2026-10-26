@@ -13,6 +13,7 @@ import { CreditCard, QrCode, Banknote, CheckCircle, Copy, RefreshCw, AlertCircle
 import { toast } from '@/hooks/use-toast'
 import { formatNumber } from '@/lib/format'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
 import { fireMetaStandardEvent } from '@/lib/tracking/meta-standard-events-client'
@@ -545,6 +546,16 @@ export default function DepositClient() {
                         />
                       </div>
                     </div>
+
+                    <QrPayOpenBank
+                      qrUrl={activePayment.qr_url}
+                      accountNumber={activePayment.bank_account}
+                      bankCode={paymentConfigs.find((c) => c.id === selectedBank)?.bank_id || activePayment.bank_name}
+                      amount={activePayment.amount}
+                      description={activePayment.transaction_content}
+                      accountName={paymentConfigs.find((c) => c.id === selectedBank)?.account_holder_name}
+                      locale={uiLocale}
+                    />
 
                     {/* Payment details */}
                     <div className="space-y-3">

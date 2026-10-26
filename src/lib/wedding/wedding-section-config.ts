@@ -116,6 +116,10 @@ export type WeddingSectionConfig = {
   stackGroomNameY?: number
   stackBrideNameX?: number
   stackBrideNameY?: number
+  /** Góc quay khung chú rể, độ. Trống thì −6. */
+  stackGroomFrameRotate?: number
+  /** Góc quay khung cô dâu, độ. Trống thì 3. */
+  stackBrideFrameRotate?: number
 }
 
 export type WeddingHeroPhotoLayout = 'single' | 'stack'
@@ -319,6 +323,29 @@ export function resolveStackPlace(config: WeddingSectionConfig): WeddingStackPla
   return place as WeddingStackPlace
 }
 
+export const STACK_FRAME_ROTATE_MIN = -40
+export const STACK_FRAME_ROTATE_MAX = 40
+export const STACK_GROOM_FRAME_ROTATE = -6
+export const STACK_BRIDE_FRAME_ROTATE = 3
+
+export function readStackFrameRotate(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(num)) return undefined
+  return Math.max(STACK_FRAME_ROTATE_MIN, Math.min(STACK_FRAME_ROTATE_MAX, Math.round(num)))
+}
+
+export function resolveStackFrameRotate(config: WeddingSectionConfig, side: 'groom' | 'bride'): number {
+  const raw = side === 'groom' ? config.stackGroomFrameRotate : config.stackBrideFrameRotate
+  return readStackFrameRotate(raw) ?? (side === 'groom' ? STACK_GROOM_FRAME_ROTATE : STACK_BRIDE_FRAME_ROTATE)
+}
+
+function writeStackRotate(payload: WeddingSectionConfig, config: WeddingSectionConfig) {
+  const groom = readStackFrameRotate(config.stackGroomFrameRotate)
+  const bride = readStackFrameRotate(config.stackBrideFrameRotate)
+  if (groom !== undefined && groom !== STACK_GROOM_FRAME_ROTATE) payload.stackGroomFrameRotate = groom
+  if (bride !== undefined && bride !== STACK_BRIDE_FRAME_ROTATE) payload.stackBrideFrameRotate = bride
+}
+
 export function parseWeddingSectionConfig(raw: string | null | undefined): WeddingSectionConfig {
   if (!raw?.trim()) return {}
   try {
@@ -363,6 +390,8 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverRsvpColorId: isWeddingButtonColorId(obj.coverRsvpColorId) ? obj.coverRsvpColorId : undefined,
       heroPhotoLayout: obj.heroPhotoLayout === 'stack' ? 'stack' : undefined,
       ...readStackPlaceFields(obj),
+      stackGroomFrameRotate: readStackFrameRotate(obj.stackGroomFrameRotate),
+      stackBrideFrameRotate: readStackFrameRotate(obj.stackBrideFrameRotate),
     }
   } catch {
     return {}
@@ -419,6 +448,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (isWeddingButtonColorId(config.coverRsvpColorId)) payload.coverRsvpColorId = config.coverRsvpColorId
   if (config.heroPhotoLayout === 'stack') payload.heroPhotoLayout = 'stack'
   writeStackPlace(payload, config)
+  writeStackRotate(payload, config)
   return JSON.stringify(payload)
 }
 

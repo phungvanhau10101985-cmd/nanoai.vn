@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import {
   formatWeddingPackVnd,
   weddingGuestPackBanner,
@@ -194,6 +195,15 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
                   >
                     Tải mã QR
                   </Button>
+                  <QrPayOpenBank
+                    className="w-full max-w-sm"
+                    qrUrl={payment.qrUrl}
+                    accountNumber={payment.bankAccount}
+                    bankCode={payment.bankName}
+                    amount={payment.amount}
+                    description={payment.transactionContent}
+                    accountName={payment.accountHolderName}
+                  />
                 </div>
               ) : null}
               <div className="space-y-2 rounded-lg border bg-stone-50 p-3 text-sm">

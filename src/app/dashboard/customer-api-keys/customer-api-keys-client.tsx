@@ -25,6 +25,7 @@ import { useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
 import type { UserAiApiKeyPublicRow } from '@/lib/db/user-ai-api-keys-pg'
 import type { ByokPlanPaymentRow, ByokSubscriptionRow } from '@/lib/db/user-ai-api-key-billing-pg'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 
 export type CustomerApiKeyPlanCopy = {
   id: 'basic' | 'pro' | 'business'
@@ -435,8 +436,17 @@ export function CustomerApiKeysClient({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-[220px_1fr]">
-            <div className="rounded-lg border bg-white p-2">
-              <img src={activePayment.qr_url} alt={copy.scanQr} className="h-auto w-full" />
+            <div className="space-y-3">
+              <div className="rounded-lg border bg-white p-2">
+                <img src={activePayment.qr_url} alt={copy.scanQr} className="h-auto w-full" />
+              </div>
+              <QrPayOpenBank
+                qrUrl={activePayment.qr_url}
+                accountNumber={activePayment.bank_account}
+                bankCode={activePayment.bank_name}
+                amount={activePayment.amount}
+                description={activePayment.transaction_content}
+              />
             </div>
             <div className="space-y-3 text-sm">
               <p><span className="font-medium">{copy.paymentAmount}:</span> {formatVnd(activePayment.amount)}</p>

@@ -12,6 +12,7 @@ import { youtubeThumbnailUrl } from '@/lib/messaging/guest-product-video'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import {
   bankTransferMemoFromPaymentReference,
   displayShopOrderCode,
@@ -376,6 +377,17 @@ function OrderPaymentPanel({
           loading="lazy"
         />
       </div>
+      {!isEwallet ? (
+        <QrPayOpenBank
+          className="mt-2"
+          qrUrl={qrUrl}
+          accountNumber={acc}
+          bankCode={bank}
+          amount={amount}
+          description={transferMemo}
+          accountName={holder}
+        />
+      ) : null}
       <div
         className={`mt-2 space-y-0 overflow-hidden rounded-md border px-1 sm:px-1.5 ${
           onViolet ? 'border-white/15 bg-black/10' : 'border-border/60 bg-background/50'

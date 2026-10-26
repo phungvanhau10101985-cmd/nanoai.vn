@@ -7,6 +7,7 @@ import { formatVnd, formatVndOrZero } from '@/lib/partner-website/shop/cart-line
 import { partnerOrderRemainingAfterDeposit } from '@/lib/partner-website/shop/order-deposit'
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { displayShopOrderCode } from '@/lib/messaging/shop-payment-reference'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import {
   formatPartnerSiteOrderDate,
   formatPartnerSiteOrderStatus,
@@ -454,9 +455,15 @@ export function PartnerSiteShopOrdersClient({
                     </p>
                   ) : null}
                   {qr ? (
-                    <p style={{ marginTop: 12 }}>
+                    <div style={{ marginTop: 12 }}>
                       <img src={qr} alt="QR" className="pw-shop-order-qr" />
-                    </p>
+                      <QrPayOpenBank
+                        className="mt-3"
+                        qrUrl={qr}
+                        amount={o.required_amount}
+                        locale={locale}
+                      />
+                    </div>
                   ) : null}
                   <p className="pw-shop-muted">{t.depositPolicyNote}</p>
                   <p style={{ marginTop: 12 }}>

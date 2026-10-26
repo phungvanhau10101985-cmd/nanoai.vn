@@ -8,6 +8,7 @@ import type { PartnerOrderRow } from '@/lib/db/messaging-partner-orders-pg'
 import { enrichPaymentDisplayFromQrUrl } from '@/lib/messaging/payment-qr-display-enrich'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { sepayQrUrlForDownload } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { bankTransferMemoFromPaymentReference } from '@/lib/messaging/shop-payment-reference'
 
 function displayBankName(raw: string): string {
@@ -116,6 +117,15 @@ export function GuestWidgetOrderDepositPanel({
           loading="lazy"
         />
       </div>
+      <QrPayOpenBank
+        className="mt-2"
+        qrUrl={qrUrl}
+        accountNumber={acc}
+        bankCode={bank}
+        amount={amount}
+        description={transferMemo}
+        accountName={holder}
+      />
       {isSepay ? (
         <div className="mt-2 space-y-1.5">
           <Button type="button" size="sm" className="h-10 w-full text-sm font-medium" asChild>

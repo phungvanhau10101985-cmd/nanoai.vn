@@ -138,6 +138,7 @@ import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-ca
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
@@ -6117,14 +6118,24 @@ export function PartnerGuestChatClient({
                         Sau khi chuyển khoản thành công, số dư sẽ cập nhật tự động trong vài giây.
                       </p>
                       {topUpPayment.qr_url ? (
-                        <div className="mt-2 flex justify-center">
-                          <Image
-                            src={topUpPayment.qr_url}
-                            alt="QR nạp credit"
-                            width={180}
-                            height={180}
-                            unoptimized
-                            className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
+                        <div className="mt-2">
+                          <div className="flex justify-center">
+                            <Image
+                              src={topUpPayment.qr_url}
+                              alt="QR nạp credit"
+                              width={180}
+                              height={180}
+                              unoptimized
+                              className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
+                            />
+                          </div>
+                          <QrPayOpenBank
+                            className="mt-2"
+                            qrUrl={topUpPayment.qr_url}
+                            accountNumber={topUpPayment.bank_account}
+                            bankCode={topUpPayment.bank_name}
+                            amount={topUpPayment.amount}
+                            description={topUpPayment.transaction_content}
                           />
                         </div>
                       ) : null}

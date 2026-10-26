@@ -3919,6 +3919,11 @@ export type Dictionary = {
     choosePhoto: string
     chooseFrame: string
     dragPlace: string
+    stackMoveFrame: string
+    stackMoveName: string
+    stackFrameRotate: string
+    stackFrameRotateLeft: string
+    stackFrameRotateRight: string
     frameSizeLabel: string
     changePhoto: string
     coverPhotoZoomOut: string
@@ -8338,6 +8343,11 @@ export const VI_DICTIONARY: Dictionary = {
     choosePhoto: 'Chọn ảnh',
     chooseFrame: 'Chọn khung',
     dragPlace: 'Kéo',
+    stackMoveFrame: 'Di chuyển khung',
+    stackMoveName: 'Di chuyển tên',
+    stackFrameRotate: 'Góc',
+    stackFrameRotateLeft: 'Xoay trái',
+    stackFrameRotateRight: 'Xoay phải',
     frameSizeLabel: 'Cỡ khung',
     changePhoto: 'Đổi ảnh',
     coverPhotoZoomOut: 'Thu nhỏ',

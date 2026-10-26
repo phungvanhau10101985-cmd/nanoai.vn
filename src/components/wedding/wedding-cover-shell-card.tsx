@@ -48,6 +48,14 @@ type WeddingCoverShellCardProps = {
     place?: WeddingStackPlace | null
     onPlace?: (place: WeddingStackPlace) => void
     moveLabel?: string
+    moveFrameLabel?: string
+    moveNameLabel?: string
+    firstRotate?: number
+    secondRotate?: number
+    onRotate?: (side: 'first' | 'second', degrees: number) => void
+    rotateLabel?: string
+    rotateLeftLabel?: string
+    rotateRightLabel?: string
     showEmpty?: boolean
   }
   groomName: string
@@ -1469,6 +1477,14 @@ function StackCoverCard(props: WeddingCoverShellCardProps) {
           place={pair.place}
           onPlace={pair.onPlace}
           moveLabel={pair.moveLabel}
+          moveFrameLabel={pair.moveFrameLabel}
+          moveNameLabel={pair.moveNameLabel}
+          firstRotate={pair.firstRotate}
+          secondRotate={pair.secondRotate}
+          onRotate={pair.onRotate}
+          rotateLabel={pair.rotateLabel}
+          rotateLeftLabel={pair.rotateLeftLabel}
+          rotateRightLabel={pair.rotateRightLabel}
           nameClassName={cn(theme.text, theme.textGlowHeading)}
           showEmpty={pair.showEmpty}
           compact={compact}

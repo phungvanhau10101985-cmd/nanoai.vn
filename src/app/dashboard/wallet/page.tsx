@@ -17,7 +17,7 @@ export default async function WalletPage() {
 
   return (
     <div className="space-y-8">
-      <WalletClientPage userId={user.id} />
+      <WalletClientPage />
       
       <Card>
         <CardHeader>

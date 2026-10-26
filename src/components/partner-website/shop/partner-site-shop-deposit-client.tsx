@@ -36,6 +36,7 @@ import {
 import { getPartnerSiteShopCopy } from '@/lib/partner-website/shop/partner-site-shop-copy'
 import { saveImageBlob, trySaveFilePicker, trySyncBlobDownload } from '@/lib/partner-website/shop/save-image-blob'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import {
   bankTransferMemoFromPaymentReference,
   displayShopOrderCode,
@@ -834,6 +835,18 @@ export function PartnerSiteShopDepositClient({
                   </>
                 )}
               </button>
+            ) : null}
+            {qr && paymentDisplay?.kind !== 'ewallet' ? (
+              <QrPayOpenBank
+                className="mt-3"
+                qrUrl={qr}
+                accountNumber={bank?.account_number}
+                bankCode={bank?.bank_name}
+                amount={required}
+                description={transferMemo}
+                accountName={bank?.account_holder}
+                locale={locale}
+              />
             ) : null}
             <p className="pw-shop-deposit-hint">
               {t.depositPollingHint}

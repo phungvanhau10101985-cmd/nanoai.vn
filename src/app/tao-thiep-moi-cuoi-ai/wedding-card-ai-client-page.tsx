@@ -105,6 +105,7 @@ import {
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
+  resolveStackFrameRotate,
   resolveStackPlace,
   resolvePortraitShell,
   readHeroPhotoLayout,
@@ -1502,6 +1503,23 @@ export default function WeddingCardAiClientPage() {
     if (!place) return
     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, place))
   }
+  const setStackRotate = (side: 'first' | 'second', degrees: number) => {
+    update(
+      'sectionConfig',
+      mergeWeddingSectionConfig(
+        card.sectionConfig,
+        side === 'first' ? { stackGroomFrameRotate: degrees } : { stackBrideFrameRotate: degrees },
+      ),
+    )
+  }
+  const stackRotate = {
+    firstRotate: resolveStackFrameRotate(sectionConfig, 'groom'),
+    secondRotate: resolveStackFrameRotate(sectionConfig, 'bride'),
+    onRotate: setStackRotate,
+    rotateLabel: txCover.stackFrameRotate,
+    rotateLeftLabel: txCover.stackFrameRotateLeft,
+    rotateRightLabel: txCover.stackFrameRotateRight,
+  }
 
   const stackNameEdit = (side: 'groom' | 'bride'): WeddingStackedNameEdit =>
     side === 'groom'
@@ -2651,6 +2669,9 @@ export default function WeddingCardAiClientPage() {
                               place: stackPlace,
                               onPlace: setStackPlace,
                               moveLabel: txCover.dragPlace,
+                              moveFrameLabel: txCover.stackMoveFrame,
+                              moveNameLabel: txCover.stackMoveName,
+                              ...stackRotate,
                               showEmpty: true,
                             }
                           : undefined
@@ -3461,19 +3482,16 @@ export default function WeddingCardAiClientPage() {
                             secondAlt={occasionCopy.secondaryPhoto}
                             firstFrame={groomPortraitFrame}
                             secondFrame={bridePortraitFrame}
-                            firstEdit={stackPhotoEdit('groom')}
-                            secondEdit={stackPhotoEdit('bride')}
-                            firstNameEdit={stackNameEdit('groom')}
-                            secondNameEdit={stackNameEdit('bride')}
-                            frameScaleEdit={stackPairFrameScale()}
+                            firstName={card.groomName}
+                            secondName={card.brideName}
+                            firstCaption={occasionCopy.primaryRole}
+                            secondCaption={occasionCopy.secondaryRole}
+                            frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
                             frameShell={stackFrameShell}
-                            chooseFrameLabel={txCover.chooseFrame}
-                            onChooseFrame={() => setPortraitFrameSide('pair')}
                             place={stackPlace}
-                            onPlace={setStackPlace}
-                            moveLabel={txCover.dragPlace}
+                            firstRotate={stackRotate.firstRotate}
+                            secondRotate={stackRotate.secondRotate}
                             nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
-                            showEmpty
                             compact
                           />
                         ) : null}

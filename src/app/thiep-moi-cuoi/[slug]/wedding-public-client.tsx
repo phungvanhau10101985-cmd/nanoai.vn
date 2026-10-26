@@ -59,6 +59,7 @@ import {
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
   resolvePortraitShell,
+  resolveStackFrameRotate,
   resolveStackPlace,
   readHeroPhotoLayout,
 } from '@/lib/wedding/wedding-section-config'
@@ -844,6 +845,8 @@ export default function WeddingPublicClient({
                             frameScale: resolvePortraitFrameScale(sectionConfig, 'groom'),
                             frameShell: resolvePortraitShell(sectionConfig, 'groom') ?? resolvePortraitShell(sectionConfig, 'bride'),
                             place: resolveStackPlace(sectionConfig),
+                            firstRotate: resolveStackFrameRotate(sectionConfig, 'groom'),
+                            secondRotate: resolveStackFrameRotate(sectionConfig, 'bride'),
                           }
                         : undefined
                     }
@@ -909,6 +912,8 @@ export default function WeddingPublicClient({
                 frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
                 frameShell={resolvePortraitShell(sectionConfig, 'groom') ?? resolvePortraitShell(sectionConfig, 'bride')}
                 place={resolveStackPlace(sectionConfig)}
+                firstRotate={resolveStackFrameRotate(sectionConfig, 'groom')}
+                secondRotate={resolveStackFrameRotate(sectionConfig, 'bride')}
                 nameClassName={cn(theme.text, theme.textGlowHeading)}
                 className={cn('mt-1', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}
               />

@@ -20,6 +20,7 @@ import { toast } from '@/hooks/use-toast'
 import { Download, Copy, CreditCard, Loader2, CheckCircle } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
@@ -69,12 +70,14 @@ interface DepositCreditPopupProps {
   onOpenChange: (open: boolean) => void
   returnPath?: string
   onCreditsUpdated?: () => void
+  /** Số tiền mở sẵn khi vào từ trang nạp credit. */
+  presetAmount?: number
   /** Đè lớp khi modal nạp mở trên dialog tạo ảnh đang z cao hơn z-50. */
   overlayClassName?: string
   contentClassName?: string
 }
 
-export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated, overlayClassName, contentClassName }: DepositCreditPopupProps) {
+export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUpdated, overlayClassName, contentClassName, presetAmount }: DepositCreditPopupProps) {
   const router = useRouter()
   const [uiLocale, setUiLocale] = useState<'vi' | 'en' | 'zh' | 'ja' | 'ko'>('vi')
   const [amount, setAmount] = useState(CREDIT_UNIT_PRICE_VND)
@@ -209,13 +212,14 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       fetchConfigs()
       setPayment(null)
       setPaymentSuccess(null)
+      if (presetAmount && presetAmount >= 1000) setAmount(Math.round(presetAmount))
     }
     return () => {
       window.removeEventListener('focus', syncLocale)
       document.removeEventListener('visibilitychange', syncLocale)
       window.clearInterval(timer)
     }
-  }, [open, fetchConfigs])
+  }, [open, fetchConfigs, presetAmount])
 
   // Polling: kiểm tra thanh toán hoàn tất (webhook đã cập nhật)
   useEffect(() => {
@@ -381,21 +385,12 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
               {creating ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
-                configs.length ? tr('Tạo mã thanh toán', 'Create payment QR', '创建支付码', '支払いQRを作成', '결제 QR 생성') : tr('Đang tải cấu hình ngân hàng...', 'Loading bank config...', '正在加载银行配置...', '銀行設定を読み込み中...', '은행 설정 불러오는 중...')
+                configs.length ? tr('Tạo mã QR và chọn ngân hàng', 'Create QR and choose a bank', '生成二维码并选择银行', 'QRを作成して銀行を選ぶ', 'QR 생성 후 은행 선택') : tr('Đang tải cấu hình ngân hàng...', 'Loading bank config...', '正在加载银行配置...', '銀行設定を読み込み中...', '은행 설정 불러오는 중...')
               )}
             </Button>
           </div>
         ) : (
           <div className="space-y-4 sm:space-y-6">
-            {/* Bước 1: Nút Mở App Ngân hàng - Tạm ẩn */}
-            {/* <a href={deeplink} target="_blank" rel="noopener noreferrer" className="block">
-              <Button className="w-full h-12 sm:h-14 text-base sm:text-lg bg-green-600 hover:bg-green-700 text-white font-semibold shadow-lg">
-                <Smartphone className="mr-2 h-6 w-6" />
-                Mở App Ngân hàng & Thanh toán ngay
-              </Button>
-            </a> */}
-
-            {/* Bước 2: QR + Tải về */}
             <div className="flex flex-col items-center gap-3">
               <div className="border-2 rounded-lg p-2 sm:p-3 bg-white shrink-0">
                 <img
@@ -409,6 +404,16 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
                 {tr('Lưu mã QR', 'Save QR image', '保存二维码', 'QR画像を保存', 'QR 저장')}
               </Button>
             </div>
+            <QrPayOpenBank
+              className="w-full"
+              qrUrl={payment.qr_url}
+              accountNumber={payment.bank_account || config?.bank_account}
+              bankCode={config?.bank_id || payment.bank_name}
+              amount={payment.amount}
+              description={payment.transaction_content}
+              accountName={config?.account_holder_name}
+              locale={uiLocale}
+            />
 
             {/* Bước 3: Thông tin thủ công */}
             <div className="space-y-2 sm:space-y-3 rounded-lg border p-3 sm:p-4 bg-muted/50 text-sm sm:text-base">

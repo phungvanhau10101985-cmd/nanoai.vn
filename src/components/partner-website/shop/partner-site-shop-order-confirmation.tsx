@@ -8,6 +8,7 @@ import {
   displayShopOrderCode,
 } from '@/lib/messaging/shop-payment-reference'
 import { formatVnd } from '@/lib/partner-website/shop/cart-line-utils'
+import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 
 type OrderSnapshot = {
   id?: string
@@ -62,9 +63,18 @@ export function PartnerSiteShopOrderConfirmation({ locale, order, chatPath }: Pr
       {required > 0 && isEwallet ? <p className="pw-shop-muted">{t.orderConfirmEwalletHint}</p> : null}
       {ref && !isEwallet ? <p className="pw-shop-muted">{t.paymentReference}: {ref}</p> : null}
       {qr ? (
-        <p style={{ marginTop: 12 }}>
+        <div style={{ marginTop: 12 }}>
           <img src={qr} alt="QR" style={{ maxWidth: 280, width: '100%', borderRadius: 8 }} />
-        </p>
+          {!isEwallet ? (
+            <QrPayOpenBank
+              className="mt-3"
+              qrUrl={qr}
+              amount={required}
+              description={ref}
+              locale={locale}
+            />
+          ) : null}
+        </div>
       ) : null}
       <p style={{ marginTop: 16 }}>
         <a href={chatPath} className="pw-shop-btn">
