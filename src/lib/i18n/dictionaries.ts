@@ -3091,6 +3091,36 @@ export type Dictionary = {
     alreadyJoined: string
     invalidCode: string
     created: string
+    /** `{name}` = tên lớp đã có ở trường */
+    classNameTaken: string
+    classNameTakenHint: string
+    classNameTakenOpen: string
+    classNameTakenTryOther: string
+    enterClassLead: string
+    enterClassPickClass: string
+    enterClassPickClassPlaceholder: string
+    enterClassSelectPlaceholder: string
+    enterClassSearchPlaceholder: string
+    enterClassSelected: string
+    enterClassSearching: string
+    enterClassTypeOwnPlaceholder: string
+    enterClassNewNamePlaceholder: string
+    enterClassListEmpty: string
+    enterClassExistingClasses: string
+    enterClassSubject: string
+    enterClassAddSubject: string
+    enterClassAddSubjectPlaceholder: string
+    enterClassAddSubjectSave: string
+    enterClassAddSubjectSaving: string
+    enterClassAddSubjectFailed: string
+    enterClassAddSubjectExisting: string
+    enterClassSubmit: string
+    enterClassCreated: string
+    enterClassAttached: string
+    enterClassAlready: string
+    enterClassFailed: string
+    classSubjectsTitle: string
+    classSubjectsEmpty: string
     backToList: string
     /** Chỉ mobile: mở /tao-bai-thi (cùng trang tạo bài thi trực tuyến) */
     mobileCreateExam: string
@@ -3129,6 +3159,7 @@ export type Dictionary = {
     saveClassName: string
     cancelAction: string
     renameClassFailed: string
+    renameClassHasStudents: string
     renameClassSuccess: string
     examSubmissions: string
     noExamSubmissions: string
@@ -3392,6 +3423,7 @@ export type Dictionary = {
     deleteClassConfirmDescription: string
     deleteClassConfirmAction: string
     deleteClassFailed: string
+    deleteClassHasStudents: string
     deleteClassSuccess: string
     deleteClassDeleting: string
     deleteClassConfirmTypeHint: string
@@ -3886,6 +3918,7 @@ export type Dictionary = {
     uploadLabel: string
     choosePhoto: string
     chooseFrame: string
+    dragPlace: string
     frameSizeLabel: string
     changePhoto: string
     coverPhotoZoomOut: string
@@ -3940,6 +3973,13 @@ export type Dictionary = {
     buttonColorPink: string
     buttonColorBlack: string
     buttonColorCream: string
+    heroLayoutLabel: string
+    heroLayoutHint: string
+    heroLayoutSingle: string
+    heroLayoutSingleHint: string
+    heroLayoutStack: string
+    heroLayoutStackHint: string
+    heroLayoutStackPhotoHint: string
   }
   weddingCardPublic: {
     invitation: string
@@ -7514,6 +7554,35 @@ export const VI_DICTIONARY: Dictionary = {
     alreadyJoined: 'Bạn đã trong lớp này',
     invalidCode: 'Mã không hợp lệ',
     created: 'Đã tạo',
+    classNameTaken: 'Trường này đã có lớp {name}. Không tạo thêm lớp trùng.',
+    classNameTakenHint: 'Hãy thêm người vào lớp đã có bằng mã tham gia. Không tạo lớp mới.',
+    classNameTakenOpen: 'Mở lớp đã có',
+    classNameTakenTryOther: 'Nhập tên lớp khác',
+    enterClassLead: 'Chọn trường, lớp, rồi môn bạn dạy. Lớp chưa có thì tạo mới. Lớp đã có thì môn của bạn gắn vào lớp đó, học sinh dùng chung.',
+    enterClassPickClass: 'Lớp',
+    enterClassPickClassPlaceholder: 'Chọn lớp có sẵn hoặc gõ tên lớp mới',
+    enterClassSelectPlaceholder: 'Chọn lớp',
+    enterClassSearchPlaceholder: 'Gõ tên lớp để tìm…',
+    enterClassSelected: 'Lớp đã chọn',
+    enterClassSearching: 'Đang tìm lớp…',
+    enterClassTypeOwnPlaceholder: 'Tự điền tên lớp',
+    enterClassNewNamePlaceholder: 'Tên lớp mới, ví dụ 12A6',
+    enterClassListEmpty: 'Trường này chưa có lớp.',
+    enterClassExistingClasses: 'Lớp đã có ở trường này',
+    enterClassSubject: 'Môn dạy',
+    enterClassAddSubject: 'Thêm môn',
+    enterClassAddSubjectPlaceholder: 'Gõ tên môn, ví dụ Giáo dục quốc phòng',
+    enterClassAddSubjectSave: 'Tự điền',
+    enterClassAddSubjectSaving: 'Đang lưu…',
+    enterClassAddSubjectFailed: 'Không thêm được môn. Thử lại.',
+    enterClassAddSubjectExisting: 'Môn đã có — bấm để chọn',
+    enterClassSubmit: 'Vào lớp',
+    enterClassCreated: 'Đã tạo lớp và gắn môn của bạn.',
+    enterClassFailed: 'Không vào được lớp. Thử lại.',
+    enterClassAttached: 'Đã gắn môn của bạn vào lớp có sẵn. Học sinh trong lớp dùng chung cho môn này.',
+    enterClassAlready: 'Bạn đã dạy môn này ở lớp đó.',
+    classSubjectsTitle: 'Môn trong lớp',
+    classSubjectsEmpty: 'Chưa có môn nào trong lớp.',
     backToList: 'Về danh sách',
     mobileCreateExam: 'Tạo bài thi',
     mobileCreateHomework: 'Tạo bài tập về nhà',
@@ -7546,6 +7615,7 @@ export const VI_DICTIONARY: Dictionary = {
     saveClassName: 'Lưu tên lớp',
     cancelAction: 'Hủy',
     renameClassFailed: 'Đổi tên lớp thất bại.',
+    renameClassHasStudents: 'Lớp đã có học sinh, không đổi tên được.',
     renameClassSuccess: 'Đã đổi tên lớp.',
     examSubmissions: 'Bài nộp từ đề thi',
     noExamSubmissions: 'Chưa có bài nộp đề thi nào.',
@@ -7769,6 +7839,7 @@ export const VI_DICTIONARY: Dictionary = {
       'Không thể hoàn tác. Thành viên, phiếu đã gán và bài nộp của lớp sẽ bị xóa. Phiếu bài tập gốc trong giáo trình vẫn được giữ.',
     deleteClassConfirmAction: 'Xóa vĩnh viễn',
     deleteClassFailed: 'Không xóa được lớp.',
+    deleteClassHasStudents: 'Lớp đã có học sinh, không xóa được.',
     deleteClassSuccess: 'Đã xóa lớp.',
     deleteClassDeleting: 'Đang xóa…',
     deleteClassConfirmTypeHint: 'Nhập chính xác cụm sau để xác nhận (không phân biệt chữ hoa/thường):',
@@ -8266,6 +8337,7 @@ export const VI_DICTIONARY: Dictionary = {
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     choosePhoto: 'Chọn ảnh',
     chooseFrame: 'Chọn khung',
+    dragPlace: 'Kéo',
     frameSizeLabel: 'Cỡ khung',
     changePhoto: 'Đổi ảnh',
     coverPhotoZoomOut: 'Thu nhỏ',
@@ -8320,6 +8392,13 @@ export const VI_DICTIONARY: Dictionary = {
     buttonColorPink: 'Hồng',
     buttonColorBlack: 'Đen',
     buttonColorCream: 'Vàng kem',
+    heroLayoutLabel: 'Bố cục ảnh',
+    heroLayoutHint: 'Một khung là kiểu đang có. Hai khung chồng đưa hai ảnh lên trên, tên ở dưới.',
+    heroLayoutSingle: 'Một khung',
+    heroLayoutSingleHint: 'Một ảnh trong khung. Chân dung hai người đứng ngang phía dưới.',
+    heroLayoutStack: 'Hai khung chồng',
+    heroLayoutStackHint: 'Hai ảnh chồng nhẹ, hơi nghiêng, tên nằm dưới.',
+    heroLayoutStackPhotoHint: 'Hai ảnh dùng ảnh chú rể và cô dâu. Nút Chọn khung gắn cùng một khung cho cả hai.',
   },
   weddingCardPublic: {
     invitation: 'Thiệp mời / Invitation',

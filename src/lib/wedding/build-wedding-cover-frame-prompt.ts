@@ -11,6 +11,18 @@ const OPENING_PROMPT: Record<WeddingCoverFrameOpening, string> = {
   rounded: 'The empty center opening must be a large vertical rounded rectangle with soft corners, centered. The wreath follows that rectangle.',
 }
 
+function frameOrnamentLine(styleLabel: string, hasReference: boolean): string {
+  if (hasReference) return ''
+  const label = styleLabel.trim().toLowerCase()
+  if (label === 'ethereal') {
+    return 'The ring uses only a few artistic strokes: one flowering branch and a few leaves that still close the opening. Not a dense filigree wreath.'
+  }
+  if (label === 'floral') {
+    return 'The ring is an intricate but graceful wreath of peony, lotus, cherry blossom, rose, and fine gold line. Dense yet airy, elegant, never cartoon.'
+  }
+  return ''
+}
+
 export function readWeddingCoverFrameOpening(value: unknown): WeddingCoverFrameOpening {
   const id = String(value ?? '').trim()
   return (WEDDING_COVER_FRAME_OPENINGS as readonly string[]).includes(id) ? (id as WeddingCoverFrameOpening) : 'ellipse'
@@ -32,6 +44,7 @@ export function buildWeddingCoverFramePrompt(input: {
       ? ''
       : `Style: ${input.styleLabel}. Palette accents: ${input.palette || 'ivory, gold, rose'}.`,
     'The logo mark is only the decorative ring — flowers, leaves, and fine linework forming one closed wreath.',
+    frameOrnamentLine(input.styleLabel, Boolean(input.hasReference)),
     OPENING_PROMPT[opening],
     input.hasReference
       ? 'REFERENCE IMAGE (attached, often the invitation background): match its palette, floral species, metal, and lighting so this wreath belongs on that background. Invent a NEW wreath. Keep the flat #F4F1EA canvas and the opening shape requested above. Do not copy the background layout or any readable text.'

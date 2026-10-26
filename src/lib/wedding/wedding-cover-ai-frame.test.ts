@@ -158,7 +158,7 @@ test('frame size stays per photo and defaults to the original size', () => {
   assert.equal(resolvePortraitFrameScale(parsed, 'bride'), 1)
   assert.equal(JSON.parse(saved).bridePortraitFrameScale, undefined)
   const clamped = mergeWeddingSectionConfig(saved, { coverFrameScale: 9 })
-  assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig(clamped)), 1.4)
+  assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig(clamped)), 1.8)
 })
 
 test('bride and groom portraits keep their own frame choice', () => {

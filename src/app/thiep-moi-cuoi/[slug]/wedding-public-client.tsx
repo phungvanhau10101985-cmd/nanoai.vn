@@ -28,6 +28,7 @@ import {
   applyInvitationGiftCopy,
   applyInvitationMusicCopy,
   applyInvitationOccasionPublicCopy,
+  invitationOccasionShape,
   invitationSeal,
 } from '@/lib/wedding/invitation-occasion'
 import { WeddingInvitationShareActions } from '@/components/wedding/wedding-invitation-share-actions'
@@ -58,6 +59,8 @@ import {
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
   resolvePortraitShell,
+  resolveStackPlace,
+  readHeroPhotoLayout,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingCoverShellCard } from '@/components/wedding/wedding-cover-shell-card'
 import { WeddingInvitationMotion } from '@/components/wedding/wedding-invitation-motion'
@@ -66,6 +69,7 @@ import { WeddingPartyCountFields } from '@/components/wedding/wedding-party-coun
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
+import { WeddingStackedCouplePhotos } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingWishPresetPicker } from '@/components/wedding/wedding-wish-preset-picker'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CLASS } from '@/components/wedding/wedding-guest-name-font'
@@ -188,6 +192,8 @@ export default function WeddingPublicClient({
   )
   const buttonFill = useMemo(() => bindWeddingButtonFill(buttonColor), [buttonColor])
   const rsvpFill = useMemo(() => bindWeddingButtonFill(coverRsvpColor), [coverRsvpColor])
+  const heroStack =
+    invitationOccasionShape(card.occasionKey) === 'couple' && readHeroPhotoLayout(sectionConfig.heroPhotoLayout) === 'stack'
   const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
   const coverFrameMode = useMemo(() => resolveCoverFrameMode(sectionConfig), [sectionConfig])
@@ -824,6 +830,23 @@ export default function WeddingPublicClient({
                     openButtonLabel={tx.openInvitation}
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
+                    stackPair={
+                      heroStack
+                        ? {
+                            firstUrl: card.groomImageUrl,
+                            secondUrl: card.brideImageUrl,
+                            firstAlt: tx.groomRole,
+                            secondAlt: tx.brideRole,
+                            firstFrame: resolvePortraitPhotoFrame(sectionConfig, 'groom'),
+                            secondFrame: resolvePortraitPhotoFrame(sectionConfig, 'bride'),
+                            firstCaption: tx.groomRole,
+                            secondCaption: tx.brideRole,
+                            frameScale: resolvePortraitFrameScale(sectionConfig, 'groom'),
+                            frameShell: resolvePortraitShell(sectionConfig, 'groom') ?? resolvePortraitShell(sectionConfig, 'bride'),
+                            place: resolveStackPlace(sectionConfig),
+                          }
+                        : undefined
+                    }
                     buttonColor={buttonColor}
                     rsvpButtonColor={coverRsvpColor}
                     quickRsvp={
@@ -871,6 +894,26 @@ export default function WeddingPublicClient({
         >
           <WeddingReadableGlass className="w-full max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6 md:p-10">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
+            {heroStack ? (
+              <WeddingStackedCouplePhotos
+                firstUrl={card.groomImageUrl}
+                secondUrl={card.brideImageUrl}
+                firstAlt={tx.groomRole}
+                secondAlt={tx.brideRole}
+                firstFrame={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
+                secondFrame={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
+                firstName={card.groomName}
+                secondName={card.brideName}
+                firstCaption={tx.groomRole}
+                secondCaption={tx.brideRole}
+                frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
+                frameShell={resolvePortraitShell(sectionConfig, 'groom') ?? resolvePortraitShell(sectionConfig, 'bride')}
+                place={resolveStackPlace(sectionConfig)}
+                nameClassName={cn(theme.text, theme.textGlowHeading)}
+                className={cn('mt-1', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}
+              />
+            ) : null}
+            {heroStack ? null : (
             <WeddingCoupleNames
               groomName={card.groomName}
               brideName={card.brideName}
@@ -878,6 +921,7 @@ export default function WeddingPublicClient({
               pace="opened"
               className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.text, theme.textGlowHeading)}
             />
+            )}
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
             <div>
             {withoutPartyAddress(card.loveQuote) && (
@@ -885,7 +929,7 @@ export default function WeddingPublicClient({
                 “{writeGuestName(personalize(withoutPartyAddress(card.loveQuote)))}”
               </p>
             )}
-            {coverFrameMode === 'none' && !displayCoverPhotoUrl ? null : (
+            {heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl) ? null : (
               <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[32rem]' : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
                 <WeddingCoverShellCard
                   frameOnly
@@ -1030,7 +1074,7 @@ export default function WeddingPublicClient({
               </div>
             </WeddingReadableGlass>
             ) : null}
-            {(card.groomImageUrl.trim() || card.brideImageUrl.trim()) ? (
+            {!heroStack && (card.groomImageUrl.trim() || card.brideImageUrl.trim()) ? (
               <WeddingReadableGlass reveal className="rounded-[1.75rem] px-4 py-5 text-center sm:rounded-[2rem] sm:px-6 sm:py-7">
                 <WeddingCouplePortraits
                   groomName={card.groomName}

@@ -1,5 +1,6 @@
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
+import { teacherHasClassSubjectPg } from '@/lib/db/classes-pg'
 import { parseExamGradingMeta, type ExamGradingMeta } from '@/lib/exam-feedback'
 
 export type GradebookColumn =
@@ -78,7 +79,10 @@ export async function fetchClassGradebookData(
       [classId]
     )
     if (!cls) return { ok: false, error: 'not_found' }
-    if (cls.teacher_id !== teacherUserId) return { ok: false, error: 'forbidden' }
+    if (cls.teacher_id !== teacherUserId) {
+      const teaches = await teacherHasClassSubjectPg(classId, teacherUserId)
+      if (teaches !== true) return { ok: false, error: 'forbidden' }
+    }
 
     const memberRows = await pgQuery<{
       user_id: string

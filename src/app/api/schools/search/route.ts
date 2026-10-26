@@ -10,8 +10,6 @@ import {
   upsertTeacherDefaultSchool,
   voteSchoolName,
 } from '@/lib/db/schools-repo'
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import { GEMINI_25_FLASH_TEXT_NO_THINKING } from '@/lib/gemini-config'
 import {
   buildDeepSeekCompletionBody,
   DEEPSEEK_CHAT_COMPLETIONS_URL,
@@ -25,7 +23,7 @@ import {
   schoolSuggestionContainsQuery,
   toSearchTokens,
 } from '@/lib/school-name'
-import { trackFromUsageMetadata, trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
+import { trackOpenAiStyleCompletionUsage } from '@/lib/track-ai-usage'
 
 function parseSuggestedSchools(raw: string): string[] {
   const cleaned = raw.replace(/```json/gi, '').replace(/```/g, '').trim()
@@ -179,37 +177,51 @@ async function listMatchingSchools(
   return listed
 }
 
-async function canonicalizeSchoolNameByAi(input: string, userId?: string | null): Promise<string | null> {
-  const apiKey = process.env.GOOGLE_API_KEY
-  if (!apiKey) return null
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel(GEMINI_25_FLASH_TEXT_NO_THINKING)
-  const prompt = `Chuẩn hoá tên trường học tại Việt Nam từ chuỗi giáo viên nhập.
-Trả về đúng JSON một dòng:
-{"schoolName":"..."}
-
-Yêu cầu:
-- Giữ tên trường tự nhiên, dễ đọc, viết hoa đúng.
-- Nếu input không đủ thông tin, vẫn trả về phiên bản sạch nhất có thể.
-- Không thêm mô tả, chỉ JSON.
-
+/** Deepseek đưa tên trường về một cách viết dùng chung. Không đổi cấp và không thêm địa danh. */
+async function canonicalizeSchoolNameByDeepseek(input: string, userId?: string | null): Promise<string | null> {
+  const key = process.env.DEEPSEEK_API_KEY?.trim()
+  if (!key) return null
+  const model = resolveDeepSeekChatModel()
+  const prompt = `Chuẩn hoá tên trường học tại Việt Nam từ chuỗi giáo viên nhập, để nhiều người cùng dùng một tên.
+Trả về đúng JSON một dòng: {"schoolName":"..."}
+- Viết hoa tên riêng. Thêm "Trường" nếu thiếu.
+- Giữ đúng cấp giáo viên đã gõ (Tiểu học, THCS, THPT, Đại học). Không tự đổi sang cấp khác và không thêm địa danh họ không gõ.
+- Không giải thích.
 Input: ${input}`
   try {
-    const result = await model.generateContent(prompt)
-    void trackFromUsageMetadata(
-      result.response.usageMetadata,
-      GEMINI_25_FLASH_TEXT_NO_THINKING.model,
-      'schools-search-canonicalize-gemini-flash',
-      userId ?? null,
-      null
-    )
-    const raw = (result.response.text?.() || '').trim()
-    const cleaned = raw
-      .replace(/^```json\s*/i, '')
-      .replace(/^```/i, '')
-      .replace(/```$/i, '')
-      .trim()
-    const parsed = JSON.parse(cleaned) as { schoolName?: unknown }
+    const res = await fetch(DEEPSEEK_CHAT_COMPLETIONS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(
+        buildDeepSeekCompletionBody('chat', {
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 200,
+          temperature: 0,
+        })
+      ),
+      signal: AbortSignal.timeout(20000),
+    })
+    const json = (await res.json()) as {
+      choices?: { message?: { content?: string } }[]
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
+    }
+    const text = String(json.choices?.[0]?.message?.content ?? '')
+    trackOpenAiStyleCompletionUsage({
+      userId: userId ?? null,
+      model,
+      feature: 'schools-search-canonicalize-deepseek',
+      usage: json.usage,
+      fallbackPromptChars: prompt.length,
+      fallbackOutputChars: text.length,
+    })
+    if (!res.ok) return null
+    const start = text.indexOf('{')
+    const end = text.lastIndexOf('}')
+    if (start < 0 || end <= start) return null
+    const parsed = JSON.parse(text.slice(start, end + 1)) as { schoolName?: unknown }
     const label = ensureSchoolPrefix(String(parsed?.schoolName ?? ''))
     if (!label || label.length < 3) return null
     return label
@@ -240,7 +252,7 @@ export async function GET(req: NextRequest) {
   let aiSuggestedName: string | null = null
   let aiMatchedExisting: { id: string; name: string } | null = null
   if (useAi && !existsExact && q.length >= 4) {
-    aiSuggestedName = await canonicalizeSchoolNameByAi(q, auth.user?.id ?? null)
+    aiSuggestedName = await canonicalizeSchoolNameByDeepseek(q, auth.user?.id ?? null)
     if (aiSuggestedName) {
       const aiNorm = normalizeSchoolName(aiSuggestedName)
       const exactByAi = await findSchoolByNormalizedName(aiNorm)
@@ -324,7 +336,6 @@ export async function POST(req: NextRequest) {
   }
 
   const name = String(body?.name ?? '').trim()
-  const useAi = Boolean(body?.useAi ?? false)
   const siblingNames = Array.isArray(body?.siblingNames)
     ? (body.siblingNames as unknown[]).map((item) => String(item ?? '').trim()).filter((item) => item.length >= 3)
     : []
@@ -333,7 +344,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Tên trường quá ngắn.' }, { status: 400 })
   }
 
-  const canonicalName = ensureSchoolPrefix(useAi ? (await canonicalizeSchoolNameByAi(name, user.id)) || name : name)
+  const canonicalName = ensureSchoolPrefix((await canonicalizeSchoolNameByDeepseek(name, user.id)) || name)
   const normalized = normalizeSchoolName(canonicalName)
   if (!normalized) return NextResponse.json({ error: 'Tên trường không hợp lệ.' }, { status: 400 })
 

@@ -30,32 +30,41 @@ test('picker without history keeps the catalog order', () => {
   )
 })
 
-test('recent packaging features lead, unused unrelated groups stay below', () => {
+test('recent packaging features lead, siblings sit below unused features', () => {
   const bag = studioFeatureKey('bag_kit')
   const box = studioFeatureKey('packaging_kit')
+  const menu = studioFeatureKey('food_menu')
+  const shop = studioFeatureKey('mobile_shop')
+  const language = toolFeatureKey('/hoc-tieng-anh-ai')
   const ranked = rankHubFeaturePickerGroups(groups, [bag, box])
   const flat = keysOf(ranked)
   assert.equal(new Set(flat).size, flat.length)
   assert.equal(flat.length, keysOf(groups).length)
-  assert.deepEqual(ranked[0]?.entries.map((entry) => entry.key).slice(0, 2), [bag, box])
+  assert.deepEqual(ranked[0]?.entries.map((entry) => entry.key), [bag, box])
   assert.equal(ranked[0]?.groupKey, 'studio_inline')
-  assert.ok(ranked[0]!.entries.some((entry) => entry.key === studioFeatureKey('food_menu')))
   assert.equal(ranked[1]?.groupKey, 'try_on')
-  assert.ok(flat.indexOf(toolFeatureKey('/hoc-tieng-anh-ai')) > flat.indexOf(bag))
+  assert.ok(flat.indexOf(language) > flat.indexOf(bag))
+  assert.ok(flat.indexOf(menu) > flat.indexOf(language))
+  assert.deepEqual(ranked[ranked.length - 1]?.entries.map((entry) => entry.key), [shop, menu])
 })
 
-test('homework rises with tutor and class; unrelated education tools stay in a lower group', () => {
+test('homework stays above unused tools; tutor and class sit below them', () => {
   const homework = toolFeatureKey('/ho-tro-lam-bai')
   const tutor = toolFeatureKey('/gia-su-ai')
   const classes = toolFeatureKey('/lop')
   const language = toolFeatureKey('/hoc-tieng-anh-ai')
   const ranked = rankHubFeaturePickerGroups(groups, [homework])
-  assert.deepEqual(ranked[0]?.entries.map((entry) => entry.key), [homework, tutor, classes])
+  const flat = keysOf(ranked)
+  assert.deepEqual(ranked[0]?.entries.map((entry) => entry.key), [homework])
   assert.equal(ranked[0]?.groupKey, 'education')
   const laterEducation = ranked.slice(1).find((group) => group.groupKey === 'education')
   assert.ok(laterEducation?.entries.some((entry) => entry.key === language))
   assert.equal(laterEducation?.entries.some((entry) => entry.key === homework), false)
+  assert.equal(laterEducation?.entries.some((entry) => entry.key === tutor), false)
   assert.equal(ranked[1]?.groupKey, 'studio_inline')
+  assert.deepEqual(ranked[ranked.length - 1]?.entries.map((entry) => entry.key), [tutor, classes])
+  assert.ok(flat.indexOf(language) < flat.indexOf(tutor))
+  assert.ok(flat.indexOf(tutor) < flat.indexOf(classes))
 })
 
 test('a used design tool does not pull the whole design group up', () => {
@@ -79,13 +88,18 @@ test('an older tool in a large group stays below a newer feature from another gr
   assert.equal(ranked.find((group) => group.entries.some((entry) => entry.key === story))?.entries.length, 1)
 })
 
-test('using one try-on count brings the small try-on family up with it', () => {
+test('using one try-on count keeps that chip on top and the rest of the family below unused tools', () => {
   const first = toolFeatureKey('/thu-do-online/1-nguoi')
   const ranked = rankHubFeaturePickerGroups(groups, [first])
+  const tryOnGroups = ranked.filter((group) => group.groupKey === 'try_on')
   assert.equal(ranked[0]?.groupKey, 'try_on')
-  assert.equal(ranked[0]?.entries[0]?.key, first)
-  assert.equal(ranked[0]?.entries.length, 5)
-  assert.equal(ranked.slice(1).some((group) => group.groupKey === 'try_on'), false)
+  assert.deepEqual(ranked[0]?.entries.map((entry) => entry.key), [first])
+  assert.equal(tryOnGroups.length, 2)
+  assert.equal(tryOnGroups[1]?.entries.length, 4)
+  assert.equal(tryOnGroups[1]?.entries.some((entry) => entry.key === first), false)
+  const between = ranked.slice(1, ranked.indexOf(tryOnGroups[1]!))
+  assert.equal(between.some((group) => group.groupKey === 'try_on'), false)
+  assert.ok(between.length > 0)
 })
 
 test('retired studio presets fall back to the standalone tool that replaced them', () => {

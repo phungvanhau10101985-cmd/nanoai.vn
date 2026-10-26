@@ -22,6 +22,7 @@ import { CurriculumExerciseListDialog } from './components/curriculum-exercise-l
 import type { AISlideData } from './lib/curriculum-to-slides'
 import type { SlideInfographic } from './lib/slide-infographic'
 import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS, TEXTBOOK_SETS } from './lib/curriculum-subjects'
+import ClassSubjectField from '../lop/class-subject-field'
 import { parseCurriculumLessonNumber, formatCurriculumLessonNoDisplay } from './lib/curriculum-input-normalize'
 import { isValidBookIsbn, normalizeBookIsbn } from './lib/book-isbn'
 import { createCurriculum, saveCurriculum, saveTextbookLessonFromImage, listCurricula, getCurriculumById, getWorksheetById, getWorksheetsByCurriculumId, deleteCurriculum, saveSlidesToCurriculum, checkCurriculumExists, recordCurriculumOpen, clearCurriculumDerivedData, saveWorksheetContent } from './actions'
@@ -3948,7 +3949,7 @@ export default function TaoGiaoTrinhClientPage({
                         className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs min-w-[120px]"
                       >
                         <option value="">{tr('Tất cả', 'All', '全部', 'すべて', '전체')}</option>
-                        {SUBJECTS.map((s) => (
+                        {SUBJECTS.filter((s) => s.id !== 'khac').map((s) => (
                           <option key={s.id} value={s.id}>
                             {uiLocale === 'en' ? s.labelEn : s.labelVi}
                           </option>
@@ -4181,18 +4182,13 @@ export default function TaoGiaoTrinhClientPage({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Môn học', 'Subject', '科目', '科目', '과목')} <span className="text-red-500">*</span></label>
-                  <select
+                  <ClassSubjectField
+                    id="curriculum-subject"
+                    t={tcClasses}
+                    locale={uiLocale}
                     value={subjectId}
-                    onChange={(e) => setSubjectId(e.target.value)}
-                    className={cn('w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm', createFieldErrorClass('subject'))}
-                  >
-                    <option value="">{tr('Chọn môn học', 'Select subject', '选择科目', '科目を選択', '과목 선택')}</option>
-                    {SUBJECTS.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {uiLocale === 'en' ? s.labelEn : s.labelVi}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSubjectId}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tr('Cấp độ', 'Grade level', '年级', '学年', '학년')} <span className="text-red-500">*</span></label>

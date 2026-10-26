@@ -1390,13 +1390,23 @@ export function HomeHubChatBar() {
     [busy, fetchFullPlan, fetchThreadList, hc, loadThread, router, studioSession, threadId, toast, uiLocale, editingStepKey]
   )
 
-  const beginFeatureInNewThread = useCallback(
-    async (featureKey: string) => {
-      startNewThread()
-      studioLaunchStartedRef.current = true
-      await postStudio({ action: 'select_feature', featureKey, forceNewThread: true })
+  const openCatalogFeature = useCallback(
+    (featureKey: string, mode: 'current' | 'new_thread') => {
+      setPickerRecentKeys(rememberHubPickerFeature(featureKey))
+      const entry = getHubFeatureCatalogEntry(uiLocale, featureKey)
+      if (entry?.kind === 'standalone' && entry.href) {
+        router.push(entry.href)
+        return
+      }
+      if (mode === 'new_thread') {
+        startNewThread()
+        studioLaunchStartedRef.current = true
+        void postStudio({ action: 'select_feature', featureKey, forceNewThread: true })
+        return
+      }
+      void postStudio({ action: 'select_feature', featureKey })
     },
-    [postStudio, startNewThread]
+    [postStudio, router, startNewThread, uiLocale]
   )
 
   const postGenerationProductUpload = useCallback(
@@ -4515,7 +4525,7 @@ export function HomeHubChatBar() {
                       key={entry.key}
                       type="button"
                       disabled={busy}
-                      onClick={() => void beginFeatureInNewThread(entry.key)}
+                      onClick={() => openCatalogFeature(entry.key, 'new_thread')}
                       className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-900 transition-colors hover:border-emerald-400 disabled:opacity-50 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100"
                     >
                       {entry.label}
@@ -4539,10 +4549,7 @@ export function HomeHubChatBar() {
                       key={entry.key}
                       type="button"
                       disabled={busy}
-                      onClick={() => {
-                        setPickerRecentKeys(rememberHubPickerFeature(entry.key))
-                        void postStudio({ action: 'select_feature', featureKey: entry.key })
-                      }}
+                      onClick={() => openCatalogFeature(entry.key, 'current')}
                       className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-xs text-violet-800 transition-colors hover:border-violet-400 disabled:opacity-50 dark:border-violet-800 dark:bg-violet-950/40 dark:text-violet-200"
                     >
                       {entry.label}

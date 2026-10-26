@@ -104,7 +104,6 @@ export async function savePickedSchool(input: {
       name: input.name,
       siblingNames: input.siblingNames ?? [],
       query: input.query,
-      useAi: false,
       setAsDefault: input.setAsDefault,
     }),
   })

@@ -123,6 +123,7 @@ const STYLE_FALLBACK: Record<string, WeddingButtonColorId> = {
   vintage: 'bronze',
   traditional_vietnamese: 'red',
   floral: 'pink',
+  ethereal: 'chocolate',
   minimal: 'black',
   modern: 'cream',
 }

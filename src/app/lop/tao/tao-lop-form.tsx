@@ -14,6 +14,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<{ classId: string; joinCode: string } | null>(null)
+  const [taken, setTaken] = useState<{ classId: string; name: string; joinCode: string } | null>(null)
   const [schoolSearch, setSchoolSearch] = useState('')
   const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false)
   const {
@@ -131,6 +132,7 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (loading) return
     if (!name.trim()) return
     if (!selectedSchoolId) {
       toast({ variant: 'destructive', description: t.createClassSchoolRequired })
@@ -144,6 +146,14 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     formData.set('teacherDisplayName', teacherFacing.trim())
     const res = await createClass(formData)
     setLoading(false)
+    if ('code' in res && res.code === 'class_exists' && res.existing) {
+      setTaken({
+        classId: res.existing.classId,
+        name: res.existing.name,
+        joinCode: res.existing.joinCode,
+      })
+      return
+    }
     if (res.error) {
       toast({ variant: 'destructive', description: res.error })
       return
@@ -158,6 +168,46 @@ export default function TaoLopForm({ t }: { t: Dictionary['classes'] }) {
     if (!result?.joinCode) return
     navigator.clipboard.writeText(result.joinCode)
     toast({ description: t.copied })
+  }
+
+  if (taken) {
+    return (
+      <>
+        <Toaster />
+        <div className="rounded-xl border border-input bg-card p-6 space-y-4">
+          <p className="text-sm text-foreground leading-relaxed">
+            {t.classNameTaken.replaceAll('{name}', taken.name)}
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">{t.classNameTakenHint}</p>
+          <div>
+            <label className="text-sm font-medium text-muted-foreground">{t.joinCode}</label>
+            <div className="mt-2 flex items-center gap-2">
+              <code className="flex-1 px-3 py-2 rounded-lg bg-muted font-mono text-lg tracking-wider">
+                {taken.joinCode}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(taken.joinCode)
+                  toast({ description: t.copied })
+                }}
+              >
+                {t.copyCode}
+              </Button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-2">
+            <Button asChild>
+              <a href={`/lop/${taken.classId}`}>{t.classNameTakenOpen}</a>
+            </Button>
+            <Button variant="outline" type="button" onClick={() => setTaken(null)}>
+              {t.classNameTakenTryOther}
+            </Button>
+          </div>
+        </div>
+      </>
+    )
   }
 
   if (result) {

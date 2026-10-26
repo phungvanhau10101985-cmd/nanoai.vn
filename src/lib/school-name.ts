@@ -58,16 +58,20 @@ export function shouldSuggestMoreSchools(names: string[], query: string): boolea
   return true
 }
 
-/** Đủ 7 giáo viên chọn một tên thì giữ tên đó và bỏ tên kia. */
+/** Đủ 7 giáo viên chọn một tên trường thì giữ tên đó và bỏ tên kia. */
 export const SCHOOL_NAME_VOTE_THRESHOLD = 7
+
+/** Đủ 5 người chọn một tên lớp hoặc tên môn thì giữ tên đó và bỏ tên kia. */
+export const CLASS_SUBJECT_NAME_VOTE_THRESHOLD = 5
 
 export function resolveSchoolNameVote(
   originalVotes: number,
   editedVotes: number,
-  justChose: 'original' | 'edited'
+  justChose: 'original' | 'edited',
+  threshold = SCHOOL_NAME_VOTE_THRESHOLD
 ): 'original' | 'edited' | null {
-  if (justChose === 'original' && originalVotes >= SCHOOL_NAME_VOTE_THRESHOLD) return 'original'
-  if (justChose === 'edited' && editedVotes >= SCHOOL_NAME_VOTE_THRESHOLD) return 'edited'
+  if (justChose === 'original' && originalVotes >= threshold) return 'original'
+  if (justChose === 'edited' && editedVotes >= threshold) return 'edited'
   return null
 }
 

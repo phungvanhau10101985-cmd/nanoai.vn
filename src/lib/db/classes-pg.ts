@@ -1,4 +1,4 @@
-import { isPgConfigured } from '@/lib/db/pool'
+import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
 
 export type ClassJoinPreviewPgRow = {
@@ -24,17 +24,36 @@ export async function fetchClassTeacherIdFromPg(classId: string): Promise<string
   }
 }
 
-/**
- * Đổi tên lớp khi đúng `teacher_id`. Trả `true` nếu có dòng được cập nhật;
- * `null` khi không dùng PG hoặc lỗi — caller xử lý khi không có PG.
- */
+/** Có học sinh đã tham gia (không tính giáo viên chủ lớp). `null` = lỗi DB. */
+export async function classHasStudentsPg(classId: string): Promise<boolean | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      `select 1 as ok
+       from public.class_members m
+       join public.classes c on c.id = m.class_id
+       where m.class_id = $1::uuid
+         and m.user_id <> c.teacher_id
+       limit 1`,
+      [classId]
+    )
+    return row != null
+  } catch (e) {
+    console.error('[classes-pg] classHasStudentsPg', e)
+    return null
+  }
+}
+
 export async function updateClassNameForTeacherPg(
   classId: string,
   teacherUserId: string,
   name: string
-): Promise<boolean | null> {
+): Promise<boolean | 'has_students' | null> {
   if (!isPgConfigured()) return null
   try {
+    const hasStudents = await classHasStudentsPg(classId)
+    if (hasStudents === null) return null
+    if (hasStudents) return 'has_students'
     const row = await pgQueryOne<{ id: string }>(
       `update public.classes
        set name = $3
@@ -91,18 +110,8 @@ export type ClassMineListRow = {
 
 export async function fetchClassesMineListForTeacherPg(teacherId: string): Promise<ClassMineListRow[] | null> {
   if (!isPgConfigured()) return null
-  try {
-    const rows = await pgQuery<Record<string, unknown>>(
-      `select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id, c.subject_label,
-              c.teacher_display_name, c.created_at::text, sch.name as school_name
-       from public.classes c
-       left join public.schools sch on sch.id = c.school_id
-       where c.teacher_id = $1::uuid
-       order by c.created_at desc
-       limit 200`,
-      [teacherId]
-    )
-    return rows.map((r) => ({
+  const mapRows = (rows: Record<string, unknown>[]): ClassMineListRow[] =>
+    rows.map((r) => ({
       id: String(r.id),
       name: String(r.name ?? ''),
       join_code: String(r.join_code ?? ''),
@@ -113,9 +122,49 @@ export async function fetchClassesMineListForTeacherPg(teacherId: string): Promi
       created_at: String(r.created_at ?? ''),
       school_name: r.school_name != null ? String(r.school_name) : null,
     }))
+  const select = `select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id,
+              c.subject_label, c.teacher_display_name, c.created_at::text, sch.name as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id`
+  try {
+    const rows = await pgQuery<Record<string, unknown>>(
+      `select c.id::text, c.name, c.join_code, c.school_id::text, c.grade_level_id,
+              coalesce(
+                (
+                  select string_agg(cs.subject_label, ', ' order by cs.created_at)
+                  from public.class_subjects cs
+                  where cs.class_id = c.id and cs.teacher_id = $1::uuid
+                ),
+                c.subject_label
+              ) as subject_label,
+              c.teacher_display_name, c.created_at::text, sch.name as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id
+       where c.teacher_id = $1::uuid
+          or exists (
+            select 1 from public.class_subjects cs
+            where cs.class_id = c.id and cs.teacher_id = $1::uuid
+          )
+       order by c.created_at desc
+       limit 200`,
+      [teacherId]
+    )
+    return mapRows(rows)
   } catch (e) {
     console.error('[classes-pg] fetchClassesMineListForTeacherPg', e)
-    return null
+    try {
+      const rows = await pgQuery<Record<string, unknown>>(
+        `${select}
+         where c.teacher_id = $1::uuid
+         order by c.created_at desc
+         limit 200`,
+        [teacherId]
+      )
+      return mapRows(rows)
+    } catch (fallbackError) {
+      console.error('[classes-pg] fetchClassesMineListForTeacherPg fallback', fallbackError)
+      return null
+    }
   }
 }
 
@@ -199,6 +248,275 @@ export async function fetchTeacherSchoolSettingsPrevMinePg(teacherId: string): P
   }
 }
 
+/** Lớp đã có cùng trường và cùng tên (không phân biệt hoa thường, gộp khoảng trắng). */
+export type ClassNameTakenRow = {
+  id: string
+  name: string
+  join_code: string
+  school_name: string
+}
+
+export type InsertClassMineResult =
+  | { status: 'created'; row: ClassMineListRow }
+  | { status: 'name_taken'; existing: ClassNameTakenRow }
+  | { status: 'failed' }
+
+const CLASS_NAME_KEY_SQL = `lower(btrim(regexp_replace({col}, '\\s+', ' ', 'g')))`
+
+function classNameKeySql(column: string): string {
+  return CLASS_NAME_KEY_SQL.replace('{col}', column)
+}
+
+function mapClassNameTakenRow(row: Record<string, unknown>): ClassNameTakenRow {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    join_code: String(row.join_code ?? ''),
+    school_name: row.school_name != null ? String(row.school_name) : '',
+  }
+}
+
+export async function fetchClassAtSchoolByIdPg(
+  schoolId: string,
+  classId: string
+): Promise<ClassNameTakenRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id
+       where c.school_id = $1::uuid and c.id = $2::uuid
+       limit 1`,
+      [schoolId, classId]
+    )
+    return row ? mapClassNameTakenRow(row) : null
+  } catch (e) {
+    console.error('[classes-pg] fetchClassAtSchoolByIdPg', e)
+    return null
+  }
+}
+
+export async function fetchClassAtSchoolByNamePg(
+  schoolId: string,
+  name: string,
+  exceptClassId?: string
+): Promise<ClassNameTakenRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<Record<string, unknown>>(
+      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id
+       where c.school_id = $1::uuid
+         and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+         and ($3::uuid is null or c.id <> $3::uuid)
+       limit 1`,
+      [schoolId, name, exceptClassId ?? null]
+    )
+    return row ? mapClassNameTakenRow(row) : null
+  } catch (e) {
+    console.error('[classes-pg] fetchClassAtSchoolByNamePg', e)
+    return null
+  }
+}
+
+export type SchoolClassOption = {
+  id: string
+  name: string
+  grade_level_id: string | null
+  choice: 'original' | 'edited' | null
+}
+
+export async function fetchClassesAtSchoolPg(schoolId: string): Promise<SchoolClassOption[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{
+      id: string
+      name: string | null
+      grade_level_id: string | null
+      edited_name: string | null
+    }>(
+      `select c.id::text, c.name, c.grade_level_id, e.edited_name
+       from public.classes c
+       left join public.class_name_edits e on e.class_id = c.id
+       where c.school_id = $1::uuid
+       order by lower(c.name), c.name
+       limit 300`,
+      [schoolId]
+    )
+    const listed: SchoolClassOption[] = []
+    for (const r of rows) {
+      const name = String(r.name ?? '').trim()
+      if (!r.id || !name) continue
+      const editedName = String(r.edited_name ?? '').trim()
+      const grade = r.grade_level_id != null ? String(r.grade_level_id) : null
+      listed.push({ id: String(r.id), name, grade_level_id: grade, choice: editedName ? 'original' : null })
+      if (editedName) {
+        listed.push({ id: String(r.id), name: editedName, grade_level_id: grade, choice: 'edited' })
+      }
+    }
+    return listed
+  } catch (e) {
+    console.error('[classes-pg] fetchClassesAtSchoolPg', e)
+    try {
+      const rows = await pgQuery<{ id: string; name: string | null; grade_level_id: string | null }>(
+        `select id::text, name, grade_level_id
+         from public.classes
+         where school_id = $1::uuid
+         order by lower(name), name
+         limit 300`,
+        [schoolId]
+      )
+      return rows
+        .map((r) => ({
+          id: String(r.id),
+          name: String(r.name ?? '').trim(),
+          grade_level_id: r.grade_level_id != null ? String(r.grade_level_id) : null,
+          choice: null as const,
+        }))
+        .filter((item) => item.id && item.name)
+    } catch (fallbackError) {
+      console.error('[classes-pg] fetchClassesAtSchoolPg fallback', fallbackError)
+      return null
+    }
+  }
+}
+
+export type ClassSubjectRow = {
+  subject_id: string
+  subject_label: string
+  teacher_id: string
+  teacher_display_name: string | null
+}
+
+export async function fetchClassSubjectsPg(classId: string): Promise<ClassSubjectRow[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{
+      subject_id: string
+      subject_label: string | null
+      teacher_id: string
+      teacher_display_name: string | null
+    }>(
+      `select subject_id, subject_label, teacher_id::text, teacher_display_name
+       from public.class_subjects
+       where class_id = $1::uuid
+       order by created_at, subject_label`,
+      [classId]
+    )
+    return rows.map((r) => ({
+      subject_id: String(r.subject_id),
+      subject_label: String(r.subject_label ?? ''),
+      teacher_id: String(r.teacher_id),
+      teacher_display_name: r.teacher_display_name != null ? String(r.teacher_display_name) : null,
+    }))
+  } catch (e) {
+    console.error('[classes-pg] fetchClassSubjectsPg', e)
+    return null
+  }
+}
+
+export async function teacherHasClassSubjectPg(
+  classId: string,
+  teacherId: string
+): Promise<boolean | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ ok: number }>(
+      `select 1 as ok from public.class_subjects
+       where class_id = $1::uuid and teacher_id = $2::uuid
+       limit 1`,
+      [classId, teacherId]
+    )
+    return row != null
+  } catch (e) {
+    console.error('[classes-pg] teacherHasClassSubjectPg', e)
+    return null
+  }
+}
+
+export type TeachingSubjectRow = { id: string; label: string }
+
+export async function fetchTeachingSubjectsPg(): Promise<TeachingSubjectRow[] | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const rows = await pgQuery<{ id: string; label: string | null }>(
+      `select id, label from public.teaching_subjects order by label asc limit 400`
+    )
+    return rows.map((r) => ({ id: String(r.id), label: String(r.label ?? '').trim() })).filter((r) => r.id && r.label)
+  } catch (e) {
+    console.error('[classes-pg] fetchTeachingSubjectsPg', e)
+    return null
+  }
+}
+
+export async function fetchTeachingSubjectByIdPg(id: string): Promise<TeachingSubjectRow | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ id: string; label: string | null }>(
+      `select id, label from public.teaching_subjects where id = $1 limit 1`,
+      [id]
+    )
+    if (!row?.id) return null
+    return { id: String(row.id), label: String(row.label ?? '').trim() }
+  } catch (e) {
+    console.error('[classes-pg] fetchTeachingSubjectByIdPg', e)
+    return null
+  }
+}
+
+export async function insertTeachingSubjectPg(params: {
+  id: string
+  label: string
+  createdBy: string
+}): Promise<'inserted' | 'already' | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `insert into public.teaching_subjects (id, label, created_by)
+       values ($1, $2, $3::uuid)
+       on conflict (id) do nothing
+       returning id`,
+      [params.id, params.label, params.createdBy]
+    )
+    return row?.id ? 'inserted' : 'already'
+  } catch (e) {
+    console.error('[classes-pg] insertTeachingSubjectPg', e)
+    return null
+  }
+}
+
+/** `inserted` = vừa gắn. `already` = cô đã dạy môn này ở lớp. `null` = lỗi. */
+export async function insertClassSubjectPg(params: {
+  classId: string
+  teacherId: string
+  subjectId: string
+  subjectLabel: string
+  teacherDisplayName: string | null
+}): Promise<'inserted' | 'already' | null> {
+  if (!isPgConfigured()) return null
+  try {
+    const row = await pgQueryOne<{ id: string }>(
+      `insert into public.class_subjects (class_id, teacher_id, subject_id, subject_label, teacher_display_name)
+       values ($1::uuid, $2::uuid, $3, $4, nullif(btrim(coalesce($5::text, '')), ''))
+       on conflict (class_id, teacher_id, subject_id) do nothing
+       returning id::text`,
+      [
+        params.classId,
+        params.teacherId,
+        params.subjectId,
+        params.subjectLabel,
+        params.teacherDisplayName ?? '',
+      ]
+    )
+    return row ? 'inserted' : 'already'
+  } catch (e) {
+    console.error('[classes-pg] insertClassSubjectPg', e)
+    return null
+  }
+}
+
 export async function insertClassMinePg(params: {
   teacherId: string
   name: string
@@ -207,10 +525,30 @@ export async function insertClassMinePg(params: {
   gradeLevelId: string | null
   subjectLabel: string | null
   teacherDisplayName: string | null
-}): Promise<ClassMineListRow | null> {
-  if (!isPgConfigured()) return null
+}): Promise<InsertClassMineResult> {
+  if (!isPgConfigured()) return { status: 'failed' }
+  const client = await getPgPool().connect()
   try {
-    const row = await pgQueryOne<Record<string, unknown>>(
+    await client.query('BEGIN')
+    await client.query(
+      `select pg_advisory_xact_lock(hashtext($1::text || '|' || ${classNameKeySql('$2::text')})::bigint)`,
+      [params.schoolId, params.name]
+    )
+    const existing = await client.query<Record<string, unknown>>(
+      `select c.id::text, c.name, c.join_code, coalesce(sch.name, '') as school_name
+       from public.classes c
+       left join public.schools sch on sch.id = c.school_id
+       where c.school_id = $1::uuid
+         and ${classNameKeySql('c.name')} = ${classNameKeySql('$2::text')}
+       limit 1`,
+      [params.schoolId, params.name]
+    )
+    const taken = existing.rows[0]
+    if (taken) {
+      await client.query('COMMIT')
+      return { status: 'name_taken', existing: mapClassNameTakenRow(taken) }
+    }
+    const inserted = await client.query<Record<string, unknown>>(
       // Postgres chạy SELECT ngoài cùng snapshot với CTE INSERT, nên đọc lại public.classes sẽ không thấy dòng vừa ghi.
       `with ins as (
          insert into public.classes (teacher_id, name, join_code, school_id, grade_level_id, subject_label, teacher_display_name)
@@ -236,21 +574,32 @@ export async function insertClassMinePg(params: {
         params.teacherDisplayName ?? '',
       ]
     )
-    if (!row) return null
+    const row = inserted.rows[0]
+    if (!row) {
+      await client.query('ROLLBACK')
+      return { status: 'failed' }
+    }
+    await client.query('COMMIT')
     return {
-      id: String(row.id),
-      name: String(row.name ?? ''),
-      join_code: String(row.join_code ?? ''),
-      school_id: row.school_id != null ? String(row.school_id) : null,
-      grade_level_id: row.grade_level_id != null ? String(row.grade_level_id) : null,
-      subject_label: row.subject_label != null ? String(row.subject_label) : null,
-      teacher_display_name: row.teacher_display_name != null ? String(row.teacher_display_name) : null,
-      created_at: String(row.created_at ?? ''),
-      school_name: row.school_name != null ? String(row.school_name) : null,
+      status: 'created',
+      row: {
+        id: String(row.id),
+        name: String(row.name ?? ''),
+        join_code: String(row.join_code ?? ''),
+        school_id: row.school_id != null ? String(row.school_id) : null,
+        grade_level_id: row.grade_level_id != null ? String(row.grade_level_id) : null,
+        subject_label: row.subject_label != null ? String(row.subject_label) : null,
+        teacher_display_name: row.teacher_display_name != null ? String(row.teacher_display_name) : null,
+        created_at: String(row.created_at ?? ''),
+        school_name: row.school_name != null ? String(row.school_name) : null,
+      },
     }
   } catch (e) {
+    await client.query('ROLLBACK').catch(() => undefined)
     console.error('[classes-pg] insertClassMinePg', e)
-    return null
+    return { status: 'failed' }
+  } finally {
+    client.release()
   }
 }
 
@@ -288,7 +637,7 @@ export async function upsertTeacherSchoolSettingsMinePg(params: {
 export async function deleteClassByOwnerPg(
   classId: string,
   teacherUserId: string
-): Promise<'deleted' | 'not_found' | 'not_owner' | null> {
+): Promise<'deleted' | 'not_found' | 'not_owner' | 'has_students' | null> {
   if (!isPgConfigured()) return null
   try {
     const owner = await pgQueryOne<{ teacher_id: string }>(
@@ -297,6 +646,9 @@ export async function deleteClassByOwnerPg(
     )
     if (!owner) return 'not_found'
     if (owner.teacher_id !== teacherUserId) return 'not_owner'
+    const hasStudents = await classHasStudentsPg(classId)
+    if (hasStudents === null) return null
+    if (hasStudents) return 'has_students'
     await pgQuery(`delete from public.classes where id = $1::uuid and teacher_id = $2::uuid`, [
       classId,
       teacherUserId,
@@ -759,7 +1111,10 @@ export async function upsertClassWorksheetForTeacherPg(
       `select 1 as ok from public.classes where id = $1::uuid and teacher_id = $2::uuid limit 1`,
       [classId, teacherUserId]
     )
-    if (!gate) return 'forbidden'
+    if (!gate) {
+      const teaches = await teacherHasClassSubjectPg(classId, teacherUserId)
+      if (teaches !== true) return teaches === null ? null : 'forbidden'
+    }
     await pgQuery(
       `insert into public.class_worksheets (class_id, worksheet_id)
        values ($1::uuid, $2::uuid)
@@ -784,7 +1139,10 @@ export async function deleteClassWorksheetForTeacherPg(
       `select 1 as ok from public.classes where id = $1::uuid and teacher_id = $2::uuid limit 1`,
       [classId, teacherUserId]
     )
-    if (!gate) return 'forbidden'
+    if (!gate) {
+      const teaches = await teacherHasClassSubjectPg(classId, teacherUserId)
+      if (teaches !== true) return teaches === null ? null : 'forbidden'
+    }
     await pgQuery(
       `delete from public.class_worksheets where class_id = $1::uuid and worksheet_id = $2::uuid`,
       [classId, worksheetId]

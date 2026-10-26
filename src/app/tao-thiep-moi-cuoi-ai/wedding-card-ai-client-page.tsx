@@ -105,10 +105,13 @@ import {
   resolveCoverPhotoUrl,
   resolvePortraitPhotoFrame,
   resolvePortraitFrameScale,
+  resolveStackPlace,
   resolvePortraitShell,
+  readHeroPhotoLayout,
   clampWeddingFrameScale,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
+  type WeddingHeroPhotoLayout,
   type WeddingOpenBurstEffect,
   type WeddingOpenFallEffect,
   type WeddingPortraitShellFrame,
@@ -117,6 +120,8 @@ import {
   WEDDING_OPEN_FALL_SECOND_STOPS,
 } from '@/lib/wedding/wedding-section-config'
 import { WeddingOpenEffects } from '@/components/wedding/wedding-open-effects'
+import { WeddingHeroLayoutPicker } from '@/components/wedding/wedding-hero-layout-picker'
+import { WeddingStackedCouplePhotos, type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingCoverShellCard, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
@@ -125,7 +130,12 @@ import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glas
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingCountdownBlock } from '@/components/wedding/wedding-countdown-block'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
-import { getWeddingStylePreset, labelForWeddingStylePreset, WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
+import {
+  descriptionForWeddingStylePreset,
+  getWeddingStylePreset,
+  labelForWeddingStylePreset,
+  WEDDING_STYLE_PRESETS,
+} from '@/lib/wedding/wedding-style-presets'
 import { guestInviteVenueLabel, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 
@@ -439,7 +449,7 @@ function WeddingGenerateStyleSelect({
       >
         {WEDDING_STYLE_PRESETS.map((preset) => (
           <option key={preset.id} value={preset.id}>
-            {labelForWeddingStylePreset(locale, preset)}
+            {labelForWeddingStylePreset(locale, preset)} — {descriptionForWeddingStylePreset(locale, preset)}
           </option>
         ))}
       </select>
@@ -481,6 +491,7 @@ export default function WeddingCardAiClientPage() {
   const previewBusyRef = useRef(false)
   const [occasionPickerOpen, setOccasionPickerOpen] = useState(false)
   const [pickedOccasion, setPickedOccasion] = useState<InvitationOccasionKey>('wedding')
+  const [pickedHeroLayout, setPickedHeroLayout] = useState<WeddingHeroPhotoLayout>('single')
   const [occasionShapePrompt, setOccasionShapePrompt] = useState<InvitationOccasionKey | null>(null)
   const [generating, setGenerating] = useState(false)
   const [frameGenerating, setFrameGenerating] = useState(false)
@@ -492,7 +503,7 @@ export default function WeddingCardAiClientPage() {
   const [frameStyleId, setFrameStyleId] = useState('luxury')
   const [framePrompt, setFramePrompt] = useState('')
   const [frameOpening, setFrameOpening] = useState<WeddingCoverFrameOpening>('ellipse')
-  const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | null>(null)
+  const [portraitFrameSide, setPortraitFrameSide] = useState<'groom' | 'bride' | 'cover' | 'pair' | null>(null)
   const [openEffectPreview, setOpenEffectPreview] = useState(0)
   const [extraPrompt, setExtraPrompt] = useState('')
   const [styleReferenceFile, setStyleReferenceFile] = useState<File | null>(null)
@@ -793,8 +804,12 @@ export default function WeddingCardAiClientPage() {
   const occasionKey = normalizeInvitationOccasion(card.occasionKey)
   const occasionCopy = invitationEditorCopy(occasionKey)
   const singleOccasion = invitationOccasionShape(occasionKey) === 'single'
+  const heroStack = !singleOccasion && readHeroPhotoLayout(sectionConfig.heroPhotoLayout) === 'stack'
 
   const update = <K extends keyof WeddingCard>(key: K, value: WeddingCard[K]) => setCard((prev) => ({ ...prev, [key]: value }))
+  const setHeroLayout = (layout: WeddingHeroPhotoLayout) => {
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { heroPhotoLayout: layout }))
+  }
 
   const requestOccasionChange = (next: InvitationOccasionKey) => {
     if (next === occasionKey) return
@@ -969,6 +984,7 @@ export default function WeddingCardAiClientPage() {
   const bridePortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'bride')
   const groomPortraitShell = resolvePortraitShell(sectionConfig, 'groom')
   const bridePortraitShell = resolvePortraitShell(sectionConfig, 'bride')
+  const stackFrameShell = groomPortraitShell ?? bridePortraitShell
 
   const updatePortraitCrop = (
     side: 'groom' | 'bride',
@@ -1439,6 +1455,71 @@ export default function WeddingCardAiClientPage() {
     },
   })
 
+  const stackPhotoEdit = (side: 'groom' | 'bride'): WeddingStackedPhotoEdit => {
+    const frame = side === 'groom' ? groomPortraitFrame : bridePortraitFrame
+    return {
+      chooseLabel: txCover.choosePhoto,
+      changeLabel: txCover.changePhoto,
+      onFile: (file) => {
+        if (side === 'groom') {
+          setGroomPortraitFile(file)
+          setGroomPortraitClear(false)
+        } else {
+          setBridePortraitFile(file)
+          setBridePortraitClear(false)
+        }
+      },
+      crop: {
+        x: frame.x,
+        y: frame.y,
+        scale: frame.scale,
+        zoomOutLabel: txCover.coverPhotoZoomOut,
+        zoomInLabel: txCover.coverPhotoZoomIn,
+        onChange: (patch) => updatePortraitCrop(side, patch),
+      },
+    }
+  }
+
+  const stackPairFrameScale = (): WeddingStackedFrameScaleEdit => ({
+    scale: resolvePortraitFrameScale(sectionConfig, 'groom'),
+    label: txCover.frameSizeLabel,
+    zoomOutLabel: txCover.coverPhotoZoomOut,
+    zoomInLabel: txCover.coverPhotoZoomIn,
+    onChange: (next) => {
+      const value = clampWeddingFrameScale(next)
+      update(
+        'sectionConfig',
+        mergeWeddingSectionConfig(card.sectionConfig, {
+          groomPortraitFrameScale: value,
+          bridePortraitFrameScale: value,
+        }),
+      )
+    },
+  })
+
+  const stackPlace = resolveStackPlace(sectionConfig)
+  const setStackPlace = (place: ReturnType<typeof resolveStackPlace>) => {
+    if (!place) return
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, place))
+  }
+
+  const stackNameEdit = (side: 'groom' | 'bride'): WeddingStackedNameEdit =>
+    side === 'groom'
+      ? {
+          value: card.groomName,
+          onChange: (value) => update('groomName', value),
+          placeholder: occasionCopy.primaryName,
+          label: occasionCopy.primaryName,
+          caption: occasionCopy.primaryRole,
+        }
+      : {
+          value: card.brideName,
+          onChange: (value) => update('brideName', value),
+          placeholder: occasionCopy.secondaryName,
+          label: occasionCopy.secondaryName,
+          caption: occasionCopy.secondaryRole,
+        }
+
   const savePortraitShell = (
     side: 'groom' | 'bride',
     shell:
@@ -1465,6 +1546,34 @@ export default function WeddingCardAiClientPage() {
     setCard((prev) => ({
       ...prev,
       sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, patch),
+    }))
+    setPortraitFrameSide(null)
+  }
+
+  const saveStackedShell = (
+    shell:
+      | { mode: 'library'; url: string; hole: { x: number; y: number; w: number; h: number }; panel: string }
+      | null,
+  ) => {
+    const sidePatch = (side: 'groom' | 'bride') =>
+      side === 'groom'
+        ? {
+            groomPortraitShellMode: shell?.mode,
+            groomPortraitShellPresetId: undefined,
+            groomPortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
+            groomPortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
+            groomPortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
+          }
+        : {
+            bridePortraitShellMode: shell?.mode,
+            bridePortraitShellPresetId: undefined,
+            bridePortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
+            bridePortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
+            bridePortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
+          }
+    setCard((prev) => ({
+      ...prev,
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, { ...sidePatch('groom'), ...sidePatch('bride') }),
     }))
     setPortraitFrameSide(null)
   }
@@ -1845,7 +1954,7 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
-  const createFreshCard = async (nextOccasion: InvitationOccasionKey) => {
+  const createFreshCard = async (nextOccasion: InvitationOccasionKey, heroLayout: WeddingHeroPhotoLayout) => {
     if (switchingCard) return
     setSwitchingCard(true)
     try {
@@ -1855,7 +1964,7 @@ export default function WeddingCardAiClientPage() {
         const saved = await commitSaveBrief(false, { hideSuccess: true })
         if (!saved) return
       }
-      const result = await createNewWeddingCard(nextOccasion)
+      const result = await createNewWeddingCard(nextOccasion, heroLayout)
       if ('error' in result) {
         toast({ title: 'Không tạo được thiệp mới', description: result.error, variant: 'destructive' })
         return
@@ -2004,6 +2113,7 @@ export default function WeddingCardAiClientPage() {
                 type="button"
                 onClick={() => {
                   setPickedOccasion('wedding')
+                  setPickedHeroLayout('single')
                   setOccasionPickerOpen(true)
                 }}
                 disabled={switchingCard || saving}
@@ -2445,6 +2555,18 @@ export default function WeddingCardAiClientPage() {
                     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverRsvpColorId: id }))
                   }
                 />
+                {singleOccasion ? null : (
+                  <WeddingHeroLayoutPicker
+                    value={heroStack ? 'stack' : 'single'}
+                    label={txCover.heroLayoutLabel}
+                    hint={txCover.heroLayoutHint}
+                    singleLabel={txCover.heroLayoutSingle}
+                    singleHint={txCover.heroLayoutSingleHint}
+                    stackLabel={txCover.heroLayoutStack}
+                    stackHint={txCover.heroLayoutStackHint}
+                    onChange={setHeroLayout}
+                  />
+                )}
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
                     className="relative flex min-h-[360px] items-center justify-center overflow-x-clip overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
@@ -2509,6 +2631,30 @@ export default function WeddingCardAiClientPage() {
                       }
                       dateFallback={txPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
+                      stackPair={
+                        heroStack
+                          ? {
+                              firstUrl: groomPortraitPreviewUrl,
+                              secondUrl: bridePortraitPreviewUrl,
+                              firstAlt: occasionCopy.primaryPhoto,
+                              secondAlt: occasionCopy.secondaryPhoto,
+                              firstFrame: groomPortraitFrame,
+                              secondFrame: bridePortraitFrame,
+                              firstEdit: stackPhotoEdit('groom'),
+                              secondEdit: stackPhotoEdit('bride'),
+                              firstNameEdit: stackNameEdit('groom'),
+                              secondNameEdit: stackNameEdit('bride'),
+                              frameScaleEdit: stackPairFrameScale(),
+                              frameShell: stackFrameShell,
+                              chooseFrameLabel: txCover.chooseFrame,
+                              onChooseFrame: () => setPortraitFrameSide('pair'),
+                              place: stackPlace,
+                              onPlace: setStackPlace,
+                              moveLabel: txCover.dragPlace,
+                              showEmpty: true,
+                            }
+                          : undefined
+                      }
                       choosePhotoLabel={txCover.choosePhoto}
                       changePhotoLabel={txCover.changePhoto}
                       chooseFrameLabel={txCover.chooseFrame}
@@ -2521,6 +2667,10 @@ export default function WeddingCardAiClientPage() {
                     />
                   </div>
                 </div>
+                {heroStack ? (
+                  <p className="text-xs text-muted-foreground">{txCover.heroLayoutStackPhotoHint}</p>
+                ) : (
+                  <>
                 <DeviceImagePicker
                   className="flex w-full rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted sm:w-auto"
                   label={
@@ -2543,6 +2693,8 @@ export default function WeddingCardAiClientPage() {
                   </Button>
                 ) : null}
                 <p className="text-xs text-muted-foreground">{txCover.aiCoverHint}</p>
+                  </>
+                )}
               </CardContent>
             </Card>
 
@@ -2582,10 +2734,13 @@ export default function WeddingCardAiClientPage() {
                   </select>
                   <p className="text-xs text-muted-foreground">{occasionCopy.blurb}</p>
                 </div>
+                {heroStack ? null : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label={occasionCopy.primaryName} value={card.groomName} onChange={(v) => update('groomName', v)} />
                   <Field label={occasionCopy.secondaryName} value={card.brideName} onChange={(v) => update('brideName', v)} />
                 </div>
+                )}
+                {heroStack ? null : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ImageUploadField
                     label={occasionCopy.primaryPhoto}
@@ -2650,7 +2805,8 @@ export default function WeddingCardAiClientPage() {
                     frameScaleEdit={frameScaleEditFor('bride', resolvePortraitFrameScale(sectionConfig, 'bride'))}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>
+                )}
+                {heroStack ? null : <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>}
                 <p className="text-xs text-muted-foreground">{occasionCopy.sharedHint}</p>
                 <div className="space-y-2">
                   <Label>Lời mời tiếng Anh (tùy chọn)</Label>
@@ -3121,11 +3277,19 @@ export default function WeddingCardAiClientPage() {
                             <div className="min-h-0 space-y-4 overflow-y-auto">
                               <div className="overflow-hidden rounded-2xl border bg-[#fffaf2]">
                                 {(() => {
+                                  const pairLibraryUrl =
+                                    sectionConfig.groomPortraitShellMode === 'library'
+                                      ? sectionConfig.groomPortraitShellUrl
+                                      : sectionConfig.bridePortraitShellMode === 'library'
+                                        ? sectionConfig.bridePortraitShellUrl
+                                        : ''
                                   const previewUrl =
                                     portraitFrameSide === 'cover'
                                       ? coverFrameMode === 'library' || coverFrameMode === 'ai'
                                         ? coverAiFrame?.src
                                         : ''
+                                      : portraitFrameSide === 'pair'
+                                        ? pairLibraryUrl
                                       : portraitFrameSide === 'bride'
                                         ? sectionConfig.bridePortraitShellMode === 'library'
                                           ? sectionConfig.bridePortraitShellUrl
@@ -3159,6 +3323,10 @@ export default function WeddingCardAiClientPage() {
                                       setPortraitFrameSide(null)
                                       return
                                     }
+                                    if (portraitFrameSide === 'pair') {
+                                      saveStackedShell(null)
+                                      return
+                                    }
                                     if (portraitFrameSide) savePortraitShell(portraitFrameSide, null)
                                   }}
                                 >
@@ -3173,7 +3341,13 @@ export default function WeddingCardAiClientPage() {
                                     ? coverFrameMode === 'library' || coverFrameMode === 'ai'
                                       ? coverAiFrame?.src
                                       : undefined
-                                    : portraitFrameSide === 'bride'
+                                    : portraitFrameSide === 'pair'
+                                      ? sectionConfig.groomPortraitShellMode === 'library'
+                                        ? sectionConfig.groomPortraitShellUrl
+                                        : sectionConfig.bridePortraitShellMode === 'library'
+                                          ? sectionConfig.bridePortraitShellUrl
+                                          : undefined
+                                      : portraitFrameSide === 'bride'
                                       ? sectionConfig.bridePortraitShellMode === 'library'
                                         ? sectionConfig.bridePortraitShellUrl
                                         : undefined
@@ -3189,6 +3363,15 @@ export default function WeddingCardAiClientPage() {
                                   if (portraitFrameSide === 'cover') {
                                     applyCoverFrameFromLibrary(item)
                                     setPortraitFrameSide(null)
+                                    return
+                                  }
+                                  if (portraitFrameSide === 'pair') {
+                                    saveStackedShell({
+                                      mode: 'library',
+                                      url: item.imageUrl,
+                                      hole: item.hole,
+                                      panel: item.panel,
+                                    })
                                     return
                                   }
                                   if (portraitFrameSide !== 'groom' && portraitFrameSide !== 'bride') return
@@ -3211,13 +3394,17 @@ export default function WeddingCardAiClientPage() {
                                   value={
                                     portraitFrameSide === 'cover'
                                       ? resolveCoverFrameScale(sectionConfig)
-                                      : resolvePortraitFrameScale(sectionConfig, portraitFrameSide)
+                                      : portraitFrameSide === 'pair'
+                                        ? resolvePortraitFrameScale(sectionConfig, 'groom')
+                                        : resolvePortraitFrameScale(sectionConfig, portraitFrameSide)
                                   }
                                   onChange={(scale) => {
                                     const patch =
                                       portraitFrameSide === 'cover'
                                         ? { coverFrameScale: scale }
-                                        : portraitFrameSide === 'bride'
+                                        : portraitFrameSide === 'pair'
+                                          ? { groomPortraitFrameScale: scale, bridePortraitFrameScale: scale }
+                                          : portraitFrameSide === 'bride'
                                           ? { bridePortraitFrameScale: scale }
                                           : { groomPortraitFrameScale: scale }
                                     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
@@ -3266,6 +3453,31 @@ export default function WeddingCardAiClientPage() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        {heroStack ? (
+                          <WeddingStackedCouplePhotos
+                            firstUrl={groomPortraitPreviewUrl}
+                            secondUrl={bridePortraitPreviewUrl}
+                            firstAlt={occasionCopy.primaryPhoto}
+                            secondAlt={occasionCopy.secondaryPhoto}
+                            firstFrame={groomPortraitFrame}
+                            secondFrame={bridePortraitFrame}
+                            firstEdit={stackPhotoEdit('groom')}
+                            secondEdit={stackPhotoEdit('bride')}
+                            firstNameEdit={stackNameEdit('groom')}
+                            secondNameEdit={stackNameEdit('bride')}
+                            frameScaleEdit={stackPairFrameScale()}
+                            frameShell={stackFrameShell}
+                            chooseFrameLabel={txCover.chooseFrame}
+                            onChooseFrame={() => setPortraitFrameSide('pair')}
+                            place={stackPlace}
+                            onPlace={setStackPlace}
+                            moveLabel={txCover.dragPlace}
+                            nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
+                            showEmpty
+                            compact
+                          />
+                        ) : null}
+                        {heroStack ? null : (
                         <div className="w-full min-w-0">
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
                             {card.groomName || occasionCopy.primaryRole || occasionCopy.label}
@@ -3279,6 +3491,7 @@ export default function WeddingCardAiClientPage() {
                             </>
                           )}
                         </div>
+                        )}
                         {selectedTheme.ornament ? (
                           <div className={cn('text-xl leading-none', selectedTheme.accent, selectedTheme.textGlow)}>
                             {selectedTheme.ornament}
@@ -3291,7 +3504,7 @@ export default function WeddingCardAiClientPage() {
                             “{card.loveQuote}”
                           </p>
                         ) : null}
-                        {coverFrameMode === 'none' && !coverPhotoPreviewUrl ? null : (
+                        {heroStack || (coverFrameMode === 'none' && !coverPhotoPreviewUrl) ? null : (
                           <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
                             <WeddingCoverShellCard
                               frameOnly
@@ -3379,6 +3592,7 @@ export default function WeddingCardAiClientPage() {
                             </div>
                           </div>
                         ) : null}
+                        {heroStack ? null : (
                         <WeddingCouplePortraits
                           groomName={card.groomName || occasionCopy.primaryRole || occasionCopy.label}
                           brideName={singleOccasion ? card.brideName : card.brideName || occasionCopy.secondaryRole}
@@ -3397,6 +3611,7 @@ export default function WeddingCardAiClientPage() {
                           theme={selectedTheme}
                           compact
                         />
+                        )}
                         {previewIntro || previewStory ? (
                           <div className={cn('w-full rounded-xl px-3 py-2 text-left text-[11px]', selectedTheme.panelStrong)}>
                             {previewIntro ? (
@@ -3642,11 +3857,32 @@ export default function WeddingCardAiClientPage() {
               </div>
             ))}
           </div>
+          {invitationOccasionShape(pickedOccasion) === 'couple' ? (
+            <WeddingHeroLayoutPicker
+              value={pickedHeroLayout}
+              label={txCover.heroLayoutLabel}
+              hint={txCover.heroLayoutHint}
+              singleLabel={txCover.heroLayoutSingle}
+              singleHint={txCover.heroLayoutSingleHint}
+              stackLabel={txCover.heroLayoutStack}
+              stackHint={txCover.heroLayoutStackHint}
+              onChange={setPickedHeroLayout}
+            />
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" disabled={switchingCard} onClick={() => setOccasionPickerOpen(false)}>
               Hủy
             </Button>
-            <Button type="button" disabled={switchingCard || saving} onClick={() => void createFreshCard(pickedOccasion)}>
+            <Button
+              type="button"
+              disabled={switchingCard || saving}
+              onClick={() =>
+                void createFreshCard(
+                  pickedOccasion,
+                  invitationOccasionShape(pickedOccasion) === 'couple' ? pickedHeroLayout : 'single',
+                )
+              }
+            >
               {switchingCard ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Tạo thiệp
             </Button>
@@ -3670,7 +3906,16 @@ export default function WeddingCardAiClientPage() {
             <Button
               type="button"
               onClick={() => {
-                if (occasionShapePrompt) update('occasionKey', occasionShapePrompt)
+                if (!occasionShapePrompt) return
+                const next = occasionShapePrompt
+                setCard((prev) => ({
+                  ...prev,
+                  occasionKey: next,
+                  sectionConfig:
+                    invitationOccasionShape(next) === 'single'
+                      ? mergeWeddingSectionConfig(prev.sectionConfig, { heroPhotoLayout: 'single' })
+                      : prev.sectionConfig,
+                }))
                 setOccasionShapePrompt(null)
               }}
             >

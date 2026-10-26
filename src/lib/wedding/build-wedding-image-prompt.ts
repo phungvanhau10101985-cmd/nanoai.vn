@@ -37,6 +37,14 @@ const PLATE_COMPOSITION = [
   'FAINT CENTER: the center vertical column (about the middle 42% of the width) is a calm reading field. Pattern there must be faint, washed, low-contrast, and ghosted — never dark, thick, sharp, or dense. No medallion, bouquet, dragon, phoenix, or focal cluster in the middle.',
 ].join(' ')
 
+/** Thanh tao: vài nét, không hoa văn dày. */
+const ETHEREAL_COMPOSITION = [
+  'COMPOSITION (must, overrides any centerpiece, frame, vignette, dense pattern, or top-bottom border above): open full-bleed paper, not a framed picture.',
+  'NO FRAME LINES: do not draw a border, ruled line, double-line rectangle, engraved frame, corner brackets, closed wreath, gate, or any stroke that boxes the canvas.',
+  'FEW STROKES ONLY: a handful of artistic botanical strokes, mostly touching the LEFT edge and the RIGHT edge. Large fields of untouched paper. No dense fill, no repeating pattern, no bouquet cluster, no filigree carpet.',
+  'EMPTY CENTER: the center vertical column (about the middle 55% of the width) stays nearly blank paper. No medallion, bouquet, dragon, phoenix, or focal cluster in the middle.',
+].join(' ')
+
 const STYLE_ART_DIRECTION: Record<string, string> = {
   luxury:
     'High-end Vietnamese wedding stationery, ivory paper texture, champagne metallic foil, blush warmth, layered embossing, refined depth, premium hotel ballroom mood.',
@@ -45,11 +53,27 @@ const STYLE_ART_DIRECTION: Record<string, string> = {
   traditional_vietnamese:
     'Vietnamese traditional wedding elegance, red and gold harmony, lotus and silk-inspired ornament, subtle Đông Sơn / lacquer cues, ceremonial warmth, not cartoonish.',
   floral:
-    'Romantic floral wedding design, rose and cream tones, eucalyptus greenery, delicate botanical trails, soft watercolor/paper texture, graceful feminine detail.',
+    'Refined complex floral wedding stationery, heirloom invitation plate. Intricate but graceful side ornament: layered peony, lotus, cherry blossom, garden rose, and fine champagne-gold linework, with soft watercolor washes. Motifs are dense along the two sides yet airy between stems — elegant, polite, luminous, never gaudy, never cartoon, never plastic, never a repeating wallpaper. The center stays a calm cream field.',
+  ethereal:
+    'Ethereal fine-art wedding plate with very few strokes. One or two flowering branches, a handful of leaves, and a single quiet ink or pale-watercolor gesture. Large untouched ivory paper. Artistic, sparse, calligraphic, breathing room everywhere. Not a pattern, not a bouquet, not filigree, not a frame.',
   vintage:
     'Vintage heirloom invitation, sepia warmth, dusty rose, antique gold, old paper grain, nostalgic but polished. No engraved border and no ruled frame.',
   modern:
     'Modern luxury wedding editorial, black/white contrast, metallic gold accents, clean geometry, spotlight gradients, gallery-like premium atmosphere.',
+}
+
+function plateComposition(style: string): string {
+  return style === 'ethereal' ? ETHEREAL_COMPOSITION : PLATE_COMPOSITION
+}
+
+function lockLine(style: string): string {
+  if (style === 'ethereal') {
+    return 'LOCK: no frame lines; only a few artistic strokes from the side edges; the center stays almost blank paper. Ignore any earlier request for dense or richest florals.'
+  }
+  if (style === 'floral') {
+    return 'LOCK: no frame lines anywhere on this background; intricate refined florals (peony, lotus, cherry blossom, rose, fine gold line) grow inward from the left edge and the right edge only, dense yet airy and elegant; the center column keeps a faint cream wash.'
+  }
+  return 'LOCK: no frame lines anywhere on this background; dense pattern grows inward from the left edge and the right edge only; the center column keeps faint, washed pattern only.'
 }
 
 function sharedStyleConsistencyBlock(type: WeddingImageType): string[] {
@@ -97,12 +121,15 @@ export function buildWeddingPrompt(input: {
     `OUTPUT CANVAS: portrait ${input.canvasLabel || WEDDING_BACKGROUND_ASPECT_RATIO}, the tallest vertical plate. Artwork continues from the top edge through the bottom edge so a long invitation scrolls down the full height of this background.`,
     `Target plate: ${faceWord}.`,
     FACE_ART_DIRECTION[input.type],
-    PLATE_COMPOSITION,
+    plateComposition(input.applyStyle === false ? '' : input.style),
     ...(input.applyStyle === false
       ? []
       : [
           `Global style preset (keep consistent tone): ${input.style || 'luxury'}.`,
           STYLE_ART_DIRECTION[input.style] ?? STYLE_ART_DIRECTION.luxury,
+          input.style === 'ethereal'
+            ? 'STROKE COUNT (overrides “dense” and “richest” above): this plate uses only a few artistic strokes and large blank paper.'
+            : '',
           `Color palette direction (harmonious family across all faces): ${input.palette || 'elegant warm cream, champagne gold, soft blush'}.`,
         ]),
     `Couple story hint (ambient only, no spelled names rendered): ${input.groomName || 'groom'} & ${input.brideName || 'bride'}.`,
@@ -114,7 +141,7 @@ export function buildWeddingPrompt(input: {
     input.extraPrompt ? `\nAdditional user refinement: ${input.extraPrompt}` : '',
     ref,
     customRef,
-    'LOCK: no frame lines anywhere on this background; dense pattern grows inward from the left edge and the right edge only; the center column keeps faint, washed pattern only.',
+    lockLine(input.applyStyle === false ? '' : input.style),
   ]
 
   return parts.filter(Boolean).join('\n').replace(/\n{3,}/g, '\n\n').trim()

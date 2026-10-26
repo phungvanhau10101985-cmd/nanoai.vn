@@ -31,7 +31,9 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet'
 import QRCode from 'qrcode'
-import { SUBJECTS, GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
+import { GRADE_LEVELS, GRADE_LEVEL_GROUPS } from '../tao-giao-trinh/lib/curriculum-subjects'
+import ClassSubjectField from '../lop/class-subject-field'
+import { isClassSubjectId, subjectIdFromFreeLabel } from '@/lib/lop/class-subject'
 import { listCurriculaForExam, listExamTeacherReview } from '../tao-giao-trinh/actions'
 import { latexToReadable } from '../tao-giao-trinh/lib/latex-to-readable'
 import { exportWorksheetToPdf, exportWorksheetToWord } from '../tao-giao-trinh/lib/worksheet-export'
@@ -127,7 +129,6 @@ function writeExamFormDefaults(payload: ExamFormDefaultsV1, primaryKey: string, 
   }
 }
 
-const SUBJECT_ID_SET: Set<string> = new Set(SUBJECTS.map((s) => s.id))
 const GRADE_LEVEL_ID_SET: Set<string> = new Set(GRADE_LEVELS.map((g) => g.id))
 const EXAM_TYPE_ID_SET = new Set<string>(EXAM_TYPE_ORDER)
 
@@ -553,8 +554,8 @@ export default function TaoBaiThiClientPage({
       return
     }
     if (!isHomework && d.examType && EXAM_TYPE_ID_SET.has(d.examType)) setExamType(d.examType)
-    if (d.subjectId && SUBJECT_ID_SET.has(d.subjectId)) {
-      setSubjectId(d.subjectId as (typeof SUBJECTS)[number]['id'])
+    if (typeof d.subjectId === 'string' && d.subjectId && d.subjectId !== 'khac' && d.subjectId.length <= 40) {
+      setSubjectId(d.subjectId)
     }
     if (d.gradeLevelId && GRADE_LEVEL_ID_SET.has(d.gradeLevelId)) {
       setGradeLevelId(d.gradeLevelId as (typeof GRADE_LEVELS)[number]['id'])
@@ -565,7 +566,14 @@ export default function TaoBaiThiClientPage({
     if (typeof d.selectedSchoolName === 'string') setSelectedSchoolName(d.selectedSchoolName)
     const cid = typeof d.selectedClassId === 'string' ? d.selectedClassId : ''
     setSelectedClassId(cid)
-    if (typeof d.newClassSubject === 'string') setNewClassSubject(d.newClassSubject)
+    if (typeof d.newClassSubject === 'string') {
+      const raw = d.newClassSubject.trim()
+      if (raw && raw !== 'khac' && (isClassSubjectId(raw) || !raw.includes(' '))) setNewClassSubject(raw)
+      else {
+        const mapped = subjectIdFromFreeLabel(raw)
+        setNewClassSubject(mapped === 'khac' ? '' : mapped)
+      }
+    }
     if (typeof d.newClassTeacher === 'string') setNewClassTeacher(d.newClassTeacher)
     examFormHydratedRef.current = true
     if (isHomework) setExamType('hocky')
@@ -757,20 +765,43 @@ export default function TaoBaiThiClientPage({
       })
       return false
     }
+    if (!newClassSubject.trim()) {
+      toast({
+        title: tx.error,
+        description: dict.classes.enterClassSubject,
+        variant: 'destructive',
+      })
+      return false
+    }
     setCreatingClass(true)
     try {
-      const res = await fetch('/api/classes/mine', {
+      const res = await fetch('/api/classes/enter', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: className,
+          className,
           schoolId: selectedSchoolId,
           gradeLevelId,
-          subjectLabel: newClassSubject.trim(),
+          subjectId: newClassSubject,
           teacherDisplayName: newClassTeacher.trim(),
         }),
       })
       const data = await res.json().catch(() => ({}))
+      if (data?.code === 'class_exists' && data?.existing?.id) {
+        const existingId = String(data.existing.id)
+        const existingName = String(data.existing.name ?? className)
+        const owned = teacherClasses.some((c) => c.id === existingId)
+        toast({
+          title: tx.error,
+          description: `${dict.classes.classNameTaken.replaceAll('{name}', existingName)} ${dict.classes.classNameTakenHint}`,
+          variant: 'destructive',
+        })
+        if (owned) {
+          setSelectedClassId(existingId)
+          setShowCreateClassModal(false)
+        }
+        return false
+      }
       if (!res.ok || !data?.item?.id) {
         toast({
           title: tx.error,
@@ -785,23 +816,34 @@ export default function TaoBaiThiClientPage({
         joinCode: string
         schoolId: string
         schoolName: string
-        gradeLevelId: string
+        gradeLevelId?: string
         subjectLabel?: string
         teacherDisplayName?: string
       }
       const normalized = {
-        ...item,
+        id: item.id,
+        name: item.name,
+        joinCode: item.joinCode,
+        schoolId: item.schoolId,
+        schoolName: item.schoolName,
+        gradeLevelId: String(item.gradeLevelId ?? gradeLevelId ?? ''),
         subjectLabel: String(item.subjectLabel ?? '').trim(),
         teacherDisplayName: String(item.teacherDisplayName ?? '').trim(),
       }
-      setTeacherClasses((prev) => [normalized, ...prev])
+      setTeacherClasses((prev) => (prev.some((c) => c.id === normalized.id) ? prev : [normalized, ...prev]))
       setSelectedClassId(String(item.id))
       setNewClassName('')
       setNewClassSubject('')
       setNewClassTeacher('')
+      const attached =
+        data.status === 'attached'
+          ? dict.classes.enterClassAttached
+          : data.status === 'already'
+            ? dict.classes.enterClassAlready
+            : tx.classCreatedDesc
       toast({
-        title: tx.classCreated,
-        description: tx.classCreatedDesc,
+        title: data.status === 'created' ? tx.classCreated : tx.classCreated,
+        description: attached,
       })
       return true
     } catch (e) {
@@ -1713,15 +1755,13 @@ export default function TaoBaiThiClientPage({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tx.subject}</label>
-                  <select
+                  <ClassSubjectField
+                    id="exam-subject"
+                    t={dict.classes}
+                    locale={uiLocale}
                     value={subjectId}
-                    onChange={(e) => setSubjectId(e.target.value)}
-                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                  >
-                    {SUBJECTS.map((s) => (
-                      <option key={s.id} value={s.id}>{uiLocale === 'en' ? s.labelEn : s.labelVi}</option>
-                    ))}
-                  </select>
+                    onChange={setSubjectId}
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-xs font-medium text-muted-foreground">{tx.gradeLevelLabel}</label>
@@ -1849,7 +1889,12 @@ export default function TaoBaiThiClientPage({
                           })
                           return
                         }
-                        setNewClassSubject((s) => s.trim() || defaultsForNewClass.subject)
+                        setNewClassSubject((s) => {
+                          const raw = (s.trim() || defaultsForNewClass.subject).trim()
+                          if (raw && raw !== 'khac' && (isClassSubjectId(raw) || !raw.includes(' '))) return raw
+                          const mapped = subjectIdFromFreeLabel(raw)
+                          return mapped === 'khac' ? '' : mapped
+                        })
                         setNewClassTeacher((s) => s.trim() || defaultsForNewClass.teacher)
                         setShowCreateClassModal(true)
                       }}
@@ -2803,12 +2848,14 @@ export default function TaoBaiThiClientPage({
                   <label className="text-[11px] font-medium text-muted-foreground">
                     {tx.subjectForStudents}
                   </label>
-                  <Input
+                  <ClassSubjectField
+                    id="new-class-subject"
+                    t={dict.classes}
+                    locale={uiLocale}
                     value={newClassSubject}
-                    onChange={(e) => setNewClassSubject(e.target.value)}
-                    placeholder={tx.subjectForStudentsPh}
-                    maxLength={120}
-                    className="h-8 text-sm"
+                    onChange={setNewClassSubject}
+                    disabled={creatingClass}
+                    compact
                   />
                 </div>
                 <div className="space-y-1">
@@ -2834,7 +2881,7 @@ export default function TaoBaiThiClientPage({
                     const ok = await createTeacherClass()
                     if (ok) setShowCreateClassModal(false)
                   }}
-                  disabled={creatingClass || !newClassName.trim()}
+                  disabled={creatingClass || !newClassName.trim() || !newClassSubject.trim()}
                 >
                   {creatingClass ? tx.creating : tx.createClass}
                 </Button>

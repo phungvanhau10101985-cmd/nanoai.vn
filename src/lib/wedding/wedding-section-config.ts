@@ -105,6 +105,23 @@ export type WeddingSectionConfig = {
   buttonColorId?: WeddingButtonColorId
   /** Màu nút Có đi trên vỏ thiệp và trong thiệp. Không theo màu nút Mở thiệp. */
   coverRsvpColorId?: WeddingButtonColorId
+  /** Một khung là kiểu cũ. Hai khung chồng chỉ ghi khi khách chọn. */
+  heroPhotoLayout?: WeddingHeroPhotoLayout
+  /** Vị trí khung và tên trên bố cục hai khung, phần trăm sân khấu. Có đủ tám số thì mới dùng. */
+  stackGroomFrameX?: number
+  stackGroomFrameY?: number
+  stackBrideFrameX?: number
+  stackBrideFrameY?: number
+  stackGroomNameX?: number
+  stackGroomNameY?: number
+  stackBrideNameX?: number
+  stackBrideNameY?: number
+}
+
+export type WeddingHeroPhotoLayout = 'single' | 'stack'
+
+export function readHeroPhotoLayout(value: unknown): WeddingHeroPhotoLayout {
+  return value === 'stack' ? 'stack' : 'single'
 }
 
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
@@ -138,7 +155,7 @@ function readScale(value: unknown): number | undefined {
 
 /** Khung ảnh to nhỏ quanh cỡ mặc định. Ảnh bên trong vẫn zoom riêng. */
 export const WEDDING_FRAME_SCALE_MIN = 0.6
-export const WEDDING_FRAME_SCALE_MAX = 1.4
+export const WEDDING_FRAME_SCALE_MAX = 1.8
 
 export function clampWeddingFrameScale(value: number): number {
   return Math.max(WEDDING_FRAME_SCALE_MIN, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(value * 100) / 100))
@@ -260,6 +277,48 @@ function readAlbumPhotoCrops(value: unknown): WeddingAlbumPhotoCrop[] | undefine
   return crops
 }
 
+const STACK_PLACE_KEYS = [
+  'stackGroomFrameX',
+  'stackGroomFrameY',
+  'stackBrideFrameX',
+  'stackBrideFrameY',
+  'stackGroomNameX',
+  'stackGroomNameY',
+  'stackBrideNameX',
+  'stackBrideNameY',
+] as const
+
+export type WeddingStackPlace = Record<(typeof STACK_PLACE_KEYS)[number], number>
+
+function readPlacePercent(value: unknown): number | undefined {
+  const num = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  if (!Number.isFinite(num)) return undefined
+  return Math.max(-20, Math.min(100, Math.round(num * 10) / 10))
+}
+
+function readStackPlaceFields(obj: object): Partial<WeddingStackPlace> {
+  const row = obj as Record<string, unknown>
+  const place: Partial<WeddingStackPlace> = {}
+  for (const key of STACK_PLACE_KEYS) {
+    const value = readPlacePercent(row[key])
+    if (value === undefined) return {}
+    place[key] = value
+  }
+  return place
+}
+
+function writeStackPlace(payload: WeddingSectionConfig, config: WeddingSectionConfig) {
+  const place = readStackPlaceFields(config)
+  if (Object.keys(place).length !== STACK_PLACE_KEYS.length) return
+  Object.assign(payload, place)
+}
+
+export function resolveStackPlace(config: WeddingSectionConfig): WeddingStackPlace | null {
+  const place = readStackPlaceFields(config)
+  if (Object.keys(place).length !== STACK_PLACE_KEYS.length) return null
+  return place as WeddingStackPlace
+}
+
 export function parseWeddingSectionConfig(raw: string | null | undefined): WeddingSectionConfig {
   if (!raw?.trim()) return {}
   try {
@@ -302,6 +361,8 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       ...readPortraitShell(obj, 'bride'),
       buttonColorId: isWeddingButtonColorId(obj.buttonColorId) ? obj.buttonColorId : undefined,
       coverRsvpColorId: isWeddingButtonColorId(obj.coverRsvpColorId) ? obj.coverRsvpColorId : undefined,
+      heroPhotoLayout: obj.heroPhotoLayout === 'stack' ? 'stack' : undefined,
+      ...readStackPlaceFields(obj),
     }
   } catch {
     return {}
@@ -356,6 +417,8 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   writePortraitShell(payload, 'bride', config)
   if (isWeddingButtonColorId(config.buttonColorId)) payload.buttonColorId = config.buttonColorId
   if (isWeddingButtonColorId(config.coverRsvpColorId)) payload.coverRsvpColorId = config.coverRsvpColorId
+  if (config.heroPhotoLayout === 'stack') payload.heroPhotoLayout = 'stack'
+  writeStackPlace(payload, config)
   return JSON.stringify(payload)
 }
 
@@ -498,6 +561,31 @@ export function mergeWeddingSectionConfig(
 ): string {
   const current = parseWeddingSectionConfig(raw)
   return stringifyWeddingSectionConfig({ ...current, ...patch })
+}
+
+/** Bản client là đủ cho khung chân dung. Thiếu mode nghĩa là gỡ khung, không giữ khung cũ trên server. */
+export function applyClientWeddingSectionConfig(
+  existingRaw: string | null | undefined,
+  clientRaw: string | null | undefined,
+): string {
+  const existing = parseWeddingSectionConfig(existingRaw)
+  const next = parseWeddingSectionConfig(clientRaw)
+  let raw: Record<string, unknown> = {}
+  try {
+    const value = JSON.parse(clientRaw || '{}') as unknown
+    if (value && typeof value === 'object' && !Array.isArray(value)) raw = value as Record<string, unknown>
+  } catch {
+    raw = {}
+  }
+  const base: WeddingSectionConfig = { ...existing }
+  for (const side of ['groom', 'bride'] as const) {
+    const modeKey = side === 'groom' ? 'groomPortraitShellMode' : 'bridePortraitShellMode'
+    const mode = raw[modeKey]
+    if (mode !== 'library' && mode !== 'preset') {
+      for (const key of portraitShellKeys(side)) delete base[key]
+    }
+  }
+  return stringifyWeddingSectionConfig({ ...base, ...next })
 }
 
 export function resolveCoverPhotoUrl(config: WeddingSectionConfig): string {

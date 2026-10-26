@@ -79,7 +79,19 @@ export async function createClass(formData: FormData) {
     subjectLabel: subjectLabel || null,
     teacherDisplayName: teacherDisplayName || null,
   })
-  if (!inserted) return { error: 'Không tạo được lớp.' }
+  if (inserted.status === 'name_taken') {
+    return {
+      code: 'class_exists' as const,
+      error: 'class_exists',
+      existing: {
+        classId: inserted.existing.id,
+        name: inserted.existing.name,
+        joinCode: inserted.existing.join_code,
+        schoolName: inserted.existing.school_name,
+      },
+    }
+  }
+  if (inserted.status !== 'created') return { error: 'Không tạo được lớp.' }
 
   const prevSetting = await fetchTeacherSchoolSettingsPrevMinePg(user.id)
   await upsertTeacherSchoolSettingsMinePg({
@@ -90,7 +102,7 @@ export async function createClass(formData: FormData) {
   })
 
   revalidatePath('/lop')
-  return { success: true, classId: inserted.id, joinCode }
+  return { success: true, classId: inserted.row.id, joinCode }
 }
 
 export async function updateClassStudentFacingInfo(input: {

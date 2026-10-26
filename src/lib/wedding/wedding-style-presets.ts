@@ -10,7 +10,7 @@ export type WeddingStylePreset = {
     textClass: string
     panelClass: string
     /** Decorative motif rendered in the mini preview */
-    motif: 'gold_foil' | 'clean_lines' | 'double_happiness' | 'floral_corners' | 'ornate_frame' | 'dark_gold'
+    motif: 'gold_foil' | 'clean_lines' | 'double_happiness' | 'floral_corners' | 'ink_strokes' | 'ornate_frame' | 'dark_gold'
   }
   label: Record<WebLocale, string>
   description: Record<WebLocale, string>
@@ -97,7 +97,7 @@ export const WEDDING_STYLE_PRESETS: WeddingStylePreset[] = [
   },
   {
     id: 'floral',
-    palette: 'rose, cream, eucalyptus green',
+    palette: 'ivory, blush, peony rose, soft lotus pink, eucalyptus, champagne gold',
     ornament: '❀',
     thumbnail: {
       bg: 'linear-gradient(160deg, #fecdd3 0%, #fff1f2 45%, #d1fae5 100%)',
@@ -114,11 +114,37 @@ export const WEDDING_STYLE_PRESETS: WeddingStylePreset[] = [
       ko: '플로럴',
     },
     description: {
-      vi: 'Hoa hồng, lá xanh — lãng mạn, nền hoa tươi',
-      en: 'Roses, greenery — romantic fresh floral backgrounds',
-      zh: '玫瑰、绿叶——浪漫鲜花背景',
-      ja: 'バラとグリーン——ロマンチックな花背景',
-      ko: '장미, 그린 리프 — 로맨틱한 꽃 배경',
+      vi: 'Hoa văn dày mà thanh thoát — mẫu đơn, sen, anh đào, nét vàng mảnh, cột giữa thoáng',
+      en: 'Dense yet airy florals — peony, lotus, cherry blossom, fine gold line, calm center',
+      zh: '繁而清雅的花卉——牡丹、莲、樱、细金线，中间留白',
+      ja: '密でありながら軽やかな花——牡丹、蓮、桜、細い金線、中央は余白',
+      ko: '빽빽하지만 맑은 꽃무늬 — 모란, 연꽃, 벚꽃, 가는 금선, 가운데는 여백',
+    },
+  },
+  {
+    id: 'ethereal',
+    palette: 'ivory paper, pale blush, soft ink brown, a whisper of champagne gold',
+    ornament: '∿',
+    thumbnail: {
+      bg: 'linear-gradient(165deg, #fbf8f4 0%, #fffdfb 62%, #f6e7ee 100%)',
+      accent: '#8d6e63',
+      textClass: 'text-stone-800',
+      panelClass: 'bg-white/75 border-stone-200/70',
+      motif: 'ink_strokes',
+    },
+    label: {
+      vi: 'Thanh tao',
+      en: 'Ethereal',
+      zh: '清雅',
+      ja: '清雅',
+      ko: '청아',
+    },
+    description: {
+      vi: 'Ít nét, nhiều khoảng trống — cành hoa mực, nghệ thuật, không hoa văn dày',
+      en: 'Few strokes, lots of open paper — an ink branch, artistic, not a dense pattern',
+      zh: '笔触很少、留白很大——一枝墨花，写意，不是密纹',
+      ja: '筆は少なく余白は大きく——墨の一枝、芸術的、密な模様ではない',
+      ko: '획은 적고 여백은 크게 — 먹 가지 하나, 예술적, 빽빽한 무늬 아님',
     },
   },
   {

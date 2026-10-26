@@ -26,6 +26,8 @@ export function LopClassDetailView({
   const {
     cls,
     isTeacher,
+    isOwner,
+    classSubjects,
     members,
     initialExamAttempts,
     initialExamSessions,
@@ -49,6 +51,8 @@ export function LopClassDetailView({
               teacherDisplayName: cls.teacher_display_name,
             }}
             isTeacher={isTeacher}
+            isOwner={isOwner}
+            classSubjects={classSubjects}
             members={members}
             initialExamAttempts={initialExamAttempts}
             initialExamSessions={initialExamSessions}

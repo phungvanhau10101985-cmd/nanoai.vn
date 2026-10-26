@@ -57,8 +57,8 @@ import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-t
 import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
-import { normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
-import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
+import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { applyClientWeddingSectionConfig, mergeWeddingSectionConfig, readHeroPhotoLayout, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
   isWeddingPolishField,
@@ -170,12 +170,21 @@ export async function getOrCreateWeddingCard() {
   return loadWeddingCardWorkspace()
 }
 
-export async function createNewWeddingCard(occasionKey?: string) {
+export async function createNewWeddingCard(occasionKey?: string, heroPhotoLayout?: string) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
-  const card = (await publishWeddingCard(draft.id, ownerUserId)) ?? draft
+  const stack =
+    readHeroPhotoLayout(heroPhotoLayout) === 'stack' && invitationOccasionShape(occasionKey) === 'couple'
+  const seeded = stack
+    ? (await saveWeddingCardSectionConfig(
+        draft.id,
+        ownerUserId,
+        stringifyWeddingSectionConfig({ heroPhotoLayout: 'stack' }),
+      )) ?? draft
+    : draft
+  const card = (await publishWeddingCard(seeded.id, ownerUserId)) ?? seeded
   if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   return weddingCardWorkspace(ownerUserId, card)
 }
@@ -277,8 +286,7 @@ export async function saveWeddingCardBrief(formData: FormData) {
   } else if (boolValue(formData.get('coverClear'))) {
     sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: '' })
   } else {
-    const parsedSection = parseWeddingSectionConfig(sectionConfig)
-    sectionConfig = mergeWeddingSectionConfig(existing.sectionConfig, parsedSection)
+    sectionConfig = applyClientWeddingSectionConfig(existing.sectionConfig, sectionConfig)
   }
 
   const draftForGift: Parameters<typeof updateWeddingCardBrief>[0] = {

@@ -7,6 +7,7 @@ import { getServerDictionary } from '@/lib/i18n/server'
 import Link from 'next/link'
 import { CreationToolPageShell } from '@/components/layout/creation-tool-page-shell'
 import LopClientPage, { type ClassItem } from './lop-client-page'
+import EnterClassForm from './enter-class-form'
 
 export const metadata = buildMetadata({
   title: 'Lớp học',
@@ -45,7 +46,7 @@ export default async function LopPage() {
   const myClasses: ClassItem[] = (myRows ?? []).map(mapMineToClassItem)
   const memberClasses: ClassItem[] = (memberRows ?? []).map(mapMineToClassItem)
 
-  const { t } = await getServerDictionary()
+  const { locale, t } = await getServerDictionary()
 
   return (
     <div className="app-shell min-h-screen">
@@ -85,6 +86,8 @@ export default async function LopPage() {
               </Link>
             </div>
           ) : null}
+
+          <EnterClassForm t={t.classes} locale={locale} />
 
           <LopClientPage t={t.classes} myClasses={myClasses} memberClasses={memberClasses} />
         </div>

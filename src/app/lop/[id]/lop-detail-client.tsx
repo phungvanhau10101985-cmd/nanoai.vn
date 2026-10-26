@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label'
 import { formatSessionIsoDateTime } from '@/lib/datetime/format-session-iso-local'
 import { openDetachedTeacherSlideWindow } from '@/lib/tao-giao-trinh/teacher-slide-window'
 import { useToast } from '@/hooks/use-toast'
+import { classSubjectLabel } from '@/lib/lop/class-subject'
 import { Toaster } from '@/components/ui/toaster'
 import {
   Copy,
@@ -471,6 +472,8 @@ function TeacherClassExamGroupListItem({
 export default function LopDetailClient({
   cls,
   isTeacher,
+  isOwner = isTeacher,
+  classSubjects = [],
   members = [],
   initialExamAttempts = [],
   initialExamSessions = [],
@@ -491,6 +494,13 @@ export default function LopDetailClient({
     teacherDisplayName?: string | null
   }
   isTeacher: boolean
+  isOwner?: boolean
+  classSubjects?: {
+    subjectId: string
+    subjectLabel: string
+    teacherId: string
+    teacherDisplayName: string | null
+  }[]
   members?: Member[]
   initialExamAttempts?: ExamAttempt[]
   /** Phiên đề thi gắn lớp (luôn hiển thị, kể cả chưa có bài nộp) */
@@ -984,6 +994,9 @@ export default function LopDetailClient({
   const pageSectionTitle = 'text-base font-semibold tracking-tight text-foreground'
   const pageHero =
     'overflow-hidden rounded-2xl border border-border/90 bg-gradient-to-br from-primary/[0.08] via-card to-muted/30 p-4 shadow-md ring-1 ring-black/[0.04] dark:from-primary/[0.12] dark:to-muted/20 dark:ring-white/[0.06] sm:p-5'
+  const classHasStudents = membersList.some(
+    (m) => m.kind === 'student' && !m.userId.startsWith('exam-attempt:')
+  )
 
   const studentFacingPreviewLine = useMemo(() => {
     const subj = facingSubject.trim()
@@ -1010,7 +1023,7 @@ export default function LopDetailClient({
               >
                 {isTeacher ? t.memberRoleTeacher : t.memberRoleStudent}
               </span>
-              {isTeacher && (
+              {isOwner && !classHasStudents && (
                 <div className="flex flex-wrap items-center gap-1.5">
                   {editingClassName ? (
                     <>
@@ -1034,7 +1047,16 @@ export default function LopDetailClient({
                           const data = await res.json().catch(() => ({}))
                           setRenamingClass(false)
                           if (!res.ok) {
-                            toast({ variant: 'destructive', description: data?.error ?? t.renameClassFailed })
+                            const takenName = String(data?.existing?.name ?? newName)
+                            toast({
+                              variant: 'destructive',
+                              description:
+                                data?.code === 'class_has_students'
+                                  ? t.renameClassHasStudents
+                                  : data?.code === 'class_exists'
+                                    ? `${t.classNameTaken.replaceAll('{name}', takenName)} ${t.classNameTakenHint}`
+                                    : (data?.error ?? t.renameClassFailed),
+                            })
                             return
                           }
                           setSavedClassName(newName)
@@ -1114,6 +1136,37 @@ export default function LopDetailClient({
             </span>
           </div>
 
+          {classSubjects.length > 0 || isTeacher ? (
+            <section className="mt-3 rounded-xl border border-border/70 bg-background/50 p-3">
+              <h2 className="text-sm font-semibold text-foreground">{t.classSubjectsTitle}</h2>
+              {classSubjects.length === 0 ? (
+                <p className="mt-1 text-sm text-muted-foreground">{t.classSubjectsEmpty}</p>
+              ) : (
+                <ul className="mt-2 space-y-1.5">
+                  {classSubjects.map((s) => (
+                    <li
+                      key={`${s.teacherId}-${s.subjectId}`}
+                      className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                    >
+                      <span className="font-medium text-foreground">
+                        {(() => {
+                          const catalog = classSubjectLabel(s.subjectId, webLocale)
+                          if (s.subjectId === 'khac' || catalog === s.subjectId) {
+                            return s.subjectLabel.trim() || catalog
+                          }
+                          return catalog
+                        })()}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {s.teacherDisplayName?.trim() || t.memberRoleTeacher}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
+
           {!isTeacher && (cls.subjectLabel?.trim() || cls.teacherDisplayName?.trim()) ? (
             <p className="mt-2 text-sm font-medium text-foreground leading-snug">
               {[cls.name, String(cls.subjectLabel ?? '').trim(), String(cls.teacherDisplayName ?? '').trim()]
@@ -1122,7 +1175,7 @@ export default function LopDetailClient({
             </p>
           ) : null}
 
-          {isTeacher ? (
+          {isOwner ? (
             <details className="mt-3 overflow-hidden rounded-xl border border-border/70 bg-background/40 shadow-sm dark:bg-background/25">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-left text-sm outline-none transition-colors hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 <span className="min-w-0 flex-1">
@@ -1786,7 +1839,7 @@ export default function LopDetailClient({
                     )}
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                    {isTeacher &&
+                    {isOwner &&
                     m.kind === 'student' &&
                     !m.userId.startsWith('exam-attempt:') ? (
                       <Button
@@ -2390,7 +2443,12 @@ export default function LopDetailClient({
                 if (!res.ok) {
                   toast({
                     variant: 'destructive',
-                    description: typeof data?.error === 'string' ? data.error : t.deleteClassFailed,
+                    description:
+                      data?.code === 'class_has_students'
+                        ? t.deleteClassHasStudents
+                        : typeof data?.error === 'string'
+                          ? data.error
+                          : t.deleteClassFailed,
                   })
                   return
                 }

@@ -49,6 +49,17 @@ const LOOKS: Record<string, WeddingShareLook> = {
     muted: '#8a4034',
     accent: '#9a3412',
   },
+  ethereal: {
+    styleId: 'ethereal',
+    background: '#fbf8f4',
+    backgroundAlt: '#f3e4ea',
+    scrim: 'rgba(44, 40, 37, 0.18)',
+    frame: '#8d6e63',
+    panel: '#fffdfb',
+    ink: '#2c2825',
+    muted: '#5c534c',
+    accent: '#6d4c41',
+  },
   floral: {
     styleId: 'floral',
     background: '#fff1f2',

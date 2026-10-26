@@ -31,6 +31,7 @@ export function SchoolNameOptions({
   onPickSuggestion,
   onTypeOwn,
   onRename,
+  typeOwnMinLength = 3,
 }: {
   items: SchoolSearchHit[]
   suggestions: string[]
@@ -46,6 +47,7 @@ export function SchoolNameOptions({
   onPickSuggestion: (name: string, siblingNames: string[]) => void
   onTypeOwn: (name: string) => void
   onRename: (schoolId: string, name: string) => Promise<boolean>
+  typeOwnMinLength?: number
 }) {
   const [ownName, setOwnName] = useState('')
   const [editingKey, setEditingKey] = useState('')
@@ -65,7 +67,8 @@ export function SchoolNameOptions({
     )
   }
 
-  const showTypeOwn = query.trim().length >= 3 && !suggesting
+  const ownMin = Math.max(1, typeOwnMinLength)
+  const showTypeOwn = query.trim().length >= ownMin && !suggesting
 
   return (
     <>
@@ -85,7 +88,7 @@ export function SchoolNameOptions({
                 type="button"
                 size="sm"
                 className="h-8 shrink-0 px-2"
-                disabled={busy || draft.trim().length < 3}
+                disabled={busy || draft.trim().length < ownMin}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   void onRename(item.id, draft.trim()).then((ok) => {
@@ -158,7 +161,7 @@ export function SchoolNameOptions({
             variant="secondary"
             size="sm"
             className="h-8 shrink-0 px-2"
-            disabled={busy || ownName.trim().length < 3}
+            disabled={busy || ownName.trim().length < ownMin}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onTypeOwn(ownName.trim())}
           >

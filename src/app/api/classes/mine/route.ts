@@ -103,7 +103,22 @@ export async function POST(req: NextRequest) {
     subjectLabel: subjectLabel || null,
     teacherDisplayName: teacherDisplayName || null,
   })
-  if (!created) {
+  if (created.status === 'name_taken') {
+    return NextResponse.json(
+      {
+        error: 'Trường này đã có lớp trùng tên. Hãy thêm người vào lớp đã có.',
+        code: 'class_exists',
+        existing: {
+          id: created.existing.id,
+          name: created.existing.name,
+          joinCode: created.existing.join_code,
+          schoolName: created.existing.school_name,
+        },
+      },
+      { status: 409 }
+    )
+  }
+  if (created.status !== 'created') {
     return NextResponse.json({ error: 'Tạo lớp thất bại.' }, { status: 500 })
   }
 
@@ -122,15 +137,15 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     item: {
-      id: created.id,
-      name: created.name,
-      joinCode: created.join_code,
-      schoolId: created.school_id ?? '',
-      schoolName: created.school_name ?? '',
-      gradeLevelId: created.grade_level_id ?? '',
-      subjectLabel: (created.subject_label ?? '').trim(),
-      teacherDisplayName: (created.teacher_display_name ?? '').trim(),
-      createdAt: created.created_at,
+      id: created.row.id,
+      name: created.row.name,
+      joinCode: created.row.join_code,
+      schoolId: created.row.school_id ?? '',
+      schoolName: created.row.school_name ?? '',
+      gradeLevelId: created.row.grade_level_id ?? '',
+      subjectLabel: (created.row.subject_label ?? '').trim(),
+      teacherDisplayName: (created.row.teacher_display_name ?? '').trim(),
+      createdAt: created.row.created_at,
     },
   })
 }

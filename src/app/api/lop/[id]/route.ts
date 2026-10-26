@@ -26,6 +26,15 @@ export async function DELETE(
   if (result === 'not_owner') {
     return NextResponse.json({ error: 'Chỉ người tạo lớp mới có quyền xóa lớp này.' }, { status: 403 })
   }
+  if (result === 'has_students') {
+    return NextResponse.json(
+      {
+        error: 'Lớp đã có học sinh, không xóa được.',
+        code: 'class_has_students',
+      },
+      { status: 409 }
+    )
+  }
 
   return NextResponse.json({ success: true })
 }

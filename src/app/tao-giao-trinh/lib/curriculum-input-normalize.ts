@@ -64,7 +64,10 @@ export function normalizeCurriculumInput(raw: RawCurriculumInput): NormalizedCur
   const textbookSetId = (raw.textbookSetId ?? '').trim() || 'ket-noi-tri-thuc'
   const lessonTypeId = (raw.lessonTypeId ?? '').trim() || 'hinh-thanh-kien-thuc'
 
-  const subjectIdNorm = VALID_SUBJECT_IDS.has(subjectId) ? subjectId : 'toan'
+  const subjectIdNorm =
+    VALID_SUBJECT_IDS.has(subjectId) || /^[a-z0-9-]{2,40}$/.test(subjectId)
+      ? subjectId
+      : 'toan'
   const gradeLevelIdNorm = VALID_GRADE_IDS.has(gradeLevelId) ? gradeLevelId : 'lop-6'
   const textbookSetIdNorm = VALID_TEXTBOOK_IDS.has(textbookSetId) ? textbookSetId : 'ket-noi-tri-thuc'
   const lessonTypeIdNorm = VALID_LESSON_TYPE_IDS.has(lessonTypeId) ? lessonTypeId : 'hinh-thanh-kien-thuc'

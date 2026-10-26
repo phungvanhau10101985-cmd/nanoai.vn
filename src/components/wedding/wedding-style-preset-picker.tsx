@@ -62,6 +62,18 @@ function StyleMotif(props: { preset: WeddingStylePreset }) {
     )
   }
 
+  if (motif === 'ink_strokes') {
+    return (
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 120 90" aria-hidden>
+        <path d="M10 74 C 24 46, 30 30, 18 10" fill="none" stroke={accent} strokeWidth="1.2" />
+        <path d="M18 10 C 28 18, 32 14, 36 6" fill="none" stroke={accent} strokeWidth="0.8" />
+        <circle cx="16" cy="24" r="3.2" fill={accent} opacity="0.35" />
+        <path d="M110 16 C 94 30, 98 50, 112 66" fill="none" stroke={accent} strokeWidth="1" />
+        <circle cx="102" cy="38" r="2.2" fill={accent} opacity="0.28" />
+      </svg>
+    )
+  }
+
   if (motif === 'floral_corners') {
     return (
       <>

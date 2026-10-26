@@ -8,7 +8,8 @@ import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 import { getWeddingCoverPreset, type WeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
-import type { WeddingCoverFrameOpen, WeddingCoverPhotoOpen } from '@/lib/wedding/wedding-section-config'
+import type { WeddingAlbumPhotoFrame, WeddingCoverFrameOpen, WeddingCoverPhotoOpen, WeddingPortraitShellFrame, WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { WeddingStackedCouplePhotos, type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
@@ -23,6 +24,32 @@ type WeddingCoverShellCardProps = {
   coverPhotoUrl?: string
   coverPhotoObjectPosition?: string
   coverPhotoScale?: number
+  /** Hai khung chồng. Có thì vỏ không dùng khung một ảnh. */
+  stackPair?: {
+    firstUrl: string
+    secondUrl: string
+    firstAlt: string
+    secondAlt: string
+    firstFrame?: WeddingAlbumPhotoFrame
+    secondFrame?: WeddingAlbumPhotoFrame
+    firstEdit?: WeddingStackedPhotoEdit
+    secondEdit?: WeddingStackedPhotoEdit
+    firstName?: string
+    secondName?: string
+    firstCaption?: string
+    secondCaption?: string
+    firstNameEdit?: WeddingStackedNameEdit
+    secondNameEdit?: WeddingStackedNameEdit
+    frameScale?: number
+    frameScaleEdit?: WeddingStackedFrameScaleEdit
+    frameShell?: WeddingPortraitShellFrame | null
+    chooseFrameLabel?: string
+    onChooseFrame?: () => void
+    place?: WeddingStackPlace | null
+    onPlace?: (place: WeddingStackPlace) => void
+    moveLabel?: string
+    showEmpty?: boolean
+  }
   groomName: string
   brideName: string
   weddingDate?: string | null
@@ -1401,7 +1428,100 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
   )
 }
 
+function StackCoverCard(props: WeddingCoverShellCardProps) {
+  const pair = props.stackPair
+  if (!pair) return null
+  const { compact, theme } = props
+  const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
+  return (
+    <WeddingReadableGlass
+      className={cn(
+        'w-full text-center',
+        compact ? 'max-w-[248px] rounded-[1.2rem] px-1.5 py-3' : props.fitViewport ? 'rounded-[1.35rem] p-3 sm:p-4' : 'rounded-[1.5rem] px-3 py-4 sm:rounded-[2rem] sm:px-4 sm:py-6 lg:px-4 lg:py-5',
+        props.namesFlyIn && !compact && 'overflow-visible',
+        intro.hold && 'wedding-cover-hold',
+      )}
+    >
+      <div ref={intro.rootRef}>
+        <p className={cn('uppercase tracking-[0.28em] sm:tracking-[0.35em]', compact ? 'text-[8px]' : 'text-[11px] sm:text-xs', theme.accentText, theme.textGlow)}>
+          {props.invitationLabel}
+        </p>
+        <WeddingStackedCouplePhotos
+          firstUrl={pair.firstUrl}
+          secondUrl={pair.secondUrl}
+          firstAlt={pair.firstAlt}
+          secondAlt={pair.secondAlt}
+          firstFrame={pair.firstFrame}
+          secondFrame={pair.secondFrame}
+          firstEdit={pair.firstEdit}
+          secondEdit={pair.secondEdit}
+          firstName={pair.firstName ?? props.groomName}
+          secondName={pair.secondName ?? props.brideName}
+          firstCaption={pair.firstCaption}
+          secondCaption={pair.secondCaption}
+          firstNameEdit={pair.firstNameEdit}
+          secondNameEdit={pair.secondNameEdit}
+          frameScale={pair.frameScale}
+          frameScaleEdit={pair.frameScaleEdit}
+          frameShell={pair.frameShell}
+          chooseFrameLabel={pair.chooseFrameLabel}
+          onChooseFrame={pair.onChooseFrame}
+          place={pair.place}
+          onPlace={pair.onPlace}
+          moveLabel={pair.moveLabel}
+          nameClassName={cn(theme.text, theme.textGlowHeading)}
+          showEmpty={pair.showEmpty}
+          compact={compact}
+          className={compact ? 'mt-2' : 'mt-3'}
+        />
+        <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
+        {!props.guestName ? (
+          <p className={cn(compact ? 'text-[10px]' : 'text-xs sm:text-sm', theme.mutedText, theme.textGlow)}>
+            {props.weddingDate || props.dateFallback}
+          </p>
+        ) : null}
+        {props.guestName ? (
+          <WeddingGuestInviteBlock
+            className={cn(compact ? 'mt-2' : 'mt-2 sm:mt-3 lg:mt-2', props.namesFlyIn && !compact && 'wedding-invite-body-join')}
+            guestName={props.guestName}
+            inviteVenue={props.guestInviteVenue ?? ''}
+            cordiallyInvitesLabel={props.cordiallyInvitesLabel}
+            venueLabel={props.guestInviteVenueLabel ?? ''}
+            weddingDateLabel={props.weddingDate || props.dateFallback || undefined}
+            weddingTimeText={props.weddingTimeText}
+            addressText={props.addressText}
+            mapUrl={props.mapUrl}
+            viewMapLabel={props.viewMapLabel ?? ''}
+            panelClassName={theme.panelStrong}
+            cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
+            nameClassName={cn(theme.text, theme.textGlowHeading)}
+            venueClassName={cn(theme.accentText, theme.textGlow)}
+            addressClassName={cn(theme.mutedText, theme.textGlow)}
+            weddingThemeId={theme.id}
+            buttonColor={props.buttonColor}
+            compact={compact}
+            dense={props.fitViewport}
+            personalInviteText={props.personalInviteText}
+            personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
+          />
+        ) : null}
+        <CoverActions
+          themeId={theme.id}
+          buttonColor={props.buttonColor}
+          rsvpButtonColor={props.rsvpButtonColor}
+          compact={compact}
+          className={compact ? 'mt-3' : props.fitViewport ? 'mt-1.5' : 'mt-3 sm:mt-4 lg:mt-3'}
+          openLabel={props.openButtonLabel}
+          onOpen={props.onOpen}
+          quickRsvp={props.quickRsvp}
+        />
+      </div>
+    </WeddingReadableGlass>
+  )
+}
+
 export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
+  if (props.stackPair) return <StackCoverCard {...props} />
   const preset = getWeddingCoverPreset(props.presetId)
   const mode = props.frameMode
   if (mode === 'none') {

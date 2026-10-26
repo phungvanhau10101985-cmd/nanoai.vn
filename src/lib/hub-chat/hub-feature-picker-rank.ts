@@ -1,6 +1,7 @@
 /**
- * Picker trên trang chủ: tính năng vừa dùng và tính năng liên quan nằm trên;
- * tính năng chưa dùng và không liên quan nằm dưới, giữ thứ tự catalog.
+ * Picker trên trang chủ:
+ * tính năng vừa mở đứng trên, tính năng ít mở ở giữa (thứ tự catalog),
+ * tính năng liên quan đứng dưới.
  */
 import { getExplicitCreationRelatedLinks } from '@/lib/creation-tool-sidebar-config'
 import type { HubFeatureCatalogEntry } from '@/lib/hub-chat/hub-feature-catalog'
@@ -206,8 +207,9 @@ function relatedKeysFor(
 }
 
 /**
- * Nhóm chứa tính năng vừa dùng (mới nhất trước) và chip liên quan đứng trên.
- * Phần còn lại giữ thứ tự catalog.
+ * Tính năng vừa mở (mới nhất trước) đứng trên.
+ * Tính năng ít mở giữ thứ tự catalog ở giữa.
+ * Tính năng liên quan với mục vừa mở đứng dưới.
  */
 export function rankHubFeaturePickerGroups(
   groups: readonly HubFeaturePickerGroup[],
@@ -225,6 +227,7 @@ export function rankHubFeaturePickerGroups(
   const byKey = new Map(flat.map((entry) => [entry.key, entry]))
   const placed = new Set<string>()
   const top: IndexedEntry[] = []
+  const related: IndexedEntry[] = []
 
   const take = (key: string, bucket: IndexedEntry[]) => {
     if (placed.has(key)) return
@@ -234,21 +237,13 @@ export function rankHubFeaturePickerGroups(
     bucket.push(row)
   }
 
+  for (const key of recent) take(key, top)
   for (const key of recent) {
-    if (placed.has(key) || !byKey.has(key)) continue
-    const entry = byKey.get(key)!
-    const bucket: IndexedEntry[] = []
-    take(key, bucket)
-    if ((groupSize.get(entry.groupKey) ?? 99) <= FAMILY_GROUP_MAX) {
-      for (const other of recent) {
-        const row = byKey.get(other)
-        if (row && row.groupKey === entry.groupKey) take(other, bucket)
-      }
-    }
-    for (const related of relatedKeysFor(entry, flat, groupSize)) take(related, bucket)
-    top.push(...bucket)
+    const entry = byKey.get(key)
+    if (!entry) continue
+    for (const relatedKey of relatedKeysFor(entry, flat, groupSize)) take(relatedKey, related)
   }
 
   const cold: IndexedEntry[] = flat.filter((entry) => !placed.has(entry.key))
-  return [...chunkGroups(top), ...chunkGroups(cold)]
+  return [...chunkGroups(top), ...chunkGroups(cold), ...chunkGroups(related)]
 }

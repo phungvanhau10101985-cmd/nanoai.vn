@@ -1,3 +1,5 @@
+import { fetchClassSubjectsPg } from '@/lib/db/classes-pg'
+import { fetchSubjectNameExtrasPg } from '@/lib/db/name-edit-votes'
 import { SUBJECTS } from '@/app/tao-giao-trinh/lib/curriculum-subjects'
 import { isPgConfigured } from '@/lib/db/pool'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -46,6 +48,14 @@ export type ClassDetailPayload = {
     teacher_display_name: string | null
   }
   isTeacher: boolean
+  isOwner: boolean
+  isSubjectTeacher: boolean
+  classSubjects: {
+    subjectId: string
+    subjectLabel: string
+    teacherId: string
+    teacherDisplayName: string | null
+  }[]
   schoolName: string
   subjectNames: string[]
   members: ClassMemberPayload[]
@@ -95,10 +105,22 @@ export async function loadClassDetailPayload(
     )
     if (!cls) return null
 
-    const isTeacher = cls.teacher_id === userId
+    const subjectRows = await fetchClassSubjectsPg(classId)
+    const classSubjects = subjectRows ?? []
+    const isOwner = cls.teacher_id === userId
+    const isSubjectTeacher = classSubjects.some((s) => s.teacher_id === userId)
+    const isTeacher = isOwner || isSubjectTeacher
     const schoolName = String(cls.school_name ?? '').trim()
 
     const subjectLabelMap = new Map<string, string>(SUBJECTS.map((s) => [s.id, s.labelVi]))
+    for (const row of classSubjects) {
+      const label = String(row.subject_label ?? '').trim()
+      if (row.subject_id && label) subjectLabelMap.set(row.subject_id, label)
+    }
+    const subjectExtras = await fetchSubjectNameExtrasPg()
+    for (const [subjectId, label] of subjectExtras.overrides) {
+      if (label) subjectLabelMap.set(subjectId, label)
+    }
     const subjRows = await pgQuery<{ subject_id: string | null }>(
       `select distinct subject_id::text as subject_id
        from public.exam_sessions
@@ -126,6 +148,9 @@ export async function loadClassDetailPayload(
       [classId]
     )
 
+    const isMember = memberRows.some((m) => m.user_id === userId)
+    if (!isOwner && !isSubjectTeacher && !isMember) return null
+
     const baseMembers: ClassMemberPayload[] = memberRows.map((m) => {
       const kind = m.user_id === cls.teacher_id ? ('teacher_member' as const) : ('student' as const)
       const display = String(m.member_display_name ?? '').trim()
@@ -134,7 +159,7 @@ export async function loadClassDetailPayload(
         name: display || '—',
         birthDate: birthDateOnly(m.birth_date),
         kind,
-        removable: isTeacher && kind === 'student' && m.user_id !== cls.teacher_id,
+        removable: isOwner && kind === 'student' && m.user_id !== cls.teacher_id,
       }
     })
 
@@ -346,6 +371,14 @@ export async function loadClassDetailPayload(
         teacher_display_name: cls.teacher_display_name,
       },
       isTeacher,
+      isOwner,
+      isSubjectTeacher,
+      classSubjects: classSubjects.map((s) => ({
+        subjectId: s.subject_id,
+        subjectLabel: s.subject_label,
+        teacherId: s.teacher_id,
+        teacherDisplayName: s.teacher_display_name,
+      })),
       schoolName,
       subjectNames,
       members: mergedMembers,
