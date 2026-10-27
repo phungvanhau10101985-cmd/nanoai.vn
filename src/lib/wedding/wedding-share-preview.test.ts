@@ -23,7 +23,7 @@ const card = {
 }
 
 test('share look follows the selected cover preset', () => {
-  assert.equal(weddingShareLook('luxury', 'classic_red').styleId, 'traditional_vietnamese')
+  assert.equal(weddingShareLook('luxury', 'red_photo_arch').styleId, 'traditional_vietnamese')
   assert.equal(weddingShareLook('traditional_vietnamese').frame, '#e8b84a')
   assert.equal(weddingShareLook('modern').panel, '#0f172a')
 })

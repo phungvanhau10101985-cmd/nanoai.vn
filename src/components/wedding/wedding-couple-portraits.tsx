@@ -143,6 +143,8 @@ export function WeddingCouplePortraits(props: {
   chooseFrameLabel?: string
   onChoosePhoto?: (side: 'groom' | 'bride') => void
   onChooseFrame?: (side: 'groom' | 'bride') => void
+  /** Một thanh cỡ khung cho cả hai ảnh. */
+  pairFrameScaleEdit?: FrameScaleEdit
   groomFrameScaleEdit?: FrameScaleEdit
   brideFrameScaleEdit?: FrameScaleEdit
 }) {
@@ -188,7 +190,6 @@ export function WeddingCouplePortraits(props: {
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
-          frameScaleEdit={props.groomFrameScaleEdit}
         />
         <span
           className={cn(
@@ -207,16 +208,21 @@ export function WeddingCouplePortraits(props: {
           label={props.brideLabel}
           frame={props.brideFrame ?? PORTRAIT_FRAME}
           shell={props.brideShell}
-          frameScale={props.brideFrameScale}
+          frameScale={props.pairFrameScaleEdit ? props.groomFrameScale : props.brideFrameScale}
           theme={props.theme}
           compact={props.compact}
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
-          frameScaleEdit={props.brideFrameScaleEdit}
+          frameScaleEdit={props.pairFrameScaleEdit ? undefined : props.brideFrameScaleEdit}
         />
       </div>
+      {props.pairFrameScaleEdit ? (
+        <div className="mt-2 flex justify-center">
+          <FrameScaleDragBar edit={props.pairFrameScaleEdit} />
+        </div>
+      ) : null}
     </div>
   )
 }

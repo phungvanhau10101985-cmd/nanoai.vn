@@ -4,12 +4,14 @@ import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { invitationCoverPhotoCopy } from '@/lib/wedding/invitation-occasion'
+import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import {
   DEFAULT_WEDDING_COVER_PRESET_ID,
   labelForWeddingCoverPreset,
   WEDDING_COVER_PRESETS,
   type WeddingCoverPresetTag,
 } from '@/lib/wedding/wedding-cover-presets'
+import { getOrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
 
 export type WeddingCoverFrameLibraryChoice = {
   id: string
@@ -37,8 +39,23 @@ type WeddingCoverPresetPickerProps = {
   onSelectLibrary?: (item: WeddingCoverFrameLibraryChoice) => void
 }
 
-function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRESETS)[number]; selected: boolean }) {
+export function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRESETS)[number]; selected: boolean }) {
   const { preset, selected } = props
+  const shell = cn(
+    'relative aspect-[3/4] overflow-hidden rounded-xl border shadow-sm transition',
+    selected ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300',
+  )
+  if (preset.layout === 'composed') {
+    const composition = getOrnamentComposition(preset.compositionId)
+    if (composition) {
+      return (
+        <div className={shell} style={{ background: composition.kit.panel }}>
+          <WeddingOrnamentStage kit={composition.kit} layout={composition.layout} />
+          <div className="absolute inset-x-[16%] top-[40%] text-center font-serif text-[9px] leading-tight text-stone-800">A & B</div>
+        </div>
+      )
+    }
+  }
   if (preset.layout === 'frame' && preset.frame) {
     const hole = preset.frame.hole
     return (

@@ -1,4 +1,5 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
+import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import { normalizeInvitationOccasion, type InvitationOccasionKey } from '@/lib/wedding/invitation-occasion'
 import { weddingDateFromPg } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
@@ -456,6 +457,21 @@ export async function deleteWeddingCardForUser(cardId: string, userId: string): 
   return res.rowCount === 1
 }
 
+export async function getWeddingCardOwner(cardId: string): Promise<{ userId: string; slug: string } | null> {
+  if (!UUID_RE.test(cardId)) return null
+  requirePg()
+  const res = await getPgPool().query<{ user_id: string; slug: string | null }>(
+    `select user_id::text as user_id, slug
+     from public.wedding_cards
+     where id = $1::uuid
+     limit 1`,
+    [cardId],
+  )
+  const row = res.rows[0]
+  if (!row?.user_id) return null
+  return { userId: row.user_id, slug: String(row.slug ?? '') }
+}
+
 export async function getWeddingCardForUser(cardId: string, userId: string): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -467,6 +483,62 @@ export async function getWeddingCardForUser(cardId: string, userId: string): Pro
     [cardId, userId]
   )
   return res.rows[0] ? mapCard(res.rows[0]) : null
+}
+
+export async function patchWeddingCardPreview(
+  cardId: string,
+  userId: string,
+  patch: {
+    groomName?: string
+    brideName?: string
+    coupleIntro?: string
+    storyText?: string
+    thankYouText?: string
+    groomInviteAddress?: string
+    brideInviteAddress?: string
+    groomInviteReceptionTime?: string
+    brideInviteReceptionTime?: string
+    groomInviteWeddingDate?: string
+    brideInviteWeddingDate?: string
+    sectionConfig?: string
+  },
+): Promise<WeddingCard | null> {
+  requirePg()
+  const sets: string[] = []
+  const values: unknown[] = [cardId, userId]
+  const text = (column: string, value: string | undefined) => {
+    if (value === undefined) return
+    values.push(value)
+    sets.push(`${column} = $${values.length}`)
+  }
+  const date = (column: string, value: string | undefined) => {
+    if (value === undefined) return
+    values.push(value)
+    sets.push(`${column} = nullif($${values.length}, '')::date`)
+  }
+  text('groom_name', patch.groomName)
+  text('bride_name', patch.brideName)
+  text('couple_intro', patch.coupleIntro)
+  text('story_text', patch.storyText)
+  text('thank_you_text', patch.thankYouText)
+  text('groom_invite_address', patch.groomInviteAddress)
+  text('bride_invite_address', patch.brideInviteAddress)
+  text('groom_invite_reception_time', patch.groomInviteReceptionTime)
+  text('bride_invite_reception_time', patch.brideInviteReceptionTime)
+  date('groom_invite_wedding_date', patch.groomInviteWeddingDate)
+  date('bride_invite_wedding_date', patch.brideInviteWeddingDate)
+  text('section_config', patch.sectionConfig)
+  if (patch.sectionConfig !== undefined) {
+    sets[sets.length - 1] = `section_config = coalesce(nullif($${values.length}, '')::jsonb, '{}'::jsonb)`
+  }
+  if (!sets.length) return getWeddingCardForUser(cardId, userId)
+  sets.push(`updated_at = timezone('utc'::text, now())`)
+  const res = await getPgPool().query(
+    `update public.wedding_cards set ${sets.join(', ')} where id = $1::uuid and user_id = $2::uuid`,
+    values,
+  )
+  if (res.rowCount !== 1) return null
+  return getWeddingCardForUser(cardId, userId)
 }
 
 export async function saveWeddingCardSectionConfig(
@@ -859,11 +931,22 @@ export async function completeWeddingAiImage(input: {
       [input.imageId, input.userId, input.imageUrl]
     )
     if (input.makeMaster) {
+      const promptRow = await client.query<{ prompt: string }>(
+        `select prompt from public.wedding_card_ai_images where id = $1::uuid`,
+        [input.imageId],
+      )
+      const styleId = weddingStyleIdFromPrompt(String(promptRow.rows[0]?.prompt ?? '')) || ''
       await client.query(
         `update public.wedding_cards
-         set master_image_id = $1::uuid, updated_at = timezone('utc'::text, now())
+         set master_image_id = $1::uuid,
+             section_config = case
+               when $3 <> '' then (coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId') || jsonb_build_object('backgroundKitStyleId', $3::text)
+               when selected_style_id <> '' then (coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId') || jsonb_build_object('backgroundKitStyleId', selected_style_id)
+               else coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId' - 'backgroundKitStyleId'
+             end,
+             updated_at = timezone('utc'::text, now())
          where id = (select wedding_card_id from public.wedding_card_ai_images where id = $1::uuid) and user_id = $2::uuid`,
-        [input.imageId, input.userId]
+        [input.imageId, input.userId, styleId],
       )
     }
     await client.query(
@@ -1146,7 +1229,9 @@ export async function attachWeddingPrivateBackground(input: {
     if (input.type === 'master') {
       await client.query(
         `update public.wedding_cards
-         set master_image_id = $1::uuid, updated_at = timezone('utc'::text, now())
+         set master_image_id = $1::uuid,
+             section_config = coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId' - 'backgroundKitStyleId',
+             updated_at = timezone('utc'::text, now())
          where id = $2::uuid and user_id = $3::uuid`,
         [imageId, input.cardId, input.userId],
       )
@@ -1219,11 +1304,26 @@ export async function attachWeddingLibraryBackground(input: {
       return false
     }
     if (input.type === 'master') {
+      const promptRow = await client.query<{ prompt: string }>(
+        `select prompt
+         from public.wedding_card_ai_images
+         where image_url = $1 and prompt <> ''
+         order by created_at desc
+         limit 1`,
+        [imageUrl],
+      )
+      const styleId = weddingStyleIdFromPrompt(String(promptRow.rows[0]?.prompt ?? '')) || ''
       await client.query(
         `update public.wedding_cards
-         set master_image_id = $1::uuid, updated_at = timezone('utc'::text, now())
+         set master_image_id = $1::uuid,
+             section_config = case
+               when $4 <> '' then (coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId') || jsonb_build_object('backgroundKitStyleId', $4::text)
+               when selected_style_id <> '' then (coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId') || jsonb_build_object('backgroundKitStyleId', selected_style_id)
+               else coalesce(section_config, '{}'::jsonb) - 'backgroundPresetId' - 'backgroundKitStyleId'
+             end,
+             updated_at = timezone('utc'::text, now())
          where id = $2::uuid and user_id = $3::uuid`,
-        [imageId, input.cardId, input.userId],
+        [imageId, input.cardId, input.userId, styleId],
       )
     }
     await client.query('COMMIT')

@@ -71,10 +71,16 @@ export function resolveWeddingDateIso(raw: string | null | undefined): string | 
   return weddingDateFromPg(raw)
 }
 
+const VI_WEEKDAY_SHORT = ['CN', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'] as const
+
 export function formatWeddingDateForDisplay(iso: string | null | undefined, locale: WebLocale): string {
   const resolved = weddingDateFromPg(iso)
   const d = parseIsoDateLocal(resolved)
   if (!d) return String(iso ?? '').trim()
+  // Node và Chrome khác nhau ở weekday ngắn tiếng Việt ("Th 5" / "Thứ 5") — lệch này làm vỡ hydrate.
+  if (locale === 'vi') {
+    return `${VI_WEEKDAY_SHORT[d.getDay()]}, ${d.getDate()} thg ${d.getMonth() + 1}, ${d.getFullYear()}`
+  }
   return new Intl.DateTimeFormat(webLocaleToBcp47(locale), {
     weekday: 'short',
     month: 'short',

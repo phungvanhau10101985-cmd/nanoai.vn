@@ -46,11 +46,8 @@ function AlbumPhoto(props: { url: string; alt: string; className?: string; frame
       src={props.url}
       alt={props.alt}
       draggable={false}
-      className={cn('pointer-events-none h-full w-full object-cover', fill && 'max-w-none', props.className)}
-      style={{
-        ...albumPhotoFrameStyle(props.frame),
-        ...(fill ? { width: '100%', height: '100%', maxWidth: 'none' } : null),
-      }}
+      className={cn('pointer-events-none object-cover', fill && 'max-w-none', props.className)}
+      style={albumPhotoFrameStyle(props.frame)}
     />
   )
 }
@@ -1003,7 +1000,7 @@ function AlbumFrame(props: {
               className="absolute left-0 top-0 h-full w-full overflow-hidden rounded-2xl shadow-2xl ring-1 ring-black/10"
               style={{
                 touchAction: 'pan-y',
-                zIndex: 24 - Math.round(ad * 8),
+                zIndex: 12 - Math.round(ad * 4),
                 opacity: ad > 1.2 ? Math.max(0, (1.8 - ad) / 0.6) : 1,
                 transformOrigin: 'center center',
                 transform: flat

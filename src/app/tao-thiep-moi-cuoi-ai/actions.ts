@@ -4,6 +4,21 @@ import { revalidatePath } from 'next/cache'
 import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/generative-ai'
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { deleteWeddingOrnamentLayout, listWeddingOrnamentLayouts, saveWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
+import { deleteWeddingSharedFrame, listWeddingSharedFrames, saveWeddingShellLayout, saveWeddingSharedFrame } from '@/lib/db/wedding-shell-layouts-pg'
+import {
+  canEditWeddingCardOrnaments,
+  canEditWeddingOrnaments,
+  isWeddingOrnamentLayoutKey,
+  parseWeddingOrnamentList,
+  weddingCardOrnamentLayoutKey,
+  weddingOrnamentDeviceKey,
+  weddingOrnamentLayoutKey,
+  weddingOrnamentSaveKey,
+  type WeddingOrnamentDevice,
+} from '@/lib/wedding/wedding-background-ornament-store'
+import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
@@ -18,7 +33,9 @@ import {
   failWeddingAiImage,
   getLatestWeddingCardForUser,
   getWeddingCardForUser,
+  getWeddingCardOwner,
   listWeddingCardSummariesForUser,
+  patchWeddingCardPreview,
   saveWeddingCardSectionConfig,
   insertWeddingAiImageProcessing,
   listWeddingBackgroundLibrary,
@@ -58,7 +75,7 @@ import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedd
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
-import { applyClientWeddingSectionConfig, mergeWeddingSectionConfig, readHeroPhotoLayout, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
+import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readHeroPhotoLayout, readTextStyles, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
   isWeddingPolishField,
@@ -139,16 +156,30 @@ async function getReferenceImagePartFromFile(file: FormDataEntryValue | null) {
   return { inlineData: { data: buffer.toString('base64'), mimeType: file.type || 'image/png' } }
 }
 
-async function weddingCardWorkspace(ownerUserId: string, card: WeddingCard) {
-  const [images, rsvps, library, frameLibrary, musicLibrary, cards] = await Promise.all([
+async function weddingCardWorkspace(ownerUserId: string, card: WeddingCard, email?: string | null) {
+  const [images, rsvps, library, frameLibrary, musicLibrary, cards, ornamentLayouts, sharedFrames, role] = await Promise.all([
     listWeddingImages(card.id),
     listWeddingRsvps(card.id, ownerUserId),
     listWeddingBackgroundLibrary(),
     listWeddingCoverFrameLibrary(),
     listWeddingMusicLibrary(),
     listWeddingCardSummariesForUser(ownerUserId),
+    listWeddingOrnamentLayouts().catch(() => ({})),
+    listWeddingSharedFrames().catch(() => ({})),
+    getProfileRoleWithFallback(ownerUserId).catch(() => null),
   ])
-  return { card, images, rsvps, library, frameLibrary, musicLibrary, cards }
+  return {
+    card,
+    images,
+    rsvps,
+    library,
+    frameLibrary,
+    musicLibrary,
+    cards,
+    ornamentLayouts,
+    sharedFrames,
+    ornamentAdmin: canEditWeddingOrnaments({ role, email }),
+  }
 }
 
 export async function loadWeddingCardWorkspace(cardId?: string) {
@@ -163,7 +194,246 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
     card = (await publishWeddingCard(card.id, ownerUserId)) ?? card
     if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   }
-  return weddingCardWorkspace(ownerUserId, card)
+  return weddingCardWorkspace(ownerUserId, card, auth.user.email)
+}
+
+export async function saveWeddingBackgroundOrnaments(layoutKey: string, ornaments: unknown) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const role = await getProfileRoleWithFallback(userId)
+  if (!canEditWeddingOrnaments({ role, email: auth.user.email })) return { error: 'denied' as const }
+  const key = layoutKey.trim()
+  if (key.startsWith('card:') || !isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  const parsed = parseWeddingOrnamentList(ornaments)
+  if (!parsed) return { error: 'invalid' as const }
+  try {
+    await saveWeddingOrnamentLayout({ layoutKey: key, ornaments: parsed, userId })
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  return { ok: true as const, ornaments: parsed }
+}
+
+async function assertWeddingCardOrnamentEditor(cardId: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const role = await getProfileRoleWithFallback(userId)
+  const owner = await getWeddingCardOwner(cardId)
+  if (!owner || !canEditWeddingCardOrnaments({ role, email: auth.user.email, userId, ownerId: owner.userId })) {
+    return { error: 'denied' as const }
+  }
+  return {
+    userId,
+    ownerUserId: owner.userId,
+    slug: owner.slug,
+    templateEditor: canEditWeddingOrnaments({ role, email: auth.user.email }),
+  }
+}
+
+async function weddingSharedBaseKey(cardId: string, ownerUserId: string): Promise<string> {
+  const card = await getWeddingCardForUser(cardId, ownerUserId)
+  if (!card) return ''
+  const section = parseWeddingSectionConfig(card.sectionConfig)
+  return weddingOrnamentLayoutKey({
+    backgroundPresetId: section.backgroundPresetId,
+    masterImageUrl: card.masterImageUrl,
+  })
+}
+
+function weddingCardDeviceLayoutKey(cardId: string, device: WeddingOrnamentDevice): string {
+  if (device !== 'desktop' && device !== 'mobile') return ''
+  return weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(cardId), device)
+}
+
+/** Khách ghi hoa vào đúng thiệp của mình. Quản trị ghi mẫu chung của nền, và gỡ bản riêng của thiệp đang mở để thiệp đó cũng dùng mẫu. */
+export async function saveWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice, ornaments: unknown) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: access.error }
+  const parsed = parseWeddingOrnamentList(ornaments)
+  if (!parsed) return { error: 'invalid' as const }
+  const sharedBase = access.templateEditor ? await weddingSharedBaseKey(cardId, access.ownerUserId) : ''
+  const key = weddingOrnamentSaveKey({
+    templateEditor: access.templateEditor,
+    cardId,
+    device,
+    sharedBaseKey: sharedBase,
+  })
+  if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await saveWeddingOrnamentLayout({ layoutKey: key, ornaments: parsed, userId: access.userId })
+    if (access.templateEditor && !key.startsWith('card:')) {
+      const cardKey = weddingCardDeviceLayoutKey(cardId, device)
+      if (cardKey && cardKey !== key) await deleteWeddingOrnamentLayout(cardKey)
+    }
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const, ornaments: parsed, template: access.templateEditor && !key.startsWith('card:') }
+}
+
+/** Khách xóa hoa riêng của thiệp để thấy lại mẫu. Quản trị xóa mẫu chung của nền. */
+export async function resetWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: access.error }
+  const sharedBase = access.templateEditor ? await weddingSharedBaseKey(cardId, access.ownerUserId) : ''
+  const key = weddingOrnamentSaveKey({
+    templateEditor: access.templateEditor,
+    cardId,
+    device,
+    sharedBaseKey: sharedBase,
+  })
+  if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await deleteWeddingOrnamentLayout(key)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const }
+}
+
+function previewSectionConfig(
+  existingRaw: string | null | undefined,
+  patch: { sectionConfig?: string; textStyles?: unknown },
+  templateEditor: boolean,
+) {
+  const frameSection =
+    typeof patch.sectionConfig !== 'string'
+      ? undefined
+      : templateEditor
+        ? applyWeddingFrameChoice(existingRaw, patch.sectionConfig)
+        : applyClientWeddingSectionConfig(existingRaw, patch.sectionConfig)
+  const styles = readTextStyles(patch.textStyles)
+  if (!styles) return frameSection
+  return mergeWeddingSectionConfig(frameSection ?? existingRaw, { textStyles: styles })
+}
+
+function clipPreviewText(value: unknown, max: number) {
+  return typeof value === 'string' ? value.trim().slice(0, max) : undefined
+}
+
+/** Quản trị ghi vị trí vỏ thành mẫu của nền. Thiệp đang mở bỏ vỏ riêng của máy đó để dùng mẫu. Thiệp khách khác đã tự sửa thì giữ nguyên. */
+export async function saveWeddingTemplateShell(cardId: string, device: WeddingOrnamentDevice, shell: unknown) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access || !access.templateEditor) return { error: 'denied' as const }
+  const parsed = parseWeddingDeviceShell(shell)
+  if (!parsed || (device !== 'desktop' && device !== 'mobile')) return { error: 'invalid' as const }
+  const sharedBase = await weddingSharedBaseKey(cardId, access.ownerUserId)
+  const key = weddingOrnamentDeviceKey(sharedBase, device)
+  if (!key || !isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
+  if (!existing) return { error: 'denied' as const }
+  try {
+    await saveWeddingShellLayout({ layoutKey: key, shell: parsed, userId: access.userId })
+    const forgotten = stringifyWeddingSectionConfig(forgetPrivateDeviceShell(parseWeddingSectionConfig(existing.sectionConfig), device))
+    await saveWeddingCardSectionConfig(cardId, access.ownerUserId, forgotten)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const, shell: parsed }
+}
+
+/** Quản trị ghi khung mặc định của nền. Thiệp đang sửa bỏ lựa chọn riêng của vị trí đó để theo mẫu. Không đưa khung vào kho AI. */
+export async function saveWeddingTemplateFrame(
+  cardId: string,
+  frame: unknown,
+  side: 'cover' | 'groom' | 'bride' | 'pair',
+  sectionConfig?: string,
+) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access || !access.templateEditor) return { error: 'denied' as const }
+  if (side !== 'cover' && side !== 'groom' && side !== 'bride' && side !== 'pair') return { error: 'invalid' as const }
+  const sharedBase = await weddingSharedBaseKey(cardId, access.ownerUserId)
+  const key = weddingSharedFrameKey(sharedBase)
+  if (!key || !isWeddingSharedFrameKey(key)) return { error: 'invalid' as const }
+  const parsed: WeddingSharedFrame | null = frame == null ? null : parseWeddingSharedFrame(frame)
+  if (frame != null && !parsed) return { error: 'invalid' as const }
+  const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
+  if (!existing) return { error: 'denied' as const }
+  const source = typeof sectionConfig === 'string' ? sectionConfig : existing.sectionConfig
+  try {
+    if (parsed) await saveWeddingSharedFrame({ layoutKey: key, frame: parsed, userId: access.userId })
+    else await deleteWeddingSharedFrame(key)
+    const cleared = clearWeddingFrameChoice(source, side)
+    const kept = applyWeddingFrameChoice(existing.sectionConfig, cleared)
+    await saveWeddingCardSectionConfig(cardId, access.ownerUserId, kept)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const, frame: parsed }
+}
+
+/** Ghi chữ ngay trên bản xem thử. Vỏ riêng chỉ ghi khi người sửa là khách của thiệp. */
+export async function saveWeddingPreviewEdit(
+  cardId: string,
+  patch: {
+    groomName?: string
+    brideName?: string
+    coupleIntro?: string
+    storyText?: string
+    thankYouText?: string
+    groomInviteAddress?: string
+    brideInviteAddress?: string
+    groomInviteReceptionTime?: string
+    brideInviteReceptionTime?: string
+    groomInviteWeddingDate?: string
+    brideInviteWeddingDate?: string
+    sectionConfig?: string
+    textStyles?: unknown
+  },
+) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: access.error }
+  const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
+  if (!existing) return { error: 'denied' as const }
+  const date = (value: unknown) => {
+    const text = clipPreviewText(value, 10)
+    if (text === undefined) return undefined
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) || text === '' ? text : undefined
+  }
+  const next = {
+    groomName: clipPreviewText(patch.groomName, 120),
+    brideName: clipPreviewText(patch.brideName, 120),
+    coupleIntro: clipPreviewText(patch.coupleIntro, 4000),
+    storyText: clipPreviewText(patch.storyText, 4000),
+    thankYouText: clipPreviewText(patch.thankYouText, 4000),
+    groomInviteAddress: clipPreviewText(patch.groomInviteAddress, 500),
+    brideInviteAddress: clipPreviewText(patch.brideInviteAddress, 500),
+    groomInviteReceptionTime: clipPreviewText(patch.groomInviteReceptionTime, 40),
+    brideInviteReceptionTime: clipPreviewText(patch.brideInviteReceptionTime, 40),
+    groomInviteWeddingDate: date(patch.groomInviteWeddingDate),
+    brideInviteWeddingDate: date(patch.brideInviteWeddingDate),
+    sectionConfig: previewSectionConfig(existing.sectionConfig, patch, access.templateEditor),
+  }
+  try {
+    const saved = await patchWeddingCardPreview(cardId, access.ownerUserId, next)
+    if (!saved) return { error: 'unavailable' as const }
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const }
+}
+
+export async function resetWeddingBackgroundOrnaments(layoutKey: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const role = await getProfileRoleWithFallback(userId)
+  if (!canEditWeddingOrnaments({ role, email: auth.user.email })) return { error: 'denied' as const }
+  const key = layoutKey.trim()
+  if (key.startsWith('card:') || !isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await deleteWeddingOrnamentLayout(key)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  return { ok: true as const }
 }
 
 export async function getOrCreateWeddingCard() {
@@ -186,7 +456,7 @@ export async function createNewWeddingCard(occasionKey?: string, heroPhotoLayout
     : draft
   const card = (await publishWeddingCard(seeded.id, ownerUserId)) ?? seeded
   if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
-  return weddingCardWorkspace(ownerUserId, card)
+  return weddingCardWorkspace(ownerUserId, card, auth.user.email)
 }
 
 export async function deleteWeddingCard(cardId: string) {
@@ -662,6 +932,29 @@ export async function generateWeddingCoverFrame(formData: FormData) {
 }
 
 const PRIVATE_BACKGROUND_MAX_BYTES = 8 * 1024 * 1024
+
+export async function uploadWeddingOrnamentImage(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size <= 0) return { error: 'Chọn một file ảnh hoa văn.' }
+  if (!file.type.startsWith('image/') || file.type === 'image/svg+xml') return { error: 'File phải là ảnh hoa văn (PNG, JPG, WEBP).' }
+  if (file.size > PRIVATE_BACKGROUND_MAX_BYTES) return { error: 'Ảnh quá lớn. Tối đa 8 MB.' }
+  const ext = file.type.includes('png')
+    ? 'png'
+    : file.type.includes('webp')
+      ? 'webp'
+      : file.type.includes('gif')
+        ? 'gif'
+        : 'jpg'
+  const path = `uploads/${userId}/wedding_ornament_${Date.now()}.${ext}`
+  const { publicUrl } = await uploadTryOnImagePublic(path, file, {
+    contentType: file.type || 'image/png',
+    upsert: true,
+  })
+  return { ok: true as const, url: publicUrl }
+}
 
 export async function uploadWeddingPrivateBackground(formData: FormData) {
   const auth = await getUserForCreditAction()

@@ -3,13 +3,22 @@ import { Metadata } from 'next'
 import { JsonLd } from '@/components/seo-json-ld'
 import { buildMetadata, SITE_URL } from '@/lib/seo'
 import {
+  ensureWeddingCardOwnerProfile,
   getPublishedInvitedGuestPersonalInvite,
   getPublishedInvitedGuestRsvp,
   getPublishedWeddingCardBySlug,
   listPublishedSideGuestWishes,
   listPublishedWeddingImages,
+  listWeddingCoverFrameLibrary,
 } from '@/lib/db/wedding-cards-pg'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
+import { loadWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
+import { loadWeddingSharedFrame, loadWeddingShellLayout } from '@/lib/db/wedding-shell-layouts-pg'
+import { weddingSharedFrameKey } from '@/lib/wedding/wedding-shared-frame'
+import { canEditWeddingCardOrnaments, canEditWeddingOrnaments, weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { getUserForCreditAction } from '@/lib/auth'
+import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
+import { parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { buildPersonalWeddingInvite, buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
@@ -20,7 +29,7 @@ import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
   params: { slug: string }
-  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string }
+  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string; layout?: string; ornamentEdit?: string; stack?: string }
 }
 
 function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typeof normalizeGuestInviteVenue>) {
@@ -126,7 +135,48 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
     : null
   const sideWishes = await listPublishedSideGuestWishes(card.id)
   const backgroundImages = await listPublishedWeddingImages(card.id).catch(() => [])
-  const backgroundPlateUrls = weddingBackgroundPlateUrls(card.masterImageUrl, backgroundImages)
+  const section = parseWeddingSectionConfig(card.sectionConfig)
+  const backgroundPlateUrls = weddingBackgroundPlateUrls(
+    card.masterImageUrl,
+    backgroundImages,
+    section.backgroundPresetId,
+  )
+  const ornamentKey = weddingOrnamentLayoutKey({
+    backgroundPresetId: section.backgroundPresetId,
+    masterImageUrl: card.masterImageUrl,
+  })
+  const cardOrnamentKey = weddingCardOrnamentLayoutKey(card.id)
+  const layoutPreview = String(searchParams?.layout ?? '') === 'full'
+  const [sharedOrnaments, sharedDesktop, sharedMobile, cardDesktop, cardMobile, sharedShellDesktop, sharedShellMobile, sharedFrame] = await Promise.all([
+    ornamentKey ? loadWeddingOrnamentLayout(ornamentKey) : null,
+    ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
+    ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
+    cardOrnamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(cardOrnamentKey, 'desktop')) : null,
+    cardOrnamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(cardOrnamentKey, 'mobile')) : null,
+    ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
+    ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
+    ornamentKey ? loadWeddingSharedFrame(weddingSharedFrameKey(ornamentKey)).catch(() => null) : null,
+  ])
+  let ornamentEditor = false
+  let hostEditor = false
+  let templateEditor = false
+  if ((layoutPreview || demoPreview) && cardOrnamentKey) {
+    const auth = await getUserForCreditAction().catch(() => ({ error: 'auth' as const }))
+    if (auth && !('error' in auth)) {
+      const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email).catch(() => '')
+      const role = userId ? await getProfileRoleWithFallback(userId).catch(() => null) : null
+      const canEdit = canEditWeddingCardOrnaments({
+        role,
+        email: auth.user.email,
+        userId,
+        ownerId: card.userId,
+      })
+      ornamentEditor = canEdit
+      hostEditor = canEdit && demoPreview && !layoutPreview
+      templateEditor = canEditWeddingOrnaments({ role, email: auth.user.email })
+    }
+  }
+  const frameLibrary = ornamentEditor ? await listWeddingCoverFrameLibrary().catch(() => []) : []
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
   return (
     <>
@@ -147,7 +197,25 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
         backgroundPlateUrls={backgroundPlateUrls}
-        hostPreview={demoPreview}
+        ornamentOverride={sharedOrnaments}
+        ornamentDesktop={cardDesktop}
+        ornamentMobile={cardMobile}
+        ornamentSharedDesktop={sharedDesktop ?? sharedOrnaments}
+        ornamentSharedMobile={sharedMobile ?? sharedOrnaments}
+        ornamentLayoutKey={cardOrnamentKey}
+        ornamentEditor={ornamentEditor}
+        hostEditor={hostEditor}
+        templateEditor={templateEditor}
+        sharedShell={{ desktop: sharedShellDesktop, mobile: sharedShellMobile }}
+        initialSharedFrame={sharedFrame}
+        frameLibrary={frameLibrary}
+        layoutPreview={layoutPreview}
+        editorStack={
+          layoutPreview && (searchParams?.stack === 'cover' || searchParams?.stack === 'letter')
+            ? searchParams.stack
+            : undefined
+        }
+        hostPreview={demoPreview && !layoutPreview}
       />
     </>
   )

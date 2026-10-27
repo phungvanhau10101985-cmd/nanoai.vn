@@ -3896,6 +3896,48 @@ export type Dictionary = {
     createBackgroundAgain: string
     pickOutsideBackground: string
     backgroundEmptyPreview: string
+    readyBackgroundHeading: string
+    readyBackgroundHint: string
+    readyBackgroundLocked: string
+    ornamentAdminHint: string
+    ornamentAdminAdd: string
+    ornamentAdminSave: string
+    ornamentAdminSaved: string
+    ornamentAdminDelete: string
+    ornamentAdminZoomIn: string
+    ornamentAdminZoomOut: string
+    ornamentAdminReset: string
+    ornamentAdminFailed: string
+    ornamentAdminOnDevice: string
+    ornamentTemplateHint: string
+    ornamentCardHint: string
+    ornamentFrameLinesHide: string
+    ornamentFrameLinesShow: string
+    ornamentAdminRotateLeft: string
+    ornamentAdminRotateRight: string
+    ornamentAdminBlur: string
+    ornamentAdminFade: string
+    textStyleSize: string
+    textStyleFont: string
+    textStyleColor: string
+    textFontScript: string
+    textFontSoft: string
+    textFontFormal: string
+    textFontLotus: string
+    ornamentAdminUpload: string
+    ornamentAdminPasteLink: string
+    ornamentAdminAddLink: string
+    ornamentAdminSelectFirst: string
+    previewDesktop: string
+    previewMobile: string
+    previewCover: string
+    previewLetter: string
+    previewDeviceHint: string
+    previewColumnNote: string
+    previewRefresh: string
+    readyBackgroundOne: string
+    readyBackgroundSet: string
+    readyBackgroundLayered: string
     downloadCreated: string
     back: string
     generateStyleLabel: string
@@ -3918,6 +3960,8 @@ export type Dictionary = {
     uploadLabel: string
     choosePhoto: string
     chooseFrame: string
+    frameFollowBackground: string
+    composedLayouts: string
     dragPlace: string
     stackMoveFrame: string
     stackMoveName: string
@@ -8305,9 +8349,9 @@ export const VI_DICTIONARY: Dictionary = {
     backgroundPickedOk: 'OK',
     backgroundPickedTitle: 'Đã chọn nền',
     backgroundSectionTitle: 'Nền thiệp',
-    backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Bấm Chọn nền để xem kho, hoặc tạo nền mới bằng AI.',
+    backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Chọn nền có sẵn (một ảnh hoặc một bộ ảnh), ảnh trong kho, hoặc tạo nền mới bằng AI.',
     backgroundLibraryTitle: 'Kho ảnh nền',
-    backgroundLibraryHint: 'Bấm Xem trước để phóng to hoa văn, rồi chọn nền. Không trừ credit. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
+    backgroundLibraryHint: 'Bấm Xem trước để phóng to hoa văn, rồi chọn nền. Không trừ credit. Ảnh AI chọn xong là gắn luôn khung, hoa, màu nút và chữ của bộ cùng phong cách. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
     backgroundLibraryEmpty: 'Kho còn trống. Tạo nền mới để lưu vào kho — lần sau chọn lại không mất credit.',
     backgroundPreviewOpen: 'Xem trước',
     backgroundPreviewTitle: 'Xem hoa văn nền',
@@ -8317,7 +8361,49 @@ export const VI_DICTIONARY: Dictionary = {
     createBackgroundButton: 'Tạo ảnh nền - {n} credit',
     createBackgroundAgain: 'Tạo lại ảnh nền - {n} credit',
     pickOutsideBackground: 'Chọn ảnh ngoài · 0 credit',
-    backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn trong kho hoặc tạo nền mới.',
+    backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn nền có sẵn, ảnh trong kho, hoặc tạo nền mới.',
+    readyBackgroundHeading: 'Nền có sẵn',
+    readyBackgroundHint: 'Chọn một bộ là đổi luôn nền, khung, hoa nổi, màu nút, màu chữ, nền chữ và kiểu chữ. Chọn sẵn không trừ credit.',
+    readyBackgroundLocked: 'Khung vỏ, khung ảnh cô dâu chú rể, màu nút, màu chữ, nền chữ và kiểu chữ đi theo bộ nền này.',
+    ornamentAdminHint: 'Kéo để dời. Phóng, thu, xoay, làm mờ, làm nhạt màu hoặc xóa. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
+    ornamentAdminAdd: 'Thêm hoa',
+    ornamentAdminSave: 'Lưu hoa văn',
+    ornamentAdminSaved: 'Đã lưu hoa văn vào thiệp này.',
+    ornamentAdminDelete: 'Xóa hoa này',
+    ornamentAdminZoomIn: 'Phóng to',
+    ornamentAdminZoomOut: 'Thu nhỏ',
+    ornamentAdminReset: 'Về hoa mặc định',
+    ornamentAdminFailed: 'Chưa lưu được lớp hoa.',
+    ornamentAdminOnDevice: 'Đang sửa bản {device}.',
+    ornamentTemplateHint: 'Hoa và vỏ vừa sửa thành mẫu cho khách khác. Khách đã tự sửa thì giữ bản của họ. Tên, ngày và địa chỉ chỉ lưu trên thiệp này.',
+    ornamentCardHint: 'Sửa này chỉ lưu trên thiệp của bạn. Thiệp của khách khác không đổi.',
+    ornamentFrameLinesHide: 'Ẩn nét khung',
+    ornamentFrameLinesShow: 'Hiện nét khung',
+    ornamentAdminRotateLeft: 'Xoay trái',
+    ornamentAdminRotateRight: 'Xoay phải',
+    ornamentAdminBlur: 'Làm mờ',
+    ornamentAdminFade: 'Làm nhạt màu',
+    textStyleSize: 'Cỡ chữ',
+    textStyleFont: 'Kiểu chữ',
+    textStyleColor: 'Màu chữ',
+    textFontScript: 'Thảo',
+    textFontSoft: 'Mềm',
+    textFontFormal: 'Trang trọng',
+    textFontLotus: 'Sen',
+    ornamentAdminUpload: 'Tải ảnh',
+    ornamentAdminPasteLink: 'Dán link ảnh hoa',
+    ornamentAdminAddLink: 'Thêm',
+    ornamentAdminSelectFirst: 'Bấm một hoa để hiện nút. Kéo để dời. Mỗi lần sửa tự lưu vào thiệp này.',
+    previewDesktop: 'Desktop',
+    previewMobile: 'Điện thoại',
+    previewCover: 'Vỏ thiệp',
+    previewLetter: 'Nội dung thiệp',
+    previewDeviceHint: 'Chọn kiểu máy ở trên. Xem thử chỉ sửa hoa văn, trên vỏ và nội dung. Sửa tới đâu tự lưu tới đó. Xem thật hiện đúng bản đã lưu của thiệp này.',
+    previewColumnNote: 'Xem thử chỉ sửa hoa văn. Sửa tới đâu tự lưu vào thiệp này tới đó. Xem thật hiện đúng bản đã lưu.',
+    previewRefresh: 'Cập nhật preview',
+    readyBackgroundOne: 'Một ảnh nền',
+    readyBackgroundSet: 'Bộ {n} ảnh nền',
+    readyBackgroundLayered: 'Nền và hoa nổi',
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
     generateStyleLabel: 'Phong cách',
@@ -8333,7 +8419,7 @@ export const VI_DICTIONARY: Dictionary = {
   weddingCardAiCover: {
     sectionTitle: '1. Chọn vỏ thiệp',
     sectionDescription:
-      'Mỗi vỏ là một khung khác nhau, lỗ giữa để ảnh — miễn phí, không tốn credit. Ảnh nền full màn vẫn dùng chung một ảnh nền chính.',
+      'Mỗi vỏ là một khung khác nhau, lỗ giữa để ảnh — miễn phí, không tốn credit. Nền full màn là nền đang chọn: một ảnh hoặc một bộ ảnh.',
     tagNew: 'Mới',
     tagHot: 'Hot',
     previewLabel: 'Thiệp mời',
@@ -8342,6 +8428,8 @@ export const VI_DICTIONARY: Dictionary = {
     uploadLabel: 'Ảnh cặp đôi trên vỏ thiệp',
     choosePhoto: 'Chọn ảnh',
     chooseFrame: 'Chọn khung',
+    frameFollowBackground: 'Theo nền',
+    composedLayouts: 'Bố cục khung và hoa văn',
     dragPlace: 'Kéo',
     stackMoveFrame: 'Di chuyển khung',
     stackMoveName: 'Di chuyển tên',

@@ -1,0 +1,212 @@
+/**
+ * Bố cục thiệp = một tấm giấy + ảnh khung (vòng, vòm, viền) + ảnh hoa văn đặt lại.
+ * Cùng một họa tiết được lật, xoay, giảm đục. Chữ nằm ở khoảng giữa, hoa bám mép.
+ */
+
+export type OrnamentPieceId =
+  | 'butterfly'
+  | 'garland'
+  | 'sprig'
+  | 'peony'
+  | 'vine'
+  | 'seal'
+  | 'wreath'
+  | 'arch'
+  | 'plate'
+
+export type OrnamentLayer = {
+  piece: OrnamentPieceId
+  /** Góc trái, phần trăm bề ngang tấm thiệp. */
+  x: number
+  /** Góc trên, phần trăm bề cao tấm thiệp. */
+  y: number
+  /** Bề ngang, phần trăm bề ngang tấm thiệp. */
+  w: number
+  rotate?: number
+  flipX?: boolean
+  flipY?: boolean
+  opacity?: number
+  z?: number
+  /** bottom = bám đáy tấm thiệp, không trôi khi chữ dài thêm. */
+  anchor?: 'top' | 'bottom'
+}
+
+export type OrnamentLayoutId = 'meadow' | 'corners' | 'sides' | 'seal' | 'wreath' | 'arch'
+
+export type OrnamentLayout = {
+  id: OrnamentLayoutId
+  /** Chừa mép cho hoa. Phần trăm bề ngang tấm thiệp. */
+  pad: { top: number; right: number; bottom: number; left: number }
+  /** Ô ảnh khi thiệp chỉ hiện khung, không hiện tên. */
+  photo: { x: number; y: number; w: number; h: number; radius: number }
+  layers: OrnamentLayer[]
+}
+
+export type OrnamentKitId = 'dried' | 'blush' | 'sage' | 'ceremonial'
+
+export type OrnamentKit = {
+  id: OrnamentKitId
+  panel: string
+  petal: string
+  petalDeep: string
+  leaf: string
+  stem: string
+  metal: string
+  dot: string
+}
+
+export type OrnamentComposition = {
+  id: string
+  kit: OrnamentKit
+  layout: OrnamentLayout
+}
+
+/** Tỉ lệ ngang/dọc của từng ảnh họa tiết. */
+export const ORNAMENT_PIECE_RATIO: Record<OrnamentPieceId, string> = {
+  butterfly: '220 / 150',
+  garland: '640 / 190',
+  sprig: '180 / 280',
+  peony: '220 / 220',
+  vine: '120 / 640',
+  seal: '160 / 160',
+  wreath: '400 / 520',
+  arch: '400 / 560',
+  plate: '400 / 520',
+}
+
+export const ORNAMENT_FRAME_PIECES = new Set<OrnamentPieceId>(['wreath', 'arch', 'plate'])
+
+export const ORNAMENT_KITS: Record<OrnamentKitId, OrnamentKit> = {
+  dried: {
+    id: 'dried',
+    panel: '#f6f0e4',
+    petal: '#f3e6d0',
+    petalDeep: '#c9ae8c',
+    leaf: '#8ea4b4',
+    stem: '#8b7058',
+    metal: '#6d5844',
+    dot: '#d7c4a4',
+  },
+  blush: {
+    id: 'blush',
+    panel: '#fff7f5',
+    petal: '#f6c9d4',
+    petalDeep: '#d9899c',
+    leaf: '#87a884',
+    stem: '#6d8a66',
+    metal: '#9a5364',
+    dot: '#f3ddd4',
+  },
+  sage: {
+    id: 'sage',
+    panel: '#f3f6f1',
+    petal: '#e4eee2',
+    petalDeep: '#b5c9ae',
+    leaf: '#4f7a55',
+    stem: '#3d5c40',
+    metal: '#2f4a34',
+    dot: '#d5e2d2',
+  },
+  ceremonial: {
+    id: 'ceremonial',
+    panel: '#fff6ea',
+    petal: '#f0d2a4',
+    petalDeep: '#c45348',
+    leaf: '#2f6b4f',
+    stem: '#8a5a32',
+    metal: '#a67c3d',
+    dot: '#f6e7c8',
+  },
+}
+
+export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
+  meadow: {
+    id: 'meadow',
+    pad: { top: 8, right: 14, bottom: 18, left: 14 },
+    photo: { x: 27, y: 16, w: 46, h: 34, radius: 18 },
+    layers: [
+      { piece: 'butterfly', x: -12, y: -2, w: 30, rotate: -18, z: 4 },
+      { piece: 'butterfly', x: 82, y: 2, w: 30, rotate: 16, flipX: true, z: 4 },
+      { piece: 'butterfly', x: 2, y: 34, w: 14, rotate: 24, opacity: 0.16, z: 1 },
+      { piece: 'garland', x: -8, y: 76, w: 116, z: 4 },
+    ],
+  },
+  corners: {
+    id: 'corners',
+    pad: { top: 14, right: 14, bottom: 14, left: 14 },
+    photo: { x: 22, y: 18, w: 56, h: 40, radius: 16 },
+    layers: [
+      { piece: 'peony', x: -10, y: -6, w: 40, z: 3 },
+      { piece: 'peony', x: 70, y: -6, w: 40, flipX: true, z: 3 },
+      { piece: 'peony', x: -10, y: -8, w: 38, flipY: true, anchor: 'bottom', z: 3 },
+      { piece: 'peony', x: 72, y: -8, w: 38, flipX: true, flipY: true, anchor: 'bottom', z: 3 },
+    ],
+  },
+  sides: {
+    id: 'sides',
+    pad: { top: 8, right: 16, bottom: 10, left: 16 },
+    photo: { x: 22, y: 12, w: 56, h: 52, radius: 14 },
+    layers: [
+      { piece: 'vine', x: -4, y: 2, w: 20, z: 3 },
+      { piece: 'vine', x: 84, y: 2, w: 20, flipX: true, z: 3 },
+      { piece: 'sprig', x: 36, y: -2, w: 28, anchor: 'bottom', z: 4 },
+    ],
+  },
+  seal: {
+    id: 'seal',
+    pad: { top: 26, right: 14, bottom: 16, left: 14 },
+    photo: { x: 26, y: 24, w: 48, h: 36, radius: 12 },
+    layers: [
+      { piece: 'plate', x: 5, y: 3, w: 90, z: 1 },
+      { piece: 'seal', x: 39, y: -1, w: 22, z: 4 },
+      { piece: 'sprig', x: -6, y: -6, w: 36, anchor: 'bottom', z: 3 },
+      { piece: 'sprig', x: 70, y: -4, w: 34, flipX: true, flipY: true, z: 3 },
+    ],
+  },
+  wreath: {
+    id: 'wreath',
+    pad: { top: 20, right: 18, bottom: 18, left: 18 },
+    photo: { x: 28, y: 18, w: 44, h: 36, radius: 999 },
+    layers: [
+      { piece: 'wreath', x: -2, y: -8, w: 104, z: 2 },
+      { piece: 'butterfly', x: 68, y: 4, w: 28, rotate: 18, flipX: true, z: 4 },
+      { piece: 'garland', x: -6, y: -6, w: 112, anchor: 'bottom', z: 3 },
+    ],
+  },
+  arch: {
+    id: 'arch',
+    pad: { top: 20, right: 16, bottom: 14, left: 16 },
+    photo: { x: 20, y: 14, w: 60, h: 44, radius: 20 },
+    layers: [
+      { piece: 'arch', x: 2, y: -6, w: 96, z: 2 },
+      { piece: 'peony', x: -8, y: -2, w: 34, z: 4 },
+      { piece: 'peony', x: 74, y: -2, w: 34, flipX: true, z: 4 },
+      { piece: 'sprig', x: 36, y: -2, w: 28, anchor: 'bottom', z: 4 },
+    ],
+  },
+}
+
+const COMPOSITION_PARTS: Record<string, { kit: OrnamentKitId; layout: OrnamentLayoutId }> = {
+  dried_meadow: { kit: 'dried', layout: 'meadow' },
+  blush_meadow: { kit: 'blush', layout: 'meadow' },
+  blush_corners: { kit: 'blush', layout: 'corners' },
+  sage_sides: { kit: 'sage', layout: 'sides' },
+  dried_seal: { kit: 'dried', layout: 'seal' },
+  blush_wreath: { kit: 'blush', layout: 'wreath' },
+  ceremonial_arch: { kit: 'ceremonial', layout: 'arch' },
+  sage_corners: { kit: 'sage', layout: 'corners' },
+}
+
+export function getOrnamentComposition(id: string | null | undefined): OrnamentComposition | undefined {
+  const parts = COMPOSITION_PARTS[String(id || '').trim()]
+  if (!parts) return undefined
+  return {
+    id: String(id).trim(),
+    kit: ORNAMENT_KITS[parts.kit],
+    layout: ORNAMENT_LAYOUTS[parts.layout],
+  }
+}
+
+export function listOrnamentCompositionIds(): string[] {
+  return Object.keys(COMPOSITION_PARTS)
+}

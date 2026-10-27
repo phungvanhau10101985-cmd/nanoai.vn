@@ -1,0 +1,19 @@
+/* Chữ trên hoa văn. Nút trên cùng để bấm được. Hoa văn trên khung ảnh. Khung ảnh trên nền. */
+[data-wedding-stage] :is(p, h1, h2, h3, h4, li, figcaption, blockquote, label) {
+  z-index: 40;
+}
+
+[data-wedding-stage] :is(a, button, input, textarea, select):not([data-album-photo]) {
+  z-index: 70;
+  pointer-events: auto;
+}
+
+/* Khối đang chạy hiệu ứng vẫn tạo lớp riêng. Đưa cả khối nút lên trên hoa văn. */
+[data-wedding-stage] :is(.wedding-invite-body-join, .wedding-open-after, .wedding-open-map) {
+  position: relative;
+  z-index: 70;
+}
+
+[data-wedding-stage] :is(p, h1, h2, h3, h4, li, figcaption, blockquote, label, a, button, input, textarea, select):where(:not(.absolute):not(.fixed):not(.sticky)) {
+  position: relative;
+}

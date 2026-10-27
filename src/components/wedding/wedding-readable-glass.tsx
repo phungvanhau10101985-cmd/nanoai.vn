@@ -17,10 +17,10 @@ export function WeddingReadableGlass({ className, children, id, reveal }: Props)
     <div
       id={id}
       data-wedding-reveal={reveal ? '' : undefined}
-      className={cn('relative isolate bg-transparent shadow-none', className)}
-      style={{ background: 'transparent', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
+      className={cn('relative shadow-none', className)}
+      style={{ background: 'var(--wedding-text-plate, transparent)', backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
     >
-      <div className="relative z-10 w-full min-w-0 [container-type:inline-size]">{children}</div>
+      <div className="relative w-full min-w-0 [container-type:inline-size]">{children}</div>
     </div>
   )
 }

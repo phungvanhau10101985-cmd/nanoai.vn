@@ -18,6 +18,9 @@ import {
   applyWeddingBackgroundFromLibrary,
   generateWeddingCardImage,
   generateWeddingCoverFrame,
+  resetWeddingCardOrnaments,
+  saveWeddingCardOrnaments,
+  saveWeddingTemplateFrame,
   uploadWeddingPrivateBackground,
   createNewWeddingCard,
   deleteWeddingCard,
@@ -71,12 +74,19 @@ import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
-import { resolveCoverRsvpButtonColor, resolveWeddingButtonColor, resolveWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
+import { resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
-import { WeddingButtonColorPicker } from '@/components/wedding/wedding-button-color-picker'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
+import { getOrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
+import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingAiLibraryGrid, WeddingReferenceChoice } from '@/components/wedding/wedding-ai-library-grid'
+import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
+import { WeddingBackgroundPresetPicker } from '@/components/wedding/wedding-background-preset-picker'
+import { WeddingLiveDevicePreviews } from '@/components/wedding/wedding-live-device-preview'
+import { weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
+import { applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiKitSectionPatch, weddingFramePatchForStyle, weddingKitSurface, weddingPairedFrameSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import {
   appendWeddingSideInviteSettingsToFormData,
   EMPTY_WEDDING_SIDE_INVITE_SETTINGS,
@@ -91,7 +101,6 @@ import {
   resolveCoverAiFrame,
   remapAlbumPhotoCrops,
   resolveAlbumPhotoFrame,
-  resolveCoverFrameMode,
   resolveCoverFrameOpen,
   resolveCoverFrameScale,
   resolveOpenBurstEffect,
@@ -107,7 +116,9 @@ import {
   resolvePortraitFrameScale,
   resolveStackFrameRotate,
   resolveStackPlace,
-  resolvePortraitShell,
+  clearWeddingFrameChoice,
+  resolveShownCoverFrame,
+  resolveShownPortraitShell,
   readHeroPhotoLayout,
   clampWeddingFrameScale,
   shiftAlbumPhotoCropsAfterRemove,
@@ -126,6 +137,8 @@ import { WeddingStackedCouplePhotos, type WeddingStackedFrameScaleEdit, type Wed
 import { WeddingAlbumLayoutPicker } from '@/components/wedding/wedding-album-stage'
 import { WeddingAlbumPhotoCropThumb } from '@/components/wedding/wedding-album-photo-crop-thumb'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingCoverShellCard, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
+import { WeddingFrameChoiceGrid, weddingFrameSelectionKey, weddingSharedFrameFromChoice, type WeddingFrameChoice } from '@/components/wedding/wedding-frame-choice-grid'
+import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
@@ -458,6 +471,31 @@ function WeddingGenerateStyleSelect({
   )
 }
 
+function cardWithAiBackgroundKit(
+  card: WeddingCard,
+  images: WeddingAiImage[],
+  library: WeddingBackgroundLibraryItem[],
+  frames: WeddingCoverFrameLibraryItem[],
+): WeddingCard {
+  const section = parseWeddingSectionConfig(card.sectionConfig)
+  if (section.backgroundPresetId) return card
+  const master = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
+  const cardStyle = WEDDING_STYLE_PRESETS.some((preset) => preset.id === card.selectedStyleId) ? card.selectedStyleId : ''
+  const styleId = section.backgroundKitStyleId || weddingStyleIdFromPrompt(master?.prompt || '') || cardStyle
+  const frame = findWeddingFrameForBackground(master?.imageUrl, library, frames)
+  if (!styleId && !frame) return card
+  const lookId = styleId ? resolveWeddingChromeKit({ backgroundKitStyleId: styleId })?.look.styleId || styleId : card.selectedStyleId
+  return {
+    ...card,
+    selectedStyleId: lookId,
+    colorPalette: getWeddingStylePreset(lookId).palette,
+    sectionConfig: mergeWeddingSectionConfig(card.sectionConfig, {
+      ...(styleId ? weddingAiKitSectionPatch(styleId) : {}),
+      ...(frame ? weddingPairedFrameSectionPatch(frame) : {}),
+    }),
+  }
+}
+
 export default function WeddingCardAiClientPage() {
   const router = useRouter()
   const { toast } = useToast()
@@ -467,7 +505,12 @@ export default function WeddingCardAiClientPage() {
   const [switchingCard, setSwitchingCard] = useState(false)
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
+  const [ornamentLayouts, setOrnamentLayouts] = useState<Record<string, WeddingBackgroundOrnament[]>>({})
+  const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
+  const [ornamentSaving, setOrnamentSaving] = useState(false)
   const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
+  const [sharedFrames, setSharedFrames] = useState<Record<string, WeddingSharedFrame>>({})
+  const [ornamentAdmin, setOrnamentAdmin] = useState(false)
   const [backgroundPageOpen, setBackgroundPageOpen] = useState(false)
   const [backgroundCreateOpen, setBackgroundCreateOpen] = useState(false)
   const [frameCreateOpen, setFrameCreateOpen] = useState(false)
@@ -684,18 +727,25 @@ export default function WeddingCardAiClientPage() {
         lastSavedPersistRef.current = buildSavedSnapshotForCard(result.card)
         baselineHydratedRef.current = true
         const localDraft = readWeddingLocalDraft(result.card.id)
+        const baseCard = localDraft
+          ? mergeServerCardWithLocalDraft(result.card, localDraft.card)
+          : result.card
+        const opened = stripSharedWeddingCopy(ownSidePartyFields(cardWithAiBackgroundKit(baseCard, result.images, result.library, result.frameLibrary)))
         if (localDraft) {
-          setCard(stripSharedWeddingCopy(ownSidePartyFields(mergeServerCardWithLocalDraft(result.card, localDraft.card))))
+          setCard(opened)
           setMusicStartInput(localDraft.musicStartInput)
           setMusicEndInput(localDraft.musicEndInput)
           setMusicClearOnSave(localDraft.musicClearOnSave)
           setAutosaveBanner({ message: 'Đã khôi phục bản nháp chưa kịp lưu. Hệ thống sẽ tự lưu lại.', variant: 'success' })
         } else {
-          setCard(stripSharedWeddingCopy(ownSidePartyFields(result.card)))
+          setCard(opened)
         }
         setImages(result.images)
         setLibrary(result.library)
+        setOrnamentLayouts(result.ornamentLayouts ?? {})
         setFrameLibrary(result.frameLibrary)
+        setSharedFrames(result.sharedFrames ?? {})
+        setOrnamentAdmin(Boolean(result.ornamentAdmin))
         setMusicLibrary(result.musicLibrary)
         setRsvps(result.rsvps)
         setSavedCards(result.cards)
@@ -721,16 +771,86 @@ export default function WeddingCardAiClientPage() {
     () => weddingSharedCopyAddresses(card),
     [card.venue, card.groomHometown, card.brideHometown, card.groomInviteAddress, card.brideInviteAddress],
   )
-  const selectedTheme = useMemo(() => getWeddingTheme(card.selectedStyleId), [card.selectedStyleId])
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
-  const buttonColorId = resolveWeddingButtonColorId(sectionConfig.buttonColorId, card.selectedStyleId)
+  const readyBackground = resolveWeddingChromeKit(sectionConfig)
+  const ornamentKey = weddingOrnamentLayoutKey({
+    backgroundPresetId: sectionConfig.backgroundPresetId,
+    masterImageUrl: masterImage?.imageUrl,
+  })
+  const cardMobileOrnamentKey = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(card.id), 'mobile')
+  const sharedPreviewOrnaments = weddingOrnamentsForDevice(readyBackground?.ornaments, ornamentLayouts, ornamentKey, 'mobile')
+  const backgroundOrnaments =
+    ornamentDraft ??
+    (cardMobileOrnamentKey && Object.prototype.hasOwnProperty.call(ornamentLayouts, cardMobileOrnamentKey)
+      ? ornamentLayouts[cardMobileOrnamentKey]
+      : sharedPreviewOrnaments)
+  const ornamentKeyRef = useRef(ornamentKey)
+  useEffect(() => {
+    if (ornamentKeyRef.current === ornamentKey) return
+    ornamentKeyRef.current = ornamentKey
+    setOrnamentDraft(null)
+  }, [ornamentKey])
+  const resetOrnaments = async () => {
+    if (!card.id || ornamentSaving) return
+    setOrnamentSaving(true)
+    try {
+      const result = await resetWeddingCardOrnaments(card.id, 'mobile')
+      if ('error' in result) {
+        toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+        return
+      }
+      setOrnamentLayouts((prev) => {
+        const next = { ...prev }
+        delete next[cardMobileOrnamentKey]
+        return next
+      })
+      setOrnamentDraft(null)
+    } finally {
+      setOrnamentSaving(false)
+    }
+  }
+  useEffect(() => {
+    if (!ornamentDraft || !card.id || card.slug) return
+    const snapshot = ornamentDraft
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setOrnamentSaving(true)
+        try {
+          const result = await saveWeddingCardOrnaments(card.id, 'mobile', snapshot)
+          if ('error' in result) {
+            toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+            return
+          }
+          setOrnamentLayouts((prev) => ({ ...prev, [cardMobileOrnamentKey]: result.ornaments }))
+          setOrnamentDraft((current) => (current === snapshot ? null : current))
+        } finally {
+          setOrnamentSaving(false)
+        }
+      })()
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [card.id, card.slug, cardMobileOrnamentKey, ornamentDraft, tImage.ornamentAdminFailed, toast])
+  const kitSurface = weddingKitSurface(readyBackground)
+  const selectedTheme = useMemo(
+    () => applyWeddingKitTheme(getWeddingTheme(readyBackground?.look.styleId ?? card.selectedStyleId), readyBackground),
+    [card.selectedStyleId, readyBackground],
+  )
+  const styleColors = weddingFramePatchForStyle(readyBackground?.look.styleId ?? card.selectedStyleId)
+  const buttonColorId = readyBackground?.look.buttonColorId ?? styleColors.buttonColorId
   const buttonColor = resolveWeddingButtonColor(buttonColorId)
-  const coverRsvpColor = resolveCoverRsvpButtonColor(sectionConfig.coverRsvpColorId, sectionConfig.buttonColorId, card.selectedStyleId)
-  const coverRsvpColorId = coverRsvpColor.id
-  const coverPresetId = sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID
-  const coverAiFrame = useMemo(() => resolveCoverAiFrame(sectionConfig), [sectionConfig])
-  const coverFrameMode = resolveCoverFrameMode(sectionConfig)
+  const coverRsvpColor = resolveWeddingButtonColor(readyBackground?.look.coverRsvpColorId ?? styleColors.coverRsvpColorId)
+  const pairedAiFrame = weddingUsesPairedAiFrame(sectionConfig) ? resolveCoverAiFrame(sectionConfig) : null
+  const kitFrameId = pairedAiFrame ? undefined : readyBackground?.coverPresetId
+  const activeSharedFrame = pairedAiFrame ? null : sharedFrames[ornamentKey] ?? null
+  const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, activeSharedFrame)
+  const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const coverAiFrame = pairedAiFrame ?? shownCover.library ?? null
+  const coverFrameMode = pairedAiFrame
+    ? sectionConfig.coverFrameMode === 'ai'
+      ? 'ai'
+      : 'library'
+    : shownCover.mode
   const backgroundLink = useMemo(() => {
     const imageUrl = masterImage?.imageUrl?.trim() || ''
     if (!imageUrl) return null
@@ -754,7 +874,7 @@ export default function WeddingCardAiClientPage() {
   const coverPhotoPositionY = sectionConfig.coverPhotoPositionY ?? 50
   const coverPhotoObjectPosition = resolveCoverPhotoObjectPosition(sectionConfig)
   const coverPhotoScale = resolveCoverPhotoScale(sectionConfig)
-  const coverBackgroundUrl = masterImage?.imageUrl?.trim() || ''
+  const coverBackgroundUrl = readyBackground?.plates[0] || masterImage?.imageUrl?.trim() || ''
   const storedCoverPhotoUrl = resolveCoverPhotoUrl(sectionConfig)
   const storedCoverIsBackground =
     Boolean(storedCoverPhotoUrl) &&
@@ -798,10 +918,10 @@ export default function WeddingCardAiClientPage() {
     )
     if (!hasPartyDate) items.push('ngày tiệc')
     if (!hasPartyPlace) items.push('địa chỉ tiệc')
-    if (!masterImage?.imageUrl) items.push('ảnh chính')
+    if (!readyBackground && !masterImage?.imageUrl) items.push('ảnh chính')
     if (!card.mapUrl && !card.groomInviteMapUrl && !card.brideInviteMapUrl) items.push('Google Maps')
     return items
-  }, [card, masterImage, weddingDateIso])
+  }, [card, masterImage, readyBackground, weddingDateIso])
   const occasionKey = normalizeInvitationOccasion(card.occasionKey)
   const occasionCopy = invitationEditorCopy(occasionKey)
   const singleOccasion = invitationOccasionShape(occasionKey) === 'single'
@@ -983,8 +1103,8 @@ export default function WeddingCardAiClientPage() {
 
   const groomPortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'groom')
   const bridePortraitFrame = resolvePortraitPhotoFrame(sectionConfig, 'bride')
-  const groomPortraitShell = resolvePortraitShell(sectionConfig, 'groom')
-  const bridePortraitShell = resolvePortraitShell(sectionConfig, 'bride')
+  const groomPortraitShell = resolveShownPortraitShell(sectionConfig, 'groom', kitFrameId, activeSharedFrame)
+  const bridePortraitShell = resolveShownPortraitShell(sectionConfig, 'bride', kitFrameId, activeSharedFrame)
   const stackFrameShell = groomPortraitShell ?? bridePortraitShell
 
   const updatePortraitCrop = (
@@ -1436,7 +1556,7 @@ export default function WeddingCardAiClientPage() {
   }, [card.id, loading, persistFingerprint]) // eslint-disable-line react-hooks/exhaustive-deps -- flush reads latest refs
 
   const selectNoCoverFrame = () => {
-    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverFrameMode: 'none' }))
+    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverFrameChosen: true, coverFrameMode: 'none' }))
   }
 
   const frameScaleEditFor = (side: 'cover' | 'groom' | 'bride', scale: number): FrameScaleEdit => ({
@@ -1498,6 +1618,19 @@ export default function WeddingCardAiClientPage() {
     },
   })
 
+  const pairPortraitFrameScale = resolvePortraitFrameScale(sectionConfig, 'groom')
+  useEffect(() => {
+    const bride = resolvePortraitFrameScale(sectionConfig, 'bride')
+    if (pairPortraitFrameScale === bride) return
+    update(
+      'sectionConfig',
+      mergeWeddingSectionConfig(card.sectionConfig, {
+        groomPortraitFrameScale: pairPortraitFrameScale,
+        bridePortraitFrameScale: pairPortraitFrameScale,
+      }),
+    )
+  }, [pairPortraitFrameScale, sectionConfig.bridePortraitFrameScale]) // eslint-disable-line react-hooks/exhaustive-deps -- chỉ kéo hai cỡ khung về một giá trị
+
   const stackPlace = resolveStackPlace(sectionConfig)
   const setStackPlace = (place: ReturnType<typeof resolveStackPlace>) => {
     if (!place) return
@@ -1548,14 +1681,16 @@ export default function WeddingCardAiClientPage() {
     const patch =
       side === 'groom'
         ? {
-            groomPortraitShellMode: shell?.mode,
+            groomPortraitFrameChosen: true,
+            groomPortraitShellMode: shell?.mode ?? 'none',
             groomPortraitShellPresetId: shell?.mode === 'preset' ? shell.presetId : undefined,
             groomPortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
             groomPortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
             groomPortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
           }
         : {
-            bridePortraitShellMode: shell?.mode,
+            bridePortraitFrameChosen: true,
+            bridePortraitShellMode: shell?.mode ?? 'none',
             bridePortraitShellPresetId: shell?.mode === 'preset' ? shell.presetId : undefined,
             bridePortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
             bridePortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
@@ -1576,14 +1711,16 @@ export default function WeddingCardAiClientPage() {
     const sidePatch = (side: 'groom' | 'bride') =>
       side === 'groom'
         ? {
-            groomPortraitShellMode: shell?.mode,
+            groomPortraitFrameChosen: true,
+            groomPortraitShellMode: shell?.mode ?? 'none',
             groomPortraitShellPresetId: undefined,
             groomPortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
             groomPortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
             groomPortraitShellPanel: shell?.mode === 'library' ? shell.panel : undefined,
           }
         : {
-            bridePortraitShellMode: shell?.mode,
+            bridePortraitFrameChosen: true,
+            bridePortraitShellMode: shell?.mode ?? 'none',
             bridePortraitShellPresetId: undefined,
             bridePortraitShellUrl: shell?.mode === 'library' ? shell.url : undefined,
             bridePortraitShellHole: shell?.mode === 'library' ? shell.hole : undefined,
@@ -1626,18 +1763,84 @@ export default function WeddingCardAiClientPage() {
     none: tBrief.openEffectNone,
   }
 
-  const applyCoverFrameFromLibrary = (item: WeddingCoverFrameLibraryItem) => {
+  const applyCoverFrameFromLibrary = (item: { imageUrl: string; hole: { x: number; y: number; w: number; h: number }; panel: string; ink?: 'dark' | 'light' }) => {
     setCard((prev) => ({
       ...prev,
       sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
         coverAiFrameUrl: item.imageUrl,
         coverAiFrameHole: item.hole,
         coverAiFramePanel: item.panel,
-        coverAiFrameInk: item.ink,
+        coverAiFrameInk: item.ink === 'light' ? 'light' : 'dark',
+        coverFrameChosen: true,
         coverFrameMode: 'library',
       }),
     }))
     toast({ title: txCover.aiFrameLibraryApplied })
+  }
+
+  const commitFrameChoice = (side: 'groom' | 'bride' | 'cover' | 'pair', choice: WeddingFrameChoice) => {
+    if (ornamentAdmin && ornamentKey) {
+      const frame = weddingSharedFrameFromChoice(choice)
+      const cleared = clearWeddingFrameChoice(card.sectionConfig, side)
+      setSharedFrames((current) => {
+        const next = { ...current }
+        if (frame) next[ornamentKey] = frame
+        else delete next[ornamentKey]
+        return next
+      })
+      setCard((prev) => ({ ...prev, sectionConfig: clearWeddingFrameChoice(prev.sectionConfig, side) }))
+      void saveWeddingTemplateFrame(card.id, frame, side, cleared).then((result) => {
+        if (result && !('ok' in result)) toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+      })
+      setPortraitFrameSide(null)
+      return
+    }
+    if (choice.kind === 'kit') {
+      setCard((prev) => ({ ...prev, sectionConfig: clearWeddingFrameChoice(prev.sectionConfig, side) }))
+      setPortraitFrameSide(null)
+      return
+    }
+    if (side === 'cover') {
+      if (choice.kind === 'none') selectNoCoverFrame()
+      else if (choice.kind === 'preset') {
+        setCard((prev) => ({
+          ...prev,
+          sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+            coverFrameChosen: true,
+            coverFrameMode: 'preset',
+            coverPresetId: choice.id,
+          }),
+        }))
+      } else applyCoverFrameFromLibrary(choice.item)
+      setPortraitFrameSide(null)
+      return
+    }
+    if (side === 'pair') {
+      if (choice.kind === 'none') {
+        saveStackedShell(null)
+        return
+      }
+      if (choice.kind === 'library') {
+        saveStackedShell({ mode: 'library', url: choice.item.imageUrl, hole: choice.item.hole, panel: choice.item.panel })
+        return
+      }
+      setCard((prev) => ({
+        ...prev,
+        sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+          groomPortraitFrameChosen: true,
+          groomPortraitShellMode: 'preset',
+          groomPortraitShellPresetId: choice.id,
+          bridePortraitFrameChosen: true,
+          bridePortraitShellMode: 'preset',
+          bridePortraitShellPresetId: choice.id,
+        }),
+      }))
+      setPortraitFrameSide(null)
+      return
+    }
+    if (choice.kind === 'none') savePortraitShell(side, null)
+    else if (choice.kind === 'preset') savePortraitShell(side, { mode: 'preset', presetId: choice.id })
+    else savePortraitShell(side, { mode: 'library', url: choice.item.imageUrl, hole: choice.item.hole, panel: choice.item.panel })
   }
 
   const snapshotCreateDraft = (kind: WeddingCreateDraftKind) => {
@@ -1709,6 +1912,7 @@ export default function WeddingCardAiClientPage() {
           coverAiFrameHole: result.hole,
           coverAiFramePanel: result.panel,
           coverAiFrameInk: result.ink,
+          coverFrameChosen: true,
           coverFrameMode: 'library',
         }),
       }))
@@ -1766,12 +1970,15 @@ export default function WeddingCardAiClientPage() {
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
-          ...fresh.card,
+          ...cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary),
           weddingDate: prev.weddingDate,
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setOrnamentLayouts(fresh.ornamentLayouts ?? {})
         setFrameLibrary(fresh.frameLibrary)
+        setSharedFrames(fresh.sharedFrames ?? {})
+        setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
@@ -1810,12 +2017,15 @@ export default function WeddingCardAiClientPage() {
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
       if (!('error' in fresh)) {
         setCard((prev) => ({
-          ...fresh.card,
+          ...cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary),
           weddingDate: prev.weddingDate,
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setOrnamentLayouts(fresh.ornamentLayouts ?? {})
         setFrameLibrary(fresh.frameLibrary)
+        setSharedFrames(fresh.sharedFrames ?? {})
+        setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
@@ -1830,6 +2040,28 @@ export default function WeddingCardAiClientPage() {
     } finally {
       setApplyingLibraryId(null)
     }
+  }
+
+  const applyReadyBackground = (presetId: string) => {
+    const preset = findWeddingBackgroundPreset(presetId)
+    if (!card.id || !preset || applyingLibraryId || generating || uploadingOutside) return
+    const style = getWeddingStylePreset(preset.look.styleId)
+    setCard((prev) => ({
+      ...prev,
+      selectedStyleId: preset.look.styleId,
+      colorPalette: style.palette,
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, {
+        backgroundPresetId: presetId,
+        backgroundKitStyleId: '',
+        buttonColorId: preset.look.buttonColorId,
+        coverRsvpColorId: preset.look.coverRsvpColorId,
+      }),
+    }))
+    setBackgroundConfirmOpen(true)
+    setBackgroundNotice({
+      title: tImage.backgroundPickedTitle,
+      description: tImage.readyBackgroundHint,
+    })
   }
 
   const uploadOutsideBackground = async (file: File | null) => {
@@ -1859,10 +2091,18 @@ export default function WeddingCardAiClientPage() {
         setCard((prev) => ({
           ...fresh.card,
           weddingDate: prev.weddingDate,
+          sectionConfig: mergeWeddingSectionConfig(fresh.card.sectionConfig, {
+            ...weddingFramePatchForStyle(fresh.card.selectedStyleId),
+            backgroundKitStyleId: '',
+            backgroundPresetId: '',
+          }),
         }))
         setImages(fresh.images)
         setLibrary(fresh.library)
+        setOrnamentLayouts(fresh.ornamentLayouts ?? {})
         setFrameLibrary(fresh.frameLibrary)
+        setSharedFrames(fresh.sharedFrames ?? {})
+        setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
         setMusicLibrary(fresh.musicLibrary)
         setRsvps(fresh.rsvps)
         setSavedCards(fresh.cards)
@@ -1943,7 +2183,10 @@ export default function WeddingCardAiClientPage() {
     setCard(nextCard)
     setImages(result.images)
     setLibrary(result.library)
+    setOrnamentLayouts(result.ornamentLayouts ?? {})
     setFrameLibrary(result.frameLibrary)
+    setSharedFrames(result.sharedFrames ?? {})
+    setOrnamentAdmin(Boolean(result.ornamentAdmin))
     setMusicLibrary(result.musicLibrary)
     setRsvps(result.rsvps)
     setSavedCards(result.cards)
@@ -2263,8 +2506,8 @@ export default function WeddingCardAiClientPage() {
             </DialogHeader>
             {backgroundPicked ? (
               <div className="space-y-4">
-                {masterImage?.imageUrl ? (
-                  <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full rounded-2xl object-cover" />
+                {coverBackgroundUrl ? (
+                  <img src={coverBackgroundUrl} alt="" className="max-h-48 w-full rounded-2xl object-cover object-top" />
                 ) : null}
                 {backgroundNoticeBlock}
                 <Button type="button" className="w-full" onClick={closeBackgroundPicker}>
@@ -2277,8 +2520,8 @@ export default function WeddingCardAiClientPage() {
             {backgroundPreviewLarge ? null : (
             <>
             <div className="overflow-hidden rounded-2xl border bg-[#fffaf2]">
-              {masterImage?.imageUrl ? (
-                <img src={masterImage.imageUrl} alt="" className="max-h-48 w-full object-contain" />
+              {coverBackgroundUrl ? (
+                <img src={coverBackgroundUrl} alt="" className="max-h-48 w-full object-contain" />
               ) : (
                 <div className="flex min-h-28 items-center justify-center px-6 text-center text-sm text-muted-foreground">
                   {tImage.backgroundEmptyPreview}
@@ -2305,7 +2548,7 @@ export default function WeddingCardAiClientPage() {
                   if (file) void uploadOutsideBackground(file)
                 }}
               />
-              {masterImage?.imageUrl ? (
+              {masterImage?.imageUrl && !sectionConfig.backgroundPresetId ? (
                 <Button asChild variant="outline" size="sm">
                   <a href={masterImage.imageUrl} download target="_blank" rel="noreferrer">
                     <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -2316,10 +2559,24 @@ export default function WeddingCardAiClientPage() {
             </div>
             </>
             )}
+            {backgroundPreviewLarge ? null : (
+              <WeddingBackgroundPresetPicker
+                locale={uiLocale}
+                selectedId={sectionConfig.backgroundPresetId}
+                heading={tImage.readyBackgroundHeading}
+                hint={tImage.readyBackgroundHint}
+                oneLabel={tImage.readyBackgroundOne}
+                setLabel={tImage.readyBackgroundSet}
+                layeredLabel={tImage.readyBackgroundLayered}
+                ornamentLayouts={ornamentLayouts}
+                disabled={generating || Boolean(applyingLibraryId) || uploadingOutside || !card.id}
+                onSelect={(preset) => applyReadyBackground(preset.id)}
+              />
+            )}
             <WeddingAiLibraryGrid
               recommended={backgroundGroups.recommended}
               rest={backgroundGroups.rest}
-              selectedUrl={masterImage?.imageUrl}
+              selectedUrl={sectionConfig.backgroundPresetId ? undefined : masterImage?.imageUrl}
               onSelect={(item) => void applyLibraryImage(item.id)}
               recommendedLabel={tImage.libraryRecommendedHeading}
               libraryLabel={tImage.libraryAllHeading}
@@ -2524,55 +2781,61 @@ export default function WeddingCardAiClientPage() {
                 <CardDescription>{tImage.backgroundSectionHint}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {masterImage?.imageUrl ? (
-                  <img src={masterImage.imageUrl} alt="" className="max-h-40 w-full rounded-xl object-cover" />
+                {coverBackgroundUrl ? (
+                  <div className="relative overflow-hidden rounded-xl">
+                    <img src={coverBackgroundUrl} alt="" className="max-h-40 w-full object-cover object-top" />
+                    <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} />
+                    {readyBackground && readyBackground.ornaments.length > 0 ? (
+                      <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+                        {tImage.readyBackgroundLayered}
+                      </span>
+                    ) : readyBackground && readyBackground.plates.length > 1 ? (
+                      <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
+                        {tImage.readyBackgroundSet.replaceAll('{n}', String(readyBackground.plates.length))}
+                      </span>
+                    ) : null}
+                  </div>
                 ) : (
                   <div className="flex min-h-24 items-center justify-center rounded-xl bg-muted px-4 text-center text-sm text-muted-foreground">
                     {tImage.backgroundEmptyPreview}
                   </div>
                 )}
                 <Button type="button" className="w-full sm:w-auto" onClick={openBackgroundPicker}>
-                  {masterImage?.imageUrl ? tImage.chooseBackgroundAgain : tImage.chooseBackground}
+                  {coverBackgroundUrl ? tImage.chooseBackgroundAgain : tImage.chooseBackground}
                 </Button>
               </CardContent>
             </Card>
 
+            <Dialog open={Boolean(card.slug) && portraitFrameSide !== null} onOpenChange={(open) => { if (!open) { setPortraitFrameSide(null); setFrameCreateOpen(false) } }}>
+              <DialogContent overlayClassName="z-[200]" className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg">
+                <DialogHeader className="shrink-0 pr-10">
+                  <DialogTitle>{txCover.chooseFrame}</DialogTitle>
+                  <DialogDescription>{txCover.aiFrameLibraryHeading}</DialogDescription>
+                </DialogHeader>
+                <div className="min-h-0 space-y-4 overflow-y-auto">
+                  <WeddingFrameChoiceGrid
+                    locale={uiLocale}
+                    followLabel={txCover.frameFollowBackground}
+                    noneLabel={txCover.frameModeNone}
+                    kitPresetId={kitFrameId}
+                    library={frameLibrary}
+                    selectedKey={weddingFrameSelectionKey(privateFrameKey(sectionConfig, portraitFrameSide), activeSharedFrame)}
+                    onChoose={(choice) => { if (portraitFrameSide) commitFrameChoice(portraitFrameSide, choice) }}
+                  />
+                  <Button type="button" size="sm" disabled={!card.id} onClick={() => setFrameCreateOpen(true)}>
+                    <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    {txCover.aiFrameButton}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
             <Card>
               <CardHeader>
                 <CardTitle>{txCover.sectionTitle}</CardTitle>
                 <CardDescription>{txCover.sectionDescription}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <WeddingButtonColorPicker
-                  value={buttonColorId}
-                  locale={uiLocale}
-                  label={txCover.buttonColorLabel}
-                  hint={txCover.buttonColorHint}
-                  chooseLabel={txCover.buttonColorChoose}
-                  okLabel={txCover.buttonColorOk}
-                  cancelLabel={txCover.buttonColorCancel}
-                  onChange={(id: WeddingButtonColorId) =>
-                    update(
-                      'sectionConfig',
-                      mergeWeddingSectionConfig(card.sectionConfig, {
-                        buttonColorId: id,
-                        coverRsvpColorId: coverRsvpColorId,
-                      }),
-                    )
-                  }
-                />
-                <WeddingButtonColorPicker
-                  value={coverRsvpColorId}
-                  locale={uiLocale}
-                  label={txCover.attendColorLabel}
-                  hint={txCover.attendColorHint}
-                  chooseLabel={txCover.buttonColorChoose}
-                  okLabel={txCover.buttonColorOk}
-                  cancelLabel={txCover.buttonColorCancel}
-                  onChange={(id: WeddingButtonColorId) =>
-                    update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, { coverRsvpColorId: id }))
-                  }
-                />
+                <p className="text-sm text-muted-foreground">{tImage.readyBackgroundLocked}</p>
                 {singleOccasion ? null : (
                   <WeddingHeroLayoutPicker
                     value={heroStack ? 'stack' : 'single'}
@@ -2587,14 +2850,17 @@ export default function WeddingCardAiClientPage() {
                 )}
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
-                    className="relative -mx-6 flex min-h-[360px] w-[calc(100%+3rem)] items-center justify-center overflow-x-clip overflow-y-auto bg-cover bg-center p-0 sm:mx-0 sm:w-full sm:rounded-[1.5rem] sm:p-3"
-                    style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover)}
+                    className={cn('relative -mx-6 flex min-h-[360px] w-[calc(100%+3rem)] items-center justify-center overflow-x-clip overflow-y-auto bg-cover bg-center p-0 sm:mx-0 sm:w-full sm:rounded-[1.5rem] sm:p-3', kitSurface.className)}
+                    style={{ ...weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover), ...kitSurface.style }}
                   >
+                    <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="z-20" />
                     <WeddingCoverShellCard
                       key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
                       presetId={coverPresetId}
                       aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
                       frameMode={coverFrameMode}
+                      chooseFrameLabel={txCover.chooseFrame}
+                      onChooseFrame={() => setPortraitFrameSide('cover')}
                       photoOpen={coverPhotoOpen}
                       frameOpen={coverFrameOpen}
                       openMotion
@@ -2664,8 +2930,11 @@ export default function WeddingCardAiClientPage() {
                               secondNameEdit: stackNameEdit('bride'),
                               frameScaleEdit: stackPairFrameScale(),
                               frameShell: stackFrameShell,
+                              firstShell: groomPortraitShell,
+                              secondShell: bridePortraitShell,
                               chooseFrameLabel: txCover.chooseFrame,
-                              onChooseFrame: () => setPortraitFrameSide('pair'),
+                              onChooseFirstFrame: () => setPortraitFrameSide('groom'),
+                              onChooseSecondFrame: () => setPortraitFrameSide('bride'),
                               place: stackPlace,
                               onPlace: setStackPlace,
                               moveLabel: txCover.dragPlace,
@@ -2678,12 +2947,10 @@ export default function WeddingCardAiClientPage() {
                       }
                       choosePhotoLabel={txCover.choosePhoto}
                       changePhotoLabel={txCover.changePhoto}
-                      chooseFrameLabel={txCover.chooseFrame}
                       onPhotoFile={(file) => {
                         setCoverImageFile(file)
                         setCoverClearOnSave(false)
                       }}
-                      onChooseFrame={() => setPortraitFrameSide('cover')}
                     />
                   </div>
                 </div>
@@ -2761,6 +3028,7 @@ export default function WeddingCardAiClientPage() {
                 </div>
                 )}
                 {heroStack ? null : (
+                <>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <ImageUploadField
                     label={occasionCopy.primaryPhoto}
@@ -2790,8 +3058,7 @@ export default function WeddingCardAiClientPage() {
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('groom')}
                     shell={groomPortraitShell}
-                    frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
-                    frameScaleEdit={frameScaleEditFor('groom', resolvePortraitFrameScale(sectionConfig, 'groom'))}
+                    frameScale={pairPortraitFrameScale}
                   />
                   <ImageUploadField
                     label={occasionCopy.secondaryPhoto}
@@ -2821,10 +3088,13 @@ export default function WeddingCardAiClientPage() {
                     chooseFrameLabel={txCover.chooseFrame}
                     onChooseFrame={() => setPortraitFrameSide('bride')}
                     shell={bridePortraitShell}
-                    frameScale={resolvePortraitFrameScale(sectionConfig, 'bride')}
-                    frameScaleEdit={frameScaleEditFor('bride', resolvePortraitFrameScale(sectionConfig, 'bride'))}
+                    frameScale={pairPortraitFrameScale}
                   />
                 </div>
+                <div className="flex justify-center">
+                  <FrameScaleDragBar edit={stackPairFrameScale()} />
+                </div>
+                </>
                 )}
                 {heroStack ? null : <p className="text-xs text-muted-foreground">{occasionCopy.portraitHint}</p>}
                 <p className="text-xs text-muted-foreground">{occasionCopy.sharedHint}</p>
@@ -3248,7 +3518,7 @@ export default function WeddingCardAiClientPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1.5">
                     <CardTitle>3 & 8. Preview nháp</CardTitle>
-                    <CardDescription>Mobile/desktop đều render text thật bằng hệ thống, không tốn credit.</CardDescription>
+                    <CardDescription>{tImage.previewColumnNote}</CardDescription>
                   </div>
                   <Button
                     type="button"
@@ -3266,16 +3536,56 @@ export default function WeddingCardAiClientPage() {
                     Cần kiểm tra thêm: {missing.join(', ')}.
                   </div>
                 )}
-                <div className="relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[1.65rem] border border-white/60 shadow-lg">
+                {card.slug ? (
+                  <WeddingLiveDevicePreviews
+                    slug={card.slug}
+                    guestName={previewDemo.guestDisplayName}
+                    letterView={previewLetterView}
+                    editable
+                    locale={uiLocale}
+                    desktopLabel={tImage.previewDesktop}
+                    mobileLabel={tImage.previewMobile}
+                    coverLabel={tImage.previewCover}
+                    letterLabel={tImage.previewLetter}
+                    hint={tImage.previewDeviceHint}
+                    refreshLabel={tImage.previewRefresh}
+                  />
+                ) : (
+                  <WeddingOrnamentAdminBar
+                    locale={uiLocale}
+                    hint={tImage.ornamentAdminHint}
+                    addLabel={tImage.ornamentAdminAdd}
+                    saveLabel={tImage.ornamentAdminSave}
+                    resetLabel={tImage.ornamentAdminReset}
+                    dirty={ornamentDraft != null}
+                    saving={ornamentSaving}
+                    onAdd={(src) => setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: 8, y: 8, w: 36 }])}
+                    onReset={() => void resetOrnaments()}
+                  />
+                )}
+                {card.slug ? null : (
+                <div className={cn('relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[1.65rem] border border-white/60 shadow-lg', kitSurface.className)} style={kitSurface.style}>
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-0 bg-cover bg-center"
-                    style={weddingBackgroundStyle(masterImage?.imageUrl, selectedTheme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
+                    style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
                   />
-                  <div
+                  <WeddingOrnamentAdminLayer
+                    ornaments={backgroundOrnaments}
+                    editable
+                    className="z-[80]"
+                    zoomInLabel={tImage.ornamentAdminZoomIn}
+                    zoomOutLabel={tImage.ornamentAdminZoomOut}
+                    blurLabel={tImage.ornamentAdminBlur}
+                    fadeLabel={tImage.ornamentAdminFade}
+                    deleteLabel={tImage.ornamentAdminDelete}
+                    onChange={setOrnamentDraft}
+                  />
+                    <div
                     className={cn(
-                      'relative z-[1] max-h-[min(28rem,calc(100dvh-20rem))] overflow-y-auto overscroll-contain px-3 py-3 text-center [scrollbar-width:thin]',
+                      'relative z-[1] px-3 py-3 text-center',
                       selectedTheme.text,
+                      'pointer-events-none',
                     )}
                   >
                     <WeddingReadableGlass
@@ -3319,6 +3629,17 @@ export default function WeddingCardAiClientPage() {
                                             ? sectionConfig.groomPortraitShellUrl
                                             : ''
                                           : ''
+                                  const composed =
+                                    portraitFrameSide === 'cover' && coverFrameMode === 'preset'
+                                      ? getOrnamentComposition(coverPresetId)
+                                      : undefined
+                                  if (composed) {
+                                    return (
+                                      <div className="relative mx-auto aspect-[3/4] max-h-48" style={{ background: composed.kit.panel }}>
+                                        <WeddingOrnamentStage kit={composed.kit} layout={composed.layout} />
+                                      </div>
+                                    )
+                                  }
                                   return previewUrl ? (
                                     <img src={previewUrl} alt="" className="max-h-48 w-full object-contain" />
                                   ) : (
@@ -3333,78 +3654,15 @@ export default function WeddingCardAiClientPage() {
                                   <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                                   {txCover.aiFrameButton} · {frameCreditText.total}
                                 </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (portraitFrameSide === 'cover') {
-                                      selectNoCoverFrame()
-                                      setPortraitFrameSide(null)
-                                      return
-                                    }
-                                    if (portraitFrameSide === 'pair') {
-                                      saveStackedShell(null)
-                                      return
-                                    }
-                                    if (portraitFrameSide) savePortraitShell(portraitFrameSide, null)
-                                  }}
-                                >
-                                  {txCover.frameModeNone}
-                                </Button>
                               </div>
-                              <WeddingAiLibraryGrid
-                                recommended={frameGroups.recommended}
-                                rest={frameGroups.rest}
-                                selectedUrl={
-                                  portraitFrameSide === 'cover'
-                                    ? coverFrameMode === 'library' || coverFrameMode === 'ai'
-                                      ? coverAiFrame?.src
-                                      : undefined
-                                    : portraitFrameSide === 'pair'
-                                      ? sectionConfig.groomPortraitShellMode === 'library'
-                                        ? sectionConfig.groomPortraitShellUrl
-                                        : sectionConfig.bridePortraitShellMode === 'library'
-                                          ? sectionConfig.bridePortraitShellUrl
-                                          : undefined
-                                      : portraitFrameSide === 'bride'
-                                      ? sectionConfig.bridePortraitShellMode === 'library'
-                                        ? sectionConfig.bridePortraitShellUrl
-                                        : undefined
-                                      : portraitFrameSide === 'groom'
-                                        ? sectionConfig.groomPortraitShellMode === 'library'
-                                          ? sectionConfig.groomPortraitShellUrl
-                                          : undefined
-                                        : undefined
-                                }
-                                onSelect={(choice) => {
-                                  const item = frameLibrary.find((row) => row.id === choice.id)
-                                  if (!item) return
-                                  if (portraitFrameSide === 'cover') {
-                                    applyCoverFrameFromLibrary(item)
-                                    setPortraitFrameSide(null)
-                                    return
-                                  }
-                                  if (portraitFrameSide === 'pair') {
-                                    saveStackedShell({
-                                      mode: 'library',
-                                      url: item.imageUrl,
-                                      hole: item.hole,
-                                      panel: item.panel,
-                                    })
-                                    return
-                                  }
-                                  if (portraitFrameSide !== 'groom' && portraitFrameSide !== 'bride') return
-                                  savePortraitShell(portraitFrameSide, {
-                                    mode: 'library',
-                                    url: item.imageUrl,
-                                    hole: item.hole,
-                                    panel: item.panel,
-                                  })
-                                }}
-                                recommendedLabel={tImage.libraryRecommendedHeading}
-                                libraryLabel={tImage.libraryAllHeading}
-                                emptyLabel={txCover.aiFrameLibraryEmpty}
+                              <WeddingFrameChoiceGrid
+                                locale={uiLocale}
+                                followLabel={txCover.frameFollowBackground}
+                                noneLabel={txCover.frameModeNone}
+                                kitPresetId={kitFrameId}
+                                library={frameLibrary}
+                                selectedKey={weddingFrameSelectionKey(privateFrameKey(sectionConfig, portraitFrameSide), activeSharedFrame)}
+                                onChoose={(choice) => { if (portraitFrameSide) commitFrameChoice(portraitFrameSide, choice) }}
                               />
                               {portraitFrameSide ? (
                                 <FrameSizeControl
@@ -3414,19 +3672,13 @@ export default function WeddingCardAiClientPage() {
                                   value={
                                     portraitFrameSide === 'cover'
                                       ? resolveCoverFrameScale(sectionConfig)
-                                      : portraitFrameSide === 'pair'
-                                        ? resolvePortraitFrameScale(sectionConfig, 'groom')
-                                        : resolvePortraitFrameScale(sectionConfig, portraitFrameSide)
+                                      : pairPortraitFrameScale
                                   }
                                   onChange={(scale) => {
                                     const patch =
                                       portraitFrameSide === 'cover'
                                         ? { coverFrameScale: scale }
-                                        : portraitFrameSide === 'pair'
-                                          ? { groomPortraitFrameScale: scale, bridePortraitFrameScale: scale }
-                                          : portraitFrameSide === 'bride'
-                                          ? { bridePortraitFrameScale: scale }
-                                          : { groomPortraitFrameScale: scale }
+                                        : { groomPortraitFrameScale: scale, bridePortraitFrameScale: scale }
                                     update('sectionConfig', mergeWeddingSectionConfig(card.sectionConfig, patch))
                                   }}
                                 />
@@ -3487,6 +3739,8 @@ export default function WeddingCardAiClientPage() {
                             secondCaption={occasionCopy.secondaryRole}
                             frameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
                             frameShell={stackFrameShell}
+                            firstShell={groomPortraitShell}
+                            secondShell={bridePortraitShell}
                             place={stackPlace}
                             firstRotate={stackRotate.firstRotate}
                             secondRotate={stackRotate.secondRotate}
@@ -3528,6 +3782,8 @@ export default function WeddingCardAiClientPage() {
                               presetId={coverPresetId}
                               aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
                               frameMode={coverFrameMode}
+                              chooseFrameLabel={txCover.chooseFrame}
+                              onChooseFrame={() => setPortraitFrameSide('cover')}
                               coverPhotoUrl={coverPhotoPreviewUrl}
                               coverPhotoObjectPosition={coverPhotoObjectPosition}
                               coverPhotoScale={coverPhotoScale}
@@ -3621,10 +3877,12 @@ export default function WeddingCardAiClientPage() {
                           brideFrame={bridePortraitFrame}
                           groomShell={groomPortraitShell}
                           brideShell={bridePortraitShell}
-                          groomFrameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
-                          brideFrameScale={resolvePortraitFrameScale(sectionConfig, 'bride')}
-                          groomFrameScaleEdit={frameScaleEditFor('groom', resolvePortraitFrameScale(sectionConfig, 'groom'))}
-                          brideFrameScaleEdit={frameScaleEditFor('bride', resolvePortraitFrameScale(sectionConfig, 'bride'))}
+                          chooseFrameLabel={txCover.chooseFrame}
+                          onChooseFrame={(side) => setPortraitFrameSide(side)}
+                          onChoosePhoto={() => undefined}
+                          groomFrameScale={pairPortraitFrameScale}
+                          brideFrameScale={pairPortraitFrameScale}
+                          pairFrameScaleEdit={stackPairFrameScale()}
                           theme={selectedTheme}
                           compact
                         />
@@ -3767,6 +4025,7 @@ export default function WeddingCardAiClientPage() {
                     </WeddingReadableGlass>
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
 
@@ -4043,6 +4302,39 @@ function DeviceImagePicker(props: {
       onFiles={props.onFiles}
     />
   )
+}
+
+function privateFrameKey(
+  section: {
+    coverFrameChosen?: boolean
+    coverFrameMode?: string
+    coverPresetId?: string
+    coverAiFrameUrl?: string
+    groomPortraitFrameChosen?: boolean
+    groomPortraitShellMode?: string
+    groomPortraitShellPresetId?: string
+    groomPortraitShellUrl?: string
+    bridePortraitFrameChosen?: boolean
+    bridePortraitShellMode?: string
+    bridePortraitShellPresetId?: string
+    bridePortraitShellUrl?: string
+  },
+  side: 'groom' | 'bride' | 'cover' | 'pair' | null,
+) {
+  const portrait = (chosen: boolean | undefined, mode: string | undefined, presetId: string | undefined, url: string | undefined) => {
+    if (!chosen) return 'kit'
+    if (mode === 'none') return 'none'
+    if (mode === 'preset' && presetId) return presetId
+    if (mode === 'library' && url) return `library:${url}`
+    return 'kit'
+  }
+  if (side === 'cover') {
+    return portrait(section.coverFrameChosen, section.coverFrameMode, section.coverPresetId, section.coverAiFrameUrl)
+  }
+  if (side === 'bride') {
+    return portrait(section.bridePortraitFrameChosen, section.bridePortraitShellMode, section.bridePortraitShellPresetId, section.bridePortraitShellUrl)
+  }
+  return portrait(section.groomPortraitFrameChosen, section.groomPortraitShellMode, section.groomPortraitShellPresetId, section.groomPortraitShellUrl)
 }
 
 function ImageUploadField(props: {

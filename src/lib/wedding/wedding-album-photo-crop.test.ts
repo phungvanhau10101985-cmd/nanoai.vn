@@ -18,7 +18,10 @@ test('album photo crop round-trips by index', () => {
   const parsed = parseWeddingSectionConfig(raw)
   assert.deepEqual(parsed.albumPhotoCrops, [{ index: 1, x: 40, y: 22, scale: 1.5 }])
   assert.deepEqual(resolveAlbumPhotoFrame(parsed.albumPhotoCrops, 1), { x: 40, y: 22, scale: 1.5 })
-  assert.equal(albumPhotoFrameStyle(resolveAlbumPhotoFrame(parsed.albumPhotoCrops, 1)).transform, 'scale(1.5)')
+  const zoomed = albumPhotoFrameStyle(resolveAlbumPhotoFrame(parsed.albumPhotoCrops, 1))
+  assert.equal(zoomed.transform, 'none')
+  assert.equal(zoomed.width, '150%')
+  assert.equal(zoomed.left, '-20%')
   assert.equal(albumPhotoFrameStyle({ x: 50, y: 0, scale: 1 }).objectPosition, '50% 0%')
 })
 

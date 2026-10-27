@@ -29,6 +29,16 @@
     min-height: 44px;
     min-width: 44px;
   }
+  /* Bộ thiệp: font hệ thống có dấu tiếng Việt, không tải font lúc build. */
+  .wedding-font-soft .font-serif {
+    font-family: "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  }
+  .wedding-font-formal .font-serif {
+    font-family: Georgia, "Times New Roman", Times, serif;
+  }
+  .wedding-font-lotus .font-serif {
+    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  }
   /* File input overlay - chọn ảnh hoạt động tốt trên mobile */
   .file-input-overlay {
     position: absolute;

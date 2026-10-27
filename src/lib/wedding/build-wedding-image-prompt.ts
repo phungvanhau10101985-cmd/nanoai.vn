@@ -146,3 +146,9 @@ export function buildWeddingPrompt(input: {
 
   return parts.filter(Boolean).join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
+
+export function weddingStyleIdFromPrompt(prompt: string): string | null {
+  const match = /Global style preset \(keep consistent tone\): ([a-z0-9_]+)\./.exec(prompt)
+  const id = match?.[1] || ''
+  return id && id in STYLE_ART_DIRECTION ? id : null
+}

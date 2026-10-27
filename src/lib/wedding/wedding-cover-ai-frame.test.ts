@@ -164,14 +164,14 @@ test('frame size stays per photo and defaults to the original size', () => {
 test('bride and groom portraits keep their own frame choice', () => {
   const saved = mergeWeddingSectionConfig('{}', {
     groomPortraitShellMode: 'preset',
-    groomPortraitShellPresetId: 'classic_red',
+    groomPortraitShellPresetId: 'pearl_rose',
     bridePortraitShellMode: 'library',
     bridePortraitShellUrl: 'https://cdn.example/heart.png',
     bridePortraitShellHole: { x: 20, y: 18, w: 60, h: 55 },
     bridePortraitShellPanel: '#fffaf2',
   })
   const parsed = parseWeddingSectionConfig(saved)
-  assert.equal(resolvePortraitShell(parsed, 'groom')?.src, 'https://cdn.nanoai.vn/wedding/covers/classic-red.webp')
+  assert.equal(resolvePortraitShell(parsed, 'groom')?.src, '/wedding/covers/pearl-rose-frame.webp')
   assert.equal(resolvePortraitShell(parsed, 'bride')?.src, 'https://cdn.example/heart.png')
   const cleared = mergeWeddingSectionConfig(saved, { groomPortraitShellMode: undefined })
   assert.equal(resolvePortraitShell(parseWeddingSectionConfig(cleared), 'groom'), null)
