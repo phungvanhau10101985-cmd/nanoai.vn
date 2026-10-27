@@ -2587,7 +2587,7 @@ export default function WeddingCardAiClientPage() {
                 )}
                 <div className="rounded-2xl border border-dashed p-4">
                   <div
-                    className="relative flex min-h-[360px] items-center justify-center overflow-x-clip overflow-y-auto rounded-[1.5rem] bg-cover bg-center p-4"
+                    className="relative -mx-6 flex min-h-[360px] w-[calc(100%+3rem)] items-center justify-center overflow-x-clip overflow-y-auto bg-cover bg-center p-0 sm:mx-0 sm:w-full sm:rounded-[1.5rem] sm:p-3"
                     style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover)}
                   >
                     <WeddingCoverShellCard
@@ -2684,7 +2684,6 @@ export default function WeddingCardAiClientPage() {
                         setCoverClearOnSave(false)
                       }}
                       onChooseFrame={() => setPortraitFrameSide('cover')}
-                      compact
                     />
                   </div>
                 </div>

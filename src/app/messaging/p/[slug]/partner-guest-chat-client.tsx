@@ -138,6 +138,7 @@ import { aiProductCardsFromPayload } from '@/lib/messaging/partner-ai-product-ca
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { PaymentQrImage } from '@/components/payment-qr-image'
 import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { openGuestProductDetailUrl } from '@/lib/messaging/open-guest-product-url'
 import { isSepayStyleOrderPayment } from '@/lib/messaging/sepay-order-ui'
@@ -6120,12 +6121,9 @@ export function PartnerGuestChatClient({
                       {topUpPayment.qr_url ? (
                         <div className="mt-2">
                           <div className="flex justify-center">
-                            <Image
+                            <PaymentQrImage
                               src={topUpPayment.qr_url}
                               alt="QR nạp credit"
-                              width={180}
-                              height={180}
-                              unoptimized
                               className="h-[180px] w-[180px] rounded-md border border-border/70 bg-white object-contain"
                             />
                           </div>

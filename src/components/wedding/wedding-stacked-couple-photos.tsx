@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from 'react'
 import { cn } from '@/lib/utils'
-import { buildCoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
+import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { albumPhotoFrameStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
@@ -11,7 +11,28 @@ import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file
 const DEFAULT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
 const EMPTY_HOLE: CoverFrameHolePct = { x: 0, y: 0, w: 100, h: 100 }
 
-type StackHoleMask = { url: string; box: CoverFrameHolePct }
+type StackHoleMask = { url: string; box: CoverFrameHolePct; content: CoverFrameHolePct | null; aspect: number }
+
+const NAME_SLOT_PCT = 42
+
+function tightFrameContent(content: CoverFrameHolePct | null | undefined) {
+  if (!content || content.w < 8 || content.h < 8 || (content.w > 96 && content.h > 96)) return null
+  return content
+}
+
+/** Tỷ lệ ô nhìn thấy. Cắt nền trong suốt rồi giữ tỷ lệ ảnh gốc, không kéo thành 3:4. */
+function visualFrameAspect(mask: StackHoleMask | null | undefined) {
+  const imageAspect = mask?.aspect && mask.aspect > 0 ? mask.aspect : 3 / 4
+  const tight = tightFrameContent(mask?.content)
+  if (!tight) return imageAspect
+  return (tight.w / tight.h) * imageAspect
+}
+
+function paintedNameLeft(x: number, align: 'start' | 'end', editing: boolean) {
+  if (editing) return x
+  if (align === 'end') return Math.max(0, Math.min(100 - NAME_SLOT_PCT, x))
+  return Math.max(0, Math.min(100 - 12, x))
+}
 
 const stackHoleMaskCache = new Map<string, StackHoleMask | null>()
 
@@ -37,15 +58,17 @@ function rasterizeStackHoleMask(img: HTMLImageElement, hole: CoverFrameHolePct):
   if (!ctx) return null
   ctx.drawImage(img, 0, 0, width, height)
   const pixels = ctx.getImageData(0, 0, width, height)
+  const aspect = img.naturalWidth / Math.max(1, img.naturalHeight)
+  const content = measureCoverFrameContentBox(pixels.data, width, height)
   const mask = buildCoverFrameHoleMask(pixels.data, width, height, {
     x: ((hole.x + hole.w / 2) / 100) * width,
     y: ((hole.y + hole.h / 2) / 100) * height,
   })
-  if (!mask) return null
+  if (!mask) return { url: '', box: hole, content, aspect }
   const out = ctx.createImageData(width, height)
   out.data.set(mask.rgba)
   ctx.putImageData(out, 0, 0)
-  return { url: canvas.toDataURL('image/png'), box: mask.box }
+  return { url: canvas.toDataURL('image/png'), box: mask.box, content, aspect }
 }
 
 function useStackHoleMask(src: string, hole: CoverFrameHolePct) {
@@ -192,6 +215,16 @@ function PhotoCard(props: {
   const crop = props.edit?.crop
   const holeMask = useStackHoleMask(props.shell?.src ?? '', props.shell?.hole ?? EMPTY_HOLE)
   const photoHole = props.shell ? (holeMask?.box ?? props.shell.hole) : null
+  const frameAspect = visualFrameAspect(holeMask)
+  const tight = tightFrameContent(holeMask?.content)
+  const artShift = tight
+    ? {
+        left: `${(-tight.x / tight.w) * 100}%`,
+        top: `${(-tight.y / tight.h) * 100}%`,
+        width: `${10000 / tight.w}%`,
+        height: `${10000 / tight.h}%`,
+      }
+    : { inset: 0 }
   const photo = crop
     ? { objectPosition: `${crop.x}% ${crop.y}%`, transform: `scale(${clampPhotoScale(crop.scale)})`, transformOrigin: `${crop.x}% ${crop.y}%` }
     : albumPhotoFrameStyle(props.frame)
@@ -279,55 +312,58 @@ function PhotoCard(props: {
       <div className={cn('relative', props.shell ? 'bg-transparent' : 'border-[3px] border-[#9caf8a] bg-white p-1 shadow-[0_10px_24px_rgba(70,90,50,0.16)]')}>
         <div
           ref={boxRef}
-          className={cn('relative aspect-[3/4] overflow-hidden', props.shell ? 'bg-transparent' : 'bg-[#f7f6f2]', props.edit && 'cursor-grab')}
+          className={cn('relative w-full overflow-hidden', props.shell ? 'bg-transparent' : 'bg-[#f7f6f2]', props.shell && holeMask === undefined && 'opacity-0', props.edit && 'cursor-grab')}
+          style={{ aspectRatio: String(frameAspect) }}
         >
-          <div
-            className="pointer-events-none absolute inset-0"
-            style={
-              holeMask
-                ? {
-                    WebkitMaskImage: `url("${holeMask.url}")`,
-                    maskImage: `url("${holeMask.url}")`,
-                    WebkitMaskSize: '100% 100%',
-                    maskSize: '100% 100%',
-                    WebkitMaskRepeat: 'no-repeat',
-                    maskRepeat: 'no-repeat',
-                  }
-                : undefined
-            }
-          >
+          <div className="absolute" style={artShift}>
             <div
-              className="pointer-events-none absolute overflow-hidden"
+              className="pointer-events-none absolute inset-0"
               style={
-                photoHole
-                  ? { left: `${photoHole.x}%`, top: `${photoHole.y}%`, width: `${photoHole.w}%`, height: `${photoHole.h}%` }
-                  : { inset: 0 }
+                holeMask?.url
+                  ? {
+                      WebkitMaskImage: `url("${holeMask.url}")`,
+                      maskImage: `url("${holeMask.url}")`,
+                      WebkitMaskSize: '100% 100%',
+                      maskSize: '100% 100%',
+                      WebkitMaskRepeat: 'no-repeat',
+                      maskRepeat: 'no-repeat',
+                    }
+                  : undefined
               }
             >
-              {props.url ? (
-                <img src={props.url} alt={props.alt} draggable={false} className="h-full w-full select-none object-cover" style={photo} />
-              ) : (
-                <div className="h-full w-full border border-dashed border-[#c5d4b4]" />
-              )}
+              <div
+                className="pointer-events-none absolute overflow-hidden"
+                style={
+                  photoHole
+                    ? { left: `${photoHole.x}%`, top: `${photoHole.y}%`, width: `${photoHole.w}%`, height: `${photoHole.h}%` }
+                    : { inset: 0 }
+                }
+              >
+                {props.url ? (
+                  <img src={props.url} alt={props.alt} draggable={false} className="h-full w-full select-none object-cover" style={photo} />
+                ) : (
+                  <div className="h-full w-full border border-dashed border-[#c5d4b4]" />
+                )}
+              </div>
             </div>
+            {props.shell ? (
+              <img src={props.shell.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none object-fill" />
+            ) : null}
+            <div
+              data-stack-photo=""
+              className={cn('absolute z-[3]', crop && props.url && 'cursor-grab touch-none active:cursor-grabbing')}
+              style={
+                photoHole
+                  ? { left: `${photoHole.x}%`, top: `${photoHole.y}%`, width: `${photoHole.w}%`, height: `${photoHole.h}%`, touchAction: crop ? 'none' : undefined }
+                  : { inset: 0, touchAction: crop ? 'none' : undefined }
+              }
+              onPointerDown={onPhotoPointerDown}
+              onPointerMove={onPhotoPointerMove}
+              onPointerUp={onPhotoPointerUp}
+              onPointerCancel={onPhotoPointerUp}
+              onWheel={onWheel}
+            />
           </div>
-          {props.shell ? (
-            <img src={props.shell.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none" />
-          ) : null}
-          <div
-            data-stack-photo=""
-            className={cn('absolute z-[3]', crop && props.url && 'cursor-grab touch-none active:cursor-grabbing')}
-            style={
-              photoHole
-                ? { left: `${photoHole.x}%`, top: `${photoHole.y}%`, width: `${photoHole.w}%`, height: `${photoHole.h}%`, touchAction: crop ? 'none' : undefined }
-                : { inset: 0, touchAction: crop ? 'none' : undefined }
-            }
-            onPointerDown={onPhotoPointerDown}
-            onPointerMove={onPhotoPointerMove}
-            onPointerUp={onPhotoPointerUp}
-            onPointerCancel={onPhotoPointerUp}
-            onWheel={onWheel}
-          />
         </div>
       </div>
       {props.controlsEdge === 'bottom' && toolbar ? <div className="relative z-[6] mt-1">{toolbar}</div> : null}
@@ -383,25 +419,25 @@ function StackPersonDock(props: {
   const crop = props.edit?.crop
   const stop = (event: ReactPointerEvent<HTMLElement>) => event.stopPropagation()
   const moveClass =
-    'flex h-7 min-w-0 flex-1 cursor-grab items-center justify-center gap-1 rounded-full px-2 text-[10px] font-medium leading-none text-white touch-none active:cursor-grabbing'
+    'flex h-11 min-w-0 flex-1 cursor-grab items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium leading-none text-white touch-none active:cursor-grabbing'
   return (
-    <div className={cn('flex min-w-0 flex-col gap-1 rounded-xl p-1', tone.wash)} onPointerDown={stop}>
-      <div className="flex min-w-0 flex-wrap items-center gap-1">
-        <p className={cn('w-12 shrink-0 truncate text-[10px] font-semibold leading-none', tone.label)}>{props.title}</p>
+    <div className={cn('flex min-w-0 flex-col gap-1.5 rounded-xl p-1.5', tone.wash)} onPointerDown={stop}>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <p className={cn('w-16 shrink-0 truncate text-sm font-semibold leading-none', tone.label)}>{props.title}</p>
         {crop && props.hasPhoto ? (
-          <div className={cn('flex h-7 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-white', tone.solid)}>
+          <div className={cn('flex h-11 min-w-0 flex-1 items-center justify-center rounded-full px-1 text-white', tone.solid)}>
             <button
               type="button"
-              className="flex h-7 w-6 shrink-0 items-center justify-center text-sm leading-none"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-lg leading-none"
               aria-label={crop.zoomOutLabel}
               onClick={() => crop.onChange({ scale: clampPhotoScale(crop.scale - 0.1) })}
             >
               −
             </button>
-            <span className="min-w-[2.2rem] text-center text-[10px] tabular-nums">{Math.round(crop.scale * 100)}%</span>
+            <span className="min-w-[3rem] text-center text-sm tabular-nums">{Math.round(crop.scale * 100)}%</span>
             <button
               type="button"
-              className="flex h-7 w-6 shrink-0 items-center justify-center text-sm leading-none"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-lg leading-none"
               aria-label={crop.zoomInLabel}
               onClick={() => crop.onChange({ scale: clampPhotoScale(crop.scale + 0.1) })}
             >
@@ -413,7 +449,7 @@ function StackPersonDock(props: {
         )}
         {props.edit ? (
           <WeddingDeviceFileInput
-            className="flex h-7 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-stone-100 px-2 text-[10px] font-medium leading-none text-stone-800"
+            className="flex h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-stone-100 px-3 text-sm font-medium leading-none text-stone-800"
             label={props.hasPhoto ? props.edit.changeLabel : props.edit.chooseLabel}
             onFiles={(files) => {
               const file = files[0]
@@ -449,21 +485,21 @@ function StackPersonDock(props: {
         </div>
       ) : null}
       {props.rotate ? (
-        <div className="flex min-w-0 items-center gap-1">
-          <p className={cn('w-12 shrink-0 truncate text-[10px] font-semibold leading-none', tone.label)}>{props.rotate.label}</p>
-          <div className={cn('flex h-7 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-white', tone.dial)}>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className={cn('w-16 shrink-0 truncate text-sm font-semibold leading-none', tone.label)}>{props.rotate.label}</p>
+          <div className={cn('flex h-11 min-w-0 flex-1 items-center justify-center rounded-full px-1 text-white', tone.dial)}>
             <button
               type="button"
-              className="flex h-7 w-6 shrink-0 items-center justify-center text-sm leading-none"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-lg leading-none"
               aria-label={props.rotate.leftLabel}
               onClick={() => props.rotate?.onChange(clampFrameRotate(props.rotate.degrees - 1))}
             >
               −
             </button>
-            <span className="min-w-[2.4rem] text-center text-[10px] tabular-nums">{props.rotate.degrees}°</span>
+            <span className="min-w-[3rem] text-center text-sm tabular-nums">{props.rotate.degrees}°</span>
             <button
               type="button"
-              className="flex h-7 w-6 shrink-0 items-center justify-center text-sm leading-none"
+              className="flex h-11 w-9 shrink-0 items-center justify-center text-lg leading-none"
               aria-label={props.rotate.rightLabel}
               onClick={() => props.rotate?.onChange(clampFrameRotate(props.rotate.degrees + 1))}
             >
@@ -504,12 +540,12 @@ function StackSideName(props: {
             WEDDING_GUEST_NAME_CLASS,
             'bg-transparent leading-none outline-none placeholder:text-current/35',
             end ? 'text-right' : 'text-left',
-            props.compact ? 'w-[6.2rem] text-[17px]' : 'w-[8rem] text-xl sm:text-2xl',
+            'w-full text-[clamp(13px,12cqi,1.35rem)]',
             props.className,
           )}
         />
       ) : (
-        <p className={cn(WEDDING_GUEST_NAME_CLASS, 'whitespace-nowrap leading-none', props.compact ? 'text-[17px]' : 'text-xl sm:text-2xl', props.className)}>
+        <p className={cn(WEDDING_GUEST_NAME_CLASS, 'w-full whitespace-nowrap leading-none text-[clamp(13px,12cqi,1.35rem)]', props.className)}>
           {text}
         </p>
       )}
@@ -586,6 +622,8 @@ export function WeddingStackedCouplePhotos(props: {
   const secondSlot = visible.find((slot) => slot.side === 'second')
   const sharedFrameScale = clampFrameScale(props.frameScaleEdit?.scale ?? props.frameScale ?? 1)
   const photoShare = Math.min(74, Math.round(48 * sharedFrameScale))
+  const shellMask = useStackHoleMask(props.frameShell?.src ?? '', props.frameShell?.hole ?? EMPTY_HOLE)
+  const frameAspect = visualFrameAspect(shellMask)
   const stageRef = useRef<HTMLDivElement>(null)
   const [stageWidth, setStageWidth] = useState(240)
   const [lifted, setLifted] = useState<StackPlaceKey | null>(null)
@@ -601,30 +639,37 @@ export function WeddingStackedCouplePhotos(props: {
     observer.observe(node)
     return () => observer.disconnect()
   }, [both, named])
-  const framePx = stageWidth * (photoShare / 100) * (4 / 3)
+  const framePx = stageWidth * (photoShare / 100) * (1 / frameAspect)
   const nameHeight = props.compact ? 40 : 52
   const fitBlock = (yPct: number, block: number) => {
     const y = Math.min(88, Math.max(0, yPct)) / 100
     return (block + 12) / Math.max(0.12, 1 - y)
   }
-  const stageHeight = props.onPlace
-    ? Math.ceil(
-        Math.max(
-          framePx + nameHeight,
-          fitBlock(place.stackGroomFrameY, framePx),
-          fitBlock(place.stackBrideFrameY, framePx),
-          fitBlock(place.stackGroomNameY, nameHeight),
-          fitBlock(place.stackBrideNameY, nameHeight),
-        ),
-      )
-    : Math.round(framePx * 1.7 + (props.compact ? 52 : 64))
-  const displayBleedTop = props.onPlace ? 0 : Math.round(stageHeight * (place.stackGroomFrameY / 100) + framePx * 0.18)
-  const lowerFrameY = Math.max(place.stackGroomFrameY, place.stackBrideFrameY)
-  const lowerFrameTop = (stageHeight * lowerFrameY) / 100
-  const lowerFrameBottom = lowerFrameTop + framePx * (props.onPlace ? 1 : 0.8)
-  const namesBottom = Math.max((stageHeight * place.stackGroomNameY) / 100 + nameHeight, (stageHeight * place.stackBrideNameY) / 100 + nameHeight)
-  const contentBottom = Math.max(lowerFrameBottom, namesBottom)
-  const displayBleedBottom = props.onPlace ? 0 : Math.max(0, Math.round(stageHeight - contentBottom - 18))
+  const stageHeight = Math.ceil(
+    Math.max(
+      framePx + nameHeight,
+      fitBlock(place.stackGroomFrameY, framePx),
+      fitBlock(place.stackBrideFrameY, framePx),
+      fitBlock(place.stackGroomNameY, nameHeight),
+      fitBlock(place.stackBrideNameY, nameHeight),
+    ),
+  )
+  const blockTop = (yPct: number) => (stageHeight * Math.max(0, yPct)) / 100
+  const contentTop = Math.min(
+    blockTop(place.stackGroomFrameY),
+    blockTop(place.stackBrideFrameY),
+    blockTop(place.stackGroomNameY),
+    blockTop(place.stackBrideNameY),
+  )
+  const contentBottom = Math.max(
+    blockTop(place.stackGroomFrameY) + framePx,
+    blockTop(place.stackBrideFrameY) + framePx,
+    blockTop(place.stackGroomNameY) + nameHeight,
+    blockTop(place.stackBrideNameY) + nameHeight,
+  )
+  const cropPad = 16
+  const displayBleedTop = props.onPlace ? 0 : Math.max(0, Math.round(contentTop - cropPad))
+  const displayBleedBottom = props.onPlace ? 0 : Math.max(0, Math.round(stageHeight - contentBottom - cropPad))
   const startPlaceDrag = (key: StackPlaceKey, event: ReactPointerEvent<HTMLElement>) => {
     if (!props.onPlace) return
     const target = event.target
@@ -662,9 +707,11 @@ export function WeddingStackedCouplePhotos(props: {
         setLifted(key)
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       }
+      const rawX = clampPlace(originX + (dx / Math.max(1, rect.width)) * 100)
+      const nameAlign = key === 'brideName' ? 'end' : key === 'groomName' ? 'start' : null
       const next: WeddingStackPlace = {
         ...placeRef.current,
-        [field.x]: clampPlace(originX + (dx / Math.max(1, rect.width)) * 100),
+        [field.x]: nameAlign ? paintedNameLeft(rawX, nameAlign, false) : rawX,
         [field.y]: clampPlace(originY + (dy / Math.max(1, rect.height)) * 100),
       }
       placeRef.current = next
@@ -714,25 +761,25 @@ export function WeddingStackedCouplePhotos(props: {
   const frameSizeBar = props.frameScaleEdit ? (
     <div
       className={cn(
-        'relative z-[5] flex items-center justify-center gap-0.5 rounded-full border border-rose-200 bg-white/95 px-0.5 py-0.5 text-stone-800 shadow',
-        useDock ? 'h-7 min-w-[8.5rem] flex-1' : 'mx-auto mt-2 w-full max-w-[9rem]',
+        'relative z-[5] flex items-center justify-center gap-1 rounded-full border border-rose-200 bg-white/95 px-1 py-0.5 text-stone-800 shadow',
+        useDock ? 'h-11 min-w-[10rem] flex-1' : 'mx-auto mt-2 w-full max-w-[12rem]',
       )}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <button
         type="button"
-        className="flex h-5 w-5 items-center justify-center text-sm leading-none"
+        className="flex h-10 w-9 items-center justify-center text-lg leading-none"
         aria-label={props.frameScaleEdit.zoomOutLabel}
         onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale - 0.05))}
       >
         −
       </button>
-      <span className="min-w-0 flex-1 text-center text-[9px] font-medium tabular-nums">
+      <span className="min-w-0 flex-1 text-center text-sm font-medium tabular-nums">
         {props.frameScaleEdit.label} {Math.round(sharedFrameScale * 100)}%
       </span>
       <button
         type="button"
-        className="flex h-5 w-5 items-center justify-center text-sm leading-none"
+        className="flex h-10 w-9 items-center justify-center text-lg leading-none"
         aria-label={props.frameScaleEdit.zoomInLabel}
         onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale + 0.05))}
       >
@@ -742,10 +789,11 @@ export function WeddingStackedCouplePhotos(props: {
   ) : null
   if (visible.length === 0) return null
   return (
-    <div className={cn('relative mx-auto w-full', named ? (props.compact ? 'max-w-full' : 'max-w-[26rem]') : props.compact ? 'max-w-[13rem]' : 'max-w-[20rem]', props.className)}>
+    <div className={cn('relative mx-auto w-full', props.onPlace ? 'max-w-full' : named ? (props.compact ? 'max-w-full' : 'max-w-[26rem]') : props.compact ? 'max-w-[13rem]' : 'max-w-[20rem]', props.className)}>
       {named ? <WeddingGuestNameFontLink /> : null}
       {both && named && firstSlot && secondSlot ? (
         <div className="relative z-[1]">
+          <div className={props.onPlace ? 'px-3' : undefined}>
           <div ref={stageRef} className="relative isolate w-full" style={{ height: stageHeight, marginTop: displayBleedTop ? -displayBleedTop : undefined, marginBottom: displayBleedBottom ? -displayBleedBottom : undefined }}>
             <div
               className={cn('absolute', props.onPlace && 'touch-none')}
@@ -762,8 +810,8 @@ export function WeddingStackedCouplePhotos(props: {
               {card(secondSlot, 'bottom')}
             </div>
             <div
-              className={cn('absolute', props.onPlace && 'cursor-grab touch-none')}
-              style={{ left: `${place.stackGroomNameX}%`, top: `${place.stackGroomNameY}%`, zIndex: lifted === 'groomName' ? 9 : 5 }}
+              className={cn('absolute [container-type:inline-size]', props.onPlace && 'cursor-grab touch-none')}
+              style={{ left: `${paintedNameLeft(place.stackGroomNameX, 'start', Boolean(props.onPlace))}%`, top: `${place.stackGroomNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'groomName' ? 9 : 5 }}
               onPointerDown={(event) => startPlaceDrag('groomName', event)}
             >
               {showFirst ? (
@@ -777,8 +825,8 @@ export function WeddingStackedCouplePhotos(props: {
               ) : null}
             </div>
             <div
-              className={cn('absolute', props.onPlace && 'cursor-grab touch-none')}
-              style={{ left: `${place.stackBrideNameX}%`, top: `${place.stackBrideNameY}%`, zIndex: lifted === 'brideName' ? 9 : 5 }}
+              className={cn('absolute [container-type:inline-size]', props.onPlace && 'cursor-grab touch-none')}
+              style={{ left: `${paintedNameLeft(place.stackBrideNameX, 'end', Boolean(props.onPlace))}%`, top: `${place.stackBrideNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'brideName' ? 9 : 5 }}
               onPointerDown={(event) => startPlaceDrag('brideName', event)}
             >
               {showSecond ? (
@@ -793,9 +841,10 @@ export function WeddingStackedCouplePhotos(props: {
               ) : null}
             </div>
           </div>
+          </div>
           {useDock ? (
             <div
-              className="relative z-30 mt-2 flex flex-col gap-1.5 rounded-2xl bg-white p-1.5 text-stone-800 shadow-sm ring-1 ring-stone-200"
+              className="relative z-30 mt-2 flex w-full flex-col gap-2 bg-white px-3 py-2.5 text-stone-800 shadow-sm ring-1 ring-stone-200"
               onPointerDown={(event) => event.stopPropagation()}
             >
               <StackPersonDock
@@ -829,7 +878,7 @@ export function WeddingStackedCouplePhotos(props: {
                   {props.onChooseFrame ? (
                     <button
                       type="button"
-                      className="h-7 shrink-0 rounded-full bg-stone-100 px-2 text-[10px] font-medium leading-none text-stone-800"
+                      className="h-11 shrink-0 rounded-full bg-stone-100 px-3 text-sm font-medium leading-none text-stone-800"
                       onClick={props.onChooseFrame}
                     >
                       {props.chooseFrameLabel}

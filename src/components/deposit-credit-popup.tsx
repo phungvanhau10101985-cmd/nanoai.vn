@@ -1,5 +1,4 @@
 "use client"
-/* eslint-disable @next/next/no-img-element -- payment QR image can be dynamic external URL */
 
 import { cn } from '@/lib/utils'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
@@ -17,9 +16,10 @@ import { Label } from '@/components/ui/label'
 import { getClientUserId } from '@/lib/auth/get-client-user-id'
 import { formatNumber } from '@/lib/format'
 import { toast } from '@/hooks/use-toast'
-import { Download, Copy, CreditCard, Loader2, CheckCircle } from 'lucide-react'
+import { Download, Copy, CreditCard, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { PaymentQrImage } from '@/components/payment-qr-image'
 import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { trackEvent, toFeatureFromRoute } from '@/lib/analytics-track'
@@ -84,9 +84,10 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
   const [configs, setConfigs] = useState<PaymentConfig[]>([])
   const [selectedConfigId, setSelectedConfigId] = useState<string>('')
   const [payment, setPayment] = useState<Payment | null>(null)
-  const [paymentSuccess, setPaymentSuccess] = useState<{ amount: number; credits_added: number } | null>(null)
   const [creating, setCreating] = useState(false)
   const createPressLockRef = useRef(false)
+  const successHandledRef = useRef<string | null>(null)
+  const wasOpenRef = useRef(false)
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (uiLocale === 'en') return en
     if (uiLocale === 'zh') return zh
@@ -208,12 +209,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     const timer = window.setInterval(syncLocale, 1000)
     window.addEventListener('focus', syncLocale)
     document.addEventListener('visibilitychange', syncLocale)
-    if (open) {
+    if (open && !wasOpenRef.current) {
       fetchConfigs()
       setPayment(null)
-      setPaymentSuccess(null)
+      successHandledRef.current = null
       if (presetAmount && presetAmount >= 1000) setAmount(Math.round(presetAmount))
     }
+    wasOpenRef.current = open
     return () => {
       window.removeEventListener('focus', syncLocale)
       document.removeEventListener('visibilitychange', syncLocale)
@@ -221,16 +223,38 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
     }
   }, [open, fetchConfigs, presetAmount])
 
-  // Polling: kiểm tra thanh toán hoàn tất (webhook đã cập nhật)
+  const closePopup = useCallback(() => {
+    onOpenChange(false)
+    if (returnPath) router.push(returnPath)
+  }, [onOpenChange, returnPath, router])
+
+  const closePressLockRef = useRef(false)
+  const handleClosePress = () => {
+    if (closePressLockRef.current) return
+    closePressLockRef.current = true
+    closePopup()
+    window.setTimeout(() => {
+      closePressLockRef.current = false
+    }, 300)
+  }
+
+  // Polling: webhook đối soát xong thì đóng modal ngay (kể cả khi vừa quay lại từ app ngân hàng).
   useEffect(() => {
-    if (!open || !payment || payment.status === 'completed') return
-    const interval = setInterval(async () => {
-      const res = await fetch(`/api/account/payments/${encodeURIComponent(payment.id)}`, {
-        credentials: 'same-origin',
-      })
-      const j = (await res.json()) as { payment?: { status: string; amount: number; credits_added: number } }
-      const data = j.payment
-      if (data?.status === 'completed') {
+    if (!open || !payment?.id || payment.status === 'completed') return
+    const paymentId = payment.id
+    let cancelled = false
+
+    const check = async () => {
+      if (cancelled || successHandledRef.current === paymentId) return
+      try {
+        const res = await fetch(`/api/account/payments/${encodeURIComponent(paymentId)}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        const j = (await res.json()) as { payment?: { status: string; amount: number; credits_added: number } }
+        const data = j.payment
+        if (cancelled || !data || data.status !== 'completed' || successHandledRef.current === paymentId) return
+        successHandledRef.current = paymentId
         const route = returnPath || window.location.pathname
         trackEvent('topup_success', {
           route,
@@ -239,18 +263,12 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
           credits_added: data.credits_added,
         })
         fireMetaStandardEvent('Subscribe', {
-          dedupeKey: `topup_subscribe_${payment.id}`,
+          dedupeKey: `topup_subscribe_${paymentId}`,
           customData: buildNanoAiCreditMetaCustomData({
             amountVnd: Math.max(0, Math.round(Number(data.amount) || 0)),
             creditsAdded: Math.max(0, Math.round(Number(data.credits_added) || 0)),
           }),
         })
-        // Đóng QR, hiển thị thông báo thành công
-        setPaymentSuccess({
-          amount: data.amount,
-          credits_added: data.credits_added,
-        })
-        setPayment(null)
         onCreditsUpdated?.()
         window.dispatchEvent(new CustomEvent('credits-updated'))
         router.refresh()
@@ -259,15 +277,30 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
           description: `${tr('Đã nạp', 'Topped up', '已充值', 'チャージ済み', '충전 완료')} ${formatNumber(data.amount)}₫, ${tr('nhận', 'received', '获得', '受け取り', '수령')} ${data.credits_added} credits.`,
           duration: 5000,
         })
-        // Đóng popup sau 10 giây, khách có thể tự tắt sớm hơn
-        setTimeout(() => {
-          setPaymentSuccess(null)
-          onOpenChange(false)
-          if (returnPath) router.push(returnPath)
-        }, 10000)
+        onOpenChange(false)
+        if (returnPath) router.push(returnPath)
+      } catch {
+        /* giữ polling khi mạng trong trình duyệt Facebook chập chờn */
       }
-    }, 2000) // Poll mỗi 2 giây
-    return () => clearInterval(interval)
+    }
+
+    void check()
+    const interval = window.setInterval(() => {
+      void check()
+    }, 2000)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onVisible)
+    window.addEventListener('pageshow', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onVisible)
+      window.removeEventListener('pageshow', onVisible)
+    }
   }, [open, payment?.id, payment?.status, onOpenChange, returnPath, router, onCreditsUpdated])
 
   const config = configs.find(c => c.id === selectedConfigId)
@@ -277,11 +310,13 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
       <DialogContent
         overlayClassName={overlayClassName}
         className={cn(
-          'w-[calc(100vw-2rem)] max-w-md sm:max-w-lg max-h-[85vh] overflow-y-auto overflow-x-hidden overscroll-contain pb-6 p-4 sm:p-6',
+          'flex w-[calc(100vw-2rem)] max-w-md flex-col gap-0 overflow-hidden p-0 sm:max-w-lg',
           contentClassName,
         )}
+        style={{ maxHeight: 'min(85dvh, 85vh)' }}
       >
-        <DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain p-4 sm:p-6">
+        <DialogHeader className="pr-8">
           <DialogTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             {tr('Nạp Credits', 'Top up credits', '充值积分', 'クレジットをチャージ', '크레딧 충전')}
@@ -291,30 +326,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
           </DialogDescription>
         </DialogHeader>
 
-        {paymentSuccess ? (
-          <div className="flex flex-col items-center justify-center py-8 space-y-4">
-            <div className="rounded-full bg-green-100 p-4">
-              <CheckCircle className="h-16 w-16 text-green-600" />
-            </div>
-            <h3 className="text-xl font-semibold text-green-700">{tr('Nạp thành công!', 'Top-up successful!', '充值成功！', 'チャージ成功！', '충전 성공!')}</h3>
-            <p className="text-center text-muted-foreground">
-              {tr('Đã nạp', 'Topped up', '已充值', 'チャージ済み', '충전 완료')} <span className="font-bold text-green-600">{formatNumber(paymentSuccess.amount)}₫</span>
-              <br />
-              {tr('Nhận', 'Received', '获得', '受け取り', '수령')} <span className="font-bold text-green-600">{paymentSuccess.credits_added} credits</span> {tr('vào tài khoản', 'to your account', '到你的账户', 'アカウントへ', '계정으로')}
-            </p>
-            <p className="text-sm text-muted-foreground">{tr('Đóng sau 10 giây hoặc bấm bên dưới', 'Auto-close in 10 seconds or click below', '10秒后自动关闭或点击下方', '10秒後に自動で閉じるか下をクリック', '10초 후 자동 닫힘 또는 아래 버튼 클릭')}</p>
-            <Button
-              onClick={() => {
-                setPaymentSuccess(null)
-                onOpenChange(false)
-                if (returnPath) router.push(returnPath)
-              }}
-              className="mt-2"
-            >
-              {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
-            </Button>
-          </div>
-        ) : !payment ? (
+        {!payment ? (
           <div className="space-y-4 pb-6">
             <div className="space-y-2">
               <Label>{tr('Số tiền (VND)', 'Amount (VND)', '金额 (VND)', '金額 (VND)', '금액 (VND)')}</Label>
@@ -393,7 +405,7 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
           <div className="space-y-4 sm:space-y-6">
             <div className="flex flex-col items-center gap-3">
               <div className="border-2 rounded-lg p-2 sm:p-3 bg-white shrink-0">
-                <img
+                <PaymentQrImage
                   src={payment.qr_url}
                   alt={tr('QR Thanh toán', 'Payment QR', '支付二维码', '支払いQR', '결제 QR')}
                   className="w-36 h-36 sm:w-48 sm:h-48 object-contain"
@@ -449,12 +461,29 @@ export function DepositCreditPopup({ open, onOpenChange, returnPath, onCreditsUp
                 <span className="font-bold">{formatNumber(payment.amount)}₫</span>
               </div>
             </div>
-
-            <Button variant="outline" className="w-full" onClick={() => setPayment(null)}>
-              {tr('Tạo giao dịch mới', 'Create new transaction', '创建新交易', '新しい取引を作成', '새 거래 생성')}
-            </Button>
           </div>
         )}
+        </div>
+        {payment ? (
+          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-t bg-background p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:p-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11 h-auto whitespace-normal px-3 text-sm"
+              onClick={() => setPayment(null)}
+            >
+              {tr('Tạo giao dịch mới', 'Create new transaction', '创建新交易', '新しい取引を作成', '새 거래 생성')}
+            </Button>
+            <Button
+              type="button"
+              className="min-h-11 px-5 touch-manipulation"
+              onClick={handleClosePress}
+              onPointerUp={handleClosePress}
+            >
+              {tr('Đóng', 'Close', '关闭', '閉じる', '닫기')}
+            </Button>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   )

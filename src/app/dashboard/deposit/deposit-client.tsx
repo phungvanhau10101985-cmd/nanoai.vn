@@ -13,6 +13,7 @@ import { CreditCard, QrCode, Banknote, CheckCircle, Copy, RefreshCw, AlertCircle
 import { toast } from '@/hooks/use-toast'
 import { formatNumber } from '@/lib/format'
 import { buildSePayQrImgUrl } from '@/lib/sepay-qr'
+import { PaymentQrImage } from '@/components/payment-qr-image'
 import { QrPayOpenBank } from '@/components/qr-pay-open-bank'
 import { isLocalhost, getDevUserId } from '@/lib/auth-client'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
@@ -538,10 +539,9 @@ export default function DepositClient() {
                     {/* QR Code */}
                     <div className="flex justify-center">
                       <div className="border-2 border-gray-200 rounded-lg p-4 bg-white">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- SePay QR URL is dynamic */}
-                        <img
+                        <PaymentQrImage
                           src={activePayment.qr_url}
-                          alt="QR Code"
+                          alt={tr('Mã QR thanh toán', 'Payment QR', '支付二维码', '支払いQR', '결제 QR')}
                           className="w-64 h-64"
                         />
                       </div>

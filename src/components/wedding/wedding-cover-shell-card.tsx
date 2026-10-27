@@ -1438,20 +1438,21 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
 
 function StackCoverCard(props: WeddingCoverShellCardProps) {
   const pair = props.stackPair
-  if (!pair) return null
   const { compact, theme } = props
   const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
+  if (!pair) return null
+  const editing = Boolean(pair.onPlace)
   return (
     <WeddingReadableGlass
       className={cn(
         'w-full text-center',
-        compact ? 'max-w-[248px] rounded-[1.2rem] px-1.5 py-3' : props.fitViewport ? 'rounded-[1.35rem] p-3 sm:p-4' : 'rounded-[1.5rem] px-3 py-4 sm:rounded-[2rem] sm:px-4 sm:py-6 lg:px-4 lg:py-5',
+        editing ? 'max-w-none rounded-none px-0 py-2' : compact ? 'max-w-[248px] rounded-[1.2rem] px-1.5 py-3' : props.fitViewport ? 'rounded-[1.35rem] p-3 sm:p-4' : 'rounded-[1.5rem] px-3 py-4 sm:rounded-[2rem] sm:px-4 sm:py-6 lg:px-4 lg:py-5',
         props.namesFlyIn && !compact && 'overflow-visible',
         intro.hold && 'wedding-cover-hold',
       )}
     >
       <div ref={intro.rootRef}>
-        <p className={cn('uppercase tracking-[0.28em] sm:tracking-[0.35em]', compact ? 'text-[8px]' : 'text-[11px] sm:text-xs', theme.accentText, theme.textGlow)}>
+        <p className={cn('uppercase tracking-[0.28em] sm:tracking-[0.35em]', editing && 'px-3', compact ? 'text-[8px]' : 'text-[11px] sm:text-xs', theme.accentText, theme.textGlow)}>
           {props.invitationLabel}
         </p>
         <WeddingStackedCouplePhotos
@@ -1490,6 +1491,7 @@ function StackCoverCard(props: WeddingCoverShellCardProps) {
           compact={compact}
           className={compact ? 'mt-2' : 'mt-3'}
         />
+        <div className={editing ? 'px-3' : undefined}>
         <div className={cn(theme.accent, compact ? 'my-2 text-lg' : 'my-2 text-2xl sm:my-3 sm:text-3xl lg:my-2', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
         {!props.guestName ? (
           <p className={cn(compact ? 'text-[10px]' : 'text-xs sm:text-sm', theme.mutedText, theme.textGlow)}>
@@ -1531,6 +1533,7 @@ function StackCoverCard(props: WeddingCoverShellCardProps) {
           onOpen={props.onOpen}
           quickRsvp={props.quickRsvp}
         />
+        </div>
       </div>
     </WeddingReadableGlass>
   )
