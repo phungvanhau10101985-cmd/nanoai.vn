@@ -105,11 +105,12 @@ import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wed
 import {
   allowWeddingPageScroll,
   primeWeddingPageScroll,
+  releaseWeddingPageScrollLock,
   scrollWeddingPageToTop,
   startWeddingInvitationAutoScroll,
   stopWeddingInvitationAutoScroll,
 } from '@/hooks/use-wedding-invitation-auto-scroll'
-import { applyWeddingDesignViewport, WEDDING_DESKTOP_MIN_PX, WEDDING_DESKTOP_WIDTH, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
+import { applyWeddingDesignViewport, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
 
 const PUBLIC_COLUMN = 'mx-auto flex w-full max-w-3xl flex-col gap-5 sm:gap-7'
 
@@ -145,7 +146,7 @@ function WeddingSideWishGroup({
   )
 }
 
-function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; children: ReactNode }) {
+function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -173,13 +174,13 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
   if (!props.active) return <div className="relative" data-wedding-stage="">{props.children}</div>
 
   const scaledHeight = contentHeight * scale
-  const fitted = scale < 0.995
+  const boxed = Math.abs(scale - 1) >= 0.004
   if (props.flow) {
     return (
-      <div ref={outerRef} className="relative w-full" style={fitted ? { height: scaledHeight || undefined, overflow: 'clip' } : undefined}>
+      <div ref={outerRef} className="relative w-full" style={boxed ? { height: scaledHeight || undefined, overflow: 'clip' } : undefined}>
         <div
           ref={innerRef}
-          className={fitted ? 'absolute left-0 top-0' : 'relative'}
+          className={boxed ? 'absolute left-0 top-0' : 'relative'}
           data-wedding-stage=""
           style={{ width: props.designWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }}
         >
@@ -189,7 +190,7 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     )
   }
   return (
-    <div ref={outerRef} className="fixed inset-0 z-50 overflow-x-hidden overflow-y-auto" style={{ backgroundColor: props.backgroundColor }}>
+    <div ref={outerRef} className={props.contain ? 'relative mx-auto min-h-screen w-full overflow-x-hidden' : 'fixed inset-0 z-50 overflow-x-hidden overflow-y-auto'} style={{ backgroundColor: props.backgroundColor }}>
       <div style={{ width: props.designWidth * scale, height: scaledHeight || undefined, margin: '0 auto' }}>
         <div ref={innerRef} data-wedding-stage="" style={{ width: props.designWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
           {props.children}
@@ -288,7 +289,7 @@ export default function WeddingPublicClient({
   const previewKindRef = useRef<'text' | 'shell' | 'frame' | 'both' | null>(null)
   const [framePick, setFramePick] = useState<'groom' | 'bride' | 'cover' | null>(null)
   const [textPick, setTextPick] = useState<WeddingTextRole | null>(null)
-  const [deviceChoice, setDeviceChoice] = useState<'desktop' | 'mobile' | null>(null)
+  const [viewDevice, setViewDevice] = useState<'desktop' | 'mobile'>('mobile')
   const sectionConfig = useMemo(
     () => parseWeddingSectionConfig(hostEditor || ornamentEditor ? sectionRaw : card.sectionConfig),
     [card.sectionConfig, hostEditor, ornamentEditor, sectionRaw],
@@ -302,12 +303,6 @@ export default function WeddingPublicClient({
   const contentSurface = pageBackground
     ? { background: 'transparent' }
     : weddingBackgroundStyle(pageBackground, theme, 0)
-  const contentWash = pageBackground
-    ? weddingBackgroundStyle(pageBackground, theme, WEDDING_BG_OVERLAY.cover, {
-        readingVignette: true,
-        omitImage: true,
-      })
-    : null
   const pairedAiFrame = weddingUsesPairedAiFrame(sectionConfig) ? resolveCoverAiFrame(sectionConfig) : null
   const kitFrameId = pairedAiFrame ? undefined : readyBackground?.coverPresetId
   const groomShell = resolveShownPortraitShell(sectionConfig, 'groom', kitFrameId, pairedAiFrame ? null : sharedFrame)
@@ -380,23 +375,22 @@ export default function WeddingPublicClient({
   const [houseAskOpen, setHouseAskOpen] = useState(false)
   const coverPreview = editorStack === 'cover'
   const [opened, setOpened] = useState(layoutPreview && !coverPreview)
-  const [ornamentDevice, setOrnamentDevice] = useState<'desktop' | 'mobile'>('mobile')
-  const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_DESKTOP_WIDTH)
+  const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_MOBILE_WIDTH)
   const [desktopOrnaments, setDesktopOrnaments] = useState(ornamentDesktop)
   const [mobileOrnaments, setMobileOrnaments] = useState(ornamentMobile)
   const [sharedDesktopOrnaments, setSharedDesktopOrnaments] = useState(ornamentSharedDesktop)
   const [sharedMobileOrnaments, setSharedMobileOrnaments] = useState(ornamentSharedMobile)
   const [sharedShellDraft, setSharedShellDraft] = useState(sharedShell)
-  const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('desktop')
+  const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('mobile')
   const [frameLines, setFrameLines] = useState(true)
   const canPickFrame = ornamentEditor && frameLines && (hostEditor || layoutPreview)
   const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentSaving, setOrnamentSaving] = useState(false)
-  const savedForDevice = ornamentDevice === 'desktop' ? desktopOrnaments : mobileOrnaments
-  const sharedForDevice = ornamentDevice === 'desktop' ? sharedDesktopOrnaments : sharedMobileOrnaments
+  const savedSheet = mobileOrnaments ?? desktopOrnaments
+  const sharedSheet = sharedMobileOrnaments ?? sharedDesktopOrnaments
   const backgroundOrnaments = templateEditor
-    ? ornamentDraft ?? sharedForDevice ?? ornamentOverride ?? readyBackground?.ornaments ?? []
-    : ornamentDraft ?? savedForDevice ?? sharedForDevice ?? ornamentOverride ?? readyBackground?.ornaments ?? []
+    ? ornamentDraft ?? sharedSheet ?? ornamentOverride ?? readyBackground?.ornaments ?? []
+    : ornamentDraft ?? savedSheet ?? sharedSheet ?? ornamentOverride ?? readyBackground?.ornaments ?? []
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
   const ornamentDraftRef = useRef(ornamentDraft)
@@ -409,7 +403,7 @@ export default function WeddingPublicClient({
     ornamentEpochRef.current += 1
     ornamentQueueRef.current = null
     setOrnamentSaving(true)
-    const device = ornamentDevice
+    const device = 'mobile' as const
     const result = await resetWeddingCardOrnaments(card.id, device)
     setOrnamentSaving(false)
     if (!('ok' in result)) {
@@ -432,7 +426,7 @@ export default function WeddingPublicClient({
   useEffect(() => {
     if (!ornamentEditor || !ornamentDraft) return
     const snapshot = ornamentDraft
-    const device = ornamentDevice
+    const device = 'mobile' as const
     const timer = window.setTimeout(() => {
       ornamentQueueRef.current = { device, ornaments: snapshot }
       const flush = async () => {
@@ -473,7 +467,7 @@ export default function WeddingPublicClient({
       void flush()
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [card.id, editorStack, ornamentDevice, ornamentDraft, ornamentEditor, tImage.ornamentAdminFailed, templateEditor, toast])
+  }, [card.id, editorStack, ornamentDraft, ornamentEditor, tImage.ornamentAdminFailed, templateEditor, toast])
   useEffect(() => {
     if (!ornamentEditor || !editorStack) return
     window.parent.postMessage(
@@ -531,22 +525,13 @@ export default function WeddingPublicClient({
     setMusicFabPlaying(playing)
   }, [])
   useLayoutEffect(() => {
-    if (!layoutPreview) {
-      const forced = new URLSearchParams(window.location.search).get('device')
-      if ((forced === 'desktop' || forced === 'mobile') && deviceChoice !== forced) {
-        applyWeddingDesignViewport(forced)
-        setDeviceChoice(forced)
-        return
-      }
-      applyWeddingDesignViewport(deviceChoice ?? (window.innerWidth >= WEDDING_DESKTOP_MIN_PX ? 'desktop' : 'mobile'))
-    }
-    if (deviceChoice) return
-    const media = window.matchMedia(`(min-width: ${WEDDING_DESKTOP_MIN_PX}px)`)
-    const apply = () => setCoverDesignWidth(media.matches ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
-    apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
-  }, [deviceChoice, layoutPreview])
+    setCoverDesignWidth(WEDDING_MOBILE_WIDTH)
+    if (layoutPreview) return
+    const params = new URLSearchParams(window.location.search)
+    const view = params.get('device') === 'desktop' ? 'desktop' : 'mobile'
+    applyWeddingDesignViewport(view, { natural: params.get('demo') === '1' })
+    setViewDevice(view)
+  }, [layoutPreview])
   const markPreview = (kind: 'text' | 'shell' | 'frame') => {
     const current = previewKindRef.current
     previewKindRef.current = !current || current === kind ? kind : 'both'
@@ -568,13 +553,13 @@ export default function WeddingPublicClient({
   }
   const patchShell = (patch: WeddingDeviceShell) => {
     if (templateEditor) {
-      setShellDevice(ornamentDevice)
+      setShellDevice('mobile')
       setSharedShellDraft((current) => ({
         ...current,
-        [ornamentDevice]: { ...current?.[ornamentDevice], ...patch },
+        mobile: { ...current?.mobile, ...patch },
       }))
     } else {
-      setSectionRaw((current) => mergeWeddingSectionConfig(current, withDeviceShell(parseWeddingSectionConfig(current), ornamentDevice, patch)))
+      setSectionRaw((current) => mergeWeddingSectionConfig(current, withDeviceShell(parseWeddingSectionConfig(current), 'mobile', patch)))
     }
     markPreview('shell')
   }
@@ -622,11 +607,11 @@ export default function WeddingPublicClient({
     markPreview('text')
   }
   const shellSource = templateEditor ? withoutPrivateShell(sectionConfig) : sectionConfig
-  const sharedShellEntry = sharedShellDraft?.[ornamentDevice] ?? null
-  const shellPlace = resolveDeviceStackPlace(shellSource, ornamentDevice, sharedShellEntry)
-  const shellGroomRotate = resolveDeviceStackRotate(shellSource, ornamentDevice, 'groom', sharedShellEntry)
-  const shellBrideRotate = resolveDeviceStackRotate(shellSource, ornamentDevice, 'bride', sharedShellEntry)
-  const shellFrameScale = resolveDeviceFrameScale(shellSource, ornamentDevice, sharedShellEntry)
+  const sharedShellEntry = sharedShellDraft?.mobile ?? sharedShellDraft?.desktop ?? null
+  const shellPlace = resolveDeviceStackPlace(shellSource, 'mobile', sharedShellEntry)
+  const shellGroomRotate = resolveDeviceStackRotate(shellSource, 'mobile', 'groom', sharedShellEntry)
+  const shellBrideRotate = resolveDeviceStackRotate(shellSource, 'mobile', 'bride', sharedShellEntry)
+  const shellFrameScale = resolveDeviceFrameScale(shellSource, 'mobile', sharedShellEntry)
   const hostShell = hostEditor
     ? {
         place: shellPlace,
@@ -674,23 +659,6 @@ export default function WeddingPublicClient({
         editTools: frameLines,
       }
     : null
-  useLayoutEffect(() => {
-    if (deviceChoice) {
-      setOrnamentDevice(deviceChoice)
-      setCoverDesignWidth(deviceChoice === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
-      return
-    }
-    const media = window.matchMedia(`(min-width: ${WEDDING_DESKTOP_MIN_PX}px)`)
-    const apply = () => {
-      const next = media.matches ? 'desktop' : 'mobile'
-      setOrnamentDevice(next)
-      setCoverDesignWidth(next === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
-      setOrnamentDraft(null)
-    }
-    apply()
-    media.addEventListener('change', apply)
-    return () => media.removeEventListener('change', apply)
-  }, [deviceChoice])
   const previewDraftRef = useRef({
     groomDraft,
     brideDraft,
@@ -858,7 +826,7 @@ export default function WeddingPublicClient({
   }, [])
 
   useLayoutEffect(() => {
-    if (opened) return
+    if (opened || hostPreview) return
     stopWeddingInvitationAutoScroll()
     const pin = () => {
       const y = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
@@ -875,7 +843,7 @@ export default function WeddingPublicClient({
       window.removeEventListener('scroll', pin)
       window.removeEventListener('pageshow', onShow)
     }
-  }, [opened])
+  }, [hostPreview, opened])
 
   const chooseLetterHouse = (view: 'groom' | 'bride' | 'both') => {
     setLetterView(view)
@@ -938,6 +906,11 @@ export default function WeddingPublicClient({
   }, [card.effectsEnabled, frameLines, hostEditor, opened])
 
   useLayoutEffect(() => {
+    if (hostPreview) {
+      allowWeddingPageScroll()
+      releaseWeddingPageScrollLock()
+      return
+    }
     if (opened) {
       // Cùng lượt chạm Mở thiệp: gỡ khóa cuộn rồi nudge, iOS mới nhận scrollTo sau đó.
       allowWeddingPageScroll()
@@ -962,7 +935,7 @@ export default function WeddingPublicClient({
       html.style.overflow = prevHtml
       document.body.style.overflow = prevBody
     }
-  }, [opened])
+  }, [hostPreview, opened])
 
   const guestDisplayName = useMemo(
     () => initialGuestDisplayName.trim() || card.guestName.trim(),
@@ -1365,7 +1338,7 @@ export default function WeddingPublicClient({
         <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-end px-3">
           <div className="pointer-events-auto flex max-w-[calc(100%-11rem)] flex-wrap items-center justify-end gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}>
             {(['desktop', 'mobile'] as const).map((id) => {
-              const active = ornamentDevice === id
+              const active = viewDevice === id
               return (
                 <button
                   key={id}
@@ -1373,22 +1346,28 @@ export default function WeddingPublicClient({
                   aria-pressed={active}
                   className={active ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
                   onClick={() => {
-                    if (ornamentDraft) {
-                      void saveWeddingCardOrnaments(card.id, ornamentDevice, ornamentDraft)
-                      if (templateEditor) {
-                        if (ornamentDevice === 'desktop') setSharedDesktopOrnaments(ornamentDraft)
-                        else setSharedMobileOrnaments(ornamentDraft)
-                        if (ornamentDevice === 'desktop') setDesktopOrnaments(null)
-                        else setMobileOrnaments(null)
-                      } else if (ornamentDevice === 'desktop') setDesktopOrnaments(ornamentDraft)
-                      else setMobileOrnaments(ornamentDraft)
-                      setOrnamentDraft(null)
+                    const draft = ornamentDraft
+                    const show = () => {
+                      const nextUrl = new URL(window.location.href)
+                      nextUrl.searchParams.set('device', id)
+                      window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+                      applyWeddingDesignViewport(id, { natural: true })
+                      setViewDevice(id)
                     }
-                    const nextUrl = new URL(window.location.href)
-                    nextUrl.searchParams.set('device', id)
-                    window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
-                    applyWeddingDesignViewport(id)
-                    setDeviceChoice(id)
+                    if (!draft) {
+                      show()
+                      return
+                    }
+                    void saveWeddingCardOrnaments(card.id, 'mobile', draft).then((result) => {
+                      if (result && 'ok' in result) {
+                        if (templateEditor) setSharedMobileOrnaments(draft)
+                        else setMobileOrnaments(draft)
+                        setOrnamentDraft(null)
+                      } else {
+                        toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+                      }
+                      show()
+                    })
                   }}
                 >
                   {id === 'desktop' ? tImage.previewDesktop : tImage.previewMobile}
@@ -1415,7 +1394,7 @@ export default function WeddingPublicClient({
             <WeddingOrnamentAdminBar
               locale={uiLocale}
               compact
-              hint={`${tImage.ornamentAdminOnDevice.replace('{device}', ornamentDevice === 'desktop' ? tImage.previewDesktop : tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
+              hint={`${tImage.ornamentAdminOnDevice.replace('{device}', viewDevice === 'desktop' ? tImage.previewDesktop : tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
               addLabel={tImage.ornamentAdminAdd}
               saveLabel={tImage.ornamentAdminSave}
               resetLabel={tImage.ornamentAdminReset}
@@ -1428,15 +1407,17 @@ export default function WeddingPublicClient({
           </div>
         </div>
       ) : null}
-      <main className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', hostEditor && ornamentDevice === 'mobile' && 'mx-auto w-[390px] max-w-full', theme.pageBg, theme.text, kitSurface.className)} style={kitSurface.style}>
-        {contentWash ? (
-          <div aria-hidden className="pointer-events-none fixed inset-0 z-[1]" style={contentWash} />
-        ) : null}
+      {hostPreview ? <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-200" /> : null}
+      <main
+        className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', hostPreview && 'mx-auto max-w-full shadow-2xl', theme.pageBg, theme.text, kitSurface.className)}
+        style={{ ...kitSurface.style, width: hostPreview ? (viewDevice === 'desktop' ? 'min(72rem, calc(100vw - 3rem))' : `${WEDDING_MOBILE_WIDTH}px`) : undefined }}
+      >
         {!opened && (
           <>
             <div className={cn(coverPreview && 'relative z-10 overflow-x-clip')} ref={coverPreview ? coverScrollRef : undefined}>
               <FittedCoverFrame
                 active={!coverPreview}
+                contain={hostPreview}
                 designWidth={coverDesignWidth}
                 backgroundColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
               >
@@ -1576,9 +1557,11 @@ export default function WeddingPublicClient({
         {contentVisible && !coverPreview ? (
           <nav
             className={cn(
-              'fixed inset-x-0 top-0 z-[80] border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
+              'fixed top-0 z-[80] border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
+              hostPreview ? 'left-1/2 max-w-full -translate-x-1/2' : 'inset-x-0',
               theme.nav,
             )}
+            style={hostPreview ? { width: viewDevice === 'desktop' ? 'min(72rem, calc(100vw - 3rem))' : `${WEDDING_MOBILE_WIDTH}px` } : undefined}
           >
             <div className="mx-auto flex max-w-3xl snap-x gap-1 overflow-x-auto overscroll-x-contain px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
               <a className={cn(weddingNavLinkClass(theme), 'snap-start whitespace-nowrap')} href="#cover">{tx.navInvitation}</a>
@@ -1603,7 +1586,7 @@ export default function WeddingPublicClient({
           <div className="sticky top-0 z-40 bg-white/95 px-3 py-2">
             <WeddingOrnamentAdminBar
               locale={uiLocale}
-              hint={`${tImage.ornamentAdminOnDevice.replace('{device}', ornamentDevice === 'desktop' ? tImage.previewDesktop : tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
+              hint={`${tImage.ornamentAdminOnDevice.replace('{device}', tImage.previewMobile)} ${templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}`}
               addLabel={tImage.ornamentAdminAdd}
               saveLabel={tImage.ornamentAdminSave}
               resetLabel={tImage.ornamentAdminReset}

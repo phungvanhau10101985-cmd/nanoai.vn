@@ -1336,13 +1336,6 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           compact ? 'px-2 pb-2 pt-1.5' : props.fitViewport ? 'px-2 pb-1 pt-0.5 sm:px-3' : 'px-3 pb-3 pt-2 sm:px-4',
         )}
       >
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0"
-          style={{
-            background: `radial-gradient(ellipse 38% 78% at 50% 42%, color-mix(in srgb, ${panel} 88%, transparent) 0%, color-mix(in srgb, ${panel} 42%, transparent) 62%, transparent 100%)`,
-          }}
-        />
         <div className="relative">
         <p className={cn('uppercase tracking-[0.22em]', compact ? 'text-[8px]' : 'text-[11px]', mutedCls)}>
           {props.invitationLabel}

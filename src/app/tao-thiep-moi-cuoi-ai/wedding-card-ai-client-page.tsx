@@ -531,7 +531,6 @@ export default function WeddingCardAiClientPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
-  const [invitationDevice, setInvitationDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [letterAskOpen, setLetterAskOpen] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const previewBusyRef = useRef(false)
@@ -2849,7 +2848,7 @@ export default function WeddingCardAiClientPage() {
                   />
                 )}
                 <div className="rounded-2xl border border-dashed p-4">
-                  <WeddingDesignScale device={invitationDevice}>
+                  <WeddingDesignScale device="mobile">
                   <div
                     data-wedding-stage=""
                     className={cn('relative w-full overflow-x-clip bg-cover bg-center', kitSurface.className)}
@@ -2858,8 +2857,8 @@ export default function WeddingCardAiClientPage() {
                     <div data-wedding-ornament-frame="">
                       <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
                     </div>
-                    <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center justify-start pb-4 pt-3', invitationDevice === 'desktop' ? 'px-4' : 'px-3')}>
-                      <div data-wedding-cover-column="" className={cn('mx-auto w-full', invitationDevice === 'desktop' ? 'max-w-[min(48rem,calc(100%-4rem))]' : 'max-w-[min(26rem,calc(100%-1.5rem))]')}>
+                    <div data-wedding-sheet-content="" data-wedding-cover-pad="" className="flex flex-col items-center justify-start px-3 pb-4 pt-3">
+                      <div data-wedding-cover-column="" className="mx-auto w-full max-w-[min(26rem,calc(100%-1.5rem))]">
                     <WeddingCoverShellCard
                       key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
                       presetId={coverPresetId}
@@ -3552,8 +3551,6 @@ export default function WeddingCardAiClientPage() {
                     letterView={previewLetterView}
                     editable
                     locale={uiLocale}
-                    device={invitationDevice}
-                    onDeviceChange={setInvitationDevice}
                     desktopLabel={tImage.previewDesktop}
                     mobileLabel={tImage.previewMobile}
                     coverLabel={tImage.previewCover}
@@ -4375,7 +4372,13 @@ function ImageUploadField(props: {
   const portrait = props.frame === 'portrait'
   const shell = props.shell ?? null
   const photoActions = (
-    <div className="pointer-events-auto absolute inset-x-0 bottom-2 z-[6] flex justify-center gap-1.5 px-2">
+    <div
+      className={cn(
+        'pointer-events-auto flex justify-center gap-1.5',
+        shell ? 'relative z-20 mt-2' : 'absolute inset-x-0 bottom-2 z-20 px-2',
+      )}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <WeddingDeviceFileInput
         inputId={props.inputId}
         className="rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-medium text-stone-800 shadow"

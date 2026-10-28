@@ -255,6 +255,15 @@ export function weddingBackgroundStyle(
   opts?: { readingVignette?: boolean; omitImage?: boolean },
 ) {
   const cleanUrl = imageUrl?.trim()
+  const showImage = Boolean(cleanUrl) && !opts?.omitImage
+  if (overlayOpacity <= 0 && !opts?.readingVignette) {
+    return {
+      backgroundImage: showImage ? `url(${cleanUrl})` : opts?.omitImage && cleanUrl ? undefined : theme.heroGradient,
+      backgroundSize: showImage ? ('cover' as const) : undefined,
+      backgroundPosition: showImage ? ('center' as const) : undefined,
+      backgroundRepeat: showImage ? ('no-repeat' as const) : undefined,
+    }
+  }
   const dark = isWeddingDarkTheme(theme.id)
   const top = Math.max(0, overlayOpacity * 0.55)
   const bottom = Math.max(0, Math.min(0.55, overlayOpacity))
@@ -269,7 +278,6 @@ export function weddingBackgroundStyle(
       ? 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(15,23,42,0.52) 0%, rgba(15,23,42,0.22) 52%, transparent 78%), '
       : 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(255,252,245,0.52) 0%, rgba(255,248,236,0.24) 52%, transparent 78%), '
     : ''
-  const showImage = Boolean(cleanUrl) && !opts?.omitImage
   return {
     backgroundImage: showImage
       ? `${edgeVignette}${readingVignette}${wash}url(${cleanUrl})`

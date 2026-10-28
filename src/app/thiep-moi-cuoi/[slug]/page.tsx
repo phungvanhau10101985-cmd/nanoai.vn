@@ -30,7 +30,7 @@ import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
   params: { slug: string }
-  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string; layout?: string; ornamentEdit?: string; stack?: string }
+  searchParams?: { guest?: string; venue?: string; view?: string; demo?: string; layout?: string; ornamentEdit?: string; stack?: string; sheet?: string }
 }
 
 function letterViewFromSearch(viewRaw: string | undefined, venue: ReturnType<typeof normalizeGuestInviteVenue>) {
@@ -158,10 +158,11 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
     ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
     ornamentKey ? loadWeddingSharedFrame(weddingSharedFrameKey(ornamentKey)).catch(() => null) : null,
   ])
+  const phoneSheet = String(searchParams?.sheet ?? '') === '1'
   let ornamentEditor = false
   let hostEditor = false
   let templateEditor = false
-  if ((layoutPreview || demoPreview) && cardOrnamentKey) {
+  if ((layoutPreview || demoPreview) && cardOrnamentKey && !phoneSheet) {
     const auth = await getUserForCreditAction().catch(() => ({ error: 'auth' as const }))
     if (auth && !('error' in auth)) {
       const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email).catch(() => '')
@@ -186,7 +187,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       <script
         dangerouslySetInnerHTML={{
           __html:
-            "try{history.scrollRestoration='manual';var pin=function(){if(window.__pwWeddingScrollFree)return;var y=window.scrollY||document.documentElement.scrollTop||0;if(y)window.scrollTo(0,0)};pin();window.addEventListener('scroll',pin,{passive:true});window.addEventListener('pageshow',pin)}catch(e){}",
+            "try{if(new URLSearchParams(location.search).get('demo')==='1'){window.__pwWeddingScrollFree=true}else{history.scrollRestoration='manual';var pin=function(){if(window.__pwWeddingScrollFree)return;var y=window.scrollY||document.documentElement.scrollTop||0;if(y)window.scrollTo(0,0)};pin();window.addEventListener('scroll',pin,{passive:true});window.addEventListener('pageshow',pin)}}catch(e){}",
         }}
       />
       <WeddingPublicClient
@@ -217,7 +218,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
             ? searchParams.stack
             : undefined
         }
-        hostPreview={demoPreview && !layoutPreview}
+        hostPreview={demoPreview && !layoutPreview && !phoneSheet}
       />
     </>
   )

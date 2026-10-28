@@ -23,22 +23,29 @@ export function weddingDesignViewportContent(device: WeddingDesignDevice): strin
 
 export function shouldLockWeddingDesignViewport(search: string): boolean {
   const params = new URLSearchParams(search.replace(/^\?/, ''))
-  return params.get('layout') !== 'full'
+  if (params.get('layout') === 'full') return false
+  if (params.get('demo') === '1') return false
+  return true
+}
+
+/** Xem thử giữ pixel thật, không phóng khổ giấy ra cả màn hình. */
+export function weddingNaturalViewportContent(): string {
+  return 'width=device-width, initial-scale=1, viewport-fit=cover'
 }
 
 export function weddingDesignDeviceFromSearch(search: string, fallbackWidth: number): WeddingDesignDevice {
   const params = new URLSearchParams(search.replace(/^\?/, ''))
   if (!shouldLockWeddingDesignViewport(search)) return weddingDesignDeviceFromWidth(fallbackWidth)
   const forced = params.get('device')
-  if (forced === 'desktop' || forced === 'mobile') return forced
-  return weddingDesignDeviceFromWidth(fallbackWidth)
+  if (forced === 'desktop') return 'desktop'
+  return 'mobile'
 }
 
 export function weddingDesignViewportBootScript(): string {
-  return `(function(){try{var q=new URLSearchParams(location.search);if(q.get('layout')==='full')return;var forced=q.get('device');var desktop=forced==='desktop'||(forced!=='mobile'&&window.innerWidth>=${WEDDING_DESKTOP_MIN_PX});var width=desktop?${WEDDING_DESKTOP_WIDTH}:${WEDDING_MOBILE_WIDTH};var meta=document.querySelector('meta[name="viewport"]');if(!meta){meta=document.createElement('meta');meta.setAttribute('name','viewport');document.head.appendChild(meta)}meta.setAttribute('content','width='+width+', viewport-fit=cover');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile')}catch(e){}})();`
+  return `(function(){try{var q=new URLSearchParams(location.search);if(q.get('layout')==='full')return;var desktop=q.get('device')==='desktop';var meta=document.querySelector('meta[name="viewport"]');if(!meta){meta=document.createElement('meta');meta.setAttribute('name','viewport');document.head.appendChild(meta)}if(q.get('demo')==='1'){meta.setAttribute('content','${weddingNaturalViewportContent()}');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile');return}var width=desktop?${WEDDING_DESKTOP_WIDTH}:${WEDDING_MOBILE_WIDTH};meta.setAttribute('content','width='+width+', viewport-fit=cover');document.documentElement.setAttribute('data-wedding-design',desktop?'desktop':'mobile')}catch(e){}})();`
 }
 
-export function applyWeddingDesignViewport(device: WeddingDesignDevice) {
+export function applyWeddingDesignViewport(device: WeddingDesignDevice, options?: { natural?: boolean }) {
   if (typeof document === 'undefined') return
   let meta = document.querySelector('meta[name="viewport"]')
   if (!meta) {
@@ -46,6 +53,6 @@ export function applyWeddingDesignViewport(device: WeddingDesignDevice) {
     meta.setAttribute('name', 'viewport')
     document.head.appendChild(meta)
   }
-  meta.setAttribute('content', weddingDesignViewportContent(device))
+  meta.setAttribute('content', options?.natural ? weddingNaturalViewportContent() : weddingDesignViewportContent(device))
   document.documentElement.setAttribute('data-wedding-design', device)
 }

@@ -266,15 +266,15 @@ export function WeddingOrnamentAdminLayer(props: {
               className={cn('pointer-events-none block w-full max-w-none select-none', active && 'cursor-grabbing')}
               style={{
                 ...weddingOrnamentImageStyle(item),
-                outline: active ? '3px solid #e11d48' : props.frameLines === false ? 'none' : '2px dashed rgba(225,29,72,0.85)',
-                outlineOffset: active || props.frameLines !== false ? 3 : 0,
+                outline: props.frameLines === false ? 'none' : active ? '3px solid #e11d48' : '2px dashed rgba(225,29,72,0.85)',
+                outlineOffset: props.frameLines === false ? 0 : 3,
               }}
             />
           </div>
         )
       })}
     </div>
-    {picked && selected != null ? (
+    {picked && selected != null && props.frameLines !== false ? (
       <div className="pointer-events-none absolute inset-0" style={{ zIndex: 80 }}>
         <div
           className="pointer-events-none absolute"

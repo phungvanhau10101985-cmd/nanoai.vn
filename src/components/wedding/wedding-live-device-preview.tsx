@@ -103,16 +103,9 @@ export function WeddingLiveDevicePreviews(props: {
   letterLabel: string
   hint: string
   refreshLabel: string
-  device?: WeddingDesignDevice
-  onDeviceChange?: (device: WeddingDesignDevice) => void
 }) {
   const [revision, setRevision] = useState(0)
-  const [deviceState, setDeviceState] = useState<WeddingDesignDevice>('desktop')
-  const device = props.device ?? deviceState
-  const setDevice = (id: WeddingDesignDevice) => {
-    props.onDeviceChange?.(id)
-    if (props.device == null) setDeviceState(id)
-  }
+  const device: WeddingDesignDevice = 'mobile'
   const [coverFrame, setCoverFrame] = useState<HTMLIFrameElement | null>(null)
   const [letterFrame, setLetterFrame] = useState<HTMLIFrameElement | null>(null)
   const venue = props.letterView === 'bride' ? 'bride_home' : 'groom_home'
@@ -158,23 +151,6 @@ export function WeddingLiveDevicePreviews(props: {
         <button type="button" className="h-8 rounded-md border bg-white px-3 text-xs" onClick={() => setRevision((value) => value + 1)}>
           {props.refreshLabel}
         </button>
-        <div className="flex rounded-md border bg-white p-0.5" role="group" aria-label={props.hint}>
-          {(['desktop', 'mobile'] as const).map((id) => {
-            const active = device === id
-            const label = id === 'desktop' ? props.desktopLabel : props.mobileLabel
-            return (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={active}
-                className={active ? 'h-7 rounded px-3 text-xs font-semibold bg-neutral-900 text-white' : 'h-7 rounded px-3 text-xs text-neutral-600'}
-                onClick={() => setDevice(id)}
-              >
-                {label}
-              </button>
-            )
-          })}
-        </div>
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">{props.hint}</p>
       <section className="space-y-2">
