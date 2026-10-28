@@ -7,9 +7,10 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFilter, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
+import { pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export type WeddingOrnamentSurface = 'cover' | 'letter'
@@ -49,8 +50,6 @@ export function WeddingOrnamentAdminLayer(props: {
   fadeLabel?: string
   deleteLabel?: string
   frameLines?: boolean
-  /** Tắt trôi khi xem thử đã ẩn khung, để hoa đứng đúng chỗ lúc sửa. */
-  drift?: boolean
   surface?: WeddingOrnamentSurface
   onChange?: (next: WeddingBackgroundOrnament[]) => void
 }) {
@@ -133,12 +132,111 @@ export function WeddingOrnamentAdminLayer(props: {
     return () => window.removeEventListener('message', onMessage)
   }, [props.editable, props.surface])
 
+  useEffect(() => {
+    const layer = layerRef.current
+    if (!layer || !props.editable) return
+    const remember = (img: HTMLImageElement) => {
+      if (img.complete) rememberOrnamentPixels(img)
+    }
+    const images = [...layer.querySelectorAll<HTMLImageElement>('img[data-ornament-index]')]
+    const onLoad = (event: Event) => {
+      if (event.currentTarget instanceof HTMLImageElement) remember(event.currentTarget)
+    }
+    images.forEach((img) => {
+      remember(img)
+      img.addEventListener('load', onLoad)
+    })
+    return () => images.forEach((img) => img.removeEventListener('load', onLoad))
+  }, [props.editable, props.ornaments])
+
+  useEffect(() => {
+    if (!props.editable) return
+    const layer = layerRef.current
+    const marked = layer?.closest('[data-wedding-stage]')
+    const stage = marked ?? layer?.parentElement
+    if (!layer || !(stage instanceof HTMLElement)) return
+    if (marked) marked.setAttribute('data-ornament-editing', '')
+    const startDrag = (index: number, event: PointerEvent) => {
+      const items = ornamentsRef.current
+      const item = items[index]
+      const onChange = onChangeRef.current
+      const bounds = layer.getBoundingClientRect()
+      if (!item || !onChange || bounds.width < 1 || bounds.height < 1) return
+      choose(index)
+      const startX = event.clientX
+      const startY = event.clientY
+      const originX = item.x
+      const originY = item.y
+      const bottom = item.anchor === 'bottom'
+      const move = (ev: PointerEvent) => {
+        const dx = ((ev.clientX - startX) / bounds.width) * 100
+        const dy = ((ev.clientY - startY) / bounds.height) * 100
+        const current = ornamentsRef.current
+        if (!current[index]) return
+        onChangeRef.current?.(
+          current.map((entry, itemIndex) =>
+            itemIndex === index
+              ? {
+                  ...entry,
+                  x: Math.round((originX + dx) * 10) / 10,
+                  y: Math.round((originY + (bottom ? -dy : dy)) * 10) / 10,
+                }
+              : entry,
+          ),
+        )
+      }
+      const up = () => {
+        document.removeEventListener('pointermove', move)
+        document.removeEventListener('pointerup', up)
+        document.removeEventListener('pointercancel', up)
+      }
+      document.addEventListener('pointermove', move)
+      document.addEventListener('pointerup', up)
+      document.addEventListener('pointercancel', up)
+    }
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('button, input, textarea, select, a, [data-ornament-tools], [data-wedding-file-anchor], [data-stack-move], [data-wedding-frame-tools]')
+      ) {
+        return
+      }
+      const picked = pickOrnamentHit(layer, event.clientX, event.clientY)
+      if (picked == null) return
+      event.preventDefault()
+      event.stopPropagation()
+      startDrag(picked, event)
+    }
+    const onMove = (event: PointerEvent) => {
+      const target = event.target
+      if (
+        target instanceof Element &&
+        target.closest('button, input, textarea, select, a, [data-ornament-tools], [data-wedding-file-anchor]')
+      ) {
+        stage.style.cursor = ''
+        return
+      }
+      stage.style.cursor = pickOrnamentHit(layer, event.clientX, event.clientY) == null ? '' : 'grab'
+    }
+    stage.addEventListener('pointerdown', onDown, true)
+    stage.addEventListener('pointermove', onMove)
+    return () => {
+      if (marked) marked.removeAttribute('data-ornament-editing')
+      stage.style.cursor = ''
+      stage.removeEventListener('pointerdown', onDown, true)
+      stage.removeEventListener('pointermove', onMove)
+    }
+  }, [props.editable])
+
   if (!props.editable) {
-    return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} drift={props.drift} />
+    return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} />
   }
   const update = (index: number, patch: Partial<WeddingBackgroundOrnament>) => {
     props.onChange?.(props.ornaments.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
   }
+  const picked = selected == null ? null : props.ornaments[selected] ?? null
   const frameWidth = typeof window === 'undefined' ? (compactFrame ? 390 : 1440) : window.innerWidth
   const shownWidth = frameWidth * uiScale
   const target = compactFrame
@@ -153,13 +251,10 @@ export function WeddingOrnamentAdminLayer(props: {
         return (
           <div
             key={`${item.src}-${index}`}
-            className="pointer-events-auto absolute"
+            data-ornament-hit=""
+            className="pointer-events-none absolute"
             style={{
-              left: `${item.x}%`,
-              top: item.anchor === 'bottom' ? 'auto' : `${item.y}%`,
-              bottom: item.anchor === 'bottom' ? `${item.y}%` : 'auto',
-              width: `${item.w}%`,
-              opacity: item.opacity ?? 1,
+              ...weddingOrnamentFrameStyle(item),
               zIndex: active ? 2 : 1,
             }}
           >
@@ -167,104 +262,84 @@ export function WeddingOrnamentAdminLayer(props: {
               src={item.src}
               alt=""
               draggable={false}
-              className={cn('block w-full max-w-none cursor-grab select-none touch-none', active && 'cursor-grabbing')}
+              data-ornament-index={index}
+              className={cn('pointer-events-none block w-full max-w-none select-none', active && 'cursor-grabbing')}
               style={{
-                transform: `rotate(${item.rotate ?? 0}deg) scaleX(${item.flipX ? -1 : 1})`,
-                filter: weddingOrnamentFilter(item),
-                outline: props.frameLines === false ? 'none' : active ? '3px solid #e11d48' : '2px dashed rgba(225,29,72,0.85)',
-                outlineOffset: props.frameLines === false ? 0 : 3,
-              }}
-              onPointerDown={(event) => {
-                if (event.button !== 0) return
-                event.preventDefault()
-                event.stopPropagation()
-                choose(index)
-                const bounds = layerRef.current?.getBoundingClientRect()
-                if (!bounds || !props.onChange) return
-                const startX = event.clientX
-                const startY = event.clientY
-                const originX = item.x
-                const originY = item.y
-                const bottom = item.anchor === 'bottom'
-                const target = event.currentTarget
-                target.setPointerCapture(event.pointerId)
-                const move = (ev: PointerEvent) => {
-                  const dx = ((ev.clientX - startX) / bounds.width) * 100
-                  const dy = ((ev.clientY - startY) / bounds.height) * 100
-                  update(index, {
-                    x: Math.round((originX + dx) * 10) / 10,
-                    y: Math.round((originY + (bottom ? -dy : dy)) * 10) / 10,
-                  })
-                }
-                const up = () => {
-                  target.removeEventListener('pointermove', move)
-                  target.removeEventListener('pointerup', up)
-                }
-                target.addEventListener('pointermove', move)
-                target.addEventListener('pointerup', up)
+                ...weddingOrnamentImageStyle(item),
+                outline: active ? '3px solid #e11d48' : props.frameLines === false ? 'none' : '2px dashed rgba(225,29,72,0.85)',
+                outlineOffset: active || props.frameLines !== false ? 3 : 0,
               }}
             />
-            {active && props.frameLines !== false ? (
-              <div
-                className="pointer-events-auto absolute left-1/2 top-full z-10 mt-1 flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
-                style={{ transform: `translateX(-50%) scale(${controlScale})`, transformOrigin: 'top center' }}
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                <div className="flex gap-1">
-                <button type="button" aria-label={props.zoomInLabel} className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-700 text-white" onClick={() => update(index, { w: Math.min(90, Math.round((item.w + 6) * 10) / 10) })}>
-                  <ZoomIn className="h-6 w-6" />
-                </button>
-                <button type="button" aria-label={props.zoomOutLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(index, { w: Math.max(8, Math.round((item.w - 6) * 10) / 10) })}>
-                  <ZoomOut className="h-6 w-6" />
-                </button>
-                <button type="button" aria-label={props.rotateLeftLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(index, { rotate: wrapRotate((item.rotate ?? 0) - 15) })}>
-                  <RotateCcw className="h-6 w-6" />
-                </button>
-                <button type="button" aria-label={props.rotateRightLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(index, { rotate: wrapRotate((item.rotate ?? 0) + 15) })}>
-                  <RotateCw className="h-6 w-6" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={props.deleteLabel}
-                  className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700"
-                  onClick={() => {
-                    props.onChange?.(props.ornaments.filter((_, itemIndex) => itemIndex !== index))
-                    choose(null)
-                  }}
-                >
-                  <Trash2 className="h-6 w-6" />
-                </button>
-                </div>
-                <OrnamentEffectRow
-                  label={props.blurLabel || ''}
-                  value={`${weddingOrnamentBlurPx(item.blur)}`}
-                  onDecrease={() => {
-                    const next = stepAmount(BLUR_STEPS, weddingOrnamentBlurPx(item.blur), -1)
-                    update(index, { blur: next || undefined })
-                  }}
-                  onIncrease={() => {
-                    const next = stepAmount(BLUR_STEPS, weddingOrnamentBlurPx(item.blur), 1)
-                    update(index, { blur: next || undefined })
-                  }}
-                />
-                <OrnamentEffectRow
-                  label={props.fadeLabel || ''}
-                  value={`${Math.round(weddingOrnamentFadeAmount(item.fade) * 100)}%`}
-                  onDecrease={() => {
-                    const next = stepAmount(FADE_STEPS, weddingOrnamentFadeAmount(item.fade), -1)
-                    update(index, { fade: next || undefined })
-                  }}
-                  onIncrease={() => {
-                    const next = stepAmount(FADE_STEPS, weddingOrnamentFadeAmount(item.fade), 1)
-                    update(index, { fade: next || undefined })
-                  }}
-                />
-              </div>
-            ) : null}
           </div>
         )
       })}
     </div>
+    {picked && selected != null ? (
+      <div className="pointer-events-none absolute inset-0" style={{ zIndex: 80 }}>
+        <div
+          className="pointer-events-none absolute"
+          style={weddingOrnamentFrameStyle(picked)}
+        >
+          <img src={picked.src} alt="" draggable={false} className="invisible block w-full" />
+          <div
+            data-ornament-tools=""
+            className="pointer-events-auto absolute left-1/2 top-full mt-1 flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
+            style={{ transform: `translateX(-50%) scale(${controlScale})`, transformOrigin: 'top center' }}
+            onPointerDown={(event) => event.stopPropagation()}
+          >
+            <div className="flex gap-1">
+              <button type="button" aria-label={props.zoomInLabel} className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-700 text-white" onClick={() => update(selected, { w: Math.min(90, Math.round((picked.w + 6) * 10) / 10) })}>
+                <ZoomIn className="h-6 w-6" />
+              </button>
+              <button type="button" aria-label={props.zoomOutLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(selected, { w: Math.max(8, Math.round((picked.w - 6) * 10) / 10) })}>
+                <ZoomOut className="h-6 w-6" />
+              </button>
+              <button type="button" aria-label={props.rotateLeftLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(selected, { rotate: wrapRotate((picked.rotate ?? 0) - 15) })}>
+                <RotateCcw className="h-6 w-6" />
+              </button>
+              <button type="button" aria-label={props.rotateRightLabel} className="flex h-11 w-11 items-center justify-center rounded-lg border bg-white" onClick={() => update(selected, { rotate: wrapRotate((picked.rotate ?? 0) + 15) })}>
+                <RotateCw className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                aria-label={props.deleteLabel}
+                className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700"
+                onClick={() => {
+                  props.onChange?.(props.ornaments.filter((_, itemIndex) => itemIndex !== selected))
+                  choose(null)
+                }}
+              >
+                <Trash2 className="h-6 w-6" />
+              </button>
+            </div>
+            <OrnamentEffectRow
+              label={props.blurLabel || ''}
+              value={`${weddingOrnamentBlurPx(picked.blur)}`}
+              onDecrease={() => {
+                const next = stepAmount(BLUR_STEPS, weddingOrnamentBlurPx(picked.blur), -1)
+                update(selected, { blur: next || undefined })
+              }}
+              onIncrease={() => {
+                const next = stepAmount(BLUR_STEPS, weddingOrnamentBlurPx(picked.blur), 1)
+                update(selected, { blur: next || undefined })
+              }}
+            />
+            <OrnamentEffectRow
+              label={props.fadeLabel || ''}
+              value={`${Math.round(weddingOrnamentFadeAmount(picked.fade) * 100)}%`}
+              onDecrease={() => {
+                const next = stepAmount(FADE_STEPS, weddingOrnamentFadeAmount(picked.fade), -1)
+                update(selected, { fade: next || undefined })
+              }}
+              onIncrease={() => {
+                const next = stepAmount(FADE_STEPS, weddingOrnamentFadeAmount(picked.fade), 1)
+                update(selected, { fade: next || undefined })
+              }}
+            />
+          </div>
+        </div>
+      </div>
+    ) : null}
     </>
   )
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import sharp from 'sharp'
-import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from './cover-frame-hole-mask'
+import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
 import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell } from './wedding-section-config'
@@ -108,6 +108,37 @@ test('hole mask follows a round opening and keeps a rectangular opening rectangu
   assert.ok(square.box.w > 65 && square.box.w < 78, `w ${square.box.w}`)
   assert.ok(square.box.h > 72 && square.box.h < 84, `h ${square.box.h}`)
   assert.equal(measureCoverFrameContentBox(rect, width, height), null)
+})
+
+test('a pale white veil inside the wreath is part of the hole and is cleared off the frame', () => {
+  const width = 120
+  const height = 120
+  const rgba = new Uint8ClampedArray(width * height * 4)
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const dx = x - 60
+      const dy = y - 60
+      const dist = Math.hypot(dx, dy)
+      const i = (y * width + x) * 4
+      if (dist >= 40 && dist <= 56) {
+        rgba[i] = 180
+        rgba[i + 1] = 42
+        rgba[i + 2] = 48
+        rgba[i + 3] = 255
+      } else if (dist < 40) {
+        rgba[i] = 255
+        rgba[i + 1] = 252
+        rgba[i + 2] = 245
+        rgba[i + 3] = 140
+      }
+    }
+  }
+  const mask = buildCoverFrameHoleMask(rgba, width, height, { x: 60, y: 60 })
+  assert.ok(mask)
+  assert.equal(mask.rgba[(60 * width + 60) * 4 + 3], 255)
+  const cut = clearCoverFrameHole(rgba, mask.rgba)
+  assert.equal(cut[(60 * width + 60) * 4 + 3], 0)
+  assert.equal(cut[(60 * width + 108) * 4 + 3], 255)
 })
 
 test('section config keeps an AI frame and drops it when the url is cleared', () => {

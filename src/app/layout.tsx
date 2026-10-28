@@ -61,6 +61,7 @@ import { buildPartnerShopFaviconMetadataIcons } from '@/lib/partner-website/shop
 import { partnerSitePwaManifestPath } from '@/lib/partner-website/shop/partner-site-pwa'
 import { shopBrowserChromeColor } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import { partnerShopDocumentVerification } from '@/lib/partner-website/shop/sanitize-partner-shop-custom-embed'
+import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
 
 const AnalyticsTracker = nextDynamic(
   () => import("@/components/analytics/analytics-tracker").then((m) => m.AnalyticsTracker),
@@ -562,6 +563,9 @@ export default async function RootLayout({
       <head>
         {dictionaryScriptSrc ? (
           <Script id="nanoai-dictionary" strategy="beforeInteractive" src={dictionaryScriptSrc} />
+        ) : null}
+        {isWeddingPublicPage ? (
+          <script id="wedding-design-viewport" dangerouslySetInnerHTML={{ __html: weddingDesignViewportBootScript() }} />
         ) : null}
         <link rel="ai-catalog" type="application/json" href="/.well-known/ai-catalog.json" />
         <link rel="ard" type="application/json" href="/.well-known/ard.json" />

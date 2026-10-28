@@ -25,6 +25,7 @@ import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-ve
 import { invitationOccasionShape, invitationSeoCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPublicTitle } from '@/lib/wedding/wedding-public-seo'
 import { weddingPublicShareImageUrl } from '@/lib/wedding/wedding-share-preview'
+import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
 import WeddingPublicClient from './wedding-public-client'
 
 type Props = {
@@ -181,6 +182,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   return (
     <>
       <JsonLd data={jsonLd} />
+      <script dangerouslySetInnerHTML={{ __html: weddingDesignViewportBootScript() }} />
       <script
         dangerouslySetInnerHTML={{
           __html:

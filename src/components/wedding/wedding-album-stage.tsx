@@ -747,9 +747,8 @@ function FilmStrip(props: {
                 onClick={() => {
                   if (on && props.onExpand) props.onExpand(i)
                 }}
-                className="relative block w-full overflow-hidden rounded-md bg-stone-900"
+                className={cn('relative block w-full overflow-hidden rounded-md bg-stone-900', props.compact ? 'h-[148px]' : 'wedding-album-film')}
                 style={{
-                  height: props.compact ? '148px' : 'min(72vw, 26rem)',
                   boxShadow: 'inset 0 0 0 2.5px #fff, 0 8px 24px rgba(0,0,0,0.45)',
                 }}
               >
@@ -927,7 +926,7 @@ function AlbumFrame(props: {
   const transition = motionTransition(smooth)
   const frame = props.compact
     ? 'relative mx-auto h-64 w-full sm:h-80'
-    : 'relative mx-auto h-[min(68vh,34rem)] w-full'
+    : 'wedding-album-frame relative mx-auto w-full'
 
   if (props.layout === 'grid') {
     const visible = urls.slice(0, WEDDING_ALBUM_GRID_SLOTS)

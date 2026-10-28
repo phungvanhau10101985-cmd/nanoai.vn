@@ -3,9 +3,114 @@
   z-index: 40;
 }
 
-[data-wedding-stage] :is(a, button, input, textarea, select):not([data-album-photo]) {
+[data-wedding-stage] :is(a, button, input, textarea, select, [data-wedding-file-anchor]):not([data-album-photo]) {
   z-index: 70;
   pointer-events: auto;
+}
+
+/* Đang sửa hoa: ô chữ không chặn cú chọn mảnh ảnh. Nút và ô nhập vẫn bấm được. */
+[data-wedding-stage][data-ornament-editing] :is(p, h1, h2, h3, h4, li, figcaption, blockquote) {
+  pointer-events: none;
+}
+
+/* Iframe sửa đã đúng bề ngang khổ giấy. Thanh cuộn không được làm khổ giấy hẹp lại. */
+html[data-wedding-layout-preview] {
+  overflow: hidden !important;
+}
+
+/* Khổ giấy quyết định chiều ô ảnh và chỗ hoa văn, không phải chiều cửa sổ hay chiều nội dung. */
+[data-wedding-stage] {
+  container: wedding-stage / inline-size;
+}
+
+[data-wedding-ornament-frame] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: calc(100cqi * 844 / 390);
+  pointer-events: none;
+}
+
+[data-wedding-sheet-content] {
+  position: relative;
+  min-height: calc(100cqi * 844 / 390);
+}
+
+@container wedding-stage (max-width: 1023.98px) {
+  [data-wedding-stage] [data-wedding-cover-pad] {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  [data-wedding-stage] [data-wedding-cover-column] {
+    max-width: min(26rem, calc(100% - 1.5rem));
+  }
+}
+
+[data-cover-photo='compact'] {
+  height: 6rem;
+  --wedding-cover-photo-h: 6rem;
+}
+
+[data-cover-photo='fit'] {
+  height: 12rem;
+  --wedding-cover-photo-h: 12rem;
+}
+
+[data-cover-photo='standard'] {
+  height: 15rem;
+  --wedding-cover-photo-h: 15rem;
+}
+
+[data-cover-photo='tall'] {
+  height: 16rem;
+  --wedding-cover-photo-h: 16rem;
+}
+
+.wedding-album-frame {
+  height: 30rem;
+}
+
+.wedding-album-film {
+  height: 17.5rem;
+}
+
+@container wedding-stage (min-width: 1024px) {
+  [data-wedding-ornament-frame] {
+    height: calc(100cqi * 900 / 1440);
+  }
+
+  [data-wedding-sheet-content] {
+    min-height: calc(100cqi * 900 / 1440);
+  }
+
+  [data-wedding-stage] [data-wedding-cover-pad] {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  [data-wedding-stage] [data-wedding-cover-column] {
+    max-width: min(48rem, calc(100% - 4rem));
+  }
+
+  [data-cover-photo='standard'] {
+    height: 17rem;
+    --wedding-cover-photo-h: 17rem;
+  }
+
+  [data-cover-photo='tall'] {
+    height: 18rem;
+    --wedding-cover-photo-h: 18rem;
+  }
+
+  .wedding-album-frame {
+    height: 34rem;
+  }
+
+  .wedding-album-film {
+    height: 26rem;
+  }
 }
 
 /* Khối đang chạy hiệu ứng vẫn tạo lớp riêng. Đưa cả khối nút lên trên hoa văn. */

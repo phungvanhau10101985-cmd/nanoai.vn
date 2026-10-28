@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import { WeddingOrnamentPreviewTools } from '@/components/wedding/wedding-ornament-admin'
 
-const DESKTOP_WIDTH = 1440
-const MOBILE_WIDTH = 390
+import { weddingDesignWidth, type WeddingDesignDevice } from '@/lib/wedding/wedding-design-viewport'
 
 function DeviceFrame(props: {
   title: string
@@ -104,9 +103,16 @@ export function WeddingLiveDevicePreviews(props: {
   letterLabel: string
   hint: string
   refreshLabel: string
+  device?: WeddingDesignDevice
+  onDeviceChange?: (device: WeddingDesignDevice) => void
 }) {
   const [revision, setRevision] = useState(0)
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop')
+  const [deviceState, setDeviceState] = useState<WeddingDesignDevice>('desktop')
+  const device = props.device ?? deviceState
+  const setDevice = (id: WeddingDesignDevice) => {
+    props.onDeviceChange?.(id)
+    if (props.device == null) setDeviceState(id)
+  }
   const [coverFrame, setCoverFrame] = useState<HTMLIFrameElement | null>(null)
   const [letterFrame, setLetterFrame] = useState<HTMLIFrameElement | null>(null)
   const venue = props.letterView === 'bride' ? 'bride_home' : 'groom_home'
@@ -119,7 +125,7 @@ export function WeddingLiveDevicePreviews(props: {
   })
   if (props.editable) query.set('ornamentEdit', '1')
   query.set('rev', String(revision))
-  const width = device === 'desktop' ? DESKTOP_WIDTH : MOBILE_WIDTH
+  const width = weddingDesignWidth(device)
   const deviceLabel = device === 'desktop' ? props.desktopLabel : props.mobileLabel
   const coverQuery = new URLSearchParams(query)
   coverQuery.set('stack', 'cover')

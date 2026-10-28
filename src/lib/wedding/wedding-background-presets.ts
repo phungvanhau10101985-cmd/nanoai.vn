@@ -44,6 +44,25 @@ export function weddingOrnamentFilter(item: Pick<WeddingBackgroundOrnament, 'blu
   return parts.join(' ') || undefined
 }
 
+/** Cùng một hộp cho bản sửa và bản khách. Phần trăm của khung thiệp, không của cửa sổ. */
+export function weddingOrnamentFrameStyle(item: Pick<WeddingBackgroundOrnament, 'x' | 'y' | 'w' | 'anchor'>): CSSProperties {
+  const bottom = item.anchor === 'bottom'
+  return {
+    left: `${item.x}%`,
+    top: bottom ? 'auto' : `${item.y}%`,
+    bottom: bottom ? `${item.y}%` : 'auto',
+    width: `${item.w}%`,
+  }
+}
+
+export function weddingOrnamentImageStyle(item: Pick<WeddingBackgroundOrnament, 'rotate' | 'flipX' | 'opacity' | 'blur' | 'fade'>): CSSProperties {
+  return {
+    opacity: item.opacity ?? 1,
+    filter: weddingOrnamentFilter(item),
+    transform: `rotate(${item.rotate ?? 0}deg) scaleX(${item.flipX ? -1 : 1})`,
+  }
+}
+
 /** Màu nút, màu chữ, nền chữ và kiểu chữ đi cùng một bộ nền. */
 export type WeddingKitLook = {
   styleId: string

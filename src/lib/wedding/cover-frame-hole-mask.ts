@@ -2,6 +2,31 @@ import type { CoverFrameHolePct } from './measure-cover-frame-hole'
 
 const CLEAR_ALPHA = 28
 
+/** Kem/trắng hơi trong giữa khung — không phải nét hoa, không được phủ lên ảnh. */
+function isPaleVeil(r: number, g: number, b: number, a: number) {
+  if (a <= CLEAR_ALPHA) return false
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  return max >= 232 && max - min <= 18
+}
+
+function isFrameWall(rgba: Uint8ClampedArray, index: number) {
+  const offset = index * 4
+  const alpha = rgba[offset + 3] ?? 0
+  if (alpha <= CLEAR_ALPHA) return false
+  return !isPaleVeil(rgba[offset] ?? 0, rgba[offset + 1] ?? 0, rgba[offset + 2] ?? 0, alpha)
+}
+
+/** Xóa pixel lỗ khỏi ảnh khung để vòng hoa không phủ trắng lên ảnh cô dâu chú rể. */
+export function clearCoverFrameHole(source: Uint8ClampedArray, hole: Uint8ClampedArray) {
+  const out = new Uint8ClampedArray(source)
+  const count = Math.min(out.length, hole.length)
+  for (let i = 3; i < count; i += 4) {
+    if ((hole[i] ?? 0) > 0) out[i] = 0
+  }
+  return out
+}
+
 export type CoverFrameHoleMask = {
   rgba: Uint8ClampedArray
   box: CoverFrameHolePct
@@ -151,7 +176,7 @@ export function measureCoverFrameContentBox(
   const count = width * height
   const wall = new Uint8Array(count)
   for (let i = 0; i < count; i += 1) {
-    if (rgba[i * 4 + 3] > CLEAR_ALPHA) wall[i] = 1
+    if (isFrameWall(rgba, i)) wall[i] = 1
   }
   if (countOn(wall) < count * 0.02) return null
   const raw = boxOf(wall, width, height)
@@ -178,7 +203,7 @@ export function buildCoverFrameHoleMask(
   const count = width * height
   const wall = new Uint8Array(count)
   for (let i = 0; i < count; i += 1) {
-    if (rgba[i * 4 + 3] > CLEAR_ALPHA) wall[i] = 1
+    if (isFrameWall(rgba, i)) wall[i] = 1
   }
   const sx = clampInt(seed?.x ?? width / 2, 0, width - 1)
   const sy = clampInt(seed?.y ?? height / 2, 0, height - 1)

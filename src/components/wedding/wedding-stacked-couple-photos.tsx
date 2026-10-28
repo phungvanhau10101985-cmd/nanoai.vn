@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { RotateCcw, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { buildCoverFrameHoleMask, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
+import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { albumPhotoFrameStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
@@ -12,7 +12,7 @@ import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file
 const DEFAULT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
 const EMPTY_HOLE: CoverFrameHolePct = { x: 0, y: 0, w: 100, h: 100 }
 
-type StackHoleMask = { url: string; box: CoverFrameHolePct; content: CoverFrameHolePct | null; aspect: number }
+type StackHoleMask = { url: string; cutUrl?: string; box: CoverFrameHolePct; content: CoverFrameHolePct | null; aspect: number }
 
 const NAME_SLOT_PCT = 42
 
@@ -29,8 +29,7 @@ function visualFrameAspect(mask: StackHoleMask | null | undefined) {
   return (tight.w / tight.h) * imageAspect
 }
 
-function paintedNameLeft(x: number, align: 'start' | 'end', editing: boolean) {
-  if (editing) return x
+function paintedNameLeft(x: number, align: 'start' | 'end') {
   if (align === 'end') return Math.max(0, Math.min(100 - NAME_SLOT_PCT, x))
   return Math.max(0, Math.min(100 - 12, x))
 }
@@ -59,17 +58,22 @@ function rasterizeStackHoleMask(img: HTMLImageElement, hole: CoverFrameHolePct):
   if (!ctx) return null
   ctx.drawImage(img, 0, 0, width, height)
   const pixels = ctx.getImageData(0, 0, width, height)
+  const source = new Uint8ClampedArray(pixels.data)
   const aspect = img.naturalWidth / Math.max(1, img.naturalHeight)
-  const content = measureCoverFrameContentBox(pixels.data, width, height)
-  const mask = buildCoverFrameHoleMask(pixels.data, width, height, {
+  const content = measureCoverFrameContentBox(source, width, height)
+  const mask = buildCoverFrameHoleMask(source, width, height, {
     x: ((hole.x + hole.w / 2) / 100) * width,
     y: ((hole.y + hole.h / 2) / 100) * height,
   })
   if (!mask) return { url: '', box: hole, content, aspect }
+  const cut = ctx.createImageData(width, height)
+  cut.data.set(clearCoverFrameHole(source, mask.rgba))
+  ctx.putImageData(cut, 0, 0)
+  const cutUrl = canvas.toDataURL('image/png')
   const out = ctx.createImageData(width, height)
   out.data.set(mask.rgba)
   ctx.putImageData(out, 0, 0)
-  return { url: canvas.toDataURL('image/png'), box: mask.box, content, aspect }
+  return { url: canvas.toDataURL('image/png'), cutUrl, box: mask.box, content, aspect }
 }
 
 function useStackHoleMask(src: string, hole: CoverFrameHolePct) {
@@ -377,7 +381,7 @@ function PhotoCard(props: {
               </div>
             </div>
             {props.shell ? (
-              <img src={props.shell.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none object-fill" />
+              <img src={holeMask?.cutUrl || props.shell.src} alt="" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none object-fill" />
             ) : null}
             <div
               data-stack-photo=""
@@ -621,10 +625,11 @@ export function WeddingStackedCouplePhotos(props: {
     return () => observer.disconnect()
   }, [both, named])
   const framePx = stageWidth * (photoShare / 100) * (1 / frameAspect)
-  const nameHeight = props.compact ? 40 : 52
+  const nameHeight = Math.max(24, Math.round(stageWidth * (props.compact ? 0.18 : 52 / 416)))
+  const fitPad = Math.max(6, Math.round(stageWidth * (12 / 416)))
   const fitBlock = (yPct: number, block: number) => {
     const y = Math.min(88, Math.max(0, yPct)) / 100
-    return (block + 12) / Math.max(0.12, 1 - y)
+    return (block + fitPad) / Math.max(0.12, 1 - y)
   }
   const stageHeight = Math.ceil(
     Math.max(
@@ -648,10 +653,9 @@ export function WeddingStackedCouplePhotos(props: {
     blockTop(place.stackGroomNameY) + nameHeight,
     blockTop(place.stackBrideNameY) + nameHeight,
   )
-  const spread = Boolean(props.onPlace || props.pinLayout)
-  const cropPad = 16
-  const displayBleedTop = spread ? 0 : Math.max(0, Math.round(contentTop - cropPad))
-  const displayBleedBottom = spread ? 0 : Math.max(0, Math.round(stageHeight - contentBottom - cropPad))
+  const cropPad = Math.max(8, Math.round(stageWidth * (16 / 416)))
+  const displayBleedTop = Math.max(0, Math.round(contentTop - cropPad))
+  const displayBleedBottom = Math.max(0, Math.round(stageHeight - contentBottom - cropPad))
   const startPlaceDrag = (key: StackPlaceKey, event: ReactPointerEvent<HTMLElement>) => {
     if (!props.onPlace) return
     const target = event.target
@@ -886,11 +890,11 @@ export function WeddingStackedCouplePhotos(props: {
   }
   if (visible.length === 0) return null
   return (
-    <div className={cn('relative mx-auto w-full', spread ? 'max-w-full' : named ? (props.compact ? 'max-w-full' : 'max-w-[26rem]') : props.compact ? 'max-w-[13rem]' : 'max-w-[20rem]', props.className)}>
+    <div className={cn('relative mx-auto w-full', named ? (props.compact ? 'max-w-full' : 'max-w-[26rem]') : props.compact ? 'max-w-[13rem]' : 'max-w-[20rem]', props.className)}>
       {named ? <WeddingGuestNameFontLink /> : null}
       {both && named && firstSlot && secondSlot ? (
         <div>
-          <div className={spread ? 'px-3' : undefined}>
+          <div>
           <div ref={stageRef} className="relative w-full" style={{ height: stageHeight, marginTop: displayBleedTop ? -displayBleedTop : undefined, marginBottom: displayBleedBottom ? -displayBleedBottom : undefined }}>
             <div
               className={cn('absolute', props.onPlace && 'touch-none')}
@@ -909,7 +913,7 @@ export function WeddingStackedCouplePhotos(props: {
             <div
               className={cn('absolute [container-type:inline-size]', props.onPlace && 'cursor-grab touch-none')}
               data-wedding-text="groomName"
-              style={{ left: `${paintedNameLeft(place.stackGroomNameX, 'start', spread)}%`, top: `${place.stackGroomNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'groomName' ? 42 : 40 }}
+              style={{ left: `${paintedNameLeft(place.stackGroomNameX, 'start')}%`, top: `${place.stackGroomNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'groomName' ? 42 : 40 }}
               onPointerDown={(event) => startPlaceDrag('groomName', event)}
             >
               {props.onPlace ? <div className="absolute left-0 top-0 z-30 max-w-full">{moveChip('first', 'name')}</div> : null}
@@ -927,7 +931,7 @@ export function WeddingStackedCouplePhotos(props: {
             <div
               className={cn('absolute [container-type:inline-size]', props.onPlace && 'cursor-grab touch-none')}
               data-wedding-text="brideName"
-              style={{ left: `${paintedNameLeft(place.stackBrideNameX, 'end', spread)}%`, top: `${place.stackBrideNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'brideName' ? 42 : 40 }}
+              style={{ left: `${paintedNameLeft(place.stackBrideNameX, 'end')}%`, top: `${place.stackBrideNameY}%`, width: `${NAME_SLOT_PCT}%`, zIndex: lifted === 'brideName' ? 42 : 40 }}
               onPointerDown={(event) => startPlaceDrag('brideName', event)}
             >
               {props.onPlace ? <div className="absolute right-0 top-0 z-30 max-w-full">{moveChip('second', 'name')}</div> : null}

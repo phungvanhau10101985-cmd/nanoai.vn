@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 import { cn } from '@/lib/utils'
-import { buildCoverFrameHoleMask, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
+import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 import { getWeddingCoverPreset, type WeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
@@ -585,18 +585,22 @@ function CoverPhoto(props: {
   breathe?: boolean
   /** Ảnh vỏ hiện từ từ lúc thiệp mở, cùng nhịp tên bay vào. */
   openSlowly?: boolean
+  /** standard = ảnh thường, tall = ảnh vòm, fit = vỏ rút trong một màn. */
+  box?: 'standard' | 'tall' | 'fit'
 }) {
   if (!props.url.trim()) return null
   const objectPosition = props.objectPosition ?? '50% 50%'
   const scale = Math.max(1, Math.min(3, props.scale ?? 1))
   const boxScale = frameScaleOf(props.boxScale)
-  const photoHeight = props.compact ? '6rem' : 'clamp(11rem, 32dvh, 15rem)'
+  const photoBox = props.compact ? 'compact' : props.box ?? 'standard'
+  const photoHeight = photoBox === 'compact' ? '6rem' : 'var(--wedding-cover-photo-h, 15rem)'
   return (
     <div className="flex w-full justify-center">
     <div
+      data-cover-photo={photoBox}
       className={cn(
         'w-full shrink-0 overflow-hidden shadow-md ring-1 ring-black/5',
-        props.compact ? 'h-24 rounded-lg' : 'h-[clamp(11rem,32dvh,15rem)] rounded-2xl lg:h-[clamp(13rem,38dvh,17rem)]',
+        props.compact ? 'rounded-lg' : 'rounded-2xl',
         props.openSlowly && 'wedding-cover-photo-open',
         props.className,
       )}
@@ -653,7 +657,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
               url={props.coverPhotoUrl}
               alt={props.photoAlt}
               compact={compact}
-              className={props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : undefined}
+              box={props.fitViewport ? 'fit' : 'standard'}
               objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
               scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
               boxScale={props.frameScale}
@@ -674,22 +678,25 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
           </CoverPhotoPan>
         </FrameResizeChrome>
       ) : props.onPhotoFile ? (
+        <div data-cover-photo={compact ? 'compact' : 'standard'} className="mx-auto w-full">
         <CoverDevicePhotoControl
           label={props.choosePhotoLabel || ''}
           onFile={props.onPhotoFile}
           className={cn(
-            'mx-auto flex w-full rounded-xl border border-dashed border-white/50 bg-white/20 font-medium',
-            compact ? 'my-2 h-24 text-[11px]' : 'my-2 h-[clamp(11rem,32dvh,15rem)] text-sm sm:my-3',
+            'flex h-full w-full rounded-xl border border-dashed border-white/50 bg-white/20 font-medium',
+            compact ? 'my-2 text-[11px]' : 'my-2 text-sm sm:my-3',
             theme.text,
           )}
         />
+        </div>
       ) : props.onChoosePhoto ? (
         <button
           type="button"
           onClick={props.onChoosePhoto}
+          data-cover-photo={compact ? 'compact' : 'standard'}
           className={cn(
             'mx-auto flex w-full items-center justify-center rounded-xl border border-dashed border-white/50 bg-white/20 font-medium',
-            compact ? 'my-2 h-24 text-[11px]' : 'my-2 h-[clamp(11rem,32dvh,15rem)] text-sm sm:my-3',
+            compact ? 'my-2 text-[11px]' : 'my-2 text-sm sm:my-3',
             theme.text,
           )}
         >
@@ -782,7 +789,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
                 url={props.coverPhotoUrl}
                 alt={props.photoAlt}
                 compact={compact}
-                className={compact ? 'h-28' : props.fitViewport ? 'h-[clamp(7.5rem,24svh,12rem)]' : 'h-[clamp(12rem,34dvh,16rem)] lg:h-[clamp(14rem,40dvh,18rem)]'}
+                box={compact ? undefined : props.fitViewport ? 'fit' : 'tall'}
                 objectPosition={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).position}
                 scale={coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale).zoom}
                 boxScale={props.frameScale}
@@ -868,7 +875,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
   )
 }
 
-type CoverHoleMask = { url: string; box: CoverFrameHolePct; content: CoverFrameHolePct | null; aspect: number }
+type CoverHoleMask = { url: string; cutUrl: string; box: CoverFrameHolePct; content: CoverFrameHolePct | null; aspect: number }
 
 const coverHoleMaskCache = new Map<string, CoverHoleMask | null>()
 
@@ -884,18 +891,24 @@ function rasterizeCoverHoleMask(img: HTMLImageElement, hole: CoverFrameHolePct):
   if (!ctx) return null
   ctx.drawImage(img, 0, 0, width, height)
   const pixels = ctx.getImageData(0, 0, width, height)
+  const source = new Uint8ClampedArray(pixels.data)
   const mask: CoverFrameHoleMask | null = buildCoverFrameHoleMask(pixels.data, width, height, {
     x: ((hole.x + hole.w / 2) / 100) * width,
     y: ((hole.y + hole.h / 2) / 100) * height,
   })
   if (!mask) return null
+  const cut = ctx.createImageData(width, height)
+  cut.data.set(clearCoverFrameHole(source, mask.rgba))
+  ctx.putImageData(cut, 0, 0)
+  const cutUrl = canvas.toDataURL('image/png')
   const out = ctx.createImageData(width, height)
   out.data.set(mask.rgba)
   ctx.putImageData(out, 0, 0)
   return {
     url: canvas.toDataURL('image/png'),
+    cutUrl,
     box: mask.box,
-    content: measureCoverFrameContentBox(pixels.data, width, height),
+    content: measureCoverFrameContentBox(source, width, height),
     aspect: img.naturalWidth / Math.max(1, img.naturalHeight),
   }
 }
@@ -997,7 +1010,7 @@ function CoverFrameViewport(props: {
     : `${widthPercent}%`
   return (
     <div
-      className={cn('relative mx-auto overflow-hidden', props.className)}
+      className={cn('relative z-[12] mx-auto overflow-hidden', props.className)}
       style={{
         aspectRatio: String(aspect),
         width,
@@ -1150,7 +1163,7 @@ export function WeddingFramedPhoto(props: {
           ) : null}
         </div>
       </div>
-      <img src={props.frameSrc} alt="" crossOrigin="anonymous" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none" />
+      <img src={holeMask?.cutUrl || props.frameSrc} alt="" crossOrigin="anonymous" draggable={false} className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none" />
     </CoverFrameViewport>
   )
 }
@@ -1224,7 +1237,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       </div>
       {frame ? (
         <img
-          src={frame.src}
+          src={holeMask?.cutUrl || frame.src}
           alt=""
           crossOrigin="anonymous"
           draggable={false}
@@ -1397,7 +1410,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
               content={holeMask?.content}
               imageAspect={holeMask?.aspect}
               widthPercent={100}
-              maxHeight={props.fitViewport ? `min(${frameWidthPercent(32, frameScale)}svh, ${frameWidthPercent(16, frameScale)}rem)` : undefined}
+              maxHeight={props.fitViewport ? `${frameWidthPercent(16, frameScale)}rem` : undefined}
             >
               {frameArt}
             </CoverFrameViewport>

@@ -84,6 +84,7 @@ import { WeddingAiLibraryGrid, WeddingReferenceChoice } from '@/components/weddi
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingBackgroundPresetPicker } from '@/components/wedding/wedding-background-preset-picker'
 import { WeddingLiveDevicePreviews } from '@/components/wedding/wedding-live-device-preview'
+import { WeddingDesignScale } from '@/components/wedding/wedding-design-scale'
 import { weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
 import { applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiKitSectionPatch, weddingFramePatchForStyle, weddingKitSurface, weddingPairedFrameSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
@@ -530,6 +531,7 @@ export default function WeddingCardAiClientPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
+  const [invitationDevice, setInvitationDevice] = useState<'desktop' | 'mobile'>('desktop')
   const [letterAskOpen, setLetterAskOpen] = useState(false)
   const [previewBusy, setPreviewBusy] = useState(false)
   const previewBusyRef = useRef(false)
@@ -2784,7 +2786,6 @@ export default function WeddingCardAiClientPage() {
                 {coverBackgroundUrl ? (
                   <div className="relative overflow-hidden rounded-xl">
                     <img src={coverBackgroundUrl} alt="" className="max-h-40 w-full object-cover object-top" />
-                    <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} />
                     {readyBackground && readyBackground.ornaments.length > 0 ? (
                       <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
                         {tImage.readyBackgroundLayered}
@@ -2849,11 +2850,17 @@ export default function WeddingCardAiClientPage() {
                   />
                 )}
                 <div className="rounded-2xl border border-dashed p-4">
+                  <WeddingDesignScale device={invitationDevice}>
                   <div
-                    className={cn('relative -mx-6 flex min-h-[360px] w-[calc(100%+3rem)] items-center justify-center overflow-x-clip overflow-y-auto bg-cover bg-center p-0 sm:mx-0 sm:w-full sm:rounded-[1.5rem] sm:p-3', kitSurface.className)}
+                    data-wedding-stage=""
+                    className={cn('relative w-full overflow-x-clip bg-cover bg-center', kitSurface.className)}
                     style={{ ...weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.cover), ...kitSurface.style }}
                   >
-                    <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="z-20" />
+                    <div data-wedding-ornament-frame="">
+                      <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
+                    </div>
+                    <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center justify-start pb-4 pt-3', invitationDevice === 'desktop' ? 'px-4' : 'px-3')}>
+                      <div data-wedding-cover-column="" className={cn('mx-auto w-full', invitationDevice === 'desktop' ? 'max-w-[min(48rem,calc(100%-4rem))]' : 'max-w-[min(26rem,calc(100%-1.5rem))]')}>
                     <WeddingCoverShellCard
                       key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
                       presetId={coverPresetId}
@@ -2952,7 +2959,10 @@ export default function WeddingCardAiClientPage() {
                         setCoverClearOnSave(false)
                       }}
                     />
+                      </div>
+                    </div>
                   </div>
+                  </WeddingDesignScale>
                 </div>
                 {heroStack ? (
                   <p className="text-xs text-muted-foreground">{txCover.heroLayoutStackPhotoHint}</p>
@@ -3543,6 +3553,8 @@ export default function WeddingCardAiClientPage() {
                     letterView={previewLetterView}
                     editable
                     locale={uiLocale}
+                    device={invitationDevice}
+                    onDeviceChange={setInvitationDevice}
                     desktopLabel={tImage.previewDesktop}
                     mobileLabel={tImage.previewMobile}
                     coverLabel={tImage.previewCover}
@@ -3564,16 +3576,17 @@ export default function WeddingCardAiClientPage() {
                   />
                 )}
                 {card.slug ? null : (
-                <div className={cn('relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[1.65rem] border border-white/60 shadow-lg', kitSurface.className)} style={kitSurface.style}>
+                <div data-wedding-stage="" className={cn('relative mx-auto w-full max-w-[300px] overflow-hidden rounded-[1.65rem] border border-white/60 shadow-lg', kitSurface.className)} style={kitSurface.style}>
                   <div
                     aria-hidden
                     className="pointer-events-none absolute inset-0 bg-cover bg-center"
                     style={weddingBackgroundStyle(coverBackgroundUrl, selectedTheme, WEDDING_BG_OVERLAY.hero, { readingVignette: true })}
                   />
+                  <div data-wedding-ornament-frame="">
                   <WeddingOrnamentAdminLayer
                     ornaments={backgroundOrnaments}
                     editable
-                    className="z-[80]"
+                    className="absolute inset-0 z-[80]"
                     zoomInLabel={tImage.ornamentAdminZoomIn}
                     zoomOutLabel={tImage.ornamentAdminZoomOut}
                     blurLabel={tImage.ornamentAdminBlur}
@@ -3581,6 +3594,7 @@ export default function WeddingCardAiClientPage() {
                     deleteLabel={tImage.ornamentAdminDelete}
                     onChange={setOrnamentDraft}
                   />
+                  </div>
                     <div
                     className={cn(
                       'relative z-[1] px-3 py-3 text-center',
