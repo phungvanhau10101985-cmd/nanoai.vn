@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Download, ExternalLink, Eye, Heart, Loader2, MapPin, Pencil, Plus, QrCode, Sparkles, Trash2, Upload, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -78,6 +77,7 @@ import { resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
 import { getOrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
+import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer } from '@/components/wedding/wedding-ornament-admin'
 import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingAiLibraryGrid, WeddingReferenceChoice } from '@/components/wedding/wedding-ai-library-grid'
@@ -498,7 +498,6 @@ function cardWithAiBackgroundKit(
 }
 
 export default function WeddingCardAiClientPage() {
-  const router = useRouter()
   const { toast } = useToast()
   const [uiLocale, setUiLocale] = useState<WebLocale>(DEFAULT_WEB_LOCALE)
   const [card, setCard] = useState<WeddingCard>(() => emptyBrief())
@@ -853,12 +852,6 @@ export default function WeddingCardAiClientPage() {
       ? 'ai'
       : 'library'
     : shownCover.mode
-  const backgroundLink = useMemo(() => {
-    const imageUrl = masterImage?.imageUrl?.trim() || ''
-    if (!imageUrl) return null
-    const row = library.find((item) => item.imageUrl === imageUrl)
-    return { imageUrl, referenceImageUrl: row?.referenceImageUrl ?? '' }
-  }, [library, masterImage?.imageUrl])
   const frameLink = useMemo(() => {
     const imageUrl = (coverFrameMode === 'library' || coverFrameMode === 'ai' ? coverAiFrame?.src : '')?.trim() || ''
     if (!imageUrl) return null
@@ -866,7 +859,6 @@ export default function WeddingCardAiClientPage() {
     return { imageUrl, referenceImageUrl: row?.referenceImageUrl ?? '' }
   }, [coverAiFrame?.src, coverFrameMode, frameLibrary])
   const backgroundGroups = useMemo(() => splitLibraryByRecommendation(library, frameLink), [frameLink, library])
-  const frameGroups = useMemo(() => splitLibraryByRecommendation(frameLibrary, backgroundLink), [backgroundLink, frameLibrary])
   const coverPhotoOpen = resolveCoverPhotoOpen(sectionConfig)
   const coverFrameOpen = resolveCoverFrameOpen(sectionConfig)
   const openBurstEffect = resolveOpenBurstEffect(sectionConfig)

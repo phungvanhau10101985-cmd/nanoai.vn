@@ -172,7 +172,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
     })
   }
 
-  const useChosenVersion = (index: number, choice: 'agree' | 'reject') => {
+  const chooseVersion = (index: number, choice: 'agree' | 'reject') => {
     const stat = stats[index]
     const item = items[index]
     const edited = String(stat?.proposalText || '').trim()
@@ -397,7 +397,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                       <button
                         type="button"
                         disabled={stat.myVote === 'agree'}
-                        onClick={() => useChosenVersion(index, 'agree')}
+                        onClick={() => chooseVersion(index, 'agree')}
                         className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
                       >
                         {stat.myVote === 'agree'
@@ -407,7 +407,7 @@ export function LessonExampleReviewDialog({ markdown, slides, subjectId, curricu
                       <button
                         type="button"
                         disabled={stat.myVote === 'reject'}
-                        onClick={() => useChosenVersion(index, 'reject')}
+                        onClick={() => chooseVersion(index, 'reject')}
                         className="rounded-md border border-slate-500 px-3 py-1.5 text-sm text-slate-100 hover:bg-slate-800 disabled:opacity-50"
                       >
                         {stat.myVote === 'reject'

@@ -356,7 +356,7 @@ export default function WeddingPublicClient({
   const [musicLoadFailed, setMusicLoadFailed] = useState(false)
   const [musicFabPlaying, setMusicFabPlaying] = useState(false)
   const [guestName, setGuestName] = useState('')
-  const [attending, setAttending] = useState(() => seedParty(initialGuestRsvp).attending)
+  const [, setAttending] = useState(() => seedParty(initialGuestRsvp).attending)
   const [partyAdult, setPartyAdult] = useState(() => seedParty(initialGuestRsvp).adult)
   const [partyChild, setPartyChild] = useState(() => seedParty(initialGuestRsvp).child)
   const [partyModalOpen, setPartyModalOpen] = useState(false)

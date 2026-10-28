@@ -93,8 +93,6 @@ export default function ClassSubjectField({
       )
   }, [items, locale, query])
 
-  const typedExisting = directExistingClassSubject(items, query)
-
   async function pickExisting(item: SubjectOption) {
     if (item.choice) {
       setSaving(true)
