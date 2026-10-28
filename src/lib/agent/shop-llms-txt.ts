@@ -35,7 +35,7 @@ export function buildShopLlmsFullTxt(origin: string, host: string): string {
   const root = origin.replace(/\/$/, '')
   const name = shopDisplayNameFromHost(host)
   return `${buildShopLlmsTxt(root, host)}
-## Cách tác nhân dùng cửa hàng
+## Cách tác nhân dùng cửa hàng ${name}
 
 - Đọc [trang chủ](${root}/) để thấy danh mục và sản phẩm nổi bật.
 - Mở [một sản phẩm](${root}/products) từ liên kết trên thẻ; ảnh, tên, giá và mô tả nằm trên trang chi tiết.

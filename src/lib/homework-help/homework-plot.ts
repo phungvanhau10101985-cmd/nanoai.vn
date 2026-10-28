@@ -480,8 +480,8 @@ function yExtent(values: number[]): { y0: number; y1: number } {
   if (sorted.length === 0) return { y0: -4, y1: 4 }
   const lo = sorted[Math.floor((sorted.length - 1) * 0.04)] ?? sorted[0] ?? 0
   const hi = sorted[Math.ceil((sorted.length - 1) * 0.96)] ?? sorted[sorted.length - 1] ?? 0
-  let y0 = Math.min(lo, hi)
-  let y1 = Math.max(lo, hi)
+  const y0 = Math.min(lo, hi)
+  const y1 = Math.max(lo, hi)
   if (y1 - y0 < 1) {
     const mid = (y0 + y1) / 2
     return { y0: mid - 2, y1: mid + 2 }
