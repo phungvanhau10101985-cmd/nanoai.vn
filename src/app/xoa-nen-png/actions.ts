@@ -7,8 +7,12 @@ import { revalidatePath } from 'next/cache'
 import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { deductUserCredits } from '@/lib/music/deduct-user-credits'
-import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
-import { buildTransparentPngWithGeminiMask, REMOVE_BG_PNG_CREDIT } from '@/lib/remove-background-png'
+import { generateGptImage } from '@/lib/ai/gpt-image'
+import { stripBackground } from '@/lib/remove-background'
+import { REMOVE_BG_PNG_CREDIT } from '@/lib/remove-background-png-prompts'
+import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
+import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
+import sharp from 'sharp'
 
 const REMOVE_BG_COST = REMOVE_BG_PNG_CREDIT
 const toTenths = (value: number) => Math.round(value * 10)
@@ -49,19 +53,32 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
   })
   if (!historyItem) return { error: 'Không thể khởi tạo phiên xử lý.' }
 
-  const { apiKey } = await requireGoogleApiKeyForUser(user.id)
   const inputBuffer = Buffer.from(await image.arrayBuffer())
 
   try {
-    const transparentPngBuffer = await buildTransparentPngWithGeminiMask({
-      apiKey,
-      userId: user.id,
-      feature: 'xoa-nen-png',
-      imageBuffer: inputBuffer,
-      mimeType: image.type || 'image/png',
-      variant: 'product',
-      imageSize: '2K',
+    const bunnyReady = await ensureBunnyWritableBeforeImageModel()
+    if (!bunnyReady.ok) {
+      await deleteTryOnHistoryRowAndStorage(historyItem.id)
+      return { error: bunnyReady.error }
+    }
+    const generated = await generateGptImage({
+      prompt: [
+        'Use the attached photo as the exact source.',
+        'Keep the main subject unchanged: product, person, text, fur, and hair stay in place. Do not redraw or move it.',
+        'Replace only the plain background with one flat solid color #F4F1EA. No gradient, no shadow, no new scene, no border.',
+        'Do not cut a rectangle through the subject.',
+      ].join(' '),
+      quality: 'medium',
+      size: 'auto',
+      images: [{ bytes: inputBuffer, mimeType: image.type || 'image/png', filename: 'source.png' }],
     })
+    await trackFromUsageMetadata(generated.usage, generated.usage.logModel, 'xoa-nen-png', user.id, generated.usage.logImageSize)
+    const transparentPngBuffer = Buffer.from(await stripBackground(generated.buffer))
+    const { data, info } = await sharp(transparentPngBuffer).ensureAlpha().raw().toBuffer({ resolveWithObject: true })
+    let clear = 0
+    const count = info.width * info.height
+    for (let i = 3; i < data.length; i += 4) if (data[i] <= 16) clear += 1
+    if (count < 1 || clear / count < 0.01) throw new Error('GPT Image không tách được nền trong suốt.')
 
     const resultPath = `results/${user.id}/remove_bg_${Date.now()}.png`
     const { publicUrl: resultPublicUrl } = await uploadTryOnImagePublic(resultPath, transparentPngBuffer, {
@@ -94,7 +111,7 @@ export async function removeBackgroundToTransparentPng(formData: FormData) {
       return { error: msg }
     }
     if (/500|Internal Server Error|Internal error/i.test(msg)) {
-      return { error: 'Hệ thống quá tải. Bạn có thể chọn 2K hoặc thử lại sau ít phút.' }
+      return { error: 'Hệ thống quá tải. Thử lại sau ít phút.' }
     }
     return { error: `Xóa nền PNG thất bại: ${msg}` }
   }
