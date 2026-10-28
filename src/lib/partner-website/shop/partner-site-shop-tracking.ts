@@ -38,7 +38,7 @@ declare global {
     dataLayer?: unknown[]
     ttq?: {
       page?: () => void
-      track?: (event: string, params?: Record<string, unknown>) => void
+      track?: (event: string, params?: Record<string, unknown>, options?: { event_id?: string }) => void
     }
     __nanoShopGa4MeasurementId?: string
     __nanoShopGoogleAdsId?: string

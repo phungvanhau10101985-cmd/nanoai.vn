@@ -651,7 +651,8 @@ export async function buildPartnerAdSpendReport(creds: AdSpendCredentials, dateF
         return fresh
       })())
       google = await platformFromRows(true, loaded.rows, loaded.partial, true)
-      if ('purchaseError' in loaded && loaded.purchaseError) google = { ...google, error: loaded.purchaseError }
+      const purchaseError = 'purchaseError' in loaded && typeof loaded.purchaseError === 'string' ? loaded.purchaseError : ''
+      if (purchaseError) google = { ...google, error: purchaseError }
     } catch (error) {
       const message = error instanceof AdSpendApiError ? error.message : 'Không đọc được chi phí Google Ads.'
       google = emptyPlatform(true, explainGoogleAdsFailure(message))

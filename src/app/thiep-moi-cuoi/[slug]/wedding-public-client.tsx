@@ -457,12 +457,12 @@ export default function WeddingPublicClient({
           return
         }
         if (templateEditor || result.template) {
-          if (job.device === 'desktop') setSharedDesktopOrnaments(result.ornaments)
-          else setSharedMobileOrnaments(result.ornaments)
+          if (job.device === 'desktop') setSharedDesktopOrnaments(result.ornaments ?? null)
+          else setSharedMobileOrnaments(result.ornaments ?? null)
           if (job.device === 'desktop') setDesktopOrnaments(null)
           else setMobileOrnaments(null)
-        } else if (job.device === 'desktop') setDesktopOrnaments(result.ornaments)
-        else setMobileOrnaments(result.ornaments)
+        } else if (job.device === 'desktop') setDesktopOrnaments(result.ornaments ?? null)
+        else setMobileOrnaments(result.ornaments ?? null)
         if (ornamentDraftRef.current === job.ornaments) setOrnamentDraft(null)
         window.parent.postMessage(
           { type: 'wedding-ornament-saved', surface: editorStack, device: job.device, ornaments: result.ornaments },
@@ -637,19 +637,19 @@ export default function WeddingPublicClient({
         onRotate: frameLines
           ? (side: 'first' | 'second', degrees: number) => patchShell(side === 'first' ? { groomRotate: degrees } : { brideRotate: degrees })
           : undefined,
-        rotateLabel: tImage.stackFrameRotate,
-        rotateLeftLabel: tImage.stackFrameRotateLeft,
-        rotateRightLabel: tImage.stackFrameRotateRight,
-        moveLabel: tImage.dragPlace,
-        moveFrameLabel: tImage.stackMoveFrame,
-        moveNameLabel: tImage.stackMoveName,
+        rotateLabel: tCover.stackFrameRotate,
+        rotateLeftLabel: tCover.stackFrameRotateLeft,
+        rotateRightLabel: tCover.stackFrameRotateRight,
+        moveLabel: tCover.dragPlace,
+        moveFrameLabel: tCover.stackMoveFrame,
+        moveNameLabel: tCover.stackMoveName,
         frameScale: shellFrameScale,
         frameScaleEdit: frameLines
           ? {
               scale: shellFrameScale,
-              label: tImage.frameSizeLabel,
-              zoomOutLabel: tImage.coverPhotoZoomOut,
-              zoomInLabel: tImage.coverPhotoZoomIn,
+              label: tCover.frameSizeLabel,
+              zoomOutLabel: tCover.coverPhotoZoomOut,
+              zoomInLabel: tCover.coverPhotoZoomIn,
               onChange: (scale: number) => patchShell({ frameScale: scale }),
             }
           : undefined,
@@ -1527,17 +1527,19 @@ export default function WeddingPublicClient({
                             secondFrame: resolvePortraitPhotoFrame(sectionConfig, 'bride'),
                             firstCaption: tx.groomRole,
                             secondCaption: tx.brideRole,
-                            frameScale: shellFrameScale,
                             frameShell: groomShell ?? brideShell,
                             firstShell: groomShell,
                             secondShell: brideShell,
                             chooseFrameLabel: canPickFrame ? tCover.chooseFrame : undefined,
                             onChooseFirstFrame: canPickFrame ? () => setFramePick('groom') : undefined,
                             onChooseSecondFrame: canPickFrame ? () => setFramePick('bride') : undefined,
-                            place: shellPlace,
-                            firstRotate: shellGroomRotate,
-                            secondRotate: shellBrideRotate,
-                            ...(hostShell ?? {}),
+                            ...{
+                              frameScale: shellFrameScale,
+                              place: shellPlace,
+                              firstRotate: shellGroomRotate,
+                              secondRotate: shellBrideRotate,
+                              ...(hostShell ?? {}),
+                            },
                             firstNameStyle: textCss('groomName'),
                             secondNameStyle: textCss('brideName'),
                             onNamePress: hostEditor && frameLines ? (side) => pickText(side === 'first' ? 'groomName' : 'brideName') : undefined,
@@ -1634,17 +1636,19 @@ export default function WeddingPublicClient({
                 secondName={hostEditor ? brideDraft : card.brideName}
                 firstCaption={tx.groomRole}
                 secondCaption={tx.brideRole}
-                frameScale={shellFrameScale}
                 frameShell={groomShell ?? brideShell}
                 firstShell={groomShell}
                 secondShell={brideShell}
                 chooseFrameLabel={canPickFrame ? tCover.chooseFrame : undefined}
                 onChooseFirstFrame={canPickFrame ? () => setFramePick('groom') : undefined}
                 onChooseSecondFrame={canPickFrame ? () => setFramePick('bride') : undefined}
-                place={shellPlace}
-                firstRotate={shellGroomRotate}
-                secondRotate={shellBrideRotate}
-                {...(hostShell ?? {})}
+                {...{
+                  frameScale: shellFrameScale,
+                  place: shellPlace,
+                  firstRotate: shellGroomRotate,
+                  secondRotate: shellBrideRotate,
+                  ...(hostShell ?? {}),
+                }}
                 firstNameStyle={textCss('groomName')}
                 secondNameStyle={textCss('brideName')}
                 onNamePress={hostEditor && frameLines ? (side) => pickText(side === 'first' ? 'groomName' : 'brideName') : undefined}

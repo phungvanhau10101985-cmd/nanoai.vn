@@ -581,7 +581,7 @@ export function WeddingStackedCouplePhotos(props: {
     secondUrl || editing || props.showEmpty
       ? { side: 'second' as const, url: secondUrl, alt: props.secondAlt, frame: props.secondFrame ?? DEFAULT_FRAME, edit: props.secondEdit }
       : null,
-  ].filter((slot): slot is { side: 'first' | 'second'; url: string; alt: string; frame: WeddingAlbumPhotoFrame; edit?: WeddingStackedPhotoEdit } => Boolean(slot))
+  ].flatMap((slot) => (slot ? [slot] : []))
   const visible = slots.filter((slot) => slot.url || slot.edit || props.showEmpty)
   const showFirst = visible.some((slot) => slot.side === 'first')
   const showSecond = visible.some((slot) => slot.side === 'second')

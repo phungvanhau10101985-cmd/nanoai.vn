@@ -298,13 +298,14 @@ function parseExpression(source: string, variable: string): Expr | null {
   if (!prepared) return null
   const toks = tokenize(prepared, variable)
   if (!toks || toks.length === 0) return null
+  const tokens: Tok[] = toks
   let index = 0
-  const peek = () => toks[index]
+  const peek = () => tokens[index]
 
   function parseAdd(): Expr | null {
     let left = parseMul()
     if (!left) return null
-    while (index < toks.length) {
+    while (index < tokens.length) {
       const tok = peek()
       if (tok?.kind !== 'op' || (tok.op !== '+' && tok.op !== '-')) break
       index += 1
@@ -322,7 +323,7 @@ function parseExpression(source: string, variable: string): Expr | null {
   function parseMul(): Expr | null {
     let left = parseUnary()
     if (!left) return null
-    while (index < toks.length) {
+    while (index < tokens.length) {
       const tok = peek()
       if (tok?.kind === 'op' && (tok.op === '*' || tok.op === '/')) {
         index += 1

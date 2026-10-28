@@ -402,6 +402,8 @@ export default function TaoBaiThiClientPage({
     difficulty: string
     source: string
     verifiedAt: string | null
+    createdAt?: string
+    createdIn?: 'exam' | 'worksheet'
     topic: string
     preview: string
     problem: string

@@ -40,7 +40,7 @@ test('discardViewedProductSnapshots removes saved product html and leaves other 
 
 test('discardViewedProductSnapshots ignores storage that throws', () => {
   const storage: ViewedProductStorage = {
-    get length() {
+    get length(): number {
       throw new Error('The operation is insecure.')
     },
     key: () => {

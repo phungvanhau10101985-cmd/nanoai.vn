@@ -759,11 +759,7 @@ function FilmStrip(props: {
                   draggable={false}
                   className="pointer-events-none object-cover"
                   style={{
-                    position: 'absolute',
                     inset: 0,
-                    width: '100%',
-                    height: '100%',
-                    maxWidth: '100%',
                     maxHeight: '100%',
                     opacity: 1,
                     filter: 'saturate(1.12) brightness(1.05)',

@@ -20,7 +20,7 @@ import {
 } from '@/lib/wedding/wedding-background-ornament-store'
 import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
-import { runImageContent } from '@/lib/ai/gpt-image'
+import { runImageContent, type GeminiShaped } from '@/lib/ai/gpt-image'
 import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
@@ -721,13 +721,13 @@ export async function generateWeddingCardImage(formData: FormData) {
     referenceParts.filter(Boolean).forEach((part) => parts.push(part as object))
     const bunnyReady = await ensureBunnyWritableBeforeImageModel()
     if (!bunnyReady.ok) throw new Error(bunnyReady.error)
-    const genResult = await runImageContent({
+    const genResult = await runImageContent<GeminiShaped>({
       engine: 'gpt',
       gptQuality: priced.gptQuality,
       aspectRatio: WEDDING_BACKGROUND_ASPECT_RATIO,
       gptSize: WEDDING_GPT_BACKGROUND_SIZE,
       parts,
-      gemini: () => {
+      gemini: async () => {
         throw new Error('Nền thiệp chỉ tạo bằng GPT Image.')
       },
     })

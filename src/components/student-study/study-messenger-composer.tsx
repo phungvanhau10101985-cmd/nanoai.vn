@@ -8,6 +8,7 @@ import {
   type ClipboardEvent,
   type FocusEvent,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from 'react'
 import { ChevronRight, Loader2, Send, Smile, ThumbsUp } from 'lucide-react'
@@ -271,7 +272,7 @@ export function StudyMessengerComposer({
         )}
       >
         <textarea
-          ref={inputRef}
+          ref={inputRef as Ref<HTMLTextAreaElement>}
           id={id}
           rows={1}
           value={value}

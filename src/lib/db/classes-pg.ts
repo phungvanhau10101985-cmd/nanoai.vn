@@ -373,7 +373,7 @@ export async function fetchClassesAtSchoolPg(schoolId: string): Promise<SchoolCl
           id: String(r.id),
           name: String(r.name ?? '').trim(),
           grade_level_id: r.grade_level_id != null ? String(r.grade_level_id) : null,
-          choice: null as const,
+          choice: null,
         }))
         .filter((item) => item.id && item.name)
     } catch (fallbackError) {

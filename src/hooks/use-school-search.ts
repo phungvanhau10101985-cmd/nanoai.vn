@@ -9,7 +9,8 @@ function readSchoolHits(data: { items?: unknown }): SchoolSearchHit[] {
   return data.items
     .map((item) => {
       const row = item as { id?: unknown; name?: unknown; choice?: unknown }
-      const choice = row.choice === 'original' || row.choice === 'edited' ? row.choice : null
+      let choice: 'original' | 'edited' | null = null
+      if (row.choice === 'original' || row.choice === 'edited') choice = row.choice
       return { id: String(row.id ?? ''), name: String(row.name ?? '').trim(), choice }
     })
     .filter((item) => item.id.length > 0 && item.name.length > 0)

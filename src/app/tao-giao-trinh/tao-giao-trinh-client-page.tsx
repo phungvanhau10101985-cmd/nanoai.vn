@@ -3602,7 +3602,7 @@ export default function TaoGiaoTrinhClientPage({
             requested: row.count,
             created: 0,
             status: 'failed',
-            reason: creditStop ? insufficientCreditDescription(data) : String(data.error),
+            reason: creditStop ? insufficientCreditDescription(data) || String(data.error || '') : String(data.error),
           })
           if (creditStop) stopRest = true
           continue

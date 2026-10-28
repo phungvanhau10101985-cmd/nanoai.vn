@@ -99,6 +99,7 @@ import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-
 import {
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
+  type WeddingSectionConfig,
   resolveCoverAiFrame,
   remapAlbumPhotoCrops,
   resolveAlbumPhotoFrame,
@@ -1692,7 +1693,7 @@ export default function WeddingCardAiClientPage() {
           }
     setCard((prev) => ({
       ...prev,
-      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, patch),
+      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, patch as Partial<WeddingSectionConfig>),
     }))
     setPortraitFrameSide(null)
   }
@@ -1722,7 +1723,10 @@ export default function WeddingCardAiClientPage() {
           }
     setCard((prev) => ({
       ...prev,
-      sectionConfig: mergeWeddingSectionConfig(prev.sectionConfig, { ...sidePatch('groom'), ...sidePatch('bride') }),
+      sectionConfig: mergeWeddingSectionConfig(
+        prev.sectionConfig,
+        { ...sidePatch('groom'), ...sidePatch('bride') } as Partial<WeddingSectionConfig>,
+      ),
     }))
     setPortraitFrameSide(null)
   }
@@ -2140,6 +2144,9 @@ export default function WeddingCardAiClientPage() {
       frameLibrary: WeddingCoverFrameLibraryItem[]
       musicLibrary: WeddingMusicLibraryRow[]
       cards: WeddingCardSummary[]
+      ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
+      sharedFrames?: Record<string, WeddingSharedFrame>
+      ornamentAdmin?: boolean
     },
     options?: { restoreLocalDraft?: boolean },
   ) => {
@@ -2753,7 +2760,7 @@ export default function WeddingCardAiClientPage() {
             <div className="min-h-0 overflow-y-auto">
               <WeddingAiLibraryGrid
                 recommended={[]}
-                rest={referencePickKind === 'frame' ? frameLibrary : library}
+                rest={(referencePickKind === 'frame' ? frameLibrary : library) as { id: string; imageUrl: string }[]}
                 selectedUrl={referencePickKind === 'frame' ? styleReferenceUrl : frameReferenceUrl}
                 onSelect={(item) => {
                   if (referencePickKind === 'frame') pickStyleReferenceFromFrame(item.imageUrl)

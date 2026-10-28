@@ -194,8 +194,9 @@ export function ExamCreateQuestions({
         onError(typeof loaded?.error === 'string' ? loaded.error : labels.error)
         return
       }
-      const lessonTopics = Array.isArray(loaded.curriculum?.lesson_topics)
-        ? loaded.curriculum.lesson_topics.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+      const curriculum = loaded.curriculum as { lesson_topics?: unknown }
+      const lessonTopics = Array.isArray(curriculum.lesson_topics)
+        ? curriculum.lesson_topics.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
         : undefined
       for (const row of plan) {
         const res = await fetch('/api/worksheet-submit-job', {

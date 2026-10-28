@@ -114,7 +114,7 @@ class Parser {
       const op = (this.toks[this.i] as { s: '+' | '-' }).s
       this.i += 1
       const right = this.parseMul()
-      if (!right) return null
+      if (!right || !left) return null
       left = { op, a: left, b: right }
     }
     return left
@@ -130,7 +130,7 @@ class Parser {
         this.i += 1
       }
       const right = this.parsePow()
-      if (!right) return null
+      if (!right || !left) return null
       left = { op, a: left, b: right }
     }
     return left

@@ -5,7 +5,7 @@ import { homepageRecentKeys, personalizeHomepageGroups } from '@/lib/home-featur
 import { toolFeatureKey } from '@/lib/hub-chat/hub-feature-catalog'
 import { NAV_GROUPS } from '@/lib/nav-config'
 
-function hrefsOf(groups: { links: { href: string }[] }[]) {
+function hrefsOf(groups: ReadonlyArray<{ links: ReadonlyArray<{ href: string }> }>) {
   return groups.flatMap((group) => group.links.map((link) => link.href))
 }
 

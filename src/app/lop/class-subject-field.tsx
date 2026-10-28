@@ -185,6 +185,7 @@ export default function ClassSubjectField({
         id: String(data.item.id),
         labelVi: String(data.item.labelVi ?? name),
         labelEn: String(data.item.labelEn ?? data.item.labelVi ?? name),
+        choice: null,
       }
       setItems((prev) => (prev.some((item) => item.id === next.id) ? prev : [...prev, next]))
       onChange(next.id)

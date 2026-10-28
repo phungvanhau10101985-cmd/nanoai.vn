@@ -291,13 +291,13 @@ export default function GiaSuAiClient({ locale }: Props) {
     setError('')
     const compressed: File[] = []
     for (const file of picked) compressed.push(await compressEssayImageForUpload(file))
-    const ready = compressed.filter((file) => file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp')
-    if (!ready.length) {
+    const accepted = compressed.filter((file) => file.type === 'image/jpeg' || file.type === 'image/png' || file.type === 'image/webp')
+    if (!accepted.length) {
       setError(copy.errors.bad_type)
       return
     }
-    setFiles((current) => [...current, ...ready].slice(0, MAX_IMAGES))
-    setPreviews((current) => [...current, ...ready.map((file) => remember(URL.createObjectURL(file)))].slice(0, MAX_IMAGES))
+    setFiles((current) => [...current, ...accepted].slice(0, MAX_IMAGES))
+    setPreviews((current) => [...current, ...accepted.map((file) => remember(URL.createObjectURL(file)))].slice(0, MAX_IMAGES))
   }
 
   function removePhoto(index: number) {

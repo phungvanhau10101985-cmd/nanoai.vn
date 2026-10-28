@@ -189,7 +189,7 @@ export async function generateGptImage(opts: {
   }
 }
 
-type GeminiShaped = {
+export type GeminiShaped = {
   response: {
     usageMetadata: GptImageLoggedUsage
     candidates: Array<{ content: { parts: Array<{ inlineData: { data: string; mimeType: string } }> } }>
