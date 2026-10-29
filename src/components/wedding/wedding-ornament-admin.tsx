@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { RotateCcw, RotateCw, Trash2, ZoomIn, ZoomOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
-import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
+import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -38,6 +38,76 @@ function wrapRotate(value: number) {
   return next
 }
 
+type OrnamentView = { x: number; y: number; w: number; h: number }
+
+function isOrnamentView(value: unknown): value is OrnamentView {
+  if (!value || typeof value !== 'object') return false
+  const box = value as OrnamentView
+  return [box.x, box.y, box.w, box.h].every((part) => typeof part === 'number' && Number.isFinite(part) && part >= 0)
+}
+
+/** Hoa mới rơi vào khung đang nằm trên màn hình. Không có khung thì mé trên trang. */
+export function weddingOrnamentSpotOnPage(): { x: number; y: number; w: number } {
+  if (typeof document === 'undefined') return { x: 8, y: 8, w: 28 }
+  const view = { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
+  const frames = [...document.querySelectorAll<HTMLElement>('[data-wedding-ornament-frame]')]
+  let best: DOMRect | null = null
+  let bestArea = 0
+  for (const frame of frames) {
+    const box = frame.getBoundingClientRect()
+    const width = Math.max(0, Math.min(box.right, view.width) - Math.max(box.left, view.left))
+    const height = Math.max(0, Math.min(box.bottom, view.height) - Math.max(box.top, view.top))
+    const area = width * height
+    if (area > bestArea) {
+      best = box
+      bestArea = area
+    }
+  }
+  if (!best) return { x: 8, y: 8, w: 28 }
+  return weddingOrnamentSpotInView({
+    frame: { top: best.top, left: best.left, width: best.width, height: best.height },
+    view,
+  })
+}
+
+function OrnamentResetControl(props: {
+  show: boolean
+  saving: boolean
+  resetLabel: string
+  confirmLabel: string
+  cancelLabel: string
+  className: string
+  onReset: () => void
+}) {
+  const [confirming, setConfirming] = useState(false)
+  if (!props.show) return null
+  if (!confirming) {
+    return (
+      <button type="button" disabled={props.saving} className={props.className} onClick={() => setConfirming(true)}>
+        {props.resetLabel}
+      </button>
+    )
+  }
+  return (
+    <>
+      <button
+        type="button"
+        disabled={props.saving}
+        className={cn(props.className, 'bg-rose-700 font-semibold text-white')}
+        onClick={() => {
+          setConfirming(false)
+          props.onReset()
+        }}
+      >
+        {props.confirmLabel}
+      </button>
+      <button type="button" className={props.className} onClick={() => setConfirming(false)}>
+        {props.cancelLabel}
+      </button>
+    </>
+  )
+}
+
 export function WeddingOrnamentAdminLayer(props: {
   ornaments: readonly WeddingBackgroundOrnament[]
   editable?: boolean
@@ -48,19 +118,27 @@ export function WeddingOrnamentAdminLayer(props: {
   rotateRightLabel?: string
   blurLabel?: string
   fadeLabel?: string
+  stillLabel?: string
+  riseLabel?: string
   deleteLabel?: string
   frameLines?: boolean
   surface?: WeddingOrnamentSurface
   onChange?: (next: WeddingBackgroundOrnament[]) => void
 }) {
   const [selected, setSelected] = useState<number | null>(null)
+  const [risePreview, setRisePreview] = useState<number | null>(null)
   const [uiScale, setUiScale] = useState(1)
   const [compactFrame, setCompactFrame] = useState(() => typeof window !== 'undefined' && window.innerWidth < 800)
   const layerRef = useRef<HTMLDivElement>(null)
-  const ornamentsRef = useRef(props.ornaments)
+  const { shown } = useWeddingOrnamentRun(layerRef, props.ornaments)
+  const shownRef = useRef(shown)
+  shownRef.current = shown
+  const sourceRef = useRef(props.ornaments)
+  sourceRef.current = props.ornaments
+  const revealSeed = useRef<number | null>(null)
+  const revealView = useRef<OrnamentView | null>(null)
   const onChangeRef = useRef(props.onChange)
   const selectedRef = useRef<number | null>(null)
-  ornamentsRef.current = props.ornaments
   onChangeRef.current = props.onChange
 
   const choose = (index: number | null) => {
@@ -70,7 +148,7 @@ export function WeddingOrnamentAdminLayer(props: {
 
   useEffect(() => {
     if (!props.surface || !props.editable) return
-    const item = selected == null ? null : props.ornaments[selected]
+    const item = selected == null ? null : shownRef.current[selected]
     window.parent.postMessage(
       {
         type: 'wedding-ornament-selection',
@@ -105,14 +183,27 @@ export function WeddingOrnamentAdminLayer(props: {
     if (!props.surface || !props.editable) return
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
-      const data = event.data as { type?: string; surface?: string; action?: string; src?: string; delta?: number }
+      const data = event.data as { type?: string; surface?: string; action?: string; src?: string; delta?: number; view?: OrnamentView }
       if (!data || data.type !== 'wedding-ornament-command' || data.surface !== props.surface) return
-      const items = ornamentsRef.current
       const onChange = onChangeRef.current
       if (!onChange) return
+      const items = shownRef.current.map((item) => weddingOrnamentPlain(item))
       if (data.action === 'add' && typeof data.src === 'string') {
-        onChange([...items, { src: data.src, x: 8, y: 8, w: 28 }])
-        choose(items.length)
+        const source = sourceRef.current.map((item) => weddingOrnamentPlain(item))
+        const layer = layerRef.current
+        const bounds = layer?.getBoundingClientRect()
+        const view = isOrnamentView(data.view) ? data.view : null
+        const spot = bounds
+          ? weddingOrnamentSpotInView({
+              frame: { top: bounds.top, left: bounds.left, width: bounds.width, height: bounds.height },
+              view: view
+                ? { top: view.y, left: view.x, width: view.w, height: view.h }
+                : { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight },
+            })
+          : { x: 8, y: 8, w: 28 }
+        revealSeed.current = source.length
+        revealView.current = view
+        onChange([...source, { src: data.src, x: spot.x, y: spot.y, w: spot.w }])
         return
       }
       const index = selectedRef.current
@@ -131,6 +222,35 @@ export function WeddingOrnamentAdminLayer(props: {
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [props.editable, props.surface])
+
+  useEffect(() => {
+    const seed = revealSeed.current
+    if (seed == null) return
+    const layer = layerRef.current
+    if (!layer) return
+    const copies = [...layer.querySelectorAll<HTMLElement>('[data-ornament-seed]')].filter((node) => Number(node.dataset.ornamentSeed) === seed)
+    if (copies.length === 0) return
+    revealSeed.current = null
+    const seen = revealView.current
+    const viewTop = seen?.y ?? 0
+    const viewLeft = seen?.x ?? 0
+    const viewBottom = seen ? seen.y + seen.h : window.innerHeight
+    const viewRight = seen ? seen.x + seen.w : window.innerWidth
+    let best = copies[0]
+    let bestOverlap = -1
+    for (const node of copies) {
+      const box = node.getBoundingClientRect()
+      const overlap = Math.max(0, Math.min(box.bottom, viewBottom) - Math.max(box.top, viewTop))
+        * Math.max(0, Math.min(box.right, viewRight) - Math.max(box.left, viewLeft))
+      if (overlap > bestOverlap) {
+        best = node
+        bestOverlap = overlap
+      }
+    }
+    const index = Number(best.dataset.ornamentIndex)
+    if (Number.isFinite(index)) choose(index)
+    if (bestOverlap < 8) best.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [props.ornaments])
 
   useEffect(() => {
     const layer = layerRef.current
@@ -157,7 +277,7 @@ export function WeddingOrnamentAdminLayer(props: {
     if (!layer || !(stage instanceof HTMLElement)) return
     if (marked) marked.setAttribute('data-ornament-editing', '')
     const startDrag = (index: number, event: PointerEvent) => {
-      const items = ornamentsRef.current
+      const items = shownRef.current.map((entry) => weddingOrnamentPlain(entry))
       const item = items[index]
       const onChange = onChangeRef.current
       const bounds = layer.getBoundingClientRect()
@@ -171,7 +291,7 @@ export function WeddingOrnamentAdminLayer(props: {
       const move = (ev: PointerEvent) => {
         const dx = ((ev.clientX - startX) / bounds.width) * 100
         const dy = ((ev.clientY - startY) / bounds.height) * 100
-        const current = ornamentsRef.current
+        const current = shownRef.current.map((entry) => weddingOrnamentPlain(entry))
         if (!current[index]) return
         onChangeRef.current?.(
           current.map((entry, itemIndex) =>
@@ -230,13 +350,32 @@ export function WeddingOrnamentAdminLayer(props: {
     }
   }, [props.editable])
 
+  const motionKey = props.ornaments.map((item, index) => `${index}:${item.motion ?? ''}:${item.src}`).join('|')
+  useLayoutEffect(() => {
+    const root = layerRef.current
+    if (!root || !props.editable) return
+    return bindWeddingOrnamentRise(root, false)
+  }, [props.editable, motionKey])
+
   if (!props.editable) {
     return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} />
   }
   const update = (index: number, patch: Partial<WeddingBackgroundOrnament>) => {
-    props.onChange?.(props.ornaments.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
+    props.onChange?.(
+      shown.map((item) => weddingOrnamentPlain(item)).map((item, itemIndex) => {
+        if (itemIndex !== index) return item
+        const next = { ...item, ...patch }
+        if ('motion' in patch && next.motion !== 'rise') delete next.motion
+        return next
+      }),
+    )
   }
-  const picked = selected == null ? null : props.ornaments[selected] ?? null
+  const previewRise = (index: number) => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    setRisePreview(null)
+    requestAnimationFrame(() => setRisePreview(index))
+  }
+  const picked = selected == null ? null : shown[selected] ?? null
   const frameWidth = typeof window === 'undefined' ? (compactFrame ? 390 : 1440) : window.innerWidth
   const shownWidth = frameWidth * uiScale
   const target = compactFrame
@@ -246,16 +385,23 @@ export function WeddingOrnamentAdminLayer(props: {
   return (
     <>
     <div ref={layerRef} className={cn('pointer-events-none absolute inset-0 overflow-visible', props.className)} style={{ zIndex: 36 }}>
-      {props.ornaments.map((item, index) => {
+      {shown.map((item, index) => {
         const active = selected === index
         return (
           <div
-            key={`${item.src}-${index}`}
+            key={`${item.page}-${item.seed}-${index}-${item.src}`}
             data-ornament-hit=""
-            className="pointer-events-none absolute"
+            data-ornament-index={index}
+            data-ornament-seed={item.seed}
+            data-wedding-ornament-rise={weddingOrnamentRises(item) ? '' : undefined}
+            className={cn('pointer-events-none absolute', risePreview === index && 'wedding-ornament-rise-in')}
             style={{
               ...weddingOrnamentFrameStyle(item),
               zIndex: active ? 2 : 1,
+            }}
+            onAnimationEnd={(event) => {
+              if (event.animationName !== 'wedding-ornament-rise') return
+              setRisePreview((current) => (current === index ? null : current))
             }}
           >
             <img
@@ -305,7 +451,7 @@ export function WeddingOrnamentAdminLayer(props: {
                 aria-label={props.deleteLabel}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700"
                 onClick={() => {
-                  props.onChange?.(props.ornaments.filter((_, itemIndex) => itemIndex !== selected))
+                  props.onChange?.(shown.map((item) => weddingOrnamentPlain(item)).filter((_, itemIndex) => itemIndex !== selected))
                   choose(null)
                 }}
               >
@@ -336,6 +482,35 @@ export function WeddingOrnamentAdminLayer(props: {
                 update(selected, { fade: next || undefined })
               }}
             />
+            {props.stillLabel && props.riseLabel ? (
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  aria-pressed={!weddingOrnamentRises(picked)}
+                  className={cn(
+                    'min-h-8 flex-1 rounded-md border px-1 py-1 text-[11px] font-semibold leading-tight',
+                    weddingOrnamentRises(picked) ? 'bg-white' : 'border-rose-700 bg-rose-700 text-white',
+                  )}
+                  onClick={() => update(selected, { motion: undefined })}
+                >
+                  {props.stillLabel}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={weddingOrnamentRises(picked)}
+                  className={cn(
+                    'min-h-8 flex-1 rounded-md border px-1 py-1 text-[11px] font-semibold leading-tight',
+                    weddingOrnamentRises(picked) ? 'border-rose-700 bg-rose-700 text-white' : 'bg-white',
+                  )}
+                  onClick={() => {
+                    update(selected, { motion: 'rise' })
+                    previewRise(selected)
+                  }}
+                >
+                  {props.riseLabel}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -435,11 +610,13 @@ export function WeddingOrnamentAdminBar(props: {
   dirty?: boolean
   saving: boolean
   compact?: boolean
+  showReset?: boolean
   onAdd: (src: string) => void
   onSave?: () => void
   onReset: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
+  const tx = getDictionary(props.locale).weddingCardAiImage
   return (
     <div className={props.compact ? 'flex flex-wrap items-center gap-1' : 'mt-3 space-y-2 rounded-xl border border-dashed border-rose-200 bg-rose-50/60 p-2'} title={props.compact ? props.hint : undefined}>
       <p className={props.compact ? 'sr-only' : 'text-xs leading-relaxed text-rose-950'}>{props.hint}</p>
@@ -448,9 +625,15 @@ export function WeddingOrnamentAdminBar(props: {
           {props.addLabel}
         </button>
         <OrnamentPickerDialog locale={props.locale} open={pickerOpen} onOpenChange={setPickerOpen} onPick={props.onAdd} />
-        <button type="button" disabled={props.saving} className="h-8 rounded-md border bg-white px-3 text-xs" onClick={props.onReset}>
-          {props.resetLabel}
-        </button>
+        <OrnamentResetControl
+          show={props.showReset === true}
+          saving={props.saving}
+          resetLabel={props.resetLabel}
+          confirmLabel={tx.ornamentAdminResetConfirm}
+          cancelLabel={tx.ornamentAdminResetCancel}
+          className="h-8 rounded-md border bg-white px-3 text-xs"
+          onReset={props.onReset}
+        />
       </div>
     </div>
   )
@@ -460,6 +643,7 @@ export function WeddingOrnamentPreviewTools(props: {
   locale: WebLocale
   surface: WeddingOrnamentSurface
   frame: HTMLIFrameElement | null
+  showReset?: boolean
 }) {
   const tx = getDictionary(props.locale).weddingCardAiImage
   const { toast } = useToast()
@@ -498,11 +682,36 @@ export function WeddingOrnamentPreviewTools(props: {
     return () => window.removeEventListener('message', onMessage)
   }, [props.frame, props.surface])
 
-  const send = (command: { action: 'save' | 'reset' | 'delete' } | { action: 'add'; src: string } | { action: 'resize' | 'rotate'; delta: number }) => {
+  const send = (command: { action: 'save' | 'reset' | 'delete' } | { action: 'add'; src: string; view?: OrnamentView } | { action: 'resize' | 'rotate'; delta: number }) => {
     props.frame?.contentWindow?.postMessage(
       { type: 'wedding-ornament-command', surface: props.surface, ...command },
       window.location.origin,
     )
+  }
+
+  const visibleView = (): OrnamentView | undefined => {
+    const frame = props.frame
+    if (!frame) return undefined
+    const rect = frame.getBoundingClientRect()
+    const seen = weddingIframeVisibleView({
+      frameTop: rect.top,
+      frameLeft: rect.left,
+      frameWidth: rect.width,
+      frameHeight: rect.height,
+      layoutWidth: frame.offsetWidth,
+      layoutHeight: frame.offsetHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    })
+    if (seen) return seen
+    frame.scrollIntoView({ block: 'start', inline: 'nearest' })
+    const scale = rect.width > 1 && frame.offsetWidth > 1 ? rect.width / frame.offsetWidth : 1
+    return {
+      x: 0,
+      y: 0,
+      w: frame.offsetWidth,
+      h: Math.min(frame.offsetHeight, Math.max(240, window.innerHeight / scale)),
+    }
   }
 
   const addSrc = (src: string) => {
@@ -511,7 +720,7 @@ export function WeddingOrnamentPreviewTools(props: {
       toast({ title: tx.ornamentAdminFailed, description: tx.ornamentAdminPasteLink, variant: 'destructive' })
       return
     }
-    send({ action: 'add', src: value })
+    send({ action: 'add', src: value, view: visibleView() })
     setLink('')
     setPickerOpen(false)
   }
@@ -527,7 +736,7 @@ export function WeddingOrnamentPreviewTools(props: {
       toast({ title: tx.ornamentAdminFailed, variant: 'destructive' })
       return
     }
-    send({ action: 'add', src: result.url })
+    send({ action: 'add', src: result.url, view: visibleView() })
     setPickerOpen(false)
   }
 
@@ -580,9 +789,15 @@ export function WeddingOrnamentPreviewTools(props: {
         <button type="button" className={cn(toolClass, 'text-rose-700')} disabled={noSelection} onClick={() => send({ action: 'delete' })}>
           {tx.ornamentAdminDelete}
         </button>
-        <button type="button" className={toolClass} disabled={saving} onClick={() => send({ action: 'reset' })}>
-          {tx.ornamentAdminReset}
-        </button>
+        <OrnamentResetControl
+          show={props.showReset === true}
+          saving={saving}
+          resetLabel={tx.ornamentAdminReset}
+          confirmLabel={tx.ornamentAdminResetConfirm}
+          cancelLabel={tx.ornamentAdminResetCancel}
+          className={toolClass}
+          onReset={() => send({ action: 'reset' })}
+        />
       </div>
       <p className="text-[11px] leading-relaxed text-rose-950">{tx.ornamentAdminSelectFirst}</p>
     </div>

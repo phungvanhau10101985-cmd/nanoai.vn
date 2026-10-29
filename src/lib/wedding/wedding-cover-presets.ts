@@ -211,6 +211,77 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
     },
   },
   {
+    id: 'moc_portrait',
+    layout: 'composed',
+    compositionId: 'moc_portrait',
+    styleId: 'minimal',
+    ornament: '—',
+    thumbnail: {
+      topBg: '#fbf8f3',
+      bottomBg: '#fbf8f3',
+      accent: '#1f3d2b',
+      textClass: 'text-emerald-950',
+    },
+    label: {
+      vi: 'Khung mộc',
+      en: 'Wood-flower frame',
+      zh: '木花相框',
+      ja: '木の花の額',
+      ko: '나무꽃 액자',
+    },
+  },
+  {
+    id: 'to_duyen_xanh',
+    layout: 'frame',
+    styleId: 'minimal',
+    frame: {
+      src: '/wedding/covers/to-duyen-xanh-frame.webp',
+      hole: { x: 16.31, y: 13.15, w: 68.36, h: 73.31 },
+      panel: '#f7f6f2',
+      ink: 'dark',
+    },
+    ornament: '—',
+    thumbnail: {
+      topBg: '#f4f8f0',
+      bottomBg: '#fffcf8',
+      accent: '#5c6b40',
+      textClass: 'text-emerald-950',
+    },
+    label: {
+      vi: 'Tơ duyên xanh',
+      en: 'Sage calla',
+      zh: '青瓷马蹄莲',
+      ja: '青磁のカラー',
+      ko: '세이지 칼라',
+    },
+  },
+  {
+    id: 'do_dam',
+    layout: 'frame',
+    styleId: 'minimal',
+    tags: ['new'],
+    frame: {
+      src: '/wedding/covers/do-dam-frame.webp',
+      hole: { x: 12.11, y: 28.58, w: 75.78, h: 55.08 },
+      panel: '#f7f1ea',
+      ink: 'dark',
+    },
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#f7f1ea',
+      bottomBg: '#f7f1ea',
+      accent: '#5c1a28',
+      textClass: 'text-[#4a1e2c]',
+    },
+    label: {
+      vi: 'Khung viền mỏng',
+      en: 'Thin floral frame',
+      zh: '细线花框',
+      ja: '細い花枠',
+      ko: '얇은 꽃 프레임',
+    },
+  },
+  {
     id: 'red_photo_arch',
     layout: 'red_arch',
     styleId: 'traditional_vietnamese',
@@ -228,6 +299,27 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       zh: '红色情侣照',
       ja: '赤・カップル写真',
       ko: '레드 커플 사진',
+    },
+  },
+  {
+    id: 'linen_polaroid',
+    layout: 'composed',
+    compositionId: 'linen_polaroid',
+    styleId: 'ethereal',
+    tags: ['new'],
+    ornament: '&',
+    thumbnail: {
+      topBg: '#f7f2ea',
+      bottomBg: '#f7f2ea',
+      accent: '#8d7355',
+      textClass: 'text-stone-700',
+    },
+    label: {
+      vi: 'Polaroid dấu sáp',
+      en: 'Wax polaroid',
+      zh: '火漆拍立得',
+      ja: '封蝋のポラロイド',
+      ko: '실링 폴라로이드',
     },
   },
   {
@@ -271,4 +363,10 @@ export function getWeddingCoverPreset(id: string | null | undefined): WeddingCov
 
 export function labelForWeddingCoverPreset(locale: WebLocale, preset: WeddingCoverPreset): string {
   return preset.label[locale] ?? preset.label.vi
+}
+
+/** Khung đi theo nền: ảnh khung, hoặc bố cục ghép như polaroid. */
+export function weddingCoverPresetFollowsBackground(preset: WeddingCoverPreset | undefined): boolean {
+  if (!preset) return false
+  return Boolean(preset.frame) || preset.layout === 'composed'
 }

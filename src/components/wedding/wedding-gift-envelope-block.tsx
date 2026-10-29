@@ -21,9 +21,53 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { weddingGiftBoxLook, type WeddingGiftBoxLook, type WeddingGiftBoxMark } from '@/lib/wedding/wedding-gift-box-look'
 import { cn } from '@/lib/utils'
 
 type Tx = Dictionary['weddingGiftBox']
+
+function GiftMark(props: { mark: WeddingGiftBoxMark; seal: string }) {
+  if (props.mark === 'double-happiness') {
+    return <span className="select-none font-serif text-3xl font-bold drop-shadow-sm">{props.seal}</span>
+  }
+  const common = { viewBox: '0 0 32 32', className: 'h-10 w-10', 'aria-hidden': true as const }
+  if (props.mark === 'leaf') {
+    return (
+      <svg {...common}>
+        <path fill="currentColor" d="M7 23c3-9 9-15 18-17-3 9-8 15-16 18-1 0-2 0-2-1Z" />
+        <path d="M9 21c5-5 9-9 13-13" stroke="#fbf8f3" strokeWidth="1.15" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (props.mark === 'lotus') {
+    return (
+      <svg {...common}>
+        <path fill="currentColor" d="M16 26c-1-6-1-12 0-18 1 6 1 12 0 18Z" />
+        <path fill="currentColor" d="M16 24c-6-1-11-6-9-12 5 2 8 6 9 12Z" />
+        <path fill="currentColor" d="M16 24c6-1 11-6 9-12-5 2-8 6-9 12Z" />
+        <path fill="currentColor" d="M16 22c-3 0-7-4-6-9 3 1 5 4 6 9Z" opacity="0.85" />
+        <path fill="currentColor" d="M16 22c3 0 7-4 6-9-3 1-5 4-6 9Z" opacity="0.85" />
+      </svg>
+    )
+  }
+  if (props.mark === 'rose') {
+    return (
+      <svg {...common}>
+        <circle cx="16" cy="15" r="3" fill="currentColor" />
+        <path fill="currentColor" d="M16 12c3-4 8-3 8 1-3 1-6 1-8 2-2-1-5-1-8-2 0-4 5-5 8-1Z" />
+        <path fill="currentColor" d="M13 16c-4 2-5 7-2 9 2-3 3-6 5-8-1 0-2 0-3-1Z" />
+        <path fill="currentColor" d="M19 16c4 2 5 7 2 9-2-3-3-6-5-8 1 0 2 0 3-1Z" />
+        <path d="M16 20v7M16 24c-4 1-6 0-7-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common} fill="none">
+      <circle cx="16" cy="16" r="9" stroke="currentColor" strokeWidth="1.6" />
+      <circle cx="16" cy="16" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  )
+}
 
 async function downloadGiftQrPng(src: string, filename: string) {
   let href = src
@@ -57,10 +101,11 @@ type Props = {
   className?: string
   sideFilter?: 'groom' | 'bride' | null
   seal?: string
+  look?: WeddingGiftBoxLook
 }
 
 /** Hộp lì xì rung nhẹ; mở dialog hiển thị VietQR cô dâu / chú rể (hoặc ảnh QR cũ). */
-export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null, seal = '囍' }: Props) {
+export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = null, seal = '囍', look = weddingGiftBoxLook(null) }: Props) {
   const [open, setOpen] = useState(false)
   const [downloading, setDownloading] = useState<string | null>(null)
 
@@ -96,40 +141,45 @@ export function WeddingGiftEnvelopeBlock({ card, tx, className, sideFilter = nul
           className,
         )}
       >
-        <h2 className="font-serif text-lg font-semibold tracking-wide text-[#5c4033]">{tx.boxTitle}</h2>
+        <h2 className="font-serif text-lg font-semibold tracking-wide" style={{ color: look.title }}>{tx.boxTitle}</h2>
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label={tx.envelopeButtonAria}
-          className="group relative mt-5 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 sm:mt-6"
+          data-gift-look={look.id}
+          className="group relative mt-5 rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:mt-6"
+          style={{ ['--tw-ring-color' as string]: look.edge }}
         >
           <span
             className="pointer-events-none absolute -inset-6 rounded-3xl opacity-80 blur-2xl transition group-hover:opacity-100"
-            style={{
-              background:
-                'radial-gradient(ellipse at center, rgba(250,204,21,0.55) 0%, rgba(254,243,199,0.25) 45%, transparent 70%)',
-            }}
+            style={{ background: look.glow }}
             aria-hidden
           />
-          {/* xu trang trí */}
-          <span className="pointer-events-none absolute -left-8 top-4 h-10 w-10 rounded-full border-2 border-amber-600 bg-gradient-to-br from-amber-300 to-amber-500 shadow-md ring-2 ring-amber-800/20 [transform:rotate(-12deg)]" aria-hidden />
-          <span className="pointer-events-none absolute -right-6 bottom-8 h-9 w-9 rounded-full border-2 border-amber-600 bg-gradient-to-br from-amber-300 to-amber-500 shadow-md ring-2 ring-amber-800/15 [transform:rotate(18deg)]" aria-hidden />
-          <span className="pointer-events-none absolute left-2 -top-5 h-8 w-8 rounded-full border border-amber-700 bg-amber-400/90 opacity-90 [transform:rotate(8deg)]" aria-hidden />
+          {look.scatter !== 'none' ? (
+            <>
+              <span className="pointer-events-none absolute -left-8 top-4 h-10 w-10 rounded-full border-2 shadow-md [transform:rotate(-12deg)]" style={{ borderColor: look.coinEdge, backgroundImage: `linear-gradient(to bottom right, ${look.coinFrom}, ${look.coinTo})` }} aria-hidden />
+              <span className="pointer-events-none absolute -right-6 bottom-8 h-9 w-9 rounded-full border-2 shadow-md [transform:rotate(18deg)]" style={{ borderColor: look.coinEdge, backgroundImage: `linear-gradient(to bottom right, ${look.coinFrom}, ${look.coinTo})` }} aria-hidden />
+              <span className="pointer-events-none absolute left-2 -top-5 h-8 w-8 rounded-full border opacity-90 [transform:rotate(8deg)]" style={{ borderColor: look.coinEdge, backgroundImage: `linear-gradient(to bottom right, ${look.coinFrom}, ${look.coinTo})` }} aria-hidden />
+            </>
+          ) : null}
 
           <span
-            className="relative flex h-48 w-36 flex-col items-center justify-center rounded-xl border-2 border-amber-500/90 bg-gradient-to-b from-red-700 via-red-800 to-red-950 shadow-2xl animate-wedding-gift-wobble sm:h-52 sm:w-40 md:h-60 md:w-48"
-            style={{ boxShadow: '0 12px 40px rgba(185, 28, 28, 0.35), inset 0 1px 0 rgba(254, 249, 231, 0.12)' }}
+            className="relative flex h-48 w-36 flex-col items-center justify-center rounded-xl border-2 shadow-2xl animate-wedding-gift-wobble sm:h-52 sm:w-40 md:h-60 md:w-48"
+            style={{ background: look.box, borderColor: look.edge, boxShadow: look.shadow }}
           >
-            <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 border-l-2 border-t-2 border-amber-400/80" aria-hidden />
-            <span className="pointer-events-none absolute right-1 top-1 h-5 w-5 border-r-2 border-t-2 border-amber-400/80" aria-hidden />
-            <span className="pointer-events-none absolute bottom-1 left-1 h-5 w-5 border-b-2 border-l-2 border-amber-400/80" aria-hidden />
-            <span className="pointer-events-none absolute bottom-1 right-1 h-5 w-5 border-b-2 border-r-2 border-amber-400/80" aria-hidden />
-            <span className="flex h-[4.75rem] w-[4.75rem] shrink-0 items-center justify-center rounded-full border-[3px] border-amber-400 bg-gradient-to-br from-amber-200 via-amber-100 to-yellow-400 shadow-inner">
-              <span className="select-none font-serif text-3xl font-bold text-red-800 drop-shadow-sm">{seal}</span>
+            <span className="pointer-events-none absolute left-1 top-1 h-5 w-5 border-l-2 border-t-2" style={{ borderColor: look.corner }} aria-hidden />
+            <span className="pointer-events-none absolute right-1 top-1 h-5 w-5 border-r-2 border-t-2" style={{ borderColor: look.corner }} aria-hidden />
+            <span className="pointer-events-none absolute bottom-1 left-1 h-5 w-5 border-b-2 border-l-2" style={{ borderColor: look.corner }} aria-hidden />
+            <span className="pointer-events-none absolute bottom-1 right-1 h-5 w-5 border-b-2 border-r-2" style={{ borderColor: look.corner }} aria-hidden />
+            <span
+              className="flex h-[4.75rem] w-[4.75rem] shrink-0 items-center justify-center rounded-full border-[3px] shadow-inner"
+              style={{ background: look.sealPlate, borderColor: look.sealEdge, color: look.sealInk }}
+            >
+              <GiftMark mark={look.mark} seal={seal} />
             </span>
           </span>
         </button>
-        <p className="mt-4 text-sm text-muted-foreground">{tx.tapToOpen}</p>
+        <p className="mt-4 text-sm" style={{ color: look.title, opacity: 0.72 }}>{tx.tapToOpen}</p>
       </section>
 
       <Dialog open={open} onOpenChange={setOpen}>

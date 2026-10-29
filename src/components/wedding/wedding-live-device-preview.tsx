@@ -5,17 +5,25 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { WeddingOrnamentPreviewTools } from '@/components/wedding/wedding-ornament-admin'
 
 import { weddingDesignWidth, type WeddingDesignDevice } from '@/lib/wedding/wedding-design-viewport'
+import {
+  WEDDING_PREVIEW_LOOK_MESSAGE,
+  WEDDING_PREVIEW_READY_MESSAGE,
+  type WeddingPreviewLook,
+} from '@/lib/wedding/wedding-preview-look'
 
 function DeviceFrame(props: {
   title: string
   src: string
   width: number
   onFrame?: (frame: HTMLIFrameElement | null) => void
+  onLoad?: (frame: HTMLIFrameElement) => void
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const frameRef = useRef<HTMLIFrameElement | null>(null)
   const onFrameRef = useRef(props.onFrame)
+  const onLoadRef = useRef(props.onLoad)
   onFrameRef.current = props.onFrame
+  onLoadRef.current = props.onLoad
   const setFrameNode = useCallback((node: HTMLIFrameElement | null) => {
     frameRef.current = node
     onFrameRef.current?.(node)
@@ -57,13 +65,14 @@ function DeviceFrame(props: {
     if (!frame) return
     const read = () => {
       const doc = frame.contentDocument
-      if (!doc) return
+      const root = doc?.documentElement
+      if (!doc || !root) return
       const cover = doc.querySelector('[data-cover-preview]')
       const letter = doc.querySelector('main')
       const target = cover instanceof HTMLElement ? cover : letter instanceof HTMLElement ? letter : null
       const height = target
         ? Math.ceil(target.getBoundingClientRect().height)
-        : Math.max(doc.documentElement.scrollHeight, doc.body?.scrollHeight || 0)
+        : Math.max(root.scrollHeight, doc.body?.scrollHeight || 0)
       if (height > 240) setHeight((current) => (Math.abs(current - height) < 8 ? current : height))
     }
     read()
@@ -85,6 +94,7 @@ function DeviceFrame(props: {
           scrolling="no"
           className="absolute left-0 top-0 border-0 bg-white"
           style={{ width: props.width, height, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+          onLoad={(event) => onLoadRef.current?.(event.currentTarget)}
         />
       </div>
     </div>
@@ -103,11 +113,26 @@ export function WeddingLiveDevicePreviews(props: {
   letterLabel: string
   hint: string
   refreshLabel: string
+  /** Nền và giao diện cột trái đang chọn. Đổi thì cột phải áp ngay, không đợi tải lại trang. */
+  look: WeddingPreviewLook
+  lookToken: string
+  showReset?: boolean
 }) {
   const [revision, setRevision] = useState(0)
   const device: WeddingDesignDevice = 'mobile'
   const [coverFrame, setCoverFrame] = useState<HTMLIFrameElement | null>(null)
   const [letterFrame, setLetterFrame] = useState<HTMLIFrameElement | null>(null)
+  const lookRef = useRef(props.look)
+  lookRef.current = props.look
+  const postLook = useCallback((frame: HTMLIFrameElement | null) => {
+    const win = frame?.contentWindow
+    if (!win) return
+    try {
+      win.postMessage({ type: WEDDING_PREVIEW_LOOK_MESSAGE, ...lookRef.current }, window.location.origin)
+    } catch {
+      /* iframe chưa tới đúng origin thì lần sau gửi lại */
+    }
+  }, [])
   const venue = props.letterView === 'bride' ? 'bride_home' : 'groom_home'
   const query = new URLSearchParams({
     demo: '1',
@@ -128,9 +153,36 @@ export function WeddingLiveDevicePreviews(props: {
   const letterSrc = `/thiep-moi-cuoi/${encodeURIComponent(props.slug)}?${letterQuery.toString()}`
 
   useEffect(() => {
+    const send = () => {
+      postLook(coverFrame)
+      postLook(letterFrame)
+    }
+    send()
+    // Trang thiệp trong khung tải chậm hơn lần gửi đầu. Gửi lại cho tới khi bộ nghe bên trong đã áp nền.
+    const timers = [200, 700, 1500, 3000, 6000, 10000].map((ms) => window.setTimeout(send, ms))
+    return () => timers.forEach((timer) => window.clearTimeout(timer))
+  }, [coverFrame, letterFrame, postLook, props.lookToken])
+
+  useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
       const data = event.data as { type?: string; device?: string; ornaments?: unknown; cleared?: boolean }
+      if (data?.type === WEDDING_PREVIEW_READY_MESSAGE) {
+        const source = event.source as Window | null
+        let sourceFrame: Element | null = null
+        try {
+          sourceFrame = source?.frameElement ?? null
+        } catch {
+          sourceFrame = null
+        }
+        if (source === coverFrame?.contentWindow || sourceFrame === coverFrame) postLook(coverFrame)
+        else if (source === letterFrame?.contentWindow || sourceFrame === letterFrame) postLook(letterFrame)
+        else {
+          postLook(coverFrame)
+          postLook(letterFrame)
+        }
+        return
+      }
       if (data?.type !== 'wedding-ornament-saved') return
       const fromCover = event.source === coverFrame?.contentWindow
       const fromLetter = event.source === letterFrame?.contentWindow
@@ -143,7 +195,7 @@ export function WeddingLiveDevicePreviews(props: {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [coverFrame, letterFrame])
+  }, [coverFrame, letterFrame, postLook])
 
   return (
     <div className="space-y-3">
@@ -155,13 +207,13 @@ export function WeddingLiveDevicePreviews(props: {
       <p className="text-xs leading-relaxed text-muted-foreground">{props.hint}</p>
       <section className="space-y-2">
         <p className="text-sm font-semibold">{props.coverLabel}</p>
-        {props.editable ? <WeddingOrnamentPreviewTools locale={props.locale} surface="cover" frame={coverFrame} /> : null}
-        <DeviceFrame key={`cover-${device}`} title={`${props.coverLabel} · ${deviceLabel}`} src={coverSrc} width={width} onFrame={setCoverFrame} />
+        {props.editable ? <WeddingOrnamentPreviewTools locale={props.locale} surface="cover" frame={coverFrame} showReset={props.showReset} /> : null}
+        <DeviceFrame key={`cover-${device}`} title={`${props.coverLabel} · ${deviceLabel}`} src={coverSrc} width={width} onFrame={setCoverFrame} onLoad={postLook} />
       </section>
       <section className="space-y-2">
         <p className="text-sm font-semibold">{props.letterLabel}</p>
-        {props.editable ? <WeddingOrnamentPreviewTools locale={props.locale} surface="letter" frame={letterFrame} /> : null}
-        <DeviceFrame key={`letter-${device}`} title={`${props.letterLabel} · ${deviceLabel}`} src={letterSrc} width={width} onFrame={setLetterFrame} />
+        {props.editable ? <WeddingOrnamentPreviewTools locale={props.locale} surface="letter" frame={letterFrame} showReset={props.showReset} /> : null}
+        <DeviceFrame key={`letter-${device}`} title={`${props.letterLabel} · ${deviceLabel}`} src={letterSrc} width={width} onFrame={setLetterFrame} onLoad={postLook} />
       </section>
     </div>
   )

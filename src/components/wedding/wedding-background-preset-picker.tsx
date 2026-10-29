@@ -48,7 +48,7 @@ export function WeddingBackgroundPresetPicker(props: {
             >
               <span className="relative block h-28 overflow-hidden">
                 <img src={preset.plates[0]} alt="" className="h-full w-full object-cover object-top" />
-                <WeddingBackgroundOrnamentLayer ornaments={weddingOrnamentsForKey(preset.ornaments, props.ornamentLayouts ?? {}, `preset:${preset.id}`)} />
+                <WeddingBackgroundOrnamentLayer animateRise={false} ornaments={weddingOrnamentsForKey(preset.ornaments, props.ornamentLayouts ?? {}, `preset:${preset.id}`)} />
               </span>
               <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">
                 {labelForWeddingBackgroundPreset(props.locale, preset)}

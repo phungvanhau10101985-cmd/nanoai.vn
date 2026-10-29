@@ -1,4 +1,4 @@
-import { findWeddingBackgroundPreset, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { findWeddingBackgroundPreset, WEDDING_ORNAMENT_LIST_MAX, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import type { WebLocale } from '@/lib/i18n/config'
 
 export type WeddingOrnamentPiece = {
@@ -11,13 +11,45 @@ const PIECE = (file: string, label: Record<WebLocale, string>): WeddingOrnamentP
   label,
 })
 
-/** Ảnh hoa màu nước được phép gắn lên lớp nổi. Không nhận ảnh ngoài danh sách này. */
+/** Ảnh hoa trong kho được phép gắn lên lớp nổi. Không nhận ảnh ngoài danh sách này. */
 export const WEDDING_ORNAMENT_CATALOG: readonly WeddingOrnamentPiece[] = [
+  PIECE('gold-heart.png', { vi: 'Tim vàng', en: 'Gold heart', zh: '金心', ja: '金のハート', ko: '금색 하트' }),
+  PIECE('gold-heart-roses.png', { vi: 'Tim hoa hồng', en: 'Heart with roses', zh: '玫瑰金心', ja: 'バラのハート', ko: '장미 하트' }),
+  PIECE('gold-hearts.png', { vi: 'Hai tim vàng', en: 'Two gold hearts', zh: '双金心', ja: '二つの金のハート', ko: '금색 하트 두 개' }),
+  PIECE('gold-rose.png', { vi: 'Hoa hồng vàng', en: 'Gold rose', zh: '金玫瑰', ja: '金のバラ', ko: '금색 장미' }),
+  PIECE('gold-rose-stem.png', { vi: 'Hồng có cành', en: 'Rose on a stem', zh: '带茎金玫瑰', ja: '茎つきの金のバラ', ko: '줄기 달린 금색 장미' }),
+  PIECE('gold-rose-bud.png', { vi: 'Nụ hồng vàng', en: 'Gold rosebud', zh: '金玫瑰苞', ja: '金のつぼみ', ko: '금색 장미 봉오리' }),
+  PIECE('gold-leaf.png', { vi: 'Lá vàng', en: 'Gold leaf', zh: '金叶', ja: '金の葉', ko: '금색 잎' }),
+  PIECE('gold-leaf-sprig.png', { vi: 'Cành lá vàng', en: 'Gold leaf sprig', zh: '金叶枝', ja: '金の葉枝', ko: '금색 잎가지' }),
+  PIECE('gold-vine.png', { vi: 'Dây lá vàng', en: 'Gold vine', zh: '金藤', ja: '金のつる', ko: '금색 덩굴' }),
+  PIECE('gold-blossom.png', { vi: 'Hoa năm cánh', en: 'Gold blossom', zh: '金花', ja: '金の花', ko: '금색 꽃' }),
+  PIECE('gold-peony.png', { vi: 'Mẫu đơn vàng', en: 'Gold peony', zh: '金牡丹', ja: '金の牡丹', ko: '금색 모란' }),
+  PIECE('gold-flower-cluster.png', { vi: 'Chùm hoa vàng', en: 'Gold flower cluster', zh: '金花束', ja: '金の花束', ko: '금색 꽃다발' }),
+  PIECE('dried-sprig.png', { vi: 'Cành hoa khô', en: 'Dried sprig', zh: '干花枝', ja: 'ドライフラワー', ko: '드라이 플라ワー' }),
+  PIECE('dried-gyp-left.png', { vi: 'Baby nghiêng trái', en: 'Baby breath, left', zh: '左倾满天星', ja: '左向きカスミソウ', ko: '왼쪽 안개꽃' }),
+  PIECE('dried-gyp-right.png', { vi: 'Baby nghiêng phải', en: 'Baby breath, right', zh: '右倾满天星', ja: '右向きカスミソウ', ko: '오른쪽 안개꽃' }),
+  PIECE('dried-gyp-tall.png', { vi: 'Baby cao', en: 'Tall baby breath', zh: '高枝满天星', ja: '高いカスミソウ', ko: '긴 안개꽃' }),
+  PIECE('dried-gyp-blush.png', { vi: 'Baby hồng phấn', en: 'Blush baby breath', zh: '粉满天星', ja: '淡いピンクのカスミソウ', ko: '분홍 안개꽃' }),
+  PIECE('dried-gyp-tape.png', { vi: 'Baby dán băng', en: 'Taped baby breath', zh: '胶带满天星', ja: 'テープ付きカスミソウ', ko: '테이프 안개꽃' }),
+  PIECE('dried-gyp-cloud.png', { vi: 'Bụi baby trắng', en: 'White baby breath cloud', zh: '白满天星团', ja: '白いカスミソウの房', ko: '하얀 안개꽃 뭉치' }),
+  PIECE('dried-gyp-buds.png', { vi: 'Baby nụ', en: 'Baby breath buds', zh: '满天星花苞', ja: 'カスミソウのつぼみ', ko: '안개꽃 봉오리' }),
+  PIECE('dried-straw.png', { vi: 'Hoa khô cam', en: 'Dried strawflowers', zh: '干麦秆菊', ja: '乾いたムギワラギク', ko: '말린 밀짚꽃' }),
+  PIECE('dried-gyp-arch.png', { vi: 'Baby cong', en: 'Arched baby breath', zh: '弧形满天星', ja: '弧を描くカスミソウ', ko: '휘어진 안개꽃' }),
+  PIECE('dried-gyp-pair.png', { vi: 'Hai cành baby', en: 'Two baby breath stems', zh: '两枝满天星', ja: '二本のカスミソウ', ko: '안개꽃 두 줄기' }),
   PIECE('garden-leaves.png', { vi: 'Lá vườn', en: 'Garden leaves', zh: '庭园叶', ja: '庭の葉', ko: '정원 잎' }),
   PIECE('garden-bloom.png', { vi: 'Hoa vườn', en: 'Garden bloom', zh: '庭园花', ja: '庭の花', ko: '정원 꽃' }),
   PIECE('garden-petal.png', { vi: 'Cánh hoa', en: 'Petal', zh: '花瓣', ja: '花びら', ko: '꽃잎' }),
+  PIECE('moc-bloom.png', { vi: 'Mộc hoa trắng', en: 'White gardenia', zh: '白栀子', ja: '白いクチナシ', ko: '흰 치자' }),
+  PIECE('moc-leaf.png', { vi: 'Cành lá mộc', en: 'Wood-leaf branch', zh: '木叶枝', ja: '木の葉枝', ko: '나뭇잎 가지' }),
+  PIECE('moc-sprig.png', { vi: 'Nhài trắng', en: 'White jasmine', zh: '白茉莉', ja: '白いジャスミン', ko: '흰 자스민' }),
+  PIECE('calla-stem.png', { vi: 'Hoa rum có lá', en: 'Calla with leaf', zh: '马蹄莲带叶', ja: '葉つきカラー', ko: '잎 달린 칼라' }),
+  PIECE('calla-bloom.png', { vi: 'Hoa rum trắng', en: 'White calla', zh: '白马蹄莲', ja: '白いカラー', ko: '흰 칼라' }),
+  PIECE('mist-sprig.png', { vi: 'Baby trắng', en: 'White baby breath', zh: '白满天星', ja: '白いカスミソウ', ko: '흰 안개꽃' }),
   PIECE('peony-bloom.png', { vi: 'Mẫu đơn', en: 'Peony', zh: '牡丹', ja: '牡丹', ko: '모란' }),
   PIECE('peony-leaf.png', { vi: 'Lá mẫu đơn', en: 'Peony leaf', zh: '牡丹叶', ja: '牡丹の葉', ko: '모란 잎' }),
+  PIECE('do-dam-peony.png', { vi: 'Mẫu đơn đỏ rượu', en: 'Burgundy peony', zh: '酒红牡丹', ja: 'ワイン色の牡丹', ko: '버건디 모란' }),
+  PIECE('do-dam-rose.png', { vi: 'Hồng kem', en: 'Cream rose', zh: '奶油玫瑰', ja: 'クリームのバラ', ko: '크림 장미' }),
+  PIECE('do-dam-stem.png', { vi: 'Baby rượu', en: 'Burgundy baby breath', zh: '酒红满天星', ja: 'ワイン色のカスミソウ', ko: '버건디 안개꽃' }),
   PIECE('scarlet-sprig.png', { vi: 'Cành đỏ', en: 'Scarlet sprig', zh: '红枝', ja: '赤い枝', ko: '붉은 가지' }),
   PIECE('lotus-bloom.png', { vi: 'Sen', en: 'Lotus', zh: '莲花', ja: '蓮', ko: '연꽃' }),
   PIECE('lotus-leaf.png', { vi: 'Lá sen', en: 'Lotus leaf', zh: '莲叶', ja: '蓮の葉', ko: '연잎' }),
@@ -142,7 +174,7 @@ function round1(value: number): number {
 
 /** null khi danh sách không hợp lệ. Mảng rỗng là quản trị đã xóa hết hoa. */
 export function parseWeddingOrnamentList(value: unknown): WeddingBackgroundOrnament[] | null {
-  if (!Array.isArray(value) || value.length > 24) return null
+  if (!Array.isArray(value) || value.length > WEDDING_ORNAMENT_LIST_MAX) return null
   const items: WeddingBackgroundOrnament[] = []
   for (const raw of value) {
     if (!raw || typeof raw !== 'object') return null
@@ -177,6 +209,10 @@ export function parseWeddingOrnamentList(value: unknown): WeddingBackgroundOrnam
       if (fade > 0) item.fade = round1(fade)
     }
     if (record.anchor === 'bottom') item.anchor = 'bottom'
+    if (record.motion != null && record.motion !== '' && record.motion !== 'still') {
+      if (record.motion !== 'rise') return null
+      item.motion = 'rise'
+    }
     items.push(item)
   }
   return items

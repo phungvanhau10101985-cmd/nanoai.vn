@@ -3907,6 +3907,8 @@ export type Dictionary = {
     ornamentAdminZoomIn: string
     ornamentAdminZoomOut: string
     ornamentAdminReset: string
+    ornamentAdminResetConfirm: string
+    ornamentAdminResetCancel: string
     ornamentAdminFailed: string
     ornamentAdminOnDevice: string
     ornamentTemplateHint: string
@@ -3917,6 +3919,8 @@ export type Dictionary = {
     ornamentAdminRotateRight: string
     ornamentAdminBlur: string
     ornamentAdminFade: string
+    ornamentAdminMotionStill: string
+    ornamentAdminMotionRise: string
     textStyleSize: string
     textStyleFont: string
     textStyleColor: string
@@ -8364,8 +8368,8 @@ export const VI_DICTIONARY: Dictionary = {
     backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn nền có sẵn, ảnh trong kho, hoặc tạo nền mới.',
     readyBackgroundHeading: 'Nền có sẵn',
     readyBackgroundHint: 'Chọn một bộ là đổi luôn nền, khung, hoa nổi, màu nút, màu chữ, nền chữ và kiểu chữ. Chọn sẵn không trừ credit.',
-    readyBackgroundLocked: 'Khung vỏ, khung ảnh cô dâu chú rể, màu nút, màu chữ, nền chữ và kiểu chữ đi theo bộ nền này.',
-    ornamentAdminHint: 'Kéo để dời. Phóng, thu, xoay, làm mờ, làm nhạt màu hoặc xóa. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
+    readyBackgroundLocked: 'Khung vỏ, khung ảnh, bố cục ảnh, màu nút, màu chữ, nền chữ và kiểu chữ đi theo bộ nền này.',
+    ornamentAdminHint: 'Kéo để dời. Phóng, thu, xoay, làm mờ, làm nhạt màu, đứng im hoặc lên khi lướt, hoặc xóa. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
     ornamentAdminAdd: 'Thêm hoa',
     ornamentAdminSave: 'Lưu hoa văn',
     ornamentAdminSaved: 'Đã lưu hoa văn vào thiệp này.',
@@ -8373,6 +8377,8 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentAdminZoomIn: 'Phóng to',
     ornamentAdminZoomOut: 'Thu nhỏ',
     ornamentAdminReset: 'Về hoa mặc định',
+    ornamentAdminResetConfirm: 'Xác nhận',
+    ornamentAdminResetCancel: 'Hủy',
     ornamentAdminFailed: 'Chưa lưu được lớp hoa.',
     ornamentAdminOnDevice: 'Đang xem kiểu {device}. Điện thoại và desktop dùng cùng một bố cục.',
     ornamentTemplateHint: 'Hoa và vỏ vừa sửa thành mẫu cho khách khác. Khách đã tự sửa thì giữ bản của họ. Tên, ngày và địa chỉ chỉ lưu trên thiệp này.',
@@ -8383,6 +8389,8 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentAdminRotateRight: 'Xoay phải',
     ornamentAdminBlur: 'Làm mờ',
     ornamentAdminFade: 'Làm nhạt màu',
+    ornamentAdminMotionStill: 'Đứng im',
+    ornamentAdminMotionRise: 'Lên khi lướt',
     textStyleSize: 'Cỡ chữ',
     textStyleFont: 'Kiểu chữ',
     textStyleColor: 'Màu chữ',
@@ -8398,8 +8406,8 @@ export const VI_DICTIONARY: Dictionary = {
     previewMobile: 'Điện thoại',
     previewCover: 'Vỏ thiệp',
     previewLetter: 'Nội dung thiệp',
-    previewDeviceHint: 'Preview là bản điện thoại. Desktop hiện cùng bố cục này. Sửa hoa văn tới đâu tự lưu tới đó.',
-    previewColumnNote: 'Xem thử chỉ sửa hoa văn. Sửa tới đâu tự lưu vào thiệp này tới đó. Xem thật hiện đúng bản đã lưu.',
+    previewDeviceHint: 'Preview là bản điện thoại. Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu tới đó.',
+    previewColumnNote: 'Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu vào thiệp này tới đó.',
     previewRefresh: 'Cập nhật preview',
     readyBackgroundOne: 'Một ảnh nền',
     readyBackgroundSet: 'Bộ {n} ảnh nền',

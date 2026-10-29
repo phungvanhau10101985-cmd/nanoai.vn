@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -36,18 +36,20 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
+import { weddingGiftBoxLook } from '@/lib/wedding/wedding-gift-box-look'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer } from '@/components/wedding/wedding-ornament-admin'
+import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage } from '@/components/wedding/wedding-ornament-admin'
 import { resetWeddingCardOrnaments, saveWeddingCardOrnaments, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
-import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingKitSurface, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
-import { WeddingFrameChoiceGrid, weddingFrameSelectionKey, weddingSharedFrameFromChoice, type WeddingFrameChoice, type WeddingFrameLibraryTile } from '@/components/wedding/wedding-frame-choice-grid'
 import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import {
   parseWeddingSectionConfig,
@@ -71,9 +73,7 @@ import {
   resolveDeviceStackRotate,
   withDeviceShell,
   withoutPrivateShell,
-  clearWeddingFrameChoice,
   mergeWeddingSectionConfig,
-  readHeroPhotoLayout,
   type WeddingDeviceShell,
   type WeddingTextRole,
 } from '@/lib/wedding/wedding-section-config'
@@ -142,6 +142,38 @@ function WeddingSideWishGroup({
           <p className={cn('mt-1 whitespace-pre-line text-sm leading-6', theme.mutedText, theme.textGlow)}>{wish.message}</p>
         </div>
       ))}
+    </div>
+  )
+}
+
+/** Ô sửa nằm đè lên chữ khách đang hiện. Chiều khối không đổi, nên hoa văn không trượt khi bật nét khung. */
+function WeddingGuestTextSlot(props: {
+  editing: boolean
+  draft: string
+  ariaLabel: string
+  textKey: string
+  onFocus: () => void
+  onChange: (value: string) => void
+  className: string
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  return (
+    <div className="relative">
+      <p className={cn(props.className, props.editing && 'invisible')} style={props.style} aria-hidden={props.editing || undefined}>
+        {props.children}
+      </p>
+      {props.editing ? (
+        <textarea
+          aria-label={props.ariaLabel}
+          data-wedding-text={props.textKey}
+          value={props.draft}
+          onFocus={props.onFocus}
+          onChange={(event) => props.onChange(event.target.value)}
+          style={{ ...props.style, outline: '1px dashed rgb(251 113 133)' }}
+          className={cn(props.className, 'absolute inset-0 z-[1] !m-0 h-auto w-full resize-none overflow-hidden border-0 bg-transparent p-0')}
+        />
+      ) : null}
     </div>
   )
 }
@@ -221,7 +253,6 @@ export default function WeddingPublicClient({
   templateEditor = false,
   sharedShell = null,
   initialSharedFrame = null,
-  frameLibrary = [],
   layoutPreview = false,
   editorStack,
   hostPreview = false,
@@ -246,7 +277,6 @@ export default function WeddingPublicClient({
   templateEditor?: boolean
   sharedShell?: { desktop?: WeddingDeviceShell | null; mobile?: WeddingDeviceShell | null } | null
   initialSharedFrame?: WeddingSharedFrame | null
-  frameLibrary?: WeddingFrameLibraryTile[]
   layoutPreview?: boolean
   editorStack?: 'cover' | 'letter'
   hostPreview?: boolean
@@ -271,10 +301,12 @@ export default function WeddingPublicClient({
     () => applyInvitationOccasionPublicCopy(getDictionary(uiLocale).weddingCardPublic, card.occasionKey, uiLocale),
     [card.occasionKey, uiLocale],
   )
-  const pageBackground = (backgroundPlateUrls[0] || card.masterImageUrl || '').trim()
   const editSide = initialLetterView === 'bride' ? 'bride' : 'groom'
   const initialInvite = resolveGuestInviteLocation(card, editSide === 'bride' ? 'bride_home' : 'groom_home')
   const [sectionRaw, setSectionRaw] = useState(card.sectionConfig)
+  const [previewPlates, setPreviewPlates] = useState<string[] | null>(null)
+  const [previewStyleId, setPreviewStyleId] = useState<string | null>(null)
+  const [previewLookOn, setPreviewLookOn] = useState(false)
   const [sharedFrame, setSharedFrame] = useState<WeddingSharedFrame | null>(initialSharedFrame)
   const pendingSharedFrameRef = useRef<{ frame: WeddingSharedFrame | null; side: 'cover' | 'groom' | 'bride' } | null>(null)
   const [groomDraft, setGroomDraft] = useState(card.groomName)
@@ -287,18 +319,21 @@ export default function WeddingPublicClient({
   const [dateDraft, setDateDraft] = useState(initialInvite.weddingDate ?? '')
   const [previewTick, setPreviewTick] = useState(0)
   const previewKindRef = useRef<'text' | 'shell' | 'frame' | 'both' | null>(null)
-  const [framePick, setFramePick] = useState<'groom' | 'bride' | 'cover' | null>(null)
   const [textPick, setTextPick] = useState<WeddingTextRole | null>(null)
   const [viewDevice, setViewDevice] = useState<'desktop' | 'mobile'>('mobile')
+  const displayedSectionRaw = previewLookOn || hostEditor || ornamentEditor ? sectionRaw : card.sectionConfig
   const sectionConfig = useMemo(
-    () => parseWeddingSectionConfig(hostEditor || ornamentEditor ? sectionRaw : card.sectionConfig),
-    [card.sectionConfig, hostEditor, ornamentEditor, sectionRaw],
+    () => parseWeddingSectionConfig(displayedSectionRaw),
+    [displayedSectionRaw],
   )
+  const plateUrls = previewPlates ?? backgroundPlateUrls
+  const pageBackground = (plateUrls[0] || (previewLookOn ? '' : card.masterImageUrl) || '').trim()
   const readyBackground = resolveWeddingChromeKit(sectionConfig)
   const kitSurface = weddingKitSurface(readyBackground)
+  const themeStyleId = readyBackground?.look.styleId || previewStyleId || card.selectedStyleId
   const theme = useMemo(
-    () => applyWeddingKitTheme(getWeddingTheme(readyBackground?.look.styleId ?? card.selectedStyleId), readyBackground),
-    [card.selectedStyleId, readyBackground],
+    () => applyWeddingKitTheme(getWeddingTheme(themeStyleId), readyBackground),
+    [readyBackground, themeStyleId],
   )
   const contentSurface = pageBackground
     ? { background: 'transparent' }
@@ -307,7 +342,7 @@ export default function WeddingPublicClient({
   const kitFrameId = pairedAiFrame ? undefined : readyBackground?.coverPresetId
   const groomShell = resolveShownPortraitShell(sectionConfig, 'groom', kitFrameId, pairedAiFrame ? null : sharedFrame)
   const brideShell = resolveShownPortraitShell(sectionConfig, 'bride', kitFrameId, pairedAiFrame ? null : sharedFrame)
-  const styleColors = weddingFramePatchForStyle(readyBackground?.look.styleId ?? card.selectedStyleId)
+  const styleColors = weddingFramePatchForStyle(themeStyleId)
   const buttonColor = useMemo(
     () => resolveWeddingButtonColor(readyBackground?.look.buttonColorId ?? styleColors.buttonColorId),
     [readyBackground, styleColors.buttonColorId],
@@ -319,7 +354,7 @@ export default function WeddingPublicClient({
   const buttonFill = useMemo(() => bindWeddingButtonFill(buttonColor), [buttonColor])
   const rsvpFill = useMemo(() => bindWeddingButtonFill(coverRsvpColor), [coverRsvpColor])
   const heroStack =
-    invitationOccasionShape(card.occasionKey) === 'couple' && readHeroPhotoLayout(sectionConfig.heroPhotoLayout) === 'stack'
+    invitationOccasionShape(card.occasionKey) === 'couple' && weddingHeroPhotoLayout(readyBackground) === 'stack'
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, pairedAiFrame ? null : sharedFrame)
   const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const coverAiFrame = pairedAiFrame ?? shownCover.library ?? null
@@ -383,14 +418,15 @@ export default function WeddingPublicClient({
   const [sharedShellDraft, setSharedShellDraft] = useState(sharedShell)
   const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('mobile')
   const [frameLines, setFrameLines] = useState(true)
-  const canPickFrame = ornamentEditor && frameLines && (hostEditor || layoutPreview)
+  const [lookOrnaments, setLookOrnaments] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentSaving, setOrnamentSaving] = useState(false)
   const savedSheet = mobileOrnaments ?? desktopOrnaments
   const sharedSheet = sharedMobileOrnaments ?? sharedDesktopOrnaments
-  const backgroundOrnaments = templateEditor
-    ? ornamentDraft ?? sharedSheet ?? ornamentOverride ?? readyBackground?.ornaments ?? []
-    : ornamentDraft ?? savedSheet ?? sharedSheet ?? ornamentOverride ?? readyBackground?.ornaments ?? []
+  const savedOrnaments = templateEditor ? sharedSheet : savedSheet ?? sharedSheet
+  const backgroundOrnaments = previewLookOn
+    ? ornamentDraft ?? lookOrnaments ?? savedOrnaments ?? ornamentOverride ?? readyBackground?.ornaments ?? []
+    : ornamentDraft ?? savedOrnaments ?? lookOrnaments ?? ornamentOverride ?? readyBackground?.ornaments ?? []
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
   const ornamentDraftRef = useRef(ornamentDraft)
@@ -399,7 +435,7 @@ export default function WeddingPublicClient({
   const ornamentEpochRef = useRef(0)
   ornamentDraftRef.current = ornamentDraft
   const resetOrnaments = async () => {
-    if (!ornamentLayoutKey || ornamentSaving) return
+    if (templateEditor || !ornamentLayoutKey || ornamentSaving) return
     ornamentEpochRef.current += 1
     ornamentQueueRef.current = null
     setOrnamentSaving(true)
@@ -422,7 +458,9 @@ export default function WeddingPublicClient({
     )
   }
   const resetOrnamentsRef = useRef(resetOrnaments)
+  const templateEditorRef = useRef(templateEditor)
   resetOrnamentsRef.current = resetOrnaments
+  templateEditorRef.current = templateEditor
   useEffect(() => {
     if (!ornamentEditor || !ornamentDraft) return
     const snapshot = ornamentDraft
@@ -494,6 +532,7 @@ export default function WeddingPublicClient({
       }
       if (!data) return
       if (data.type === 'wedding-ornament-command' && editorStack && data.surface === editorStack && data.action === 'reset') {
+        if (templateEditorRef.current) return
         void resetOrnamentsRef.current()
       }
       if (data.type !== 'wedding-ornament-apply' || ornamentDraftRef.current) return
@@ -510,6 +549,63 @@ export default function WeddingPublicClient({
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [editorStack, ornamentEditor])
+  const shownSectionRef = useRef(sectionConfig)
+  const pageBackgroundRef = useRef(pageBackground)
+  const previewLookTokenRef = useRef('')
+  const previewLookOnRef = useRef(false)
+  shownSectionRef.current = sectionConfig
+  pageBackgroundRef.current = pageBackground
+  previewLookOnRef.current = previewLookOn
+  previewLookTokenRef.current = weddingPreviewLookToken({
+    sectionConfig: displayedSectionRaw,
+    selectedStyleId: previewStyleId ?? card.selectedStyleId,
+    plateUrls,
+    ornamentKey: weddingOrnamentLayoutKey({
+      backgroundPresetId: sectionConfig.backgroundPresetId,
+      masterImageUrl: pageBackground,
+    }),
+    sharedFrame,
+  })
+  useEffect(() => {
+    if (!layoutPreview || window.parent === window) return
+    const applyLook = (data: unknown) => {
+      const look = readWeddingPreviewLook(data)
+      if (!look) return
+      const currentKey = weddingOrnamentLayoutKey({
+        backgroundPresetId: shownSectionRef.current.backgroundPresetId,
+        masterImageUrl: pageBackgroundRef.current,
+      })
+      if (previewLookOnRef.current && weddingPreviewLookToken(look) === previewLookTokenRef.current) return
+      setPreviewLookOn(true)
+      setSectionRaw(look.sectionConfig)
+      setPreviewPlates(look.plateUrls.length > 0 ? look.plateUrls : [])
+      setPreviewStyleId(look.selectedStyleId)
+      setLookOrnaments(look.ornaments)
+      if (look.ornamentKey !== currentKey) {
+        setOrnamentDraft(null)
+        setDesktopOrnaments(null)
+        setMobileOrnaments(null)
+        setSharedDesktopOrnaments(null)
+        setSharedMobileOrnaments(null)
+        setSharedShellDraft(null)
+      }
+      setSharedFrame(look.sharedFrame)
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== window.parent) return
+      applyLook(event.data)
+    }
+    window.addEventListener('message', onMessage)
+    const ping = () => {
+      window.parent.postMessage({ type: WEDDING_PREVIEW_READY_MESSAGE, surface: editorStack ?? '' }, window.location.origin)
+    }
+    ping()
+    const timers = [200, 800, 2000, 4500, 8000].map((ms) => window.setTimeout(ping, ms))
+    return () => {
+      window.removeEventListener('message', onMessage)
+      timers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [editorStack, layoutPreview])
   const scrollTimer = useRef<number | null>(null)
   const openedAtRef = useRef(0)
   const frameLinesRef = useRef(frameLines)
@@ -536,20 +632,6 @@ export default function WeddingPublicClient({
     const current = previewKindRef.current
     previewKindRef.current = !current || current === kind ? kind : 'both'
     setPreviewTick((tick) => tick + 1)
-  }
-  const writeFrameChoice = (side: 'groom' | 'bride' | 'cover', choice: WeddingFrameChoice) => {
-    if (templateEditor) {
-      const frame = weddingSharedFrameFromChoice(choice)
-      pendingSharedFrameRef.current = { frame, side }
-      setSharedFrame(frame)
-      setSectionRaw((current) => clearWeddingFrameChoice(current, side))
-      markPreview('frame')
-      setFramePick(null)
-      return
-    }
-    setSectionRaw((current) => applyPrivateFrameChoice(current, side, choice))
-    markPreview('frame')
-    setFramePick(null)
   }
   const patchShell = (patch: WeddingDeviceShell) => {
     if (templateEditor) {
@@ -1380,10 +1462,7 @@ export default function WeddingPublicClient({
               className={frameLines ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
               onClick={() => {
                 setFrameLines((shown) => {
-                  if (shown) {
-                    setFramePick(null)
-                    setTextPick(null)
-                  }
+                  if (shown) setTextPick(null)
                   return !shown
                 })
               }}
@@ -1400,7 +1479,11 @@ export default function WeddingPublicClient({
               resetLabel={tImage.ornamentAdminReset}
               dirty={ornamentDraft != null}
               saving={ornamentSaving}
-              onAdd={(src) => setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: 8, y: 6, w: 28 }])}
+              showReset={!templateEditor}
+              onAdd={(src) => {
+                const spot = weddingOrnamentSpotOnPage()
+                setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: spot.x, y: spot.y, w: spot.w }])
+              }}
               onReset={() => void resetOrnaments()}
             />
             ) : null}
@@ -1427,7 +1510,7 @@ export default function WeddingPublicClient({
                 className="relative mx-auto w-full overflow-x-clip bg-cover bg-center"
                 style={{
                   ...weddingBackgroundStyle(
-                    guestInviteLocation.coverImageUrl || pageBackground,
+                    (previewLookOn ? '' : guestInviteLocation.coverImageUrl) || pageBackground,
                     theme,
                     WEDDING_BG_OVERLAY.cover,
                     { readingVignette: true },
@@ -1451,6 +1534,8 @@ export default function WeddingPublicClient({
                   rotateRightLabel={tImage.ornamentAdminRotateRight}
                   blurLabel={tImage.ornamentAdminBlur}
                   fadeLabel={tImage.ornamentAdminFade}
+                  stillLabel={tImage.ornamentAdminMotionStill}
+                  riseLabel={tImage.ornamentAdminMotionRise}
                   deleteLabel={tImage.ornamentAdminDelete}
                   frameLines={frameLines}
                   onChange={setOrnamentDraft}
@@ -1471,8 +1556,6 @@ export default function WeddingPublicClient({
                     presetId={coverPresetId}
                     aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
                     frameMode={coverFrameMode}
-                    chooseFrameLabel={canPickFrame ? tCover.chooseFrame : undefined}
-                    onChooseFrame={canPickFrame ? () => setFramePick('cover') : undefined}
                     photoOpen={coverPhotoOpen}
                     frameOpen={coverFrameOpen}
                     openMotion={card.effectsEnabled}
@@ -1511,9 +1594,6 @@ export default function WeddingPublicClient({
                             frameShell: groomShell ?? brideShell,
                             firstShell: groomShell,
                             secondShell: brideShell,
-                            chooseFrameLabel: canPickFrame ? tCover.chooseFrame : undefined,
-                            onChooseFirstFrame: canPickFrame ? () => setFramePick('groom') : undefined,
-                            onChooseSecondFrame: canPickFrame ? () => setFramePick('bride') : undefined,
                             ...{
                               frameScale: shellFrameScale,
                               place: shellPlace,
@@ -1576,7 +1656,7 @@ export default function WeddingPublicClient({
         <FittedCoverFrame active={!layoutPreview} designWidth={coverDesignWidth} backgroundColor="transparent" flow>
         {opened ? (
           <WeddingScrollingBackground
-            urls={backgroundPlateUrls.length > 0 ? backgroundPlateUrls : pageBackground ? [pageBackground] : []}
+            urls={plateUrls.length > 0 ? plateUrls : pageBackground ? [pageBackground] : []}
             fallbackColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
           />
         ) : null}
@@ -1592,7 +1672,11 @@ export default function WeddingPublicClient({
               resetLabel={tImage.ornamentAdminReset}
               dirty={ornamentDraft != null}
               saving={ornamentSaving}
-              onAdd={(src) => setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: 8, y: 6, w: 28 }])}
+              showReset={!templateEditor}
+              onAdd={(src) => {
+                const spot = weddingOrnamentSpotOnPage()
+                setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: spot.x, y: spot.y, w: spot.w }])
+              }}
               onReset={() => void resetOrnaments()}
             />
           </div>
@@ -1622,9 +1706,6 @@ export default function WeddingPublicClient({
                 frameShell={groomShell ?? brideShell}
                 firstShell={groomShell}
                 secondShell={brideShell}
-                chooseFrameLabel={canPickFrame ? tCover.chooseFrame : undefined}
-                onChooseFirstFrame={canPickFrame ? () => setFramePick('groom') : undefined}
-                onChooseSecondFrame={canPickFrame ? () => setFramePick('bride') : undefined}
                 {...{
                   frameScale: shellFrameScale,
                   place: shellPlace,
@@ -1662,8 +1743,6 @@ export default function WeddingPublicClient({
                   presetId={coverPresetId}
                   aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
                   frameMode={coverFrameMode}
-                  chooseFrameLabel={canPickFrame ? tCover.chooseFrame : undefined}
-                  onChooseFrame={canPickFrame ? () => setFramePick('cover') : undefined}
                   coverPhotoUrl={displayCoverPhotoUrl}
                   coverPhotoObjectPosition={coverPhotoObjectPosition}
                   coverPhotoScale={coverPhotoScale}
@@ -1823,19 +1902,16 @@ export default function WeddingPublicClient({
             ) : null}
             <WeddingReadableGlass id="story" reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.coupleIntroTitle}</p>
-              {hostEditor && frameLines ? (
-                <textarea
-                  aria-label={tx.coupleIntroTitle}
-                  data-wedding-text="intro"
-                  value={introDraft}
-                  onFocus={() => pickText('intro')}
-                  onChange={(event) => editCopy('intro', event.target.value)}
-                  rows={4}
-                  style={textCss('intro')}
-                  className="mt-5 w-full rounded-xl border border-dashed border-rose-300 bg-white/80 px-3 py-2 text-sm leading-7 text-stone-900"
-                />
-              ) : (
-              <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)} style={textCss('intro')}>
+              <WeddingGuestTextSlot
+                editing={Boolean(hostEditor && frameLines)}
+                draft={introDraft}
+                ariaLabel={tx.coupleIntroTitle}
+                textKey="intro"
+                onFocus={() => pickText('intro')}
+                onChange={(value) => editCopy('intro', value)}
+                style={textCss('intro')}
+                className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}
+              >
                 {renderWeddingHighlightedText(
                   withoutPartyAddress(hostEditor ? introDraft : card.coupleIntro) || withoutPartyAddress(hostEditor ? storyDraft : card.storyText) || tx.defaultCoupleIntro,
                   textTokens,
@@ -1843,8 +1919,7 @@ export default function WeddingPublicClient({
                   nameHighlightClass,
                   guestNameScriptClass,
                 )}
-              </p>
-              )}
+              </WeddingGuestTextSlot>
             </WeddingReadableGlass>
             {card.albumImageUrls.length > 0 && (
               <WeddingSectionCard theme={theme} title={tx.albumTitle} className="relative z-[100] min-w-0" contentClassName="min-w-0 -mx-1 sm:-mx-2">
@@ -1937,10 +2012,12 @@ export default function WeddingPublicClient({
                           className="mt-5"
                           items={timeline.map((item, index) => {
                             const content = weddingTimelineItemContent(item)
+                            const plain = content ? personalize(content) : ''
                             return {
                               key: `${side}-${item.time}-${index}`,
                               time: item.time,
-                              content: content ? writeGuestName(personalize(content)) : null,
+                              label: plain,
+                              content: plain ? writeGuestName(plain) : null,
                             }
                           })}
                           panelClassName={theme.panelStrong}
@@ -1976,8 +2053,13 @@ export default function WeddingPublicClient({
                   {tx.dateFallback} · {guestInviteLocation.displayTime || weddingDisplayTime || tx.timeFallback}
                 </p>
               )}
+              <div className="relative mt-4">
+              <p className={cn('flex items-start justify-center gap-2 text-center text-sm leading-6 sm:text-base', theme.mutedText, theme.textGlow)} style={textCss('event')}>
+                <MapPin className={cn('mt-0.5 h-5 w-5 shrink-0', theme.accent)} />
+                <span>{displayVenue}</span>
+              </p>
               {hostEditor && frameLines ? (
-                <div className="mx-auto mt-4 grid max-w-md gap-2 text-left">
+                <div className="absolute inset-x-0 top-0 z-[80] mx-auto grid max-w-md gap-2 rounded-xl bg-white/95 p-2 text-left shadow-lg">
                   <input
                     aria-label={tx.dateFallback}
                     data-wedding-text="event"
@@ -2008,12 +2090,8 @@ export default function WeddingPublicClient({
                     className="rounded-xl border border-dashed border-rose-300 bg-white/80 px-3 py-2 text-sm text-stone-900"
                   />
                 </div>
-              ) : (
-              <p className={cn('mt-4 flex items-start justify-center gap-2 text-center text-sm leading-6 sm:text-base', theme.mutedText, theme.textGlow)} style={textCss('event')}>
-                <MapPin className={cn('mt-0.5 h-5 w-5 shrink-0', theme.accent)} />
-                <span>{displayVenue}</span>
-              </p>
-              )}
+              ) : null}
+              </div>
               {guestInviteLocation.contact ? (
                 <p className={cn('mt-3 text-sm', theme.mutedText, theme.textGlow)}>
                   {tx.contactLabel}: {guestInviteLocation.contact}
@@ -2059,10 +2137,12 @@ export default function WeddingPublicClient({
                 <WeddingTimelineList
                   items={displayTimeline.map((item, index) => {
                     const content = weddingTimelineItemContent(item)
+                    const plain = content ? personalize(content) : ''
                     return {
                       key: `${item.time}-${item.title}-${index}`,
                       time: item.time,
-                      content: content ? writeGuestName(personalize(content)) : null,
+                      label: plain,
+                      content: plain ? writeGuestName(plain) : null,
                     }
                   })}
                   panelClassName={theme.panelStrong}
@@ -2089,14 +2169,15 @@ export default function WeddingPublicClient({
 
         {shouldShowPublicGiftBoxForSide(card, guestInviteLocation.side) && (
           <div
-            className="border-y border-amber-200/50 bg-cover bg-center"
-            style={contentSurface}
+            className="border-y bg-cover bg-center"
+            style={{ ...contentSurface, borderColor: weddingGiftBoxLook(readyBackground?.id).band }}
           >
             <WeddingGiftEnvelopeBlock
               card={card}
               tx={txGift}
               sideFilter={guestInviteLocation.side}
               seal={invitationSeal(card.occasionKey)}
+              look={weddingGiftBoxLook(readyBackground?.id)}
             />
           </div>
         )}
@@ -2106,26 +2187,22 @@ export default function WeddingPublicClient({
           style={contentSurface}
         >
           <div className={PUBLIC_COLUMN}>
-          {((hostEditor && frameLines) || (withoutPartyAddress(hostEditor ? storyDraft : card.storyText) && withoutPartyAddress(hostEditor ? storyDraft : card.storyText).trim() !== withoutPartyAddress(hostEditor ? introDraft : card.coupleIntro).trim())) && (
+          {withoutPartyAddress(hostEditor ? storyDraft : card.storyText).trim() !== '' && withoutPartyAddress(hostEditor ? storyDraft : card.storyText).trim() !== withoutPartyAddress(hostEditor ? introDraft : card.coupleIntro).trim() ? (
             <WeddingSectionCard theme={theme} title={tx.storyTitle}>
-              {hostEditor && frameLines ? (
-                <textarea
-                  aria-label={tx.storyTitle}
-                  data-wedding-text="story"
-                  value={storyDraft}
-                  onFocus={() => pickText('story')}
-                  onChange={(event) => editCopy('story', event.target.value)}
-                  rows={5}
-                  style={textCss('story')}
-                  className="w-full rounded-xl border border-dashed border-rose-300 bg-white/80 px-3 py-2 text-sm leading-7 text-stone-900"
-                />
-              ) : (
-              <p className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)} style={textCss('story')}>
+              <WeddingGuestTextSlot
+                editing={Boolean(hostEditor && frameLines)}
+                draft={storyDraft}
+                ariaLabel={tx.storyTitle}
+                textKey="story"
+                onFocus={() => pickText('story')}
+                onChange={(value) => editCopy('story', value)}
+                style={textCss('story')}
+                className={cn('whitespace-pre-line text-center leading-8', theme.mutedText, theme.textGlow)}
+              >
                 {renderWeddingHighlightedText(withoutPartyAddress(hostEditor ? storyDraft : card.storyText), textTokens, uiLocale, nameHighlightClass, guestNameScriptClass)}
-              </p>
-              )}
+              </WeddingGuestTextSlot>
             </WeddingSectionCard>
-          )}
+          ) : null}
           {card.rsvpEnabled && (
             <WeddingSectionCard theme={theme} title={tx.rsvpTitle} id="guest">
               <div className={cn('space-y-4 rounded-2xl p-3 sm:p-4 md:p-5', theme.panelUi)}>
@@ -2265,19 +2342,16 @@ export default function WeddingPublicClient({
           <WeddingReadableGlass reveal className="mx-auto max-w-3xl rounded-[1.75rem] p-5 sm:rounded-[2rem] sm:p-8">
             <Sparkles className={cn('mx-auto h-8 w-8', theme.accent, theme.textGlow)} />
             <h2 className={cn('mt-4 font-serif text-3xl font-semibold italic sm:text-4xl', theme.text, theme.textGlowHeading)}>{tx.thankYouTitle}</h2>
-            {hostEditor && frameLines ? (
-              <textarea
-                aria-label={tx.thankYouTitle}
-                data-wedding-text="thanks"
-                value={thanksDraft}
-                onFocus={() => pickText('thanks')}
-                onChange={(event) => editCopy('thanks', event.target.value)}
-                rows={4}
-                style={textCss('thanks')}
-                className="mt-5 w-full rounded-xl border border-dashed border-rose-300 bg-white/80 px-3 py-2 text-sm leading-7 text-stone-900"
-              />
-            ) : (
-            <p className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)} style={textCss('thanks')}>
+            <WeddingGuestTextSlot
+              editing={Boolean(hostEditor && frameLines)}
+              draft={thanksDraft}
+              ariaLabel={tx.thankYouTitle}
+              textKey="thanks"
+              onFocus={() => pickText('thanks')}
+              onChange={(value) => editCopy('thanks', value)}
+              style={textCss('thanks')}
+              className={cn('mt-5 whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}
+            >
               {renderWeddingHighlightedText(
                 displayThankYou || tx.defaultThankYou,
                 textTokens,
@@ -2285,8 +2359,7 @@ export default function WeddingPublicClient({
                 nameHighlightClass,
                 guestNameScriptClass,
               )}
-            </p>
-            )}
+            </WeddingGuestTextSlot>
             <p className={cn('mt-6 font-serif text-2xl sm:text-3xl', theme.accent, theme.textGlow)}>{theme.ornament}</p>
             {compiledWishes > 0 && (
               <div className="mt-8 space-y-6">
@@ -2299,7 +2372,7 @@ export default function WeddingPublicClient({
         </section>
         </WeddingInvitationMotion>
         </div>
-        <div data-wedding-ornament-frame="">
+        <div data-wedding-ornament-frame="flow">
         {(contentVisible || ornamentEditor) ? (
         ornamentEditor ? (
           <WeddingOrnamentAdminLayer
@@ -2313,6 +2386,8 @@ export default function WeddingPublicClient({
             rotateRightLabel={tImage.ornamentAdminRotateRight}
             blurLabel={tImage.ornamentAdminBlur}
             fadeLabel={tImage.ornamentAdminFade}
+            stillLabel={tImage.ornamentAdminMotionStill}
+            riseLabel={tImage.ornamentAdminMotionRise}
             deleteLabel={tImage.ornamentAdminDelete}
             frameLines={frameLines}
             onChange={setOrnamentDraft}
@@ -2379,19 +2454,6 @@ export default function WeddingPublicClient({
           />
         )}
       </main>
-      {framePick ? (
-        <FrameChoiceSheet
-          locale={uiLocale}
-          title={tCover.chooseFrame}
-          followLabel={tCover.frameFollowBackground}
-          noneLabel={tCover.frameModeNone}
-          kitPresetId={kitFrameId}
-          library={frameLibrary}
-          selectedKey={weddingFrameSelectionKey(selectedFrameChoice(sectionConfig, framePick), sharedFrame)}
-          onClose={() => setFramePick(null)}
-          onChoose={(choice) => writeFrameChoice(framePick, choice)}
-        />
-      ) : null}
       {hostEditor && frameLines && textPick ? (
         <WeddingTextStyleBar
           title={
@@ -2431,103 +2493,3 @@ export default function WeddingPublicClient({
   )
 }
 
-function selectedFrameChoice(
-  section: {
-    coverFrameChosen?: boolean
-    coverFrameMode?: string
-    coverPresetId?: string
-    coverAiFrameUrl?: string
-    groomPortraitFrameChosen?: boolean
-    groomPortraitShellMode?: string
-    groomPortraitShellPresetId?: string
-    groomPortraitShellUrl?: string
-    bridePortraitFrameChosen?: boolean
-    bridePortraitShellMode?: string
-    bridePortraitShellPresetId?: string
-    bridePortraitShellUrl?: string
-  },
-  side: 'groom' | 'bride' | 'cover',
-) {
-  if (side === 'cover') {
-    if (!section.coverFrameChosen) return 'kit'
-    if (section.coverFrameMode === 'none') return 'none'
-    if (section.coverFrameMode === 'preset' && section.coverPresetId) return section.coverPresetId
-    if ((section.coverFrameMode === 'library' || section.coverFrameMode === 'ai') && section.coverAiFrameUrl) return `library:${section.coverAiFrameUrl}`
-    return 'kit'
-  }
-  const chosen = side === 'groom' ? section.groomPortraitFrameChosen : section.bridePortraitFrameChosen
-  const mode = side === 'groom' ? section.groomPortraitShellMode : section.bridePortraitShellMode
-  const presetId = side === 'groom' ? section.groomPortraitShellPresetId : section.bridePortraitShellPresetId
-  const url = side === 'groom' ? section.groomPortraitShellUrl : section.bridePortraitShellUrl
-  if (!chosen) return 'kit'
-  if (mode === 'none') return 'none'
-  if (mode === 'preset' && presetId) return presetId
-  if (mode === 'library' && url) return `library:${url}`
-  return 'kit'
-}
-
-function applyPrivateFrameChoice(current: string, side: 'groom' | 'bride' | 'cover', choice: WeddingFrameChoice) {
-  if (side === 'cover') {
-    if (choice.kind === 'kit') return mergeWeddingSectionConfig(current, { coverFrameChosen: undefined, coverFrameMode: undefined })
-    if (choice.kind === 'none') return mergeWeddingSectionConfig(current, { coverFrameChosen: true, coverFrameMode: 'none' })
-    if (choice.kind === 'preset') return mergeWeddingSectionConfig(current, { coverFrameChosen: true, coverFrameMode: 'preset', coverPresetId: choice.id })
-    return mergeWeddingSectionConfig(current, {
-      coverFrameChosen: true,
-      coverFrameMode: 'library',
-      coverAiFrameUrl: choice.item.imageUrl,
-      coverAiFrameHole: choice.item.hole,
-      coverAiFramePanel: choice.item.panel,
-      coverAiFrameInk: choice.item.ink === 'light' ? 'light' : 'dark',
-    })
-  }
-  const chosenKey = side === 'groom' ? 'groomPortraitFrameChosen' : 'bridePortraitFrameChosen'
-  const modeKey = side === 'groom' ? 'groomPortraitShellMode' : 'bridePortraitShellMode'
-  const presetKey = side === 'groom' ? 'groomPortraitShellPresetId' : 'bridePortraitShellPresetId'
-  const urlKey = side === 'groom' ? 'groomPortraitShellUrl' : 'bridePortraitShellUrl'
-  const holeKey = side === 'groom' ? 'groomPortraitShellHole' : 'bridePortraitShellHole'
-  const panelKey = side === 'groom' ? 'groomPortraitShellPanel' : 'bridePortraitShellPanel'
-  if (choice.kind === 'kit') {
-    return mergeWeddingSectionConfig(current, { [chosenKey]: undefined, [modeKey]: undefined, [presetKey]: undefined, [urlKey]: undefined, [holeKey]: undefined, [panelKey]: undefined })
-  }
-  if (choice.kind === 'none') return mergeWeddingSectionConfig(current, { [chosenKey]: true, [modeKey]: 'none', [presetKey]: undefined, [urlKey]: undefined })
-  if (choice.kind === 'preset') return mergeWeddingSectionConfig(current, { [chosenKey]: true, [modeKey]: 'preset', [presetKey]: choice.id, [urlKey]: undefined })
-  return mergeWeddingSectionConfig(current, {
-    [chosenKey]: true,
-    [modeKey]: 'library',
-    [presetKey]: undefined,
-    [urlKey]: choice.item.imageUrl,
-    [holeKey]: choice.item.hole,
-    [panelKey]: choice.item.panel,
-  })
-}
-
-function FrameChoiceSheet(props: {
-  locale: WebLocale
-  title: string
-  followLabel: string
-  noneLabel: string
-  kitPresetId?: string
-  library?: WeddingFrameLibraryTile[]
-  selectedKey: string
-  onClose: () => void
-  onChoose: (choice: WeddingFrameChoice) => void
-}) {
-  return (
-    <div className="fixed inset-0 z-[120] flex items-end justify-center bg-black/30 p-3 sm:items-center" onClick={props.onClose}>
-      <div className="max-h-[80vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-4 text-stone-900 shadow-xl" onClick={(event) => event.stopPropagation()}>
-        <p className="text-base font-semibold">{props.title}</p>
-        <div className="mt-3">
-          <WeddingFrameChoiceGrid
-            locale={props.locale}
-            followLabel={props.followLabel}
-            noneLabel={props.noneLabel}
-            kitPresetId={props.kitPresetId}
-            library={props.library}
-            selectedKey={props.selectedKey}
-            onChoose={props.onChoose}
-          />
-        </div>
-      </div>
-    </div>
-  )
-}

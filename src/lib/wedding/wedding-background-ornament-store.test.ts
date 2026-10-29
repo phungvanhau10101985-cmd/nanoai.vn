@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { repeatWeddingOrnamentsDown, weddingOrnamentPlain } from './wedding-background-presets'
 import {
   canEditWeddingCardOrnaments,
   canEditWeddingOrnaments,
@@ -36,6 +37,15 @@ test('catalog flowers and pasted image links can be saved, and an empty list cle
   ])
   assert.equal(softened?.[0]?.blur, 4)
   assert.equal(softened?.[0]?.fade, 0.5)
+  const rising = parseWeddingOrnamentList([
+    { src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, motion: 'rise' },
+  ])
+  assert.equal(rising?.[0]?.motion, 'rise')
+  assert.equal(
+    parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, motion: 'still' }])?.[0]?.motion,
+    undefined,
+  )
+  assert.equal(parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, motion: 'spin' }]), null)
   assert.equal(parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, blur: 40 }]), null)
   assert.equal(
     parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, blur: 0, fade: 0 }])?.[0]?.blur,
@@ -87,6 +97,22 @@ test('admin flower saves use the shared background, and a customer save stays on
     weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'desktop', sharedBaseKey: '' }),
     `card:${cardId}@desktop`,
   )
+})
+
+test('flowers running down the letter still parse for a shared or private save', () => {
+  const sheet = [
+    { src: '/wedding/backgrounds/ornaments/moc-bloom.png', x: -18, y: -3, w: 46, opacity: 0.94 },
+    { src: '/wedding/backgrounds/ornaments/moc-sprig.png', x: 64, y: 0, w: 32 },
+    { src: '/wedding/backgrounds/ornaments/moc-leaf.png', x: -14, y: -2, w: 38, anchor: 'bottom' as const },
+    { src: '/wedding/backgrounds/ornaments/moc-bloom.png', x: 52, y: -8, w: 42, anchor: 'bottom' as const, opacity: 0.48 },
+    { src: '/wedding/backgrounds/ornaments/moc-sprig.png', x: 68, y: 4, w: 26, anchor: 'bottom' as const },
+  ]
+  const placed = repeatWeddingOrnamentsDown(sheet, 6).map((item) => weddingOrnamentPlain(item))
+  const parsed = parseWeddingOrnamentList(placed)
+  assert.equal(parsed?.length, placed.length)
+  assert.ok(placed.length > 24)
+  const tooMany = Array.from({ length: 121 }, () => placed[0])
+  assert.equal(parseWeddingOrnamentList(tooMany), null)
 })
 
 test('desktop and mobile flower layouts stay separate', () => {

@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
-import { WEDDING_BACKGROUND_PRESETS, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
+import { WEDDING_BACKGROUND_PRESETS, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
 import { findWeddingCoverPreset } from './wedding-cover-presets'
+import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
 import { getWeddingTheme } from './wedding-theme'
-import { applyWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveDeviceStackPlace, resolveDeviceStackRotate, resolvePortraitShell, resolveShownCoverFrame, resolveShownPortraitShell, withDeviceShell, withoutPrivateShell } from './wedding-section-config'
+import { applyWeddingFrameChoice, clearWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveDeviceStackPlace, resolveDeviceStackRotate, resolvePortraitShell, resolveShownCoverFrame, resolveShownPortraitShell, withDeviceShell, withoutPrivateShell } from './wedding-section-config'
 import { weddingBackgroundPlateUrls } from './wedding-background-plates'
 
 test('the selected background is the only plate, other faces stay out', () => {
@@ -104,6 +105,80 @@ test('the pearl blush set stacks two pattern plates around a color wash', () => 
   assert.ok(preset?.ornaments.every((item) => item.src.includes('/pearl-')))
 })
 
+test('the warm minimal set is the botanical plate, dried sprigs, and the polaroid frame', () => {
+  const preset = findWeddingBackgroundPreset('toi-gian-nau')
+  assert.ok(preset)
+  assert.deepEqual(preset.plates, ['/wedding/backgrounds/toi-gian-nau.jpg'])
+  assert.ok(preset.ornaments.length >= 1)
+  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/dried-sprig.png')))
+  assert.equal(preset.coverPresetId, 'linen_polaroid')
+  assert.equal(findWeddingCoverPreset('linen_polaroid')?.layout, 'composed')
+  const composition = getOrnamentComposition('linen_polaroid')
+  assert.equal(composition?.layout.id, 'polaroid')
+  assert.equal(composition?.kit.panel, '#f7f2ea')
+  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'polaroid'))
+  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'tape'))
+  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'driedStem'))
+  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'seal'))
+  const shown = resolveShownCoverFrame({}, 'linen_polaroid')
+  assert.equal(shown.mode, 'preset')
+  assert.equal(shown.presetId, 'linen_polaroid')
+})
+
+test('the green wood-flower set keeps readable paper and photo sprigs', () => {
+  assert.deepEqual(weddingBackgroundPlateUrls('', [], 'hoa-moc-xanh'), [
+    '/wedding/backgrounds/hoa-moc-xanh-paper.jpg',
+  ])
+  const preset = findWeddingBackgroundPreset('hoa-moc-xanh')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'moc_portrait')
+  assert.equal(preset.look.buttonColorId, 'forest')
+  assert.equal(preset.look.ink, '#1f3d2b')
+  assert.ok(preset.ornaments.length >= 4)
+  assert.ok(preset.ornaments.every((item) => item.src.includes('/moc-')))
+  const frame = getOrnamentComposition('moc_portrait')
+  assert.equal(frame?.layout.photoChrome, 'mat')
+  assert.equal(frame?.kit.panel, '#fbf8f3')
+  assert.ok(frame?.layout.layers.every((layer) => layer.piece.startsWith('moc')))
+  assert.equal(findWeddingCoverPreset('moc_portrait')?.layout, 'composed')
+})
+
+test('the sage calla set uses a thin artistic photo frame', () => {
+  assert.deepEqual(weddingBackgroundPlateUrls('', [], 'to-duyen-xanh'), [
+    '/wedding/backgrounds/to-duyen-xanh-paper.jpg',
+  ])
+  const preset = findWeddingBackgroundPreset('to-duyen-xanh')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'to_duyen_xanh')
+  assert.equal(preset.look.buttonColorId, 'olive')
+  assert.equal(preset.look.ink, '#3e4f34')
+  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/mist-sprig.png')))
+  const frame = findWeddingCoverPreset('to_duyen_xanh')
+  assert.equal(frame?.layout, 'frame')
+  assert.match(frame?.frame?.src ?? '', /to-duyen-xanh-frame/)
+  assert.ok((frame?.frame?.hole.w ?? 0) > 60)
+  assert.equal(frame?.frame?.ink, 'dark')
+})
+
+test('the deep burgundy set uses ivory paper, corner flowers, and a thin frame', () => {
+  assert.deepEqual(weddingBackgroundPlateUrls('', [], 'do-dam'), [
+    '/wedding/backgrounds/do-dam-paper.jpg',
+  ])
+  const preset = findWeddingBackgroundPreset('do-dam')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'do_dam')
+  assert.equal(preset.look.buttonColorId, 'burgundy')
+  assert.equal(preset.look.ink, '#4a1e2c')
+  assert.equal(preset.look.styleId, 'minimal')
+  assert.ok(preset.ornaments.every((item) => item.src.includes('/do-dam-')))
+  const frame = findWeddingCoverPreset('do_dam')
+  assert.equal(frame?.layout, 'frame')
+  assert.match(frame?.frame?.src ?? '', /do-dam-frame/)
+  assert.ok((frame?.frame?.hole.w ?? 0) > 70)
+  assert.equal(frame?.frame?.ink, 'dark')
+  assert.equal(frame?.frame?.panel, '#f7f1ea')
+})
+
 test('the sky rose set uses the garden photo and the pearl frame', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'vuon-hong-troi'), [
     '/wedding/backgrounds/vuon-hong-troi.jpg',
@@ -126,6 +201,36 @@ test('an unknown preset falls back to the master plate', () => {
   ])
 })
 
+test('a ready background replaces the old frame so both columns share the new look', () => {
+  const preset = findWeddingBackgroundPreset('do-son')
+  assert.ok(preset)
+  const oldFrame = mergeWeddingSectionConfig('{}', {
+    coverFrameChosen: true,
+    coverFrameMode: 'library',
+    coverPresetId: 'classic_red',
+    coverAiFrameUrl: 'https://cdn.example/old-frame.png',
+    coverAiFrameHole: { x: 20, y: 20, w: 60, h: 60 },
+    coverAiFramePanel: '#fffaf2',
+    groomPortraitFrameChosen: true,
+    groomPortraitShellMode: 'preset',
+    groomPortraitShellPresetId: 'classic_red',
+    heroPhotoLayout: 'stack',
+  })
+  const cleared = clearWeddingFrameChoice(clearWeddingFrameChoice(oldFrame, 'cover'), 'pair')
+  const next = parseWeddingSectionConfig(mergeWeddingSectionConfig(cleared, weddingReadyBackgroundSectionPatch(preset)))
+  assert.equal(next.backgroundPresetId, 'do-son')
+  assert.equal(next.coverFrameChosen, undefined)
+  assert.equal(next.coverFrameMode, 'preset')
+  assert.equal(next.coverPresetId, preset.coverPresetId)
+  assert.equal(next.coverAiFrameUrl, undefined)
+  assert.equal(next.buttonColorId, preset.look.buttonColorId)
+  assert.equal(next.heroPhotoLayout, undefined)
+  assert.equal(weddingHeroPhotoLayout(preset), 'single')
+  const shown = resolveShownCoverFrame(next, preset.coverPresetId, null)
+  assert.equal(shown.mode, 'preset')
+  assert.equal(shown.presetId, preset.coverPresetId)
+})
+
 test('the preset id survives a section config save and clears when emptied', () => {
   const saved = mergeWeddingSectionConfig('{"coverPresetId":"classic_red"}', { backgroundPresetId: 'sen-vang' })
   assert.equal(parseWeddingSectionConfig(saved).backgroundPresetId, 'sen-vang')
@@ -135,12 +240,25 @@ test('the preset id survives a section config save and clears when emptied', () 
   assert.equal(parseWeddingSectionConfig('{"backgroundPresetId":"nope"}').backgroundPresetId, undefined)
 })
 
+test('theme flowers stay in the margins so the letter center stays clear', () => {
+  for (const preset of WEDDING_BACKGROUND_PRESETS) {
+    assert.equal(preset.ornaments.some((item) => item.anchor !== 'bottom'), true, preset.id)
+    assert.equal(preset.ornaments.some((item) => item.anchor === 'bottom'), true, preset.id)
+    for (const item of preset.ornaments) {
+      assert.ok(item.w <= 36, `${preset.id} ${item.src}`)
+      const center = item.x + item.w / 2
+      assert.equal(center < 22 || center > 70, true, `${preset.id} ${item.src}`)
+      if (item.anchor !== 'bottom') assert.ok(item.y <= 8, `${preset.id} ${item.src}`)
+    }
+  }
+})
+
 test('every ready background is one synchronized kit', () => {
   assert.ok(WEDDING_BACKGROUND_PRESETS.length >= 4)
   for (const preset of WEDDING_BACKGROUND_PRESETS) {
     assert.ok(preset.plates.length >= 1, preset.id)
     assert.ok(preset.ornaments.length >= 1, preset.id)
-    assert.ok(preset.ornaments.every((item) => item.src.endsWith('.png')), preset.id)
+    assert.ok(preset.ornaments.every((item) => /\.(png|svg)$/i.test(item.src)), preset.id)
     assert.ok(preset.coverPresetId, preset.id)
     assert.equal(getWeddingTheme(preset.look.styleId).id, preset.look.styleId, preset.id)
     assert.equal(isWeddingButtonColorId(preset.look.buttonColorId), true, preset.id)
@@ -212,7 +330,7 @@ test('an AI background uses the frame made for that plate', () => {
   assert.equal(resolvePortraitShell(parsed, 'bride')?.src, frame.imageUrl)
 })
 
-test('a portrait frame follows the background until that position chooses its own', () => {
+test('a portrait frame stays with the background even when a position picked another', () => {
   const kit = findWeddingBackgroundPreset('hong-ngoc-trai')
   assert.ok(kit)
   const blank = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', { backgroundPresetId: 'hong-ngoc-trai' }))
@@ -221,22 +339,29 @@ test('a portrait frame follows the background until that position chooses its ow
   assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId).presetId, 'pearl_rose')
   const picked = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', {
     backgroundPresetId: 'hong-ngoc-trai',
+    coverFrameChosen: true,
+    coverFrameMode: 'library',
+    coverAiFrameUrl: 'https://cdn.example/own-cover.png',
+    coverAiFrameHole: { x: 20, y: 20, w: 60, h: 50 },
     groomPortraitFrameChosen: true,
     groomPortraitShellMode: 'library',
     groomPortraitShellUrl: 'https://cdn.example/own-frame.png',
     groomPortraitShellHole: { x: 20, y: 20, w: 60, h: 50 },
     groomPortraitShellPanel: '#fffaf2',
   }))
-  assert.equal(resolveShownPortraitShell(picked, 'groom', kit.coverPresetId)?.src, 'https://cdn.example/own-frame.png')
+  assert.equal(resolveShownPortraitShell(picked, 'groom', kit.coverPresetId)?.src, followed?.src)
   assert.equal(resolveShownPortraitShell(picked, 'bride', kit.coverPresetId)?.src, followed?.src)
+  assert.equal(resolveShownCoverFrame(picked, kit.coverPresetId).mode, 'preset')
+  assert.equal(resolveShownCoverFrame(picked, kit.coverPresetId).presetId, 'pearl_rose')
   const stored = applyWeddingFrameChoice('{"backgroundPresetId":"hong-ngoc-trai","buttonColorId":"rose"}', JSON.stringify(picked))
   const saved = parseWeddingSectionConfig(stored)
   assert.equal(saved.backgroundPresetId, 'hong-ngoc-trai')
   assert.equal(saved.buttonColorId, 'rose')
   assert.equal(saved.groomPortraitShellUrl, 'https://cdn.example/own-frame.png')
   assert.equal(saved.bridePortraitFrameChosen, undefined)
+  assert.equal(resolveShownPortraitShell(saved, 'groom', kit.coverPresetId)?.src, followed?.src)
   const shared = { mode: 'library' as const, imageUrl: 'https://cdn.example/shared-frame.png', hole: { x: 20, y: 20, w: 60, h: 50 }, panel: '#fffaf2' }
-  assert.equal(resolveShownPortraitShell(blank, 'bride', kit.coverPresetId, shared)?.src, shared.imageUrl)
-  assert.equal(resolveShownPortraitShell(picked, 'groom', kit.coverPresetId, shared)?.src, 'https://cdn.example/own-frame.png')
-  assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId, { mode: 'none' }).mode, 'none')
+  assert.equal(resolveShownPortraitShell(blank, 'bride', kit.coverPresetId, shared)?.src, followed?.src)
+  assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId, { mode: 'none' }).mode, 'preset')
+  assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId, { mode: 'none' }).presetId, 'pearl_rose')
 })

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1680" fill="none">
+  <rect width="1080" height="1680" fill="#f7f2ea"/>
+  <rect width="1080" height="1680" fill="url(#warm)"/>
+  <rect width="1080" height="1680" fill="url(#fiber)"/>
+  <defs>
+    <radialGradient id="warm" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#fffdf8" stop-opacity="0.55"/>
+      <stop offset="70%" stop-color="#f3eadf" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#e7d9c8" stop-opacity="0.45"/>
+    </radialGradient>
+    <pattern id="fiber" width="72" height="72" patternUnits="userSpaceOnUse">
+      <circle cx="8" cy="14" r="0.7" fill="#e4d3c0"/>
+      <circle cx="40" cy="28" r="0.45" fill="#efe2d2"/>
+      <circle cx="22" cy="52" r="0.55" fill="#e7d8c6"/>
+      <circle cx="58" cy="60" r="0.4" fill="#eadccb"/>
+      <path d="M14 36h11M46 12h8M30 64h9" stroke="#e6d5c2" stroke-width="0.45" stroke-linecap="round"/>
+    </pattern>
+  </defs>
+</svg>

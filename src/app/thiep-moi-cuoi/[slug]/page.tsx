@@ -9,7 +9,6 @@ import {
   getPublishedWeddingCardBySlug,
   listPublishedSideGuestWishes,
   listPublishedWeddingImages,
-  listWeddingCoverFrameLibrary,
 } from '@/lib/db/wedding-cards-pg'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
 import { loadWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
@@ -178,7 +177,6 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
       templateEditor = canEditWeddingOrnaments({ role, email: auth.user.email })
     }
   }
-  const frameLibrary = ornamentEditor ? await listWeddingCoverFrameLibrary().catch(() => []) : []
   const jsonLd = buildWeddingPublicJsonLd(card, `${SITE_URL}/thiep-moi-cuoi/${card.slug}`)
   return (
     <>
@@ -211,7 +209,6 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         templateEditor={templateEditor}
         sharedShell={{ desktop: sharedShellDesktop, mobile: sharedShellMobile }}
         initialSharedFrame={sharedFrame}
-        frameLibrary={frameLibrary}
         layoutPreview={layoutPreview}
         editorStack={
           layoutPreview && (searchParams?.stack === 'cover' || searchParams?.stack === 'letter')

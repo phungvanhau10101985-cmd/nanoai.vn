@@ -9,7 +9,7 @@ import {
   type OrnamentPieceId,
 } from './wedding-ornament-layouts'
 
-const EDGE_FLORALS = new Set<OrnamentPieceId>(['butterfly', 'garland', 'sprig', 'peony', 'vine'])
+const EDGE_FLORALS = new Set<OrnamentPieceId>(['butterfly', 'garland', 'sprig', 'peony', 'vine', 'driedStem', 'mocBloom', 'mocLeaf', 'mocSprig', 'callaStem', 'callaBloom', 'mistSprig'])
 
 test('ornament layouts keep flowers on the edges and a readable center', () => {
   const layouts = Object.values(ORNAMENT_LAYOUTS)

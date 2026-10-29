@@ -90,7 +90,7 @@ export function WeddingFrameChoiceGrid(props: {
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
       <button type="button" className="rounded-2xl p-1 text-left hover:bg-rose-50" onClick={() => props.onChoose({ kind: 'kit' })}>
-        {kitPreset?.frame ? (
+        {kitPreset ? (
           <CoverPresetThumbnail preset={kitPreset} selected={props.selectedKey === 'kit'} />
         ) : (
           <div className={cn('relative aspect-[3/4] overflow-hidden rounded-xl border bg-[#fff7f5]', props.selectedKey === 'kit' ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200')}>

@@ -13,6 +13,15 @@ export type OrnamentPieceId =
   | 'wreath'
   | 'arch'
   | 'plate'
+  | 'polaroid'
+  | 'tape'
+  | 'driedStem'
+  | 'mocBloom'
+  | 'mocLeaf'
+  | 'mocSprig'
+  | 'callaStem'
+  | 'callaBloom'
+  | 'mistSprig'
 
 export type OrnamentLayer = {
   piece: OrnamentPieceId
@@ -31,7 +40,7 @@ export type OrnamentLayer = {
   anchor?: 'top' | 'bottom'
 }
 
-export type OrnamentLayoutId = 'meadow' | 'corners' | 'sides' | 'seal' | 'wreath' | 'arch'
+export type OrnamentLayoutId = 'meadow' | 'corners' | 'sides' | 'seal' | 'wreath' | 'arch' | 'polaroid' | 'mat'
 
 export type OrnamentLayout = {
   id: OrnamentLayoutId
@@ -39,10 +48,12 @@ export type OrnamentLayout = {
   pad: { top: number; right: number; bottom: number; left: number }
   /** Ô ảnh khi thiệp chỉ hiện khung, không hiện tên. */
   photo: { x: number; y: number; w: number; h: number; radius: number }
+  /** mat = viền kép mỏng quanh ảnh cưới. */
+  photoChrome?: 'mat'
   layers: OrnamentLayer[]
 }
 
-export type OrnamentKitId = 'dried' | 'blush' | 'sage' | 'ceremonial'
+export type OrnamentKitId = 'dried' | 'blush' | 'sage' | 'ceremonial' | 'linen' | 'wood' | 'calla'
 
 export type OrnamentKit = {
   id: OrnamentKitId
@@ -72,9 +83,25 @@ export const ORNAMENT_PIECE_RATIO: Record<OrnamentPieceId, string> = {
   wreath: '400 / 520',
   arch: '400 / 560',
   plate: '400 / 520',
+  polaroid: '400 / 520',
+  tape: '220 / 64',
+  driedStem: '180 / 280',
+  mocBloom: '909 / 850',
+  mocLeaf: '778 / 917',
+  mocSprig: '541 / 649',
+  callaStem: '559 / 950',
+  callaBloom: '498 / 724',
+  mistSprig: '378 / 491',
 }
 
-export const ORNAMENT_FRAME_PIECES = new Set<OrnamentPieceId>(['wreath', 'arch', 'plate'])
+export const ORNAMENT_FRAME_PIECES = new Set<OrnamentPieceId>(['wreath', 'arch', 'plate', 'polaroid'])
+
+/**
+ * Lỗ ảnh trong khung polaroid, phần trăm của chính khung (viewBox 400×520).
+ * Khung đặt full bề ngang một ô 3/4. Đổi số này thì đổi cả nét trong PolaroidFrame.
+ */
+export const LINEN_POLAROID_HOLE = { x: 8, y: 7, w: 84, h: 82 }
+const POLAROID_STAGE_HEIGHT = (100 * (520 / 400)) / (4 / 3)
 
 export const ORNAMENT_KITS: Record<OrnamentKitId, OrnamentKit> = {
   dried: {
@@ -116,6 +143,36 @@ export const ORNAMENT_KITS: Record<OrnamentKitId, OrnamentKit> = {
     stem: '#8a5a32',
     metal: '#a67c3d',
     dot: '#f6e7c8',
+  },
+  linen: {
+    id: 'linen',
+    panel: '#f7f2ea',
+    petal: '#f3e6d0',
+    petalDeep: '#c4a882',
+    leaf: '#b7a890',
+    stem: '#8d735c',
+    metal: '#c6a15b',
+    dot: '#e7d7c3',
+  },
+  wood: {
+    id: 'wood',
+    panel: '#fbf8f3',
+    petal: '#f4f0e8',
+    petalDeep: '#d7e0d4',
+    leaf: '#3e5a44',
+    stem: '#1f3d2b',
+    metal: '#1f3d2b',
+    dot: '#e7efe4',
+  },
+  calla: {
+    id: 'calla',
+    panel: '#fffcf8',
+    petal: '#f4f7ef',
+    petalDeep: '#d5e0c4',
+    leaf: '#6d8a5c',
+    stem: '#4f6844',
+    metal: '#3e4f34',
+    dot: '#e7efe0',
   },
 }
 
@@ -184,6 +241,35 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
       { piece: 'sprig', x: 36, y: -2, w: 28, anchor: 'bottom', z: 4 },
     ],
   },
+  mat: {
+    id: 'mat',
+    pad: { top: 8, right: 12, bottom: 8, left: 12 },
+    photo: { x: 14, y: 13, w: 72, h: 74, radius: 6 },
+    photoChrome: 'mat',
+    layers: [
+      { piece: 'mocBloom', x: -1, y: -1, w: 26, rotate: -8, z: 4 },
+      { piece: 'mocSprig', x: 78, y: -1, w: 20, rotate: 10, z: 4 },
+      { piece: 'mocLeaf', x: -2, y: -2, w: 22, rotate: -16, anchor: 'bottom', z: 4, opacity: 0.92 },
+      { piece: 'mocSprig', x: 76, y: -1, w: 16, rotate: 12, flipX: true, anchor: 'bottom', z: 4, opacity: 0.85 },
+    ],
+  },
+  polaroid: {
+    id: 'polaroid',
+    pad: { top: 4, right: 8, bottom: 6, left: 8 },
+    photo: {
+      x: LINEN_POLAROID_HOLE.x,
+      y: (LINEN_POLAROID_HOLE.y / 100) * POLAROID_STAGE_HEIGHT,
+      w: LINEN_POLAROID_HOLE.w,
+      h: (LINEN_POLAROID_HOLE.h / 100) * POLAROID_STAGE_HEIGHT,
+      radius: 0,
+    },
+    layers: [
+      { piece: 'polaroid', x: 0, y: 0, w: 100, z: 2 },
+      { piece: 'tape', x: 36, y: 0.4, w: 28, rotate: -7, z: 5 },
+      { piece: 'driedStem', x: -2, y: 0, w: 24, rotate: -16, anchor: 'bottom', z: 6 },
+      { piece: 'seal', x: 74, y: 1, w: 20, anchor: 'bottom', z: 6 },
+    ],
+  },
 }
 
 const COMPOSITION_PARTS: Record<string, { kit: OrnamentKitId; layout: OrnamentLayoutId }> = {
@@ -195,6 +281,8 @@ const COMPOSITION_PARTS: Record<string, { kit: OrnamentKitId; layout: OrnamentLa
   blush_wreath: { kit: 'blush', layout: 'wreath' },
   ceremonial_arch: { kit: 'ceremonial', layout: 'arch' },
   sage_corners: { kit: 'sage', layout: 'corners' },
+  moc_portrait: { kit: 'wood', layout: 'mat' },
+  linen_polaroid: { kit: 'linen', layout: 'polaroid' },
 }
 
 export function getOrnamentComposition(id: string | null | undefined): OrnamentComposition | undefined {

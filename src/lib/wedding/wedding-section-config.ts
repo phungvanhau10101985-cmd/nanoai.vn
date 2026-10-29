@@ -1,7 +1,7 @@
 import { findWeddingBackgroundPreset } from '@/lib/wedding/wedding-background-presets'
 import { WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
 import { isWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
-import { findWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
+import { findWeddingCoverPreset, weddingCoverPresetFollowsBackground } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 
 export type WeddingCoverAiFrameHole = { x: number; y: number; w: number; h: number }
@@ -812,83 +812,47 @@ export function resolvePortraitShell(
   return null
 }
 
-function sharedPortraitShell(shared: WeddingSharedFrame | null | undefined): WeddingPortraitShellFrame | null | undefined {
-  if (!shared) return undefined
-  if (shared.mode === 'none') return null
-  if (shared.mode === 'preset') {
-    const frame = findWeddingCoverPreset(shared.presetId ?? '')?.frame
-    if (!frame) return undefined
-    return { src: frame.src, hole: frame.hole, panel: frame.panel }
-  }
-  if (shared.mode === 'library' && shared.imageUrl && shared.hole) {
-    return { src: shared.imageUrl, hole: shared.hole, panel: shared.panel || '#fffaf2' }
-  }
-  return undefined
-}
-
-/** Khung khách đã chọn cho vị trí này. Chưa chọn thì dùng khung mặc định của nền. */
+/** Khung ảnh khóa theo nền. Lựa chọn riêng và khung kho không gắn nền không được hiện. */
 export function resolveShownPortraitShell(
   config: WeddingSectionConfig,
   side: 'groom' | 'bride',
   kitPresetId?: string,
-  shared?: WeddingSharedFrame | null,
+  _shared?: WeddingSharedFrame | null,
 ): WeddingPortraitShellFrame | null {
-  const chosen = side === 'groom' ? config.groomPortraitFrameChosen : config.bridePortraitFrameChosen
-  const modeKey = side === 'groom' ? 'groomPortraitShellMode' : 'bridePortraitShellMode'
-  if (chosen) {
-    const mode = readPortraitShellMode(config[modeKey])
-    if (mode === 'none') return null
-    const own = resolvePortraitShell(config, side)
-    if (own) return own
-    if (mode === 'preset' || mode === 'library') {
-      /* Khung cũ đã gỡ khỏi danh sách thì theo nền. */
-    } else return null
-  }
-  const fromShared = sharedPortraitShell(shared)
-  if (fromShared !== undefined) return fromShared
   const kitFrame = findWeddingCoverPreset(kitPresetId ?? '')?.frame
   if (kitFrame) return { src: kitFrame.src, hole: kitFrame.hole, panel: kitFrame.panel }
+  const chosen = side === 'groom' ? config.groomPortraitFrameChosen : config.bridePortraitFrameChosen
+  if (chosen) return null
   return resolvePortraitShell(config, side)
 }
 
-/** Khung vỏ khách đã chọn. Chưa chọn thì dùng khung mặc định của nền. */
+/** Khung vỏ khóa theo nền. Lựa chọn riêng và khung kho không gắn nền không được hiện. */
 export function resolveShownCoverFrame(
   config: WeddingSectionConfig,
   kitPresetId?: string,
-  shared?: WeddingSharedFrame | null,
+  _shared?: WeddingSharedFrame | null,
 ): {
   mode: WeddingCoverFrameMode
   presetId: string
   library?: { src: string; hole: WeddingCoverAiFrameHole; panel: string; ink: 'dark' | 'light' } | null
 } {
-  if (config.coverFrameChosen) {
-    const mode = resolveCoverFrameMode(config) ?? 'preset'
-    if (mode === 'none') return { mode: 'none', presetId: '' }
-    if (mode === 'library' || mode === 'ai') {
+  const kit = kitPresetId?.trim()
+  if (kit && weddingCoverPresetFollowsBackground(findWeddingCoverPreset(kit))) {
+    return { mode: 'preset', presetId: kit }
+  }
+  if (!config.coverFrameChosen) {
+    const mode = resolveCoverFrameMode(config)
+    if ((mode === 'library' || mode === 'ai')) {
       const own = resolveCoverAiFrame(config)
-      if (own) return { mode, presetId: config.coverPresetId?.trim() || kitPresetId?.trim() || '', library: own }
-    } else if (mode === 'preset' && findWeddingCoverPreset(config.coverPresetId ?? '')?.frame) {
+      if (own) return { mode, presetId: config.coverPresetId?.trim() || kit || '', library: own }
+    }
+    if (mode === 'preset' && weddingCoverPresetFollowsBackground(findWeddingCoverPreset(config.coverPresetId ?? ''))) {
       return { mode: 'preset', presetId: config.coverPresetId?.trim() || '' }
     }
   }
-  const fromShared = sharedPortraitShell(shared)
-  if (shared?.mode === 'none') return { mode: 'none', presetId: '' }
-  if (shared?.mode === 'preset' && fromShared) return { mode: 'preset', presetId: shared.presetId || '' }
-  if (shared?.mode === 'library' && fromShared) {
-    return {
-      mode: 'library',
-      presetId: kitPresetId?.trim() || '',
-      library: { src: fromShared.src, hole: fromShared.hole, panel: fromShared.panel, ink: shared.ink === 'light' ? 'light' : 'dark' },
-    }
-  }
-  const kit = kitPresetId?.trim()
-  if (kit && findWeddingCoverPreset(kit)?.frame) return { mode: 'preset', presetId: kit }
-  const fallbackMode = resolveCoverFrameMode(config) ?? 'preset'
-  const own = fallbackMode === 'library' || fallbackMode === 'ai' ? resolveCoverAiFrame(config) : null
   return {
-    mode: own ? fallbackMode : kit ? 'preset' : fallbackMode,
-    presetId: config.coverPresetId?.trim() || kit || '',
-    library: own,
+    mode: 'preset',
+    presetId: kit || (!config.coverFrameChosen ? config.coverPresetId?.trim() : '') || '',
   }
 }
 

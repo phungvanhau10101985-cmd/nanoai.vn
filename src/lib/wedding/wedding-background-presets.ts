@@ -2,6 +2,13 @@ import type { CSSProperties } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
+import {
+  WEDDING_DESKTOP_HEIGHT,
+  WEDDING_DESKTOP_MIN_PX,
+  WEDDING_DESKTOP_WIDTH,
+  WEDDING_MOBILE_HEIGHT,
+  WEDDING_MOBILE_WIDTH,
+} from '@/lib/wedding/wedding-design-viewport'
 
 /** Cành hoa và tiểu tiết nổi trên ảnh cô dâu chú rể, tên và thông tin. */
 export type WeddingBackgroundOrnament = {
@@ -19,6 +26,8 @@ export type WeddingBackgroundOrnament = {
   blur?: number
   /** 0 là đủ màu, 1 là mất màu. */
   fade?: number
+  /** Không ghi thì đứng yên. `rise` trượt lên một đoạn khi lướt tới. */
+  motion?: 'rise'
   anchor?: 'top' | 'bottom'
 }
 
@@ -34,6 +43,10 @@ export function weddingOrnamentFadeAmount(value: number | undefined) {
   return Math.min(1, Math.round(fade * 100) / 100)
 }
 
+export function weddingOrnamentRises(item: { motion?: string | null }) {
+  return item.motion === 'rise'
+}
+
 /** Làm mờ và làm nhạt màu của một ảnh thêm vào. */
 export function weddingOrnamentFilter(item: Pick<WeddingBackgroundOrnament, 'blur' | 'fade'>) {
   const blur = weddingOrnamentBlurPx(item.blur)
@@ -42,6 +55,148 @@ export function weddingOrnamentFilter(item: Pick<WeddingBackgroundOrnament, 'blu
   if (blur > 0) parts.push(`blur(${blur}px)`)
   if (fade > 0) parts.push(`saturate(${Math.round((1 - fade) * 100) / 100})`)
   return parts.join(' ') || undefined
+}
+
+/** Một khổ vài hoa, nội dung lặp tới 12 khổ. */
+export const WEDDING_ORNAMENT_LIST_MAX = 120
+
+/** Số khổ giấy hoa văn cần phủ. Hơi dài hơn một khổ thì vẫn một khổ, kẻo hoa bị nhân đôi. */
+export function weddingOrnamentPageCount(frameWidth: number, frameHeight: number) {
+  const desktop = frameWidth >= WEDDING_DESKTOP_MIN_PX
+  const page = frameWidth * ((desktop ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT) / (desktop ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH))
+  if (!(page > 0) || !(frameHeight > 0)) return 1
+  const raw = frameHeight / page
+  if (raw <= 1.25) return 1
+  return Math.min(12, Math.ceil(raw - 0.15))
+}
+
+export type WeddingOrnamentPlacement = WeddingBackgroundOrnament & {
+  seed: number
+  page: number
+}
+
+/** Hoa còn nằm trong một khổ. Hoa đã trải xuống nội dung thì không lặp thêm. */
+export function weddingOrnamentsAreOneSheet(items: readonly WeddingBackgroundOrnament[]) {
+  const tops = items.filter((item) => item.anchor !== 'bottom')
+  if (tops.length === 0) return true
+  return tops.every((item) => item.y <= 36)
+}
+
+function clampOrnament(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min
+  return Math.round(Math.min(max, Math.max(min, value)) * 10) / 10
+}
+
+export function weddingOrnamentPlain(item: WeddingBackgroundOrnament & { seed?: number; page?: number }): WeddingBackgroundOrnament {
+  const { seed, page, ...rest } = item
+  void seed
+  void page
+  const plain: WeddingBackgroundOrnament = {
+    ...rest,
+    x: clampOrnament(rest.x, -40, 110),
+    y: clampOrnament(rest.y, -40, 110),
+    w: clampOrnament(rest.w, 8, 90),
+  }
+  if (plain.opacity != null) plain.opacity = clampOrnament(plain.opacity, 0.15, 1)
+  return plain
+}
+
+/**
+ * Một khổ giữ đúng chỗ đã đặt. Nội dung dài hơn thì lặp cùng hoa xuống từng khổ,
+ * thu nhỏ và đẩy sát mép để giữa trang còn chỗ cho chữ.
+ */
+export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrnament[], pages: number): WeddingOrnamentPlacement[] {
+  let count = Math.max(1, Math.min(12, Math.round(pages) || 1))
+  while (count > 1 && count * items.length > WEDDING_ORNAMENT_LIST_MAX) count -= 1
+  if (count <= 1) return items.map((item, seed) => ({ ...item, seed, page: 0 }))
+  const span = 100 / count
+  const placed: WeddingOrnamentPlacement[] = []
+  for (let page = 0; page < count; page++) {
+    items.forEach((item, seed) => {
+      const local = item.anchor === 'bottom' ? 100 - item.y : item.y
+      const y = Math.round((page * span + (local / 100) * span) * 10) / 10
+      if (page === 0) {
+        placed.push({ ...item, anchor: 'top', y, seed, page })
+        return
+      }
+      const sideLeft = item.x + item.w / 2 < 50
+      const drift = page % 2 === 0 ? 0 : Math.round(span * 0.06 * 10) / 10
+      placed.push({
+        ...item,
+        anchor: 'top',
+        x: sideLeft ? Math.min(item.x, -6) : Math.max(item.x, 72),
+        y: Math.round((y + drift) * 10) / 10,
+        w: Math.min(item.w, 28),
+        opacity: Math.min(item.opacity ?? 1, 0.82),
+        seed,
+        page,
+      })
+    })
+  }
+  return placed
+}
+
+export type WeddingOrnamentBox = {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+/**
+ * Chỗ thả hoa mới: mé trên của phần khung đang nằm trong màn hình.
+ * Không thấy khung thì trả về mé trên khổ, để người xem còn thấy hoa.
+ */
+export function weddingOrnamentSpotInView(input: {
+  frame: WeddingOrnamentBox
+  view: WeddingOrnamentBox
+  width?: number
+}): { x: number; y: number; w: number } {
+  const w = input.width ?? 28
+  const frame = input.frame
+  const view = input.view
+  const fallback = { x: 8, y: 8, w }
+  if (frame.width < 1 || frame.height < 1 || view.width < 1 || view.height < 1) return fallback
+  const top = Math.max(frame.top, view.top)
+  const left = Math.max(frame.left, view.left)
+  const bottom = Math.min(frame.top + frame.height, view.top + view.height)
+  const right = Math.min(frame.left + frame.width, view.left + view.width)
+  if (bottom - top < 1 || right - left < 1) return fallback
+  const rawX = ((left + (right - left) / 2 - frame.left) / frame.width) * 100 - w / 2
+  const rawY = ((top - frame.top) / frame.height) * 100 + 6
+  return {
+    x: Math.round(Math.min(100 - w, Math.max(0, rawX)) * 10) / 10,
+    y: Math.round(Math.min(92, Math.max(0, rawY)) * 10) / 10,
+    w,
+  }
+}
+
+/** Phần iframe đang lọt vào cửa sổ cha, đổi về pixel bố cục của iframe. */
+export function weddingIframeVisibleView(input: {
+  frameTop: number
+  frameLeft: number
+  frameWidth: number
+  frameHeight: number
+  layoutWidth: number
+  layoutHeight: number
+  viewportWidth: number
+  viewportHeight: number
+}): { x: number; y: number; w: number; h: number } | null {
+  const { frameTop, frameLeft, frameWidth, frameHeight, layoutWidth, layoutHeight, viewportWidth, viewportHeight } = input
+  if (frameWidth < 1 || layoutWidth < 1 || layoutHeight < 1) return null
+  const scale = frameWidth / layoutWidth
+  if (!(scale > 0)) return null
+  const visLeft = Math.max(frameLeft, 0)
+  const visTop = Math.max(frameTop, 0)
+  const visRight = Math.min(frameLeft + frameWidth, viewportWidth)
+  const visBottom = Math.min(frameTop + frameHeight, viewportHeight)
+  if (visRight - visLeft < 8 || visBottom - visTop < 8) return null
+  return {
+    x: Math.round(((visLeft - frameLeft) / scale) * 10) / 10,
+    y: Math.round(((visTop - frameTop) / scale) * 10) / 10,
+    w: Math.round(((visRight - visLeft) / scale) * 10) / 10,
+    h: Math.round(((visBottom - visTop) / scale) * 10) / 10,
+  }
 }
 
 /** Cùng một hộp cho bản sửa và bản khách. Phần trăm của khung thiệp, không của cửa sổ. */
@@ -88,6 +243,14 @@ const PEONY_LEAF = '/wedding/backgrounds/ornaments/peony-leaf.png'
 const SPRIG = '/wedding/backgrounds/ornaments/scarlet-sprig.png'
 const LOTUS = '/wedding/backgrounds/ornaments/lotus-bloom.png'
 const LOTUS_LEAF = '/wedding/backgrounds/ornaments/lotus-leaf.png'
+const DRIED_SPRIG = '/wedding/backgrounds/ornaments/dried-sprig.png'
+const MOC_BLOOM = '/wedding/backgrounds/ornaments/moc-bloom.png'
+const MOC_LEAF = '/wedding/backgrounds/ornaments/moc-leaf.png'
+const MOC_SPRIG = '/wedding/backgrounds/ornaments/moc-sprig.png'
+const MIST_SPRIG = '/wedding/backgrounds/ornaments/mist-sprig.png'
+const DO_DAM_PEONY = '/wedding/backgrounds/ornaments/do-dam-peony.png'
+const DO_DAM_ROSE = '/wedding/backgrounds/ornaments/do-dam-rose.png'
+const DO_DAM_STEM = '/wedding/backgrounds/ornaments/do-dam-stem.png'
 const PEARL_ROSE = '/wedding/backgrounds/ornaments/pearl-rose.png'
 const PEARL_BUTTERFLY = '/wedding/backgrounds/ornaments/pearl-butterfly.png'
 const PEARL_STRAND = '/wedding/backgrounds/ornaments/pearl-strand.png'
@@ -95,40 +258,40 @@ const PEARL_STRAND = '/wedding/backgrounds/ornaments/pearl-strand.png'
 const SOFT_FONT = 'Palatino Linotype, Palatino, Georgia, serif'
 const FORMAL_FONT = 'Georgia, Times New Roman, serif'
 
-/** Hoa màu nước trong suốt, bám mép và nằm trên chữ. */
+/** Hoa bám bốn góc một khổ. Giữa trang để trống cho chữ. Khổ sau lặp nhỏ hơn. */
 const GARDEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LEAF, x: -14, y: 3, w: 50, rotate: -8 },
-  { src: PETAL, x: 58, y: -1, w: 48, opacity: 0.72 },
-  { src: BLOOM, x: -26, y: 24, w: 72, opacity: 0.55 },
-  { src: LEAF, x: 62, y: 0, w: 44, rotate: 14, flipX: true, anchor: 'bottom', opacity: 0.8 },
-  { src: BLOOM, x: -20, y: -6, w: 66, opacity: 0.42, anchor: 'bottom' },
+  { src: LEAF, x: -16, y: -2, w: 34, rotate: -12, opacity: 0.88 },
+  { src: PETAL, x: 74, y: 1, w: 28, rotate: 8, opacity: 0.8 },
+  { src: BLOOM, x: -12, y: -4, w: 32, opacity: 0.55, anchor: 'bottom' },
+  { src: LEAF, x: 70, y: 0, w: 30, rotate: 16, flipX: true, anchor: 'bottom', opacity: 0.78 },
 ]
 
 const PEONY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: PEONY, x: -18, y: 1, w: 56, opacity: 0.9 },
-  { src: PEONY_LEAF, x: 58, y: 6, w: 42, rotate: 8 },
-  { src: PEONY, x: -12, y: -8, w: 50, opacity: 0.5, anchor: 'bottom' },
-  { src: PEONY_LEAF, x: 60, y: 0, w: 38, flipX: true, anchor: 'bottom', opacity: 0.8 },
+  { src: PEONY, x: -14, y: -2, w: 36, rotate: -6, opacity: 0.9 },
+  { src: PEONY_LEAF, x: 72, y: 2, w: 28, rotate: 10 },
+  { src: PEONY_LEAF, x: -10, y: -2, w: 30, rotate: -14, anchor: 'bottom', opacity: 0.82 },
+  { src: PEONY, x: 68, y: -6, w: 32, flipX: true, opacity: 0.62, anchor: 'bottom' },
 ]
 
 const SCARLET_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: SPRIG, x: -6, y: 4, w: 34, rotate: -8 },
-  { src: SPRIG, x: 70, y: -2, w: 32, rotate: 10, flipX: true, anchor: 'bottom', opacity: 0.85 },
+  { src: SPRIG, x: -8, y: 0, w: 28, rotate: -10 },
+  { src: SPRIG, x: 76, y: 2, w: 24, rotate: 12, flipX: true, opacity: 0.85 },
+  { src: SPRIG, x: -6, y: -2, w: 26, rotate: 8, anchor: 'bottom', opacity: 0.8 },
+  { src: SPRIG, x: 74, y: 0, w: 22, rotate: -14, flipX: true, anchor: 'bottom', opacity: 0.72 },
 ]
 
 const LOTUS_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LOTUS, x: -16, y: 0, w: 52, opacity: 0.9 },
-  { src: LOTUS_LEAF, x: 58, y: 4, w: 40 },
-  { src: LOTUS, x: 46, y: -8, w: 46, opacity: 0.48, anchor: 'bottom' },
-  { src: LOTUS_LEAF, x: -6, y: 0, w: 36, flipX: true, anchor: 'bottom', opacity: 0.75 },
+  { src: LOTUS, x: -12, y: -2, w: 34, opacity: 0.9 },
+  { src: LOTUS_LEAF, x: 72, y: 1, w: 28, rotate: 8 },
+  { src: LOTUS_LEAF, x: -8, y: -1, w: 30, flipX: true, anchor: 'bottom', opacity: 0.78 },
+  { src: LOTUS, x: 70, y: -6, w: 30, opacity: 0.5, anchor: 'bottom' },
 ]
 
 const PEARL_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: PEARL_ROSE, x: 56, y: -2, w: 48, opacity: 0.92 },
-  { src: PEARL_BUTTERFLY, x: -2, y: 4, w: 24, rotate: -10 },
-  { src: PEARL_STRAND, x: -24, y: 10, w: 36, opacity: 0.72 },
-  { src: PEARL_ROSE, x: -14, y: -6, w: 44, flipX: true, opacity: 0.5, anchor: 'bottom' },
-  { src: PEARL_BUTTERFLY, x: 72, y: 1, w: 20, rotate: 14, anchor: 'bottom', opacity: 0.85 },
+  { src: PEARL_ROSE, x: -12, y: -1, w: 32, opacity: 0.88 },
+  { src: PEARL_BUTTERFLY, x: 76, y: 2, w: 18, rotate: 14 },
+  { src: PEARL_STRAND, x: 64, y: -2, w: 28, rotate: 18, opacity: 0.65, anchor: 'bottom' },
+  { src: PEARL_ROSE, x: -14, y: -4, w: 30, flipX: true, opacity: 0.5, anchor: 'bottom' },
 ]
 
 const GARDEN_LOOK: WeddingKitLook = {
@@ -180,11 +343,10 @@ const SCARLET_LOOK: WeddingKitLook = {
 }
 
 const SKY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: PEARL_BUTTERFLY, x: -4, y: 2, w: 22, rotate: -12, opacity: 0.9 },
-  { src: PEARL_ROSE, x: 62, y: -4, w: 40, opacity: 0.85 },
-  { src: PEARL_STRAND, x: -18, y: 8, w: 32, opacity: 0.7 },
-  { src: PEARL_ROSE, x: -16, y: -4, w: 42, flipX: true, opacity: 0.55, anchor: 'bottom' },
-  { src: PEARL_BUTTERFLY, x: 74, y: 2, w: 18, rotate: 16, anchor: 'bottom', opacity: 0.85 },
+  { src: PEARL_BUTTERFLY, x: -6, y: 0, w: 22, rotate: -14, opacity: 0.9 },
+  { src: PEARL_ROSE, x: 74, y: -2, w: 26, opacity: 0.75 },
+  { src: PEARL_STRAND, x: -18, y: 2, w: 24, rotate: -24, opacity: 0.55, anchor: 'bottom' },
+  { src: PEARL_BUTTERFLY, x: 74, y: 1, w: 18, rotate: 16, flipX: true, anchor: 'bottom', opacity: 0.85 },
 ]
 
 const SKY_LOOK: WeddingKitLook = {
@@ -219,6 +381,99 @@ const PEARL_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
+const LINEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: DRIED_SPRIG, x: -10, y: -2, w: 30, rotate: -8, opacity: 0.9 },
+  { src: DRIED_SPRIG, x: 74, y: -1, w: 28, rotate: 12, flipX: true, anchor: 'bottom', opacity: 0.82 },
+]
+
+/** Hoa và lá chụp thật, bám góc, để giữa trang trống cho chữ. */
+const MOC_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: MOC_BLOOM, x: -14, y: -3, w: 32, rotate: -8, opacity: 0.92 },
+  { src: MOC_SPRIG, x: 76, y: 0, w: 22, rotate: 10, opacity: 0.88 },
+  { src: MOC_LEAF, x: -12, y: -2, w: 28, rotate: -16, anchor: 'bottom', opacity: 0.86 },
+  { src: MOC_BLOOM, x: 70, y: -6, w: 28, flipX: true, opacity: 0.55, anchor: 'bottom' },
+]
+
+/** Hoa rum nằm trên khung ảnh. Trang chỉ rắc vài nhánh baby nhỏ ở mép. */
+const CALLA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: MIST_SPRIG, x: -4, y: 0, w: 12, rotate: -8, opacity: 0.7 },
+  { src: MIST_SPRIG, x: 86, y: 1, w: 12, rotate: 10, opacity: 0.65 },
+  { src: MIST_SPRIG, x: 82, y: 0, w: 11, rotate: 6, anchor: 'bottom', opacity: 0.6 },
+  { src: MIST_SPRIG, x: -6, y: 2, w: 12, rotate: -12, anchor: 'bottom', opacity: 0.62 },
+]
+
+const CALLA_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'olive',
+  coverRsvpColorId: 'olive',
+  ink: '#3e4f34',
+  muted: '#6a7b5c',
+  accent: '#5c6b40',
+  textClass: 'text-[#3e4f34]',
+  mutedClass: 'text-[#6a7b5c]',
+  accentClass: 'text-[#5c6b40]',
+  accentTextClass: 'text-[#2f3d28]',
+  textPlate: 'rgba(247,250,244,0.8)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+const MOC_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'forest',
+  coverRsvpColorId: 'olive',
+  ink: '#1f3d2b',
+  muted: '#4d6b56',
+  accent: '#3e5a44',
+  textClass: 'text-[#1f3d2b]',
+  mutedClass: 'text-[#4d6b56]',
+  accentClass: 'text-[#3e5a44]',
+  accentTextClass: 'text-[#2c4a36]',
+  textPlate: 'rgba(255,252,246,0.78)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+const LINEN_LOOK: WeddingKitLook = {
+  styleId: 'ethereal',
+  buttonColorId: 'charcoal',
+  coverRsvpColorId: 'champagne',
+  ink: '#4a433c',
+  muted: '#8a7e72',
+  accent: '#8d7355',
+  textClass: 'text-[#4a433c]',
+  mutedClass: 'text-[#8a7e72]',
+  accentClass: 'text-[#8d7355]',
+  accentTextClass: 'text-[#6e5b45]',
+  textPlate: 'rgba(247,242,234,0.72)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+/** Mẫu đơn đỏ rượu và hồng kem, chỉ bám góc, giữa trang để trống cho chữ. */
+const DO_DAM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: DO_DAM_PEONY, x: -12, y: -2, w: 30, rotate: -8, opacity: 0.94 },
+  { src: DO_DAM_ROSE, x: 76, y: 0, w: 22, rotate: 8, opacity: 0.9 },
+  { src: DO_DAM_STEM, x: -4, y: 1, w: 16, rotate: -12, anchor: 'bottom', opacity: 0.75 },
+  { src: DO_DAM_PEONY, x: 70, y: -5, w: 26, flipX: true, anchor: 'bottom', opacity: 0.62 },
+]
+
+const DO_DAM_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'burgundy',
+  coverRsvpColorId: 'ivory',
+  ink: '#4a1e2c',
+  muted: '#7a5360',
+  accent: '#6b2136',
+  textClass: 'text-[#4a1e2c]',
+  mutedClass: 'text-[#7a5360]',
+  accentClass: 'text-[#6b2136]',
+  accentTextClass: 'text-[#5c1a28]',
+  textPlate: 'rgba(255,248,244,0.84)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
 const LOTUS_LOOK: WeddingKitLook = {
   styleId: 'luxury',
   buttonColorId: 'gold',
@@ -237,7 +492,7 @@ const LOTUS_LOOK: WeddingKitLook = {
 
 /**
  * Bộ nền có sẵn. Chọn một bộ là đổi nền, khung, hoa nổi, màu nút, màu chữ, nền chữ và kiểu chữ.
- * plates nằm dưới ảnh và chữ. ornaments là PNG màu nước nổi trên chữ.
+ * plates nằm dưới ảnh và chữ. ornaments là ảnh hoa nổi trên chữ.
  */
 export type WeddingBackgroundPreset = {
   id: string
@@ -245,11 +500,27 @@ export type WeddingBackgroundPreset = {
   ornaments: readonly WeddingBackgroundOrnament[]
   /** Khung vỏ đi cùng bộ nền. */
   coverPresetId: string
+  /** Bố cục ảnh đi cùng bộ nền. Không khai báo thì một khung. */
+  heroPhotoLayout?: 'single' | 'stack'
   look: WeddingKitLook
   label: Record<WebLocale, string>
 }
 
 export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
+  {
+    id: 'toi-gian-nau',
+    plates: ['/wedding/backgrounds/toi-gian-nau.jpg'],
+    ornaments: LINEN_ORNAMENTS,
+    coverPresetId: 'linen_polaroid',
+    look: LINEN_LOOK,
+    label: {
+      vi: 'Tối giản nâu',
+      en: 'Warm minimal',
+      zh: '暖色极简',
+      ja: 'あたたかいミニマル',
+      ko: '따뜻한 미니멀',
+    },
+  },
   {
     id: 'vuon-kinh-hong',
     plates: ['/wedding/backgrounds/vuon-kinh-hong-wash.jpg'],
@@ -336,6 +607,48 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
       zh: '玫瑰蓝天',
       ja: '薔薇の青空',
       ko: '장미 하늘',
+    },
+  },
+  {
+    id: 'hoa-moc-xanh',
+    plates: ['/wedding/backgrounds/hoa-moc-xanh-paper.jpg'],
+    ornaments: MOC_ORNAMENTS,
+    coverPresetId: 'moc_portrait',
+    look: MOC_LOOK,
+    label: {
+      vi: 'Hoa mộc xanh',
+      en: 'Green wood flower',
+      zh: '青木花',
+      ja: '青木の花',
+      ko: '푸른 나뭇꽃',
+    },
+  },
+  {
+    id: 'to-duyen-xanh',
+    plates: ['/wedding/backgrounds/to-duyen-xanh-paper.jpg'],
+    ornaments: CALLA_ORNAMENTS,
+    coverPresetId: 'to_duyen_xanh',
+    look: CALLA_LOOK,
+    label: {
+      vi: 'Tơ duyên xanh',
+      en: 'Sage calla',
+      zh: '青瓷马蹄莲',
+      ja: '青磁のカラー',
+      ko: '세이지 칼라',
+    },
+  },
+  {
+    id: 'do-dam',
+    plates: ['/wedding/backgrounds/do-dam-paper.jpg'],
+    ornaments: DO_DAM_ORNAMENTS,
+    coverPresetId: 'do_dam',
+    look: DO_DAM_LOOK,
+    label: {
+      vi: 'Đỏ đậm tối giản',
+      en: 'Deep burgundy minimal',
+      zh: '深酒红极简',
+      ja: '深いバーガンディのミニマル',
+      ko: '딥 버건디 미니멀',
     },
   },
 ]
@@ -456,20 +769,39 @@ export function weddingUsesPairedAiFrame(section: {
   backgroundPresetId?: string
   coverFrameMode?: string
   coverAiFrameUrl?: string
+  coverFrameChosen?: boolean
 }): boolean {
-  if (section.backgroundPresetId) return false
+  if (section.backgroundPresetId || section.coverFrameChosen) return false
   const mode = section.coverFrameMode
   return (mode === 'library' || mode === 'ai') && Boolean(section.coverAiFrameUrl?.trim())
+}
+
+/** Bố cục ảnh của bộ nền. Khách không chọn bố cục riêng. */
+export function weddingHeroPhotoLayout(preset: Pick<WeddingBackgroundPreset, 'heroPhotoLayout'> | null | undefined): 'single' | 'stack' {
+  return preset?.heroPhotoLayout === 'stack' ? 'stack' : 'single'
 }
 
 export function weddingKitFramePatch(preset: WeddingBackgroundPreset) {
   return {
     coverPresetId: preset.coverPresetId,
     coverFrameMode: 'preset' as const,
+    heroPhotoLayout: weddingHeroPhotoLayout(preset),
     groomPortraitShellMode: 'preset' as const,
     groomPortraitShellPresetId: preset.coverPresetId,
     bridePortraitShellMode: 'preset' as const,
     bridePortraitShellPresetId: preset.coverPresetId,
+  }
+}
+
+/** Nền có sẵn mang theo khung, màu nút và màu chữ. Gỡ khung ảnh riêng để giao diện mới hiện. */
+export function weddingReadyBackgroundSectionPatch(preset: WeddingBackgroundPreset) {
+  return {
+    backgroundPresetId: preset.id,
+    backgroundKitStyleId: '',
+    ...weddingKitFramePatch(preset),
+    buttonColorId: preset.look.buttonColorId,
+    coverRsvpColorId: preset.look.coverRsvpColorId,
+    coverAiFrameUrl: '',
   }
 }
 

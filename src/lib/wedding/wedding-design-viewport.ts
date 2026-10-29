@@ -1,7 +1,7 @@
 /** Khổ giấy cố định. Sửa, xem thử và khách xem cùng một bề ngang. */
 export const WEDDING_DESKTOP_WIDTH = 1440
 export const WEDDING_MOBILE_WIDTH = 390
-/** Chiều khổ giấy. Hoa văn bám khổ này, không bám chiều nội dung. */
+/** Chiều một khổ giấy. Vỏ thiệp bám khổ này. Nội dung thiệp lặp hoa văn theo từng khổ, từ trên xuống dưới. */
 export const WEDDING_DESKTOP_HEIGHT = 900
 export const WEDDING_MOBILE_HEIGHT = 844
 export const WEDDING_DESKTOP_MIN_PX = 1024

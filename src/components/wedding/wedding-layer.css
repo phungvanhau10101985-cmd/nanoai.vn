@@ -18,7 +18,7 @@ html[data-wedding-layout-preview] {
   overflow: hidden !important;
 }
 
-/* Khổ giấy quyết định chiều ô ảnh và chỗ hoa văn, không phải chiều cửa sổ hay chiều nội dung. */
+/* Vỏ thiệp: hoa văn bám một khổ giấy. Nội dung thiệp (`flow`) phủ hết chiều chữ. */
 [data-wedding-stage] {
   container: wedding-stage / inline-size;
 }
@@ -113,6 +113,12 @@ html[data-wedding-layout-preview] {
   }
 }
 
+/* Nội dung thiệp dài hơn một khổ. Hoa văn phủ đúng chiều chữ đang hiện, không co theo phần trăm chiều cao chưa xác định. */
+[data-wedding-ornament-frame='flow'] {
+  bottom: 0;
+  height: auto;
+}
+
 /* Khối đang chạy hiệu ứng vẫn tạo lớp riêng. Đưa cả khối nút lên trên hoa văn. */
 [data-wedding-stage] :is(.wedding-invite-body-join, .wedding-open-after, .wedding-open-map) {
   position: relative;
@@ -121,4 +127,33 @@ html[data-wedding-layout-preview] {
 
 [data-wedding-stage] :is(p, h1, h2, h3, h4, li, figcaption, blockquote, label, a, button, input, textarea, select):where(:not(.absolute):not(.fixed):not(.sticky)) {
   position: relative;
+}
+
+/* Hoa «lên khi lướt»: từ thấp hơn một đoạn rồi trượt lên đúng chỗ đã đặt. */
+@keyframes wedding-ornament-rise {
+  from { transform: translate3d(0, 3rem, 0); }
+  to { transform: none; }
+}
+
+.wedding-ornament-rise-in {
+  animation: wedding-ornament-rise 880ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+[data-ornament-motion='1'] [data-wedding-ornament-rise]:not([data-wedding-ornament-shown='1']) {
+  transform: translate3d(0, 3rem, 0);
+}
+
+[data-ornament-motion='1'] [data-wedding-ornament-rise][data-wedding-ornament-shown='1'] {
+  transform: none;
+  transition: transform 880ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wedding-ornament-rise-in {
+    animation: none;
+  }
+
+  [data-ornament-motion='1'] [data-wedding-ornament-rise]:not([data-wedding-ornament-shown='1']) {
+    transform: none;
+  }
 }
