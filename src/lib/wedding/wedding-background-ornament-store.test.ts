@@ -14,10 +14,18 @@ import {
   weddingOrnamentsForKey,
 } from './wedding-background-ornament-store'
 
-test('ornament layout key follows the ready set, otherwise the AI plate', () => {
+test('ornament layout key follows the ready set, otherwise the AI theme, otherwise the plate', () => {
   assert.equal(weddingOrnamentLayoutKey({ backgroundPresetId: 'sen-vang', masterImageUrl: 'https://cdn.example/ai.png' }), 'preset:sen-vang')
+  assert.equal(weddingOrnamentLayoutKey({ backgroundPresetId: 'sen-vang', backgroundKitStyleId: 'luxury' }), 'preset:sen-vang')
+  assert.equal(
+    weddingOrnamentLayoutKey({ backgroundKitStyleId: 'luxury', masterImageUrl: 'https://cdn.example/ai.png' }),
+    'kit:luxury',
+  )
   assert.equal(weddingOrnamentLayoutKey({ masterImageUrl: 'https://cdn.example/ai.png' }), 'image:https://cdn.example/ai.png')
   assert.equal(weddingOrnamentLayoutKey({ backgroundPresetId: 'missing' }), '')
+  assert.equal(weddingOrnamentLayoutKey({ backgroundKitStyleId: 'nope' }), '')
+  assert.equal(isWeddingOrnamentLayoutKey('kit:luxury@mobile'), true)
+  assert.equal(isWeddingOrnamentLayoutKey('kit:nope@mobile'), false)
 })
 
 test('catalog flowers and pasted image links can be saved, and an empty list clears the layer', () => {

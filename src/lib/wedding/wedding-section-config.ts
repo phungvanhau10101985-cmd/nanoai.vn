@@ -1,4 +1,4 @@
-import { findWeddingBackgroundPreset } from '@/lib/wedding/wedding-background-presets'
+import { findWeddingBackgroundPreset, weddingThemeOpenCelebration } from '@/lib/wedding/wedding-background-presets'
 import { WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
 import { isWeddingButtonColorId, type WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
 import { findWeddingCoverPreset, weddingCoverPresetFollowsBackground } from '@/lib/wedding/wedding-cover-presets'
@@ -819,8 +819,9 @@ export function resolveShownPortraitShell(
   kitPresetId?: string,
   _shared?: WeddingSharedFrame | null,
 ): WeddingPortraitShellFrame | null {
-  const kitFrame = findWeddingCoverPreset(kitPresetId ?? '')?.frame
-  if (kitFrame) return { src: kitFrame.src, hole: kitFrame.hole, panel: kitFrame.panel }
+  const kitPreset = findWeddingCoverPreset(kitPresetId ?? '')
+  if (kitPreset?.frame) return { src: kitPreset.frame.src, hole: kitPreset.frame.hole, panel: kitPreset.frame.panel }
+  if (kitPreset && weddingCoverPresetFollowsBackground(kitPreset)) return null
   const chosen = side === 'groom' ? config.groomPortraitFrameChosen : config.bridePortraitFrameChosen
   if (chosen) return null
   return resolvePortraitShell(config, side)
@@ -984,19 +985,27 @@ export function resolveCoverFrameOpen(config: WeddingSectionConfig): WeddingCove
   return readCoverFrameOpen(config.coverFrameOpen) ?? 'bloom'
 }
 
-/** Chưa chọn: bung hoa lúc bấm mở. */
+function themeOpenCelebration(config: WeddingSectionConfig) {
+  return weddingThemeOpenCelebration(config.backgroundPresetId || config.backgroundKitStyleId)
+}
+
+/** Chưa chọn: bung theo chủ đề. Không có chủ đề thì bung hoa. */
 export function resolveOpenBurstEffect(config: WeddingSectionConfig): WeddingOpenBurstEffect {
-  return readOpenBurstEffect(config.openBurstEffect) ?? 'bloom'
+  return readOpenBurstEffect(config.openBurstEffect) ?? themeOpenCelebration(config).openBurstEffect
 }
 
-/** Chưa chọn: cánh hoa rơi lúc thiệp hiện lên. */
+/** Chưa chọn: rơi theo chủ đề. Không có chủ đề thì cánh hoa. */
 export function resolveOpenFallEffect(config: WeddingSectionConfig): WeddingOpenFallEffect {
-  return readOpenFallEffect(config.openFallEffect) ?? 'petals'
+  return readOpenFallEffect(config.openFallEffect) ?? themeOpenCelebration(config).openFallEffect
 }
 
-/** Chưa chọn: rơi suốt lúc khách còn xem. */
+/** Chưa chọn: pháo và đèn lồng tắt sau một lúc. Cánh hoa thì rơi suốt lúc xem. */
 export function resolveOpenFallSeconds(config: WeddingSectionConfig): number {
-  return readOpenFallSeconds(config.openFallSeconds) ?? 0
+  const stored = readOpenFallSeconds(config.openFallSeconds)
+  if (stored != null) return stored
+  const fall = resolveOpenFallEffect(config)
+  if (fall === 'fireworks' || fall === 'lanterns' || fall === 'confetti') return 15
+  return 0
 }
 
 export function openFallSecondsStopIndex(seconds: number): number {

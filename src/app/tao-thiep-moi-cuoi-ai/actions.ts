@@ -18,6 +18,8 @@ import {
   weddingOrnamentSaveKey,
   type WeddingOrnamentDevice,
 } from '@/lib/wedding/wedding-background-ornament-store'
+import { findWeddingBackgroundPreset } from '@/lib/wedding/wedding-background-presets'
+import { findWeddingSampleCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
 import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent, type GeminiShaped } from '@/lib/ai/gpt-image'
@@ -238,6 +240,7 @@ async function weddingSharedBaseKey(cardId: string, ownerUserId: string): Promis
   const section = parseWeddingSectionConfig(card.sectionConfig)
   return weddingOrnamentLayoutKey({
     backgroundPresetId: section.backgroundPresetId,
+    backgroundKitStyleId: section.backgroundKitStyleId,
     masterImageUrl: card.masterImageUrl,
   })
 }
@@ -365,6 +368,89 @@ export async function saveWeddingTemplateFrame(
     return { error: 'unavailable' as const }
   }
   if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return { ok: true as const, frame: parsed }
+}
+
+async function assertWeddingPresetEditor(presetId: string) {
+  const sample = findWeddingSampleCard(presetId)
+  const preset = sample?.aiStyleId ? undefined : findWeddingBackgroundPreset(presetId)
+  const base = sample ? weddingSampleSharedLayoutKey(sample) : preset ? weddingOrnamentLayoutKey({ backgroundPresetId: preset.id }) : ''
+  if (!base) return { error: 'invalid' as const }
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const role = await getProfileRoleWithFallback(userId)
+  if (!canEditWeddingOrnaments({ role, email: auth.user.email })) return { error: 'denied' as const }
+  return { userId, base, presetId: sample?.id || preset?.id || presetId }
+}
+
+/** Quản trị sửa thiệp mẫu thì ghi hoa vào mẫu dùng chung, không cần một thiệp khách. */
+export async function saveWeddingPresetOrnaments(presetId: string, device: WeddingOrnamentDevice, ornaments: unknown) {
+  const access = await assertWeddingPresetEditor(presetId)
+  if ('error' in access) return access
+  const parsed = parseWeddingOrnamentList(ornaments)
+  if (!parsed || (device !== 'desktop' && device !== 'mobile')) return { error: 'invalid' as const }
+  const key = weddingOrnamentDeviceKey(access.base, device)
+  if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await saveWeddingOrnamentLayout({ layoutKey: key, ornaments: parsed, userId: access.userId })
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  revalidatePath(`/thiep-mau/${access.presetId}`)
+  return { ok: true as const, ornaments: parsed, template: true as const }
+}
+
+export async function resetWeddingPresetOrnaments(presetId: string, device: WeddingOrnamentDevice) {
+  const access = await assertWeddingPresetEditor(presetId)
+  if ('error' in access) return access
+  if (device !== 'desktop' && device !== 'mobile') return { error: 'invalid' as const }
+  const key = weddingOrnamentDeviceKey(access.base, device)
+  if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await deleteWeddingOrnamentLayout(key)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  revalidatePath(`/thiep-mau/${access.presetId}`)
+  return { ok: true as const }
+}
+
+export async function saveWeddingPresetShell(presetId: string, device: WeddingOrnamentDevice, shell: unknown) {
+  const access = await assertWeddingPresetEditor(presetId)
+  if ('error' in access) return access
+  const parsed = parseWeddingDeviceShell(shell)
+  if (!parsed || (device !== 'desktop' && device !== 'mobile')) return { error: 'invalid' as const }
+  const key = weddingOrnamentDeviceKey(access.base, device)
+  if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
+  try {
+    await saveWeddingShellLayout({ layoutKey: key, shell: parsed, userId: access.userId })
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  revalidatePath(`/thiep-mau/${access.presetId}`)
+  return { ok: true as const, shell: parsed }
+}
+
+export async function saveWeddingPresetFrame(
+  presetId: string,
+  frame: unknown,
+  side: 'cover' | 'groom' | 'bride' | 'pair',
+) {
+  const access = await assertWeddingPresetEditor(presetId)
+  if ('error' in access) return access
+  if (side !== 'cover' && side !== 'groom' && side !== 'bride' && side !== 'pair') return { error: 'invalid' as const }
+  const key = weddingSharedFrameKey(access.base)
+  if (!key || !isWeddingSharedFrameKey(key)) return { error: 'invalid' as const }
+  const parsed: WeddingSharedFrame | null = frame == null ? null : parseWeddingSharedFrame(frame)
+  if (frame != null && !parsed) return { error: 'invalid' as const }
+  try {
+    if (parsed) await saveWeddingSharedFrame({ layoutKey: key, frame: parsed, userId: access.userId })
+    else await deleteWeddingSharedFrame(key)
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  revalidatePath(`/thiep-mau/${access.presetId}`)
   return { ok: true as const, frame: parsed }
 }
 

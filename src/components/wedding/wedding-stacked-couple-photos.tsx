@@ -343,10 +343,10 @@ function PhotoCard(props: {
   return (
     <div data-wedding-frame={props.frameId} className={cn(props.className)} style={{ width: `${props.widthPercent}%`, transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
       {props.controlsEdge === 'top' && toolbar ? <div className="relative z-[6] mb-1">{toolbar}</div> : null}
-      <div className={cn('relative', props.shell ? 'bg-transparent' : 'border-[3px] border-[#9caf8a] bg-white p-1 shadow-[0_10px_24px_rgba(70,90,50,0.16)]')}>
+      <div className={cn('relative', props.shell ? 'bg-transparent' : 'overflow-hidden rounded-2xl shadow-[0_16px_36px_rgba(20,4,8,0.32)]')}>
         <div
           ref={boxRef}
-          className={cn('relative w-full overflow-hidden', props.shell ? 'bg-transparent' : 'bg-[#f7f6f2]', props.shell && holeMask === undefined && 'opacity-0', props.edit && 'cursor-grab')}
+          className={cn('relative w-full overflow-hidden', props.shell && 'bg-transparent', props.shell && holeMask === undefined && 'opacity-0', props.edit && 'cursor-grab')}
           style={{ aspectRatio: String(frameAspect) }}
         >
           <div className="absolute" style={artShift}>
@@ -376,7 +376,7 @@ function PhotoCard(props: {
                 {props.url ? (
                   <img src={props.url} alt={props.alt} draggable={false} className="h-full w-full select-none object-cover" style={photo} />
                 ) : (
-                  <div className="h-full w-full border border-dashed border-[#c5d4b4]" />
+                  <div className="h-full w-full border border-dashed border-white/40" />
                 )}
               </div>
             </div>

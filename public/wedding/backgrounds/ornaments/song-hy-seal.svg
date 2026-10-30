@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <circle cx="64" cy="64" r="58" fill="none" stroke="#f3d27a" stroke-width="3"/>
+  <circle cx="64" cy="64" r="50" fill="none" stroke="#f3d27a" stroke-width="1.2" opacity="0.85"/>
+  <text x="64" y="82" text-anchor="middle" font-size="58" font-family="Microsoft YaHei, SimSun, Noto Serif SC, serif" fill="#f6e2b0">囍</text>
+</svg>

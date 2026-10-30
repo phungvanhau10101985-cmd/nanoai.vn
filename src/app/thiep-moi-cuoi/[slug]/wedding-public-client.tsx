@@ -40,13 +40,14 @@ import { weddingGiftBoxLook } from '@/lib/wedding/wedding-gift-box-look'
 import { resolveWeddingDisplayTime } from '@/lib/wedding/wedding-calendar-utils'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
 import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
-import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
+import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingThemeIsDark, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage } from '@/components/wedding/wedding-ornament-admin'
-import { resetWeddingCardOrnaments, saveWeddingCardOrnaments, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+import { resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
-import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
@@ -110,7 +111,7 @@ import {
   startWeddingInvitationAutoScroll,
   stopWeddingInvitationAutoScroll,
 } from '@/hooks/use-wedding-invitation-auto-scroll'
-import { applyWeddingDesignViewport, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
+import { applyWeddingDesignViewport, WEDDING_DESKTOP_HEIGHT, WEDDING_DESKTOP_MIN_PX, WEDDING_DESKTOP_WIDTH, WEDDING_MOBILE_HEIGHT, WEDDING_MOBILE_WIDTH } from '@/lib/wedding/wedding-design-viewport'
 
 const PUBLIC_COLUMN = 'mx-auto flex w-full max-w-3xl flex-col gap-5 sm:gap-7'
 
@@ -178,7 +179,7 @@ function WeddingGuestTextSlot(props: {
   )
 }
 
-function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; children: ReactNode }) {
+function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; fitHeight?: boolean; children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -192,7 +193,9 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     const fit = () => {
       const height = inner.offsetHeight
       if (height < 1 || outer.clientWidth < 1) return
-      const next = outer.clientWidth / props.designWidth
+      const widthScale = outer.clientWidth / props.designWidth
+      const heightScale = outer.clientHeight > 0 ? outer.clientHeight / height : widthScale
+      const next = props.fitHeight ? Math.min(widthScale, heightScale) : widthScale
       setScale((current) => (Math.abs(current - next) < 0.004 ? current : next))
       setContentHeight((current) => (Math.abs(current - height) < 1 ? current : height))
     }
@@ -201,7 +204,7 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     observer.observe(outer)
     observer.observe(inner)
     return () => observer.disconnect()
-  }, [props.active, props.designWidth])
+  }, [props.active, props.designWidth, props.fitHeight])
 
   if (!props.active) return <div className="relative" data-wedding-stage="">{props.children}</div>
 
@@ -222,7 +225,13 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     )
   }
   return (
-    <div ref={outerRef} className={props.contain ? 'relative mx-auto min-h-screen w-full overflow-x-hidden' : 'fixed inset-0 z-50 overflow-x-hidden overflow-y-auto'} style={{ backgroundColor: props.backgroundColor }}>
+    <div
+      ref={outerRef}
+      className={props.fitHeight ? 'fixed z-50 overflow-hidden' : props.contain ? 'relative mx-auto min-h-screen w-full overflow-x-hidden' : 'fixed inset-0 z-50 overflow-x-hidden overflow-y-auto'}
+      style={props.fitHeight
+        ? { backgroundColor: props.backgroundColor, width: props.designWidth, maxWidth: '100vw', left: '50%', transform: 'translateX(-50%)', top: 0, bottom: '4.75rem' }
+        : { backgroundColor: props.backgroundColor }}
+    >
       <div style={{ width: props.designWidth * scale, height: scaledHeight || undefined, margin: '0 auto' }}>
         <div ref={innerRef} data-wedding-stage="" style={{ width: props.designWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
           {props.children}
@@ -256,6 +265,8 @@ export default function WeddingPublicClient({
   layoutPreview = false,
   editorStack,
   hostPreview = false,
+  samplePresetId = '',
+  sampleDemo = false,
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -280,6 +291,9 @@ export default function WeddingPublicClient({
   layoutPreview?: boolean
   editorStack?: 'cover' | 'letter'
   hostPreview?: boolean
+  /** Mẫu dùng chung đang xem demo. Sửa của quản trị ghi vào mẫu này, không ghi vào thiệp khách. */
+  samplePresetId?: string
+  sampleDemo?: boolean
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -322,10 +336,14 @@ export default function WeddingPublicClient({
   const [textPick, setTextPick] = useState<WeddingTextRole | null>(null)
   const [viewDevice, setViewDevice] = useState<'desktop' | 'mobile'>('mobile')
   const displayedSectionRaw = previewLookOn || hostEditor || ornamentEditor ? sectionRaw : card.sectionConfig
-  const sectionConfig = useMemo(
-    () => parseWeddingSectionConfig(displayedSectionRaw),
-    [displayedSectionRaw],
-  )
+  const sectionConfig = useMemo(() => {
+    const parsed = parseWeddingSectionConfig(displayedSectionRaw)
+    if (sampleDemo || !isWeddingSamplePhotoUrl(parsed.coverPhotoUrl)) return parsed
+    return { ...parsed, coverPhotoUrl: '' }
+  }, [displayedSectionRaw, sampleDemo])
+  const groomPhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(card.groomImageUrl) ? card.groomImageUrl : ''
+  const bridePhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(card.brideImageUrl) ? card.brideImageUrl : ''
+  const albumPhotoUrls = sampleDemo ? card.albumImageUrls : card.albumImageUrls.filter((url) => !isWeddingSamplePhotoUrl(url))
   const plateUrls = previewPlates ?? backgroundPlateUrls
   const pageBackground = (plateUrls[0] || (previewLookOn ? '' : card.masterImageUrl) || '').trim()
   const readyBackground = resolveWeddingChromeKit(sectionConfig)
@@ -335,6 +353,7 @@ export default function WeddingPublicClient({
     () => applyWeddingKitTheme(getWeddingTheme(themeStyleId), readyBackground),
     [readyBackground, themeStyleId],
   )
+  const readingPlate = weddingReadingPlate(readyBackground, pageBackground, weddingThemeIsDark(theme))
   const contentSurface = pageBackground
     ? { background: 'transparent' }
     : weddingBackgroundStyle(pageBackground, theme, 0)
@@ -353,6 +372,11 @@ export default function WeddingPublicClient({
   )
   const buttonFill = useMemo(() => bindWeddingButtonFill(buttonColor), [buttonColor])
   const rsvpFill = useMemo(() => bindWeddingButtonFill(coverRsvpColor), [coverRsvpColor])
+  const stageColor = theme.darkPaper || (isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8')
+  const paperField = theme.darkPaper
+    ? 'border-[#e8c87a]/45 bg-[#fff8ee] text-[#3a2214] placeholder:text-[#8a7048]'
+    : ''
+  const ringOffsetClass = theme.darkPaper ? 'ring-offset-[#5c1018]' : 'ring-offset-[#fff8f0]'
   const heroStack =
     invitationOccasionShape(card.occasionKey) === 'couple' && weddingHeroPhotoLayout(readyBackground) === 'stack'
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, pairedAiFrame ? null : sharedFrame)
@@ -417,12 +441,13 @@ export default function WeddingPublicClient({
   const [sharedMobileOrnaments, setSharedMobileOrnaments] = useState(ornamentSharedMobile)
   const [sharedShellDraft, setSharedShellDraft] = useState(sharedShell)
   const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('mobile')
-  const [frameLines, setFrameLines] = useState(true)
+  const [frameLines, setFrameLines] = useState(!sampleDemo)
   const [lookOrnaments, setLookOrnaments] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentSaving, setOrnamentSaving] = useState(false)
-  const savedSheet = mobileOrnaments ?? desktopOrnaments
-  const sharedSheet = sharedMobileOrnaments ?? sharedDesktopOrnaments
+  const layoutDevice: 'desktop' | 'mobile' = (sampleDemo || hostPreview || layoutPreview) && viewDevice === 'desktop' ? 'desktop' : 'mobile'
+  const savedSheet = layoutDevice === 'desktop' ? desktopOrnaments ?? mobileOrnaments : mobileOrnaments ?? desktopOrnaments
+  const sharedSheet = layoutDevice === 'desktop' ? sharedDesktopOrnaments ?? sharedMobileOrnaments : sharedMobileOrnaments ?? sharedDesktopOrnaments
   const savedOrnaments = templateEditor ? sharedSheet : savedSheet ?? sharedSheet
   const backgroundOrnaments = previewLookOn
     ? ornamentDraft ?? lookOrnaments ?? savedOrnaments ?? ornamentOverride ?? readyBackground?.ornaments ?? []
@@ -435,23 +460,26 @@ export default function WeddingPublicClient({
   const ornamentEpochRef = useRef(0)
   ornamentDraftRef.current = ornamentDraft
   const resetOrnaments = async () => {
-    if (templateEditor || !ornamentLayoutKey || ornamentSaving) return
+    if (ornamentSaving || (!samplePresetId && !card.id)) return
     ornamentEpochRef.current += 1
     ornamentQueueRef.current = null
     setOrnamentSaving(true)
     const device = 'mobile' as const
-    const result = await resetWeddingCardOrnaments(card.id, device)
+    const result = samplePresetId
+      ? await resetWeddingPresetOrnaments(samplePresetId, device)
+      : await resetWeddingCardOrnaments(card.id, device)
     setOrnamentSaving(false)
     if (!('ok' in result)) {
       toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
       return
     }
-    if (templateEditor) {
+    if (templateEditor || samplePresetId) {
       if (device === 'desktop') setSharedDesktopOrnaments(null)
       else setSharedMobileOrnaments(null)
     } else if (device === 'desktop') setDesktopOrnaments(null)
     else setMobileOrnaments(null)
     setOrnamentDraft(null)
+    if (previewLookOnRef.current) setLookOrnaments(null)
     window.parent.postMessage(
       { type: 'wedding-ornament-saved', surface: editorStack, device, cleared: true },
       window.location.origin,
@@ -475,10 +503,13 @@ export default function WeddingPublicClient({
         const epoch = ornamentEpochRef.current
         ornamentFlightRef.current = true
         setOrnamentSaving(true)
-        const result = await saveWeddingCardOrnaments(card.id, job.device, job.ornaments)
+        const result = samplePresetId
+          ? await saveWeddingPresetOrnaments(samplePresetId, job.device, job.ornaments)
+          : await saveWeddingCardOrnaments(card.id, job.device, job.ornaments)
         ornamentFlightRef.current = false
         if (ornamentEpochRef.current !== epoch) {
-          await resetWeddingCardOrnaments(card.id, job.device)
+          if (samplePresetId) await resetWeddingPresetOrnaments(samplePresetId, job.device)
+          else await resetWeddingCardOrnaments(card.id, job.device)
           setOrnamentSaving(false)
           if (ornamentQueueRef.current) void flush()
           return
@@ -495,6 +526,7 @@ export default function WeddingPublicClient({
           else setMobileOrnaments(null)
         } else if (job.device === 'desktop') setDesktopOrnaments(result.ornaments ?? null)
         else setMobileOrnaments(result.ornaments ?? null)
+        if (previewLookOnRef.current) setLookOrnaments(result.ornaments ?? [])
         if (ornamentDraftRef.current === job.ornaments) setOrnamentDraft(null)
         window.parent.postMessage(
           { type: 'wedding-ornament-saved', surface: editorStack, device: job.device, ornaments: result.ornaments },
@@ -505,7 +537,7 @@ export default function WeddingPublicClient({
       void flush()
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [card.id, editorStack, ornamentDraft, ornamentEditor, tImage.ornamentAdminFailed, templateEditor, toast])
+  }, [card.id, editorStack, ornamentDraft, ornamentEditor, samplePresetId, tImage.ornamentAdminFailed, templateEditor, toast])
   useEffect(() => {
     if (!ornamentEditor || !editorStack) return
     window.parent.postMessage(
@@ -532,7 +564,6 @@ export default function WeddingPublicClient({
       }
       if (!data) return
       if (data.type === 'wedding-ornament-command' && editorStack && data.surface === editorStack && data.action === 'reset') {
-        if (templateEditorRef.current) return
         void resetOrnamentsRef.current()
       }
       if (data.type !== 'wedding-ornament-apply' || ornamentDraftRef.current) return
@@ -562,6 +593,7 @@ export default function WeddingPublicClient({
     plateUrls,
     ornamentKey: weddingOrnamentLayoutKey({
       backgroundPresetId: sectionConfig.backgroundPresetId,
+      backgroundKitStyleId: sectionConfig.backgroundKitStyleId,
       masterImageUrl: pageBackground,
     }),
     sharedFrame,
@@ -573,6 +605,7 @@ export default function WeddingPublicClient({
       if (!look) return
       const currentKey = weddingOrnamentLayoutKey({
         backgroundPresetId: shownSectionRef.current.backgroundPresetId,
+        backgroundKitStyleId: shownSectionRef.current.backgroundKitStyleId,
         masterImageUrl: pageBackgroundRef.current,
       })
       if (previewLookOnRef.current && weddingPreviewLookToken(look) === previewLookTokenRef.current) return
@@ -621,13 +654,17 @@ export default function WeddingPublicClient({
     setMusicFabPlaying(playing)
   }, [])
   useLayoutEffect(() => {
-    setCoverDesignWidth(WEDDING_MOBILE_WIDTH)
-    if (layoutPreview) return
     const params = new URLSearchParams(window.location.search)
     const view = params.get('device') === 'desktop' ? 'desktop' : 'mobile'
-    applyWeddingDesignViewport(view, { natural: params.get('demo') === '1' })
+    if (layoutPreview) {
+      setViewDevice(view)
+      setCoverDesignWidth(view === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
+      return
+    }
+    applyWeddingDesignViewport(view, { natural: sampleDemo || params.get('demo') === '1' })
     setViewDevice(view)
-  }, [layoutPreview])
+    setCoverDesignWidth((sampleDemo || hostPreview) && view === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
+  }, [hostPreview, layoutPreview, sampleDemo])
   const markPreview = (kind: 'text' | 'shell' | 'frame') => {
     const current = previewKindRef.current
     previewKindRef.current = !current || current === kind ? kind : 'both'
@@ -689,11 +726,11 @@ export default function WeddingPublicClient({
     markPreview('text')
   }
   const shellSource = templateEditor ? withoutPrivateShell(sectionConfig) : sectionConfig
-  const sharedShellEntry = sharedShellDraft?.mobile ?? sharedShellDraft?.desktop ?? null
-  const shellPlace = resolveDeviceStackPlace(shellSource, 'mobile', sharedShellEntry)
-  const shellGroomRotate = resolveDeviceStackRotate(shellSource, 'mobile', 'groom', sharedShellEntry)
-  const shellBrideRotate = resolveDeviceStackRotate(shellSource, 'mobile', 'bride', sharedShellEntry)
-  const shellFrameScale = resolveDeviceFrameScale(shellSource, 'mobile', sharedShellEntry)
+  const sharedShellEntry = sharedShellDraft?.[layoutDevice] ?? sharedShellDraft?.mobile ?? sharedShellDraft?.desktop ?? null
+  const shellPlace = resolveDeviceStackPlace(shellSource, layoutDevice, sharedShellEntry)
+  const shellGroomRotate = resolveDeviceStackRotate(shellSource, layoutDevice, 'groom', sharedShellEntry)
+  const shellBrideRotate = resolveDeviceStackRotate(shellSource, layoutDevice, 'bride', sharedShellEntry)
+  const shellFrameScale = resolveDeviceFrameScale(shellSource, layoutDevice, sharedShellEntry)
   const hostShell = hostEditor
     ? {
         place: shellPlace,
@@ -782,7 +819,7 @@ export default function WeddingPublicClient({
       const pendingFrame = templateEditor ? pendingSharedFrameRef.current : null
       if (pendingFrame) pendingSharedFrameRef.current = null
       const jobs: Promise<{ ok?: true; error?: string }>[] = []
-      if (saveText || saveCardShell || saveFrame) {
+      if ((saveText || saveCardShell || saveFrame) && !samplePresetId) {
         jobs.push(saveWeddingPreviewEdit(card.id, {
           ...(saveText
             ? {
@@ -805,15 +842,27 @@ export default function WeddingPublicClient({
       }
       if (saveSharedShell) {
         const shell = draft.sharedShellDraft?.[draft.shellDevice]
-        if (shell) jobs.push(saveWeddingTemplateShell(card.id, draft.shellDevice, shell))
+        if (shell) {
+          jobs.push(
+            samplePresetId
+              ? saveWeddingPresetShell(samplePresetId, draft.shellDevice, shell)
+              : saveWeddingTemplateShell(card.id, draft.shellDevice, shell),
+          )
+        }
       }
-      if (pendingFrame) jobs.push(saveWeddingTemplateFrame(card.id, pendingFrame.frame, pendingFrame.side, draft.sectionRaw))
+      if (pendingFrame) {
+        jobs.push(
+          samplePresetId
+            ? saveWeddingPresetFrame(samplePresetId, pendingFrame.frame, pendingFrame.side)
+            : saveWeddingTemplateFrame(card.id, pendingFrame.frame, pendingFrame.side, draft.sectionRaw),
+        )
+      }
       void Promise.all(jobs).then((results) => {
         if (results.some((result) => !('ok' in result))) toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
       })
     }, 400)
     return () => window.clearTimeout(timer)
-  }, [card.id, editSide, hostEditor, layoutPreview, ornamentEditor, previewTick, tImage.ornamentAdminFailed, templateEditor, toast])
+  }, [card.id, editSide, hostEditor, layoutPreview, ornamentEditor, previewTick, samplePresetId, tImage.ornamentAdminFailed, templateEditor, toast])
 
   useLayoutEffect(() => {
     if (!layoutPreview) return
@@ -1414,7 +1463,34 @@ export default function WeddingPublicClient({
         </div>
       ) : null}
       {opened && card.effectsEnabled && !layoutPreview ? (
-        <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} />
+        <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} themeId={theme.id} lookId={readyBackground?.id} />
+      ) : null}
+      {sampleDemo && !hostEditor ? (
+        <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3">
+          <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={tImage.previewDesktop}>
+            {(['desktop', 'mobile'] as const).map((id) => {
+              const active = viewDevice === id
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={active}
+                  className={active ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
+                  onClick={() => {
+                    const nextUrl = new URL(window.location.href)
+                    nextUrl.searchParams.set('device', id)
+                    window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
+                    applyWeddingDesignViewport(id, { natural: true })
+                    setViewDevice(id)
+                    setCoverDesignWidth(id === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
+                  }}
+                >
+                  {id === 'desktop' ? tImage.previewDesktop : tImage.previewMobile}
+                </button>
+              )
+            })}
+          </div>
+        </div>
       ) : null}
       {hostEditor ? (
         <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-end px-3">
@@ -1435,12 +1511,16 @@ export default function WeddingPublicClient({
                       window.history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`)
                       applyWeddingDesignViewport(id, { natural: true })
                       setViewDevice(id)
+                      setCoverDesignWidth(id === 'desktop' ? WEDDING_DESKTOP_WIDTH : WEDDING_MOBILE_WIDTH)
                     }
                     if (!draft) {
                       show()
                       return
                     }
-                    void saveWeddingCardOrnaments(card.id, 'mobile', draft).then((result) => {
+                    const saveDraft = samplePresetId
+                      ? saveWeddingPresetOrnaments(samplePresetId, 'mobile', draft)
+                      : saveWeddingCardOrnaments(card.id, 'mobile', draft)
+                    void saveDraft.then((result) => {
                       if (result && 'ok' in result) {
                         if (templateEditor) setSharedMobileOrnaments(draft)
                         else setMobileOrnaments(draft)
@@ -1490,10 +1570,12 @@ export default function WeddingPublicClient({
           </div>
         </div>
       ) : null}
-      {hostPreview ? <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-200" /> : null}
+      {hostPreview || sampleDemo ? <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-200" /> : null}
       <main
-        className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', hostPreview && 'mx-auto max-w-full shadow-2xl', theme.pageBg, theme.text, kitSurface.className)}
-        style={{ ...kitSurface.style, width: hostPreview ? (viewDevice === 'desktop' ? 'min(72rem, calc(100vw - 3rem))' : `${WEDDING_MOBILE_WIDTH}px`) : undefined }}
+        data-wedding-paper={theme.contentCard || undefined}
+        data-wedding-reading={readingPlate ? '' : undefined}
+        className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', (hostPreview || sampleDemo) && 'mx-auto max-w-full shadow-2xl', theme.pageBg, theme.text, kitSurface.className)}
+        style={{ ...kitSurface.style, ...(readingPlate ? { ['--wedding-reading-plate' as string]: readingPlate } : {}), width: sampleDemo || hostPreview ? (viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px`) : undefined }}
       >
         {!opened && (
           <>
@@ -1501,8 +1583,9 @@ export default function WeddingPublicClient({
               <FittedCoverFrame
                 active={!coverPreview}
                 contain={hostPreview}
+                fitHeight={sampleDemo}
                 designWidth={coverDesignWidth}
-                backgroundColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
+                backgroundColor={stageColor}
               >
               <div
                 data-cover-preview={coverPreview ? '' : undefined}
@@ -1515,14 +1598,14 @@ export default function WeddingPublicClient({
                     WEDDING_BG_OVERLAY.cover,
                     { readingVignette: true },
                   ),
-                  backgroundColor: isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8',
+                  backgroundColor: stageColor,
                 }}
               >
               <div data-wedding-ornament-frame="">
-              {(ornamentEditor && coverPreview) || hostEditor ? null : (
+              {(ornamentEditor && coverPreview) || (hostEditor && !(sampleDemo && !frameLines)) ? null : (
                 <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
               )}
-              {(ornamentEditor && coverPreview) || hostEditor ? (
+              {(ornamentEditor && coverPreview) || (hostEditor && !(sampleDemo && !frameLines)) ? (
                 <WeddingOrnamentAdminLayer
                   ornaments={backgroundOrnaments}
                   editable
@@ -1542,7 +1625,7 @@ export default function WeddingPublicClient({
                 />
               ) : null}
               </div>
-              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center justify-start px-3 pb-4 pt-3 sm:px-4', ornamentEditor && coverPreview && 'pointer-events-none')}>
+              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3 sm:px-4', coverPresetId === 'song_hy' ? 'justify-center' : 'justify-start', ornamentEditor && coverPreview && 'pointer-events-none')} style={coverPresetId === 'song_hy' ? { minHeight: coverDesignWidth >= WEDDING_DESKTOP_MIN_PX ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT } : undefined}>
                 <div
                   data-wedding-cover-column=""
                   className={cn(
@@ -1583,8 +1666,8 @@ export default function WeddingPublicClient({
                     stackPair={
                       heroStack
                         ? {
-                            firstUrl: card.groomImageUrl,
-                            secondUrl: card.brideImageUrl,
+                            firstUrl: groomPhotoUrl,
+                            secondUrl: bridePhotoUrl,
                             firstAlt: tx.groomRole,
                             secondAlt: tx.brideRole,
                             firstFrame: resolvePortraitPhotoFrame(sectionConfig, 'groom'),
@@ -1638,10 +1721,10 @@ export default function WeddingPublicClient({
           <nav
             className={cn(
               'fixed top-0 z-[80] border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
-              hostPreview ? 'left-1/2 max-w-full -translate-x-1/2' : 'inset-x-0',
+              hostPreview || sampleDemo ? 'left-1/2 max-w-full -translate-x-1/2' : 'inset-x-0',
               theme.nav,
             )}
-            style={hostPreview ? { width: viewDevice === 'desktop' ? 'min(72rem, calc(100vw - 3rem))' : `${WEDDING_MOBILE_WIDTH}px` } : undefined}
+            style={sampleDemo || hostPreview ? { width: viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px` } : undefined}
           >
             <div className="mx-auto flex max-w-3xl snap-x gap-1 overflow-x-auto overscroll-x-contain px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
               <a className={cn(weddingNavLinkClass(theme), 'snap-start whitespace-nowrap')} href="#cover">{tx.navInvitation}</a>
@@ -1657,7 +1740,7 @@ export default function WeddingPublicClient({
         {opened ? (
           <WeddingScrollingBackground
             urls={plateUrls.length > 0 ? plateUrls : pageBackground ? [pageBackground] : []}
-            fallbackColor={isWeddingDarkTheme(theme.id) ? '#0f172a' : '#fffdf8'}
+            fallbackColor={stageColor}
           />
         ) : null}
         <div className={cn('relative', ornamentEditor && editorStack && 'pointer-events-none')} style={{ opacity: contentVisible ? 1 : 0 }}>
@@ -1689,12 +1772,12 @@ export default function WeddingPublicClient({
           )}
           style={contentSurface}
         >
-          <WeddingReadableGlass className="w-full min-w-0 max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6">
+          <WeddingReadableGlass themeId={theme.id} className="w-full min-w-0 max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6">
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
             {heroStack ? (
               <WeddingStackedCouplePhotos
-                firstUrl={card.groomImageUrl}
-                secondUrl={card.brideImageUrl}
+                firstUrl={groomPhotoUrl}
+                secondUrl={bridePhotoUrl}
                 firstAlt={tx.groomRole}
                 secondAlt={tx.brideRole}
                 firstFrame={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
@@ -1726,7 +1809,7 @@ export default function WeddingPublicClient({
               brideName={card.brideName}
               flyIn={contentVisible && card.effectsEnabled}
               pace="opened"
-              className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.text, theme.textGlowHeading)}
+              className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.contentCard === 'scallop' && 'wedding-guest-name not-italic', theme.text, theme.textGlowHeading)}
             />
             )}
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
@@ -1881,13 +1964,13 @@ export default function WeddingPublicClient({
               </div>
             </WeddingReadableGlass>
             ) : null}
-            {!heroStack && (card.groomImageUrl.trim() || card.brideImageUrl.trim()) ? (
+            {!heroStack && (groomPhotoUrl.trim() || bridePhotoUrl.trim()) ? (
               <WeddingReadableGlass reveal className="rounded-[1.75rem] px-4 py-5 text-center sm:rounded-[2rem] sm:px-6 sm:py-7">
                 <WeddingCouplePortraits
                   groomName={card.groomName}
                   brideName={card.brideName}
-                  groomImageUrl={card.groomImageUrl}
-                  brideImageUrl={card.brideImageUrl}
+                  groomImageUrl={groomPhotoUrl}
+                  brideImageUrl={bridePhotoUrl}
                   groomLabel={tx.groomRole}
                   brideLabel={tx.brideRole}
                   groomFrame={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
@@ -1895,7 +1978,7 @@ export default function WeddingPublicClient({
                   groomShell={groomShell}
                   brideShell={brideShell}
                   groomFrameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
-                  brideFrameScale={resolvePortraitFrameScale(sectionConfig, 'groom')}
+                  brideFrameScale={resolvePortraitFrameScale(sectionConfig, 'bride')}
                   theme={theme}
                 />
               </WeddingReadableGlass>
@@ -1921,10 +2004,10 @@ export default function WeddingPublicClient({
                 )}
               </WeddingGuestTextSlot>
             </WeddingReadableGlass>
-            {card.albumImageUrls.length > 0 && (
+            {albumPhotoUrls.length > 0 && (
               <WeddingSectionCard theme={theme} title={tx.albumTitle} className="relative z-[100] min-w-0" contentClassName="min-w-0 -mx-1 sm:-mx-2">
                 <WeddingAlbumStage
-                  urls={card.albumImageUrls}
+                  urls={albumPhotoUrls}
                   alt={tx.albumAlt}
                   layoutId={albumLayoutId}
                   locale={uiLocale}
@@ -1954,7 +2037,6 @@ export default function WeddingPublicClient({
                 {(['groom', 'bride'] as const).map((side) => {
                   const loc = resolveGuestInviteLocation(card, side === 'groom' ? 'groom_home' : 'bride_home')
                   const iso = resolveWeddingDateIso(loc.weddingDate)
-                  const timeline = parseWeddingEventTimeline(loc.eventTimeline)
                   const label = side === 'groom' ? tx.groomFamily : tx.brideFamily
                   return (
                     <WeddingReadableGlass
@@ -1973,6 +2055,8 @@ export default function WeddingPublicClient({
                           locale={uiLocale}
                           tx={txCal}
                           textGlow={theme.textGlow}
+                          onDarkPaper={Boolean(theme.darkPaper) && theme.contentCard !== 'scallop'}
+                          onCreamPaper={theme.contentCard === 'scallop'}
                           className="mb-4 mt-4"
                           showCountdown={false}
                         />
@@ -2007,26 +2091,6 @@ export default function WeddingPublicClient({
                           </a>
                         </>
                       ) : null}
-                      {timeline.length > 0 ? (
-                        <WeddingTimelineList
-                          className="mt-5"
-                          items={timeline.map((item, index) => {
-                            const content = weddingTimelineItemContent(item)
-                            const plain = content ? personalize(content) : ''
-                            return {
-                              key: `${side}-${item.time}-${index}`,
-                              time: item.time,
-                              label: plain,
-                              content: plain ? writeGuestName(plain) : null,
-                            }
-                          })}
-                          panelClassName={theme.panelStrong}
-                          textClassName={theme.text}
-                          mutedClassName={theme.mutedText}
-                          accentTextClassName={theme.accentText}
-                          textGlow={theme.textGlow}
-                        />
-                      ) : null}
                     </WeddingReadableGlass>
                   )
                 })}
@@ -2041,6 +2105,8 @@ export default function WeddingPublicClient({
                   locale={uiLocale}
                   tx={txCal}
                   textGlow={theme.textGlow}
+                  onDarkPaper={Boolean(theme.darkPaper) && theme.contentCard !== 'scallop'}
+                  onCreamPaper={theme.contentCard === 'scallop'}
                   className="mb-4"
                   showCountdown={false}
                 />
@@ -2125,10 +2191,7 @@ export default function WeddingPublicClient({
               )}
             </WeddingReadableGlass>
             )}
-            {showBothHouses && !displayDressCode ? null : (
             <WeddingReadableGlass reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
-              {showBothHouses ? null : (
-                <>
               <p className={cn('flex items-center justify-center gap-2 text-[11px] uppercase tracking-[0.22em] sm:text-xs sm:tracking-[0.3em]', theme.accentText, theme.textGlow)}>
                 <CalendarDays className="h-4 w-4" />
                 {tx.timelineTitle}
@@ -2154,8 +2217,6 @@ export default function WeddingPublicClient({
               ) : (
                 <p className={cn('mt-5 leading-8', theme.mutedText, theme.textGlow)}>{writeGuestName(personalize(tx.defaultTimeline))}</p>
               )}
-                </>
-              )}
               {displayDressCode && (
                 <div className={cn('mt-6 rounded-3xl p-4', theme.panelStrong)}>
                   <p className={cn('text-xs uppercase tracking-[0.24em]', theme.accentText, theme.textGlow)}>{tx.dressCodeTitle}</p>
@@ -2163,21 +2224,20 @@ export default function WeddingPublicClient({
                 </div>
               )}
             </WeddingReadableGlass>
-            )}
           </div>
         </section>
 
         {shouldShowPublicGiftBoxForSide(card, guestInviteLocation.side) && (
           <div
             className="border-y bg-cover bg-center"
-            style={{ ...contentSurface, borderColor: weddingGiftBoxLook(readyBackground?.id).band }}
+            style={{ ...contentSurface, borderColor: weddingGiftBoxLook(readyBackground?.id, card.masterImageUrl).band }}
           >
             <WeddingGiftEnvelopeBlock
               card={card}
               tx={txGift}
               sideFilter={guestInviteLocation.side}
               seal={invitationSeal(card.occasionKey)}
-              look={weddingGiftBoxLook(readyBackground?.id)}
+              look={weddingGiftBoxLook(readyBackground?.id, card.masterImageUrl)}
             />
           </div>
         )}
@@ -2208,7 +2268,7 @@ export default function WeddingPublicClient({
               <div className={cn('space-y-4 rounded-2xl p-3 sm:p-4 md:p-5', theme.panelUi)}>
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.guestNameLabel}</Label>
-                  <Input className="min-h-11" value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={tx.guestNamePlaceholder} />
+                  <Input className={cn('min-h-11', paperField)} value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder={tx.guestNamePlaceholder} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -2219,7 +2279,7 @@ export default function WeddingPublicClient({
                     className={cn(
                       'inline-flex min-h-11 items-center justify-center rounded-full border-2 px-3 text-sm font-bold transition-transform active:scale-[0.98] disabled:opacity-60',
                       contentChoice === 'yes'
-                        ? 'shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2 ring-offset-[#fff8f0]'
+                        ? cn('shadow-[0_6px_18px_rgba(0,0,0,0.28)] ring-2 ring-white/80 ring-offset-2', ringOffsetClass)
                         : 'shadow-[0_6px_18px_rgba(0,0,0,0.28)]',
                     )}
                     {...rsvpFill}
@@ -2237,7 +2297,7 @@ export default function WeddingPublicClient({
                     className={cn(
                       'inline-flex min-h-11 items-center justify-center rounded-full border-2 px-3 text-sm font-bold shadow-[0_6px_18px_rgba(0,0,0,0.12)] transition-transform active:scale-[0.98] disabled:opacity-60',
                       contentChoice === 'no'
-                        ? 'border-stone-800 bg-white text-stone-900 ring-2 ring-stone-300 ring-offset-2 ring-offset-[#fff8f0]'
+                        ? cn('border-stone-800 bg-white text-stone-900 ring-2 ring-stone-300 ring-offset-2', ringOffsetClass)
                         : 'border-stone-300 bg-white text-stone-900',
                     )}
                   >
@@ -2260,7 +2320,7 @@ export default function WeddingPublicClient({
                     theme={theme}
                     onPick={setMessage}
                   />
-                  <Textarea className="min-h-28" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={tx.wishPlaceholder} />
+                  <Textarea className={cn('min-h-28', paperField)} value={message} onChange={(e) => setMessage(e.target.value)} placeholder={tx.wishPlaceholder} />
                 </div>
                 <Button
                   type="button"
@@ -2283,7 +2343,7 @@ export default function WeddingPublicClient({
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.reminderEmailLabel}</Label>
                   <Input
-                    className="min-h-11"
+                    className={cn('min-h-11', paperField)}
                     type="email"
                     inputMode="email"
                     autoComplete="email"
@@ -2295,7 +2355,7 @@ export default function WeddingPublicClient({
                 <div className="space-y-2">
                   <Label className={cn(theme.text, theme.textGlow)}>{tx.reminderDaysLabel}</Label>
                   <Input
-                    className="min-h-11"
+                    className={cn('min-h-11', paperField)}
                     type="number"
                     min="1"
                     max="90"
@@ -2405,15 +2465,19 @@ export default function WeddingPublicClient({
             type="button"
             className={cn(
               'fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-40 flex h-[52px] w-[52px] items-center justify-center rounded-full shadow-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-              musicFabPlaying
-                ? 'border border-white/25 bg-rose-700 text-white ring-2 ring-white/15 hover:bg-rose-800 focus-visible:ring-white/50'
-                : 'border border-rose-200/90 bg-white/95 text-rose-600 backdrop-blur-md hover:bg-rose-50 focus-visible:ring-rose-400',
+              theme.darkPaper
+                ? musicFabPlaying
+                  ? 'border border-[#e8c87a]/40 bg-[#6b1020] text-[#f6e4b8] ring-2 ring-[#e8c87a]/25 hover:bg-[#7a1828]'
+                  : 'border border-[#e8c87a]/50 bg-[#4a0c16]/92 text-[#f6e4b8] backdrop-blur-md hover:bg-[#6b1020]'
+                : musicFabPlaying
+                  ? 'border border-white/25 bg-rose-700 text-white ring-2 ring-white/15 hover:bg-rose-800 focus-visible:ring-white/50'
+                  : 'border border-rose-200/90 bg-white/95 text-rose-600 backdrop-blur-md hover:bg-rose-50 focus-visible:ring-rose-400',
             )}
             aria-label={musicFabPlaying ? txMusic.publicFabPauseAria : txMusic.publicFabPlayAria}
             aria-pressed={musicFabPlaying}
             onClick={() => weddingMusicAudioRef.current?.togglePlayback()}
           >
-            <WeddingMusicFabVisual playing={musicFabPlaying} className={musicFabPlaying ? undefined : 'text-rose-600'} />
+            <WeddingMusicFabVisual playing={musicFabPlaying} className={musicFabPlaying || theme.darkPaper ? undefined : 'text-rose-600'} />
           </button>
         )}
         {albumOpen && activeAlbumIndex === null && (
@@ -2426,7 +2490,7 @@ export default function WeddingPublicClient({
                 </Button>
               </div>
               <WeddingAlbumGalleryGrid
-                urls={card.albumImageUrls}
+                urls={albumPhotoUrls}
                 alt={tx.albumAlt}
                 crops={sectionConfig.albumPhotoCrops}
                 onSelect={(index) => {
@@ -2439,7 +2503,7 @@ export default function WeddingPublicClient({
         )}
         {activeAlbumIndex !== null && (
           <WeddingAlbumLightbox
-            urls={card.albumImageUrls}
+            urls={albumPhotoUrls}
             crops={sectionConfig.albumPhotoCrops}
             index={activeAlbumIndex}
             onIndexChange={setActiveAlbumIndex}
@@ -2453,6 +2517,7 @@ export default function WeddingPublicClient({
             }}
           />
         )}
+        {sampleDemo ? <div className="h-24" aria-hidden /> : null}
       </main>
       {hostEditor && frameLines && textPick ? (
         <WeddingTextStyleBar

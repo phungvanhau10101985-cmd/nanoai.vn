@@ -7,13 +7,23 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { nudgeWeddingOrnament, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
 import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export type WeddingOrnamentSurface = 'cover' | 'letter'
+
+let activeOrnamentKeyOwner = 0
+let ornamentKeySerial = 0
+let ornamentKeyboardSurface: WeddingOrnamentSurface | null = null
+
+function isOrnamentTypingTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  if (target.closest('input, textarea, select, [role="dialog"]')) return true
+  return target instanceof HTMLElement && target.isContentEditable
+}
 
 const BLUR_STEPS = [0, 2, 4, 8, 12]
 const FADE_STEPS = [0, 0.25, 0.5, 0.75, 1]
@@ -39,6 +49,30 @@ function wrapRotate(value: number) {
 }
 
 type OrnamentView = { x: number; y: number; w: number; h: number }
+
+type LiveOrnamentDrag = {
+  node: HTMLElement
+  tools: HTMLElement | null
+  x: number
+  y: number
+  bottom: boolean
+  sourceIndex: number
+  sourceX: number
+  sourceY: number
+}
+
+function paintLiveOrnamentDrag(drag: LiveOrnamentDrag) {
+  const left = `${drag.x}%`
+  const top = drag.bottom ? 'auto' : `${drag.y}%`
+  const bottom = drag.bottom ? `${drag.y}%` : 'auto'
+  drag.node.style.left = left
+  drag.node.style.top = top
+  drag.node.style.bottom = bottom
+  if (!drag.tools) return
+  drag.tools.style.left = left
+  drag.tools.style.top = top
+  drag.tools.style.bottom = bottom
+}
 
 function isOrnamentView(value: unknown): value is OrnamentView {
   if (!value || typeof value !== 'object') return false
@@ -130,7 +164,10 @@ export function WeddingOrnamentAdminLayer(props: {
   const [uiScale, setUiScale] = useState(1)
   const [compactFrame, setCompactFrame] = useState(() => typeof window !== 'undefined' && window.innerWidth < 800)
   const layerRef = useRef<HTMLDivElement>(null)
-  const { shown } = useWeddingOrnamentRun(layerRef, props.ornaments)
+  const { pages, shown } = useWeddingOrnamentRun(layerRef, props.ornaments)
+  const pagesRef = useRef(pages)
+  pagesRef.current = pages
+  const liveDragRef = useRef<LiveOrnamentDrag | null>(null)
   const shownRef = useRef(shown)
   shownRef.current = shown
   const sourceRef = useRef(props.ornaments)
@@ -139,12 +176,56 @@ export function WeddingOrnamentAdminLayer(props: {
   const revealView = useRef<OrnamentView | null>(null)
   const onChangeRef = useRef(props.onChange)
   const selectedRef = useRef<number | null>(null)
+  const keyOwnerRef = useRef(0)
+  const pendingRef = useRef<WeddingBackgroundOrnament[] | null>(null)
+  const frameLinesRef = useRef(props.frameLines)
+  frameLinesRef.current = props.frameLines
   onChangeRef.current = props.onChange
+  const editRef = useRef<{
+    read: () => WeddingBackgroundOrnament[]
+    write: (next: WeddingBackgroundOrnament[]) => void
+  }>({
+    read: () => [],
+    write: () => {},
+  })
+  editRef.current.read = () => pendingRef.current ?? sourceRef.current.map((item) => weddingOrnamentPlain(item))
+  editRef.current.write = (next) => {
+    pendingRef.current = next
+    onChangeRef.current?.(next)
+  }
 
   const choose = (index: number | null) => {
     selectedRef.current = index
     setSelected(index)
+    if (index == null) return
+    ornamentKeySerial += 1
+    activeOrnamentKeyOwner = ornamentKeySerial
+    keyOwnerRef.current = ornamentKeySerial
+    const node = layerRef.current?.querySelector<HTMLElement>(`[data-ornament-hit][data-ornament-index="${index}"]`)
+    node?.focus({ preventScroll: true })
   }
+  const chooseRef = useRef(choose)
+  chooseRef.current = choose
+  const draggingRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const drag = liveDragRef.current
+    if (!drag?.node.isConnected) return
+    paintLiveOrnamentDrag(drag)
+  })
+
+  useEffect(() => {
+    const pending = pendingRef.current
+    if (!pending) return
+    if (pending.length !== props.ornaments.length) {
+      pendingRef.current = null
+      return
+    }
+    const committed = props.ornaments.map((item) => weddingOrnamentPlain(item))
+    const sign = (items: readonly WeddingBackgroundOrnament[]) =>
+      items.map((item) => `${item.src}|${item.x}|${item.y}|${item.w}|${item.anchor ?? ''}|${item.rotate ?? ''}|${item.blur ?? ''}|${item.fade ?? ''}|${item.motion ?? ''}|${item.opacity ?? ''}|${item.flipX ? 1 : 0}`).join(';')
+    if (sign(pending) === sign(committed)) pendingRef.current = null
+  }, [props.ornaments])
 
   useEffect(() => {
     if (!props.surface || !props.editable) return
@@ -183,11 +264,10 @@ export function WeddingOrnamentAdminLayer(props: {
     if (!props.surface || !props.editable) return
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
-      const data = event.data as { type?: string; surface?: string; action?: string; src?: string; delta?: number; view?: OrnamentView }
+      const data = event.data as { type?: string; surface?: string; action?: string; src?: string; delta?: number; dx?: number; dy?: number; view?: OrnamentView }
       if (!data || data.type !== 'wedding-ornament-command' || data.surface !== props.surface) return
       const onChange = onChangeRef.current
       if (!onChange) return
-      const items = shownRef.current.map((item) => weddingOrnamentPlain(item))
       if (data.action === 'add' && typeof data.src === 'string') {
         const source = sourceRef.current.map((item) => weddingOrnamentPlain(item))
         const layer = layerRef.current
@@ -203,20 +283,27 @@ export function WeddingOrnamentAdminLayer(props: {
           : { x: 8, y: 8, w: 28 }
         revealSeed.current = source.length
         revealView.current = view
+        pendingRef.current = null
         onChange([...source, { src: data.src, x: spot.x, y: spot.y, w: spot.w }])
         return
       }
       const index = selectedRef.current
+      const items = editRef.current.read()
       if (index == null || !items[index]) return
       if (data.action === 'resize') {
         const w = Math.min(90, Math.max(8, Math.round((items[index].w + (Number(data.delta) || 0)) * 10) / 10))
-        onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, w } : item)))
+        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? { ...item, w } : item)))
       } else if (data.action === 'rotate') {
         const rotate = wrapRotate((items[index].rotate ?? 0) + (Number(data.delta) || 0))
-        onChange(items.map((item, itemIndex) => (itemIndex === index ? { ...item, rotate } : item)))
+        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? { ...item, rotate } : item)))
+      } else if (data.action === 'nudge') {
+        const bounds = layerRef.current?.getBoundingClientRect()
+        if (!bounds || bounds.width < 1 || bounds.height < 1) return
+        const moved = nudgeWeddingOrnament(items[index], Number(data.dx) || 0, Number(data.dy) || 0, bounds.width, bounds.height)
+        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? moved : item)))
       } else if (data.action === 'delete') {
-        onChange(items.filter((_, itemIndex) => itemIndex !== index))
-        choose(null)
+        editRef.current.write(items.filter((_, itemIndex) => itemIndex !== index))
+        chooseRef.current(null)
       }
     }
     window.addEventListener('message', onMessage)
@@ -248,7 +335,7 @@ export function WeddingOrnamentAdminLayer(props: {
       }
     }
     const index = Number(best.dataset.ornamentIndex)
-    if (Number.isFinite(index)) choose(index)
+    if (Number.isFinite(index)) chooseRef.current(index)
     if (bestOverlap < 8) best.scrollIntoView({ block: 'nearest', inline: 'nearest' })
   }, [props.ornaments])
 
@@ -276,41 +363,67 @@ export function WeddingOrnamentAdminLayer(props: {
     const stage = marked ?? layer?.parentElement
     if (!layer || !(stage instanceof HTMLElement)) return
     if (marked) marked.setAttribute('data-ornament-editing', '')
-    const startDrag = (index: number, event: PointerEvent) => {
-      const items = shownRef.current.map((entry) => weddingOrnamentPlain(entry))
-      const item = items[index]
-      const onChange = onChangeRef.current
+    const startDrag = (index: number, event: PointerEvent, node: HTMLElement) => {
+      const items = editRef.current.read()
+      const sourceIndex = Number(node.dataset.ornamentSeed)
+      const item = items[sourceIndex]
       const bounds = layer.getBoundingClientRect()
-      if (!item || !onChange || bounds.width < 1 || bounds.height < 1) return
-      choose(index)
+      if (!item || !Number.isFinite(sourceIndex) || !onChangeRef.current || bounds.width < 1 || bounds.height < 1) return
+      chooseRef.current(index)
       const startX = event.clientX
       const startY = event.clientY
-      const originX = item.x
-      const originY = item.y
-      const bottom = item.anchor === 'bottom'
+      const originX = parseFloat(node.style.left) || item.x
+      const bottom = node.style.bottom !== '' && node.style.bottom !== 'auto'
+      const originY = parseFloat(bottom ? node.style.bottom : node.style.top) || item.y
+      const tools = layer.parentElement?.querySelector<HTMLElement>('[data-ornament-tools]')?.parentElement ?? null
+      const drag: LiveOrnamentDrag = {
+        node,
+        tools: tools instanceof HTMLElement ? tools : null,
+        x: originX,
+        y: originY,
+        bottom,
+        sourceIndex,
+        sourceX: item.x,
+        sourceY: item.y,
+      }
+      liveDragRef.current = drag
+      draggingRef.current = true
+      stage.style.cursor = 'grabbing'
+      const previousUserSelect = document.body.style.userSelect
+      document.body.style.userSelect = 'none'
       const move = (ev: PointerEvent) => {
-        const dx = ((ev.clientX - startX) / bounds.width) * 100
-        const dy = ((ev.clientY - startY) / bounds.height) * 100
-        const current = shownRef.current.map((entry) => weddingOrnamentPlain(entry))
-        if (!current[index]) return
-        onChangeRef.current?.(
-          current.map((entry, itemIndex) =>
-            itemIndex === index
-              ? {
-                  ...entry,
-                  x: Math.round((originX + dx) * 10) / 10,
-                  y: Math.round((originY + (bottom ? -dy : dy)) * 10) / 10,
-                }
-              : entry,
-          ),
-        )
+        const box = layer.getBoundingClientRect()
+        if (box.width < 1 || box.height < 1) return
+        ev.preventDefault()
+        const visualDx = ((ev.clientX - startX) / box.width) * 100
+        const visualDy = ((ev.clientY - startY) / box.height) * 100
+        const pageCount = Math.max(1, pagesRef.current)
+        const yScale = pageCount > 1 ? pageCount : 1
+        drag.x = originX + visualDx
+        drag.y = originY + (bottom ? -visualDy : visualDy)
+        drag.sourceX = item.x + visualDx
+        drag.sourceY = item.y + (bottom ? -visualDy : visualDy) * yScale
+        paintLiveOrnamentDrag(drag)
       }
       const up = () => {
         document.removeEventListener('pointermove', move)
         document.removeEventListener('pointerup', up)
         document.removeEventListener('pointercancel', up)
+        document.body.style.userSelect = previousUserSelect
+        draggingRef.current = false
+        stage.style.cursor = ''
+        const current = editRef.current.read()
+        const source = current[drag.sourceIndex]
+        liveDragRef.current = null
+        if (!source) return
+        const round = (value: number) => Math.round(value * 10) / 10
+        editRef.current.write(
+          current.map((entry, itemIndex) =>
+            itemIndex === drag.sourceIndex ? { ...entry, x: round(drag.sourceX), y: round(drag.sourceY) } : entry,
+          ),
+        )
       }
-      document.addEventListener('pointermove', move)
+      document.addEventListener('pointermove', move, { passive: false })
       document.addEventListener('pointerup', up)
       document.addEventListener('pointercancel', up)
     }
@@ -325,11 +438,29 @@ export function WeddingOrnamentAdminLayer(props: {
       }
       const picked = pickOrnamentHit(layer, event.clientX, event.clientY)
       if (picked == null) return
+      const nodes = [...layer.querySelectorAll<HTMLElement>(`[data-ornament-hit][data-ornament-index="${picked}"]`)]
+      let node = nodes[0]
+      let best = Number.POSITIVE_INFINITY
+      for (const candidate of nodes) {
+        const box = candidate.getBoundingClientRect()
+        const cx = Math.min(Math.max(event.clientX, box.left), box.right)
+        const cy = Math.min(Math.max(event.clientY, box.top), box.bottom)
+        const dist = (event.clientX - cx) ** 2 + (event.clientY - cy) ** 2
+        if (dist < best) {
+          best = dist
+          node = candidate
+        }
+      }
+      if (!node) return
       event.preventDefault()
       event.stopPropagation()
-      startDrag(picked, event)
+      startDrag(picked, event, node)
     }
     const onMove = (event: PointerEvent) => {
+      if (draggingRef.current) {
+        stage.style.cursor = 'grabbing'
+        return
+      }
       const target = event.target
       if (
         target instanceof Element &&
@@ -350,6 +481,41 @@ export function WeddingOrnamentAdminLayer(props: {
     }
   }, [props.editable])
 
+  useEffect(() => {
+    if (!props.editable) return
+    const onKey = (event: KeyboardEvent) => {
+      if (frameLinesRef.current === false) return
+      const index = selectedRef.current
+      if (index == null || keyOwnerRef.current !== activeOrnamentKeyOwner) return
+      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+      if (isOrnamentTypingTarget(event.target)) return
+      const key = event.key
+      const items = editRef.current.read()
+      if (!items[index]) return
+      if (key === 'Delete' || key === 'Backspace') {
+        event.preventDefault()
+        editRef.current.write(items.filter((_, itemIndex) => itemIndex !== index))
+        chooseRef.current(null)
+        return
+      }
+      const step = event.shiftKey ? 10 : 1
+      let dx = 0
+      let dy = 0
+      if (key === 'ArrowLeft') dx = -step
+      else if (key === 'ArrowRight') dx = step
+      else if (key === 'ArrowUp') dy = -step
+      else if (key === 'ArrowDown') dy = step
+      else return
+      const bounds = layerRef.current?.getBoundingClientRect()
+      if (!bounds || bounds.width < 1 || bounds.height < 1) return
+      event.preventDefault()
+      const moved = nudgeWeddingOrnament(items[index], dx, dy, bounds.width, bounds.height)
+      editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? moved : item)))
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [props.editable])
+
   const motionKey = props.ornaments.map((item, index) => `${index}:${item.motion ?? ''}:${item.src}`).join('|')
   useLayoutEffect(() => {
     const root = layerRef.current
@@ -361,8 +527,8 @@ export function WeddingOrnamentAdminLayer(props: {
     return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} />
   }
   const update = (index: number, patch: Partial<WeddingBackgroundOrnament>) => {
-    props.onChange?.(
-      shown.map((item) => weddingOrnamentPlain(item)).map((item, itemIndex) => {
+    editRef.current.write(
+      editRef.current.read().map((item, itemIndex) => {
         if (itemIndex !== index) return item
         const next = { ...item, ...patch }
         if ('motion' in patch && next.motion !== 'rise') delete next.motion
@@ -393,8 +559,10 @@ export function WeddingOrnamentAdminLayer(props: {
             data-ornament-hit=""
             data-ornament-index={index}
             data-ornament-seed={item.seed}
+            data-ornament-page={item.page ?? 0}
             data-wedding-ornament-rise={weddingOrnamentRises(item) ? '' : undefined}
-            className={cn('pointer-events-none absolute', risePreview === index && 'wedding-ornament-rise-in')}
+            className={cn('pointer-events-none absolute outline-none', risePreview === index && 'wedding-ornament-rise-in')}
+            tabIndex={-1}
             style={{
               ...weddingOrnamentFrameStyle(item),
               zIndex: active ? 2 : 1,
@@ -451,7 +619,8 @@ export function WeddingOrnamentAdminLayer(props: {
                 aria-label={props.deleteLabel}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700"
                 onClick={() => {
-                  props.onChange?.(shown.map((item) => weddingOrnamentPlain(item)).filter((_, itemIndex) => itemIndex !== selected))
+                  const items = editRef.current.read()
+                  editRef.current.write(items.filter((_, itemIndex) => itemIndex !== selected))
                   choose(null)
                 }}
               >
@@ -657,7 +826,8 @@ export function WeddingOrnamentPreviewTools(props: {
   useEffect(() => {
     setSaving(false)
     setSelected(null)
-  }, [props.frame])
+    if (ornamentKeyboardSurface === props.surface) ornamentKeyboardSurface = null
+  }, [props.frame, props.surface])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
@@ -675,19 +845,49 @@ export function WeddingOrnamentPreviewTools(props: {
         setSaving(Boolean(data.saving))
       }
       if (data.type === 'wedding-ornament-selection') {
-        setSelected(typeof data.index === 'number' ? data.index : null)
+        const index = typeof data.index === 'number' ? data.index : null
+        setSelected(index)
+        if (index != null) ornamentKeyboardSurface = props.surface
+        else if (ornamentKeyboardSurface === props.surface) ornamentKeyboardSurface = null
       }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [props.frame, props.surface])
 
-  const send = (command: { action: 'save' | 'reset' | 'delete' } | { action: 'add'; src: string; view?: OrnamentView } | { action: 'resize' | 'rotate'; delta: number }) => {
+  const send = (command: { action: 'save' | 'reset' | 'delete' } | { action: 'add'; src: string; view?: OrnamentView } | { action: 'resize' | 'rotate'; delta: number } | { action: 'nudge'; dx: number; dy: number }) => {
     props.frame?.contentWindow?.postMessage(
       { type: 'wedding-ornament-command', surface: props.surface, ...command },
       window.location.origin,
     )
   }
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (ornamentKeyboardSurface !== props.surface) return
+      if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
+      if (isOrnamentTypingTarget(event.target)) return
+      if (props.frame && document.activeElement === props.frame) return
+      const key = event.key
+      if (key === 'Delete' || key === 'Backspace') {
+        event.preventDefault()
+        send({ action: 'delete' })
+        return
+      }
+      const step = event.shiftKey ? 10 : 1
+      let dx = 0
+      let dy = 0
+      if (key === 'ArrowLeft') dx = -step
+      else if (key === 'ArrowRight') dx = step
+      else if (key === 'ArrowUp') dy = -step
+      else if (key === 'ArrowDown') dy = step
+      else return
+      event.preventDefault()
+      send({ action: 'nudge', dx, dy })
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [props.frame, props.surface])
 
   const visibleView = (): OrnamentView | undefined => {
     const frame = props.frame

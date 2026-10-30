@@ -18,13 +18,15 @@ test('ornament layouts keep flowers on the edges and a readable center', () => {
   assert.ok(framed.length >= 3)
 
   for (const layout of layouts) {
-    assert.ok(layout.layers.length >= 3, layout.id)
+    const photographedFrame = layout.id === 'polaroid'
+    assert.ok(layout.layers.length >= 1 && layout.layers.length <= 2, layout.id)
     assert.ok(layout.pad.left + layout.pad.right <= 48, layout.id)
     assert.ok(layout.pad.top + layout.pad.bottom <= 55, layout.id)
-    assert.ok(layout.layers.some((layer) => EDGE_FLORALS.has(layer.piece)), layout.id)
+    if (!photographedFrame) assert.ok(layout.layers.some((layer) => EDGE_FLORALS.has(layer.piece)), layout.id)
     const photo = layout.photo
     assert.ok(photo.w >= 30 && photo.h >= 24, layout.id)
-    assert.ok(photo.x >= 8 && photo.y >= 4 && photo.x + photo.w <= 96 && photo.y + photo.h <= 96, layout.id)
+    const minY = photographedFrame ? 3 : 4
+    assert.ok(photo.x >= 8 && photo.y >= minY && photo.x + photo.w <= 96 && photo.y + photo.h <= 96, layout.id)
 
     for (const layer of layout.layers) {
       assert.ok(layer.w > 0 && layer.w <= 120, `${layout.id} ${layer.piece}`)

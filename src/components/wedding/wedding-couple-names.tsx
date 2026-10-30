@@ -31,7 +31,7 @@ function tightenCoupleName(el: HTMLHeadingElement) {
   }
 }
 
-/** Tên chú rể từ trái, cô dâu từ phải, gặp nhau ở dấu &. */
+/** Tên hiện bằng nét sâu theo chủ đề, gặp nhau ở dấu &. */
 export function WeddingCoupleNames(props: {
   groomName: string
   brideName: string

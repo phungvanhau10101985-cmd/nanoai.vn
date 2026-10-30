@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import type { Dictionary } from '@/lib/i18n/dictionaries'
 import { WeddingLandingStickyCta } from '@/components/wedding/wedding-landing-sticky-cta'
+import { WeddingLandingThemes } from '@/components/wedding/wedding-landing-themes'
 
 type Copy = Dictionary['weddingCardAiLanding']
 
@@ -19,7 +20,12 @@ function CreateCta(props: { href: string; label: string; id?: string; className?
   )
 }
 
-export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plates: string[] }) {
+export function WeddingCardLanding(props: {
+  copy: Copy
+  loginHref: string
+  plates: string[]
+  themes: { id: string; title: string; image: string }[]
+}) {
   const { copy, loginHref, plates } = props
   const hero = plates[0] ?? ''
   const guestPoints = [
@@ -98,20 +104,17 @@ export function WeddingCardLanding(props: { copy: Copy; loginHref: string; plate
         </ul>
       </section>
 
-      {plates.length > 0 ? (
+      {props.themes.length > 0 ? (
         <section className="mt-10">
           <h2 className="text-xl font-bold text-slate-950">{copy.samplesTitle}</h2>
           <p className="mt-1 text-sm text-slate-600">{copy.samplesHint}</p>
-          <div className="mt-4 flex gap-3 overflow-x-auto pb-2 [scrollbar-width:thin] snap-x snap-mandatory">
-            {plates.map((url) => (
-              <img
-                key={url}
-                src={url}
-                alt={copy.sampleAlt}
-                loading="lazy"
-                className="h-[32rem] w-auto shrink-0 snap-start rounded-2xl bg-[#fffaf2] object-contain ring-1 ring-rose-100"
-              />
-            ))}
+          <div className="mt-4">
+            <WeddingLandingThemes
+              themes={props.themes}
+              moreLabel={copy.themesMore}
+              lessLabel={copy.themesLess}
+              openLabel={copy.themesOpen}
+            />
           </div>
           <CreateCta href={loginHref} label={copy.cta} className="mt-4 w-full sm:w-auto" />
         </section>

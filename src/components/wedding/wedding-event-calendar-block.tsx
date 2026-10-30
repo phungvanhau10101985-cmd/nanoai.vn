@@ -33,15 +33,19 @@ type Props = {
   countdownLive?: boolean
   /** Ẩn khối đếm ngược (dùng khi đã hiển thị ở phần bìa). */
   showCountdown?: boolean
+  /** Nền đỏ long phụng: chữ vàng sáng, không dùng xanh ô-liu. */
+  onDarkPaper?: boolean
+  /** Tấm kem Song hỷ: chữ đỏ son, không dùng vàng kem. */
+  onCreamPaper?: boolean
 }
 
-function HeartDayCell({ day, active }: { day: number; active: boolean }) {
+function HeartDayCell({ day, active, ink }: { day: number; active: boolean; ink: string }) {
   return (
     <div className="flex aspect-square max-h-10 items-center justify-center sm:max-h-11">
       {active ? (
         <div className="relative flex h-8 w-8 shrink-0 items-center justify-center sm:h-9 sm:w-9">
           <svg
-            className="absolute inset-0 h-full w-full text-[#556b47]"
+            className={cn('absolute inset-0 h-full w-full', ink)}
             viewBox="0 0 24 24"
             aria-hidden
           >
@@ -53,18 +57,19 @@ function HeartDayCell({ day, active }: { day: number; active: boolean }) {
           <span className="relative z-10 text-xs font-semibold leading-none text-white sm:text-[13px]">{day}</span>
         </div>
       ) : (
-        <span className="text-xs font-medium text-[#556b47]/85 sm:text-[13px]">{day}</span>
+        <span className={cn('text-xs font-medium sm:text-[13px]', ink)}>{day}</span>
       )}
     </div>
   )
 }
 
-function TimeColumn(props: { label: string; time: string; compact?: boolean }) {
+function TimeColumn(props: { label: string; time: string; compact?: boolean; labelInk: string; timeInk: string }) {
   return (
     <div className="text-center">
       <p
         className={cn(
-          'font-serif font-semibold uppercase leading-snug tracking-[0.08em] text-[#556b47]/80',
+          'font-serif font-semibold uppercase leading-snug tracking-[0.08em]',
+          props.labelInk,
           props.compact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]',
         )}
       >
@@ -72,7 +77,8 @@ function TimeColumn(props: { label: string; time: string; compact?: boolean }) {
       </p>
       <p
         className={cn(
-          'mt-1 font-serif font-semibold tabular-nums text-[#3d4a32]',
+          'mt-1 font-serif font-semibold tabular-nums',
+          props.timeInk,
           props.compact ? 'text-2xl' : 'text-3xl sm:text-4xl',
         )}
       >
@@ -98,6 +104,8 @@ export function WeddingEventCalendarBlock({
   textGlow,
   countdownLive = true,
   showCountdown = true,
+  onDarkPaper = false,
+  onCreamPaper = false,
 }: Props) {
   const enTx = useMemo(() => (locale === 'vi' ? getDictionary('en').weddingCardCalendar : null), [locale])
   const dateIso = useMemo(() => resolveWeddingDateIso(weddingDateIso), [weddingDateIso])
@@ -130,6 +138,14 @@ export function WeddingEventCalendarBlock({
 
   if (!dateIso && !eventDate) return null
 
+  const ink = onCreamPaper ? 'text-[#7a1c28]' : onDarkPaper ? 'text-[#fff0cc]' : 'text-[#556b47]'
+  const inkSoft = onCreamPaper ? 'text-[#8d4038]' : onDarkPaper ? 'text-[#fff6e4]' : 'text-[#556b47]/85'
+  const labelInk = onCreamPaper ? 'text-[#6e2a32]' : onDarkPaper ? 'text-[#fff6e4]' : 'text-[#556b47]/80'
+  const strong = onCreamPaper ? 'text-[#5c121c]' : onDarkPaper ? 'text-[#fffaf0]' : 'text-[#3d4a32]'
+  const line = onCreamPaper ? 'border-[#7a1c28]/40' : onDarkPaper ? 'border-[#f3d27a]/45' : 'border-[#556b47]/25'
+  const rule = onCreamPaper ? 'border-[#b48a4a]/80' : onDarkPaper ? 'border-[#f3d27a]/35' : 'border-[#556b47]/20'
+  const dayInk = onCreamPaper ? 'text-[#7a1c28]' : onDarkPaper ? 'text-[#fff0cc]' : 'text-[#556b47]/85'
+  const heartInk = onCreamPaper ? 'text-[#9a1c2c]' : onDarkPaper ? 'text-[#fff0cc]' : 'text-[#556b47]'
   const welcomeDisplay = receptionTime || tx.timePlaceholderDash
   const partyDisplay = partyTime || tx.timePlaceholderDash
   const mainPartyDisplay = partyTime || receptionTime || tx.timePlaceholderDash
@@ -141,15 +157,17 @@ export function WeddingEventCalendarBlock({
   return (
     <div
       className={cn(
-        'rounded-2xl px-2 py-4 text-[#556b47] sm:px-4 sm:py-5',
+        'rounded-2xl px-2 py-4 sm:px-4 sm:py-5',
+        ink,
         compact ? 'py-3' : 'py-5',
-        textGlow,
+        onCreamPaper ? undefined : textGlow,
         className,
       )}
     >
       <p
         className={cn(
-          'text-center font-serif font-semibold uppercase tracking-[0.14em] text-[#556b47]/90',
+          'text-center font-serif font-semibold uppercase tracking-[0.14em]',
+          onCreamPaper || onDarkPaper ? ink : 'text-[#556b47]/90',
           compact ? 'text-[10px]' : 'text-[11px] sm:text-xs',
         )}
       >
@@ -158,7 +176,8 @@ export function WeddingEventCalendarBlock({
 
       <p
         className={cn(
-          'mt-3 text-center font-serif font-medium uppercase leading-snug tracking-[0.06em] text-[#556b47]/85',
+          'mt-3 text-center font-serif font-medium uppercase leading-snug tracking-[0.06em]',
+          inkSoft,
           compact ? 'text-[9px]' : 'text-[10px] sm:text-[11px]',
         )}
       >
@@ -167,7 +186,8 @@ export function WeddingEventCalendarBlock({
 
       <p
         className={cn(
-          'mt-2 text-center font-serif font-semibold tabular-nums text-[#3d4a32]',
+          'mt-2 text-center font-serif font-semibold tabular-nums',
+          strong,
           compact ? 'text-4xl' : 'text-5xl sm:text-6xl',
         )}
       >
@@ -176,27 +196,29 @@ export function WeddingEventCalendarBlock({
 
       {banner ? (
         <div className={cn('mt-4 sm:mt-5', compact && 'mt-3')}>
-          <div className="flex items-center justify-center gap-0 font-serif uppercase text-[#556b47]/90">
+          <div className={cn('flex items-center justify-center gap-0 font-serif uppercase', onCreamPaper || onDarkPaper ? ink : 'text-[#556b47]/90')}>
             <div className={cn('px-2 text-center', compact ? 'text-[10px]' : 'text-[11px] sm:text-xs')}>
               <p className="leading-snug">{banner.weekdayUpper}</p>
               {locale === 'vi' && enTx ? (
-                <p className="mt-0.5 text-[9px] font-normal normal-case opacity-75 sm:text-[10px]">
+                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#8d4038]' : 'opacity-75')}>
                   {formatBannerDateLine('en', eventDate!).weekdayUpper}
                 </p>
               ) : null}
             </div>
             <div
               className={cn(
-                'border-l border-[#556b47]/25 px-3 text-center font-semibold tabular-nums text-[#3d4a32]',
+                'border-l px-3 text-center font-semibold tabular-nums',
+                line,
+                strong,
                 compact ? 'text-3xl' : 'text-4xl sm:text-5xl',
               )}
             >
               {banner.dayPad}
             </div>
-            <div className={cn('border-l border-[#556b47]/25 px-2 text-center', compact ? 'text-[10px]' : 'text-[11px] sm:text-xs')}>
+            <div className={cn('border-l px-2 text-center', line, compact ? 'text-[10px]' : 'text-[11px] sm:text-xs')}>
               <p className="leading-snug">{banner.monthUpper}</p>
               {locale === 'vi' && enTx ? (
-                <p className="mt-0.5 text-[9px] font-normal normal-case opacity-75 sm:text-[10px]">
+                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#8d4038]' : 'opacity-75')}>
                   {formatBannerDateLine('en', eventDate!).monthUpper}
                 </p>
               ) : null}
@@ -204,7 +226,8 @@ export function WeddingEventCalendarBlock({
           </div>
           <p
             className={cn(
-              'mt-2 text-center font-serif font-medium tabular-nums text-[#556b47]/80',
+              'mt-2 text-center font-serif font-medium tabular-nums',
+              labelInk,
               compact ? 'text-2xl' : 'text-3xl sm:text-4xl',
             )}
           >
@@ -214,8 +237,8 @@ export function WeddingEventCalendarBlock({
       ) : null}
 
       <div className={cn('mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-4', compact && 'mt-3 gap-2')}>
-        <TimeColumn label={receptionLabel} time={welcomeDisplay} compact={compact} />
-        <TimeColumn label={partyLabel} time={partyDisplay} compact={compact} />
+        <TimeColumn label={receptionLabel} time={welcomeDisplay} compact={compact} labelInk={labelInk} timeInk={strong} />
+        <TimeColumn label={partyLabel} time={partyDisplay} compact={compact} labelInk={labelInk} timeInk={strong} />
       </div>
 
       {showCountdown ? (
@@ -233,7 +256,7 @@ export function WeddingEventCalendarBlock({
 
       {eventDate ? (
         <div className={cn('mt-4 px-0 pb-1 pt-1 sm:mt-5 sm:px-1', compact && 'mt-3')}>
-          <p className="border-b border-[#556b47]/20 pb-2 text-center font-serif text-sm font-semibold">{calendarTitle}</p>
+          <p className={cn('border-b pb-2 text-center font-serif text-sm font-semibold', rule)}>{calendarTitle}</p>
           <div className="mt-2 grid grid-cols-7 gap-y-0.5 text-center font-serif text-[10px] font-semibold uppercase opacity-90">
             {weekShort.map((label, i) => (
               <span key={`w-${i}-${label}`}>{label}</span>
@@ -244,7 +267,7 @@ export function WeddingEventCalendarBlock({
               cell == null ? (
                 <div key={`e-${idx}`} className="aspect-square max-h-11" aria-hidden />
               ) : (
-                <HeartDayCell key={idx} day={cell} active={cell === highlightDay} />
+                <HeartDayCell key={idx} day={cell} active={cell === highlightDay} ink={cell === highlightDay ? heartInk : dayInk} />
               ),
             )}
           </div>

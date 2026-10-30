@@ -7,6 +7,7 @@ import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildJsonLdService, buildMetadata, SITE_URL } from '@/lib/seo'
 import { buildWeddingCommerceProductJsonLd } from '@/lib/wedding/wedding-commerce-events'
+import { WEDDING_SAMPLE_CARDS, weddingSampleCardTitle } from '@/lib/wedding/wedding-sample-cards'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import WeddingCardAiClientPage from './wedding-card-ai-client-page'
 
@@ -29,12 +30,19 @@ const WEDDING_LANDING_DEMOS = [
 
 export default async function TaoThiepMoiCuoiAiPage() {
   const user = await getUserOrBypass()
-  const { t } = getServerDictionary()
+  const { locale, t } = getServerDictionary()
   const jsonLd = buildJsonLdService(seo.serviceName, seo.serviceDescription, `${SITE_URL}${seo.path}`)
   const productJsonLd = buildWeddingCommerceProductJsonLd(`${SITE_URL}${seo.path}`, seo.pageDescription)
   const faqJsonLd = buildFeatureFaqJsonLd(seo)
   const loginHref = `/auth/login?next=${encodeURIComponent(seo.path)}`
   const plates = user ? [] : [...WEDDING_LANDING_DEMOS]
+  const themes = user
+    ? []
+    : WEDDING_SAMPLE_CARDS.map((sample) => ({
+        id: sample.id,
+        title: weddingSampleCardTitle(locale, sample),
+        image: sample.libraryImageUrl || sample.coverPhotoUrl,
+      })).filter((item) => item.title && item.image)
 
   return (
     <div className="app-shell">
@@ -46,7 +54,7 @@ export default async function TaoThiepMoiCuoiAiPage() {
           <WeddingCardAiClientPage />
         </CreationToolPageShell>
       ) : (
-        <WeddingCardLanding copy={t.weddingCardAiLanding} loginHref={loginHref} plates={plates} />
+        <WeddingCardLanding copy={t.weddingCardAiLanding} loginHref={loginHref} plates={plates} themes={themes} />
       )}
       <FeatureSeoSection seo={seo} />
       {user ? null : <div className="h-16 lg:hidden" aria-hidden />}

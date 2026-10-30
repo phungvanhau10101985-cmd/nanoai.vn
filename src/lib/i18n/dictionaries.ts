@@ -3800,6 +3800,9 @@ export type Dictionary = {
     cta: string
     samplesTitle: string
     samplesHint: string
+    themesMore: string
+    themesLess: string
+    themesOpen: string
     sampleAlt: string
     guestSectionTitle: string
     guestSectionLead: string
@@ -3942,6 +3945,14 @@ export type Dictionary = {
     readyBackgroundOne: string
     readyBackgroundSet: string
     readyBackgroundLayered: string
+    sampleCardsTitle: string
+    sampleAiCardsTitle: string
+    sampleCardsHint: string
+    sampleCardUse: string
+    sampleCardPhotos: string
+    sampleCardAppliedTitle: string
+    sampleCardAppliedHint: string
+    sampleCardExit: string
     downloadCreated: string
     back: string
     generateStyleLabel: string
@@ -8268,7 +8279,10 @@ export const VI_DICTIONARY: Dictionary = {
     promise: 'Mỗi khách một lời mời riêng. Khách chọn đi hoặc không đi và ghi số người. Bạn thấy rõ từng nhà còn bao nhiêu người để tính cỗ.',
     cta: 'Tạo thiệp ngay',
     samplesTitle: 'Thiệp mẫu',
-    samplesHint: 'Vuốt ngang để xem lời mời gọi tên khách, và nút đi hoặc không đi.',
+    samplesHint: 'Chọn một chủ đề để mở thiệp demo. Bấm Xem thêm để hiện hết chủ đề.',
+    themesMore: 'Xem thêm',
+    themesLess: 'Thu gọn',
+    themesOpen: 'Xem demo',
     sampleAlt: 'Mẫu thiệp cưới gọi tên khách',
     guestSectionTitle: 'Biết ai đi, mấy người, để làm cỗ',
     guestSectionLead: 'Không chỉ một link chung. Lời mời gọi đúng danh xưng và tên. Danh sách đi và không đi tách nhà trai, nhà gái.',
@@ -8280,7 +8294,7 @@ export const VI_DICTIONARY: Dictionary = {
     guestCountBody: 'Mỗi nhà một số: người đi, người không đi, và khách chưa trả lời.',
     featuresTitle: 'Đủ thứ để gửi khách',
     featureBgTitle: 'Nền hoa văn',
-    featureBgBody: 'Kho nền AI hoặc ảnh của bạn. Xem hoa văn lớn rồi mới chọn.',
+    featureBgBody: 'Chọn thiệp mẫu. Xem hoa văn lớn rồi mới chọn.',
     featureFrameTitle: 'Khung và ảnh',
     featureFrameBody: 'Vỏ thiệp, ảnh cặp đôi và khung chân dung.',
     featureTextTitle: 'Chữ tiếng Việt',
@@ -8299,7 +8313,7 @@ export const VI_DICTIONARY: Dictionary = {
     featureGiftBody: 'Mã QR thiệp và thông tin chuyển khoản trên cùng trang.',
     stepsTitle: 'Ba bước',
     step1Title: 'Chọn nền',
-    step1Body: 'Xem hoa văn lớn, chọn trong kho hoặc tạo nền AI.',
+    step1Body: 'Xem hoa văn lớn, rồi chọn thiệp mẫu.',
     step2Title: 'Điền thiệp',
     step2Body: 'Tên, ngày, giờ, địa điểm và lời mời hai bên.',
     step3Title: 'Gửi và theo dõi',
@@ -8317,7 +8331,7 @@ export const VI_DICTIONARY: Dictionary = {
     priceNote: 'Nhà trai và nhà gái tính riêng. Soạn, xem trước và xuất bản không tốn credit.',
     faqTitle: 'Câu hỏi thường gặp',
     faq1q: 'Tạo thiệp cưới AI có miễn phí không?',
-    faq1a: 'Soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi AI sinh ảnh nền mới.',
+    faq1a: 'Soạn nội dung, xem trước, chọn thiệp mẫu, QR, RSVP và xuất bản link không tốn credit. Tối ưu AI từng đoạn chữ trừ 0,1 credit.',
     faq2q: 'Gói khách mời giá bao nhiêu?',
     faq2a: 'Ba khách đầu mỗi bên dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng.',
     faq3q: 'Lời mời có gọi đúng tên khách không?',
@@ -8348,15 +8362,15 @@ export const VI_DICTIONARY: Dictionary = {
     libraryRecommendedHeading: 'Đề xuất',
     libraryAllHeading: 'Kho AI',
     frameReferenceHint: 'Tải ảnh mới, hoặc chọn một nền AI có sẵn. AI vẽ khung mới theo họa tiết và tông màu đó, không chép nguyên ảnh.',
-    chooseBackground: 'Chọn nền',
-    chooseBackgroundAgain: 'Chọn lại',
+    chooseBackground: 'Xem thiệp mẫu',
+    chooseBackgroundAgain: 'Đổi thiệp mẫu',
     backgroundPickedOk: 'OK',
     backgroundPickedTitle: 'Đã chọn nền',
-    backgroundSectionTitle: 'Nền thiệp',
-    backgroundSectionHint: 'Ảnh nền dùng chung cho cả thiệp. Chọn nền có sẵn (một ảnh hoặc một bộ ảnh), ảnh trong kho, hoặc tạo nền mới bằng AI.',
+    backgroundSectionTitle: 'Thiệp mẫu',
+    backgroundSectionHint: 'Xem thiệp mẫu. Dùng mẫu này đưa nền, khung, hoa, màu chữ và 5 ảnh cô dâu chú rể cùng tông vào thiệp đang tạo. Không trừ credit.',
     backgroundLibraryTitle: 'Kho ảnh nền',
     backgroundLibraryHint: 'Bấm Xem trước để phóng to hoa văn, rồi chọn nền. Không trừ credit. Ảnh AI chọn xong là gắn luôn khung, hoa, màu nút và chữ của bộ cùng phong cách. Tạo mới vẫn 1 credit và ảnh mới được lưu vào kho. Ảnh chọn từ máy chỉ dùng cho thiệp này, không vào kho.',
-    backgroundLibraryEmpty: 'Kho còn trống. Tạo nền mới để lưu vào kho — lần sau chọn lại không mất credit.',
+    backgroundLibraryEmpty: 'Kho còn trống.',
     backgroundPreviewOpen: 'Xem trước',
     backgroundPreviewTitle: 'Xem hoa văn nền',
     backgroundPreviewSelect: 'Chọn nền này',
@@ -8365,11 +8379,11 @@ export const VI_DICTIONARY: Dictionary = {
     createBackgroundButton: 'Tạo ảnh nền - {n} credit',
     createBackgroundAgain: 'Tạo lại ảnh nền - {n} credit',
     pickOutsideBackground: 'Chọn ảnh ngoài · 0 credit',
-    backgroundEmptyPreview: 'Chưa có ảnh nền. Chọn nền có sẵn, ảnh trong kho, hoặc tạo nền mới.',
+    backgroundEmptyPreview: 'Chưa chọn thiệp mẫu.',
     readyBackgroundHeading: 'Nền có sẵn',
     readyBackgroundHint: 'Chọn một bộ là đổi luôn nền, khung, hoa nổi, màu nút, màu chữ, nền chữ và kiểu chữ. Chọn sẵn không trừ credit.',
     readyBackgroundLocked: 'Khung vỏ, khung ảnh, bố cục ảnh, màu nút, màu chữ, nền chữ và kiểu chữ đi theo bộ nền này.',
-    ornamentAdminHint: 'Kéo để dời. Phóng, thu, xoay, làm mờ, làm nhạt màu, đứng im hoặc lên khi lướt, hoặc xóa. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
+    ornamentAdminHint: 'Kéo để dời, hoặc dùng phím mũi tên. Shift và mũi tên dời xa hơn. Delete xóa. Phóng, thu, xoay, làm mờ, làm nhạt màu, đứng im hoặc lên khi lướt. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
     ornamentAdminAdd: 'Thêm hoa',
     ornamentAdminSave: 'Lưu hoa văn',
     ornamentAdminSaved: 'Đã lưu hoa văn vào thiệp này.',
@@ -8401,7 +8415,7 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentAdminUpload: 'Tải ảnh',
     ornamentAdminPasteLink: 'Dán link ảnh hoa',
     ornamentAdminAddLink: 'Thêm',
-    ornamentAdminSelectFirst: 'Bấm một hoa để hiện nút. Kéo để dời. Mỗi lần sửa tự lưu vào thiệp này.',
+    ornamentAdminSelectFirst: 'Bấm một hoa để hiện nút. Kéo hoặc dùng phím mũi tên để dời. Delete xóa. Mỗi lần sửa tự lưu vào thiệp này.',
     previewDesktop: 'Desktop',
     previewMobile: 'Điện thoại',
     previewCover: 'Vỏ thiệp',
@@ -8412,6 +8426,14 @@ export const VI_DICTIONARY: Dictionary = {
     readyBackgroundOne: 'Một ảnh nền',
     readyBackgroundSet: 'Bộ {n} ảnh nền',
     readyBackgroundLayered: 'Nền và hoa nổi',
+    sampleCardsTitle: 'Thiệp mẫu',
+    sampleAiCardsTitle: 'Chủ đề AI',
+    sampleCardsHint: 'Bấm một mẫu để mở thiệp demo. Trong demo có nút Dùng mẫu này và nút Thoát để xem mẫu khác. Không trừ credit.',
+    sampleCardUse: 'Dùng mẫu này',
+    sampleCardPhotos: '1 ảnh đầu thiệp · 2 ảnh riêng · 2 ảnh album',
+    sampleCardAppliedTitle: 'Đã dùng mẫu này',
+    sampleCardAppliedHint: 'Nền, khung, hoa và màu chữ đã vào thiệp đang tạo. Chỗ ảnh để trống để bạn chọn ảnh. Không trừ credit.',
+    sampleCardExit: 'Thoát',
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
     generateStyleLabel: 'Phong cách',
@@ -8471,14 +8493,14 @@ export const VI_DICTIONARY: Dictionary = {
     photoOpenLabel: 'Hiệu ứng mở ảnh',
     frameOpenLabel: 'Hiệu ứng mở khung',
     photoOpenNone: 'Hiện nhẹ',
-    photoOpenRise: 'Trượt lên',
-    photoOpenFade: 'Hiện dần',
-    photoOpenZoom: 'Phóng từ trong',
-    photoOpenAssemble: 'Ghép lại',
+    photoOpenRise: 'Hạ nét',
+    photoOpenFade: 'Sáng dần',
+    photoOpenZoom: 'Lấy nét',
+    photoOpenAssemble: 'Mở từ giữa',
     frameOpenNone: 'Hiện nhẹ',
-    frameOpenFade: 'Hiện dần',
-    frameOpenBloom: 'Nở ra',
-    frameOpenAssemble: 'Ghép lại',
+    frameOpenFade: 'Sáng dần',
+    frameOpenBloom: 'Nở nhẹ',
+    frameOpenAssemble: 'Mở từ giữa',
     frameShapeLabel: 'Hình lỗ khung',
     frameShapeCircle: 'Tròn',
     frameShapeEllipse: 'Elip',

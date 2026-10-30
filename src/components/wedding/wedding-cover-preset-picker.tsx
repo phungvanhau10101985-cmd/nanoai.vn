@@ -45,6 +45,24 @@ export function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRES
     'relative aspect-[3/4] overflow-hidden rounded-xl border shadow-sm transition',
     selected ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300',
   )
+  if (preset.layout === 'song_hy') {
+    return (
+      <div className={shell} style={{ background: preset.thumbnail.bottomBg }}>
+        <div className="absolute inset-x-[14%] top-[22%] bottom-[18%] rounded-lg bg-[#9b1c24] shadow-md ring-1 ring-[#f3d27a]/40">
+          <div className="mx-auto mt-3 h-4 w-4 rounded-full border border-[#f3d27a]" />
+          <div className={cn('mt-1 text-center font-serif text-[9px]', preset.thumbnail.textClass)}>A & B</div>
+        </div>
+      </div>
+    )
+  }
+  if (preset.layout === 'plain') {
+    return (
+      <div className={shell} style={{ background: preset.thumbnail.topBg }}>
+        <div className="absolute left-[22%] top-[16%] h-[48%] w-[56%] overflow-hidden rounded-md bg-[linear-gradient(165deg,#f6e4b8_0%,#8a3038_42%,#3a1014_100%)] shadow" />
+        <div className={cn('absolute inset-x-2 bottom-3 text-center font-serif text-[9px]', preset.thumbnail.textClass)}>A & B</div>
+      </div>
+    )
+  }
   if (preset.layout === 'composed') {
     const composition = getOrnamentComposition(preset.compositionId)
     if (composition) {

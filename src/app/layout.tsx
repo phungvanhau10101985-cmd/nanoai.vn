@@ -379,7 +379,8 @@ export default async function RootLayout({
     readPartnerSiteSlugFromHeaders((name) => headerStore.get(name)) ||
     partnerSiteSlugFromPathname(currentPathname);
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
-  const isWeddingPublicPage = currentPathname.startsWith("/thiep-moi-cuoi/");
+  const isWeddingPublicPage =
+    currentPathname.startsWith("/thiep-moi-cuoi/") || currentPathname.startsWith("/thiep-mau/");
   const isPartnerWebsitePage =
     currentPathname.startsWith("/site/") || Boolean(partnerCustomDomain);
   const isTeacherExamPaperPage =
@@ -527,7 +528,7 @@ export default async function RootLayout({
     !currentPathname.startsWith("/support-chat") &&
     !currentPathname.startsWith("/hospitality/") &&
     !currentPathname.startsWith("/dashboard") &&
-    !currentPathname.startsWith("/thiep-moi-cuoi/");
+    !isWeddingPublicPage;
   const shouldRenderGlobalMetaPixel =
     Boolean(facebookPixelId) &&
     !isCustomerOwnedSurface

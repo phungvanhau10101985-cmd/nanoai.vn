@@ -10,6 +10,7 @@ import {
   WEDDING_PREVIEW_READY_MESSAGE,
   type WeddingPreviewLook,
 } from '@/lib/wedding/wedding-preview-look'
+import type { WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 
 function DeviceFrame(props: {
   title: string
@@ -117,9 +118,10 @@ export function WeddingLiveDevicePreviews(props: {
   look: WeddingPreviewLook
   lookToken: string
   showReset?: boolean
+  onOrnamentsSaved?: (ornaments: WeddingBackgroundOrnament[] | null) => void
 }) {
   const [revision, setRevision] = useState(0)
-  const device: WeddingDesignDevice = 'mobile'
+  const [device, setDevice] = useState<WeddingDesignDevice>('mobile')
   const [coverFrame, setCoverFrame] = useState<HTMLIFrameElement | null>(null)
   const [letterFrame, setLetterFrame] = useState<HTMLIFrameElement | null>(null)
   const lookRef = useRef(props.look)
@@ -142,6 +144,7 @@ export function WeddingLiveDevicePreviews(props: {
     layout: 'full',
   })
   if (props.editable) query.set('ornamentEdit', '1')
+  query.set('device', device)
   query.set('rev', String(revision))
   const width = weddingDesignWidth(device)
   const deviceLabel = device === 'desktop' ? props.desktopLabel : props.mobileLabel
@@ -184,6 +187,8 @@ export function WeddingLiveDevicePreviews(props: {
         return
       }
       if (data?.type !== 'wedding-ornament-saved') return
+      if (data.cleared) props.onOrnamentsSaved?.(null)
+      else if (Array.isArray(data.ornaments)) props.onOrnamentsSaved?.(data.ornaments as WeddingBackgroundOrnament[])
       const fromCover = event.source === coverFrame?.contentWindow
       const fromLetter = event.source === letterFrame?.contentWindow
       if (!fromCover && !fromLetter) return
@@ -195,11 +200,24 @@ export function WeddingLiveDevicePreviews(props: {
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [coverFrame, letterFrame, postLook])
+  }, [coverFrame, letterFrame, postLook, props.onOrnamentsSaved])
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex gap-1" role="group" aria-label={props.desktopLabel}>
+          {(['mobile', 'desktop'] as const).map((id) => (
+            <button
+              key={id}
+              type="button"
+              aria-pressed={device === id}
+              className={device === id ? 'h-8 rounded-md bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-md border bg-white px-3 text-xs'}
+              onClick={() => setDevice(id)}
+            >
+              {id === 'desktop' ? props.desktopLabel : props.mobileLabel}
+            </button>
+          ))}
+        </div>
         <button type="button" className="h-8 rounded-md border bg-white px-3 text-xs" onClick={() => setRevision((value) => value + 1)}>
           {props.refreshLabel}
         </button>

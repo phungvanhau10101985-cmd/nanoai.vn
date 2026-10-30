@@ -129,7 +129,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
     key: 'tao-thiep-moi-cuoi-ai',
     pageTitle: 'Tạo thiệp cưới AI – thiệp mời cưới online',
     pageDescription:
-      'Tạo thiệp cưới AI online: chọn phong cách, xem trước nội dung miễn phí, sinh ảnh nền bằng AI, xuất link thiệp điện tử và RSVP. Gói khách mời từ 149.000đ.',
+      'Tạo thiệp cưới AI online: chọn thiệp mẫu, xem trước nội dung miễn phí, xuất link thiệp điện tử và RSVP. Gói khách mời từ 149.000đ.',
     path: '/tao-thiep-moi-cuoi-ai',
     keywords: [
       'tạo thiệp cưới AI',
@@ -146,9 +146,9 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       'Tạo thiệp mời cưới online bằng AI: visual nền, chữ tiếng Việt do hệ thống render, xuất bản link thiệp điện tử và RSVP.',
     h2: 'Tạo thiệp cưới AI online, gửi khách mời chỉ với một đường dẫn',
     overview:
-      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI kết hợp ảnh nền do AI sinh với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Gói khách mời tính riêng cho nhà trai và nhà gái: 100 khách 149.000đ, 200 khách 199.000đ, không giới hạn 299.000đ. Ba khách đầu mỗi bên dùng thử; mở thêm khách bằng quét mã QR.',
+      'Thiệp cưới điện tử giúp cặp đôi gửi lời mời nhanh, chỉnh sửa được và theo dõi RSVP mà không cần in hàng loạt. Công cụ trên NanoAI dùng thiệp mẫu với nội dung tiếng Việt do hệ thống sắp chữ, để thiệp đọc rõ trên điện thoại và máy tính. Gói khách mời tính riêng cho nhà trai và nhà gái: 100 khách 149.000đ, 200 khách 199.000đ, không giới hạn 299.000đ. Ba khách đầu mỗi bên dùng thử; mở thêm khách bằng quét mã QR.',
     benefits: [
-      'Xem trước nội dung và xuất bản link miễn phí, chỉ tốn credit khi sinh ảnh AI mới',
+      'Xem trước nội dung, chọn thiệp mẫu và xuất bản link không tốn credit',
       'Chữ tiếng Việt do hệ thống render, hạn chế lỗi font trên ảnh AI',
       'Có RSVP, danh sách khách mời và link thiệp cá nhân cho từng khách',
     ],
@@ -158,7 +158,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       'Thu RSVP và lời chúc từ khách mời trên cùng một trang thiệp',
     ],
     tips: [
-      'Chọn vỏ thiệp, rồi sinh ảnh nền AI',
+      'Chọn thiệp mẫu, rồi điền tên, ngày và địa điểm',
       'Điền đủ tên, ngày, giờ và địa điểm để thiệp và lịch sự kiện đồng bộ',
       'Xuất bản link rồi gửi từng khách bản cá nhân từ danh sách khách mời',
     ],
@@ -166,7 +166,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Tạo thiệp cưới AI có miễn phí không?',
         answer:
-          'Soạn nội dung, xem trước, QR, RSVP và xuất bản link không tốn credit. Chỉ trừ credit khi bạn yêu cầu AI sinh ảnh nền mới.',
+          'Soạn nội dung, xem trước, chọn thiệp mẫu, QR, RSVP và xuất bản link không tốn credit. Tối ưu AI từng đoạn chữ trừ 0,1 credit.',
       },
       {
         question: 'Gói khách mời thiệp cưới giá bao nhiêu?',

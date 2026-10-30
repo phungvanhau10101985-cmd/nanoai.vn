@@ -26,6 +26,10 @@ export type WeddingTheme = {
   textGlowHeading: string
   /** Khối UI tương tác (nhạc, form) — đục hơn một chút */
   panelUi: string
+  /** Nền đỏ son. Chữ vàng đọc trên giấy tối, không phủ kem lên hoa văn. */
+  darkPaper?: string
+  /** Tấm kem bo tròn trên giấy đỏ. Chữ trong tấm dùng màu mực của bộ nền. */
+  contentCard?: 'scallop'
 }
 
 const MAP_BUTTON_READABLE =
@@ -213,8 +217,12 @@ export function isWeddingDarkTheme(themeId: string | null | undefined): boolean 
   return (themeId || 'luxury') === 'modern'
 }
 
+export function weddingThemeIsDark(theme: Pick<WeddingTheme, 'id' | 'darkPaper'>): boolean {
+  return Boolean(theme.darkPaper) || isWeddingDarkTheme(theme.id)
+}
+
 export function weddingNavLinkClass(theme: WeddingTheme): string {
-  return isWeddingDarkTheme(theme.id)
+  return weddingThemeIsDark(theme)
     ? 'rounded-full px-3.5 py-1.5 transition-colors hover:bg-white/10 active:bg-white/15'
     : 'rounded-full px-3.5 py-1.5 transition-colors hover:bg-black/[0.06] active:bg-black/[0.09]'
 }
@@ -248,6 +256,12 @@ export const WEDDING_BG_OVERLAY = {
   dense: 0.42,
 } as const
 
+function hexToRgb(hex: string) {
+  const n = Number.parseInt(hex.replace('#', ''), 16)
+  if (!Number.isFinite(n)) return '92,16,24'
+  return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`
+}
+
 export function weddingBackgroundStyle(
   imageUrl: string | null | undefined,
   theme: WeddingTheme,
@@ -264,18 +278,19 @@ export function weddingBackgroundStyle(
       backgroundRepeat: showImage ? ('no-repeat' as const) : undefined,
     }
   }
-  const dark = isWeddingDarkTheme(theme.id)
-  const top = Math.max(0, overlayOpacity * 0.55)
-  const bottom = Math.max(0, Math.min(0.55, overlayOpacity))
+  const dark = weddingThemeIsDark(theme)
+  const rgb = theme.darkPaper ? hexToRgb(theme.darkPaper) : '15,23,42'
+  const top = Math.max(0, overlayOpacity * (theme.darkPaper ? 0.28 : 0.55))
+  const bottom = Math.max(0, Math.min(0.55, overlayOpacity * (theme.darkPaper ? 0.45 : 1)))
   const wash = dark
-    ? `linear-gradient(to bottom, rgba(15,23,42,${top}), rgba(15,23,42,${bottom})), `
+    ? `linear-gradient(to bottom, rgba(${rgb},${top}), rgba(${rgb},${bottom})), `
     : `linear-gradient(to bottom, rgba(255,253,248,${top}), rgba(255,250,242,${bottom})), `
   const edgeVignette = dark
-    ? 'radial-gradient(ellipse 105% 90% at 50% 44%, transparent 38%, rgba(2,6,23,0.42) 100%), '
+    ? `radial-gradient(ellipse 105% 90% at 50% 44%, transparent 46%, rgba(${rgb},${theme.darkPaper ? 0.28 : 0.42}) 100%), `
     : 'radial-gradient(ellipse 105% 92% at 50% 42%, transparent 42%, rgba(18,12,8,0.1) 100%), '
   const readingVignette = opts?.readingVignette
     ? dark
-      ? 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(15,23,42,0.52) 0%, rgba(15,23,42,0.22) 52%, transparent 78%), '
+      ? `radial-gradient(ellipse 88% 74% at 50% 42%, rgba(${rgb},${theme.darkPaper ? 0.22 : 0.52}) 0%, rgba(${rgb},${theme.darkPaper ? 0.08 : 0.22}) 52%, transparent 78%), `
       : 'radial-gradient(ellipse 88% 74% at 50% 42%, rgba(255,252,245,0.52) 0%, rgba(255,248,236,0.24) 52%, transparent 78%), '
     : ''
   return {

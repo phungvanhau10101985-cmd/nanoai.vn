@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
+import { nudgeWeddingOrnament, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
 import { readFileSync } from 'node:fs'
 import {
   WEDDING_DESKTOP_HEIGHT,
@@ -54,9 +54,9 @@ test('letter ornaments repeat down the content and a short letter stays one shee
   assert.equal(two[0].page, 0)
   assert.equal(two[0].anchor, 'top')
   assert.equal(two[2].page, 1)
-  assert.ok(two[2].w <= 34)
-  assert.ok(two[2].x <= 0)
-  assert.ok(two[3].x >= 68)
+  assert.ok(two[2].w <= 18)
+  assert.ok(two[2].x + two[2].w <= 12)
+  assert.ok(two[3].x >= 88)
   assert.ok(two[2].y > two[0].y)
   assert.ok(two[3].y > 50)
   assert.equal(weddingOrnamentsAreOneSheet(items), true)
@@ -115,4 +115,18 @@ test('a new ornament lands in the screen frame currently on display', () => {
   assert.equal(slice?.x, 0)
   assert.equal(slice?.y, 800)
   assert.ok((slice?.h ?? 0) > 400)
+})
+
+test('arrow keys nudge an ornament by screen pixels, including a bottom anchor', () => {
+  const piece = { src: '/wedding/heart.png', x: 20, y: 10, w: 18, rotate: 12 }
+  const right = nudgeWeddingOrnament(piece, 10, 0, 200, 400)
+  assert.equal(right.x, 25)
+  assert.equal(right.y, 10)
+  assert.equal(right.rotate, 12)
+  const down = nudgeWeddingOrnament(piece, 0, 10, 200, 400)
+  assert.equal(down.y, 12.5)
+  const bottom = nudgeWeddingOrnament({ ...piece, anchor: 'bottom' }, 0, 10, 200, 400)
+  assert.equal(bottom.y, 7.5)
+  const tiny = nudgeWeddingOrnament(piece, 0, 1, 200, 8000)
+  assert.equal(tiny.y, 10.1)
 })

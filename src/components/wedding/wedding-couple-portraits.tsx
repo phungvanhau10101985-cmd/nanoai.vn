@@ -54,7 +54,7 @@ function Portrait(props: {
       ) : (
         <div
           className={cn(
-            'relative w-full overflow-hidden bg-white/35 shadow-[0_14px_32px_rgba(70,36,16,0.16)] ring-1 ring-white/75',
+            'relative w-full overflow-hidden shadow-[0_16px_36px_rgba(20,4,8,0.32)]',
             props.compact ? 'aspect-[3/4] rounded-2xl' : 'aspect-[3/4] rounded-[1.65rem] sm:rounded-[1.85rem]',
           )}
         >
@@ -70,29 +70,19 @@ function Portrait(props: {
               <span className={props.compact ? 'text-2xl' : 'text-5xl sm:text-6xl'}>{initialOf(nameText)}</span>
             </div>
           )}
-          <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent px-2 pb-2.5 pt-8 text-center text-white sm:px-3 sm:pb-3.5 sm:pt-12">
-            <p className={cn('uppercase tracking-[0.18em]', props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
-              {props.label}
-            </p>
-            <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
-              {nameText}
-            </p>
-          </figcaption>
         </div>
       )}
       {props.frameScaleEdit ? <FrameEdgeGrips edit={props.frameScaleEdit} /> : null}
       </div>
       {props.frameScaleEdit ? <FrameScaleDragBar edit={props.frameScaleEdit} /> : null}
-      {props.shell ? (
-        <figcaption className={cn('mt-1.5 text-center', props.theme.text, props.theme.textGlow)}>
-          <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
-            {props.label}
-          </p>
-          <p className={cn('mt-0.5 truncate font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
-            {nameText}
-          </p>
-        </figcaption>
-      ) : null}
+      <figcaption className={cn('mt-2 text-center', props.theme.text, props.theme.textGlow)}>
+        <p className={cn('uppercase tracking-[0.18em]', props.theme.accentText, props.compact ? 'text-[8px]' : 'text-[10px] sm:text-[11px]')}>
+          {props.label}
+        </p>
+        <p className={cn('mt-0.5 font-serif font-semibold leading-tight', props.compact ? 'text-[11px]' : 'text-sm sm:text-lg')}>
+          {nameText}
+        </p>
+      </figcaption>
       {editable ? (
         <div className="pointer-events-none absolute inset-0 z-[4] flex items-end justify-center gap-1.5 bg-gradient-to-t from-black/50 via-black/10 to-transparent p-2 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
           <button
@@ -176,7 +166,7 @@ export function WeddingCouplePortraits(props: {
 
   return (
     <div className={cn('mx-auto w-full max-w-md', props.className)}>
-      <div className={cn('grid grid-cols-[1fr_auto_1fr] items-center', props.compact ? 'gap-1.5' : 'gap-2 sm:gap-4')}>
+      <div className={cn('grid grid-cols-[1fr_auto_1fr] items-start', props.compact ? 'gap-1.5' : 'gap-2 sm:gap-4')}>
         <Portrait
           imageUrl={groomImageUrl}
           name={props.groomName}
@@ -196,7 +186,7 @@ export function WeddingCouplePortraits(props: {
             'font-serif italic leading-none',
             props.theme.accentText,
             props.theme.textGlow,
-            props.compact ? 'text-lg' : 'text-2xl sm:text-3xl',
+            props.compact ? 'mt-[22%] text-lg' : 'mt-[30%] text-2xl sm:text-3xl',
           )}
           aria-hidden
         >

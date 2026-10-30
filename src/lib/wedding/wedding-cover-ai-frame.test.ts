@@ -212,6 +212,14 @@ test('bride and groom portraits keep their own frame choice', () => {
 test('open celebration defaults to bloom and falling petals, and a chosen none is kept', () => {
   assert.equal(resolveOpenBurstEffect(parseWeddingSectionConfig('{}')), 'bloom')
   assert.equal(resolveOpenFallEffect(parseWeddingSectionConfig('{}')), 'petals')
+  const songHy = parseWeddingSectionConfig(JSON.stringify({ backgroundPresetId: 'song-hy-do' }))
+  assert.equal(resolveOpenBurstEffect(songHy), 'gold')
+  assert.equal(resolveOpenFallEffect(songHy), 'lanterns')
+  assert.equal(resolveOpenFallSeconds(songHy), 15)
+  const garden = parseWeddingSectionConfig(JSON.stringify({ backgroundPresetId: 'vuon-kinh-hong' }))
+  assert.equal(resolveOpenBurstEffect(garden), 'bloom')
+  assert.equal(resolveOpenFallEffect(garden), 'petals')
+  assert.equal(resolveOpenFallSeconds(garden), 0)
   const saved = mergeWeddingSectionConfig('{"coverPresetId":"classic_red"}', {
     openBurstEffect: 'none',
     openFallEffect: 'hearts',

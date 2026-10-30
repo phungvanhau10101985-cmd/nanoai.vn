@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react'
-import { LINEN_POLAROID_HOLE, type OrnamentKit, type OrnamentPieceId } from '@/lib/wedding/wedding-ornament-layouts'
+import type { OrnamentKit, OrnamentPieceId } from '@/lib/wedding/wedding-ornament-layouts'
 
 type PieceProps = { kit: OrnamentKit }
 
@@ -124,7 +124,6 @@ function Vine({ kit }: PieceProps) {
 }
 
 function Seal({ kit }: PieceProps) {
-  if (kit.id === 'linen') return <WaxSeal />
   return (
     <svg viewBox="0 0 160 160" className="h-full w-full overflow-visible">
       <circle cx="80" cy="80" r="62" fill={kit.metal} />
@@ -132,31 +131,6 @@ function Seal({ kit }: PieceProps) {
       <path
         d="M80 108 C80 108 48 84 48 64 C48 50 60 44 70 52 C76 46 84 46 90 52 C100 44 112 50 112 64 C112 84 80 108 80 108 Z"
         fill={kit.petal}
-      />
-    </svg>
-  )
-}
-
-function WaxSeal() {
-  return (
-    <svg viewBox="0 0 160 160" className="h-full w-full overflow-visible">
-      <defs>
-        <radialGradient id="wedding-linen-wax" cx="38%" cy="32%" r="70%">
-          <stop offset="0%" stopColor="#f6e7c2" />
-          <stop offset="42%" stopColor="#d4b56a" />
-          <stop offset="100%" stopColor="#9a7840" />
-        </radialGradient>
-      </defs>
-      <path
-        fill="url(#wedding-linen-wax)"
-        d="M80 14C98 12 112 22 124 34C138 48 150 62 146 80C142 98 128 108 122 124C114 142 98 152 80 148C62 144 48 136 36 122C22 106 12 92 16 74C20 56 34 46 44 32C54 18 64 16 80 14Z"
-      />
-      <path
-        d="M80 112C80 112 52 90 52 70C52 58 62 52 72 60C78 54 86 54 92 60C102 52 112 58 112 70C112 90 80 112 80 112Z"
-        fill="none"
-        stroke="#f8f1df"
-        strokeWidth="3.2"
-        strokeLinejoin="round"
       />
     </svg>
   )
@@ -191,32 +165,6 @@ function DriedStem() {
         <circle cx="108" cy="168" r="1.8" fill="#eadcc4" />
         <circle cx="36" cy="148" r="1.7" fill="#eadcc4" />
       </g>
-    </svg>
-  )
-}
-
-function PolaroidFrame() {
-  const width = 400
-  const height = 520
-  const hole = LINEN_POLAROID_HOLE
-  const x = (hole.x / 100) * width
-  const y = (hole.y / 100) * height
-  const w = (hole.w / 100) * width
-  const h = (hole.h / 100) * height
-  const edge = 10
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full overflow-visible">
-      <defs>
-        <filter id="wedding-linen-polaroid-shadow" x="-18%" y="-14%" width="136%" height="136%">
-          <feDropShadow dx="0" dy="12" stdDeviation="7" floodColor="#3a2a1c" floodOpacity="0.2" />
-        </filter>
-      </defs>
-      <path
-        filter="url(#wedding-linen-polaroid-shadow)"
-        fill="#fffcf8"
-        fillRule="evenodd"
-        d={`M${edge} ${edge}H${width - edge}V${height - edge}H${edge}Z M${x} ${y}H${x + w}V${y + h}H${x}Z`}
-      />
     </svg>
   )
 }
@@ -288,7 +236,7 @@ const PIECES: Record<OrnamentPieceId, (props: PieceProps) => ReactElement> = {
   wreath: Wreath,
   arch: Arch,
   plate: Plate,
-  polaroid: PolaroidFrame,
+  polaroid: photoCutout('/wedding/covers/linen-polaroid-frame.webp'),
   tape: Tape,
   driedStem: DriedStem,
   mocBloom: photoCutout('/wedding/backgrounds/ornaments/moc-bloom.png'),

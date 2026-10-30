@@ -1,4 +1,5 @@
 import { findWeddingBackgroundPreset, WEDDING_ORNAMENT_LIST_MAX, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { WEDDING_STYLE_PRESETS } from '@/lib/wedding/wedding-style-presets'
 import type { WebLocale } from '@/lib/i18n/config'
 
 export type WeddingOrnamentPiece = {
@@ -144,12 +145,20 @@ export function splitWeddingOrnamentLayoutKey(key: string): { base: string; devi
   return { base: key, device: null }
 }
 
+function isWeddingKitStyleId(styleId: string): boolean {
+  return WEDDING_STYLE_PRESETS.some((preset) => preset.id === styleId)
+}
+
+/** Nền có sẵn dùng chung một khóa. Chủ đề AI dùng chung một khóa cho mọi khách của chủ đề đó. */
 export function weddingOrnamentLayoutKey(input: {
   backgroundPresetId?: string | null
+  backgroundKitStyleId?: string | null
   masterImageUrl?: string | null
 }): string {
   const preset = input.backgroundPresetId?.trim() || ''
   if (preset && findWeddingBackgroundPreset(preset)) return `preset:${preset}`
+  const style = input.backgroundKitStyleId?.trim() || ''
+  if (style && isWeddingKitStyleId(style)) return `kit:${style}`
   const url = input.masterImageUrl?.trim() || ''
   if (!url || url.length > 2000) return ''
   if (!/^https?:\/\//i.test(url) && !url.startsWith('/wedding/')) return ''
@@ -160,6 +169,9 @@ export function isWeddingOrnamentLayoutKey(key: string): boolean {
   const { base } = splitWeddingOrnamentLayoutKey(key.trim())
   if (base.startsWith('preset:')) {
     return weddingOrnamentLayoutKey({ backgroundPresetId: base.slice('preset:'.length) }) === base
+  }
+  if (base.startsWith('kit:')) {
+    return weddingOrnamentLayoutKey({ backgroundKitStyleId: base.slice('kit:'.length) }) === base
   }
   if (base.startsWith('image:')) {
     return weddingOrnamentLayoutKey({ masterImageUrl: base.slice('image:'.length) }) === base

@@ -143,6 +143,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   )
   const ornamentKey = weddingOrnamentLayoutKey({
     backgroundPresetId: section.backgroundPresetId,
+    backgroundKitStyleId: section.backgroundKitStyleId,
     masterImageUrl: card.masterImageUrl,
   })
   const cardOrnamentKey = weddingCardOrnamentLayoutKey(card.id)

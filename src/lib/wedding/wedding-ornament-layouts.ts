@@ -83,7 +83,7 @@ export const ORNAMENT_PIECE_RATIO: Record<OrnamentPieceId, string> = {
   wreath: '400 / 520',
   arch: '400 / 560',
   plate: '400 / 520',
-  polaroid: '400 / 520',
+  polaroid: '1007 / 1343',
   tape: '220 / 64',
   driedStem: '180 / 280',
   mocBloom: '909 / 850',
@@ -97,11 +97,11 @@ export const ORNAMENT_PIECE_RATIO: Record<OrnamentPieceId, string> = {
 export const ORNAMENT_FRAME_PIECES = new Set<OrnamentPieceId>(['wreath', 'arch', 'plate', 'polaroid'])
 
 /**
- * Lỗ ảnh trong khung polaroid, phần trăm của chính khung (viewBox 400×520).
- * Khung đặt full bề ngang một ô 3/4. Đổi số này thì đổi cả nét trong PolaroidFrame.
+ * Lỗ ảnh trong khung polaroid chụp, phần trăm của chính tấm khung 1007×1343.
+ * Khung đặt full bề ngang một ô 3/4.
  */
-export const LINEN_POLAROID_HOLE = { x: 8, y: 7, w: 84, h: 82 }
-const POLAROID_STAGE_HEIGHT = (100 * (520 / 400)) / (4 / 3)
+export const LINEN_POLAROID_HOLE = { x: 13.6, y: 3.57, w: 76.66, h: 89.5 }
+const POLAROID_STAGE_HEIGHT = (100 * (1343 / 1007)) / (4 / 3)
 
 export const ORNAMENT_KITS: Record<OrnamentKitId, OrnamentKit> = {
   dried: {
@@ -184,8 +184,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     layers: [
       { piece: 'butterfly', x: -12, y: -2, w: 30, rotate: -18, z: 4 },
       { piece: 'butterfly', x: 82, y: 2, w: 30, rotate: 16, flipX: true, z: 4 },
-      { piece: 'butterfly', x: 2, y: 34, w: 14, rotate: 24, opacity: 0.16, z: 1 },
-      { piece: 'garland', x: -8, y: 76, w: 116, z: 4 },
     ],
   },
   corners: {
@@ -194,8 +192,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     photo: { x: 22, y: 18, w: 56, h: 40, radius: 16 },
     layers: [
       { piece: 'peony', x: -10, y: -6, w: 40, z: 3 },
-      { piece: 'peony', x: 70, y: -6, w: 40, flipX: true, z: 3 },
-      { piece: 'peony', x: -10, y: -8, w: 38, flipY: true, anchor: 'bottom', z: 3 },
       { piece: 'peony', x: 72, y: -8, w: 38, flipX: true, flipY: true, anchor: 'bottom', z: 3 },
     ],
   },
@@ -206,7 +202,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     layers: [
       { piece: 'vine', x: -4, y: 2, w: 20, z: 3 },
       { piece: 'vine', x: 84, y: 2, w: 20, flipX: true, z: 3 },
-      { piece: 'sprig', x: 36, y: -2, w: 28, anchor: 'bottom', z: 4 },
     ],
   },
   seal: {
@@ -214,10 +209,8 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     pad: { top: 26, right: 14, bottom: 16, left: 14 },
     photo: { x: 26, y: 24, w: 48, h: 36, radius: 12 },
     layers: [
-      { piece: 'plate', x: 5, y: 3, w: 90, z: 1 },
       { piece: 'seal', x: 39, y: -1, w: 22, z: 4 },
       { piece: 'sprig', x: -6, y: -6, w: 36, anchor: 'bottom', z: 3 },
-      { piece: 'sprig', x: 70, y: -4, w: 34, flipX: true, flipY: true, z: 3 },
     ],
   },
   wreath: {
@@ -227,7 +220,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     layers: [
       { piece: 'wreath', x: -2, y: -8, w: 104, z: 2 },
       { piece: 'butterfly', x: 68, y: 4, w: 28, rotate: 18, flipX: true, z: 4 },
-      { piece: 'garland', x: -6, y: -6, w: 112, anchor: 'bottom', z: 3 },
     ],
   },
   arch: {
@@ -237,8 +229,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     layers: [
       { piece: 'arch', x: 2, y: -6, w: 96, z: 2 },
       { piece: 'peony', x: -8, y: -2, w: 34, z: 4 },
-      { piece: 'peony', x: 74, y: -2, w: 34, flipX: true, z: 4 },
-      { piece: 'sprig', x: 36, y: -2, w: 28, anchor: 'bottom', z: 4 },
     ],
   },
   mat: {
@@ -249,8 +239,6 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
     layers: [
       { piece: 'mocBloom', x: -1, y: -1, w: 26, rotate: -8, z: 4 },
       { piece: 'mocSprig', x: 78, y: -1, w: 20, rotate: 10, z: 4 },
-      { piece: 'mocLeaf', x: -2, y: -2, w: 22, rotate: -16, anchor: 'bottom', z: 4, opacity: 0.92 },
-      { piece: 'mocSprig', x: 76, y: -1, w: 16, rotate: 12, flipX: true, anchor: 'bottom', z: 4, opacity: 0.85 },
     ],
   },
   polaroid: {
@@ -263,12 +251,7 @@ export const ORNAMENT_LAYOUTS: Record<OrnamentLayoutId, OrnamentLayout> = {
       h: (LINEN_POLAROID_HOLE.h / 100) * POLAROID_STAGE_HEIGHT,
       radius: 0,
     },
-    layers: [
-      { piece: 'polaroid', x: 0, y: 0, w: 100, z: 2 },
-      { piece: 'tape', x: 36, y: 0.4, w: 28, rotate: -7, z: 5 },
-      { piece: 'driedStem', x: -2, y: 0, w: 24, rotate: -16, anchor: 'bottom', z: 6 },
-      { piece: 'seal', x: 74, y: 1, w: 20, anchor: 'bottom', z: 6 },
-    ],
+    layers: [{ piece: 'polaroid', x: 0, y: 0, w: 100, z: 2 }],
   },
 }
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
-import { WEDDING_BACKGROUND_PRESETS, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
+import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
 import { findWeddingCoverPreset } from './wedding-cover-presets'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
@@ -51,11 +51,16 @@ test('the pink garden preset keeps one wash underneath and flowers above the tex
   ])
   const preset = findWeddingBackgroundPreset('vuon-kinh-hong')
   assert.ok(preset)
-  assert.ok(preset.ornaments.length >= 3)
+  assert.ok(preset.ornaments.length >= 1 && preset.ornaments.length <= 2)
   assert.ok(preset.ornaments.every((item) => item.src.endsWith('.png')))
   assert.equal(preset.coverPresetId, 'pearl_rose')
-  assert.equal(findWeddingBackgroundPreset('long-phung-do')?.coverPresetId, 'pearl_rose')
-  assert.equal(findWeddingBackgroundPreset('sen-vang')?.coverPresetId, 'pearl_rose')
+  assert.equal(findWeddingBackgroundPreset('long-phung-do')?.coverPresetId, 'plain_photo')
+  assert.equal(findWeddingBackgroundPreset('sen-vang')?.coverPresetId, 'sen_vang')
+  assert.equal(findWeddingBackgroundPreset('do-son')?.coverPresetId, 'plain_photo')
+  assert.equal(findWeddingBackgroundPreset('do-son')?.look.ink, '#fff8ee')
+  assert.equal(findWeddingBackgroundPreset('do-son')?.look.surface, 'dark')
+  assert.ok(findWeddingBackgroundPreset('do-son')?.ornaments.every((item) => item.src.includes('/do-son-')))
+  assert.equal(findWeddingBackgroundPreset('hong-ngoc-trai')?.coverPresetId, 'pearl_rose')
 })
 
 test('desktop and mobile shells save apart and fall back to the shared place', () => {
@@ -116,10 +121,12 @@ test('the warm minimal set is the botanical plate, dried sprigs, and the polaroi
   const composition = getOrnamentComposition('linen_polaroid')
   assert.equal(composition?.layout.id, 'polaroid')
   assert.equal(composition?.kit.panel, '#f7f2ea')
-  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'polaroid'))
-  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'tape'))
-  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'driedStem'))
-  assert.ok(composition?.layout.layers.some((layer) => layer.piece === 'seal'))
+  assert.deepEqual(
+    composition?.layout.layers.map((layer) => layer.piece),
+    ['polaroid'],
+  )
+  assert.equal(composition?.layout.photo.x, 13.6)
+  assert.ok((composition?.layout.photo.w ?? 0) > 50)
   const shown = resolveShownCoverFrame({}, 'linen_polaroid')
   assert.equal(shown.mode, 'preset')
   assert.equal(shown.presetId, 'linen_polaroid')
@@ -134,7 +141,7 @@ test('the green wood-flower set keeps readable paper and photo sprigs', () => {
   assert.equal(preset.coverPresetId, 'moc_portrait')
   assert.equal(preset.look.buttonColorId, 'forest')
   assert.equal(preset.look.ink, '#1f3d2b')
-  assert.ok(preset.ornaments.length >= 4)
+  assert.ok(preset.ornaments.length >= 1 && preset.ornaments.length <= 2)
   assert.ok(preset.ornaments.every((item) => item.src.includes('/moc-')))
   const frame = getOrnamentComposition('moc_portrait')
   assert.equal(frame?.layout.photoChrome, 'mat')
@@ -143,7 +150,7 @@ test('the green wood-flower set keeps readable paper and photo sprigs', () => {
   assert.equal(findWeddingCoverPreset('moc_portrait')?.layout, 'composed')
 })
 
-test('the sage calla set uses a thin artistic photo frame', () => {
+test('the sage calla set uses sage paper and a bare photo', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'to-duyen-xanh'), [
     '/wedding/backgrounds/to-duyen-xanh-paper.jpg',
   ])
@@ -154,13 +161,15 @@ test('the sage calla set uses a thin artistic photo frame', () => {
   assert.equal(preset.look.ink, '#3e4f34')
   assert.ok(preset.ornaments.every((item) => item.src.endsWith('/mist-sprig.png')))
   const frame = findWeddingCoverPreset('to_duyen_xanh')
-  assert.equal(frame?.layout, 'frame')
-  assert.match(frame?.frame?.src ?? '', /to-duyen-xanh-frame/)
-  assert.ok((frame?.frame?.hole.w ?? 0) > 60)
-  assert.equal(frame?.frame?.ink, 'dark')
+  assert.equal(frame?.layout, 'plain')
+  assert.equal(frame?.frame, undefined)
+  const patch = weddingKitFramePatch(preset)
+  assert.equal(patch.coverFrameMode, 'preset')
+  assert.equal(patch.groomPortraitShellMode, 'none')
+  assert.equal(patch.bridePortraitShellMode, 'none')
 })
 
-test('the deep burgundy set uses ivory paper, corner flowers, and a thin frame', () => {
+test('the deep burgundy set uses ivory paper, corner flowers, and a bare photo', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'do-dam'), [
     '/wedding/backgrounds/do-dam-paper.jpg',
   ])
@@ -172,23 +181,28 @@ test('the deep burgundy set uses ivory paper, corner flowers, and a thin frame',
   assert.equal(preset.look.styleId, 'minimal')
   assert.ok(preset.ornaments.every((item) => item.src.includes('/do-dam-')))
   const frame = findWeddingCoverPreset('do_dam')
-  assert.equal(frame?.layout, 'frame')
-  assert.match(frame?.frame?.src ?? '', /do-dam-frame/)
-  assert.ok((frame?.frame?.hole.w ?? 0) > 70)
-  assert.equal(frame?.frame?.ink, 'dark')
-  assert.equal(frame?.frame?.panel, '#f7f1ea')
+  assert.equal(frame?.layout, 'plain')
+  assert.equal(frame?.frame, undefined)
+  const patch = weddingKitFramePatch(preset)
+  assert.equal(patch.coverFrameMode, 'preset')
+  assert.equal(patch.groomPortraitShellMode, 'none')
+  assert.equal(patch.bridePortraitShellMode, 'none')
 })
 
-test('the sky rose set uses the garden photo and the pearl frame', () => {
+test('the sky rose set uses the garden photo and a sky frame', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'vuon-hong-troi'), [
     '/wedding/backgrounds/vuon-hong-troi.jpg',
   ])
   const preset = findWeddingBackgroundPreset('vuon-hong-troi')
-  assert.equal(preset?.coverPresetId, 'pearl_rose')
+  assert.equal(preset?.coverPresetId, 'vuon_hong_troi')
   assert.equal(preset?.look.styleId, 'floral')
-  const frame = findWeddingCoverPreset('pearl_rose')
+  const frame = findWeddingCoverPreset('vuon_hong_troi')
   assert.equal(frame?.layout, 'frame')
-  assert.match(frame?.frame?.src ?? '', /pearl-rose-frame/)
+  assert.match(frame?.frame?.src ?? '', /vuon-hong-troi-frame/)
+  assert.equal(findWeddingCoverPreset('do_son')?.frame?.src.endsWith('/do-son-frame.webp'), true)
+  const lotusFrame = findWeddingCoverPreset('sen_vang')
+  assert.equal(lotusFrame?.layout, 'plain')
+  assert.equal(lotusFrame?.frame, undefined)
 })
 
 test('a one-image preset is still one plate', () => {
@@ -243,12 +257,13 @@ test('the preset id survives a section config save and clears when emptied', () 
 test('theme flowers stay in the margins so the letter center stays clear', () => {
   for (const preset of WEDDING_BACKGROUND_PRESETS) {
     assert.equal(preset.ornaments.some((item) => item.anchor !== 'bottom'), true, preset.id)
-    assert.equal(preset.ornaments.some((item) => item.anchor === 'bottom'), true, preset.id)
+    const hasFoot = preset.ornaments.some((item) => item.anchor === 'bottom' || item.y >= 70)
+    assert.equal(hasFoot, true, preset.id)
     for (const item of preset.ornaments) {
-      assert.ok(item.w <= 36, `${preset.id} ${item.src}`)
+      assert.ok(item.w <= 28, `${preset.id} ${item.src}`)
       const center = item.x + item.w / 2
-      assert.equal(center < 22 || center > 70, true, `${preset.id} ${item.src}`)
-      if (item.anchor !== 'bottom') assert.ok(item.y <= 8, `${preset.id} ${item.src}`)
+      const onLeft = center < 50
+      assert.equal(onLeft ? item.x + item.w <= 12 : item.x >= 86, true, `${preset.id} ${item.src} x${item.x} w${item.w}`)
     }
   }
 })
@@ -271,11 +286,12 @@ test('every ready background is one synchronized kit', () => {
   }
   const lotus = findWeddingBackgroundPreset('sen-vang')
   assert.ok(lotus)
-  const framed = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingKitFramePatch(lotus)))
-  assert.equal(framed.groomPortraitShellPresetId, 'pearl_rose')
-  assert.equal(framed.bridePortraitShellPresetId, 'pearl_rose')
-  assert.equal(resolvePortraitShell(framed, 'groom')?.src, resolvePortraitShell(framed, 'bride')?.src)
-  assert.ok(resolvePortraitShell(framed, 'groom')?.src)
+  const bare = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingKitFramePatch(lotus)))
+  assert.equal(bare.coverPresetId, 'sen_vang')
+  assert.equal(bare.groomPortraitShellMode, 'none')
+  assert.equal(bare.bridePortraitShellMode, 'none')
+  assert.equal(resolvePortraitShell(bare, 'groom'), null)
+  assert.equal(resolvePortraitShell(bare, 'bride'), null)
 })
 
 test('an AI background keeps its own plate and takes the matching kit', () => {
@@ -289,14 +305,14 @@ test('an AI background keeps its own plate and takes the matching kit', () => {
   const parsed = parseWeddingSectionConfig(saved)
   assert.equal(parsed.backgroundPresetId, undefined)
   assert.equal(parsed.backgroundKitStyleId, 'traditional_vietnamese')
-  assert.equal(parsed.coverPresetId, 'pearl_rose')
-  assert.equal(parsed.groomPortraitShellPresetId, 'pearl_rose')
-  assert.equal(parsed.bridePortraitShellPresetId, 'pearl_rose')
+  assert.equal(parsed.coverPresetId, 'plain_photo')
+  assert.equal(parsed.groomPortraitShellMode, 'none')
+  assert.equal(parsed.bridePortraitShellMode, 'none')
   assert.deepEqual(weddingBackgroundPlateUrls('https://cdn.example/ai.jpg', [], parsed.backgroundPresetId), ['https://cdn.example/ai.jpg'])
   const chrome = resolveWeddingChromeKit(parsed)
   assert.ok(chrome)
   assert.equal(chrome.plates.length, 0)
-  assert.equal(chrome.coverPresetId, 'pearl_rose')
+  assert.equal(chrome.coverPresetId, 'plain_photo')
   assert.equal(parseWeddingSectionConfig('{"backgroundKitStyleId":"nope"}').backgroundKitStyleId, undefined)
   const ready = parseWeddingSectionConfig(mergeWeddingSectionConfig(saved, { backgroundPresetId: 'sen-vang', backgroundKitStyleId: '' }))
   assert.equal(ready.backgroundPresetId, 'sen-vang')
@@ -364,4 +380,58 @@ test('a portrait frame stays with the background even when a position picked ano
   assert.equal(resolveShownPortraitShell(blank, 'bride', kit.coverPresetId, shared)?.src, followed?.src)
   assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId, { mode: 'none' }).mode, 'preset')
   assert.equal(resolveShownCoverFrame(blank, kit.coverPresetId, { mode: 'none' }).presetId, 'pearl_rose')
+})
+
+test('the dragon and phoenix set uses gold ink, a bare photo, and cloud ornaments', () => {
+  const preset = findWeddingBackgroundPreset('long-phung-do')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'plain_photo')
+  assert.equal(findWeddingCoverPreset('plain_photo')?.layout, 'plain')
+  assert.equal(findWeddingCoverPreset('plain_photo')?.frame, undefined)
+  assert.equal(preset.look.ink, '#f6e4b8')
+  assert.equal(preset.look.muted, '#e4d0a0')
+  assert.equal(preset.look.accent, '#f3d27a')
+  assert.equal(preset.look.buttonColorId, 'cream')
+  assert.equal(preset.look.surface, 'dark')
+  assert.equal(preset.look.paper, '#5c1018')
+  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/long-phung-cloud.svg')))
+  const theme = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), preset)
+  assert.equal(theme.darkPaper, '#5c1018')
+  assert.equal(theme.text, 'text-[#f6e4b8]')
+  assert.equal(theme.mutedText, 'text-[#e4d0a0]')
+  const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', {
+    groomPortraitShellMode: 'preset',
+    groomPortraitShellPresetId: 'pearl_rose',
+    bridePortraitShellMode: 'preset',
+    bridePortraitShellPresetId: 'pearl_rose',
+  }))
+  assert.equal(resolveShownCoverFrame(saved, preset.coverPresetId).presetId, 'plain_photo')
+  assert.equal(resolveShownPortraitShell(saved, 'groom', preset.coverPresetId), null)
+  assert.equal(resolveShownPortraitShell(saved, 'bride', preset.coverPresetId), null)
+})
+
+test('song hy red is a gate card on lacquer paper with cream reading cards', () => {
+  const preset = findWeddingBackgroundPreset('song-hy-do')
+  assert.ok(preset)
+  assert.equal(preset.plates[0], '/wedding/backgrounds/song-hy-do.svg')
+  assert.equal(preset.coverPresetId, 'song_hy')
+  assert.equal(findWeddingCoverPreset('song_hy')?.layout, 'song_hy')
+  assert.equal(preset.look.contentCard, 'scallop')
+  assert.equal(preset.look.buttonColorId, 'cream')
+  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/song-hy-seal.svg')))
+  const theme = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), preset)
+  assert.equal(theme.contentCard, 'scallop')
+  assert.equal(theme.darkPaper, '#4e1018')
+  assert.equal(theme.text, 'text-[#7a1c28]')
+  assert.equal(theme.pageBg, 'bg-[#4e1018]')
+  const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+  assert.equal(weddingReadingPlate(preset, '/wedding/backgrounds/song-hy-do.svg', false), undefined)
+  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('do-son'), '/wedding/backgrounds/do-son.jpg', true), '#6e1820')
+  assert.equal(weddingReadingPlate(undefined, 'https://cdn.example/master.png', false), '#fff8f2')
+  assert.equal(weddingReadingPlate(findWeddingBackgroundPreset('sen-vang'), '/wedding/backgrounds/sen-vang.jpg', false), undefined)
+  assert.equal(saved.backgroundPresetId, 'song-hy-do')
+  assert.equal(saved.coverPresetId, 'song_hy')
+  assert.equal(saved.buttonColorId, 'cream')
+  assert.equal(resolveShownCoverFrame(saved, preset.coverPresetId).presetId, 'song_hy')
+  assert.equal(resolveShownPortraitShell(saved, 'groom', preset.coverPresetId), null)
 })
