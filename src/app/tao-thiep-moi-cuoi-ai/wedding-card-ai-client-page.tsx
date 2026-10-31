@@ -71,7 +71,7 @@ import { WeddingSampleCardPicker } from '@/components/wedding/wedding-sample-car
 import { WeddingSampleDemoFrame } from '@/components/wedding/wedding-sample-demo-bar'
 import { WeddingLiveDevicePreviews } from '@/components/wedding/wedding-live-device-preview'
 import { WeddingDesignScale } from '@/components/wedding/wedding-design-scale'
-import { resolveWeddingCardOrnaments, weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { resolveWeddingCardOrnaments, weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentSurfaceKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
 import { findWeddingSampleCard, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
@@ -456,7 +456,8 @@ export default function WeddingCardAiClientPage() {
   const [images, setImages] = useState<WeddingAiImage[]>([])
   const [library, setLibrary] = useState<WeddingBackgroundLibraryItem[]>([])
   const [ornamentLayouts, setOrnamentLayouts] = useState<Record<string, WeddingBackgroundOrnament[]>>({})
-  const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
+  const [coverDraft, setCoverDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
+  const [letterDraft, setLetterDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentSaving, setOrnamentSaving] = useState(false)
   const [frameLibrary, setFrameLibrary] = useState<WeddingCoverFrameLibraryItem[]>([])
   const [sharedFrames, setSharedFrames] = useState<Record<string, WeddingSharedFrame>>({})
@@ -704,105 +705,142 @@ export default function WeddingCardAiClientPage() {
     backgroundKitStyleId: sectionConfig.backgroundKitStyleId,
     masterImageUrl: masterImage?.imageUrl,
   })
-  const cardMobileOrnamentKey = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(card.id), 'mobile')
-  const sharedMobileOrnamentKey = weddingOrnamentDeviceKey(ornamentKey, 'mobile')
-  const resolvedOrnaments = resolveWeddingCardOrnaments({
-    defaults: readyBackground?.ornaments,
-    layouts: ornamentLayouts,
-    sharedBaseKey: ornamentKey,
-    cardId: card.id,
-    device: 'mobile',
-    templateEditor: ornamentAdmin,
-  })
-  const backgroundOrnaments = ornamentDraft ?? resolvedOrnaments
-  const ornamentDraftRef = useRef(ornamentDraft)
-  const ornamentSyncRef = useRef({ source: '', sharedKey: '', cardKey: '' })
+  const cardBaseKey = weddingCardOrnamentLayoutKey(card.id)
+  const coverCardKey = weddingOrnamentSurfaceKey(cardBaseKey, 'mobile', 'cover')
+  const letterCardKey = weddingOrnamentSurfaceKey(cardBaseKey, 'mobile', 'letter')
+  const coverSharedKey = weddingOrnamentSurfaceKey(ornamentKey, 'mobile', 'cover')
+  const letterSharedKey = weddingOrnamentSurfaceKey(ornamentKey, 'mobile', 'letter')
+  const legacyCoverCardKey = weddingOrnamentDeviceKey(cardBaseKey, 'mobile')
+  const legacyCoverSharedKey = weddingOrnamentDeviceKey(ornamentKey, 'mobile')
+  const faceOrnaments = (surface: 'cover' | 'letter', draft: WeddingBackgroundOrnament[] | null) =>
+    draft ??
+    resolveWeddingCardOrnaments({
+      defaults: readyBackground?.ornaments,
+      layouts: ornamentLayouts,
+      sharedBaseKey: ornamentKey,
+      cardId: card.id,
+      device: 'mobile',
+      surface,
+      templateEditor: ornamentAdmin,
+    })
+  const coverOrnaments = faceOrnaments('cover', coverDraft)
+  const letterOrnaments = faceOrnaments('letter', letterDraft)
+  const coverDraftRef = useRef(coverDraft)
+  const letterDraftRef = useRef(letterDraft)
+  const ornamentSyncRef = useRef({ source: '', ornamentKey: '' })
   if (!ornamentSyncRef.current.source) ornamentSyncRef.current.source = Math.random().toString(36).slice(2)
-  ornamentSyncRef.current.sharedKey = sharedMobileOrnamentKey
-  ornamentSyncRef.current.cardKey = cardMobileOrnamentKey
-  ornamentDraftRef.current = ornamentDraft
+  ornamentSyncRef.current.ornamentKey = ornamentKey
+  coverDraftRef.current = coverDraft
+  letterDraftRef.current = letterDraft
   const ornamentKeyRef = useRef(ornamentKey)
   useEffect(() => {
     if (ornamentKeyRef.current === ornamentKey) return
     ornamentKeyRef.current = ornamentKey
-    setOrnamentDraft(null)
+    setCoverDraft(null)
+    setLetterDraft(null)
   }, [ornamentKey])
   useEffect(() => {
-    if (!card.id || !ornamentDraft) return
+    if (!card.id || !coverDraft) return
     publishWeddingOrnamentTruth({
       source: ornamentSyncRef.current.source,
       cardId: card.id,
+      surface: 'cover',
       template: ornamentAdmin,
-      ornaments: ornamentDraft,
+      ornaments: coverDraft,
     })
-  }, [card.id, ornamentAdmin, ornamentDraft])
+  }, [card.id, coverDraft, ornamentAdmin])
+  useEffect(() => {
+    if (!card.id || !letterDraft) return
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncRef.current.source,
+      cardId: card.id,
+      surface: 'letter',
+      template: ornamentAdmin,
+      ornaments: letterDraft,
+    })
+  }, [card.id, letterDraft, ornamentAdmin])
   useEffect(() => {
     if (!card.id) return
     return subscribeWeddingOrnamentTruth(card.id, ornamentSyncRef.current.source, (message) => {
-      if (ornamentDraftRef.current) return
+      if (message.surface === 'cover' && coverDraftRef.current) return
+      if (message.surface === 'letter' && letterDraftRef.current) return
+      const cardKey = weddingOrnamentSurfaceKey(weddingCardOrnamentLayoutKey(card.id), 'mobile', message.surface)
+      const sharedKey = weddingOrnamentSurfaceKey(ornamentSyncRef.current.ornamentKey, 'mobile', message.surface)
+      const key = message.template ? sharedKey : cardKey
+      if (!key) return
       setOrnamentLayouts((prev) => {
         const next = { ...prev }
-        const key = message.template ? ornamentSyncRef.current.sharedKey : ornamentSyncRef.current.cardKey
-        if (!key) return prev
         if (!message.ornaments) delete next[key]
         else next[key] = message.ornaments
-        if (message.template && ornamentSyncRef.current.cardKey) delete next[ornamentSyncRef.current.cardKey]
+        if (message.template && cardKey) delete next[cardKey]
+        if (message.surface === 'cover' && message.template) {
+          const legacy = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(card.id), 'mobile')
+          if (legacy) delete next[legacy]
+        }
         return next
       })
     })
   }, [card.id])
-  const resetOrnaments = async () => {
+  const resetOrnaments = async (surface: 'cover' | 'letter') => {
     if (!card.id || ornamentSaving) return
     setOrnamentSaving(true)
     try {
-      const result = await resetWeddingCardOrnaments(card.id, 'mobile')
+      const result = await resetWeddingCardOrnaments(card.id, 'mobile', surface)
       if ('error' in result) {
         toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
         return
       }
-      const clearedKey = ornamentAdmin && sharedMobileOrnamentKey ? sharedMobileOrnamentKey : cardMobileOrnamentKey
+      const cardKey = surface === 'letter' ? letterCardKey : coverCardKey
+      const sharedKey = surface === 'letter' ? letterSharedKey : coverSharedKey
+      const clearedKey = ornamentAdmin && sharedKey ? sharedKey : cardKey
       setOrnamentLayouts((prev) => {
         const next = { ...prev }
         delete next[clearedKey]
-        if (ornamentAdmin && cardMobileOrnamentKey) delete next[cardMobileOrnamentKey]
+        if (ornamentAdmin && cardKey) delete next[cardKey]
+        if (surface === 'cover') {
+          if (legacyCoverCardKey) delete next[legacyCoverCardKey]
+          if (ornamentAdmin && legacyCoverSharedKey) delete next[legacyCoverSharedKey]
+        }
         return next
       })
-      setOrnamentDraft(null)
-      if (card.id) {
-        publishWeddingOrnamentTruth({
-          source: ornamentSyncRef.current.source,
-          cardId: card.id,
-          template: ornamentAdmin,
-          ornaments: null,
-        })
-      }
+      if (surface === 'cover') setCoverDraft(null)
+      else setLetterDraft(null)
+      publishWeddingOrnamentTruth({
+        source: ornamentSyncRef.current.source,
+        cardId: card.id,
+        surface,
+        template: ornamentAdmin,
+        ornaments: null,
+      })
     } finally {
       setOrnamentSaving(false)
     }
   }
   useEffect(() => {
-    if (!ornamentDraft || !card.id) return
+    if (!coverDraft || !card.id) return
     if (card.slug && !ornamentAdmin) return
-    const snapshot = ornamentDraft
-    const storeKey = ornamentAdmin && sharedMobileOrnamentKey ? sharedMobileOrnamentKey : cardMobileOrnamentKey
+    const snapshot = coverDraft
+    const storeKey = ornamentAdmin && coverSharedKey ? coverSharedKey : coverCardKey
     const timer = window.setTimeout(() => {
       void (async () => {
         setOrnamentSaving(true)
         try {
-          const result = await saveWeddingCardOrnaments(card.id, 'mobile', snapshot)
+          const result = await saveWeddingCardOrnaments(card.id, 'mobile', snapshot, 'cover')
           if ('error' in result) {
             toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
             return
           }
           setOrnamentLayouts((prev) => {
             const next = { ...prev, [storeKey]: result.ornaments }
-            if (result.template && cardMobileOrnamentKey && cardMobileOrnamentKey !== storeKey) delete next[cardMobileOrnamentKey]
+            if (result.template && coverCardKey && coverCardKey !== storeKey) delete next[coverCardKey]
+            if (result.template && legacyCoverCardKey) delete next[legacyCoverCardKey]
             return next
           })
-          setOrnamentDraft((current) => (current === snapshot ? null : current))
+          setCoverDraft((current) => (current === snapshot ? null : current))
           publishWeddingOrnamentTruth({
             source: ornamentSyncRef.current.source,
             cardId: card.id,
+            surface: 'cover',
             template: Boolean(result.template),
             ornaments: result.ornaments,
           })
@@ -812,7 +850,41 @@ export default function WeddingCardAiClientPage() {
       })()
     }, 350)
     return () => window.clearTimeout(timer)
-  }, [card.id, card.slug, cardMobileOrnamentKey, ornamentAdmin, ornamentDraft, sharedMobileOrnamentKey, tImage.ornamentAdminFailed, toast])
+  }, [card.id, card.slug, coverCardKey, coverDraft, coverSharedKey, legacyCoverCardKey, ornamentAdmin, tImage.ornamentAdminFailed, toast])
+  useEffect(() => {
+    if (!letterDraft || !card.id) return
+    if (card.slug && !ornamentAdmin) return
+    const snapshot = letterDraft
+    const storeKey = ornamentAdmin && letterSharedKey ? letterSharedKey : letterCardKey
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        setOrnamentSaving(true)
+        try {
+          const result = await saveWeddingCardOrnaments(card.id, 'mobile', snapshot, 'letter')
+          if ('error' in result) {
+            toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+            return
+          }
+          setOrnamentLayouts((prev) => {
+            const next = { ...prev, [storeKey]: result.ornaments }
+            if (result.template && letterCardKey && letterCardKey !== storeKey) delete next[letterCardKey]
+            return next
+          })
+          setLetterDraft((current) => (current === snapshot ? null : current))
+          publishWeddingOrnamentTruth({
+            source: ornamentSyncRef.current.source,
+            cardId: card.id,
+            surface: 'letter',
+            template: Boolean(result.template),
+            ornaments: result.ornaments,
+          })
+        } finally {
+          setOrnamentSaving(false)
+        }
+      })()
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [card.id, card.slug, letterCardKey, letterDraft, letterSharedKey, ornamentAdmin, tImage.ornamentAdminFailed, toast])
   const kitSurface = weddingKitSurface(readyBackground)
   const selectedTheme = useMemo(
     () => applyWeddingKitTheme(getWeddingTheme(readyBackground?.look.styleId ?? card.selectedStyleId), readyBackground),
@@ -860,7 +932,9 @@ export default function WeddingCardAiClientPage() {
     sectionConfig: card.sectionConfig || '{}',
     selectedStyleId: card.selectedStyleId || '',
     plateUrls: previewPlateUrls,
-    ornaments: backgroundOrnaments,
+    ornaments: coverOrnaments,
+    coverOrnaments,
+    letterOrnaments,
     ornamentKey,
     sharedFrame: activeSharedFrame,
   }
@@ -2524,11 +2598,11 @@ export default function WeddingCardAiClientPage() {
                     addLabel={tImage.ornamentAdminAdd}
                     saveLabel={tImage.ornamentAdminSave}
                     resetLabel={tImage.ornamentAdminReset}
-                    dirty={ornamentDraft != null}
+                    dirty={coverDraft != null}
                     saving={ornamentSaving}
                     showReset
-                    onAdd={(src) => setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: 8, y: 12, w: 22 }])}
-                    onReset={() => void resetOrnaments()}
+                    onAdd={(src) => setCoverDraft([...(coverDraft ?? coverOrnaments), { src, x: 8, y: 12, w: 22 }])}
+                    onReset={() => void resetOrnaments('cover')}
                   />
                 ) : null}
                 <div className="rounded-2xl border border-dashed p-4">
@@ -2541,7 +2615,7 @@ export default function WeddingCardAiClientPage() {
                     <div data-wedding-ornament-frame="">
                       {ornamentAdmin ? (
                         <WeddingOrnamentAdminLayer
-                          ornaments={backgroundOrnaments}
+                          ornaments={coverOrnaments}
                           editable
                           className="absolute inset-0 z-[80]"
                           surface="cover"
@@ -2554,10 +2628,10 @@ export default function WeddingCardAiClientPage() {
                           stillLabel={tImage.ornamentAdminMotionStill}
                           riseLabel={tImage.ornamentAdminMotionRise}
                           deleteLabel={tImage.ornamentAdminDelete}
-                          onChange={setOrnamentDraft}
+                          onChange={setCoverDraft}
                         />
                       ) : (
-                        <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
+                        <WeddingBackgroundOrnamentLayer ornaments={coverOrnaments} className="absolute inset-0 z-20" />
                       )}
                     </div>
                     <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3', coverPresetId === 'song_hy' ? 'min-h-[844px] justify-center' : 'justify-start')}>
@@ -3289,14 +3363,18 @@ export default function WeddingCardAiClientPage() {
                     look={previewLook}
                     lookToken={previewLookToken}
                     showReset
-                    onOrnamentsSaved={(ornaments) => {
-                      const key = ornamentAdmin && sharedMobileOrnamentKey ? sharedMobileOrnamentKey : cardMobileOrnamentKey
+                    onOrnamentsSaved={(ornaments, surface) => {
+                      const cardKey = surface === 'letter' ? letterCardKey : coverCardKey
+                      const sharedKey = surface === 'letter' ? letterSharedKey : coverSharedKey
+                      const key = ornamentAdmin && sharedKey ? sharedKey : cardKey
                       if (!key) return
                       setOrnamentLayouts((prev) => {
                         const next = { ...prev }
                         if (!ornaments) delete next[key]
                         else next[key] = ornaments
-                        if (ornamentAdmin && cardMobileOrnamentKey && cardMobileOrnamentKey !== key) delete next[cardMobileOrnamentKey]
+                        if (ornamentAdmin && cardKey && cardKey !== key) delete next[cardKey]
+                        if (surface === 'cover' && legacyCoverCardKey && (ornamentAdmin || !ornaments)) delete next[legacyCoverCardKey]
+                        if (surface === 'cover' && !ornaments && ornamentAdmin && legacyCoverSharedKey) delete next[legacyCoverSharedKey]
                         return next
                       })
                     }}
@@ -3308,11 +3386,11 @@ export default function WeddingCardAiClientPage() {
                     addLabel={tImage.ornamentAdminAdd}
                     saveLabel={tImage.ornamentAdminSave}
                     resetLabel={tImage.ornamentAdminReset}
-                    dirty={ornamentDraft != null}
+                    dirty={letterDraft != null}
                     saving={ornamentSaving}
                     showReset
-                    onAdd={(src) => setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: 8, y: 8, w: 36 }])}
-                    onReset={() => void resetOrnaments()}
+                    onAdd={(src) => setLetterDraft([...(letterDraft ?? letterOrnaments), { src, x: 8, y: 8, w: 36 }])}
+                    onReset={() => void resetOrnaments('letter')}
                   />
                 )}
                 {card.slug ? null : (
@@ -3324,7 +3402,7 @@ export default function WeddingCardAiClientPage() {
                   />
                   <div data-wedding-ornament-frame="">
                   <WeddingOrnamentAdminLayer
-                    ornaments={backgroundOrnaments}
+                    ornaments={letterOrnaments}
                     editable
                     className="absolute inset-0 z-[80]"
                     zoomInLabel={tImage.ornamentAdminZoomIn}
@@ -3334,7 +3412,7 @@ export default function WeddingCardAiClientPage() {
                     stillLabel={tImage.ornamentAdminMotionStill}
                     riseLabel={tImage.ornamentAdminMotionRise}
                     deleteLabel={tImage.ornamentAdminDelete}
-                    onChange={setOrnamentDraft}
+                    onChange={setLetterDraft}
                   />
                   </div>
                     <div

@@ -131,7 +131,7 @@ export function WeddingLiveDevicePreviews(props: {
   look: WeddingPreviewLook
   lookToken: string
   showReset?: boolean
-  onOrnamentsSaved?: (ornaments: WeddingBackgroundOrnament[] | null) => void
+  onOrnamentsSaved?: (ornaments: WeddingBackgroundOrnament[] | null, surface: 'cover' | 'letter') => void
 }) {
   const [revision, setRevision] = useState(0)
   const [device, setDevice] = useState<WeddingDesignDevice>('mobile')
@@ -181,17 +181,17 @@ export function WeddingLiveDevicePreviews(props: {
 
   const postedOrnamentSig = useRef('')
   useEffect(() => {
-    const sig = JSON.stringify(props.look.ornaments)
+    const sig = JSON.stringify([props.look.coverOrnaments, props.look.letterOrnaments])
     if (postedOrnamentSig.current === sig) return
     postedOrnamentSig.current = sig
     postLook(coverFrame)
     postLook(letterFrame)
-  }, [coverFrame, letterFrame, postLook, props.look.ornaments])
+  }, [coverFrame, letterFrame, postLook, props.look.coverOrnaments, props.look.letterOrnaments])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
-      const data = event.data as { type?: string; device?: string; ornaments?: unknown; cleared?: boolean }
+      const data = event.data as { type?: string; device?: string; surface?: string; ornaments?: unknown; cleared?: boolean }
       if (data?.type === WEDDING_PREVIEW_READY_MESSAGE) {
         const source = event.source as Window | null
         let sourceFrame: Element | null = null
@@ -209,16 +209,10 @@ export function WeddingLiveDevicePreviews(props: {
         return
       }
       if (data?.type !== 'wedding-ornament-saved') return
-      if (data.cleared) props.onOrnamentsSaved?.(null)
-      else if (Array.isArray(data.ornaments)) props.onOrnamentsSaved?.(data.ornaments as WeddingBackgroundOrnament[])
-      const fromCover = event.source === coverFrame?.contentWindow
-      const fromLetter = event.source === letterFrame?.contentWindow
-      if (!fromCover && !fromLetter) return
-      const target = fromCover ? letterFrame : coverFrame
-      target?.contentWindow?.postMessage(
-        { type: 'wedding-ornament-apply', device: data.device, ornaments: data.ornaments, cleared: data.cleared },
-        window.location.origin,
-      )
+      const surface = data.surface === 'cover' || data.surface === 'letter' ? data.surface : null
+      if (!surface) return
+      if (data.cleared) props.onOrnamentsSaved?.(null, surface)
+      else if (Array.isArray(data.ornaments)) props.onOrnamentsSaved?.(data.ornaments as WeddingBackgroundOrnament[], surface)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)

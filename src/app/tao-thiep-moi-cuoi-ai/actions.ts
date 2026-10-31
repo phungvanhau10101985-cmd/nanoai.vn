@@ -5,21 +5,24 @@ import { GoogleGenerativeAI, HarmBlockThreshold, HarmCategory } from '@google/ge
 import { getUserForCreditAction } from '@/lib/auth'
 import { getCreditBalanceByUserId } from '@/lib/db/credits-balance'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
-import { deleteWeddingOrnamentLayout, listWeddingOrnamentLayouts, saveWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
-import { deleteWeddingSharedFrame, listWeddingSharedFrames, saveWeddingShellLayout, saveWeddingSharedFrame } from '@/lib/db/wedding-shell-layouts-pg'
+import { deleteWeddingOrnamentLayout, listWeddingOrnamentLayouts, loadWeddingOrnamentLayout, saveWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
+import { deleteWeddingSharedFrame, listWeddingSharedFrames, loadWeddingSharedFrame, loadWeddingShellLayout, saveWeddingShellLayout, saveWeddingSharedFrame } from '@/lib/db/wedding-shell-layouts-pg'
 import {
   canEditWeddingCardOrnaments,
   canEditWeddingOrnaments,
   isWeddingOrnamentLayoutKey,
   parseWeddingOrnamentList,
   weddingCardOrnamentLayoutKey,
+  isWeddingOrnamentSurface,
   weddingOrnamentDeviceKey,
   weddingOrnamentLayoutKey,
   weddingOrnamentSaveKey,
+  weddingOrnamentSurfaceKey,
   type WeddingOrnamentDevice,
+  type WeddingOrnamentSurface,
 } from '@/lib/wedding/wedding-background-ornament-store'
 import { findWeddingBackgroundPreset } from '@/lib/wedding/wedding-background-presets'
-import { findWeddingSampleCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingSampleCard, weddingSampleLookOnCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
 import { isWeddingSharedFrameKey, parseWeddingSharedFrame, weddingSharedFrameKey, type WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent, type GeminiShaped } from '@/lib/ai/gpt-image'
@@ -27,6 +30,8 @@ import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { ensureBunnyWritableBeforeImageModel } from '@/lib/storage/partner-bunny-cdn'
 import {
   attachWeddingLibraryBackground,
+  findWeddingBackgroundLibraryIdByUrl,
+  saveWeddingCardSampleLook,
   attachWeddingPrivateBackground,
   completeWeddingAiImage,
   createWeddingCardDraft,
@@ -333,15 +338,27 @@ async function weddingSharedBaseKey(cardId: string, ownerUserId: string): Promis
   })
 }
 
-function weddingCardDeviceLayoutKey(cardId: string, device: WeddingOrnamentDevice): string {
-  if (device !== 'desktop' && device !== 'mobile') return ''
-  return weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(cardId), device)
+function weddingCardSurfaceLayoutKey(cardId: string, device: WeddingOrnamentDevice, surface: WeddingOrnamentSurface): string {
+  if (device !== 'desktop' && device !== 'mobile' || !isWeddingOrnamentSurface(surface)) return ''
+  return weddingOrnamentSurfaceKey(weddingCardOrnamentLayoutKey(cardId), device, surface)
 }
 
-/** Khách ghi hoa vào đúng thiệp của mình. Quản trị ghi mẫu chung của nền, và gỡ bản riêng của thiệp đang mở để thiệp đó cũng dùng mẫu. */
-export async function saveWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice, ornaments: unknown) {
+async function deleteOrnamentKeys(keys: string[]) {
+  for (const key of keys) {
+    if (key) await deleteWeddingOrnamentLayout(key)
+  }
+}
+
+/** Khách ghi hoa vào đúng mặt của thiệp mình. Quản trị ghi mẫu chung của mặt đó, và gỡ bản riêng cùng mặt để thiệp đang mở dùng mẫu. */
+export async function saveWeddingCardOrnaments(
+  cardId: string,
+  device: WeddingOrnamentDevice,
+  ornaments: unknown,
+  surface: WeddingOrnamentSurface,
+) {
   const access = await assertWeddingCardOrnamentEditor(cardId)
   if ('error' in access) return { error: access.error }
+  if (!isWeddingOrnamentSurface(surface)) return { error: 'invalid' as const }
   const parsed = parseWeddingOrnamentList(ornaments)
   if (!parsed) return { error: 'invalid' as const }
   const sharedBase = access.templateEditor ? await weddingSharedBaseKey(cardId, access.ownerUserId) : ''
@@ -350,13 +367,15 @@ export async function saveWeddingCardOrnaments(cardId: string, device: WeddingOr
     cardId,
     device,
     sharedBaseKey: sharedBase,
+    surface,
   })
   if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
   try {
     await saveWeddingOrnamentLayout({ layoutKey: key, ornaments: parsed, userId: access.userId })
     if (access.templateEditor && !key.startsWith('card:')) {
-      const cardKey = weddingCardDeviceLayoutKey(cardId, device)
-      if (cardKey && cardKey !== key) await deleteWeddingOrnamentLayout(cardKey)
+      const cardKey = weddingCardSurfaceLayoutKey(cardId, device, surface)
+      const legacyCard = surface === 'cover' ? weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(cardId), device) : ''
+      await deleteOrnamentKeys([cardKey !== key ? cardKey : '', legacyCard])
     }
   } catch {
     return { error: 'unavailable' as const }
@@ -365,24 +384,30 @@ export async function saveWeddingCardOrnaments(cardId: string, device: WeddingOr
   return { ok: true as const, ornaments: parsed, template: access.templateEditor && !key.startsWith('card:') }
 }
 
-/** Khách xóa hoa riêng của thiệp để thấy lại mẫu. Quản trị xóa mẫu chung và bản riêng của thiệp đang mở. */
-export async function resetWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice) {
+/** Khách xóa hoa riêng của một mặt để thấy lại mẫu mặt đó. Quản trị xóa mẫu chung của mặt đó. */
+export async function resetWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice, surface: WeddingOrnamentSurface) {
   const access = await assertWeddingCardOrnamentEditor(cardId)
   if ('error' in access) return { error: access.error }
+  if (!isWeddingOrnamentSurface(surface)) return { error: 'invalid' as const }
   const sharedBase = access.templateEditor ? await weddingSharedBaseKey(cardId, access.ownerUserId) : ''
   const key = weddingOrnamentSaveKey({
     templateEditor: access.templateEditor,
     cardId,
     device,
     sharedBaseKey: sharedBase,
+    surface,
   })
   if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
   try {
-    await deleteWeddingOrnamentLayout(key)
-    if (access.templateEditor && !key.startsWith('card:')) {
-      const cardKey = weddingCardDeviceLayoutKey(cardId, device)
-      if (cardKey && cardKey !== key) await deleteWeddingOrnamentLayout(cardKey)
-    }
+    const cardKey = weddingCardSurfaceLayoutKey(cardId, device, surface)
+    const legacyCard = surface === 'cover' ? weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(cardId), device) : ''
+    const legacyShared = surface === 'cover' && access.templateEditor ? weddingOrnamentDeviceKey(sharedBase, device) : ''
+    await deleteOrnamentKeys([
+      key,
+      access.templateEditor && cardKey !== key ? cardKey : '',
+      surface === 'cover' ? legacyCard : '',
+      legacyShared !== key ? legacyShared : '',
+    ])
   } catch {
     return { error: 'unavailable' as const }
   }
@@ -477,12 +502,17 @@ async function assertWeddingPresetEditor(presetId: string) {
 }
 
 /** Quản trị sửa thiệp mẫu thì ghi hoa vào mẫu dùng chung, không cần một thiệp khách. */
-export async function saveWeddingPresetOrnaments(presetId: string, device: WeddingOrnamentDevice, ornaments: unknown) {
+export async function saveWeddingPresetOrnaments(
+  presetId: string,
+  device: WeddingOrnamentDevice,
+  ornaments: unknown,
+  surface: WeddingOrnamentSurface,
+) {
   const access = await assertWeddingPresetEditor(presetId)
   if ('error' in access) return access
   const parsed = parseWeddingOrnamentList(ornaments)
-  if (!parsed || (device !== 'desktop' && device !== 'mobile')) return { error: 'invalid' as const }
-  const key = weddingOrnamentDeviceKey(access.base, device)
+  if (!parsed || (device !== 'desktop' && device !== 'mobile') || !isWeddingOrnamentSurface(surface)) return { error: 'invalid' as const }
+  const key = weddingOrnamentSurfaceKey(access.base, device, surface)
   if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
   try {
     await saveWeddingOrnamentLayout({ layoutKey: key, ornaments: parsed, userId: access.userId })
@@ -493,14 +523,19 @@ export async function saveWeddingPresetOrnaments(presetId: string, device: Weddi
   return { ok: true as const, ornaments: parsed, template: true as const }
 }
 
-export async function resetWeddingPresetOrnaments(presetId: string, device: WeddingOrnamentDevice) {
+export async function resetWeddingPresetOrnaments(
+  presetId: string,
+  device: WeddingOrnamentDevice,
+  surface: WeddingOrnamentSurface,
+) {
   const access = await assertWeddingPresetEditor(presetId)
   if ('error' in access) return access
-  if (device !== 'desktop' && device !== 'mobile') return { error: 'invalid' as const }
-  const key = weddingOrnamentDeviceKey(access.base, device)
+  if (device !== 'desktop' && device !== 'mobile' || !isWeddingOrnamentSurface(surface)) return { error: 'invalid' as const }
+  const key = weddingOrnamentSurfaceKey(access.base, device, surface)
   if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
   try {
-    await deleteWeddingOrnamentLayout(key)
+    const legacy = surface === 'cover' ? weddingOrnamentDeviceKey(access.base, device) : ''
+    await deleteOrnamentKeys([key, legacy !== key ? legacy : ''])
   } catch {
     return { error: 'unavailable' as const }
   }
@@ -596,6 +631,83 @@ export async function saveWeddingPreviewEdit(
   }
   if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
   return { ok: true as const }
+}
+
+/** Thiệp đang sửa nhận nền, khung, hoa và màu của mẫu. Chữ và ảnh thật giữ nguyên. */
+export async function applyWeddingSampleLook(cardId: string, sampleId: string) {
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: access.error }
+  const sample = findWeddingSampleCard(sampleId)
+  const existing = sample ? await getWeddingCardForUser(cardId, access.ownerUserId) : null
+  const look = existing && sample ? weddingSampleLookOnCard(existing, sample) : null
+  if (!sample || !existing || !look) return { error: 'invalid' as const }
+  try {
+    if (sample.libraryImageUrl) {
+      const libraryId = await findWeddingBackgroundLibraryIdByUrl(sample.libraryImageUrl)
+      if (!libraryId) return { error: 'unavailable' as const }
+      const attached = await attachWeddingLibraryBackground({
+        userId: access.ownerUserId,
+        cardId,
+        libraryId,
+        type: 'master',
+      })
+      if (!attached) return { error: 'unavailable' as const }
+    }
+    const saved = await saveWeddingCardSampleLook({
+      cardId,
+      userId: access.ownerUserId,
+      sectionConfig: look.sectionConfig,
+      selectedStyleId: look.selectedStyleId,
+      colorPalette: look.colorPalette,
+      groomImageUrl: look.groomImageUrl,
+      brideImageUrl: look.brideImageUrl,
+      albumImageUrls: look.albumImageUrls,
+      clearMaster: !sample.libraryImageUrl,
+    })
+    if (!saved) return { error: 'unavailable' as const }
+    const cardBase = weddingCardOrnamentLayoutKey(cardId)
+    await deleteOrnamentKeys([
+      weddingOrnamentDeviceKey(cardBase, 'mobile'),
+      weddingOrnamentDeviceKey(cardBase, 'desktop'),
+      weddingOrnamentSurfaceKey(cardBase, 'mobile', 'cover'),
+      weddingOrnamentSurfaceKey(cardBase, 'desktop', 'cover'),
+      weddingOrnamentSurfaceKey(cardBase, 'mobile', 'letter'),
+      weddingOrnamentSurfaceKey(cardBase, 'desktop', 'letter'),
+    ])
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  const section = parseWeddingSectionConfig(look.sectionConfig)
+  const base = weddingOrnamentLayoutKey({
+    backgroundPresetId: section.backgroundPresetId,
+    backgroundKitStyleId: section.backgroundKitStyleId,
+    masterImageUrl: look.masterImageUrl,
+  })
+  const [sharedBase, sharedMobile, sharedCover, sharedLetter, shellDesktop, shellMobile, sharedFrame] = await Promise.all([
+    base ? loadWeddingOrnamentLayout(base) : null,
+    base ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(base, 'mobile')) : null,
+    base ? loadWeddingOrnamentLayout(weddingOrnamentSurfaceKey(base, 'mobile', 'cover')) : null,
+    base ? loadWeddingOrnamentLayout(weddingOrnamentSurfaceKey(base, 'mobile', 'letter')) : null,
+    base ? loadWeddingShellLayout(weddingOrnamentDeviceKey(base, 'desktop')) : null,
+    base ? loadWeddingShellLayout(weddingOrnamentDeviceKey(base, 'mobile')) : null,
+    base ? loadWeddingSharedFrame(weddingSharedFrameKey(base)).catch(() => null) : null,
+  ])
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  revalidatePath('/tao-thiep-moi-cuoi-ai')
+  return {
+    ok: true as const,
+    sectionConfig: look.sectionConfig,
+    selectedStyleId: look.selectedStyleId,
+    plateUrls: look.plateUrls,
+    masterImageUrl: look.masterImageUrl,
+    groomImageUrl: look.groomImageUrl,
+    brideImageUrl: look.brideImageUrl,
+    albumImageUrls: look.albumImageUrls,
+    sharedOrnaments: sharedCover ?? sharedMobile ?? sharedBase,
+    sharedLetterOrnaments: sharedLetter,
+    sharedShell: { desktop: shellDesktop, mobile: shellMobile },
+    sharedFrame,
+  }
 }
 
 export async function resetWeddingBackgroundOrnaments(layoutKey: string) {

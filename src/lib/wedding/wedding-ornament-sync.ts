@@ -6,13 +6,15 @@ const CHANNEL = 'wedding-ornament-shown'
 export type WeddingOrnamentTruth = {
   source: string
   cardId: string
+  /** Vỏ và nội dung là hai bản. Thiếu mặt thì bỏ qua, không áp sang mặt kia. */
+  surface: 'cover' | 'letter'
   /** true: mẫu chung. false: bản riêng của đúng thiệp. */
   template: boolean
   /** null là xóa khóa. Mảng rỗng là còn khóa nhưng không còn hoa. */
   ornaments: WeddingBackgroundOrnament[] | null
 }
 
-/** Báo các trang đang mở của cùng thiệp để vỏ, preview và xem nhanh hiện một danh sách. */
+/** Báo các trang đang mở của cùng thiệp. Mỗi mặt chỉ nhận bản của mặt đó. */
 export function publishWeddingOrnamentTruth(message: WeddingOrnamentTruth) {
   if (typeof BroadcastChannel === 'undefined' || !message.cardId) return
   const channel = new BroadcastChannel(CHANNEL)
@@ -30,14 +32,15 @@ export function subscribeWeddingOrnamentTruth(
   channel.onmessage = (event: MessageEvent<WeddingOrnamentTruth>) => {
     const data = event.data
     if (!data || data.cardId !== cardId || data.source === source) return
+    if (data.surface !== 'cover' && data.surface !== 'letter') return
     if (data.template !== true && data.template !== false) return
     if (data.ornaments == null) {
-      onTruth({ source: data.source, cardId, template: data.template, ornaments: null })
+      onTruth({ source: data.source, cardId, surface: data.surface, template: data.template, ornaments: null })
       return
     }
     const ornaments = parseWeddingOrnamentList(data.ornaments)
     if (!ornaments) return
-    onTruth({ source: data.source, cardId, template: data.template, ornaments })
+    onTruth({ source: data.source, cardId, surface: data.surface, template: data.template, ornaments })
   }
   return () => channel.close()
 }

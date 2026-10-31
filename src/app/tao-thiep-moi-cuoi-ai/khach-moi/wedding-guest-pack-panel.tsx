@@ -90,7 +90,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
       onPaidRef.current(result.quotas ?? null)
       toast({
         title: `Đã mở gói khách mời ${weddingGuestPackSideLabel(side)}`,
-        description: `Có thể thêm khách ${weddingGuestPackSideLabel(side)} tiếp. ${WEDDING_CARD_RETENTION_NOTICE}`,
+        description: `Link thiệp ${weddingGuestPackSideLabel(side)} đã mở theo gói. ${WEDDING_CARD_RETENTION_NOTICE}`,
       })
     }, 2000)
     return () => window.clearInterval(timer)
@@ -134,7 +134,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
     onPaid(('quotas' in result ? result.quotas : null) ?? null)
     toast({
       title: `Đã mở gói khách mời ${weddingGuestPackSideLabel(side)}`,
-      description: `Có thể thêm khách ${weddingGuestPackSideLabel(side)} tiếp. ${WEDDING_CARD_RETENTION_NOTICE}`,
+      description: `Link thiệp ${weddingGuestPackSideLabel(side)} đã mở theo gói. ${WEDDING_CARD_RETENTION_NOTICE}`,
     })
   }
 
@@ -153,7 +153,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
       <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-stone-800">
         <p className="font-medium">{weddingGuestPackBanner(quota, side)}</p>
         <p className="mt-1 text-stone-600">
-          {`3 khách đầu của ${sideLabel} là dùng thử. Từ khách thứ 4 chọn gói ${sideLabel}. ${otherLabel.charAt(0).toUpperCase()}${otherLabel.slice(1)} tính gói riêng, cùng mức giá. Nâng gói trả phần chênh của ${sideLabel}.`}
+          {`3 khách đầu của ${sideLabel} hiện link thiệp. Danh sách khách sau vẫn thêm được; link của họ mở khi chọn gói ${sideLabel}. ${otherLabel.charAt(0).toUpperCase()}${otherLabel.slice(1)} tính gói riêng, cùng mức giá. Nâng gói trả phần chênh của ${sideLabel}.`}
         </p>
         <p className="mt-1 text-stone-600">{WEDDING_CARD_RETENTION_NOTICE}</p>
         {canUpgrade ? (
@@ -168,7 +168,7 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
           <DialogHeader>
             <DialogTitle>{`Gói khách mời ${sideLabel}`}</DialogTitle>
             <DialogDescription>
-              {`3 khách đầu của ${sideLabel} dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
+              {`Chưa mua gói thì 3 khách đầu của ${sideLabel} hiện link. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Cô dâu chú rể tự gửi link. ${WEDDING_CARD_RETENTION_NOTICE}`}
             </DialogDescription>
           </DialogHeader>
 

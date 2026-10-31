@@ -13,6 +13,7 @@ import {
   resolveWeddingShownOrnaments,
   weddingOrnamentListsEqual,
   weddingOrnamentSaveKey,
+  weddingOrnamentSurfaceKey,
   weddingOrnamentsForDevice,
   weddingOrnamentsForKey,
 } from './wedding-background-ornament-store'
@@ -29,6 +30,9 @@ test('ornament layout key follows the ready set, otherwise the AI theme, otherwi
   assert.equal(weddingOrnamentLayoutKey({ backgroundKitStyleId: 'nope' }), '')
   assert.equal(isWeddingOrnamentLayoutKey('kit:luxury@mobile'), true)
   assert.equal(isWeddingOrnamentLayoutKey('kit:nope@mobile'), false)
+  assert.equal(isWeddingOrnamentLayoutKey('kit:luxury@mobile@cover'), true)
+  assert.equal(isWeddingOrnamentLayoutKey('kit:luxury@mobile@letter'), true)
+  assert.equal(isWeddingOrnamentLayoutKey('kit:nope@mobile@letter'), false)
 })
 
 test('catalog flowers and pasted image links can be saved, and an empty list clears the layer', () => {
@@ -97,16 +101,28 @@ test('each card owner edits only that card, and an admin can edit it too', () =>
 test('admin flower saves use the shared background, and a customer save stays on that card', () => {
   const cardId = '4e09e349-2208-4e8d-a422-3303e57e35f6'
   assert.equal(
-    weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'desktop', sharedBaseKey: 'preset:sen-vang' }),
-    'preset:sen-vang@desktop',
+    weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'desktop', sharedBaseKey: 'preset:sen-vang', surface: 'cover' }),
+    'preset:sen-vang@desktop@cover',
   )
   assert.equal(
-    weddingOrnamentSaveKey({ templateEditor: false, cardId, device: 'mobile', sharedBaseKey: 'preset:sen-vang' }),
-    `card:${cardId}@mobile`,
+    weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'mobile', sharedBaseKey: 'preset:sen-vang', surface: 'letter' }),
+    'preset:sen-vang@mobile@letter',
   )
   assert.equal(
-    weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'desktop', sharedBaseKey: '' }),
-    `card:${cardId}@desktop`,
+    weddingOrnamentSaveKey({ templateEditor: false, cardId, device: 'mobile', sharedBaseKey: 'preset:sen-vang', surface: 'cover' }),
+    `card:${cardId}@mobile@cover`,
+  )
+  assert.equal(
+    weddingOrnamentSaveKey({ templateEditor: false, cardId, device: 'mobile', sharedBaseKey: 'preset:sen-vang', surface: 'letter' }),
+    `card:${cardId}@mobile@letter`,
+  )
+  assert.notEqual(
+    weddingOrnamentSurfaceKey('preset:sen-vang', 'mobile', 'cover'),
+    weddingOrnamentSurfaceKey('preset:sen-vang', 'mobile', 'letter'),
+  )
+  assert.equal(
+    weddingOrnamentSaveKey({ templateEditor: true, cardId, device: 'desktop', sharedBaseKey: '', surface: 'letter' }),
+    `card:${cardId}@desktop@letter`,
   )
 })
 
@@ -141,37 +157,54 @@ test('desktop and mobile flower layouts stay separate', () => {
   assert.equal(weddingOrnamentsForDevice(defaults, { [mobile]: [] }, base, 'mobile').length, 0)
 })
 
-test('cover, preview and quick view read one flower list', () => {
+test('cover and letter keep separate flower lists', () => {
   const cardId = '4e09e349-2208-4e8d-a422-3303e57e35f6'
   const base = 'preset:sen-vang'
   const sharedMobile = [{ src: '/wedding/backgrounds/ornaments/lotus-bloom.png', x: 1, y: 2, w: 20 }]
   const sharedBase = [{ src: '/wedding/backgrounds/ornaments/lotus-leaf.png', x: 3, y: 4, w: 22 }]
   const cardMobile = [{ src: '/wedding/backgrounds/ornaments/gold-rose.png', x: 5, y: 6, w: 24 }]
+  const letterCard = [{ src: '/wedding/backgrounds/ornaments/pearl-rose.png', x: 7, y: 8, w: 26 }]
+  const letterShared = [{ src: '/wedding/backgrounds/ornaments/calla-bloom.png', x: 9, y: 10, w: 28 }]
   const defaults = [{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 0, y: 0, w: 18 }]
   const layouts = {
     [`${base}@mobile`]: sharedMobile,
     [base]: sharedBase,
     [`card:${cardId}@mobile`]: cardMobile,
+    [`card:${cardId}@mobile@letter`]: letterCard,
+    [`${base}@mobile@letter`]: letterShared,
     [`${base}@desktop`]: [{ src: '/wedding/backgrounds/ornaments/gold-leaf.png', x: 9, y: 9, w: 30 }],
   }
-  const user = resolveWeddingCardOrnaments({
-    defaults,
-    layouts,
-    sharedBaseKey: base,
-    cardId,
-    device: 'mobile',
-    templateEditor: false,
-  })
-  const admin = resolveWeddingCardOrnaments({
-    defaults,
-    layouts,
-    sharedBaseKey: base,
-    cardId,
-    device: 'mobile',
-    templateEditor: true,
-  })
+  const read = (surface: 'cover' | 'letter', templateEditor: boolean) =>
+    resolveWeddingCardOrnaments({
+      defaults,
+      layouts,
+      sharedBaseKey: base,
+      cardId,
+      device: 'mobile',
+      surface,
+      templateEditor,
+    })
+  const user = read('cover', false)
+  const admin = read('cover', true)
   assert.equal(user[0]?.src.endsWith('gold-rose.png'), true)
   assert.equal(admin[0]?.src.endsWith('lotus-bloom.png'), true)
+  assert.equal(read('letter', false)[0]?.src.endsWith('pearl-rose.png'), true)
+  assert.equal(read('letter', true)[0]?.src.endsWith('calla-bloom.png'), true)
+  const letterWithoutOwnSheet = resolveWeddingCardOrnaments({
+    defaults,
+    layouts: { [`${base}@mobile`]: sharedMobile, [`card:${cardId}@mobile`]: cardMobile },
+    sharedBaseKey: base,
+    cardId,
+    device: 'mobile',
+    surface: 'letter',
+    templateEditor: false,
+  })
+  assert.equal(letterWithoutOwnSheet[0]?.src.endsWith('peony-bloom.png'), true)
+  assert.equal(
+    weddingOrnamentsForDevice(defaults, { [`${base}@mobile@letter`]: letterShared }, base, 'mobile', 'letter')[0]?.src.endsWith('calla-bloom.png'),
+    true,
+  )
+  assert.equal(weddingOrnamentsForDevice(defaults, layouts, base, 'mobile', 'letter')[0]?.src.endsWith('calla-bloom.png'), true)
   assert.deepEqual(
     user,
     resolveWeddingShownOrnaments({

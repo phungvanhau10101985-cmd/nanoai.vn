@@ -60,7 +60,9 @@ export function WeddingSampleCardPicker(props: {
   photoNote: string
   ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
+  confirmLabel?: string
   onPreview: (sample: WeddingSampleCard) => void
+  onConfirm?: (sample: WeddingSampleCard) => void
 }) {
   const library = props.samples.filter((sample) => sample.libraryImageUrl)
   const ready = props.samples.filter((sample) => !sample.aiStyleId && !sample.libraryImageUrl)
@@ -76,7 +78,9 @@ export function WeddingSampleCardPicker(props: {
         photoNote={props.photoNote}
         ornamentLayouts={props.ornamentLayouts}
         disabled={props.disabled}
+        confirmLabel={props.confirmLabel}
         onPreview={props.onPreview}
+        onConfirm={props.onConfirm}
       />
       {ai.length > 0 && props.aiHeading ? (
         <SampleGroup
@@ -88,7 +92,9 @@ export function WeddingSampleCardPicker(props: {
           photoNote={props.photoNote}
           ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
+          confirmLabel={props.confirmLabel}
           onPreview={props.onPreview}
+          onConfirm={props.onConfirm}
         />
       ) : null}
       {library.length > 0 && props.libraryHeading ? (
@@ -101,7 +107,9 @@ export function WeddingSampleCardPicker(props: {
           photoNote={props.photoNote}
           ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
+          confirmLabel={props.confirmLabel}
           onPreview={props.onPreview}
+          onConfirm={props.onConfirm}
         />
       ) : null}
     </div>
@@ -124,7 +132,9 @@ function SampleGroup(props: {
   photoNote: string
   ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
+  confirmLabel?: string
   onPreview: (sample: WeddingSampleCard) => void
+  onConfirm?: (sample: WeddingSampleCard) => void
 }) {
   if (props.samples.length === 0) return null
   return (
@@ -136,21 +146,36 @@ function SampleGroup(props: {
           const label = sampleLabel(props.locale, sample)
           if (!label) return null
           const active = props.selectedId === sample.id || props.selectedId === sample.backgroundPresetId
+          const showOk = Boolean(active && props.confirmLabel && props.onConfirm)
           return (
-            <button
+            <div
               key={sample.id}
-              type="button"
-              disabled={props.disabled}
-              onClick={() => props.onPreview(sample)}
               className={cn(
-                'overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
+                'overflow-hidden rounded-xl border bg-[#fffaf2] text-left',
                 active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
               )}
             >
-              <SampleFace sample={sample} ornamentLayouts={props.ornamentLayouts} />
-              <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">{label}</span>
-              <span className="block px-1.5 pb-1.5 text-[10px] text-muted-foreground">{props.photoNote}</span>
-            </button>
+              <button
+                type="button"
+                disabled={props.disabled}
+                onClick={() => props.onPreview(sample)}
+                className="block w-full text-left disabled:cursor-not-allowed"
+              >
+                <SampleFace sample={sample} ornamentLayouts={props.ornamentLayouts} />
+                <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">{label}</span>
+                {showOk ? null : <span className="block px-1.5 pb-1.5 text-[10px] text-muted-foreground">{props.photoNote}</span>}
+              </button>
+              {showOk ? (
+                <button
+                  type="button"
+                  disabled={props.disabled}
+                  onClick={() => props.onConfirm?.(sample)}
+                  className="block w-full px-1.5 pb-1.5 text-center text-xs font-semibold text-rose-700 disabled:cursor-not-allowed"
+                >
+                  {props.confirmLabel}
+                </button>
+              ) : null}
+            </div>
           )
         })}
       </div>

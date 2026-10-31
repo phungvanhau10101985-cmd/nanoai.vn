@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,12 +44,13 @@ import { bindWeddingButtonFill, resolveWeddingButtonColor } from '@/lib/wedding/
 import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNavLinkClass, weddingThemeIsDark, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage } from '@/components/wedding/wedding-ornament-admin'
-import { resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+import { applyWeddingSampleLook, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+import { WeddingSampleCardPicker } from '@/components/wedding/wedding-sample-card-picker'
+import { isWeddingSamplePhotoUrl, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnamentListsEqual } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
-import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
 import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
@@ -242,6 +244,99 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
   )
 }
 
+type OrnamentFace = 'cover' | 'letter'
+
+function useOrnamentFaceAutosave(input: {
+  enabled: boolean
+  surface: OrnamentFace
+  draft: WeddingBackgroundOrnament[] | null
+  cardId: string
+  samplePresetId: string
+  templateEditor: boolean
+  onFailed: () => void
+  onStored: (
+    surface: OrnamentFace,
+    ornaments: WeddingBackgroundOrnament[] | null,
+    template: boolean,
+    snapshot: WeddingBackgroundOrnament[] | null,
+  ) => void
+}) {
+  const [saving, setSaving] = useState(false)
+  const draftRef = useRef(input.draft)
+  const queueRef = useRef<{ ornaments: WeddingBackgroundOrnament[] } | null>(null)
+  const flightRef = useRef(false)
+  const epochRef = useRef(0)
+  const inputRef = useRef(input)
+  draftRef.current = input.draft
+  inputRef.current = input
+
+  const reset = useCallback(async () => {
+    const current = inputRef.current
+    if (!current.enabled || (!current.samplePresetId && !current.cardId)) return
+    epochRef.current += 1
+    queueRef.current = null
+    setSaving(true)
+    const result = current.samplePresetId
+      ? await resetWeddingPresetOrnaments(current.samplePresetId, 'mobile', current.surface)
+      : await resetWeddingCardOrnaments(current.cardId, 'mobile', current.surface)
+    setSaving(false)
+    if (!result || !('ok' in result)) {
+      current.onFailed()
+      return
+    }
+    current.onStored(current.surface, null, current.templateEditor || Boolean(current.samplePresetId), null)
+    window.parent.postMessage(
+      { type: 'wedding-ornament-saved', surface: current.surface, device: 'mobile', cleared: true },
+      window.location.origin,
+    )
+  }, [])
+
+  useEffect(() => {
+    if (!input.enabled || !input.draft) return
+    const snapshot = input.draft
+    const timer = window.setTimeout(() => {
+      queueRef.current = { ornaments: snapshot }
+      const flush = async () => {
+        if (flightRef.current) return
+        const job = queueRef.current
+        if (!job) return
+        queueRef.current = null
+        const current = inputRef.current
+        const epoch = epochRef.current
+        flightRef.current = true
+        setSaving(true)
+        const result = current.samplePresetId
+          ? await saveWeddingPresetOrnaments(current.samplePresetId, 'mobile', job.ornaments, current.surface)
+          : await saveWeddingCardOrnaments(current.cardId, 'mobile', job.ornaments, current.surface)
+        flightRef.current = false
+        if (epochRef.current !== epoch) {
+          if (current.samplePresetId) await resetWeddingPresetOrnaments(current.samplePresetId, 'mobile', current.surface)
+          else await resetWeddingCardOrnaments(current.cardId, 'mobile', current.surface)
+          setSaving(false)
+          if (queueRef.current) void flush()
+          return
+        }
+        setSaving(false)
+        if (!result || !('ok' in result)) {
+          current.onFailed()
+          return
+        }
+        const templateSave = Boolean(current.templateEditor || result.template || current.samplePresetId)
+        current.onStored(current.surface, result.ornaments ?? [], templateSave, job.ornaments)
+        window.parent.postMessage(
+          { type: 'wedding-ornament-saved', surface: current.surface, device: 'mobile', ornaments: result.ornaments },
+          window.location.origin,
+        )
+        if (queueRef.current) void flush()
+      }
+      void flush()
+    }, 350)
+    return () => window.clearTimeout(timer)
+  }, [input.cardId, input.draft, input.enabled, input.samplePresetId, input.surface, input.templateEditor])
+
+  return { saving, reset, draftRef }
+}
+
 export default function WeddingPublicClient({
   card,
   sideWishes,
@@ -253,10 +348,10 @@ export default function WeddingPublicClient({
   initialGuestRsvp = null,
   backgroundPlateUrls = [],
   ornamentOverride = null,
-  ornamentDesktop = null,
   ornamentMobile = null,
-  ornamentSharedDesktop = null,
   ornamentSharedMobile = null,
+  ornamentLetterMobile = null,
+  ornamentLetterSharedMobile = null,
   ornamentLayoutKey = '',
   ornamentEditor = false,
   hostEditor = false,
@@ -283,6 +378,8 @@ export default function WeddingPublicClient({
   ornamentMobile?: WeddingBackgroundOrnament[] | null
   ornamentSharedDesktop?: WeddingBackgroundOrnament[] | null
   ornamentSharedMobile?: WeddingBackgroundOrnament[] | null
+  ornamentLetterMobile?: WeddingBackgroundOrnament[] | null
+  ornamentLetterSharedMobile?: WeddingBackgroundOrnament[] | null
   ornamentLayoutKey?: string
   ornamentEditor?: boolean
   hostEditor?: boolean
@@ -336,17 +433,27 @@ export default function WeddingPublicClient({
   const previewKindRef = useRef<'text' | 'shell' | 'frame' | 'both' | null>(null)
   const [textPick, setTextPick] = useState<WeddingTextRole | null>(null)
   const [viewDevice, setViewDevice] = useState<'desktop' | 'mobile'>('mobile')
+  const [forcedMasterUrl, setForcedMasterUrl] = useState<string | null | undefined>(undefined)
+  const [photoOverride, setPhotoOverride] = useState<{ groom: string; bride: string; album: string[] } | null>(null)
+  const [sampleFlowers, setSampleFlowers] = useState(false)
+  const [lookOpen, setLookOpen] = useState(false)
+  const [lookPick, setLookPick] = useState('')
+  const [lookBusy, setLookBusy] = useState(false)
   const displayedSectionRaw = previewLookOn || hostEditor || ornamentEditor ? sectionRaw : card.sectionConfig
   const sectionConfig = useMemo(() => {
     const parsed = parseWeddingSectionConfig(displayedSectionRaw)
     if (sampleDemo || !isWeddingSamplePhotoUrl(parsed.coverPhotoUrl)) return parsed
     return { ...parsed, coverPhotoUrl: '' }
   }, [displayedSectionRaw, sampleDemo])
-  const groomPhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(card.groomImageUrl) ? card.groomImageUrl : ''
-  const bridePhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(card.brideImageUrl) ? card.brideImageUrl : ''
-  const albumPhotoUrls = sampleDemo ? card.albumImageUrls : card.albumImageUrls.filter((url) => !isWeddingSamplePhotoUrl(url))
+  const groomSource = photoOverride ? photoOverride.groom : card.groomImageUrl
+  const brideSource = photoOverride ? photoOverride.bride : card.brideImageUrl
+  const albumSource = photoOverride ? photoOverride.album : card.albumImageUrls
+  const groomPhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(groomSource) ? groomSource : ''
+  const bridePhotoUrl = sampleDemo || !isWeddingSamplePhotoUrl(brideSource) ? brideSource : ''
+  const albumPhotoUrls = sampleDemo ? albumSource : albumSource.filter((url) => !isWeddingSamplePhotoUrl(url))
   const plateUrls = previewPlates ?? backgroundPlateUrls
-  const pageBackground = (plateUrls[0] || (previewLookOn ? '' : card.masterImageUrl) || '').trim()
+  const masterUrl = forcedMasterUrl !== undefined ? forcedMasterUrl : card.masterImageUrl
+  const pageBackground = (plateUrls[0] || (previewLookOn ? '' : masterUrl) || '').trim()
   const readyBackground = resolveWeddingChromeKit(sectionConfig)
   const kitSurface = weddingKitSurface(readyBackground)
   const themeStyleId = readyBackground?.look.styleId || previewStyleId || card.selectedStyleId
@@ -437,204 +544,173 @@ export default function WeddingPublicClient({
   const coverPreview = editorStack === 'cover'
   const [opened, setOpened] = useState(layoutPreview && !coverPreview)
   const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_MOBILE_WIDTH)
-  const [desktopOrnaments, setDesktopOrnaments] = useState(ornamentDesktop)
-  const [mobileOrnaments, setMobileOrnaments] = useState(ornamentMobile)
-  const [, setSharedDesktopOrnaments] = useState(ornamentSharedDesktop)
-  const [sharedMobileOrnaments, setSharedMobileOrnaments] = useState(ornamentSharedMobile)
+  const [coverCard, setCoverCard] = useState(ornamentMobile)
+  const [coverShared, setCoverShared] = useState(ornamentSharedMobile)
+  const [letterCard, setLetterCard] = useState(ornamentLetterMobile)
+  const [letterShared, setLetterShared] = useState(ornamentLetterSharedMobile)
   const [sharedShellDraft, setSharedShellDraft] = useState(sharedShell)
   const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('mobile')
   const [frameLines, setFrameLines] = useState(!sampleDemo)
   const [chromeHold, setChromeHold] = useState(false)
   const [lookOrnaments, setLookOrnaments] = useState<WeddingBackgroundOrnament[] | null>(null)
-  const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
-  const [ornamentSaving, setOrnamentSaving] = useState(false)
+  const [coverDraft, setCoverDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
+  const [letterDraft, setLetterDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
+  const activeSurface: OrnamentFace = editorStack ?? (opened ? 'letter' : 'cover')
   const layoutDevice: 'desktop' | 'mobile' = (sampleDemo || hostPreview || layoutPreview) && viewDevice === 'desktop' ? 'desktop' : 'mobile'
-  const savedOrnaments = resolveWeddingShownOrnaments({
+  const coverSaved = resolveWeddingShownOrnaments({
     defaults: readyBackground?.ornaments,
-    cardSheet: mobileOrnaments,
-    sharedSheet: sharedMobileOrnaments,
-    sharedBase: ornamentOverride,
+    cardSheet: coverCard,
+    sharedSheet: coverShared,
+    sharedBase: sampleFlowers ? null : ornamentOverride,
     templateEditor,
   })
-  const backgroundOrnaments = ornamentDraft ?? (previewLookOn ? lookOrnaments : null) ?? savedOrnaments
+  const letterSaved = resolveWeddingShownOrnaments({
+    defaults: readyBackground?.ornaments,
+    cardSheet: letterCard,
+    sharedSheet: letterShared,
+    templateEditor,
+  })
+  const coverShown = coverDraft ?? (previewLookOn && activeSurface === 'cover' ? lookOrnaments : null) ?? coverSaved
+  const letterShown = letterDraft ?? (previewLookOn && activeSurface === 'letter' ? lookOrnaments : null) ?? letterSaved
+  const activeDraft = activeSurface === 'letter' ? letterDraft : coverDraft
+  const activeShown = activeSurface === 'letter' ? letterShown : coverShown
+  const setActiveDraft = activeSurface === 'letter' ? setLetterDraft : setCoverDraft
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
-  const ornamentDraftRef = useRef(ornamentDraft)
+  const previewLookOnRef = useRef(false)
+  previewLookOnRef.current = previewLookOn
   const ornamentSyncSource = useRef(Math.random().toString(36).slice(2))
-  const ornamentQueueRef = useRef<{ device: 'desktop' | 'mobile'; ornaments: WeddingBackgroundOrnament[] } | null>(null)
-  const ornamentFlightRef = useRef(false)
-  const ornamentEpochRef = useRef(0)
-  ornamentDraftRef.current = ornamentDraft
-  const resetOrnaments = async () => {
-    if (ornamentSaving || (!samplePresetId && !card.id)) return
-    ornamentEpochRef.current += 1
-    ornamentQueueRef.current = null
-    setOrnamentSaving(true)
-    const device = 'mobile' as const
-    const result = samplePresetId
-      ? await resetWeddingPresetOrnaments(samplePresetId, device)
-      : await resetWeddingCardOrnaments(card.id, device)
-    setOrnamentSaving(false)
+  const failOrnamentSave = useCallback(() => {
+    toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
+  }, [tImage.ornamentAdminFailed, toast])
+  const storeFace = useCallback((
+    surface: OrnamentFace,
+    ornaments: WeddingBackgroundOrnament[] | null,
+    template: boolean,
+    snapshot: WeddingBackgroundOrnament[] | null,
+  ) => {
+    const clearDraft = (current: WeddingBackgroundOrnament[] | null) => (!snapshot || current === snapshot ? null : current)
+    if (surface === 'cover') {
+      if (template) {
+        setCoverShared(ornaments)
+        setCoverCard(null)
+      } else setCoverCard(ornaments)
+      setCoverDraft(clearDraft)
+    } else {
+      if (template) {
+        setLetterShared(ornaments)
+        setLetterCard(null)
+      } else setLetterCard(ornaments)
+      setLetterDraft(clearDraft)
+    }
+    if (previewLookOnRef.current && (editorStack ?? (opened ? 'letter' : 'cover')) === surface) setLookOrnaments(ornaments)
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncSource.current,
+      cardId: card.id,
+      surface,
+      template,
+      ornaments,
+    })
+  }, [card.id, editorStack, opened])
+  const coverSave = useOrnamentFaceAutosave({
+    enabled: ornamentEditor,
+    surface: 'cover',
+    draft: coverDraft,
+    cardId: card.id,
+    samplePresetId,
+    templateEditor,
+    onFailed: failOrnamentSave,
+    onStored: storeFace,
+  })
+  const letterSave = useOrnamentFaceAutosave({
+    enabled: ornamentEditor,
+    surface: 'letter',
+    draft: letterDraft,
+    cardId: card.id,
+    samplePresetId,
+    templateEditor,
+    onFailed: failOrnamentSave,
+    onStored: storeFace,
+  })
+  const ornamentSaving = coverSave.saving || letterSave.saving
+  const resetOrnaments = () => (activeSurface === 'letter' ? letterSave.reset() : coverSave.reset())
+  const applyPickedLook = async (sampleId: string) => {
+    if (lookBusy || sampleDemo || !card.id || card.id.startsWith('sample:')) return
+    setLookBusy(true)
+    const result = await applyWeddingSampleLook(card.id, sampleId)
+    setLookBusy(false)
     if (!('ok' in result)) {
       toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
       return
     }
-    if (templateEditor || samplePresetId) {
-      setSharedMobileOrnaments(null)
-      setMobileOrnaments(null)
-    } else setMobileOrnaments(null)
-    setDesktopOrnaments(null)
-    setSharedDesktopOrnaments(null)
-    setOrnamentDraft(null)
-    if (previewLookOnRef.current) setLookOrnaments(null)
-    publishWeddingOrnamentTruth({
-      source: ornamentSyncSource.current,
-      cardId: card.id,
-      template: templateEditor || Boolean(samplePresetId),
-      ornaments: null,
-    })
-    window.parent.postMessage(
-      { type: 'wedding-ornament-saved', surface: editorStack, device, cleared: true },
-      window.location.origin,
-    )
+    setSectionRaw(result.sectionConfig)
+    setPreviewStyleId(result.selectedStyleId)
+    setPreviewPlates(result.plateUrls)
+    setForcedMasterUrl(result.masterImageUrl ?? '')
+    setPhotoOverride({ groom: result.groomImageUrl, bride: result.brideImageUrl, album: result.albumImageUrls })
+    setCoverShared(result.sharedOrnaments)
+    setLetterShared(result.sharedLetterOrnaments)
+    setCoverCard(null)
+    setLetterCard(null)
+    setCoverDraft(null)
+    setLetterDraft(null)
+    setSampleFlowers(true)
+    setSharedFrame(result.sharedFrame)
+    setSharedShellDraft(result.sharedShell)
+    setLookOpen(false)
+    setLookPick('')
+    toast({ title: tImage.sampleCardAppliedTitle, description: tImage.sampleCardAppliedHint })
   }
   const resetOrnamentsRef = useRef(resetOrnaments)
-  const templateEditorRef = useRef(templateEditor)
   resetOrnamentsRef.current = resetOrnaments
-  templateEditorRef.current = templateEditor
   useEffect(() => {
-    if (!ornamentEditor || !ornamentDraft) return
-    const snapshot = ornamentDraft
-    const device = 'mobile' as const
-    const timer = window.setTimeout(() => {
-      ornamentQueueRef.current = { device, ornaments: snapshot }
-      const flush = async () => {
-        if (ornamentFlightRef.current) return
-        const job = ornamentQueueRef.current
-        if (!job) return
-        ornamentQueueRef.current = null
-        const epoch = ornamentEpochRef.current
-        ornamentFlightRef.current = true
-        setOrnamentSaving(true)
-        const result = samplePresetId
-          ? await saveWeddingPresetOrnaments(samplePresetId, job.device, job.ornaments)
-          : await saveWeddingCardOrnaments(card.id, job.device, job.ornaments)
-        ornamentFlightRef.current = false
-        if (ornamentEpochRef.current !== epoch) {
-          if (samplePresetId) await resetWeddingPresetOrnaments(samplePresetId, job.device)
-          else await resetWeddingCardOrnaments(card.id, job.device)
-          setOrnamentSaving(false)
-          if (ornamentQueueRef.current) void flush()
-          return
-        }
-        setOrnamentSaving(false)
-        if (!('ok' in result)) {
-          toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
-          return
-        }
-        const templateSave = Boolean(templateEditor || result.template || samplePresetId)
-        if (templateSave) {
-          setSharedMobileOrnaments(result.ornaments ?? null)
-          setMobileOrnaments(null)
-          setDesktopOrnaments(null)
-          setSharedDesktopOrnaments(null)
-        } else {
-          setMobileOrnaments(result.ornaments ?? null)
-          setDesktopOrnaments(null)
-        }
-        if (previewLookOnRef.current) setLookOrnaments(result.ornaments ?? [])
-        if (ornamentDraftRef.current === job.ornaments) setOrnamentDraft(null)
-        publishWeddingOrnamentTruth({
-          source: ornamentSyncSource.current,
-          cardId: card.id,
-          template: templateSave,
-          ornaments: result.ornaments ?? [],
-        })
-        window.parent.postMessage(
-          { type: 'wedding-ornament-saved', surface: editorStack, device: job.device, ornaments: result.ornaments },
-          window.location.origin,
-        )
-        if (ornamentQueueRef.current) void flush()
-      }
-      void flush()
-    }, 350)
-    return () => window.clearTimeout(timer)
-  }, [card.id, editorStack, ornamentDraft, ornamentEditor, samplePresetId, tImage.ornamentAdminFailed, templateEditor, toast])
-  useEffect(() => {
-    if (!ornamentEditor || !ornamentDraft) return
+    if (!ornamentEditor || !coverDraft) return
     publishWeddingOrnamentTruth({
       source: ornamentSyncSource.current,
       cardId: card.id,
+      surface: 'cover',
       template: templateEditor || Boolean(samplePresetId),
-      ornaments: ornamentDraft,
+      ornaments: coverDraft,
     })
-  }, [card.id, ornamentDraft, ornamentEditor, samplePresetId, templateEditor])
+  }, [card.id, coverDraft, ornamentEditor, samplePresetId, templateEditor])
+  useEffect(() => {
+    if (!ornamentEditor || !letterDraft) return
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncSource.current,
+      cardId: card.id,
+      surface: 'letter',
+      template: templateEditor || Boolean(samplePresetId),
+      ornaments: letterDraft,
+    })
+  }, [card.id, letterDraft, ornamentEditor, samplePresetId, templateEditor])
   useEffect(() => {
     return subscribeWeddingOrnamentTruth(card.id, ornamentSyncSource.current, (message) => {
-      if (ornamentDraftRef.current) return
-      if (message.template) {
-        setSharedMobileOrnaments(message.ornaments)
-        setMobileOrnaments(null)
-        setDesktopOrnaments(null)
-        setSharedDesktopOrnaments(null)
-      } else {
-        setMobileOrnaments(message.ornaments)
-        setDesktopOrnaments(null)
-      }
-      setLookOrnaments((current) => {
-        if (!previewLookOnRef.current) return current
-        if (!message.ornaments) return null
-        return weddingOrnamentListsEqual(current, message.ornaments) ? current : message.ornaments
-      })
+      if (message.surface === 'cover' && coverSave.draftRef.current) return
+      if (message.surface === 'letter' && letterSave.draftRef.current) return
+      storeFace(message.surface, message.ornaments, message.template, null)
     })
-  }, [card.id])
+  }, [card.id, coverSave.draftRef, letterSave.draftRef, storeFace])
   useEffect(() => {
     if (!ornamentEditor || !editorStack) return
     window.parent.postMessage(
       {
         type: 'wedding-ornament-state',
         surface: editorStack,
-        dirty: ornamentDraft != null,
+        dirty: activeDraft != null,
         saving: ornamentSaving,
       },
       window.location.origin,
     )
-  }, [editorStack, ornamentDraft, ornamentEditor, ornamentSaving])
+  }, [activeDraft, editorStack, ornamentEditor, ornamentSaving])
   useEffect(() => {
     if (!ornamentEditor) return
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return
-      const data = event.data as {
-        type?: string
-        surface?: string
-        action?: string
-        device?: string
-        cleared?: boolean
-        ornaments?: WeddingBackgroundOrnament[]
-      }
+      const data = event.data as { type?: string; surface?: string; action?: string }
       if (!data) return
-      if (data.type === 'wedding-ornament-command' && editorStack && data.surface === editorStack && data.action === 'reset') {
+      if (data.type === 'wedding-ornament-command' && data.action === 'reset' && (!editorStack || data.surface === editorStack)) {
         void resetOrnamentsRef.current()
       }
-      if (data.type !== 'wedding-ornament-apply' || ornamentDraftRef.current) return
-      if (data.device !== 'desktop' && data.device !== 'mobile') return
-      if (data.cleared) {
-        if (templateEditorRef.current) {
-          setSharedMobileOrnaments(null)
-          setMobileOrnaments(null)
-        } else setMobileOrnaments(null)
-        setDesktopOrnaments(null)
-        setSharedDesktopOrnaments(null)
-        setLookOrnaments(null)
-        return
-      }
-      if (!Array.isArray(data.ornaments)) return
-      if (templateEditorRef.current) {
-        setSharedMobileOrnaments(data.ornaments)
-        setMobileOrnaments(null)
-      } else setMobileOrnaments(data.ornaments)
-      setDesktopOrnaments(null)
-      setLookOrnaments(data.ornaments)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -642,7 +718,6 @@ export default function WeddingPublicClient({
   const shownSectionRef = useRef(sectionConfig)
   const pageBackgroundRef = useRef(pageBackground)
   const previewLookTokenRef = useRef('')
-  const previewLookOnRef = useRef(false)
   shownSectionRef.current = sectionConfig
   pageBackgroundRef.current = pageBackground
   previewLookOnRef.current = previewLookOn
@@ -674,16 +749,18 @@ export default function WeddingPublicClient({
         setPreviewPlates(look.plateUrls.length > 0 ? look.plateUrls : [])
         setPreviewStyleId(look.selectedStyleId)
         if (look.ornamentKey !== currentKey) {
-          setOrnamentDraft(null)
-          setDesktopOrnaments(null)
-          setMobileOrnaments(null)
-          setSharedDesktopOrnaments(null)
-          setSharedMobileOrnaments(null)
+          setCoverDraft(null)
+          setLetterDraft(null)
+          setCoverCard(null)
+          setLetterCard(null)
+          setCoverShared(null)
+          setLetterShared(null)
           setSharedShellDraft(null)
         }
         setSharedFrame(look.sharedFrame)
       }
-      setLookOrnaments((current) => (weddingOrnamentListsEqual(current, look.ornaments) ? current : look.ornaments))
+      const incoming = editorStack === 'letter' ? look.letterOrnaments : look.coverOrnaments
+      setLookOrnaments((current) => (weddingOrnamentListsEqual(current, incoming) ? current : incoming))
     }
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== window.parent) return
@@ -951,7 +1028,7 @@ export default function WeddingPublicClient({
       timers.forEach((id) => window.clearTimeout(id))
       html.removeAttribute('data-wedding-layout-preview')
     }
-  }, [layoutPreview, ornamentDraft, desktopOrnaments, mobileOrnaments])
+  }, [coverCard, coverDraft, layoutPreview, letterCard, letterDraft])
 
   useEffect(() => {
     setMusicLoadFailed(false)
@@ -1105,7 +1182,13 @@ export default function WeddingPublicClient({
     let overChrome = false
     let pressingChrome = false
     let blockMove = false
-    let gesture: { id: number; x: number; y: number; moved: boolean } | null = null
+    let holdTimer: number | null = null
+    let gesture: { id: number; x: number; y: number; moved: boolean; held: boolean; up: boolean } | null = null
+    const clearHoldTimer = () => {
+      if (!holdTimer) return
+      window.clearTimeout(holdTimer)
+      holdTimer = null
+    }
     const onChrome = (target: EventTarget | null) =>
       target instanceof Element && Boolean(target.closest('[data-wedding-host-chrome]'))
     const conceal = () => {
@@ -1119,9 +1202,9 @@ export default function WeddingPublicClient({
       if (timer) window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         timer = null
-        if (overChrome || pressingChrome) return
+        if (overChrome || pressingChrome || gesture?.up) return
         conceal()
-      }, 1200)
+      }, 3200)
     }
     const reveal = () => {
       if (!shown) {
@@ -1151,7 +1234,12 @@ export default function WeddingPublicClient({
         conceal()
         return
       }
-      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
+      clearHoldTimer()
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, held: false, up: false }
+      holdTimer = window.setTimeout(() => {
+        holdTimer = null
+        if (gesture && !gesture.moved) gesture.held = true
+      }, 350)
     }
     const onMove = (event: PointerEvent) => {
       if (pressingChrome) return
@@ -1172,7 +1260,23 @@ export default function WeddingPublicClient({
         return
       }
       if (!gesture || gesture.id !== event.pointerId) return
-      if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) {
+      const dx = event.clientX - gesture.x
+      const dy = event.clientY - gesture.y
+      const dist = Math.hypot(dx, dy)
+      if (!gesture.held && dist > 12) {
+        gesture.moved = true
+        clearHoldTimer()
+        conceal()
+        return
+      }
+      if (!gesture.held) return
+      if (dy <= -36 && Math.abs(dy) >= Math.abs(dx)) {
+        gesture.up = true
+        gesture.moved = true
+        reveal()
+        return
+      }
+      if (dy > 16) {
         gesture.moved = true
         conceal()
       }
@@ -1188,9 +1292,15 @@ export default function WeddingPublicClient({
         blockMove = false
         return
       }
+      clearHoldTimer()
       if (!gesture || gesture.id !== event.pointerId) return
+      const swipeUp = gesture.up
       const tap = !gesture.moved
       gesture = null
+      if (swipeUp) {
+        reveal()
+        return
+      }
       if (!tap || onChrome(event.target)) return
       if (shown) conceal()
       else reveal()
@@ -1220,6 +1330,7 @@ export default function WeddingPublicClient({
       window.removeEventListener('pointerout', onLeaveChrome, true)
       window.removeEventListener('wheel', onWheel, true)
       if (timer) window.clearTimeout(timer)
+      clearHoldTimer()
     }
   }, [hostEditor, frameLines])
 
@@ -1691,7 +1802,7 @@ export default function WeddingPublicClient({
                   aria-pressed={active}
                   className={active ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
                   onClick={() => {
-                    const draft = ornamentDraft
+                    const draft = activeDraft
                     const show = () => {
                       const nextUrl = new URL(window.location.href)
                       nextUrl.searchParams.set('device', id)
@@ -1704,14 +1815,24 @@ export default function WeddingPublicClient({
                       show()
                       return
                     }
+                    const surface = activeSurface
                     const saveDraft = samplePresetId
-                      ? saveWeddingPresetOrnaments(samplePresetId, 'mobile', draft)
-                      : saveWeddingCardOrnaments(card.id, 'mobile', draft)
+                      ? saveWeddingPresetOrnaments(samplePresetId, 'mobile', draft, surface)
+                      : saveWeddingCardOrnaments(card.id, 'mobile', draft, surface)
                     void saveDraft.then((result) => {
                       if (result && 'ok' in result) {
-                        if (templateEditor) setSharedMobileOrnaments(draft)
-                        else setMobileOrnaments(draft)
-                        setOrnamentDraft(null)
+                        if (surface === 'letter') {
+                          if (templateEditor) setLetterShared(draft)
+                          else setLetterCard(draft)
+                          setLetterDraft(null)
+                        } else if (templateEditor) {
+                          setCoverShared(draft)
+                          setCoverCard(null)
+                          setCoverDraft(null)
+                        } else {
+                          setCoverCard(draft)
+                          setCoverDraft(null)
+                        }
                       } else {
                         toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
                       }
@@ -1734,8 +1855,20 @@ export default function WeddingPublicClient({
                 })
               }}
             >
-              {frameLines ? tImage.ornamentFrameLinesHide : tImage.ornamentFrameLinesShow}
+              {frameLines ? tImage.previewBrowseMode : tImage.previewEditMode}
             </button>
+            {frameLines && !sampleDemo ? (
+              <button
+                type="button"
+                className="h-8 rounded-full px-3 text-xs text-neutral-600"
+                onClick={() => {
+                  setLookPick('')
+                  setLookOpen(true)
+                }}
+              >
+                {tImage.previewChangeLook}
+              </button>
+            ) : null}
             {frameLines ? (
             <WeddingOrnamentAdminBar
               locale={uiLocale}
@@ -1744,18 +1877,44 @@ export default function WeddingPublicClient({
               addLabel={tImage.ornamentAdminAdd}
               saveLabel={tImage.ornamentAdminSave}
               resetLabel={tImage.ornamentAdminReset}
-              dirty={ornamentDraft != null}
+              dirty={activeDraft != null}
               saving={ornamentSaving}
               showReset={!templateEditor}
               onAdd={(src) => {
                 const spot = weddingOrnamentSpotOnPage()
-                setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: spot.x, y: spot.y, w: spot.w }])
+                setActiveDraft([...(activeDraft ?? activeShown), { src, x: spot.x, y: spot.y, w: spot.w }])
               }}
               onReset={() => void resetOrnaments()}
             />
             ) : null}
           </div>
         </WeddingDraggableChrome>
+      ) : null}
+      {hostEditor && !sampleDemo ? (
+        <Dialog open={lookOpen} onOpenChange={(open) => { if (!lookBusy) setLookOpen(open) }}>
+          <DialogContent overlayClassName="z-[200]" className="z-[200] flex max-h-[85vh] flex-col overflow-hidden sm:max-w-lg">
+            <DialogHeader className="shrink-0 pr-8">
+              <DialogTitle>{tImage.previewChangeLook}</DialogTitle>
+              <DialogDescription>{tImage.previewChangeLookHint}</DialogDescription>
+            </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <WeddingSampleCardPicker
+                locale={uiLocale}
+                samples={WEDDING_SAMPLE_CARDS}
+                selectedId={lookPick}
+                heading={tImage.sampleCardsTitle}
+                aiHeading={tImage.sampleAiCardsTitle}
+                libraryHeading={tImage.libraryAllHeading}
+                hint=""
+                photoNote={tImage.sampleCardPhotos}
+                disabled={lookBusy}
+                confirmLabel={tImage.backgroundPickedOk}
+                onPreview={(sample) => setLookPick(sample.id)}
+                onConfirm={(sample) => void applyPickedLook(sample.id)}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       ) : null}
       {hostPreview || sampleDemo ? <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-200" /> : null}
       <main
@@ -1790,11 +1949,11 @@ export default function WeddingPublicClient({
               >
               <div data-wedding-ornament-frame="">
               {(ornamentEditor && coverPreview) || (hostEditor && !(sampleDemo && !frameLines)) ? null : (
-                <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
+                <WeddingBackgroundOrnamentLayer ornaments={coverShown} className="absolute inset-0 z-20" />
               )}
               {(ornamentEditor && coverPreview) || (hostEditor && !(sampleDemo && !frameLines)) ? (
                 <WeddingOrnamentAdminLayer
-                  ornaments={backgroundOrnaments}
+                  ornaments={coverShown}
                   editable
                   className="absolute inset-0 z-[80]"
                   surface={editorStack ?? 'cover'}
@@ -1808,7 +1967,7 @@ export default function WeddingPublicClient({
                   riseLabel={tImage.ornamentAdminMotionRise}
                   deleteLabel={tImage.ornamentAdminDelete}
                   frameLines={frameLines}
-                  onChange={setOrnamentDraft}
+                  onChange={setCoverDraft}
                 />
               ) : null}
               </div>
@@ -1940,14 +2099,14 @@ export default function WeddingPublicClient({
               addLabel={tImage.ornamentAdminAdd}
               saveLabel={tImage.ornamentAdminSave}
               resetLabel={tImage.ornamentAdminReset}
-              dirty={ornamentDraft != null}
+              dirty={letterDraft != null}
               saving={ornamentSaving}
               showReset={!templateEditor}
               onAdd={(src) => {
                 const spot = weddingOrnamentSpotOnPage()
-                setOrnamentDraft([...(ornamentDraft ?? backgroundOrnaments), { src, x: spot.x, y: spot.y, w: spot.w }])
+                setLetterDraft([...(letterDraft ?? letterShown), { src, x: spot.x, y: spot.y, w: spot.w }])
               }}
-              onReset={() => void resetOrnaments()}
+              onReset={() => void letterSave.reset()}
             />
           </div>
         ) : null}
@@ -2627,10 +2786,10 @@ export default function WeddingPublicClient({
         {(contentVisible || ornamentEditor) ? (
         ornamentEditor ? (
           <WeddingOrnamentAdminLayer
-            ornaments={backgroundOrnaments}
+            ornaments={letterShown}
             editable
             className="absolute inset-0 z-[80]"
-            surface={editorStack}
+            surface={editorStack ?? 'letter'}
             zoomInLabel={tImage.ornamentAdminZoomIn}
             zoomOutLabel={tImage.ornamentAdminZoomOut}
             rotateLeftLabel={tImage.ornamentAdminRotateLeft}
@@ -2641,10 +2800,10 @@ export default function WeddingPublicClient({
             riseLabel={tImage.ornamentAdminMotionRise}
             deleteLabel={tImage.ornamentAdminDelete}
             frameLines={frameLines}
-            onChange={setOrnamentDraft}
+            onChange={setLetterDraft}
           />
         ) : (
-          <WeddingBackgroundOrnamentLayer ornaments={backgroundOrnaments} className="absolute inset-0 z-20" />
+          <WeddingBackgroundOrnamentLayer ornaments={letterShown} className="absolute inset-0 z-20" />
         )
         ) : null}
         </div>

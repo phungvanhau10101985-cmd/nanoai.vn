@@ -7,7 +7,7 @@
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { findWeddingBackgroundPreset, labelForWeddingBackgroundPreset, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingKitFramePatch, weddingReadyBackgroundSectionPatch, weddingThemeOpenCelebration } from '@/lib/wedding/wedding-background-presets'
 import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
-import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
+import { clearWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, stringifyWeddingSectionConfig, withoutPrivateShell } from '@/lib/wedding/wedding-section-config'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
 
@@ -391,6 +391,49 @@ export function stripWeddingSamplePhotos<T extends {
       ...(coverWasSample ? { coverPhotoUrl: '' } : {}),
       ...(albumChanged ? { albumPhotoCrops: [] } : {}),
     }),
+  }
+}
+
+/** Nền, khung, hoa và màu của mẫu, giữ chữ và ảnh thật của thiệp đang sửa. */
+export function weddingSampleLookOnCard<T extends {
+  sectionConfig: string
+  groomImageUrl: string
+  brideImageUrl: string
+  albumImageUrls: string[]
+}>(card: T, sample: WeddingSampleCard): (T & {
+  selectedStyleId: string
+  colorPalette: string
+  plateUrls: string[]
+  masterImageUrl: string | null
+}) | null {
+  const preset = sample.libraryImageUrl
+    ? undefined
+    : sample.aiStyleId
+      ? weddingAiBackgroundKit(sample.aiStyleId)
+      : findWeddingBackgroundPreset(sample.backgroundPresetId)
+  if (!sample.libraryImageUrl && !preset) return null
+  const styleId = sample.libraryImageUrl
+    ? sample.aiStyleId || 'floral'
+    : sample.aiStyleId || preset!.look.styleId
+  const style = getWeddingStylePreset(styleId)
+  const cleared = clearWeddingFrameChoice(clearWeddingFrameChoice(card.sectionConfig, 'cover'), 'pair')
+  const patch = sample.libraryImageUrl
+    ? weddingLibrarySampleSectionPatch(sample.aiStyleId, sample.id)
+    : sample.aiStyleId
+      ? weddingAiKitSectionPatch(sample.aiStyleId)
+      : weddingReadyBackgroundSectionPatch(preset!)
+  const visual = stripWeddingSamplePhotos({
+    ...card,
+    sectionConfig: mergeWeddingSectionConfig(cleared, patch),
+  })
+  const opened = withoutPrivateShell(parseWeddingSectionConfig(visual.sectionConfig))
+  return {
+    ...visual,
+    sectionConfig: stringifyWeddingSectionConfig(opened),
+    selectedStyleId: styleId,
+    colorPalette: style.palette,
+    plateUrls: sample.libraryImageUrl ? [sample.libraryImageUrl] : [...(preset?.plates ?? [])],
+    masterImageUrl: sample.libraryImageUrl || null,
   }
 }
 

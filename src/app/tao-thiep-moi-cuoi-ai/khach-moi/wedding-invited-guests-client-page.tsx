@@ -34,9 +34,13 @@ import {
   weddingSideInviteSettingsFromCard,
   type WeddingSideInviteSettings,
 } from '@/lib/wedding/wedding-side-invite-settings'
-import { WeddingSideGuestImportBar } from './wedding-side-guest-import-bar'
+import { WeddingSideGuestBulkBar } from './wedding-side-guest-bulk-bar'
 import { WeddingGuestPackPanel } from './wedding-guest-pack-panel'
-import type { WeddingGuestPackSide, WeddingGuestSideQuotas } from '@/lib/wedding/wedding-guest-pack'
+import {
+  weddingGuestRowShowsInviteLink,
+  type WeddingGuestPackSide,
+  type WeddingGuestSideQuotas,
+} from '@/lib/wedding/wedding-guest-pack'
 import {
   weddingResponseHeadcount,
   type WeddingAttendanceRsvpSource,
@@ -421,9 +425,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
 
   const addRow = (side: GuestSide) => {
     const pack = side === 'bride_home' ? 'bride' : 'groom'
-    const cap = quotas?.[pack]?.guestCap
+    const quota = quotas?.[pack]
     const count = rowsRef.current.filter((row) => rowBelongsToSide(row, side)).length
-    if (cap != null && count >= cap) {
+    if (quota?.packId && quota.guestCap != null && count >= quota.guestCap) {
       setPackSide(pack)
       return
     }
@@ -497,13 +501,13 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
   const addOutsideToSide = async (rsvp: WeddingAttendanceRsvpSource, targetSide: GuestSide) => {
     if (!card) return
     const sidePack: WeddingGuestPackSide = targetSide === 'bride_home' ? 'bride' : 'groom'
-    const cap = quotas?.[sidePack]?.guestCap
+    const quota = quotas?.[sidePack]
     const sideCount = targetSide === 'bride_home' ? brideRows.length : groomRows.length
-    if (cap != null && sideCount >= cap) {
+    if (quota?.packId && quota.guestCap != null && sideCount >= quota.guestCap) {
       setPackSide(sidePack)
       toast({
         title: 'Cần nâng gói khách mời',
-        description: `Bên ${targetSide === 'bride_home' ? 'nhà gái' : 'nhà trai'} đã đạt giới hạn ${cap} khách.`,
+        description: `Bên ${targetSide === 'bride_home' ? 'nhà gái' : 'nhà trai'} đã đạt giới hạn ${quota?.guestCap ?? 0} khách.`,
       })
       return
     }
@@ -740,15 +744,16 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         </div>
       ) : sideRows.length === 0 ? (
         <div className={cn('rounded-xl border border-dashed p-8 text-center text-sm', look.empty)}>
-          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» hoặc Import Excel phía trên.
+          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» hoặc «Thêm khách mời hàng loạt» phía trên.
         </div>
       ) : (
         <>
         <div className="space-y-3 md:hidden">
           {sideRows.map((row, index) => {
             const key = rowKey(row)
+            const linkOpen = weddingGuestRowShowsInviteLink(index, quotas?.[look.panel]?.packId ?? null)
             const personalUrl =
-              publishUrl && row.guestName.trim()
+              linkOpen && publishUrl && row.guestName.trim()
                 ? buildWeddingPersonalInviteUrl(publishUrl, {
                     guestName: buildGuestDisplayName(row.guestHonorific, row.guestName),
                     inviteVenue: side,
@@ -908,6 +913,10 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         </a>
                       </Button>
                     </div>
+                  ) : !linkOpen ? (
+                    <Button type="button" variant="outline" className="h-11 w-full" onClick={() => setPackSide(look.panel)}>
+                      Mua gói để mở link
+                    </Button>
                   ) : null}
                 </div>
               </article>
@@ -925,7 +934,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               <col className="w-[18%]" />
               <col className="w-[14%]" />
               <col className="w-[12%]" />
-              <col className="w-[4.5rem]" />
+              <col className="w-[5.75rem]" />
               <col className="w-[2.5rem]" />
             </colgroup>
             <thead>
@@ -945,8 +954,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
             <tbody>
               {sideRows.map((row, index) => {
                 const key = rowKey(row)
+                const linkOpen = weddingGuestRowShowsInviteLink(index, quotas?.[look.panel]?.packId ?? null)
                 const personalUrl =
-                  publishUrl && row.guestName.trim()
+                  linkOpen && publishUrl && row.guestName.trim()
                     ? buildWeddingPersonalInviteUrl(publishUrl, {
                         guestName: buildGuestDisplayName(row.guestHonorific, row.guestName),
                         inviteVenue: side,
@@ -1090,6 +1100,16 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                             </a>
                           </Button>
                         </div>
+                      ) : !linkOpen ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-7 w-full px-1 text-[10px] font-semibold"
+                          onClick={() => setPackSide(look.panel)}
+                          title="Mua gói để hiện link thiệp"
+                        >
+                          Mua gói
+                        </Button>
                       ) : (
                         <span className="block px-2 text-center text-xs text-muted-foreground">—</span>
                       )}
@@ -1120,8 +1140,10 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
       {!loading ? (
         <Button type="button" size="sm" className={cn(look.add, 'h-11 w-full md:h-9 md:w-auto')} onClick={() => addRow(side)}>
           <Plus className="mr-2 h-4 w-4" />
-          {quotas?.[look.panel]?.guestCap != null && sideRows.length >= (quotas[look.panel]?.guestCap ?? 0)
-            ? `Chọn gói ${look.kicker.toLowerCase()}`
+          {quotas?.[look.panel]?.packId &&
+          quotas[look.panel]?.guestCap != null &&
+          sideRows.length >= (quotas[look.panel]?.guestCap ?? 0)
+            ? `Nâng gói ${look.kicker.toLowerCase()}`
             : `Thêm khách ${look.kicker.toLowerCase()}`}
         </Button>
       ) : null}
@@ -1216,11 +1238,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               void load(true)
             }}
           />
-          <WeddingSideGuestImportBar
+          <WeddingSideGuestBulkBar
             cardId={card?.id ?? ''}
             side={look.panel}
             disabled={loading || !card}
-            onImported={load}
+            onAdded={load}
             onNeedPack={(side, nextQuotas) => {
               if (nextQuotas) setQuotas(nextQuotas)
               setPackSide(side)

@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { findWeddingBackgroundPreset } from './wedding-background-presets'
-import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, stripWeddingSamplePhotos, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey } from './wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, stripWeddingSamplePhotos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey } from './wedding-sample-cards'
 
 test('a sample card is one background and five couple photos', () => {
   assert.ok(WEDDING_SAMPLE_CARDS.length >= 1)
@@ -56,4 +56,31 @@ test('editor drops sample photos and keeps a real photo', () => {
   assert.equal(section.coverPhotoUrl, undefined)
   assert.equal(section.backgroundPresetId, sample.id)
   assert.equal(stripWeddingSamplePhotos(next), next)
+})
+
+test('applying a sample keeps real photos and switches the look', () => {
+  const current = WEDDING_SAMPLE_CARDS[0]
+  const nextSample = WEDDING_SAMPLE_CARDS.find((item) => item.id !== current.id && !item.libraryImageUrl && !item.aiStyleId)
+  assert.ok(nextSample)
+  const card = {
+    groomImageUrl: current.groomImageUrl,
+    brideImageUrl: 'https://cdn.example/bride.jpg',
+    albumImageUrls: ['https://cdn.example/a.jpg'],
+    sectionConfig: JSON.stringify({
+      backgroundPresetId: current.id,
+      coverPhotoUrl: 'https://cdn.example/cover.jpg',
+      deviceShell: { mobile: { x: 1, y: 2 } },
+    }),
+  }
+  const look = weddingSampleLookOnCard(card, nextSample)
+  assert.ok(look)
+  assert.equal(look.groomImageUrl, '')
+  assert.equal(look.brideImageUrl, 'https://cdn.example/bride.jpg')
+  assert.deepEqual(look.albumImageUrls, ['https://cdn.example/a.jpg'])
+  const section = JSON.parse(look.sectionConfig) as { backgroundPresetId?: string; coverPhotoUrl?: string; deviceShell?: unknown }
+  assert.equal(section.backgroundPresetId, nextSample.id)
+  assert.equal(section.coverPhotoUrl, 'https://cdn.example/cover.jpg')
+  assert.equal(section.deviceShell, undefined)
+  assert.ok(look.plateUrls.length > 0)
+  assert.equal(look.masterImageUrl, null)
 })

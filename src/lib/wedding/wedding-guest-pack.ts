@@ -72,12 +72,26 @@ export function weddingGuestPackUpgradeVnd(
   return weddingGuestPackListPriceVnd(to) - paid
 }
 
+/** Số khách được hiện link thiệp. Chưa mua gói = 3 khách đầu. `null` = không giới hạn. */
+export function weddingGuestLinkCap(packId: WeddingGuestPackId | null): number | null {
+  if (!packId) return WEDDING_GUEST_FREE_CAP
+  return weddingGuestPackById(packId).cap
+}
+
+/** `index` là thứ tự trong danh sách nhà đó, bắt đầu từ 0. */
+export function weddingGuestRowShowsInviteLink(index: number, packId: WeddingGuestPackId | null): boolean {
+  const cap = weddingGuestLinkCap(packId)
+  if (cap == null) return true
+  return index >= 0 && index < cap
+}
+
 export function canAddWeddingGuests(
   guestCount: number,
   adding: number,
   packId: WeddingGuestPackId | null,
 ): boolean {
   if (adding <= 0) return true
+  if (!packId) return true
   const cap = weddingGuestCap(packId)
   if (cap == null) return true
   return guestCount + adding <= cap
@@ -157,9 +171,9 @@ export function weddingGuestPackBlockedMessage(
   const titled = label ? `${label.charAt(0).toUpperCase()}${label.slice(1)}` : ''
   if (!quota.packId) {
     if (titled) {
-      return `${titled} đã dùng 3 khách dùng thử. Chọn gói ${label} để thêm từ khách thứ 4.`
+      return `${titled} chưa mua gói. 3 khách đầu hiện link. Mua gói ${label} để mở link các khách sau.`
     }
-    return 'Đã dùng 3 khách dùng thử. Chọn gói để thêm từ khách thứ 4.'
+    return 'Chưa mua gói. 3 khách đầu hiện link. Mua gói để mở link các khách sau.'
   }
   if (quota.guestCap == null) return 'Không thêm được khách.'
   if (label) return `Gói ${label} tối đa ${quota.guestCap} khách. Nâng gói ${label} để thêm tiếp.`
@@ -171,11 +185,8 @@ export function weddingGuestPackBanner(quota: WeddingGuestPackQuota, side?: Wedd
   if (quota.guestCap == null) {
     return `Gói${label} không giới hạn · ${quota.guestCount} khách`
   }
-  if (!quota.packId && quota.guestCount > WEDDING_GUEST_FREE_CAP) {
-    return `Đã thêm ${quota.guestCount} khách${label}. Bản dùng thử là 3 khách. Chọn gói để thêm tiếp.`
-  }
   if (!quota.packId) {
-    return `Còn ${quota.remaining ?? 0} khách dùng thử${label} · đã thêm ${quota.guestCount}`
+    return `Đã thêm ${quota.guestCount} khách${label}. 3 khách đầu hiện link thiệp. Khách sau mua gói để mở link.`
   }
   if ((quota.remaining ?? 0) === 0) {
     return `Gói${label} tối đa ${quota.guestCap} khách · đã đủ ${quota.guestCount}. Nâng gói để thêm tiếp.`

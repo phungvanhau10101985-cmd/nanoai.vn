@@ -541,6 +541,56 @@ export async function patchWeddingCardPreview(
   return getWeddingCardForUser(cardId, userId)
 }
 
+/** Gắn mẫu thiệp: nền, khung, màu. Ảnh nền kho giữ master; mẫu có sẵn thì gỡ master. */
+export async function saveWeddingCardSampleLook(input: {
+  cardId: string
+  userId: string
+  sectionConfig: string
+  selectedStyleId: string
+  colorPalette: string
+  groomImageUrl: string
+  brideImageUrl: string
+  albumImageUrls: string[]
+  clearMaster: boolean
+}): Promise<boolean> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set section_config = coalesce(nullif($3, '')::jsonb, '{}'::jsonb),
+         selected_style_id = $4,
+         color_palette = $5,
+         groom_image_url = $6,
+         bride_image_url = $7,
+         album_image_urls = $8::text[],
+         master_image_id = case when $9::boolean then null else master_image_id end,
+         updated_at = timezone('utc'::text, now())
+     where id = $1::uuid and user_id = $2::uuid`,
+    [
+      input.cardId,
+      input.userId,
+      input.sectionConfig,
+      input.selectedStyleId,
+      input.colorPalette,
+      input.groomImageUrl,
+      input.brideImageUrl,
+      input.albumImageUrls,
+      input.clearMaster,
+    ],
+  )
+  return res.rowCount === 1
+}
+
+export async function findWeddingBackgroundLibraryIdByUrl(imageUrl: string): Promise<string | null> {
+  requirePg()
+  const url = imageUrl.trim()
+  if (!url) return null
+  const res = await getPgPool().query<{ id: string }>(
+    `select id::text from public.wedding_background_library where image_url = $1 limit 1`,
+    [url],
+  )
+  return res.rows[0]?.id ?? null
+}
+
 export async function saveWeddingCardSectionConfig(
   cardId: string,
   userId: string,

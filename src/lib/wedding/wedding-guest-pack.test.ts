@@ -6,14 +6,25 @@ import {
   canAddWeddingGuests,
   weddingGuestPackBlockedMessage,
   weddingGuestPackUpgradeVnd,
+  weddingGuestRowShowsInviteLink,
 } from './wedding-guest-pack'
 
 describe('wedding guest packs', () => {
-  it('keeps three guests free and blocks the fourth', () => {
+  it('shows invite links for the first three guests until a pack is bought', () => {
+    assert.equal(weddingGuestRowShowsInviteLink(0, null), true)
+    assert.equal(weddingGuestRowShowsInviteLink(2, null), true)
+    assert.equal(weddingGuestRowShowsInviteLink(3, null), false)
+    assert.equal(weddingGuestRowShowsInviteLink(3, 'p50'), true)
+    assert.equal(weddingGuestRowShowsInviteLink(99, 'p50'), true)
+    assert.equal(weddingGuestRowShowsInviteLink(100, 'p50'), false)
+    assert.equal(weddingGuestRowShowsInviteLink(500, 'unlimited'), true)
+  })
+
+  it('lets the free tier keep building the list past three guests', () => {
     assert.equal(canAddWeddingGuests(2, 1, null), true)
-    assert.equal(canAddWeddingGuests(3, 1, null), false)
+    assert.equal(canAddWeddingGuests(3, 1, null), true)
     assert.equal(canAddWeddingGuests(0, 3, null), true)
-    assert.equal(canAddWeddingGuests(0, 4, null), false)
+    assert.equal(canAddWeddingGuests(0, 40, null), true)
   })
 
   it('charges the full price from the free tier and only the difference on upgrade', () => {
@@ -47,11 +58,11 @@ describe('wedding guest packs', () => {
     assert.equal(canAddWeddingGuests(400, 20, 'unlimited'), true)
   })
 
-  it('tells the free tier to pick a pack from guest four', () => {
+  it('tells the free tier that later guests need a pack to show links', () => {
     const message = weddingGuestPackBlockedMessage(buildWeddingGuestPackQuota(null, 3), 'groom')
-    assert.match(message, /Nhà trai đã dùng 3 khách dùng thử/)
+    assert.match(message, /Nhà trai chưa mua gói/)
+    assert.match(message, /3 khách đầu hiện link/)
     assert.match(message, /gói nhà trai/)
-    assert.match(message, /khách thứ 4/)
   })
 
   it('keeps groom and bride trials and upgrades on separate packs', () => {
@@ -61,7 +72,7 @@ describe('wedding guest packs', () => {
       groomCount: 3,
       brideCount: 0,
     })
-    assert.equal(canAddWeddingGuests(trial.groom.guestCount, 1, trial.groom.packId), false)
+    assert.equal(canAddWeddingGuests(trial.groom.guestCount, 1, trial.groom.packId), true)
     assert.equal(canAddWeddingGuests(trial.bride.guestCount, 3, trial.bride.packId), true)
     assert.equal(canAddWeddingGuests(trial.bride.guestCount, 1, trial.bride.packId), true)
 
@@ -74,7 +85,7 @@ describe('wedding guest packs', () => {
     assert.equal(paid.groom.offers.find((offer) => offer.id === 'p100')?.payVnd, 50_000)
     assert.equal(paid.bride.offers.find((offer) => offer.id === 'p50')?.payVnd, 149_000)
     assert.equal(paid.bride.offers.find((offer) => offer.id === 'p100')?.payVnd, 199_000)
-    assert.equal(canAddWeddingGuests(paid.bride.guestCount, 1, paid.bride.packId), false)
+    assert.equal(canAddWeddingGuests(paid.bride.guestCount, 1, paid.bride.packId), true)
     assert.equal(canAddWeddingGuests(paid.groom.guestCount, 1, paid.groom.packId), true)
   })
 })

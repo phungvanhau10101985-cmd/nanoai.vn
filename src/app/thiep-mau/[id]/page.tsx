@@ -7,7 +7,7 @@ import { loadWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { loadWeddingSharedFrame, loadWeddingShellLayout } from '@/lib/db/wedding-shell-layouts-pg'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
-import { canEditWeddingOrnaments, weddingOrnamentDeviceKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { canEditWeddingOrnaments, weddingOrnamentDeviceKey, weddingOrnamentSurfaceKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { weddingNaturalViewportContent } from '@/lib/wedding/wedding-design-viewport'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { buildWeddingSampleDemoCard, findWeddingSampleCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
@@ -47,10 +47,12 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
     guestName: card.guestName,
   })
   const ornamentKey = weddingSampleSharedLayoutKey(sample)
-  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin] = await Promise.all([
+  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedCoverMobile, sharedLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin] = await Promise.all([
     ornamentKey ? loadWeddingOrnamentLayout(ornamentKey) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
+    ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentSurfaceKey(ornamentKey, 'mobile', 'cover')) : null,
+    ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentSurfaceKey(ornamentKey, 'mobile', 'letter')) : null,
     ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
     ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
     ornamentKey ? loadWeddingSharedFrame(weddingSharedFrameKey(ornamentKey)).catch(() => null) : null,
@@ -69,7 +71,8 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
         backgroundPlateUrls={weddingBackgroundPlateUrls(null, [], sample.aiStyleId ? '' : sample.backgroundPresetId)}
         ornamentOverride={sharedOrnaments}
         ornamentSharedDesktop={sharedDesktop ?? sharedOrnaments}
-        ornamentSharedMobile={sharedMobile ?? sharedOrnaments}
+        ornamentSharedMobile={sharedCoverMobile ?? sharedMobile ?? sharedOrnaments}
+        ornamentLetterSharedMobile={sharedLetterMobile}
         ornamentLayoutKey={ornamentKey}
         ornamentEditor={admin}
         hostEditor={admin}

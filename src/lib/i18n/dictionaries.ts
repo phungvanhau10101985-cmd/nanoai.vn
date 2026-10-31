@@ -3932,6 +3932,10 @@ export type Dictionary = {
     ornamentCardHint: string
     ornamentFrameLinesHide: string
     ornamentFrameLinesShow: string
+    previewBrowseMode: string
+    previewEditMode: string
+    previewChangeLook: string
+    previewChangeLookHint: string
     ornamentAdminRotateLeft: string
     ornamentAdminRotateRight: string
     ornamentAdminBlur: string
@@ -8453,6 +8457,10 @@ export const VI_DICTIONARY: Dictionary = {
     ornamentCardHint: 'Sửa này chỉ lưu trên thiệp của bạn. Thiệp của khách khác không đổi.',
     ornamentFrameLinesHide: 'Ẩn nét khung',
     ornamentFrameLinesShow: 'Hiện nét khung',
+    previewBrowseMode: 'Chế độ lướt',
+    previewEditMode: 'Chế độ sửa',
+    previewChangeLook: 'Đổi giao diện',
+    previewChangeLookHint: 'Chọn một mẫu. Bấm OK để thiệp đang sửa dùng mẫu đó ngay.',
     ornamentAdminRotateLeft: 'Xoay trái',
     ornamentAdminRotateRight: 'Xoay phải',
     ornamentAdminBlur: 'Làm mờ',

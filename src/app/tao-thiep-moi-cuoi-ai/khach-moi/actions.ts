@@ -25,6 +25,11 @@ import {
 import { buildPersonalWeddingInviteFromSideContext } from '@/lib/wedding/build-personal-wedding-invite'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { stripQuyHonorificPrefix } from '@/lib/wedding/wedding-guest-honorific-map'
+import { polishWeddingGuestBulkNames } from '@/lib/wedding/wedding-guest-bulk-names-ai'
+import {
+  parseWeddingGuestBulkText,
+  weddingGuestBulkNameKey,
+} from '@/lib/wedding/wedding-guest-bulk-names'
 import { weddingSideInviteSettingsFromCard } from '@/lib/wedding/wedding-side-invite-settings'
 import {
   buildWeddingGuestImportTemplate,
@@ -143,6 +148,98 @@ export async function importWeddingInvitedGuests(formData: FormData) {
     created,
     skipped: parsed.errors.length + parsed.skippedSample,
     errors: parsed.errors,
+  }
+}
+
+export async function addWeddingInvitedGuestsBulk(
+  cardId: string,
+  side: WeddingGuestPackSide,
+  text: string,
+) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  if (side !== 'groom' && side !== 'bride') return { error: 'Chọn nhà trai hoặc nhà gái.' }
+  const userId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const card = await getWeddingCardForUser(String(cardId || '').trim(), userId)
+  if (!card) return { error: 'Không tìm thấy thiệp.' }
+
+  const parsed = parseWeddingGuestBulkText(text)
+  const rejected = parsed.rejected.map((item) => item.raw)
+  if (!parsed.guests.length) {
+    return {
+      error: rejected.length
+        ? 'Mỗi khách cần đủ danh xưng và tên. Ví dụ: Cậu Viễn, Bạn Hưng. Không nhập tên cộc như Viễn.'
+        : 'Nhập mỗi dòng một khách, có danh xưng. Ví dụ: Cậu Viễn, Bạn Hưng.',
+      rejected,
+    }
+  }
+
+  const polished = await polishWeddingGuestBulkNames(userId, parsed.guests)
+  const existing = await listWeddingInvitedGuests(card.id, userId)
+  const venue = side === 'bride' ? 'bride_home' : 'groom_home'
+  const taken = new Set(
+    existing
+      .filter((guest) => (side === 'bride' ? guest.inviteVenue === 'bride_home' : guest.inviteVenue !== 'bride_home'))
+      .map((guest) => weddingGuestBulkNameKey(guest.guestHonorific, guest.guestName)),
+  )
+  const fresh = polished.filter((guest) => {
+    const key = weddingGuestBulkNameKey(guest.honorific, guest.name)
+    if (taken.has(key)) return false
+    taken.add(key)
+    return true
+  })
+  const skippedDuplicate = polished.length - fresh.length
+  if (!fresh.length) {
+    return { created: 0, skippedDuplicate, rejected, held: 0 }
+  }
+
+  const quotas = await loadWeddingGuestPackQuotas(card.id, userId)
+  const quota = quotas?.[side] ?? null
+  let queue = fresh
+  let held = 0
+  if (quota?.packId && quota.guestCap != null) {
+    const room = Math.max(0, quota.guestCap - quota.guestCount)
+    if (room <= 0) return guestPackLimitResult(card.id, userId, side)
+    if (queue.length > room) {
+      held = queue.length - room
+      queue = queue.slice(0, room)
+    }
+  }
+
+  const sideSettings = weddingSideInviteSettingsFromCard(card)
+  const created = await createWeddingInvitedGuestsBatch({
+    cardId: card.id,
+    userId,
+    guests: queue.map((guest) => {
+      const honorific = stripQuyHonorificPrefix(guest.honorific)
+      return {
+        guestHonorific: honorific,
+        guestName: guest.name,
+        inviteVenue: venue,
+        personalInvite: buildPersonalWeddingInviteFromSideContext({
+          side,
+          card,
+          sideSettings,
+          guestHonorific: honorific,
+          guestName: guest.name,
+        }).slice(0, 1000),
+        status: 'pending' as const,
+        guestCount: 1,
+        wishMessage: '',
+        notes: '',
+      }
+    }),
+  })
+  const importLimit = weddingGuestPackLimitSide(String(created))
+  if (importLimit) return guestPackLimitResult(card.id, userId, importLimit)
+  if (!created && created !== 0) return { error: 'Không thêm được khách. Thử lại.', rejected }
+  revalidatePath('/tao-thiep-moi-cuoi-ai/khach-moi')
+  revalidatePath('/tao-thiep-moi-cuoi-ai/ket-qua')
+  return {
+    created: created || 0,
+    skippedDuplicate,
+    rejected,
+    held,
   }
 }
 

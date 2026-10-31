@@ -121,28 +121,61 @@ export function weddingCardOrnamentLayoutKey(cardId: string): string {
 
 export type WeddingOrnamentDevice = 'desktop' | 'mobile'
 
+/** Vỏ thiệp là một khổ. Nội dung là trang dài. Hai mặt không dùng chung bản hoa. */
+export type WeddingOrnamentSurface = 'cover' | 'letter'
+
+export function isWeddingOrnamentSurface(value: string): value is WeddingOrnamentSurface {
+  return value === 'cover' || value === 'letter'
+}
+
 /** Quản trị ghi khóa nền dùng chung. Khách, hoặc khi nền không có khóa chung, ghi khóa của đúng thiệp. */
 export function weddingOrnamentSaveKey(input: {
   templateEditor: boolean
   cardId: string
   device: WeddingOrnamentDevice
   sharedBaseKey: string
+  surface: WeddingOrnamentSurface
 }): string {
+  if (!isWeddingOrnamentSurface(input.surface)) return ''
   if (input.templateEditor) {
-    const shared = weddingOrnamentDeviceKey(input.sharedBaseKey, input.device)
+    const shared = weddingOrnamentSurfaceKey(input.sharedBaseKey, input.device, input.surface)
     if (shared && isWeddingOrnamentLayoutKey(shared)) return shared
   }
-  return weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(input.cardId), input.device)
+  return weddingOrnamentSurfaceKey(weddingCardOrnamentLayoutKey(input.cardId), input.device, input.surface)
 }
 
 export function weddingOrnamentDeviceKey(baseKey: string, device: WeddingOrnamentDevice): string {
   return baseKey ? `${baseKey}@${device}` : ''
 }
 
-export function splitWeddingOrnamentLayoutKey(key: string): { base: string; device: WeddingOrnamentDevice | null } {
-  if (key.endsWith('@desktop')) return { base: key.slice(0, -'@desktop'.length), device: 'desktop' }
-  if (key.endsWith('@mobile')) return { base: key.slice(0, -'@mobile'.length), device: 'mobile' }
-  return { base: key, device: null }
+/** Khóa hoa của một mặt. Vỏ và nội dung không đọc khóa của nhau. */
+export function weddingOrnamentSurfaceKey(
+  baseKey: string,
+  device: WeddingOrnamentDevice,
+  surface: WeddingOrnamentSurface,
+): string {
+  const deviceKey = weddingOrnamentDeviceKey(baseKey, device)
+  if (!deviceKey || !isWeddingOrnamentSurface(surface)) return ''
+  return `${deviceKey}@${surface}`
+}
+
+export function splitWeddingOrnamentLayoutKey(key: string): {
+  base: string
+  device: WeddingOrnamentDevice | null
+  surface: WeddingOrnamentSurface | null
+} {
+  let surface: WeddingOrnamentSurface | null = null
+  let rest = key
+  if (rest.endsWith('@cover')) {
+    surface = 'cover'
+    rest = rest.slice(0, -'@cover'.length)
+  } else if (rest.endsWith('@letter')) {
+    surface = 'letter'
+    rest = rest.slice(0, -'@letter'.length)
+  }
+  if (rest.endsWith('@desktop')) return { base: rest.slice(0, -'@desktop'.length), device: 'desktop', surface }
+  if (rest.endsWith('@mobile')) return { base: rest.slice(0, -'@mobile'.length), device: 'mobile', surface }
+  return { base: rest, device: null, surface }
 }
 
 function isWeddingKitStyleId(styleId: string): boolean {
@@ -235,7 +268,11 @@ export function weddingOrnamentsForDevice(
   layouts: Record<string, WeddingBackgroundOrnament[]>,
   baseKey: string,
   device: WeddingOrnamentDevice,
+  surface: WeddingOrnamentSurface = 'cover',
 ): WeddingBackgroundOrnament[] {
+  const exact = weddingOrnamentSurfaceKey(baseKey, device, surface)
+  if (exact && Object.prototype.hasOwnProperty.call(layouts, exact)) return layouts[exact]
+  if (surface === 'letter') return [...(defaults ?? [])]
   const deviceKey = weddingOrnamentDeviceKey(baseKey, device)
   if (deviceKey && Object.prototype.hasOwnProperty.call(layouts, deviceKey)) return layouts[deviceKey]
   return weddingOrnamentsForKey(defaults, layouts, baseKey)
@@ -259,9 +296,9 @@ function sheetFromLayouts(
 }
 
 /**
- * Một danh sách hoa cho vỏ thiệp, preview và xem nhanh.
- * Quản trị xem mẫu chung. Khách có bản riêng thì xem bản đó, kể cả khi đã xóa hết.
- * Không có bản riêng thì mẫu của đúng máy, rồi mẫu không gắn máy, rồi hoa mặc định của nền.
+ * Quản trị xem mẫu chung của đúng mặt. Khách có bản riêng thì xem bản đó, kể cả khi đã xóa hết.
+ * Không có bản riêng thì mẫu của đúng mặt, rồi hoa mặc định của nền.
+ * Bản cũ không ghi mặt chỉ còn là lối đọc của vỏ, không đưa sang nội dung.
  */
 export function resolveWeddingShownOrnaments(input: {
   defaults?: readonly WeddingBackgroundOrnament[] | null
@@ -276,22 +313,41 @@ export function resolveWeddingShownOrnaments(input: {
   return (input.defaults ?? []).map((item) => ({ ...item }))
 }
 
-/** Đọc đúng khóa trong bảng layout. Máy đang xem là mobile: vỏ, preview và xem nhanh dùng cùng bản đó. */
+function firstOrnamentSheet(
+  layouts: Record<string, WeddingBackgroundOrnament[]>,
+  keys: readonly string[],
+): WeddingBackgroundOrnament[] | null {
+  for (const key of keys) {
+    const sheet = sheetFromLayouts(layouts, key)
+    if (sheet) return sheet
+  }
+  return null
+}
+
+/** Đọc hoa của một mặt. Vỏ không đọc khóa nội dung. Nội dung không đọc khóa vỏ, kể cả bản cũ chưa ghi mặt. */
 export function resolveWeddingCardOrnaments(input: {
   defaults?: readonly WeddingBackgroundOrnament[] | null
   layouts: Record<string, WeddingBackgroundOrnament[]>
   sharedBaseKey: string
   cardId: string
   device: WeddingOrnamentDevice
+  surface: WeddingOrnamentSurface
   templateEditor: boolean
 }): WeddingBackgroundOrnament[] {
-  const cardKey = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(input.cardId), input.device)
-  const sharedKey = weddingOrnamentDeviceKey(input.sharedBaseKey, input.device)
+  const cardBase = weddingCardOrnamentLayoutKey(input.cardId)
+  const cardKeys = [weddingOrnamentSurfaceKey(cardBase, input.device, input.surface)]
+  const sharedKeys = [weddingOrnamentSurfaceKey(input.sharedBaseKey, input.device, input.surface)]
+  const baseKeys: string[] = []
+  if (input.surface === 'cover') {
+    cardKeys.push(weddingOrnamentDeviceKey(cardBase, input.device))
+    sharedKeys.push(weddingOrnamentDeviceKey(input.sharedBaseKey, input.device))
+    baseKeys.push(input.sharedBaseKey)
+  }
   return resolveWeddingShownOrnaments({
     defaults: input.defaults,
-    cardSheet: sheetFromLayouts(input.layouts, cardKey),
-    sharedSheet: sheetFromLayouts(input.layouts, sharedKey),
-    sharedBase: sheetFromLayouts(input.layouts, input.sharedBaseKey),
+    cardSheet: firstOrnamentSheet(input.layouts, cardKeys),
+    sharedSheet: firstOrnamentSheet(input.layouts, sharedKeys),
+    sharedBase: firstOrnamentSheet(input.layouts, baseKeys),
     templateEditor: input.templateEditor,
   })
 }

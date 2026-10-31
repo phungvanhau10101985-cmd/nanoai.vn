@@ -11,6 +11,8 @@ export type WeddingPreviewLook = {
   selectedStyleId: string
   plateUrls: string[]
   ornaments: WeddingBackgroundOrnament[]
+  coverOrnaments: WeddingBackgroundOrnament[]
+  letterOrnaments: WeddingBackgroundOrnament[]
   ornamentKey: string
   sharedFrame: WeddingSharedFrame | null
 }
@@ -91,13 +93,17 @@ export function readWeddingPreviewLook(data: unknown): WeddingPreviewLook | null
   }
   const ornamentKeyRaw = typeof raw.ornamentKey === 'string' ? raw.ornamentKey.trim() : ''
   const ornamentKey = ornamentKeyRaw && isWeddingOrnamentLayoutKey(ornamentKeyRaw) ? ornamentKeyRaw : ''
-  const ornaments = Array.isArray(raw.ornaments) ? parseWeddingOrnamentList(raw.ornaments) ?? [] : []
+  const readList = (value: unknown) => (Array.isArray(value) ? parseWeddingOrnamentList(value) ?? [] : null)
+  const coverOrnaments = readList(raw.coverOrnaments) ?? readList(raw.ornaments) ?? []
+  const letterOrnaments = readList(raw.letterOrnaments) ?? []
   const sharedFrame = raw.sharedFrame == null ? null : parseWeddingSharedFrame(raw.sharedFrame)
   return {
     sectionConfig: raw.sectionConfig,
     selectedStyleId,
     plateUrls,
-    ornaments,
+    ornaments: coverOrnaments,
+    coverOrnaments,
+    letterOrnaments,
     ornamentKey,
     sharedFrame,
   }
