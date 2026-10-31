@@ -247,6 +247,111 @@ const SONG_HY: WeddingGiftBoxLook = {
   photo: '/wedding/gifts/lacquer.webp',
 }
 
+const TRE: WeddingGiftBoxLook = {
+  id: 'tre',
+  title: '#1a3324',
+  band: 'rgba(47, 107, 69, 0.22)',
+  box: 'linear-gradient(to bottom, #f4f7f1, #c5d7c4, #2f6b45)',
+  edge: '#8eae90',
+  corner: 'rgba(226, 236, 224, 0.8)',
+  glow: 'radial-gradient(ellipse at center, rgba(142,174,144,0.42) 0%, rgba(244,247,241,0.28) 48%, transparent 72%)',
+  shadow: '0 12px 36px rgba(26, 51, 36, 0.24), inset 0 1px 0 rgba(255, 252, 248, 0.4)',
+  sealPlate: 'linear-gradient(to bottom right, #f7faf4, #dce8d8)',
+  sealEdge: '#8eae90',
+  sealInk: '#1a3324',
+  mark: 'leaf',
+  scatter: 'none',
+  coinFrom: '#dce8d8',
+  coinTo: '#6d8f72',
+  coinEdge: '#2f6b45',
+  photo: '/wedding/gifts/tre.webp',
+}
+
+const DAO: WeddingGiftBoxLook = {
+  id: 'dao',
+  title: '#5c2a38',
+  band: 'rgba(163, 71, 98, 0.22)',
+  box: 'linear-gradient(to bottom, #fff6f4, #f3d0d4, #a34762)',
+  edge: '#c47a88',
+  corner: 'rgba(255, 236, 236, 0.8)',
+  glow: 'radial-gradient(ellipse at center, rgba(243,208,212,0.5) 0%, rgba(255,246,244,0.28) 48%, transparent 72%)',
+  shadow: '0 12px 36px rgba(92, 42, 56, 0.22), inset 0 1px 0 rgba(255, 252, 248, 0.4)',
+  sealPlate: 'linear-gradient(to bottom right, #fff6f4, #f8e0e2)',
+  sealEdge: '#c47a88',
+  sealInk: '#5c2a38',
+  mark: 'rose',
+  scatter: 'none',
+  coinFrom: '#f8e0e2',
+  coinTo: '#c47a88',
+  coinEdge: '#a34762',
+  photo: '/wedding/gifts/dao.webp',
+}
+
+const BIEN: WeddingGiftBoxLook = {
+  id: 'bien',
+  title: '#1a3c48',
+  band: 'rgba(15, 118, 110, 0.22)',
+  box: 'linear-gradient(to bottom, #f7f1e6, #e4d4bc, #0f766e)',
+  edge: '#7d9a96',
+  corner: 'rgba(232, 242, 240, 0.8)',
+  glow: 'radial-gradient(ellipse at center, rgba(125,154,150,0.4) 0%, rgba(247,241,230,0.28) 48%, transparent 72%)',
+  shadow: '0 12px 36px rgba(26, 60, 72, 0.22), inset 0 1px 0 rgba(255, 252, 248, 0.4)',
+  sealPlate: 'linear-gradient(to bottom right, #f7f1e6, #e7f3f1)',
+  sealEdge: '#7d9a96',
+  sealInk: '#1a3c48',
+  mark: 'leaf',
+  scatter: 'pearl',
+  coinFrom: '#e7f3f1',
+  coinTo: '#7d9a96',
+  coinEdge: '#0f766e',
+  photo: '/wedding/gifts/bien.webp',
+}
+
+const DEM: WeddingGiftBoxLook = {
+  id: 'dem',
+  title: '#f3e6c8',
+  band: 'rgba(230, 211, 179, 0.4)',
+  box: 'linear-gradient(to bottom, #1a2d52, #0c1830, #070e1c)',
+  edge: '#e6d3b3',
+  corner: 'rgba(243, 230, 200, 0.7)',
+  glow: 'radial-gradient(ellipse at center, rgba(230,211,179,0.35) 0%, rgba(12,24,48,0.2) 48%, transparent 72%)',
+  shadow: '0 12px 36px rgba(7, 14, 28, 0.4), inset 0 1px 0 rgba(243, 230, 200, 0.16)',
+  sealPlate: 'linear-gradient(to bottom right, #f6e7c8, #e6d3b3)',
+  sealEdge: '#d4bc90',
+  sealInk: '#0c1830',
+  mark: 'ring',
+  scatter: 'none',
+  coinFrom: '#f6e7c8',
+  coinTo: '#c6a15b',
+  coinEdge: '#8a5a12',
+  photo: '/wedding/gifts/dem.webp',
+}
+
+const LUA: WeddingGiftBoxLook = {
+  id: 'lua',
+  title: '#3b2a22',
+  band: 'rgba(138, 87, 39, 0.22)',
+  box: 'linear-gradient(to bottom, #fbf7f1, #e7d7c3, #8a5727)',
+  edge: '#c4a882',
+  corner: 'rgba(247, 243, 236, 0.85)',
+  glow: 'radial-gradient(ellipse at center, rgba(231,215,195,0.5) 0%, rgba(251,247,241,0.3) 48%, transparent 72%)',
+  shadow: '0 12px 36px rgba(59, 42, 34, 0.22), inset 0 1px 0 rgba(255, 252, 248, 0.45)',
+  sealPlate: 'linear-gradient(to bottom right, #fbf7f1, #f0e4d4)',
+  sealEdge: '#c4a882',
+  sealInk: '#3b2a22',
+  mark: 'lotus',
+  scatter: 'none',
+  coinFrom: '#f0e4d4',
+  coinTo: '#c4a882',
+  coinEdge: '#8a5727',
+  photo: '/wedding/gifts/lua.webp',
+}
+
+const DAO_VAN: WeddingGiftBoxLook = { ...DAO, id: 'dao-van' }
+const BIEN_VAN: WeddingGiftBoxLook = { ...BIEN, id: 'bien-van' }
+const DEM_VAN: WeddingGiftBoxLook = { ...DEM, id: 'dem-van' }
+const LUA_VAN: WeddingGiftBoxLook = { ...LUA, id: 'lua-van' }
+
 const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'long-phung-do': LACQUER,
   'do-son': LACQUER,
@@ -258,6 +363,15 @@ const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'vuon-kinh-hong': BLUSH,
   'hong-ngoc-trai': PEARL,
   'vuon-hong-troi': SKY,
+  'tre-viet': TRE,
+  'hoa-dao': DAO,
+  bien: BIEN,
+  'dem-vang': DEM,
+  'lua-ao-dai': LUA,
+  'hoa-dao-van': DAO_VAN,
+  'bien-van': BIEN_VAN,
+  'dem-vang-van': DEM_VAN,
+  'lua-van': LUA_VAN,
   'do-dam': BURGUNDY,
   'phong-bi-thu': ENVELOPE_GIFT,
 }

@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { WebLocale } from '@/lib/i18n/config'
 import {
   findWeddingBackgroundPreset,
@@ -61,14 +63,55 @@ export function WeddingSampleCardPicker(props: {
   ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
   confirmLabel?: string
+  confirmCloseLabel?: string
+  confirmHint?: string
   onPreview: (sample: WeddingSampleCard) => void
   onConfirm?: (sample: WeddingSampleCard) => void
 }) {
+  const [pending, setPending] = useState<WeddingSampleCard | null>(null)
   const library = props.samples.filter((sample) => sample.libraryImageUrl)
   const ready = props.samples.filter((sample) => !sample.aiStyleId && !sample.libraryImageUrl)
   const ai = props.samples.filter((sample) => sample.aiStyleId && !sample.libraryImageUrl)
+  const choose = (sample: WeddingSampleCard) => {
+    props.onPreview(sample)
+    if (props.confirmLabel && props.onConfirm) setPending(sample)
+  }
+  const pendingLabel = pending ? sampleLabel(props.locale, pending) : ''
   return (
     <div className="space-y-4">
+      <Dialog open={pending != null} onOpenChange={(open) => { if (!open && !props.disabled) setPending(null) }}>
+        <DialogContent overlayClassName="z-[240]" className="z-[240] sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{pendingLabel}</DialogTitle>
+            <DialogDescription>{props.confirmHint || props.hint}</DialogDescription>
+          </DialogHeader>
+          {pending ? (
+            <span className="block overflow-hidden rounded-xl border">
+              <SampleFace sample={pending} ornamentLayouts={props.ornamentLayouts} />
+            </span>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={props.disabled}
+              className="h-11 rounded-full border border-neutral-300 bg-white text-sm font-semibold text-neutral-800 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setPending(null)}
+            >
+              {props.confirmCloseLabel}
+            </button>
+            <button
+              type="button"
+              disabled={props.disabled || !pending}
+              className="h-11 rounded-full bg-neutral-950 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                if (pending) props.onConfirm?.(pending)
+              }}
+            >
+              {props.confirmLabel}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <SampleGroup
         locale={props.locale}
         samples={ready}
@@ -78,9 +121,7 @@ export function WeddingSampleCardPicker(props: {
         photoNote={props.photoNote}
         ornamentLayouts={props.ornamentLayouts}
         disabled={props.disabled}
-        confirmLabel={props.confirmLabel}
-        onPreview={props.onPreview}
-        onConfirm={props.onConfirm}
+        onChoose={choose}
       />
       {ai.length > 0 && props.aiHeading ? (
         <SampleGroup
@@ -92,9 +133,7 @@ export function WeddingSampleCardPicker(props: {
           photoNote={props.photoNote}
           ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
-          confirmLabel={props.confirmLabel}
-          onPreview={props.onPreview}
-          onConfirm={props.onConfirm}
+          onChoose={choose}
         />
       ) : null}
       {library.length > 0 && props.libraryHeading ? (
@@ -107,9 +146,7 @@ export function WeddingSampleCardPicker(props: {
           photoNote={props.photoNote}
           ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
-          confirmLabel={props.confirmLabel}
-          onPreview={props.onPreview}
-          onConfirm={props.onConfirm}
+          onChoose={choose}
         />
       ) : null}
     </div>
@@ -132,9 +169,7 @@ function SampleGroup(props: {
   photoNote: string
   ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
-  confirmLabel?: string
-  onPreview: (sample: WeddingSampleCard) => void
-  onConfirm?: (sample: WeddingSampleCard) => void
+  onChoose: (sample: WeddingSampleCard) => void
 }) {
   if (props.samples.length === 0) return null
   return (
@@ -146,36 +181,21 @@ function SampleGroup(props: {
           const label = sampleLabel(props.locale, sample)
           if (!label) return null
           const active = props.selectedId === sample.id || props.selectedId === sample.backgroundPresetId
-          const showOk = Boolean(active && props.confirmLabel && props.onConfirm)
           return (
-            <div
+            <button
               key={sample.id}
+              type="button"
+              disabled={props.disabled}
+              onClick={() => props.onChoose(sample)}
               className={cn(
-                'overflow-hidden rounded-xl border bg-[#fffaf2] text-left',
+                'overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
                 active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
               )}
             >
-              <button
-                type="button"
-                disabled={props.disabled}
-                onClick={() => props.onPreview(sample)}
-                className="block w-full text-left disabled:cursor-not-allowed"
-              >
-                <SampleFace sample={sample} ornamentLayouts={props.ornamentLayouts} />
-                <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">{label}</span>
-                {showOk ? null : <span className="block px-1.5 pb-1.5 text-[10px] text-muted-foreground">{props.photoNote}</span>}
-              </button>
-              {showOk ? (
-                <button
-                  type="button"
-                  disabled={props.disabled}
-                  onClick={() => props.onConfirm?.(sample)}
-                  className="block w-full px-1.5 pb-1.5 text-center text-xs font-semibold text-rose-700 disabled:cursor-not-allowed"
-                >
-                  {props.confirmLabel}
-                </button>
-              ) : null}
-            </div>
+              <SampleFace sample={sample} ornamentLayouts={props.ornamentLayouts} />
+              <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">{label}</span>
+              <span className="block px-1.5 pb-1.5 text-[10px] text-muted-foreground">{props.photoNote}</span>
+            </button>
           )
         })}
       </div>

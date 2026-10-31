@@ -174,6 +174,7 @@ export function WeddingOrnamentAdminLayer(props: {
   const sourceRef = useRef(props.ornaments)
   sourceRef.current = props.ornaments
   const revealSeed = useRef<number | null>(null)
+  const countRef = useRef(props.ornaments.length)
   const revealView = useRef<OrnamentView | null>(null)
   const onChangeRef = useRef(props.onChange)
   const selectedRef = useRef<number | null>(null)
@@ -310,6 +311,14 @@ export function WeddingOrnamentAdminLayer(props: {
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [props.editable, props.surface])
+
+  useEffect(() => {
+    const previous = countRef.current
+    countRef.current = props.ornaments.length
+    if (!props.editable || revealSeed.current != null) return
+    if (props.ornaments.length !== previous + 1) return
+    revealSeed.current = props.ornaments.length - 1
+  }, [props.editable, props.ornaments])
 
   useEffect(() => {
     const seed = revealSeed.current
@@ -768,7 +777,11 @@ function OrnamentPickerDialog(props: {
   const tx = getDictionary(props.locale).weddingCardAiImage
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent
+        overlayClassName="z-[220]"
+        className="z-[220] max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        onCloseAutoFocus={(event) => event.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>{tx.ornamentAdminAdd}</DialogTitle>
         </DialogHeader>
@@ -778,7 +791,15 @@ function OrnamentPickerDialog(props: {
               key={piece.src}
               type="button"
               className="rounded-xl border bg-white p-2 text-center hover:border-rose-400"
-              onClick={() => {
+              onPointerDown={(event) => {
+                if (event.button !== 0) return
+                event.preventDefault()
+                event.currentTarget.dataset.picked = '1'
+                props.onPick(piece.src)
+                props.onOpenChange(false)
+              }}
+              onClick={(event) => {
+                if (event.currentTarget.dataset.picked === '1') return
                 props.onPick(piece.src)
                 props.onOpenChange(false)
               }}
@@ -838,10 +859,10 @@ export function WeddingOrnamentAdminBar(props: {
   const [pickerOpen, setPickerOpen] = useState(false)
   const tx = getDictionary(props.locale).weddingCardAiImage
   return (
-    <div className={props.compact ? 'flex flex-wrap items-center gap-1' : 'mt-3 space-y-2 rounded-xl border border-dashed border-rose-200 bg-rose-50/60 p-2'} title={props.compact ? props.hint : undefined}>
+    <div className={props.compact ? 'mt-1 flex flex-col gap-1' : 'mt-3 space-y-2 rounded-xl border border-dashed border-rose-200 bg-rose-50/60 p-2'} title={props.compact ? props.hint : undefined}>
       <p className={props.compact ? 'sr-only' : 'text-xs leading-relaxed text-rose-950'}>{props.hint}</p>
-      <div className={props.compact ? 'contents' : 'flex flex-wrap gap-2'}>
-        <button type="button" className="h-8 rounded-md border bg-white px-3 text-xs" onClick={() => setPickerOpen(true)}>
+      <div className={props.compact ? 'flex flex-col gap-1' : 'flex flex-wrap gap-2'}>
+        <button type="button" className={props.compact ? 'h-9 w-full rounded-xl bg-rose-600 px-3 text-xs font-semibold text-white' : 'h-8 rounded-md border bg-white px-3 text-xs'} onClick={() => setPickerOpen(true)}>
           {props.addLabel}
         </button>
         <OrnamentPickerDialog locale={props.locale} open={pickerOpen} onOpenChange={setPickerOpen} onPick={props.onAdd} />
@@ -851,7 +872,7 @@ export function WeddingOrnamentAdminBar(props: {
           resetLabel={props.resetLabel}
           confirmLabel={tx.ornamentAdminResetConfirm}
           cancelLabel={tx.ornamentAdminResetCancel}
-          className="h-8 rounded-md border bg-white px-3 text-xs"
+          className={props.compact ? 'h-9 w-full rounded-xl border border-neutral-200 bg-white px-2 text-xs font-medium leading-tight text-neutral-700' : 'h-8 rounded-md border bg-white px-3 text-xs'}
           onReset={props.onReset}
         />
       </div>

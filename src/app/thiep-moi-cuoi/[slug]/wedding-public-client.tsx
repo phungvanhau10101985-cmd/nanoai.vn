@@ -1792,7 +1792,8 @@ export default function WeddingPublicClient({
       ) : null}
       {hostEditor ? (
         <WeddingDraggableChrome storageKey="wedding-host-editor-chrome" defaultCorner="top-right" hidden={!frameLines && !chromeHold}>
-          <div className="flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-end gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}>
+          <div className="w-[13.25rem] max-w-[calc(100vw-1.5rem)] rounded-2xl bg-white/95 p-1.5 shadow-lg ring-1 ring-black/10" role="group" aria-label={templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-neutral-100 p-0.5">
             {(['desktop', 'mobile'] as const).map((id) => {
               const active = viewDevice === id
               return (
@@ -1800,7 +1801,7 @@ export default function WeddingPublicClient({
                   key={id}
                   type="button"
                   aria-pressed={active}
-                  className={active ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
+                  className={active ? 'h-8 rounded-lg bg-neutral-950 text-xs font-semibold text-white' : 'h-8 rounded-lg text-xs font-medium text-neutral-600'}
                   onClick={() => {
                     const draft = activeDraft
                     const show = () => {
@@ -1844,10 +1845,11 @@ export default function WeddingPublicClient({
                 </button>
               )
             })}
+            </div>
             <button
               type="button"
               aria-pressed={frameLines}
-              className={frameLines ? 'h-8 rounded-full bg-neutral-900 px-3 text-xs font-semibold text-white' : 'h-8 rounded-full px-3 text-xs text-neutral-600'}
+              className={frameLines ? 'mt-1 h-9 w-full rounded-xl border border-neutral-200 bg-white text-xs font-semibold text-neutral-800' : 'mt-1 h-9 w-full rounded-xl bg-rose-600 text-xs font-semibold text-white'}
               onClick={() => {
                 setFrameLines((shown) => {
                   if (shown) setTextPick(null)
@@ -1860,7 +1862,7 @@ export default function WeddingPublicClient({
             {frameLines && !sampleDemo ? (
               <button
                 type="button"
-                className="h-8 rounded-full px-3 text-xs text-neutral-600"
+                className="mt-1 h-9 w-full rounded-xl border border-amber-300 bg-amber-50 text-xs font-semibold text-amber-950"
                 onClick={() => {
                   setLookPick('')
                   setLookOpen(true)
@@ -1909,6 +1911,8 @@ export default function WeddingPublicClient({
                 photoNote={tImage.sampleCardPhotos}
                 disabled={lookBusy}
                 confirmLabel={tImage.backgroundPickedOk}
+                confirmCloseLabel={tImage.previewChangeLookClose}
+                confirmHint={tImage.previewChangeLookHint}
                 onPreview={(sample) => setLookPick(sample.id)}
                 onConfirm={(sample) => void applyPickedLook(sample.id)}
               />

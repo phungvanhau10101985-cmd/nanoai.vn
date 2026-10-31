@@ -274,6 +274,17 @@ const MOC_BLOOM = '/wedding/backgrounds/ornaments/moc-bloom.png'
 const MIST_SPRIG = '/wedding/backgrounds/ornaments/mist-sprig.png'
 const DO_DAM_PEONY = '/wedding/backgrounds/ornaments/do-dam-peony.png'
 const DO_DAM_STEM = '/wedding/backgrounds/ornaments/do-dam-stem.png'
+const TRE_CANH = '/wedding/backgrounds/ornaments/tre-canh.png'
+const TRE_HOA = '/wedding/backgrounds/ornaments/tre-hoa.png'
+const DAO_CANH = '/wedding/backgrounds/ornaments/dao-canh.png'
+const DAO_NU = '/wedding/backgrounds/ornaments/dao-nu.png'
+const BIEN_VO = '/wedding/backgrounds/ornaments/bien-vo.png'
+const BIEN_CO = '/wedding/backgrounds/ornaments/bien-co.png'
+const DEM_CANH = '/wedding/backgrounds/ornaments/dem-canh.png'
+const DEM_HOA = '/wedding/backgrounds/ornaments/dem-hoa.png'
+const LUA_DAI = '/wedding/backgrounds/ornaments/lua-dai.png'
+const LUA_HOA = '/wedding/backgrounds/ornaments/lua-hoa.png'
+const NIGHT_PAPER = '#0c1830'
 const PEARL_ROSE = '/wedding/backgrounds/ornaments/pearl-rose.png'
 const LONG_PHUNG_CLOUD = '/wedding/backgrounds/ornaments/long-phung-cloud.svg'
 const SONG_HY_SEAL = '/wedding/backgrounds/ornaments/song-hy-seal.svg'
@@ -500,6 +511,115 @@ const DO_DAM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: DO_DAM_STEM, x: 94, y: 1, w: 14, rotate: 16, anchor: 'bottom', opacity: 0.75 },
 ]
 
+/** Cành tre và hoa tre chụp thật, bám hai mép. Giữa trang để trống cho chữ. */
+const TRE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: TRE_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
+  { src: TRE_HOA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
+]
+
+const TRE_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'forest',
+  coverRsvpColorId: 'olive',
+  ink: '#1a3324',
+  muted: '#3d5a48',
+  accent: '#2f6b45',
+  textClass: 'text-[#1a3324]',
+  mutedClass: 'text-[#3d5a48]',
+  accentClass: 'text-[#2f6b45]',
+  accentTextClass: 'text-[#1f4a32]',
+  textPlate: 'rgba(247,250,244,0.82)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+/** Hoa nổi bám mép. Nền là một dải liền, không vẽ hoa vào tấm giấy. */
+const DAO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: DAO_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
+  { src: DAO_NU, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.88 },
+]
+
+const DAO_LOOK: WeddingKitLook = {
+  styleId: 'floral',
+  buttonColorId: 'rose',
+  coverRsvpColorId: 'blush',
+  ink: '#5c2a38',
+  muted: '#8a5362',
+  accent: '#a34762',
+  textClass: 'text-[#5c2a38]',
+  mutedClass: 'text-[#8a5362]',
+  accentClass: 'text-[#a34762]',
+  accentTextClass: 'text-[#7a3148]',
+  textPlate: 'rgba(255,246,244,0.82)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+const BIEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: BIEN_VO, x: -14, y: -2, w: 22, rotate: -6, opacity: 0.92 },
+  { src: BIEN_CO, x: 88, y: 0, w: 14, rotate: 8, anchor: 'bottom', opacity: 0.84 },
+]
+
+const BIEN_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'teal',
+  coverRsvpColorId: 'ivory',
+  ink: '#1a3c48',
+  muted: '#4d6a74',
+  accent: '#0f766e',
+  textClass: 'text-[#1a3c48]',
+  mutedClass: 'text-[#4d6a74]',
+  accentClass: 'text-[#0f766e]',
+  accentTextClass: 'text-[#115e59]',
+  textPlate: 'rgba(255,250,244,0.82)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+const DEM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: DEM_CANH, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.92 },
+  { src: DEM_HOA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
+]
+
+const DEM_LOOK: WeddingKitLook = {
+  styleId: 'modern',
+  buttonColorId: 'gold',
+  coverRsvpColorId: 'champagne',
+  ink: '#f3e6c8',
+  muted: '#d9c7a2',
+  accent: '#e6d3b3',
+  textClass: 'text-[#f3e6c8]',
+  mutedClass: 'text-[#d9c7a2]',
+  accentClass: 'text-[#e6d3b3]',
+  accentTextClass: 'text-[#f6e7c8]',
+  textPlate: 'rgba(12,24,48,0.72)',
+  fontClass: 'wedding-font-formal',
+  shareFont: FORMAL_FONT,
+  surface: 'dark',
+  paper: NIGHT_PAPER,
+}
+
+const LUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: LUA_DAI, x: -16, y: -2, w: 24, rotate: -6, opacity: 0.92 },
+  { src: LUA_HOA, x: 86, y: 0, w: 16, rotate: 8, anchor: 'bottom', opacity: 0.88 },
+]
+
+const LUA_LOOK: WeddingKitLook = {
+  styleId: 'ethereal',
+  buttonColorId: 'bronze',
+  coverRsvpColorId: 'ivory',
+  ink: '#3b2a22',
+  muted: '#6e584c',
+  accent: '#8a5727',
+  textClass: 'text-[#3b2a22]',
+  mutedClass: 'text-[#6e584c]',
+  accentClass: 'text-[#8a5727]',
+  accentTextClass: 'text-[#6b4318]',
+  textPlate: 'rgba(255,250,244,0.78)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
 const DO_DAM_LOOK: WeddingKitLook = {
   styleId: 'minimal',
   buttonColorId: 'burgundy',
@@ -708,6 +828,132 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     },
   },
   {
+    id: 'hoa-dao',
+    plates: ['/wedding/backgrounds/hoa-dao-paper.jpg'],
+    ornaments: DAO_ORNAMENTS,
+    coverPresetId: 'hoa_dao',
+    look: DAO_LOOK,
+    label: {
+      vi: 'Hoa đào',
+      en: 'Peach blossom',
+      zh: '桃花',
+      ja: '桃の花',
+      ko: '복숭아꽃',
+    },
+  },
+  {
+    id: 'bien',
+    plates: ['/wedding/backgrounds/bien-paper.jpg'],
+    ornaments: BIEN_ORNAMENTS,
+    coverPresetId: 'bien',
+    look: BIEN_LOOK,
+    label: {
+      vi: 'Biển',
+      en: 'Seaside',
+      zh: '海边',
+      ja: '海辺',
+      ko: '해변',
+    },
+  },
+  {
+    id: 'dem-vang',
+    plates: ['/wedding/backgrounds/dem-vang-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 'dem_vang',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Đêm vàng',
+      en: 'Gold night',
+      zh: '夜金',
+      ja: '金の夜',
+      ko: '금빛 밤',
+    },
+  },
+  {
+    id: 'lua-ao-dai',
+    plates: ['/wedding/backgrounds/lua-ao-dai-paper.jpg'],
+    ornaments: LUA_ORNAMENTS,
+    coverPresetId: 'lua_ao_dai',
+    look: LUA_LOOK,
+    label: {
+      vi: 'Lụa áo dài',
+      en: 'Ao dai silk',
+      zh: '奥黛丝绸',
+      ja: 'アオザイの絹',
+      ko: '아오자이 실크',
+    },
+  },
+  {
+    id: 'hoa-dao-van',
+    plates: ['/wedding/backgrounds/hoa-dao-van-paper.jpg'],
+    ornaments: DAO_ORNAMENTS,
+    coverPresetId: 'hoa_dao_van',
+    look: DAO_LOOK,
+    label: {
+      vi: 'Hoa đào hoa văn',
+      en: 'Patterned peach blossom',
+      zh: '桃花纹',
+      ja: '桃の花模様',
+      ko: '복숭아꽃 무늬',
+    },
+  },
+  {
+    id: 'bien-van',
+    plates: ['/wedding/backgrounds/bien-van-paper.jpg'],
+    ornaments: BIEN_ORNAMENTS,
+    coverPresetId: 'bien_van',
+    look: BIEN_LOOK,
+    label: {
+      vi: 'Biển hoa văn',
+      en: 'Patterned seaside',
+      zh: '海边纹',
+      ja: '海辺の模様',
+      ko: '해변 무늬',
+    },
+  },
+  {
+    id: 'dem-vang-van',
+    plates: ['/wedding/backgrounds/dem-vang-van-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 'dem_vang_van',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Đêm vàng hoa văn',
+      en: 'Patterned gold night',
+      zh: '夜金纹',
+      ja: '金の夜の模様',
+      ko: '금빛 밤 무늬',
+    },
+  },
+  {
+    id: 'lua-van',
+    plates: ['/wedding/backgrounds/lua-van-paper.jpg'],
+    ornaments: LUA_ORNAMENTS,
+    coverPresetId: 'lua_van',
+    look: LUA_LOOK,
+    label: {
+      vi: 'Lụa hoa văn',
+      en: 'Patterned silk',
+      zh: '丝绸纹',
+      ja: '絹の模様',
+      ko: '실크 무늬',
+    },
+  },
+  {
+    id: 'tre-viet',
+    plates: ['/wedding/backgrounds/tre-viet-paper.jpg'],
+    ornaments: TRE_ORNAMENTS,
+    coverPresetId: 'tre_viet',
+    look: TRE_LOOK,
+    label: {
+      vi: 'Tre Việt Nam',
+      en: 'Vietnamese bamboo',
+      zh: '越南竹',
+      ja: 'ベトナムの竹',
+      ko: '베트남 대나무',
+    },
+  },
+  {
     id: 'do-dam',
     plates: ['/wedding/backgrounds/do-dam-paper.jpg'],
     ornaments: DO_DAM_ORNAMENTS,
@@ -802,6 +1048,15 @@ const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'vuon-hong-troi': { openBurstEffect: 'butterflies', openFallEffect: 'stars' },
   'hoa-moc-xanh': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'to-duyen-xanh': { openBurstEffect: 'bloom', openFallEffect: 'none' },
+  'tre-viet': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'hoa-dao': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  bien: { openBurstEffect: 'petals', openFallEffect: 'none' },
+  'dem-vang': { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  'lua-ao-dai': { openBurstEffect: 'petals', openFallEffect: 'none' },
+  'hoa-dao-van': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  'bien-van': { openBurstEffect: 'petals', openFallEffect: 'none' },
+  'dem-vang-van': { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  'lua-van': { openBurstEffect: 'petals', openFallEffect: 'none' },
   'do-dam': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'phong-bi-thu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   floral: { openBurstEffect: 'bloom', openFallEffect: 'petals' },
@@ -961,14 +1216,17 @@ export function applyWeddingKitTheme(theme: WeddingTheme, preset: WeddingBackgro
     }
   }
   if (preset.look.surface !== 'dark' || !preset.look.paper) return next
+  const night = preset.look.paper === NIGHT_PAPER
   return {
     ...next,
     darkPaper: preset.look.paper,
-    pageBg: 'bg-[#5c1018]',
+    pageBg: night ? 'bg-[#0c1830]' : 'bg-[#5c1018]',
     textGlow: GOLD_ON_RED_GLOW,
     textGlowHeading: GOLD_ON_RED_GLOW_HEADING,
-    nav: 'border-[#e8c87a]/30 bg-[#4a0c16]/92 text-[#f6e4b8] shadow-[0_4px_24px_rgba(0,0,0,0.28)]',
-    ring: 'ring-[#e8c87a]/35',
+    nav: night
+      ? 'border-[#e6d3b3]/35 bg-[#0c1830]/92 text-[#f3e6c8] shadow-[0_4px_24px_rgba(0,0,0,0.35)]'
+      : 'border-[#e8c87a]/30 bg-[#4a0c16]/92 text-[#f6e4b8] shadow-[0_4px_24px_rgba(0,0,0,0.28)]',
+    ring: night ? 'ring-[#e6d3b3]/35' : 'ring-[#e8c87a]/35',
   }
 }
 

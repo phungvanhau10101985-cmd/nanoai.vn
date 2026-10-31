@@ -185,6 +185,46 @@ test('the envelope set uses palace paper and a letter cover', () => {
   assert.equal(patch.bridePortraitShellMode, 'none')
 })
 
+test('a scroll theme is one plate, so stacked copies read as one strip', () => {
+  for (const id of ['hoa-dao', 'bien', 'dem-vang', 'lua-ao-dai', 'hoa-dao-van', 'bien-van', 'dem-vang-van', 'lua-van'] as const) {
+    const preset = findWeddingBackgroundPreset(id)
+    assert.ok(preset)
+    assert.equal(preset.plates.length, 1)
+    assert.equal(findWeddingCoverPreset(preset.coverPresetId)?.layout, 'plain')
+  }
+  assert.equal(findWeddingBackgroundPreset('dem-vang')?.look.surface, 'dark')
+  assert.equal(findWeddingBackgroundPreset('dem-vang')?.look.paper, '#0c1830')
+  const night = applyWeddingKitTheme(getWeddingTheme('modern'), findWeddingBackgroundPreset('dem-vang'))
+  assert.equal(night.pageBg, 'bg-[#0c1830]')
+  assert.equal(night.darkPaper, '#0c1830')
+  const red = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), findWeddingBackgroundPreset('long-phung-do'))
+  assert.equal(red.pageBg, 'bg-[#5c1018]')
+  assert.notEqual(findWeddingBackgroundPreset('hoa-dao')?.plates[0], findWeddingBackgroundPreset('hoa-dao-van')?.plates[0])
+  assert.notEqual(findWeddingBackgroundPreset('bien')?.plates[0], findWeddingBackgroundPreset('bien-van')?.plates[0])
+  assert.notEqual(findWeddingBackgroundPreset('lua-ao-dai')?.plates[0], findWeddingBackgroundPreset('lua-van')?.plates[0])
+})
+
+test('the Vietnamese bamboo set uses ivory paper, bamboo sprigs, and a bare photo', () => {
+  assert.deepEqual(weddingBackgroundPlateUrls('', [], 'tre-viet'), [
+    '/wedding/backgrounds/tre-viet-paper.jpg',
+  ])
+  const preset = findWeddingBackgroundPreset('tre-viet')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'tre_viet')
+  assert.equal(preset.look.buttonColorId, 'forest')
+  assert.equal(preset.look.ink, '#1a3324')
+  assert.equal(preset.look.styleId, 'minimal')
+  assert.ok(preset.ornaments.some((item) => item.src.endsWith('/tre-canh.png')))
+  assert.ok(preset.ornaments.some((item) => item.src.endsWith('/tre-hoa.png')))
+  const frame = findWeddingCoverPreset('tre_viet')
+  assert.equal(frame?.layout, 'plain')
+  assert.equal(frame?.frame, undefined)
+  const patch = weddingKitFramePatch(preset)
+  assert.equal(patch.coverFrameMode, 'preset')
+  assert.equal(patch.groomPortraitShellMode, 'none')
+  assert.equal(patch.bridePortraitShellMode, 'none')
+})
+
 test('the deep burgundy set uses ivory paper, corner flowers, and a bare photo', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'do-dam'), [
     '/wedding/backgrounds/do-dam-paper.jpg',

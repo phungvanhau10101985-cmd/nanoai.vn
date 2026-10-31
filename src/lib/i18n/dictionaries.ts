@@ -3936,6 +3936,7 @@ export type Dictionary = {
     previewEditMode: string
     previewChangeLook: string
     previewChangeLookHint: string
+    previewChangeLookClose: string
     ornamentAdminRotateLeft: string
     ornamentAdminRotateRight: string
     ornamentAdminBlur: string
@@ -8460,7 +8461,8 @@ export const VI_DICTIONARY: Dictionary = {
     previewBrowseMode: 'Chế độ lướt',
     previewEditMode: 'Chế độ sửa',
     previewChangeLook: 'Đổi giao diện',
-    previewChangeLookHint: 'Chọn một mẫu. Bấm OK để thiệp đang sửa dùng mẫu đó ngay.',
+    previewChangeLookHint: 'Bấm một giao diện. Popup có OK và Đóng. OK đổi thiệp đang sửa ngay.',
+    previewChangeLookClose: 'Đóng',
     ornamentAdminRotateLeft: 'Xoay trái',
     ornamentAdminRotateRight: 'Xoay phải',
     ornamentAdminBlur: 'Làm mờ',
