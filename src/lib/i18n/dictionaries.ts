@@ -3574,6 +3574,8 @@ export type Dictionary = {
     uploadProgress: string
     uploadSaved: string
     uploadPartial: string
+    /** Bài trùng tên trong kho — không tải lại. */
+    uploadSkipped: string
     uploadTooLarge: string
     uploadInvalidType: string
     uploadFailed: string
@@ -8073,11 +8075,12 @@ export const VI_DICTIONARY: Dictionary = {
     stopPreview: 'Dừng',
     confirmPick: 'OK',
     pickerTitle: 'Chọn nhạc nền',
-    uploadHint: 'Chọn nhiều bài (mỗi bài tối đa 8 MB). Hệ thống tải lần lượt và lưu vào kho để khách sau cùng dùng.',
+    uploadHint: 'Chọn nhiều bài (mỗi bài tối đa 13 MB). Bài đã có trong kho sẽ không tải lại.',
     uploadProgress: 'Đang tải {current}/{total}: {name}',
     uploadSaved: 'Đã lưu {count} bài vào kho nhạc.',
     uploadPartial: 'Đã lưu {ok}/{total}. {failed} bài không tải được.',
-    uploadTooLarge: 'Mỗi bài tối đa 8 MB.',
+    uploadSkipped: 'Đã có {count} bài trong kho, không tải lại.',
+    uploadTooLarge: 'Mỗi bài tối đa 13 MB.',
     uploadInvalidType: 'Chỉ nhận file nhạc (mp3, m4a, wav, aac, ogg).',
     uploadFailed: 'Không tải được bài này.',
     deleteTrack: 'Xóa',

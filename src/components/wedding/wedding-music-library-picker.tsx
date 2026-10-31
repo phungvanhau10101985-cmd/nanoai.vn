@@ -7,8 +7,63 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { WeddingMusicLibraryRow } from '@/lib/db/wedding-cards-pg'
-import { weddingLibraryMusicFileError } from '@/lib/wedding/wedding-music-library'
+import { findWeddingMusicInLibrary, weddingLibraryMusicFileError, weddingMusicLibraryMatchKey } from '@/lib/wedding/wedding-music-library'
 import { deleteWeddingLibraryTrack, uploadWeddingLibraryTrack } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+
+export async function uploadWeddingLibraryMusicBatch(input: {
+  files: File[]
+  library: WeddingMusicLibraryRow[]
+  onLibraryChange: (items: WeddingMusicLibraryRow[]) => void
+  onProgress: (state: { current: number; total: number; name: string } | null) => void
+  onFileProblem: (message: string, fileName: string) => void
+  problemText: (code: string) => string
+}) {
+  let library = input.library
+  const seen = new Set(library.map((item) => weddingMusicLibraryMatchKey(item.title)))
+  let ok = 0
+  let failed = 0
+  let skipped = 0
+  let lastUrl = ''
+  for (let index = 0; index < input.files.length; index += 1) {
+    const file = input.files[index]
+    const name = file.name.length > 48 ? `${file.name.slice(0, 45)}…` : file.name
+    input.onProgress({ current: index + 1, total: input.files.length, name })
+    const already = findWeddingMusicInLibrary(library, file.name)
+    const matchKey = weddingMusicLibraryMatchKey(file.name)
+    if (already || seen.has(matchKey)) {
+      skipped += 1
+      if (already) lastUrl = already.audioUrl
+      seen.add(matchKey)
+      continue
+    }
+    const problem = weddingLibraryMusicFileError(file)
+    if (problem) {
+      failed += 1
+      input.onFileProblem(input.problemText(problem), file.name)
+      continue
+    }
+    const body = new FormData()
+    body.append('musicFile', file)
+    body.append('musicTitle', file.name)
+    const result = await uploadWeddingLibraryTrack(body)
+    if ('error' in result && result.error) {
+      failed += 1
+      input.onFileProblem(input.problemText(result.error), file.name)
+      continue
+    }
+    if (result.musicLibrary) {
+      library = result.musicLibrary
+      for (const item of library) seen.add(weddingMusicLibraryMatchKey(item.title))
+      input.onLibraryChange(library)
+    }
+    if (result.audioUrl) lastUrl = result.audioUrl
+    seen.add(matchKey)
+    if ('already' in result && result.already) skipped += 1
+    else if (result.audioUrl) ok += 1
+  }
+  input.onProgress(null)
+  return { ok, failed, skipped, lastUrl }
+}
 
 function fillTemplate(template: string, vars: Record<string, string | number>) {
   return Object.entries(vars).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template)
@@ -29,6 +84,7 @@ export function WeddingMusicLibraryPicker(props: {
   uploadProgress: string
   uploadSaved: string
   uploadPartial: string
+  uploadSkipped: string
   uploadTooLarge: string
   uploadInvalidType: string
   uploadFailed: string
@@ -110,35 +166,16 @@ export function WeddingMusicLibraryPicker(props: {
     const files = Array.from(list ?? [])
     if (fileRef.current) fileRef.current.value = ''
     if (!files.length || uploadState) return
-    let ok = 0
-    let failed = 0
-    let lastUrl = ''
-    for (let index = 0; index < files.length; index += 1) {
-      const file = files[index]
-      const name = file.name.length > 48 ? `${file.name.slice(0, 45)}…` : file.name
-      setUploadState({ current: index + 1, total: files.length, name })
-      const problem = weddingLibraryMusicFileError(file)
-      if (problem) {
-        failed += 1
-        toast({ title: errorText(problem), description: file.name, variant: 'destructive' })
-        continue
-      }
-      const body = new FormData()
-      body.append('musicFile', file)
-      body.append('musicTitle', file.name)
-      const result = await uploadWeddingLibraryTrack(body)
-      if ('error' in result && result.error) {
-        failed += 1
-        toast({ title: errorText(result.error), description: file.name, variant: 'destructive' })
-        continue
-      }
-      if (result.musicLibrary) props.onLibraryChange(result.musicLibrary)
-      if (result.audioUrl) {
-        lastUrl = result.audioUrl
-        ok += 1
-      }
-    }
-    setUploadState(null)
+    const { ok, failed, skipped, lastUrl } = await uploadWeddingLibraryMusicBatch({
+      files,
+      library: props.items,
+      onLibraryChange: props.onLibraryChange,
+      onProgress: setUploadState,
+      onFileProblem: (message, fileName) => {
+        toast({ title: message, description: fileName, variant: 'destructive' })
+      },
+      problemText: errorText,
+    })
     if (lastUrl) setDraftUrl(lastUrl)
     if (ok > 0 && failed === 0) {
       toast({ title: fillTemplate(props.uploadSaved, { count: ok }) })
@@ -147,6 +184,9 @@ export function WeddingMusicLibraryPicker(props: {
         title: fillTemplate(props.uploadPartial, { ok, total: files.length, failed }),
         variant: 'destructive',
       })
+    }
+    if (skipped > 0) {
+      toast({ title: fillTemplate(props.uploadSkipped, { count: skipped }) })
     }
   }
 

@@ -32,7 +32,7 @@ import { WeddingAiLibraryGrid } from '@/components/wedding/wedding-ai-library-gr
 import type { WeddingAiImage, WeddingBackgroundLibraryItem, WeddingCard, WeddingCardSummary, WeddingCoverFrameLibraryItem, WeddingMusicLibraryRow, WeddingRsvp } from '@/lib/db/wedding-cards-pg'
 import { WeddingCouplePortraits } from '@/components/wedding/wedding-couple-portraits'
 import { WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
-import { WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
+import { uploadWeddingLibraryMusicBatch, WeddingMusicLibraryPicker } from '@/components/wedding/wedding-music-library-picker'
 import {
   WeddingInvitationAudio,
   type WeddingInvitationAudioHandle,
@@ -498,6 +498,8 @@ export default function WeddingCardAiClientPage() {
   const creditTopUpOpenRef = useRef(false)
   const [origin, setOrigin] = useState('')
   const [musicFile, setMusicFile] = useState<File | null>(null)
+  const [musicUpload, setMusicUpload] = useState<{ current: number; total: number; name: string } | null>(null)
+  const pageMusicFileRef = useRef<HTMLInputElement | null>(null)
   const [musicClearOnSave, setMusicClearOnSave] = useState(false)
   const [musicStartInput, setMusicStartInput] = useState('')
   const [musicEndInput, setMusicEndInput] = useState('')
@@ -522,6 +524,40 @@ export default function WeddingCardAiClientPage() {
     return () => urls.forEach((url) => URL.revokeObjectURL(url))
   }, [albumImageFiles])
   const tMu = useMemo(() => getDictionary(uiLocale).weddingCardAiMusic, [uiLocale])
+
+  async function uploadPageMusic(list: FileList | null) {
+    const files = Array.from(list ?? [])
+    if (pageMusicFileRef.current) pageMusicFileRef.current.value = ''
+    if (!files.length || musicUpload) return
+    const fill = (template: string, vars: Record<string, string | number>) =>
+      Object.entries(vars).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template)
+    const problemText = (code: string) => {
+      if (code === 'too_large') return tMu.uploadTooLarge
+      if (code === 'invalid_type') return tMu.uploadInvalidType
+      if (code === 'upload_failed') return tMu.uploadFailed
+      return code
+    }
+    const { ok, failed, skipped, lastUrl } = await uploadWeddingLibraryMusicBatch({
+      files,
+      library: musicLibrary,
+      onLibraryChange: setMusicLibrary,
+      onProgress: setMusicUpload,
+      onFileProblem: (message, fileName) => {
+        toast({ title: message, description: fileName, variant: 'destructive' })
+      },
+      problemText,
+    })
+    if (lastUrl) {
+      setCard((prev) => ({ ...prev, musicUrl: lastUrl }))
+      setMusicFile(null)
+      setMusicClearOnSave(false)
+    }
+    if (ok > 0 && failed === 0) toast({ title: fill(tMu.uploadSaved, { count: ok }) })
+    else if (ok > 0) {
+      toast({ title: fill(tMu.uploadPartial, { ok, total: files.length, failed }), variant: 'destructive' })
+    }
+    if (skipped > 0) toast({ title: fill(tMu.uploadSkipped, { count: skipped }) })
+  }
   const txCal = useMemo(() => getDictionary(uiLocale).weddingCardCalendar, [uiLocale])
   const txGift = useMemo(() => getDictionary(uiLocale).weddingGiftBox, [uiLocale])
   const tBrief = useMemo(() => getDictionary(uiLocale).weddingCardAiBrief, [uiLocale])
@@ -2973,6 +3009,7 @@ export default function WeddingCardAiClientPage() {
                     uploadProgress={tMu.uploadProgress}
                     uploadSaved={tMu.uploadSaved}
                     uploadPartial={tMu.uploadPartial}
+                    uploadSkipped={tMu.uploadSkipped}
                     uploadTooLarge={tMu.uploadTooLarge}
                     uploadInvalidType={tMu.uploadInvalidType}
                     uploadFailed={tMu.uploadFailed}
@@ -2997,21 +3034,30 @@ export default function WeddingCardAiClientPage() {
                       setMusicClearOnSave(false)
                     }}
                   />
-                  <label className="relative flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted">
+                  <label
+                    className={cn(
+                      'relative flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted',
+                      musicUpload && 'pointer-events-none opacity-70',
+                    )}
+                  >
                     <input
+                      ref={pageMusicFileRef}
                       type="file"
-                      accept="audio/*"
+                      accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg"
+                      multiple
                       className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
                       style={{ touchAction: 'manipulation' }}
+                      disabled={Boolean(musicUpload)}
                       onChange={(event) => {
-                        const f = event.target.files?.[0] ?? null
-                        setMusicFile(f)
-                        if (f) setMusicClearOnSave(false)
+                        void uploadPageMusic(event.target.files)
                       }}
                     />
-                    <Upload className="pointer-events-none h-4 w-4" />
+                    {musicUpload ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="pointer-events-none h-4 w-4" />}
                     <span className="pointer-events-none">{tMu.uploadLabel}</span>
                   </label>
+                  <p className="text-xs text-muted-foreground">
+                    {musicUpload ? tMu.uploadProgress.replace('{current}', String(musicUpload.current)).replace('{total}', String(musicUpload.total)).replace('{name}', musicUpload.name) : tMu.uploadHint}
+                  </p>
                   <p className="text-xs text-muted-foreground">{tMu.sharedUploadNote}</p>
                   {!musicClearOnSave && !musicFile && !card.musicUrl ? (
                     <p className="text-xs text-muted-foreground">Chưa có nhạc. Bấm «Chọn nhạc» hoặc tải file để có nhạc nền trên thiệp.</p>

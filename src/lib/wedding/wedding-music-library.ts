@@ -10,15 +10,7 @@ export type WeddingMusicLibraryItem = {
   credit: string
 }
 
-export const WEDDING_MUSIC_SEEDS: WeddingMusicLibraryItem[] = [
-  {
-    id: 'seed-heartwarming',
-    title: 'Ấm áp',
-    audioUrl: '/wedding-music/heartwarming.mp3',
-    source: 'seed',
-    credit: WEDDING_MUSIC_SEED_CREDIT,
-  },
-]
+export const WEDDING_MUSIC_SEEDS: WeddingMusicLibraryItem[] = []
 
 const SEED_URLS = new Set(WEDDING_MUSIC_SEEDS.map((item) => item.audioUrl))
 
@@ -35,8 +27,8 @@ export function weddingMusicTitleFromFileName(name: string) {
   return (base || 'Nhạc thiệp').slice(0, 80)
 }
 
-/** Dưới trần server action 10 MB, chừa chỗ cho phần form. */
-export const WEDDING_LIBRARY_MUSIC_MAX_BYTES = 8 * 1024 * 1024
+/** Mỗi bài tối đa 13 MB. Server action để 16 MB để file này còn chỗ trong form. */
+export const WEDDING_LIBRARY_MUSIC_MAX_BYTES = 13 * 1024 * 1024
 
 const LIBRARY_AUDIO_EXT = /\.(mp3|mpeg|m4a|wav|aac|ogg)$/i
 
@@ -51,4 +43,18 @@ export function weddingLibraryMusicFileError(file: {
   if (!typeOk || file.size <= 0) return 'invalid_type'
   if (file.size > WEDDING_LIBRARY_MUSIC_MAX_BYTES) return 'too_large'
   return null
+}
+
+/** Khóa so trùng tên bài: bỏ đuôi file, gạch, hoa thường. */
+export function weddingMusicLibraryMatchKey(titleOrFileName: string) {
+  return weddingMusicTitleFromFileName(titleOrFileName).toLocaleLowerCase('vi-VN')
+}
+
+export function findWeddingMusicInLibrary<T extends { title: string; audioUrl: string }>(
+  items: T[],
+  titleOrFileName: string,
+): T | null {
+  const key = weddingMusicLibraryMatchKey(titleOrFileName)
+  if (!key) return null
+  return items.find((item) => weddingMusicLibraryMatchKey(item.title) === key) ?? null
 }

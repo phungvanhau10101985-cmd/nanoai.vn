@@ -105,7 +105,7 @@ const nextConfig = {
     experimental: {
         serverComponentsExternalPackages: ['xlsx', 'pdf-to-img', 'pdfjs-dist', 'node-poppler', 'web-push', '@resvg/resvg-js'],
         serverActions: {
-            bodySizeLimit: '10mb',
+            bodySizeLimit: '16mb',
             /**
              * Encryption key cố định cho Server Action ID. Nếu không đặt, mỗi `npm run build`
              * sẽ sinh ID ngẫu nhiên → browser cache JS cũ → lỗi:

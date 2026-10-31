@@ -75,7 +75,9 @@ import {
 } from '@/lib/remove-background-png'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
 import {
+  findWeddingMusicInLibrary,
   isWeddingMusicSeedUrl,
+  WEDDING_LIBRARY_MUSIC_MAX_BYTES,
   weddingLibraryMusicFileError,
   weddingMusicTitleFromFileName,
 } from '@/lib/wedding/wedding-music-library'
@@ -141,6 +143,9 @@ async function uploadWeddingMusic(userId: string, cardId: string, file: FormData
   if (!file.type.startsWith('audio/') && !/\.(mp3|m4a|wav|aac|ogg)$/i.test(file.name)) {
     throw new Error('File nhạc phải là audio hợp lệ.')
   }
+  if (file.size > WEDDING_LIBRARY_MUSIC_MAX_BYTES) {
+    throw new Error('Mỗi bài nhạc tối đa 13 MB.')
+  }
   const ext = weddingAudioExt(file)
   const path = `uploads/${userId}/wedding_${cardId}_music_${Date.now()}.${ext}`
   const { publicUrl } = await uploadTryOnImagePublic(path, file, { contentType: file.type || 'audio/mpeg', upsert: true })
@@ -164,6 +169,9 @@ export async function uploadWeddingLibraryTrack(formData: FormData) {
   if (!(file instanceof File)) return { error: 'invalid_type' as const }
   const problem = weddingLibraryMusicFileError(file)
   if (problem) return { error: problem }
+  const libraryNow = await listWeddingMusicLibrary()
+  const existing = findWeddingMusicInLibrary(libraryNow, file.name)
+  if (existing) return { musicLibrary: libraryNow, audioUrl: existing.audioUrl, already: true as const }
   let audioUrl = ''
   try {
     audioUrl = await uploadWeddingLibraryMusicFile(ownerUserId, file)
@@ -670,14 +678,19 @@ export async function saveWeddingCardBrief(formData: FormData) {
     if (uploadedBride) brideImageUrl = uploadedBride
     else if (boolValue(formData.get('brideImageClear'))) brideImageUrl = ''
     const uploadedFile = formData.get('musicFile')
-    const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, uploadedFile)
-    if (uploadedMusic) {
-      musicUrl = uploadedMusic
-      const rawTitle = clean(formData.get('musicTitle'), 120)
-      const title = weddingMusicTitleFromFileName(
-        rawTitle || (uploadedFile instanceof File ? uploadedFile.name : 'Nhạc thiệp'),
-      )
-      await saveWeddingMusicToLibrary({ title, audioUrl: uploadedMusic })
+    if (uploadedFile instanceof File && uploadedFile.size > 0) {
+      const existingTrack = findWeddingMusicInLibrary(await listWeddingMusicLibrary(), uploadedFile.name)
+      if (existingTrack) {
+        musicUrl = existingTrack.audioUrl
+      } else {
+        const uploadedMusic = await uploadWeddingMusic(ownerUserId, cardId, uploadedFile)
+        if (uploadedMusic) {
+          musicUrl = uploadedMusic
+          const rawTitle = clean(formData.get('musicTitle'), 120)
+          const title = weddingMusicTitleFromFileName(rawTitle || uploadedFile.name)
+          await saveWeddingMusicToLibrary({ title, audioUrl: uploadedMusic })
+        }
+      }
     } else if (boolValue(formData.get('musicClear'))) {
       musicUrl = ''
     } else {
