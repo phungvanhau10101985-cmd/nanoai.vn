@@ -49,6 +49,7 @@ export function CreationToolPageShell({
         </div>
 
         <aside
+          data-creation-sidebar=""
           className={cn(
             /* Mobile: menu dưới nội dung; desktop: cột trái */
             'w-full shrink-0 space-y-6 border-t border-border/60 pt-6 pb-6 lg:order-1 lg:border-t-0 lg:pt-0 lg:pb-5',

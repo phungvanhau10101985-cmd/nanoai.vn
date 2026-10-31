@@ -55,6 +55,16 @@ export function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRES
       </div>
     )
   }
+  if (preset.layout === 'envelope') {
+    return (
+      <div className={shell} style={{ background: preset.thumbnail.topBg }}>
+        <div className="absolute left-[28%] top-[22%] h-[28%] w-[34%] rotate-6 bg-white shadow" />
+        <div className="absolute left-[18%] top-[30%] h-[34%] w-[64%] bg-[#6b2136] [clip-path:polygon(0_38%,50%0,100%38%,100%100%,0_100%)]" />
+        <div className="absolute left-[42%] top-[46%] h-3 w-3 rounded-full bg-[#d4a24c]" />
+        <div className={cn('absolute inset-x-2 bottom-3 text-center font-serif text-[9px]', preset.thumbnail.textClass)}>A & B</div>
+      </div>
+    )
+  }
   if (preset.layout === 'plain') {
     return (
       <div className={shell} style={{ background: preset.thumbnail.topBg }}>

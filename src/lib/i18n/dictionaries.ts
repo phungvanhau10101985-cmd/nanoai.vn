@@ -3569,6 +3569,18 @@ export type Dictionary = {
     stopPreview: string
     confirmPick: string
     pickerTitle: string
+    /** Gợi ý trong hộp chọn: chọn nhiều file, tải lần lượt vào kho. */
+    uploadHint: string
+    uploadProgress: string
+    uploadSaved: string
+    uploadPartial: string
+    uploadTooLarge: string
+    uploadInvalidType: string
+    uploadFailed: string
+    deleteTrack: string
+    deleteTrackConfirm: string
+    deleteDenied: string
+    deleteFailed: string
   }
   /** Thiệp công khai / preview: khối lịch & giờ tiệc (save-the-date) */
   weddingCardCalendar: {
@@ -3980,6 +3992,7 @@ export type Dictionary = {
     sampleComposeSavedHint: string
     sampleComposeSavedPlain: string
     sampleComposeWordsOnly: string
+    sampleComposeKeptHint: string
     downloadCreated: string
     back: string
     generateStyleLabel: string
@@ -8060,6 +8073,17 @@ export const VI_DICTIONARY: Dictionary = {
     stopPreview: 'Dừng',
     confirmPick: 'OK',
     pickerTitle: 'Chọn nhạc nền',
+    uploadHint: 'Chọn nhiều bài (mỗi bài tối đa 8 MB). Hệ thống tải lần lượt và lưu vào kho để khách sau cùng dùng.',
+    uploadProgress: 'Đang tải {current}/{total}: {name}',
+    uploadSaved: 'Đã lưu {count} bài vào kho nhạc.',
+    uploadPartial: 'Đã lưu {ok}/{total}. {failed} bài không tải được.',
+    uploadTooLarge: 'Mỗi bài tối đa 8 MB.',
+    uploadInvalidType: 'Chỉ nhận file nhạc (mp3, m4a, wav, aac, ogg).',
+    uploadFailed: 'Không tải được bài này.',
+    deleteTrack: 'Xóa',
+    deleteTrackConfirm: 'Xóa bài này khỏi kho nhạc? Thiệp đang dùng bài này sẽ không còn nhạc nền.',
+    deleteDenied: 'Chỉ quản trị mới xóa được nhạc trong kho.',
+    deleteFailed: 'Không xóa được bài nhạc.',
   },
   weddingCardCalendar: {
     sectionTitle: 'THÔNG TIN TIỆC CƯỚI',
@@ -8455,7 +8479,7 @@ export const VI_DICTIONARY: Dictionary = {
     readyBackgroundLayered: 'Nền và hoa nổi',
     sampleCardsTitle: 'Thiệp mẫu',
     sampleAiCardsTitle: 'Chủ đề AI',
-    sampleCardsHint: 'Bấm một mẫu để mở thiệp demo. Dùng mẫu này hỏi tên cô dâu, chú rể, rồi AI soạn lời thiệp miễn phí. Xem mẫu không trừ credit.',
+    sampleCardsHint: 'Bấm một mẫu để mở thiệp demo. Chưa có thiệp và chưa có tên cô dâu chú rể thì Dùng mẫu này sẽ hỏi tên. Đã có thì đưa thông tin đó sang mẫu mới. Xem mẫu không trừ credit.',
     sampleCardUse: 'Dùng mẫu này',
     sampleCardPhotos: '1 ảnh đầu thiệp · 2 ảnh riêng · 2 ảnh album',
     sampleCardAppliedTitle: 'Đã dùng mẫu này',
@@ -8491,6 +8515,7 @@ export const VI_DICTIONARY: Dictionary = {
     sampleComposeSavedPlain:
       'Lời mở đầu, quote, câu chuyện và lời cảm ơn đã vào thiệp. Sửa tay hoặc bấm Tối ưu AI từng đoạn nếu muốn viết lại.',
     sampleComposeWordsOnly: 'Lời đã lưu trên thiệp. Chưa gắn được nền mẫu — chọn lại mẫu nếu muốn đổi nền.',
+    sampleComposeKeptHint: 'Tên cô dâu, chú rể và nội dung đã có được giữ trên mẫu mới. Không hỏi lại.',
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
     generateStyleLabel: 'Phong cách',

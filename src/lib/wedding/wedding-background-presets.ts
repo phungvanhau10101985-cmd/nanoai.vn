@@ -694,6 +694,20 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     },
   },
   {
+    id: 'phong-bi-thu',
+    plates: ['/wedding/backgrounds/phong-bi-paper.jpg'],
+    ornaments: DO_DAM_ORNAMENTS,
+    coverPresetId: 'phong_bi',
+    look: DO_DAM_LOOK,
+    label: {
+      vi: 'Phong bì thư',
+      en: 'Letter envelope',
+      zh: '信封',
+      ja: '封筒',
+      ko: '편지 봉투',
+    },
+  },
+  {
     id: 'do-dam',
     plates: ['/wedding/backgrounds/do-dam-paper.jpg'],
     ornaments: DO_DAM_ORNAMENTS,
@@ -789,6 +803,7 @@ const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'hoa-moc-xanh': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'to-duyen-xanh': { openBurstEffect: 'bloom', openFallEffect: 'none' },
   'do-dam': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'phong-bi-thu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   floral: { openBurstEffect: 'bloom', openFallEffect: 'petals' },
   ethereal: { openBurstEffect: 'stars', openFallEffect: 'petals' },
   traditional_vietnamese: { openBurstEffect: 'gold', openFallEffect: 'lanterns' },

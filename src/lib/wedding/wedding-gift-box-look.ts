@@ -205,6 +205,8 @@ const BURGUNDY: WeddingGiftBoxLook = {
   photo: '/wedding/gifts/burgundy.webp',
 }
 
+const ENVELOPE_GIFT: WeddingGiftBoxLook = { ...BURGUNDY, id: 'envelope' }
+
 const CHARCOAL: WeddingGiftBoxLook = {
   id: 'charcoal',
   title: '#f6efe2',
@@ -257,6 +259,7 @@ const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'hong-ngoc-trai': PEARL,
   'vuon-hong-troi': SKY,
   'do-dam': BURGUNDY,
+  'phong-bi-thu': ENVELOPE_GIFT,
 }
 
 const BY_STYLE: Record<string, WeddingGiftBoxLook> = {

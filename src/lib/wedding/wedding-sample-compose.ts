@@ -1,4 +1,6 @@
 import { invitationEditorCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
+import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 
 /** Bốn đoạn AI điền khi khách chọn mẫu: mở đầu, quote, câu chuyện, lời cảm ơn. */
 export const WEDDING_SAMPLE_COMPOSE_FIELDS = ['coupleIntro', 'loveQuote', 'storyText', 'thankYouText'] as const
@@ -36,6 +38,144 @@ export function appendWeddingComposeSuggestion(notes: string, line: string): str
   if (notes.includes(marker)) return notes
   const trimmed = notes.trim()
   return trimmed ? `${trimmed}\n${line}` : line
+}
+
+/** Tên đủ để khỏi hỏi lại. Thiệp cưới cần cả hai. Thiệp khác cần tên chính. */
+export function weddingCoupleNamesReady(
+  source: { groomName?: string | null; brideName?: string | null },
+  wedding: boolean,
+): boolean {
+  const groom = (source.groomName ?? '').trim()
+  const bride = (source.brideName ?? '').trim()
+  return wedding ? Boolean(groom && bride) : Boolean(groom)
+}
+
+export type WeddingSampleNameReuse = { ask: true } | { ask: false; donorId: string | null }
+
+/**
+ * Modal tên chỉ khi chưa có thiệp nào mang tên cô dâu / chú rể.
+ * Thiệp đang mở đã có tên thì giữ thiệp đó. Thiệp khác đã có tên thì bê sang mẫu mới.
+ */
+export function resolveWeddingSampleNameReuse(input: {
+  current: { id?: string; groomName?: string | null; brideName?: string | null }
+  saved: Array<{ id?: string; groomName?: string | null; brideName?: string | null }>
+  wedding: boolean
+}): WeddingSampleNameReuse {
+  if (weddingCoupleNamesReady(input.current, input.wedding)) return { ask: false, donorId: null }
+  const donor = input.saved.find(
+    (row) => Boolean(row.id) && row.id !== input.current.id && weddingCoupleNamesReady(row, input.wedding),
+  )
+  if (donor?.id) return { ask: false, donorId: donor.id }
+  return { ask: true }
+}
+
+const WEDDING_SAMPLE_TEXT_FACTS = [
+  'groomName',
+  'brideName',
+  'weddingTime',
+  'partyStartTime',
+  'venue',
+  'mapUrl',
+  'invitationText',
+  'invitationTextEn',
+  'storyText',
+  'coupleIntro',
+  'loveQuote',
+  'eventTimeline',
+  'dressCode',
+  'thankYouText',
+  'groomParents',
+  'brideParents',
+  'groomHometown',
+  'brideHometown',
+  'groomInviteAddress',
+  'groomInviteMapUrl',
+  'groomInviteReceptionTime',
+  'groomInvitePartyStartTime',
+  'groomInviteText',
+  'groomInviteTextEn',
+  'groomInviteEventTimeline',
+  'groomInviteDressCode',
+  'groomInviteContact',
+  'groomInviteDefaultPersonalMessage',
+  'groomInviteThankYouText',
+  'brideInviteAddress',
+  'brideInviteMapUrl',
+  'brideInviteReceptionTime',
+  'brideInvitePartyStartTime',
+  'brideInviteText',
+  'brideInviteTextEn',
+  'brideInviteEventTimeline',
+  'brideInviteDressCode',
+  'brideInviteContact',
+  'brideInviteDefaultPersonalMessage',
+  'brideInviteThankYouText',
+  'musicUrl',
+  'giftQrImageUrl',
+  'groomGiftBankId',
+  'groomGiftAccountNo',
+  'groomGiftAccountName',
+  'brideGiftBankId',
+  'brideGiftAccountNo',
+  'brideGiftAccountName',
+] as const
+
+const WEDDING_SAMPLE_PHOTO_FACTS = [
+  'groomImageUrl',
+  'brideImageUrl',
+  'groomInviteCoverImageUrl',
+  'brideInviteCoverImageUrl',
+] as const
+
+export type WeddingSampleFactCard = {
+  weddingDate: string | null
+  groomInviteWeddingDate: string | null
+  brideInviteWeddingDate: string | null
+  albumImageUrls: string[]
+  musicPlayStartSec: number | null
+  musicPlayEndSec: number | null
+  giftQrEnabled: boolean
+  sectionConfig: string
+} & Record<(typeof WEDDING_SAMPLE_TEXT_FACTS)[number], string> &
+  Record<(typeof WEDDING_SAMPLE_PHOTO_FACTS)[number], string>
+
+function carryText(current: string, incoming: string): string {
+  return current.trim() ? current : incoming
+}
+
+function carryPhoto(current: string, incoming: string): string {
+  if (current.trim()) return current
+  if (!incoming.trim() || isWeddingSamplePhotoUrl(incoming)) return current
+  return incoming
+}
+
+function carryDate(current: string | null, incoming: string | null): string | null {
+  return String(current ?? '').trim() ? current : incoming
+}
+
+/** Điền chỗ trống trên mẫu mới bằng thông tin thiệp đã có. Nền, khung và id thiệp mới giữ nguyên. */
+export function carryWeddingSampleFacts<T extends WeddingSampleFactCard>(visual: T, donor: WeddingSampleFactCard): T {
+  const next: T = { ...visual }
+  for (const key of WEDDING_SAMPLE_TEXT_FACTS) next[key] = carryText(next[key], donor[key])
+  for (const key of WEDDING_SAMPLE_PHOTO_FACTS) next[key] = carryPhoto(next[key], donor[key])
+  next.weddingDate = carryDate(next.weddingDate, donor.weddingDate)
+  next.groomInviteWeddingDate = carryDate(next.groomInviteWeddingDate, donor.groomInviteWeddingDate)
+  next.brideInviteWeddingDate = carryDate(next.brideInviteWeddingDate, donor.brideInviteWeddingDate)
+  if (next.albumImageUrls.length === 0) {
+    const album = donor.albumImageUrls.filter((url) => url.trim() && !isWeddingSamplePhotoUrl(url))
+    if (album.length) next.albumImageUrls = album
+  }
+  if (next.musicPlayStartSec == null && donor.musicPlayStartSec != null) next.musicPlayStartSec = donor.musicPlayStartSec
+  if (next.musicPlayEndSec == null && donor.musicPlayEndSec != null) next.musicPlayEndSec = donor.musicPlayEndSec
+  const visualGift = [visual.giftQrImageUrl, visual.groomGiftAccountNo, visual.brideGiftAccountNo].some((value) => value.trim())
+  const donorGift = [donor.giftQrImageUrl, donor.groomGiftAccountNo, donor.brideGiftAccountNo].some((value) => value.trim())
+  if (!visualGift && donorGift) next.giftQrEnabled = donor.giftQrEnabled
+  const visualCover = parseWeddingSectionConfig(next.sectionConfig).coverPhotoUrl?.trim() || ''
+  const donorCover = parseWeddingSectionConfig(donor.sectionConfig).coverPhotoUrl?.trim() || ''
+  if (!visualCover && donorCover && !isWeddingSamplePhotoUrl(donorCover)) {
+    next.sectionConfig = mergeWeddingSectionConfig(next.sectionConfig, { coverPhotoUrl: donorCover })
+  }
+  return next
 }
 
 export function applyComposeCopyToCard<

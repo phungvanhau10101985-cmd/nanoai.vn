@@ -169,6 +169,22 @@ test('the sage calla set uses sage paper and a bare photo', () => {
   assert.equal(patch.bridePortraitShellMode, 'none')
 })
 
+test('the envelope set uses palace paper and a letter cover', () => {
+  assert.deepEqual(weddingBackgroundPlateUrls('', [], 'phong-bi-thu'), [
+    '/wedding/backgrounds/phong-bi-paper.jpg',
+  ])
+  const preset = findWeddingBackgroundPreset('phong-bi-thu')
+  assert.ok(preset)
+  assert.equal(preset.coverPresetId, 'phong_bi')
+  assert.equal(preset.look.buttonColorId, 'burgundy')
+  const frame = findWeddingCoverPreset('phong_bi')
+  assert.equal(frame?.layout, 'envelope')
+  const patch = weddingKitFramePatch(preset)
+  assert.equal(patch.coverFrameMode, 'preset')
+  assert.equal(patch.groomPortraitShellMode, 'none')
+  assert.equal(patch.bridePortraitShellMode, 'none')
+})
+
 test('the deep burgundy set uses ivory paper, corner flowers, and a bare photo', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'do-dam'), [
     '/wedding/backgrounds/do-dam-paper.jpg',

@@ -1967,6 +1967,117 @@ function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
   )
 }
 
+const ENVELOPE_SRC = '/wedding/covers/phong-bi-envelope.webp'
+const ENVELOPE_SEAL_SRC = '/wedding/covers/phong-bi-seal.webp'
+const ENVELOPE_SPRAY_SRC = '/wedding/backgrounds/ornaments/phong-bi-cluster.webp'
+
+/** Phong bì đỏ đô, ảnh lồng miệng thư, hoa chụp và dấu sáp trái tim. */
+function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
+  const compact = props.compact
+  const photoBox = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  const photo = props.coverPhotoUrl ? (
+    <img
+      src={props.coverPhotoUrl}
+      alt={props.photoAlt}
+      draggable={false}
+      className="h-full w-full select-none object-cover"
+      style={{ objectPosition: props.coverPhotoEdit ? photoBox.position : '50% 22%', transform: `scale(${photoBox.zoom})`, transformOrigin: '50% 22%' }}
+    />
+  ) : (
+    <div className="h-full w-full bg-[#efe4d8]" />
+  )
+  const stage = (
+    <div className="relative mx-auto w-[90%]">
+      <div
+        className="absolute z-[1] bg-white p-[4px] shadow-[0_14px_28px_rgba(70,20,32,0.28)]"
+        style={{ left: '0%', top: '-38%', width: '100%', height: '84%' }}
+      >
+        <CoverPhotoPan edit={props.frameOnly ? undefined : props.coverPhotoEdit} hideZoom className="h-full overflow-hidden">
+          {photo}
+        </CoverPhotoPan>
+      </div>
+      <img src={ENVELOPE_SRC} alt="" draggable={false} className="relative z-[2] w-full select-none" />
+      <img
+        src={ENVELOPE_SPRAY_SRC}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute z-[3] w-[56%] select-none"
+        style={{ left: '-10%', top: '-6%' }}
+      />
+      <img
+        src={ENVELOPE_SEAL_SRC}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute z-[4] w-[15%] select-none"
+        style={{ left: '51%', top: '49%', transform: 'translate(-50%, -50%)' }}
+      />
+    </div>
+  )
+  const nameInk = {
+    color: '#4a1c28',
+    textShadow: '0 0 10px #f7f1ea, 0 0 4px #f7f1ea, 0 1px 0 #fffaf6, 0 0 1px #fffaf6',
+  }
+  const names = (
+    <div className={cn('relative text-[#4a1c28]', compact ? 'mt-2' : 'mt-5')}>
+      <div aria-hidden className="pointer-events-none absolute inset-x-[8%] -inset-y-3 rounded-full bg-[#f7f1ea]/80 blur-md" />
+      <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.groomName}</p>
+      {props.brideName ? (
+        <>
+          <p className={cn('relative font-serif italic leading-none text-[#6e4452]', compact ? 'my-0.5 text-sm' : 'my-1 text-xl')} style={nameInk}>&</p>
+          <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.brideName}</p>
+        </>
+      ) : null}
+    </div>
+  )
+  return (
+    <div className={cn('w-full text-center text-[#5c1a28] [container-type:inline-size]', props.frameOnly && 'py-2')}>
+      <p className={cn('uppercase tracking-[0.42em] text-[#7a3a48]', compact ? 'text-[8px]' : 'text-[11px]')}>{props.invitationLabel}</p>
+      <div className={compact ? 'mt-2' : 'mt-2'} style={{ paddingTop: compact ? '18%' : '36%' }}>{stage}</div>
+      {names}
+      {!props.frameOnly && !props.guestName ? (
+        <p className={cn('text-[#8d5a68]', compact ? 'mt-2 text-[10px]' : 'mt-3 text-sm')}>{props.weddingDate || props.dateFallback}</p>
+      ) : null}
+      {!props.frameOnly && props.guestName ? (
+        <WeddingGuestInviteBlock
+          className={compact ? 'mt-2' : 'mt-3'}
+          guestName={props.guestName}
+          inviteVenue={props.guestInviteVenue ?? ''}
+          cordiallyInvitesLabel={props.cordiallyInvitesLabel}
+          venueLabel={props.guestInviteVenueLabel ?? ''}
+          weddingDateLabel={props.weddingDate || props.dateFallback || undefined}
+          weddingTimeText={props.weddingTimeText}
+          addressText={props.addressText}
+          mapUrl={props.mapUrl}
+          viewMapLabel={props.viewMapLabel ?? ''}
+          panelClassName="bg-white/55"
+          cordiallyClassName="text-[#8d5a68]"
+          nameClassName="text-[#5c1a28]"
+          venueClassName="text-[#6b2136]"
+          addressClassName="text-[#8d5a68]"
+          weddingThemeId={props.theme.id}
+          buttonColor={props.buttonColor}
+          compact={compact}
+          dense={props.fitViewport}
+          personalInviteText={props.personalInviteText}
+          personalInviteClassName="text-[#8d5a68]"
+        />
+      ) : null}
+      {!props.frameOnly ? (
+        <CoverActions
+          themeId={props.theme.id}
+          buttonColor={props.buttonColor}
+          rsvpButtonColor={props.rsvpButtonColor}
+          compact={compact}
+          className={compact ? 'mt-2' : 'mt-4'}
+          openLabel={props.openButtonLabel}
+          onOpen={props.onOpen}
+          quickRsvp={props.quickRsvp}
+        />
+      ) : null}
+    </div>
+  )
+}
+
 export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
   if (props.stackPair) return <StackCoverCard {...props} />
   const preset = getWeddingCoverPreset(props.presetId)
@@ -1982,6 +2093,15 @@ export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
         nestPhoto
         preset={{ ...preset, layout: 'frame', frame: props.aiFrame, ornament: preset.ornament }}
       />
+    )
+  }
+  if (preset.layout === 'envelope' && mode !== 'library' && mode !== 'ai') {
+    const frameScale = frameScaleOf(props.frameScale)
+    const frameWidth = frameWidthPercent(props.frameOnly ? 100 : 92, frameScale)
+    return (
+      <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidth}%` }}>
+        <EnvelopeCoverCard {...props} />
+      </FrameResizeChrome>
     )
   }
   if (preset.layout === 'plain' && mode !== 'library' && mode !== 'ai') {

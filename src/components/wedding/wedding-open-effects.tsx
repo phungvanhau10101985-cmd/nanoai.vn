@@ -279,7 +279,8 @@ const LOOKS: Record<string, EffectLook> = {
 }
 
 function lookFor(themeId: string | undefined, lookId?: string): EffectLook {
-  if (lookId && LOOKS[lookId]) return LOOKS[lookId]!
+  const key = lookId === 'phong-bi-thu' ? 'do-dam' : lookId
+  if (key && LOOKS[key]) return LOOKS[key]!
   return LOOKS[themeId || 'luxury'] ?? LOOKS.luxury!
 }
 

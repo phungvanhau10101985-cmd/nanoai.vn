@@ -51,7 +51,7 @@ import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/li
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
-import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
+import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import {
   parseWeddingSectionConfig,
@@ -382,6 +382,7 @@ export default function WeddingPublicClient({
     invitationOccasionShape(card.occasionKey) === 'couple' && weddingHeroPhotoLayout(readyBackground) === 'stack'
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, pairedAiFrame ? null : sharedFrame)
   const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const envelopeCover = getWeddingCoverPreset(coverPresetId).layout === 'envelope'
   const coverAiFrame = pairedAiFrame ?? shownCover.library ?? null
   const coverFrameMode = pairedAiFrame
     ? sectionConfig.coverFrameMode === 'ai'
@@ -1959,8 +1960,10 @@ export default function WeddingPublicClient({
           style={contentSurface}
         >
           <WeddingReadableGlass themeId={theme.id} className="w-full min-w-0 max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6">
+            {envelopeCover ? null : (
             <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
-            {heroStack ? (
+            )}
+            {envelopeCover || !heroStack ? null : (
               <WeddingStackedCouplePhotos
                 firstUrl={groomPhotoUrl}
                 secondUrl={bridePhotoUrl}
@@ -1988,8 +1991,8 @@ export default function WeddingPublicClient({
                 nameClassName={cn(theme.text, theme.textGlowHeading)}
                 className={cn('mt-1', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}
               />
-            ) : null}
-            {heroStack ? null : (
+            )}
+            {envelopeCover || heroStack ? null : (
             <WeddingCoupleNames
               groomName={card.groomName}
               brideName={card.brideName}
@@ -1998,14 +2001,16 @@ export default function WeddingPublicClient({
               className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.contentCard === 'scallop' && 'wedding-guest-name not-italic', theme.text, theme.textGlowHeading)}
             />
             )}
+            {envelopeCover ? null : (
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
+            )}
             <div>
             {withoutPartyAddress(card.loveQuote) && (
               <p className={cn('mx-auto mt-4 max-w-lg font-serif text-lg italic leading-7 sm:mt-5 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
                 “{writeGuestName(personalize(withoutPartyAddress(card.loveQuote)))}”
               </p>
             )}
-            {heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl) ? null : (
+            {envelopeCover || !(heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl)) ? (
               <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[32rem]' : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
                 <WeddingCoverShellCard
                   frameOnly
@@ -2026,7 +2031,7 @@ export default function WeddingPublicClient({
                   photoAlt={tx.coverPhotoAlt}
                 />
               </div>
-            )}
+            ) : null}
             {guestDisplayName ? (
               <WeddingGuestInviteBlock
                 className="mx-auto mt-1 max-w-xl"

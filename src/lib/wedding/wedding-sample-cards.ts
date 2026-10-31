@@ -188,6 +188,16 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     coverPhotoPositionY: 0,
   },
   {
+    id: 'phong-bi-thu',
+    backgroundPresetId: 'phong-bi-thu',
+    coverPhotoUrl: '/wedding/samples/do-dam/cover.png',
+    groomImageUrl: '/wedding/samples/do-dam/groom.png',
+    brideImageUrl: '/wedding/samples/do-dam/bride.png',
+    albumImageUrls: ['/wedding/samples/do-dam/album-1.png', '/wedding/samples/do-dam/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ đô, kem hoặc trắng.',
+    coverPhotoPositionY: 0,
+  },
+  {
     id: 'do-dam',
     backgroundPresetId: 'do-dam',
     coverPhotoUrl: '/wedding/samples/do-dam/cover.png',

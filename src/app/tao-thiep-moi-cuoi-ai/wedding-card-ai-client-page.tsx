@@ -19,6 +19,7 @@ import {
   saveWeddingCardOrnaments,
   createNewWeddingCard,
   deleteWeddingCard,
+  loadWeddingCardFacts,
   loadWeddingCardWorkspace,
   publishCurrentWeddingCard,
   saveWeddingCardBrief,
@@ -62,7 +63,7 @@ import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/weddin
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
-import { DEFAULT_WEDDING_COVER_PRESET_ID } from '@/lib/wedding/wedding-cover-presets'
+import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer } from '@/components/wedding/wedding-ornament-admin'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
@@ -77,6 +78,8 @@ import { findWeddingSampleCard, isWeddingSamplePhotoUrl, stripWeddingSamplePhoto
 import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
 import {
   applyComposeCopyToCard,
+  carryWeddingSampleFacts,
+  resolveWeddingSampleNameReuse,
   weddingSampleShowsLoveStoryHints,
   type WeddingSampleComposeFields,
 } from '@/lib/wedding/wedding-sample-compose'
@@ -468,6 +471,7 @@ export default function WeddingCardAiClientPage() {
   const [backgroundPreviewLarge, setBackgroundPreviewLarge] = useState(false)
   const [samplePreviewId, setSamplePreviewId] = useState<string | null>(null)
   const pendingSampleUseRef = useRef('')
+  const sampleApplyLockRef = useRef(false)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeSampleId, setComposeSampleId] = useState('')
   const [composeReturnPreview, setComposeReturnPreview] = useState(false)
@@ -787,6 +791,7 @@ export default function WeddingCardAiClientPage() {
   const activeSharedFrame = pairedAiFrame ? null : sharedFrames[ornamentKey] ?? null
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, activeSharedFrame)
   const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
+  const envelopeCover = getWeddingCoverPreset(coverPresetId).layout === 'envelope'
   const coverAiFrame = pairedAiFrame ?? shownCover.library ?? null
   const coverFrameMode = pairedAiFrame
     ? sectionConfig.coverFrameMode === 'ai'
@@ -1685,7 +1690,12 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
-  const stageSampleCard = (source: WeddingCard, next: WeddingCard, notice: { title: string; description: string }) => {
+  const stageSampleCard = (
+    source: WeddingCard,
+    next: WeddingCard,
+    notice: { title: string; description: string },
+    options?: { quiet?: boolean },
+  ) => {
     const groomClear = isWeddingSamplePhotoUrl(source.groomImageUrl)
     const brideClear = isWeddingSamplePhotoUrl(source.brideImageUrl)
     const coverClear = isWeddingSamplePhotoUrl(parseWeddingSectionConfig(source.sectionConfig).coverPhotoUrl)
@@ -1709,11 +1719,17 @@ export default function WeddingCardAiClientPage() {
     }
     setCard(next)
     setSamplePreviewId(null)
-    setBackgroundConfirmOpen(true)
-    setBackgroundNotice(notice)
+    if (!options?.quiet) {
+      setBackgroundConfirmOpen(true)
+      setBackgroundNotice(notice)
+    }
   }
 
-  const applySampleCard = async (sampleId: string, copy?: WeddingSampleComposeFields): Promise<boolean> => {
+  const applySampleCard = async (
+    sampleId: string,
+    copy?: WeddingSampleComposeFields,
+    options?: { quiet?: boolean },
+  ): Promise<boolean> => {
     const sample = WEDDING_SAMPLE_CARDS.find((item) => item.id === sampleId)
     const preset = sample?.aiStyleId
       ? weddingAiBackgroundKit(sample.aiStyleId)
@@ -1731,7 +1747,7 @@ export default function WeddingCardAiClientPage() {
       if (!item) return false
       const loaded = await applyLibraryImage(item.id, sample.aiStyleId || 'floral', sample.id, { commitCard: false })
       if (!loaded) return false
-      stageSampleCard(source, withCopy(loaded), notice)
+      stageSampleCard(source, withCopy(loaded), notice, options)
       return true
     }
     const style = getWeddingStylePreset(sample.aiStyleId || preset.look.styleId)
@@ -1744,22 +1760,101 @@ export default function WeddingCardAiClientPage() {
         ...(sample.aiStyleId ? weddingAiKitSectionPatch(sample.aiStyleId) : weddingReadyBackgroundSectionPatch(preset)),
       }),
     })
-    stageSampleCard(source, withCopy(visual), notice)
+    stageSampleCard(source, withCopy(visual), notice, options)
     return true
   }
 
   const openSampleComposeRef = useRef<(sampleId: string, returnToPreview: boolean) => void>(() => {})
   openSampleComposeRef.current = (sampleId, returnToPreview) => {
-    if (!findWeddingSampleCard(sampleId) || !persistInputsRef.current.card.id || composeBusy) return
-    const current = persistInputsRef.current.card
-    setComposeSampleId(sampleId)
-    setComposeReturnPreview(returnToPreview)
-    setComposeGroom(current.groomName)
-    setComposeBride(current.brideName)
-    setComposeStory('')
-    setComposeNameError(false)
-    if (returnToPreview) setSamplePreviewId(null)
-    setComposeOpen(true)
+    const sample = findWeddingSampleCard(sampleId)
+    if (!sample || !persistInputsRef.current.card.id || composeBusy || sampleApplyLockRef.current) return
+    const openNameModal = () => {
+      const current = persistInputsRef.current.card
+      setComposeSampleId(sampleId)
+      setComposeReturnPreview(returnToPreview)
+      setComposeGroom(current.groomName)
+      setComposeBride(current.brideName)
+      setComposeStory('')
+      setComposeNameError(false)
+      if (returnToPreview) setSamplePreviewId(null)
+      setComposeOpen(true)
+    }
+    const reuse = resolveWeddingSampleNameReuse({
+      current: persistInputsRef.current.card,
+      saved: savedCards,
+      wedding: weddingSampleShowsLoveStoryHints(sample),
+    })
+    if (reuse.ask) {
+      openNameModal()
+      return
+    }
+    sampleApplyLockRef.current = true
+    void (async () => {
+      try {
+        let donor: WeddingCard | null = null
+        if (reuse.donorId) {
+          const loaded = await loadWeddingCardFacts(reuse.donorId)
+          if ('error' in loaded) {
+            openNameModal()
+            return
+          }
+          donor = loaded.card
+        }
+        setSamplePreviewId(null)
+        setBackgroundPageOpen(false)
+        const applied = await applySampleCard(sampleId, undefined, { quiet: true })
+        if (!applied) {
+          setBackgroundPageOpen(true)
+          return
+        }
+        if (donor) {
+          const merged = carryWeddingSampleFacts(persistInputsRef.current.card, donor)
+          const groomClear = !merged.groomImageUrl || isWeddingSamplePhotoUrl(merged.groomImageUrl)
+          const brideClear = !merged.brideImageUrl || isWeddingSamplePhotoUrl(merged.brideImageUrl)
+          const coverUrl = parseWeddingSectionConfig(merged.sectionConfig).coverPhotoUrl || ''
+          const coverClear = !coverUrl || isWeddingSamplePhotoUrl(coverUrl)
+          const musicStartInput = persistInputsRef.current.musicStartInput.trim()
+            ? persistInputsRef.current.musicStartInput
+            : merged.musicPlayStartSec != null
+              ? formatWeddingMusicSecondsForInput(merged.musicPlayStartSec)
+              : ''
+          const musicEndInput = persistInputsRef.current.musicEndInput.trim()
+            ? persistInputsRef.current.musicEndInput
+            : merged.musicPlayEndSec != null
+              ? formatWeddingMusicSecondsForInput(merged.musicPlayEndSec)
+              : ''
+          const musicClearOnSave = merged.musicUrl.trim() ? false : persistInputsRef.current.musicClearOnSave
+          persistInputsRef.current = {
+            ...persistInputsRef.current,
+            card: merged,
+            weddingDateIso: resolveWeddingDateIso(merged.weddingDate) ?? persistInputsRef.current.weddingDateIso,
+            musicStartInput,
+            musicEndInput,
+            musicClearOnSave,
+            groomPortraitClear: groomClear,
+            bridePortraitClear: brideClear,
+            coverClearOnSave: coverClear,
+          }
+          setCard(merged)
+          setMusicStartInput(musicStartInput)
+          setMusicEndInput(musicEndInput)
+          setMusicClearOnSave(musicClearOnSave)
+          setGroomPortraitClear(groomClear)
+          setBridePortraitClear(brideClear)
+          setCoverClearOnSave(coverClear)
+        }
+        setComposeOpen(false)
+        setComposeReturnPreview(false)
+        setBackgroundConfirmOpen(false)
+        setSamplePreviewId(null)
+        const saved = await commitSaveBrief(false, { hideSuccess: true })
+        if (saved) {
+          toast({ title: tImage.sampleCardAppliedTitle, description: tImage.sampleComposeKeptHint })
+        }
+      } finally {
+        sampleApplyLockRef.current = false
+      }
+    })()
   }
   useEffect(() => {
     const id = pendingSampleUseRef.current
@@ -2074,8 +2169,9 @@ export default function WeddingCardAiClientPage() {
   const previewFab = (
     <WeddingDraggableFab
       label={txPublic.previewTryFab}
-      storageKey="wedding-editor-preview-fab"
+      storageKey="wedding-editor-preview-fab-v4"
       defaultCorner="bottom-left"
+      desktopWorkColumn
       disabled={loading || previewBusy || !card.id}
       zIndex={2147483001}
       icon={previewBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
@@ -2872,6 +2968,29 @@ export default function WeddingCardAiClientPage() {
                     stopPreviewLabel={tMu.stopPreview}
                     okLabel={tMu.confirmPick}
                     title={tMu.pickerTitle}
+                    uploadLabel={tMu.uploadLabel}
+                    uploadHint={tMu.uploadHint}
+                    uploadProgress={tMu.uploadProgress}
+                    uploadSaved={tMu.uploadSaved}
+                    uploadPartial={tMu.uploadPartial}
+                    uploadTooLarge={tMu.uploadTooLarge}
+                    uploadInvalidType={tMu.uploadInvalidType}
+                    uploadFailed={tMu.uploadFailed}
+                    deleteTrackLabel={tMu.deleteTrack}
+                    deleteTrackConfirm={tMu.deleteTrackConfirm}
+                    deleteDenied={tMu.deleteDenied}
+                    deleteFailed={tMu.deleteFailed}
+                    canDelete={ornamentAdmin}
+                    onLibraryChange={setMusicLibrary}
+                    onTrackRemoved={(audioUrl) => {
+                      if (card.musicUrl !== audioUrl) return
+                      update('musicUrl', '')
+                      setCard((prev) => ({ ...prev, musicPlayStartSec: null, musicPlayEndSec: null }))
+                      setMusicFile(null)
+                      setMusicClearOnSave(false)
+                      setMusicStartInput('')
+                      setMusicEndInput('')
+                    }}
                     onSelect={(audioUrl) => {
                       update('musicUrl', audioUrl)
                       setMusicFile(null)
@@ -3183,10 +3302,12 @@ export default function WeddingCardAiClientPage() {
                       className="w-full rounded-2xl px-3 py-3.5"
                     >
                       <div className="flex w-full min-w-0 flex-col items-stretch gap-2 text-center">
+                        {envelopeCover ? null : (
                         <p className={cn('w-full text-[10px] uppercase tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
                           {occasionCopy.previewEyebrow}
                         </p>
-                        {heroStack ? (
+                        )}
+                        {envelopeCover || !heroStack ? null : (
                           <WeddingStackedCouplePhotos
                             firstUrl={groomPortraitPreviewUrl}
                             secondUrl={bridePortraitPreviewUrl}
@@ -3208,8 +3329,8 @@ export default function WeddingCardAiClientPage() {
                             nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
                             compact
                           />
-                        ) : null}
-                        {heroStack ? null : (
+                        )}
+                        {envelopeCover || heroStack ? null : (
                         <div className="w-full min-w-0">
                           <h2 className={cn('w-full text-balance font-serif text-[clamp(1.35rem,8cqi,1.85rem)] font-semibold italic leading-tight', selectedTheme.textGlowHeading)}>
                             {card.groomName || occasionCopy.primaryRole || occasionCopy.label}
@@ -3224,7 +3345,7 @@ export default function WeddingCardAiClientPage() {
                           )}
                         </div>
                         )}
-                        {selectedTheme.ornament ? (
+                        {envelopeCover ? null : selectedTheme.ornament ? (
                           <div className={cn('text-xl leading-none', selectedTheme.accent, selectedTheme.textGlow)}>
                             {selectedTheme.ornament}
                           </div>
@@ -3236,7 +3357,7 @@ export default function WeddingCardAiClientPage() {
                             “{card.loveQuote}”
                           </p>
                         ) : null}
-                        {heroStack || (coverFrameMode === 'none' && !coverPhotoPreviewUrl) ? null : (
+                        {envelopeCover || !(heroStack || (coverFrameMode === 'none' && !coverPhotoPreviewUrl)) ? (
                           <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
                             <WeddingCoverShellCard
                               frameOnly
@@ -3258,7 +3379,7 @@ export default function WeddingCardAiClientPage() {
                               photoAlt={coverPhotoCopy.alt}
                             />
                           </div>
-                        )}
+                        ) : null}
                         <WeddingGuestInviteBlock
                           className="w-full min-w-0"
                           guestName={previewDemo.guestDisplayName}

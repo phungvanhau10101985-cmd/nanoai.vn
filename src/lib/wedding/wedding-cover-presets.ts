@@ -2,7 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
 
 export type WeddingCoverPresetTag = 'new' | 'hot'
-export type WeddingCoverLayout = 'glass' | 'red_arch' | 'frame' | 'composed' | 'plain' | 'song_hy'
+export type WeddingCoverLayout = 'glass' | 'red_arch' | 'frame' | 'composed' | 'plain' | 'song_hy' | 'envelope'
 
 export type WeddingCoverPreset = {
   id: string
@@ -250,6 +250,26 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
     },
   },
   {
+    id: 'phong_bi',
+    layout: 'envelope',
+    styleId: 'minimal',
+    tags: ['new'],
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#f6f0e6',
+      bottomBg: '#f6f0e6',
+      accent: '#6b2136',
+      textClass: 'text-[#5c1a28]',
+    },
+    label: {
+      vi: 'Phong bì thư',
+      en: 'Letter envelope',
+      zh: '信封',
+      ja: '封筒',
+      ko: '편지 봉투',
+    },
+  },
+  {
     id: 'do_dam',
     layout: 'plain',
     styleId: 'minimal',
@@ -464,5 +484,5 @@ export function labelForWeddingCoverPreset(locale: WebLocale, preset: WeddingCov
 /** Khung đi theo nền: ảnh khung, bố cục ghép, hoặc ảnh trần không khung. */
 export function weddingCoverPresetFollowsBackground(preset: WeddingCoverPreset | undefined): boolean {
   if (!preset) return false
-  return Boolean(preset.frame) || preset.layout === 'composed' || preset.layout === 'plain'
+  return Boolean(preset.frame) || preset.layout === 'composed' || preset.layout === 'plain' || preset.layout === 'envelope'
 }

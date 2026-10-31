@@ -34,3 +34,21 @@ export function weddingMusicTitleFromFileName(name: string) {
     .trim()
   return (base || 'Nhạc thiệp').slice(0, 80)
 }
+
+/** Dưới trần server action 10 MB, chừa chỗ cho phần form. */
+export const WEDDING_LIBRARY_MUSIC_MAX_BYTES = 8 * 1024 * 1024
+
+const LIBRARY_AUDIO_EXT = /\.(mp3|mpeg|m4a|wav|aac|ogg)$/i
+
+export type WeddingLibraryMusicFileError = 'too_large' | 'invalid_type'
+
+export function weddingLibraryMusicFileError(file: {
+  name: string
+  type: string
+  size: number
+}): WeddingLibraryMusicFileError | null {
+  const typeOk = file.type.startsWith('audio/') || LIBRARY_AUDIO_EXT.test(file.name)
+  if (!typeOk || file.size <= 0) return 'invalid_type'
+  if (file.size > WEDDING_LIBRARY_MUSIC_MAX_BYTES) return 'too_large'
+  return null
+}

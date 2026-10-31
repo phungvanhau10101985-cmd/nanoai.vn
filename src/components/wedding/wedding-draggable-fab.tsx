@@ -138,10 +138,46 @@ function writeStoredNorm(key: string, norm: Norm) {
   }
 }
 
+const DESKTOP_MQ = '(min-width: 1024px)'
+
 function cornerNorm(corner: 'bottom-left' | 'top-left' | 'top-right'): Norm {
   if (corner === 'bottom-left') return { nx: 0, ny: 1 }
   if (corner === 'top-right') return { nx: 1, ny: 0 }
   return { nx: 0, ny: 0 }
+}
+
+function isDesktopViewport() {
+  return window.matchMedia(DESKTOP_MQ).matches
+}
+
+function readSiteHeaderBottom() {
+  const header = document.querySelector('header[data-nanoai-chrome]')
+  if (header instanceof HTMLElement) {
+    const bottom = header.getBoundingClientRect().bottom
+    if (bottom > 8) return bottom
+  }
+  return 64
+}
+
+/** Desktop: mép trái, ngay dưới header — không chìm ở đáy màn hình. */
+function belowHeaderNorm(box: ViewportBox, el: HTMLElement | null): Norm {
+  const clearBox = { ...box, dock: 0 }
+  return pixelToNorm(8 + box.insets.left, readSiteHeaderBottom() + 12, clearBox, el)
+}
+
+/** Desktop: ngay dưới header, sát phải cột menu — đầu vùng làm việc, không đáy màn hình. */
+function workColumnNorm(box: ViewportBox, el: HTMLElement | null): Norm {
+  const clearBox = { ...box, dock: 0 }
+  const size = buttonSize(el)
+  const y = readSiteHeaderBottom() + 16
+  const sidebar = document.querySelector('[data-creation-sidebar]')
+  let x = 16 + box.insets.left
+  if (sidebar instanceof HTMLElement) {
+    const right = sidebar.getBoundingClientRect().right
+    if (right > 48) x = right + 16
+  }
+  const maxX = Math.max(8 + box.insets.left, box.width - size.width - 16 - box.insets.right)
+  return pixelToNorm(Math.min(x, maxX), y, clearBox, el)
 }
 
 /** Thanh sửa nổi. Kéo cả thanh; cú bấm ngắn trên nút vẫn là bấm. */
@@ -290,6 +326,10 @@ export function WeddingDraggableFab(props: {
   label: string
   storageKey: string
   defaultCorner: 'bottom-left' | 'top-left'
+  /** Màn rộng: neo dưới header, mép trái. Điện thoại giữ `defaultCorner`. Kéo thả vẫn ghi nhớ. */
+  desktopBelowHeader?: boolean
+  /** Màn rộng: neo dưới header, sát phải cột menu. Điện thoại giữ `defaultCorner`. */
+  desktopWorkColumn?: boolean
   onClick: () => void
   disabled?: boolean
   hidden?: boolean
@@ -302,6 +342,7 @@ export function WeddingDraggableFab(props: {
   const hiddenRef = useRef(props.hidden)
   hiddenRef.current = props.hidden
   const posRef = useRef<Norm>({ nx: 0, ny: props.defaultCorner === 'bottom-left' ? 1 : 0 })
+  const userPlacedRef = useRef(false)
   const metricsRef = useRef<{ insets: Insets; dock: number }>({ insets: ZERO_INSETS, dock: 0 })
   const dragRef = useRef<{
     pointerId: number
@@ -330,6 +371,16 @@ export function WeddingDraggableFab(props: {
     el.style.transform = `translate3d(${box.offsetLeft + pixel.x}px, ${box.offsetTop + pixel.y}px, 0)`
   }
 
+  const desktopDocked = () =>
+    isDesktopViewport() && (props.desktopWorkColumn || props.desktopBelowHeader)
+
+  const fallbackNorm = () => {
+    const box = currentBox()
+    if (props.desktopWorkColumn && isDesktopViewport()) return workColumnNorm(box, buttonRef.current)
+    if (props.desktopBelowHeader && isDesktopViewport()) return belowHeaderNorm(box, buttonRef.current)
+    return { nx: 0, ny: props.defaultCorner === 'bottom-left' ? 1 : 0 }
+  }
+
   useLayoutEffect(() => {
     setMounted(true)
   }, [])
@@ -338,7 +389,8 @@ export function WeddingDraggableFab(props: {
     if (!mounted) return
     refreshMetrics()
     const stored = readStoredNorm(props.storageKey)
-    const initial = stored ?? { nx: 0, ny: props.defaultCorner === 'bottom-left' ? 1 : 0 }
+    userPlacedRef.current = stored != null
+    const initial = stored ?? fallbackNorm()
     posRef.current = initial
     place(initial)
     const el = buttonRef.current
@@ -346,14 +398,26 @@ export function WeddingDraggableFab(props: {
 
     const onResize = () => {
       refreshMetrics()
+      if (!userPlacedRef.current) posRef.current = fallbackNorm()
       place(posRef.current)
     }
-    const onScroll = () => place(posRef.current)
+    const onScroll = () => {
+      if (dragRef.current) {
+        place(posRef.current)
+        return
+      }
+      if (!userPlacedRef.current && desktopDocked()) {
+        posRef.current = fallbackNorm()
+      }
+      place(posRef.current)
+    }
     const vv = window.visualViewport
+    const desktopMq = window.matchMedia(DESKTOP_MQ)
     vv?.addEventListener('resize', onResize)
     vv?.addEventListener('scroll', onScroll)
     window.addEventListener('resize', onResize)
     window.addEventListener('orientationchange', onResize)
+    desktopMq.addEventListener('change', onResize)
 
     const blockScroll = (event: TouchEvent) => {
       if (dragRef.current?.moved) event.preventDefault()
@@ -365,11 +429,12 @@ export function WeddingDraggableFab(props: {
       vv?.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', onResize)
       window.removeEventListener('orientationchange', onResize)
+      desktopMq.removeEventListener('change', onResize)
       el?.removeEventListener('touchmove', blockScroll)
     }
     // place đọc ref và DOM, không cần đưa vào deps.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted, props.defaultCorner, props.storageKey])
+  }, [mounted, props.defaultCorner, props.desktopBelowHeader, props.desktopWorkColumn, props.storageKey])
 
   useLayoutEffect(() => {
     const el = buttonRef.current
@@ -385,6 +450,7 @@ export function WeddingDraggableFab(props: {
     if (el) el.style.willChange = ''
     if (!drag.moved) return
     suppressClickRef.current = true
+    userPlacedRef.current = true
     writeStoredNorm(props.storageKey, posRef.current)
   }
 

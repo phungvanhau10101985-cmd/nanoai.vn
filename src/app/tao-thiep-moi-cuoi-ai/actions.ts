@@ -43,6 +43,7 @@ import {
   listWeddingBackgroundLibrary,
   listWeddingCoverFrameLibrary,
   listWeddingImages,
+  deleteWeddingMusicFromLibrary,
   listWeddingMusicLibrary,
   listWeddingRsvps,
   resolveWeddingLibraryReferenceUrl,
@@ -57,7 +58,7 @@ import {
   type WeddingImageType,
 } from '@/lib/db/wedding-cards-pg'
 import { deductUserCredits, refundUserCredits } from '@/lib/music/deduct-user-credits'
-import { uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
+import { removeTryOnStorageFromPublicUrls, uploadTryOnImagePublic } from '@/lib/storage/try-on-public-upload'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 import {
   WEDDING_BACKGROUND_ASPECT_RATIO,
@@ -73,7 +74,11 @@ import {
   stripLogoBackgroundToTransparentPng,
 } from '@/lib/remove-background-png'
 import { parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
-import { isWeddingMusicSeedUrl, weddingMusicTitleFromFileName } from '@/lib/wedding/wedding-music-library'
+import {
+  isWeddingMusicSeedUrl,
+  weddingLibraryMusicFileError,
+  weddingMusicTitleFromFileName,
+} from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
@@ -123,13 +128,73 @@ async function uploadWeddingReferenceImage(
   return publicUrl
 }
 
+function weddingAudioExt(file: File) {
+  if (file.type.includes('mpeg') || file.type.includes('mp3') || /\.mp3$/i.test(file.name)) return 'mp3'
+  if (file.type.includes('wav') || /\.wav$/i.test(file.name)) return 'wav'
+  if (file.type.includes('aac') || /\.aac$/i.test(file.name)) return 'aac'
+  if (file.type.includes('ogg') || /\.ogg$/i.test(file.name)) return 'ogg'
+  return 'm4a'
+}
+
 async function uploadWeddingMusic(userId: string, cardId: string, file: FormDataEntryValue | null) {
   if (!(file instanceof File) || file.size <= 0) return null
-  if (!file.type.startsWith('audio/')) throw new Error('File nhạc phải là audio hợp lệ.')
-  const ext = file.type.includes('mpeg') || file.type.includes('mp3') ? 'mp3' : file.type.includes('wav') ? 'wav' : 'm4a'
+  if (!file.type.startsWith('audio/') && !/\.(mp3|m4a|wav|aac|ogg)$/i.test(file.name)) {
+    throw new Error('File nhạc phải là audio hợp lệ.')
+  }
+  const ext = weddingAudioExt(file)
   const path = `uploads/${userId}/wedding_${cardId}_music_${Date.now()}.${ext}`
   const { publicUrl } = await uploadTryOnImagePublic(path, file, { contentType: file.type || 'audio/mpeg', upsert: true })
   return publicUrl
+}
+
+async function uploadWeddingLibraryMusicFile(userId: string, file: File) {
+  const ext = weddingAudioExt(file)
+  const suffix = Math.random().toString(36).slice(2, 8)
+  const path = `uploads/${userId}/wedding_library_music_${Date.now()}_${suffix}.${ext}`
+  const { publicUrl } = await uploadTryOnImagePublic(path, file, { contentType: file.type || 'audio/mpeg', upsert: true })
+  if (!publicUrl) throw new Error('upload_failed')
+  return publicUrl
+}
+
+export async function uploadWeddingLibraryTrack(formData: FormData) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const file = formData.get('musicFile')
+  if (!(file instanceof File)) return { error: 'invalid_type' as const }
+  const problem = weddingLibraryMusicFileError(file)
+  if (problem) return { error: problem }
+  let audioUrl = ''
+  try {
+    audioUrl = await uploadWeddingLibraryMusicFile(ownerUserId, file)
+    const title = weddingMusicTitleFromFileName(clean(formData.get('musicTitle'), 120) || file.name)
+    await saveWeddingMusicToLibrary({ title, audioUrl })
+    const musicLibrary = await listWeddingMusicLibrary()
+    return { musicLibrary, audioUrl }
+  } catch {
+    if (audioUrl) await removeTryOnStorageFromPublicUrls([audioUrl]).catch(() => undefined)
+    return { error: 'upload_failed' as const }
+  }
+}
+
+export async function deleteWeddingLibraryTrack(audioUrl: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const role = await getProfileRoleWithFallback(auth.user.id).catch(() => null)
+  if (!canEditWeddingOrnaments({ role, email: auth.user.email })) return { error: 'denied' as const }
+  const url = String(audioUrl || '').trim()
+  if (!url || isWeddingMusicSeedUrl(url) || url.startsWith('/wedding-music/')) return { error: 'denied' as const }
+  try {
+    const removed = await deleteWeddingMusicFromLibrary(url)
+    if (!removed.deleted) return { error: 'missing' as const }
+    await removeTryOnStorageFromPublicUrls([url])
+    for (const slug of removed.slugs) revalidatePath(`/thiep-moi-cuoi/${slug}`)
+    revalidatePath('/tao-thiep-moi-cuoi-ai')
+    const musicLibrary = await listWeddingMusicLibrary()
+    return { musicLibrary }
+  } catch {
+    return { error: 'missing' as const }
+  }
 }
 
 async function uploadWeddingAlbumImages(userId: string, cardId: string, files: FormDataEntryValue[]) {
@@ -202,6 +267,16 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
     if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   }
   return weddingCardWorkspace(ownerUserId, card, auth.user.email)
+}
+
+/** Đọc thiệp đã có để bê tên và nội dung sang mẫu mới. Không xuất bản. */
+export async function loadWeddingCardFacts(cardId: string) {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+  const card = await getWeddingCardForUser(String(cardId || '').trim(), ownerUserId)
+  if (!card) return { error: 'missing' as const }
+  return { card }
 }
 
 export async function saveWeddingBackgroundOrnaments(layoutKey: string, ornaments: unknown) {

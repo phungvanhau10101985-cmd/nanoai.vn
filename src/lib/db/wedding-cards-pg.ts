@@ -1062,6 +1062,46 @@ export async function saveWeddingMusicToLibrary(input: {
   )
 }
 
+/** Gỡ bài tải lên khỏi kho và bỏ nhạc khỏi mọi thiệp đang phát bài đó. Bài seed không xóa. */
+export async function deleteWeddingMusicFromLibrary(audioUrl: string): Promise<{ deleted: boolean; slugs: string[] }> {
+  requirePg()
+  const url = audioUrl.trim().slice(0, 2000)
+  if (!url || url.startsWith('/wedding-music/')) return { deleted: false, slugs: [] }
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    const found = await client.query<{ source: string }>(
+      `select source from public.wedding_music_library where audio_url = $1 for update`,
+      [url],
+    )
+    if (found.rows[0]?.source !== 'upload') {
+      await client.query('rollback')
+      return { deleted: false, slugs: [] }
+    }
+    await client.query(
+      `delete from public.wedding_music_library where audio_url = $1 and source = 'upload'`,
+      [url],
+    )
+    const cards = await client.query<{ slug: string | null }>(
+      `update public.wedding_cards
+       set music_url = '', music_play_start_sec = null, music_play_end_sec = null
+       where music_url = $1
+       returning slug`,
+      [url],
+    )
+    await client.query('commit')
+    return {
+      deleted: true,
+      slugs: cards.rows.map((row) => String(row.slug ?? '').trim()).filter(Boolean),
+    }
+  } catch (error) {
+    await client.query('rollback')
+    throw error
+  } finally {
+    client.release()
+  }
+}
+
 export async function weddingMusicLibraryHasUrl(audioUrl: string): Promise<boolean> {
   requirePg()
   const url = audioUrl.trim()

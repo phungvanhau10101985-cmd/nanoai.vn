@@ -5,8 +5,11 @@ import {
   appendWeddingComposeSuggestion,
   applyComposeCopyToCard,
   buildWeddingSampleComposePrompt,
+  carryWeddingSampleFacts,
   parseWeddingSampleComposeCopy,
+  resolveWeddingSampleNameReuse,
   weddingSampleShowsLoveStoryHints,
+  type WeddingSampleFactCard,
 } from './wedding-sample-compose'
 
 test('wedding samples show the meeting-day hints', () => {
@@ -75,4 +78,150 @@ test('compose copy fills prose and keeps an existing dress code', () => {
   assert.equal(next.groomName, 'Minh')
   assert.equal(next.storyText, 'Chuyện.')
   assert.equal(next.dressCode, 'Tông kem.')
+})
+
+function blankFacts(patch: Partial<WeddingSampleFactCard> = {}): WeddingSampleFactCard {
+  return {
+    groomName: '',
+    brideName: '',
+    weddingTime: '',
+    partyStartTime: '',
+    venue: '',
+    mapUrl: '',
+    invitationText: '',
+    invitationTextEn: '',
+    storyText: '',
+    coupleIntro: '',
+    loveQuote: '',
+    eventTimeline: '',
+    dressCode: '',
+    thankYouText: '',
+    groomParents: '',
+    brideParents: '',
+    groomHometown: '',
+    brideHometown: '',
+    groomInviteAddress: '',
+    groomInviteMapUrl: '',
+    groomInviteReceptionTime: '',
+    groomInvitePartyStartTime: '',
+    groomInviteText: '',
+    groomInviteTextEn: '',
+    groomInviteEventTimeline: '',
+    groomInviteDressCode: '',
+    groomInviteContact: '',
+    groomInviteDefaultPersonalMessage: '',
+    groomInviteThankYouText: '',
+    brideInviteAddress: '',
+    brideInviteMapUrl: '',
+    brideInviteReceptionTime: '',
+    brideInvitePartyStartTime: '',
+    brideInviteText: '',
+    brideInviteTextEn: '',
+    brideInviteEventTimeline: '',
+    brideInviteDressCode: '',
+    brideInviteContact: '',
+    brideInviteDefaultPersonalMessage: '',
+    brideInviteThankYouText: '',
+    musicUrl: '',
+    giftQrImageUrl: '',
+    groomGiftBankId: '',
+    groomGiftAccountNo: '',
+    groomGiftAccountName: '',
+    brideGiftBankId: '',
+    brideGiftAccountNo: '',
+    brideGiftAccountName: '',
+    groomImageUrl: '',
+    brideImageUrl: '',
+    groomInviteCoverImageUrl: '',
+    brideInviteCoverImageUrl: '',
+    weddingDate: null,
+    groomInviteWeddingDate: null,
+    brideInviteWeddingDate: null,
+    albumImageUrls: [],
+    musicPlayStartSec: null,
+    musicPlayEndSec: null,
+    giftQrEnabled: false,
+    sectionConfig: '{}',
+    ...patch,
+  }
+}
+
+test('the name modal waits until no invitation has couple names', () => {
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'draft', groomName: '', brideName: '' },
+      saved: [{ id: 'draft', groomName: '', brideName: '' }],
+      wedding: true,
+    }),
+    { ask: true },
+  )
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'card', groomName: 'Minh', brideName: 'Lan' },
+      saved: [{ id: 'card', groomName: 'Minh', brideName: 'Lan' }],
+      wedding: true,
+    }),
+    { ask: false, donorId: null },
+  )
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'draft', groomName: '', brideName: '' },
+      saved: [
+        { id: 'draft', groomName: '', brideName: '' },
+        { id: 'older', groomName: 'Minh', brideName: 'Lan' },
+      ],
+      wedding: true,
+    }),
+    { ask: false, donorId: 'older' },
+  )
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'draft', groomName: 'Minh', brideName: '' },
+      saved: [{ id: 'older', groomName: 'Minh', brideName: '' }],
+      wedding: true,
+    }),
+    { ask: true },
+  )
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'draft', groomName: 'Minh', brideName: '' },
+      saved: [],
+      wedding: false,
+    }),
+    { ask: false, donorId: null },
+  )
+})
+
+test('an existing invitation fills the new template without replacing its look or its own text', () => {
+  const visual = {
+    ...blankFacts({ coupleIntro: 'Lời đang viết.', sectionConfig: '{"backgroundPresetId":"sen-vang"}' }),
+    selectedStyleId: 'rose',
+  }
+  const donor = blankFacts({
+    groomName: 'Minh',
+    brideName: 'Lan',
+    coupleIntro: 'Lời cũ.',
+    venue: 'Nhà hàng Sen',
+    weddingDate: '2026-11-20',
+    groomImageUrl: '/wedding/samples/groom.jpg',
+    brideImageUrl: 'https://cdn.example/bride.jpg',
+    albumImageUrls: ['/wedding/samples/album.jpg', 'https://cdn.example/album.jpg'],
+    groomGiftAccountNo: '123',
+    giftQrEnabled: true,
+    sectionConfig: '{"coverPhotoUrl":"https://cdn.example/cover.jpg","backgroundPresetId":"toi-gian-nau"}',
+  })
+  const next = carryWeddingSampleFacts(visual, donor)
+  assert.equal(next.selectedStyleId, 'rose')
+  assert.equal(next.groomName, 'Minh')
+  assert.equal(next.brideName, 'Lan')
+  assert.equal(next.coupleIntro, 'Lời đang viết.')
+  assert.equal(next.venue, 'Nhà hàng Sen')
+  assert.equal(next.weddingDate, '2026-11-20')
+  assert.equal(next.groomImageUrl, '')
+  assert.equal(next.brideImageUrl, 'https://cdn.example/bride.jpg')
+  assert.deepEqual(next.albumImageUrls, ['https://cdn.example/album.jpg'])
+  assert.equal(next.giftQrEnabled, true)
+  assert.match(next.sectionConfig, /sen-vang/)
+  assert.match(next.sectionConfig, /cdn\.example\/cover\.jpg/)
+  assert.doesNotMatch(next.sectionConfig, /toi-gian-nau/)
 })

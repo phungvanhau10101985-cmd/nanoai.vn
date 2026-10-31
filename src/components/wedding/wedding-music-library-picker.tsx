@@ -1,10 +1,18 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Loader2, Trash2, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
 import type { WeddingMusicLibraryRow } from '@/lib/db/wedding-cards-pg'
+import { weddingLibraryMusicFileError } from '@/lib/wedding/wedding-music-library'
+import { deleteWeddingLibraryTrack, uploadWeddingLibraryTrack } from '@/app/tao-thiep-moi-cuoi-ai/actions'
+
+function fillTemplate(template: string, vars: Record<string, string | number>) {
+  return Object.entries(vars).reduce((text, [key, value]) => text.replaceAll(`{${key}}`, String(value)), template)
+}
 
 export function WeddingMusicLibraryPicker(props: {
   items: WeddingMusicLibraryRow[]
@@ -16,12 +24,31 @@ export function WeddingMusicLibraryPicker(props: {
   stopPreviewLabel: string
   okLabel: string
   title: string
+  uploadLabel: string
+  uploadHint: string
+  uploadProgress: string
+  uploadSaved: string
+  uploadPartial: string
+  uploadTooLarge: string
+  uploadInvalidType: string
+  uploadFailed: string
+  deleteTrackLabel: string
+  deleteTrackConfirm: string
+  deleteDenied: string
+  deleteFailed: string
+  canDelete: boolean
   onSelect: (audioUrl: string) => void
+  onLibraryChange: (items: WeddingMusicLibraryRow[]) => void
+  onTrackRemoved: (audioUrl: string) => void
 }) {
+  const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [draftUrl, setDraftUrl] = useState('')
   const [playingUrl, setPlayingUrl] = useState('')
+  const [uploadState, setUploadState] = useState<{ current: number; total: number; name: string } | null>(null)
+  const [deletingId, setDeletingId] = useState('')
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const fileRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const audio = new Audio()
@@ -45,6 +72,7 @@ export function WeddingMusicLibraryPicker(props: {
   }
 
   function closeModal() {
+    if (uploadState) return
     stopPreview()
     setDraftUrl('')
     setOpen(false)
@@ -69,7 +97,74 @@ export function WeddingMusicLibraryPicker(props: {
     closeModal()
   }
 
-  if (!props.items.length) return null
+  function errorText(code: string) {
+    if (code === 'too_large') return props.uploadTooLarge
+    if (code === 'invalid_type') return props.uploadInvalidType
+    if (code === 'denied') return props.deleteDenied
+    if (code === 'upload_failed') return props.uploadFailed
+    if (code === 'missing') return props.deleteFailed
+    return code
+  }
+
+  async function uploadFiles(list: FileList | null) {
+    const files = Array.from(list ?? [])
+    if (fileRef.current) fileRef.current.value = ''
+    if (!files.length || uploadState) return
+    let ok = 0
+    let failed = 0
+    let lastUrl = ''
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index]
+      const name = file.name.length > 48 ? `${file.name.slice(0, 45)}…` : file.name
+      setUploadState({ current: index + 1, total: files.length, name })
+      const problem = weddingLibraryMusicFileError(file)
+      if (problem) {
+        failed += 1
+        toast({ title: errorText(problem), description: file.name, variant: 'destructive' })
+        continue
+      }
+      const body = new FormData()
+      body.append('musicFile', file)
+      body.append('musicTitle', file.name)
+      const result = await uploadWeddingLibraryTrack(body)
+      if ('error' in result && result.error) {
+        failed += 1
+        toast({ title: errorText(result.error), description: file.name, variant: 'destructive' })
+        continue
+      }
+      if (result.musicLibrary) props.onLibraryChange(result.musicLibrary)
+      if (result.audioUrl) {
+        lastUrl = result.audioUrl
+        ok += 1
+      }
+    }
+    setUploadState(null)
+    if (lastUrl) setDraftUrl(lastUrl)
+    if (ok > 0 && failed === 0) {
+      toast({ title: fillTemplate(props.uploadSaved, { count: ok }) })
+    } else if (ok > 0) {
+      toast({
+        title: fillTemplate(props.uploadPartial, { ok, total: files.length, failed }),
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function removeTrack(item: WeddingMusicLibraryRow) {
+    if (!props.canDelete || item.source !== 'upload' || deletingId || uploadState) return
+    if (!window.confirm(props.deleteTrackConfirm)) return
+    if (playingUrl === item.audioUrl) stopPreview()
+    setDeletingId(item.id)
+    const result = await deleteWeddingLibraryTrack(item.audioUrl)
+    setDeletingId('')
+    if ('error' in result && result.error) {
+      toast({ title: errorText(result.error), variant: 'destructive' })
+      return
+    }
+    if (result.musicLibrary) props.onLibraryChange(result.musicLibrary)
+    if (draftUrl === item.audioUrl) setDraftUrl('')
+    props.onTrackRemoved(item.audioUrl)
+  }
 
   const selected = props.items.find((item) => item.audioUrl === props.selectedUrl)
   const showCredit = props.items.some((item) => item.credit)
@@ -100,21 +195,50 @@ export function WeddingMusicLibraryPicker(props: {
           <DialogHeader>
             <DialogTitle>{props.title}</DialogTitle>
           </DialogHeader>
+          <div className="space-y-2">
+            <label
+              className={cn(
+                'relative flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2 text-sm hover:bg-muted',
+                uploadState && 'pointer-events-none opacity-70',
+              )}
+            >
+              <input
+                ref={fileRef}
+                type="file"
+                accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg"
+                multiple
+                className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+                style={{ touchAction: 'manipulation' }}
+                disabled={Boolean(uploadState)}
+                onChange={(event) => {
+                  void uploadFiles(event.target.files)
+                }}
+              />
+              {uploadState ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="pointer-events-none h-4 w-4" />}
+              <span className="pointer-events-none">{props.uploadLabel}</span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              {uploadState
+                ? fillTemplate(props.uploadProgress, uploadState)
+                : props.uploadHint}
+            </p>
+          </div>
           <div className="max-h-[50vh] space-y-2 overflow-y-auto pr-1">
             {props.items.map((item) => {
               const picked = draftUrl === item.audioUrl
               const playing = playingUrl === item.audioUrl
+              const removing = deletingId === item.id
               return (
                 <div
                   key={item.id}
                   className={cn(
-                    'flex items-center gap-2 rounded-xl border px-3 py-2',
+                    'flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2',
                     picked ? 'border-primary bg-primary/10' : 'hover:bg-muted',
                   )}
                 >
                   <button
                     type="button"
-                    className={cn('min-w-0 flex-1 text-left text-sm', picked && 'font-medium')}
+                    className={cn('min-w-0 flex-1 truncate text-left text-sm', picked && 'font-medium')}
                     aria-pressed={picked}
                     onClick={() => setDraftUrl(item.audioUrl)}
                   >
@@ -128,6 +252,21 @@ export function WeddingMusicLibraryPicker(props: {
                   >
                     {playing ? props.stopPreviewLabel : props.previewLabel}
                   </Button>
+                  {props.canDelete && item.source === 'upload' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={Boolean(removing || uploadState)}
+                      aria-label={props.deleteTrackLabel}
+                      onClick={() => {
+                        void removeTrack(item)
+                      }}
+                    >
+                      {removing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                      {props.deleteTrackLabel}
+                    </Button>
+                  ) : null}
                 </div>
               )
             })}
@@ -135,7 +274,7 @@ export function WeddingMusicLibraryPicker(props: {
           {showCredit ? <p className="text-xs text-muted-foreground">{props.credit}</p> : null}
           {draftUrl ? (
             <DialogFooter>
-              <Button type="button" onClick={confirmPick}>
+              <Button type="button" onClick={confirmPick} disabled={Boolean(uploadState)}>
                 {props.okLabel}
               </Button>
             </DialogFooter>
