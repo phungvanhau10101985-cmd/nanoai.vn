@@ -22,6 +22,7 @@ import {
   loadWeddingCardWorkspace,
   publishCurrentWeddingCard,
   saveWeddingCardBrief,
+  composeWeddingSampleCopy,
 } from './actions'
 import { WeddingAiPolishTextarea } from './wedding-ai-polish-textarea'
 import { DepositCreditPopup } from '@/components/deposit-credit-popup'
@@ -54,7 +55,7 @@ import {
 } from '@/lib/wedding/invitation-occasion'
 import { isInvitationGiftReady } from '@/lib/wedding/wedding-gift-vietqr'
 import { WEDDING_CARD_TEXT_TOKEN_HINT } from '@/lib/wedding/wedding-card-text-interpolate'
-import { stripSharedWeddingCopy, weddingSharedCopyAddresses } from '@/lib/wedding/wedding-shared-copy'
+import { omitWeddingAddressesFromSharedCopy, stripSharedWeddingCopy, weddingSharedCopyAddresses } from '@/lib/wedding/wedding-shared-copy'
 import { WeddingTimelineList } from '@/components/wedding/wedding-timeline-list'
 import { parseWeddingEventTimeline, weddingTimelineItemContent } from '@/lib/wedding/wedding-event-timeline'
 import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/wedding/wedding-date-normalize'
@@ -69,9 +70,17 @@ import { WeddingSampleCardPicker } from '@/components/wedding/wedding-sample-car
 import { WeddingSampleDemoFrame } from '@/components/wedding/wedding-sample-demo-bar'
 import { WeddingLiveDevicePreviews } from '@/components/wedding/wedding-live-device-preview'
 import { WeddingDesignScale } from '@/components/wedding/wedding-design-scale'
-import { weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
+import { resolveWeddingCardOrnaments, weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
-import { isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingSampleCard, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
+import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
+import {
+  applyComposeCopyToCard,
+  weddingSampleShowsLoveStoryHints,
+  type WeddingSampleComposeFields,
+} from '@/lib/wedding/wedding-sample-compose'
+import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
 import { weddingPreviewLookToken, type WeddingPreviewLook } from '@/lib/wedding/wedding-preview-look'
 import { applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
@@ -459,6 +468,14 @@ export default function WeddingCardAiClientPage() {
   const [backgroundPreviewLarge, setBackgroundPreviewLarge] = useState(false)
   const [samplePreviewId, setSamplePreviewId] = useState<string | null>(null)
   const pendingSampleUseRef = useRef('')
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeSampleId, setComposeSampleId] = useState('')
+  const [composeReturnPreview, setComposeReturnPreview] = useState(false)
+  const [composeGroom, setComposeGroom] = useState('')
+  const [composeBride, setComposeBride] = useState('')
+  const [composeStory, setComposeStory] = useState('')
+  const [composeNameError, setComposeNameError] = useState(false)
+  const [composeBusy, setComposeBusy] = useState(false)
   const [musicLibrary, setMusicLibrary] = useState<WeddingMusicLibraryRow[]>([])
   const [applyingLibraryId, setApplyingLibraryId] = useState<string | null>(null)
   const [rsvps, setRsvps] = useState<WeddingRsvp[]>([])
@@ -648,19 +665,52 @@ export default function WeddingCardAiClientPage() {
     masterImageUrl: masterImage?.imageUrl,
   })
   const cardMobileOrnamentKey = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(card.id), 'mobile')
-  const sharedPreviewOrnaments = weddingOrnamentsForDevice(readyBackground?.ornaments, ornamentLayouts, ornamentKey, 'mobile')
   const sharedMobileOrnamentKey = weddingOrnamentDeviceKey(ornamentKey, 'mobile')
-  const cardPrivateOrnaments =
-    !ornamentAdmin && cardMobileOrnamentKey && Object.prototype.hasOwnProperty.call(ornamentLayouts, cardMobileOrnamentKey)
-      ? ornamentLayouts[cardMobileOrnamentKey]
-      : undefined
-  const backgroundOrnaments = ornamentDraft ?? cardPrivateOrnaments ?? sharedPreviewOrnaments
+  const resolvedOrnaments = resolveWeddingCardOrnaments({
+    defaults: readyBackground?.ornaments,
+    layouts: ornamentLayouts,
+    sharedBaseKey: ornamentKey,
+    cardId: card.id,
+    device: 'mobile',
+    templateEditor: ornamentAdmin,
+  })
+  const backgroundOrnaments = ornamentDraft ?? resolvedOrnaments
+  const ornamentDraftRef = useRef(ornamentDraft)
+  const ornamentSyncRef = useRef({ source: '', sharedKey: '', cardKey: '' })
+  if (!ornamentSyncRef.current.source) ornamentSyncRef.current.source = Math.random().toString(36).slice(2)
+  ornamentSyncRef.current.sharedKey = sharedMobileOrnamentKey
+  ornamentSyncRef.current.cardKey = cardMobileOrnamentKey
+  ornamentDraftRef.current = ornamentDraft
   const ornamentKeyRef = useRef(ornamentKey)
   useEffect(() => {
     if (ornamentKeyRef.current === ornamentKey) return
     ornamentKeyRef.current = ornamentKey
     setOrnamentDraft(null)
   }, [ornamentKey])
+  useEffect(() => {
+    if (!card.id || !ornamentDraft) return
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncRef.current.source,
+      cardId: card.id,
+      template: ornamentAdmin,
+      ornaments: ornamentDraft,
+    })
+  }, [card.id, ornamentAdmin, ornamentDraft])
+  useEffect(() => {
+    if (!card.id) return
+    return subscribeWeddingOrnamentTruth(card.id, ornamentSyncRef.current.source, (message) => {
+      if (ornamentDraftRef.current) return
+      setOrnamentLayouts((prev) => {
+        const next = { ...prev }
+        const key = message.template ? ornamentSyncRef.current.sharedKey : ornamentSyncRef.current.cardKey
+        if (!key) return prev
+        if (!message.ornaments) delete next[key]
+        else next[key] = message.ornaments
+        if (message.template && ornamentSyncRef.current.cardKey) delete next[ornamentSyncRef.current.cardKey]
+        return next
+      })
+    })
+  }, [card.id])
   const resetOrnaments = async () => {
     if (!card.id || ornamentSaving) return
     setOrnamentSaving(true)
@@ -674,9 +724,18 @@ export default function WeddingCardAiClientPage() {
       setOrnamentLayouts((prev) => {
         const next = { ...prev }
         delete next[clearedKey]
+        if (ornamentAdmin && cardMobileOrnamentKey) delete next[cardMobileOrnamentKey]
         return next
       })
       setOrnamentDraft(null)
+      if (card.id) {
+        publishWeddingOrnamentTruth({
+          source: ornamentSyncRef.current.source,
+          cardId: card.id,
+          template: ornamentAdmin,
+          ornaments: null,
+        })
+      }
     } finally {
       setOrnamentSaving(false)
     }
@@ -695,8 +754,18 @@ export default function WeddingCardAiClientPage() {
             toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
             return
           }
-          setOrnamentLayouts((prev) => ({ ...prev, [storeKey]: result.ornaments }))
+          setOrnamentLayouts((prev) => {
+            const next = { ...prev, [storeKey]: result.ornaments }
+            if (result.template && cardMobileOrnamentKey && cardMobileOrnamentKey !== storeKey) delete next[cardMobileOrnamentKey]
+            return next
+          })
           setOrnamentDraft((current) => (current === snapshot ? null : current))
+          publishWeddingOrnamentTruth({
+            source: ornamentSyncRef.current.source,
+            cardId: card.id,
+            template: Boolean(result.template),
+            ornaments: result.ornaments,
+          })
         } finally {
           setOrnamentSaving(false)
         }
@@ -1553,119 +1622,150 @@ export default function WeddingCardAiClientPage() {
     toast({ title: tImage.creditShortTitle, description: tImage.creditShortKeep, duration: 7000 })
   }
 
-  const applyLibraryImage = async (libraryId: string, kitStyleId?: string, themeKey?: string) => {
-    if (!card.id || applyingLibraryId) return
+  const applyLibraryImage = async (
+    libraryId: string,
+    kitStyleId?: string,
+    themeKey?: string,
+    options?: { commitCard?: boolean },
+  ): Promise<WeddingCard | null> => {
+    const source = persistInputsRef.current.card
+    if (!source.id || applyingLibraryId) return null
     setApplyingLibraryId(libraryId)
     const formData = new FormData()
-    formData.append('cardId', card.id)
+    formData.append('cardId', source.id)
     formData.append('libraryId', libraryId)
     formData.append('type', 'master')
     setBackgroundNotice(null)
+    const commitCard = options?.commitCard !== false
     try {
       const result = await applyWeddingBackgroundFromLibrary(formData)
       if ('error' in result && result.error) {
         setBackgroundNotice({ title: 'Không chọn được ảnh', description: result.error, error: true })
-        return
+        return null
       }
       const fresh = await loadWeddingCardWorkspace(persistInputsRef.current.card.id)
-      if (!('error' in fresh)) {
-        setCard((prev) => {
-          const next = cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary)
-          if (!kitStyleId) return { ...next, weddingDate: prev.weddingDate }
-          return stripWeddingSamplePhotos({
+      if ('error' in fresh) return null
+      const next = cardWithAiBackgroundKit(fresh.card, fresh.images, fresh.library, fresh.frameLibrary)
+      const produced = !kitStyleId
+        ? { ...next, weddingDate: source.weddingDate }
+        : stripWeddingSamplePhotos({
             ...next,
-            weddingDate: prev.weddingDate,
+            weddingDate: source.weddingDate,
             selectedStyleId: kitStyleId,
             colorPalette: getWeddingStylePreset(kitStyleId).palette,
             sectionConfig: mergeWeddingSectionConfig(next.sectionConfig, weddingLibrarySampleSectionPatch(kitStyleId, themeKey)),
           })
+      setImages(fresh.images)
+      setLibrary(fresh.library)
+      setOrnamentLayouts(fresh.ornamentLayouts ?? {})
+      setFrameLibrary(fresh.frameLibrary)
+      setSharedFrames(fresh.sharedFrames ?? {})
+      setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
+      setMusicLibrary(fresh.musicLibrary)
+      setRsvps(fresh.rsvps)
+      setSavedCards(fresh.cards)
+      if (commitCard) {
+        setCard(produced)
+        setBackgroundConfirmOpen(true)
+        setSamplePreviewId(null)
+        setBackgroundNotice(kitStyleId ? {
+          title: tImage.sampleCardAppliedTitle,
+          description: tImage.sampleCardAppliedHint,
+        } : {
+          title: 'Đã chọn ảnh chính từ kho',
+          description: 'Không trừ credit.',
         })
-        setImages(fresh.images)
-        setLibrary(fresh.library)
-        setOrnamentLayouts(fresh.ornamentLayouts ?? {})
-        setFrameLibrary(fresh.frameLibrary)
-        setSharedFrames(fresh.sharedFrames ?? {})
-        setOrnamentAdmin(Boolean(fresh.ornamentAdmin))
-        setMusicLibrary(fresh.musicLibrary)
-        setRsvps(fresh.rsvps)
-        setSavedCards(fresh.cards)
       }
-      setBackgroundConfirmOpen(true)
-      setSamplePreviewId(null)
-      setBackgroundNotice(kitStyleId ? {
-        title: tImage.sampleCardAppliedTitle,
-        description: tImage.sampleCardAppliedHint,
-      } : {
-        title: 'Đã chọn ảnh chính từ kho',
-        description: 'Không trừ credit.',
-      })
+      return produced
     } catch {
       setBackgroundNotice({ title: 'Không chọn được ảnh', description: 'Thử lại.', error: true })
+      return null
     } finally {
       setApplyingLibraryId(null)
     }
   }
 
-  const applySampleCard = (sampleId: string) => {
+  const stageSampleCard = (source: WeddingCard, next: WeddingCard, notice: { title: string; description: string }) => {
+    const groomClear = isWeddingSamplePhotoUrl(source.groomImageUrl)
+    const brideClear = isWeddingSamplePhotoUrl(source.brideImageUrl)
+    const coverClear = isWeddingSamplePhotoUrl(parseWeddingSectionConfig(source.sectionConfig).coverPhotoUrl)
+    setGroomPortraitFile(null)
+    setBridePortraitFile(null)
+    setGroomPortraitClear(groomClear)
+    setBridePortraitClear(brideClear)
+    setCoverImageFile(null)
+    setCoverClearOnSave(coverClear)
+    setAlbumImageFiles([])
+    persistInputsRef.current = {
+      ...persistInputsRef.current,
+      card: next,
+      groomPortraitFile: null,
+      bridePortraitFile: null,
+      groomPortraitClear: groomClear,
+      bridePortraitClear: brideClear,
+      coverImageFile: null,
+      coverClearOnSave: coverClear,
+      albumImageFiles: [],
+    }
+    setCard(next)
+    setSamplePreviewId(null)
+    setBackgroundConfirmOpen(true)
+    setBackgroundNotice(notice)
+  }
+
+  const applySampleCard = async (sampleId: string, copy?: WeddingSampleComposeFields): Promise<boolean> => {
     const sample = WEDDING_SAMPLE_CARDS.find((item) => item.id === sampleId)
     const preset = sample?.aiStyleId
       ? weddingAiBackgroundKit(sample.aiStyleId)
       : sample
         ? findWeddingBackgroundPreset(sample.backgroundPresetId)
         : undefined
-    if (!card.id || !sample || !preset || applyingLibraryId) return
+    const source = persistInputsRef.current.card
+    if (!source.id || !sample || !preset || applyingLibraryId) return false
+    const notice = copy
+      ? { title: tImage.sampleComposeSavedTitle, description: tImage.sampleComposeSavedHint }
+      : { title: tImage.sampleCardAppliedTitle, description: tImage.sampleCardAppliedHint }
+    const withCopy = (visual: WeddingCard) => (copy ? applyComposeCopyToCard(visual, copy, sample.dressCode) : visual)
     if (sample.libraryImageUrl) {
       const item = library.find((row) => row.imageUrl === sample.libraryImageUrl)
-      if (item) {
-        setGroomPortraitFile(null)
-        setBridePortraitFile(null)
-        setGroomPortraitClear(isWeddingSamplePhotoUrl(card.groomImageUrl))
-        setBridePortraitClear(isWeddingSamplePhotoUrl(card.brideImageUrl))
-        setCoverImageFile(null)
-        setCoverClearOnSave(isWeddingSamplePhotoUrl(parseWeddingSectionConfig(card.sectionConfig).coverPhotoUrl))
-        setAlbumImageFiles([])
-        void applyLibraryImage(item.id, sample.aiStyleId || 'floral', sample.id)
-        return
-      }
+      if (!item) return false
+      const loaded = await applyLibraryImage(item.id, sample.aiStyleId || 'floral', sample.id, { commitCard: false })
+      if (!loaded) return false
+      stageSampleCard(source, withCopy(loaded), notice)
+      return true
     }
     const style = getWeddingStylePreset(sample.aiStyleId || preset.look.styleId)
-    setGroomPortraitFile(null)
-    setBridePortraitFile(null)
-    setGroomPortraitClear(isWeddingSamplePhotoUrl(card.groomImageUrl))
-    setBridePortraitClear(isWeddingSamplePhotoUrl(card.brideImageUrl))
-    setCoverImageFile(null)
-    setCoverClearOnSave(isWeddingSamplePhotoUrl(parseWeddingSectionConfig(card.sectionConfig).coverPhotoUrl))
-    setAlbumImageFiles([])
-    setCard((prev) => {
-      const cleared = clearWeddingFrameChoice(clearWeddingFrameChoice(prev.sectionConfig, 'cover'), 'pair')
-      return stripWeddingSamplePhotos({
-        ...prev,
-        selectedStyleId: sample.aiStyleId || preset.look.styleId,
-        colorPalette: style.palette,
-        sectionConfig: mergeWeddingSectionConfig(cleared, {
-          ...(sample.libraryImageUrl
-            ? weddingLibrarySampleSectionPatch(sample.aiStyleId, sample.id)
-            : sample.aiStyleId
-              ? weddingAiKitSectionPatch(sample.aiStyleId)
-              : weddingReadyBackgroundSectionPatch(preset)),
-        }),
-      })
+    const cleared = clearWeddingFrameChoice(clearWeddingFrameChoice(source.sectionConfig, 'cover'), 'pair')
+    const visual = stripWeddingSamplePhotos({
+      ...source,
+      selectedStyleId: sample.aiStyleId || preset.look.styleId,
+      colorPalette: style.palette,
+      sectionConfig: mergeWeddingSectionConfig(cleared, {
+        ...(sample.aiStyleId ? weddingAiKitSectionPatch(sample.aiStyleId) : weddingReadyBackgroundSectionPatch(preset)),
+      }),
     })
-    setSamplePreviewId(null)
-    setBackgroundConfirmOpen(true)
-    setBackgroundNotice({
-      title: tImage.sampleCardAppliedTitle,
-      description: tImage.sampleCardAppliedHint,
-    })
+    stageSampleCard(source, withCopy(visual), notice)
+    return true
   }
 
-  const applySampleCardRef = useRef(applySampleCard)
-  applySampleCardRef.current = applySampleCard
+  const openSampleComposeRef = useRef<(sampleId: string, returnToPreview: boolean) => void>(() => {})
+  openSampleComposeRef.current = (sampleId, returnToPreview) => {
+    if (!findWeddingSampleCard(sampleId) || !persistInputsRef.current.card.id || composeBusy) return
+    const current = persistInputsRef.current.card
+    setComposeSampleId(sampleId)
+    setComposeReturnPreview(returnToPreview)
+    setComposeGroom(current.groomName)
+    setComposeBride(current.brideName)
+    setComposeStory('')
+    setComposeNameError(false)
+    if (returnToPreview) setSamplePreviewId(null)
+    setComposeOpen(true)
+  }
   useEffect(() => {
     const id = pendingSampleUseRef.current
     if (!id || !card.id) return
     pendingSampleUseRef.current = ''
-    applySampleCardRef.current(id)
+    openSampleComposeRef.current(id, false)
   }, [card.id])
   useEffect(() => {
     if (!samplePreviewId) return
@@ -1677,11 +1777,94 @@ export default function WeddingCardAiClientPage() {
         setSamplePreviewId(null)
         return
       }
-      if (data.type === 'wedding-sample-use' && data.id) applySampleCardRef.current(data.id)
+      if (data.type === 'wedding-sample-use' && data.id) openSampleComposeRef.current(data.id, true)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [samplePreviewId])
+
+  const cancelSampleCompose = () => {
+    if (composeBusy) return
+    const sampleId = composeSampleId
+    const back = composeReturnPreview
+    setComposeOpen(false)
+    if (back && sampleId) {
+      setBackgroundPageOpen(true)
+      setBackgroundConfirmOpen(false)
+      setSamplePreviewId(sampleId)
+    }
+  }
+
+  const confirmSampleCompose = async () => {
+    const sample = findWeddingSampleCard(composeSampleId)
+    if (!sample || composeBusy) return
+    const wedding = weddingSampleShowsLoveStoryHints(sample)
+    const groomName = composeGroom.trim()
+    const brideName = composeBride.trim()
+    if ((wedding && (!groomName || !brideName)) || !groomName) {
+      setComposeNameError(true)
+      return
+    }
+    setComposeNameError(false)
+    setComposeBusy(true)
+    const formData = new FormData()
+    formData.append('occasionKey', wedding ? 'wedding' : normalizeInvitationOccasion(sample.occasionKey ?? card.occasionKey))
+    formData.append('groomName', groomName)
+    formData.append('brideName', brideName)
+    formData.append('storyNotes', composeStory.trim())
+    formData.append('weddingDate', persistInputsRef.current.weddingDateIso || persistInputsRef.current.card.weddingDate || '')
+    const result = await composeWeddingSampleCopy(formData)
+    if ('error' in result && result.error) {
+      setComposeBusy(false)
+      if (isWeddingInsufficientCredit(result)) {
+        setCreditTopUpOpen(true)
+        return
+      }
+      toast({ title: 'Chưa soạn được lời thiệp', description: result.error, variant: 'destructive' })
+      return
+    }
+    if (!('coupleIntro' in result)) {
+      setComposeBusy(false)
+      return
+    }
+    const addresses = weddingSharedCopyAddresses(persistInputsRef.current.card)
+    const copy: WeddingSampleComposeFields = {
+      groomName,
+      brideName,
+      coupleIntro: omitWeddingAddressesFromSharedCopy(result.coupleIntro, addresses),
+      loveQuote: omitWeddingAddressesFromSharedCopy(result.loveQuote, addresses),
+      storyText: omitWeddingAddressesFromSharedCopy(result.storyText, addresses),
+      thankYouText: omitWeddingAddressesFromSharedCopy(result.thankYouText, addresses),
+    }
+    const applied = await applySampleCard(sample.id, copy)
+    if (!applied) {
+      const current = persistInputsRef.current.card
+      const next = applyComposeCopyToCard(current, copy, sample.dressCode)
+      persistInputsRef.current = { ...persistInputsRef.current, card: next }
+      setCard(next)
+      setBackgroundNotice({
+        title: tImage.sampleComposeSavedTitle,
+        description: tImage.sampleComposeWordsOnly,
+      })
+    }
+    setComposeReturnPreview(false)
+    setComposeOpen(false)
+    setComposeBusy(false)
+    setBackgroundPageOpen(false)
+    setBackgroundConfirmOpen(false)
+    setSamplePreviewId(null)
+    const saved = await commitSaveBrief(false, { hideSuccess: true })
+    if (saved) {
+      toast({
+        title: tImage.sampleComposeSavedTitle,
+        description: applied
+          ? result.charged > 0
+            ? tImage.sampleComposeSavedHint
+            : tImage.sampleComposeSavedPlain
+          : tImage.sampleComposeWordsOnly,
+      })
+    }
+  }
 
   const publish = async () => {
     const saved = await commitSaveBrief(false, { hideSuccess: true })
@@ -1953,7 +2136,7 @@ export default function WeddingCardAiClientPage() {
                 Tạo thiệp mới
               </Button>
               <div className="rounded-2xl bg-white/80 p-3 text-sm text-slate-700 shadow-sm">
-                <b>Credit:</b> Chọn thiệp mẫu không trừ credit. Mỗi lần Tối ưu AI (đoạn mở, quote, dress code, câu chuyện, lời cảm ơn) = 0,1 credit. Sửa tay, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
+                <b>Credit:</b> Xem thiệp mẫu không trừ credit. Dùng mẫu rồi OK: AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn miễn phí. Mỗi lần Tối ưu AI từng đoạn sau đó = 0,1 credit. Sửa tay, preview, QR, RSVP, tải ảnh, xuất bản = 0 credit.
               </div>
             </div>
           </div>
@@ -2132,6 +2315,37 @@ export default function WeddingCardAiClientPage() {
             )}
           </DialogContent>
         </Dialog>
+        <WeddingSampleComposeModal
+          locale={uiLocale}
+          open={composeOpen}
+          wedding={weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})}
+          busy={composeBusy}
+          groomLabel={
+            weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})
+              ? tImage.sampleComposeGroom
+              : occasionCopy.primaryName
+          }
+          brideLabel={
+            weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})
+              ? tImage.sampleComposeBride
+              : occasionCopy.secondaryName
+          }
+          groomName={composeGroom}
+          brideName={composeBride}
+          storyNotes={composeStory}
+          nameError={composeNameError}
+          onGroomName={(value) => {
+            setComposeGroom(value)
+            if (value.trim()) setComposeNameError(false)
+          }}
+          onBrideName={(value) => {
+            setComposeBride(value)
+            if (value.trim()) setComposeNameError(false)
+          }}
+          onStoryNotes={setComposeStory}
+          onCancel={cancelSampleCompose}
+          onConfirm={() => void confirmSampleCompose()}
+        />
         <div id="wedding-card-editor" className="grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
           <div className="w-full min-w-0 max-w-full space-y-6">
             <Card>
@@ -2917,6 +3131,7 @@ export default function WeddingCardAiClientPage() {
                         const next = { ...prev }
                         if (!ornaments) delete next[key]
                         else next[key] = ornaments
+                        if (ornamentAdmin && cardMobileOrnamentKey && cardMobileOrnamentKey !== key) delete next[cardMobileOrnamentKey]
                         return next
                       })
                     }}
@@ -3273,8 +3488,9 @@ export default function WeddingCardAiClientPage() {
                 )}
               </CardContent>
             </Card>
+          </div>
 
-            <Card>
+            <Card className="min-w-0 lg:col-start-1">
               <CardHeader>
                 <CardTitle>9. Link thiệp</CardTitle>
                 <CardDescription>
@@ -3333,7 +3549,6 @@ export default function WeddingCardAiClientPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
         </div>
       </div>
       <Dialog

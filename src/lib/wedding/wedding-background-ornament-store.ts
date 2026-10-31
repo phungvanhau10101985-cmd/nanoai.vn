@@ -249,3 +249,78 @@ export function weddingOrnamentsForKey(
   if (key && Object.prototype.hasOwnProperty.call(layouts, key)) return layouts[key]
   return [...(defaults ?? [])]
 }
+
+function sheetFromLayouts(
+  layouts: Record<string, WeddingBackgroundOrnament[]>,
+  key: string,
+): WeddingBackgroundOrnament[] | null {
+  if (!key || !Object.prototype.hasOwnProperty.call(layouts, key)) return null
+  return layouts[key]
+}
+
+/**
+ * Một danh sách hoa cho vỏ thiệp, preview và xem nhanh.
+ * Quản trị xem mẫu chung. Khách có bản riêng thì xem bản đó, kể cả khi đã xóa hết.
+ * Không có bản riêng thì mẫu của đúng máy, rồi mẫu không gắn máy, rồi hoa mặc định của nền.
+ */
+export function resolveWeddingShownOrnaments(input: {
+  defaults?: readonly WeddingBackgroundOrnament[] | null
+  cardSheet?: readonly WeddingBackgroundOrnament[] | null
+  sharedSheet?: readonly WeddingBackgroundOrnament[] | null
+  sharedBase?: readonly WeddingBackgroundOrnament[] | null
+  templateEditor?: boolean
+}): WeddingBackgroundOrnament[] {
+  if (!input.templateEditor && input.cardSheet) return input.cardSheet as WeddingBackgroundOrnament[]
+  if (input.sharedSheet) return input.sharedSheet as WeddingBackgroundOrnament[]
+  if (input.sharedBase) return input.sharedBase as WeddingBackgroundOrnament[]
+  return (input.defaults ?? []).map((item) => ({ ...item }))
+}
+
+/** Đọc đúng khóa trong bảng layout. Máy đang xem là mobile: vỏ, preview và xem nhanh dùng cùng bản đó. */
+export function resolveWeddingCardOrnaments(input: {
+  defaults?: readonly WeddingBackgroundOrnament[] | null
+  layouts: Record<string, WeddingBackgroundOrnament[]>
+  sharedBaseKey: string
+  cardId: string
+  device: WeddingOrnamentDevice
+  templateEditor: boolean
+}): WeddingBackgroundOrnament[] {
+  const cardKey = weddingOrnamentDeviceKey(weddingCardOrnamentLayoutKey(input.cardId), input.device)
+  const sharedKey = weddingOrnamentDeviceKey(input.sharedBaseKey, input.device)
+  return resolveWeddingShownOrnaments({
+    defaults: input.defaults,
+    cardSheet: sheetFromLayouts(input.layouts, cardKey),
+    sharedSheet: sheetFromLayouts(input.layouts, sharedKey),
+    sharedBase: sheetFromLayouts(input.layouts, input.sharedBaseKey),
+    templateEditor: input.templateEditor,
+  })
+}
+
+function sameOrnamentMark(a: WeddingBackgroundOrnament, b: WeddingBackgroundOrnament): boolean {
+  return (
+    a.src === b.src &&
+    a.x === b.x &&
+    a.y === b.y &&
+    a.w === b.w &&
+    (a.rotate ?? null) === (b.rotate ?? null) &&
+    (a.flipX ?? false) === (b.flipX ?? false) &&
+    (a.opacity ?? null) === (b.opacity ?? null) &&
+    (a.blur ?? null) === (b.blur ?? null) &&
+    (a.fade ?? null) === (b.fade ?? null) &&
+    (a.anchor ?? 'top') === (b.anchor ?? 'top') &&
+    (a.motion ?? 'still') === (b.motion ?? 'still')
+  )
+}
+
+/** null khác mảng rỗng: rỗng là đã xóa hoa, null là chưa có bản để hiện. */
+export function weddingOrnamentListsEqual(
+  a: readonly WeddingBackgroundOrnament[] | null | undefined,
+  b: readonly WeddingBackgroundOrnament[] | null | undefined,
+): boolean {
+  if (a == null || b == null) return a == null && b == null
+  if (a.length !== b.length) return false
+  for (let index = 0; index < a.length; index += 1) {
+    if (!sameOrnamentMark(a[index], b[index])) return false
+  }
+  return true
+}

@@ -46,7 +46,8 @@ import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpot
 import { resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
 import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
-import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnamentListsEqual } from '@/lib/wedding/wedding-background-ornament-store'
+import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
@@ -91,7 +92,7 @@ import { WeddingStackedCouplePhotos } from '@/components/wedding/wedding-stacked
 import { WeddingWishPresetPicker } from '@/components/wedding/wedding-wish-preset-picker'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingGuestNameFontLink, renderWeddingGuestName, WEDDING_GUEST_NAME_CLASS } from '@/components/wedding/wedding-guest-name-font'
-import { WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
+import { WeddingDraggableChrome, WeddingDraggableFab } from '@/components/wedding/wedding-draggable-fab'
 import {
   guestInviteVenueLabel,
   normalizeGuestInviteVenue,
@@ -437,24 +438,28 @@ export default function WeddingPublicClient({
   const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_MOBILE_WIDTH)
   const [desktopOrnaments, setDesktopOrnaments] = useState(ornamentDesktop)
   const [mobileOrnaments, setMobileOrnaments] = useState(ornamentMobile)
-  const [sharedDesktopOrnaments, setSharedDesktopOrnaments] = useState(ornamentSharedDesktop)
+  const [, setSharedDesktopOrnaments] = useState(ornamentSharedDesktop)
   const [sharedMobileOrnaments, setSharedMobileOrnaments] = useState(ornamentSharedMobile)
   const [sharedShellDraft, setSharedShellDraft] = useState(sharedShell)
   const [shellDevice, setShellDevice] = useState<'desktop' | 'mobile'>('mobile')
   const [frameLines, setFrameLines] = useState(!sampleDemo)
+  const [chromeHold, setChromeHold] = useState(false)
   const [lookOrnaments, setLookOrnaments] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentDraft, setOrnamentDraft] = useState<WeddingBackgroundOrnament[] | null>(null)
   const [ornamentSaving, setOrnamentSaving] = useState(false)
   const layoutDevice: 'desktop' | 'mobile' = (sampleDemo || hostPreview || layoutPreview) && viewDevice === 'desktop' ? 'desktop' : 'mobile'
-  const savedSheet = layoutDevice === 'desktop' ? desktopOrnaments ?? mobileOrnaments : mobileOrnaments ?? desktopOrnaments
-  const sharedSheet = layoutDevice === 'desktop' ? sharedDesktopOrnaments ?? sharedMobileOrnaments : sharedMobileOrnaments ?? sharedDesktopOrnaments
-  const savedOrnaments = templateEditor ? sharedSheet : savedSheet ?? sharedSheet
-  const backgroundOrnaments = previewLookOn
-    ? ornamentDraft ?? lookOrnaments ?? savedOrnaments ?? ornamentOverride ?? readyBackground?.ornaments ?? []
-    : ornamentDraft ?? savedOrnaments ?? lookOrnaments ?? ornamentOverride ?? readyBackground?.ornaments ?? []
+  const savedOrnaments = resolveWeddingShownOrnaments({
+    defaults: readyBackground?.ornaments,
+    cardSheet: mobileOrnaments,
+    sharedSheet: sharedMobileOrnaments,
+    sharedBase: ornamentOverride,
+    templateEditor,
+  })
+  const backgroundOrnaments = ornamentDraft ?? (previewLookOn ? lookOrnaments : null) ?? savedOrnaments
   const tImage = getDictionary(uiLocale).weddingCardAiImage
   const tCover = getDictionary(uiLocale).weddingCardAiCover
   const ornamentDraftRef = useRef(ornamentDraft)
+  const ornamentSyncSource = useRef(Math.random().toString(36).slice(2))
   const ornamentQueueRef = useRef<{ device: 'desktop' | 'mobile'; ornaments: WeddingBackgroundOrnament[] } | null>(null)
   const ornamentFlightRef = useRef(false)
   const ornamentEpochRef = useRef(0)
@@ -474,12 +479,19 @@ export default function WeddingPublicClient({
       return
     }
     if (templateEditor || samplePresetId) {
-      if (device === 'desktop') setSharedDesktopOrnaments(null)
-      else setSharedMobileOrnaments(null)
-    } else if (device === 'desktop') setDesktopOrnaments(null)
-    else setMobileOrnaments(null)
+      setSharedMobileOrnaments(null)
+      setMobileOrnaments(null)
+    } else setMobileOrnaments(null)
+    setDesktopOrnaments(null)
+    setSharedDesktopOrnaments(null)
     setOrnamentDraft(null)
     if (previewLookOnRef.current) setLookOrnaments(null)
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncSource.current,
+      cardId: card.id,
+      template: templateEditor || Boolean(samplePresetId),
+      ornaments: null,
+    })
     window.parent.postMessage(
       { type: 'wedding-ornament-saved', surface: editorStack, device, cleared: true },
       window.location.origin,
@@ -519,15 +531,24 @@ export default function WeddingPublicClient({
           toast({ title: tImage.ornamentAdminFailed, variant: 'destructive' })
           return
         }
-        if (templateEditor || result.template) {
-          if (job.device === 'desktop') setSharedDesktopOrnaments(result.ornaments ?? null)
-          else setSharedMobileOrnaments(result.ornaments ?? null)
-          if (job.device === 'desktop') setDesktopOrnaments(null)
-          else setMobileOrnaments(null)
-        } else if (job.device === 'desktop') setDesktopOrnaments(result.ornaments ?? null)
-        else setMobileOrnaments(result.ornaments ?? null)
+        const templateSave = Boolean(templateEditor || result.template || samplePresetId)
+        if (templateSave) {
+          setSharedMobileOrnaments(result.ornaments ?? null)
+          setMobileOrnaments(null)
+          setDesktopOrnaments(null)
+          setSharedDesktopOrnaments(null)
+        } else {
+          setMobileOrnaments(result.ornaments ?? null)
+          setDesktopOrnaments(null)
+        }
         if (previewLookOnRef.current) setLookOrnaments(result.ornaments ?? [])
         if (ornamentDraftRef.current === job.ornaments) setOrnamentDraft(null)
+        publishWeddingOrnamentTruth({
+          source: ornamentSyncSource.current,
+          cardId: card.id,
+          template: templateSave,
+          ornaments: result.ornaments ?? [],
+        })
         window.parent.postMessage(
           { type: 'wedding-ornament-saved', surface: editorStack, device: job.device, ornaments: result.ornaments },
           window.location.origin,
@@ -538,6 +559,34 @@ export default function WeddingPublicClient({
     }, 350)
     return () => window.clearTimeout(timer)
   }, [card.id, editorStack, ornamentDraft, ornamentEditor, samplePresetId, tImage.ornamentAdminFailed, templateEditor, toast])
+  useEffect(() => {
+    if (!ornamentEditor || !ornamentDraft) return
+    publishWeddingOrnamentTruth({
+      source: ornamentSyncSource.current,
+      cardId: card.id,
+      template: templateEditor || Boolean(samplePresetId),
+      ornaments: ornamentDraft,
+    })
+  }, [card.id, ornamentDraft, ornamentEditor, samplePresetId, templateEditor])
+  useEffect(() => {
+    return subscribeWeddingOrnamentTruth(card.id, ornamentSyncSource.current, (message) => {
+      if (ornamentDraftRef.current) return
+      if (message.template) {
+        setSharedMobileOrnaments(message.ornaments)
+        setMobileOrnaments(null)
+        setDesktopOrnaments(null)
+        setSharedDesktopOrnaments(null)
+      } else {
+        setMobileOrnaments(message.ornaments)
+        setDesktopOrnaments(null)
+      }
+      setLookOrnaments((current) => {
+        if (!previewLookOnRef.current) return current
+        if (!message.ornaments) return null
+        return weddingOrnamentListsEqual(current, message.ornaments) ? current : message.ornaments
+      })
+    })
+  }, [card.id])
   useEffect(() => {
     if (!ornamentEditor || !editorStack) return
     window.parent.postMessage(
@@ -569,13 +618,22 @@ export default function WeddingPublicClient({
       if (data.type !== 'wedding-ornament-apply' || ornamentDraftRef.current) return
       if (data.device !== 'desktop' && data.device !== 'mobile') return
       if (data.cleared) {
-        if (data.device === 'desktop') setDesktopOrnaments(null)
-        else setMobileOrnaments(null)
+        if (templateEditorRef.current) {
+          setSharedMobileOrnaments(null)
+          setMobileOrnaments(null)
+        } else setMobileOrnaments(null)
+        setDesktopOrnaments(null)
+        setSharedDesktopOrnaments(null)
+        setLookOrnaments(null)
         return
       }
       if (!Array.isArray(data.ornaments)) return
-      if (data.device === 'desktop') setDesktopOrnaments(data.ornaments)
-      else setMobileOrnaments(data.ornaments)
+      if (templateEditorRef.current) {
+        setSharedMobileOrnaments(data.ornaments)
+        setMobileOrnaments(null)
+      } else setMobileOrnaments(data.ornaments)
+      setDesktopOrnaments(null)
+      setLookOrnaments(data.ornaments)
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
@@ -608,21 +666,23 @@ export default function WeddingPublicClient({
         backgroundKitStyleId: shownSectionRef.current.backgroundKitStyleId,
         masterImageUrl: pageBackgroundRef.current,
       })
-      if (previewLookOnRef.current && weddingPreviewLookToken(look) === previewLookTokenRef.current) return
-      setPreviewLookOn(true)
-      setSectionRaw(look.sectionConfig)
-      setPreviewPlates(look.plateUrls.length > 0 ? look.plateUrls : [])
-      setPreviewStyleId(look.selectedStyleId)
-      setLookOrnaments(look.ornaments)
-      if (look.ornamentKey !== currentKey) {
-        setOrnamentDraft(null)
-        setDesktopOrnaments(null)
-        setMobileOrnaments(null)
-        setSharedDesktopOrnaments(null)
-        setSharedMobileOrnaments(null)
-        setSharedShellDraft(null)
+      const sameLook = previewLookOnRef.current && weddingPreviewLookToken(look) === previewLookTokenRef.current
+      if (!sameLook) {
+        setPreviewLookOn(true)
+        setSectionRaw(look.sectionConfig)
+        setPreviewPlates(look.plateUrls.length > 0 ? look.plateUrls : [])
+        setPreviewStyleId(look.selectedStyleId)
+        if (look.ornamentKey !== currentKey) {
+          setOrnamentDraft(null)
+          setDesktopOrnaments(null)
+          setMobileOrnaments(null)
+          setSharedDesktopOrnaments(null)
+          setSharedMobileOrnaments(null)
+          setSharedShellDraft(null)
+        }
+        setSharedFrame(look.sharedFrame)
       }
-      setSharedFrame(look.sharedFrame)
+      setLookOrnaments((current) => (weddingOrnamentListsEqual(current, look.ornaments) ? current : look.ornaments))
     }
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || event.source !== window.parent) return
@@ -1035,6 +1095,132 @@ export default function WeddingPublicClient({
       stopWeddingInvitationAutoScroll()
     }
   }, [card.effectsEnabled, frameLines, hostEditor, opened])
+
+  useEffect(() => {
+    if (!hostEditor || frameLines) return
+    setChromeHold(false)
+    let timer: number | null = null
+    let shown = false
+    let overChrome = false
+    let pressingChrome = false
+    let blockMove = false
+    let gesture: { id: number; x: number; y: number; moved: boolean } | null = null
+    const onChrome = (target: EventTarget | null) =>
+      target instanceof Element && Boolean(target.closest('[data-wedding-host-chrome]'))
+    const conceal = () => {
+      if (timer) window.clearTimeout(timer)
+      timer = null
+      if (!shown) return
+      shown = false
+      setChromeHold(false)
+    }
+    const armHide = () => {
+      if (timer) window.clearTimeout(timer)
+      timer = window.setTimeout(() => {
+        timer = null
+        if (overChrome || pressingChrome) return
+        conceal()
+      }, 1200)
+    }
+    const reveal = () => {
+      if (!shown) {
+        shown = true
+        setChromeHold(true)
+      }
+      armHide()
+    }
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0) return
+      if (onChrome(event.target)) {
+        overChrome = true
+        pressingChrome = true
+        blockMove = false
+        gesture = null
+        if (timer) window.clearTimeout(timer)
+        timer = null
+        if (!shown) {
+          shown = true
+          setChromeHold(true)
+        }
+        return
+      }
+      overChrome = false
+      if (event.pointerType === 'mouse') {
+        blockMove = true
+        conceal()
+        return
+      }
+      gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, moved: false }
+    }
+    const onMove = (event: PointerEvent) => {
+      if (pressingChrome) return
+      if (event.pointerType === 'mouse') {
+        if (blockMove) return
+        if (onChrome(event.target)) {
+          overChrome = true
+          if (timer) window.clearTimeout(timer)
+          timer = null
+          if (!shown) {
+            shown = true
+            setChromeHold(true)
+          }
+          return
+        }
+        overChrome = false
+        reveal()
+        return
+      }
+      if (!gesture || gesture.id !== event.pointerId) return
+      if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 12) {
+        gesture.moved = true
+        conceal()
+      }
+    }
+    const onUp = (event: PointerEvent) => {
+      if (pressingChrome) {
+        pressingChrome = false
+        overChrome = onChrome(event.target)
+        if (overChrome) return
+        armHide()
+      }
+      if (event.pointerType === 'mouse') {
+        blockMove = false
+        return
+      }
+      if (!gesture || gesture.id !== event.pointerId) return
+      const tap = !gesture.moved
+      gesture = null
+      if (!tap || onChrome(event.target)) return
+      if (shown) conceal()
+      else reveal()
+    }
+    const onLeaveChrome = (event: PointerEvent) => {
+      if (!onChrome(event.target)) return
+      const next = event.relatedTarget
+      if (next instanceof Element && next.closest('[data-wedding-host-chrome]')) return
+      overChrome = false
+      if (!pressingChrome) armHide()
+    }
+    const onWheel = (event: WheelEvent) => {
+      if (onChrome(event.target)) return
+      conceal()
+    }
+    window.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('pointerup', onUp, true)
+    window.addEventListener('pointercancel', onUp, true)
+    window.addEventListener('pointerout', onLeaveChrome, true)
+    window.addEventListener('wheel', onWheel, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('pointerup', onUp, true)
+      window.removeEventListener('pointercancel', onUp, true)
+      window.removeEventListener('pointerout', onLeaveChrome, true)
+      window.removeEventListener('wheel', onWheel, true)
+      if (timer) window.clearTimeout(timer)
+    }
+  }, [hostEditor, frameLines])
 
   useLayoutEffect(() => {
     if (hostPreview) {
@@ -1493,8 +1679,8 @@ export default function WeddingPublicClient({
         </div>
       ) : null}
       {hostEditor ? (
-        <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-end px-3">
-          <div className="pointer-events-auto flex max-w-[calc(100%-11rem)] flex-wrap items-center justify-end gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}>
+        <WeddingDraggableChrome storageKey="wedding-host-editor-chrome" defaultCorner="top-right" hidden={!frameLines && !chromeHold}>
+          <div className="flex max-w-[calc(100vw-1.5rem)] flex-wrap items-center justify-end gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={templateEditor ? tImage.ornamentTemplateHint : tImage.ornamentCardHint}>
             {(['desktop', 'mobile'] as const).map((id) => {
               const active = viewDevice === id
               return (
@@ -1568,7 +1754,7 @@ export default function WeddingPublicClient({
             />
             ) : null}
           </div>
-        </div>
+        </WeddingDraggableChrome>
       ) : null}
       {hostPreview || sampleDemo ? <div className="pointer-events-none fixed inset-0 -z-10 bg-neutral-200" /> : null}
       <main
@@ -2548,6 +2734,7 @@ export default function WeddingPublicClient({
           label={tx.exitPreviewFab}
           storageKey="wedding-exit-preview-fab"
           defaultCorner="top-left"
+          hidden={hostEditor && !frameLines && !chromeHold}
           icon={<X className="h-4 w-4" />}
           onClick={() => {
             window.location.assign(`/tao-thiep-moi-cuoi-ai?cardId=${encodeURIComponent(card.id)}`)

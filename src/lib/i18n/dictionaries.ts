@@ -3953,6 +3953,33 @@ export type Dictionary = {
     sampleCardAppliedTitle: string
     sampleCardAppliedHint: string
     sampleCardExit: string
+    sampleComposeTitle: string
+    sampleComposeHint: string
+    sampleComposeGroom: string
+    sampleComposeBride: string
+    sampleComposeStory: string
+    sampleComposeStoryPlaceholder: string
+    sampleComposeNotes: string
+    sampleComposeNotesPlaceholder: string
+    sampleComposeSuggestions: string
+    sampleComposeSuggestMet: string
+    sampleComposeSuggestPlace: string
+    sampleComposeSuggestMemory: string
+    sampleComposeSuggestWeddingDay: string
+    sampleComposeSuggestNote: string
+    sampleComposeLineMet: string
+    sampleComposeLinePlace: string
+    sampleComposeLineMemory: string
+    sampleComposeLineWeddingDay: string
+    sampleComposeLineNote: string
+    sampleComposeOk: string
+    sampleComposeCancel: string
+    sampleComposeNeedNames: string
+    sampleComposeWorking: string
+    sampleComposeSavedTitle: string
+    sampleComposeSavedHint: string
+    sampleComposeSavedPlain: string
+    sampleComposeWordsOnly: string
     downloadCreated: string
     back: string
     generateStyleLabel: string
@@ -8331,7 +8358,7 @@ export const VI_DICTIONARY: Dictionary = {
     priceNote: 'Nhà trai và nhà gái tính riêng. Soạn, xem trước và xuất bản không tốn credit.',
     faqTitle: 'Câu hỏi thường gặp',
     faq1q: 'Tạo thiệp cưới AI có miễn phí không?',
-    faq1a: 'Soạn nội dung, xem trước, chọn thiệp mẫu, QR, RSVP và xuất bản link không tốn credit. Tối ưu AI từng đoạn chữ trừ 0,1 credit.',
+    faq1a: 'Xem mẫu, xem trước, QR, RSVP và xuất bản không tốn credit. Dùng mẫu rồi OK để AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn không trừ credit. Tối ưu AI từng đoạn sau đó trừ 0,1 credit.',
     faq2q: 'Gói khách mời giá bao nhiêu?',
     faq2a: 'Ba khách đầu mỗi bên dùng thử. Gói 100 khách 149.000đ, gói 200 khách 199.000đ, không giới hạn 299.000đ. Nhà trai và nhà gái tính riêng.',
     faq3q: 'Lời mời có gọi đúng tên khách không?',
@@ -8428,12 +8455,42 @@ export const VI_DICTIONARY: Dictionary = {
     readyBackgroundLayered: 'Nền và hoa nổi',
     sampleCardsTitle: 'Thiệp mẫu',
     sampleAiCardsTitle: 'Chủ đề AI',
-    sampleCardsHint: 'Bấm một mẫu để mở thiệp demo. Trong demo có nút Dùng mẫu này và nút Thoát để xem mẫu khác. Không trừ credit.',
+    sampleCardsHint: 'Bấm một mẫu để mở thiệp demo. Dùng mẫu này hỏi tên cô dâu, chú rể, rồi AI soạn lời thiệp miễn phí. Xem mẫu không trừ credit.',
     sampleCardUse: 'Dùng mẫu này',
     sampleCardPhotos: '1 ảnh đầu thiệp · 2 ảnh riêng · 2 ảnh album',
     sampleCardAppliedTitle: 'Đã dùng mẫu này',
     sampleCardAppliedHint: 'Nền, khung, hoa và màu chữ đã vào thiệp đang tạo. Chỗ ảnh để trống để bạn chọn ảnh. Không trừ credit.',
     sampleCardExit: 'Thoát',
+    sampleComposeTitle: 'Điền tên để soạn lời thiệp',
+    sampleComposeHint:
+      'Tên cô dâu và chú rể là bắt buộc. Câu chuyện để trống cũng được. Bấm OK, AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn rồi lưu vào thiệp. Lần soạn này miễn phí. Sau đó vẫn sửa tay hoặc bấm Tối ưu AI từng đoạn.',
+    sampleComposeGroom: 'Tên chú rể',
+    sampleComposeBride: 'Tên cô dâu',
+    sampleComposeStory: 'Câu chuyện tình yêu (tuỳ chọn)',
+    sampleComposeStoryPlaceholder: 'Vài dòng về hai người. Có thể để trống.',
+    sampleComposeNotes: 'Ghi chú (tuỳ chọn)',
+    sampleComposeNotesPlaceholder: 'Vài dòng về buổi này. Có thể để trống.',
+    sampleComposeSuggestions: 'Gợi ý cho thiệp cưới — bấm để chèn, rồi điền tiếp.',
+    sampleComposeSuggestMet: 'Ngày gặp nhau',
+    sampleComposeSuggestPlace: 'Nơi gặp nhau',
+    sampleComposeSuggestMemory: 'Kỷ niệm đáng nhớ',
+    sampleComposeSuggestWeddingDay: 'Ngày cưới',
+    sampleComposeSuggestNote: 'Điều muốn khách biết',
+    sampleComposeLineMet: 'Ngày gặp nhau: ',
+    sampleComposeLinePlace: 'Nơi gặp nhau: ',
+    sampleComposeLineMemory: 'Kỷ niệm đáng nhớ: ',
+    sampleComposeLineWeddingDay: 'Ngày cưới: ',
+    sampleComposeLineNote: 'Điều muốn khách biết: ',
+    sampleComposeOk: 'Soạn và lưu · miễn phí',
+    sampleComposeCancel: 'Để sau',
+    sampleComposeNeedNames: 'Điền đủ tên cô dâu và chú rể.',
+    sampleComposeWorking: 'AI đang soạn lời thiệp…',
+    sampleComposeSavedTitle: 'Đã soạn và lưu lời thiệp',
+    sampleComposeSavedHint:
+      'Lời mở đầu, quote, câu chuyện và lời cảm ơn đã vào thiệp. Không trừ credit. Sửa tay hoặc bấm Tối ưu AI từng đoạn nếu muốn viết lại.',
+    sampleComposeSavedPlain:
+      'Lời mở đầu, quote, câu chuyện và lời cảm ơn đã vào thiệp. Sửa tay hoặc bấm Tối ưu AI từng đoạn nếu muốn viết lại.',
+    sampleComposeWordsOnly: 'Lời đã lưu trên thiệp. Chưa gắn được nền mẫu — chọn lại mẫu nếu muốn đổi nền.',
     downloadCreated: 'Tải ảnh đã tạo',
     back: 'Quay lại',
     generateStyleLabel: 'Phong cách',

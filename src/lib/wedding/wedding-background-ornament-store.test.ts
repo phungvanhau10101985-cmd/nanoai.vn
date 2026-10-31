@@ -9,6 +9,9 @@ import {
   parseWeddingOrnamentList,
   weddingOrnamentDeviceKey,
   weddingOrnamentLayoutKey,
+  resolveWeddingCardOrnaments,
+  resolveWeddingShownOrnaments,
+  weddingOrnamentListsEqual,
   weddingOrnamentSaveKey,
   weddingOrnamentsForDevice,
   weddingOrnamentsForKey,
@@ -136,4 +139,62 @@ test('desktop and mobile flower layouts stay separate', () => {
   assert.equal(weddingOrnamentsForDevice(defaults, layouts, base, 'desktop')[0]?.src.endsWith('lotus-leaf.png'), true)
   assert.equal(weddingOrnamentsForDevice(defaults, layouts, base, 'mobile')[0]?.src.endsWith('lotus-bloom.png'), true)
   assert.equal(weddingOrnamentsForDevice(defaults, { [mobile]: [] }, base, 'mobile').length, 0)
+})
+
+test('cover, preview and quick view read one flower list', () => {
+  const cardId = '4e09e349-2208-4e8d-a422-3303e57e35f6'
+  const base = 'preset:sen-vang'
+  const sharedMobile = [{ src: '/wedding/backgrounds/ornaments/lotus-bloom.png', x: 1, y: 2, w: 20 }]
+  const sharedBase = [{ src: '/wedding/backgrounds/ornaments/lotus-leaf.png', x: 3, y: 4, w: 22 }]
+  const cardMobile = [{ src: '/wedding/backgrounds/ornaments/gold-rose.png', x: 5, y: 6, w: 24 }]
+  const defaults = [{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 0, y: 0, w: 18 }]
+  const layouts = {
+    [`${base}@mobile`]: sharedMobile,
+    [base]: sharedBase,
+    [`card:${cardId}@mobile`]: cardMobile,
+    [`${base}@desktop`]: [{ src: '/wedding/backgrounds/ornaments/gold-leaf.png', x: 9, y: 9, w: 30 }],
+  }
+  const user = resolveWeddingCardOrnaments({
+    defaults,
+    layouts,
+    sharedBaseKey: base,
+    cardId,
+    device: 'mobile',
+    templateEditor: false,
+  })
+  const admin = resolveWeddingCardOrnaments({
+    defaults,
+    layouts,
+    sharedBaseKey: base,
+    cardId,
+    device: 'mobile',
+    templateEditor: true,
+  })
+  assert.equal(user[0]?.src.endsWith('gold-rose.png'), true)
+  assert.equal(admin[0]?.src.endsWith('lotus-bloom.png'), true)
+  assert.deepEqual(
+    user,
+    resolveWeddingShownOrnaments({
+      defaults,
+      cardSheet: cardMobile,
+      sharedSheet: sharedMobile,
+      sharedBase,
+      templateEditor: false,
+    }),
+  )
+  assert.equal(
+    resolveWeddingShownOrnaments({ defaults, cardSheet: [], sharedSheet: sharedMobile, templateEditor: false }).length,
+    0,
+  )
+  assert.equal(
+    resolveWeddingShownOrnaments({ defaults, cardSheet: null, sharedSheet: null, sharedBase, templateEditor: false })[0]?.src.endsWith('lotus-leaf.png'),
+    true,
+  )
+  assert.equal(
+    resolveWeddingShownOrnaments({ defaults, templateEditor: true })[0]?.src.endsWith('peony-bloom.png'),
+    true,
+  )
+  assert.equal(weddingOrnamentListsEqual(null, []), false)
+  assert.equal(weddingOrnamentListsEqual(null, null), true)
+  assert.equal(weddingOrnamentListsEqual(sharedMobile, sharedMobile), true)
 })

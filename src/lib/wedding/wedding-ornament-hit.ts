@@ -138,8 +138,19 @@ function imageOpaque(img: HTMLImageElement, clientX: number, clientY: number, sl
   return { exact: false, near: false }
 }
 
+/** Ngón tay trên điện thoại rộng hơn con trỏ chuột. Vẫn bám pixel đục, chỉ nới vùng bắt. */
+export function ornamentHitSlop(coarse: boolean) {
+  return coarse ? 40 : ORNAMENT_HIT_SLOP
+}
+
+export function ornamentPointerIsCoarse(pointerType?: string) {
+  if (pointerType === 'touch' || pointerType === 'pen') return true
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(pointer: coarse)').matches
+}
+
 /** Mảnh vẽ trên cùng tại điểm bấm. Ảnh trong suốt không chặn mảnh phía sau. */
-export function pickOrnamentHit(layer: HTMLElement, clientX: number, clientY: number): number | null {
+export function pickOrnamentHit(layer: HTMLElement, clientX: number, clientY: number, slop = ORNAMENT_HIT_SLOP): number | null {
   const images = [...layer.querySelectorAll<HTMLImageElement>('img[data-ornament-index]')]
   images.sort((a, b) => {
     const za = Number(a.parentElement?.style.zIndex || 0)
@@ -151,7 +162,7 @@ export function pickOrnamentHit(layer: HTMLElement, clientX: number, clientY: nu
   for (const img of images) {
     const index = Number(img.dataset.ornamentIndex)
     if (!Number.isInteger(index)) continue
-    const hit = imageOpaque(img, clientX, clientY, ORNAMENT_HIT_SLOP)
+    const hit = imageOpaque(img, clientX, clientY, slop)
     if (hit.exact || hit.near) hits.push({ index, ...hit })
   }
   return pickTopOrnament(hits)

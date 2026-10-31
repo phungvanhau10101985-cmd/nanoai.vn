@@ -52,6 +52,7 @@ const SPEND_ALIAS: Record<string, string> = {
   'thiet-ke-noi-ngoai-that-process': 'thiet-ke-noi-ngoai-that',
   'tao-nhan-gioi-thieu-san-pham-mockup': 'tao-nhan-gioi-thieu-san-pham',
   'wedding-card-text-polish': 'tao-thiep-moi-cuoi-ai',
+  'wedding-card-sample-compose': 'tao-thiep-moi-cuoi-ai',
   'hub-studio-banner': 'tao-banner',
   'hub-studio-packaging': 'thiet-ke-bao-bi',
   'hub-studio-packaging-outpaint': 'thiet-ke-bao-bi',

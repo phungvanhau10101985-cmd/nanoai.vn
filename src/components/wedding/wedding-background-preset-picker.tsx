@@ -8,7 +8,7 @@ import {
   type WeddingBackgroundPreset,
 } from '@/lib/wedding/wedding-background-presets'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { weddingOrnamentsForKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
 import { cn } from '@/lib/utils'
 
 export function WeddingBackgroundPresetPicker(props: {
@@ -48,7 +48,7 @@ export function WeddingBackgroundPresetPicker(props: {
             >
               <span className="relative block h-28 overflow-hidden">
                 <img src={preset.plates[0]} alt="" className="h-full w-full object-cover object-top" />
-                <WeddingBackgroundOrnamentLayer animateRise={false} ornaments={weddingOrnamentsForKey(preset.ornaments, props.ornamentLayouts ?? {}, `preset:${preset.id}`)} />
+                <WeddingBackgroundOrnamentLayer animateRise={false} ornaments={weddingOrnamentsForDevice(preset.ornaments, props.ornamentLayouts ?? {}, `preset:${preset.id}`, 'mobile')} />
               </span>
               <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">
                 {labelForWeddingBackgroundPreset(props.locale, preset)}

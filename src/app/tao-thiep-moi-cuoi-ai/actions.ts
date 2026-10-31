@@ -88,6 +88,11 @@ import {
   WEDDING_TEXT_POLISH_CREDIT,
   weddingPolishFieldCostsCredit,
 } from '@/lib/wedding/wedding-text-polish-credit'
+import { composeWeddingSampleCopyWithDeepseek } from '@/lib/wedding/wedding-sample-compose-deepseek'
+import {
+  WEDDING_SAMPLE_COMPOSE_CREDIT,
+  type WeddingSampleComposeCopy,
+} from '@/lib/wedding/wedding-sample-compose'
 
 const COST = 1
 const MAX_TEXT = 2000
@@ -277,7 +282,7 @@ export async function saveWeddingCardOrnaments(cardId: string, device: WeddingOr
   return { ok: true as const, ornaments: parsed, template: access.templateEditor && !key.startsWith('card:') }
 }
 
-/** Khách xóa hoa riêng của thiệp để thấy lại mẫu. Quản trị xóa mẫu chung của nền. */
+/** Khách xóa hoa riêng của thiệp để thấy lại mẫu. Quản trị xóa mẫu chung và bản riêng của thiệp đang mở. */
 export async function resetWeddingCardOrnaments(cardId: string, device: WeddingOrnamentDevice) {
   const access = await assertWeddingCardOrnamentEditor(cardId)
   if ('error' in access) return { error: access.error }
@@ -291,6 +296,10 @@ export async function resetWeddingCardOrnaments(cardId: string, device: WeddingO
   if (!isWeddingOrnamentLayoutKey(key)) return { error: 'invalid' as const }
   try {
     await deleteWeddingOrnamentLayout(key)
+    if (access.templateEditor && !key.startsWith('card:')) {
+      const cardKey = weddingCardDeviceLayoutKey(cardId, device)
+      if (cardKey && cardKey !== key) await deleteWeddingOrnamentLayout(cardKey)
+    }
   } catch {
     return { error: 'unavailable' as const }
   }
@@ -1158,4 +1167,50 @@ export async function polishWeddingCardText(formData: FormData) {
     return { error: result.error }
   }
   return { text: result.text.slice(0, maxLen), charged: chargedAmount }
+}
+
+export async function composeWeddingSampleCopy(formData: FormData): Promise<
+  | ({ charged: number } & WeddingSampleComposeCopy)
+  | { error: string; code?: 'INSUFFICIENT_CREDITS' }
+> {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
+
+  const occasionKey = normalizeInvitationOccasion(clean(formData.get('occasionKey'), 40))
+  const groomName = clean(formData.get('groomName'), 120)
+  const brideName = clean(formData.get('brideName'), 120)
+  const storyNotes = clean(formData.get('storyNotes'), MAX_TEXT)
+  if (occasionKey === 'wedding') {
+    if (!groomName || !brideName) return { error: 'Điền đủ tên cô dâu và chú rể.' }
+  } else if (!groomName) {
+    return { error: 'Điền tên người được ghi trên thiệp.' }
+  }
+
+  const charge = await deductUserCredits(auth.user.id, WEDDING_SAMPLE_COMPOSE_CREDIT, 'wedding-card-sample-compose')
+  if (!charge.ok) {
+    return {
+      error:
+        charge.code === 'INSUFFICIENT_CREDITS'
+          ? 'Không đủ credit.'
+          : charge.error,
+      ...(charge.code === 'INSUFFICIENT_CREDITS' ? { code: 'INSUFFICIENT_CREDITS' as const } : {}),
+    }
+  }
+
+  const result = await composeWeddingSampleCopyWithDeepseek({
+    groomName,
+    brideName,
+    storyNotes,
+    weddingDate: clean(formData.get('weddingDate'), 120),
+    occasionKey,
+    userId: auth.user.id,
+  })
+  if ('error' in result) {
+    if (charge.charged > 0) {
+      await refundUserCredits(auth.user.id, charge.charged, 'wedding-card-sample-compose').catch(() => undefined)
+    }
+    return { error: result.error }
+  }
+  return { ...result.copy, charged: charge.charged }
 }

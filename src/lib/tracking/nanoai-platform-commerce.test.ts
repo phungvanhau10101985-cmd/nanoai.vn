@@ -14,6 +14,7 @@ test('design credit spend maps to the catalog feature path', () => {
   assert.equal(designPurchaseHref('tao-anh-tu-chu'), '/tao-anh-tu-chu')
   assert.equal(designPurchaseHref('xay-nha-3d'), '/xay-nha-tu-dat-nen')
   assert.equal(designPurchaseHref('wedding-card-text-polish'), '/tao-thiep-moi-cuoi-ai')
+  assert.equal(designPurchaseHref('wedding-card-sample-compose'), '/tao-thiep-moi-cuoi-ai')
   assert.equal(designPurchaseHref('hub-chat'), null)
   assert.equal(designPurchaseHref('english-coach-live-lesson-purchase'), null)
   assert.equal(designPurchaseHref('curriculum_from_image'), null)

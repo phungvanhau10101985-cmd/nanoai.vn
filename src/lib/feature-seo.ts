@@ -166,7 +166,7 @@ const FEATURE_SEO_DATA: Record<string, FeatureSeoData> = {
       {
         question: 'Tạo thiệp cưới AI có miễn phí không?',
         answer:
-          'Soạn nội dung, xem trước, chọn thiệp mẫu, QR, RSVP và xuất bản link không tốn credit. Tối ưu AI từng đoạn chữ trừ 0,1 credit.',
+          'Xem mẫu, xem trước, QR, RSVP và xuất bản không tốn credit. Dùng mẫu rồi OK để AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn không trừ credit. Tối ưu AI từng đoạn sau đó trừ 0,1 credit.',
       },
       {
         question: 'Gói khách mời thiệp cưới giá bao nhiêu?',

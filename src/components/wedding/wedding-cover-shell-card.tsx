@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
@@ -376,7 +377,8 @@ function useCoverPhotoPan(edit: CoverPhotoEdit | undefined) {
     style: (edit ? { touchAction: 'none' } : undefined) as CSSProperties | undefined,
     onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
       const current = editRef.current
-      if (!current || (event.target as HTMLElement).closest('button, label, input, a, [data-wedding-file-anchor]')) return
+      if (!current || weddingOrnamentGestureActive()) return
+      if ((event.target as HTMLElement).closest('button, label, input, a, [data-wedding-file-anchor]')) return
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,

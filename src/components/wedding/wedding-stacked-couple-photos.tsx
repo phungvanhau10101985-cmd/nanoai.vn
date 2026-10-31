@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode, type WheelEvent } from 'react'
 import { RotateCcw, RotateCw, ZoomIn, ZoomOut } from 'lucide-react'
+import { weddingOrnamentGestureActive } from '@/lib/wedding/wedding-ornament-gesture'
 import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
@@ -657,9 +658,15 @@ export function WeddingStackedCouplePhotos(props: {
   const displayBleedTop = Math.max(0, Math.round(contentTop - cropPad))
   const displayBleedBottom = Math.max(0, Math.round(stageHeight - contentBottom - cropPad))
   const startPlaceDrag = (key: StackPlaceKey, event: ReactPointerEvent<HTMLElement>) => {
-    if (!props.onPlace) return
+    if (!props.onPlace || weddingOrnamentGestureActive()) return
     const target = event.target
     const moveHandle = target instanceof Element && Boolean(target.closest('[data-stack-move]'))
+    const frameKey = key === 'groomFrame' || key === 'brideFrame'
+    const coarse = window.matchMedia('(pointer: coarse)').matches
+    if (coarse && frameKey && target instanceof Element && target.closest('button, a, label, [data-stack-move], [data-wedding-frame-tools], [data-wedding-file-anchor]')) {
+      setPickedFrame(key === 'groomFrame' ? 'first' : 'second')
+      return
+    }
     if (moveHandle) {
       event.preventDefault()
       const handle = event.currentTarget
@@ -674,7 +681,6 @@ export function WeddingStackedCouplePhotos(props: {
     if (!moveHandle && target instanceof Element && target.closest('button, label, a, [data-wedding-file-anchor]')) return
     const fromInput = !moveHandle && target instanceof Element && Boolean(target.closest('input, textarea'))
     const nameKey = key === 'groomName' || key === 'brideName'
-    const frameKey = key === 'groomFrame' || key === 'brideFrame'
     const stage = stageRef.current
     if (!stage) {
       if (frameKey) setPickedFrame(key === 'groomFrame' ? 'first' : 'second')

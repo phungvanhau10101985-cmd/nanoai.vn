@@ -10,7 +10,7 @@ import {
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
 import { weddingSampleSharedLayoutKey, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { weddingOrnamentsForKey } from '@/lib/wedding/wedding-background-ornament-store'
+import { weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
 import { cn } from '@/lib/utils'
 
 function SampleFace(props: {
@@ -31,7 +31,7 @@ function SampleFace(props: {
       {props.sample.libraryImageUrl ? null : (
         <WeddingBackgroundOrnamentLayer
           animateRise={false}
-          ornaments={weddingOrnamentsForKey(preset?.ornaments ?? [], props.ornamentLayouts ?? {}, layoutKey)}
+          ornaments={weddingOrnamentsForDevice(preset?.ornaments ?? [], props.ornamentLayouts ?? {}, layoutKey, 'mobile')}
         />
       )}
       <span className="relative flex h-full flex-col justify-end gap-1 p-2">

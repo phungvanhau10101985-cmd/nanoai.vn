@@ -64,24 +64,37 @@ function DeviceFrame(props: {
   useEffect(() => {
     const frame = frameRef.current
     if (!frame) return
+    const apply = (next: number) => {
+      if (!Number.isFinite(next) || next < 80) return
+      const height = Math.ceil(next)
+      setHeight((current) => (Math.abs(current - height) < 8 ? current : height))
+    }
     const read = () => {
       const doc = frame.contentDocument
-      const root = doc?.documentElement
-      if (!doc || !root) return
+      const view = frame.contentWindow
+      if (!doc || !view) return
+      // Phần tử trong iframe không thuộc HTMLElement của trang cha.
+      const isEl = (node: Element | null): node is HTMLElement => !!node && node instanceof view.HTMLElement
       const cover = doc.querySelector('[data-cover-preview]')
       const letter = doc.querySelector('main')
-      const target = cover instanceof HTMLElement ? cover : letter instanceof HTMLElement ? letter : null
-      const height = target
-        ? Math.ceil(target.getBoundingClientRect().height)
-        : Math.max(root.scrollHeight, doc.body?.scrollHeight || 0)
-      if (height > 240) setHeight((current) => (Math.abs(current - height) < 8 ? current : height))
+      const target = isEl(cover) ? cover : isEl(letter) ? letter : null
+      if (!target) return
+      apply(target.getBoundingClientRect().height)
+    }
+    const onMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.source !== frame.contentWindow) return
+      const data = event.data as { type?: string; height?: unknown }
+      if (data?.type !== 'wedding-preview-height') return
+      apply(Number(data.height))
     }
     read()
     frame.addEventListener('load', read)
     const timer = window.setInterval(read, 800)
+    window.addEventListener('message', onMessage)
     return () => {
       frame.removeEventListener('load', read)
       window.clearInterval(timer)
+      window.removeEventListener('message', onMessage)
     }
   }, [props.src])
 
@@ -165,6 +178,15 @@ export function WeddingLiveDevicePreviews(props: {
     const timers = [200, 700, 1500, 3000, 6000, 10000].map((ms) => window.setTimeout(send, ms))
     return () => timers.forEach((timer) => window.clearTimeout(timer))
   }, [coverFrame, letterFrame, postLook, props.lookToken])
+
+  const postedOrnamentSig = useRef('')
+  useEffect(() => {
+    const sig = JSON.stringify(props.look.ornaments)
+    if (postedOrnamentSig.current === sig) return
+    postedOrnamentSig.current = sig
+    postLook(coverFrame)
+    postLook(letterFrame)
+  }, [coverFrame, letterFrame, postLook, props.look.ornaments])
 
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {

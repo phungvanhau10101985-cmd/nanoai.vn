@@ -138,18 +138,169 @@ function writeStoredNorm(key: string, norm: Norm) {
   }
 }
 
+function cornerNorm(corner: 'bottom-left' | 'top-left' | 'top-right'): Norm {
+  if (corner === 'bottom-left') return { nx: 0, ny: 1 }
+  if (corner === 'top-right') return { nx: 1, ny: 0 }
+  return { nx: 0, ny: 0 }
+}
+
+/** Thanh sửa nổi. Kéo cả thanh; cú bấm ngắn trên nút vẫn là bấm. */
+export function WeddingDraggableChrome(props: {
+  storageKey: string
+  defaultCorner: 'bottom-left' | 'top-left' | 'top-right'
+  hidden?: boolean
+  children: ReactNode
+  className?: string
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  const suppressClickRef = useRef(false)
+  const hiddenRef = useRef(props.hidden)
+  hiddenRef.current = props.hidden
+  const posRef = useRef<Norm>(cornerNorm(props.defaultCorner))
+  const metricsRef = useRef<{ insets: Insets; dock: number }>({ insets: ZERO_INSETS, dock: 0 })
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    moved: boolean
+  } | null>(null)
+  const [mounted, setMounted] = useState(false)
+
+  const refreshMetrics = () => {
+    metricsRef.current = { insets: readSafeInsets(), dock: 0 }
+  }
+  const currentBox = () => readViewportBox(metricsRef.current.insets, metricsRef.current.dock)
+  const place = (norm: Norm) => {
+    const el = panelRef.current
+    if (!el) return
+    const box = currentBox()
+    const pixel = normToPixel(norm, box, el)
+    el.style.transform = `translate3d(${box.offsetLeft + pixel.x}px, ${box.offsetTop + pixel.y}px, 0)`
+  }
+  const paintHidden = () => {
+    const el = panelRef.current
+    if (!el) return
+    el.style.visibility = hiddenRef.current ? 'hidden' : 'visible'
+    el.style.pointerEvents = hiddenRef.current ? 'none' : 'auto'
+  }
+
+  useLayoutEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!mounted) return
+    refreshMetrics()
+    const stored = readStoredNorm(props.storageKey)
+    const initial = stored ?? cornerNorm(props.defaultCorner)
+    posRef.current = initial
+    place(initial)
+    paintHidden()
+    const onResize = () => {
+      refreshMetrics()
+      place(posRef.current)
+    }
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', onResize)
+    vv?.addEventListener('scroll', onResize)
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    const blockScroll = (event: TouchEvent) => {
+      if (dragRef.current?.moved && event.cancelable) event.preventDefault()
+    }
+    const el = panelRef.current
+    el?.addEventListener('touchmove', blockScroll, { passive: false })
+    return () => {
+      vv?.removeEventListener('resize', onResize)
+      vv?.removeEventListener('scroll', onResize)
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+      el?.removeEventListener('touchmove', blockScroll)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, props.defaultCorner, props.storageKey])
+
+  useLayoutEffect(() => {
+    paintHidden()
+  }, [props.hidden])
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (props.hidden || event.button !== 0) return
+    const origin = normToPixel(posRef.current, currentBox(), panelRef.current)
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: origin.x,
+      originY: origin.y,
+      moved: false,
+    }
+    const move = (next: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || drag.pointerId !== next.pointerId) return
+      const dx = next.clientX - drag.startX
+      const dy = next.clientY - drag.startY
+      if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD_PX) return
+      drag.moved = true
+      posRef.current = pixelToNorm(drag.originX + dx, drag.originY + dy, currentBox(), panelRef.current)
+      place(posRef.current)
+    }
+    const up = (next: PointerEvent) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      const drag = dragRef.current
+      if (!drag || drag.pointerId !== next.pointerId) return
+      dragRef.current = null
+      if (!drag.moved) return
+      suppressClickRef.current = true
+      writeStoredNorm(props.storageKey, posRef.current)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
+
+  if (!mounted) return null
+
+  return createPortal(
+    <div
+      ref={panelRef}
+      data-wedding-host-chrome=""
+      aria-hidden={props.hidden || undefined}
+      className={cn('fixed left-0 top-0 cursor-grab touch-none select-none active:cursor-grabbing', props.className)}
+      style={{ zIndex: 94, visibility: 'hidden', transform: 'translate3d(0,0,0)' }}
+      onPointerDown={onPointerDown}
+      onClickCapture={(event) => {
+        if (!suppressClickRef.current) return
+        suppressClickRef.current = false
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+    >
+      {props.children}
+    </div>,
+    document.body,
+  )
+}
+
 export function WeddingDraggableFab(props: {
   label: string
   storageKey: string
   defaultCorner: 'bottom-left' | 'top-left'
   onClick: () => void
   disabled?: boolean
+  hidden?: boolean
   icon?: ReactNode
   className?: string
   zIndex?: number
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const suppressClickRef = useRef(false)
+  const hiddenRef = useRef(props.hidden)
+  hiddenRef.current = props.hidden
   const posRef = useRef<Norm>({ nx: 0, ny: props.defaultCorner === 'bottom-left' ? 1 : 0 })
   const metricsRef = useRef<{ insets: Insets; dock: number }>({ insets: ZERO_INSETS, dock: 0 })
   const dragRef = useRef<{
@@ -191,7 +342,7 @@ export function WeddingDraggableFab(props: {
     posRef.current = initial
     place(initial)
     const el = buttonRef.current
-    if (el) el.style.visibility = 'visible'
+    if (el) el.style.visibility = hiddenRef.current ? 'hidden' : 'visible'
 
     const onResize = () => {
       refreshMetrics()
@@ -220,6 +371,12 @@ export function WeddingDraggableFab(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted, props.defaultCorner, props.storageKey])
 
+  useLayoutEffect(() => {
+    const el = buttonRef.current
+    if (!el || !mounted) return
+    el.style.visibility = props.hidden ? 'hidden' : 'visible'
+  }, [mounted, props.hidden])
+
   const endDrag = (event: PointerEvent) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== event.pointerId) return
@@ -232,7 +389,7 @@ export function WeddingDraggableFab(props: {
   }
 
   const onPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (props.disabled || event.button !== 0) return
+    if (props.hidden || props.disabled || event.button !== 0) return
     const origin = normToPixel(posRef.current, currentBox(), buttonRef.current)
     dragRef.current = {
       pointerId: event.pointerId,
@@ -272,6 +429,8 @@ export function WeddingDraggableFab(props: {
         ref={buttonRef}
         type="button"
         disabled={props.disabled}
+        data-wedding-host-chrome=""
+        aria-hidden={props.hidden || undefined}
         aria-label={props.label}
         className={cn(
           'pointer-events-auto fixed left-0 top-0 flex min-h-11 items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-2.5 text-sm font-semibold text-rose-900 shadow-lg select-none',
@@ -283,7 +442,7 @@ export function WeddingDraggableFab(props: {
         style={{
           zIndex: props.zIndex ?? 96,
           visibility: 'hidden',
-          pointerEvents: 'auto',
+          pointerEvents: props.hidden ? 'none' : 'auto',
           touchAction: 'none',
           WebkitTouchCallout: 'none',
           WebkitUserSelect: 'none',

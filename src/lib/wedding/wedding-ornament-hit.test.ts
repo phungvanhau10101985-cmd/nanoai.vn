@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { ornamentLocalRatio, pickTopOrnament, type OrnamentPlane } from './wedding-ornament-hit'
+import { ornamentHitSlop, ornamentLocalRatio, pickTopOrnament, type OrnamentPlane } from './wedding-ornament-hit'
 
 const IDENTITY: OrnamentPlane = { a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }
 
@@ -68,4 +68,9 @@ test('the painted flower on top wins, and a transparent box does not', () => {
   )
   assert.equal(pickTopOrnament([{ index: 4, exact: false, near: true }]), 4)
   assert.equal(pickTopOrnament([]), null)
+})
+
+test('a finger gets a wider grab around a thin branch than a mouse', () => {
+  assert.ok(ornamentHitSlop(true) > ornamentHitSlop(false))
+  assert.equal(ornamentHitSlop(false), 12)
 })

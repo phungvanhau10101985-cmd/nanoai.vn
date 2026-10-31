@@ -10,7 +10,8 @@ import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
 import { nudgeWeddingOrnament, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
 import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
+import { markWeddingOrnamentGesture } from '@/lib/wedding/wedding-ornament-gesture'
+import { ornamentHitSlop, ornamentPointerIsCoarse, pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 export type WeddingOrnamentSurface = 'cover' | 'letter'
@@ -363,12 +364,23 @@ export function WeddingOrnamentAdminLayer(props: {
     const stage = marked ?? layer?.parentElement
     if (!layer || !(stage instanceof HTMLElement)) return
     if (marked) marked.setAttribute('data-ornament-editing', '')
+    const hitSlop = (pointerType?: string) => ornamentHitSlop(ornamentPointerIsCoarse(pointerType))
+    const ignoredTouch = (target: EventTarget | null) =>
+      target instanceof Element &&
+      Boolean(
+        target.closest(
+          'button, input, textarea, select, a, [data-ornament-tools], [data-wedding-file-anchor], [data-stack-move], [data-wedding-frame-tools]',
+        ),
+      )
     const startDrag = (index: number, event: PointerEvent, node: HTMLElement) => {
       const items = editRef.current.read()
       const sourceIndex = Number(node.dataset.ornamentSeed)
       const item = items[sourceIndex]
       const bounds = layer.getBoundingClientRect()
-      if (!item || !Number.isFinite(sourceIndex) || !onChangeRef.current || bounds.width < 1 || bounds.height < 1) return
+      if (!item || !Number.isFinite(sourceIndex) || !onChangeRef.current || bounds.width < 1 || bounds.height < 1) {
+        markWeddingOrnamentGesture(false)
+        return
+      }
       chooseRef.current(index)
       const startX = event.clientX
       const startY = event.clientY
@@ -412,6 +424,12 @@ export function WeddingOrnamentAdminLayer(props: {
         document.body.style.userSelect = previousUserSelect
         draggingRef.current = false
         stage.style.cursor = ''
+        markWeddingOrnamentGesture(false)
+        try {
+          stage.releasePointerCapture(event.pointerId)
+        } catch {
+          /* pointer đã nhả */
+        }
         const current = editRef.current.read()
         const source = current[drag.sourceIndex]
         liveDragRef.current = null
@@ -426,17 +444,29 @@ export function WeddingOrnamentAdminLayer(props: {
       document.addEventListener('pointermove', move, { passive: false })
       document.addEventListener('pointerup', up)
       document.addEventListener('pointercancel', up)
+      const blockTouchScroll = (ev: TouchEvent) => {
+        if (ev.cancelable) ev.preventDefault()
+      }
+      document.addEventListener('touchmove', blockTouchScroll, { passive: false })
+      const releaseTouch = () => {
+        document.removeEventListener('touchmove', blockTouchScroll)
+        document.removeEventListener('touchend', releaseTouch)
+        document.removeEventListener('touchcancel', releaseTouch)
+        markWeddingOrnamentGesture(false)
+      }
+      document.addEventListener('touchend', releaseTouch)
+      document.addEventListener('touchcancel', releaseTouch)
+      try {
+        stage.setPointerCapture(event.pointerId)
+      } catch {
+        /* kéo vẫn theo pointer trên document */
+      }
     }
     const onDown = (event: PointerEvent) => {
       if (event.button !== 0) return
       const target = event.target
-      if (
-        target instanceof Element &&
-        target.closest('button, input, textarea, select, a, [data-ornament-tools], [data-wedding-file-anchor], [data-stack-move], [data-wedding-frame-tools]')
-      ) {
-        return
-      }
-      const picked = pickOrnamentHit(layer, event.clientX, event.clientY)
+      if (ignoredTouch(target)) return
+      const picked = pickOrnamentHit(layer, event.clientX, event.clientY, hitSlop(event.pointerType))
       if (picked == null) return
       const nodes = [...layer.querySelectorAll<HTMLElement>(`[data-ornament-hit][data-ornament-index="${picked}"]`)]
       let node = nodes[0]
@@ -452,9 +482,19 @@ export function WeddingOrnamentAdminLayer(props: {
         }
       }
       if (!node) return
+      markWeddingOrnamentGesture(true)
       event.preventDefault()
       event.stopPropagation()
       startDrag(picked, event, node)
+    }
+    const onTouchStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return
+      if (ignoredTouch(event.target)) return
+      const touch = event.touches[0]
+      if (!touch) return
+      if (pickOrnamentHit(layer, touch.clientX, touch.clientY, hitSlop('touch')) == null) return
+      markWeddingOrnamentGesture(true)
+      if (event.cancelable) event.preventDefault()
     }
     const onMove = (event: PointerEvent) => {
       if (draggingRef.current) {
@@ -471,11 +511,22 @@ export function WeddingOrnamentAdminLayer(props: {
       }
       stage.style.cursor = pickOrnamentHit(layer, event.clientX, event.clientY) == null ? '' : 'grab'
     }
+    const onTouchEnd = () => {
+      if (draggingRef.current) return
+      markWeddingOrnamentGesture(false)
+    }
+    window.addEventListener('touchstart', onTouchStart, { capture: true, passive: false })
+    window.addEventListener('touchend', onTouchEnd)
+    window.addEventListener('touchcancel', onTouchEnd)
     stage.addEventListener('pointerdown', onDown, true)
     stage.addEventListener('pointermove', onMove)
     return () => {
       if (marked) marked.removeAttribute('data-ornament-editing')
       stage.style.cursor = ''
+      markWeddingOrnamentGesture(false)
+      window.removeEventListener('touchstart', onTouchStart, { capture: true })
+      window.removeEventListener('touchend', onTouchEnd)
+      window.removeEventListener('touchcancel', onTouchEnd)
       stage.removeEventListener('pointerdown', onDown, true)
       stage.removeEventListener('pointermove', onMove)
     }

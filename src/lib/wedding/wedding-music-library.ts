@@ -18,27 +18,6 @@ export const WEDDING_MUSIC_SEEDS: WeddingMusicLibraryItem[] = [
     source: 'seed',
     credit: WEDDING_MUSIC_SEED_CREDIT,
   },
-  {
-    id: 'seed-a-little-faith',
-    title: 'Nhẹ nhàng',
-    audioUrl: '/wedding-music/a-little-faith.mp3',
-    source: 'seed',
-    credit: WEDDING_MUSIC_SEED_CREDIT,
-  },
-  {
-    id: 'seed-water-lily',
-    title: 'Hoa nước',
-    audioUrl: '/wedding-music/water-lily.mp3',
-    source: 'seed',
-    credit: WEDDING_MUSIC_SEED_CREDIT,
-  },
-  {
-    id: 'seed-frost-waltz',
-    title: 'Valse',
-    audioUrl: '/wedding-music/frost-waltz.mp3',
-    source: 'seed',
-    credit: WEDDING_MUSIC_SEED_CREDIT,
-  },
 ]
 
 const SEED_URLS = new Set(WEDDING_MUSIC_SEEDS.map((item) => item.audioUrl))

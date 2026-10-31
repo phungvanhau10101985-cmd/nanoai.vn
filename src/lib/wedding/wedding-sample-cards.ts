@@ -35,6 +35,8 @@ export type WeddingSampleCard = {
   brideImageUrl: string
   albumImageUrls: readonly [string, string]
   dressCode?: string
+  /** Trống thì coi là thiệp cưới. Gợi ý «ngày gặp nhau» chỉ hiện khi là cưới. */
+  occasionKey?: string
   /** 0 giữ mép trên, để khung vuông không cắt trán. */
   coverPhotoPositionY?: number
 }
