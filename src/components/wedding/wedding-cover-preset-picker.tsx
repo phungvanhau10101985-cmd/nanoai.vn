@@ -65,6 +65,42 @@ export function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRES
       </div>
     )
   }
+  if (preset.layout === 'pair') {
+    const framed = preset.pairFrame !== 'none'
+    const chip = cn('absolute block bg-white/75', framed && 'border border-white shadow-[0_0_0_1px_rgba(40,20,10,0.45)]')
+    const arrange = preset.pairArrange
+    return (
+      <div className={shell} style={{ background: preset.thumbnail.topBg }}>
+        {arrange === 'offset' ? (
+          <>
+            <span className={cn(chip, 'left-[10%] top-[12%] h-9 w-[42%]')} />
+            <span className={cn(chip, 'right-[10%] top-[28%] h-9 w-[42%]')} />
+          </>
+        ) : arrange === 'tilt' ? (
+          <>
+            <span className={cn(chip, 'left-[14%] top-[16%] h-8 w-[34%] -rotate-6')} />
+            <span className={cn(chip, 'right-[14%] top-[24%] h-8 w-[34%] rotate-6')} />
+          </>
+        ) : arrange === 'locket' ? (
+          <>
+            <span className={cn(chip, 'left-[14%] top-[20%] h-9 w-9 rounded-full')} />
+            <span className={cn(chip, 'right-[16%] top-[24%] h-9 w-9 rounded-full')} />
+          </>
+        ) : arrange === 'print' ? (
+          <>
+            <span className={cn(chip, 'left-[12%] top-[14%] h-9 w-[32%] -rotate-6 bg-white')} />
+            <span className={cn(chip, 'right-[12%] top-[28%] h-9 w-[32%] rotate-6 bg-white')} />
+          </>
+        ) : (
+          <div className="absolute inset-x-[10%] top-[14%] grid grid-cols-2 gap-1">
+            <span className={cn('block h-10 bg-white/80', framed && 'border border-white shadow-[0_0_0_1px_rgba(40,20,10,0.45)]')} />
+            <span className={cn('block h-10 bg-white/60', framed && 'border border-white shadow-[0_0_0_1px_rgba(40,20,10,0.45)]')} />
+          </div>
+        )}
+        <div className={cn('absolute inset-x-2 bottom-3 text-center font-serif text-[9px]', preset.thumbnail.textClass)}>A & B</div>
+      </div>
+    )
+  }
   if (preset.layout === 'plain') {
     return (
       <div className={shell} style={{ background: preset.thumbnail.topBg }}>

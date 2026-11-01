@@ -182,7 +182,7 @@ function WeddingGuestTextSlot(props: {
   )
 }
 
-function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; fitHeight?: boolean; children: ReactNode }) {
+function FittedCoverFrame(props: { active: boolean; designWidth: number; backgroundColor: string; flow?: boolean; contain?: boolean; fitHeight?: boolean; maxScale?: number; children: ReactNode }) {
   const outerRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
@@ -198,7 +198,8 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
       if (height < 1 || outer.clientWidth < 1) return
       const widthScale = outer.clientWidth / props.designWidth
       const heightScale = outer.clientHeight > 0 ? outer.clientHeight / height : widthScale
-      const next = props.fitHeight ? Math.min(widthScale, heightScale) : widthScale
+      const raw = props.fitHeight ? Math.min(widthScale, heightScale) : widthScale
+      const next = Math.min(raw, props.maxScale ?? Number.POSITIVE_INFINITY)
       setScale((current) => (Math.abs(current - next) < 0.004 ? current : next))
       setContentHeight((current) => (Math.abs(current - height) < 1 ? current : height))
     }
@@ -207,20 +208,26 @@ function FittedCoverFrame(props: { active: boolean; designWidth: number; backgro
     observer.observe(outer)
     observer.observe(inner)
     return () => observer.disconnect()
-  }, [props.active, props.designWidth, props.fitHeight])
+  }, [props.active, props.designWidth, props.fitHeight, props.maxScale])
 
   if (!props.active) return <div className="relative" data-wedding-stage="">{props.children}</div>
 
   const scaledHeight = contentHeight * scale
   const boxed = Math.abs(scale - 1) >= 0.004
   if (props.flow) {
+    const sheetWidth = props.designWidth * scale
     return (
-      <div ref={outerRef} className="relative w-full" style={boxed ? { height: scaledHeight || undefined, overflow: 'clip' } : undefined}>
+      <div ref={outerRef} className="relative flex w-full justify-center overflow-x-clip" style={boxed ? { height: scaledHeight || undefined } : undefined}>
         <div
           ref={innerRef}
-          className={boxed ? 'absolute left-0 top-0' : 'relative'}
+          className={boxed ? 'absolute top-0' : 'relative'}
           data-wedding-stage=""
-          style={{ width: props.designWidth, transform: `scale(${scale})`, transformOrigin: 'top left' }}
+          style={{
+            width: props.designWidth,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+            left: boxed ? `max(0px, calc((100% - ${sheetWidth}px) / 2))` : undefined,
+          }}
         >
           {props.children}
         </div>
@@ -364,6 +371,7 @@ export default function WeddingPublicClient({
   samplePresetId = '',
   sampleDemo = false,
   demoMusicUrls = [],
+  captureStill = false,
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -395,6 +403,8 @@ export default function WeddingPublicClient({
   sampleDemo?: boolean
   /** Kho nhạc, chỉ bản demo. Hết một bài thì bài khác, thứ tự ngẫu nhiên. */
   demoMusicUrls?: string[]
+  /** Ảnh lưới chủ đề: thiệp đã mở, đứng yên, không nhạc và không hiệu ứng. */
+  captureStill?: boolean
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -547,7 +557,7 @@ export default function WeddingPublicClient({
   )
   const [houseAskOpen, setHouseAskOpen] = useState(false)
   const coverPreview = editorStack === 'cover'
-  const [opened, setOpened] = useState(layoutPreview && !coverPreview)
+  const [opened, setOpened] = useState(captureStill || (layoutPreview && !coverPreview))
   const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_MOBILE_WIDTH)
   const [coverCard, setCoverCard] = useState(ornamentMobile)
   const [coverShared, setCoverShared] = useState(ornamentSharedMobile)
@@ -788,7 +798,7 @@ export default function WeddingPublicClient({
   frameLinesRef.current = frameLines
   const coverScrollRef = useRef<HTMLDivElement>(null)
   const doorStarted = useRef(false)
-  const [contentVisible, setContentVisible] = useState(layoutPreview && !coverPreview)
+  const [contentVisible, setContentVisible] = useState(captureStill || (layoutPreview && !coverPreview))
   const [albumOpen, setAlbumOpen] = useState(false)
   const [activeAlbumIndex, setActiveAlbumIndex] = useState<number | null>(null)
   const [sharePageUrl, setSharePageUrl] = useState('')
@@ -1765,10 +1775,10 @@ export default function WeddingPublicClient({
           </div>
         </div>
       ) : null}
-      {opened && card.effectsEnabled && !layoutPreview ? (
+      {opened && card.effectsEnabled && !layoutPreview && !captureStill ? (
         <WeddingOpenEffects play burst={openBurstEffect} fall={openFallEffect} fallSeconds={openFallSeconds} themeId={theme.id} lookId={readyBackground?.id} />
       ) : null}
-      {sampleDemo && !hostEditor ? (
+      {sampleDemo && !hostEditor && !captureStill ? (
         <div className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex justify-center px-3">
           <div className="pointer-events-auto flex items-center gap-1 rounded-full bg-white/95 p-1 shadow" role="group" aria-label={tImage.previewDesktop}>
             {(['desktop', 'mobile'] as const).map((id) => {
@@ -1942,6 +1952,7 @@ export default function WeddingPublicClient({
                 fitHeight={sampleDemo}
                 designWidth={coverDesignWidth}
                 backgroundColor={stageColor}
+                maxScale={hostPreview || sampleDemo ? undefined : 1}
               >
               <div
                 data-cover-preview={coverPreview ? '' : undefined}
@@ -2019,6 +2030,10 @@ export default function WeddingPublicClient({
                     openButtonLabel={tx.openInvitation}
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
+                    pairLeftUrl={groomPhotoUrl}
+                    pairRightUrl={bridePhotoUrl}
+                    pairLeftCrop={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
+                    pairRightCrop={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
                     stackPair={
                       heroStack
                         ? {
@@ -2076,11 +2091,11 @@ export default function WeddingPublicClient({
         {contentVisible && !coverPreview ? (
           <nav
             className={cn(
-              'fixed top-0 z-[80] border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
-              hostPreview || sampleDemo ? 'left-1/2 max-w-full -translate-x-1/2' : 'inset-x-0',
+              'fixed top-0 z-[80] max-w-full -translate-x-1/2 border-b px-2 py-2 text-sm sm:px-3 sm:py-2.5',
+              'left-1/2',
               theme.nav,
             )}
-            style={sampleDemo || hostPreview ? { width: viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px` } : undefined}
+            style={{ width: sampleDemo || hostPreview ? (viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px`) : `min(100%, ${coverDesignWidth}px)` }}
           >
             <div className="mx-auto flex max-w-3xl snap-x gap-1 overflow-x-auto overscroll-x-contain px-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:justify-center">
               <a className={cn(weddingNavLinkClass(theme), 'snap-start whitespace-nowrap')} href="#cover">{tx.navInvitation}</a>
@@ -2092,7 +2107,7 @@ export default function WeddingPublicClient({
         ) : null}
         {!coverPreview ? (
         <div className={contentVisible ? 'pt-12' : 'hidden'}>
-        <FittedCoverFrame active={!layoutPreview} designWidth={coverDesignWidth} backgroundColor="transparent" flow>
+        <FittedCoverFrame active={!layoutPreview} designWidth={coverDesignWidth} backgroundColor="transparent" flow maxScale={hostPreview || sampleDemo ? undefined : 1}>
         {opened ? (
           <WeddingScrollingBackground
             urls={plateUrls.length > 0 ? plateUrls : pageBackground ? [pageBackground] : []}
@@ -2199,6 +2214,10 @@ export default function WeddingPublicClient({
                   openButtonLabel={tx.openInvitation}
                   dateFallback={tx.dateFallback}
                   photoAlt={tx.coverPhotoAlt}
+                  pairLeftUrl={groomPhotoUrl}
+                  pairRightUrl={bridePhotoUrl}
+                  pairLeftCrop={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
+                  pairRightCrop={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
                 />
               </div>
             ) : null}
@@ -2249,7 +2268,7 @@ export default function WeddingPublicClient({
                 />
               </div>
             ) : null}
-            {showMusic && (
+            {showMusic && !captureStill && (
               <div className={cn('mx-auto mt-5 w-full rounded-3xl p-4 text-left', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-after', theme.panelUi)}>
 
                 <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -2822,7 +2841,7 @@ export default function WeddingPublicClient({
         </FittedCoverFrame>
         </div>
         ) : null}
-        {opened && !layoutPreview && card.effectsEnabled && showMusic && !musicLoadFailed && (
+        {opened && !layoutPreview && !captureStill && card.effectsEnabled && showMusic && !musicLoadFailed && (
           <button
             type="button"
             className={cn(

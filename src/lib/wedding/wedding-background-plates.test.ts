@@ -132,6 +132,56 @@ test('the warm minimal set is the botanical plate, dried sprigs, and the polaroi
   assert.equal(shown.presetId, 'linen_polaroid')
 })
 
+test('seven color themes put two photos on the cover, thin frame or none', () => {
+  const expected = [
+    ['doi-anh-nau', 'pair_nau', 'thin', 'toi-gian-nau.jpg'],
+    ['doi-anh-hong', 'pair_hong', 'none', 'vuon-kinh-hong-wash.jpg'],
+    ['doi-anh-long-phung', 'pair_long_phung', 'thin', 'long-phung-do-1.jpg'],
+    ['doi-anh-do-son', 'pair_do_son', 'none', 'do-son.jpg'],
+    ['doi-anh-song-hy', 'pair_song_hy', 'thin', 'song-hy-do.svg'],
+    ['doi-anh-sen', 'pair_sen', 'none', 'sen-vang.jpg'],
+    ['doi-anh-ngoc', 'pair_ngoc', 'thin', 'hong-ngoc-trai-1.jpg'],
+  ] as const
+  for (const [id, coverId, frame, plate] of expected) {
+    const preset = findWeddingBackgroundPreset(id)
+    assert.ok(preset, id)
+    assert.equal(preset.coverPresetId, coverId)
+    assert.equal(preset.plates[0]?.endsWith(plate), true, id)
+    const cover = findWeddingCoverPreset(coverId)
+    assert.equal(cover?.layout, 'pair')
+    assert.equal(cover?.pairFrame, frame)
+  }
+})
+
+test('offset and tilted pair covers keep both photos the same size', () => {
+  const expected = [
+    ['doi-anh-lech', 'pair_lech', 'offset', 'thin'],
+    ['doi-anh-nghieng', 'pair_nghieng', 'tilt', 'none'],
+  ] as const
+  for (const [id, coverId, arrange, frame] of expected) {
+    const preset = findWeddingBackgroundPreset(id)
+    assert.equal(preset?.coverPresetId, coverId)
+    const cover = findWeddingCoverPreset(coverId)
+    assert.equal(cover?.layout, 'pair')
+    assert.equal(cover?.pairArrange, arrange)
+    assert.equal(cover?.pairFrame, frame)
+  }
+})
+
+test('round photos and photo cards keep both pictures the same size', () => {
+  const expected = [
+    ['doi-anh-vong', 'pair_vong', 'locket', 'thin'],
+    ['doi-anh-the', 'pair_the', 'print', 'none'],
+  ] as const
+  for (const [id, coverId, arrange, frame] of expected) {
+    const preset = findWeddingBackgroundPreset(id)
+    assert.equal(preset?.coverPresetId, coverId)
+    const cover = findWeddingCoverPreset(coverId)
+    assert.equal(cover?.pairArrange, arrange)
+    assert.equal(cover?.pairFrame, frame)
+  }
+})
+
 test('the green wood-flower set keeps readable paper and photo sprigs', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'hoa-moc-xanh'), [
     '/wedding/backgrounds/hoa-moc-xanh-paper.jpg',
@@ -228,7 +278,7 @@ test('the Vietnamese bamboo set uses ivory paper, bamboo sprigs, and a bare phot
 test('landmark papers keep one plate, a bare photo, and real corner sprigs', () => {
   const cases = [
     ['chua-mot-cot', 'chua_mot_cot', 'gold', '/chua-sen.png'],
-    ['van-mieu', 'van_mieu', 'bronze', '/van-mieu-mai.png'],
+    ['van-mieu', 'van_mieu', 'bronze', '/dao-canh.png'],
     ['cho-ben-thanh', 'cho_ben_thanh', 'terracotta', '/cho-cuc.png'],
     ['vinh-ha-long', 'vinh_ha_long', 'sky', '/ha-long-da.png'],
     ['lang-bac', 'lang_bac', 'slate', '/lang-sen.png'],
@@ -383,6 +433,8 @@ test('an AI background keeps its own plate and takes the matching kit', () => {
   const floral = weddingAiBackgroundKit('floral')
   assert.deepEqual(floral.plates, [])
   assert.equal(floral.coverPresetId, 'pearl_rose')
+  assert.equal(weddingAiBackgroundKit('ethereal').coverPresetId, 'net_mong')
+  assert.equal(weddingAiBackgroundKit('minimal').coverPresetId, 'plain_photo')
   assert.ok(floral.ornaments.length >= 1)
   assert.equal(weddingStyleIdFromPrompt('Global style preset (keep consistent tone): traditional_vietnamese.'), 'traditional_vietnamese')
   assert.equal(weddingStyleIdFromPrompt('no style here'), null)

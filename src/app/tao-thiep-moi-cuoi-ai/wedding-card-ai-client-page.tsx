@@ -329,11 +329,11 @@ function buildPersistSnapshot(input: {
   })
 }
 
-function weddingQuickViewHref(slug: string) {
+function weddingQuickViewHref(slug: string, side: 'groom' | 'bride') {
   const params = new URLSearchParams({
     demo: '1',
-    view: 'groom',
-    venue: 'groom_home',
+    view: side,
+    venue: side === 'bride' ? 'bride_home' : 'groom_home',
   })
   return `/thiep-moi-cuoi/${encodeURIComponent(slug)}?${params.toString()}`
 }
@@ -489,6 +489,7 @@ export default function WeddingCardAiClientPage() {
   const [saving, setSaving] = useState(false)
   const [previewLetterView, setPreviewLetterView] = useState<'groom' | 'bride'>('groom')
   const [letterAskOpen, setLetterAskOpen] = useState(false)
+  const [quickViewAsk, setQuickViewAsk] = useState<{ slug: string; occasionKey: string } | null>(null)
   const [previewBusy, setPreviewBusy] = useState(false)
   const previewBusyRef = useRef(false)
   const [occasionPickerOpen, setOccasionPickerOpen] = useState(false)
@@ -2384,11 +2385,22 @@ export default function WeddingCardAiClientPage() {
                         </Link>
                       </Button>
                       {item.isPublished && item.slug ? (
-                        <Button asChild variant="outline" size="sm">
-                          <a href={weddingQuickViewHref(item.slug)} target="_blank" rel="noreferrer">
-                            <Eye className="mr-1 h-3.5 w-3.5" />
-                            Xem nhanh
-                          </a>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const slug = item.slug
+                            if (!slug) return
+                            if (invitationOccasionShape(item.occasionKey) === 'single') {
+                              window.open(weddingQuickViewHref(slug, 'groom'), '_blank', 'noopener,noreferrer')
+                              return
+                            }
+                            setQuickViewAsk({ slug, occasionKey: item.occasionKey })
+                          }}
+                        >
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          Xem nhanh
                         </Button>
                       ) : (
                         <Button type="button" variant="outline" size="sm" disabled title="Xuất bản thiệp để xem link">
@@ -2444,9 +2456,9 @@ export default function WeddingCardAiClientPage() {
             showCloseButton={!backgroundPicked}
             className={cn(
               'z-[200] flex flex-col overflow-hidden',
-              pickerWide
-                ? 'h-[96dvh] max-h-[96dvh] w-[min(96vw,44rem)] max-w-[96vw] sm:max-w-[44rem]'
-                : 'max-h-[85vh] sm:max-w-lg',
+              backgroundPicked
+                ? 'max-h-[85vh] sm:max-w-lg'
+                : 'h-[94dvh] max-h-[94dvh] w-[96vw] max-w-[96vw]',
             )}
           >
             <DialogHeader className={samplePreviewOpen ? 'sr-only' : backgroundPicked ? 'shrink-0' : 'shrink-0 pr-10'}>
@@ -2488,6 +2500,7 @@ export default function WeddingCardAiClientPage() {
                 libraryHeading={tImage.libraryAllHeading}
                 hint={tImage.sampleCardsHint}
                 photoNote={tImage.sampleCardPhotos}
+                columns={4}
                 disabled={Boolean(applyingLibraryId) || !card.id}
                 onPreview={(sample) => {
                   const params = new URLSearchParams()
@@ -2698,6 +2711,10 @@ export default function WeddingCardAiClientPage() {
                       }
                       dateFallback={txPublic.dateFallback}
                       photoAlt={coverPhotoCopy.alt}
+                      pairLeftUrl={groomPortraitPreviewUrl}
+                      pairRightUrl={bridePortraitPreviewUrl}
+                      pairLeftEdit={stackPhotoEdit('groom')}
+                      pairRightEdit={stackPhotoEdit('bride')}
                       stackPair={
                         heroStack
                           ? {
@@ -3508,6 +3525,10 @@ export default function WeddingCardAiClientPage() {
                               openButtonLabel={txCover.previewOpenButton}
                               dateFallback={txPublic.dateFallback}
                               photoAlt={coverPhotoCopy.alt}
+                              pairLeftUrl={groomPortraitPreviewUrl}
+                              pairRightUrl={bridePortraitPreviewUrl}
+                              pairLeftEdit={stackPhotoEdit('groom')}
+                              pairRightEdit={stackPhotoEdit('bride')}
                             />
                           </div>
                         ) : null}
@@ -3893,6 +3914,46 @@ export default function WeddingCardAiClientPage() {
               }}
             >
               Đổi loại thiệp
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={quickViewAsk != null} onOpenChange={(open) => { if (!open) setQuickViewAsk(null) }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Xem nhanh</DialogTitle>
+            <DialogDescription>
+              {quickViewAsk?.occasionKey === 'wedding'
+                ? 'Chọn nhà trai hoặc nhà gái để mở xem nhanh.'
+                : quickViewAsk
+                  ? `Chọn ${invitationEditorCopy(quickViewAsk.occasionKey).letterPrimary} hoặc ${invitationEditorCopy(quickViewAsk.occasionKey).letterSecondary} để mở xem nhanh.`
+                  : ''}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-sky-600 bg-sky-200 font-semibold text-sky-950 hover:bg-sky-300"
+              onClick={() => {
+                if (!quickViewAsk) return
+                window.open(weddingQuickViewHref(quickViewAsk.slug, 'groom'), '_blank', 'noopener,noreferrer')
+                setQuickViewAsk(null)
+              }}
+            >
+              {quickViewAsk ? invitationEditorCopy(quickViewAsk.occasionKey).letterPrimary : ''}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="border-rose-600 bg-rose-200 font-semibold text-rose-950 hover:bg-rose-300"
+              onClick={() => {
+                if (!quickViewAsk) return
+                window.open(weddingQuickViewHref(quickViewAsk.slug, 'bride'), '_blank', 'noopener,noreferrer')
+                setQuickViewAsk(null)
+              }}
+            >
+              {quickViewAsk ? invitationEditorCopy(quickViewAsk.occasionKey).letterSecondary : ''}
             </Button>
           </div>
         </DialogContent>

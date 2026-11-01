@@ -40,6 +40,23 @@ test('a sample card is one background and five couple photos', () => {
   }
 })
 
+test('the rose frame stays on rose themes and leaves the others', () => {
+  const section = (id: string) => JSON.parse(buildWeddingSampleDemoCard(findWeddingSampleCard(id)!)!.sectionConfig) as {
+    coverPresetId?: string
+    groomPortraitShellPresetId?: string
+    groomPortraitShellMode?: string
+  }
+  assert.equal(section('kho-hong-buom').coverPresetId, 'pearl_rose')
+  assert.equal(section('kho-sen-hong').coverPresetId, 'net_sen')
+  assert.equal(section('kho-sen-hong').groomPortraitShellPresetId, 'net_sen')
+  assert.equal(section('kho-hac-sen').coverPresetId, 'plain_photo')
+  assert.equal(section('kho-hac-sen').groomPortraitShellMode, 'none')
+  assert.equal(section('ai-ethereal').coverPresetId, 'net_mong')
+  assert.equal(section('ai-minimal').coverPresetId, 'plain_photo')
+  assert.equal(section('ai-minimal').groomPortraitShellMode, 'none')
+  assert.equal(section('ai-floral').coverPresetId, 'pearl_rose')
+})
+
 test('editor drops sample photos and keeps a real photo', () => {
   const sample = WEDDING_SAMPLE_CARDS[0]
   const card = {

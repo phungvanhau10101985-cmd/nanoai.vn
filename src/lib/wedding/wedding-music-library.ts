@@ -27,8 +27,8 @@ export function weddingMusicTitleFromFileName(name: string) {
   return (base || 'Nhạc thiệp').slice(0, 80)
 }
 
-/** Mỗi bài tối đa 13 MB. Server action để 16 MB để file này còn chỗ trong form. */
-export const WEDDING_LIBRARY_MUSIC_MAX_BYTES = 13 * 1024 * 1024
+/** Mỗi bài tối đa 20 MB. Form server action để 24 MB cho phần bọc ngoài file. */
+export const WEDDING_LIBRARY_MUSIC_MAX_BYTES = 20 * 1024 * 1024
 
 const LIBRARY_AUDIO_EXT = /\.(mp3|mpeg|m4a|wav|aac|ogg)$/i
 

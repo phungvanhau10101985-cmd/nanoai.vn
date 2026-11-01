@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
-import { WEDDING_SAMPLE_CARDS, weddingSampleGalleryThumb } from './wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, weddingSampleGalleryThumb, weddingSampleScrollStrip } from './wedding-sample-cards'
 import { nextWeddingMusicMix, shuffleWeddingMusicUrls, weddingMusicQueue } from './wedding-music-library'
 
 test('music queue drops blanks and duplicates', () => {
@@ -12,6 +12,15 @@ test('music queue drops blanks and duplicates', () => {
 test('shuffle keeps every track', () => {
   const urls = ['a.mp3', 'b.mp3', 'c.mp3']
   assert.deepEqual(shuffleWeddingMusicUrls(urls, () => 0), ['b.mp3', 'c.mp3', 'a.mp3'])
+})
+
+test('each theme scroll strip is a tall preview', () => {
+  for (const sample of WEDDING_SAMPLE_CARDS) {
+    const file = path.join(process.cwd(), 'public', weddingSampleScrollStrip(sample).replace(/^\//, ''))
+    assert.equal(existsSync(file), true, sample.id)
+    const info = statSync(file)
+    assert.ok(info.size < 720_000, sample.id)
+  }
 })
 
 test('each theme gallery thumb is a small file', () => {

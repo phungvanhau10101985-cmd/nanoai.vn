@@ -7,7 +7,7 @@ import { getFeatureSeo, buildFeatureFaqJsonLd } from '@/lib/feature-seo'
 import { getServerDictionary } from '@/lib/i18n/server'
 import { buildJsonLdService, buildMetadata, SITE_URL } from '@/lib/seo'
 import { buildWeddingCommerceProductJsonLd } from '@/lib/wedding/wedding-commerce-events'
-import { WEDDING_SAMPLE_CARDS, weddingSampleCardTitle, weddingSampleGalleryThumb } from '@/lib/wedding/wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, weddingSampleCardTitle, weddingSampleScrollStrip } from '@/lib/wedding/wedding-sample-cards'
 import { FeatureSeoSection } from '@/components/feature-seo-section'
 import WeddingCardAiClientPage from './wedding-card-ai-client-page'
 
@@ -41,7 +41,7 @@ export default async function TaoThiepMoiCuoiAiPage() {
     : WEDDING_SAMPLE_CARDS.map((sample) => ({
         id: sample.id,
         title: weddingSampleCardTitle(locale, sample),
-        image: weddingSampleGalleryThumb(sample),
+        image: weddingSampleScrollStrip(sample),
       })).filter((item) => item.title && item.image)
 
   return (

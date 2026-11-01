@@ -2,7 +2,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
 
 export type WeddingCoverPresetTag = 'new' | 'hot'
-export type WeddingCoverLayout = 'glass' | 'red_arch' | 'frame' | 'composed' | 'plain' | 'song_hy' | 'envelope'
+export type WeddingCoverLayout = 'glass' | 'red_arch' | 'frame' | 'composed' | 'plain' | 'song_hy' | 'envelope' | 'pair'
 
 export type WeddingCoverPreset = {
   id: string
@@ -24,6 +24,33 @@ export type WeddingCoverPreset = {
   frame?: WeddingCoverFrameAsset
   /** Bố cục ghép khung + hoa văn. Khớp getOrnamentComposition. */
   compositionId?: string
+  /** Hai ảnh trên đầu vỏ. `thin` là khung mảnh, `none` là không khung. */
+  pairFrame?: 'thin' | 'none'
+  /** Cách xếp hai ảnh. Thiếu thì đặt cạnh nhau. */
+  pairArrange?: 'offset' | 'tilt' | 'locket' | 'print'
+}
+
+function pairCover(
+  id: string,
+  pairFrame: 'thin' | 'none',
+  styleId: string,
+  ornament: string,
+  paper: string,
+  accent: string,
+  textClass: string,
+  label: WeddingCoverPreset['label'],
+  pairArrange?: WeddingCoverPreset['pairArrange'],
+): WeddingCoverPreset {
+  return {
+    id,
+    layout: 'pair',
+    pairFrame,
+    pairArrange,
+    styleId,
+    ornament,
+    thumbnail: { topBg: paper, bottomBg: paper, accent, textClass },
+    label,
+  }
 }
 
 export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
@@ -482,11 +509,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#3b2618]',
     },
     label: {
-      vi: 'Chùa Một Cột',
-      en: 'One Pillar Pagoda',
-      zh: '独柱寺',
-      ja: '一柱寺',
-      ko: '한 기둥 사원',
+      vi: 'Sen mái ngói',
+      en: 'Lotus and roof tiles',
+      zh: '莲与瓦檐',
+      ja: '蓮と瓦屋根',
+      ko: '연꽃과 기와',
     },
   },
   {
@@ -502,11 +529,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#2c2416]',
     },
     label: {
-      vi: 'Văn Miếu',
-      en: 'Temple of Literature',
-      zh: '文庙',
-      ja: '文廟',
-      ko: '문묘',
+      vi: 'Hoa đào gạch',
+      en: 'Blossom on brick',
+      zh: '砖墙桃花',
+      ja: '煉瓦と桃の花',
+      ko: '벽돌과 복숭아꽃',
     },
   },
   {
@@ -522,11 +549,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#5c2e1a]',
     },
     label: {
-      vi: 'Chợ Bến Thành',
-      en: 'Ben Thanh Market',
-      zh: '滨城市场',
-      ja: 'ベンタイン市場',
-      ko: '벤탄 시장',
+      vi: 'Hoa sứ giấy',
+      en: 'Plumeria and bougainvillea',
+      zh: '鸡蛋花与三角梅',
+      ja: 'プルメリアとブーゲンビリア',
+      ko: '플루메리아와 부겐빌레아',
     },
   },
   {
@@ -542,11 +569,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#12343a]',
     },
     label: {
-      vi: 'Vịnh Hạ Long',
-      en: 'Ha Long Bay',
-      zh: '下龙湾',
-      ja: 'ハロン湾',
-      ko: '하롱베이',
+      vi: 'Vịnh đá sương',
+      en: 'Misty limestone bay',
+      zh: '雾中石湾',
+      ja: '霧の岩の湾',
+      ko: '안개 낀 바위 만',
     },
   },
   {
@@ -562,11 +589,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#243038]',
     },
     label: {
-      vi: 'Lăng Bác',
-      en: 'Ho Chi Minh Mausoleum',
-      zh: '胡志明陵',
-      ja: 'ホー・チ・ミン廟',
-      ko: '호찌민 묘',
+      vi: 'Cúc trắng',
+      en: 'White chrysanthemums',
+      zh: '白菊',
+      ja: '白い菊',
+      ko: '흰 국화',
     },
   },
   {
@@ -582,11 +609,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#3a3320]',
     },
     label: {
-      vi: 'Quê Bác',
-      en: 'Nghe An hometown',
-      zh: '义安故乡',
-      ja: 'ゲアンの故郷',
-      ko: '응에안 고향',
+      vi: 'Lúa lá cau',
+      en: 'Rice and areca leaves',
+      zh: '稻穗与槟榔叶',
+      ja: '稲穂とビンロウの葉',
+      ko: '벼 이삭과 빈랑 잎',
     },
   },
   {
@@ -602,11 +629,11 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#3b2a22]',
     },
     label: {
-      vi: 'Đường Lâm',
-      en: 'Duong Lam village',
-      zh: '唐林古村',
-      ja: 'ドゥオンラム',
-      ko: '즈엉람',
+      vi: 'Đá ong lá đa',
+      en: 'Laterite and bodhi leaves',
+      zh: '红砖与菩提叶',
+      ja: 'ラテライトと菩提の葉',
+      ko: '라테라이트와 보리수 잎',
     },
   },
   {
@@ -783,6 +810,89 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       ko: '펄 로즈 프레임',
     },
   },
+  {
+    id: 'net_sen',
+    layout: 'frame',
+    styleId: 'floral',
+    frame: {
+      src: '/wedding/covers/net-sen-frame.webp',
+      hole: { x: 5.78, y: 4.33, w: 88.44, h: 91.33 },
+      panel: '#fff8f2',
+      ink: 'dark',
+    },
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#fff6ee',
+      bottomBg: '#fff6ee',
+      accent: '#b8893e',
+      textClass: 'text-[#6b4310]',
+    },
+    label: {
+      vi: 'Khung nét sen',
+      en: 'Thin lotus line',
+      zh: '细莲线框',
+      ja: '細い蓮の線',
+      ko: '얇은 연꽃 선',
+    },
+  },
+  {
+    id: 'net_mong',
+    layout: 'frame',
+    styleId: 'ethereal',
+    frame: {
+      src: '/wedding/covers/net-mong-frame.webp',
+      hole: { x: 5.78, y: 4.33, w: 88.44, h: 91.33 },
+      panel: '#f7f6f4',
+      ink: 'dark',
+    },
+    ornament: '&',
+    thumbnail: {
+      topBg: '#f7f6f4',
+      bottomBg: '#f7f6f4',
+      accent: '#8d98a3',
+      textClass: 'text-stone-700',
+    },
+    label: {
+      vi: 'Khung nét mỏng',
+      en: 'Thin mist line',
+      zh: '细雾线框',
+      ja: '細い霧の線',
+      ko: '얇은 안개 선',
+    },
+  },
+  pairCover('pair_nau', 'thin', 'ethereal', '&', '#f7f2ea', '#8d7355', 'text-stone-700', {
+    vi: 'Đôi ảnh nâu', en: 'Two warm photos', zh: '暖色双照', ja: 'あたたかい写真二つ', ko: '따뜻한 사진 둘',
+  }),
+  pairCover('pair_hong', 'none', 'floral', '❀', '#fff7f5', '#c45c7a', 'text-rose-800', {
+    vi: 'Đôi ảnh hồng', en: 'Two pink photos', zh: '粉色双照', ja: 'ピンクの写真二つ', ko: '분홍 사진 둘',
+  }),
+  pairCover('pair_long_phung', 'thin', 'traditional_vietnamese', '囍', '#5c1018', '#f3d27a', 'text-[#f6e4b8]', {
+    vi: 'Đôi ảnh long phụng', en: 'Two dragon photos', zh: '龙凤双照', ja: '龍鳳の写真二つ', ko: '용봉 사진 둘',
+  }),
+  pairCover('pair_do_son', 'none', 'traditional_vietnamese', '囍', '#8d1c24', '#c4a15a', 'text-[#f6e4b8]', {
+    vi: 'Đôi ảnh đỏ son', en: 'Two scarlet photos', zh: '正红双照', ja: '朱色の写真二つ', ko: '진홍 사진 둘',
+  }),
+  pairCover('pair_song_hy', 'thin', 'traditional_vietnamese', '囍', '#4e1018', '#f3d27a', 'text-[#f6e2b0]', {
+    vi: 'Đôi ảnh song hỷ', en: 'Two happiness photos', zh: '双喜双照', ja: '双喜の写真二つ', ko: '쌍희 사진 둘',
+  }),
+  pairCover('pair_sen', 'none', 'luxury', '❀', '#fff8ee', '#c4a15a', 'text-[#3b2618]', {
+    vi: 'Đôi ảnh sen', en: 'Two lotus photos', zh: '金莲双照', ja: '蓮の写真二つ', ko: '연꽃 사진 둘',
+  }),
+  pairCover('pair_ngoc', 'thin', 'floral', '❀', '#fff8f6', '#c45c7a', 'text-rose-800', {
+    vi: 'Đôi ảnh ngọc', en: 'Two pearl photos', zh: '珍珠双照', ja: 'パールの写真二つ', ko: '펄 사진 둘',
+  }),
+  pairCover('pair_lech', 'thin', 'ethereal', '&', '#f7f2ea', '#8d7355', 'text-stone-700', {
+    vi: 'Đôi ảnh lệch', en: 'Offset photos', zh: '错落双照', ja: 'ずらし写真', ko: '어긋난 사진',
+  }, 'offset'),
+  pairCover('pair_nghieng', 'none', 'floral', '❀', '#fff7f5', '#c45c7a', 'text-rose-800', {
+    vi: 'Đôi ảnh nghiêng', en: 'Tilted photos', zh: '倾斜双照', ja: '傾けた写真', ko: '기울인 사진',
+  }, 'tilt'),
+  pairCover('pair_vong', 'thin', 'traditional_vietnamese', '囍', '#4e1018', '#f3d27a', 'text-[#f6e2b0]', {
+    vi: 'Đôi ảnh vòng', en: 'Two round photos', zh: '双圆照', ja: '丸い写真二つ', ko: '둥근 사진 둘',
+  }, 'locket'),
+  pairCover('pair_the', 'none', 'traditional_vietnamese', '囍', '#5c1018', '#f3d27a', 'text-[#f6e4b8]', {
+    vi: 'Đôi ảnh thẻ', en: 'Photo cards', zh: '拍立得双照', ja: 'プリント写真', ko: '인화 사진',
+  }, 'print'),
 ]
 
 export const DEFAULT_WEDDING_COVER_PRESET_ID = WEDDING_COVER_PRESETS[0]?.id ?? 'dragon_phoenix'
@@ -804,5 +914,5 @@ export function labelForWeddingCoverPreset(locale: WebLocale, preset: WeddingCov
 /** Khung đi theo nền: ảnh khung, bố cục ghép, hoặc ảnh trần không khung. */
 export function weddingCoverPresetFollowsBackground(preset: WeddingCoverPreset | undefined): boolean {
   if (!preset) return false
-  return Boolean(preset.frame) || preset.layout === 'composed' || preset.layout === 'plain' || preset.layout === 'envelope'
+  return Boolean(preset.frame) || preset.layout === 'composed' || preset.layout === 'plain' || preset.layout === 'envelope' || preset.layout === 'pair'
 }

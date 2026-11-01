@@ -50,21 +50,23 @@ export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean }
     window.location.assign(editorHref({ useSample: props.sampleId }))
   }
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[80] flex gap-2 border-t border-neutral-200 bg-white/95 p-3 shadow-lg pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <button
-        type="button"
-        className="h-11 flex-1 rounded-full border border-neutral-300 bg-white text-sm font-semibold text-neutral-800"
-        onClick={exit}
-      >
-        {tx.sampleCardExit}
-      </button>
-      <button
-        type="button"
-        className="h-11 flex-[1.4] rounded-full bg-rose-700 text-sm font-semibold text-white"
-        onClick={useSample}
-      >
-        {tx.sampleCardUse}
-      </button>
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white/95 p-1 shadow-lg">
+        <button
+          type="button"
+          className="h-8 rounded-full px-3 text-xs font-semibold text-neutral-700"
+          onClick={exit}
+        >
+          {tx.sampleCardExit}
+        </button>
+        <button
+          type="button"
+          className="h-8 rounded-full bg-rose-700 px-3.5 text-xs font-semibold text-white"
+          onClick={useSample}
+        >
+          {tx.sampleCardUse}
+        </button>
+      </div>
     </div>
   )
 }

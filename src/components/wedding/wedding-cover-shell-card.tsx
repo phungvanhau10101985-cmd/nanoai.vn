@@ -28,6 +28,15 @@ type WeddingCoverShellCardProps = {
   coverPhotoUrl?: string
   coverPhotoObjectPosition?: string
   coverPhotoScale?: number
+  /** Hai ảnh trên đầu vỏ. Dùng khi khung là bố cục pair. */
+  pairLeftUrl?: string
+  pairRightUrl?: string
+  /** Căn ảnh đã lưu. Thiệp công khai không có nút sửa. */
+  pairLeftCrop?: { x: number; y: number; scale: number }
+  pairRightCrop?: { x: number; y: number; scale: number }
+  /** Editor: chọn ảnh, kéo và zoom từng ảnh. */
+  pairLeftEdit?: WeddingStackedPhotoEdit
+  pairRightEdit?: WeddingStackedPhotoEdit
   /** Hai khung chồng. Có thì vỏ không dùng khung một ảnh. */
   stackPair?: {
     firstUrl: string
@@ -2078,9 +2087,158 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
   )
 }
 
+function pairPhotoStyle(crop?: { x: number; y: number; scale: number }): CSSProperties | undefined {
+  if (!crop) return undefined
+  const scale = Math.max(1, Math.min(3, crop.scale))
+  return {
+    objectPosition: `${crop.x}% ${crop.y}%`,
+    transform: `scale(${scale})`,
+    transformOrigin: `${crop.x}% ${crop.y}%`,
+  }
+}
+
+function PairShot(props: {
+  url: string
+  className: string
+  crop?: { x: number; y: number; scale: number }
+  edit?: WeddingStackedPhotoEdit
+}) {
+  const crop = props.edit?.crop ?? props.crop
+  const photo = props.url ? (
+    <img src={props.url} alt="" draggable={false} className="h-full w-full select-none object-cover" style={pairPhotoStyle(crop)} />
+  ) : (
+    <span className="block h-full min-h-[4rem] w-full bg-black/10" />
+  )
+  if (!props.edit) return <div className={cn('overflow-hidden', props.className)}>{photo}</div>
+  return (
+    <CoverPhotoPan edit={props.edit.crop} className={cn('pointer-events-auto relative overflow-hidden', props.className)}>
+      {photo}
+      <CoverFrameActions
+        hasPhoto={Boolean(props.url)}
+        onPhotoFile={props.edit.onFile}
+        choosePhotoLabel={props.edit.chooseLabel}
+        changePhotoLabel={props.edit.changeLabel}
+        className="bottom-1 left-1/2"
+      />
+    </CoverPhotoPan>
+  )
+}
+
+function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCoverPreset }) {
+  const { compact, theme, preset } = props
+  const thin = preset.pairFrame !== 'none'
+  const left = props.pairLeftUrl || props.coverPhotoUrl || ''
+  const right = props.pairRightUrl || props.coverPhotoUrl || ''
+  const edge = thin ? 'border border-white/90 shadow-[0_0_0_1px_rgba(40,20,10,0.45)]' : ''
+  const lift = 'shadow-[0_10px_18px_rgba(40,20,10,0.22)]'
+  const arrange = preset.pairArrange
+  const leftShot = (className: string) => (
+    <PairShot url={left} crop={props.pairLeftCrop} edit={props.pairLeftEdit} className={className} />
+  )
+  const rightShot = (className: string) => (
+    <PairShot url={right} crop={props.pairRightCrop} edit={props.pairRightEdit} className={className} />
+  )
+  const photos = arrange === 'offset' ? (
+    <div className="relative aspect-[5/4] w-full">
+      {leftShot(cn('absolute left-0 top-0 h-[78%] w-[58%]', edge))}
+      {rightShot(cn('absolute bottom-0 right-0 z-[1] h-[78%] w-[58%]', edge, lift))}
+    </div>
+  ) : arrange === 'tilt' ? (
+    <div className="relative aspect-[5/4] w-full">
+      {leftShot(cn('absolute left-[6%] top-[10%] h-[72%] w-[44%] -rotate-[9deg]', edge, lift))}
+      {rightShot(cn('absolute bottom-[8%] right-[6%] h-[72%] w-[44%] rotate-[8deg]', edge, lift))}
+    </div>
+  ) : arrange === 'locket' ? (
+    <div className="relative aspect-[6/5] w-full">
+      {leftShot(cn('absolute left-[1%] top-[10%] h-[78%] w-[56%] rounded-full', edge))}
+      {rightShot(cn('absolute right-[1%] top-[14%] z-[1] h-[78%] w-[56%] rounded-full', edge, lift))}
+    </div>
+  ) : arrange === 'print' ? (
+    <div className="relative aspect-[5/4] w-full">
+      <span className={cn('absolute left-[1%] top-[1%] w-[52%] -rotate-[8deg] bg-white p-[2.5%] pb-[13%]', lift)}>
+        {leftShot('aspect-[3/4] w-full')}
+      </span>
+      <span className={cn('absolute bottom-[1%] right-[1%] z-[1] w-[52%] rotate-[7deg] bg-white p-[2.5%] pb-[13%]', lift)}>
+        {rightShot('aspect-[3/4] w-full')}
+      </span>
+    </div>
+  ) : (
+    <div className={cn('grid grid-cols-2', thin ? 'gap-2' : 'gap-1')}>
+      {leftShot(cn('aspect-[3/4] w-full', edge))}
+      {rightShot(cn('aspect-[3/4] w-full', edge))}
+    </div>
+  )
+  const frameScale = frameScaleOf(props.frameScale)
+  const collage = (
+    <FrameResizeChrome
+      edit={props.frameScaleEdit}
+      className={cn('mx-auto', props.frameScaleEdit && 'pointer-events-auto')}
+      style={{ width: `${frameWidthPercent(100, frameScale)}%` }}
+    >
+      {photos}
+    </FrameResizeChrome>
+  )
+  if (props.frameOnly) return <div className="mx-auto w-full max-w-[22rem]">{collage}</div>
+  return (
+    <div className={cn('mx-auto w-full text-center', compact ? 'max-w-[210px]' : 'max-w-[22rem] sm:max-w-[26rem]')}>
+      {collage}
+      <p className={cn('uppercase tracking-[0.22em]', compact ? 'mt-1 text-[8px]' : 'mt-2 text-[11px]', theme.mutedText, theme.textGlow)}>
+        {props.invitationLabel}
+      </p>
+      <WeddingCoupleNames
+        groomName={props.groomName}
+        brideName={props.brideName}
+        flyIn={props.namesFlyIn && !compact}
+        className={cn('font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-1 text-[clamp(1.05rem,8cqi,2.2rem)] leading-none', theme.text, theme.textGlowHeading)}
+      />
+      <div className={cn(theme.accent, theme.textGlow, compact ? 'my-0.5 text-base' : 'mt-0.5 text-2xl')}>{preset.ornament}</div>
+      {!props.guestName ? (
+        <p className={cn(compact ? 'text-[10px]' : 'text-xs sm:text-sm', theme.mutedText, theme.textGlow)}>{props.weddingDate || props.dateFallback}</p>
+      ) : (
+        <WeddingGuestInviteBlock
+          className="mt-0.5"
+          guestName={props.guestName}
+          inviteVenue={props.guestInviteVenue ?? ''}
+          cordiallyInvitesLabel={props.cordiallyInvitesLabel}
+          venueLabel={props.guestInviteVenueLabel ?? ''}
+          weddingDateLabel={props.weddingDate || props.dateFallback || undefined}
+          weddingTimeText={props.weddingTimeText}
+          addressText={props.addressText}
+          mapUrl={props.mapUrl}
+          viewMapLabel={props.viewMapLabel ?? ''}
+          panelClassName="bg-black/25"
+          cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
+          nameClassName={cn(theme.text, theme.textGlowHeading)}
+          venueClassName={cn(theme.accent, theme.textGlow)}
+          addressClassName={cn(theme.mutedText, theme.textGlow)}
+          weddingThemeId={theme.id}
+          buttonColor={props.buttonColor}
+          compact={compact}
+          dense={props.fitViewport}
+          personalInviteText={props.personalInviteText}
+          personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
+        />
+      )}
+      <CoverActions
+        themeId={theme.id}
+        buttonColor={props.buttonColor}
+        rsvpButtonColor={props.rsvpButtonColor}
+        compact={compact}
+        className={compact ? 'mt-2' : 'mt-3'}
+        openLabel={props.openButtonLabel}
+        onOpen={props.onOpen}
+        quickRsvp={props.quickRsvp}
+      />
+    </div>
+  )
+}
+
 export function WeddingCoverShellCard(props: WeddingCoverShellCardProps) {
-  if (props.stackPair) return <StackCoverCard {...props} />
   const preset = getWeddingCoverPreset(props.presetId)
+  if (preset.layout === 'pair' && props.frameMode !== 'library' && props.frameMode !== 'ai') {
+    return <PairCoverCard {...props} preset={preset} />
+  }
+  if (props.stackPair) return <StackCoverCard {...props} />
   const mode = props.frameMode
   const composition = preset.layout === 'composed' ? getOrnamentComposition(preset.compositionId) : undefined
   if (mode === 'none') {

@@ -25,9 +25,10 @@ import {
 import { buildPersonalWeddingInviteFromSideContext } from '@/lib/wedding/build-personal-wedding-invite'
 import { normalizeGuestInviteVenue, type WeddingGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { stripQuyHonorificPrefix } from '@/lib/wedding/wedding-guest-honorific-map'
-import { polishWeddingGuestBulkNames } from '@/lib/wedding/wedding-guest-bulk-names-ai'
+import { arrangeWeddingGuestBulkText, polishWeddingGuestBulkNames } from '@/lib/wedding/wedding-guest-bulk-names-ai'
 import {
   parseWeddingGuestBulkText,
+  splitWeddingGuestBulkBatch,
   weddingGuestBulkNameKey,
 } from '@/lib/wedding/wedding-guest-bulk-names'
 import { weddingSideInviteSettingsFromCard } from '@/lib/wedding/wedding-side-invite-settings'
@@ -163,18 +164,22 @@ export async function addWeddingInvitedGuestsBulk(
   const card = await getWeddingCardForUser(String(cardId || '').trim(), userId)
   if (!card) return { error: 'Không tìm thấy thiệp.' }
 
-  const parsed = parseWeddingGuestBulkText(text)
+  const { batch } = splitWeddingGuestBulkBatch(text)
+  const arranged = await arrangeWeddingGuestBulkText(userId, batch)
+  const local = parseWeddingGuestBulkText(batch)
+  const parsed = arranged && arranged.guests.length ? arranged : local
   const rejected = parsed.rejected.map((item) => item.raw)
   if (!parsed.guests.length) {
     return {
       error: rejected.length
-        ? 'Mỗi khách cần đủ danh xưng và tên. Ví dụ: Cậu Viễn, Bạn Hưng. Không nhập tên cộc như Viễn.'
-        : 'Nhập mỗi dòng một khách, có danh xưng. Ví dụ: Cậu Viễn, Bạn Hưng.',
+        ? 'Chưa tách được khách nào đủ danh xưng và tên. Viết kèm danh xưng, ví dụ cậu Viễn, bạn Hưng và anh Minh.'
+        : 'Chưa thấy tên khách. Viết danh sách theo cách bạn muốn, mỗi người có danh xưng và tên.',
       rejected,
     }
   }
 
-  const polished = await polishWeddingGuestBulkNames(userId, parsed.guests)
+  const polished =
+    arranged && arranged.guests.length ? parsed.guests : await polishWeddingGuestBulkNames(userId, parsed.guests)
   const existing = await listWeddingInvitedGuests(card.id, userId)
   const venue = side === 'bride' ? 'bride_home' : 'groom_home'
   const taken = new Set(

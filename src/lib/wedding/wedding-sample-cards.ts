@@ -51,13 +51,20 @@ export function weddingSampleSharedLayoutKey(sample: Pick<WeddingSampleCard, 'ba
   )
 }
 
+/** Mẫu kho không phải hoa hồng thì không dùng khung hồng của nhóm floral. */
+const LIBRARY_COVER_FRAME: Record<string, string> = {
+  'kho-sen-hong': 'net_sen',
+}
+
 /** Nền kho giữ nguyên ảnh vẽ. Màu nút theo chủ đề, không bật hoa văn của kit. */
 export function weddingLibrarySampleSectionPatch(styleId: string | null | undefined, themeKey?: string | null) {
   const kit = weddingAiBackgroundKit(styleId)
+  const coverPresetId = LIBRARY_COVER_FRAME[themeKey?.trim() || '']
+  const framed = coverPresetId ? { ...kit, coverPresetId } : kit
   return {
     backgroundPresetId: '',
     backgroundKitStyleId: '',
-    ...weddingKitFramePatch(kit),
+    ...weddingKitFramePatch(framed),
     buttonColorId: kit.look.buttonColorId,
     coverRsvpColorId: kit.look.coverRsvpColorId,
     ...weddingThemeOpenCelebration(themeKey || styleId),
@@ -156,6 +163,105 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     albumImageUrls: ['/wedding/samples/hong-ngoc-trai/album-1.png', '/wedding/samples/hong-ngoc-trai/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
     coverPhotoPositionY: 0,
+  },
+  {
+    id: 'doi-anh-nau',
+    backgroundPresetId: 'doi-anh-nau',
+    coverPhotoUrl: '/wedding/samples/toi-gian-nau/cover.png',
+    groomImageUrl: '/wedding/samples/toi-gian-nau/groom.png',
+    brideImageUrl: '/wedding/samples/toi-gian-nau/bride.png',
+    albumImageUrls: ['/wedding/samples/toi-gian-nau/album-1.png', '/wedding/samples/toi-gian-nau/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, be hoặc nâu nhạt.',
+  },
+  {
+    id: 'doi-anh-hong',
+    backgroundPresetId: 'doi-anh-hong',
+    coverPhotoUrl: '/wedding/samples/vuon-kinh-hong/cover.png',
+    groomImageUrl: '/wedding/samples/vuon-kinh-hong/groom.png',
+    brideImageUrl: '/wedding/samples/vuon-kinh-hong/bride.png',
+    albumImageUrls: ['/wedding/samples/vuon-kinh-hong/album-1.png', '/wedding/samples/vuon-kinh-hong/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+  },
+  {
+    id: 'doi-anh-long-phung',
+    backgroundPresetId: 'doi-anh-long-phung',
+    coverPhotoUrl: '/wedding/samples/long-phung-do/cover.png',
+    groomImageUrl: '/wedding/samples/long-phung-do/groom.png',
+    brideImageUrl: '/wedding/samples/long-phung-do/bride.png',
+    albumImageUrls: ['/wedding/samples/long-phung-do/album-1.png', '/wedding/samples/long-phung-do/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ đô, kem hoặc vàng nhạt.',
+  },
+  {
+    id: 'doi-anh-do-son',
+    backgroundPresetId: 'doi-anh-do-son',
+    coverPhotoUrl: '/wedding/samples/do-son/cover.png',
+    groomImageUrl: '/wedding/samples/do-son/groom.png',
+    brideImageUrl: '/wedding/samples/do-son/bride.png',
+    albumImageUrls: ['/wedding/samples/do-son/album-1.png', '/wedding/samples/do-son/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ, kem hoặc vàng.',
+  },
+  {
+    id: 'doi-anh-song-hy',
+    backgroundPresetId: 'doi-anh-song-hy',
+    coverPhotoUrl: '/wedding/samples/song-hy-do/cover.png',
+    groomImageUrl: '/wedding/samples/song-hy-do/groom.png',
+    brideImageUrl: '/wedding/samples/song-hy-do/bride.png',
+    albumImageUrls: ['/wedding/samples/song-hy-do/album-1.png', '/wedding/samples/song-hy-do/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ hoặc vàng.',
+  },
+  {
+    id: 'doi-anh-sen',
+    backgroundPresetId: 'doi-anh-sen',
+    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
+    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
+    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
+    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, vàng hoặc trắng.',
+  },
+  {
+    id: 'doi-anh-ngoc',
+    backgroundPresetId: 'doi-anh-ngoc',
+    coverPhotoUrl: '/wedding/samples/hong-ngoc-trai/cover.png',
+    groomImageUrl: '/wedding/samples/hong-ngoc-trai/groom.png',
+    brideImageUrl: '/wedding/samples/hong-ngoc-trai/bride.png',
+    albumImageUrls: ['/wedding/samples/hong-ngoc-trai/album-1.png', '/wedding/samples/hong-ngoc-trai/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+  },
+  {
+    id: 'doi-anh-lech',
+    backgroundPresetId: 'doi-anh-lech',
+    coverPhotoUrl: '/wedding/samples/toi-gian-nau/cover.png',
+    groomImageUrl: '/wedding/samples/toi-gian-nau/groom.png',
+    brideImageUrl: '/wedding/samples/toi-gian-nau/bride.png',
+    albumImageUrls: ['/wedding/samples/toi-gian-nau/album-1.png', '/wedding/samples/toi-gian-nau/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, be hoặc nâu nhạt.',
+  },
+  {
+    id: 'doi-anh-nghieng',
+    backgroundPresetId: 'doi-anh-nghieng',
+    coverPhotoUrl: '/wedding/samples/vuon-kinh-hong/cover.png',
+    groomImageUrl: '/wedding/samples/vuon-kinh-hong/groom.png',
+    brideImageUrl: '/wedding/samples/vuon-kinh-hong/bride.png',
+    albumImageUrls: ['/wedding/samples/vuon-kinh-hong/album-1.png', '/wedding/samples/vuon-kinh-hong/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+  },
+  {
+    id: 'doi-anh-vong',
+    backgroundPresetId: 'doi-anh-vong',
+    coverPhotoUrl: '/wedding/samples/song-hy-do/cover.png',
+    groomImageUrl: '/wedding/samples/song-hy-do/groom.png',
+    brideImageUrl: '/wedding/samples/song-hy-do/bride.png',
+    albumImageUrls: ['/wedding/samples/song-hy-do/album-1.png', '/wedding/samples/song-hy-do/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ hoặc vàng.',
+  },
+  {
+    id: 'doi-anh-the',
+    backgroundPresetId: 'doi-anh-the',
+    coverPhotoUrl: '/wedding/samples/long-phung-do/cover.png',
+    groomImageUrl: '/wedding/samples/long-phung-do/groom.png',
+    brideImageUrl: '/wedding/samples/long-phung-do/bride.png',
+    albumImageUrls: ['/wedding/samples/long-phung-do/album-1.png', '/wedding/samples/long-phung-do/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ đô, kem hoặc vàng nhạt.',
   },
   {
     id: 'vuon-hong-troi',
@@ -503,6 +609,11 @@ const SAMPLE_BY_PRESET = new Map(
 /** Ảnh nhỏ cho lưới chủ đề. File nằm ở public/wedding/sample-thumbs, tạo bằng scripts/build-wedding-sample-thumbs.ts. */
 export function weddingSampleGalleryThumb(sample: Pick<WeddingSampleCard, 'id'>): string {
   return `/wedding/sample-thumbs/${sample.id}.webp`
+}
+
+/** Ảnh dài của thiệp đã mở. Ô mẫu hiện phần trên, đưa chuột vào thì trượt lên. Tạo bằng scripts/build-wedding-sample-scroll.ts. */
+export function weddingSampleScrollStrip(sample: Pick<WeddingSampleCard, 'id'>): string {
+  return `/wedding/sample-scroll/${sample.id}.webp`
 }
 
 export function weddingSampleCardTitle(locale: WebLocale, sample: WeddingSampleCard): string {

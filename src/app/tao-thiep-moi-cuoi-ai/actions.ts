@@ -149,7 +149,7 @@ async function uploadWeddingMusic(userId: string, cardId: string, file: FormData
     throw new Error('File nhạc phải là audio hợp lệ.')
   }
   if (file.size > WEDDING_LIBRARY_MUSIC_MAX_BYTES) {
-    throw new Error('Mỗi bài nhạc tối đa 13 MB.')
+    throw new Error(`Mỗi bài nhạc tối đa ${Math.round(WEDDING_LIBRARY_MUSIC_MAX_BYTES / (1024 * 1024))} MB.`)
   }
   const ext = weddingAudioExt(file)
   const path = `uploads/${userId}/wedding_${cardId}_music_${Date.now()}.${ext}`

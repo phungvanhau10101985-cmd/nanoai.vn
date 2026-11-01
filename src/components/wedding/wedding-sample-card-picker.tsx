@@ -8,21 +8,12 @@ import {
   labelForWeddingBackgroundPreset,
 } from '@/lib/wedding/wedding-background-presets'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
-import { weddingSampleGalleryThumb, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
+import { weddingSampleScrollStrip, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
+import { WeddingSampleScrollPreview } from '@/components/wedding/wedding-sample-scroll-preview'
 import { cn } from '@/lib/utils'
 
 function SampleFace(props: { sample: WeddingSampleCard }) {
-  return (
-    <span className="relative block h-40 overflow-hidden bg-[#fffaf2]">
-      <img
-        src={weddingSampleGalleryThumb(props.sample)}
-        alt=""
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover object-top"
-      />
-    </span>
-  )
+  return <WeddingSampleScrollPreview src={weddingSampleScrollStrip(props.sample)} />
 }
 
 export function WeddingSampleCardPicker(props: {
@@ -34,6 +25,8 @@ export function WeddingSampleCardPicker(props: {
   libraryHeading?: string
   hint: string
   photoNote: string
+  /** 4 cột ảnh nhỏ trong modal gần đầy màn hình. Mặc định 2 cột. */
+  columns?: 2 | 4
   disabled?: boolean
   confirmLabel?: string
   confirmCloseLabel?: string
@@ -92,6 +85,7 @@ export function WeddingSampleCardPicker(props: {
         heading={props.heading}
         hint={props.hint}
         photoNote={props.photoNote}
+        columns={props.columns}
         disabled={props.disabled}
         onChoose={choose}
       />
@@ -103,6 +97,7 @@ export function WeddingSampleCardPicker(props: {
           heading={props.aiHeading}
           hint=""
           photoNote={props.photoNote}
+          columns={props.columns}
           disabled={props.disabled}
           onChoose={choose}
         />
@@ -115,6 +110,7 @@ export function WeddingSampleCardPicker(props: {
           heading={props.libraryHeading}
           hint=""
           photoNote={props.photoNote}
+          columns={props.columns}
           disabled={props.disabled}
           onChoose={choose}
         />
@@ -137,15 +133,17 @@ function SampleGroup(props: {
   heading: string
   hint: string
   photoNote: string
+  columns?: 2 | 4
   disabled?: boolean
   onChoose: (sample: WeddingSampleCard) => void
 }) {
   if (props.samples.length === 0) return null
+  const wide = props.columns === 4
   return (
     <div className="space-y-2">
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{props.heading}</p>
       {props.hint ? <p className="text-xs leading-relaxed text-muted-foreground">{props.hint}</p> : null}
-      <div className="grid grid-cols-2 gap-2">
+      <div className={cn('grid', wide ? 'mx-auto w-full max-w-[54rem] grid-cols-4 gap-3' : 'grid-cols-2 gap-2')}>
         {props.samples.map((sample) => {
           const label = sampleLabel(props.locale, sample)
           if (!label) return null
@@ -157,7 +155,7 @@ function SampleGroup(props: {
               disabled={props.disabled}
               onClick={() => props.onChoose(sample)}
               className={cn(
-                'overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
+                'w-full overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
                 active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
               )}
             >

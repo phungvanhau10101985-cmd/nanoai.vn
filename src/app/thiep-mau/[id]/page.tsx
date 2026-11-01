@@ -17,7 +17,7 @@ import WeddingPublicClient from '@/app/thiep-moi-cuoi/[slug]/wedding-public-clie
 
 type Props = {
   params: { id: string }
-  searchParams?: { embed?: string }
+  searchParams?: { embed?: string; still?: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -31,6 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function WeddingSampleDemoPage({ params, searchParams }: Props) {
+  const still = searchParams?.still === '1'
   const sample = findWeddingSampleCard(params.id)
   const card = sample ? buildWeddingSampleDemoCard(sample) : null
   if (!sample || !card) notFound()
@@ -77,16 +78,17 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
         ornamentSharedMobile={sharedCoverMobile ?? sharedMobile ?? sharedOrnaments}
         ornamentLetterSharedMobile={sharedLetterMobile}
         ornamentLayoutKey={ornamentKey}
-        ornamentEditor={admin}
-        hostEditor={admin}
-        templateEditor={admin}
+        ornamentEditor={still ? false : admin}
+        hostEditor={still ? false : admin}
+        templateEditor={still ? false : admin}
         sharedShell={{ desktop: sharedShellDesktop, mobile: sharedShellMobile }}
         initialSharedFrame={sharedFrame}
-        samplePresetId={admin ? sample.id : ''}
+        samplePresetId={still ? '' : admin ? sample.id : ''}
         sampleDemo
         demoMusicUrls={demoMusicUrls}
+        captureStill={still}
       />
-      <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} />
+      {still ? null : <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} />}
     </>
   )
 }

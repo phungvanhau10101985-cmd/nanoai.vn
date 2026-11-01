@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { WeddingSampleScrollPreview } from '@/components/wedding/wedding-sample-scroll-preview'
 
 const FIRST_COUNT = 6
 
@@ -22,13 +23,7 @@ export function WeddingLandingThemes(props: {
               href={`/thiep-mau/${theme.id}`}
               className="block overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-rose-100"
             >
-              <img
-                src={theme.image}
-                alt=""
-                loading={index < FIRST_COUNT ? 'eager' : 'lazy'}
-                decoding="async"
-                className="aspect-[3/4] w-full object-cover"
-              />
+              <WeddingSampleScrollPreview src={theme.image} eager={index < FIRST_COUNT} />
               <span className="flex items-center justify-between gap-2 px-3 py-2">
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-950">{theme.title}</span>
                 <span className="shrink-0 text-xs font-semibold text-rose-700">{props.openLabel}</span>

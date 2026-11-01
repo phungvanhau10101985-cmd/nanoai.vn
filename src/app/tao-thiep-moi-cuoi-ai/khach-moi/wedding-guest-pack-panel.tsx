@@ -146,18 +146,13 @@ export function WeddingGuestPackPanel({ cardId, side, quota, open, onOpenChange,
   if (!quota) return null
   const canUpgrade = quota.offers.some((offer) => offer.available)
   const sideLabel = weddingGuestPackSideLabel(side)
-  const otherLabel = weddingGuestPackSideLabel(side === 'bride' ? 'groom' : 'bride')
 
   return (
     <>
-      <div className="rounded-xl border border-stone-200 bg-white px-3 py-3 text-sm text-stone-800">
-        <p className="font-medium">{weddingGuestPackBanner(quota, side)}</p>
-        <p className="mt-1 text-stone-600">
-          {`3 khách đầu của ${sideLabel} hiện link thiệp. Danh sách khách sau vẫn thêm được; link của họ mở khi chọn gói ${sideLabel}. ${otherLabel.charAt(0).toUpperCase()}${otherLabel.slice(1)} tính gói riêng, cùng mức giá. Nâng gói trả phần chênh của ${sideLabel}.`}
-        </p>
-        <p className="mt-1 text-stone-600">{WEDDING_CARD_RETENTION_NOTICE}</p>
+      <div className="flex flex-col gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 leading-5">{weddingGuestPackBanner(quota, side)}</p>
         {canUpgrade ? (
-          <Button type="button" size="sm" className="mt-3 h-9" onClick={() => onOpenChange(true)}>
+          <Button type="button" size="sm" className="h-10 shrink-0 sm:h-9" onClick={() => onOpenChange(true)}>
             {quota.packId ? `Nâng gói ${sideLabel}` : `Chọn gói ${sideLabel}`}
           </Button>
         ) : null}

@@ -387,8 +387,6 @@ const LUA_DAI = '/wedding/backgrounds/ornaments/lua-dai.png'
 const LUA_HOA = '/wedding/backgrounds/ornaments/lua-hoa.png'
 const CHUA_SEN = '/wedding/backgrounds/ornaments/chua-sen.png'
 const CHUA_LA = '/wedding/backgrounds/ornaments/chua-la.png'
-const VAN_MIEU_MAI = '/wedding/backgrounds/ornaments/van-mieu-mai.png'
-const VAN_MIEU_LA = '/wedding/backgrounds/ornaments/van-mieu-la.png'
 const CHO_CUC = '/wedding/backgrounds/ornaments/cho-cuc.png'
 const CHO_LA = '/wedding/backgrounds/ornaments/cho-la.png'
 const HA_LONG_DA = '/wedding/backgrounds/ornaments/ha-long-da.png'
@@ -735,7 +733,7 @@ const LUA_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Sen và lá sen chụp thật, bám hai mép. Giữa trang để trống cho chữ. */
+/** Chùa Một Cột: cột đá và mái ngói hình sen, bám mép. Giữa trang để trống cho chữ. */
 const CHUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: CHUA_SEN, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
   { src: CHUA_LA, x: 86, y: 0, w: 18, rotate: 10, anchor: 'bottom', opacity: 0.86 },
@@ -757,10 +755,10 @@ const CHUA_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Mai vàng và lá cây cổ thụ, bám mép. */
+/** Văn Miếu: cành đào Hà Nội, bám mép. */
 const VAN_MIEU_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: VAN_MIEU_MAI, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
-  { src: VAN_MIEU_LA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
+  { src: DAO_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
+  { src: DAO_NU, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
 ]
 
 const VAN_MIEU_LOOK: WeddingKitLook = {
@@ -779,7 +777,7 @@ const VAN_MIEU_LOOK: WeddingKitLook = {
   shareFont: FORMAL_FONT,
 }
 
-/** Cúc vạn thọ và lá chợ, bám mép. */
+/** Chợ Bến Thành: hoa sứ và hoa giấy Sài Gòn, bám mép. */
 const CHO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: CHO_CUC, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
   { src: CHO_LA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
@@ -801,7 +799,7 @@ const CHO_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Đá vôi và cỏ biển, bám mép. */
+/** Vịnh Hạ Long: đá vôi và nước xanh ngọc, bám mép. */
 const HA_LONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: HA_LONG_DA, x: -14, y: -2, w: 20, rotate: -6, opacity: 0.92 },
   { src: HA_LONG_CO, x: 88, y: 0, w: 14, rotate: 8, anchor: 'bottom', opacity: 0.84 },
@@ -823,7 +821,7 @@ const HA_LONG_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Sen trắng và lá sen, bám mép. */
+/** Lăng Bác: đá granit và thảm cỏ Ba Đình, bám mép. */
 const LANG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: LANG_SEN, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.92 },
   { src: LANG_LA, x: 86, y: 0, w: 16, rotate: 8, anchor: 'bottom', opacity: 0.82 },
@@ -845,7 +843,7 @@ const LANG_LOOK: WeddingKitLook = {
   shareFont: FORMAL_FONT,
 }
 
-/** Lá cau và bông lúa, bám mép. */
+/** Quê Bác: lá cau và bông lúa Nghệ An, bám mép. */
 const QUE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: QUE_CAU, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
   { src: QUE_LUA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
@@ -867,7 +865,7 @@ const QUE_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Lá đa và hoa dại, bám mép. */
+/** Đường Lâm: lá đa và gạch đá ong, bám mép. */
 const DUONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
   { src: DUONG_LA, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
   { src: DUONG_HOA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
@@ -1038,6 +1036,164 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
       zh: '珍珠粉霞',
       ja: 'パールブラッシュ',
       ko: '펄 블러시',
+    },
+  },
+  {
+    id: 'doi-anh-nau',
+    plates: ['/wedding/backgrounds/toi-gian-nau.jpg'],
+    ornaments: LINEN_ORNAMENTS,
+    coverPresetId: 'pair_nau',
+    look: LINEN_LOOK,
+    label: {
+      vi: 'Đôi ảnh nâu',
+      en: 'Two warm photos',
+      zh: '暖色双照',
+      ja: 'あたたかい写真二つ',
+      ko: '따뜻한 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-hong',
+    plates: ['/wedding/backgrounds/vuon-kinh-hong-wash.jpg'],
+    ornaments: GARDEN_ORNAMENTS,
+    coverPresetId: 'pair_hong',
+    look: GARDEN_LOOK,
+    label: {
+      vi: 'Đôi ảnh hồng',
+      en: 'Two pink photos',
+      zh: '粉色双照',
+      ja: 'ピンクの写真二つ',
+      ko: '분홍 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-long-phung',
+    plates: ['/wedding/backgrounds/long-phung-do-1.jpg', '/wedding/backgrounds/long-phung-do-2.jpg'],
+    ornaments: LONG_PHUNG_ORNAMENTS,
+    coverPresetId: 'pair_long_phung',
+    look: RED_LOOK,
+    label: {
+      vi: 'Đôi ảnh long phụng',
+      en: 'Two dragon photos',
+      zh: '龙凤双照',
+      ja: '龍鳳の写真二つ',
+      ko: '용봉 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-do-son',
+    plates: ['/wedding/backgrounds/do-son.jpg'],
+    ornaments: SCARLET_ORNAMENTS,
+    coverPresetId: 'pair_do_son',
+    look: SCARLET_LOOK,
+    label: {
+      vi: 'Đôi ảnh đỏ son',
+      en: 'Two scarlet photos',
+      zh: '正红双照',
+      ja: '朱色の写真二つ',
+      ko: '진홍 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-song-hy',
+    plates: ['/wedding/backgrounds/song-hy-do.svg'],
+    ornaments: SONG_HY_ORNAMENTS,
+    coverPresetId: 'pair_song_hy',
+    look: SONG_HY_LOOK,
+    label: {
+      vi: 'Đôi ảnh song hỷ',
+      en: 'Two happiness photos',
+      zh: '双喜双照',
+      ja: '双喜の写真二つ',
+      ko: '쌍희 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-sen',
+    plates: ['/wedding/backgrounds/sen-vang.jpg'],
+    ornaments: LOTUS_ORNAMENTS,
+    coverPresetId: 'pair_sen',
+    look: LOTUS_LOOK,
+    label: {
+      vi: 'Đôi ảnh sen',
+      en: 'Two lotus photos',
+      zh: '金莲双照',
+      ja: '蓮の写真二つ',
+      ko: '연꽃 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-ngoc',
+    plates: [
+      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
+    ],
+    ornaments: PEARL_ORNAMENTS,
+    coverPresetId: 'pair_ngoc',
+    look: PEARL_LOOK,
+    label: {
+      vi: 'Đôi ảnh ngọc',
+      en: 'Two pearl photos',
+      zh: '珍珠双照',
+      ja: 'パールの写真二つ',
+      ko: '펄 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-lech',
+    plates: ['/wedding/backgrounds/toi-gian-nau.jpg'],
+    ornaments: LINEN_ORNAMENTS,
+    coverPresetId: 'pair_lech',
+    look: LINEN_LOOK,
+    label: {
+      vi: 'Đôi ảnh lệch',
+      en: 'Offset photos',
+      zh: '错落双照',
+      ja: 'ずらし写真',
+      ko: '어긋난 사진',
+    },
+  },
+  {
+    id: 'doi-anh-nghieng',
+    plates: ['/wedding/backgrounds/vuon-kinh-hong-wash.jpg'],
+    ornaments: GARDEN_ORNAMENTS,
+    coverPresetId: 'pair_nghieng',
+    look: GARDEN_LOOK,
+    label: {
+      vi: 'Đôi ảnh nghiêng',
+      en: 'Tilted photos',
+      zh: '倾斜双照',
+      ja: '傾けた写真',
+      ko: '기울인 사진',
+    },
+  },
+  {
+    id: 'doi-anh-vong',
+    plates: ['/wedding/backgrounds/song-hy-do.svg'],
+    ornaments: SONG_HY_ORNAMENTS,
+    coverPresetId: 'pair_vong',
+    look: SONG_HY_LOOK,
+    label: {
+      vi: 'Đôi ảnh vòng',
+      en: 'Two round photos',
+      zh: '双圆照',
+      ja: '丸い写真二つ',
+      ko: '둥근 사진 둘',
+    },
+  },
+  {
+    id: 'doi-anh-the',
+    plates: ['/wedding/backgrounds/long-phung-do-1.jpg', '/wedding/backgrounds/long-phung-do-2.jpg'],
+    ornaments: LONG_PHUNG_ORNAMENTS,
+    coverPresetId: 'pair_the',
+    look: RED_LOOK,
+    label: {
+      vi: 'Đôi ảnh thẻ',
+      en: 'Photo cards',
+      zh: '拍立得双照',
+      ja: 'プリント写真',
+      ko: '인화 사진',
     },
   },
   {
@@ -1243,11 +1399,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'chua_mot_cot',
     look: CHUA_LOOK,
     label: {
-      vi: 'Chùa Một Cột',
-      en: 'One Pillar Pagoda',
-      zh: '独柱寺',
-      ja: '一柱寺',
-      ko: '한 기둥 사원',
+      vi: 'Sen mái ngói',
+      en: 'Lotus and roof tiles',
+      zh: '莲与瓦檐',
+      ja: '蓮と瓦屋根',
+      ko: '연꽃과 기와',
     },
   },
   {
@@ -1257,11 +1413,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'van_mieu',
     look: VAN_MIEU_LOOK,
     label: {
-      vi: 'Văn Miếu Quốc Tử Giám',
-      en: 'Temple of Literature',
-      zh: '文庙国子监',
-      ja: '文廟国子監',
-      ko: '문묘 국자감',
+      vi: 'Hoa đào gạch',
+      en: 'Blossom on brick',
+      zh: '砖墙桃花',
+      ja: '煉瓦と桃の花',
+      ko: '벽돌과 복숭아꽃',
     },
   },
   {
@@ -1271,11 +1427,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'cho_ben_thanh',
     look: CHO_LOOK,
     label: {
-      vi: 'Chợ Bến Thành',
-      en: 'Ben Thanh Market',
-      zh: '滨城市场',
-      ja: 'ベンタイン市場',
-      ko: '벤탄 시장',
+      vi: 'Hoa sứ giấy',
+      en: 'Plumeria and bougainvillea',
+      zh: '鸡蛋花与三角梅',
+      ja: 'プルメリアとブーゲンビリア',
+      ko: '플루메리아와 부겐빌레아',
     },
   },
   {
@@ -1285,11 +1441,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'vinh_ha_long',
     look: HA_LONG_LOOK,
     label: {
-      vi: 'Vịnh Hạ Long',
-      en: 'Ha Long Bay',
-      zh: '下龙湾',
-      ja: 'ハロン湾',
-      ko: '하롱베이',
+      vi: 'Vịnh đá sương',
+      en: 'Misty limestone bay',
+      zh: '雾中石湾',
+      ja: '霧の岩の湾',
+      ko: '안개 낀 바위 만',
     },
   },
   {
@@ -1299,11 +1455,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'lang_bac',
     look: LANG_LOOK,
     label: {
-      vi: 'Lăng Bác Hồ',
-      en: 'Ho Chi Minh Mausoleum',
-      zh: '胡志明陵',
-      ja: 'ホー・チ・ミン廟',
-      ko: '호찌민 묘',
+      vi: 'Cúc trắng',
+      en: 'White chrysanthemums',
+      zh: '白菊',
+      ja: '白い菊',
+      ko: '흰 국화',
     },
   },
   {
@@ -1313,11 +1469,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'que_nghe_an',
     look: QUE_LOOK,
     label: {
-      vi: 'Quê Bác Nghệ An',
-      en: 'Nghe An hometown',
-      zh: '义安故乡',
-      ja: 'ゲアンの故郷',
-      ko: '응에안 고향',
+      vi: 'Lúa lá cau',
+      en: 'Rice and areca leaves',
+      zh: '稻穗与槟榔叶',
+      ja: '稲穂とビンロウの葉',
+      ko: '벼 이삭과 빈랑 잎',
     },
   },
   {
@@ -1327,11 +1483,11 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'duong_lam',
     look: DUONG_LOOK,
     label: {
-      vi: 'Làng cổ Đường Lâm',
-      en: 'Duong Lam ancient village',
-      zh: '唐林古村',
-      ja: 'ドゥオンラム古村',
-      ko: '즈엉람 고마을',
+      vi: 'Đá ong lá đa',
+      en: 'Laterite and bodhi leaves',
+      zh: '红砖与菩提叶',
+      ja: 'ラテライトと菩提の葉',
+      ko: '라테라이트와 보리수 잎',
     },
   },
 ]
@@ -1352,8 +1508,8 @@ const STYLE_COVER_FRAME: Record<string, { frame: string; buttonColorId: WeddingB
   traditional_vietnamese: { frame: 'plain_photo', buttonColorId: 'cream', coverRsvpColorId: 'ivory' },
   luxury: { frame: 'sen_vang', buttonColorId: 'gold', coverRsvpColorId: 'champagne' },
   vintage: { frame: 'sen_vang', buttonColorId: 'bronze', coverRsvpColorId: 'cream' },
-  ethereal: { frame: 'pearl_rose', buttonColorId: 'chocolate', coverRsvpColorId: 'ivory' },
-  minimal: { frame: 'pearl_rose', buttonColorId: 'black', coverRsvpColorId: 'ivory' },
+  ethereal: { frame: 'net_mong', buttonColorId: 'chocolate', coverRsvpColorId: 'ivory' },
+  minimal: { frame: 'plain_photo', buttonColorId: 'black', coverRsvpColorId: 'ivory' },
   modern: { frame: 'sen_vang', buttonColorId: 'cream', coverRsvpColorId: 'gold' },
 }
 
@@ -1381,10 +1537,17 @@ const STYLE_KIT_ID: Record<string, string> = {
   minimal: 'vuon-kinh-hong',
 }
 
+/** Chủ đề không phải hồng thì không mượn khung hoa hồng của vườn kính. */
+const STYLE_FRAME_OVERRIDE: Record<string, string> = {
+  ethereal: 'net_mong',
+  minimal: 'plain_photo',
+}
+
 export function weddingAiBackgroundKit(styleId: string | null | undefined): WeddingBackgroundPreset {
   const style = styleId?.trim() || 'luxury'
   const source = findWeddingBackgroundPreset(STYLE_KIT_ID[style] || 'vuon-kinh-hong') ?? WEDDING_BACKGROUND_PRESETS[0]
-  return { ...source, id: `ai-${style}`, plates: [] }
+  const coverPresetId = STYLE_FRAME_OVERRIDE[style] || source.coverPresetId
+  return { ...source, id: `ai-${style}`, plates: [], coverPresetId }
 }
 
 export function resolveWeddingChromeKit(input: {

@@ -730,7 +730,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     }
   }
 
-  const thClass = 'whitespace-nowrap px-2 py-2.5 text-left text-[11px] font-semibold tracking-wide sm:text-xs'
+  const thClass = 'px-2 py-2.5 text-left text-[11px] font-semibold tracking-wide sm:text-xs'
   const tdClass = 'p-0 align-middle'
 
   const renderGuestTable = (sideRows: GuestRow[], look: SideLook) => {
@@ -744,7 +744,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         </div>
       ) : sideRows.length === 0 ? (
         <div className={cn('rounded-xl border border-dashed p-8 text-center text-sm', look.empty)}>
-          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm khách» hoặc «Thêm khách mời hàng loạt» phía trên.
+          Chưa có khách {look.kicker.toLowerCase()}. Bấm «Thêm hàng loạt» phía trên hoặc «Thêm khách» phía dưới.
         </div>
       ) : (
         <>
@@ -876,30 +876,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                       )}
                     </div>
                   </div>
-                  <div>
-                    <p className={mobileLabelClass}>Lời mời</p>
-                    <p className="break-words rounded-lg bg-stone-50 px-3 py-2 text-sm leading-relaxed text-stone-700">
-                      {row.personalInvite || '—'}
-                    </p>
-                  </div>
-                  <label className="block">
-                    <span className={mobileLabelClass}>Lời chúc</span>
-                    <Input
-                      value={row.wishMessage}
-                      onChange={(e) => updateRowByKey(key, side, { wishMessage: e.target.value })}
-                      placeholder="Lời chúc…"
-                      className={mobileInputClass}
-                    />
-                  </label>
-                  <label className="block">
-                    <span className={mobileLabelClass}>Ghi chú</span>
-                    <Input
-                      value={row.notes}
-                      onChange={(e) => updateRowByKey(key, side, { notes: e.target.value })}
-                      placeholder="Ghi chú…"
-                      className={mobileInputClass}
-                    />
-                  </label>
                   {personalUrl ? (
                     <div className="grid grid-cols-2 gap-2">
                       <Button type="button" variant="outline" className="h-11" onClick={() => copyLink(row, side)}>
@@ -918,24 +894,50 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                       Mua gói để mở link
                     </Button>
                   ) : null}
+                  <details className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+                    <summary className="cursor-pointer text-sm font-medium text-stone-800">Lời mời, lời chúc, ghi chú</summary>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <p className={mobileLabelClass}>Lời mời</p>
+                        <p className="break-words text-sm leading-relaxed text-stone-700">{row.personalInvite || '—'}</p>
+                      </div>
+                      <label className="block">
+                        <span className={mobileLabelClass}>Lời chúc</span>
+                        <Input
+                          value={row.wishMessage}
+                          onChange={(e) => updateRowByKey(key, side, { wishMessage: e.target.value })}
+                          placeholder="Lời chúc…"
+                          className={mobileInputClass}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className={mobileLabelClass}>Ghi chú</span>
+                        <Input
+                          value={row.notes}
+                          onChange={(e) => updateRowByKey(key, side, { notes: e.target.value })}
+                          placeholder="Ghi chú…"
+                          className={mobileInputClass}
+                        />
+                      </label>
+                    </div>
+                  </details>
                 </div>
               </article>
             )
           })}
         </div>
-        <div className={cn('hidden w-full overflow-x-auto rounded-xl border shadow-sm md:block', look.table)}>
+        <div className={cn('hidden w-full overflow-hidden rounded-xl border shadow-sm md:block', look.table)}>
           <table className="w-full table-fixed border-collapse text-sm">
             <colgroup>
-              <col className="w-[2.5rem]" />
-              <col className="w-[10%]" />
-              <col className="w-[12%]" />
-              <col className="w-[16%]" />
-              <col className="w-[3.5rem]" />
-              <col className="w-[18%]" />
+              <col className="w-[4%]" />
+              <col className="w-[13%]" />
+              <col className="w-[15%]" />
+              <col className="w-[17%]" />
+              <col className="w-[8%]" />
               <col className="w-[14%]" />
-              <col className="w-[12%]" />
-              <col className="w-[5.75rem]" />
-              <col className="w-[2.5rem]" />
+              <col className="w-[13%]" />
+              <col className="w-[11%]" />
+              <col className="w-[5%]" />
             </colgroup>
             <thead>
               <tr>
@@ -943,8 +945,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                 <th className={cn(thClass, look.th)}>Xưng hô</th>
                 <th className={cn(thClass, look.th)}>Tên</th>
                 <th className={cn(thClass, look.th)}>Trạng thái</th>
-                <th className={cn(thClass, look.th, 'text-center')}>SL</th>
-                <th className={cn(thClass, look.th)}>Lời mời</th>
+                <th className={cn(thClass, look.th, 'text-center')}>Người</th>
                 <th className={cn(thClass, look.th)}>Lời chúc</th>
                 <th className={cn(thClass, look.th)}>Ghi chú</th>
                 <th className={cn(thClass, look.th, 'text-center')}>Link</th>
@@ -989,6 +990,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         placeholder="Công"
                         className={cellInputClass}
                       />
+                      {row.personalInvite ? (
+                        <p className="truncate px-2 pb-1 text-[11px] leading-4 text-muted-foreground" title={row.personalInvite}>
+                          {row.personalInvite}
+                        </p>
+                      ) : null}
                     </td>
                     <td className={cn(tdClass, 'border', look.td)}>
                       {row.statusConfirmedBy === 'guest' && row.status !== 'pending' ? (
@@ -1058,14 +1064,6 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                       )}
                     </td>
                     <td className={cn(tdClass, 'border', look.td)}>
-                      <p
-                        className="px-2 py-1.5 text-xs leading-snug text-muted-foreground"
-                        title={row.personalInvite}
-                      >
-                        {row.personalInvite || '—'}
-                      </p>
-                    </td>
-                    <td className={cn(tdClass, 'border', look.td)}>
                       <Input
                         value={row.wishMessage}
                         onChange={(e) => updateRowByKey(key, side, { wishMessage: e.target.value })}
@@ -1088,13 +1086,13 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 shrink-0"
+                            className="h-8 w-8 shrink-0"
                             onClick={() => copyLink(row, side)}
                             title="Copy link thiệp"
                           >
                             <Copy className="h-3.5 w-3.5" />
                           </Button>
-                          <Button asChild variant="ghost" size="icon" className="h-7 w-7 shrink-0" title="Mở thiệp">
+                          <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0" title="Mở thiệp">
                             <a href={personalUrl} target="_blank" rel="noreferrer">
                               <ExternalLink className="h-3.5 w-3.5" />
                             </a>
@@ -1104,7 +1102,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                         <Button
                           type="button"
                           variant="outline"
-                          className="h-7 w-full px-1 text-[10px] font-semibold"
+                          className="h-8 w-full px-0.5 text-[11px] font-semibold leading-tight"
                           onClick={() => setPackSide(look.panel)}
                           title="Mua gói để hiện link thiệp"
                         >
@@ -1120,7 +1118,7 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
                           type="button"
                           variant="ghost"
                           size="icon"
-                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
                           onClick={() => askDeleteRow(row)}
                           title="Xóa dòng"
                         >
@@ -1136,52 +1134,9 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
         </div>
         </>
       )}
-
-      {!loading ? (
-        <Button type="button" size="sm" className={cn(look.add, 'h-11 w-full md:h-9 md:w-auto')} onClick={() => addRow(side)}>
-          <Plus className="mr-2 h-4 w-4" />
-          {quotas?.[look.panel]?.packId &&
-          quotas[look.panel]?.guestCap != null &&
-          sideRows.length >= (quotas[look.panel]?.guestCap ?? 0)
-            ? `Nâng gói ${look.kicker.toLowerCase()}`
-            : `Thêm khách ${look.kicker.toLowerCase()}`}
-        </Button>
-      ) : null}
     </>
     )
   }
-
-  const renderSideStats = (stats: ReturnType<typeof statsForRows>, look: SideLook) => (
-    <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
-      <div className={cn('rounded-xl border px-3 py-2.5', look.stat)}>
-        <p className={cn('text-xs', look.statLabel)}>Khách mời</p>
-        <p className={cn('text-2xl font-semibold tabular-nums', look.statValue)}>{stats.total}</p>
-        <p className="mt-0.5 text-[11px] text-muted-foreground">Trong danh sách</p>
-      </div>
-      <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-3 py-2.5">
-        <p className="text-xs text-emerald-800 font-medium">Khách đi</p>
-        <p className="text-2xl font-semibold tabular-nums text-emerald-700">{stats.attending}</p>
-        <p className="mt-0.5 text-[11px] text-emerald-600">Xác nhận có đi</p>
-      </div>
-      <div className="rounded-xl border border-emerald-300 bg-emerald-100/70 px-3 py-2.5">
-        <p className="text-xs text-emerald-900 font-medium">Số người đi</p>
-        <p className="text-2xl font-bold tabular-nums text-emerald-800">{stats.attendingPeople}</p>
-        <p className="mt-0.5 text-[11px] text-emerald-700">Người lớn & trẻ em</p>
-      </div>
-      <div className="rounded-xl border border-rose-200 bg-rose-50/80 px-3 py-2.5">
-        <p className="text-xs text-rose-800 font-medium">Không đi</p>
-        <p className="text-2xl font-semibold tabular-nums text-rose-700">{stats.declined}</p>
-        <p className="mt-0.5 text-[11px] text-rose-600">
-          {stats.declinedPeople > 0 ? `${stats.declinedPeople} người báo bận` : 'Báo không đến'}
-        </p>
-      </div>
-      <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-2.5">
-        <p className="text-xs text-amber-800 font-medium">Chưa phản hồi</p>
-        <p className="text-2xl font-semibold tabular-nums text-amber-700">{stats.pending}</p>
-        <p className="mt-0.5 text-[11px] text-amber-600">Chờ xác nhận</p>
-      </div>
-    </div>
-  )
 
   const renderSide = (
     look: SideLook,
@@ -1194,6 +1149,11 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
     const sideTitle = isBride ? occasionCopy.guestSecondary || look.title : occasionCopy.guestPrimary || look.title
     const sideWho = isBride ? occasionCopy.secondaryRole || look.who : occasionCopy.primaryRole || look.who
     const focused = focusSide === (look.panel === 'groom' ? 'groom' : 'bride')
+    const guestCap = quotas?.[look.panel]?.guestCap
+    const addLabel =
+      quotas?.[look.panel]?.packId && guestCap != null && sideRows.length >= guestCap
+        ? `Nâng gói ${sideKicker.toLowerCase()}`
+        : `Thêm khách ${sideKicker.toLowerCase()}`
     return (
       <section
         id={look.anchor}
@@ -1206,27 +1166,40 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               : 'ring-2 ring-rose-600 ring-offset-2'),
         )}
       >
-        <header className={cn('flex flex-wrap items-end justify-between gap-3 px-4 py-4 sm:px-5', look.header)}>
-          <div className="min-w-0">
-            <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', look.muted)}>{sideKicker}</p>
-            <h2 className="mt-1 flex items-center gap-2 text-xl font-semibold">
-              <Users className="h-5 w-5 shrink-0" />
-              {sideTitle}
-            </h2>
-            <p className={cn('mt-1 text-sm', look.muted)}>
-              {sideWho}: {personName || '…'}
-            </p>
-          </div>
-          <div className={cn('flex flex-wrap items-center gap-2 rounded-full px-3 py-1 text-xs sm:text-sm font-medium', look.chip)}>
-            <span>{stats.total} khách mời</span>
-            <span>•</span>
-            <span className="font-semibold">{stats.attending} có đi ({stats.attendingPeople} người)</span>
-            <span>•</span>
-            <span>{stats.declined} không đi</span>
-          </div>
+        <header className={cn('px-4 py-3 sm:px-5', look.header)}>
+          <p className={cn('text-[11px] font-semibold uppercase tracking-[0.16em]', look.muted)}>{sideKicker}</p>
+          <h2 className="mt-0.5 flex items-center gap-2 text-lg font-semibold sm:text-xl">
+            <Users className="h-5 w-5 shrink-0" />
+            {sideTitle}
+          </h2>
+          <p className={cn('text-sm', look.muted)}>
+            {sideWho}: {personName || '…'}
+          </p>
         </header>
-        <div className="space-y-4 p-3 sm:p-5">
-          <p className="text-sm text-muted-foreground">{look.hint}</p>
+        <div className="space-y-3 p-3 sm:p-4">
+          <div className="flex flex-col gap-3">
+            <p className="text-sm leading-6 text-stone-700">
+              <span className="font-semibold tabular-nums">{stats.total}</span> khách
+              <span className="mx-1.5 text-stone-300">·</span>
+              <span className="font-semibold tabular-nums text-emerald-800">{stats.attending}</span> có đi ({stats.attendingPeople} người)
+              <span className="mx-1.5 text-stone-300">·</span>
+              <span className="font-semibold tabular-nums text-rose-800">{stats.declined}</span> không đi
+              <span className="mx-1.5 text-stone-300">·</span>
+              <span className="font-semibold tabular-nums text-amber-800">{stats.pending}</span> chưa trả lời
+            </p>
+            {!loading ? (
+              <WeddingSideGuestBulkBar
+                cardId={card?.id ?? ''}
+                side={look.panel}
+                disabled={loading || !card}
+                onAdded={load}
+                onNeedPack={(side, nextQuotas) => {
+                  if (nextQuotas) setQuotas(nextQuotas)
+                  setPackSide(side)
+                }}
+              />
+            ) : null}
+          </div>
           <WeddingGuestPackPanel
             cardId={card?.id ?? cardId}
             side={look.panel}
@@ -1238,18 +1211,13 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               void load(true)
             }}
           />
-          <WeddingSideGuestBulkBar
-            cardId={card?.id ?? ''}
-            side={look.panel}
-            disabled={loading || !card}
-            onAdded={load}
-            onNeedPack={(side, nextQuotas) => {
-              if (nextQuotas) setQuotas(nextQuotas)
-              setPackSide(side)
-            }}
-          />
-          {renderSideStats(stats, look)}
           {renderGuestTable(sideRows, look)}
+          {!loading ? (
+            <Button type="button" className={cn(look.add, 'h-11 w-full sm:w-auto')} onClick={() => addRow(look.side)}>
+              <Plus className="mr-2 h-4 w-4" />
+              {addLabel}
+            </Button>
+          ) : null}
         </div>
       </section>
     )
@@ -1273,96 +1241,15 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               Quản lý danh sách khách, gửi thiệp cá nhân và theo dõi kết quả khách đi / không đi của từng nhà.
             </p>
           </div>
-          <Button type="button" variant="outline" size="sm" onClick={backToEditor}>
+          <Button type="button" variant="outline" className="h-11 sm:h-9" onClick={backToEditor}>
             Quay lại sửa thiệp
           </Button>
         </div>
-        <div className={cn('grid gap-3', singleOccasion ? 'sm:grid-cols-1' : 'sm:grid-cols-2')}>
-          <a
-            href="#nha-trai"
-            onClick={() => setFocusSide('groom')}
-            className={cn('rounded-2xl border px-4 py-3.5 transition', SIDE_LOOK.groom.jump, focusSide === 'bride' && 'opacity-80')}
-          >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">{occasionCopy.primaryFamily || 'Nhà trai'}</p>
-            <p className="mt-0.5 text-lg font-semibold">{card?.groomName || occasionCopy.guestPrimary}</p>
-            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-white/90">
-              <span className="font-semibold">{groomStats.total} khách mời</span>
-              <span>•</span>
-              <span className="font-bold text-emerald-200">{groomStats.attending} có đi ({groomStats.attendingPeople} người)</span>
-              <span>•</span>
-              <span className="text-rose-200">{groomStats.declined} không đi</span>
-              {groomStats.pending > 0 ? (
-                <>
-                  <span>•</span>
-                  <span className="text-amber-200">{groomStats.pending} chưa trả lời</span>
-                </>
-              ) : null}
-            </div>
-          </a>
-          {!singleOccasion ? (
-            <a
-              href="#nha-gai"
-              onClick={() => setFocusSide('bride')}
-              className={cn('rounded-2xl border px-4 py-3.5 transition', SIDE_LOOK.bride.jump, focusSide === 'groom' && 'opacity-80')}
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/75">{occasionCopy.secondaryFamily || 'Nhà gái'}</p>
-              <p className="mt-0.5 text-lg font-semibold">{card?.brideName || occasionCopy.guestSecondary}</p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm text-white/90">
-                <span className="font-semibold">{brideStats.total} khách mời</span>
-                <span>•</span>
-                <span className="font-bold text-emerald-200">{brideStats.attending} có đi ({brideStats.attendingPeople} người)</span>
-                <span>•</span>
-                <span className="text-rose-200">{brideStats.declined} không đi</span>
-                {brideStats.pending > 0 ? (
-                  <>
-                    <span>•</span>
-                    <span className="text-amber-200">{brideStats.pending} chưa trả lời</span>
-                  </>
-                ) : null}
-              </div>
-            </a>
-          ) : null}
-        </div>
-
-        {!singleOccasion ? (
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/90 p-3 sm:p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 pb-2 mb-2.5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">Tổng hợp cả hai nhà</span>
-              <span className="text-xs text-muted-foreground">
-                Tổng cộng {groomStats.total + brideStats.total} khách mời
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 text-center">
-              <div className="rounded-xl bg-white border border-stone-200 p-2.5 shadow-xs">
-                <p className="text-xs text-muted-foreground font-medium">Tổng khách mời</p>
-                <p className="mt-0.5 text-2xl font-bold text-stone-900">{groomStats.total + brideStats.total}</p>
-              </div>
-              <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-2.5 shadow-xs">
-                <p className="text-xs text-emerald-800 font-medium">Có đi ({groomStats.attendingPeople + brideStats.attendingPeople} người)</p>
-                <p className="mt-0.5 text-2xl font-bold text-emerald-700">{groomStats.attending + brideStats.attending} khách</p>
-              </div>
-              <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 shadow-xs">
-                <p className="text-xs text-rose-800 font-medium">Không đi</p>
-                <p className="mt-0.5 text-2xl font-bold text-rose-700">{groomStats.declined + brideStats.declined} khách</p>
-              </div>
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-2.5 shadow-xs">
-                <p className="text-xs text-amber-800 font-medium">Chưa phản hồi</p>
-                <p className="mt-0.5 text-2xl font-bold text-amber-700">{groomStats.pending + brideStats.pending} khách</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
         {!publishUrl ? (
           <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Chưa xuất bản link thiệp — vẫn thêm/sửa được; link cá nhân chỉ dùng sau khi xuất bản.
           </p>
-        ) : (
-          <p className="rounded-xl border bg-muted/40 px-3 py-2 text-sm text-foreground">
-            Gửi link thiệp cá nhân qua <span className="font-medium">Facebook hoặc Zalo</span>: bấm Copy link
-            rồi dán vào tin nhắn. Khách nhà trai và nhà gái nhận đúng địa chỉ, giờ tiệc của bên mình.
-          </p>
-        )}
+        ) : null}
 
         {renderSide(SIDE_LOOK.groom, groomRows, groomStats, card?.groomName ?? '')}
         {!singleOccasion ? renderSide(SIDE_LOOK.bride, brideRows, brideStats, card?.brideName ?? '') : null}
@@ -1440,6 +1327,35 @@ export default function WeddingInvitedGuestsClientPage({ cardId }: { cardId: str
               ))}
             </div>
           </section>
+        ) : null}
+
+        {!singleOccasion ? (
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/90 p-3 sm:p-4">
+            <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 border-b border-stone-200 pb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">Tổng hợp cả hai nhà</span>
+              <span className="text-xs text-muted-foreground">
+                Tổng cộng {groomStats.total + brideStats.total} khách mời
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-center xl:grid-cols-4">
+              <div className="min-w-0 rounded-xl border border-stone-200 bg-white p-2.5 shadow-sm">
+                <p className="text-xs font-medium text-muted-foreground">Tổng khách mời</p>
+                <p className="mt-0.5 text-2xl font-bold text-stone-900">{groomStats.total + brideStats.total}</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 shadow-sm">
+                <p className="text-xs font-medium text-emerald-800">Có đi ({groomStats.attendingPeople + brideStats.attendingPeople} người)</p>
+                <p className="mt-0.5 text-2xl font-bold text-emerald-700">{groomStats.attending + brideStats.attending} khách</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-rose-200 bg-rose-50 p-2.5 shadow-sm">
+                <p className="text-xs font-medium text-rose-800">Không đi</p>
+                <p className="mt-0.5 text-2xl font-bold text-rose-700">{groomStats.declined + brideStats.declined} khách</p>
+              </div>
+              <div className="min-w-0 rounded-xl border border-amber-200 bg-amber-50 p-2.5 shadow-sm">
+                <p className="text-xs font-medium text-amber-800">Chưa phản hồi</p>
+                <p className="mt-0.5 text-2xl font-bold text-amber-700">{groomStats.pending + brideStats.pending} khách</p>
+              </div>
+            </div>
+          </div>
         ) : null}
 
         <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:p-5">
