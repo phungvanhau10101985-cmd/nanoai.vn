@@ -6,47 +6,21 @@ import type { WebLocale } from '@/lib/i18n/config'
 import {
   findWeddingBackgroundPreset,
   labelForWeddingBackgroundPreset,
-  weddingAiBackgroundKit,
-  type WeddingBackgroundOrnament,
 } from '@/lib/wedding/wedding-background-presets'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
-import { weddingSampleSharedLayoutKey, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
-import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { weddingOrnamentsForDevice } from '@/lib/wedding/wedding-background-ornament-store'
+import { weddingSampleGalleryThumb, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
 import { cn } from '@/lib/utils'
 
-function SampleFace(props: {
-  sample: WeddingSampleCard
-  ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
-}) {
-  const preset = props.sample.libraryImageUrl
-    ? undefined
-    : props.sample.aiStyleId
-      ? weddingAiBackgroundKit(props.sample.aiStyleId)
-      : findWeddingBackgroundPreset(props.sample.backgroundPresetId)
-  const layoutKey = weddingSampleSharedLayoutKey(props.sample)
-  const plate = props.sample.libraryImageUrl || preset?.plates[0] || ''
-  const [albumA, albumB] = props.sample.albumImageUrls
+function SampleFace(props: { sample: WeddingSampleCard }) {
   return (
     <span className="relative block h-40 overflow-hidden bg-[#fffaf2]">
-      {plate ? <img src={plate} alt="" className="absolute inset-0 h-full w-full object-cover object-top" /> : null}
-      {props.sample.libraryImageUrl ? null : (
-        <WeddingBackgroundOrnamentLayer
-          animateRise={false}
-          ornaments={weddingOrnamentsForDevice(preset?.ornaments ?? [], props.ornamentLayouts ?? {}, layoutKey, 'mobile')}
-        />
-      )}
-      <span className="relative flex h-full flex-col justify-end gap-1 p-2">
-        <img src={props.sample.coverPhotoUrl} alt="" className="mx-auto aspect-[3/4] w-14 rounded-lg object-cover shadow-md" />
-        <span className="mx-auto grid w-[4.5rem] grid-cols-2 gap-1">
-          <img src={props.sample.groomImageUrl} alt="" className="aspect-[3/4] w-full rounded object-cover" />
-          <img src={props.sample.brideImageUrl} alt="" className="aspect-[3/4] w-full rounded object-cover" />
-        </span>
-        <span className="grid grid-cols-2 gap-1">
-          <img src={albumA} alt="" className="aspect-[4/3] w-full rounded object-cover" />
-          <img src={albumB} alt="" className="aspect-[4/3] w-full rounded object-cover" />
-        </span>
-      </span>
+      <img
+        src={weddingSampleGalleryThumb(props.sample)}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover object-top"
+      />
     </span>
   )
 }
@@ -60,7 +34,6 @@ export function WeddingSampleCardPicker(props: {
   libraryHeading?: string
   hint: string
   photoNote: string
-  ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
   confirmLabel?: string
   confirmCloseLabel?: string
@@ -87,7 +60,7 @@ export function WeddingSampleCardPicker(props: {
           </DialogHeader>
           {pending ? (
             <span className="block overflow-hidden rounded-xl border">
-              <SampleFace sample={pending} ornamentLayouts={props.ornamentLayouts} />
+              <SampleFace sample={pending} />
             </span>
           ) : null}
           <div className="grid grid-cols-2 gap-2">
@@ -119,7 +92,6 @@ export function WeddingSampleCardPicker(props: {
         heading={props.heading}
         hint={props.hint}
         photoNote={props.photoNote}
-        ornamentLayouts={props.ornamentLayouts}
         disabled={props.disabled}
         onChoose={choose}
       />
@@ -131,7 +103,6 @@ export function WeddingSampleCardPicker(props: {
           heading={props.aiHeading}
           hint=""
           photoNote={props.photoNote}
-          ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
           onChoose={choose}
         />
@@ -144,7 +115,6 @@ export function WeddingSampleCardPicker(props: {
           heading={props.libraryHeading}
           hint=""
           photoNote={props.photoNote}
-          ornamentLayouts={props.ornamentLayouts}
           disabled={props.disabled}
           onChoose={choose}
         />
@@ -167,7 +137,6 @@ function SampleGroup(props: {
   heading: string
   hint: string
   photoNote: string
-  ornamentLayouts?: Record<string, WeddingBackgroundOrnament[]>
   disabled?: boolean
   onChoose: (sample: WeddingSampleCard) => void
 }) {
@@ -192,7 +161,7 @@ function SampleGroup(props: {
                 active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
               )}
             >
-              <SampleFace sample={sample} ornamentLayouts={props.ornamentLayouts} />
+              <SampleFace sample={sample} />
               <span className="block px-1.5 pt-1 text-[11px] font-medium leading-tight">{label}</span>
               <span className="block px-1.5 pb-1.5 text-[10px] text-muted-foreground">{props.photoNote}</span>
             </button>

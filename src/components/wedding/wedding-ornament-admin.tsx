@@ -7,7 +7,7 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { nudgeWeddingOrnament, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentEditSheet, weddingOrnamentEdgeSpot, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
 import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { markWeddingOrnamentGesture } from '@/lib/wedding/wedding-ornament-gesture'
@@ -57,9 +57,7 @@ type LiveOrnamentDrag = {
   x: number
   y: number
   bottom: boolean
-  sourceIndex: number
-  sourceX: number
-  sourceY: number
+  visualIndex: number
 }
 
 function paintLiveOrnamentDrag(drag: LiveOrnamentDrag) {
@@ -81,9 +79,9 @@ function isOrnamentView(value: unknown): value is OrnamentView {
   return [box.x, box.y, box.w, box.h].every((part) => typeof part === 'number' && Number.isFinite(part) && part >= 0)
 }
 
-/** Hoa mới rơi vào khung đang nằm trên màn hình. Không có khung thì mé trên trang. */
-export function weddingOrnamentSpotOnPage(): { x: number; y: number; w: number } {
-  if (typeof document === 'undefined') return { x: 8, y: 8, w: 28 }
+/** Hoa mới bám mép trái hoặc phải, trong khung đang nằm trên màn hình. */
+export function weddingOrnamentSpotOnPage(index = 0): { x: number; y: number; w: number } {
+  if (typeof document === 'undefined') return weddingOrnamentEdgeSpot(index)
   const view = { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight }
   const frames = [...document.querySelectorAll<HTMLElement>('[data-wedding-ornament-frame]')]
   let best: DOMRect | null = null
@@ -98,10 +96,11 @@ export function weddingOrnamentSpotOnPage(): { x: number; y: number; w: number }
       bestArea = area
     }
   }
-  if (!best) return { x: 8, y: 8, w: 28 }
+  if (!best) return weddingOrnamentEdgeSpot(index)
   return weddingOrnamentSpotInView({
     frame: { top: best.top, left: best.left, width: best.width, height: best.height },
     view,
+    index,
   })
 }
 
@@ -225,7 +224,7 @@ export function WeddingOrnamentAdminLayer(props: {
     }
     const committed = props.ornaments.map((item) => weddingOrnamentPlain(item))
     const sign = (items: readonly WeddingBackgroundOrnament[]) =>
-      items.map((item) => `${item.src}|${item.x}|${item.y}|${item.w}|${item.anchor ?? ''}|${item.rotate ?? ''}|${item.blur ?? ''}|${item.fade ?? ''}|${item.motion ?? ''}|${item.opacity ?? ''}|${item.flipX ? 1 : 0}`).join(';')
+      items.map((item) => `${item.src}|${item.x}|${item.y}|${item.w}|${item.anchor ?? ''}|${item.rotate ?? ''}|${item.blur ?? ''}|${item.fade ?? ''}|${item.motion ?? ''}|${item.opacity ?? ''}|${item.flipX ? 1 : 0}|${item.free ? 1 : 0}`).join(';')
     if (sign(pending) === sign(committed)) pendingRef.current = null
   }, [props.ornaments])
 
@@ -281,30 +280,33 @@ export function WeddingOrnamentAdminLayer(props: {
               view: view
                 ? { top: view.y, left: view.x, width: view.w, height: view.h }
                 : { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight },
+              index: source.length,
             })
-          : { x: 8, y: 8, w: 28 }
+          : weddingOrnamentEdgeSpot(source.length)
         revealSeed.current = source.length
         revealView.current = view
         pendingRef.current = null
-        onChange([...source, { src: data.src, x: spot.x, y: spot.y, w: spot.w }])
+        onChange([...source, { src: data.src, x: spot.x, y: spot.y, w: spot.w, free: true }])
         return
       }
       const index = selectedRef.current
+      const pages = Math.max(1, pagesRef.current)
       const items = editRef.current.read()
-      if (index == null || !items[index]) return
+      const sheet = weddingOrnamentEditSheet(items, pages)
+      if (index == null || !sheet[index]) return
       if (data.action === 'resize') {
-        const w = Math.min(90, Math.max(8, Math.round((items[index].w + (Number(data.delta) || 0)) * 10) / 10))
-        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? { ...item, w } : item)))
+        const w = Math.min(90, Math.max(8, Math.round((sheet[index].w + (Number(data.delta) || 0)) * 10) / 10))
+        editRef.current.write(editWeddingOrnamentAt(items, pages, index, { w }))
       } else if (data.action === 'rotate') {
-        const rotate = wrapRotate((items[index].rotate ?? 0) + (Number(data.delta) || 0))
-        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? { ...item, rotate } : item)))
+        const rotate = wrapRotate((sheet[index].rotate ?? 0) + (Number(data.delta) || 0))
+        editRef.current.write(editWeddingOrnamentAt(items, pages, index, { rotate }))
       } else if (data.action === 'nudge') {
         const bounds = layerRef.current?.getBoundingClientRect()
         if (!bounds || bounds.width < 1 || bounds.height < 1) return
-        const moved = nudgeWeddingOrnament(items[index], Number(data.dx) || 0, Number(data.dy) || 0, bounds.width, bounds.height)
-        editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? moved : item)))
+        const moved = nudgeWeddingOrnament(sheet[index], Number(data.dx) || 0, Number(data.dy) || 0, bounds.width, bounds.height)
+        editRef.current.write(editWeddingOrnamentAt(items, pages, index, { x: moved.x, y: moved.y, anchor: moved.anchor ?? null }))
       } else if (data.action === 'delete') {
-        editRef.current.write(items.filter((_, itemIndex) => itemIndex !== index))
+        editRef.current.write(editWeddingOrnamentAt(items, pages, index, null))
         chooseRef.current(null)
       }
     }
@@ -403,9 +405,7 @@ export function WeddingOrnamentAdminLayer(props: {
         x: originX,
         y: originY,
         bottom,
-        sourceIndex,
-        sourceX: item.x,
-        sourceY: item.y,
+        visualIndex: index,
       }
       liveDragRef.current = drag
       draggingRef.current = true
@@ -418,12 +418,8 @@ export function WeddingOrnamentAdminLayer(props: {
         ev.preventDefault()
         const visualDx = ((ev.clientX - startX) / box.width) * 100
         const visualDy = ((ev.clientY - startY) / box.height) * 100
-        const pageCount = Math.max(1, pagesRef.current)
-        const yScale = pageCount > 1 ? pageCount : 1
         drag.x = originX + visualDx
         drag.y = originY + (bottom ? -visualDy : visualDy)
-        drag.sourceX = item.x + visualDx
-        drag.sourceY = item.y + (bottom ? -visualDy : visualDy) * yScale
         paintLiveOrnamentDrag(drag)
       }
       const up = () => {
@@ -440,14 +436,14 @@ export function WeddingOrnamentAdminLayer(props: {
           /* pointer đã nhả */
         }
         const current = editRef.current.read()
-        const source = current[drag.sourceIndex]
         liveDragRef.current = null
-        if (!source) return
         const round = (value: number) => Math.round(value * 10) / 10
         editRef.current.write(
-          current.map((entry, itemIndex) =>
-            itemIndex === drag.sourceIndex ? { ...entry, x: round(drag.sourceX), y: round(drag.sourceY) } : entry,
-          ),
+          editWeddingOrnamentAt(current, Math.max(1, pagesRef.current), drag.visualIndex, {
+            x: round(drag.x),
+            y: round(drag.y),
+            anchor: drag.bottom ? 'bottom' : null,
+          }),
         )
       }
       document.addEventListener('pointermove', move, { passive: false })
@@ -550,11 +546,13 @@ export function WeddingOrnamentAdminLayer(props: {
       if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return
       if (isOrnamentTypingTarget(event.target)) return
       const key = event.key
+      const pages = Math.max(1, pagesRef.current)
       const items = editRef.current.read()
-      if (!items[index]) return
+      const sheet = weddingOrnamentEditSheet(items, pages)
+      if (!sheet[index]) return
       if (key === 'Delete' || key === 'Backspace') {
         event.preventDefault()
-        editRef.current.write(items.filter((_, itemIndex) => itemIndex !== index))
+        editRef.current.write(editWeddingOrnamentAt(items, pages, index, null))
         chooseRef.current(null)
         return
       }
@@ -569,8 +567,8 @@ export function WeddingOrnamentAdminLayer(props: {
       const bounds = layerRef.current?.getBoundingClientRect()
       if (!bounds || bounds.width < 1 || bounds.height < 1) return
       event.preventDefault()
-      const moved = nudgeWeddingOrnament(items[index], dx, dy, bounds.width, bounds.height)
-      editRef.current.write(items.map((item, itemIndex) => (itemIndex === index ? moved : item)))
+      const moved = nudgeWeddingOrnament(sheet[index], dx, dy, bounds.width, bounds.height)
+      editRef.current.write(editWeddingOrnamentAt(items, pages, index, { x: moved.x, y: moved.y, anchor: moved.anchor ?? null }))
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
@@ -587,14 +585,10 @@ export function WeddingOrnamentAdminLayer(props: {
     return <WeddingBackgroundOrnamentLayer ornaments={props.ornaments} className={props.className} />
   }
   const update = (index: number, patch: Partial<WeddingBackgroundOrnament>) => {
-    editRef.current.write(
-      editRef.current.read().map((item, itemIndex) => {
-        if (itemIndex !== index) return item
-        const next = { ...item, ...patch }
-        if ('motion' in patch && next.motion !== 'rise') delete next.motion
-        return next
-      }),
-    )
+    const pages = Math.max(1, pagesRef.current)
+    const cleaned = { ...patch }
+    if ('motion' in cleaned && cleaned.motion !== 'rise') cleaned.motion = undefined
+    editRef.current.write(editWeddingOrnamentAt(editRef.current.read(), pages, index, cleaned))
   }
   const previewRise = (index: number) => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
@@ -679,8 +673,7 @@ export function WeddingOrnamentAdminLayer(props: {
                 aria-label={props.deleteLabel}
                 className="flex h-11 w-11 items-center justify-center rounded-lg border border-rose-200 bg-white text-rose-700"
                 onClick={() => {
-                  const items = editRef.current.read()
-                  editRef.current.write(items.filter((_, itemIndex) => itemIndex !== selected))
+                  editRef.current.write(editWeddingOrnamentAt(editRef.current.read(), Math.max(1, pagesRef.current), selected, null))
                   choose(null)
                 }}
               >

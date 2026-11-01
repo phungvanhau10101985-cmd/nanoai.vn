@@ -298,6 +298,76 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     coverPhotoPositionY: 0,
   },
   {
+    id: 'chua-mot-cot',
+    backgroundPresetId: 'chua-mot-cot',
+    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
+    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
+    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
+    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc vàng sen.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'van-mieu',
+    backgroundPresetId: 'van-mieu',
+    coverPhotoUrl: '/wedding/samples/toi-gian-nau/cover.png',
+    groomImageUrl: '/wedding/samples/toi-gian-nau/groom.png',
+    brideImageUrl: '/wedding/samples/toi-gian-nau/bride.png',
+    albumImageUrls: ['/wedding/samples/toi-gian-nau/album-1.png', '/wedding/samples/toi-gian-nau/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, nâu hoặc vàng mai.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'cho-ben-thanh',
+    backgroundPresetId: 'cho-ben-thanh',
+    coverPhotoUrl: '/wedding/samples/vuon-kinh-hong/cover.png',
+    groomImageUrl: '/wedding/samples/vuon-kinh-hong/groom.png',
+    brideImageUrl: '/wedding/samples/vuon-kinh-hong/bride.png',
+    albumImageUrls: ['/wedding/samples/vuon-kinh-hong/album-1.png', '/wedding/samples/vuon-kinh-hong/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, vàng cúc hoặc đỏ đất.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'vinh-ha-long',
+    backgroundPresetId: 'vinh-ha-long',
+    coverPhotoUrl: '/wedding/samples/to-duyen-xanh/cover.png',
+    groomImageUrl: '/wedding/samples/to-duyen-xanh/groom.png',
+    brideImageUrl: '/wedding/samples/to-duyen-xanh/bride.png',
+    albumImageUrls: ['/wedding/samples/to-duyen-xanh/album-1.png', '/wedding/samples/to-duyen-xanh/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh vịnh.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'lang-bac',
+    backgroundPresetId: 'lang-bac',
+    coverPhotoUrl: '/wedding/samples/ai-minimal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-minimal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-minimal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-minimal/album-1.png', '/wedding/samples/ai-minimal/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh lá nhạt.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'que-nghe-an',
+    backgroundPresetId: 'que-nghe-an',
+    coverPhotoUrl: '/wedding/samples/hoa-moc-xanh/cover.png',
+    groomImageUrl: '/wedding/samples/hoa-moc-xanh/groom.png',
+    brideImageUrl: '/wedding/samples/hoa-moc-xanh/bride.png',
+    albumImageUrls: ['/wedding/samples/hoa-moc-xanh/album-1.png', '/wedding/samples/hoa-moc-xanh/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, rơm hoặc xanh cau.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'duong-lam',
+    backgroundPresetId: 'duong-lam',
+    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
+    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
+    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
+    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, nâu đất hoặc vàng.',
+    coverPhotoPositionY: 0,
+  },
+  {
     id: 'ai-luxury',
     backgroundPresetId: '',
     aiStyleId: 'luxury',
@@ -429,6 +499,11 @@ const SAMPLE_BY_ID = new Map(WEDDING_SAMPLE_CARDS.map((sample) => [sample.id, sa
 const SAMPLE_BY_PRESET = new Map(
   WEDDING_SAMPLE_CARDS.filter((sample) => sample.backgroundPresetId).map((sample) => [sample.backgroundPresetId, sample]),
 )
+
+/** Ảnh nhỏ cho lưới chủ đề. File nằm ở public/wedding/sample-thumbs, tạo bằng scripts/build-wedding-sample-thumbs.ts. */
+export function weddingSampleGalleryThumb(sample: Pick<WeddingSampleCard, 'id'>): string {
+  return `/wedding/sample-thumbs/${sample.id}.webp`
+}
 
 export function weddingSampleCardTitle(locale: WebLocale, sample: WeddingSampleCard): string {
   if (sample.titles) return sample.titles[locale] || sample.titles.vi

@@ -363,6 +363,7 @@ export default function WeddingPublicClient({
   hostPreview = false,
   samplePresetId = '',
   sampleDemo = false,
+  demoMusicUrls = [],
 }: {
   card: WeddingCard
   sideWishes: WeddingSideWishGroups
@@ -392,6 +393,8 @@ export default function WeddingPublicClient({
   /** Mẫu dùng chung đang xem demo. Sửa của quản trị ghi vào mẫu này, không ghi vào thiệp khách. */
   samplePresetId?: string
   sampleDemo?: boolean
+  /** Kho nhạc, chỉ bản demo. Hết một bài thì bài khác, thứ tự ngẫu nhiên. */
+  demoMusicUrls?: string[]
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -516,6 +519,8 @@ export default function WeddingPublicClient({
     () => resolveWeddingDisplayTime(card.weddingTime, card.partyStartTime) || card.weddingTime,
     [card.partyStartTime, card.weddingTime],
   )
+  const demoMix = sampleDemo ? demoMusicUrls.filter((url) => url.trim()) : []
+  const showMusic = Boolean(card.musicUrl) || demoMix.length > 0
   const [musicLoadFailed, setMusicLoadFailed] = useState(false)
   const [musicFabPlaying, setMusicFabPlaying] = useState(false)
   const [guestName, setGuestName] = useState('')
@@ -1883,8 +1888,9 @@ export default function WeddingPublicClient({
               saving={ornamentSaving}
               showReset={!templateEditor}
               onAdd={(src) => {
-                const spot = weddingOrnamentSpotOnPage()
-                setActiveDraft([...(activeDraft ?? activeShown), { src, x: spot.x, y: spot.y, w: spot.w }])
+                const current = activeDraft ?? activeShown
+                const spot = weddingOrnamentSpotOnPage(current.length)
+                setActiveDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
               }}
               onReset={() => void resetOrnaments()}
             />
@@ -2107,8 +2113,9 @@ export default function WeddingPublicClient({
               saving={ornamentSaving}
               showReset={!templateEditor}
               onAdd={(src) => {
-                const spot = weddingOrnamentSpotOnPage()
-                setLetterDraft([...(letterDraft ?? letterShown), { src, x: spot.x, y: spot.y, w: spot.w }])
+                const current = letterDraft ?? letterShown
+                const spot = weddingOrnamentSpotOnPage(current.length)
+                setLetterDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
               }}
               onReset={() => void letterSave.reset()}
             />
@@ -2242,7 +2249,7 @@ export default function WeddingPublicClient({
                 />
               </div>
             ) : null}
-            {card.musicUrl && (
+            {showMusic && (
               <div className={cn('mx-auto mt-5 w-full rounded-3xl p-4 text-left', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-after', theme.panelUi)}>
 
                 <p className="mb-2 flex items-center gap-2 text-sm font-semibold">
@@ -2251,11 +2258,12 @@ export default function WeddingPublicClient({
                 </p>
                 <WeddingInvitationAudio
                   ref={weddingMusicAudioRef}
-                  src={card.musicUrl}
-                  loop
-                  playStartSec={card.musicPlayStartSec}
-                  playEndSec={card.musicPlayEndSec}
-                  preload="auto"
+                  src={demoMix.length ? '' : card.musicUrl}
+                  trackQueue={demoMix.length ? demoMix : undefined}
+                  loop={demoMix.length === 0}
+                  playStartSec={demoMix.length ? null : card.musicPlayStartSec}
+                  playEndSec={demoMix.length ? null : card.musicPlayEndSec}
+                  preload={demoMix.length ? 'none' : 'auto'}
                   className="w-full"
                   onSourceError={() => setMusicLoadFailed(true)}
                   onPlayingChange={reportMusicPlaying}
@@ -2814,7 +2822,7 @@ export default function WeddingPublicClient({
         </FittedCoverFrame>
         </div>
         ) : null}
-        {opened && !layoutPreview && card.effectsEnabled && card.musicUrl && !musicLoadFailed && (
+        {opened && !layoutPreview && card.effectsEnabled && showMusic && !musicLoadFailed && (
           <button
             type="button"
             className={cn(

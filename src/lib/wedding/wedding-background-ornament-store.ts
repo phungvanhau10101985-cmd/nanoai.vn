@@ -58,6 +58,20 @@ export const WEDDING_ORNAMENT_CATALOG: readonly WeddingOrnamentPiece[] = [
   PIECE('dem-hoa.png', { vi: 'Hoa kem', en: 'Cream blossoms', zh: '奶油小花', ja: 'クリーム色の小花', ko: '크림 꽃' }),
   PIECE('lua-dai.png', { vi: 'Dải lụa', en: 'Silk ribbon', zh: '丝绸带', ja: '絹のリボン', ko: '실크 리본' }),
   PIECE('lua-hoa.png', { vi: 'Hoa nhài', en: 'Jasmine', zh: '茉莉', ja: 'ジャスミン', ko: '자스민' }),
+  PIECE('chua-sen.png', { vi: 'Sen chùa', en: 'Temple lotus', zh: '寺莲', ja: '寺の蓮', ko: '사원 연꽃' }),
+  PIECE('chua-la.png', { vi: 'Lá sen chùa', en: 'Temple lotus leaf', zh: '寺莲叶', ja: '寺の蓮の葉', ko: '사원 연잎' }),
+  PIECE('van-mieu-mai.png', { vi: 'Mai Văn Miếu', en: 'Apricot blossom', zh: '文庙杏花', ja: '文廟の梅', ko: '문묘 매화' }),
+  PIECE('van-mieu-la.png', { vi: 'Lá cổ thụ', en: 'Old-tree leaves', zh: '古树叶', ja: '古木の葉', ko: '고목 잎' }),
+  PIECE('cho-cuc.png', { vi: 'Cúc chợ', en: 'Market marigold', zh: '市场万寿菊', ja: '市場のマリーゴールド', ko: '시장 메리골드' }),
+  PIECE('cho-la.png', { vi: 'Lá chợ', en: 'Market leaf', zh: '市场叶', ja: '市場の葉', ko: '시장 잎' }),
+  PIECE('ha-long-da.png', { vi: 'Đá Hạ Long', en: 'Ha Long stone', zh: '下龙石', ja: 'ハロンの石', ko: '하롱 돌' }),
+  PIECE('ha-long-co.png', { vi: 'Cỏ vịnh', en: 'Bay grass', zh: '海湾草', ja: '湾の草', ko: '만 풀' }),
+  PIECE('lang-sen.png', { vi: 'Sen trắng', en: 'White lotus', zh: '白莲', ja: '白い蓮', ko: '흰 연꽃' }),
+  PIECE('lang-la.png', { vi: 'Lá sen trắng', en: 'White lotus leaf', zh: '白莲叶', ja: '白い蓮の葉', ko: '흰 연잎' }),
+  PIECE('que-cau.png', { vi: 'Lá cau', en: 'Areca frond', zh: '槟榔叶', ja: 'ビンロウの葉', ko: '빈랑 잎' }),
+  PIECE('que-lua.png', { vi: 'Bông lúa', en: 'Rice ear', zh: '稻穗', ja: '稲穂', ko: '벼 이삭' }),
+  PIECE('duong-la.png', { vi: 'Lá đa', en: 'Banyan leaves', zh: '榕叶', ja: 'ガジュマルの葉', ko: '반얀 잎' }),
+  PIECE('duong-hoa.png', { vi: 'Hoa dại làng', en: 'Village wildflowers', zh: '村野花', ja: '村の野花', ko: '마을 들꽃' }),
   PIECE('do-dam-peony.png', { vi: 'Mẫu đơn đỏ rượu', en: 'Burgundy peony', zh: '酒红牡丹', ja: 'ワイン色の牡丹', ko: '버건디 모란' }),
   PIECE('do-dam-rose.png', { vi: 'Hồng kem', en: 'Cream rose', zh: '奶油玫瑰', ja: 'クリームのバラ', ko: '크림 장미' }),
   PIECE('do-dam-stem.png', { vi: 'Baby rượu', en: 'Burgundy baby breath', zh: '酒红满天星', ja: 'ワイン色のカスミソウ', ko: '버건디 안개꽃' }),
@@ -264,6 +278,7 @@ export function parseWeddingOrnamentList(value: unknown): WeddingBackgroundOrnam
       if (fade > 0) item.fade = round1(fade)
     }
     if (record.anchor === 'bottom') item.anchor = 'bottom'
+    if (record.free === true) item.free = true
     if (record.motion != null && record.motion !== '' && record.motion !== 'still') {
       if (record.motion !== 'rise') return null
       item.motion = 'rise'
@@ -374,7 +389,8 @@ function sameOrnamentMark(a: WeddingBackgroundOrnament, b: WeddingBackgroundOrna
     (a.blur ?? null) === (b.blur ?? null) &&
     (a.fade ?? null) === (b.fade ?? null) &&
     (a.anchor ?? 'top') === (b.anchor ?? 'top') &&
-    (a.motion ?? 'still') === (b.motion ?? 'still')
+    (a.motion ?? 'still') === (b.motion ?? 'still') &&
+    (a.free === true) === (b.free === true)
   )
 }
 

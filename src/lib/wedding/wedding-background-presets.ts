@@ -30,6 +30,8 @@ export type WeddingBackgroundOrnament = {
   /** Không ghi thì đứng yên. `rise` trượt lên một đoạn khi lướt tới. */
   motion?: 'rise'
   anchor?: 'top' | 'bottom'
+  /** Người dùng đã đặt hoa này. Không dồn về mép và không kéo các hoa khác theo. */
+  free?: true
 }
 
 export function weddingOrnamentBlurPx(value: number | undefined) {
@@ -76,9 +78,11 @@ export type WeddingOrnamentPlacement = WeddingBackgroundOrnament & {
   page: number
 }
 
-/** Hoa còn nằm trong một khổ. Hoa đã trải xuống nội dung thì không lặp thêm. */
+/** Hoa còn nằm trong một khổ. Hoa đã trải xuống nội dung, hoặc đã tự đặt, thì không lặp thêm. */
 export function weddingOrnamentsAreOneSheet(items: readonly WeddingBackgroundOrnament[]) {
-  const tops = items.filter((item) => item.anchor !== 'bottom')
+  const linked = items.filter((item) => !item.free)
+  if (linked.length === 0) return false
+  const tops = linked.filter((item) => item.anchor !== 'bottom')
   if (tops.length === 0) return true
   return tops.every((item) => item.y <= 36)
 }
@@ -99,7 +103,44 @@ export function weddingOrnamentPlain(item: WeddingBackgroundOrnament & { seed?: 
     w: clampOrnament(rest.w, 8, 90),
   }
   if (plain.opacity != null) plain.opacity = clampOrnament(plain.opacity, 0.15, 1)
+  if (plain.free !== true) delete plain.free
   return plain
+}
+
+function ornamentTop(item: WeddingBackgroundOrnament) {
+  return item.anchor === 'bottom' ? 100 - item.y : item.y
+}
+
+function ornamentSide(item: WeddingBackgroundOrnament): 'left' | 'right' {
+  return item.x + item.w / 2 < 50 ? 'left' : 'right'
+}
+
+/**
+ * Hoa mẫu đang dồn một bên thì chia hai mép, lệch nhau cho khỏi đè.
+ * Hoa đã tự đặt giữ nguyên chỗ.
+ */
+export function arrangeWeddingOrnamentsOnEdges(items: readonly WeddingBackgroundOrnament[]): WeddingBackgroundOrnament[] {
+  const linked = items.filter((item) => !item.free)
+  if (linked.length < 2 || !weddingOrnamentsAreOneSheet(linked)) return items.map((item) => ({ ...item }))
+  const sides = linked.map(ornamentSide)
+  const oneSide = sides.every((side) => side === sides[0])
+  const piled = linked.some((item, index) =>
+    linked.some((other, otherIndex) => otherIndex > index && Math.abs(item.x - other.x) < 8 && Math.abs(ornamentTop(item) - ornamentTop(other)) < 10),
+  )
+  if (!oneSide && !piled) return items.map((item) => ({ ...item }))
+  let cursor = 0
+  return items.map((item) => {
+    if (item.free) return { ...item }
+    const index = cursor
+    cursor += 1
+    const side = oneSide && index % 2 === 1 ? (ornamentSide(item) === 'left' ? 'right' : 'left') : ornamentSide(item)
+    const row = Math.floor(index / 2)
+    const y = Math.round((6 + (row % 4) * 14) * 10) / 10
+    const x = side === 'left' ? -2 : Math.round((100 - Math.min(item.w, 30) - 1) * 10) / 10
+    const placed = weddingOrnamentPlain({ ...item, x, y })
+    delete placed.anchor
+    return placed
+  })
 }
 
 /** Bước phần trăm từ pixel. Bước nhỏ hơn một số lưu thì vẫn nhích 0.1 để phím mũi tên không đứng im. */
@@ -127,17 +168,24 @@ export function nudgeWeddingOrnament(
 }
 
 /**
- * Một khổ giữ đúng chỗ đã đặt. Nội dung dài hơn thì lặp cùng hoa xuống từng khổ,
- * thu nhỏ và đẩy sát mép để giữa trang còn chỗ cho chữ.
+ * Một khổ giữ đúng chỗ đã đặt. Nội dung dài hơn thì lặp hoa chưa tự đặt xuống từng khổ,
+ * thu nhỏ và đẩy sát mép — hai bên, lệch nhau, giữa trang còn chỗ cho chữ.
+ * Hoa `free` chỉ hiện một lần, đúng chỗ đã kéo.
  */
 export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrnament[], pages: number): WeddingOrnamentPlacement[] {
   let count = Math.max(1, Math.min(12, Math.round(pages) || 1))
-  while (count > 1 && count * items.length > WEDDING_ORNAMENT_LIST_MAX) count -= 1
-  if (count <= 1) return items.map((item, seed) => ({ ...item, seed, page: 0 }))
+  const arranged = arrangeWeddingOrnamentsOnEdges(items)
+  while (count > 1 && count * arranged.length > WEDDING_ORNAMENT_LIST_MAX) count -= 1
+  if (count <= 1) return arranged.map((item, seed) => ({ ...item, seed, page: 0 }))
   const span = 100 / count
   const placed: WeddingOrnamentPlacement[] = []
   for (let page = 0; page < count; page++) {
-    items.forEach((item, seed) => {
+    const seen = { left: 0, right: 0 }
+    arranged.forEach((item, seed) => {
+      if (item.free) {
+        if (page === 0) placed.push({ ...item, seed, page: 0 })
+        return
+      }
       const local = item.anchor === 'bottom' ? 100 - item.y : item.y
       const y = Math.round((page * span + (local / 100) * span) * 10) / 10
       if (page === 0) {
@@ -145,13 +193,18 @@ export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrna
         return
       }
       const sideLeft = item.x + item.w / 2 < 50
+      const order = sideLeft ? seen.left : seen.right
+      if (sideLeft) seen.left += 1
+      else seen.right += 1
       const drift = page % 2 === 0 ? 0 : Math.round(span * 0.06 * 10) / 10
       const w = Math.min(item.w, 18)
+      const yShift = Math.round(order * Math.min(12, span * 0.18) * 10) / 10
+      const pageBottom = Math.round(((page + 1) * span - 2) * 10) / 10
       placed.push({
         ...item,
         anchor: 'top',
-        x: sideLeft ? Math.min(item.x, Math.round((12 - w) * 10) / 10) : Math.max(item.x, 88),
-        y: Math.round((y + drift) * 10) / 10,
+        x: sideLeft ? Math.min(item.x, Math.round((12 - w - order * 3) * 10) / 10) : Math.max(item.x, 88),
+        y: Math.min(pageBottom, Math.round((y + drift + yShift) * 10) / 10),
         w,
         opacity: Math.min(item.opacity ?? 1, 0.82),
         seed,
@@ -162,6 +215,44 @@ export function repeatWeddingOrnamentsDown(items: readonly WeddingBackgroundOrna
   return placed
 }
 
+/** Danh sách hoa đang thấy trên thiệp, kể cả bản lặp theo khổ. */
+export function weddingOrnamentEditSheet(items: readonly WeddingBackgroundOrnament[], pages: number): WeddingBackgroundOrnament[] {
+  const count = Math.max(1, Math.min(12, Math.round(pages) || 1))
+  const tile = count > 1 && weddingOrnamentsAreOneSheet(items) ? count : 1
+  return repeatWeddingOrnamentsDown(items, tile).map((item) => weddingOrnamentPlain(item))
+}
+
+/**
+ * Sửa đúng hoa đang thấy. Nội dung dài thì tách các bản lặp ra trước,
+ * kéo một hoa không làm hoa khác nhảy mép.
+ */
+export function editWeddingOrnamentAt(
+  items: readonly WeddingBackgroundOrnament[],
+  pages: number,
+  visualIndex: number,
+  patch: (Partial<WeddingBackgroundOrnament> & { anchor?: 'top' | 'bottom' | null }) | null,
+): WeddingBackgroundOrnament[] {
+  const sheet = weddingOrnamentEditSheet(items, pages)
+  const expanded = sheet.length !== items.length
+  if (patch == null) {
+    const next = sheet.filter((_, index) => index !== visualIndex)
+    return expanded ? next.map((item) => ({ ...weddingOrnamentPlain(item), free: true as const })) : next
+  }
+  if (!sheet[visualIndex]) return sheet
+  const merged: WeddingBackgroundOrnament = { ...sheet[visualIndex], ...patch }
+  if ('anchor' in patch) {
+    if (patch.anchor == null) delete merged.anchor
+    else merged.anchor = patch.anchor
+  }
+  const position = 'x' in patch || 'y' in patch
+  return sheet.map((item, index) => {
+    const chosen = index === visualIndex ? merged : item
+    const plain = weddingOrnamentPlain(chosen)
+    if (position && (expanded || index === visualIndex)) return { ...plain, free: true }
+    return plain
+  })
+}
+
 export type WeddingOrnamentBox = {
   top: number
   left: number
@@ -169,31 +260,41 @@ export type WeddingOrnamentBox = {
   height: number
 }
 
-/**
- * Chỗ thả hoa mới: mé trên của phần khung đang nằm trong màn hình.
- * Không thấy khung thì trả về mé trên khổ, để người xem còn thấy hoa.
- */
+/** Chỗ thêm hoa: lần lượt mé trái, mé phải. Không thấy khung thì vẫn bám mép trên. */
+export function weddingOrnamentEdgeSpot(index: number, width = 22): { x: number; y: number; w: number } {
+  const w = Math.min(36, Math.max(8, width))
+  const onLeft = Math.max(0, Math.round(index) || 0) % 2 === 0
+  const row = Math.floor(Math.max(0, Math.round(index) || 0) / 2) % 5
+  return {
+    x: onLeft ? 0 : Math.round((100 - w) * 10) / 10,
+    y: Math.round((6 + row * 14) * 10) / 10,
+    w,
+  }
+}
+
 export function weddingOrnamentSpotInView(input: {
   frame: WeddingOrnamentBox
   view: WeddingOrnamentBox
   width?: number
+  /** Hoa thứ mấy. Chẵn bám mé trái, lẻ bám mé phải. */
+  index?: number
 }): { x: number; y: number; w: number } {
-  const w = input.width ?? 28
+  const w = input.width ?? 22
   const frame = input.frame
   const view = input.view
-  const fallback = { x: 8, y: 8, w }
+  const fallback = weddingOrnamentEdgeSpot(input.index ?? 0, w)
   if (frame.width < 1 || frame.height < 1 || view.width < 1 || view.height < 1) return fallback
   const top = Math.max(frame.top, view.top)
-  const left = Math.max(frame.left, view.left)
   const bottom = Math.min(frame.top + frame.height, view.top + view.height)
+  const left = Math.max(frame.left, view.left)
   const right = Math.min(frame.left + frame.width, view.left + view.width)
   if (bottom - top < 1 || right - left < 1) return fallback
-  const rawX = ((left + (right - left) / 2 - frame.left) / frame.width) * 100 - w / 2
-  const rawY = ((top - frame.top) / frame.height) * 100 + 6
+  const edge = weddingOrnamentEdgeSpot(input.index ?? 0, w)
+  const rawY = ((top - frame.top) / frame.height) * 100 + edge.y
   return {
-    x: Math.round(Math.min(100 - w, Math.max(0, rawX)) * 10) / 10,
+    x: edge.x,
     y: Math.round(Math.min(92, Math.max(0, rawY)) * 10) / 10,
-    w,
+    w: edge.w,
   }
 }
 
@@ -284,6 +385,20 @@ const DEM_CANH = '/wedding/backgrounds/ornaments/dem-canh.png'
 const DEM_HOA = '/wedding/backgrounds/ornaments/dem-hoa.png'
 const LUA_DAI = '/wedding/backgrounds/ornaments/lua-dai.png'
 const LUA_HOA = '/wedding/backgrounds/ornaments/lua-hoa.png'
+const CHUA_SEN = '/wedding/backgrounds/ornaments/chua-sen.png'
+const CHUA_LA = '/wedding/backgrounds/ornaments/chua-la.png'
+const VAN_MIEU_MAI = '/wedding/backgrounds/ornaments/van-mieu-mai.png'
+const VAN_MIEU_LA = '/wedding/backgrounds/ornaments/van-mieu-la.png'
+const CHO_CUC = '/wedding/backgrounds/ornaments/cho-cuc.png'
+const CHO_LA = '/wedding/backgrounds/ornaments/cho-la.png'
+const HA_LONG_DA = '/wedding/backgrounds/ornaments/ha-long-da.png'
+const HA_LONG_CO = '/wedding/backgrounds/ornaments/ha-long-co.png'
+const LANG_SEN = '/wedding/backgrounds/ornaments/lang-sen.png'
+const LANG_LA = '/wedding/backgrounds/ornaments/lang-la.png'
+const QUE_CAU = '/wedding/backgrounds/ornaments/que-cau.png'
+const QUE_LUA = '/wedding/backgrounds/ornaments/que-lua.png'
+const DUONG_LA = '/wedding/backgrounds/ornaments/duong-la.png'
+const DUONG_HOA = '/wedding/backgrounds/ornaments/duong-hoa.png'
 const NIGHT_PAPER = '#0c1830'
 const PEARL_ROSE = '/wedding/backgrounds/ornaments/pearl-rose.png'
 const LONG_PHUNG_CLOUD = '/wedding/backgrounds/ornaments/long-phung-cloud.svg'
@@ -618,6 +733,160 @@ const LUA_LOOK: WeddingKitLook = {
   textPlate: 'rgba(255,250,244,0.78)',
   fontClass: 'wedding-font-soft',
   shareFont: SOFT_FONT,
+}
+
+/** Sen và lá sen chụp thật, bám hai mép. Giữa trang để trống cho chữ. */
+const CHUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: CHUA_SEN, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
+  { src: CHUA_LA, x: 86, y: 0, w: 18, rotate: 10, anchor: 'bottom', opacity: 0.86 },
+]
+
+const CHUA_LOOK: WeddingKitLook = {
+  styleId: 'luxury',
+  buttonColorId: 'gold',
+  coverRsvpColorId: 'champagne',
+  ink: '#3b2618',
+  muted: '#6b5340',
+  accent: '#8a5a12',
+  textClass: 'text-[#3b2618]',
+  mutedClass: 'text-[#6b5340]',
+  accentClass: 'text-[#8a5a12]',
+  accentTextClass: 'text-[#6b4310]',
+  textPlate: 'rgba(255,248,236,0.84)',
+  fontClass: 'wedding-font-lotus',
+  shareFont: SOFT_FONT,
+}
+
+/** Mai vàng và lá cây cổ thụ, bám mép. */
+const VAN_MIEU_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: VAN_MIEU_MAI, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
+  { src: VAN_MIEU_LA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
+]
+
+const VAN_MIEU_LOOK: WeddingKitLook = {
+  styleId: 'vintage',
+  buttonColorId: 'bronze',
+  coverRsvpColorId: 'ivory',
+  ink: '#2c2416',
+  muted: '#5c4e3a',
+  accent: '#6b4a28',
+  textClass: 'text-[#2c2416]',
+  mutedClass: 'text-[#5c4e3a]',
+  accentClass: 'text-[#6b4a28]',
+  accentTextClass: 'text-[#4a3218]',
+  textPlate: 'rgba(255,250,240,0.84)',
+  fontClass: 'wedding-font-formal',
+  shareFont: FORMAL_FONT,
+}
+
+/** Cúc vạn thọ và lá chợ, bám mép. */
+const CHO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: CHO_CUC, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
+  { src: CHO_LA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
+]
+
+const CHO_LOOK: WeddingKitLook = {
+  styleId: 'floral',
+  buttonColorId: 'terracotta',
+  coverRsvpColorId: 'cream',
+  ink: '#5c2e1a',
+  muted: '#8a5a40',
+  accent: '#c2410c',
+  textClass: 'text-[#5c2e1a]',
+  mutedClass: 'text-[#8a5a40]',
+  accentClass: 'text-[#c2410c]',
+  accentTextClass: 'text-[#9a3412]',
+  textPlate: 'rgba(255,248,240,0.84)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+/** Đá vôi và cỏ biển, bám mép. */
+const HA_LONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: HA_LONG_DA, x: -14, y: -2, w: 20, rotate: -6, opacity: 0.92 },
+  { src: HA_LONG_CO, x: 88, y: 0, w: 14, rotate: 8, anchor: 'bottom', opacity: 0.84 },
+]
+
+const HA_LONG_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'sky',
+  coverRsvpColorId: 'ivory',
+  ink: '#12343a',
+  muted: '#4d6a70',
+  accent: '#0369a1',
+  textClass: 'text-[#12343a]',
+  mutedClass: 'text-[#4d6a70]',
+  accentClass: 'text-[#0369a1]',
+  accentTextClass: 'text-[#0c4a6e]',
+  textPlate: 'rgba(248,252,250,0.84)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+/** Sen trắng và lá sen, bám mép. */
+const LANG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: LANG_SEN, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.92 },
+  { src: LANG_LA, x: 86, y: 0, w: 16, rotate: 8, anchor: 'bottom', opacity: 0.82 },
+]
+
+const LANG_LOOK: WeddingKitLook = {
+  styleId: 'minimal',
+  buttonColorId: 'slate',
+  coverRsvpColorId: 'ivory',
+  ink: '#243038',
+  muted: '#4e5c62',
+  accent: '#3d5c4a',
+  textClass: 'text-[#243038]',
+  mutedClass: 'text-[#4e5c62]',
+  accentClass: 'text-[#3d5c4a]',
+  accentTextClass: 'text-[#243830]',
+  textPlate: 'rgba(255,252,248,0.86)',
+  fontClass: 'wedding-font-formal',
+  shareFont: FORMAL_FONT,
+}
+
+/** Lá cau và bông lúa, bám mép. */
+const QUE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: QUE_CAU, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
+  { src: QUE_LUA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
+]
+
+const QUE_LOOK: WeddingKitLook = {
+  styleId: 'vintage',
+  buttonColorId: 'olive',
+  coverRsvpColorId: 'cream',
+  ink: '#3a3320',
+  muted: '#6b6048',
+  accent: '#6b5a28',
+  textClass: 'text-[#3a3320]',
+  mutedClass: 'text-[#6b6048]',
+  accentClass: 'text-[#6b5a28]',
+  accentTextClass: 'text-[#4a3e18]',
+  textPlate: 'rgba(255,248,232,0.84)',
+  fontClass: 'wedding-font-soft',
+  shareFont: SOFT_FONT,
+}
+
+/** Lá đa và hoa dại, bám mép. */
+const DUONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
+  { src: DUONG_LA, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
+  { src: DUONG_HOA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
+]
+
+const DUONG_LOOK: WeddingKitLook = {
+  styleId: 'vintage',
+  buttonColorId: 'chocolate',
+  coverRsvpColorId: 'ivory',
+  ink: '#3b2a22',
+  muted: '#6e584c',
+  accent: '#8a5727',
+  textClass: 'text-[#3b2a22]',
+  mutedClass: 'text-[#6e584c]',
+  accentClass: 'text-[#8a5727]',
+  accentTextClass: 'text-[#6b4318]',
+  textPlate: 'rgba(255,246,238,0.84)',
+  fontClass: 'wedding-font-formal',
+  shareFont: FORMAL_FONT,
 }
 
 const DO_DAM_LOOK: WeddingKitLook = {
@@ -967,6 +1236,104 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
       ko: '딥 버건디 미니멀',
     },
   },
+  {
+    id: 'chua-mot-cot',
+    plates: ['/wedding/backgrounds/chua-mot-cot-paper.jpg'],
+    ornaments: CHUA_ORNAMENTS,
+    coverPresetId: 'chua_mot_cot',
+    look: CHUA_LOOK,
+    label: {
+      vi: 'Chùa Một Cột',
+      en: 'One Pillar Pagoda',
+      zh: '独柱寺',
+      ja: '一柱寺',
+      ko: '한 기둥 사원',
+    },
+  },
+  {
+    id: 'van-mieu',
+    plates: ['/wedding/backgrounds/van-mieu-paper.jpg'],
+    ornaments: VAN_MIEU_ORNAMENTS,
+    coverPresetId: 'van_mieu',
+    look: VAN_MIEU_LOOK,
+    label: {
+      vi: 'Văn Miếu Quốc Tử Giám',
+      en: 'Temple of Literature',
+      zh: '文庙国子监',
+      ja: '文廟国子監',
+      ko: '문묘 국자감',
+    },
+  },
+  {
+    id: 'cho-ben-thanh',
+    plates: ['/wedding/backgrounds/cho-ben-thanh-paper.jpg'],
+    ornaments: CHO_ORNAMENTS,
+    coverPresetId: 'cho_ben_thanh',
+    look: CHO_LOOK,
+    label: {
+      vi: 'Chợ Bến Thành',
+      en: 'Ben Thanh Market',
+      zh: '滨城市场',
+      ja: 'ベンタイン市場',
+      ko: '벤탄 시장',
+    },
+  },
+  {
+    id: 'vinh-ha-long',
+    plates: ['/wedding/backgrounds/vinh-ha-long-paper.jpg'],
+    ornaments: HA_LONG_ORNAMENTS,
+    coverPresetId: 'vinh_ha_long',
+    look: HA_LONG_LOOK,
+    label: {
+      vi: 'Vịnh Hạ Long',
+      en: 'Ha Long Bay',
+      zh: '下龙湾',
+      ja: 'ハロン湾',
+      ko: '하롱베이',
+    },
+  },
+  {
+    id: 'lang-bac',
+    plates: ['/wedding/backgrounds/lang-bac-paper.jpg'],
+    ornaments: LANG_ORNAMENTS,
+    coverPresetId: 'lang_bac',
+    look: LANG_LOOK,
+    label: {
+      vi: 'Lăng Bác Hồ',
+      en: 'Ho Chi Minh Mausoleum',
+      zh: '胡志明陵',
+      ja: 'ホー・チ・ミン廟',
+      ko: '호찌민 묘',
+    },
+  },
+  {
+    id: 'que-nghe-an',
+    plates: ['/wedding/backgrounds/que-nghe-an-paper.jpg'],
+    ornaments: QUE_ORNAMENTS,
+    coverPresetId: 'que_nghe_an',
+    look: QUE_LOOK,
+    label: {
+      vi: 'Quê Bác Nghệ An',
+      en: 'Nghe An hometown',
+      zh: '义安故乡',
+      ja: 'ゲアンの故郷',
+      ko: '응에안 고향',
+    },
+  },
+  {
+    id: 'duong-lam',
+    plates: ['/wedding/backgrounds/duong-lam-paper.jpg'],
+    ornaments: DUONG_ORNAMENTS,
+    coverPresetId: 'duong_lam',
+    look: DUONG_LOOK,
+    label: {
+      vi: 'Làng cổ Đường Lâm',
+      en: 'Duong Lam ancient village',
+      zh: '唐林古村',
+      ja: 'ドゥオンラム古村',
+      ko: '즈엉람 고마을',
+    },
+  },
 ]
 
 const PRESET_BY_ID = new Map(WEDDING_BACKGROUND_PRESETS.map((preset) => [preset.id, preset]))
@@ -1059,6 +1426,13 @@ const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'lua-van': { openBurstEffect: 'petals', openFallEffect: 'none' },
   'do-dam': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'phong-bi-thu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'chua-mot-cot': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  'van-mieu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'cho-ben-thanh': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  'vinh-ha-long': { openBurstEffect: 'petals', openFallEffect: 'none' },
+  'lang-bac': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  'que-nghe-an': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'duong-lam': { openBurstEffect: 'petals', openFallEffect: 'none' },
   floral: { openBurstEffect: 'bloom', openFallEffect: 'petals' },
   ethereal: { openBurstEffect: 'stars', openFallEffect: 'petals' },
   traditional_vietnamese: { openBurstEffect: 'gold', openFallEffect: 'lanterns' },

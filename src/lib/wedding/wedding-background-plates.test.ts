@@ -225,6 +225,35 @@ test('the Vietnamese bamboo set uses ivory paper, bamboo sprigs, and a bare phot
   assert.equal(patch.bridePortraitShellMode, 'none')
 })
 
+test('landmark papers keep one plate, a bare photo, and real corner sprigs', () => {
+  const cases = [
+    ['chua-mot-cot', 'chua_mot_cot', 'gold', '/chua-sen.png'],
+    ['van-mieu', 'van_mieu', 'bronze', '/van-mieu-mai.png'],
+    ['cho-ben-thanh', 'cho_ben_thanh', 'terracotta', '/cho-cuc.png'],
+    ['vinh-ha-long', 'vinh_ha_long', 'sky', '/ha-long-da.png'],
+    ['lang-bac', 'lang_bac', 'slate', '/lang-sen.png'],
+    ['que-nghe-an', 'que_nghe_an', 'olive', '/que-cau.png'],
+    ['duong-lam', 'duong_lam', 'chocolate', '/duong-la.png'],
+  ] as const
+  for (const [id, coverId, button, sprig] of cases) {
+    const preset = findWeddingBackgroundPreset(id)
+    assert.ok(preset)
+    assert.deepEqual(weddingBackgroundPlateUrls('', [], id), [`/wedding/backgrounds/${id}-paper.jpg`])
+    assert.equal(preset.coverPresetId, coverId)
+    assert.equal(preset.look.buttonColorId, button)
+    assert.equal(preset.plates.length, 1)
+    assert.ok(preset.ornaments.some((item) => item.src.endsWith(sprig)))
+    assert.ok(preset.ornaments.every((item) => item.src.endsWith('.png')))
+    const frame = findWeddingCoverPreset(coverId)
+    assert.equal(frame?.layout, 'plain')
+    assert.equal(frame?.frame, undefined)
+    const patch = weddingKitFramePatch(preset)
+    assert.equal(patch.coverFrameMode, 'preset')
+    assert.equal(patch.groomPortraitShellMode, 'none')
+    assert.equal(patch.bridePortraitShellMode, 'none')
+  }
+})
+
 test('the deep burgundy set uses ivory paper, corner flowers, and a bare photo', () => {
   assert.deepEqual(weddingBackgroundPlateUrls('', [], 'do-dam'), [
     '/wedding/backgrounds/do-dam-paper.jpg',

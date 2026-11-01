@@ -85,7 +85,7 @@ import {
 } from '@/lib/wedding/wedding-sample-compose'
 import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
 import { weddingPreviewLookToken, type WeddingPreviewLook } from '@/lib/wedding/wedding-preview-look'
-import { applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingOrnamentEdgeSpot, weddingPairedFrameSectionPatch, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { weddingStyleIdFromPrompt } from '@/lib/wedding/build-wedding-image-prompt'
 import {
   appendWeddingSideInviteSettingsToFormData,
@@ -2488,7 +2488,6 @@ export default function WeddingCardAiClientPage() {
                 libraryHeading={tImage.libraryAllHeading}
                 hint={tImage.sampleCardsHint}
                 photoNote={tImage.sampleCardPhotos}
-                ornamentLayouts={ornamentLayouts}
                 disabled={Boolean(applyingLibraryId) || !card.id}
                 onPreview={(sample) => {
                   const params = new URLSearchParams()
@@ -2601,7 +2600,11 @@ export default function WeddingCardAiClientPage() {
                     dirty={coverDraft != null}
                     saving={ornamentSaving}
                     showReset
-                    onAdd={(src) => setCoverDraft([...(coverDraft ?? coverOrnaments), { src, x: 8, y: 12, w: 22 }])}
+                    onAdd={(src) => {
+                      const current = coverDraft ?? coverOrnaments
+                      const spot = weddingOrnamentEdgeSpot(current.length, 22)
+                      setCoverDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
+                    }}
                     onReset={() => void resetOrnaments('cover')}
                   />
                 ) : null}
@@ -3389,7 +3392,11 @@ export default function WeddingCardAiClientPage() {
                     dirty={letterDraft != null}
                     saving={ornamentSaving}
                     showReset
-                    onAdd={(src) => setLetterDraft([...(letterDraft ?? letterOrnaments), { src, x: 8, y: 8, w: 36 }])}
+                    onAdd={(src) => {
+                      const current = letterDraft ?? letterOrnaments
+                      const spot = weddingOrnamentEdgeSpot(current.length, 28)
+                      setLetterDraft([...current, { src, x: spot.x, y: spot.y, w: spot.w, free: true }])
+                    }}
                     onReset={() => void resetOrnaments('letter')}
                   />
                 )}

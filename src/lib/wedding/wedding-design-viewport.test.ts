@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { nudgeWeddingOrnament, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentEditSheet, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
 import { readFileSync } from 'node:fs'
 import {
   WEDDING_DESKTOP_HEIGHT,
@@ -98,8 +98,8 @@ test('a new ornament lands in the screen frame currently on display', () => {
     frame: { top: 2000, left: 0, width: 390, height: 844 },
     view: { top: 0, left: 0, width: 390, height: 800 },
   })
-  assert.equal(hidden.y, 8)
-  assert.equal(hidden.x, 8)
+  assert.equal(hidden.y, 6)
+  assert.equal(hidden.x, 0)
 
   const slice = weddingIframeVisibleView({
     frameTop: -400,
@@ -129,4 +129,44 @@ test('arrow keys nudge an ornament by screen pixels, including a bottom anchor',
   assert.equal(bottom.y, 7.5)
   const tiny = nudgeWeddingOrnament(piece, 0, 1, 200, 8000)
   assert.equal(tiny.y, 10.1)
+})
+
+test('flowers piled on one side spread onto both edges', () => {
+  const items = [
+    { src: '/a.png', x: 4, y: 8, w: 22 },
+    { src: '/b.png', x: 5, y: 9, w: 22 },
+    { src: '/c.png', x: 6, y: 8, w: 22 },
+  ]
+  const shown = weddingOrnamentEditSheet(items, 1)
+  const left = shown.filter((item) => item.x + item.w / 2 < 50)
+  const right = shown.filter((item) => item.x + item.w / 2 >= 50)
+  assert.ok(left.length >= 1)
+  assert.ok(right.length >= 1)
+  const spots = shown.map((item) => `${item.x}:${item.y}`)
+  assert.equal(new Set(spots).size, shown.length)
+})
+
+test('dragging one repeated flower leaves the others where they are', () => {
+  const items = [
+    { src: '/a.png', x: 0, y: 4, w: 20 },
+    { src: '/b.png', x: 2, y: 6, w: 20 },
+    { src: '/c.png', x: 4, y: 8, w: 20 },
+  ]
+  const before = weddingOrnamentEditSheet(items, 2)
+  assert.ok(before.length > items.length)
+  const movedIndex = before.length - 1
+  const next = editWeddingOrnamentAt(items, 2, movedIndex, { x: 40, y: 55, anchor: null })
+  assert.equal(next[movedIndex].x, 40)
+  assert.equal(next[movedIndex].y, 55)
+  assert.equal(next[movedIndex].free, true)
+  for (let index = 0; index < next.length; index += 1) {
+    if (index === movedIndex) continue
+    assert.equal(next[index].x, before[index].x)
+    assert.equal(next[index].y, before[index].y)
+  }
+  const again = weddingOrnamentEditSheet(next, 2)
+  assert.equal(again.length, next.length)
+  assert.equal(again[movedIndex].x, 40)
+  assert.equal(again[movedIndex].y, 55)
+  assert.equal(weddingOrnamentsAreOneSheet([{ src: '/a.png', x: 40, y: 20, w: 18, free: true }]), false)
 })

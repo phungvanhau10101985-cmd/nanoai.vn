@@ -58,3 +58,48 @@ export function findWeddingMusicInLibrary<T extends { title: string; audioUrl: s
   if (!key) return null
   return items.find((item) => weddingMusicLibraryMatchKey(item.title) === key) ?? null
 }
+
+/** Bỏ URL trống và trùng. Giữ thứ tự kho. */
+export function weddingMusicQueue(urls: readonly string[] | null | undefined): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of urls ?? []) {
+    const url = raw.trim()
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    out.push(url)
+  }
+  return out
+}
+
+/** Xáo thứ tự phát. `random` trả về [0, 1). */
+export function shuffleWeddingMusicUrls(urls: readonly string[], random: () => number = Math.random): string[] {
+  const next = weddingMusicQueue(urls)
+  for (let i = next.length - 1; i > 0; i -= 1) {
+    const j = Math.min(i, Math.floor(random() * (i + 1)))
+    const swap = next[i]
+    next[i] = next[j]
+    next[j] = swap
+  }
+  return next
+}
+
+/** Bài kế trong bản ghép. Hết vòng thì xáo lại, không mở đầu bằng bài vừa phát. */
+export function nextWeddingMusicMix(
+  order: readonly string[],
+  index: number,
+  random: () => number = Math.random,
+): { order: string[]; index: number } {
+  const queue = weddingMusicQueue(order)
+  if (queue.length === 0) return { order: [], index: 0 }
+  const at = Number.isFinite(index) ? Math.max(0, Math.floor(index)) : 0
+  if (at + 1 < queue.length) return { order: queue, index: at + 1 }
+  const next = shuffleWeddingMusicUrls(queue, random)
+  const last = queue[Math.min(at, queue.length - 1)]
+  if (next.length > 1 && next[0] === last) {
+    const swap = next[0]
+    next[0] = next[1]
+    next[1] = swap
+  }
+  return { order: next, index: 0 }
+}

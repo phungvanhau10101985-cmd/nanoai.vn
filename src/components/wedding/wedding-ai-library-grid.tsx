@@ -120,7 +120,7 @@ function LibrarySection<T extends WeddingAiLibraryTile>(props: {
                   onClick={() => props.onPreview(item)}
                   className="block w-full disabled:cursor-not-allowed"
                 >
-                  <img src={item.imageUrl} alt="" className="h-24 w-full object-contain" />
+                  <img src={item.imageUrl} alt="" loading="lazy" decoding="async" className="h-24 w-full object-contain" />
                 </button>
               ) : (
                 <button
@@ -129,7 +129,7 @@ function LibrarySection<T extends WeddingAiLibraryTile>(props: {
                   onClick={() => props.onSelect(item)}
                   className="block w-full disabled:cursor-not-allowed"
                 >
-                  <img src={item.imageUrl} alt="" className="h-24 w-full object-contain" />
+                  <img src={item.imageUrl} alt="" loading="lazy" decoding="async" className="h-24 w-full object-contain" />
                 </button>
               )}
               {props.preview ? (

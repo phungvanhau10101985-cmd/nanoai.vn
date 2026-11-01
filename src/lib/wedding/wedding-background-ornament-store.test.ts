@@ -57,6 +57,10 @@ test('catalog flowers and pasted image links can be saved, and an empty list cle
   ])
   assert.equal(rising?.[0]?.motion, 'rise')
   assert.equal(
+    parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 40, y: 30, w: 22, free: true }])?.[0]?.free,
+    true,
+  )
+  assert.equal(
     parseWeddingOrnamentList([{ src: '/wedding/backgrounds/ornaments/peony-bloom.png', x: 8, y: 8, w: 28, motion: 'still' }])?.[0]?.motion,
     undefined,
   )

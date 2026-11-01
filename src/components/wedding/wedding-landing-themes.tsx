@@ -16,13 +16,19 @@ export function WeddingLandingThemes(props: {
   return (
     <div>
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {shown.map((theme) => (
+        {shown.map((theme, index) => (
           <li key={theme.id}>
             <Link
               href={`/thiep-mau/${theme.id}`}
               className="block overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-rose-100"
             >
-              <img src={theme.image} alt="" className="aspect-[3/4] w-full object-cover" />
+              <img
+                src={theme.image}
+                alt=""
+                loading={index < FIRST_COUNT ? 'eager' : 'lazy'}
+                decoding="async"
+                className="aspect-[3/4] w-full object-cover"
+              />
               <span className="flex items-center justify-between gap-2 px-3 py-2">
                 <span className="min-w-0 truncate text-sm font-semibold text-slate-950">{theme.title}</span>
                 <span className="shrink-0 text-xs font-semibold text-rose-700">{props.openLabel}</span>

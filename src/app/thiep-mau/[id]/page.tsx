@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { WeddingSampleDemoBar } from '@/components/wedding/wedding-sample-demo-bar'
 import { getUserForCreditAction } from '@/lib/auth'
-import { ensureWeddingCardOwnerProfile } from '@/lib/db/wedding-cards-pg'
+import { ensureWeddingCardOwnerProfile, listWeddingMusicLibrary } from '@/lib/db/wedding-cards-pg'
 import { loadWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
 import { loadWeddingSharedFrame, loadWeddingShellLayout } from '@/lib/db/wedding-shell-layouts-pg'
@@ -47,7 +47,7 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
     guestName: card.guestName,
   })
   const ornamentKey = weddingSampleSharedLayoutKey(sample)
-  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedCoverMobile, sharedLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin] = await Promise.all([
+  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedCoverMobile, sharedLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin, demoMusicUrls] = await Promise.all([
     ornamentKey ? loadWeddingOrnamentLayout(ornamentKey) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
@@ -57,6 +57,9 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
     ornamentKey ? loadWeddingShellLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
     ornamentKey ? loadWeddingSharedFrame(weddingSharedFrameKey(ornamentKey)).catch(() => null) : null,
     weddingSampleDemoAdmin(),
+    listWeddingMusicLibrary(200)
+      .then((rows) => rows.map((row) => row.audioUrl).filter(Boolean))
+      .catch(() => [] as string[]),
   ])
   return (
     <>
@@ -81,6 +84,7 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
         initialSharedFrame={sharedFrame}
         samplePresetId={admin ? sample.id : ''}
         sampleDemo
+        demoMusicUrls={demoMusicUrls}
       />
       <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} />
     </>

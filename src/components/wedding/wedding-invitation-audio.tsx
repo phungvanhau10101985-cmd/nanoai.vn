@@ -1,7 +1,8 @@
 'use client'
 
 import type React from 'react'
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { nextWeddingMusicMix, shuffleWeddingMusicUrls, weddingMusicQueue } from '@/lib/wedding/wedding-music-library'
 
 function clampSegment(duration: number, startRaw: number | null, endRaw: number | null) {
   const start = startRaw != null && Number.isFinite(startRaw) ? Math.max(0, startRaw) : 0
@@ -27,6 +28,8 @@ export type WeddingInvitationAudioHandle = {
 
 type Props = {
   src: string
+  /** Demo: phát lần lượt, hết bài thì bài khác trong kho. Thiệp khách để trống và lặp một bài. */
+  trackQueue?: readonly string[]
   loop?: boolean
   playStartSec?: number | null
   playEndSec?: number | null
@@ -44,6 +47,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
   function WeddingInvitationAudio(
     {
       src,
+      trackQueue,
       loop = true,
       playStartSec,
       playEndSec,
@@ -59,7 +63,36 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
     const segmentRef = useRef({ start: 0, end: null as number | null })
     const playingChangeRef = useRef(onPlayingChange)
     const unmuteOnNextPlayRef = useRef(false)
+    const queueKey = (trackQueue ?? []).join('\0')
+    const [mixOrder, setMixOrder] = useState<string[]>(() => weddingMusicQueue(trackQueue))
+    const [mixIndex, setMixIndex] = useState(0)
+    const mixOrderRef = useRef(mixOrder)
+    const mixIndexRef = useRef(mixIndex)
+    const mixSkipsRef = useRef(0)
+    const handoffRef = useRef(false)
+    const startedRef = useRef(false)
+    mixOrderRef.current = mixOrder
+    mixIndexRef.current = mixIndex
+    const queueMode = mixOrder.length > 0
+    const activeSrc = queueMode ? mixOrder[mixIndex] || mixOrder[0] || '' : src
     playingChangeRef.current = onPlayingChange
+
+    const goNext = useCallback((autoplay = true) => {
+      const step = nextWeddingMusicMix(mixOrderRef.current, mixIndexRef.current)
+      if (step.order.length === 0) return
+      mixOrderRef.current = step.order
+      mixIndexRef.current = step.index
+      handoffRef.current = autoplay
+      setMixOrder(step.order)
+      setMixIndex(step.index)
+    }, [])
+
+    useEffect(() => {
+      const urls = queueKey ? queueKey.split('\0') : []
+      setMixOrder(urls.length ? shuffleWeddingMusicUrls(urls) : [])
+      setMixIndex(0)
+      mixSkipsRef.current = 0
+    }, [queueKey])
 
     const recomputeSegment = useCallback(() => {
       const el = audioRef.current
@@ -97,6 +130,11 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
       }
 
       const onEnded = () => {
+        if (mixOrderRef.current.length > 0) {
+          mixSkipsRef.current = 0
+          goNext()
+          return
+        }
         if (!loop) return
         recomputeSegment()
         const { start } = segmentRef.current
@@ -105,6 +143,8 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
       }
 
       const onPlay = () => {
+        startedRef.current = true
+        mixSkipsRef.current = 0
         if (!unmuteOnNextPlayRef.current) return
         unmuteOnNextPlayRef.current = false
         el.muted = false
@@ -121,7 +161,24 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
         el.removeEventListener('ended', onEnded)
         el.removeEventListener('play', onPlay)
       }
-    }, [src, loop, recomputeSegment, playStartSec, playEndSec])
+    }, [activeSrc, goNext, loop, recomputeSegment, playStartSec, playEndSec])
+
+    useEffect(() => {
+      const el = audioRef.current
+      if (!el || !handoffRef.current) return
+      const kick = () => {
+        if (!handoffRef.current) return
+        handoffRef.current = false
+        startedRef.current = true
+        void el.play().catch(() => {})
+      }
+      if (el.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        kick()
+        return
+      }
+      el.addEventListener('canplay', kick, { once: true })
+      return () => el.removeEventListener('canplay', kick)
+    }, [activeSrc])
 
     useEffect(() => {
       const el = audioRef.current
@@ -138,7 +195,7 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
         el.removeEventListener('pause', emit)
         el.removeEventListener('ended', emit)
       }
-    }, [src])
+    }, [activeSrc])
 
     useImperativeHandle(
       ref,
@@ -208,10 +265,24 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
         controls
         playsInline
         preload={preload}
-        src={src}
+        src={activeSrc}
         className={className}
         aria-label={ariaLabel}
-        onError={(e) => onSourceError?.(e)}
+        onError={(event) => {
+          if (event.currentTarget.error?.code === MediaError.MEDIA_ERR_ABORTED) return
+          if (!queueMode) {
+            onSourceError?.(event)
+            return
+          }
+          const autoplay = startedRef.current || handoffRef.current
+          mixSkipsRef.current += 1
+          if (mixSkipsRef.current >= mixOrderRef.current.length) {
+            handoffRef.current = false
+            onSourceError?.(event)
+            return
+          }
+          goNext(autoplay)
+        }}
       />
     )
   },
