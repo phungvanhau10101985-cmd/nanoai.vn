@@ -1,5 +1,7 @@
 /**
- * Build trên VPS RAM thấp: bỏ ESLint trong `next build` + heap Node lớn hơn mặc định.
+ * Build production: bỏ ESLint trong `next build` + heap Node gắn trên đúng process.
+ * `npm run build:full` (`next build` trần) chỉ theo NODE_OPTIONS. Heap 4096 đã OOM
+ * trên VPS 12GB khi webpack Map ~3.1GB (2026-11-01) — deploy gọi script này với 8192.
  * Nếu vẫn «Killed» ở bước TypeScript: `npm run build:vps` hoặc NEXT_BUILD_SKIP_TYPECHECK=1 (xem .env.example).
  */
 import { spawnSync } from 'node:child_process'

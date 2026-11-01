@@ -23,7 +23,9 @@ set -euo pipefail
 #   DEPLOY_SKIP_TYPECHECK=1  Bỏ qua npx tsc --noEmit (không khuyến nghị cho production)
 #   DEPLOY_STOP_PM2_BEFORE_BUILD=1  Dừng/xóa PM2 trước lint/typecheck/build để giải phóng RAM (mặc định bật)
 #   DEPLOY_DELETE_PM2_BEFORE_BUILD=1  pm2 delete all trước build (mặc định bật); NanoAI start sau build, 188 start sau khi NanoAI health OK
-#   NODE_OPTIONS=--max-old-space-size=4096  Heap Node cho lint/typecheck/build (script tự set nếu chưa có)
+#   NODE_OPTIONS=--max-old-space-size=4096  Heap Node cho lint/typecheck (script tự set nếu chưa có).
+#   Bước next build dùng NODE_BUILD_HEAP_MB=8192 (scripts/build-lowmem.mjs). Heap 4096 chết
+#   lúc webpack Map ~3.1GB (OOM 2026-11-01) dù VPS 12GB — không gọi `npm run build:full` trần.
 #   DEPLOY_188_APP_DIR=/var/www/188.com.vn  Thư mục repo 188 (ecosystem: deploy/ecosystem.config.cjs)
 #   DEPLOY_SKIP_MIGRATIONS=1  Bỏ qua bước chạy migration SQL mới
 #   DEPLOY_SETUP_CRONS=1  Tự đảm bảo cron AI/inventory/logo cleanup + nhắc lịch đám cưới (mặc định bật)
@@ -406,8 +408,10 @@ if [[ "${DEPLOY_BUILD_VPS:-}" == "1" ]]; then
   echo "  DEPLOY_BUILD_VPS=1 → npm run build:vps (skip TypeScript trong bước build)."
   npm run build:vps
 else
-  echo "  Lint + tsc đã xong ở [7/15] — next build bỏ lint/typecheck trùng."
-  SKIP_ESLINT_ON_BUILD=1 NEXT_BUILD_SKIP_TYPECHECK=1 npm run build:full
+  echo "  Lint + tsc đã xong ở [7/15] — next build bỏ lint/typecheck trùng, heap 8192."
+  # `next build` trần (build:full) chỉ theo NODE_OPTIONS=4096 và OOM khi Map webpack vượt ~3.1GB.
+  # build-lowmem gắn --max-old-space-size trên process next; worker fork kế thừa execArgv.
+  SKIP_ESLINT_ON_BUILD=1 NEXT_BUILD_SKIP_TYPECHECK=1 NODE_BUILD_HEAP_MB=8192 NODE_OPTIONS=--max-old-space-size=8192 npm run build
 fi
 echo "  DONE [9/15]"
 
