@@ -1768,10 +1768,7 @@ export function applyWeddingKitTheme(theme: WeddingTheme, preset: WeddingBackgro
   }
 }
 
-/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Giấy trơn thì không phủ. */
-const KHO_READING_PLATE_LIGHT = 'rgba(255,248,242,0.55)'
-const KHO_READING_PLATE_DARK = 'rgba(15,23,42,0.55)'
-
+/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Giấy trơn và kho AI thì không phủ. */
 export function weddingReadingPlate(
   preset: WeddingBackgroundPreset | null | undefined,
   pageBackground: string,
@@ -1780,8 +1777,8 @@ export function weddingReadingPlate(
   if (!pageBackground.trim()) return undefined
   if (preset?.look.contentCard === 'scallop') return undefined
   if (preset?.look.surface === 'dark' && preset.look.paper) return preset.look.paper
-  // Kho AI và nền tự vẽ: tấm kem trong mờ, hoa văn còn nhìn thấy, chữ vẫn có mặt đọc.
-  if (!preset) return themeIsDark ? KHO_READING_PLATE_DARK : KHO_READING_PLATE_LIGHT
+  // Kho AI và nền tự vẽ: không tấm chữ, hoa văn hiện suốt.
+  if (!preset) return undefined
   if (preset.id.startsWith('ai-')) return themeIsDark ? '#0f172a' : '#fff8f2'
   return undefined
 }
