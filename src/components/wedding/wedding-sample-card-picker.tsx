@@ -25,7 +25,7 @@ export function WeddingSampleCardPicker(props: {
   libraryHeading?: string
   hint: string
   photoNote: string
-  /** 4 cột ảnh nhỏ trong modal gần đầy màn hình. Mặc định 2 cột. */
+  /** 4: mobile 2 cột, từ lg (desktop) 4 cột. Mặc định luôn 2 cột. */
   columns?: 2 | 4
   disabled?: boolean
   confirmLabel?: string
@@ -143,7 +143,7 @@ function SampleGroup(props: {
     <div className="space-y-2">
       <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{props.heading}</p>
       {props.hint ? <p className="text-xs leading-relaxed text-muted-foreground">{props.hint}</p> : null}
-      <div className={cn('grid', wide ? 'mx-auto w-full max-w-[54rem] grid-cols-4 gap-3' : 'grid-cols-2 gap-2')}>
+      <div className={cn('grid', wide ? 'mx-auto w-full max-w-[54rem] grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3' : 'grid-cols-2 gap-2')}>
         {props.samples.map((sample) => {
           const label = sampleLabel(props.locale, sample)
           if (!label) return null

@@ -379,9 +379,8 @@ export default async function RootLayout({
     readPartnerSiteSlugFromHeaders((name) => headerStore.get(name)) ||
     partnerSiteSlugFromPathname(currentPathname);
   const isMessagingGuestPage = currentPathname.startsWith("/messaging/p/");
-  const isWedding3dPreview = currentPathname === "/thiep-3d" || currentPathname.startsWith("/thiep-3d/");
   const isWeddingPublicPage =
-    currentPathname.startsWith("/thiep-moi-cuoi/") || currentPathname.startsWith("/thiep-mau/") || isWedding3dPreview;
+    currentPathname.startsWith("/thiep-moi-cuoi/") || currentPathname.startsWith("/thiep-mau/");
   const isPartnerWebsitePage =
     currentPathname.startsWith("/site/") || Boolean(partnerCustomDomain);
   const isTeacherExamPaperPage =
@@ -566,7 +565,7 @@ export default async function RootLayout({
         {dictionaryScriptSrc ? (
           <Script id="nanoai-dictionary" strategy="beforeInteractive" src={dictionaryScriptSrc} />
         ) : null}
-        {isWeddingPublicPage && !isWedding3dPreview ? (
+        {isWeddingPublicPage ? (
           <script id="wedding-design-viewport" dangerouslySetInnerHTML={{ __html: weddingDesignViewportBootScript() }} />
         ) : null}
         <link rel="ai-catalog" type="application/json" href="/.well-known/ai-catalog.json" />
