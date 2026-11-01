@@ -3897,6 +3897,7 @@ export type Dictionary = {
     frameReferenceHint: string
     chooseBackground: string
     chooseBackgroundAgain: string
+    sampleLookInUse: string
     backgroundPickedOk: string
     backgroundPickedTitle: string
     backgroundSectionTitle: string
@@ -8338,8 +8339,8 @@ export const VI_DICTIONARY: Dictionary = {
     promise: 'Mỗi khách một lời mời riêng. Khách chọn đi hoặc không đi và ghi số người. Bạn thấy rõ từng nhà còn bao nhiêu người để tính cỗ.',
     cta: 'Tạo thiệp ngay',
     samplesTitle: 'Thiệp mẫu',
-    samplesHint: 'Chọn một chủ đề để mở thiệp demo. Bấm Xem thêm để hiện hết chủ đề.',
-    themesMore: 'Xem thêm',
+    samplesHint: 'Chọn một chủ đề để mở thiệp demo. Bấm Xem tất cả để hiện hết chủ đề.',
+    themesMore: 'Xem tất cả',
     themesLess: 'Thu gọn',
     themesOpen: 'Xem demo',
     sampleAlt: 'Mẫu thiệp cưới gọi tên khách',
@@ -8423,6 +8424,7 @@ export const VI_DICTIONARY: Dictionary = {
     frameReferenceHint: 'Tải ảnh mới, hoặc chọn một nền AI có sẵn. AI vẽ khung mới theo họa tiết và tông màu đó, không chép nguyên ảnh.',
     chooseBackground: 'Xem thiệp mẫu',
     chooseBackgroundAgain: 'Đổi thiệp mẫu',
+    sampleLookInUse: 'Đang dùng',
     backgroundPickedOk: 'OK',
     backgroundPickedTitle: 'Đã chọn nền',
     backgroundSectionTitle: 'Thiệp mẫu',

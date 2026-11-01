@@ -541,6 +541,7 @@ const BY_LIBRARY_SAMPLE: Record<string, WeddingGiftBoxLook> = {
   'kho-phung-do': LACQUER,
   'kho-mau-don': BURGUNDY,
   'kho-do-phap': LACQUER,
+  'kho-hong-baby': BLUSH,
 }
 
 function lookForLibraryImage(masterImageUrl: string | null | undefined): WeddingGiftBoxLook | undefined {

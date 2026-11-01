@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
 import { findWeddingBackgroundPreset } from './wedding-background-presets'
-import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, stripWeddingSamplePhotos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey } from './wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, findWeddingSampleInUse, stripWeddingSamplePhotos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey, weddingSamplesWithActiveFirst } from './wedding-sample-cards'
 
 test('a sample card is one background and five couple photos', () => {
   assert.ok(WEDDING_SAMPLE_CARDS.length >= 1)
@@ -47,6 +47,7 @@ test('the rose frame stays on rose themes and leaves the others', () => {
     groomPortraitShellMode?: string
   }
   assert.equal(section('kho-hong-buom').coverPresetId, 'pearl_rose')
+  assert.equal(section('kho-hong-baby').coverPresetId, 'pearl_rose')
   assert.equal(section('kho-sen-hong').coverPresetId, 'net_sen')
   assert.equal(section('kho-sen-hong').groomPortraitShellPresetId, 'net_sen')
   assert.equal(section('kho-hac-sen').coverPresetId, 'plain_photo')
@@ -100,4 +101,24 @@ test('applying a sample keeps real photos and switches the look', () => {
   assert.equal(section.deviceShell, undefined)
   assert.ok(look.plateUrls.length > 0)
   assert.equal(look.masterImageUrl, null)
+})
+
+test('the sample in use stays first and a preset wins over a leftover library image', () => {
+  const preset = findWeddingSampleCard('vuon-kinh-hong')
+  const kit = findWeddingSampleCard('ai-floral')
+  const library = findWeddingSampleCard('kho-hong-buom')
+  assert.ok(preset && kit && library?.libraryImageUrl)
+  assert.equal(
+    findWeddingSampleInUse({ backgroundPresetId: preset.backgroundPresetId, masterImageUrl: library.libraryImageUrl })?.id,
+    preset.id,
+  )
+  assert.equal(
+    findWeddingSampleInUse({ backgroundKitStyleId: kit.aiStyleId, masterImageUrl: library.libraryImageUrl })?.id,
+    kit.id,
+  )
+  assert.equal(findWeddingSampleInUse({ masterImageUrl: library.libraryImageUrl })?.id, library.id)
+  const ordered = weddingSamplesWithActiveFirst(WEDDING_SAMPLE_CARDS, library.id)
+  assert.equal(ordered[0]?.id, library.id)
+  assert.equal(ordered.length, WEDDING_SAMPLE_CARDS.length)
+  assert.equal(new Set(ordered.map((sample) => sample.id)).size, WEDDING_SAMPLE_CARDS.length)
 })

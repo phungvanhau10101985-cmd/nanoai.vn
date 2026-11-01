@@ -40,7 +40,7 @@
     font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
   }
   /* Song hỷ: tấm kem trên giấy đỏ. Viền kép nằm trong tấm, không trồi ra khỏi khổ. */
-  /* Hoa văn dày: chữ ngồi trên mặt đặc, nền vẫn hiện quanh khối. */
+  /* Hoa văn dày: chữ ngồi trên mặt trong mờ, hoa vẫn nhìn thấy qua nền chữ. */
   [data-wedding-reading] [data-wedding-glass],
   [data-wedding-reading] .wedding-invite-body-join > div {
     background: var(--wedding-reading-plate) !important;

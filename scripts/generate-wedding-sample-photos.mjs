@@ -318,6 +318,14 @@ Object.assign(THEMES, {
     walk: 'They walk through a scarlet hall with red roses and warm gold light. No fireworks drawn in the photo. Wide wedding album photograph.',
     seat: 'They sit close against a scarlet wall with red roses. Wide wedding album photograph.',
   }),
+  'kho-hong-baby': themeOf({
+    red: false,
+    suit: 'a tailored blush-ivory suit jacket',
+    scene: 'Color grade is blush pink, cream and warm ivory, tone-on-tone with a cream wedding card of pale pink roses and baby breath. No red gown. No watercolor, no illustration.',
+    place: 'Soft cream wall, real pale pink roses and white baby breath out of focus. Natural daylight. No red.',
+    walk: 'They walk through a cream garden of real pale pink roses and white baby breath. Wide wedding album photograph.',
+    seat: 'They sit on a cream bench among real pale pink roses and white baby breath. Wide wedding album photograph.',
+  }),
 })
 
 function extOf(buf) {

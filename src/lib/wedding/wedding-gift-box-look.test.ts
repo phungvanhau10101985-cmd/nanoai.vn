@@ -57,6 +57,7 @@ test('each ready background has its own gift box, and red themes keep the lacque
   assert.equal(weddingGiftBoxLook('ai-modern').id, 'charcoal')
   assert.equal(weddingGiftBoxLook('ai-traditional_vietnamese').id, 'lacquer')
   assert.equal(weddingGiftBoxLook(undefined, findWeddingSampleCard('kho-hong-buom')?.libraryImageUrl).id, 'blush')
+  assert.equal(weddingGiftBoxLook(undefined, findWeddingSampleCard('kho-hong-baby')?.libraryImageUrl).id, 'blush')
   assert.equal(weddingGiftBoxLook(undefined, findWeddingSampleCard('kho-sen-hong')?.libraryImageUrl).id, 'lotus')
   assert.equal(weddingGiftBoxLook(undefined, findWeddingSampleCard('kho-mau-don')?.libraryImageUrl).id, 'burgundy')
   assert.equal(weddingGiftBoxLook(undefined, findWeddingSampleCard('kho-phung-do')?.libraryImageUrl).id, 'lacquer')

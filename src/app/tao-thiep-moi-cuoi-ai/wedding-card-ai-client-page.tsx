@@ -67,14 +67,14 @@ import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/we
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer } from '@/components/wedding/wedding-ornament-admin'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
-import { WeddingSampleCardPicker } from '@/components/wedding/wedding-sample-card-picker'
+import { WeddingSampleCardPicker, WeddingSampleLookStrip } from '@/components/wedding/wedding-sample-card-picker'
 import { WeddingSampleDemoFrame } from '@/components/wedding/wedding-sample-demo-bar'
 import { WeddingLiveDevicePreviews } from '@/components/wedding/wedding-live-device-preview'
 import { WeddingDesignScale } from '@/components/wedding/wedding-design-scale'
 import { resolveWeddingCardOrnaments, weddingCardOrnamentLayoutKey, weddingOrnamentDeviceKey, weddingOrnamentLayoutKey, weddingOrnamentSurfaceKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { weddingBackgroundPlateUrls } from '@/lib/wedding/wedding-background-plates'
-import { findWeddingSampleCard, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
+import { findWeddingSampleCard, findWeddingSampleInUse, isWeddingSamplePhotoUrl, stripWeddingSamplePhotos, weddingLibrarySampleSectionPatch, weddingSamplesWithActiveFirst, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
 import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-compose-modal'
 import {
   applyComposeCopyToCard,
@@ -700,6 +700,18 @@ export default function WeddingCardAiClientPage() {
   )
   const masterImage = images.find((image) => image.id === card.masterImageId) ?? images.find((image) => image.type === 'master')
   const sectionConfig = useMemo(() => parseWeddingSectionConfig(card.sectionConfig), [card.sectionConfig])
+  const activeSample = useMemo(
+    () => findWeddingSampleInUse({
+      backgroundPresetId: sectionConfig.backgroundPresetId,
+      backgroundKitStyleId: sectionConfig.backgroundKitStyleId,
+      masterImageUrl: masterImage?.imageUrl,
+    }),
+    [sectionConfig.backgroundPresetId, sectionConfig.backgroundKitStyleId, masterImage?.imageUrl],
+  )
+  const sampleChoices = useMemo(
+    () => weddingSamplesWithActiveFirst(WEDDING_SAMPLE_CARDS, activeSample?.id),
+    [activeSample?.id],
+  )
   const readyBackground = resolveWeddingChromeKit(sectionConfig)
   const ornamentKey = weddingOrnamentLayoutKey({
     backgroundPresetId: sectionConfig.backgroundPresetId,
@@ -2477,9 +2489,18 @@ export default function WeddingCardAiClientPage() {
             </DialogHeader>
             {backgroundPicked ? (
               <div className="space-y-4">
-                {coverBackgroundUrl ? (
-                  <img src={coverBackgroundUrl} alt="" className="max-h-48 w-full rounded-2xl object-cover object-top" />
-                ) : null}
+                <WeddingSampleLookStrip
+                  locale={uiLocale}
+                  samples={sampleChoices}
+                  activeId={activeSample?.id}
+                  inUseLabel={tImage.sampleLookInUse}
+                  disabled={Boolean(applyingLibraryId) || !card.id}
+                  onOpen={(sample) => {
+                    const params = new URLSearchParams()
+                    if (card.id) params.set('cardId', card.id)
+                    window.location.assign(`/thiep-mau/${encodeURIComponent(sample.id)}?${params}`)
+                  }}
+                />
                 {backgroundNoticeBlock}
                 <Button type="button" className="w-full" onClick={closeBackgroundPicker}>
                   {tImage.backgroundPickedOk}
@@ -2493,8 +2514,8 @@ export default function WeddingCardAiClientPage() {
             {backgroundPreviewLarge ? null : (
               <WeddingSampleCardPicker
                 locale={uiLocale}
-                samples={WEDDING_SAMPLE_CARDS}
-                selectedId={sectionConfig.backgroundPresetId}
+                samples={sampleChoices}
+                selectedId={activeSample?.id || sectionConfig.backgroundPresetId}
                 heading={tImage.sampleCardsTitle}
                 aiHeading={tImage.sampleAiCardsTitle}
                 libraryHeading={tImage.libraryAllHeading}
@@ -2572,24 +2593,18 @@ export default function WeddingCardAiClientPage() {
                 <CardDescription>{tImage.backgroundSectionHint}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {coverBackgroundUrl ? (
-                  <div className="relative overflow-hidden rounded-xl">
-                    <img src={coverBackgroundUrl} alt="" className="max-h-40 w-full object-cover object-top" />
-                    {readyBackground && readyBackground.ornaments.length > 0 ? (
-                      <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
-                        {tImage.readyBackgroundLayered}
-                      </span>
-                    ) : readyBackground && readyBackground.plates.length > 1 ? (
-                      <span className="absolute bottom-2 left-2 rounded-full bg-black/55 px-2 py-0.5 text-[10px] font-medium text-white">
-                        {tImage.readyBackgroundSet.replaceAll('{n}', String(readyBackground.plates.length))}
-                      </span>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="flex min-h-24 items-center justify-center rounded-xl bg-muted px-4 text-center text-sm text-muted-foreground">
-                    {tImage.backgroundEmptyPreview}
-                  </div>
-                )}
+                <WeddingSampleLookStrip
+                  locale={uiLocale}
+                  samples={sampleChoices}
+                  activeId={activeSample?.id}
+                  inUseLabel={tImage.sampleLookInUse}
+                  disabled={Boolean(applyingLibraryId) || !card.id}
+                  onOpen={(sample) => {
+                    const params = new URLSearchParams()
+                    if (card.id) params.set('cardId', card.id)
+                    window.location.assign(`/thiep-mau/${encodeURIComponent(sample.id)}?${params}`)
+                  }}
+                />
                 <Button type="button" className="w-full sm:w-auto" onClick={openBackgroundPicker}>
                   {coverBackgroundUrl ? tImage.chooseBackgroundAgain : tImage.chooseBackground}
                 </Button>

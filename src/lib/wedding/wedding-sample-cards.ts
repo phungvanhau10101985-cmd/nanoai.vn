@@ -73,17 +73,19 @@ export function weddingLibrarySampleSectionPatch(styleId: string | null | undefi
 
 function librarySample(input: {
   id: string
-  file: string
+  file?: string
+  imageUrl?: string
   aiStyleId: string
   titles: WeddingSampleTitle
   dressCode: string
 }): WeddingSampleCard {
   const folder = `/wedding/samples/${input.id}`
+  const libraryImageUrl = input.imageUrl?.trim() || `${LIBRARY_CDN}${input.file}.png`
   return {
     id: input.id,
     backgroundPresetId: '',
     aiStyleId: input.aiStyleId,
-    libraryImageUrl: `${LIBRARY_CDN}${input.file}.png`,
+    libraryImageUrl,
     titles: input.titles,
     coverPhotoUrl: `${folder}/cover.png`,
     groomImageUrl: `${folder}/groom.png`,
@@ -599,6 +601,13 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     titles: { vi: 'Đỏ pháo hoa', en: 'Red fireworks', zh: '红焰烟花', ja: '紅の花火', ko: '붉은 불꽃' },
     dressCode: 'Trang phục lịch sự, tông đỏ hoặc vàng.',
   }),
+  librarySample({
+    id: 'kho-hong-baby',
+    imageUrl: 'https://cdn.nanoai.vn/results/5b798db2-a4a7-41dd-a03b-aebb709a4d11/wedding_77f0b5ba-14c7-4bca-a50a-f38562b4bc84_master_1793034395126.png',
+    aiStyleId: 'floral',
+    titles: { vi: 'Hồng baby', en: 'Blush roses', zh: '粉玫瑰', ja: '淡いバラ', ko: '블러시 장미' },
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+  }),
 ]
 
 const SAMPLE_BY_ID = new Map(WEDDING_SAMPLE_CARDS.map((sample) => [sample.id, sample]))
@@ -627,6 +636,43 @@ export function findWeddingSampleCard(id: string | null | undefined): WeddingSam
   const key = id?.trim() || ''
   if (!key) return undefined
   return SAMPLE_BY_ID.get(key) ?? SAMPLE_BY_PRESET.get(key)
+}
+
+/** Mẫu đang gắn trên thiệp. Nền có sẵn thắng kit, kit thắng ảnh kho còn sót. */
+export function findWeddingSampleInUse(input: {
+  backgroundPresetId?: string | null
+  backgroundKitStyleId?: string | null
+  masterImageUrl?: string | null
+}): WeddingSampleCard | undefined {
+  const presetId = input.backgroundPresetId?.trim() || ''
+  if (presetId) {
+    const preset = WEDDING_SAMPLE_CARDS.find((sample) => !sample.libraryImageUrl && sample.backgroundPresetId === presetId)
+    if (preset) return preset
+  }
+  const kitId = input.backgroundKitStyleId?.trim() || ''
+  if (kitId) {
+    const kit = WEDDING_SAMPLE_CARDS.find(
+      (sample) => !sample.libraryImageUrl && !sample.backgroundPresetId && sample.aiStyleId === kitId,
+    )
+    if (kit) return kit
+  }
+  const master = input.masterImageUrl?.trim() || ''
+  if (!master) return undefined
+  return WEDDING_SAMPLE_CARDS.find((sample) => sample.libraryImageUrl === master)
+}
+
+/** Mẫu đang dùng đứng đầu. Các mẫu khác giữ thứ tự kho. */
+export function weddingSamplesWithActiveFirst(
+  samples: readonly WeddingSampleCard[],
+  activeId: string | null | undefined,
+): WeddingSampleCard[] {
+  const id = activeId?.trim() || ''
+  if (!id) return [...samples]
+  const index = samples.findIndex((sample) => sample.id === id)
+  if (index <= 0) return [...samples]
+  const next = [...samples]
+  const [active] = next.splice(index, 1)
+  return active ? [active, ...next] : next
 }
 
 export function weddingSamplePhotoUrls(sample: WeddingSampleCard): string[] {

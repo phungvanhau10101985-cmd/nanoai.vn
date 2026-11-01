@@ -8,12 +8,56 @@ import {
   labelForWeddingBackgroundPreset,
 } from '@/lib/wedding/wedding-background-presets'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
-import { weddingSampleScrollStrip, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
+import { weddingSampleScrollStrip, weddingSamplesWithActiveFirst, type WeddingSampleCard } from '@/lib/wedding/wedding-sample-cards'
 import { WeddingSampleScrollPreview } from '@/components/wedding/wedding-sample-scroll-preview'
 import { cn } from '@/lib/utils'
 
 function SampleFace(props: { sample: WeddingSampleCard }) {
   return <WeddingSampleScrollPreview src={weddingSampleScrollStrip(props.sample)} />
+}
+
+/** Một hàng giao diện cạnh nút đổi thiệp: desktop 4 ô, mobile 2 ô. Mẫu đang dùng đứng đầu và được đánh dấu. */
+export function WeddingSampleLookStrip(props: {
+  locale: WebLocale
+  samples: readonly WeddingSampleCard[]
+  activeId?: string
+  inUseLabel: string
+  disabled?: boolean
+  onOpen: (sample: WeddingSampleCard) => void
+}) {
+  const shown = weddingSamplesWithActiveFirst(props.samples, props.activeId).slice(0, 4)
+  return (
+    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      {shown.map((sample, index) => {
+        const label = sampleLabel(props.locale, sample)
+        const active = Boolean(props.activeId) && (props.activeId === sample.id || props.activeId === sample.backgroundPresetId)
+        return (
+          <button
+            key={sample.id}
+            type="button"
+            disabled={props.disabled}
+            aria-current={active ? 'true' : undefined}
+            onClick={() => props.onOpen(sample)}
+            className={cn(
+              'w-full overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
+              index >= 2 && 'hidden lg:block',
+              active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
+            )}
+          >
+            <span className="relative block">
+              <SampleFace sample={sample} />
+              {active ? (
+                <span className="absolute bottom-1 left-1 rounded-full bg-rose-600 px-1.5 py-0.5 text-[9px] font-semibold text-white">
+                  {props.inUseLabel}
+                </span>
+              ) : null}
+            </span>
+            <span className="block truncate px-1.5 py-1 text-[11px] font-medium leading-tight">{label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
 }
 
 export function WeddingSampleCardPicker(props: {
