@@ -4,9 +4,11 @@ import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
   appendWeddingComposeSuggestion,
   applyComposeCopyToCard,
+  weddingCardAfterCreate,
   buildWeddingSampleComposePrompt,
   carryWeddingSampleFacts,
   parseWeddingSampleComposeCopy,
+  newCardComposeSources,
   resolveWeddingSampleNameReuse,
   weddingSampleShowsLoveStoryHints,
   type WeddingSampleFactCard,
@@ -80,6 +82,58 @@ test('compose copy fills prose and keeps an existing dress code', () => {
   assert.equal(next.dressCode, 'Tông kem.')
 })
 
+test('compose copy stays on the card just created, not the card still open', () => {
+  const created = {
+    id: 'new-engagement',
+    groomName: '',
+    brideName: '',
+    coupleIntro: '',
+    loveQuote: '',
+    storyText: '',
+    thankYouText: '',
+    dressCode: '',
+    weddingDate: '',
+  }
+  const next = weddingCardAfterCreate(
+    created,
+    {
+      groomName: 'Hậu',
+      brideName: 'Lan',
+      coupleIntro: 'Lễ hỏi.',
+      loveQuote: 'Hai nhà.',
+      storyText: 'Đám hỏi.',
+      thankYouText: 'Cảm ơn.',
+    },
+    '2026-12-01',
+  )
+  assert.equal(next.id, 'new-engagement')
+  assert.equal(next.groomName, 'Hậu')
+  assert.equal(next.brideName, 'Lan')
+  assert.equal(next.coupleIntro, 'Lễ hỏi.')
+  assert.equal(next.storyText, 'Đám hỏi.')
+  assert.equal(next.weddingDate, '2026-12-01')
+  const birthday = weddingCardAfterCreate(
+    { ...created, id: 'new-birthday', occasionKey: 'wedding' },
+    {
+      groomName: 'Bé An',
+      brideName: '',
+      coupleIntro: 'Mời đầy tháng.',
+      loveQuote: 'Chúc bé.',
+      storyText: 'Gia đình.',
+      thankYouText: 'Cảm ơn.',
+    },
+    null,
+    'full_month',
+  )
+  assert.equal(birthday.id, 'new-birthday')
+  assert.equal(birthday.occasionKey, 'full_month')
+  assert.equal(birthday.groomName, 'Bé An')
+  assert.equal(birthday.coupleIntro, 'Mời đầy tháng.')
+  const plain = weddingCardAfterCreate(created, null, null)
+  assert.equal(plain.id, 'new-engagement')
+  assert.equal(plain.coupleIntro, '')
+})
+
 function blankFacts(patch: Partial<WeddingSampleFactCard> = {}): WeddingSampleFactCard {
   return {
     groomName: '',
@@ -146,12 +200,12 @@ function blankFacts(patch: Partial<WeddingSampleFactCard> = {}): WeddingSampleFa
   }
 }
 
-test('the name modal waits until no invitation has couple names', () => {
+test('the name modal follows the occasion, not only weddings', () => {
   assert.deepEqual(
     resolveWeddingSampleNameReuse({
       current: { id: 'draft', groomName: '', brideName: '' },
       saved: [{ id: 'draft', groomName: '', brideName: '' }],
-      wedding: true,
+      occasionKey: 'wedding',
     }),
     { ask: true },
   )
@@ -159,7 +213,7 @@ test('the name modal waits until no invitation has couple names', () => {
     resolveWeddingSampleNameReuse({
       current: { id: 'card', groomName: 'Minh', brideName: 'Lan' },
       saved: [{ id: 'card', groomName: 'Minh', brideName: 'Lan' }],
-      wedding: true,
+      occasionKey: 'anniversary',
     }),
     { ask: false, donorId: null },
   )
@@ -170,7 +224,7 @@ test('the name modal waits until no invitation has couple names', () => {
         { id: 'draft', groomName: '', brideName: '' },
         { id: 'older', groomName: 'Minh', brideName: 'Lan' },
       ],
-      wedding: true,
+      occasionKey: 'engagement',
     }),
     { ask: false, donorId: 'older' },
   )
@@ -178,17 +232,55 @@ test('the name modal waits until no invitation has couple names', () => {
     resolveWeddingSampleNameReuse({
       current: { id: 'draft', groomName: 'Minh', brideName: '' },
       saved: [{ id: 'older', groomName: 'Minh', brideName: '' }],
-      wedding: true,
+      occasionKey: 'engagement',
     }),
     { ask: true },
   )
   assert.deepEqual(
     resolveWeddingSampleNameReuse({
-      current: { id: 'draft', groomName: 'Minh', brideName: '' },
+      current: { id: 'draft', groomName: 'An', brideName: '' },
       saved: [],
-      wedding: false,
+      occasionKey: 'birthday',
     }),
     { ask: false, donorId: null },
+  )
+  assert.deepEqual(
+    resolveWeddingSampleNameReuse({
+      current: { id: 'draft', groomName: '', brideName: 'A' },
+      saved: [{ id: 'older', groomName: 'Tiệm Hoa', brideName: '' }],
+      occasionKey: 'grand_opening',
+    }),
+    { ask: false, donorId: 'older' },
+  )
+})
+
+test('a new card does not borrow the open card date or address', () => {
+  assert.deepEqual(
+    newCardComposeSources({
+      creating: true,
+      composeDate: '',
+      openDate: '2026-12-20',
+      openAddresses: ['Số 12 phố Huế, Hai Bà Trưng, Hà Nội'],
+    }),
+    { weddingDate: '', addresses: [] },
+  )
+  assert.deepEqual(
+    newCardComposeSources({
+      creating: true,
+      composeDate: '2026-11-20',
+      openDate: '2026-12-20',
+      openAddresses: ['Số 12 phố Huế'],
+    }),
+    { weddingDate: '2026-11-20', addresses: [] },
+  )
+  assert.deepEqual(
+    newCardComposeSources({
+      creating: false,
+      composeDate: '',
+      openDate: '2026-12-20',
+      openAddresses: ['Số 12 phố Huế'],
+    }),
+    { weddingDate: '2026-12-20', addresses: ['Số 12 phố Huế'] },
   )
 })
 

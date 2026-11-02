@@ -80,8 +80,9 @@ import { WeddingSampleComposeModal } from '@/components/wedding/wedding-sample-c
 import {
   applyComposeCopyToCard,
   carryWeddingSampleFacts,
+  newCardComposeSources,
   resolveWeddingSampleNameReuse,
-  weddingSampleShowsLoveStoryHints,
+  weddingCardAfterCreate,
   type WeddingSampleComposeFields,
 } from '@/lib/wedding/wedding-sample-compose'
 import { isWeddingInsufficientCredit } from '@/lib/wedding/wedding-credit-shortfall'
@@ -1571,8 +1572,9 @@ export default function WeddingCardAiClientPage() {
       if (persistQueuedRef.current) {
         persistQueuedRef.current = false
         window.setTimeout(() => {
-          if (startedEpoch !== persistEpochRef.current) return
           const latestInputs = persistInputsRef.current
+          const switchedCard = latestInputs.card.id !== p.card.id
+          if (!switchedCard && startedEpoch !== persistEpochRef.current) return
           if (!latestInputs.card.id || deletedCardIdsRef.current.has(latestInputs.card.id)) return
           const latest = buildPersistSnapshot(latestInputs)
           if (latest !== lastSavedPersistRef.current) void commitSaveBrief(true)
@@ -1935,7 +1937,7 @@ export default function WeddingCardAiClientPage() {
     const reuse = resolveWeddingSampleNameReuse({
       current: persistInputsRef.current.card,
       saved: savedCards,
-      wedding: weddingSampleShowsLoveStoryHints(sample),
+      occasionKey: normalizeInvitationOccasion(sample.occasionKey ?? persistInputsRef.current.card.occasionKey),
     })
     if (reuse.ask) {
       openNameModal()
@@ -2080,10 +2082,14 @@ export default function WeddingCardAiClientPage() {
     formData.append('groomName', groomName)
     formData.append('brideName', brideName)
     formData.append('storyNotes', composeStory.trim())
-    formData.append(
-      'weddingDate',
-      composeDate || persistInputsRef.current.weddingDateIso || persistInputsRef.current.card.weddingDate || '',
-    )
+    const openCard = persistInputsRef.current.card
+    const sources = newCardComposeSources({
+      creating,
+      composeDate,
+      openDate: persistInputsRef.current.weddingDateIso || openCard.weddingDate,
+      openAddresses: weddingSharedCopyAddresses(openCard),
+    })
+    formData.append('weddingDate', sources.weddingDate)
     const result = await composeWeddingSampleCopy(formData)
     if ('error' in result && result.error) {
       setComposeBusy(false)
@@ -2098,7 +2104,7 @@ export default function WeddingCardAiClientPage() {
       setComposeBusy(false)
       return
     }
-    const addresses = weddingSharedCopyAddresses(persistInputsRef.current.card)
+    const addresses = sources.addresses
     const copy: WeddingSampleComposeFields = {
       groomName,
       brideName,
@@ -2227,14 +2233,22 @@ export default function WeddingCardAiClientPage() {
   }
 
   const openSavedCard = async (cardId: string) => {
-    if (!cardId || cardId === persistInputsRef.current.card.id || switchingCard) return
+    if (!cardId || switchingCard) return
+    if (cardId === persistInputsRef.current.card.id) {
+      document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
     setSwitchingCard(true)
     try {
       const current = persistInputsRef.current
       const unchanged = Boolean(current.card.id) && buildPersistSnapshot(current) === lastSavedPersistRef.current
-      if (!unchanged) {
-        const saved = await commitSaveBrief(false, { hideSuccess: true })
-        if (!saved) return
+      if (
+        !unchanged &&
+        current.card.id &&
+        !deletedCardIdsRef.current.has(current.card.id) &&
+        !persistInFlightRef.current
+      ) {
+        await commitSaveBrief(true, { hideSuccess: true, ignoreNotFound: true })
       }
       const result = await loadWeddingCardWorkspace(cardId)
       if ('error' in result) {
@@ -2287,14 +2301,28 @@ export default function WeddingCardAiClientPage() {
       }
       showWorkspace(result)
       const dateIso = resolveWeddingDateIso(composeDate)
-      const base = {
-        ...persistInputsRef.current.card,
-        weddingDate: dateIso || persistInputsRef.current.card.weddingDate,
-      }
-      const filled = copy ? applyComposeCopyToCard(base, copy) : base
+      const filled = weddingCardAfterCreate(result.card, copy, dateIso, nextOccasion)
       if (copy || dateIso) {
-        persistInputsRef.current = { ...persistInputsRef.current, card: filled, weddingDateIso: dateIso }
+        const previous = persistInputsRef.current
+        persistInputsRef.current = {
+          ...previous,
+          card: filled,
+          weddingDateIso: dateIso || resolveWeddingDateIso(filled.weddingDate),
+          musicFile: null,
+          musicClearOnSave: false,
+          coverImageFile: null,
+          coverClearOnSave: false,
+          groomPortraitFile: null,
+          bridePortraitFile: null,
+          groomPortraitClear: false,
+          bridePortraitClear: false,
+          albumImageFiles: [],
+        }
         setCard(filled)
+        const deadline = Date.now() + 8000
+        while (persistInFlightRef.current && Date.now() < deadline) {
+          await new Promise((resolve) => window.setTimeout(resolve, 40))
+        }
         const saved = await commitSaveBrief(true, { hideSuccess: true, ignoreNotFound: true })
         if (saved && copy) {
           toast({
@@ -2487,7 +2515,7 @@ export default function WeddingCardAiClientPage() {
         <Card>
           <CardHeader className="gap-1">
             <CardTitle>Thiệp đã lưu</CardTitle>
-            <CardDescription>Mỗi thiệp giữ riêng. Khách mời, Thống kê và Xem nhanh mở đúng thiệp đó. Sửa để chỉnh nội dung, Xóa khi không dùng.</CardDescription>
+            <CardDescription>Mỗi thiệp giữ riêng. Bấm tên thiệp hoặc Sửa để mở thiệp đó. Khách mời và Xem nhanh mở đúng thiệp. Xóa khi không dùng.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {savedCards.length === 0 ? (
@@ -2498,9 +2526,11 @@ export default function WeddingCardAiClientPage() {
                 return (
                   <div
                     key={item.id}
+                    aria-current={active ? 'true' : undefined}
+                    onClick={() => void openSavedCard(item.id)}
                     className={cn(
-                      'flex flex-col gap-2 rounded-2xl border px-3 py-2 sm:flex-row sm:items-center sm:justify-between',
-                      active ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white',
+                      'flex cursor-pointer flex-col gap-2 rounded-2xl border px-3 py-2 sm:flex-row sm:items-center sm:justify-between',
+                      active ? 'border-rose-300 bg-rose-50' : 'border-slate-200 bg-white hover:border-rose-200',
                     )}
                   >
                     <div className="min-w-0 sm:max-w-[16rem]">
@@ -2512,7 +2542,11 @@ export default function WeddingCardAiClientPage() {
                         {active ? ' · Đang sửa' : ''}
                       </p>
                     </div>
-                    <div className="flex flex-1 flex-wrap items-center gap-1.5 sm:justify-end">
+                    <div
+                      className="flex flex-1 flex-wrap items-center gap-1.5 sm:justify-end"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
                       <Button asChild variant="outline" size="sm">
                         <Link href={`/tao-thiep-moi-cuoi-ai/khach-moi?cardId=${encodeURIComponent(item.id)}`}>
                           <Users className="mr-1 h-3.5 w-3.5" />
@@ -2544,19 +2578,17 @@ export default function WeddingCardAiClientPage() {
                         </Button>
                       )}
                     </div>
-                    <div className="flex shrink-0 gap-2">
+                    <div
+                      className="flex shrink-0 gap-2"
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
                         disabled={switchingCard}
-                        onClick={() => {
-                          if (active) {
-                            document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                            return
-                          }
-                          void openSavedCard(item.id)
-                        }}
+                        onClick={() => void openSavedCard(item.id)}
                       >
                         <Pencil className="mr-1 h-3.5 w-3.5" />
                         Sửa
@@ -3962,14 +3994,14 @@ export default function WeddingCardAiClientPage() {
           setOccasionPickerOpen(open)
         }}
       >
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
+        <DialogContent className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] translate-y-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <DialogHeader className="shrink-0 space-y-1.5 px-6 pb-3 pr-12 pt-6">
             <DialogTitle>Thiệp này dùng cho dịp nào?</DialogTitle>
             <DialogDescription>
               Chọn một dịp rồi tạo. Tạo xong là có link công khai ngay. Form mở ra đúng tên và địa điểm của dịp đó.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-1">
             {INVITATION_OCCASION_GROUPS.map((group) => (
               <div key={group.id} className="space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{group.title}</p>
@@ -3997,7 +4029,7 @@ export default function WeddingCardAiClientPage() {
               </div>
             ))}
           </div>
-          <div className="flex justify-end gap-2">
+          <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-6 py-4">
             <Button type="button" variant="outline" disabled={switchingCard} onClick={() => setOccasionPickerOpen(false)}>
               Hủy
             </Button>

@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import {
   albumPhotoFrameStyle,
@@ -22,7 +22,7 @@ type Props = {
   crops?: WeddingAlbumPhotoCrop[]
 }
 
-export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvitation, crops }: Props) {
+export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvitation, onOpenGallery, crops }: Props) {
   const locale = readWebLocaleFromDocumentCookie()
   const tr = (vi: string, en: string, zh: string, ja: string, ko: string) => {
     if (locale === 'en') return en
@@ -361,33 +361,66 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
   const goPrev = () => onIndexChange((index - 1 + urls.length) % urls.length)
   const goNext = () => onIndexChange((index + 1) % urls.length)
   const url = urls[index]
+  const closeLabel = tr('Đóng và quay lại thiệp', 'Close and return to invitation', '关闭返回请柬', '閉じて招待状へ', '닫고 청첩장으로')
 
-  return (
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCloseToInvitation()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCloseToInvitation])
+
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[80] flex flex-col bg-black"
+      className="fixed inset-0 z-[220] flex flex-col bg-black"
       role="dialog"
       aria-modal="true"
       aria-label={tr('Xem ảnh album', 'Album photo viewer', '相册大图', 'アルバム写真', '앨범 사진')}
+      onClick={onCloseToInvitation}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-end px-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
-        <Button
+      <div
+        className="flex shrink-0 items-center gap-2 px-3 pb-2 pt-[calc(0.65rem+env(safe-area-inset-top))]"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button
           type="button"
-          variant="ghost"
-          size="icon"
-          className="pointer-events-auto h-10 w-10 rounded-full text-white hover:bg-white/15 hover:text-white"
+          className="inline-flex h-11 shrink-0 items-center gap-1 rounded-full bg-white px-3.5 text-sm font-semibold text-neutral-950 shadow-sm"
           onClick={onCloseToInvitation}
-          aria-label={tr('Đóng và quay lại thiệp', 'Close and return to invitation', '关闭返回请柬', '閉じて招待状へ', '닫고 청첩장으로')}
         >
-          <X className="h-6 w-6" />
-        </Button>
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
+          {tr('Về thiệp', 'Invitation', '返回请柬', '招待状へ', '청첩장')}
+        </button>
+        <p className="min-w-0 flex-1 text-center text-sm tabular-nums text-white/80">
+          {index + 1} / {urls.length}
+        </p>
+        {urls.length > 1 ? (
+          <button
+            type="button"
+            className="inline-flex h-11 shrink-0 items-center rounded-full bg-white/15 px-3.5 text-sm font-medium text-white"
+            onClick={onOpenGallery}
+          >
+            {tr('Tất cả', 'All', '全部', '一覧', '전체')}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-white"
+          onClick={onCloseToInvitation}
+          aria-label={closeLabel}
+        >
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-[calc(2.75rem+env(safe-area-inset-top))] sm:px-6">
+      <div className="flex min-h-0 flex-1 items-center justify-center px-2 sm:px-6">
         <div className="flex w-full max-w-[min(100%,42rem)] items-center justify-center gap-1 sm:max-w-3xl sm:gap-2">
           {showNav ? (
             <button
               type="button"
-              className="flex h-10 w-8 shrink-0 items-center justify-center text-white/75 transition-colors hover:text-white sm:h-12 sm:w-10"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
@@ -398,13 +431,14 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
               <ChevronLeft className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={1.75} />
             </button>
           ) : (
-            <span className="w-8 shrink-0 sm:w-10" aria-hidden />
+            <span className="w-12 shrink-0" aria-hidden />
           )}
 
           <div
             ref={containerRef}
             className="relative min-h-0 min-w-0 flex-1 touch-none overflow-hidden rounded-2xl bg-black sm:rounded-3xl"
             style={{ touchAction: 'none' }}
+            onClick={(event) => event.stopPropagation()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
@@ -437,7 +471,7 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
           {showNav ? (
             <button
               type="button"
-              className="flex h-10 w-8 shrink-0 items-center justify-center text-white/75 transition-colors hover:text-white sm:h-12 sm:w-10"
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={(e) => {
                 e.stopPropagation()
@@ -448,15 +482,21 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
               <ChevronRight className="h-7 w-7 sm:h-8 sm:w-8" strokeWidth={1.75} />
             </button>
           ) : (
-            <span className="w-8 shrink-0 sm:w-10" aria-hidden />
+            <span className="w-12 shrink-0" aria-hidden />
           )}
         </div>
+      </div>
 
-        {urls.length > 1 && userScale <= 1.05 ? (
-          <div className="mt-4 w-full max-w-[min(100%,42rem)] sm:max-w-3xl">
-            <div className="overflow-x-auto px-1 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <div className="mx-auto flex w-max max-w-full gap-2">
-                {urls.map((thumbUrl, i) => {
+      {urls.length > 1 ? (
+        <div
+          className="shrink-0 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div
+            className="flex gap-2 overflow-x-auto py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            style={{ justifyContent: 'safe center', touchAction: 'pan-x' }}
+          >
+              {urls.map((thumbUrl, i) => {
                 const active = i === index
                 const frame = resolveAlbumPhotoFrame(crops, i)
                 const base = defaultAlbumPhotoFrame()
@@ -470,10 +510,8 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
                     type="button"
                     onClick={() => onIndexChange(i)}
                     className={[
-                      'relative shrink-0 overflow-hidden rounded-xl transition-all',
-                      active
-                        ? 'ring-2 ring-rose-500 ring-offset-2 ring-offset-black'
-                        : 'opacity-70 hover:opacity-100',
+                      'relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-neutral-900 sm:h-[4.5rem] sm:w-[4.5rem]',
+                      active ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100',
                     ].join(' ')}
                     aria-label={tr(
                       `Xem ảnh ${i + 1}`,
@@ -488,21 +526,17 @@ export function WeddingAlbumLightbox({ urls, index, onIndexChange, onCloseToInvi
                     <img
                       src={thumbUrl}
                       alt=""
-                      className="block h-16 w-16 object-cover sm:h-[4.5rem] sm:w-[4.5rem]"
+                      className="pointer-events-none absolute inset-0 h-full w-full object-cover"
                       draggable={false}
-                      style={shaped ? albumPhotoFrameStyle(frame) : undefined}
+                      style={shaped ? albumPhotoFrameStyle(frame) : { objectPosition: '50% 0%' }}
                     />
                   </button>
                 )
               })}
-              </div>
-            </div>
-            <p className="mt-2 text-center text-xs text-white/55">
-              {index + 1} / {urls.length}
-            </p>
           </div>
-        ) : null}
-      </div>
-    </div>
+        </div>
+      ) : null}
+    </div>,
+    document.body,
   )
 }

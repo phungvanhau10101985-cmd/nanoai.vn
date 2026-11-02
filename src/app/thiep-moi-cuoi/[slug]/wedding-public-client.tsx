@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { CalendarDays, Loader2, MapPin, Music, Send, Sparkles, Bell, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -801,6 +802,19 @@ export default function WeddingPublicClient({
   const [contentVisible, setContentVisible] = useState(captureStill || (layoutPreview && !coverPreview))
   const [albumOpen, setAlbumOpen] = useState(false)
   const [activeAlbumIndex, setActiveAlbumIndex] = useState<number | null>(null)
+  useEffect(() => {
+    if (!albumOpen || activeAlbumIndex !== null) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setAlbumOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [activeAlbumIndex, albumOpen])
   const [sharePageUrl, setSharePageUrl] = useState('')
   const weddingMusicAudioRef = useRef<WeddingInvitationAudioHandle>(null)
   const reportMusicPlaying = useCallback((playing: boolean) => {
@@ -2861,27 +2875,35 @@ export default function WeddingPublicClient({
             <WeddingMusicFabVisual playing={musicFabPlaying} className={musicFabPlaying || theme.darkPaper ? undefined : 'text-rose-600'} />
           </button>
         )}
-        {albumOpen && activeAlbumIndex === null && (
-          <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/80 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-4 sm:py-6">
-            <div className="mx-auto max-w-5xl">
-              <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow sm:mb-4">
-                <p className="min-w-0 truncate font-semibold">{tx.albumTitle}</p>
-                <Button variant="outline" size="sm" onClick={() => setAlbumOpen(false)}>
-                  {tx.closeGallery}
-                </Button>
-              </div>
-              <WeddingAlbumGalleryGrid
-                urls={albumPhotoUrls}
-                alt={tx.albumAlt}
-                crops={sectionConfig.albumPhotoCrops}
-                onSelect={(index) => {
-                  setAlbumOpen(false)
-                  setActiveAlbumIndex(index)
-                }}
-              />
-            </div>
-          </div>
-        )}
+        {albumOpen && activeAlbumIndex === null && typeof document !== 'undefined'
+          ? createPortal(
+              <div className="fixed inset-0 z-[220] overflow-y-auto bg-black/85 px-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-4 sm:py-6">
+                <div className="mx-auto max-w-5xl">
+                  <div className="mb-3 flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow sm:mb-4 sm:p-3">
+                    <button
+                      type="button"
+                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-neutral-950 px-4 text-sm font-semibold text-white"
+                      onClick={() => setAlbumOpen(false)}
+                    >
+                      <X className="h-4 w-4" />
+                      {tx.closeGallery}
+                    </button>
+                    <p className="min-w-0 flex-1 truncate text-right font-semibold">{tx.albumTitle}</p>
+                  </div>
+                  <WeddingAlbumGalleryGrid
+                    urls={albumPhotoUrls}
+                    alt={tx.albumAlt}
+                    crops={sectionConfig.albumPhotoCrops}
+                    onSelect={(index) => {
+                      setAlbumOpen(false)
+                      setActiveAlbumIndex(index)
+                    }}
+                  />
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
         {activeAlbumIndex !== null && (
           <WeddingAlbumLightbox
             urls={albumPhotoUrls}

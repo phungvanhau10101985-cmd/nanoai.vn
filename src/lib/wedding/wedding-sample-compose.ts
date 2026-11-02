@@ -1,4 +1,4 @@
-import { invitationComposeBrief } from '@/lib/wedding/invitation-compose'
+import { invitationComposeBrief, invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import { invitationEditorCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
@@ -41,33 +41,50 @@ export function appendWeddingComposeSuggestion(notes: string, line: string): str
   return trimmed ? `${trimmed}\n${line}` : line
 }
 
-/** Tên đủ để khỏi hỏi lại. Thiệp cưới cần cả hai. Thiệp khác cần tên chính. */
+/** Tên đủ để khỏi hỏi lại. Cưới, hỏi, kỷ niệm cần hai tên. Loại một người chỉ cần tên chính. */
 export function weddingCoupleNamesReady(
   source: { groomName?: string | null; brideName?: string | null },
-  wedding: boolean,
+  occasionKey: unknown,
 ): boolean {
-  const groom = (source.groomName ?? '').trim()
-  const bride = (source.brideName ?? '').trim()
-  return wedding ? Boolean(groom && bride) : Boolean(groom)
+  return invitationComposeNamesReady({
+    occasionKey,
+    primaryName: source.groomName,
+    secondaryName: source.brideName,
+  })
 }
 
 export type WeddingSampleNameReuse = { ask: true } | { ask: false; donorId: string | null }
 
 /**
- * Modal tên chỉ khi chưa có thiệp nào mang tên cô dâu / chú rể.
- * Thiệp đang mở đã có tên thì giữ thiệp đó. Thiệp khác đã có tên thì bê sang mẫu mới.
+ * Modal tên chỉ khi thiệp đang mở và các thiệp đã lưu chưa đủ tên của đúng loại.
+ * Đủ tên thì giữ thiệp đó. Thiệp khác đã đủ tên thì bê sang mẫu mới.
  */
 export function resolveWeddingSampleNameReuse(input: {
   current: { id?: string; groomName?: string | null; brideName?: string | null }
   saved: Array<{ id?: string; groomName?: string | null; brideName?: string | null }>
-  wedding: boolean
+  occasionKey: unknown
 }): WeddingSampleNameReuse {
-  if (weddingCoupleNamesReady(input.current, input.wedding)) return { ask: false, donorId: null }
+  if (weddingCoupleNamesReady(input.current, input.occasionKey)) return { ask: false, donorId: null }
   const donor = input.saved.find(
-    (row) => Boolean(row.id) && row.id !== input.current.id && weddingCoupleNamesReady(row, input.wedding),
+    (row) => Boolean(row.id) && row.id !== input.current.id && weddingCoupleNamesReady(row, input.occasionKey),
   )
   if (donor?.id) return { ask: false, donorId: donor.id }
   return { ask: true }
+}
+
+/** Thiệp mới chỉ dùng ngày khách vừa gõ. Không lấy ngày hay địa chỉ của thiệp đang mở. */
+export function newCardComposeSources(input: {
+  creating: boolean
+  composeDate: string
+  openDate?: string | null
+  openAddresses?: string[]
+}): { weddingDate: string; addresses: string[] } {
+  const typed = input.composeDate.trim()
+  if (input.creating) return { weddingDate: typed, addresses: [] }
+  return {
+    weddingDate: typed || String(input.openDate ?? '').trim(),
+    addresses: input.openAddresses ?? [],
+  }
 }
 
 const WEDDING_SAMPLE_TEXT_FACTS = [
@@ -200,6 +217,36 @@ export function applyComposeCopyToCard<
     thankYouText: copy.thankYouText,
     dressCode: card.dressCode.trim() ? card.dressCode : sampleDressCode?.trim() || card.dressCode,
   }
+}
+
+/**
+ * Gắn lời AI vào đúng thiệp vừa insert.
+ * Ref trình soạn vẫn là thiệp đang mở cho đến lần render sau — không lấy thiệp đó làm gốc.
+ */
+export function weddingCardAfterCreate<
+  T extends {
+    groomName: string
+    brideName: string
+    coupleIntro: string
+    loveQuote: string
+    storyText: string
+    thankYouText: string
+    dressCode: string
+    weddingDate: string | null
+    occasionKey?: string
+  },
+>(
+  created: T,
+  copy?: WeddingSampleComposeFields | null,
+  dateIso?: string | null,
+  occasionKey?: unknown,
+): T {
+  const base = {
+    ...created,
+    weddingDate: dateIso || created.weddingDate,
+    ...(occasionKey != null ? { occasionKey: normalizeInvitationOccasion(occasionKey) } : {}),
+  }
+  return copy ? applyComposeCopyToCard(base, copy) : base
 }
 
 function clipField(value: unknown, max: number): string {
