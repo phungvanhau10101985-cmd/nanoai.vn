@@ -242,7 +242,6 @@ import {
   stripBrandLogoFromPackagingFaceVisualPrompt,
   stripPackagingFaceTechnicalMeasurementsFromVisualPrompt,
 } from '@/lib/packaging/face-print-prompt'
-import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import { formatMmSize } from '@/lib/packaging/face-crop-size'
 import {
   applyStudioSessionLabels,
@@ -1989,9 +1988,7 @@ async function generateAsset(
       ? [getBodyStripSizeMm(box).widthMm, getBodyStripSizeMm(box).heightMm]
       : getFaceDimensionsMm(faceKey!, box)
     printSizeMm = { widthMm: faceWidth, heightMm: faceHeight }
-    aspectRatio =
-      (faceKey ? workSession.packaging?.faceAspectRatios?.[faceKey] : undefined) ??
-      getFaceGeminiAspectRatio(faceWidth, faceHeight)
+    aspectRatio = getFaceGeminiAspectRatio(faceWidth, faceHeight)
     fullPrompt += `\n\n${buildPackagingFacePromptBlock({
       faceKey,
       faceSlot,
@@ -6193,13 +6190,7 @@ export async function handleHubStudio(input: HubStudioHandlerInput): Promise<Hub
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadWrongStep }
     }
     const file = files[0]!
-    const faceSize = isBagKitPreset(session.presetId)
-      ? resolveBagFacePrintSizeMm(session, stepKey!)
-      : getPackagingFaceSizeForStep(session.packaging?.dimensionsMm, stepKey!)
-    const uploadBuffer = faceSize
-      ? await normalizePanelArtworkToPrintSize(file.buffer, faceSize.widthMm, faceSize.heightMm)
-      : file.buffer
-    const urls = await uploadStudioImages(input.userId, [{ buffer: uploadBuffer, mimeType: file.mimeType }])
+    const urls = await uploadStudioImages(input.userId, [{ buffer: file.buffer, mimeType: file.mimeType }])
     const url = urls[0]
     if (!url) {
       return { ok: false, reply: '', session, threadId: input.threadId, chargedChat: 0, error: t.studioFaceUploadNeedFile }

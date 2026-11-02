@@ -100,10 +100,13 @@ export function imageChargeFromForm(
   }
 }
 
-const GPT_PORTRAIT = new Set(['2:3', '3:4', '4:5', '9:16'])
+const GPT_PORTRAIT = new Set(['2:3', '3:4', '4:5', '9:16', '9:21'])
 const GPT_LANDSCAPE = new Set(['3:2', '4:3', '5:4', '16:9', '21:9'])
 
-/** Size GPT Image 2. Không dùng 2K/4K của Gemini. */
+/**
+ * Size GPT Image 2 thực sự trả về: 1024×1024, 1024×1536 (2:3), 1536×1024 (3:2).
+ * Không gửi size tùy mm — API sẽ làm tròn và ảnh bị kéo.
+ */
 export function gptImageSizeForAspect(aspectRatio?: string | null, hasInputImage = false): string {
   const aspect = String(aspectRatio || '').trim()
   if (!aspect) return hasInputImage ? 'auto' : '1024x1024'

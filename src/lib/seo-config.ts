@@ -77,7 +77,7 @@ export const SEO_PAGES: Record<string, PageSEOConfig> = {
   },
   '/admin/credit-deposit-stats': {
     title: 'Thống kê nạp credit',
-    description: 'Lịch sử và tổng hợp giao dịch nạp credit.',
+    description: 'Mã đơn nạp chờ xác nhận và thống kê theo ngày, tháng, năm.',
     path: '/admin/credit-deposit-stats',
     noIndex: true,
   },

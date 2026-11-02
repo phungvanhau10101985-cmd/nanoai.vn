@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  captionShouldSkipProductVision,
   classifyAfterSalesImage,
   inboundCustomerContextForAfterSales,
 } from './partner-ai-after-sales-image'
@@ -41,6 +42,24 @@ test('customer inbound fit-issue still classifies size-exchange photo', () => {
     }),
     'fit_issue_product_photo'
   )
+})
+
+test('dimension question without a size-exchange ask stays product consult', () => {
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: 'Cao và rộng và dài nhiều shop',
+      ocrText: '',
+      conversationContext: '',
+    }),
+    'product_consult'
+  )
+})
+
+test('policy and form captions skip product vision search', () => {
+  assert.equal(captionShouldSkipProductVision('không thêm được số điện thoại'), true)
+  assert.equal(captionShouldSkipProductVision('khi nào nhận hàng'), true)
+  assert.equal(captionShouldSkipProductVision('Mình quan tâm mẫu này'), false)
+  assert.equal(captionShouldSkipProductVision(''), false)
 })
 
 test('order-status caption without OCR is not vision product consult', () => {

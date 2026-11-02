@@ -2644,6 +2644,7 @@ export type Dictionary = {
     consultLinkShopPreparingHint: string
     /** Shop AI — tin cố định + carousel mẫu khác (vector kho). VI dùng anh/chị khi chưa có giới tính; có giới tính → `enforceConfiguredGenderAddressing`. */
     similarAlternativesTemplateMessage: string
+    similarConstraintMissMessage: string
     productSearchTemplateMessage: string
     photoAngleDetailTemplateMessage: string
     /** Ngành CNTT — một tính năng. `{name}` = tên trong kho. */
@@ -6140,9 +6141,9 @@ export const VI_DICTIONARY: Dictionary = {
       'Độ trễ ngẫu nhiên (ms) trước khi gửi tin điều phối tự động không đi qua model LLM (ví dụ gợi ý đặt mua, hướng dẫn mua trong chat). Tin DeepSeek không dùng bước này sau khi model đã trả kết quả. Đặt cả hai 0 để tắt.',
     productConsultationContextLabel: 'Ngữ cảnh & hướng dẫn AI của shop',
     productConsultationContextHint:
-      'AI luôn đọc ô này + Cài đặt thanh toán (có cọc hay không, %). Ghi thời gian giao sau khi shop gửi, đổi trả, giọng điệu, cách chốt. Không bịa % cọc của shop khác.',
+      'Cách cọc (có cọc hay không, %) AI chỉ đọc ô này, không lấy từ Cài đặt thanh toán. Ghi thời gian giao sau khi shop gửi, đổi trả, giọng điệu, cách chốt. Không bịa % cọc của shop khác.',
     productConsultationContextPlaceholder:
-      'Ví dụ: giọng lịch sự, xưng em — anh/chị. Hàng thường giao 7–12 ngày sau khi shop gửi. Đổi size 1 lần nếu không vừa số đo. Shop không cọc thì ghi rõ; nếu có cọc thì khớp Cài đặt thanh toán. Hàng sale không đổi trả…',
+      'Ví dụ: giọng lịch sự, xưng em — anh/chị. Hàng thường giao 7–12 ngày sau khi shop gửi. Đổi size 1 lần nếu không vừa số đo. Shop không cọc thì ghi rõ; nếu có cọc thì ghi đúng % và điều kiện trong ô này. Hàng sale không đổi trả…',
     afterSalesReturnAddressLabel: 'Địa chỉ nhận hàng hoàn / đổi size / trả hàng',
     afterSalesReturnAddressHint:
       'Địa chỉ shop nhận khi khách gửi hàng hoàn, đổi size hoặc trả hàng. AI sẽ gửi địa chỉ này trong chat hậu mãi. Để trống thì AI vẫn hướng dẫn quy trình, không tự bịa địa chỉ.',
@@ -7181,6 +7182,7 @@ export const VI_DICTIONARY: Dictionary = {
     consultLinkShopPreparingHint: 'Cửa hàng đang gửi thông tin sản phẩm…',
     similarAlternativesTemplateMessage:
       'Bên em có thêm một số mẫu khác bên dưới, anh/chị tham khảo ạ.',
+    similarConstraintMissMessage: 'Em chưa thấy mẫu khóa số trong các mẫu đang có.',
     productSearchTemplateMessage:
       'Dạ, em gửi anh/chị các mẫu phù hợp bên dưới ạ. Anh/chị xem thẻ, nếu ưng mẫu nào có thể bấm Mua ngay để lên đơn trong chat hoặc bấm Tư vấn để hỏi thêm nhé.',
     photoAngleDetailTemplateMessage:

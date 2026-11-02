@@ -33,8 +33,23 @@ function drawParallelogramImage(
   const deltaY1 = p1.y - p0.y
   const deltaX2 = p3.x - p0.x
   const deltaY2 = p3.y - p0.y
+  const faceW = Math.hypot(deltaX1, deltaY1) || 1
+  const faceH = Math.hypot(deltaX2, deltaY2) || 1
+  const imageAspect = w / h
+  const faceAspect = faceW / faceH
+  const widthFraction = imageAspect > faceAspect ? 1 : imageAspect / faceAspect
+  const heightFraction = imageAspect > faceAspect ? faceAspect / imageAspect : 1
+  const offsetU = (1 - widthFraction) / 2
+  const offsetV = (1 - heightFraction) / 2
   ctx.save()
-  ctx.transform(deltaX1 / w, deltaY1 / w, deltaX2 / h, deltaY2 / h, p0.x, p0.y)
+  ctx.transform(
+    (deltaX1 * widthFraction) / w,
+    (deltaY1 * widthFraction) / w,
+    (deltaX2 * heightFraction) / h,
+    (deltaY2 * heightFraction) / h,
+    p0.x + deltaX1 * offsetU + deltaX2 * offsetV,
+    p0.y + deltaY1 * offsetU + deltaY2 * offsetV
+  )
   ctx.drawImage(img, 0, 0, w, h)
   ctx.restore()
 }

@@ -16,6 +16,7 @@ import {
   inboundTextLooksLikeAfterSalesNotCheckout,
   inboundTextLooksLikeExplicitOrderTrackAsk,
   inboundTextLooksLikeOrderStatusAsk,
+  inboundTextLooksLikeShopPolicyAsk,
 } from '@/lib/messaging/partner-ai-purchase-intent'
 import { extractExplicitSkuCandidates } from '@/lib/messaging/partner-inventory-ai-search'
 import {
@@ -85,6 +86,11 @@ const SIZE_EXCHANGE_RE = new RegExp(
 const FIT_ISSUE_RE =
   /(?:rộng|chật|đổi\s*size|doi\s*size|sai\s*size|không\s*vừa|khong\s*vua|bị\s*rong|quá\s*rong|qua\s*rong|bi\s*chat|qua\s*chat|too\s+(?:big|small|tight|loose))/i
 
+const REAL_FIT_COMPLAINT_RE =
+  /(?:đổi\s*size|doi\s*size|sai\s*size|không\s*vừa|khong\s*vua|quá\s*(?:rộng|rong|chật|chat)|(?:rộng|rong|chật|chat)\s*quá|(?:bị|bi)\s*(?:rộng|rong|chật|chat)|too\s+(?:big|small|tight|loose))/i
+
+const DIMENSION_QUESTION_RE = /(?:kích\s*thước|kich\s*thuoc|cao|rộng|rong|dài|dai|ngang)/i
+
 function norm(s: string): string {
   return String(s ?? '').replace(/\s+/g, ' ').trim()
 }
@@ -101,6 +107,18 @@ export function captionLooksLikeSkuProductConsult(caption: string): boolean {
   if (!c) return false
   if (!SKU_CONSULT_CAPTION_RE.test(c)) return false
   return /["“”'][A-Za-z0-9][A-Za-z0-9._-]{1,24}["“”']|\b[A-Z]{1,3}\d{3,}\b/.test(c)
+}
+
+/** Caption hỏi chính sách hoặc lỗi form: không đem ảnh đi tìm mẫu trong kho. */
+export function captionShouldSkipProductVision(caption: string): boolean {
+  const text = norm(caption)
+  if (!text) return false
+  if (captionLooksLikeSkuProductConsult(text)) return false
+  if (ORDER_PRODUCT_CONSULT_CAPTION_RE.test(text)) return false
+  if (inboundTextLooksLikeShopPolicyAsk(text)) return true
+  return /(?:không|khong)\s*(?:thêm|them)|(?:sai|đổi|doi)\s*(?:màu|mau)|số\s*(?:điện\s*thoại|đt)|so\s*dien\s*thoai|(?:địa|dia)\s*chỉ|lỗi\s*(?:đặt|dat)|loi\s*(?:dat|đặt)/i.test(
+    text
+  )
 }
 
 const ORDER_PRODUCT_CONSULT_CAPTION_RE = new RegExp(
@@ -346,6 +364,10 @@ export function classifyAfterSalesImage(input: {
     if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
     if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
     return 'shipping_status_notice'
+  }
+
+  if (DIMENSION_QUESTION_RE.test(customerSide) && !REAL_FIT_COMPLAINT_RE.test(customerSide)) {
+    return 'product_consult'
   }
 
   if (FIT_ISSUE_RE.test(customerSide) && !looksLikeShippingStatusNotice(ocr) && !looksLikeDepositNotice(ocr)) {

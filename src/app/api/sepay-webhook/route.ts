@@ -3,13 +3,13 @@ import { createHash } from 'node:crypto'
 import { deliverUserNotificationPg } from '@/lib/notifications/deliver-user-notification-pg'
 import { authorizePartnerSePayWebhook, verifySePayWebhookAuth } from '@/lib/sepay-webhook-auth'
 import { CREDIT_UNIT_PRICE_VND } from '@/lib/credit-unit-price'
-import { addCreditsToUser } from '@/lib/db/credits-balance'
+import { sepayIpnDisposition } from '@/lib/sepay-ipn'
 import { isPgConfigured } from '@/lib/db/pool'
 import {
   getSepayWebhookHmacSecretFromPg,
+  sepayCompletePendingCreditPayment,
   sepayFindPaymentByTransactionId,
   sepayFindPendingPaymentMatch,
-  sepayMarkPaymentCompleted,
 } from '@/lib/db/payments-repo'
 import {
   completeByokPlanPayment,
@@ -151,13 +151,28 @@ export async function POST(request: NextRequest) {
       request.headers.get('signature') ||
       toStringValue(body.signature)
 
+    const transferType = toStringValue(body.transferType || body.transfer_type)
     const status = toStringValue(body.status || body.transaction_status)?.toLowerCase()
-    if (status && status !== 'success' && status !== 'completed') {
-      console.log(`Transaction status is not success: ${status}`)
+    const disposition = sepayIpnDisposition({ status, transferType })
+    if (disposition === 'ignore') {
+      console.log('SePay IPN ignored', { status, transferType })
       return NextResponse.json({
-        success: false,
-        message: `Transaction status is ${status}, not processing`
+        success: true,
+        message:
+          transferType?.toLowerCase() === 'out'
+            ? 'Outgoing transfer ignored'
+            : `Transaction status is ${status}, not processing`,
       })
+    }
+    if (disposition === 'retry') {
+      console.log(`Transaction status is not success: ${status}`)
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Transaction status is ${status}, not processing`,
+        },
+        { status: 503 }
+      )
     }
 
     const amountIn = toNumberValue(
@@ -362,8 +377,11 @@ export async function POST(request: NextRequest) {
           claimToken: webhookClaim.claimToken,
           error: 'Order not found for partner webhook.',
         })
-        return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
-      }
+        if (!pending) {
+          return NextResponse.json({ error: 'Order not found for partner webhook.' }, { status: 404 })
+        }
+        console.log('SePay shop webhook has no order; crediting platform top-up', normalizedContent)
+      } else {
       const partnerRows = await fetchMessagingPartnersByIdsFromPg([partnerId])
       const shopBrand = (partnerRows?.[0]?.display_name ?? '').trim() || 'Shop'
       const expectedAccount = String(order.expected_account_number ?? '').replace(/[^\d]/g, '')
@@ -545,6 +563,7 @@ export async function POST(request: NextRequest) {
           stockReady,
         },
       })
+      }
       } catch (error) {
         await failPartnerPaymentWebhookEventFromPg({
           eventId: webhookClaim.eventId,
@@ -562,25 +581,32 @@ export async function POST(request: NextRequest) {
     const paymentId = pending.id
     const userId = pending.user_id
     const creditsToAdd = Math.floor(amountIn / CREDIT_UNIT_PRICE_VND)
-    const added = await addCreditsToUser(userId, creditsToAdd)
-    if (!added.ok) {
-      console.error('Error adding credits:', added.error)
-      return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 })
+    if (!Number.isFinite(creditsToAdd) || creditsToAdd <= 0) {
+      console.error('SePay amount does not convert to credits', { amountIn, paymentId })
+      return NextResponse.json({ error: 'Invalid credit amount' }, { status: 400 })
     }
-    const newBalance = added.newBalance
-
-    const upd = await sepayMarkPaymentCompleted({
+    const settled = await sepayCompletePendingCreditPayment({
       paymentId,
+      userId,
+      creditsToAdd,
       transactionId: transactionId || null,
       normalizedContent,
       bankAccount: bankAccount ?? null,
       bankName: bankName ?? null,
       sepayData: body as Record<string, unknown>,
     })
-    if (!upd.ok) {
-      console.error('Error updating payment:', upd.error)
-      return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 })
+    if (!settled.ok) {
+      console.error('Error completing credit payment:', settled.error)
+      return NextResponse.json({ error: 'Failed to update credits' }, { status: 500 })
     }
+    if (settled.already) {
+      return NextResponse.json({
+        success: true,
+        message: 'Payment already processed',
+        data: { paymentId },
+      })
+    }
+    const newBalance = settled.newBalance
 
     console.log(`Payment completed: User ${userId} received ${creditsToAdd} credits (${amountIn} VND)`)
 

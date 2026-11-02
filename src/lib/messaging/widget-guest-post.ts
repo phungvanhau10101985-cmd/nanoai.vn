@@ -54,6 +54,7 @@ import {
   detectAfterSalesGuestImage,
   sendAfterSalesGuestImageReply,
   tryResolveOrderProductConsultFromAfterSalesImage,
+  captionShouldSkipProductVision,
   type AfterSalesImageDetection,
 } from '@/lib/messaging/partner-ai-after-sales-image'
 import { isLikelyVideoOrStreamUrl } from '@/lib/messaging/is-likely-video-url'
@@ -516,7 +517,8 @@ async function processGuestImageFollowUp(
       !deferredPaymentVerify &&
       !afterSalesPending &&
       !ctx.isProductCardConsult &&
-      !ctx.trustedEmbedProductAnchor
+      !ctx.trustedEmbedProductAnchor &&
+      !captionShouldSkipProductVision(imageCaption)
     ) {
       const src = ctx.imagePublicUrl || (await partnerOrPlatformPublicUrl(ctx.partnerId, ctx.imagePath))
       const imgRes = await fetch(src)

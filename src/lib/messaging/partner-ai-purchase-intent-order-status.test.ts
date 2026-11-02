@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  customerRequiresCombinationLock,
   inboundTextLooksLikeAfterSalesNotCheckout,
   inboundTextLooksLikeDepositPolicyAsk,
   inboundTextLooksLikeLeadTimePolicyAsk,
@@ -8,6 +9,8 @@ import {
   inboundTextLooksLikePolicyRefundOrCancelAsk,
   inboundTextLooksLikePurchasePickListIntent,
   inboundTextLooksLikeShopPolicyAsk,
+  inventoryTextHasCombinationLock,
+  sanitizePolicyReplyFacts,
 } from './partner-ai-purchase-intent'
 
 test('refund/cancel policy is not order-status lookup', () => {
@@ -57,4 +60,26 @@ test('deposit / lead-time policy is not order-status lookup', () => {
   assert.equal(inboundTextLooksLikeLeadTimePolicyAsk('Đơn DH356 khi nào nhận được ạ'), false)
   assert.equal(inboundTextLooksLikeOrderStatusAsk('Đơn DH356 khi nào nhận được ạ'), true)
   assert.equal(inboundTextLooksLikeDepositPolicyAsk('em đã cọc rồi shop xác nhận giúp'), false)
+})
+
+test('a phone left while buying is not an order lookup', () => {
+  assert.equal(inboundTextLooksLikeOrderStatusAsk('SĐT 0912345678'), false)
+  assert.equal(inboundTextLooksLikeOrderStatusAsk('Kiểm tra đơn sdt 0912345678'), true)
+})
+
+test('policy replies drop order codes the customer did not give', () => {
+  const invented = sanitizePolicyReplyFacts(
+    'Đơn DH317 đã chốt size M và hết size L. Em ghi nhận đổi size.',
+    'muốn đổi size L'
+  )
+  assert.doesNotMatch(invented, /DH317/)
+  assert.doesNotMatch(invented, /ghi nhận đổi size/)
+  const real = sanitizePolicyReplyFacts('Đơn DH1320 đang giao.', 'mã đơn DH1320')
+  assert.match(real, /DH1320/)
+})
+
+test('combination-lock request is a required attribute', () => {
+  assert.equal(customerRequiresCombinationLock('có mẫu khóa số không'), true)
+  assert.equal(inventoryTextHasCombinationLock('Túi da bò'), false)
+  assert.equal(inventoryTextHasCombinationLock('Túi khóa số da bò'), true)
 })

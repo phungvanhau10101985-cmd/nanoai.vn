@@ -1601,9 +1601,9 @@ const EN_DICTIONARY: Dictionary = {
       'Random delay (ms) before sending automated messages that do not use the LLM (e.g. purchase list, buy-in-chat guidance). DeepSeek replies do not use this after the model returns. Set both to 0 to disable.',
     productConsultationContextLabel: 'Shop AI context & instructions',
     productConsultationContextHint:
-      'The AI always reads this plus Payment settings (deposit on/off and %). Enter lead time after the shop ships, returns, tone, and how to close. Do not invent another shop’s deposit %.',
+      'Deposit rules (on/off and %) come only from this box, not from Payment settings. Enter lead time after the shop ships, returns, tone, and how to close. Do not invent another shop’s deposit %.',
     productConsultationContextPlaceholder:
-      'e.g. polite, concise tone. Typical delivery 7–12 days after the shop ships. One size exchange if the fit is wrong. If this shop does not take deposits, say so; if it does, match Payment settings. Sale items are final…',
+      'e.g. polite, concise tone. Typical delivery 7–12 days after the shop ships. One size exchange if the fit is wrong. If this shop does not take deposits, say so; if it does, write the % and conditions here. Sale items are final…',
     afterSalesReturnAddressLabel: 'Return / size-exchange address',
     afterSalesReturnAddressHint:
       'Shop address for returns, size exchanges, and send-backs. The AI includes this in after-sales chat. If empty, the AI still explains the process and does not invent an address.',
@@ -2637,6 +2637,7 @@ const EN_DICTIONARY: Dictionary = {
     shopTypingHint: '{shop} is preparing more information to send…',
     consultLinkShopPreparingHint: 'The shop is sending product details…',
     similarAlternativesTemplateMessage: 'Here are a few more styles for you below.',
+    similarConstraintMissMessage: 'I do not see a combination-lock style among the styles we have.',
     productSearchTemplateMessage:
       'Here are the matching products below. You can tap Buy now on any card to place an order in chat, or tap Consult to ask more.',
     photoAngleDetailTemplateMessage:
@@ -6077,9 +6078,9 @@ const ZH_DICTIONARY: Dictionary = {
       '不经大模型而自动发送的消息（如下单提示、聊天内购买引导）在发送前于该范围随机延迟（0–30000）。DeepSeek 正文不重复此步骤。两项均 0 则关闭。',
     productConsultationContextLabel: '店铺 AI 上下文与指引',
     productConsultationContextHint:
-      'AI 始终读取本栏以及支付设置（是否定金及比例）。请填写发货后时效、退换、语气、促单方式。不要编造其他店铺的定金比例。',
+      '定金规则（是否收取及比例）只读本栏，不读支付设置。请填写发货后时效、退换、语气、促单方式。不要编造其他店铺的定金比例。',
     productConsultationContextPlaceholder:
-      '例如：语气礼貌简短。店铺发出后通常 7–12 天送达。尺码不符可换码一次。本店无定金请写明；有定金则与支付设置一致。特价不退换…',
+      '例如：语气礼貌简短。店铺发出后通常 7–12 天送达。尺码不符可换码一次。本店无定金请写明；有定金则在本栏写明比例和条件。特价不退换…',
     afterSalesReturnAddressLabel: '退换货 / 换码收件地址',
     afterSalesReturnAddressHint:
       '店铺收取退货、换码或寄回商品的地址。AI 会在售后聊天中发送该地址。留空时仍说明流程，不会编造地址。',
@@ -7080,6 +7081,7 @@ const ZH_DICTIONARY: Dictionary = {
     shopTypingHint: '{shop} 正在整理更多信息并发送…',
     consultLinkShopPreparingHint: '店铺正在发送商品信息…',
     similarAlternativesTemplateMessage: '下方还有更多款式供您参考。',
+    similarConstraintMissMessage: '现有款式里还没有看到密码锁款。',
     productSearchTemplateMessage:
       '下面是符合需求的商品。您可以点商品卡片上的“立即购买”在聊天中下单，也可以点“咨询”继续询问。',
     photoAngleDetailTemplateMessage:
@@ -10480,9 +10482,9 @@ const JA_DICTIONARY: Dictionary = {
       'LLM を使わず送る自動メッセージ（購入一覧の案内、チャット内購入手順など）の送信前ランダム遅延（0〜30000）。DeepSeek の本文には適用しません。両方 0 でオフ。',
     productConsultationContextLabel: '店舗 AI の文脈・指示',
     productConsultationContextHint:
-      'AI は本欄と決済設定（手付けの有無・割合）を常に読みます。発送後の日数、返品交換、トーン、クロージングを記入。他店の手付け率をでっち上げない。',
+      '手付け（有無・割合）はこの欄だけを読み、決済設定は使いません。発送後の日数、返品交換、トーン、クロージングを記入。他店の手付け率をでっち上げない。',
     productConsultationContextPlaceholder:
-      '例：丁寧で簡潔。店舗発送後 7〜12 日で届くことが多い。サイズが合わなければ1回交換可。手付けなしなら明記。手付けありなら決済設定と一致。セール品は返品不可…',
+      '例：丁寧で簡潔。店舗発送後 7〜12 日で届くことが多い。サイズが合わなければ1回交換可。手付けなしなら明記。手付けありなら割合と条件をこの欄に書く。セール品は返品不可…',
     afterSalesReturnAddressLabel: '返品・サイズ交換の受取住所',
     afterSalesReturnAddressHint:
       '返品・サイズ交換・返送を受け取る店舗住所です。AI がアフター対応のチャットでこの住所を送ります。空欄の場合は手順のみ案内し、住所は作りません。',
@@ -11504,6 +11506,7 @@ const JA_DICTIONARY: Dictionary = {
     shopTypingHint: '{shop} が続きの情報を作成しています…',
     consultLinkShopPreparingHint: '店舗が商品情報を送信中…',
     similarAlternativesTemplateMessage: '下にほかのデザインをいくつかご用意しました。',
+    similarConstraintMissMessage: '今ある候補にダイヤルロックのものは見当たりません。',
     productSearchTemplateMessage:
       '条件に合う商品を下にお送りします。気に入った商品カードの「今すぐ購入」からチャット内で注文できます。追加で聞きたい場合は「相談」を押してください。',
     photoAngleDetailTemplateMessage:
@@ -14940,9 +14943,9 @@ const KO_DICTIONARY: Dictionary = {
       'LLM 없이 자동 발송되는 메시지(주문 목록 안내·채팅 내 구매 안내 등)만 전송 전 이 범위에서 무작위 지연(0–30000). DeepSeek 본문에는 적용하지 않음. 둘 다 0이면 끔.',
     productConsultationContextLabel: '매장 AI 컨텍스트 및 지침',
     productConsultationContextHint:
-      'AI는 이 칸과 결제 설정(계약금 여부·비율)을 항상 읽습니다. 발송 후 배송 기간, 교환/반품, 말투, 구매 안내를 적으세요. 다른 매장 계약금 %를 지어내지 마세요.',
+      '계약금(여부·비율)은 이 칸만 읽고 결제 설정은 쓰지 않습니다. 발송 후 배송 기간, 교환/반품, 말투, 구매 안내를 적으세요. 다른 매장 계약금 %를 지어내지 마세요.',
     productConsultationContextPlaceholder:
-      '예: 정중하고 간결. 매장 발송 후 보통 7–12일. 사이즈가 안 맞으면 1회 교환. 계약금 없으면 명시. 있으면 결제 설정과 일치. 세일 상품은 교환 불가…',
+      '예: 정중하고 간결. 매장 발송 후 보통 7–12일. 사이즈가 안 맞으면 1회 교환. 계약금 없으면 명시. 있으면 비율과 조건을 이 칸에 적기. 세일 상품은 교환 불가…',
     afterSalesReturnAddressLabel: '반품 / 사이즈 교환 수령 주소',
     afterSalesReturnAddressHint:
       '반품·사이즈 교환·반송 상품을 받는 매장 주소입니다. AI가 애프터 채팅에서 이 주소를 보냅니다. 비워 두면 절차만 안내하고 주소를 지어내지 않습니다.',
@@ -15964,6 +15967,7 @@ const KO_DICTIONARY: Dictionary = {
     shopTypingHint: '{shop}에서 이어서 보낼 정보를 작성 중입니다…',
     consultLinkShopPreparingHint: '매장이 상품 정보를 보내는 중…',
     similarAlternativesTemplateMessage: '아래에 다른 스타일을 더 준비했습니다.',
+    similarConstraintMissMessage: '지금 있는 후보에는 번호 자물쇠 스타일이 없습니다.',
     productSearchTemplateMessage:
       '아래에 조건에 맞는 상품을 보내드렸습니다. 마음에 드는 상품 카드에서 바로구매를 눌러 채팅에서 주문하거나, 상담을 눌러 더 문의하실 수 있어요.',
     photoAngleDetailTemplateMessage:

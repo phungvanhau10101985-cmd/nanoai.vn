@@ -50,7 +50,14 @@ export async function exportBagDielinePdf(input: {
       const fitted = await normalizePanelArtworkToPrintSize(raw, rect.widthMm, rect.heightMm)
       const panelW = Math.max(1, Math.round(rect.widthMm * PX_PER_MM))
       const panelH = Math.max(1, Math.round(rect.heightMm * PX_PER_MM))
-      const panelPng = await sharp(fitted).resize(panelW, panelH, { fit: 'fill' }).png().toBuffer()
+      const panelPng = await sharp(fitted)
+        .resize(panelW, panelH, {
+          fit: 'contain',
+          position: 'centre',
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .png()
+        .toBuffer()
       composites.push({
         input: panelPng,
         left: Math.round(rect.xMm * PX_PER_MM),

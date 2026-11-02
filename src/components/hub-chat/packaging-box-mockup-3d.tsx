@@ -425,7 +425,7 @@ function PackagingBoxMockup3DScene({
                 <img
                   src={url}
                   alt={getBoxFaceSlotLabel(face.slot, locale)}
-                  className="h-full w-full select-none object-cover object-center"
+                  className="h-full w-full select-none object-contain object-center"
                   draggable={false}
                   decoding="async"
                 />

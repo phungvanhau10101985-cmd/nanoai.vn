@@ -45,6 +45,13 @@
   [data-wedding-reading] .wedding-invite-body-join > div {
     background: var(--wedding-reading-plate) !important;
   }
+  /* Vườn hồng trời: lịch và đếm ngược mặc định ô-liu, chìm trên trời xanh. */
+  .wedding-kit-sky .wedding-cal-ink {
+    color: var(--wedding-ink, #1a2836);
+  }
+  .wedding-kit-sky .wedding-cal-ink-soft {
+    color: var(--wedding-muted, #243648);
+  }
   .wedding-song-hy-card,
   [data-wedding-paper='scallop'] [data-wedding-glass] {
     background: #fff6ea !important;

@@ -36,6 +36,8 @@ const CUSTOMER_HEIGHT_CM_RE = /(?:cao|height)?[^0-9]{0,8}(\d{2,3}(?:[.,]\d+)?)\s
 const CUSTOMER_HEIGHT_M_RE = /(\d)\s*m\s*(\d{1,2})\b/iu
 const SIZE_RANGE_RE =
   /^(?:\d{2,3}\s*\/\s*)?([a-z0-9-]{1,12})\s*\(\s*(\d{2,3}(?:[.,]\d+)?)\s*[-–—]\s*(\d{2,3}(?:[.,]\d+)?)\s*(kg|斤|jin|cân\s*tq)?\s*\)$/iu
+const SIZE_RANGE_DASH_RE =
+  /^((?:5xl|4xl|3xl|xxxl|2xl|xxl|xl|xs|s|m|l))\s*-\s*(\d{2,3}(?:[.,]\d+)?)\s*-\s*(\d{2,3}(?:[.,]\d+)?)\s*(kg|斤|jin|cân\s*tq)?$/iu
 const SIZE_TOKEN_RE = /\b(5XL|4XL|3XL|XXXL|2XL|XXL|XL|XS|S|M|L)\b/giu
 const BAG_RE = /(?:^|[^\p{L}\p{N}])(?:túi|tui|ba\s*lô|balo|ví|vi|clutch|vali)(?=$|[^\p{L}\p{N}])/iu
 const APPAREL_RE =
@@ -90,7 +92,8 @@ function inRange(value: number | null, range: RangePair | null): boolean {
 }
 
 function parseRange(raw: string): { size: string; minKg: number; maxKg: number } | null {
-  const match = raw.trim().match(SIZE_RANGE_RE)
+  const text = raw.trim()
+  const match = text.match(SIZE_RANGE_RE) ?? text.match(SIZE_RANGE_DASH_RE)
   if (!match) return null
   let min = numberOf(match[2])
   let max = numberOf(match[3])
@@ -112,9 +115,42 @@ function parseHeightCm(text: string): number | null {
     if (total >= 80 && total <= 230) return total
   }
   const cm = text.match(CUSTOMER_HEIGHT_CM_RE)
-  if (!cm) return null
-  const total = numberOf(cm[1])
-  return total >= 80 && total <= 230 ? total : null
+  if (cm) {
+    const total = numberOf(cm[1])
+    if (total >= 80 && total <= 230) return total
+  }
+  const spoken = text.match(/(?:cao|height)\s*m\s*(\d)(\d{0,2})\b/iu)
+  if (spoken) {
+    const head = Number(spoken[1])
+    const tail = spoken[2] ?? ''
+    const total = 100 + head * 10 + (tail ? Number(tail[0]) : 0)
+    if (total >= 140 && total <= 220) return total
+  }
+  const bare = text.match(/(?:cao|height)\s*(\d{3})\b/iu)
+  if (!bare) return null
+  const bareTotal = Number(bare[1])
+  return bareTotal >= 140 && bareTotal <= 220 ? bareTotal : null
+}
+
+function parseCaoThenWeight(text: string): { heightCm: number; weightKg: number } | null {
+  const paired = text.match(
+    /(?:cao|height)\s*(\d{2,3})(?:\s*cm)?\s*(?:[,/]\s*|\s+)(?:nặng|nang|kg|cân)?\s*(\d{2,3})(?:\s*kg)?/iu
+  )
+  if (!paired) return null
+  const heightCm = numberOf(paired[1])
+  const weightKg = numberOf(paired[2])
+  if (heightCm < 140 || heightCm > 220 || weightKg < 30 || weightKg > 200) return null
+  return { heightCm, weightKg }
+}
+
+function parseCrossMeasure(text: string): { heightCm: number; weightKg: number } | null {
+  const cross = text.match(/(?:^|[^\d])(\d{2,3})\s*[x×]\s*(\d{2,3})(?!\d)/iu)
+  if (!cross) return null
+  const pair = [numberOf(cross[1]), numberOf(cross[2])]
+  const heightCm = pair.find((n) => n >= 140 && n <= 220)
+  const weightKg = pair.find((n) => n >= 35 && n <= 160 && n !== heightCm)
+  if (heightCm == null || weightKg == null) return null
+  return { heightCm, weightKg }
 }
 
 function measureAfter(text: string, label: RegExp): number | null {
@@ -125,14 +161,55 @@ function measureAfter(text: string, label: RegExp): number | null {
 }
 
 function parseBodySignals(text: string): BodySignals {
+  const paired = parseCaoThenWeight(text)
+  const cross = parseCrossMeasure(text)
   const weightMatch = text.match(CUSTOMER_WEIGHT_RE)
+  let weightKg = weightMatch ? numberOf(weightMatch[1]) : null
+  if (weightKg == null) {
+    const heavy = text.match(/(?:nặng|nang)\s*(\d{2,3}(?:[.,]\d+)?)(?!\s*cm)/iu)
+    if (heavy) {
+      const heavyKg = numberOf(heavy[1])
+      if (heavyKg >= 30 && heavyKg <= 200) weightKg = heavyKg
+    }
+  }
+  let heightCm = parseHeightCm(text)
+  if (paired) {
+    heightCm = paired.heightCm
+    weightKg = paired.weightKg
+  } else if (cross) {
+    if (heightCm == null) heightCm = cross.heightCm
+    if (weightKg == null) weightKg = cross.weightKg
+  }
   return {
-    weightKg: weightMatch ? numberOf(weightMatch[1]) : null,
-    heightCm: parseHeightCm(text),
+    weightKg,
+    heightCm,
     chest: measureAfter(text, /vòng\s*ngực|vong\s*nguc|ngực|nguc|chest/iu),
     shoulder: measureAfter(text, /ngang\s*vai|vai|shoulder/iu),
     waist: measureAfter(text, /vòng\s*eo|vòng\s*bụng|bụng|bung|eo|waist/iu),
   }
+}
+
+/** Ghép số đo ở tin trước chỉ khi tin hiện tại đang hỏi size / đã có một phần số đo. */
+export function sizeSignalTextFromRecentInbound(latest: string, inboundNewestLast: string[]): string {
+  const latestTrim = String(latest ?? '').trim()
+  const own = parseBodySignals(latestTrim)
+  if (own.heightCm != null && own.weightKg != null) return latestTrim
+  const looksLikeMeasure =
+    own.heightCm != null ||
+    own.weightKg != null ||
+    /\d{2,3}\s*[x×]\s*\d{2,3}/.test(latestTrim) ||
+    /size|cỡ|cao|nặng|nang/i.test(latestTrim)
+  if (!looksLikeMeasure) return latestTrim
+  const priors = inboundNewestLast
+    .map((line) => String(line ?? '').trim())
+    .filter((line) => line && line !== latestTrim)
+    .slice(-5)
+    .filter((line) => {
+      const signals = parseBodySignals(line)
+      return signals.heightCm != null || signals.weightKg != null || /\d{2,3}\s*[x×]\s*\d{2,3}/.test(line)
+    })
+  if (!priors.length) return latestTrim
+  return `${priors.join('\n')}\n${latestTrim}`
 }
 
 function hasBodySignal(signals: BodySignals): boolean {
@@ -317,6 +394,60 @@ function referencePick(
   return male
 }
 
+function listedUniformNumbers(sizes: string[], digits: 2 | 3, min: number, max: number): number[] | null {
+  if (sizes.length < 2) return null
+  const re = digits === 3 ? /^\d{3}$/ : /^\d{2}$/
+  const nums: number[] = []
+  for (const raw of sizes) {
+    const token = raw.trim()
+    if (!re.test(token)) return null
+    const value = Number(token)
+    if (value < min || value > max) return null
+    nums.push(value)
+  }
+  return nums.sort((a, b) => a - b)
+}
+
+function askedShoeEu(text: string): number | null {
+  const match = text.match(/(?:size|sz|cỡ|co)\s*(3[2-9]|4[0-9]|50)\b/iu)
+  if (!match) return null
+  return Number(match[1])
+}
+
+function extractAskedListedSize(message: string, sizes: string[]): string | null {
+  const listed = listedApparelSizes(sizes)
+  if (!listed.length) return null
+  const sorted = [...listed].sort((a, b) => b.length - a.length)
+  for (const size of sorted) {
+    const escaped = size.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const re =
+      size.length <= 2
+        ? new RegExp(`(?:size|sz|cỡ|co)\\s*${escaped}\\b`, 'iu')
+        : new RegExp(`(?:size|sz|cỡ|co)\\s*${escaped}\\b|\\b${escaped}\\b`, 'iu')
+    if (re.test(message)) return size
+  }
+  return null
+}
+
+function productListResult(
+  signals: BodySignals,
+  ranges: FashionSizeRecommendation['ranges'],
+  patch: Partial<FashionSizeRecommendation>
+): FashionSizeRecommendation {
+  return {
+    status: 'unknown',
+    source: 'product',
+    weightKg: signals.weightKg,
+    heightCm: signals.heightCm,
+    recommendedSize: null,
+    candidateSizes: [],
+    ranges,
+    askUsualSize: false,
+    referenceSize: null,
+    ...patch,
+  }
+}
+
 export function resolveFashionSizeRecommendation(
   customerMessage: string,
   sizes: string[] | null | undefined,
@@ -372,10 +503,51 @@ export function resolveFashionSizeRecommendation(
     }
   }
 
+  const heightSizes = listedUniformNumbers(sizeList, 3, 140, 230)
+  if (heightSizes) {
+    if (signals.heightCm == null) {
+      return productListResult(signals, ranges, { candidateSizes: heightSizes.map(String) })
+    }
+    const chosen = heightSizes.find((n) => n >= signals.heightCm!) ?? heightSizes[heightSizes.length - 1]
+    return productListResult(signals, ranges, {
+      status: 'exact',
+      recommendedSize: String(chosen),
+      candidateSizes: heightSizes.map(String),
+    })
+  }
+
+  const shoeSizes = listedUniformNumbers(sizeList, 2, 32, 50)
+  if (shoeSizes) {
+    const askedShoe = askedShoeEu(text)
+    if (askedShoe != null && shoeSizes.includes(askedShoe)) {
+      return productListResult(signals, ranges, {
+        status: 'exact',
+        recommendedSize: String(askedShoe),
+        candidateSizes: shoeSizes.map(String),
+      })
+    }
+    return productListResult(signals, ranges, { candidateSizes: shoeSizes.map(String) })
+  }
+
+  if (productChart.length === 0 && ranges.length === 0) {
+    const asked = extractAskedListedSize(text, sizeList)
+    if (asked) {
+      return productListResult(signals, ranges, {
+        recommendedSize: asked,
+        candidateSizes: [asked],
+      })
+    }
+  }
+
   const kind = apparelChartKind(context)
   if (kind !== 'skip' && hasBodySignal(signals) && ranges.length === 0) {
-    const picked = referencePick(signals, kind)
     const listed = listedApparelSizes(sizeList)
+    if (sizeList.some((size) => size.trim()) && listed.length === 0) {
+      return productListResult(signals, ranges, {
+        candidateSizes: sizeList.map((size) => size.trim()).filter(Boolean),
+      })
+    }
+    const picked = referencePick(signals, kind)
     const snapped =
       picked.sizes.length > 0 ? [...new Set(picked.sizes.map((size) => nearestListedSize(size, listed)))] : []
     return {
@@ -398,6 +570,50 @@ export function fashionSizeRecommendationPrompt(result: FashionSizeRecommendatio
   const ask = result.askUsualSize
     ? 'Kèm đúng một câu hỏi: khách hay mặc size gì (nếu khách chưa nói).'
     : ''
+  if (result.source === 'product' && result.recommendedSize && /^\d{3}$/.test(result.recommendedSize)) {
+    const listed = result.candidateSizes.join(', ')
+    const min = result.candidateSizes[0]
+    const below = result.heightCm != null && min != null && result.heightCm < Number(min)
+    if (below) {
+      return `\n\n[Kết quả chọn size — số chiều cao trên sản phẩm]\nDanh sách size là số chiều cao (${listed}), không phải S/M/L. Khách cao ${result.heightCm} cm, thấp hơn size nhỏ nhất ${min}. Nói size nhỏ nhất đang có là ${result.recommendedSize}. Không bịa size chữ.`
+    }
+    return `\n\n[Kết quả chọn size — số chiều cao trên sản phẩm]\nDanh sách size là số chiều cao (${listed}), không phải S/M/L. Khách cao ${result.heightCm} cm. Tư vấn đúng size ${result.recommendedSize}. Không đổi sang size chữ.`
+  }
+  if (
+    result.source === 'product' &&
+    result.status === 'unknown' &&
+    result.candidateSizes.length >= 2 &&
+    result.candidateSizes.every((size) => /^\d{3}$/.test(size))
+  ) {
+    return `\n\n[Kết quả chọn size — số chiều cao trên sản phẩm]\nSản phẩm chỉ có size chiều cao ${result.candidateSizes.join(', ')}. Chưa có chiều cao của khách. Hỏi chiều cao. Không bịa S/M/L.`
+  }
+  if (
+    result.source === 'product' &&
+    result.status === 'exact' &&
+    result.recommendedSize &&
+    /^\d{2}$/.test(result.recommendedSize)
+  ) {
+    return `\n\n[Kết quả chọn size — size giày trong danh sách]\nSản phẩm có size ${result.candidateSizes.join(', ')}. Size ${result.recommendedSize} có trong danh sách. Không nói size ngoài danh sách.`
+  }
+  if (
+    result.source === 'product' &&
+    result.status === 'unknown' &&
+    result.candidateSizes.length >= 2 &&
+    result.candidateSizes.every((size) => /^\d{2}$/.test(size) && Number(size) >= 32 && Number(size) <= 50)
+  ) {
+    const min = result.candidateSizes[0]
+    const max = result.candidateSizes[result.candidateSizes.length - 1]
+    return `\n\n[Kết quả chọn size — size giày trong danh sách]\nSản phẩm chỉ có size ${min}–${max}. Không quy đổi số đo cm sang size ngoài danh sách. Không nói size không có.`
+  }
+  if (
+    result.source === 'product' &&
+    result.status === 'unknown' &&
+    result.ranges.length === 0 &&
+    result.candidateSizes.length === 1 &&
+    result.recommendedSize
+  ) {
+    return `\n\n[Kết quả chọn size — size khách hỏi có trong danh sách]\nSize ${result.recommendedSize} có trong thông tin sản phẩm. Không có bảng số đo theo cân hoặc chiều cao nên không kết luận vừa hay không. Không đổi sang size khác.`
+  }
   if (result.status === 'exact' && result.source === 'product' && result.recommendedSize) {
     return `\n\n[Kết quả chọn size — thông tin sản phẩm, ưu tiên tuyệt đối]\nKhách nặng ${result.weightKg} kg. Size ${result.recommendedSize} có trong thông tin sản phẩm và khớp số đo. Bắt buộc tư vấn size ${result.recommendedSize}. Không suy đoán size khác. ${ask}`
   }
@@ -441,6 +657,23 @@ export function enforceFashionSizeRecommendation(
   )
 }
 
+function rewriteUnlistedShoeSize(message: string, result: FashionSizeRecommendation): string {
+  if (result.source !== 'product' || result.status !== 'unknown') return message
+  if (result.candidateSizes.length < 2 || !result.candidateSizes.every((size) => /^\d{2}$/.test(size))) return message
+  const allowed = new Set(result.candidateSizes)
+  const min = result.candidateSizes[0]
+  const max = result.candidateSizes[result.candidateSizes.length - 1]
+  return message
+    .split(/(?<=[.!?\n])\s+/)
+    .map((part) => {
+      if (/không\s*có|khong\s*co|không\s*thấy|khong\s*thay/i.test(part)) return part
+      return part.replace(/\b(?:size|cỡ)\s*(3[2-9]|4[0-9]|50)\b/giu, (full, num: string) =>
+        allowed.has(num) ? full : `size ${min}–${max}`
+      )
+    })
+    .join(' ')
+}
+
 function whoFromMessage(message: string): string {
   const match = message.match(/(?:^|[^\p{L}])(anh|chị)(?=[^\p{L}]|$)/iu)
   const word = match?.[1] ?? 'Mình'
@@ -465,6 +698,7 @@ export function finalizeFashionSizeCustomerMessage(
     }
   }
   raw = enforceFashionSizeRecommendation(raw, result)
+  raw = rewriteUnlistedShoeSize(raw, result)
   if (!result.askUsualSize || USUAL_SIZE_RE.test(raw)) return raw.trim()
   const who = whoFromMessage(raw)
   return `${raw.trim()} ${who} hay mặc size gì để em đối chiếu thêm nhé?`.trim()

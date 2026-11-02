@@ -28,7 +28,11 @@ export function resolveDielineRasterDpi(
   return MIN_DIELINE_RASTER_DPI
 }
 
-/** Resize artwork to exact trim panel size — edges align with dieline fold lines. */
+/**
+ * Đặt ảnh vào khổ in bằng cách phóng đều và chừa viền. Không dùng `fill`:
+ * kéo khác tỷ lệ làm méo chữ. Ảnh model lưu ở bước tạo mặt thì giữ nguyên,
+ * hàm này chỉ phục vụ ghép dieline.
+ */
 export async function fitPanelArtworkToTrim(
   buffer: Buffer,
   widthMm: number,
@@ -39,7 +43,12 @@ export async function fitPanelArtworkToTrim(
   const heightPx = mmToPrintPx(heightMm, dpi)
   const safeBuffer = await ensureImageWithinLimits(buffer)
   return sharp(safeBuffer, { limitInputPixels: false })
-    .resize(widthPx, heightPx, { fit: 'fill', kernel: sharp.kernel.lanczos3 })
+    .resize(widthPx, heightPx, {
+      fit: 'contain',
+      position: 'centre',
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+      kernel: sharp.kernel.lanczos3,
+    })
     .png()
     .toBuffer()
 }

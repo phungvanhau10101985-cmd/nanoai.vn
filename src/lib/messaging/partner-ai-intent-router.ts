@@ -221,11 +221,23 @@ export function resolvePartnerAiFinalRouteDecision(input: {
   orderStatusAsk: boolean
   policyAsk: boolean
   followUpHeuristic: boolean
+  /** Mã mẫu trần hoặc mã kế thừa. Chỉ thay `clarify` / classifier lỗi. Nhánh khác giữ nguyên. */
+  explicitProductSku?: string | null
 }): PartnerAiRouteDecision {
   if (input.orderStatusAsk || input.policyAsk) {
     return createPartnerAiRouteDecision('policy_or_order_support', {
       source: 'hard_rule',
       reason: input.orderStatusAsk ? 'order_status_lookup' : 'shop_policy_ask',
+      confidence: 1,
+    })
+  }
+  const explicitProductSku = input.explicitProductSku?.trim()
+  const classifiedIntent = input.classified?.intent ?? null
+  if (explicitProductSku && (classifiedIntent === null || classifiedIntent === 'clarify')) {
+    return createPartnerAiRouteDecision('explicit_sku_consult', {
+      source: 'hard_rule',
+      reason: 'bare_product_sku',
+      category: explicitProductSku,
       confidence: 1,
     })
   }

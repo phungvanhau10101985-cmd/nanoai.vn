@@ -522,7 +522,7 @@ function PackagingBagMockup3DScene({
               <img
                 src={face.url}
                 alt={face.label}
-                className="h-full w-full select-none object-cover object-center"
+                className="h-full w-full select-none object-contain object-center"
                 draggable={false}
                 decoding="async"
               />

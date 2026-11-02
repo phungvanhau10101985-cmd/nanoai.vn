@@ -5,6 +5,7 @@ import {
   fashionSizeRecommendationPrompt,
   finalizeFashionSizeCustomerMessage,
   resolveFashionSizeRecommendation,
+  sizeSignalTextFromRecentInbound,
 } from './fashion-size-recommendation'
 
 const CF2717_SIZES = [
@@ -93,4 +94,65 @@ test('refusal to guess size is replaced by the reference size and a usual-size q
   assert.match(out, /size XXL/)
   assert.match(out, /hay mặc size gì/)
   assert.doesNotMatch(out, /không dám chốt|kiểm tra lại bảng size/)
+})
+
+test('height-number sizes stay numeric and do not invent S', () => {
+  const sizes = ['170', '175', '180', '185', '190', '195']
+  const result = resolveFashionSizeRecommendation('Cao 155cm nặng 51kg', sizes, { name: 'Áo sơ mi lụa' })
+  assert.equal(result.source, 'product')
+  assert.equal(result.status, 'exact')
+  assert.equal(result.recommendedSize, '170')
+  assert.doesNotMatch(result.recommendedSize ?? '', /^[SMLX]/)
+  assert.match(fashionSizeRecommendationPrompt(result), /không phải S\/M\/L/)
+  assert.equal(enforceFashionSizeRecommendation('Dạ mặc size S sẽ vừa.', result), 'Dạ mặc size 170 sẽ vừa.')
+})
+
+test('dash weight bands do not fall through to a population size', () => {
+  const sizes = ['M-90-120kg', 'L-120-140kg', 'XL-140-160kg', '2XL-160-180kg']
+  const result = resolveFashionSizeRecommendation('1m75 nặng 83kg', sizes, { name: 'Áo thun' })
+  assert.equal(result.source, 'product')
+  assert.equal(result.status, 'unknown')
+  assert.equal(result.recommendedSize, null)
+  assert.equal(result.weightKg, 83)
+  const inBand = resolveFashionSizeRecommendation('nặng 100kg', sizes, { name: 'Áo thun' })
+  assert.equal(inBand.status, 'exact')
+  assert.equal(inBand.recommendedSize, 'M')
+})
+
+test('shoe size outside the listed range is not converted from foot cm', () => {
+  const sizes = ['37', '38', '39', '40', '41', '42', '43', '44']
+  const result = resolveFashionSizeRecommendation('Chân 30cm, size 47 được không?', sizes, { name: 'Giày nam' })
+  assert.equal(result.source, 'product')
+  assert.equal(result.status, 'unknown')
+  assert.equal(result.recommendedSize, null)
+  assert.ok(result.candidateSizes.includes('37'))
+  assert.ok(result.candidateSizes.includes('44'))
+  assert.equal(result.candidateSizes.includes('47'), false)
+  const out = finalizeFashionSizeCustomerMessage('Dạ size 47 sẽ vừa chân 30cm.', result)
+  assert.match(out, /size 37–44/)
+  assert.doesNotMatch(out, /size 47/)
+})
+
+test('170x80 is read as height and weight', () => {
+  const result = resolveFashionSizeRecommendation('170x80', ['L', 'XL', 'XXL', '3XL'], { name: 'Áo khoác' })
+  assert.equal(result.heightCm, 170)
+  assert.equal(result.weightKg, 80)
+})
+
+test('a named listed size is not replaced when the product has no body chart', () => {
+  const result = resolveFashionSizeRecommendation('Size 4XL có vừa 1m80 95kg không?', ['M', 'L', 'XL', 'XXL', '3XL', '4XL'], {
+    name: 'Áo bomber',
+  })
+  assert.equal(result.source, 'product')
+  assert.equal(result.recommendedSize, '4XL')
+  assert.equal(result.status, 'unknown')
+  assert.match(fashionSizeRecommendationPrompt(result), /không kết luận vừa/)
+})
+
+test('earlier height is kept when the latest line only has weight', () => {
+  const text = sizeSignalTextFromRecentInbound('nặng 83kg', ['mình cao 1m75'])
+  const result = resolveFashionSizeRecommendation(text, ['M-90-120kg', 'L-120-140kg'], { name: 'Áo' })
+  assert.equal(result.heightCm, 175)
+  assert.equal(result.weightKg, 83)
+  assert.equal(sizeSignalTextFromRecentInbound('giá sao', ['nặng 83kg']), 'giá sao')
 })

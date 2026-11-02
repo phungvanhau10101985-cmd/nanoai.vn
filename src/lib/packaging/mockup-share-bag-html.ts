@@ -68,7 +68,7 @@ export function buildStandaloneBagMockupHtml(input: {
       position: absolute; overflow: hidden; border: 1px solid rgba(0,0,0,0.1);
       background: #c9b08a; backface-visibility: hidden; transform: translateZ(0);
     }
-    .face img { width: 100%; height: 100%; object-fit: cover; object-position: center; user-select: none; pointer-events: none; display: block; }
+    .face img { width: 100%; height: 100%; object-fit: contain; object-position: center; user-select: none; pointer-events: none; display: block; }
     .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
     .hint { font-size: 12px; margin: 0; opacity: 0.85; }
     .actions { display: flex; flex-wrap: wrap; gap: 6px; }

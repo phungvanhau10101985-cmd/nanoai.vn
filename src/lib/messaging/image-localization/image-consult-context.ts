@@ -468,7 +468,7 @@ export function formatImageConsultContextForPrompt(raw: unknown): string {
   for (const image of context.images) {
     for (const line of image.lines) {
       const text = (line.vi || line.src).trim()
-      if (!text) continue
+      if (!imageConsultLineIsUsable(text)) continue
       if (chars + text.length > IMAGE_CONSULT_PROMPT_MAX_CHARS) break
       lines.push(text)
       chars += text.length
@@ -481,4 +481,12 @@ export function formatImageConsultContextForPrompt(raw: unknown): string {
 [Thông tin đọc trên ảnh sản phẩm — chỉ đúng mã đang tư vấn]
 ${lines.map((line) => `- ${line}`).join('\n')}
 Chỉ dùng các dòng trên cho chất liệu, kích thước, cách chọn size, cách dùng, công suất và thông số của chính sản phẩm. Không lấy giá, tiền cọc, nơi sản xuất, xưởng, liên hệ hay thời gian giao từ đây. Số liệu không có trong danh sách thì nói chưa thấy trên ảnh, không bịa.`
+}
+
+function imageConsultLineIsUsable(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed || /^(?:nan|null|n\/a|na|undefined|none|-+|—)$/i.test(trimmed)) return false
+  const labeled = /^(?:chất liệu|chat lieu|material)\s*[:：]\s*(.*)$/i.exec(trimmed)
+  if (labeled && /^(?:nan|null|n\/a|na|undefined|none|-+|—)$/i.test((labeled[1] ?? '').trim())) return false
+  return true
 }

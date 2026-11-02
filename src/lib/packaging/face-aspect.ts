@@ -1,5 +1,5 @@
 import type { WebLocale } from '@/lib/i18n/config'
-import { getAspectRatioFromDimensions } from '@/lib/aspect-ratio-from-dimensions'
+import { closestGeminiImageAspectRatio } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
 import {
   type BoxDimensionsMm,
   type PackagingFaceKey,
@@ -11,11 +11,15 @@ import type { BoxDielineStructure } from '@/lib/packaging/dieline-structure'
 import type { HubStudioMessagePayload, HubStudioProcessStep } from '@/lib/hub-chat/hub-studio-types'
 export type FaceLayoutOrientation = 'landscape' | 'portrait' | 'square'
 
+/** Tỷ lệ gpt-image-2 thực sự trả về: 1024², 1024×1536, 1536×1024. */
+export const GPT_FACE_RETURNABLE_ASPECT_RATIOS = ['1:1', '2:3', '3:2'] as const
+
 export type PackagingFaceAspectInfo = {
   key: PackagingFaceKey
   widthMm: number
   heightMm: number
   geminiAspectRatio: string
+  gptAspectRatio: string
   orientation: FaceLayoutOrientation
 }
 
@@ -57,16 +61,35 @@ export function getFaceLayoutOrientation(widthMm: number, heightMm: number): Fac
   return widthMm > heightMm ? 'landscape' : 'portrait'
 }
 
-/** Best Gemini aspect ratio for a physical face (mm). */
+function closestReturnableAspect(widthMm: number, heightMm: number, allowed: readonly string[]): string {
+  const width = Math.max(1, Number(widthMm) || 1)
+  const height = Math.max(1, Number(heightMm) || 1)
+  const target = width / height
+  let best = allowed[0] ?? '1:1'
+  let bestDiff = Infinity
+  for (const token of allowed) {
+    const [w, h] = token.split(':').map(Number)
+    if (!w || !h) continue
+    const diff = Math.abs(target - w / h)
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = token
+    }
+  }
+  return best
+}
+
+/**
+ * Tỷ lệ gemini-3-pro-image gần mm mặt hộp nhất.
+ * Không dùng 9:21 (model không nhận) và không dùng 1:4 / 1:8 (runtime từ chối).
+ */
 export function getFaceGeminiAspectRatio(widthMm: number, heightMm: number): string {
-  const long = Math.max(widthMm, heightMm)
-  const short = Math.min(widthMm, heightMm)
-  const orientation = getFaceLayoutOrientation(widthMm, heightMm)
-  return getAspectRatioFromDimensions(
-    long,
-    short,
-    orientation === 'portrait' ? 'vertical' : 'horizontal'
-  )
+  return closestGeminiImageAspectRatio(widthMm, heightMm)
+}
+
+/** Tỷ lệ gpt-image-2 gần mm mặt hộp nhất trong các size API trả về. */
+export function closestGptFaceAspectRatio(widthMm: number, heightMm: number): string {
+  return closestReturnableAspect(widthMm, heightMm, GPT_FACE_RETURNABLE_ASPECT_RATIOS)
 }
 
 export function buildPackagingFaceAspectPlan(
@@ -81,6 +104,7 @@ export function buildPackagingFaceAspectPlan(
       widthMm,
       heightMm,
       geminiAspectRatio: getFaceGeminiAspectRatio(widthMm, heightMm),
+      gptAspectRatio: closestGptFaceAspectRatio(widthMm, heightMm),
       orientation: getFaceLayoutOrientation(widthMm, heightMm),
     }
   }
@@ -118,7 +142,7 @@ function faceLine(locale: WebLocale, info: PackagingFaceAspectInfo): string {
   const orient = ORIENTATION_LABEL[info.orientation][locale]
   const w = formatMm(info.widthMm, locale)
   const h = formatMm(info.heightMm, locale)
-  return `• **${role}**: ${w} × ${h} — ${orient}, Gemini **${info.geminiAspectRatio}**`
+  return `• **${role}**: ${w} × ${h} — ${orient}, Gemini **${info.geminiAspectRatio}**, GPT **${info.gptAspectRatio}**`
 }
 
 const CONFIRM_ACK =
@@ -137,26 +161,26 @@ export function buildBoxFaceConfirmSummary(locale: WebLocale, dimensionsMm: BoxD
 
   const headers: Record<WebLocale, { title: string; footer: string }> = {
     vi: {
-      title: `Đã ghi nhận hộp: **${formatBoxDims(dimensionsMm, locale)}**.\n\nXác nhận kích thước từng mặt — ảnh AI dùng **tỷ lệ Gemini gần nhất** với kích thước thật:`,
+      title: `Đã ghi nhận hộp: **${formatBoxDims(dimensionsMm, locale)}**.\n\nXác nhận kích thước từng mặt — mỗi mặt chọn **tỷ lệ gần nhất mà model trả về được**:`,
       footer:
         '\n\nTrả lời **OK** nếu đúng, hoặc nhập lại kích thước Dài × Rộng × Cao nếu thứ tự các chiều khác.',
     },
     en: {
-      title: `Box recorded: **${formatBoxDims(dimensionsMm, locale)}**.\n\nConfirm each face — AI images use the **closest Gemini ratio** to your real size:`,
+      title: `Box recorded: **${formatBoxDims(dimensionsMm, locale)}**.\n\nConfirm each face — each face uses the **closest ratio that model can return**:`,
       footer:
         '\n\nReply **OK** if correct, or re-enter Length × Width × Height if your dimension order differs.',
     },
     zh: {
-      title: `已记录盒子：**${formatBoxDims(dimensionsMm, locale)}**。\n\n请确认各面尺寸 — AI 图像将使用**最接近**实际尺寸的 Gemini 比例：`,
+      title: `已记录盒子：**${formatBoxDims(dimensionsMm, locale)}**。\n\n请确认各面尺寸 — 每面使用模型**能够返回的最接近比例**：`,
       footer: '\n\n若正确请回复 **OK**，若长宽高的对应关系不同请重新输入尺寸。',
     },
     ja: {
-      title: `箱サイズを記録しました：**${formatBoxDims(dimensionsMm, locale)}**。\n\n各面を確認 — AI画像は実寸に**最も近い** Gemini 比率を使用：`,
+      title: `箱サイズを記録しました：**${formatBoxDims(dimensionsMm, locale)}**。\n\n各面を確認 — 各面はモデルが**返せる最も近い比率**を使用：`,
       footer:
         '\n\n正しければ **OK**、寸法の対応が違う場合は 長さ×幅×高さ を再入力してください。',
     },
     ko: {
-      title: `상자 크기 기록: **${formatBoxDims(dimensionsMm, locale)}**.\n\n각 면 확인 — AI 이미지는 실제 크기에 **가장 가까운** Gemini 비율 사용:`,
+      title: `상자 크기 기록: **${formatBoxDims(dimensionsMm, locale)}**.\n\n각 면 확인 — 각 면은 모델이 **반환할 수 있는 가장 가까운 비율** 사용:`,
       footer:
         '\n\n맞으면 **OK**, 치수 순서가 다르면 길이 × 너비 × 높이를 다시 입력하세요.',
     },

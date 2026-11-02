@@ -467,7 +467,7 @@ const RED_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#e4d0a0]',
   accentClass: 'text-[#f3d27a]',
   accentTextClass: 'text-[#ffe7b0]',
-  textPlate: 'rgba(62,10,18,0.78)',
+  textPlate: 'rgba(62,10,18,0)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
   surface: 'dark',
@@ -509,7 +509,7 @@ const SCARLET_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#fff4e4]',
   accentClass: 'text-[#ffe7b0]',
   accentTextClass: 'text-[#fff6d4]',
-  textPlate: 'rgba(74,12,18,0.78)',
+  textPlate: 'rgba(74,12,18,0)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
   surface: 'dark',
@@ -525,13 +525,14 @@ const SKY_LOOK: WeddingKitLook = {
   styleId: 'floral',
   buttonColorId: 'rose',
   coverRsvpColorId: 'blush',
-  ink: '#2f3d4c',
-  muted: '#5d6d7c',
-  accent: '#b25b74',
-  textClass: 'text-[#2f3d4c]',
-  mutedClass: 'text-[#5d6d7c]',
-  accentClass: 'text-[#b25b74]',
-  accentTextClass: 'text-[#8d4560]',
+  /** Mực đậm: nền là trời xanh và hoa trắng, xám xanh nhạt bị chìm. */
+  ink: '#1a2836',
+  muted: '#243648',
+  accent: '#8a3450',
+  textClass: 'text-[#1a2836]',
+  mutedClass: 'text-[#243648]',
+  accentClass: 'text-[#8a3450]',
+  accentTextClass: 'text-[#6d2840]',
   textPlate: 'rgba(255,248,252,0.8)',
   fontClass: 'wedding-font-soft',
   shareFont: SOFT_FONT,
@@ -1768,7 +1769,7 @@ export function applyWeddingKitTheme(theme: WeddingTheme, preset: WeddingBackgro
   }
 }
 
-/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Giấy trơn và kho AI thì không phủ. */
+/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Đỏ son, long phụng, giấy trơn và kho AI thì không phủ. */
 export function weddingReadingPlate(
   preset: WeddingBackgroundPreset | null | undefined,
   pageBackground: string,
@@ -1776,6 +1777,7 @@ export function weddingReadingPlate(
 ): string | undefined {
   if (!pageBackground.trim()) return undefined
   if (preset?.look.contentCard === 'scallop') return undefined
+  if (preset?.look === RED_LOOK || preset?.look === SCARLET_LOOK) return undefined
   if (preset?.look.surface === 'dark' && preset.look.paper) return preset.look.paper
   // Kho AI và nền tự vẽ: không tấm chữ, hoa văn hiện suốt.
   if (!preset) return undefined
@@ -1788,8 +1790,12 @@ export function weddingKitSurface(preset: WeddingBackgroundPreset | null | undef
   style?: CSSProperties
 } {
   if (!preset) return { className: '' }
+  const sky = preset.id === 'vuon-hong-troi'
   return {
-    className: preset.look.fontClass,
-    style: { '--wedding-text-plate': preset.look.textPlate } as CSSProperties,
+    className: sky ? `${preset.look.fontClass} wedding-kit-sky` : preset.look.fontClass,
+    style: {
+      '--wedding-text-plate': preset.look.textPlate,
+      ...(sky ? { '--wedding-ink': preset.look.ink, '--wedding-muted': preset.look.muted } : {}),
+    } as CSSProperties,
   }
 }

@@ -20,6 +20,11 @@ import { sanitizeFashionSizeWeightMessageForCustomer } from '@/lib/messaging/fas
 import { rewriteShoeHeightWeightFitQuestion } from '@/lib/messaging/partner-ai-fit-question'
 import { finalizeFashionSizeCustomerMessage } from '@/lib/messaging/fashion-size-recommendation'
 import {
+  customerRequiresCombinationLock,
+  inventoryTextHasCombinationLock,
+  sanitizePolicyReplyFacts,
+} from '@/lib/messaging/partner-ai-purchase-intent'
+import {
   buildPartnerAiContext,
   deepseekPartnerChat,
   rawPayloadIsProductCardConsult,
@@ -481,12 +486,21 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           continue
         }
         const dict = getDictionary(cacheUiLocale)
-        const cards = similarAlternativesTemplateInventoryRows
-          .map((row) => partnerAiProductCardFromInventoryRow(row))
-          .filter((c): c is PartnerAiProductCard => Boolean(c))
+        const requiredLock = customerRequiresCombinationLock(inboundForAi)
+        const rowsHaveLock = similarAlternativesTemplateInventoryRows.some((row) =>
+          inventoryTextHasCombinationLock(
+            [row.name, row.description, row.material_note, row.consult_note].filter(Boolean).join(' ')
+          )
+        )
+        const similarMiss = requiredLock && !rowsHaveLock
+        const cards = similarMiss
+          ? []
+          : similarAlternativesTemplateInventoryRows
+              .map((row) => partnerAiProductCardFromInventoryRow(row))
+              .filter((c): c is PartnerAiProductCard => Boolean(c))
         const productsTemplate = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(job.partner_id, cards)
         const rawSimilarTemplate = {
-          source: 'similar_catalog_template',
+          source: similarMiss ? 'similar_catalog_constraint_miss' : 'similar_catalog_template',
           model: null,
           usage: null,
           ai_product_cards: productsTemplate,
@@ -499,7 +513,9 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           conversation: conv,
           settings,
           body: enforceConfiguredGenderAddressing(
-            dict.partnerGuestChat.similarAlternativesTemplateMessage,
+            similarMiss
+              ? dict.partnerGuestChat.similarConstraintMissMessage
+              : dict.partnerGuestChat.similarAlternativesTemplateMessage,
             configuredGender
           ),
           rawPayload: rawSimilarTemplate,
@@ -727,10 +743,19 @@ async function runMessagingPartnerAiJobBatchUsingPg(
           : null)
       parsed = {
         ...parsed,
-        message: finalizeFashionSizeCustomerMessage(
-          sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
-          deterministicSizeRecommendation
-        ),
+        message:
+          partnerAiRouteIntent === 'policy_or_order_support'
+            ? sanitizePolicyReplyFacts(
+                finalizeFashionSizeCustomerMessage(
+                  sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
+                  deterministicSizeRecommendation
+                ),
+                `${inboundForAi}\n${user}`
+              )
+            : finalizeFashionSizeCustomerMessage(
+                sanitizeFashionPartnerAiMessage(parsed.message, fitQuestionGuardRow, isFashionPartner),
+                deterministicSizeRecommendation
+              ),
       }
       const productsWithVideo = await enrichPartnerAiProductCardsWithInventoryVideoFromPg(
         job.partner_id,

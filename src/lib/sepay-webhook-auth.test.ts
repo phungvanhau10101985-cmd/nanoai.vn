@@ -58,6 +58,25 @@ describe('sepay-webhook-auth', () => {
     assert.deepEqual(result, { ok: true, via: 'sepay_ip' })
   })
 
+  it('accepts SePay egress 45.57.137.67 passed as x-real-ip', () => {
+    process.env.SEPAY_REQUIRE_SIGNATURE = 'true'
+    process.env.SEPAY_WEBHOOK_TRUST_NO_AUTH_IP = 'true'
+    delete process.env.SEPAY_WEBHOOK_API_KEY
+    delete process.env.SEPAY_WEBHOOK_SECRET
+    delete process.env.SEPAY_SECRET_KEY
+
+    const result = verifySePayWebhookAuth({
+      headers: headers({
+        'x-real-ip': '45.57.137.67',
+        'x-forwarded-for': '45.57.137.67',
+      }),
+      searchParams: qs(),
+      rawBody: '{"transferAmount":50000,"transferType":"in","code":"DH111954034"}',
+      remoteIp: '45.57.137.67',
+    })
+    assert.deepEqual(result, { ok: true, via: 'sepay_ip' })
+  })
+
   it('rejects unknown IP when REQUIRE_SIGNATURE and no HMAC/API key', () => {
     process.env.SEPAY_SECRET_KEY = 'spsk_live_testsecret'
     process.env.SEPAY_REQUIRE_SIGNATURE = 'true'

@@ -1194,9 +1194,16 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
   if (!frame && !plain) return <GlassCoverCard {...props} />
   const panel = plain ? 'transparent' : (frame?.panel ?? '#fffaf2')
   const light = frame?.ink === 'light'
-  const textCls = plain ? cn(theme.text, theme.textGlowHeading) : light ? 'text-white' : 'text-stone-900'
-  const mutedCls = plain ? cn(theme.mutedText, theme.textGlow) : light ? 'text-white/80' : 'text-stone-600'
-  const accentCls = plain ? cn(theme.accent, theme.textGlow) : light ? 'text-amber-200' : 'text-rose-800'
+  const skyGarden = props.preset.id === 'vuon_hong_troi'
+  const textCls = plain || skyGarden ? cn(theme.text, theme.textGlowHeading) : light ? 'text-white' : 'text-stone-900'
+  const mutedCls = plain || skyGarden ? cn(theme.mutedText, theme.textGlow) : light ? 'text-white/80' : 'text-stone-600'
+  const accentCls = plain
+    ? cn(theme.accent, theme.textGlow)
+    : skyGarden
+      ? cn(theme.accentText, theme.textGlow)
+      : light
+        ? 'text-amber-200'
+        : 'text-rose-800'
   const plainPhotoClass = props.plainShape === 'portrait'
     ? 'relative aspect-[3/4] w-full overflow-hidden rounded-2xl shadow-[0_18px_40px_rgba(20,4,8,0.38)]'
     : 'relative aspect-square w-full overflow-hidden rounded-full'

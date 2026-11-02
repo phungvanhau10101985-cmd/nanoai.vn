@@ -25,6 +25,7 @@ test('buildPackagingFacePromptBlock excludes print dimensions from visual brief'
   assert.match(block, /API supplies the exact aspect ratio/i)
   assert.match(block, /never visualize on the artwork/i)
   assert.match(block, /FACE ROLE: LxH \(FRONT\)/)
+  assert.match(block, /straight baseline/i)
 })
 
 test('buildPackagingFacePromptBlock body strip avoids fold mm positions', () => {

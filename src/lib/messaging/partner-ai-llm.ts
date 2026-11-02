@@ -14,6 +14,7 @@ import {
 import {
   fashionSizeRecommendationPrompt,
   resolveFashionSizeRecommendation,
+  sizeSignalTextFromRecentInbound,
   type FashionSizeRecommendation,
 } from '@/lib/messaging/fashion-size-recommendation'
 import {
@@ -79,6 +80,11 @@ import {
   partnerAiShouldUseClarifyBranchFromWidgetPayload,
 } from '@/lib/messaging/partner-ai-unclear-intent'
 import {
+  consultCallbackPhoneFromRaw,
+  extractBareProductSku,
+} from '@/lib/messaging/partner-ai-bare-code-consult'
+import { formatPhoneLeadPromptNote, phoneLeadZaloFromRaw } from '@/lib/messaging/partner-ai-phone-lead'
+import {
   defaultSalesConversionForIntent,
   parsePartnerAiRouteDecision,
   partnerAiIntentAllowsProductContext,
@@ -95,10 +101,6 @@ import {
   resolveDeepSeekChatModel,
 } from '@/lib/deepseek-api'
 import { normalizeGuestPurchaseFlow } from '@/lib/messaging/guest-purchase-flow'
-import {
-  fetchPartnerPaymentSettingsFromPg,
-  type PartnerPaymentSettingsRow,
-} from '@/lib/db/messaging-partner-orders-pg'
 
 export type { PartnerMaterialDetailFollowup, PartnerRealUseImageFollowup }
 
@@ -228,9 +230,11 @@ function formatInventoryLines(
         ? ` | Ghi chú tư vấn: ${clip(maybeAnnotate(r.consult_note.trim()), 700)}`
         : ''
       const colors = colorHintsFromInventoryRow(r)
-      const mat = r.material_note?.trim()
-        ? ` | Chất liệu (đã lưu/kho): ${clip(r.material_note.trim(), 600)}`
-        : ''
+      const matRaw = r.material_note?.trim() ?? ''
+      const mat =
+        matRaw && !/^(?:nan|null|n\/a|na|undefined|none|-+|—)$/i.test(matRaw)
+          ? ` | Chất liệu (đã lưu/kho): ${clip(matRaw, 600)}`
+          : ''
       const matImg = r.material_detail_image_url?.trim()
         ? ` | Ảnh chi tiết chất liệu/màu (đã lưu, sinh từ ảnh chính): ${r.material_detail_image_url.trim()}`
         : ''
@@ -243,40 +247,6 @@ function formatInventoryLines(
       return `${i + 1}. ${r.name.trim()}${sku}${desc}${colors}${mat}${img}${matImg}${realUseImg}${stock}${price}${page}${video}${extra}`
     })
     .join('\n')
-}
-
-/**
- * Neo cọc / thanh toán theo cài đặt hệ thống — hạn chế tư vấn «COD 100% / trả toàn bộ lúc nhận» khi shop mặc định cọc.
- * Không bịa số tuyệt đối: giữ «khoảng / theo form».
- */
-function highUnitPriceDepositPolicySentence(pay: PartnerPaymentSettingsRow): string {
-  const threshold = Math.max(0, Math.round(Number(pay.high_unit_price_deposit_threshold_vnd) || 0))
-  const percent = Math.max(0, Math.min(100, Math.round(Number(pay.high_unit_price_min_deposit_percent) || 0)))
-  if (threshold <= 0 || percent <= 0) return ''
-  const amount = new Intl.NumberFormat('vi-VN').format(threshold)
-  return ` Nếu **giá trị đơn từ ${amount}₫ trở lên** thì khách **cọc tối thiểu ${percent}% trên cả đơn** (ba món cộng lại cũng tính; kể cả sản phẩm không bật cờ cọc; hàng thanh lý kho không tính vào đơn và không áp dụng).`
-}
-
-function buildPartnerPaymentPolicyBlockForPartnerAi(pay: PartnerPaymentSettingsRow): string {
-  const highPrice = highUnitPriceDepositPolicySentence(pay)
-  if (pay.default_deposit_mode === 'fixed_amount' && pay.default_deposit_amount > 0) {
-    const a = new Intl.NumberFormat('vi-VN').format(pay.default_deposit_amount)
-    return `
-
-[Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì cọc trước (mức tham chiếu: khoảng **${a}₫**; số thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc, trừ khi giá trị đơn chạm trần cọc tối thiểu. **Cấm** tư vấn sai: **không** khẳng định khách được **thanh toán toàn bộ khi nhận hàng** (COD 100% toàn giá) như quy tắc mặc định nếu mặt hàng đang bàn **có cọc**. Phần còn lại (khi chính sách cho phép) thường lúc **giao hàng** sau cọc. Trả lời **bám sát mặt hàng** đang bàn (dòng kho + tin gần nhất), **không** tổng quát từ sản phẩm/shop khác.${highPrice}`
-  }
-  if (pay.default_deposit_mode === 'percent' && pay.default_deposit_percent > 0) {
-    return `
-
-[Thanh toán (cài đặt hệ thống shop) — ưu tiên khi khách hỏi cọc / trả khi nhận / COD]
-Đơn mặc định: sản phẩm có cờ **Cần đặt cọc** thì **đặt cọc trước (khoảng ${pay.default_deposit_percent}%** giá trị đơn — tỷ lệ/cọc thực tế theo form/đơn). Sản phẩm không bật cờ đó thì không cọc, trừ khi giá trị đơn chạm trần cọc tối thiểu. **Cấm** tư vấn sai: **không** nói «thanh toán toàn bộ khi nhận hàng» / «xem hàng rồi mới trả hết» như thể bước mặc định nếu mặt hàng đang bàn **có cọc**; hãy nói: **cọc theo hướng dẫn (form)**, phần còn lại theo chính sách. Trả lời **thống nhất** với cách tư vấn **đúng mặt hàng** (kho + hội thoại), **không** lẫn quy tắc từ món khác.${highPrice}`
-  }
-  const savedPercent = Math.max(0, Math.min(100, Math.round(Number(pay.default_deposit_percent) || 0)))
-  return `
-
-[Thanh toán (cài đặt hệ thống shop)]
-Cọc hay không **theo từng sản phẩm** (cờ «Cần đặt cọc» trên kho). Sản phẩm không bật cờ đó thì khách trả khi nhận, không bắt cọc, trừ khi giá trị đơn chạm trần cọc tối thiểu. Sản phẩm có bật thì mức cọc là **${savedPercent > 0 ? `khoảng ${savedPercent}%` : 'theo form đơn'}**. **Cấm** nói cả shop không bao giờ cọc, và **cấm** bịa % khác số này.${highPrice}`
 }
 
 function visionCatalogNoHitsFromTrigger(raw: Json | null | undefined): boolean {
@@ -469,11 +439,15 @@ Khách đang hỏi **gợi ý thay thế** so với một mẫu đang làm neo t
  */
 const PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE = `
 [Chỉ tư vấn từ dữ liệu shop cung cấp — **cấm bịa dịch vụ / cam kết ngoài nguồn**]
-Nguồn được phép: (1) **Ngữ cảnh shop bắt buộc** (product_consultation_context), (2) khối **[Thanh toán (cài đặt hệ thống shop)]**, (3) **danh sách kho**, (4) **FAQ/chính sách** shop đã lưu, (5) tin **Shop** do nhân viên gửi thật trong lịch sử, (6) hồ sơ khách **chỉ để xưng hô**.
+Nguồn được phép: (1) **Ngữ cảnh shop bắt buộc** (product_consultation_context — người dùng viết), (2) **danh sách kho**, (3) **FAQ/chính sách** shop đã lưu, (4) tin **Shop** do nhân viên gửi thật trong lịch sử, (5) hồ sơ khách **chỉ để xưng hô**.
 **Tuyệt đối không** tự thêm dịch vụ hay cam kết nếu **không có** trong các nguồn trên — ví dụ **cấm bịa**: gói quà / hộp quà / giấy gói / nơ / thiệp / ghi chú tay / giao hàng đặc biệt / free ship / tặng kèm / đổi size miễn phí / bảo hành mở rộng / may đo / khắc tên / làm theo yêu cầu… trừ khi **chính sách shop** hoặc tin **Shop** (nhân viên) đã ghi rõ shop có dịch vụ đó.
-**Cấm bịa số/tỷ lệ cọc** (vd. «cọc 30%», «COD 100%») nếu không có trong khối **[Thanh toán (cài đặt hệ thống shop)]** hoặc **ngữ cảnh shop**. Mỗi shop SaaS cấu hình riêng — không lấy % của shop khác.
+**Cọc (có cọc hay không, %, số tiền, trần đơn, phần còn lại khi nhận):** chỉ lấy từ **[Ngữ cảnh shop bắt buộc]**. **Cấm** lấy % hoặc số tiền cọc từ cài đặt thanh toán, cờ kho, code checkout, FAQ, hoặc tin Shop cũ khi khác ô ngữ cảnh. Ô không ghi cọc thì nói shop chưa ghi, không bịa 10% hay 30%. Mỗi shop một ô riêng — không lấy % của shop khác.
 Khi khách hỏi dịch vụ mà **không thấy** trong dữ liệu: trả lời **thật** — shop **chưa ghi / chưa cung cấp** dịch vụ đó; mặc định shop **chỉ bán sản phẩm và giao hàng như đơn thường** theo chính sách đã có. **Không** bịa «shop sẽ gói quà / ghi thiệp / có nơ giấy gói» để làm khách hài lòng.
 Nếu khách hỏi «xem mẫu hộp quà» / «gói quà» mà shop **không có** dịch vụ gói quà: có thể gửi **ảnh sản phẩm thật trong kho** (nếu liên quan) hoặc nói rõ shop **chỉ bán và ship như bình thường** — **không** giả vờ có quy trình / mẫu hộp quà riêng.
+Chất liệu ghi nan, null, n/a hoặc để trống là chưa có chất liệu. Không đọc chữ nan cho khách. Không thêm «thật» nếu tên, mô tả và chất liệu không chứa chữ thật.
+Không nhận là người, không bịa tên nhân viên. Nếu khách hỏi có phải người không, nói em là trợ lý của shop.
+Không hứa hỏi xưởng, kiểm tra xưởng, hoặc «bảng của xưởng».
+Không nêu mã đơn, size đã chốt, hết size, hoặc «em ghi nhận đổi size» nếu tin khách và dữ liệu tra cứu trong prompt không có đúng mã đó.
 Không suy đoán shop có thêm tiện ích chỉ vì ngành thời trang/quà tặng hay vì khách hỏi lịch sự.
 `
 
@@ -701,18 +675,26 @@ function formatPartnerAiCardConsultIsolatedTranscript(): string {
 Khách vừa bấm **Tư vấn** trên một thẻ trong chat (hoặc đang hỏi tiếp **đúng** mã/inventory đó). **Cấm** tham chiếu chủ đề hay đoạn chat cũ (vd. đã hỏi loại hàng khác — túi/váy/giày…) — **chỉ** tư vấn theo **danh sách kho** trong prompt và **«Tin nhắn mới nhất của khách»** bên dưới.`
 }
 
+const PARTNER_AI_DEPOSIT_FROM_USER_CONTEXT_ONLY = `
+[Cọc — chỉ đọc ngữ cảnh người dùng viết]
+Hỏi cọc, %, tiền cọc tối thiểu, trần đơn, hay phần còn lại khi nhận: **chỉ** trả lời theo chữ trong **[Ngữ cảnh shop bắt buộc]** ở trên.
+Không lấy từ cài đặt thanh toán, cờ «Cần đặt cọc» trên kho, hay code tính đơn. FAQ và tin Shop cũ không được đè ô này.
+Ô ngữ cảnh không nói tới cọc: nói shop chưa ghi cách cọc, không bịa số. Ô đã ghi thì dùng đúng các con số trong ô, không trộn thêm luật khác.`
+
 function buildAlwaysIncludedShopAiContextBlock(settings: SettingsRow): string {
   const productConsultationContext = settings.product_consultation_context?.trim()
   if (!productConsultationContext) {
     return `
 
 [Ngữ cảnh shop mặc định — shop chưa ghi thêm hướng dẫn riêng]
-Mặc định shop **chỉ bán sản phẩm trong kho và giao hàng như đơn thường**. **Không** tự thêm dịch vụ kèm (gói quà, hộp quà, giấy gói, nơ, thiệp, ghi chú tay, giao đặc biệt…) trừ khi shop bổ sung ngữ cảnh riêng sau này.`
+Mặc định shop **chỉ bán sản phẩm trong kho và giao hàng như đơn thường**. **Không** tự thêm dịch vụ kèm (gói quà, hộp quà, giấy gói, nơ, thiệp, ghi chú tay, giao đặc biệt…) trừ khi shop bổ sung ngữ cảnh riêng sau này.
+${PARTNER_AI_DEPOSIT_FROM_USER_CONTEXT_ONLY}`
   }
   return `
 
 [Ngữ cảnh shop bắt buộc áp dụng trong mọi lượt AI]
-${productConsultationContext}`
+${productConsultationContext}
+${PARTNER_AI_DEPOSIT_FROM_USER_CONTEXT_ONLY}`
 }
 
 function buildPartnerAiClarifyShoppingIntentSystem(
@@ -790,6 +772,16 @@ function partnerAiInboundLooksLikePauseConversation(message: string): boolean {
   const words = normalized.split(/\s+/).filter(Boolean)
   if (words.length > 7) return false
   return PAUSE_CONVERSATION_ACK_RE.test(normalized)
+}
+
+const BARE_BUY_AGREE_RE = /^(?:ok(?:i|ie|ela)?|dạ|da|vâng|vang|ừ|ừm|uhm|được(?:\s+rồi)?)$/iu
+
+/** «Ok» sau câu shop bảo bấm Mua ngay là đồng ý mua, không phải kết thúc chat. «Ok vậy thôi» vẫn là tạm dừng. */
+function inboundAgreesToBuyCta(message: string, lastShopBody: string): boolean {
+  const normalized = normalizeMessageForPauseIntent(message)
+  if (!normalized || /thôi|cảm\s*ơn|cam\s*on|xem\s*thêm|thanks|thank/i.test(normalized)) return false
+  if (!BARE_BUY_AGREE_RE.test(normalized)) return false
+  return /mua\s*ngay|lên\s*đơn|len\s*don|hoàn\s*tất\s*đơn|hoan\s*tat\s*don/i.test(lastShopBody)
 }
 
 function buildPartnerAiPauseConversationSystem(
@@ -972,6 +964,12 @@ export async function buildPartnerAiContext(
     partnerAiRouteIntent = inboundTextLooksLikeFollowUpConsultHeuristic(latestCustomerMessage)
       ? 'follow_up_current_product'
       : 'clarify'
+  }
+  /** Chỉ gỡ `clarify` khi tin đúng là mã mẫu trần. follow_up / mua / mẫu khác / thẻ Tư vấn giữ nguyên. */
+  const bareSkuClarifyUpgrade =
+    partnerAiRouteIntent === 'clarify' && Boolean(extractBareProductSku(latestCustomerMessage))
+  if (bareSkuClarifyUpgrade) {
+    partnerAiRouteIntent = 'explicit_sku_consult'
   }
   const routeAllowsProductContext = partnerAiIntentAllowsProductContext(partnerAiRouteIntent)
   let explicitSkuRows: Database['public']['Tables']['messaging_partner_inventory']['Row'][] = []
@@ -1263,7 +1261,16 @@ ${humanShopFactsBlock}`,
     }
   }
 
-  if (partnerAiRouteIntent === 'pause_or_close' || partnerAiInboundLooksLikePauseConversation(latestCustomerMessage)) {
+  const lastShopBeforeCustomer = lastShopOutboundBeforeLatestCustomerChunk(chronological)
+  const agreesToBuy = inboundAgreesToBuyCta(latestCustomerMessage, lastShopBeforeCustomer?.body ?? '')
+  if (agreesToBuy && partnerAiRouteIntent === 'pause_or_close') {
+    partnerAiRouteIntent = 'purchase_or_order'
+  }
+
+  if (
+    !agreesToBuy &&
+    (partnerAiRouteIntent === 'pause_or_close' || partnerAiInboundLooksLikePauseConversation(latestCustomerMessage))
+  ) {
     const transcriptBlock = formatPartnerAiTranscriptLines(chronological)
     const pauseUser = buildPartnerAiPauseConversationUser(
       effectiveLocaleOpts,
@@ -1662,16 +1669,6 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
       ? formatPartnerAiMinimalTranscriptForFollowUpContext(chronological)
       : formatPartnerAiTranscriptLines(chronological)
 
-  let partnerPaymentPolicyBlock = ''
-  if (isPgConfigured()) {
-    try {
-      const paySet = await fetchPartnerPaymentSettingsFromPg(partnerId)
-      if (paySet) partnerPaymentPolicyBlock = buildPartnerPaymentPolicyBlockForPartnerAi(paySet)
-    } catch (e) {
-      console.warn('[partner-ai-llm] payment settings for system prompt', e)
-    }
-  }
-
   const alwaysIncludedShopAiContextBlock = buildAlwaysIncludedShopAiContextBlock(settings)
   const tone = 'Lịch sự, ngắn gọn, rõ ràng.'
   const defaultSalesConversion = partnerAiRouteIntent
@@ -1708,7 +1705,7 @@ Bắt buộc (khi khách chưa đổi sang mẫu khác): trả lời bằng các
   const khoContextInstructionForSystem =
     partnerAiRouteIntent === 'policy_or_order_support'
       ? `[Nhánh chính sách / hỗ trợ đơn — **ý định khách** thắng neo SKU trên trang]
-Trả lời **cọc, COD, thời gian giao, đổi trả, hủy/hoàn** từ: (1) khối **[Thanh toán (cài đặt hệ thống shop)]**, (2) **[Ngữ cảnh shop bắt buộc]**, (3) FAQ nếu có trong prompt. **Cấm** bịa % cọc hay «xem hàng rồi trả hết» nếu mâu thuẫn cài đặt **shop này**. **Cấm** gửi thẻ SP / carousel (\`products\` = []). Hỏi «có phải cọc không» / «bao lâu nhận hàng» = giải thích chính sách, **không** hỏi mã DH trừ khi khách đang **tra cứu một đơn** (đã có DH/SĐT).`
+Trả lời **thời gian giao, đổi trả, hủy/hoàn** từ **[Ngữ cảnh shop bắt buộc]** và FAQ nếu có trong prompt. **Cọc / % / COD phần còn lại** chỉ từ **[Ngữ cảnh shop bắt buộc]** — không từ cài đặt thanh toán hay code. Ô không ghi cọc thì nói chưa được shop ghi, không bịa %. **Cấm** gửi thẻ SP / carousel (\`products\` = []). Hỏi «có phải cọc không» / «bao lâu nhận hàng» = giải thích chính sách, **không** hỏi mã DH trừ khi khách đang **tra cứu một đơn** (đã có DH/SĐT). **Cấm** nêu mã đơn, size đã chốt hoặc hết size nếu mã đó không có trong tin khách hoặc kết quả tra cứu. **Cấm** nói đã ghi nhận đổi size.`
     : cardConsultIsolatedThread
     ? `[Tư vấn từ thẻ — **cô lập** khỏi lịch sử thread]
 Phần user prompt **không** chứa lịch sử chat thật — chỉ hướng dẫn + **một dòng kho** + **tin mới nhất của khách**. **Cấm** bám chủ đề/đoạn chat cũ (vd. đã hỏi túi rồi váy…) dù khách lỡ nhắn nhảy sang loại hàng khác: **chỉ** tư vấn theo **đúng dòng kho** (đúng mã/SP từ thẻ). Nếu khách hỏi hàng **khác ngành / khác mã**, trả lời ngắn: đang hỗ trợ **đúng mẫu trong kho**; mời hỏi tiếp về **mẫu đó** hoặc **bấm Tư vấn** trên thẻ sản phẩm khác. Trong JSON: \`products\` tối đa **một** thẻ — đúng dòng kho, hoặc \`[]\` nếu chỉ trả lời chữ.`
@@ -1719,7 +1716,7 @@ Phần «Danh sách kho» trong prompt user là **đúng một dòng** — **ch�
     : inboundPageSkuMissImageSimilarFallback
       ? `[Trang / mã khách đang xem **không** có dòng tương ứng trong kho. Phần «Danh sách kho» là **ứng viên gần giống theo ảnh** (vector trên kho — đã lọc thô cùng nhóm khi có). Nói thật với khách: chưa có đúng mã đó trong dữ liệu shop; đây là **mẫu tương tự để tham khảo**. Trong JSON: \`products\` có thể **nhiều** thẻ hợp lý từ danh sách — **không** khẳng định có đúng mã/link trên trang nếu không nằm trong dòng kho.`
     : similarCatalogVersusLastConsulted
-      ? `[Nhánh A — Gợi ý **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (cùng nhóm ý: «có mẫu khác không», «còn loại khác không», «xem thêm mẫu», «na ná», «design khác»…). **Nhánh riêng** — không áp quy tắc khóa **một dòng kho** của Nhánh B; không xử như chỉ hỏi thuộc tính một SP. Danh sách kho trong user prompt là ứng viên **cùng nhóm** với mẫu neo (vector ảnh + lọc thô); trong JSON \`products\` có thể **nhiều** thẻ — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** thẻ — **không** carousel lệch ngành.`
+      ? `[Nhánh A — Gợi ý **mẫu / loại / kiểu khác** hoặc **tương tự / gần giống** (cùng nhóm ý: «có mẫu khác không», «còn loại khác không», «xem thêm mẫu», «na ná», «design khác»…). **Nhánh riêng** — không áp quy tắc khóa **một dòng kho** của Nhánh B; không xử như chỉ hỏi thuộc tính một SP. Danh sách kho trong user prompt là ứng viên **cùng nhóm** với mẫu neo (vector ảnh + lọc thô); trong JSON \`products\` có thể **nhiều** thẻ — có bao nhiêu mẫu phù hợp thì đưa bấy nhiêu, tối đa **${PARTNER_AI_PRODUCT_CARDS_MAX}** thẻ — **không** carousel lệch ngành. Nếu khách nêu một điều kiện bắt buộc (ví dụ khóa số) mà không dòng nào có đúng điều đó, nói chưa thấy và để \`products\` rỗng. Không gọi mẫu khác là đúng điều kiện đó.`
     : effectiveFollowUpSingleProductNoVector
     ? `Trong prompt user, phần «Danh sách kho» chỉ có **đúng một dòng** — sản phẩm shop/AI **vừa tư vấn**; **không** phải kết quả tìm (vector/embedding) trên toàn kho. Nhiệm vụ của bạn: **đọc câu hỏi khách** và trả lời bằng cách **phân tích trực tiếp** các trường trên dòng đó (tên, mô tả, giá, màu, tồn, ghi chú…). Không xử lý như khách đang lần đầu tìm hàng hay cần gợi ý nhiều mẫu.`
       : explicitSkuRows.length > 0
@@ -1741,7 +1738,7 @@ Hướng tư vấn tăng khả năng mua (mềm, không ép, không spam):
 - **Không** lặp lại cùng kiểu câu hỏi chốt màu/size kiểu "chị chọn hồng hay đen ạ?", "đã chọn được màu chưa?" ở **nhiều tin liên tiếp** — dễ gây cảm giác ép mua. Nếu đã gợi ý một lần, các tin sau **tập trung trả lời đúng câu hỏi** của khách; chỉ nhắc màu/size khi khách hỏi hoặc khi thật cần để tư vấn tiếp.
 - Giảm do dự: có thể nhắc một dòng về đổi trả / giao hàng / thanh toán CHỈ khi đã có trong chính sách shop ở trên; không bịa thêm.
 - **Dịch vụ kèm theo (gói quà, thiệp, nơ, giấy gói, giao đặc biệt…):** CHỈ nhắc khi **chính sách shop** hoặc tin **Shop** (nhân viên) đã ghi rõ; nếu không có trong dữ liệu → nói thật shop **chưa có / chỉ bán và giao hàng như đơn thường** — **cấm** tự bịa để làm khách hài lòng.
-- **Cọc vs thanh toán khi nhận (trả toàn bộ lúc nhận / COD 100%):** Mỗi câu trả lời phải **khớp** (1) chính sách shop, (2) khối **[Thanh toán (cài đặt hệ thống shop)]** nếu xuất hiện, (3) cách tư vấn **đã gửi gần đây** về **đúng mặt hàng** (dòng kho / thẻ / lịch sử cùng sản phẩm). Nếu mặt hàng/phiên tư vấn đang thống nhất **có cọc** mà khách hỏi trả toàn bộ lúc nhận — **không** hứa trả 100% khi giao; giải thích **cọc trước** và phần còn lại (nếu chính sách/shop quy định) theo **đúng sản phẩm** đang bàn, **không** hợp thức hóa từ món khác.
+- **Cọc vs thanh toán khi nhận (trả toàn bộ lúc nhận / COD 100%):** Khớp **đúng chữ** trong **[Ngữ cảnh shop bắt buộc]**. Không lấy % từ cài đặt thanh toán, cờ kho, hay tin Shop cũ khi khác ô đó. Ô ghi có cọc thì không hứa trả hết khi nhận. Ô không ghi cọc thì không bịa %.
 - **Chính sách đổi size / đổi hàng (tiếng Việt — tránh nhầm từ):** Khi diễn đạt, phân biệt rõ: (1) **Không vừa size** = số đo/size không khớp (chật, rộng, sai size so với bảng size / thực tế mặc) — mới là căn cứ **đổi size** theo chính sách shop (nếu shop có ghi). (2) **Không vừa ý** = không thích màu, form, phối đồ, cảm nhận thẩm mỹ, «mặc không ưng» theo nghĩa rộng **nhưng vẫn đúng size** — **không** gọi là «chưa vừa size», **không** hứa đổi size cho trường hợp này trừ khi chính sách shop nêu rõ. Không dùng chung một cụm kiểu «mặc không vừa ý thì đổi size» để gộp cả hai ý.
 - **Hủy đơn / hoàn cọc / trả tiền cọc:** Khi khách đòi hủy đơn hoặc hoàn cọc, **không** đồng ý ngay, **không** hứa «shop sẽ hủy và hoàn tiền» / «xử lý hoàn cọc» một cách dễ dãi trừ khi **chính sách shop ở trên** ghi rõ được phép và điều kiện. Ưu tiên **giữ đơn**; trả lời **khéo, ấm** — nêu **khó khăn / ràng buộc** theo đúng chính sách **chỉ khi đã có trong chính sách**, không bịa điều khoản; không cam kết số tiền / thời hạn hoàn cụ thể nếu không có trong dữ liệu đã cho. Có thể gợi phương án trong phạm vi shop cho phép (đổi size, đổi mẫu…) nếu chính sách có — **không** đề nghị «chuyển lên bộ phận quản lý», «chuyển lên chủ shop xem xét», «shop xem xét lại rồi báo» hay hỏi «chị có muốn shop làm vậy không» trừ khi **chính sách shop** tự ghi rõ quy trình escalate (hiếm); mặc định **không** mở lối thoát quản lý.
 - **Khách băn khoăn / lo lắng về đặt cọc (chưa đòi hủy rõ):** Thể hiện **đồng cảm** (hiểu chị có thể chưa thoải mái khi đặt cọc). Giải thích ngắn lý do cọc / thời gian hàng **theo chính sách & kho** đã có — **không** hứa nới lỏng hay thay đổi chính sách. Kết thúc nhẹ: chúc chị **sớm chọn được / mua được** món **ưng ý** (có thể là mẫu đang xem hoặc chung chung), **không** kèm câu hỏi kiểu «có muốn shop chuyển lên quản lý / xem xét không ạ».
@@ -1766,7 +1763,7 @@ ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}`
 - Chỉ có một phần nội dung thì viết một đoạn. Câu hỏi/CTA cuối khác phần trả lời chính thì luôn tách thành đoạn riêng.`
   const policySystem = `${compactBase}
 ${humanShopFactsBlock}
-${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${alwaysIncludedShopAiContextBlock}
 ${khoContextInstructionForSystem}
 ${salesConversionRouterBlock}
 Trả lời đúng câu hỏi chính sách/hỗ trợ trước, ngắn và rõ. Không đọc hay gửi catalog/thẻ sản phẩm; products = []. Không bịa chính sách, thời hạn hoặc cam kết ngoài dữ liệu shop.
@@ -1774,11 +1771,11 @@ ${semanticMessageSectionsBlock}
 Đầu ra là một JSON đúng schema trong user prompt.`
   const compactSingleProductSystem = `${compactBase}
 ${humanShopFactsBlock}${fashionSizeWeightBlock}
-${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${alwaysIncludedShopAiContextBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum}
 ${salesConversionRouterBlock}
 Chỉ dùng đúng một sản phẩm trong user prompt; không trộn lịch sử hoặc mặt hàng khác. Trả lời câu hỏi trước, diễn giải lợi ích từ dữ liệu thật, không bịa chất liệu/size/tồn/giá.
-Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán: có bảng size trong thông tin sản phẩm thì dùng size đó; không có bảng thì tư vấn theo chuẩn size tham khảo số đông và hỏi khách hay mặc size gì. Không nói sẽ kiểm tra xưởng khi khối chọn size đã có size tham khảo.
+Nếu hỏi chất liệu, trả lời từ material_note/mô tả và nhắc xem ảnh đính kèm khi hệ thống có ảnh; không dán URL. nan/null/n/a là chưa có chất liệu. Không thêm chữ thật nếu dữ liệu không có. Nếu hỏi size, kết quả deterministic trong user prompt thắng mọi suy đoán: có bảng size trong thông tin sản phẩm thì dùng size đó; size là số chiều cao hoặc size giày thì chỉ dùng số có trong danh sách; không có bảng thì tư vấn theo chuẩn size tham khảo số đông và hỏi khách hay mặc size gì. Không nói sẽ kiểm tra xưởng khi khối chọn size đã có size tham khảo.
 Câu hỏi fit cuối tin (tối đa một câu, đúng nhóm hàng đang tư vấn): quần áo/váy/đầm/áo khoác → **chiều cao và cân nặng (kg)**, khi đã tư vấn size thì kèm hỏi **hay mặc size gì**; giày/dép/sandal/boot/sneaker → **size khách thường đi**, **cấm** hỏi chiều cao hoặc cân nặng để tư vấn giày; túi/ví/ba lô → mục đích dùng hoặc kích thước cần đựng, không hỏi size giày.
 CTA vẫn theo cta_strategy ở trên: ngắn, tự nhiên, không lặp nguyên văn; products tối đa một thẻ đúng inventory/SKU.
 ${semanticMessageSectionsBlock}
@@ -1790,10 +1787,10 @@ ${PARTNER_AI_ALTERNATIVE_MODEL_QUERY_DOCTRINE}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 Tuân thủ nghiêm các quy tắc / chính sách sau (không bịa điều không có trong dữ liệu):
 ${humanShopFactsBlock}${fashionSizeWeightBlock}
-${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${alwaysIncludedShopAiContextBlock}
 ${salesDefaultBlock}${salesConversionRouterBlock}
 ${khoContextInstructionForSystem}${cardConsultIsolationSystemAddendum} Chỉ giới thiệu sản phẩm từ danh sách đó. Khi giới thiệu hoặc so sánh mặt hàng cụ thể, ưu tiên nói **lợi ích cho khách** (thẩm mỹ, độ phù hợp, sự thoải mái…) xuất phát từ thông tin trong kho, không chỉ đọc giá/mã. Nếu không có đúng sản phẩm trong danh sách, nói rõ chưa thấy thông tin khớp và chuyển hướng tư vấn: hỏi khách có muốn xem sản phẩm tương tự đang có trong kho không.
-Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho.
+Khi khách hỏi về chất liệu/vải/vật liệu: ưu tiên trả lời theo trường "Chất liệu (đã lưu/kho)" hoặc mô tả/ghi chú trong dòng kho nếu có; không bịa chất liệu ngoài dữ liệu đã cho. nan/null/n/a là chưa có. Không thêm chữ thật nếu tên, mô tả và chất liệu không có chữ thật.
 Trong mỗi dòng kho, **ảnh chính sản phẩm (URL)** là ảnh gốc shop khai báo; hệ thống dùng đúng ảnh đó làm nguồn để tạo (1) ảnh chi tiết chất liệu/màu và (2) ảnh **đời thường / góc tự nhiên** (nhìn sản phẩm chân thực) — không dùng ảnh khác làm nguồn, và **không** gọi các ảnh sinh ra là "ảnh tham khảo" khi nói với khách.
 Nếu trong kho có "Ảnh chi tiết chất liệu/màu (đã lưu)" kèm URL, đó là ảnh phóng chi tiết chất liệu/màu **sinh từ ảnh chính** — có callout ưu điểm chất liệu trên ảnh; hệ thống cũng gửi kèm đoạn copy ưu điểm trong tin ảnh — nhắc khách xem ảnh đính kèm (không cần dán lại URL trong message).
 Khi khách hỏi ảnh chụp thực tế / mặc thật / dùng thật: nếu kho có mục **Ảnh đời thường — nhìn sản phẩm chân thực (đã lưu)** kèm URL — đó là ảnh được tạo từ **ảnh chính** theo phong cách **đời thường, góc tự nhiên** để khách **xem sản phẩm chân thực** (không phải ảnh studio); trong **tin gửi khách** giữ giọng thống nhất với chú thích hệ thống (ảnh đời thường / góc tự nhiên / nhìn sản phẩm chân thực), **không** gọi là "ảnh tham khảo", **không** tự nói "ảnh AI" hay "ảnh phần mềm tạo". Không khẳng định ảnh chụp tại showroom/shop trừ khi dữ liệu kho ghi rõ. Khi khách vừa xem thẻ sản phẩm và hỏi ảnh thực tế — mặc định hiểu đúng mẫu đó; không bảo "không có ảnh" nếu hệ thống đang hoặc sắp gửi kèm ảnh. Trong một cuộc chat, tối đa hai ảnh loại này cho cùng một mặt hàng; không hứa gửi thêm khi đã đủ.
@@ -1922,7 +1919,12 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
 
   const sizeRow = isFashionPartner && invForContext.length === 1 ? invForContext[0] : null
   const deterministicSizeRecommendation = sizeRow
-    ? resolveFashionSizeRecommendation(latestCustomerMessage, sizeRow.sizes_json, {
+    ? resolveFashionSizeRecommendation(
+        sizeSignalTextFromRecentInbound(
+          latestCustomerMessage,
+          chronological.filter((m) => m.direction === 'inbound').map((m) => m.body)
+        ),
+        sizeRow.sizes_json, {
         name: sizeRow.name,
         categoryL1: sizeRow.category_l1,
         categoryL2: sizeRow.category_l2,
@@ -1942,6 +1944,31 @@ Dưới đây là **toàn bộ dữ liệu kho** của **một** sản phẩm �
     ? fashionSizeRecommendationPrompt(deterministicSizeRecommendation)
     : ''
 
+  const bareProductSku = extractBareProductSku(latestCustomerMessage)
+  const consultCallbackPhone = consultCallbackPhoneFromRaw(triggerRawPayload)
+  const bareSkuBranchActive =
+    payloadRouteDecision?.reason === 'bare_product_sku' ||
+    (payloadRouteIntent === 'clarify' && Boolean(bareProductSku))
+  const bareSkuMissBlock =
+    bareSkuBranchActive && bareProductSku && explicitSkuRows.length === 0 && !similarCatalogVersusLastConsulted
+      ? `
+
+[Bắt buộc] Khách gửi mã mẫu ${bareProductSku} nhưng danh sách kho không có dòng khớp. Nói chưa thấy mã này trong kho. Xin ảnh mẫu hoặc mã khác. Không hỏi đó là mã đơn hay mã sản phẩm. Không liệt kê loại áo quần.`
+      : ''
+  const consultPhoneBlock = consultCallbackPhone
+    ? `
+
+[Bắt buộc] Khách để lại số ${consultCallbackPhone} để được tư vấn đúng mẫu vừa nêu. Xác nhận đã nhận số trong một câu, rồi tư vấn đúng dòng kho nếu có. Không có dòng khớp thì nói chưa thấy mã và xin ảnh. Không hỏi lại loại hàng. Không hỏi mã là đơn hay mẫu.`
+    : ''
+  const phoneLead = phoneLeadZaloFromRaw(triggerRawPayload)
+  const phoneLeadBlock =
+    phoneLead && !consultCallbackPhone
+      ? formatPhoneLeadPromptNote({
+          phone: phoneLead.customerPhone,
+          zaloDial: phoneLead.zaloDial,
+          zaloHref: phoneLead.zaloHref,
+        })
+      : ''
   const user = `${partnerAiUserPromptOutputLanguageBanner(effectiveLocaleOpts)}${buildPartnerAiWarehouseVndPricingNote(effectiveLocaleOpts)}${guestProfilePromptBlock}${userInventoryPreamble}${formatInventoryLines(inventoryRowsForPrompt, invFmtOpts)}
 ${imageConsultPrompt}
 ${explicitSkuBlock}
@@ -1952,7 +1979,7 @@ ${transcript}
 ${conversationFocusBlock}${followUpSnapshotBlock}
 
 Tin nhắn mới nhất của khách:
-${latestCustomerMessage}${deterministicSizeBlock}
+${latestCustomerMessage}${deterministicSizeBlock}${bareSkuMissBlock}${consultPhoneBlock}${phoneLeadBlock}
 ${
   realUsePhotoLimitExceeded
     ? `
@@ -2007,9 +2034,9 @@ Trả lời bằng một JSON hợp lệ duy nhất, không markdown:
 Giọng điệu: ${tone}${partnerAiMessagingStyleLine(effectiveLocaleOpts)}${partnerAiAddressingPriorityLine(effectiveLocaleOpts)}
 ${PARTNER_AI_AUTHORIZED_DATA_ONLY_DOCTRINE}
 ${humanShopFactsBlock}
-${alwaysIncludedShopAiContextBlock}${partnerPaymentPolicyBlock}
+${alwaysIncludedShopAiContextBlock}
 [Nhánh chính sách / hỗ trợ đơn — ý định khách thắng mọi neo sản phẩm]
-- Trả lời cọc, COD, giao hàng, đổi trả, hủy/hoàn chỉ từ dữ liệu shop ở trên và lịch sử liên quan.
+- Trả lời giao hàng, đổi trả, hủy/hoàn từ ngữ cảnh shop và FAQ. Cọc và % chỉ từ [Ngữ cảnh shop bắt buộc], không từ cài đặt thanh toán hay code.
 - Cấm bịa tỷ lệ cọc, thời gian giao, điều kiện đổi trả hoặc cam kết hoàn tiền.
 - Hỏi chính sách chung không được hỏi mã đơn. Chỉ hỏi mã đơn/SĐT khi khách thực sự tra cứu một đơn cụ thể.
 - Không đọc catalog, không gửi thẻ sản phẩm; JSON products luôn là [].

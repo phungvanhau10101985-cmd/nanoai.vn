@@ -105,6 +105,14 @@ describe('image consult prompt', () => {
     })
     assert.match(text, /Công suất 1500W/)
     assert.match(text, /không bịa/)
+    assert.equal(
+      formatImageConsultContextForPrompt({
+        captured_at: '2026-10-03T00:00:00Z',
+        language: 'vi',
+        images: [{ url: 'https://cdn.shop/a.jpg', lines: [{ src: '材质', vi: 'Chất liệu: nan' }] }],
+      }),
+      ''
+    )
     assert.equal(formatImageConsultContextForPrompt(null), '')
     assert.equal(formatImageConsultContextForPrompt({ images: [] }), '')
   })

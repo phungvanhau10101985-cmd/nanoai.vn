@@ -775,7 +775,7 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       topBg: '#e8f3fb',
       bottomBg: '#fffafc',
       accent: '#7eb0d4',
-      textClass: 'text-[#2f3d4c]',
+      textClass: 'text-[#1a2836]',
     },
     label: {
       vi: 'Khung vườn trời',

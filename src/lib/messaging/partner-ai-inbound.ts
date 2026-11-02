@@ -39,6 +39,18 @@ import {
 } from '@/lib/messaging/partner-ai-purchase-intent'
 import { inboundTextLooksLikeFollowUpConsultHeuristic } from '@/lib/messaging/partner-inventory-ai-search'
 import {
+  extractBareProductSku,
+  extractConsultCallbackPhone,
+  inheritBareProductSkuFromPriorInbounds,
+} from '@/lib/messaging/partner-ai-bare-code-consult'
+import {
+  emailShopAdminsCustomerPhoneLead,
+  extractCustomerVnMobiles,
+  formatCustomerPhoneLeadReply,
+  phoneLeadShouldTakeConsultReply,
+  zaloContactFromShopGuidance,
+} from '@/lib/messaging/partner-ai-phone-lead'
+import {
   findLatestBoundOrderSnapshot,
   firstBoundOrderSku,
   formatBoundOrderDepositConfirmReply,
@@ -221,6 +233,29 @@ async function runInstantChatOrderFollowup(ctx: {
     rawPayload,
   })
   if (err.error) console.error('[partner-ai] instant chat order follow-up deliver', err.error)
+}
+
+async function runInstantConsultPhoneReply(ctx: {
+  conversationId: string
+  settings: SettingsRow
+  body: string
+  source?: string
+}) {
+  let conv: Database['public']['Tables']['customer_care_conversations']['Row'] | null = null
+  try {
+    conv = await fetchCustomerCareConversationByIdPg(ctx.conversationId)
+  } catch (e) {
+    console.warn('[partner-ai] runInstantConsultPhoneReply PG conv failed', e)
+  }
+  if (!conv) return
+  await sleep(typingDelayMs(ctx.settings))
+  const err = await deliverAutomatedPartnerMessage({
+    conversation: conv,
+    settings: ctx.settings,
+    body: ctx.body,
+    rawPayload: { source: ctx.source || 'consult_phone_need_sample' } as unknown as Json,
+  })
+  if (err.error) console.error('[partner-ai] consult phone reply deliver', err.error)
 }
 
 async function runInstantShippingLookupReply(ctx: {
@@ -460,19 +495,121 @@ export async function handlePartnerInboundForAi(input: {
     const orderStatusAsk = inboundTextLooksLikeOrderStatusAsk(probeForLookup)
     const policyWithoutTrack =
       inboundTextLooksLikeShopPolicyAsk(probeForLookup) && !orderStatusAsk
-    routeDecision = resolvePartnerAiFinalRouteDecision({
-      classified: routeDecision,
+    const bareSku = extractBareProductSku(probeForLookup)
+    const consultPhone = bareSku ? null : extractConsultCallbackPhone(probeForLookup)
+    let inheritedSku: string | null = null
+    if (consultPhone && isPgConfigured()) {
+      try {
+        const recentInbound = await fetchRecentInboundCustomerCareMessageBodiesPg(
+          input.conversationId,
+          4
+        )
+        inheritedSku = inheritBareProductSkuFromPriorInbounds(recentInbound)
+      } catch (e) {
+        console.warn('[partner-ai-inbound] inherit bare sku', e)
+      }
+    }
+    const explicitProductSku = bareSku || inheritedSku
+    const classifiedIntent = routeDecision?.intent ?? null
+    const replacesClarifyOnly = classifiedIntent === 'clarify' || routeDecision == null
+    const customerPhones = extractCustomerVnMobiles(probeForLookup)
+    const purchaseAsk = inboundTextLooksLikePurchasePickListIntent(probeForLookup)
+    if (customerPhones.length > 0) {
+      void emailShopAdminsCustomerPhoneLead({
+        partnerId: input.partnerId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        customerText: probeForLookup,
+        phones: customerPhones,
+      })
+    }
+    const phoneConsultReply = phoneLeadShouldTakeConsultReply({
+      hasPhone: customerPhones.length > 0,
       orderStatusAsk,
       policyAsk: policyWithoutTrack,
-      followUpHeuristic: inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup),
+      purchaseAsk,
+      clarifyOnly: replacesClarifyOnly,
     })
+    const bareSkuBranch =
+      Boolean(explicitProductSku) && replacesClarifyOnly && !orderStatusAsk && !policyWithoutTrack && !phoneConsultReply
+    if (phoneConsultReply) {
+      routeDecision = createPartnerAiRouteDecision('clarify', {
+        source: 'hard_rule',
+        reason: 'consult_phone_zalo',
+        confidence: 1,
+        ctaStrategy: 'no_cta',
+      })
+    } else {
+      routeDecision = resolvePartnerAiFinalRouteDecision({
+        classified: routeDecision,
+        orderStatusAsk,
+        policyAsk: policyWithoutTrack,
+        followUpHeuristic: inboundTextLooksLikeFollowUpConsultHeuristic(probeForLookup),
+        explicitProductSku: bareSkuBranch ? explicitProductSku : null,
+      })
+    }
+    const shopZalo =
+      customerPhones.length > 0 && !orderStatusAsk && !policyWithoutTrack && !purchaseAsk
+        ? zaloContactFromShopGuidance(settings.product_consultation_context)
+        : null
     try {
       await mergeCustomerCareMessageRawPayloadPatchPg(
         input.messageId,
         partnerAiRouteDecisionToPayload(routeDecision)
       )
+      if (bareSkuBranch && inheritedSku) {
+        await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
+          page_context: { sku: inheritedSku, source: 'explicit_sku_consult' },
+          ...(consultPhone ? { consult_callback_phone: consultPhone } : {}),
+        })
+      }
+      if (shopZalo && !phoneConsultReply) {
+        await mergeCustomerCareMessageRawPayloadPatchPg(input.messageId, {
+          phone_lead_zalo: {
+            customer_phone: customerPhones[0],
+            zalo_dial: shopZalo.dial,
+            zalo_href: shopZalo.href,
+          },
+        })
+      }
     } catch (e) {
       console.warn('[partner-ai-inbound] final route payload', e)
+    }
+    if (phoneConsultReply) {
+      let phoneLocale = normalizeWebLocale(input.widgetUiLocale ?? null)
+      if (input.channel === 'widget' && phoneLocale === null && isPgConfigured()) {
+        try {
+          const raw = await fetchConversationUiLocaleFromPg(input.conversationId)
+          phoneLocale = normalizeWebLocale(raw ?? null)
+        } catch {
+          phoneLocale = null
+        }
+      }
+      let phoneGender: GuestProfileGender | null = null
+      try {
+        const conv = await fetchCustomerCareConversationByIdPg(input.conversationId)
+        phoneGender = await fetchGuestGenderForPartnerConsultCachePg(conv?.linked_user_id)
+      } catch (e) {
+        console.warn('[partner-ai-inbound] consult phone gender', e)
+      }
+      await cancelPendingAiJobsForConversation(input.conversationId)
+      void runInstantConsultPhoneReply({
+        conversationId: input.conversationId,
+        settings,
+        source: 'consult_phone_zalo',
+        body: enforceConfiguredGenderAddressing(
+          formatCustomerPhoneLeadReply({
+            phone: customerPhones[0] || '',
+            zaloDial: shopZalo?.dial,
+            zaloHref: shopZalo?.href,
+            sku: inheritedSku,
+            locale: phoneLocale,
+          }),
+          phoneGender
+        ),
+      })
+      const typingHi = Math.max(settings.typing_pause_min_ms, settings.typing_pause_max_ms)
+      return { show: true, maxWaitMs: typingHi + 10_000 }
     }
 
     const skipFaq = inboundTextHasVisionSelectionHint(input.inboundBody)

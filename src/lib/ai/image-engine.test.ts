@@ -68,7 +68,12 @@ describe('imageEngineCredit', () => {
     assert.equal(gptImageSizeForAspect('1:1'), '1024x1024')
     assert.equal(gptImageSizeForAspect('9:16'), '1024x1536')
     assert.equal(gptImageSizeForAspect('16:9'), '1536x1024')
+    assert.equal(gptImageSizeForAspect('9:21'), '1024x1536')
+    assert.equal(gptImageSizeForAspect('21:9'), '1536x1024')
+    assert.equal(gptImageSizeForAspect('2:3'), '1024x1536')
+    assert.equal(gptImageSizeForAspect('3:2'), '1536x1024')
     assert.equal(gptImageSizeForAspect(null, true), 'auto')
     assert.equal(gptImageSizeForAspect('', false), '1024x1024')
   })
+
 })

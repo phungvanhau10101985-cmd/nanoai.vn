@@ -61,7 +61,7 @@ export function WeddingCountdownBlock({
   const title = tx.countdownTitle ?? 'CÙNG ĐẾM NGƯỢC'
 
   return (
-    <div className={cn('text-center font-serif text-[#556b47]', className)} role="timer" aria-live="polite">
+    <div className={cn('wedding-cal-ink text-center font-serif text-[#556b47]', className)} role="timer" aria-live="polite">
       <p
         className={cn(
           'font-semibold uppercase tracking-[0.22em] opacity-90',

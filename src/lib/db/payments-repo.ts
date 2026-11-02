@@ -155,6 +155,75 @@ export async function sepayFindPendingPaymentMatch(
   )
 }
 
+/**
+ * Khớp pending → completed và cộng credit trong một transaction.
+ * Webhook shop và webhook nạp credit cùng nhận một giao dịch SePay; chỉ request thắng claim được cộng tiền.
+ */
+export async function sepayCompletePendingCreditPayment(input: {
+  paymentId: string
+  userId: string
+  creditsToAdd: number
+  transactionId: string | null
+  normalizedContent: string
+  bankAccount: string | null
+  bankName: string | null
+  sepayData: Record<string, unknown>
+}): Promise<{ ok: boolean; already: boolean; newBalance: number; error?: string }> {
+  if (!isPgConfigured()) return { ok: false, already: false, newBalance: 0, error: 'database_not_configured' }
+  if (!Number.isFinite(input.creditsToAdd) || input.creditsToAdd <= 0) {
+    return { ok: false, already: false, newBalance: 0, error: 'invalid_credits' }
+  }
+  const pool = getPgPool()
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const claimed = await client.query(
+      `update public.payments set
+        status = 'completed',
+        transaction_id = $2,
+        transaction_content = $3,
+        bank_account = $4,
+        bank_name = $5,
+        sepay_data = $6::jsonb,
+        completed_at = now(),
+        updated_at = now()
+      where id = $1::uuid and status = 'pending'
+      returning id`,
+      [
+        input.paymentId,
+        input.transactionId,
+        input.normalizedContent,
+        input.bankAccount,
+        input.bankName,
+        JSON.stringify(input.sepayData),
+      ]
+    )
+    if (claimed.rowCount !== 1) {
+      await client.query('ROLLBACK')
+      return { ok: true, already: true, newBalance: 0 }
+    }
+    const credited = await client.query<{ balance: string | number | null }>(
+      `insert into public.credits (user_id, balance) values ($1::uuid, $2::numeric)
+       on conflict (user_id) do update set balance = public.credits.balance + excluded.balance
+       returning balance`,
+      [input.userId, input.creditsToAdd]
+    )
+    await client.query('COMMIT')
+    const nb = credited.rows[0]?.balance != null ? Number(credited.rows[0].balance) : 0
+    return { ok: true, already: false, newBalance: Number.isFinite(nb) ? nb : 0 }
+  } catch (e) {
+    try {
+      await client.query('ROLLBACK')
+    } catch {
+      /* ignore rollback failure */
+    }
+    const msg = e instanceof Error ? e.message : String(e)
+    return { ok: false, already: false, newBalance: 0, error: msg }
+  } finally {
+    client.release()
+  }
+}
+
 export async function sepayMarkPaymentCompleted(input: {
   paymentId: string
   transactionId: string | null

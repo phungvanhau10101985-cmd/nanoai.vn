@@ -15,7 +15,7 @@ test('mmToPrintPx uses 300dpi rounding', () => {
   assert.equal(mmToPrintPx(10), Math.round((10 * 300) / 25.4))
 })
 
-test('fitPanelArtworkToTrim outputs exact trim pixels with fill', async () => {
+test('fitPanelArtworkToTrim outputs exact trim pixels without stretching glyphs', async () => {
   const source = await sharp({
     create: { width: 400, height: 200, channels: 3, background: { r: 200, g: 50, b: 50 } },
   })
@@ -27,6 +27,32 @@ test('fitPanelArtworkToTrim outputs exact trim pixels with fill', async () => {
   const metadata = await sharp(trimmed).metadata()
   assert.equal(metadata.width, mmToPrintPx(widthMm))
   assert.equal(metadata.height, mmToPrintPx(heightMm))
+})
+
+test('fitPanelArtworkToTrim keeps a horizontal bar height when the target is squarer', async () => {
+  const srcW = 100
+  const srcH = 200
+  const barTop = 90
+  const barH = 20
+  const raw = Buffer.alloc(srcW * srcH * 3, 0)
+  for (let y = barTop; y < barTop + barH; y += 1) {
+    for (let x = 0; x < srcW; x += 1) {
+      const i = (y * srcW + x) * 3
+      raw[i] = 255
+      raw[i + 1] = 255
+      raw[i + 2] = 255
+    }
+  }
+  const source = await sharp(raw, { raw: { width: srcW, height: srcH, channels: 3 } }).png().toBuffer()
+  const trimmed = await fitPanelArtworkToTrim(source, 25.4, 25.4)
+  const { data, info } = await sharp(trimmed).raw().toBuffer({ resolveWithObject: true })
+  let whiteRows = 0
+  const midX = Math.floor(info.width / 2)
+  for (let y = 0; y < info.height; y += 1) {
+    const i = (y * info.width + midX) * info.channels
+    if (data[i] > 200) whiteRows += 1
+  }
+  assert.ok(whiteRows >= 28 && whiteRows <= 34, `expected ~30px bar, got ${whiteRows}`)
 })
 
 test('extendPanelArtworkBleed adds bleed pixels on all sides', async () => {

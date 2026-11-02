@@ -28,6 +28,7 @@ REQUIRED — flat print file before die-cutting:
 - FULL BLEED (full viền): background, colour and artwork extend to all four edges with ZERO margin, frame, padding, or letterboxing
 - The entire image canvas is 100% filled with printable design — edge to edge, corner to corner
 - LANGUAGE LOCK: render every brand name, product name, slogan, ingredient, instruction, and other supplied print copy verbatim in its original language — never translate, transliterate, rewrite, spell-correct, or summarize it
+- TYPE LOCK: every glyph is flat print type with a straight baseline and even height. No wavy, melted, skewed, stretched, arched, or perspective-distorted letters. Do not wrap text onto a bottle, curve, or 3D surface. Vietnamese diacritics stay attached to the correct letter
 - NO dieline / net / unfolded template: no multiple connected panels, glue tabs, tuck flaps, or sheet layout
 - NO cut lines, fold/crease lines, registration marks, crop marks, or bleed guides drawn on the image
 - NEVER draw dimension lines, arrows, rulers, or size text (mm, cm, L×W labels) on the artwork

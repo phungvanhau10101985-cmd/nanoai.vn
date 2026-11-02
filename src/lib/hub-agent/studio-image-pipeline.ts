@@ -15,8 +15,8 @@ import { GEMINI_3_PRO_IMAGE } from '@/lib/gemini-config'
 import { imageChargeFromForm } from '@/lib/ai/image-engine'
 import { runImageContent } from '@/lib/ai/gpt-image'
 import { normalizeLogoAspectRatioForGemini } from '@/lib/partner-website/visual-editor/gemini-working-aspect'
+import { closestGptFaceAspectRatio, getFaceGeminiAspectRatio } from '@/lib/packaging/face-aspect'
 import { stripPackagingFaceTechnicalMeasurementsFromVisualPrompt } from '@/lib/packaging/face-print-prompt'
-import { normalizePanelArtworkToPrintSize } from '@/lib/packaging/panel-artwork-fit'
 import {
   chargedCreditsForLogoCreate,
   parseLogoStripBackgroundFlag,
@@ -445,7 +445,22 @@ export async function runStudioImagePipeline(input: {
     let lastError = 'AI không trả về ảnh.'
     const modelId = (input.imageModel || GEMINI_3_PRO_IMAGE.model).trim() || GEMINI_3_PRO_IMAGE.model
     const omitImageSize = input.imageSize === null
-    const ratios = priced.engine === 'gpt' ? aspectRatioAttempts.slice(0, 1) : aspectRatioAttempts
+    const faceMm = input.kind === 'packaging_face' ? input.printSizeMm : undefined
+    const ratios = faceMm
+      ? [
+          priced.engine === 'gpt'
+            ? closestGptFaceAspectRatio(faceMm.widthMm, faceMm.heightMm)
+            : getFaceGeminiAspectRatio(faceMm.widthMm, faceMm.heightMm),
+        ]
+      : priced.engine === 'gpt'
+        ? aspectRatioAttempts.slice(0, 1)
+        : aspectRatioAttempts
+    if (faceMm && ratios[0]) {
+      const lead = parts[0] as { text?: string }
+      if (lead && typeof lead.text === 'string') {
+        lead.text += `\n\nCANVAS RATIO: the image canvas is exactly ${ratios[0]}. Fill that whole canvas edge-to-edge. Do not letterbox a different rectangle inside it, and do not print the ratio or any measurements.`
+      }
+    }
     for (const aspectRatio of ratios) {
       const imageConfig: { aspectRatio: string; imageSize?: '2K' | '4K' } = { aspectRatio }
       if (!omitImageSize) imageConfig.imageSize = input.imageSize === '4K' ? '4K' : spec.imageSize === '4K' ? '4K' : '2K'
@@ -485,23 +500,14 @@ export async function runStudioImagePipeline(input: {
           (imagePartRes as { inlineData: { data: string } }).inlineData.data,
           'base64'
         )
-        const shouldNormalizeToPrintSize =
-          input.kind === 'packaging_face' && Boolean(input.printSizeMm)
-        const normalizedBuffer = shouldNormalizeToPrintSize
-          ? await normalizePanelArtworkToPrintSize(
-              resultBufferRaw,
-              input.printSizeMm!.widthMm,
-              input.printSizeMm!.heightMm
-            )
-          : resultBufferRaw
-        let resultBuffer = normalizedBuffer
+        let resultBuffer = resultBufferRaw
         let charged = imageCredit
         if (input.kind === 'logo' && stripLogoBackground) {
           const stripped = await stripLogoBackgroundToTransparentPng({
             apiKey,
             userId: input.userId,
             feature: 'hub-studio-logo-remove-bg',
-            imageBuffer: normalizedBuffer,
+            imageBuffer: resultBufferRaw,
           })
           resultBuffer = stripped.buffer
           charged = chargedCreditsForLogoCreate(imageCredit, stripped.removed)

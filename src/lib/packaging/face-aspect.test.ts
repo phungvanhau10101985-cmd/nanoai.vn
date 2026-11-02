@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   buildBoxFaceConfirmSummary,
   buildPackagingFaceAspectPlan,
+  closestGptFaceAspectRatio,
   getFaceGeminiAspectRatio,
   isBoxFaceConfirmAck,
 } from '@/lib/packaging/face-aspect'
@@ -24,9 +25,22 @@ test('builds face aspect plan and confirm summary from box dimensions', () => {
   assert.match(summary, /Gemini/)
 })
 
-test('portrait face picks vertical-friendly gemini ratio', () => {
-  const ratio = getFaceGeminiAspectRatio(100, 200)
-  assert.match(ratio, /:/)
+test('portrait face picks the closest ratio each model can return', () => {
+  assert.equal(getFaceGeminiAspectRatio(100, 200), '9:16')
+  assert.equal(closestGptFaceAspectRatio(100, 200), '2:3')
+})
+
+test('serum box 50×130 mm does not request a ratio the model rejects', () => {
+  assert.equal(getFaceGeminiAspectRatio(50, 130), '9:16')
+  assert.notEqual(getFaceGeminiAspectRatio(50, 130), '9:21')
+  assert.notEqual(getFaceGeminiAspectRatio(50, 130), '16:9')
+  assert.equal(closestGptFaceAspectRatio(50, 130), '2:3')
+  assert.equal(getFaceGeminiAspectRatio(50, 50), '1:1')
+  assert.equal(closestGptFaceAspectRatio(50, 50), '1:1')
+  const summary = buildBoxFaceConfirmSummary('vi', { length: 50, width: 50, height: 130 })
+  assert.match(summary, /Gemini \*\*9:16\*\*/)
+  assert.match(summary, /GPT \*\*2:3\*\*/)
+  assert.match(summary, /GPT \*\*1:1\*\*/)
 })
 
 test('detects box face confirmation ack messages', () => {

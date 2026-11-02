@@ -349,8 +349,11 @@ export function inboundTextLooksLikeBareShippingId(raw: string): boolean {
   const digits = t.replace(/\D+/g, '')
   const local = digits.startsWith('84') && digits.length === 11 ? `0${digits.slice(2)}` : digits
   if (!/^0(?:3|5|7|8|9)\d{8}$/.test(local)) return false
-  /** SĐT kèm nhãn — không coi dãy số trần (có thể đang chốt đơn). */
-  return /sđt|sdt|đt|điện\s*thoại|dien\s*thoai|phone/i.test(t)
+  /** SĐT kèm nhãn chỉ là tra đơn khi cùng câu hỏi đơn. SĐT trần lúc chốt mua không phải mã vận đơn. */
+  if (!/sđt|sdt|đt|điện\s*thoại|dien\s*thoai|phone/i.test(t)) return false
+  return /đơn|don|kiểm\s*tra|kiem\s*tra|ở\s*đâu|o\s*dau|tới\s*đâu|toi\s*dau|gửi\s*chưa|gui\s*chua|tracking|vận\s*đơn|van\s*don/i.test(
+    t
+  )
 }
 
 /**
@@ -375,4 +378,38 @@ export function inboundTextLooksLikePurchasePickListIntent(raw: string): boolean
   return PURCHASE_PICK_LIST_INTENT_RE.test(msg)
     || looksLikeCheckoutPhoneSignal(msg)
     || looksLikeFashionCheckoutPhrase(msg)
+}
+
+const COMBINATION_LOCK_RE = /khóa\s*số|khoa\s*so|password\s*lock|combination\s*lock/i
+
+export function customerRequiresCombinationLock(text: string): boolean {
+  return COMBINATION_LOCK_RE.test(String(text ?? ''))
+}
+
+export function inventoryTextHasCombinationLock(text: string): boolean {
+  return COMBINATION_LOCK_RE.test(String(text ?? ''))
+}
+
+function customerBlobHasOrderDigits(blob: string, digits: string): boolean {
+  if (!digits) return false
+  const norm = blob.toUpperCase().replace(/Đ/g, 'D')
+  return new RegExp(`(?:\\bDH\\s*[-_]?|\\b)${digits}\\b`, 'i').test(norm)
+}
+
+/** Bỏ câu chính sách tự bịa mã đơn hoặc nói đã ghi nhận đổi size. */
+export function sanitizePolicyReplyFacts(message: string, allowedBlob: string): string {
+  const raw = String(message ?? '').trim()
+  if (!raw) return message
+  const parts = raw.split(/(?<=[.!?\n])\s+/)
+  const kept = parts.filter((part) => {
+    if (/\b(?:em|mình|minh|shop)\s*(?:đã\s*)?ghi\s*nhận\b/i.test(part) && /đổi\s*size|doi\s*size/i.test(part)) {
+      return false
+    }
+    const codes = [...part.matchAll(/\b(?:DH|ĐH)\s*[-_]?\s*(\d{3,})\b/giu)]
+    if (!codes.length) return true
+    return codes.every((code) => customerBlobHasOrderDigits(allowedBlob, code[1] ?? ''))
+  })
+  const next = kept.join(' ').replace(/[ ]{2,}/g, ' ').trim()
+  if (next) return next
+  return 'Em chưa thấy mã đơn trong tin nhắn để xác nhận size hay tình trạng. Mình gửi mã đơn giúp em.'
 }

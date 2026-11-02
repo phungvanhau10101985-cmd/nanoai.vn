@@ -11,6 +11,7 @@ import { createHmac, timingSafeEqual } from 'crypto'
 
 export const SEPAY_HMAC_SECRET_MAX_LEN = 256
 
+/** Nguồn: https://developer.sepay.vn/vi/dia-chi-ip — SePay có thể gọi từ bất kỳ IP nào trong danh sách. */
 export const SEPAY_DEFAULT_WEBHOOK_IPS = [
   '172.236.138.20',
   '172.233.83.68',
@@ -18,6 +19,9 @@ export const SEPAY_DEFAULT_WEBHOOK_IPS = [
   '151.158.108.68',
   '151.158.109.79',
   '103.255.238.139',
+  '45.57.137.67',
+  '2400:8905::2000:8cff:fe98:45cd',
+  '2600:3c15::2000:8aff:fedd:874b',
 ] as const
 
 export type SePayWebhookAuthVia = 'api_key' | 'hmac' | 'sepay_ip' | 'insecure_dev'
