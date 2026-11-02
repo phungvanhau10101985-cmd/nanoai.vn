@@ -7,8 +7,9 @@ import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { useToast } from '@/hooks/use-toast'
 import { uploadWeddingOrnamentImage } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { editWeddingOrnamentAt, nudgeWeddingOrnament, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentEditSheet, weddingOrnamentEdgeSpot, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, weddingIframeVisibleView, weddingOrnamentBlurPx, weddingOrnamentEditSheet, weddingOrnamentEdgeSpot, weddingOrnamentFadeAmount, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPlain, weddingOrnamentRises, weddingOrnamentSpotInView, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { isWeddingOrnamentImageSrc, WEDDING_ORNAMENT_CATALOG } from '@/lib/wedding/wedding-background-ornament-store'
+import { decideOrnamentPickerTap, ornamentPickerConfirmSrc } from '@/lib/wedding/wedding-ornament-picker'
 import { bindWeddingOrnamentRise, useWeddingOrnamentRun, WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { markWeddingOrnamentGesture } from '@/lib/wedding/wedding-ornament-gesture'
 import { ornamentHitSlop, ornamentPointerIsCoarse, pickOrnamentHit, rememberOrnamentPixels } from '@/lib/wedding/wedding-ornament-hit'
@@ -348,7 +349,10 @@ export function WeddingOrnamentAdminLayer(props: {
     }
     const index = Number(best.dataset.ornamentIndex)
     if (Number.isFinite(index)) chooseRef.current(index)
-    if (bestOverlap < 8) best.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const box = best.getBoundingClientRect()
+    if (ornamentRevealNeedsScroll(box, { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight })) {
+      best.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
   }, [props.ornaments])
 
   useEffect(() => {
@@ -609,7 +613,7 @@ export function WeddingOrnamentAdminLayer(props: {
         const active = selected === index
         return (
           <div
-            key={`${item.page}-${item.seed}-${index}-${item.src}`}
+            key={`${item.page}-${item.seed}-${item.src}`}
             data-ornament-hit=""
             data-ornament-index={index}
             data-ornament-seed={item.seed}
@@ -768,68 +772,141 @@ function OrnamentPickerDialog(props: {
   onAddLink?: () => void
 }) {
   const tx = getDictionary(props.locale).weddingCardAiImage
+  const [selected, setSelected] = useState<string | null>(null)
+  const pressRef = useRef<{ src: string; x: number; y: number } | null>(null)
+  const pickedByPointerRef = useRef(false)
+  const picked = WEDDING_ORNAMENT_CATALOG.find((piece) => piece.src === selected) ?? null
+
+  useEffect(() => {
+    if (props.open) return
+    setSelected(null)
+    pressRef.current = null
+    pickedByPointerRef.current = false
+  }, [props.open])
+
+  const confirmPick = () => {
+    const src = ornamentPickerConfirmSrc(selected)
+    if (!src) return
+    props.onPick(src)
+    props.onOpenChange(false)
+  }
+
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent
         overlayClassName="z-[220]"
-        className="z-[220] max-h-[85vh] overflow-y-auto sm:max-w-lg"
+        className="z-[220] flex max-h-[92dvh] w-[min(100vw-1rem,42rem)] flex-col gap-3 overflow-hidden p-4 sm:max-w-2xl"
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onOpenAutoFocus={(event) => event.preventDefault()}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 space-y-2 pr-10 text-left">
           <DialogTitle>{tx.ornamentAdminAdd}</DialogTitle>
+          <p className="text-sm leading-relaxed text-stone-600">{tx.ornamentPickerHint}</p>
         </DialogHeader>
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {WEDDING_ORNAMENT_CATALOG.map((piece) => (
-            <button
-              key={piece.src}
-              type="button"
-              className="rounded-xl border bg-white p-2 text-center hover:border-rose-400"
-              onPointerDown={(event) => {
-                if (event.button !== 0) return
-                event.preventDefault()
-                event.currentTarget.dataset.picked = '1'
-                props.onPick(piece.src)
-                props.onOpenChange(false)
-              }}
-              onClick={(event) => {
-                if (event.currentTarget.dataset.picked === '1') return
-                props.onPick(piece.src)
-                props.onOpenChange(false)
-              }}
-            >
-              <img src={piece.src} alt="" className="mx-auto h-16 w-full object-contain" />
-              <span className="mt-1 block text-[11px] leading-tight">{piece.label[props.locale] ?? piece.label.en}</span>
-            </button>
-          ))}
-        </div>
-        {props.onUploadClick || props.onAddLink ? (
-          <div className="space-y-2 border-t pt-3">
-            {props.onUploadClick ? (
-              <button type="button" className="h-8 rounded-md border bg-white px-3 text-xs" disabled={props.uploading} onClick={props.onUploadClick}>
-                {tx.ornamentAdminUpload}
-              </button>
-            ) : null}
-            {props.onAddLink && props.onLinkChange ? (
-              <div className="flex gap-2">
-                <input
-                  value={props.link ?? ''}
-                  onChange={(event) => props.onLinkChange?.(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      props.onAddLink?.()
-                    }
-                  }}
-                  placeholder={tx.ornamentAdminPasteLink}
-                  className="h-8 min-w-0 flex-1 rounded-md border bg-white px-2 text-xs"
-                />
-                <button type="button" className="h-8 rounded-md border bg-white px-3 text-xs disabled:opacity-40" disabled={!props.link?.trim()} onClick={props.onAddLink}>
-                  {tx.ornamentAdminAddLink}
-                </button>
-              </div>
-            ) : null}
+        {picked ? (
+          <div className="flex shrink-0 items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50/80 px-3 py-2">
+            <img src={picked.src} alt="" className="h-24 w-24 shrink-0 object-contain sm:h-28 sm:w-28" />
+            <div className="min-w-0">
+              <p className="text-xs font-medium uppercase tracking-wide text-rose-700">{tx.ornamentPickerSelected}</p>
+              <p className="text-base font-semibold leading-snug text-stone-900">{picked.label[props.locale] ?? picked.label.en}</p>
+            </div>
           </div>
         ) : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {WEDDING_ORNAMENT_CATALOG.map((piece) => {
+              const active = selected === piece.src
+              return (
+                <button
+                  key={piece.src}
+                  type="button"
+                  aria-pressed={active}
+                  className={cn(
+                    'flex min-h-[8.5rem] touch-manipulation flex-col items-center justify-center rounded-2xl border bg-white px-2 py-3 text-center transition-colors',
+                    active ? 'border-rose-600 ring-2 ring-rose-500' : 'border-stone-200 hover:border-rose-300',
+                  )}
+                  onPointerDown={(event) => {
+                    if (event.button !== 0) return
+                    pickedByPointerRef.current = false
+                    pressRef.current = { src: piece.src, x: event.clientX, y: event.clientY }
+                  }}
+                  onPointerCancel={() => {
+                    pressRef.current = null
+                    pickedByPointerRef.current = false
+                  }}
+                  onPointerUp={(event) => {
+                    const press = pressRef.current
+                    pressRef.current = null
+                    if (!press || press.src !== piece.src) return
+                    const movedPx = Math.hypot(event.clientX - press.x, event.clientY - press.y)
+                    const decision = decideOrnamentPickerTap({ src: press.src, movedPx })
+                    if (decision.kind !== 'select') return
+                    pickedByPointerRef.current = true
+                    setSelected(decision.src)
+                  }}
+                  onClick={() => {
+                    if (pickedByPointerRef.current) {
+                      pickedByPointerRef.current = false
+                      return
+                    }
+                    setSelected(piece.src)
+                  }}
+                >
+                  <img src={piece.src} alt="" className="mx-auto h-24 w-full object-contain sm:h-28" />
+                  <span className="mt-2 block text-sm font-medium leading-snug">{piece.label[props.locale] ?? piece.label.en}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="shrink-0 space-y-2 border-t pt-3">
+          <button
+            type="button"
+            disabled={!ornamentPickerConfirmSrc(selected)}
+            className="h-12 w-full touch-manipulation rounded-xl bg-rose-700 text-base font-semibold text-white disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-500"
+            onClick={confirmPick}
+          >
+            {tx.ornamentPickerConfirm}
+          </button>
+          {props.onUploadClick || props.onAddLink ? (
+            <div className="space-y-2">
+              {props.onUploadClick ? (
+                <button
+                  type="button"
+                  className="h-11 w-full touch-manipulation rounded-xl border bg-white px-3 text-sm font-medium"
+                  disabled={props.uploading}
+                  onClick={props.onUploadClick}
+                >
+                  {tx.ornamentAdminUpload}
+                </button>
+              ) : null}
+              {props.onAddLink && props.onLinkChange ? (
+                <div className="flex gap-2">
+                  <input
+                    value={props.link ?? ''}
+                    onChange={(event) => props.onLinkChange?.(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        props.onAddLink?.()
+                      }
+                    }}
+                    placeholder={tx.ornamentAdminPasteLink}
+                    className="h-11 min-w-0 flex-1 rounded-xl border bg-white px-3 text-sm"
+                  />
+                  <button
+                    type="button"
+                    className="h-11 shrink-0 touch-manipulation rounded-xl border bg-white px-4 text-sm font-medium disabled:opacity-40"
+                    disabled={!props.link?.trim()}
+                    onClick={props.onAddLink}
+                  >
+                    {tx.ornamentAdminAddLink}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -855,7 +932,7 @@ export function WeddingOrnamentAdminBar(props: {
     <div className={props.compact ? 'mt-1 flex flex-col gap-1' : 'mt-3 space-y-2 rounded-xl border border-dashed border-rose-200 bg-rose-50/60 p-2'} title={props.compact ? props.hint : undefined}>
       <p className={props.compact ? 'sr-only' : 'text-xs leading-relaxed text-rose-950'}>{props.hint}</p>
       <div className={props.compact ? 'flex flex-col gap-1' : 'flex flex-wrap gap-2'}>
-        <button type="button" className={props.compact ? 'h-9 w-full rounded-xl bg-rose-600 px-3 text-xs font-semibold text-white' : 'h-8 rounded-md border bg-white px-3 text-xs'} onClick={() => setPickerOpen(true)}>
+        <button type="button" className={props.compact ? 'h-11 w-full touch-manipulation rounded-xl bg-rose-600 px-3 text-sm font-semibold text-white' : 'h-11 rounded-xl border bg-white px-4 text-sm font-medium'} onClick={() => setPickerOpen(true)}>
           {props.addLabel}
         </button>
         <OrnamentPickerDialog locale={props.locale} open={pickerOpen} onOpenChange={setPickerOpen} onPick={props.onAdd} />
@@ -865,7 +942,7 @@ export function WeddingOrnamentAdminBar(props: {
           resetLabel={props.resetLabel}
           confirmLabel={tx.ornamentAdminResetConfirm}
           cancelLabel={tx.ornamentAdminResetCancel}
-          className={props.compact ? 'h-9 w-full rounded-xl border border-neutral-200 bg-white px-2 text-xs font-medium leading-tight text-neutral-700' : 'h-8 rounded-md border bg-white px-3 text-xs'}
+          className={props.compact ? 'h-11 w-full touch-manipulation rounded-xl border border-neutral-200 bg-white px-2 text-sm font-medium leading-tight text-neutral-700' : 'h-11 rounded-xl border bg-white px-4 text-sm'}
           onReset={props.onReset}
         />
       </div>
@@ -1006,7 +1083,7 @@ export function WeddingOrnamentPreviewTools(props: {
   }
 
   const noSelection = selected == null
-  const toolClass = 'h-8 rounded-md border bg-white px-2.5 text-xs disabled:opacity-40'
+  const toolClass = 'h-11 touch-manipulation rounded-xl border bg-white px-3 text-sm font-medium disabled:opacity-40'
 
   return (
     <div

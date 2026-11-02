@@ -298,6 +298,15 @@ export function weddingOrnamentSpotInView(input: {
   }
 }
 
+/** Hoa mới đã nằm trong khung nhìn, hoặc chưa kịp có kích thước, thì không kéo trang. */
+export function ornamentRevealNeedsScroll(box: WeddingOrnamentBox, view: WeddingOrnamentBox) {
+  if (box.width < 4 || box.height < 4 || view.width < 1 || view.height < 1) return false
+  const overlap =
+    Math.max(0, Math.min(box.top + box.height, view.top + view.height) - Math.max(box.top, view.top)) *
+    Math.max(0, Math.min(box.left + box.width, view.left + view.width) - Math.max(box.left, view.left))
+  return overlap < 8
+}
+
 /** Phần iframe đang lọt vào cửa sổ cha, đổi về pixel bố cục của iframe. */
 export function weddingIframeVisibleView(input: {
   frameTop: number
@@ -367,73 +376,124 @@ export type WeddingKitLook = {
   contentCard?: 'scallop'
 }
 
-const LEAF = '/wedding/backgrounds/ornaments/garden-leaves.png'
+const GARDEN_LA = '/wedding/backgrounds/ornaments/garden-la.png'
+const GARDEN_HONG = '/wedding/backgrounds/ornaments/garden-hong.png'
+const GARDEN_EUCA = '/wedding/backgrounds/ornaments/garden-euca.png'
+const GARDEN_NU = '/wedding/backgrounds/ornaments/garden-nu.png'
 const DO_SON_CORNER = '/wedding/backgrounds/ornaments/do-son-corner.svg'
-const LOTUS = '/wedding/backgrounds/ornaments/lotus-bloom.png'
+const DO_SON_SCROLL = '/wedding/backgrounds/ornaments/do-son-scroll.svg'
+const DO_SON_CLOUD = '/wedding/backgrounds/ornaments/do-son-cloud.svg'
+const DO_SON_KNOT = '/wedding/backgrounds/ornaments/do-son-knot.svg'
 const DRIED_SPRIG = '/wedding/backgrounds/ornaments/dried-sprig.png'
+const DRIED_CLOUD = '/wedding/backgrounds/ornaments/dried-gyp-cloud.png'
+const DRIED_STRAW = '/wedding/backgrounds/ornaments/dried-straw.png'
+const DRIED_TALL = '/wedding/backgrounds/ornaments/dried-gyp-tall.png'
 const MOC_BLOOM = '/wedding/backgrounds/ornaments/moc-bloom.png'
+const MOC_LEAF = '/wedding/backgrounds/ornaments/moc-leaf.png'
+const MOC_SPRIG = '/wedding/backgrounds/ornaments/moc-sprig.png'
+const MOC_NU = '/wedding/backgrounds/ornaments/moc-nu.png'
 const MIST_SPRIG = '/wedding/backgrounds/ornaments/mist-sprig.png'
+const CALLA_BLOOM = '/wedding/backgrounds/ornaments/calla-bloom.png'
+const CALLA_STEM = '/wedding/backgrounds/ornaments/calla-stem.png'
+const CALLA_LA = '/wedding/backgrounds/ornaments/calla-la.png'
 const DO_DAM_PEONY = '/wedding/backgrounds/ornaments/do-dam-peony.png'
 const DO_DAM_STEM = '/wedding/backgrounds/ornaments/do-dam-stem.png'
+const DO_DAM_ROSE = '/wedding/backgrounds/ornaments/do-dam-rose.png'
+const DO_DAM_LA = '/wedding/backgrounds/ornaments/do-dam-la.png'
 const TRE_CANH = '/wedding/backgrounds/ornaments/tre-canh.png'
 const TRE_HOA = '/wedding/backgrounds/ornaments/tre-hoa.png'
+const TRE_LA = '/wedding/backgrounds/ornaments/tre-la.png'
+const TRE_MANG = '/wedding/backgrounds/ornaments/tre-mang.png'
 const DAO_CANH = '/wedding/backgrounds/ornaments/dao-canh.png'
 const DAO_NU = '/wedding/backgrounds/ornaments/dao-nu.png'
+const DAO_LA = '/wedding/backgrounds/ornaments/dao-la.png'
+const DAO_CANH_DAI = '/wedding/backgrounds/ornaments/dao-canh-dai.png'
 const BIEN_VO = '/wedding/backgrounds/ornaments/bien-vo.png'
 const BIEN_CO = '/wedding/backgrounds/ornaments/bien-co.png'
+const BIEN_SAO = '/wedding/backgrounds/ornaments/bien-sao.png'
+const BIEN_SOI = '/wedding/backgrounds/ornaments/bien-soi.png'
 const DEM_CANH = '/wedding/backgrounds/ornaments/dem-canh.png'
 const DEM_HOA = '/wedding/backgrounds/ornaments/dem-hoa.png'
 const LUA_DAI = '/wedding/backgrounds/ornaments/lua-dai.png'
 const LUA_HOA = '/wedding/backgrounds/ornaments/lua-hoa.png'
 const CHUA_SEN = '/wedding/backgrounds/ornaments/chua-sen.png'
 const CHUA_LA = '/wedding/backgrounds/ornaments/chua-la.png'
+const CHUA_NU = '/wedding/backgrounds/ornaments/chua-nu.png'
+const CHUA_GU = '/wedding/backgrounds/ornaments/chua-gu.png'
 const CHO_CUC = '/wedding/backgrounds/ornaments/cho-cuc.png'
 const CHO_LA = '/wedding/backgrounds/ornaments/cho-la.png'
+const CHO_SU = '/wedding/backgrounds/ornaments/cho-su.png'
+const CHO_GIAY = '/wedding/backgrounds/ornaments/cho-giay.png'
 const HA_LONG_DA = '/wedding/backgrounds/ornaments/ha-long-da.png'
 const HA_LONG_CO = '/wedding/backgrounds/ornaments/ha-long-co.png'
+const HA_LONG_SOI = '/wedding/backgrounds/ornaments/ha-long-soi.png'
+const HA_LONG_RONG = '/wedding/backgrounds/ornaments/ha-long-rong.png'
 const LANG_SEN = '/wedding/backgrounds/ornaments/lang-sen.png'
 const LANG_LA = '/wedding/backgrounds/ornaments/lang-la.png'
+const LANG_CUC = '/wedding/backgrounds/ornaments/lang-cuc.png'
+const LANG_CANH_CUC = '/wedding/backgrounds/ornaments/lang-canh-cuc.png'
 const QUE_CAU = '/wedding/backgrounds/ornaments/que-cau.png'
 const QUE_LUA = '/wedding/backgrounds/ornaments/que-lua.png'
+const QUE_HOA = '/wedding/backgrounds/ornaments/que-hoa.png'
+const QUE_LA = '/wedding/backgrounds/ornaments/que-la.png'
 const DUONG_LA = '/wedding/backgrounds/ornaments/duong-la.png'
 const DUONG_HOA = '/wedding/backgrounds/ornaments/duong-hoa.png'
+const DUONG_RE = '/wedding/backgrounds/ornaments/duong-re.png'
+const DUONG_QUA = '/wedding/backgrounds/ornaments/duong-qua.png'
 const NIGHT_PAPER = '#0c1830'
-const PEARL_ROSE = '/wedding/backgrounds/ornaments/pearl-rose.png'
+const PEARL_HONG = '/wedding/backgrounds/ornaments/pearl-hong.png'
+const PEARL_HAT = '/wedding/backgrounds/ornaments/pearl-hat.png'
+const PEARL_LA = '/wedding/backgrounds/ornaments/pearl-la.png'
+const PEARL_NU = '/wedding/backgrounds/ornaments/pearl-nu.png'
 const LONG_PHUNG_CLOUD = '/wedding/backgrounds/ornaments/long-phung-cloud.svg'
+const LONG_PHUNG_WAVE = '/wedding/backgrounds/ornaments/long-phung-wave.svg'
 const SONG_HY_SEAL = '/wedding/backgrounds/ornaments/song-hy-seal.svg'
-const PEARL_BUTTERFLY = '/wedding/backgrounds/ornaments/pearl-butterfly.png'
-const PEARL_STRAND = '/wedding/backgrounds/ornaments/pearl-strand.png'
+const SONG_HY_CLOUD = '/wedding/backgrounds/ornaments/song-hy-cloud.svg'
+const GOLD_VINE = '/wedding/backgrounds/ornaments/gold-vine.png'
+const GOLD_PEONY = '/wedding/backgrounds/ornaments/gold-peony.png'
+const GOLD_LEAF_SPRIG = '/wedding/backgrounds/ornaments/gold-leaf-sprig.png'
+const GOLD_HEARTS = '/wedding/backgrounds/ornaments/gold-hearts.png'
+const GOLD_BLOSSOM = '/wedding/backgrounds/ornaments/gold-blossom.png'
+const SKY_BUOM = '/wedding/backgrounds/ornaments/sky-buom.png'
+const SKY_HONG = '/wedding/backgrounds/ornaments/sky-hong.png'
+const SKY_LA = '/wedding/backgrounds/ornaments/sky-la.png'
+const SKY_NU = '/wedding/backgrounds/ornaments/sky-nu.png'
+const SEN_VANG_SEN = '/wedding/backgrounds/ornaments/sen-vang-sen.png'
+const SEN_VANG_GU = '/wedding/backgrounds/ornaments/sen-vang-gu.png'
+const DEM_LA = '/wedding/backgrounds/ornaments/dem-la.png'
+const DEM_SAO = '/wedding/backgrounds/ornaments/dem-sao.png'
+const LUA_KIM = '/wedding/backgrounds/ornaments/lua-kim.png'
+const LUA_LA = '/wedding/backgrounds/ornaments/lua-la.png'
+const VAN_MIEU_MAI = '/wedding/backgrounds/ornaments/van-mieu-mai.png'
+const VAN_MIEU_LA = '/wedding/backgrounds/ornaments/van-mieu-la.png'
+const VAN_MIEU_NU = '/wedding/backgrounds/ornaments/van-mieu-nu.png'
+const VAN_MIEU_DA = '/wedding/backgrounds/ornaments/van-mieu-da.png'
 
 const SOFT_FONT = 'Palatino Linotype, Palatino, Georgia, serif'
 const FORMAL_FONT = 'Georgia, Times New Roman, serif'
 
-/** Hai điểm nhấn: một lá trên, một lá dưới. */
-const GARDEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LEAF, x: -8, y: 2, w: 16, rotate: -12, opacity: 0.72 },
-  { src: LEAF, x: 92, y: 90, w: 14, rotate: 14, flipX: true, opacity: 0.42 },
-]
+/** Bốn hoa bám hai mép. Giữa trang để trống cho chữ. */
+function themeEdgeOrnaments(a: string, b: string, c: string, d: string): readonly WeddingBackgroundOrnament[] {
+  return [
+    { src: a, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.94 },
+    { src: b, x: 88, y: 2, w: 14, rotate: 10, opacity: 0.86 },
+    { src: c, x: -14, y: 16, w: 20, rotate: 6, opacity: 0.8 },
+    { src: d, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
+  ]
+}
 
-/** Mây vàng nét mảnh, cùng chất với rồng phượng trên nền. Chỉ bám góc. */
-const LONG_PHUNG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LONG_PHUNG_CLOUD, x: -14, y: -4, w: 22, rotate: -8, opacity: 0.62 },
-  { src: LONG_PHUNG_CLOUD, x: 90, y: -4, w: 16, rotate: -10, flipX: true, anchor: 'bottom', opacity: 0.42 },
-]
+/** Hồng, nụ, lá và bạch đàn chụp thật — không dùng bản màu nước. */
+const GARDEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(GARDEN_HONG, GARDEN_EUCA, GARDEN_LA, GARDEN_NU)
 
-/** Hồi văn góc vàng, cùng nét với hoa văn dệt trên nền đỏ son. Không cánh hoa. */
-const SCARLET_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DO_SON_CORNER, x: -4, y: 0, w: 16, opacity: 0.96 },
-  { src: DO_SON_CORNER, x: 88, y: 0, w: 12, rotate: 180, anchor: 'bottom', opacity: 0.92 },
-]
+/** Mây vàng nét mảnh và dây lá vàng, cùng chất với rồng phượng. */
+const LONG_PHUNG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(LONG_PHUNG_CLOUD, GOLD_VINE, LONG_PHUNG_WAVE, GOLD_PEONY)
 
-const LOTUS_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LOTUS, x: -16, y: -2, w: 24, opacity: 0.9 },
-  { src: LOTUS, x: 88, y: -6, w: 18, opacity: 0.5, anchor: 'bottom' },
-]
+/** Hồi văn góc, mây, cuốn và nút vàng, cùng nét dệt trên nền đỏ son. */
+const SCARLET_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DO_SON_CORNER, DO_SON_SCROLL, DO_SON_CLOUD, DO_SON_KNOT)
 
-const PEARL_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: PEARL_ROSE, x: -16, y: -1, w: 24, opacity: 0.88 },
-  { src: PEARL_STRAND, x: 88, y: -2, w: 16, rotate: 18, opacity: 0.65, anchor: 'bottom' },
-]
+const LOTUS_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(SEN_VANG_SEN, GOLD_PEONY, SEN_VANG_GU, GOLD_LEAF_SPRIG)
+
+const PEARL_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(PEARL_HONG, PEARL_HAT, PEARL_LA, PEARL_NU)
 
 const GARDEN_LOOK: WeddingKitLook = {
   styleId: 'floral',
@@ -474,11 +534,8 @@ const RED_LOOK: WeddingKitLook = {
   paper: '#5c1018',
 }
 
-/** Dấu song hỷ vàng, bám góc. Hoa văn lớn nằm trên tấm giấy. */
-const SONG_HY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: SONG_HY_SEAL, x: -1, y: 1, w: 12, opacity: 0.72 },
-  { src: SONG_HY_SEAL, x: 89, y: 0, w: 10, anchor: 'bottom', opacity: 0.42 },
-]
+/** Dấu song hỷ, mây vàng và hai tim vàng, bám mép. */
+const SONG_HY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(SONG_HY_SEAL, GOLD_HEARTS, SONG_HY_CLOUD, GOLD_BLOSSOM)
 
 const SONG_HY_LOOK: WeddingKitLook = {
   styleId: 'traditional_vietnamese',
@@ -516,10 +573,7 @@ const SCARLET_LOOK: WeddingKitLook = {
   paper: '#6e1820',
 }
 
-const SKY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: PEARL_BUTTERFLY, x: -10, y: 0, w: 18, rotate: -14, opacity: 0.9 },
-  { src: PEARL_BUTTERFLY, x: 90, y: 1, w: 14, rotate: 16, flipX: true, anchor: 'bottom', opacity: 0.85 },
-]
+const SKY_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(SKY_BUOM, SKY_HONG, SKY_LA, SKY_NU)
 
 const SKY_LOOK: WeddingKitLook = {
   styleId: 'floral',
@@ -554,22 +608,13 @@ const PEARL_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-const LINEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DRIED_SPRIG, x: -14, y: -2, w: 22, rotate: -8, opacity: 0.9 },
-  { src: DRIED_SPRIG, x: 88, y: -1, w: 16, rotate: 12, flipX: true, anchor: 'bottom', opacity: 0.82 },
-]
+const LINEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DRIED_SPRIG, DRIED_CLOUD, DRIED_TALL, DRIED_STRAW)
 
-/** Hoa và lá chụp thật, bám góc, để giữa trang trống cho chữ. */
-const MOC_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: MOC_BLOOM, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.92 },
-  { src: MOC_BLOOM, x: 88, y: -6, w: 16, flipX: true, opacity: 0.55, anchor: 'bottom' },
-]
+/** Hoa mộc, lá, nhài và nụ mộc chụp thật, bám mép, giữa trang trống cho chữ. */
+const MOC_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(MOC_BLOOM, MOC_LEAF, MOC_SPRIG, MOC_NU)
 
-/** Vài nhánh baby bám mép. Ảnh để trần, không khung. */
-const CALLA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: MIST_SPRIG, x: -8, y: 0, w: 12, rotate: -8, opacity: 0.7 },
-  { src: MIST_SPRIG, x: 90, y: 0, w: 11, rotate: 6, anchor: 'bottom', opacity: 0.6 },
-]
+/** Hoa rum, lá rum và baby bám mép. Ảnh để trần, không khung. */
+const CALLA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(CALLA_BLOOM, MIST_SPRIG, CALLA_STEM, CALLA_LA)
 
 const CALLA_LOOK: WeddingKitLook = {
   styleId: 'minimal',
@@ -619,17 +664,11 @@ const LINEN_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Mẫu đơn đỏ rượu, hồng kem và baby rượu, bám hai mép từng khổ. Giữa trang để trống cho chữ. */
-const DO_DAM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DO_DAM_PEONY, x: -16, y: -2, w: 22, rotate: -10, opacity: 0.94 },
-  { src: DO_DAM_STEM, x: 94, y: 1, w: 14, rotate: 16, anchor: 'bottom', opacity: 0.75 },
-]
+/** Mẫu đơn đỏ rượu, hồng kem, baby rượu và lá rượu, bám hai mép. */
+const DO_DAM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DO_DAM_PEONY, DO_DAM_STEM, DO_DAM_ROSE, DO_DAM_LA)
 
-/** Cành tre và hoa tre chụp thật, bám hai mép. Giữa trang để trống cho chữ. */
-const TRE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: TRE_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
-  { src: TRE_HOA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
-]
+/** Cành tre, hoa tre, lá tre và măng chụp thật, bám hai mép. */
+const TRE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(TRE_CANH, TRE_HOA, TRE_LA, TRE_MANG)
 
 const TRE_LOOK: WeddingKitLook = {
   styleId: 'minimal',
@@ -647,11 +686,8 @@ const TRE_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Hoa nổi bám mép. Nền là một dải liền, không vẽ hoa vào tấm giấy. */
-const DAO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DAO_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
-  { src: DAO_NU, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.88 },
-]
+/** Hoa đào nổi bám mép. Nền là một dải liền, không vẽ hoa vào tấm giấy. */
+const DAO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DAO_CANH, DAO_NU, DAO_CANH_DAI, DAO_LA)
 
 const DAO_LOOK: WeddingKitLook = {
   styleId: 'floral',
@@ -669,10 +705,7 @@ const DAO_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-const BIEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: BIEN_VO, x: -14, y: -2, w: 22, rotate: -6, opacity: 0.92 },
-  { src: BIEN_CO, x: 88, y: 0, w: 14, rotate: 8, anchor: 'bottom', opacity: 0.84 },
-]
+const BIEN_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(BIEN_VO, BIEN_CO, BIEN_SAO, BIEN_SOI)
 
 const BIEN_LOOK: WeddingKitLook = {
   styleId: 'minimal',
@@ -690,10 +723,7 @@ const BIEN_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-const DEM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DEM_CANH, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.92 },
-  { src: DEM_HOA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
-]
+const DEM_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DEM_CANH, DEM_HOA, DEM_LA, DEM_SAO)
 
 const DEM_LOOK: WeddingKitLook = {
   styleId: 'modern',
@@ -713,10 +743,7 @@ const DEM_LOOK: WeddingKitLook = {
   paper: NIGHT_PAPER,
 }
 
-const LUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LUA_DAI, x: -16, y: -2, w: 24, rotate: -6, opacity: 0.92 },
-  { src: LUA_HOA, x: 86, y: 0, w: 16, rotate: 8, anchor: 'bottom', opacity: 0.88 },
-]
+const LUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(LUA_DAI, LUA_HOA, LUA_KIM, LUA_LA)
 
 const LUA_LOOK: WeddingKitLook = {
   styleId: 'ethereal',
@@ -734,11 +761,8 @@ const LUA_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Chùa Một Cột: cột đá và mái ngói hình sen, bám mép. Giữa trang để trống cho chữ. */
-const CHUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: CHUA_SEN, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
-  { src: CHUA_LA, x: 86, y: 0, w: 18, rotate: 10, anchor: 'bottom', opacity: 0.86 },
-]
+/** Sen mái ngói: sen hồng, lá sen, nụ sen và gương sen, bám mép. */
+const CHUA_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(CHUA_SEN, CHUA_LA, CHUA_NU, CHUA_GU)
 
 const CHUA_LOOK: WeddingKitLook = {
   styleId: 'luxury',
@@ -756,11 +780,8 @@ const CHUA_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Văn Miếu: cành đào Hà Nội, bám mép. */
-const VAN_MIEU_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DAO_CANH, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
-  { src: DAO_NU, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.86 },
-]
+/** Văn Miếu: cành mai, lá mai, nụ mai và đá xám, bám mép. */
+const VAN_MIEU_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(VAN_MIEU_MAI, VAN_MIEU_LA, VAN_MIEU_NU, VAN_MIEU_DA)
 
 const VAN_MIEU_LOOK: WeddingKitLook = {
   styleId: 'vintage',
@@ -778,11 +799,8 @@ const VAN_MIEU_LOOK: WeddingKitLook = {
   shareFont: FORMAL_FONT,
 }
 
-/** Chợ Bến Thành: hoa sứ và hoa giấy Sài Gòn, bám mép. */
-const CHO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: CHO_CUC, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
-  { src: CHO_LA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
-]
+/** Chợ Bến Thành: cúc, lá, hoa sứ và hoa giấy, bám mép. */
+const CHO_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(CHO_CUC, CHO_LA, CHO_SU, CHO_GIAY)
 
 const CHO_LOOK: WeddingKitLook = {
   styleId: 'floral',
@@ -800,11 +818,8 @@ const CHO_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Vịnh Hạ Long: đá vôi và nước xanh ngọc, bám mép. */
-const HA_LONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: HA_LONG_DA, x: -14, y: -2, w: 20, rotate: -6, opacity: 0.92 },
-  { src: HA_LONG_CO, x: 88, y: 0, w: 14, rotate: 8, anchor: 'bottom', opacity: 0.84 },
-]
+/** Vịnh Hạ Long: đá, cỏ vịnh, sỏi karst và rong biển, bám mép. */
+const HA_LONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(HA_LONG_DA, HA_LONG_CO, HA_LONG_SOI, HA_LONG_RONG)
 
 const HA_LONG_LOOK: WeddingKitLook = {
   styleId: 'minimal',
@@ -822,11 +837,8 @@ const HA_LONG_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Lăng Bác: đá granit và thảm cỏ Ba Đình, bám mép. */
-const LANG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: LANG_SEN, x: -16, y: -3, w: 22, rotate: -8, opacity: 0.92 },
-  { src: LANG_LA, x: 86, y: 0, w: 16, rotate: 8, anchor: 'bottom', opacity: 0.82 },
-]
+/** Lăng Bác: sen trắng, lá sen và cúc trắng, bám mép. */
+const LANG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(LANG_SEN, LANG_LA, LANG_CUC, LANG_CANH_CUC)
 
 const LANG_LOOK: WeddingKitLook = {
   styleId: 'minimal',
@@ -844,11 +856,8 @@ const LANG_LOOK: WeddingKitLook = {
   shareFont: FORMAL_FONT,
 }
 
-/** Quê Bác: lá cau và bông lúa Nghệ An, bám mép. */
-const QUE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: QUE_CAU, x: -18, y: -4, w: 26, rotate: -8, opacity: 0.94 },
-  { src: QUE_LUA, x: 86, y: 0, w: 16, rotate: 12, anchor: 'bottom', opacity: 0.88 },
-]
+/** Quê Bác: lá cau, bông lúa, hoa dại và lá lúa, bám mép. */
+const QUE_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(QUE_CAU, QUE_LUA, QUE_HOA, QUE_LA)
 
 const QUE_LOOK: WeddingKitLook = {
   styleId: 'vintage',
@@ -866,11 +875,8 @@ const QUE_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
-/** Đường Lâm: lá đa và gạch đá ong, bám mép. */
-const DUONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = [
-  { src: DUONG_LA, x: -16, y: -3, w: 24, rotate: -8, opacity: 0.94 },
-  { src: DUONG_HOA, x: 86, y: 0, w: 16, rotate: 10, anchor: 'bottom', opacity: 0.86 },
-]
+/** Đường Lâm: lá đa, hoa làng, rễ đa và đá ong, bám mép. */
+const DUONG_ORNAMENTS: readonly WeddingBackgroundOrnament[] = themeEdgeOrnaments(DUONG_LA, DUONG_HOA, DUONG_RE, DUONG_QUA)
 
 const DUONG_LOOK: WeddingKitLook = {
   styleId: 'vintage',

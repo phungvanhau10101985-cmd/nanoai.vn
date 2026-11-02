@@ -88,6 +88,7 @@ import {
 } from '@/lib/wedding/wedding-music-library'
 import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
+import { invitationComposeBrief, invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readHeroPhotoLayout, readTextStyles, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
@@ -755,7 +756,13 @@ export async function deleteWeddingCard(cardId: string) {
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const existing = await getWeddingCardForUser(cardId, ownerUserId)
   if (!existing) return { error: 'Không tìm thấy thiệp.' }
-  const deleted = await deleteWeddingCardForUser(cardId, ownerUserId)
+  let deleted = false
+  try {
+    deleted = await deleteWeddingCardForUser(cardId, ownerUserId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message.trim() : ''
+    return { error: message || 'Không xóa được thiệp.' }
+  }
   if (!deleted) return { error: 'Không xóa được thiệp.' }
   if (existing.slug) revalidatePath(`/thiep-moi-cuoi/${existing.slug}`)
   const cards = await listWeddingCardSummariesForUser(ownerUserId)
@@ -1357,6 +1364,7 @@ export async function polishWeddingCardText(formData: FormData) {
     groomName: clean(formData.get('groomName'), 200),
     brideName: clean(formData.get('brideName'), 200),
     weddingDate: clean(formData.get('weddingDate'), 120),
+    occasionKey: clean(formData.get('occasionKey'), 40),
     userId: auth.user.id,
   })
 
@@ -1381,10 +1389,8 @@ export async function composeWeddingSampleCopy(formData: FormData): Promise<
   const groomName = clean(formData.get('groomName'), 120)
   const brideName = clean(formData.get('brideName'), 120)
   const storyNotes = clean(formData.get('storyNotes'), MAX_TEXT)
-  if (occasionKey === 'wedding') {
-    if (!groomName || !brideName) return { error: 'Điền đủ tên cô dâu và chú rể.' }
-  } else if (!groomName) {
-    return { error: 'Điền tên người được ghi trên thiệp.' }
+  if (!invitationComposeNamesReady({ occasionKey, primaryName: groomName, secondaryName: brideName })) {
+    return { error: invitationComposeBrief(occasionKey).needNames }
   }
 
   const charge = await deductUserCredits(auth.user.id, WEDDING_SAMPLE_COMPOSE_CREDIT, 'wedding-card-sample-compose')

@@ -190,7 +190,7 @@ Include brand logo placement, dieline-friendly layout, print quality. One finish
         ? 'Use attached reference image(s) as flat print elements — embed logo, brand marks and approved 2D artwork directly ON this single flat panel (not as a 3D object on a scene). '
         : 'Professional packaging print quality. '
       const productNote = hasProduct
-        ? 'Flatten attached PRODUCT photo(s) into 2D printed graphics on this panel per FACE PRINT STYLE in brief — NOT a separate 3D product render standing on cardboard. '
+        ? 'Flatten attached PRODUCT photo(s) into large 2D print graphics that fill this face edge-to-edge. Do not float a small product in the center with a wide empty border. NOT a separate 3D product render standing on cardboard. '
         : ''
       return {
         aspectRatio: aspectRatioOverride || '1:1',
@@ -200,7 +200,7 @@ Include brand logo placement, dieline-friendly layout, print quality. One finish
 
 Design ONE flat full-bleed print artwork for the ${faceRole} of: ${projectEn}.
 ${refNote}${productNote}
-Fill 100% of the API image canvas edge-to-edge — no margins, letterboxing, dimension lines, rulers, or guide overlays.`
+FULL FACE: the artwork covers every pixel of this canvas. No outer border, no inner frame, no letterboxing, no small centered product with empty space around it. No dimension lines, rulers, or guide overlays.`
         ),
       }
     }
@@ -458,7 +458,7 @@ export async function runStudioImagePipeline(input: {
     if (faceMm && ratios[0]) {
       const lead = parts[0] as { text?: string }
       if (lead && typeof lead.text === 'string') {
-        lead.text += `\n\nCANVAS RATIO: the image canvas is exactly ${ratios[0]}. Fill that whole canvas edge-to-edge. Do not letterbox a different rectangle inside it, and do not print the ratio or any measurements.`
+        lead.text += `\n\nCANVAS RATIO: the image canvas is exactly ${ratios[0]}. Cover every pixel of that canvas. Scale the product and background until they touch all four edges. Do not draw a smaller rectangle, card, mat, or thick solid frame inside it. Do not letterbox. Do not print the ratio or any measurements.`
       }
     }
     for (const aspectRatio of ratios) {

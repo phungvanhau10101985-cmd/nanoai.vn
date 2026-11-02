@@ -1,3 +1,4 @@
+import { invitationComposeBrief } from '@/lib/wedding/invitation-compose'
 import { invitationEditorCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { mergeWeddingSectionConfig, parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
@@ -236,25 +237,23 @@ export function buildWeddingSampleComposePrompt(input: {
 }): string {
   const occasionKey = normalizeInvitationOccasion(input.occasionKey ?? 'wedding')
   const editor = invitationEditorCopy(occasionKey)
-  const wedding = occasionKey === 'wedding'
+  const brief = invitationComposeBrief(occasionKey)
   const notes = input.storyNotes.trim()
   const names = [input.groomName.trim(), input.brideName.trim()].filter(Boolean).join(' và ')
   const lines = [
-    `Loại thiệp: ${editor.label}.`,
-    `Tên: ${names}.`,
-    input.weddingDate?.trim() ? `Ngày trên thiệp (chỉ nhắc nếu hợp đoạn): ${input.weddingDate.trim()}.` : '',
-    wedding
-      ? 'Viết tiếng Việt, giọng thiệp cưới: thi vị, ấm, không khẩu hiệu, không sáo rỗng.'
-      : `Viết tiếng Việt, giọng phù hợp ${editor.label}, trang nhã, không khẩu hiệu.`,
+    `Loại thiệp: ${editor.label}. Viết đúng loại này, không viết như thiệp khác.`,
+    `${brief.namesLine}: ${names || '…'}.`,
+    input.weddingDate?.trim() ? `${brief.dateLabel} (chỉ nhắc nếu hợp đoạn): ${input.weddingDate.trim()}.` : '',
+    `Viết tiếng Việt. ${brief.toneBrief}`,
     'Cấm địa chỉ, tên đường, tên nhà hàng, thôn xã, quận huyện và cụm «tại …».',
     notes
-      ? 'Chỉ dùng sự kiện khách đã ghi bên dưới. Cấm bịa thêm ngày gặp, nơi gặp, nghề, quê, tên bố mẹ hay kỷ niệm không có trong ghi chú.'
-      : 'Khách chưa kể chuyện. Viết chung chung từ hai tên. Cấm bịa ngày gặp, nơi gặp, nghề, quê, tên bố mẹ hay một kỷ niệm cụ thể.',
-    'Trả về đúng một JSON, không markdown, với bốn khóa:',
-    '- coupleIntro: lời mở đầu, 2–4 câu.',
-    '- loveQuote: đúng một câu ngắn, khoảng 8–14 từ, không ngoặc kép hai đầu.',
-    '- storyText: câu chuyện, 2–4 câu.',
-    '- thankYouText: lời cảm ơn, 1–2 câu. Có thể dùng tên hai người.',
+      ? 'Chỉ dùng sự kiện khách đã ghi bên dưới. Cấm bịa thêm ngày, nơi, nghề, quê, tên người khác hay kỷ niệm không có trong ghi chú.'
+      : `Khách chưa kể chuyện. Viết chung chung từ tên đã có. Cấm bịa ngày, nơi, nghề, quê hay một kỷ niệm cụ thể.`,
+    'Trả về đúng một JSON, không markdown, với bốn khóa đúng cấu trúc loại thiệp này:',
+    `- ${brief.introBrief}`,
+    `- ${brief.quoteBrief}`,
+    `- ${brief.storyBrief}`,
+    `- ${brief.thanksBrief}`,
     notes ? `Ghi chú của khách:\n${notes}` : '',
   ]
   return lines.filter(Boolean).join('\n\n')

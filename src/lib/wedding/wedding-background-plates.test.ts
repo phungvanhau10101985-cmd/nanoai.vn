@@ -3,6 +3,7 @@ import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
 import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
 import { findWeddingCoverPreset } from './wedding-cover-presets'
+import { WEDDING_ORNAMENT_CATALOG } from './wedding-background-ornament-store'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
 import { getWeddingTheme } from './wedding-theme'
@@ -51,7 +52,7 @@ test('the pink garden preset keeps one wash underneath and flowers above the tex
   ])
   const preset = findWeddingBackgroundPreset('vuon-kinh-hong')
   assert.ok(preset)
-  assert.ok(preset.ornaments.length >= 1 && preset.ornaments.length <= 2)
+  assert.ok(preset.ornaments.length >= 4 && preset.ornaments.length <= 6)
   assert.ok(preset.ornaments.every((item) => item.src.endsWith('.png')))
   assert.equal(preset.coverPresetId, 'pearl_rose')
   assert.equal(findWeddingBackgroundPreset('long-phung-do')?.coverPresetId, 'plain_photo')
@@ -114,8 +115,8 @@ test('the warm minimal set is the botanical plate, dried sprigs, and the polaroi
   const preset = findWeddingBackgroundPreset('toi-gian-nau')
   assert.ok(preset)
   assert.deepEqual(preset.plates, ['/wedding/backgrounds/toi-gian-nau.jpg'])
-  assert.ok(preset.ornaments.length >= 1)
-  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/dried-sprig.png')))
+  assert.ok(preset.ornaments.length >= 4)
+  assert.ok(preset.ornaments.every((item) => item.src.includes('/dried-')))
   assert.equal(preset.coverPresetId, 'linen_polaroid')
   assert.equal(findWeddingCoverPreset('linen_polaroid')?.layout, 'composed')
   const composition = getOrnamentComposition('linen_polaroid')
@@ -191,7 +192,7 @@ test('the green wood-flower set keeps readable paper and photo sprigs', () => {
   assert.equal(preset.coverPresetId, 'moc_portrait')
   assert.equal(preset.look.buttonColorId, 'forest')
   assert.equal(preset.look.ink, '#1f3d2b')
-  assert.ok(preset.ornaments.length >= 1 && preset.ornaments.length <= 2)
+  assert.ok(preset.ornaments.length >= 4 && preset.ornaments.length <= 6)
   assert.ok(preset.ornaments.every((item) => item.src.includes('/moc-')))
   const frame = getOrnamentComposition('moc_portrait')
   assert.equal(frame?.layout.photoChrome, 'mat')
@@ -209,7 +210,7 @@ test('the sage calla set uses sage paper and a bare photo', () => {
   assert.equal(preset.coverPresetId, 'to_duyen_xanh')
   assert.equal(preset.look.buttonColorId, 'olive')
   assert.equal(preset.look.ink, '#3e4f34')
-  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/mist-sprig.png')))
+  assert.ok(preset.ornaments.every((item) => item.src.includes('mist-sprig') || item.src.includes('/calla-')))
   const frame = findWeddingCoverPreset('to_duyen_xanh')
   assert.equal(frame?.layout, 'plain')
   assert.equal(frame?.frame, undefined)
@@ -278,7 +279,7 @@ test('the Vietnamese bamboo set uses ivory paper, bamboo sprigs, and a bare phot
 test('landmark papers keep one plate, a bare photo, and real corner sprigs', () => {
   const cases = [
     ['chua-mot-cot', 'chua_mot_cot', 'gold', '/chua-sen.png'],
-    ['van-mieu', 'van_mieu', 'bronze', '/dao-canh.png'],
+    ['van-mieu', 'van_mieu', 'bronze', '/van-mieu-mai.png'],
     ['cho-ben-thanh', 'cho_ben_thanh', 'terracotta', '/cho-cuc.png'],
     ['vinh-ha-long', 'vinh_ha_long', 'sky', '/ha-long-da.png'],
     ['lang-bac', 'lang_bac', 'slate', '/lang-sen.png'],
@@ -397,6 +398,8 @@ test('theme flowers stay in the margins so the letter center stays clear', () =>
     assert.equal(preset.ornaments.some((item) => item.anchor !== 'bottom'), true, preset.id)
     const hasFoot = preset.ornaments.some((item) => item.anchor === 'bottom' || item.y >= 70)
     assert.equal(hasFoot, true, preset.id)
+    const srcs = new Set(preset.ornaments.map((item) => item.src))
+    assert.ok(srcs.size >= 4, `${preset.id} needs four distinct ornaments`)
     for (const item of preset.ornaments) {
       assert.ok(item.w <= 28, `${preset.id} ${item.src}`)
       const center = item.x + item.w / 2
@@ -408,9 +411,11 @@ test('theme flowers stay in the margins so the letter center stays clear', () =>
 
 test('every ready background is one synchronized kit', () => {
   assert.ok(WEDDING_BACKGROUND_PRESETS.length >= 4)
+  const catalogSrc = new Set(WEDDING_ORNAMENT_CATALOG.map((piece) => piece.src))
   for (const preset of WEDDING_BACKGROUND_PRESETS) {
     assert.ok(preset.plates.length >= 1, preset.id)
-    assert.ok(preset.ornaments.length >= 1, preset.id)
+    assert.ok(preset.ornaments.length >= 4, preset.id)
+    assert.ok(preset.ornaments.every((item) => catalogSrc.has(item.src)), preset.id)
     assert.ok(preset.ornaments.every((item) => /\.(png|svg)$/i.test(item.src)), preset.id)
     assert.ok(preset.coverPresetId, preset.id)
     assert.equal(getWeddingTheme(preset.look.styleId).id, preset.look.styleId, preset.id)
@@ -534,7 +539,8 @@ test('the dragon and phoenix set uses gold ink, a bare photo, and cloud ornament
   assert.equal(preset.look.buttonColorId, 'cream')
   assert.equal(preset.look.surface, 'dark')
   assert.equal(preset.look.paper, '#5c1018')
-  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/long-phung-cloud.svg')))
+  assert.ok(preset.ornaments.some((item) => item.src.endsWith('/long-phung-cloud.svg')))
+  assert.ok(preset.ornaments.length >= 4)
   const theme = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), preset)
   assert.equal(theme.darkPaper, '#5c1018')
   assert.equal(theme.text, 'text-[#f6e4b8]')
@@ -558,7 +564,8 @@ test('song hy red is a gate card on lacquer paper with cream reading cards', () 
   assert.equal(findWeddingCoverPreset('song_hy')?.layout, 'song_hy')
   assert.equal(preset.look.contentCard, 'scallop')
   assert.equal(preset.look.buttonColorId, 'cream')
-  assert.ok(preset.ornaments.every((item) => item.src.endsWith('/song-hy-seal.svg')))
+  assert.ok(preset.ornaments.some((item) => item.src.endsWith('/song-hy-seal.svg')))
+  assert.ok(preset.ornaments.length >= 4)
   const theme = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), preset)
   assert.equal(theme.contentCard, 'scallop')
   assert.equal(theme.darkPaper, '#4e1018')

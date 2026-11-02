@@ -3920,6 +3920,9 @@ export type Dictionary = {
     readyBackgroundLocked: string
     ornamentAdminHint: string
     ornamentAdminAdd: string
+    ornamentPickerHint: string
+    ornamentPickerConfirm: string
+    ornamentPickerSelected: string
     ornamentAdminSave: string
     ornamentAdminSaved: string
     ornamentAdminDelete: string
@@ -8448,6 +8451,9 @@ export const VI_DICTIONARY: Dictionary = {
     readyBackgroundLocked: 'Khung vỏ, khung ảnh, bố cục ảnh, màu nút, màu chữ, nền chữ và kiểu chữ đi theo bộ nền này.',
     ornamentAdminHint: 'Kéo một hoa tới mép hoặc chỗ nào cũng được, hoa khác đứng im. Phím mũi tên dời, Shift dời xa hơn. Delete xóa. Phóng, thu, xoay, làm mờ, làm nhạt màu, đứng im hoặc lên khi lướt. Mỗi lần sửa tự lưu vào thiệp này. Khách không sửa được.',
     ornamentAdminAdd: 'Thêm hoa',
+    ornamentPickerHint: 'Chạm một hoa để xem lớn. Bấm Thêm vào thiệp mới gắn. Vuốt danh sách không thêm hoa.',
+    ornamentPickerConfirm: 'Thêm vào thiệp',
+    ornamentPickerSelected: 'Đã chọn',
     ornamentAdminSave: 'Lưu hoa văn',
     ornamentAdminSaved: 'Đã lưu hoa văn vào thiệp này.',
     ornamentAdminDelete: 'Xóa hoa này',
@@ -8502,16 +8508,16 @@ export const VI_DICTIONARY: Dictionary = {
     sampleCardAppliedTitle: 'Đã dùng mẫu này',
     sampleCardAppliedHint: 'Nền, khung, hoa và màu chữ đã vào thiệp đang tạo. Chỗ ảnh để trống để bạn chọn ảnh. Không trừ credit.',
     sampleCardExit: 'Thoát',
-    sampleComposeTitle: 'Điền tên để soạn lời thiệp',
+    sampleComposeTitle: 'Điền thông tin để soạn lời thiệp',
     sampleComposeHint:
-      'Tên cô dâu và chú rể là bắt buộc. Câu chuyện để trống cũng được. Bấm OK, AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn rồi lưu vào thiệp. Lần soạn này miễn phí. Sau đó vẫn sửa tay hoặc bấm Tối ưu AI từng đoạn.',
+      'Điền tên và vài dòng về buổi này. Có thể để trống phần ghi chú. Bấm OK, AI soạn lời mở đầu, quote, câu chuyện và lời cảm ơn đúng loại thiệp rồi điền vào thiệp. Lần soạn này miễn phí.',
     sampleComposeGroom: 'Tên chú rể',
     sampleComposeBride: 'Tên cô dâu',
     sampleComposeStory: 'Câu chuyện tình yêu (tuỳ chọn)',
     sampleComposeStoryPlaceholder: 'Vài dòng về hai người. Có thể để trống.',
     sampleComposeNotes: 'Ghi chú (tuỳ chọn)',
     sampleComposeNotesPlaceholder: 'Vài dòng về buổi này. Có thể để trống.',
-    sampleComposeSuggestions: 'Gợi ý cho thiệp cưới — bấm để chèn, rồi điền tiếp.',
+    sampleComposeSuggestions: 'Gợi ý — bấm để chèn, rồi điền tiếp.',
     sampleComposeSuggestMet: 'Ngày gặp nhau',
     sampleComposeSuggestPlace: 'Nơi gặp nhau',
     sampleComposeSuggestMemory: 'Kỷ niệm đáng nhớ',

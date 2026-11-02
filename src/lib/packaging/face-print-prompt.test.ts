@@ -26,6 +26,11 @@ test('buildPackagingFacePromptBlock excludes print dimensions from visual brief'
   assert.match(block, /never visualize on the artwork/i)
   assert.match(block, /FACE ROLE: LxH \(FRONT\)/)
   assert.match(block, /straight baseline/i)
+  assert.match(block, /covers every pixel/i)
+  assert.match(block, /dominate the panel/i)
+  assert.match(block, /FULL FACE/i)
+  assert.match(block, /NO INNER FRAME/i)
+  assert.match(block, /fill this face canvas completely/i)
 })
 
 test('buildPackagingFacePromptBlock body strip avoids fold mm positions', () => {

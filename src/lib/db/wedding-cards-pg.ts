@@ -446,15 +446,56 @@ export async function listWeddingCardSummariesForUser(userId: string): Promise<W
   }))
 }
 
+async function deleteWeddingCardOwnedLayouts(cardId: string): Promise<void> {
+  const exact = `card:${cardId}`
+  const prefix = `card:${cardId}@%`
+  const ignoreMissing = async (sql: string) => {
+    try {
+      await getPgPool().query(sql, [exact, prefix])
+    } catch (error) {
+      const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: string }).code) : ''
+      if (code !== '42P01') throw error
+    }
+  }
+  await ignoreMissing(`delete from public.wedding_background_ornament_layouts where layout_key = $1 or layout_key like $2`)
+  await ignoreMissing(`delete from public.wedding_background_shell_layouts where layout_key = $1 or layout_key like $2`)
+}
+
 export async function deleteWeddingCardForUser(cardId: string, userId: string): Promise<boolean> {
+  if (!UUID_RE.test(cardId) || !UUID_RE.test(userId)) return false
   requirePg()
-  const res = await getPgPool().query(
-    `delete from public.wedding_cards
-     where id = $1::uuid and user_id = $2::uuid
-     returning id`,
-    [cardId, userId],
-  )
-  return res.rowCount === 1
+  const client = await getPgPool().connect()
+  try {
+    await client.query('begin')
+    // Gỡ vòng FK master_image_id ↔ wedding_card_ai_images trước khi xóa thiệp.
+    const owned = await client.query(
+      `update public.wedding_cards
+       set master_image_id = null
+       where id = $1::uuid and user_id = $2::uuid
+       returning id`,
+      [cardId, userId],
+    )
+    if (owned.rowCount !== 1) {
+      await client.query('rollback')
+      return false
+    }
+    const res = await client.query(
+      `delete from public.wedding_cards
+       where id = $1::uuid and user_id = $2::uuid
+       returning id`,
+      [cardId, userId],
+    )
+    await client.query('commit')
+    if (res.rowCount === 1) {
+      await deleteWeddingCardOwnedLayouts(cardId).catch(() => undefined)
+    }
+    return res.rowCount === 1
+  } catch (error) {
+    await client.query('rollback').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 export async function getWeddingCardOwner(cardId: string): Promise<{ userId: string; slug: string } | null> {

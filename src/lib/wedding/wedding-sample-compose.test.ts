@@ -42,7 +42,7 @@ test('empty notes forbid invented meetings and named notes are kept', () => {
     occasionKey: 'wedding',
   })
   assert.match(blank, /Minh và Lan/)
-  assert.match(blank, /Cấm bịa ngày gặp/)
+  assert.match(blank, /Cấm bịa ngày/)
   const noted = buildWeddingSampleComposePrompt({
     groomName: 'Minh',
     brideName: 'Lan',

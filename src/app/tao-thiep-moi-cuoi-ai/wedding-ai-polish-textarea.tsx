@@ -22,7 +22,7 @@ type Props = {
   field: WeddingPolishField
   value: string
   onChange: (value: string) => void
-  card?: Pick<WeddingCard, 'groomName' | 'brideName' | 'weddingDate'> | null
+  card?: Pick<WeddingCard, 'groomName' | 'brideName' | 'weddingDate' | 'occasionKey'> | null
   omitAddresses?: Array<string | null | undefined>
   weddingDateLabel?: string
   placeholder?: string
@@ -63,6 +63,7 @@ export function WeddingAiPolishTextarea({
     formData.append('groomName', card?.groomName || '')
     formData.append('brideName', card?.brideName || '')
     formData.append('weddingDate', weddingDateLabel || card?.weddingDate || '')
+    formData.append('occasionKey', card?.occasionKey || '')
     const result = await polishWeddingCardText(formData)
     setPolishing(false)
     if ('error' in result && result.error) {

@@ -43,6 +43,7 @@ import { DEFAULT_WEB_LOCALE, type WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { formatWeddingMusicSecondsForInput, parseWeddingMusicTimeToSeconds } from '@/lib/wedding/parse-music-play-time'
+import { invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import {
   INVITATION_OCCASION_GROUPS,
   applyInvitationCoverSectionDescription,
@@ -474,10 +475,13 @@ export default function WeddingCardAiClientPage() {
   const pendingSampleUseRef = useRef('')
   const sampleApplyLockRef = useRef(false)
   const [composeOpen, setComposeOpen] = useState(false)
+  const [composeCreate, setComposeCreate] = useState(false)
+  const [composeOccasion, setComposeOccasion] = useState<InvitationOccasionKey>('wedding')
   const [composeSampleId, setComposeSampleId] = useState('')
   const [composeReturnPreview, setComposeReturnPreview] = useState(false)
   const [composeGroom, setComposeGroom] = useState('')
   const [composeBride, setComposeBride] = useState('')
+  const [composeDate, setComposeDate] = useState('')
   const [composeStory, setComposeStory] = useState('')
   const [composeNameError, setComposeNameError] = useState(false)
   const [composeBusy, setComposeBusy] = useState(false)
@@ -1342,6 +1346,8 @@ export default function WeddingCardAiClientPage() {
   const autosaveTimerRef = useRef<number | null>(null)
   const persistInFlightRef = useRef(false)
   const persistQueuedRef = useRef(false)
+  const persistEpochRef = useRef(0)
+  const deletedCardIdsRef = useRef(new Set<string>())
   const [autoSaving, setAutoSaving] = useState(false)
   const [autosaveBanner, setAutosaveBanner] = useState<
     null | { message: string; variant: 'success' | 'destructive' }
@@ -1362,6 +1368,7 @@ export default function WeddingCardAiClientPage() {
 
   useEffect(() => {
     if (loading || !card.id || !baselineHydratedRef.current) return
+    if (deletedCardIdsRef.current.has(card.id)) return
     if (persistFingerprint === lastSavedPersistRef.current) {
       clearWeddingLocalDraft(card.id)
       return
@@ -1378,9 +1385,13 @@ export default function WeddingCardAiClientPage() {
 
   const SAVE_BRIEF_TIMEOUT_MS = 5 * 60 * 1000
 
-  const commitSaveBrief = async (silent: boolean, options?: { hideSuccess?: boolean }): Promise<boolean> => {
+  const commitSaveBrief = async (
+    silent: boolean,
+    options?: { hideSuccess?: boolean; ignoreNotFound?: boolean },
+  ): Promise<boolean> => {
     const p = persistInputsRef.current
-    if (!p.card.id) return false
+    if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return false
+    const startedEpoch = persistEpochRef.current
 
     if (!silent) {
       if (autosaveTimerRef.current) {
@@ -1474,11 +1485,21 @@ export default function WeddingCardAiClientPage() {
         }),
       ])
       if ('error' in result) {
+        if (deletedCardIdsRef.current.has(c.id) || startedEpoch !== persistEpochRef.current) return false
+        const missing = result.error.includes('Không tìm thấy thiệp')
+        if (missing && (silent || options?.ignoreNotFound)) return false
         if (!silent) {
           toast({ title: 'Lưu thất bại', description: result.error, variant: 'destructive' })
         } else {
           setAutosaveBanner({ message: tBrief.autoSaveFailedLabel, variant: 'destructive' })
         }
+        return false
+      }
+      if (
+        deletedCardIdsRef.current.has(c.id) ||
+        deletedCardIdsRef.current.has(result.card.id) ||
+        startedEpoch !== persistEpochRef.current
+      ) {
         return false
       }
       const latestFingerprint = buildPersistSnapshot(persistInputsRef.current)
@@ -1529,7 +1550,10 @@ export default function WeddingCardAiClientPage() {
       }
       return true
     } catch (e) {
+      if (deletedCardIdsRef.current.has(p.card.id) || startedEpoch !== persistEpochRef.current) return false
       const msg = e instanceof Error ? e.message : String(e)
+      const missing = msg.includes('Không tìm thấy thiệp')
+      if (missing && options?.ignoreNotFound) return false
       if (!silent) {
         toast({
           title: 'Lưu thất bại',
@@ -1547,7 +1571,10 @@ export default function WeddingCardAiClientPage() {
       if (persistQueuedRef.current) {
         persistQueuedRef.current = false
         window.setTimeout(() => {
-          const latest = buildPersistSnapshot(persistInputsRef.current)
+          if (startedEpoch !== persistEpochRef.current) return
+          const latestInputs = persistInputsRef.current
+          if (!latestInputs.card.id || deletedCardIdsRef.current.has(latestInputs.card.id)) return
+          const latest = buildPersistSnapshot(latestInputs)
           if (latest !== lastSavedPersistRef.current) void commitSaveBrief(true)
         }, AUTO_SAVE_DEBOUNCE_MS)
       }
@@ -1562,7 +1589,7 @@ export default function WeddingCardAiClientPage() {
     autosaveTimerRef.current = window.setTimeout(async () => {
       autosaveTimerRef.current = null
       const p = persistInputsRef.current
-      if (!p.card.id) return
+      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
 
@@ -1581,7 +1608,7 @@ export default function WeddingCardAiClientPage() {
     if (loading || !card.id) return
     const flushPendingSave = () => {
       const p = persistInputsRef.current
-      if (!p.card.id) return
+      if (!p.card.id || deletedCardIdsRef.current.has(p.card.id)) return
       const latest = buildPersistSnapshot(p)
       if (latest === lastSavedPersistRef.current) return
       if (persistInFlightRef.current) {
@@ -1893,10 +1920,13 @@ export default function WeddingCardAiClientPage() {
     if (!sample || !persistInputsRef.current.card.id || composeBusy || sampleApplyLockRef.current) return
     const openNameModal = () => {
       const current = persistInputsRef.current.card
+      setComposeCreate(false)
+      setComposeOccasion(normalizeInvitationOccasion(sample.occasionKey ?? current.occasionKey))
       setComposeSampleId(sampleId)
       setComposeReturnPreview(returnToPreview)
       setComposeGroom(current.groomName)
       setComposeBride(current.brideName)
+      setComposeDate(resolveWeddingDateIso(current.weddingDate) ?? persistInputsRef.current.weddingDateIso ?? '')
       setComposeStory('')
       setComposeNameError(false)
       if (returnToPreview) setSamplePreviewId(null)
@@ -2001,11 +2031,14 @@ export default function WeddingCardAiClientPage() {
     return () => window.removeEventListener('message', onMessage)
   }, [samplePreviewId])
 
-  const cancelSampleCompose = () => {
+  const dismissComposeModal = () => {
     if (composeBusy) return
+    const creating = composeCreate
     const sampleId = composeSampleId
     const back = composeReturnPreview
     setComposeOpen(false)
+    setComposeCreate(false)
+    if (creating) return
     if (back && sampleId) {
       setBackgroundPageOpen(true)
       setBackgroundConfirmOpen(false)
@@ -2013,24 +2046,44 @@ export default function WeddingCardAiClientPage() {
     }
   }
 
+  const skipComposeAndCreate = () => {
+    if (composeBusy) return
+    const creating = composeCreate
+    const occasion = composeOccasion
+    setComposeOpen(false)
+    setComposeCreate(false)
+    if (creating) {
+      void createBlankCard(occasion)
+      return
+    }
+    dismissComposeModal()
+  }
+
   const confirmSampleCompose = async () => {
-    const sample = findWeddingSampleCard(composeSampleId)
-    if (!sample || composeBusy) return
-    const wedding = weddingSampleShowsLoveStoryHints(sample)
+    const creating = composeCreate
+    const occasion = creating
+      ? composeOccasion
+      : normalizeInvitationOccasion(findWeddingSampleCard(composeSampleId)?.occasionKey ?? composeOccasion)
+    const sample = creating ? null : findWeddingSampleCard(composeSampleId)
+    if (!creating && !sample) return
+    if (composeBusy) return
     const groomName = composeGroom.trim()
     const brideName = composeBride.trim()
-    if ((wedding && (!groomName || !brideName)) || !groomName) {
+    if (!invitationComposeNamesReady({ occasionKey: occasion, primaryName: groomName, secondaryName: brideName })) {
       setComposeNameError(true)
       return
     }
     setComposeNameError(false)
     setComposeBusy(true)
     const formData = new FormData()
-    formData.append('occasionKey', wedding ? 'wedding' : normalizeInvitationOccasion(sample.occasionKey ?? card.occasionKey))
+    formData.append('occasionKey', occasion)
     formData.append('groomName', groomName)
     formData.append('brideName', brideName)
     formData.append('storyNotes', composeStory.trim())
-    formData.append('weddingDate', persistInputsRef.current.weddingDateIso || persistInputsRef.current.card.weddingDate || '')
+    formData.append(
+      'weddingDate',
+      composeDate || persistInputsRef.current.weddingDateIso || persistInputsRef.current.card.weddingDate || '',
+    )
     const result = await composeWeddingSampleCopy(formData)
     if ('error' in result && result.error) {
       setComposeBusy(false)
@@ -2054,6 +2107,18 @@ export default function WeddingCardAiClientPage() {
       storyText: omitWeddingAddressesFromSharedCopy(result.storyText, addresses),
       thankYouText: omitWeddingAddressesFromSharedCopy(result.thankYouText, addresses),
     }
+    setComposeReturnPreview(false)
+    setComposeOpen(false)
+    setComposeBusy(false)
+    setComposeCreate(false)
+    setBackgroundPageOpen(false)
+    setBackgroundConfirmOpen(false)
+    setSamplePreviewId(null)
+    if (creating) {
+      await createBlankCard(occasion, copy)
+      return
+    }
+    if (!sample) return
     const applied = await applySampleCard(sample.id, copy)
     if (!applied) {
       const current = persistInputsRef.current.card
@@ -2065,12 +2130,6 @@ export default function WeddingCardAiClientPage() {
         description: tImage.sampleComposeWordsOnly,
       })
     }
-    setComposeReturnPreview(false)
-    setComposeOpen(false)
-    setComposeBusy(false)
-    setBackgroundPageOpen(false)
-    setBackgroundConfirmOpen(false)
-    setSamplePreviewId(null)
     const saved = await commitSaveBrief(false, { hideSuccess: true })
     if (saved) {
       toast({
@@ -2117,6 +2176,8 @@ export default function WeddingCardAiClientPage() {
     },
     options?: { restoreLocalDraft?: boolean },
   ) => {
+    persistEpochRef.current += 1
+    persistQueuedRef.current = false
     if (autosaveTimerRef.current) {
       window.clearTimeout(autosaveTimerRef.current)
       autosaveTimerRef.current = null
@@ -2188,14 +2249,36 @@ export default function WeddingCardAiClientPage() {
   }
 
   const createFreshCard = async (nextOccasion: InvitationOccasionKey) => {
+    if (switchingCard || composeBusy) return
+    setPickedOccasion(nextOccasion)
+    setComposeCreate(true)
+    setComposeOccasion(nextOccasion)
+    setComposeSampleId('')
+    setComposeReturnPreview(false)
+    setComposeGroom('')
+    setComposeBride('')
+    setComposeDate('')
+    setComposeStory('')
+    setComposeNameError(false)
+    setOccasionPickerOpen(false)
+    setComposeOpen(true)
+  }
+
+  const createBlankCard = async (nextOccasion: InvitationOccasionKey, copy?: WeddingSampleComposeFields) => {
     if (switchingCard) return
     setSwitchingCard(true)
     try {
+      if (autosaveTimerRef.current) {
+        window.clearTimeout(autosaveTimerRef.current)
+        autosaveTimerRef.current = null
+      }
+      persistQueuedRef.current = false
       const current = persistInputsRef.current
-      const unchanged = Boolean(current.card.id) && buildPersistSnapshot(current) === lastSavedPersistRef.current
-      if (current.card.id && !unchanged) {
-        const saved = await commitSaveBrief(false, { hideSuccess: true })
-        if (!saved) return
+      const currentId = current.card.id
+      const canSaveCurrent = Boolean(currentId) && !deletedCardIdsRef.current.has(currentId)
+      const unchanged = canSaveCurrent && buildPersistSnapshot(current) === lastSavedPersistRef.current
+      if (canSaveCurrent && !unchanged && !persistInFlightRef.current) {
+        await commitSaveBrief(true, { hideSuccess: true, ignoreNotFound: true })
       }
       const result = await createNewWeddingCard(nextOccasion, 'single')
       if ('error' in result) {
@@ -2203,11 +2286,30 @@ export default function WeddingCardAiClientPage() {
         return
       }
       showWorkspace(result)
+      const dateIso = resolveWeddingDateIso(composeDate)
+      const base = {
+        ...persistInputsRef.current.card,
+        weddingDate: dateIso || persistInputsRef.current.card.weddingDate,
+      }
+      const filled = copy ? applyComposeCopyToCard(base, copy) : base
+      if (copy || dateIso) {
+        persistInputsRef.current = { ...persistInputsRef.current, card: filled, weddingDateIso: dateIso }
+        setCard(filled)
+        const saved = await commitSaveBrief(true, { hideSuccess: true, ignoreNotFound: true })
+        if (saved && copy) {
+          toast({
+            title: tImage.sampleComposeSavedTitle,
+            description: tImage.sampleComposeSavedHint,
+          })
+        }
+      }
       setOccasionPickerOpen(false)
-      toast({
-        title: 'Đã tạo thiệp và xuất link',
-        description: 'Link công khai có ngay. Thiệp vừa rồi vẫn nằm trong danh sách.',
-      })
+      if (!copy) {
+        toast({
+          title: 'Đã tạo thiệp và xuất link',
+          description: 'Link công khai có ngay. Thiệp vừa rồi vẫn nằm trong danh sách.',
+        })
+      }
       document.getElementById('wedding-card-editor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     } finally {
       setSwitchingCard(false)
@@ -2218,16 +2320,30 @@ export default function WeddingCardAiClientPage() {
     const row = savedCards.find((item) => item.id === cardId)
     const title = row ? weddingCardListTitle(row) : 'thiệp này'
     if (!window.confirm(`Xóa «${title}»? Link đã xuất bản và khách mời của thiệp này cũng mất.`)) return
+    if (autosaveTimerRef.current) {
+      window.clearTimeout(autosaveTimerRef.current)
+      autosaveTimerRef.current = null
+    }
+    deletedCardIdsRef.current.add(cardId)
+    persistQueuedRef.current = false
+    const wasCurrent = cardId === persistInputsRef.current.card.id
+    setSavedCards((prev) => prev.filter((item) => item.id !== cardId))
+    const restoreDeletedRow = () => {
+      deletedCardIdsRef.current.delete(cardId)
+      if (!row) return
+      setSavedCards((prev) => (prev.some((item) => item.id === cardId) ? prev : [row, ...prev]))
+    }
     setSwitchingCard(true)
     try {
       const result = await deleteWeddingCard(cardId)
       if ('error' in result) {
+        restoreDeletedRow()
         toast({ title: 'Không xóa được thiệp', description: result.error, variant: 'destructive' })
         return
       }
       clearWeddingLocalDraft(cardId)
-      if (cardId !== persistInputsRef.current.card.id) {
-        setSavedCards(result.cards)
+      setSavedCards(result.cards)
+      if (!wasCurrent) {
         toast({ title: 'Đã xóa thiệp' })
         return
       }
@@ -2242,13 +2358,20 @@ export default function WeddingCardAiClientPage() {
       } else {
         const loaded = await loadWeddingCardWorkspace(next.id)
         if ('error' in loaded) {
-          setSavedCards(result.cards)
           toast({ title: 'Đã xóa thiệp', description: loaded.error, variant: 'destructive' })
           return
         }
         showWorkspace(loaded)
       }
       toast({ title: 'Đã xóa thiệp' })
+    } catch (error) {
+      restoreDeletedRow()
+      const message = error instanceof Error ? error.message.trim() : ''
+      toast({
+        title: 'Không xóa được thiệp',
+        description: message || 'Máy chủ không phản hồi. Thử lại.',
+        variant: 'destructive',
+      })
     } finally {
       setSwitchingCard(false)
     }
@@ -2557,20 +2680,11 @@ export default function WeddingCardAiClientPage() {
         <WeddingSampleComposeModal
           locale={uiLocale}
           open={composeOpen}
-          wedding={weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})}
+          occasionKey={composeOccasion}
           busy={composeBusy}
-          groomLabel={
-            weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})
-              ? tImage.sampleComposeGroom
-              : occasionCopy.primaryName
-          }
-          brideLabel={
-            weddingSampleShowsLoveStoryHints(findWeddingSampleCard(composeSampleId) ?? {})
-              ? tImage.sampleComposeBride
-              : occasionCopy.secondaryName
-          }
           groomName={composeGroom}
           brideName={composeBride}
+          eventDate={composeDate}
           storyNotes={composeStory}
           nameError={composeNameError}
           onGroomName={(value) => {
@@ -2581,8 +2695,10 @@ export default function WeddingCardAiClientPage() {
             setComposeBride(value)
             if (value.trim()) setComposeNameError(false)
           }}
+          onEventDate={setComposeDate}
           onStoryNotes={setComposeStory}
-          onCancel={cancelSampleCompose}
+          onDismiss={dismissComposeModal}
+          onSkip={skipComposeAndCreate}
           onConfirm={() => void confirmSampleCompose()}
         />
         <div id="wedding-card-editor" className="grid w-full min-w-0 max-w-full gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">

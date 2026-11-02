@@ -36,28 +36,27 @@ function ornamentMotionKey(items: readonly WeddingBackgroundOrnament[]) {
   return items.map((item, index) => `${index}:${item.motion ?? ''}:${item.src}`).join('|')
 }
 
-/** Hoa đang ở tầm mắt thì trượt lên ngay. Hoa phía dưới chờ lúc lướt tới. `playVisible` tắt thì hoa đang thấy giữ nguyên chỗ, để kéo sửa. */
+/** Hoa đang ở tầm mắt thì trượt lên ngay. Hoa phía dưới chờ lúc lướt tới. `playVisible` tắt thì hoa giữ nguyên chỗ, để kéo sửa. Không xóa trạng thái đã hiện — thêm hoa khác không làm hoa cũ nhảy lại. */
 export function bindWeddingOrnamentRise(root: HTMLElement, playVisible: boolean) {
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const nodes = [...root.querySelectorAll<HTMLElement>('[data-wedding-ornament-rise]')]
-  for (const node of nodes) delete node.dataset.weddingOrnamentShown
-  delete root.dataset.ornamentMotion
-  if (reduce || nodes.length === 0) return () => {}
-  const limit = window.innerHeight * 0.9
-  const visible: HTMLElement[] = []
-  const wait: HTMLElement[] = []
-  for (const node of nodes) {
-    const box = node.getBoundingClientRect()
-    if (box.bottom > 0 && box.top < limit) visible.push(node)
-    else wait.push(node)
-  }
-  if (!playVisible) {
-    for (const node of visible) node.dataset.weddingOrnamentShown = '1'
+  if (reduce || !playVisible || nodes.length === 0) {
+    delete root.dataset.ornamentMotion
+    for (const node of nodes) node.dataset.weddingOrnamentShown = '1'
+    return () => {}
   }
   root.dataset.ornamentMotion = '1'
+  const limit = window.innerHeight * 0.9
+  const freshVisible: HTMLElement[] = []
+  const wait: HTMLElement[] = []
+  for (const node of nodes) {
+    if (node.dataset.weddingOrnamentShown === '1') continue
+    const box = node.getBoundingClientRect()
+    if (box.bottom > 0 && box.top < limit) freshVisible.push(node)
+    else wait.push(node)
+  }
   const frame = requestAnimationFrame(() => {
-    if (!playVisible) return
-    for (const node of visible) node.dataset.weddingOrnamentShown = '1'
+    for (const node of freshVisible) node.dataset.weddingOrnamentShown = '1'
   })
   let io: IntersectionObserver | null = null
   if (wait.length && typeof IntersectionObserver !== 'undefined') {

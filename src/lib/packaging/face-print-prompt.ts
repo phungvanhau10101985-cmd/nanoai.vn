@@ -7,9 +7,10 @@ export const PACKAGING_FACE_FLAT_ARTWORK_LEAD = `OUTPUT = ONE FLAT 2D PRINT PANE
 export const PACKAGING_FACE_SAFE_ZONE_MM = 10
 
 export const PACKAGING_FACE_SAFE_ZONE_RULES = `CONTENT LAYOUT (invisible to viewer — never draw guides or boxes):
-- Keep readable text, logos, barcodes, icons, and important product info comfortably inset from every edge — not flush against borders
-- Background colors, textures, gradients, and decorative graphics MUST extend full bleed to all four edges with no empty margin
-- Do NOT draw safe-zone boxes, inset guides, fold lines, trim marks, or measurement overlays — layout intent only`
+- FULL FACE: the design covers every pixel. Background, pattern, and the main product graphic touch all four edges. Scale the product large — it must dominate the panel, not sit small in the middle of an empty field
+- Do not leave a wide empty band, thick single-color frame, mat, or a smaller rectangle/card inside the canvas
+- Readable text stays a short distance inside the edge so letters are not cut off. That inset is only for type — it must not become a visible border
+- Never draw guides, safe-zone boxes, fold lines, trim marks, or measurement overlays — layout intent only`
 
 /** Shared rules so packaging_face steps output flat pre-press artwork, not dieline/mockup. */
 export const PACKAGING_FACE_FLAT_ARTWORK_RULES = `${PACKAGING_FACE_FLAT_ARTWORK_LEAD}
@@ -25,8 +26,8 @@ FORBIDDEN — never output these (they belong ONLY to the separate box_mockup_3d
 
 REQUIRED — flat print file before die-cutting:
 - ONE rectangular panel for this face only — straight-on orthographic view (like opening a flat PDF in Illustrator)
-- FULL BLEED (full viền): background, colour and artwork extend to all four edges with ZERO margin, frame, padding, or letterboxing
-- The entire image canvas is 100% filled with printable design — edge to edge, corner to corner
+- FULL BLEED (full viền): one design covers the whole face. Zero margin, frame, padding, letterboxing, or a smaller artwork floating inside the canvas
+- NO INNER FRAME: do not draw a bordered panel, white mat, grey surround, or thick solid stripe around a smaller centered design
 - LANGUAGE LOCK: render every brand name, product name, slogan, ingredient, instruction, and other supplied print copy verbatim in its original language — never translate, transliterate, rewrite, spell-correct, or summarize it
 - TYPE LOCK: every glyph is flat print type with a straight baseline and even height. No wavy, melted, skewed, stretched, arched, or perspective-distorted letters. Do not wrap text onto a bottle, curve, or 3D surface. Vietnamese diacritics stay attached to the correct letter
 - NO dieline / net / unfolded template: no multiple connected panels, glue tabs, tuck flaps, or sheet layout
@@ -45,7 +46,7 @@ export type PackagingFacePromptBlockInput = {
 
 const PACKAGING_FACE_TECHNICAL_SETTINGS = `TECHNICAL SETTINGS (API metadata only — never visualize on the artwork):
 - The API supplies the exact aspect ratio and print trim dimensions separately
-- Fill the entire API canvas edge-to-edge with printable design
+- Fill the entire API canvas edge-to-edge. Do not draw a smaller panel inside the canvas
 - Never print, label, or visualize measurements, aspect ratios, guides, or safe-zone boxes`
 
 /** Visual prompt block for packaging_face — no mm/cm numbers (those stay in API config only). */
@@ -66,8 +67,8 @@ ${PACKAGING_FACE_TECHNICAL_SETTINGS}`
       ? `${input.faceKey} (${input.faceSlot.toUpperCase()})`
       : input.faceKey ?? 'packaging face'
   const squareNote = input.isSquare
-    ? '\n- OUTPUT SHAPE: square 1:1 panel — artwork fills the entire square canvas edge-to-edge.'
-    : ''
+    ? '\n- OUTPUT SHAPE: square 1:1 panel — artwork fills the entire square canvas edge-to-edge. Do not place a smaller picture inside the square.'
+    : '\n- OUTPUT SHAPE: fill this face canvas completely. Do not place a square, card, or framed picture inside a larger field.'
 
   return `${PACKAGING_FACE_FLAT_ARTWORK_RULES}
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { editWeddingOrnamentAt, nudgeWeddingOrnament, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentEditSheet, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
+import { editWeddingOrnamentAt, nudgeWeddingOrnament, ornamentRevealNeedsScroll, repeatWeddingOrnamentsDown, weddingIframeVisibleView, weddingOrnamentEditSheet, weddingOrnamentFrameStyle, weddingOrnamentImageStyle, weddingOrnamentPageCount, weddingOrnamentPlain, weddingOrnamentSpotInView, weddingOrnamentsAreOneSheet } from './wedding-background-presets'
 import { readFileSync } from 'node:fs'
 import {
   WEDDING_DESKTOP_HEIGHT,
@@ -115,6 +115,22 @@ test('a new ornament lands in the screen frame currently on display', () => {
   assert.equal(slice?.x, 0)
   assert.equal(slice?.y, 800)
   assert.ok((slice?.h ?? 0) > 400)
+})
+
+test('a newly added flower already on screen does not scroll the page', () => {
+  const view = { top: 0, left: 0, width: 390, height: 800 }
+  assert.equal(
+    ornamentRevealNeedsScroll({ top: 120, left: 8, width: 80, height: 90 }, view),
+    false,
+  )
+  assert.equal(
+    ornamentRevealNeedsScroll({ top: 120, left: 8, width: 0, height: 0 }, view),
+    false,
+  )
+  assert.equal(
+    ornamentRevealNeedsScroll({ top: 1400, left: 8, width: 80, height: 90 }, view),
+    true,
+  )
 })
 
 test('arrow keys nudge an ornament by screen pixels, including a bottom anchor', () => {
