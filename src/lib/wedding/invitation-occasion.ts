@@ -40,6 +40,62 @@ export function invitationOccasionShape(raw: unknown): InvitationOccasionShape {
   return key === 'wedding' || key === 'engagement' || key === 'anniversary' ? 'couple' : 'single'
 }
 
+const OCCASION_SHORT_LABEL: Record<InvitationOccasionKey, readonly [string, string, string, string, string]> = {
+  wedding: ['Cưới', 'Wedding', '婚礼', '婚礼', '결혼'],
+  engagement: ['Đám hỏi', 'Engagement', '订婚', '結納', '약혼'],
+  full_month: ['Đầy tháng', 'Full moon', '满月', '満月', '백일'],
+  first_birthday: ['Thôi nôi', 'First birthday', '周岁', '一歳', '돌'],
+  birthday: ['Sinh nhật', 'Birthday', '生日', '誕生日', '생일'],
+  longevity: ['Mừng thọ', 'Longevity', '寿宴', '長寿', '수연'],
+  grand_opening: ['Khai trương', 'Opening', '开业', '開店', '개업'],
+  housewarming: ['Tân gia', 'Housewarming', '乔迁', '新居', '집들이'],
+  gathering: ['Liên hoan', 'Gathering', '聚会', '宴会', '모임'],
+  graduation: ['Tốt nghiệp', 'Graduation', '毕业', '卒業', '졸업'],
+  anniversary: ['Kỷ niệm', 'Anniversary', '纪念日', '記念日', '기념일'],
+  ceremony: ['Sự kiện', 'Ceremony', '典礼', '式典', '행사'],
+}
+
+/** Nút chuyển loại trên kho giao diện. Ngắn hơn câu mô tả trong form. */
+export function invitationOccasionShortLabel(raw: unknown, locale: string): string {
+  const pack = OCCASION_SHORT_LABEL[normalizeInvitationOccasion(raw)]
+  if (locale === 'en') return pack[1]
+  if (locale === 'zh') return pack[2]
+  if (locale === 'ja') return pack[3]
+  if (locale === 'ko') return pack[4]
+  return pack[0]
+}
+
+export type InvitationCardStructure = {
+  /** Hai tên ngang hàng với dấu &. Một người thì tên phụ là dòng nhỏ, không có dấu &. */
+  nameLayout: 'pair' | 'primary'
+  /** Hai chân dung ngang hàng. Một ảnh thì ảnh phụ xếp dưới, không có dấu &. */
+  portraitLayout: 'pair' | 'primary'
+  /** Hai khối địa điểm, một khối, hoặc khối phụ chỉ khi đã điền tiệc riêng. */
+  venueLayout: 'two' | 'one' | 'optional-second'
+}
+
+/** Cưới và đám hỏi là hai nhà. Kỷ niệm là hai người, tiệc thứ hai chỉ khi có. Các loại còn lại là một người, một địa điểm. */
+export function invitationCardStructure(raw: unknown): InvitationCardStructure {
+  const key = normalizeInvitationOccasion(raw)
+  if (key === 'wedding' || key === 'engagement') {
+    return { nameLayout: 'pair', portraitLayout: 'pair', venueLayout: 'two' }
+  }
+  if (key === 'anniversary') {
+    return { nameLayout: 'pair', portraitLayout: 'pair', venueLayout: 'optional-second' }
+  }
+  return { nameLayout: 'primary', portraitLayout: 'primary', venueLayout: 'one' }
+}
+
+export function invitationShowsSecondVenue(
+  raw: unknown,
+  second: { address?: string | null; date?: string | null; time?: string | null; partyTime?: string | null },
+): boolean {
+  const layout = invitationCardStructure(raw).venueLayout
+  if (layout === 'two') return true
+  if (layout === 'one') return false
+  return Boolean(second.address?.trim() || second.date?.trim() || second.time?.trim() || second.partyTime?.trim())
+}
+
 export type InvitationEditorCopy = {
   label: string
   blurb: string
@@ -629,6 +685,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: BABY_WISH,
     calendar: ['THÔNG TIN ĐẦY THÁNG', 'FULL MOON', '满月信息', '満月のご案内', '백일 안내'],
     calendarIntro: ['TIỆC ĐẦY THÁNG SẼ DIỄN RA VÀO LÚC:', 'THE CELEBRATION BEGINS AT:', '满月宴开始时间：', '満月祝いの開始時刻：', '백일잔치 시작:'],
+    venueGroom: ['Đến dự tiệc đầy tháng', 'Full-moon celebration', '前往满月宴', '満月祝いへ', '백일잔치로'],
+    venueBride: ['Đến dự tiệc đầy tháng', 'Full-moon celebration', '前往满月宴', '満月祝いへ', '백일잔치로'],
   }),
   first_birthday: party({
     eyebrow: ['Thôi nôi', 'First birthday', '周岁', '一歳の誕生日', '돌잔치'],
@@ -647,6 +705,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: BABY_WISH,
     calendar: ['THÔNG TIN THÔI NÔI', 'FIRST BIRTHDAY', '周岁信息', '一歳のご案内', '돌잔치 안내'],
     calendarIntro: ['TIỆC THÔI NÔI SẼ DIỄN RA VÀO LÚC:', 'THE CELEBRATION BEGINS AT:', '周岁宴开始时间：', 'お祝いの開始時刻：', '돌잔치 시작:'],
+    venueGroom: ['Đến dự tiệc thôi nôi', 'First birthday', '前往周岁宴', '一歳の祝いへ', '돌잔치로'],
+    venueBride: ['Đến dự tiệc thôi nôi', 'First birthday', '前往周岁宴', '一歳の祝いへ', '돌잔치로'],
   }),
   birthday: party({
     eyebrow: ['Sinh nhật', 'Birthday', '生日', '誕生日', '생일'],
@@ -665,6 +725,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: BIRTHDAY_WISH,
     calendar: ['THÔNG TIN SINH NHẬT', 'BIRTHDAY', '生日信息', '誕生日のご案内', '생일 안내'],
     calendarIntro: ['TIỆC SINH NHẬT SẼ DIỄN RA VÀO LÚC:', 'THE PARTY BEGINS AT:', '生日宴开始时间：', 'パーティーの開始時刻：', '생일 파티 시작:'],
+    venueGroom: ['Đến dự tiệc sinh nhật', 'Birthday party', '前往生日宴', '誕生日祝いへ', '생일 파티로'],
+    venueBride: ['Đến dự tiệc sinh nhật', 'Birthday party', '前往生日宴', '誕生日祝いへ', '생일 파티로'],
   }),
   longevity: party({
     eyebrow: ['Mừng thọ', 'Longevity', '寿宴', '長寿祝い', '수연'],
@@ -683,6 +745,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: LONGEVITY_WISH,
     calendar: ['THÔNG TIN MỪNG THỌ', 'LONGEVITY', '寿宴信息', '長寿祝いのご案内', '수연 안내'],
     calendarIntro: ['LỄ MỪNG THỌ SẼ DIỄN RA VÀO LÚC:', 'THE CELEBRATION BEGINS AT:', '寿宴开始时间：', 'お祝いの開始時刻：', '수연 시작:'],
+    venueGroom: ['Đến dự lễ mừng thọ', 'Longevity celebration', '前往寿宴', '長寿祝いへ', '수연으로'],
+    venueBride: ['Đến dự lễ mừng thọ', 'Longevity celebration', '前往寿宴', '長寿祝いへ', '수연으로'],
     seal: '壽',
   }),
   grand_opening: party({
@@ -702,6 +766,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: OPENING_WISH,
     calendar: ['THÔNG TIN KHAI TRƯƠNG', 'GRAND OPENING', '开业信息', '開店のご案内', '개업 안내'],
     calendarIntro: ['LỄ KHAI TRƯƠNG SẼ DIỄN RA VÀO LÚC:', 'THE OPENING BEGINS AT:', '开业开始时间：', '開店祝いの開始時刻：', '개업식 시작:'],
+    venueGroom: ['Đến dự lễ khai trương', 'Grand opening', '前往开业典礼', '開店祝いへ', '개업식으로'],
+    venueBride: ['Đến dự lễ khai trương', 'Grand opening', '前往开业典礼', '開店祝いへ', '개업식으로'],
   }),
   housewarming: party({
     eyebrow: ['Tân gia', 'Housewarming', '乔迁', '新居祝い', '집들이'],
@@ -720,6 +786,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: NEUTRAL_WISH,
     calendar: ['THÔNG TIN TÂN GIA', 'HOUSEWARMING', '乔迁信息', '新居祝いのご案内', '집들이 안내'],
     calendarIntro: ['TIỆC TÂN GIA SẼ DIỄN RA VÀO LÚC:', 'THE GATHERING BEGINS AT:', '乔迁宴开始时间：', '新居祝いの開始時刻：', '집들이 시작:'],
+    venueGroom: ['Đến dự tiệc tân gia', 'Housewarming', '前往乔迁宴', '新居祝いへ', '집들이로'],
+    venueBride: ['Đến dự tiệc tân gia', 'Housewarming', '前往乔迁宴', '新居祝いへ', '집들이로'],
   }),
   gathering: party({
     eyebrow: ['Tất niên / liên hoan', 'Gathering', '聚会', '宴会', '모임'],
@@ -738,6 +806,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: NEUTRAL_WISH,
     calendar: ['THÔNG TIN BUỔI TIỆC', 'GATHERING', '聚会信息', '宴会のご案内', '모임 안내'],
     calendarIntro: ['BUỔI TIỆC SẼ DIỄN RA VÀO LÚC:', 'THE GATHERING BEGINS AT:', '聚会开始时间：', '宴会の開始時刻：', '모임 시작:'],
+    venueGroom: ['Đến dự buổi tiệc', 'The gathering', '前往聚会', '宴会へ', '모임으로'],
+    venueBride: ['Đến dự buổi tiệc', 'The gathering', '前往聚会', '宴会へ', '모임으로'],
   }),
   graduation: party({
     eyebrow: ['Tốt nghiệp', 'Graduation', '毕业', '卒業', '졸업'],
@@ -756,6 +826,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: NEUTRAL_WISH,
     calendar: ['THÔNG TIN TỐT NGHIỆP', 'GRADUATION', '毕业信息', '卒業のご案内', '졸업 안내'],
     calendarIntro: ['LỄ TỐT NGHIỆP SẼ DIỄN RA VÀO LÚC:', 'THE CELEBRATION BEGINS AT:', '毕业礼开始时间：', '卒業祝いの開始時刻：', '졸업식 시작:'],
+    venueGroom: ['Đến dự lễ tốt nghiệp', 'Graduation', '前往毕业礼', '卒業祝いへ', '졸업식으로'],
+    venueBride: ['Đến dự lễ tốt nghiệp', 'Graduation', '前往毕业礼', '卒業祝いへ', '졸업식으로'],
   }),
   anniversary: party({
     eyebrow: ['Kỷ niệm', 'Anniversary', '纪念日', '記念日', '기념일'],
@@ -777,8 +849,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     families: ['Hai bên', 'Both sides', '双方', '双方', '양측'],
     primaryFamily: ['Bên thứ nhất', 'First side', '第一方', '一方', '첫 번째'],
     secondaryFamily: ['Bên thứ hai', 'Second side', '第二方', 'もう一方', '두 번째'],
-    venueGroom: ['Bên thứ nhất', 'First side', '第一方', '一方', '첫 번째'],
-    venueBride: ['Bên thứ hai', 'Second side', '第二方', 'もう一方', '두 번째'],
+    venueGroom: ['Đến dự kỷ niệm', 'Anniversary', '前往纪念日', '記念日へ', '기념일로'],
+    venueBride: ['Đến dự kỷ niệm', 'Anniversary', '前往纪念日', '記念日へ', '기념일로'],
   }),
   ceremony: party({
     eyebrow: ['Sự kiện', 'Ceremony', '典礼', '式典', '행사'],
@@ -797,6 +869,8 @@ const PUBLIC: Record<Exclude<InvitationOccasionKey, 'wedding'>, PublicBits> = {
     wishes: NEUTRAL_WISH,
     calendar: ['THÔNG TIN SỰ KIỆN', 'EVENT', '活动信息', '式典のご案内', '행사 안내'],
     calendarIntro: ['SỰ KIỆN SẼ DIỄN RA VÀO LÚC:', 'THE EVENT BEGINS AT:', '活动开始时间：', '式典の開始時刻：', '행사 시작:'],
+    venueGroom: ['Đến dự sự kiện', 'The event', '前往活动', '式典へ', '행사로'],
+    venueBride: ['Đến dự sự kiện', 'The event', '前往活动', '式典へ', '행사로'],
   }),
 }
 
@@ -822,6 +896,26 @@ const SEO: Record<InvitationOccasionKey, InvitationSeoCopy> = {
 
 export function invitationSeoCopy(raw: unknown): InvitationSeoCopy {
   return SEO[normalizeInvitationOccasion(raw)]
+}
+
+/** Cụm sau «đến tham dự» trong lời mời cá nhân. Cưới giữ «bữa cơm thân mật cùng gia đình». */
+const EVENT_PHRASE: Record<InvitationOccasionKey, Five> = {
+  wedding: ['bữa cơm thân mật cùng gia đình', 'an intimate family meal', '一场家宴', '家族の食事', '가족 식사'],
+  engagement: ['lễ đám hỏi', 'the engagement celebration', '订婚宴', '結納', '약혼 잔치'],
+  full_month: ['tiệc đầy tháng', 'the full-moon celebration', '满月宴', '満月祝い', '백일잔치'],
+  first_birthday: ['tiệc thôi nôi', 'the first-birthday celebration', '周岁宴', '一歳の誕生日', '돌잔치'],
+  birthday: ['tiệc sinh nhật', 'the birthday celebration', '生日宴', '誕生日祝い', '생일 파티'],
+  longevity: ['lễ mừng thọ', 'the longevity celebration', '寿宴', '長寿祝い', '수연'],
+  grand_opening: ['lễ khai trương', 'the grand opening', '开业典礼', '開店祝い', '개업식'],
+  housewarming: ['tiệc tân gia', 'the housewarming', '乔迁宴', '新居祝い', '집들이'],
+  gathering: ['buổi tiệc', 'the gathering', '聚会', '宴会', '모임'],
+  graduation: ['lễ tốt nghiệp', 'the graduation celebration', '毕业礼', '卒業祝い', '졸업식'],
+  anniversary: ['ngày kỷ niệm', 'the anniversary', '纪念日', '記念日', '기념일'],
+  ceremony: ['sự kiện', 'the event', '活动', '式典', '행사'],
+}
+
+export function invitationEventPhrase(raw: unknown, locale: string): string {
+  return at(EVENT_PHRASE[normalizeInvitationOccasion(raw)], locale)
 }
 
 type CoverPhotoPack = {
@@ -1005,9 +1099,108 @@ function bitsOf(raw: unknown): PublicBits | null {
   return PUBLIC[key]
 }
 
+function lowerLead(text: string, locale: string): string {
+  if (!text || locale === 'zh' || locale === 'ja' || locale === 'ko') return text
+  const tag = locale === 'vi' ? 'vi' : 'en'
+  return text.charAt(0).toLocaleLowerCase(tag) + text.slice(1)
+}
+
+/** Câu khách thấy ngoài khối đã có sẵn: lịch, nhắc, lời chúc trống, lời cảm ơn. Cưới không đi qua đây. */
+function guestSurface(bits: PublicBits, locale: string) {
+  const event = at(bits.eyebrow, locale)
+  const date = at(bits.dateFallback, locale)
+  const eventSoft = lowerLead(event, locale)
+  const dateSoft = lowerLead(date, locale)
+  const invite = at(bits.defaultInvitation, locale)
+  if (locale === 'en') {
+    return {
+      calendarEventTitle: `${event} — {couple}`,
+      calendarEventDescription: invite,
+      coverReminderOptIn: `${event} reminder (optional)`,
+      reminderTitle: `${event} reminder`,
+      reminderHint: `Enter your email and how many days before the ${dateSoft}. We will email a link back to the invitation.`,
+      reminderDaysHint: `Between 1 and 90 days before the ${dateSoft}.`,
+      reminderSuccessDesc: `We will email you {days} day(s) before the ${dateSoft} with a link to open the invitation.`,
+      reminderErrorNoDate: `This invitation has no ${dateSoft} yet, so a reminder cannot be set.`,
+      reminderErrorPassed: `The ${dateSoft} has passed, so a reminder cannot be set.`,
+      reminderErrorDaysTooLarge: `The reminder must be fewer days than remain until the ${dateSoft}.`,
+      noWishes: `Your presence honors the family and the ${eventSoft} of {couple}.`,
+      noWishesPersonal: `{guest}, your presence honors the ${eventSoft} of {couple}.`,
+      defaultThankYou: `{couple} thank every guest for sharing this ${eventSoft}.\n\nYour presence and wishes make the day complete.\n\nWishing you health, peace, and happiness.`,
+    }
+  }
+  if (locale === 'zh') {
+    return {
+      calendarEventTitle: `{couple} ${event}`,
+      calendarEventDescription: invite,
+      coverReminderOptIn: `${event}提醒（可选）`,
+      reminderTitle: `${event}提醒`,
+      reminderHint: `填写邮箱和提前天数。系统会在${date}前发送含请柬链接的提醒邮件。`,
+      reminderDaysHint: `${date}前 1 至 90 天。`,
+      reminderSuccessDesc: `我们将在${date}前 {days} 天发送邮件，内含打开请柬的链接。`,
+      reminderErrorNoDate: `请柬还没有${date}，无法设置提醒。`,
+      reminderErrorPassed: `${date}已过，无法设置提醒。`,
+      reminderErrorDaysTooLarge: `提醒天数必须小于距离${date}的剩余天数。`,
+      noWishes: `您的出席对 {couple} 的${event}至为珍贵。`,
+      noWishesPersonal: `{guest} 能出席 {couple} 的${event}，是我们最大的荣幸。`,
+      defaultThankYou: `{couple} 衷心感谢各位来宾出席${event}。\n\n您的到来与祝福是我们最珍贵的礼物。\n\n敬祝各位健康平安、幸福美满。`,
+    }
+  }
+  if (locale === 'ja') {
+    return {
+      calendarEventTitle: `{couple} の${event}`,
+      calendarEventDescription: invite,
+      coverReminderOptIn: `${event}リマインダー（任意）`,
+      reminderTitle: `${event}リマインダー`,
+      reminderHint: `メールアドレスと何日前に通知するかを入力すると、${date}の前に招待状リンク付きのリマインダーをお送りします。`,
+      reminderDaysHint: `${date}の 1〜90 日前。`,
+      reminderSuccessDesc: `${date}の {days} 日前に、招待状リンク付きのメールをお送りします。`,
+      reminderErrorNoDate: `招待状に${date}がないため、リマインダーを設定できません。`,
+      reminderErrorPassed: `${date}は過ぎているため、リマインダーを設定できません。`,
+      reminderErrorDaysTooLarge: `通知日数は${date}までの残り日数より短くしてください。`,
+      noWishes: `ご列席は {couple} の${event}にとって何よりの光栄です。`,
+      noWishesPersonal: `{guest} 様が {couple} の${event}に同席くださることが、何よりの喜びです。`,
+      defaultThankYou: `{couple} は、${event}にご出席くださった皆様に心より感謝申し上げます。\n\n温かいお言葉とご祝福が、私たちにとって何よりの贈り物です。\n\n皆様のご健康とご多幸をお祈り申し上げます。`,
+    }
+  }
+  if (locale === 'ko') {
+    return {
+      calendarEventTitle: `{couple} ${event}`,
+      calendarEventDescription: invite,
+      coverReminderOptIn: `${event} 알림 (선택)`,
+      reminderTitle: `${event} 알림`,
+      reminderHint: `이메일과 며칠 전에 받을지 입력하시면, ${date} 전에 청첩장 링크가 포함된 알림 메일을 보내드립니다.`,
+      reminderDaysHint: `${date} 1~90일 전.`,
+      reminderSuccessDesc: `${date} {days}일 전에 청첩장 링크가 포함된 메일을 보내드립니다.`,
+      reminderErrorNoDate: `청첩장에 ${date}이 없어 알림을 설정할 수 없습니다.`,
+      reminderErrorPassed: `${date}이 지나 알림을 설정할 수 없습니다.`,
+      reminderErrorDaysTooLarge: `알림 일수는 ${date}까지 남은 날보다 적어야 합니다.`,
+      noWishes: `귀한 참석은 {couple}의 ${event}에 큰 영광입니다.`,
+      noWishesPersonal: `{guest}님이 {couple}의 ${event}에 함께해 주시는 것이 큰 영광입니다.`,
+      defaultThankYou: `{couple}는 ${event}에 함께해 주신 여러분께 진심으로 감사드립니다.\n\n따뜻한 마음과 축복이 가장 소중한 선물입니다.\n\n모두 건강과 행복을 기원합니다.`,
+    }
+  }
+  return {
+    calendarEventTitle: `${event} {couple}`,
+    calendarEventDescription: invite,
+    coverReminderOptIn: `Nhắc ${dateSoft} (tùy chọn)`,
+    reminderTitle: `Nhắc ${dateSoft}`,
+    reminderHint: `Nhập email và số ngày trước ${dateSoft} — hệ thống sẽ gửi mail nhắc kèm nút xem lại thiệp.`,
+    reminderDaysHint: `Từ 1 đến 90 ngày trước ${dateSoft}.`,
+    reminderSuccessDesc: 'Chúng tôi sẽ gửi email nhắc trước {days} ngày kèm link mở thiệp.',
+    reminderErrorNoDate: `Thiệp chưa có ${dateSoft} để đặt nhắc lịch.`,
+    reminderErrorPassed: `${date} đã qua, không thể đăng ký nhắc lịch.`,
+    reminderErrorDaysTooLarge: `Số ngày nhắc phải nhỏ hơn số ngày còn lại đến ${dateSoft}.`,
+    noWishes: `Quý khách là niềm vinh hạnh của gia đình và ${dateSoft} của {couple} — sự hiện diện của bạn là món quà quý giá nhất.`,
+    noWishesPersonal: `{guest} là khách quý đối với gia đình và ${dateSoft} của {couple} — sự có mặt của {guest} là niềm vinh hạnh lớn lao.`,
+    defaultThankYou: `{couple} xin chân thành cảm ơn quý khách đã đến chung vui ${eventSoft}.\n\nSự hiện diện và lời chúc của mọi người làm buổi này trọn vẹn hơn.\n\nKính chúc quý khách sức khỏe, bình an và hạnh phúc.`,
+  }
+}
+
 export function applyInvitationOccasionPublicCopy<T extends object>(tx: T, occasionKey: unknown, locale: string): T {
   const bits = bitsOf(occasionKey)
   if (!bits) return tx
+  const surface = guestSurface(bits, locale)
   return {
     ...tx,
     weddingInvitation: at(bits.eyebrow, locale),
@@ -1032,6 +1225,7 @@ export function applyInvitationOccasionPublicCopy<T extends object>(tx: T, occas
     coverPhotoAlt: invitationCoverPhotoCopy(occasionKey, locale).alt,
     guestInviteVenueGroom: at(bits.venueGroom, locale),
     guestInviteVenueBride: at(bits.venueBride, locale),
+    ...surface,
   }
 }
 
@@ -1054,8 +1248,8 @@ export function applyInvitationGiftCopy<T extends object>(tx: T, occasionKey: un
     boxTitle: at(bits.giftBox, locale),
     dialogTitle: at(bits.giftDialog, locale),
     envelopeButtonAria: at(bits.giftAria, locale),
-    groomSection: at(bits.primaryRole, locale) || at(bits.eyebrow, locale),
-    brideSection: at(bits.secondaryRole, locale),
+    groomSection: at(bits.primaryRole, locale) || at(bits.primaryFamily, locale) || at(bits.eyebrow, locale),
+    brideSection: at(bits.secondaryRole, locale) || (invitationOccasionShape(occasionKey) === 'couple' ? at(bits.secondaryFamily, locale) : ''),
   }
 }
 

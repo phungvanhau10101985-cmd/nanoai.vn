@@ -1,5 +1,6 @@
 'use client'
 
+import { useLayoutEffect, useRef } from 'react'
 import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -8,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
+import { composeDialogKeyboardFrame, revealComposeField } from '@/lib/wedding/compose-dialog-keyboard'
 import { invitationComposeBrief } from '@/lib/wedding/invitation-compose'
 import { invitationEditorCopy } from '@/lib/wedding/invitation-occasion'
 import { appendWeddingComposeSuggestion } from '@/lib/wedding/wedding-sample-compose'
@@ -33,6 +35,99 @@ export function WeddingSampleComposeModal(props: {
   const tx = getDictionary(props.locale).weddingCardAiImage
   const brief = invitationComposeBrief(props.occasionKey)
   const editor = invitationEditorCopy(props.occasionKey)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    if (!props.open) return
+    let stopped = false
+    let attempts = 0
+    let raf = 0
+    let revealTimer = 0
+    let detach = () => {}
+
+    const attach = () => {
+      if (stopped) return
+      const content = contentRef.current
+      const scroller = scrollerRef.current
+      if (!content || !scroller) {
+        attempts += 1
+        if (attempts < 12) raf = window.requestAnimationFrame(attach)
+        return
+      }
+      const mq = window.matchMedia('(max-width: 767px)')
+
+      const pin = () => {
+        const vv = window.visualViewport
+        const frame = composeDialogKeyboardFrame({
+          mobile: mq.matches,
+          layoutHeight: window.innerHeight,
+          offsetTop: vv?.offsetTop ?? 0,
+          visualHeight: vv?.height ?? window.innerHeight,
+        })
+        if (!frame) {
+          content.style.top = ''
+          content.style.height = ''
+          content.style.maxHeight = ''
+          content.style.transform = ''
+          scroller.style.flex = ''
+          scroller.style.minHeight = ''
+          scroller.style.maxHeight = ''
+          return
+        }
+        content.style.top = `${frame.top}px`
+        content.style.height = `${frame.maxHeight}px`
+        content.style.maxHeight = `${frame.maxHeight}px`
+        content.style.transform = 'translateX(-50%)'
+        scroller.style.flex = '1 1 auto'
+        scroller.style.minHeight = '0px'
+        scroller.style.maxHeight = 'none'
+      }
+
+      const onFocusIn = (event: FocusEvent) => {
+        const target = event.target
+        if (!(target instanceof HTMLElement) || !scroller.contains(target)) return
+        const run = () => {
+          pin()
+          revealComposeField(target, scroller)
+        }
+        run()
+        window.clearTimeout(revealTimer)
+        revealTimer = window.setTimeout(run, 350)
+      }
+
+      pin()
+      const vv = window.visualViewport
+      vv?.addEventListener('resize', pin)
+      vv?.addEventListener('scroll', pin)
+      window.addEventListener('resize', pin)
+      mq.addEventListener('change', pin)
+      content.addEventListener('focusin', onFocusIn)
+      detach = () => {
+        window.clearTimeout(revealTimer)
+        vv?.removeEventListener('resize', pin)
+        vv?.removeEventListener('scroll', pin)
+        window.removeEventListener('resize', pin)
+        mq.removeEventListener('change', pin)
+        content.removeEventListener('focusin', onFocusIn)
+        content.style.top = ''
+        content.style.height = ''
+        content.style.maxHeight = ''
+        content.style.transform = ''
+        scroller.style.flex = ''
+        scroller.style.minHeight = ''
+        scroller.style.maxHeight = ''
+      }
+    }
+
+    attach()
+    return () => {
+      stopped = true
+      window.cancelAnimationFrame(raf)
+      detach()
+    }
+  }, [props.open])
+
   return (
     <Dialog
       open={props.open}
@@ -41,15 +136,25 @@ export function WeddingSampleComposeModal(props: {
       }}
     >
       <DialogContent
+        ref={contentRef}
         overlayClassName="z-[260]"
         showCloseButton={!props.busy}
-        className="z-[260] max-h-[90dvh] overflow-y-auto sm:max-w-lg"
+        className="z-[260] flex max-h-[min(40rem,calc(100dvh-1rem))] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-lg"
+        onOpenAutoFocus={(event) => {
+          if (window.matchMedia('(max-width: 767px)').matches) event.preventDefault()
+        }}
       >
-        <DialogHeader>
+        <DialogHeader className="shrink-0 space-y-0 px-6 pb-2 pr-12 pt-6 text-left">
           <DialogTitle>{brief.title}</DialogTitle>
-          <DialogDescription>{brief.hint}</DialogDescription>
+          <DialogDescription className="sr-only">{brief.hint}</DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
+        <div
+          ref={scrollerRef}
+          data-scroll-lock-scrollable=""
+          className="max-h-[min(32rem,calc(100dvh-10.5rem))] touch-pan-y space-y-3 overflow-y-auto overscroll-y-contain px-6 pb-3 [-webkit-overflow-scrolling:touch]"
+          onTouchMove={(event) => event.stopPropagation()}
+        >
+          <p className="text-sm text-muted-foreground">{brief.hint}</p>
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="wedding-compose-groom">
@@ -95,7 +200,7 @@ export function WeddingSampleComposeModal(props: {
               value={props.storyNotes}
               disabled={props.busy}
               placeholder={brief.notesPlaceholder}
-              className="min-h-28"
+              className="min-h-28 text-base md:text-sm"
               onChange={(event) => props.onStoryNotes(event.target.value)}
             />
           </div>
@@ -117,15 +222,15 @@ export function WeddingSampleComposeModal(props: {
               </div>
             </div>
           ) : null}
-          <div className="flex gap-2 pt-1">
-            <Button type="button" variant="outline" className="flex-1" disabled={props.busy} onClick={props.onSkip}>
-              {tx.sampleComposeCancel}
-            </Button>
-            <Button type="button" className="flex-[1.4]" disabled={props.busy} onClick={props.onConfirm}>
-              {props.busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {props.busy ? tx.sampleComposeWorking : tx.sampleComposeOk}
-            </Button>
-          </div>
+        </div>
+        <div className="mt-auto flex shrink-0 gap-2 border-t border-border/70 px-6 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+          <Button type="button" variant="outline" className="flex-1" disabled={props.busy} onClick={props.onSkip}>
+            {tx.sampleComposeCancel}
+          </Button>
+          <Button type="button" className="flex-[1.4]" disabled={props.busy} onClick={props.onConfirm}>
+            {props.busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {props.busy ? tx.sampleComposeWorking : tx.sampleComposeOk}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

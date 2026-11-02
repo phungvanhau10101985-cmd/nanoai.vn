@@ -30,8 +30,9 @@ import {
   applyInvitationGiftCopy,
   applyInvitationMusicCopy,
   applyInvitationOccasionPublicCopy,
-  invitationOccasionShape,
+  invitationCardStructure,
   invitationSeal,
+  invitationShowsSecondVenue,
 } from '@/lib/wedding/invitation-occasion'
 import { WeddingInvitationShareActions } from '@/components/wedding/wedding-invitation-share-actions'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -46,10 +47,10 @@ import { getWeddingTheme, isWeddingDarkTheme, weddingBackgroundStyle, weddingNav
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer, weddingOrnamentSpotOnPage } from '@/components/wedding/wedding-ornament-admin'
 import { applyWeddingSampleLook, resetWeddingCardOrnaments, resetWeddingPresetOrnaments, saveWeddingCardOrnaments, saveWeddingPresetFrame, saveWeddingPresetOrnaments, saveWeddingPresetShell, saveWeddingPreviewEdit, saveWeddingTemplateFrame, saveWeddingTemplateShell } from '@/app/tao-thiep-moi-cuoi-ai/actions'
-import { WeddingSampleCardPicker } from '@/components/wedding/wedding-sample-card-picker'
-import { isWeddingSamplePhotoUrl, WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
+import { WeddingSampleGallery } from '@/components/wedding/wedding-sample-card-picker'
+import { isWeddingSamplePhotoUrl } from '@/lib/wedding/wedding-sample-cards'
 import { WeddingScrollingBackground } from '@/components/wedding/wedding-scrolling-background'
-import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
+import { applyWeddingKitTheme, resolveWeddingChromeKit, weddingFramePatchForStyle, weddingHeroPhotoLayout, weddingKitSurface, weddingReadingPlate, weddingTextUsesVeil, weddingUsesPairedAiFrame, type WeddingBackgroundOrnament } from '@/lib/wedding/wedding-background-presets'
 import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnamentListsEqual } from '@/lib/wedding/wedding-background-ornament-store'
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
@@ -499,8 +500,15 @@ export default function WeddingPublicClient({
     ? 'border-[#e8c87a]/45 bg-[#fff8ee] text-[#3a2214] placeholder:text-[#8a7048]'
     : ''
   const ringOffsetClass = theme.darkPaper ? 'ring-offset-[#5c1018]' : 'ring-offset-[#fff8f0]'
+  const cardStructure = invitationCardStructure(card.occasionKey)
+  const secondVenueOpen = invitationShowsSecondVenue(card.occasionKey, {
+    address: card.brideInviteAddress,
+    date: card.brideInviteWeddingDate,
+    time: card.brideInviteReceptionTime,
+    partyTime: card.brideInvitePartyStartTime,
+  })
   const heroStack =
-    invitationOccasionShape(card.occasionKey) === 'couple' && weddingHeroPhotoLayout(readyBackground) === 'stack'
+    cardStructure.portraitLayout === 'pair' && weddingHeroPhotoLayout(readyBackground) === 'stack'
   const shownCover = resolveShownCoverFrame(sectionConfig, kitFrameId, pairedAiFrame ? null : sharedFrame)
   const coverPresetId = pairedAiFrame ? sectionConfig.coverPresetId || DEFAULT_WEDDING_COVER_PRESET_ID : shownCover.presetId || DEFAULT_WEDDING_COVER_PRESET_ID
   const envelopeCover = getWeddingCoverPreset(coverPresetId).layout === 'envelope'
@@ -1524,7 +1532,7 @@ export default function WeddingPublicClient({
   const brideFamilyLine = card.brideParents || card.brideName
   const groomHometownLine = card.groomInviteAddress.trim() || card.groomHometown
   const brideHometownLine = card.brideInviteAddress.trim() || card.brideHometown
-  const showBothHouses = letterView === 'both'
+  const showBothHouses = letterView === 'both' && cardStructure.venueLayout !== 'one' && (cardStructure.venueLayout === 'two' || secondVenueOpen)
   const calendarExportInput = useMemo(
     () => ({
       title: personalize(tx.calendarEventTitle),
@@ -1930,9 +1938,11 @@ export default function WeddingPublicClient({
               <DialogDescription>{tImage.previewChangeLookHint}</DialogDescription>
             </DialogHeader>
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <WeddingSampleCardPicker
+              <WeddingSampleGallery
                 locale={uiLocale}
-                samples={WEDDING_SAMPLE_CARDS}
+                open={lookOpen}
+                initialOccasion={card.occasionKey}
+                cardOccasion={card.occasionKey}
                 selectedId={lookPick}
                 heading={tImage.sampleCardsTitle}
                 aiHeading={tImage.sampleAiCardsTitle}
@@ -1954,6 +1964,7 @@ export default function WeddingPublicClient({
       <main
         data-wedding-paper={theme.contentCard || undefined}
         data-wedding-reading={readingPlate ? '' : undefined}
+        data-wedding-text-veil={weddingTextUsesVeil(readyBackground) ? '' : undefined}
         className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', (hostPreview || sampleDemo) && 'mx-auto max-w-full shadow-2xl', theme.pageBg, theme.text, kitSurface.className)}
         style={{ ...kitSurface.style, ...(readingPlate ? { ['--wedding-reading-plate' as string]: readingPlate } : {}), width: sampleDemo || hostPreview ? (viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px`) : undefined }}
       >
@@ -2029,6 +2040,7 @@ export default function WeddingPublicClient({
                     frameScale={resolveCoverFrameScale(sectionConfig)}
                     groomName={hostEditor ? groomDraft : card.groomName}
                     brideName={hostEditor ? brideDraft : card.brideName}
+                    nameLayout={cardStructure.nameLayout}
                     weddingDate={displayWeddingDateLabel}
                     weddingTimeText={hostEditor ? timeDraft || guestInviteLocation.displayTime || weddingDisplayTime : guestInviteLocation.displayTime || weddingDisplayTime}
                     guestName={guestDisplayName || undefined}
@@ -2045,7 +2057,7 @@ export default function WeddingPublicClient({
                     dateFallback={tx.dateFallback}
                     photoAlt={tx.coverPhotoAlt}
                     pairLeftUrl={groomPhotoUrl}
-                    pairRightUrl={bridePhotoUrl}
+                    pairRightUrl={cardStructure.portraitLayout === 'pair' ? bridePhotoUrl : ''}
                     pairLeftCrop={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
                     pairRightCrop={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
                     stackPair={
@@ -2192,13 +2204,19 @@ export default function WeddingPublicClient({
               />
             )}
             {envelopeCover || heroStack ? null : (
+            <>
             <WeddingCoupleNames
               groomName={card.groomName}
               brideName={card.brideName}
+              layout={cardStructure.nameLayout}
               flyIn={contentVisible && card.effectsEnabled}
               pace="opened"
               className={cn('mt-3 font-serif text-[clamp(1.35rem,8cqi,4.25rem)] font-semibold italic leading-none', theme.contentCard === 'scallop' && 'wedding-guest-name not-italic', theme.text, theme.textGlowHeading)}
             />
+            {cardStructure.nameLayout === 'primary' && card.brideName.trim() ? (
+              <p className={cn('mt-1 font-serif text-base italic sm:text-lg', theme.text, theme.textGlow)}>{card.brideName.trim()}</p>
+            ) : null}
+            </>
             )}
             {envelopeCover ? null : (
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
@@ -2222,6 +2240,7 @@ export default function WeddingPublicClient({
                   frameScale={resolveCoverFrameScale(sectionConfig)}
                   groomName={card.groomName}
                   brideName={card.brideName}
+                  nameLayout={cardStructure.nameLayout}
                   theme={theme}
                   invitationLabel={tx.invitation}
                   cordiallyInvitesLabel={tx.cordiallyInvites}
@@ -2229,7 +2248,7 @@ export default function WeddingPublicClient({
                   dateFallback={tx.dateFallback}
                   photoAlt={tx.coverPhotoAlt}
                   pairLeftUrl={groomPhotoUrl}
-                  pairRightUrl={bridePhotoUrl}
+                  pairRightUrl={cardStructure.portraitLayout === 'pair' ? bridePhotoUrl : ''}
                   pairLeftCrop={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
                   pairRightCrop={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
                 />
@@ -2279,6 +2298,7 @@ export default function WeddingPublicClient({
                   locale={uiLocale}
                   tx={txCal}
                   className={cn(theme.textGlow, 'font-medium')}
+                  onDarkPaper={Boolean(theme.darkPaper) && theme.contentCard !== 'scallop'}
                 />
               </div>
             ) : null}
@@ -2326,10 +2346,10 @@ export default function WeddingPublicClient({
           style={contentSurface}
         >
           <div className={PUBLIC_COLUMN}>
-            {(groomFamilyLine.trim() || groomHometownLine.trim() || brideFamilyLine.trim() || brideHometownLine.trim()) ? (
+            {(groomFamilyLine.trim() || groomHometownLine.trim() || (cardStructure.venueLayout !== 'one' && (brideFamilyLine.trim() || brideHometownLine.trim()))) ? (
             <WeddingReadableGlass reveal className="rounded-[1.75rem] p-5 text-center sm:rounded-[2rem] sm:p-6">
               <p className={cn('text-[11px] uppercase tracking-[0.24em] sm:text-xs sm:tracking-[0.32em]', theme.accentText, theme.textGlow)}>{tx.familiesIntro}</p>
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className={cn('mt-6 grid gap-4', cardStructure.venueLayout !== 'one' && (brideFamilyLine.trim() || brideHometownLine.trim()) && 'sm:grid-cols-2')}>
                 {(groomFamilyLine.trim() || groomHometownLine.trim()) ? (
                   <div className={cn('rounded-3xl p-4', theme.panelStrong)}>
                     <p className={cn('text-sm', theme.mutedText, theme.textGlow)}>{tx.groomFamily}</p>
@@ -2343,7 +2363,7 @@ export default function WeddingPublicClient({
                     ) : null}
                   </div>
                 ) : null}
-                {(brideFamilyLine.trim() || brideHometownLine.trim()) ? (
+                {cardStructure.venueLayout !== 'one' && (brideFamilyLine.trim() || brideHometownLine.trim()) ? (
                   <div className={cn('rounded-3xl p-4', theme.panelStrong)}>
                     <p className={cn('text-sm', theme.mutedText, theme.textGlow)}>{tx.brideFamily}</p>
                     {brideFamilyLine.trim() ? (
@@ -2366,6 +2386,7 @@ export default function WeddingPublicClient({
                   brideName={card.brideName}
                   groomImageUrl={groomPhotoUrl}
                   brideImageUrl={bridePhotoUrl}
+                  layout={cardStructure.portraitLayout}
                   groomLabel={tx.groomRole}
                   brideLabel={tx.brideRole}
                   groomFrame={resolvePortraitPhotoFrame(sectionConfig, 'groom')}

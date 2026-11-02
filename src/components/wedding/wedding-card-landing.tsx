@@ -24,7 +24,8 @@ export function WeddingCardLanding(props: {
   copy: Copy
   loginHref: string
   plates: string[]
-  themes: { id: string; title: string; image: string }[]
+  themes: { id: string; title: string; image: string; cover: string; occasionKey: string }[]
+  locale: import('@/lib/i18n/config').WebLocale
 }) {
   const { copy, loginHref, plates } = props
   const hero = plates[0] ?? ''
@@ -110,6 +111,7 @@ export function WeddingCardLanding(props: {
           <p className="mt-1 text-sm text-slate-600">{copy.samplesHint}</p>
           <div className="mt-4">
             <WeddingLandingThemes
+              locale={props.locale}
               themes={props.themes}
               moreLabel={copy.themesMore}
               lessLabel={copy.themesLess}

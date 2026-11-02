@@ -88,9 +88,16 @@ const PREPARE_SHEET = `async () => {
 
 const root = process.cwd()
 const outDir = path.join(root, 'public', 'wedding', 'sample-scroll')
-const only = process.argv[2]?.trim()
-const samples = only ? WEDDING_SAMPLE_CARDS.filter((sample) => sample.id === only) : WEDDING_SAMPLE_CARDS
-if (samples.length === 0) throw new Error(`Không có mẫu ${only}`)
+const args = process.argv.slice(2)
+const aliases = args.includes('--aliases')
+const ids = args.filter((arg) => !arg.startsWith('--'))
+const ALIAS_ID = /^(day-thang|thoi-noi|sinh-nhat|mung-tho|khai-truong|tan-gia|lien-hoan|tot-nghiep|su-kien)-/
+const samples = aliases
+  ? WEDDING_SAMPLE_CARDS.filter((sample) => ALIAS_ID.test(sample.id))
+  : ids.length
+    ? WEDDING_SAMPLE_CARDS.filter((sample) => ids.includes(sample.id))
+    : WEDDING_SAMPLE_CARDS
+if (samples.length === 0) throw new Error(`Không có mẫu ${ids.join(', ') || '--aliases'}`)
 
 async function main() {
 const browser = await chromium.launch({ headless: true, channel: 'chrome' })

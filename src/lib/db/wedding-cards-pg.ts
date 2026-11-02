@@ -401,6 +401,48 @@ export async function createWeddingCardDraft(
   return mapCard(res.rows[0])
 }
 
+/** Ghi tên và lời mời ngay khi tạo, trước khi trả danh sách thiệp. */
+export async function writeWeddingCardOpening(
+  cardId: string,
+  userId: string,
+  opening: {
+    groomName: string
+    brideName: string
+    coupleIntro: string
+    loveQuote: string
+    storyText: string
+    thankYouText: string
+    weddingDate: string
+  },
+): Promise<WeddingCard | null> {
+  requirePg()
+  const res = await getPgPool().query(
+    `update public.wedding_cards
+     set groom_name = $3,
+         bride_name = $4,
+         couple_intro = $5,
+         love_quote = $6,
+         story_text = $7,
+         thank_you_text = $8,
+         wedding_date = nullif($9, '')::date,
+         updated_at = timezone('utc'::text, now())
+     where id = $1::uuid and user_id = $2::uuid
+     returning *, (select image_url from public.wedding_card_ai_images where id = wedding_cards.master_image_id) as master_image_url`,
+    [
+      cardId,
+      userId,
+      opening.groomName,
+      opening.brideName,
+      opening.coupleIntro,
+      opening.loveQuote,
+      opening.storyText,
+      opening.thankYouText,
+      opening.weddingDate,
+    ],
+  )
+  return res.rows[0] ? mapCard(res.rows[0]) : null
+}
+
 export async function getLatestWeddingCardForUser(userId: string): Promise<WeddingCard | null> {
   requirePg()
   const res = await getPgPool().query(
@@ -593,6 +635,7 @@ export async function saveWeddingCardSampleLook(input: {
   brideImageUrl: string
   albumImageUrls: string[]
   clearMaster: boolean
+  occasionKey?: string
 }): Promise<boolean> {
   requirePg()
   const res = await getPgPool().query(
@@ -604,6 +647,7 @@ export async function saveWeddingCardSampleLook(input: {
          bride_image_url = $7,
          album_image_urls = $8::text[],
          master_image_id = case when $9::boolean then null else master_image_id end,
+         occasion_key = coalesce(nullif($10, ''), occasion_key),
          updated_at = timezone('utc'::text, now())
      where id = $1::uuid and user_id = $2::uuid`,
     [
@@ -616,6 +660,7 @@ export async function saveWeddingCardSampleLook(input: {
       input.brideImageUrl,
       input.albumImageUrls,
       input.clearMaster,
+      input.occasionKey?.trim() || '',
     ],
   )
   return res.rowCount === 1

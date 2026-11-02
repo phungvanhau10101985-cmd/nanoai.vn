@@ -41,7 +41,7 @@ Luồng bắt đầu tại `buildPartnerAiContext` (`src/lib/messaging/partner-a
 | **Chính sách shop (SaaS)** | Cọc/COD/thời gian giao/đổi trả — **ý định** `policy_or_order_support`. Nguồn cọc trong chat: chỉ `product_consultation_context`. FAQ và tin shop cho phần còn lại. **Cấm** bịa % cọc, mã đơn, size đã chốt. Neo thẻ / `page_context` **không** cô lập 1 SKU. | `inboundTextLooksLikeShopPolicyAsk`; `partnerAiIntentYieldsCardConsultIsolation` | `partner-ai-purchase-intent.ts`, `partner-ai-intent-router.ts`, `partner-ai-llm.ts` | `policy_or_order_support` |
 | **Tìm kho mặc định** | Keyword + vector theo tin | Không thuộc các nhánh trên | `invForContext` rộng | *(mặc định)* |
 | **Ảnh khách upload** | OCR/SKU trên ảnh → vector; ≥86% khóa mẫu; dưới 86% carousel | Tin widget có `guest_media` / `[Customer image:]` | `widget-guest-post`, `partner-ai-photo-item-consult` | `image_sku_match` / `image_visual_lock` / vision pick |
-| **Ảnh hậu mãi** | Chỉ khi **caption hoặc tin inbound khách** có ý đổi size/hoàn, hoặc OCR ra vận đơn/CK/screenshot đơn | `classifyAfterSalesImage` — **cấm** lấy chữ «đổi size» từ tin shop | `partner-ai-after-sales-image.ts` | `guest_after_sales_image_reply` |
+| **Ảnh hậu mãi** | Chỉ khi **caption hoặc tin inbound khách** có ý đổi size/hoàn, hoặc OCR ra vận đơn/CK/screenshot đơn. `order_code_screen`: web khách = mã bắt đầu `DH`; SaaS = mã nền tảng đã quy định (vd. `188COMVN01`). Tra đúng mã, không vision. Một lượt nhiều ảnh cùng mã chỉ một tin | `classifyAfterSalesImage` — **cấm** lấy chữ «đổi size» từ tin shop | `partner-ai-after-sales-image.ts` | `guest_after_sales_image_reply` |
 
 ## Loại trừ giữa Nhánh A và Nhánh B
 
@@ -89,4 +89,4 @@ Dùng để debug và để sau này không đổi nghĩa key một cách âm th
 
 ---
 
-*Cập nhật lần cuối: mã mẫu trần (`K4627`) và «cần tư vấn» + SĐT không còn rơi vào clarify hỏi loại hàng. Không đồng bộ tài liệu này với code sẽ gây hiểu nhầm cho người sau.*
+*Cập nhật lần cuối: màn «Thanh toán cọc» + mã DH là `order_code_screen` (tra đơn, một tin cho mỗi mã). Ảnh sản phẩm, vận đơn, biên lai đã nhận cọc và đổi size giữ nhánh cũ.*

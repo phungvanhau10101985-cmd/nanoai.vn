@@ -36,6 +36,10 @@ import { isPgConfigured } from '@/lib/db/pool'
 import { normalizeWebLocale } from '@/lib/i18n/config'
 import type { PartnerAiProductCard } from '@/lib/messaging/partner-ai-product-cards'
 import { resolvePartnerCustomerLoyaltyStatusFromPg } from '@/lib/db/messaging-partner-loyalty-pg'
+import {
+  extractAfterSalesCodes,
+  sendAfterSalesGuestImageReply,
+} from '@/lib/messaging/partner-ai-after-sales-image'
 
 export const dynamic = 'force-dynamic'
 /** LLM + typing delay có thể kéo dài khi job AI chạy ngay sau POST (không chờ cron). */
@@ -430,6 +434,9 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
     }
     const batchConversationId = conversationId
     const batchUiLocale = typeof body?.uiLocale === 'string' ? body.uiLocale : undefined
+    const batchCaption = typeof body?.text === 'string' ? body.text : ''
+    const batchExternalThreadId = effectiveExternalThreadId
+    const batchPartnerId = partnerId
     void (async () => {
       const batchItems: WidgetGuestImageBatchItemResult[] = []
       for (const run of followUps) {
@@ -440,6 +447,28 @@ export async function POST(request: NextRequest, ctx: { params: Promise<{ slug: 
         }
       }
       if (!batchConversationId || batchItems.length < 1) return
+      const seenOrderScreens = new Set<string>()
+      for (const item of batchItems) {
+        const pending = item.pendingAfterSales
+        if (!pending || pending.kind !== 'order_code_screen' || !item.messageId) continue
+        const code = extractAfterSalesCodes(`${pending.ocrText}\n${batchCaption}`).orderCode ?? ''
+        const key = code || pending.ocrText.slice(0, 120)
+        if (seenOrderScreens.has(key)) continue
+        seenOrderScreens.add(key)
+        try {
+          await sendAfterSalesGuestImageReply({
+            partnerId: batchPartnerId,
+            conversationId: batchConversationId,
+            triggerMessageId: item.messageId,
+            caption: batchCaption,
+            detection: pending,
+            uiLocale: batchUiLocale,
+            externalThreadId: batchExternalThreadId,
+          })
+        } catch (e) {
+          console.warn('[guest-post] order-code screen reply', e)
+        }
+      }
       const productBatchItems = batchItems.filter(
         (item) => !item.paymentVerificationHandled && !item.afterSalesHandled
       )

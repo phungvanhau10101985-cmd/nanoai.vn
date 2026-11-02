@@ -21,6 +21,8 @@ type Props = {
   compact?: boolean
   className?: string
   live?: boolean
+  /** Nền đỏ hoặc đêm: chữ kem, không dùng xanh ô-liu. */
+  onDarkPaper?: boolean
 }
 
 export function WeddingCountdownBlock({
@@ -32,6 +34,7 @@ export function WeddingCountdownBlock({
   compact,
   className,
   live = true,
+  onDarkPaper = false,
 }: Props) {
   const target = useMemo(
     () => buildWeddingCountdownTarget(weddingDateIso, weddingTimeText, partyStartTime),
@@ -61,7 +64,7 @@ export function WeddingCountdownBlock({
   const title = tx.countdownTitle ?? 'CÙNG ĐẾM NGƯỢC'
 
   return (
-    <div className={cn('wedding-cal-ink text-center font-serif text-[#556b47]', className)} role="timer" aria-live="polite">
+    <div className={cn('text-center font-serif', onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink text-[#556b47]', className)} role="timer" aria-live="polite">
       <p
         className={cn(
           'font-semibold uppercase tracking-[0.22em] opacity-90',

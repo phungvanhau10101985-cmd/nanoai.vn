@@ -29,12 +29,14 @@ import {
   formatShippingLookupCustomerReply,
   lookupPartnerShippingFromPg,
 } from '@/lib/messaging/partner-shipping-lookup'
+import { findSaasPlatformOrderCode, findWebCustomerOrderCode } from '@/lib/messaging/shop-payment-reference'
 import { trackFromUsageMetadata } from '@/lib/track-ai-usage'
 
 /** Ảnh 1–6 shop chốt + tư vấn SP (giữ vision). */
 export type AfterSalesImageKind =
   | 'shipping_status_notice'
   | 'order_chat_screenshot'
+  | 'order_code_screen'
   | 'return_waybill'
   | 'deposit_notice'
   | 'fit_issue_product_photo'
@@ -270,12 +272,12 @@ export function extractAfterSalesCodes(ocrText: string): {
   amountText: string | null
 } {
   const t = String(ocrText ?? '')
-  const order = t.match(ORDER_CODE_RE)
+  const order = findWebCustomerOrderCode(t) ?? findSaasPlatformOrderCode(t)
   const vnpost = t.match(VNPOST_TRACK_RE)
   const ho = t.match(HO_TRACK_RE)
   const amt = t.match(AMOUNT_RE)
   return {
-    orderCode: order ? `DH${order[1]}` : null,
+    orderCode: order,
     trackingCode: vnpost?.[1] ?? ho?.[1] ?? null,
     amountText: amt?.[1] ? `${amt[1]}đ` : null,
   }
@@ -301,6 +303,22 @@ function looksLikeDepositNotice(ocr: string): boolean {
   if (/đã\s*nhận\s*đặt\s*cọc|da\s*nhan\s*dat\s*coc|đã\s*nhận\s*cọc/i.test(ocr)) return true
   if (/đặt\s*cọc|dat\s*coc|đặt cọc/.test(ocr.toLowerCase()) && ORDER_CODE_RE.test(ocr)) return true
   return /xác\s*nhận.{0,24}(?:cọc|coc|thanh\s*toán)|deposit\s+received/i.test(ocr)
+}
+
+/**
+ * Màn mã đơn. Web khách: ký tự bắt đầu bằng DH. SaaS: mã nền tảng đã quy định
+ * (vd. 188COMVN01). Không phải biên lai «đã nhận cọc» và không phải SKU sản phẩm.
+ */
+function looksLikeOrderCodePaymentScreen(ocr: string): boolean {
+  const web = findWebCustomerOrderCode(ocr)
+  const saas = findSaasPlatformOrderCode(ocr)
+  if (!web && !saas) return false
+  if (looksLikeBankTransferReceipt(ocr)) return false
+  if (/đã\s*nhận\s*(?:đặt\s*)?cọc|da\s*nhan\s*(?:dat\s*)?coc/i.test(ocr)) return false
+  if (/thanh\s*to[aá]n\s*c[oọ]c|thanh\s*toan\s*coc|m[aã]\s*đơn|ma\s*don/i.test(ocr)) return true
+  const code = (web ?? saas ?? '').replace(/[^A-Z0-9]/g, '')
+  const compact = ocr.replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+  return code.length > 0 && compact.length <= code.length + 6 && compact.includes(code)
 }
 
 function looksLikeOrderChatScreenshot(ocr: string): boolean {
@@ -353,6 +371,7 @@ export function classifyAfterSalesImage(input: {
   if (looksLikeReturnWaybill(ocr)) return 'return_waybill'
   if (looksLikeShippingStatusNotice(ocr)) return 'shipping_status_notice'
   if (looksLikeDepositNotice(ocr) || looksLikeDepositNotice(caption)) return 'deposit_notice'
+  if (looksLikeOrderCodePaymentScreen(ocr)) return 'order_code_screen'
   if (looksLikeOrderChatScreenshot(ocr)) return 'order_chat_screenshot'
 
   if (
@@ -394,6 +413,7 @@ export function shouldOcrGuestImageForAfterSales(caption: string, conversationCo
   const cap = norm(caption)
   const customerSide = customerSideAfterSalesText(cap, conversationContext)
   if (inboundTextLooksLikeAfterSalesNotCheckout(customerSide) || FIT_ISSUE_RE.test(customerSide)) return true
+  if (inboundTextLooksLikeShopPolicyAsk(cap)) return true
   if (cap.length <= 24) return true
   if (/\b(?:dh|đh|size|sz|cọc|coc|vận|van\s*đơn)\b/i.test(cap)) return true
   return false
@@ -492,6 +512,34 @@ function shippingStatusLabel(
           ? 'ko'
           : 'vi'
   return map[lang][key] ?? map[lang].shipping
+}
+
+function orderCodeScreenMissReply(orderCode: string | null, uiLocale: string | null | undefined): string {
+  const loc = locPrefix(uiLocale)
+  const code = orderCode?.trim() || ''
+  if (loc.startsWith('en')) {
+    return code
+      ? `We read order ${code} on the payment screenshot. This shop does not have that order. Please check the code on the image.`
+      : 'We see a deposit payment screen but could not read an order code. Please send the part that shows the order code.'
+  }
+  if (loc.startsWith('zh')) {
+    return code
+      ? `已从付款截图读到订单号 ${code}。店内没有这张订单。请再核对图片上的订单号。`
+      : '看到的是定金付款页面，但没有读到订单号。请再发有订单号的那一部分。'
+  }
+  if (loc.startsWith('ja')) {
+    return code
+      ? `お支払い画面から注文番号 ${code} を読みました。店舗にこの注文はありません。画面の番号をご確認ください。`
+      : '手付金のお支払い画面は見えていますが、注文番号を読めませんでした。番号が写った部分を再度送ってください。'
+  }
+  if (loc.startsWith('ko')) {
+    return code
+      ? `결제 화면에서 주문번호 ${code}를 읽었습니다. 매장에 이 주문이 없습니다. 화면의 번호를 다시 확인해 주세요.`
+      : '계약금 결제 화면은 보이지만 주문번호를 읽지 못했습니다. 번호가 보이는 부분을 다시 보내 주세요.'
+  }
+  return code
+    ? `Dạ em đã đọc mã đơn ${code} trên ảnh thanh toán cọc. Em chưa thấy đơn này trong shop. Chị kiểm tra lại giúp em đúng mã trên ảnh ạ.`
+    : 'Dạ em thấy ảnh thanh toán cọc nhưng chưa đọc được mã đơn. Chị gửi lại giúp em phần có dòng mã đơn ạ.'
 }
 
 export function buildAfterSalesImageReply(input: {
@@ -594,6 +642,10 @@ export function buildAfterSalesImageReply(input: {
       `Dạ em đã nhận thông tin vận đơn chị gửi hàng hoàn${trackBit ? ` ${trackBit}` : ''} ạ.`,
       'Khi shop nhận được hàng, em sẽ báo lại chị ngay.',
     ].join('\n')
+  }
+
+  if (input.kind === 'order_code_screen') {
+    return orderCodeScreenMissReply(codes.orderCode, input.uiLocale)
   }
 
   if (input.kind === 'deposit_notice') {
@@ -837,6 +889,7 @@ export async function sendAfterSalesGuestImageReply(input: {
   if (
     lookupQuery &&
     (input.detection.kind === 'shipping_status_notice' ||
+      input.detection.kind === 'order_code_screen' ||
       isDepositKind ||
       input.detection.kind === 'return_waybill')
   ) {

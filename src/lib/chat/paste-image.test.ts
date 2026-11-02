@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { isBlockedIp, isBlockedPasteHost, mightBeRemoteImage, singleHttpUrl, singleImageDataUrl, sniffImageMime } from '@/lib/chat/paste-image'
+import {
+  clipboardImageFiles,
+  isBlockedIp,
+  isBlockedPasteHost,
+  mightBeRemoteImage,
+  singleHttpUrl,
+  singleImageDataUrl,
+  sniffImageMime,
+} from '@/lib/chat/paste-image'
 
 test('a single image link is kept and a sentence is left alone', () => {
   assert.equal(singleHttpUrl('https://cdn.example.com/a.png'), 'https://cdn.example.com/a.png')
@@ -25,6 +33,23 @@ test('private hosts and link-local addresses are blocked', () => {
   assert.equal(isBlockedIp('192.168.1.8'), true)
   assert.equal(isBlockedIp('8.8.8.8'), false)
   assert.equal(isBlockedIp('::1'), true)
+})
+
+test('one pasted image listed in both files and items is kept once', () => {
+  const fromFiles = new File([new Uint8Array(120)], 'screenshot.png', { type: 'image/png', lastModified: 10 })
+  const fromItems = new File([new Uint8Array(120)], 'image.png', { type: 'image/png', lastModified: 99 })
+  const pasted = clipboardImageFiles({
+    files: [fromFiles],
+    items: [{ kind: 'file', type: 'image/png', getAsFile: () => fromItems }],
+  })
+  assert.equal(pasted.length, 1)
+  assert.equal(pasted[0]?.name, 'screenshot.png')
+
+  const screenshotOnly = clipboardImageFiles({
+    files: [],
+    items: [{ kind: 'file', type: 'image/png', getAsFile: () => fromItems }],
+  })
+  assert.equal(screenshotOnly.length, 1)
 })
 
 test('file signatures identify jpeg png gif and webp', () => {

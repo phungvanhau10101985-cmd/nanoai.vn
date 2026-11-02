@@ -127,6 +127,8 @@ export function WeddingCouplePortraits(props: {
   groomFrameScale?: number
   brideFrameScale?: number
   theme: WeddingTheme
+  /** primary = một ảnh chính. Ảnh phụ nằm dưới, không có dấu &. */
+  layout?: 'pair' | 'primary'
   compact?: boolean
   className?: string
   choosePhotoLabel?: string
@@ -141,7 +143,9 @@ export function WeddingCouplePortraits(props: {
   const groomImageUrl = props.groomImageUrl.trim()
   const brideImageUrl = props.brideImageUrl.trim()
   if (!groomImageUrl && !brideImageUrl) return null
-  const showSecondary = Boolean(brideImageUrl || props.brideName.trim())
+  const showSecondary = props.layout === 'primary'
+    ? Boolean(brideImageUrl)
+    : Boolean(brideImageUrl || props.brideName.trim())
   if (!showSecondary) {
     return (
       <div className={cn('mx-auto w-full max-w-[16rem]', props.className)}>
@@ -159,6 +163,43 @@ export function WeddingCouplePortraits(props: {
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
           frameScaleEdit={props.groomFrameScaleEdit}
+        />
+      </div>
+    )
+  }
+
+  if (props.layout === 'primary') {
+    return (
+      <div className={cn('mx-auto w-full max-w-[16rem] space-y-4', props.className)}>
+        <Portrait
+          imageUrl={groomImageUrl}
+          name={props.groomName}
+          label={props.groomLabel}
+          frame={props.groomFrame ?? PORTRAIT_FRAME}
+          shell={props.groomShell}
+          frameScale={props.groomFrameScale}
+          theme={props.theme}
+          compact={props.compact}
+          choosePhotoLabel={props.choosePhotoLabel}
+          chooseFrameLabel={props.chooseFrameLabel}
+          onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
+          frameScaleEdit={props.groomFrameScaleEdit ?? props.pairFrameScaleEdit}
+        />
+        <Portrait
+          imageUrl={brideImageUrl}
+          name={props.brideName}
+          label={props.brideLabel}
+          frame={props.brideFrame ?? PORTRAIT_FRAME}
+          shell={props.brideShell}
+          frameScale={props.brideFrameScale}
+          theme={props.theme}
+          compact={props.compact}
+          choosePhotoLabel={props.choosePhotoLabel}
+          chooseFrameLabel={props.chooseFrameLabel}
+          onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
+          onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
+          frameScaleEdit={props.brideFrameScaleEdit}
         />
       </div>
     )

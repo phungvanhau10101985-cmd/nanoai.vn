@@ -58,6 +58,7 @@ import {
   weddingMusicLibraryHasUrl,
   publishWeddingCard,
   updateWeddingCardBrief,
+  writeWeddingCardOpening,
   updateWeddingCardSideInviteSettings,
   type WeddingCard,
   type WeddingImageType,
@@ -104,6 +105,7 @@ import {
 import { composeWeddingSampleCopyWithDeepseek } from '@/lib/wedding/wedding-sample-compose-deepseek'
 import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
+  type WeddingCardOpeningCopy,
   type WeddingSampleComposeCopy,
 } from '@/lib/wedding/wedding-sample-compose'
 
@@ -274,6 +276,7 @@ export async function loadWeddingCardWorkspace(cardId?: string) {
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const requested = String(cardId || '').trim()
   let card = requested ? await getWeddingCardForUser(requested, ownerUserId) : null
+  if (requested && !card) return { error: 'Không tìm thấy thiệp.' }
   if (!card) card = await getLatestWeddingCardForUser(ownerUserId)
   if (!card) card = await createWeddingCardDraft(ownerUserId)
   if (card && !card.isPublished && (card.groomName.trim() || card.brideName.trim())) {
@@ -664,6 +667,7 @@ export async function applyWeddingSampleLook(cardId: string, sampleId: string) {
       brideImageUrl: look.brideImageUrl,
       albumImageUrls: look.albumImageUrls,
       clearMaster: !sample.libraryImageUrl,
+      occasionKey: normalizeInvitationOccasion(sample.occasionKey || existing.occasionKey),
     })
     if (!saved) return { error: 'unavailable' as const }
     const cardBase = weddingCardOrnamentLayoutKey(cardId)
@@ -731,20 +735,47 @@ export async function getOrCreateWeddingCard() {
   return loadWeddingCardWorkspace()
 }
 
-export async function createNewWeddingCard(occasionKey?: string, heroPhotoLayout?: string) {
+function clipOpening(value: unknown, max: number): string {
+  return String(value ?? '').trim().slice(0, max)
+}
+
+export async function createNewWeddingCard(
+  occasionKey?: string,
+  heroPhotoLayout?: string,
+  opening?: WeddingCardOpeningCopy | null,
+) {
   const auth = await getUserForCreditAction()
   if ('error' in auth) return { error: auth.error }
   const ownerUserId = await ensureWeddingCardOwnerProfile(auth.user.id, auth.user.email)
   const draft = await createWeddingCardDraft(ownerUserId, 'luxury', occasionKey)
   const stack =
     readHeroPhotoLayout(heroPhotoLayout) === 'stack' && invitationOccasionShape(occasionKey) === 'couple'
-  const seeded = stack
+  let seeded = stack
     ? (await saveWeddingCardSectionConfig(
         draft.id,
         ownerUserId,
         stringifyWeddingSectionConfig({ heroPhotoLayout: 'stack' }),
       )) ?? draft
     : draft
+  const groomName = clipOpening(opening?.groomName, 300)
+  const brideName = clipOpening(opening?.brideName, 300)
+  const coupleIntro = clipOpening(opening?.coupleIntro, MAX_TEXT)
+  const loveQuote = clipOpening(opening?.loveQuote, 600)
+  const storyText = clipOpening(opening?.storyText, MAX_TEXT)
+  const thankYouText = clipOpening(opening?.thankYouText, MAX_TEXT)
+  const weddingDate = normalizeWeddingDateToIso(clipOpening(opening?.weddingDate, 120))
+  if (groomName || brideName || coupleIntro || loveQuote || storyText || thankYouText || weddingDate) {
+    seeded =
+      (await writeWeddingCardOpening(seeded.id, ownerUserId, {
+        groomName,
+        brideName,
+        coupleIntro,
+        loveQuote,
+        storyText,
+        thankYouText,
+        weddingDate,
+      })) ?? seeded
+  }
   const card = (await publishWeddingCard(seeded.id, ownerUserId)) ?? seeded
   if (card.slug) revalidatePath(`/thiep-moi-cuoi/${card.slug}`)
   return weddingCardWorkspace(ownerUserId, card, auth.user.email)

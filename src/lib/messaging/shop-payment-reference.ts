@@ -96,6 +96,41 @@ export function isSequentialShopOrderCode(raw: string): boolean {
   return false
 }
 
+/** Web khách: mã bắt đầu bằng DH. */
+export function isWebCustomerOrderCode(raw: string): boolean {
+  return /^DH\d{2,}$/.test(coreShopOrderCode(raw))
+}
+
+/**
+ * SaaS: mã đơn nền tảng đã quy định (tên shop + số, hoặc SEVQR + mã đó).
+ * Không gồm DH của web khách và không gồm SKU một hoặc hai chữ.
+ */
+export function isSaasPlatformOrderCode(raw: string): boolean {
+  if (!isSequentialShopOrderCode(raw)) return false
+  const core = coreShopOrderCode(raw)
+  if (!core || /^D[HC]\d{2,}$/.test(core)) return false
+  return true
+}
+
+const ORDER_CODE_TOKEN_RE = /[A-Za-z0-9][A-Za-z0-9_-]{3,24}/g
+
+export function findWebCustomerOrderCode(text: string): string | null {
+  const match = String(text ?? '').match(/(?:#\s*)?\b(?:DH|ĐH)\s*[-_]?\s*(\d{2,})\b/i)
+  return match ? `DH${match[1]}` : null
+}
+
+export function findSaasPlatformOrderCode(text: string): string | null {
+  const raw = String(text ?? '')
+  const sev = raw.match(/SEVQR\s*([A-Z0-9]{5,22})/i)
+  if (sev?.[1] && isSaasPlatformOrderCode(sev[1])) return coreShopOrderCode(sev[1])
+  const tokens = raw.match(ORDER_CODE_TOKEN_RE) ?? []
+  for (const token of tokens) {
+    if (!isSaasPlatformOrderCode(token)) continue
+    return coreShopOrderCode(token)
+  }
+  return null
+}
+
 /** Fallback khi chưa chạy migration bộ đếm: UUID rút gọn (đơn cũ / lỗi allocate). */
 export function buildStablePaymentReference(orderId: string, shopDisplayName: string): string {
   const clean = orderId.replace(/-/g, '').slice(0, 10).toUpperCase()

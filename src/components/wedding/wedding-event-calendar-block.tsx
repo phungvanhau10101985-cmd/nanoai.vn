@@ -251,6 +251,7 @@ export function WeddingEventCalendarBlock({
           compact={compact}
           className={cn(compact ? 'mt-4' : 'mt-6')}
           live={countdownLive}
+          onDarkPaper={onDarkPaper}
         />
       ) : null}
 

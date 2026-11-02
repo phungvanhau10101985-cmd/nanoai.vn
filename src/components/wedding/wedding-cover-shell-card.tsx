@@ -82,6 +82,8 @@ type WeddingCoverShellCardProps = {
   }
   groomName: string
   brideName: string
+  /** primary = một người. Vỏ hai ảnh và dấu & không dùng. */
+  nameLayout?: 'pair' | 'primary'
   weddingDate?: string | null
   weddingTimeText?: string
   guestName?: string
@@ -660,7 +662,8 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
       </p>
       <WeddingCoupleNames
         groomName={props.groomName}
-        brideName={props.brideName}
+        brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
         className={cn('font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-2 text-[clamp(1.05rem,8cqi,2.65rem)] leading-none sm:mt-3', theme.text, theme.textGlowHeading)}
       />
@@ -787,7 +790,8 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
         </p>
         <WeddingCoupleNames
           groomName={props.groomName}
-          brideName={props.brideName}
+          brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
           className={cn('font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-[clamp(1.05rem,8cqi,2.35rem)] leading-none sm:mt-3')}
         />
@@ -1369,7 +1373,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         </p>
         <WeddingCoupleNames
           groomName={props.groomName}
-          brideName={props.brideName}
+          brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
           className={cn(
             'font-serif font-semibold',
@@ -1708,7 +1713,8 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
             </p>
             <WeddingCoupleNames
               groomName={props.groomName}
-              brideName={props.brideName}
+              brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
               flyIn={props.namesFlyIn && !compact}
               className={cn(
                 'font-serif font-medium italic text-[#4a433c]',
@@ -1830,7 +1836,8 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
           ) : null}
           <WeddingCoupleNames
             groomName={props.groomName}
-            brideName={props.brideName}
+            brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
             flyIn={props.namesFlyIn && !compact}
             className={cn(
               'font-serif font-semibold text-stone-900',
@@ -1907,7 +1914,8 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
         <div className={cn('mx-auto flex items-center justify-center rounded-full border border-[#f3d27a] text-[#f6e2b0] shadow-[0_0_18px_rgba(243,210,122,0.35)]', compact ? 'h-8 w-8 text-sm' : 'h-14 w-14 text-[1.65rem]')}>囍</div>
         <WeddingCoupleNames
           groomName={props.groomName}
-          brideName={props.brideName}
+          brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
           className={cn(
             'wedding-guest-name flex-col items-center gap-y-0 text-[#f6e2b0]',
@@ -2037,7 +2045,9 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
     <div className={cn('relative text-[#4a1c28]', compact ? 'mt-2' : 'mt-5')}>
       <div aria-hidden className="pointer-events-none absolute inset-x-[8%] -inset-y-3 rounded-full bg-[#f7f1ea]/80 blur-md" />
       <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.groomName}</p>
-      {props.brideName ? (
+      {props.nameLayout === 'primary' && props.brideName.trim() ? (
+        <p className={cn('relative mt-1 font-serif italic leading-none text-[#6e4452]', compact ? 'text-sm' : 'text-base')} style={nameInk}>{props.brideName.trim()}</p>
+      ) : props.nameLayout !== 'primary' && props.brideName ? (
         <>
           <p className={cn('relative font-serif italic leading-none text-[#6e4452]', compact ? 'my-0.5 text-sm' : 'my-1 text-xl')} style={nameInk}>&</p>
           <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.brideName}</p>
@@ -2135,7 +2145,7 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
   const { compact, theme, preset } = props
   const thin = preset.pairFrame !== 'none'
   const left = props.pairLeftUrl || props.coverPhotoUrl || ''
-  const right = props.pairRightUrl || props.coverPhotoUrl || ''
+  const right = props.nameLayout === 'primary' ? '' : props.pairRightUrl || props.coverPhotoUrl || ''
   const edge = thin ? 'border border-white/90 shadow-[0_0_0_1px_rgba(40,20,10,0.45)]' : ''
   const lift = 'shadow-[0_10px_18px_rgba(40,20,10,0.22)]'
   const arrange = preset.pairArrange
@@ -2145,7 +2155,11 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
   const rightShot = (className: string) => (
     <PairShot url={right} crop={props.pairRightCrop} edit={props.pairRightEdit} className={className} />
   )
-  const photos = arrange === 'offset' ? (
+  const photos = props.nameLayout === 'primary' ? (
+    <div className="mx-auto w-[72%]">
+      {leftShot(cn('aspect-[3/4] w-full', edge))}
+    </div>
+  ) : arrange === 'offset' ? (
     <div className="relative aspect-[5/4] w-full">
       {leftShot(cn('absolute left-0 top-0 h-[78%] w-[58%]', edge))}
       {rightShot(cn('absolute bottom-0 right-0 z-[1] h-[78%] w-[58%]', edge, lift))}
@@ -2194,7 +2208,8 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
       </p>
       <WeddingCoupleNames
         groomName={props.groomName}
-        brideName={props.brideName}
+        brideName={props.nameLayout === 'primary' ? '' : props.brideName}
+        layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
         className={cn('font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-1 text-[clamp(1.05rem,8cqi,2.2rem)] leading-none', theme.text, theme.textGlowHeading)}
       />

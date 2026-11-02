@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
+  buildAfterSalesImageReply,
   captionShouldSkipProductVision,
   classifyAfterSalesImage,
   inboundCustomerContextForAfterSales,
@@ -60,6 +61,63 @@ test('policy and form captions skip product vision search', () => {
   assert.equal(captionShouldSkipProductVision('khi nào nhận hàng'), true)
   assert.equal(captionShouldSkipProductVision('Mình quan tâm mẫu này'), false)
   assert.equal(captionShouldSkipProductVision(''), false)
+})
+
+test('deposit payment screen with an order code is an order lookup, not a product photo', () => {
+  const ocr = 'Thanh toán cọc đơn hàng\nMã đơn: #DH1339'
+  assert.equal(
+    classifyAfterSalesImage({ caption: '', ocrText: ocr, conversationContext: '' }),
+    'order_code_screen'
+  )
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: '',
+      ocrText: 'Đã nhận đặt cọc DH1339',
+      conversationContext: '',
+    }),
+    'deposit_notice'
+  )
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: '',
+      ocrText: 'Hàng đang được giao DH1339',
+      conversationContext: '',
+    }),
+    'shipping_status_notice'
+  )
+  const miss = buildAfterSalesImageReply({
+    kind: 'order_code_screen',
+    caption: '',
+    ocrText: ocr,
+    conversationContext: '',
+    uiLocale: 'vi',
+  })
+  assert.match(miss, /DH1339/)
+  assert.equal(/đang được gửi|đã chuyển đơn/.test(miss), false)
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: '',
+      ocrText: 'Thanh toán cọc đơn hàng\nMã đơn: 188COMVN01',
+      conversationContext: '',
+    }),
+    'order_code_screen'
+  )
+  const saasMiss = buildAfterSalesImageReply({
+    kind: 'order_code_screen',
+    caption: '',
+    ocrText: 'Thanh toán cọc đơn hàng\nMã đơn: 188COMVN01',
+    conversationContext: '',
+    uiLocale: 'vi',
+  })
+  assert.match(saasMiss, /188COMVN01/)
+  assert.equal(
+    classifyAfterSalesImage({
+      caption: '',
+      ocrText: 'Set áo khoác Size XL ID A851540015167',
+      conversationContext: '',
+    }),
+    'product_consult'
+  )
 })
 
 test('order-status caption without OCR is not vision product consult', () => {

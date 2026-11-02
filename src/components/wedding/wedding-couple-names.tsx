@@ -35,13 +35,15 @@ function tightenCoupleName(el: HTMLHeadingElement) {
 export function WeddingCoupleNames(props: {
   groomName: string
   brideName: string
+  /** primary = một tên. Tên phụ không đứng ngang hàng với dấu &. */
+  layout?: 'pair' | 'primary'
   flyIn?: boolean
   /** reveal = chạy vào lúc cửa thiệp chính mở. opened = tên bay vào rồi từng câu hiện tiếp. */
   pace?: 'cover' | 'reveal' | 'opened'
   className?: string
 }) {
   const groomName = props.groomName.trim()
-  const brideName = props.brideName.trim()
+  const brideName = props.layout === 'primary' ? '' : props.brideName.trim()
   const ref = useRef<HTMLHeadingElement>(null)
   useLayoutEffect(() => {
     const el = ref.current

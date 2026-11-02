@@ -5,7 +5,11 @@ import {
   coreShopOrderCode,
   displayShopOrderCode,
   formatShopSequentialOrderCode,
+  findSaasPlatformOrderCode,
+  findWebCustomerOrderCode,
+  isSaasPlatformOrderCode,
   isSequentialShopOrderCode,
+  isWebCustomerOrderCode,
   paymentReferenceLookupKeys,
   sanitizeShopPrefixForPaymentRef,
   sepayTransferContentFromOrderCode,
@@ -47,5 +51,19 @@ describe('shop sequential order codes', () => {
     assert.equal(isSequentialShopOrderCode('H9441'), false)
     assert.equal(isSequentialShopOrderCode('C0156'), false)
     assert.equal(isSequentialShopOrderCode('188COMVNF7428AC054'), false)
+  })
+
+  it('splits web DH orders from SaaS platform codes', () => {
+    assert.equal(isWebCustomerOrderCode('DH1339'), true)
+    assert.equal(isWebCustomerOrderCode('#DH1339'), true)
+    assert.equal(isWebCustomerOrderCode('188COMVN01'), false)
+    assert.equal(isSaasPlatformOrderCode('188COMVN01'), true)
+    assert.equal(isSaasPlatformOrderCode('SEVQR 188COMVN01'), true)
+    assert.equal(isSaasPlatformOrderCode('DH1339'), false)
+    assert.equal(isSaasPlatformOrderCode('DC009'), false)
+    assert.equal(isSaasPlatformOrderCode('H9441'), false)
+    assert.equal(findWebCustomerOrderCode('Mã đơn: #DH1339'), 'DH1339')
+    assert.equal(findSaasPlatformOrderCode('Mã đơn: 188COMVN01'), '188COMVN01')
+    assert.equal(findSaasPlatformOrderCode('SKU H9441'), null)
   })
 })

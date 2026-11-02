@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
+import sharp from 'sharp'
 import { WEDDING_SAMPLE_CARDS, weddingSampleGalleryThumb, weddingSampleScrollStrip } from './wedding-sample-cards'
 import { nextWeddingMusicMix, shuffleWeddingMusicUrls, weddingMusicQueue } from './wedding-music-library'
 
@@ -14,12 +15,14 @@ test('shuffle keeps every track', () => {
   assert.deepEqual(shuffleWeddingMusicUrls(urls, () => 0), ['b.mp3', 'c.mp3', 'a.mp3'])
 })
 
-test('each theme scroll strip is a tall preview', () => {
+test('each theme scroll strip is a tall preview', async () => {
   for (const sample of WEDDING_SAMPLE_CARDS) {
     const file = path.join(process.cwd(), 'public', weddingSampleScrollStrip(sample).replace(/^\//, ''))
     assert.equal(existsSync(file), true, sample.id)
     const info = statSync(file)
     assert.ok(info.size < 720_000, sample.id)
+    const meta = await sharp(file).metadata()
+    assert.ok((meta.height || 0) > (meta.width || 1) * 2, `${sample.id} ${meta.width}x${meta.height}`)
   }
 })
 

@@ -2,17 +2,20 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import test from 'node:test'
+import { INVITATION_OCCASION_KEYS } from './invitation-occasion'
 import { findWeddingBackgroundPreset } from './wedding-background-presets'
-import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, findWeddingSampleInUse, stripWeddingSamplePhotos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey, weddingSamplesWithActiveFirst } from './wedding-sample-cards'
+import { WEDDING_SAMPLE_CARDS, buildWeddingSampleDemoCard, findWeddingSampleCard, findWeddingSampleInUse, stripWeddingSamplePhotos, weddingOccasionDemos, weddingSampleLookOnCard, weddingSamplePhotoUrls, weddingSampleSharedLayoutKey, weddingSamplesWithActiveFirst } from './wedding-sample-cards'
 
 test('a sample card is one background and five couple photos', () => {
   assert.ok(WEDDING_SAMPLE_CARDS.length >= 1)
   for (const sample of WEDDING_SAMPLE_CARDS) {
-    if (sample.aiStyleId) {
+    if (sample.aiStyleId && !sample.backgroundPresetId) {
       assert.equal(sample.backgroundPresetId, '')
-    } else {
-      assert.equal(sample.id, sample.backgroundPresetId)
+    } else if (!sample.aiStyleId) {
       assert.ok(findWeddingBackgroundPreset(sample.backgroundPresetId))
+      if (sample.id === sample.backgroundPresetId || !sample.occasionKey) {
+        assert.equal(sample.id, sample.backgroundPresetId)
+      }
     }
     assert.equal(findWeddingSampleCard(sample.id)?.coverPhotoUrl, sample.coverPhotoUrl)
     const urls = weddingSamplePhotoUrls(sample)
@@ -121,4 +124,62 @@ test('the sample in use stays first and a preset wins over a leftover library im
   assert.equal(ordered[0]?.id, library.id)
   assert.equal(ordered.length, WEDDING_SAMPLE_CARDS.length)
   assert.equal(new Set(ordered.map((sample) => sample.id)).size, WEDDING_SAMPLE_CARDS.length)
+})
+
+test('each card type has its own demos, and wedding keeps the full catalog', () => {
+  for (const key of INVITATION_OCCASION_KEYS) {
+    const demos = weddingOccasionDemos(key)
+    if (key === 'wedding') {
+      assert.ok(demos.length > 20, key)
+      assert.ok(demos.some((sample) => sample.id === 'long-phung-do'))
+      assert.ok(demos.some((sample) => sample.id === 'do-son'))
+      assert.ok(demos.some((sample) => sample.id === 'hong-ngoc-trai'))
+      assert.ok(demos.some((sample) => sample.id === 'dem-vang'))
+      assert.ok(demos.some((sample) => sample.id === 'doi-anh-hong'))
+      assert.ok(demos.some((sample) => sample.id === 'ai-luxury'))
+      assert.ok(demos.some((sample) => sample.id === 'kho-hong-baby'))
+      assert.equal(demos.some((sample) => sample.id.startsWith('sinh-nhat-')), false)
+      continue
+    }
+    assert.equal(demos.length, key === 'birthday' ? 9 : 5, key)
+    const photos = demos.flatMap((sample) => weddingSamplePhotoUrls(sample).filter(Boolean))
+    assert.equal(new Set(photos).size, photos.length, key)
+    for (const sample of demos) assert.ok(weddingSamplePhotoUrls(sample).filter(Boolean).length >= 4, sample.id)
+    const looks = demos.map((sample) => sample.backgroundPresetId)
+    assert.equal(new Set(looks).size, demos.length, key)
+    const flowers = demos.map((sample) => {
+      const preset = findWeddingBackgroundPreset(sample.backgroundPresetId)
+      assert.ok(preset, sample.id)
+      return preset.ornaments.map((item) => item.src).sort().join('|')
+    })
+    assert.equal(new Set(flowers).size, demos.length, key)
+    const demo = buildWeddingSampleDemoCard(demos[0])
+    assert.equal(demo?.occasionKey, key)
+  }
+  const birthday = buildWeddingSampleDemoCard(findWeddingSampleCard('sinh-nhat-dem')!)
+  assert.match(birthday?.invitationText || '', /sinh nhật/i)
+  assert.equal(birthday?.groomName, 'Ngô Quỳnh')
+  assert.equal(birthday?.brideName, '')
+  assert.equal(birthday?.brideImageUrl, '')
+  assert.equal(birthday?.brideGiftAccountName, '')
+  const silkBirthday = buildWeddingSampleDemoCard(findWeddingSampleCard('sinh-nhat-lua')!)
+  assert.equal(silkBirthday?.groomName, 'Mai Chi')
+  assert.equal(silkBirthday?.brideName, '')
+  assert.equal(silkBirthday?.brideImageUrl, '')
+  assert.doesNotMatch(`${silkBirthday?.invitationText} ${silkBirthday?.coupleIntro}`, /Bùi An/)
+  const rose = buildWeddingSampleDemoCard(findWeddingSampleCard('sinh-nhat-hong')!)
+  const man = buildWeddingSampleDemoCard(findWeddingSampleCard('sinh-nhat-son')!)
+  assert.equal(rose?.groomName, 'Phan My')
+  assert.equal(rose?.brideName, '')
+  assert.equal(rose?.brideImageUrl, '')
+  assert.equal(man?.groomName, 'Trần Khôi')
+  assert.equal(man?.brideImageUrl, '')
+  assert.equal(
+    findWeddingSampleInUse({ backgroundPresetId: 'dem-vang', occasionKey: 'birthday' })?.id,
+    'sinh-nhat-dem',
+  )
+  assert.equal(
+    findWeddingSampleInUse({ backgroundPresetId: 'dem-vang', occasionKey: 'anniversary' })?.id,
+    'dem-vang',
+  )
 })

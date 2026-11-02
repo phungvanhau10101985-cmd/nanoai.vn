@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { WebLocale } from '@/lib/i18n/config'
+import { INVITATION_OCCASION_KEYS, invitationOccasionShortLabel, normalizeInvitationOccasion, type InvitationOccasionKey } from '@/lib/wedding/invitation-occasion'
+import { weddingOccasionDemos } from '@/lib/wedding/wedding-sample-cards'
 import {
   findWeddingBackgroundPreset,
   labelForWeddingBackgroundPreset,
@@ -13,10 +15,111 @@ import { WeddingSampleScrollPreview } from '@/components/wedding/wedding-sample-
 import { cn } from '@/lib/utils'
 
 function SampleFace(props: { sample: WeddingSampleCard }) {
-  return <WeddingSampleScrollPreview src={weddingSampleScrollStrip(props.sample)} />
+  const scroll = weddingSampleScrollStrip(props.sample)
+  const [src, setSrc] = useState(scroll)
+  useEffect(() => setSrc(scroll), [scroll])
+  return (
+    <WeddingSampleScrollPreview
+      src={src}
+      onError={() => {
+        if (src !== props.sample.coverPhotoUrl) setSrc(props.sample.coverPhotoUrl)
+      }}
+    />
+  )
 }
 
-/** Một hàng giao diện cạnh nút đổi thiệp: desktop 4 ô, mobile 2 ô. Mẫu đang dùng đứng đầu và được đánh dấu. */
+const OCCASION_BAR_LABEL: Record<WebLocale, string> = {
+  vi: 'Loại thiệp',
+  en: 'Card type',
+  zh: '请柬类型',
+  ja: '招待状の種類',
+  ko: '청첩장 종류',
+}
+
+/** Nút trên đầu kho: bấm để xem 5 demo của đúng loại thiệp. */
+export function WeddingOccasionDemoBar(props: {
+  locale: WebLocale
+  value: InvitationOccasionKey
+  onChange: (key: InvitationOccasionKey) => void
+}) {
+  return (
+    <div className="sticky top-0 z-10 -mx-1 bg-[#fffaf6]/95 px-1 pb-2 backdrop-blur">
+      <p className="mb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{OCCASION_BAR_LABEL[props.locale]}</p>
+      <div className="flex gap-1 overflow-x-auto pb-1" role="tablist" aria-label={OCCASION_BAR_LABEL[props.locale]}>
+        {INVITATION_OCCASION_KEYS.map((key) => {
+          const active = props.value === key
+          return (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={active ? 'h-8 shrink-0 rounded-full bg-neutral-950 px-3 text-xs font-semibold text-white' : 'h-8 shrink-0 rounded-full border border-neutral-200 bg-white px-3 text-xs font-medium text-neutral-700'}
+              onClick={() => props.onChange(key)}
+            >
+              {invitationOccasionShortLabel(key, props.locale)}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Kho giao diện: nút loại thiệp, rồi các mẫu của loại đang xem. Cưới gồm cả kho nền. */
+export function WeddingSampleGallery(props: {
+  locale: WebLocale
+  initialOccasion?: string
+  /** Khi hộp thoại mở lại, tab về đúng loại của thiệp đang sửa. */
+  open?: boolean
+  cardOccasion?: string
+  selectedId?: string
+  heading: string
+  aiHeading?: string
+  libraryHeading?: string
+  hint: string
+  photoNote: string
+  columns?: 2 | 4
+  disabled?: boolean
+  confirmLabel?: string
+  confirmCloseLabel?: string
+  confirmHint?: string
+  onPreview: (sample: WeddingSampleCard) => void
+  onConfirm?: (sample: WeddingSampleCard) => void
+}) {
+  const initial = normalizeInvitationOccasion(props.initialOccasion)
+  const [occasion, setOccasion] = useState<InvitationOccasionKey>(initial)
+  useEffect(() => {
+    if (props.open === false) return
+    setOccasion(initial)
+  }, [initial, props.open])
+  const cardOccasion = props.cardOccasion ? normalizeInvitationOccasion(props.cardOccasion) : ''
+  const samples = weddingOccasionDemos(occasion)
+  return (
+    <div className="space-y-3">
+      <WeddingOccasionDemoBar locale={props.locale} value={occasion} onChange={setOccasion} />
+      <WeddingSampleCardPicker
+        locale={props.locale}
+        samples={samples}
+        selectedId={!cardOccasion || cardOccasion === occasion ? props.selectedId : undefined}
+        heading={props.heading}
+        aiHeading={props.aiHeading}
+        libraryHeading={props.libraryHeading}
+        hint={props.hint}
+        photoNote={props.photoNote}
+        columns={props.columns}
+        disabled={props.disabled}
+        confirmLabel={props.confirmLabel}
+        confirmCloseLabel={props.confirmCloseLabel}
+        confirmHint={props.confirmHint}
+        onPreview={(sample) => props.onPreview({ ...sample, occasionKey: occasion })}
+        onConfirm={props.onConfirm ? (sample) => props.onConfirm?.({ ...sample, occasionKey: occasion }) : undefined}
+      />
+    </div>
+  )
+}
+
+/** Demo của loại thiệp đang mở. Mẫu đang dùng đứng đầu và được đánh dấu. */
 export function WeddingSampleLookStrip(props: {
   locale: WebLocale
   samples: readonly WeddingSampleCard[]
@@ -25,10 +128,10 @@ export function WeddingSampleLookStrip(props: {
   disabled?: boolean
   onOpen: (sample: WeddingSampleCard) => void
 }) {
-  const shown = weddingSamplesWithActiveFirst(props.samples, props.activeId).slice(0, 4)
+  const shown = weddingSamplesWithActiveFirst(props.samples, props.activeId)
   return (
     <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-      {shown.map((sample, index) => {
+      {shown.map((sample) => {
         const label = sampleLabel(props.locale, sample)
         const active = Boolean(props.activeId) && (props.activeId === sample.id || props.activeId === sample.backgroundPresetId)
         return (
@@ -40,7 +143,6 @@ export function WeddingSampleLookStrip(props: {
             onClick={() => props.onOpen(sample)}
             className={cn(
               'w-full overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
-              index >= 2 && 'hidden lg:block',
               active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
             )}
           >

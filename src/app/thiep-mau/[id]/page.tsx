@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { WeddingSampleDemoBar } from '@/components/wedding/wedding-sample-demo-bar'
-import { getUserForCreditAction } from '@/lib/auth'
+import { getUserForCreditAction, getUserOrBypass } from '@/lib/auth'
 import { ensureWeddingCardOwnerProfile, listWeddingMusicLibrary } from '@/lib/db/wedding-cards-pg'
 import { loadWeddingOrnamentLayout } from '@/lib/db/wedding-ornament-layouts-pg'
 import { getProfileRoleWithFallback } from '@/lib/db/read-user-dashboard-pg'
@@ -11,13 +11,14 @@ import { canEditWeddingOrnaments, weddingOrnamentDeviceKey, weddingOrnamentSurfa
 import { weddingNaturalViewportContent } from '@/lib/wedding/wedding-design-viewport'
 import { buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { buildWeddingSampleDemoCard, findWeddingSampleCard, weddingSampleSharedLayoutKey } from '@/lib/wedding/wedding-sample-cards'
+import { normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { weddingSharedFrameKey } from '@/lib/wedding/wedding-shared-frame'
 import { buildMetadata } from '@/lib/seo'
 import WeddingPublicClient from '@/app/thiep-moi-cuoi/[slug]/wedding-public-client'
 
 type Props = {
   params: { id: string }
-  searchParams?: { embed?: string; still?: string }
+  searchParams?: { embed?: string; still?: string; occasion?: string }
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -32,7 +33,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function WeddingSampleDemoPage({ params, searchParams }: Props) {
   const still = searchParams?.still === '1'
-  const sample = findWeddingSampleCard(params.id)
+  const found = findWeddingSampleCard(params.id)
+  const sample = found && searchParams?.occasion && !/^(day-thang|thoi-noi|sinh-nhat|mung-tho|khai-truong|tan-gia|lien-hoan|tot-nghiep|su-kien)-/.test(found.id)
+    ? { ...found, occasionKey: normalizeInvitationOccasion(searchParams.occasion) }
+    : found
   const card = sample ? buildWeddingSampleDemoCard(sample) : null
   if (!sample || !card) notFound()
   const demoInvite = buildWeddingDemoPersonalInvite({
@@ -46,9 +50,10 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
     partyStartTime: card.partyStartTime,
     address: card.venue,
     guestName: card.guestName,
+    occasionKey: card.occasionKey,
   })
   const ornamentKey = weddingSampleSharedLayoutKey(sample)
-  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedCoverMobile, sharedLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin, demoMusicUrls] = await Promise.all([
+  const [sharedOrnaments, sharedDesktop, sharedMobile, sharedCoverMobile, sharedLetterMobile, sharedShellDesktop, sharedShellMobile, sharedFrame, admin, demoMusicUrls, viewer] = await Promise.all([
     ornamentKey ? loadWeddingOrnamentLayout(ornamentKey) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'desktop')) : null,
     ornamentKey ? loadWeddingOrnamentLayout(weddingOrnamentDeviceKey(ornamentKey, 'mobile')) : null,
@@ -61,6 +66,7 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
     listWeddingMusicLibrary(200)
       .then((rows) => rows.map((row) => row.audioUrl).filter(Boolean))
       .catch(() => [] as string[]),
+    getUserOrBypass(),
   ])
   return (
     <>
@@ -88,7 +94,9 @@ export default async function WeddingSampleDemoPage({ params, searchParams }: Pr
         demoMusicUrls={demoMusicUrls}
         captureStill={still}
       />
-      {still ? null : <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} />}
+      {still ? null : (
+        <WeddingSampleDemoBar sampleId={sample.id} embed={searchParams?.embed === '1'} signedIn={Boolean(viewer)} />
+      )}
     </>
   )
 }

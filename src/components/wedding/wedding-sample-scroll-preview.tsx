@@ -22,7 +22,12 @@ function reducedMotion() {
  * Ô mẫu: thấy phần trên thiệp. Rê chuột thì trượt hết thiệp đã mở, rời chuột thì về đầu.
  * Dùng pixel trên lớp GPU. Transition CSS với % và cqh trên ảnh ~7000px bị vẽ lại từng khung nên giật.
  */
-export function WeddingSampleScrollPreview(props: { src: string; eager?: boolean; className?: string }) {
+export function WeddingSampleScrollPreview(props: {
+  src: string
+  eager?: boolean
+  className?: string
+  onError?: () => void
+}) {
   const boxRef = useRef<HTMLSpanElement>(null)
   const animRef = useRef<Animation | null>(null)
   const hoveringRef = useRef(false)
@@ -102,6 +107,7 @@ export function WeddingSampleScrollPreview(props: { src: string; eager?: boolean
         decoding="async"
         draggable={false}
         className="pointer-events-none absolute inset-x-0 top-0 block w-full max-w-none"
+        onError={props.onError}
       />
     </span>
   )

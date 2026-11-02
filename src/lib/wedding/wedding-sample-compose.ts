@@ -219,10 +219,71 @@ export function applyComposeCopyToCard<
   }
 }
 
+export type WeddingCardOpeningCopy = {
+  groomName: string
+  brideName: string
+  coupleIntro: string
+  loveQuote: string
+  storyText: string
+  thankYouText: string
+  weddingDate: string
+}
+
+/** Ô đang gõ trên modal thắng state React khi trình duyệt điền sẵn mà không bắn onChange. */
+export function preferComposeFieldValue(stateValue: string, domValue?: string | null): string {
+  const typed = String(domValue ?? '').trim()
+  if (typed) return typed
+  return stateValue.trim()
+}
+
+/** Phần ghi cùng lúc với insert. Rỗng hoàn toàn thì không gửi, để khỏi đè thiệp trắng. */
+export function weddingCardOpeningFromCompose(
+  copy: WeddingSampleComposeFields | null | undefined,
+  weddingDate?: string | null,
+): WeddingCardOpeningCopy | null {
+  const opening: WeddingCardOpeningCopy = {
+    groomName: copy?.groomName.trim() ?? '',
+    brideName: copy?.brideName.trim() ?? '',
+    coupleIntro: copy?.coupleIntro.trim() ?? '',
+    loveQuote: copy?.loveQuote.trim() ?? '',
+    storyText: copy?.storyText.trim() ?? '',
+    thankYouText: copy?.thankYouText.trim() ?? '',
+    weddingDate: String(weddingDate ?? '').trim(),
+  }
+  const hasText = [
+    opening.groomName,
+    opening.brideName,
+    opening.coupleIntro,
+    opening.loveQuote,
+    opening.storyText,
+    opening.thankYouText,
+    opening.weddingDate,
+  ].some((part) => part.length > 0)
+  return hasText ? opening : null
+}
+
 /**
  * Gắn lời AI vào đúng thiệp vừa insert.
  * Ref trình soạn vẫn là thiệp đang mở cho đến lần render sau — không lấy thiệp đó làm gốc.
  */
+export function weddingComposeNamesOnly(groomName: string, brideName: string): WeddingSampleComposeFields | null {
+  const groom = groomName.trim()
+  const bride = brideName.trim()
+  if (!groom && !bride) return null
+  return {
+    groomName: groom,
+    brideName: bride,
+    coupleIntro: '',
+    loveQuote: '',
+    storyText: '',
+    thankYouText: '',
+  }
+}
+
+export function weddingComposeCopyHasWords(copy: WeddingSampleComposeFields): boolean {
+  return [copy.coupleIntro, copy.loveQuote, copy.storyText, copy.thankYouText].some((part) => part.trim().length > 0)
+}
+
 export function weddingCardAfterCreate<
   T extends {
     groomName: string

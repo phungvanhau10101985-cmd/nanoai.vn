@@ -527,7 +527,7 @@ const RED_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#e4d0a0]',
   accentClass: 'text-[#f3d27a]',
   accentTextClass: 'text-[#ffe7b0]',
-  textPlate: 'rgba(62,10,18,0)',
+  textPlate: 'rgba(92,16,24,0.9)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
   surface: 'dark',
@@ -566,7 +566,7 @@ const SCARLET_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#fff4e4]',
   accentClass: 'text-[#ffe7b0]',
   accentTextClass: 'text-[#fff6d4]',
-  textPlate: 'rgba(74,12,18,0)',
+  textPlate: 'rgba(110,24,32,0.9)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
   surface: 'dark',
@@ -775,7 +775,7 @@ const CHUA_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#6b5340]',
   accentClass: 'text-[#8a5a12]',
   accentTextClass: 'text-[#6b4310]',
-  textPlate: 'rgba(255,248,236,0.84)',
+  textPlate: 'rgba(255,248,236,0.9)',
   fontClass: 'wedding-font-lotus',
   shareFont: SOFT_FONT,
 }
@@ -794,7 +794,7 @@ const VAN_MIEU_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#5c4e3a]',
   accentClass: 'text-[#6b4a28]',
   accentTextClass: 'text-[#4a3218]',
-  textPlate: 'rgba(255,250,240,0.84)',
+  textPlate: 'rgba(255,250,240,0.9)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
 }
@@ -813,7 +813,7 @@ const CHO_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#8a5a40]',
   accentClass: 'text-[#c2410c]',
   accentTextClass: 'text-[#9a3412]',
-  textPlate: 'rgba(255,248,240,0.84)',
+  textPlate: 'rgba(255,248,240,0.9)',
   fontClass: 'wedding-font-soft',
   shareFont: SOFT_FONT,
 }
@@ -832,7 +832,7 @@ const HA_LONG_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#4d6a70]',
   accentClass: 'text-[#0369a1]',
   accentTextClass: 'text-[#0c4a6e]',
-  textPlate: 'rgba(248,252,250,0.84)',
+  textPlate: 'rgba(248,252,250,0.9)',
   fontClass: 'wedding-font-soft',
   shareFont: SOFT_FONT,
 }
@@ -851,7 +851,7 @@ const LANG_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#4e5c62]',
   accentClass: 'text-[#3d5c4a]',
   accentTextClass: 'text-[#243830]',
-  textPlate: 'rgba(255,252,248,0.86)',
+  textPlate: 'rgba(255,252,248,0.9)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
 }
@@ -870,7 +870,7 @@ const QUE_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#6b6048]',
   accentClass: 'text-[#6b5a28]',
   accentTextClass: 'text-[#4a3e18]',
-  textPlate: 'rgba(255,248,232,0.84)',
+  textPlate: 'rgba(255,248,232,0.9)',
   fontClass: 'wedding-font-soft',
   shareFont: SOFT_FONT,
 }
@@ -889,7 +889,7 @@ const DUONG_LOOK: WeddingKitLook = {
   mutedClass: 'text-[#6e584c]',
   accentClass: 'text-[#8a5727]',
   accentTextClass: 'text-[#6b4318]',
-  textPlate: 'rgba(255,246,238,0.84)',
+  textPlate: 'rgba(255,246,238,0.9)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
 }
@@ -1775,7 +1775,22 @@ export function applyWeddingKitTheme(theme: WeddingTheme, preset: WeddingBackgro
   }
 }
 
-/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Đỏ son, long phụng, giấy trơn và kho AI thì không phủ. */
+/** Hoa văn sát mép chữ. Tấm kem 10% trong suốt, vẫn thấy nền xuyên qua. */
+const SEE_THROUGH_TEXT_IDS = new Set([
+  'chua-mot-cot',
+  'van-mieu',
+  'cho-ben-thanh',
+  'vinh-ha-long',
+  'lang-bac',
+  'que-nghe-an',
+  'duong-lam',
+])
+
+export function weddingTextUsesVeil(preset: WeddingBackgroundPreset | null | undefined): boolean {
+  return Boolean(preset && SEE_THROUGH_TEXT_IDS.has(preset.id))
+}
+
+/** Mặt đọc phía sau chữ khi hoa văn nền cắt ngang nét chữ. Đỏ son và long phụng dùng tấm cùng màu giấy, trong suốt khoảng 10%. Giấy trơn và kho AI thì không phủ. */
 export function weddingReadingPlate(
   preset: WeddingBackgroundPreset | null | undefined,
   pageBackground: string,
@@ -1783,8 +1798,9 @@ export function weddingReadingPlate(
 ): string | undefined {
   if (!pageBackground.trim()) return undefined
   if (preset?.look.contentCard === 'scallop') return undefined
-  if (preset?.look === RED_LOOK || preset?.look === SCARLET_LOOK) return undefined
+  if (preset?.look === RED_LOOK || preset?.look === SCARLET_LOOK) return preset.look.textPlate
   if (preset?.look.surface === 'dark' && preset.look.paper) return preset.look.paper
+  if (weddingTextUsesVeil(preset)) return preset?.look.textPlate
   // Kho AI và nền tự vẽ: không tấm chữ, hoa văn hiện suốt.
   if (!preset) return undefined
   if (preset.id.startsWith('ai-')) return themeIsDark ? '#0f172a' : '#fff8f2'

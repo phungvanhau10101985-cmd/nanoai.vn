@@ -3,12 +3,17 @@ import test from 'node:test'
 import {
   INVITATION_OCCASION_GROUPS,
   INVITATION_OCCASION_KEYS,
+  applyInvitationCalendarCopy,
   applyInvitationCoverSectionDescription,
+  applyInvitationGiftCopy,
   applyInvitationOccasionPublicCopy,
+  invitationEventPhrase,
   invitationCoverPhotoCopy,
+  invitationCardStructure,
   invitationEditorCopy,
   invitationGiftBlockedMessage,
   invitationOccasionShape,
+  invitationShowsSecondVenue,
   invitationOccasionShapeChangeNote,
   invitationSeoCopy,
   normalizeInvitationOccasion,
@@ -88,6 +93,13 @@ test('cover photo label matches each occasion', () => {
   assert.equal(applyInvitationCoverSectionDescription(viDesc, 'wedding', 'vi'), viDesc)
   const tx = { coverPhotoAlt: 'Ảnh cặp đôi trên vỏ thiệp', groomRole: 'Chú rể', dateFallback: 'Ngày cưới' }
   assert.equal(applyInvitationOccasionPublicCopy(tx, 'birthday', 'vi').coverPhotoAlt, 'Ảnh nhân vật chính trên vỏ thiệp')
+  assert.equal(applyInvitationOccasionPublicCopy(tx, 'birthday', 'vi').guestInviteVenueGroom, 'Đến dự tiệc sinh nhật')
+  assert.equal(invitationEventPhrase('birthday', 'vi'), 'tiệc sinh nhật')
+  assert.equal(invitationEventPhrase('wedding', 'vi'), 'bữa cơm thân mật cùng gia đình')
+  assert.equal(invitationEventPhrase('engagement', 'vi'), 'lễ đám hỏi')
+  assert.equal(applyInvitationOccasionPublicCopy(tx, 'engagement', 'vi').guestInviteVenueGroom, 'Đến tại nhà trai')
+  assert.equal(applyInvitationOccasionPublicCopy(tx, 'full_month', 'vi').guestInviteVenueGroom, 'Đến dự tiệc đầy tháng')
+  assert.doesNotMatch(applyInvitationOccasionPublicCopy(tx, 'birthday', 'vi').guestInviteVenueGroom, /nhà trai/)
   assert.equal(applyInvitationOccasionPublicCopy(tx, 'wedding', 'vi'), tx)
   for (const key of INVITATION_OCCASION_KEYS) {
     for (const locale of ['vi', 'en', 'zh', 'ja', 'ko']) {
@@ -131,4 +143,67 @@ test('seo title stays the wedding sentence and other types do not say lễ cư�
   assert.equal(buildWeddingPublicTitle(birthday), 'Thiệp mời sinh nhật Hậu')
   assert.doesNotMatch(buildWeddingPublicDescription(birthday), /lễ cưới/)
   assert.match(String(buildWeddingPublicJsonLd(birthday, 'https://nanoai.vn/x').name), /sinh nhật/i)
+})
+
+test('calendar, reminder, thanks and gift drop wedding words outside a wedding', () => {
+  const wedding = {
+    calendarEventTitle: 'Tiệc cưới {groom} & {bride}',
+    coverReminderOptIn: 'Nhắc lịch cưới (tùy chọn)',
+    defaultThankYou: 'ngày cưới của chúng tôi',
+  }
+  assert.equal(applyInvitationOccasionPublicCopy(wedding, 'wedding', 'vi'), wedding)
+  const surface = applyInvitationOccasionPublicCopy(wedding, 'birthday', 'vi')
+  assert.equal(surface.calendarEventTitle, 'Sinh nhật {couple}')
+  assert.match(surface.calendarEventDescription, /sinh nhật/)
+  assert.doesNotMatch(surface.coverReminderOptIn, /cưới/)
+  assert.doesNotMatch(surface.reminderTitle, /cưới|đám/)
+  assert.doesNotMatch(surface.defaultThankYou, /cưới/)
+  assert.doesNotMatch(surface.noWishes, /cưới/)
+  assert.equal(
+    applyInvitationCalendarCopy(
+      { sectionTitle: 'THÔNG TIN TIỆC CƯỚI', introLine: 'TIỆC CƯỚI SẼ DIỄN RA VÀO LÚC:', countdownPast: 'Ngày cưới đã đến' },
+      'birthday',
+      'vi',
+    ).sectionTitle,
+    'THÔNG TIN SINH NHẬT',
+  )
+  assert.equal(applyInvitationGiftCopy({ boxTitle: 'Hộp Mừng Cưới' }, 'birthday', 'vi').boxTitle, 'Hộp mừng')
+  assert.equal(
+    applyInvitationGiftCopy({ boxTitle: 'Hộp Mừng Cưới', groomSection: 'Chú rể', brideSection: 'Cô dâu' }, 'anniversary', 'vi').groomSection,
+    'Bên thứ nhất',
+  )
+  assert.equal(applyInvitationGiftCopy({ boxTitle: 'Hộp Mừng Cưới' }, 'wedding', 'vi').boxTitle, 'Hộp Mừng Cưới')
+  for (const key of INVITATION_OCCASION_KEYS) {
+    if (key === 'wedding') continue
+    for (const locale of ['vi', 'en', 'zh', 'ja', 'ko']) {
+      const copy = applyInvitationOccasionPublicCopy(wedding, key, locale)
+      assert.ok(copy.calendarEventTitle.trim())
+      assert.ok(copy.defaultThankYou.trim())
+      assert.doesNotMatch(copy.calendarEventTitle, /Tiệc cưới|Wedding of|婚礼|結婚披露宴|결혼식/)
+    }
+  }
+})
+
+test('card structure is two houses, optional second party, or one person', () => {
+  for (const key of ['wedding', 'engagement'] as const) {
+    assert.deepEqual(invitationCardStructure(key), { nameLayout: 'pair', portraitLayout: 'pair', venueLayout: 'two' })
+    assert.equal(invitationShowsSecondVenue(key, {}), true)
+  }
+  assert.deepEqual(invitationCardStructure('anniversary'), {
+    nameLayout: 'pair',
+    portraitLayout: 'pair',
+    venueLayout: 'optional-second',
+  })
+  assert.equal(invitationShowsSecondVenue('anniversary', {}), false)
+  assert.equal(invitationShowsSecondVenue('anniversary', { address: '  ' }), false)
+  assert.equal(invitationShowsSecondVenue('anniversary', { address: 'Nhà hàng' }), true)
+  assert.equal(invitationShowsSecondVenue('anniversary', { date: '2026-11-02' }), true)
+  for (const key of INVITATION_OCCASION_KEYS) {
+    if (key === 'wedding' || key === 'engagement' || key === 'anniversary') continue
+    const structure = invitationCardStructure(key)
+    assert.equal(structure.nameLayout, 'primary')
+    assert.equal(structure.portraitLayout, 'primary')
+    assert.equal(structure.venueLayout, 'one')
+    assert.equal(invitationShowsSecondVenue(key, { address: 'Nhà trai', date: '2026-11-02' }), false)
+  }
 })

@@ -45,6 +45,11 @@
   [data-wedding-reading] .wedding-invite-body-join > div {
     background: var(--wedding-reading-plate) !important;
   }
+  /* Tấm kem nằm trên hoa nổi (z-index 36) để nét chữ không bị cánh lá cắt. */
+  [data-wedding-text-veil] [data-wedding-glass] {
+    position: relative;
+    z-index: 38;
+  }
   /* Vườn hồng trời: lịch và đếm ngược mặc định ô-liu, chìm trên trời xanh. */
   .wedding-kit-sky .wedding-cal-ink {
     color: var(--wedding-ink, #1a2836);

@@ -102,6 +102,7 @@ function DeviceFrame(props: {
     <div>
       <div ref={boxRef} className="relative w-full overflow-hidden rounded-2xl border bg-white" style={{ height: Math.max(240, Math.round(height * scale)) }}>
         <iframe
+          key={props.src}
           ref={setFrameNode}
           title={props.title}
           src={props.src}

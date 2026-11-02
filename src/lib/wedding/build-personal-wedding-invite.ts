@@ -7,6 +7,7 @@ import {
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import type { WeddingSideInviteSettings } from '@/lib/wedding/wedding-side-invite-settings'
 import type { GuestInviteSide } from '@/lib/wedding/wedding-guest-invite-location'
+import { invitationEventPhrase } from '@/lib/wedding/invitation-occasion'
 import {
   resolveHostReferenceStyle,
   splitGuestDisplayName,
@@ -35,6 +36,7 @@ export type PersonalWeddingInviteInput = {
   partyStartTime: string
   address: string
   locale?: WebLocale
+  occasionKey?: unknown
 }
 
 const VI_SURNAMES = new Set([
@@ -178,6 +180,7 @@ export function buildWeddingDemoPersonalInvite(input: {
   address: string
   guestName?: string
   locale?: WebLocale
+  occasionKey?: unknown
 }): { guestDisplayName: string; personalInvite: string } {
   const locale = input.locale ?? 'vi'
   const customGuest = (input.guestName ?? '').trim()
@@ -197,6 +200,7 @@ export function buildWeddingDemoPersonalInvite(input: {
     partyStartTime: input.partyStartTime,
     address: input.address,
     locale,
+    occasionKey: input.occasionKey,
   })
   return { guestDisplayName, personalInvite }
 }
@@ -235,7 +239,8 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
     const presence = guestPresenceRef(guestHonorific)
     const hostVoice = hostStyle.pronoun || 'Em'
     const familyOwner = familyHonorOwner(hostVoice)
-    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự bữa cơm thân mật cùng gia đình. Sự có mặt của ${presence} là điều vinh dự của gia đình ${familyOwner}. ${hostVoice} trân trọng và mong đợi sự có mặt của ${presence}.`
+    const eventPhrase = invitationEventPhrase(input.occasionKey, 'vi')
+    return `${hostPart} mời ${guestLabel}${whenPart} đến tham dự ${eventPhrase}. Sự có mặt của ${presence} là điều vinh dự của gia đình ${familyOwner}. ${hostVoice} trân trọng và mong đợi sự có mặt của ${presence}.`
   }
 
   const hostPart = parents ? `${childName} and family (${parents})` : childName
@@ -243,7 +248,8 @@ export function buildPersonalWeddingInvite(input: PersonalWeddingInviteInput): s
   if (timeLabel) whenParts.push(`at ${timeLabel}`)
   if (dateLabel) whenParts.push(`on ${dateLabel}`)
   const whenPart = whenParts.length ? ` ${whenParts.join(' ')}` : ''
-  return `${hostPart} cordially invite ${guestLabel}${whenPart} to an intimate family meal. Your presence is an honor for our family. We respectfully look forward to your presence.`
+  const eventPhrase = invitationEventPhrase(input.occasionKey, 'en')
+  return `${hostPart} cordially invite ${guestLabel}${whenPart} to ${eventPhrase}. Your presence is an honor for our family. We respectfully look forward to your presence.`
 }
 
 export function buildPersonalWeddingInviteFromSideContext(input: {
@@ -260,6 +266,7 @@ export function buildPersonalWeddingInviteFromSideContext(input: {
     | 'venue'
     | 'groomHometown'
     | 'brideHometown'
+    | 'occasionKey'
   >
   sideSettings: WeddingSideInviteSettings
   guestHonorific: string
@@ -294,5 +301,6 @@ export function buildPersonalWeddingInviteFromSideContext(input: {
     partyStartTime,
     address,
     locale: input.locale,
+    occasionKey: input.card.occasionKey,
   })
 }

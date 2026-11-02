@@ -10,6 +10,8 @@ import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornam
 import { clearWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, stringifyWeddingSectionConfig, withoutPrivateShell } from '@/lib/wedding/wedding-section-config'
 import type { WebLocale } from '@/lib/i18n/config'
 import { getWeddingStylePreset, labelForWeddingStylePreset } from '@/lib/wedding/wedding-style-presets'
+import { normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { OCCASION_ALIAS_SAMPLES, OCCASION_DEMO_IDS, weddingSampleDemoFacts } from '@/lib/wedding/wedding-occasion-demos'
 
 const SAMPLE_PHOTO_PREFIX = '/wedding/samples/'
 const LIBRARY_CDN = 'https://cdn.nanoai.vn/results/ef34291c-0b83-49c1-b390-4ab50df32e9d/wedding_417213ca-b2e3-4e2c-a642-d7bac605fad0_master_'
@@ -308,20 +310,20 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'hoa-dao',
     backgroundPresetId: 'hoa-dao',
-    coverPhotoUrl: '/wedding/samples/vuon-kinh-hong/cover.png',
-    groomImageUrl: '/wedding/samples/vuon-kinh-hong/groom.png',
-    brideImageUrl: '/wedding/samples/vuon-kinh-hong/bride.png',
-    albumImageUrls: ['/wedding/samples/vuon-kinh-hong/album-1.png', '/wedding/samples/vuon-kinh-hong/album-2.png'],
+    coverPhotoUrl: '/wedding/samples/kho-hong-baby/cover.png',
+    groomImageUrl: '/wedding/samples/kho-hong-baby/groom.png',
+    brideImageUrl: '/wedding/samples/kho-hong-baby/bride.png',
+    albumImageUrls: ['/wedding/samples/kho-hong-baby/album-1.png', '/wedding/samples/kho-hong-baby/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông hồng đào, kem hoặc trắng.',
     coverPhotoPositionY: 0,
   },
   {
     id: 'bien',
     backgroundPresetId: 'bien',
-    coverPhotoUrl: '/wedding/samples/to-duyen-xanh/cover.png',
-    groomImageUrl: '/wedding/samples/to-duyen-xanh/groom.png',
-    brideImageUrl: '/wedding/samples/to-duyen-xanh/bride.png',
-    albumImageUrls: ['/wedding/samples/to-duyen-xanh/album-1.png', '/wedding/samples/to-duyen-xanh/album-2.png'],
+    coverPhotoUrl: '/wedding/samples/ai-minimal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-minimal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-minimal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-minimal/album-1.png', '/wedding/samples/ai-minimal/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh biển.',
     coverPhotoPositionY: 0,
   },
@@ -338,10 +340,10 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'lua-ao-dai',
     backgroundPresetId: 'lua-ao-dai',
-    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
-    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
-    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
-    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    coverPhotoUrl: '/wedding/samples/ai-ethereal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-ethereal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-ethereal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-ethereal/album-1.png', '/wedding/samples/ai-ethereal/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc lụa ngà.',
     coverPhotoPositionY: 0,
   },
@@ -418,10 +420,10 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'van-mieu',
     backgroundPresetId: 'van-mieu',
-    coverPhotoUrl: '/wedding/samples/toi-gian-nau/cover.png',
-    groomImageUrl: '/wedding/samples/toi-gian-nau/groom.png',
-    brideImageUrl: '/wedding/samples/toi-gian-nau/bride.png',
-    albumImageUrls: ['/wedding/samples/toi-gian-nau/album-1.png', '/wedding/samples/toi-gian-nau/album-2.png'],
+    coverPhotoUrl: '/wedding/samples/ai-vintage/cover.png',
+    groomImageUrl: '/wedding/samples/ai-vintage/groom.png',
+    brideImageUrl: '/wedding/samples/ai-vintage/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-vintage/album-1.png', '/wedding/samples/ai-vintage/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông kem, nâu hoặc vàng mai.',
     coverPhotoPositionY: 0,
   },
@@ -448,10 +450,10 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'lang-bac',
     backgroundPresetId: 'lang-bac',
-    coverPhotoUrl: '/wedding/samples/ai-minimal/cover.png',
-    groomImageUrl: '/wedding/samples/ai-minimal/groom.png',
-    brideImageUrl: '/wedding/samples/ai-minimal/bride.png',
-    albumImageUrls: ['/wedding/samples/ai-minimal/album-1.png', '/wedding/samples/ai-minimal/album-2.png'],
+    coverPhotoUrl: '/wedding/samples/ai-luxury/cover.png',
+    groomImageUrl: '/wedding/samples/ai-luxury/groom.png',
+    brideImageUrl: '/wedding/samples/ai-luxury/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-luxury/album-1.png', '/wedding/samples/ai-luxury/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh lá nhạt.',
     coverPhotoPositionY: 0,
   },
@@ -608,12 +610,38 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     titles: { vi: 'Hồng baby', en: 'Blush roses', zh: '粉玫瑰', ja: '淡いバラ', ko: '블러시 장미' },
     dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
   }),
+  ...OCCASION_ALIAS_SAMPLES,
 ]
 
+for (const [occasion, ids] of Object.entries(OCCASION_DEMO_IDS)) {
+  for (const id of ids) {
+    const sample = WEDDING_SAMPLE_CARDS.find((item) => item.id === id)
+    if (sample) sample.occasionKey = occasion
+  }
+}
+
 const SAMPLE_BY_ID = new Map(WEDDING_SAMPLE_CARDS.map((sample) => [sample.id, sample]))
-const SAMPLE_BY_PRESET = new Map(
-  WEDDING_SAMPLE_CARDS.filter((sample) => sample.backgroundPresetId).map((sample) => [sample.backgroundPresetId, sample]),
-)
+const SAMPLE_BY_PRESET = new Map<string, WeddingSampleCard>()
+for (const sample of WEDDING_SAMPLE_CARDS) {
+  if (!sample.backgroundPresetId) continue
+  const prev = SAMPLE_BY_PRESET.get(sample.backgroundPresetId)
+  if (!prev || sample.id === sample.backgroundPresetId) SAMPLE_BY_PRESET.set(sample.backgroundPresetId, sample)
+}
+
+const OCCASION_ALIAS_ID = /^(day-thang|thoi-noi|sinh-nhat|mung-tho|khai-truong|tan-gia|lien-hoan|tot-nghiep|su-kien)-/
+
+/** Demo của một loại thiệp. Cưới hiện cả kho nền, không chỉ 5 mẫu đầu. */
+export function weddingOccasionDemos(raw: unknown): WeddingSampleCard[] {
+  const key = normalizeInvitationOccasion(raw)
+  if (key === 'wedding') {
+    return WEDDING_SAMPLE_CARDS.filter((sample) => !OCCASION_ALIAS_ID.test(sample.id))
+  }
+  const ids = OCCASION_DEMO_IDS[key]
+  return ids.flatMap((id) => {
+    const sample = SAMPLE_BY_ID.get(id)
+    return sample ? [sample] : []
+  })
+}
 
 /** Ảnh nhỏ cho lưới chủ đề. File nằm ở public/wedding/sample-thumbs, tạo bằng scripts/build-wedding-sample-thumbs.ts. */
 export function weddingSampleGalleryThumb(sample: Pick<WeddingSampleCard, 'id'>): string {
@@ -643,10 +671,13 @@ export function findWeddingSampleInUse(input: {
   backgroundPresetId?: string | null
   backgroundKitStyleId?: string | null
   masterImageUrl?: string | null
+  occasionKey?: string | null
 }): WeddingSampleCard | undefined {
   const presetId = input.backgroundPresetId?.trim() || ''
+  const occasion = input.occasionKey ? normalizeInvitationOccasion(input.occasionKey) : ''
   if (presetId) {
-    const preset = WEDDING_SAMPLE_CARDS.find((sample) => !sample.libraryImageUrl && sample.backgroundPresetId === presetId)
+    const hits = WEDDING_SAMPLE_CARDS.filter((sample) => !sample.libraryImageUrl && sample.backgroundPresetId === presetId)
+    const preset = (occasion ? hits.find((sample) => normalizeInvitationOccasion(sample.occasionKey || 'wedding') === occasion) : undefined) ?? hits[0]
     if (preset) return preset
   }
   const kitId = input.backgroundKitStyleId?.trim() || ''
@@ -772,66 +803,68 @@ export function buildWeddingSampleDemoCard(sample: WeddingSampleCard): WeddingCa
       ? weddingAiKitSectionPatch(sample.aiStyleId)
       : weddingReadyBackgroundSectionPatch(preset)
   const blank = ''
+  const facts = weddingSampleDemoFacts(sample)
+  const secondPerson = Boolean(facts.brideName.trim())
   return {
     id: `sample:${sample.id}`,
     userId: blank,
     slug: blank,
-    occasionKey: 'wedding',
-    groomName: 'Nguyễn Minh',
-    brideName: 'Trần Lan',
+    occasionKey: normalizeInvitationOccasion(sample.occasionKey || 'wedding'),
+    groomName: facts.groomName,
+    brideName: facts.brideName,
     weddingDate: '2026-12-20',
     weddingTime: '17:00',
     partyStartTime: '18:00',
-    venue: 'Số 12 phố Huế, Hai Bà Trưng, Hà Nội',
-    mapUrl: 'https://www.google.com/maps/search/?api=1&query=12%20phố%20Huế%20Hai%20Bà%20Trưng%20Hà%20Nội',
-    invitationText: 'Trân trọng kính mời quý khách đến dự lễ thành hôn của Nguyễn Minh và Trần Lan.',
-    invitationTextEn: 'We joyfully invite you to the wedding celebration of Nguyen Minh and Tran Lan.',
+    venue: facts.venue,
+    mapUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facts.venue)}`,
+    invitationText: facts.invitationText,
+    invitationTextEn: facts.invitationTextEn,
     guestName: 'Anh Thanh',
     guestInviteVenue: '',
-    storyText: 'Minh và Lan gặp nhau một chiều cuối thu, rồi cùng đi qua những ngày bình thường bằng sự tử tế và tiếng cười. Hôm nay hai người mời quý khách chứng kiến lúc mình chính thức về chung một nhà.',
-    coupleIntro: 'Hai gia đình hân hoan báo tin lễ thành hôn của con chúng tôi.',
-    loveQuote: 'Có những yêu thương không cần quá ồn ào, chỉ cần đủ chân thành để cùng nhau đi hết cuộc đời.',
-    eventTimeline: '17:00 | Đón khách\n17:30 | Lễ thành hôn\n18:00 | Khai tiệc\n19:30 | Cảm ơn và chia tay',
+    storyText: facts.storyText,
+    coupleIntro: facts.coupleIntro,
+    loveQuote: facts.loveQuote,
+    eventTimeline: facts.eventTimeline,
     dressCode: sample.dressCode || 'Trang phục lịch sự, tông kem, be hoặc nâu nhạt.',
-    thankYouText: 'Nguyễn Minh và Trần Lan xin cảm ơn quý khách đã đến chung vui. Sự hiện diện và lời chúc của quý khách là món quà quý nhất của hai gia đình.',
+    thankYouText: facts.thankYouText,
     sectionConfig: mergeWeddingSectionConfig('{}', {
       ...sectionPatch,
       coverPhotoUrl: sample.coverPhotoUrl,
       ...(typeof sample.coverPhotoPositionY === 'number' ? { coverPhotoPositionY: sample.coverPhotoPositionY } : {}),
     }),
     albumImageUrls: [...sample.albumImageUrls],
-    groomParents: 'Ông Nguyễn Văn An và Bà Lê Thị Bình',
-    brideParents: 'Ông Trần Văn Cường và Bà Phạm Thị Dung',
+    groomParents: facts.groomParents,
+    brideParents: facts.brideParents,
     groomHometown: 'Hà Nội',
-    brideHometown: 'Hải Phòng',
-    groomInviteAddress: 'Số 12 phố Huế, Hai Bà Trưng, Hà Nội',
-    groomInviteMapUrl: 'https://www.google.com/maps/search/?api=1&query=12%20phố%20Huế%20Hai%20Bà%20Trưng%20Hà%20Nội',
+    brideHometown: secondPerson ? 'Hải Phòng' : blank,
+    groomInviteAddress: facts.venue,
+    groomInviteMapUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(facts.venue)}`,
     groomInviteReceptionTime: '17:00',
     groomInvitePartyStartTime: '18:00',
-    brideInviteAddress: 'Số 8 đường Lạch Tray, Ngô Quyền, Hải Phòng',
-    brideInviteMapUrl: 'https://www.google.com/maps/search/?api=1&query=8%20Lạch%20Tray%20Ngô%20Quyền%20Hải%20Phòng',
-    brideInviteReceptionTime: '10:30',
-    brideInvitePartyStartTime: '11:30',
+    brideInviteAddress: secondPerson ? 'Số 8 đường Lạch Tray, Ngô Quyền, Hải Phòng' : blank,
+    brideInviteMapUrl: secondPerson ? 'https://www.google.com/maps/search/?api=1&query=8%20Lạch%20Tray%20Ngô%20Quyền%20Hải%20Phòng' : blank,
+    brideInviteReceptionTime: secondPerson ? '10:30' : blank,
+    brideInvitePartyStartTime: secondPerson ? '11:30' : blank,
     groomInviteWeddingDate: '2026-12-20',
     groomInviteText: blank,
     groomInviteTextEn: blank,
-    groomInviteEventTimeline: '17:00 | Đón khách nhà trai\n17:30 | Lễ thành hôn\n18:00 | Khai tiệc\n19:30 | Cảm ơn và chia tay',
+    groomInviteEventTimeline: facts.eventTimeline,
     groomInviteDressCode: blank,
     groomInviteContact: '0900 000 001',
     groomInviteCoverImageUrl: blank,
     groomInviteDefaultPersonalMessage: blank,
     groomInviteThankYouText: blank,
-    brideInviteWeddingDate: '2026-12-19',
+    brideInviteWeddingDate: secondPerson ? '2026-12-19' : blank,
     brideInviteText: blank,
     brideInviteTextEn: blank,
-    brideInviteEventTimeline: '10:30 | Đón khách nhà gái\n11:00 | Lễ gia tiên\n11:30 | Tiệc thân mật\n13:00 | Cảm ơn và chia tay',
+    brideInviteEventTimeline: secondPerson ? '10:30 | Đón khách nhà gái\n11:00 | Lễ gia tiên\n11:30 | Tiệc thân mật\n13:00 | Cảm ơn và chia tay' : blank,
     brideInviteDressCode: blank,
-    brideInviteContact: '0900 000 002',
+    brideInviteContact: secondPerson ? '0900 000 002' : blank,
     brideInviteCoverImageUrl: blank,
     brideInviteDefaultPersonalMessage: blank,
     brideInviteThankYouText: blank,
     groomImageUrl: sample.groomImageUrl,
-    brideImageUrl: sample.brideImageUrl,
+    brideImageUrl: secondPerson ? sample.brideImageUrl : blank,
     musicUrl: blank,
     musicPlayStartSec: null,
     musicPlayEndSec: null,
@@ -843,10 +876,10 @@ export function buildWeddingSampleDemoCard(sample: WeddingSampleCard): WeddingCa
     giftQrImageUrl: blank,
     groomGiftBankId: 'VCB',
     groomGiftAccountNo: '0123456789',
-    groomGiftAccountName: 'NGUYEN VAN MINH',
-    brideGiftBankId: 'VCB',
-    brideGiftAccountNo: '9876543210',
-    brideGiftAccountName: 'TRAN THI LAN',
+    groomGiftAccountName: facts.groomGiftAccountName,
+    brideGiftBankId: secondPerson ? 'VCB' : blank,
+    brideGiftAccountNo: secondPerson ? '9876543210' : blank,
+    brideGiftAccountName: facts.brideGiftAccountName,
     isPublished: false,
     publishedAt: null,
     masterImageUrl: sample.libraryImageUrl || null,

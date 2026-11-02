@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
+import { weddingSampleUseTarget } from '@/lib/wedding/wedding-sample-use-target'
 
 /** Gắn src sau khi khung đã vào trang. Iframe trong hộp thoại có transform dễ kẹt about:blank nếu src có từ lúc tạo. */
 export function WeddingSampleDemoFrame(props: { sampleId: string; title: string }) {
@@ -33,7 +34,7 @@ function editorHref(extra: Record<string, string>) {
   return query ? `/tao-thiep-moi-cuoi-ai?${query}` : '/tao-thiep-moi-cuoi-ai'
 }
 
-export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean }) {
+export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean; signedIn: boolean }) {
   const tx = getDictionary(readWebLocaleFromDocumentCookie()).weddingCardAiImage
   const exit = () => {
     if (props.embed && window.parent !== window) {
@@ -47,7 +48,13 @@ export function WeddingSampleDemoBar(props: { sampleId: string; embed: boolean }
       window.parent.postMessage({ type: 'wedding-sample-use', id: props.sampleId }, window.location.origin)
       return
     }
-    window.location.assign(editorHref({ useSample: props.sampleId }))
+    const cardId = new URLSearchParams(window.location.search).get('cardId')?.trim() || ''
+    const target = weddingSampleUseTarget({
+      sampleId: props.sampleId,
+      signedIn: props.signedIn,
+      cardId,
+    })
+    window.location.assign(target || editorHref({ useSample: props.sampleId }))
   }
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[80] flex justify-center px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">

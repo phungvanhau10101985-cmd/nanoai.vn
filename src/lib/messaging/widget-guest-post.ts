@@ -78,6 +78,8 @@ export type WidgetGuestImageBatchItemResult = {
   autoSelectedTopCandidate: GuestVisionCandidatePayload | null
   paymentVerificationHandled: boolean
   afterSalesHandled?: boolean
+  /** Ảnh màn mã đơn trong một lượt nhiều ảnh — route gom một tin, không trả từng ảnh. */
+  pendingAfterSales?: AfterSalesImageDetection | null
 }
 
 type ImageProductSignal = {
@@ -472,6 +474,7 @@ async function processGuestImageFollowUp(
   let afterSalesPending: AfterSalesImageDetection | null = null
   let paymentVerificationHandled = false
   let afterSalesHandled = false
+  let pendingAfterSales: AfterSalesImageDetection | null = null
   const imageCaption = ctx.text.trim()
   const linkedUserId = ctx.linkedUserId ?? null
 
@@ -788,6 +791,9 @@ async function processGuestImageFollowUp(
           sku: orderProduct.sku,
         }
         afterSalesPending = null
+      } else if (ctx.deferImageBatchReply && afterSalesPending.kind === 'order_code_screen') {
+        afterSalesHandled = true
+        pendingAfterSales = afterSalesPending
       } else {
         afterSalesHandled = await sendAfterSalesGuestImageReply({
           partnerId: ctx.partnerId,
@@ -881,6 +887,7 @@ async function processGuestImageFollowUp(
     autoSelectedTopCandidate,
     paymentVerificationHandled,
     afterSalesHandled,
+    pendingAfterSales,
   }
 }
 

@@ -83,6 +83,11 @@ export function clipboardImageFiles(data: ClipboardLike | null): File[] {
   if (files) {
     for (let i = 0; i < files.length; i += 1) push(files[i])
   }
+  /**
+   * Chrome/Edge dán một ảnh vào cả `files` và `items`, tên và lastModified khác nhau.
+   * Đã có file thì bỏ `items` — nếu không mỗi lần dán thành hai ảnh giống hệt.
+   */
+  if (out.length > 0) return out
   const items = data.items
   if (items) {
     for (let i = 0; i < items.length; i += 1) {

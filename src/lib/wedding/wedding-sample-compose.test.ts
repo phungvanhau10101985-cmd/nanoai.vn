@@ -4,7 +4,11 @@ import {
   WEDDING_SAMPLE_COMPOSE_CREDIT,
   appendWeddingComposeSuggestion,
   applyComposeCopyToCard,
+  preferComposeFieldValue,
   weddingCardAfterCreate,
+  weddingCardOpeningFromCompose,
+  weddingComposeCopyHasWords,
+  weddingComposeNamesOnly,
   buildWeddingSampleComposePrompt,
   carryWeddingSampleFacts,
   parseWeddingSampleComposeCopy,
@@ -132,6 +136,21 @@ test('compose copy stays on the card just created, not the card still open', () 
   const plain = weddingCardAfterCreate(created, null, null)
   assert.equal(plain.id, 'new-engagement')
   assert.equal(plain.coupleIntro, '')
+  const namesOnly = weddingComposeNamesOnly('Phùng Hậu', 'Diệu Lan')
+  assert.ok(namesOnly)
+  assert.equal(weddingComposeCopyHasWords(namesOnly!), false)
+  const named = weddingCardAfterCreate(created, namesOnly, null, 'engagement')
+  assert.equal(named.groomName, 'Phùng Hậu')
+  assert.equal(named.brideName, 'Diệu Lan')
+  assert.equal(named.coupleIntro, '')
+  assert.equal(weddingComposeNamesOnly('  ', ''), null)
+  assert.equal(preferComposeFieldValue('', 'Phùng Hậu'), 'Phùng Hậu')
+  assert.equal(preferComposeFieldValue('Lan', ''), 'Lan')
+  const opening = weddingCardOpeningFromCompose(namesOnly, '2026-11-21')
+  assert.equal(opening?.groomName, 'Phùng Hậu')
+  assert.equal(opening?.brideName, 'Diệu Lan')
+  assert.equal(opening?.weddingDate, '2026-11-21')
+  assert.equal(weddingCardOpeningFromCompose(null, '   '), null)
 })
 
 function blankFacts(patch: Partial<WeddingSampleFactCard> = {}): WeddingSampleFactCard {

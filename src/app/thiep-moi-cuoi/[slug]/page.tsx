@@ -21,7 +21,7 @@ import { parseWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { buildPersonalWeddingInvite, buildWeddingDemoPersonalInvite } from '@/lib/wedding/build-personal-wedding-invite'
 import { resolveGuestInviteLocation } from '@/lib/wedding/wedding-guest-invite-location'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
-import { invitationOccasionShape, invitationSeoCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { invitationCardStructure, invitationSeoCopy, invitationShowsSecondVenue, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
 import { buildWeddingPublicDescription, buildWeddingPublicJsonLd, buildWeddingPublicTitle } from '@/lib/wedding/wedding-public-seo'
 import { weddingPublicShareImageUrl } from '@/lib/wedding/wedding-share-preview'
 import { weddingDesignViewportBootScript } from '@/lib/wedding/wedding-design-viewport'
@@ -71,8 +71,16 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
   if (!card) notFound()
   const demoPreview = String(searchParams?.demo ?? '') === '1'
   const letterView = letterViewFromSearch(searchParams?.view, normalizeGuestInviteVenue(searchParams?.venue))
-  const singleOccasion = invitationOccasionShape(card.occasionKey) === 'single'
+  const cardStructure = invitationCardStructure(card.occasionKey)
+  const secondVenueOpen = invitationShowsSecondVenue(card.occasionKey, {
+    address: card.brideInviteAddress,
+    date: card.brideInviteWeddingDate,
+    time: card.brideInviteReceptionTime,
+    partyTime: card.brideInvitePartyStartTime,
+  })
+  const oneVenue = cardStructure.venueLayout === 'one' || (cardStructure.venueLayout === 'optional-second' && !secondVenueOpen)
   let inviteVenue = normalizeGuestInviteVenue(searchParams?.venue)
+  if (oneVenue && inviteVenue === 'bride_home') inviteVenue = 'groom_home'
   let guestDisplayName = String(searchParams?.guest ?? '').trim()
   if (demoPreview && !inviteVenue) {
     inviteVenue = letterView === 'bride' ? 'bride_home' : 'groom_home'
@@ -92,6 +100,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
           partyStartTime: demoLocation.partyStartTime,
           address: demoLocation.address,
           guestName: guestDisplayName,
+          occasionKey: card.occasionKey,
         })
       : null
   if (demoPreview && !guestDisplayName && demoInvite) guestDisplayName = demoInvite.guestDisplayName
@@ -123,6 +132,7 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
           receptionTime: inviteLocation.receptionTime,
           partyStartTime: inviteLocation.partyStartTime,
           address: inviteLocation.address,
+          occasionKey: card.occasionKey,
         })
       : ''
   const personalInvite = builtPersonalInvite || savedGuest?.personalInvite || (demoPreview ? demoInvite?.personalInvite ?? '' : '')
@@ -198,8 +208,8 @@ export default async function WeddingPublicPage({ params, searchParams }: Props)
         sideWishes={sideWishes}
         initialGuestDisplayName={guestDisplayName}
         initialGuestInviteVenue={displayVenue}
-        initialLetterView={singleOccasion ? 'groom' : letterView ?? 'groom'}
-        askLetterView={!singleOccasion && letterView == null}
+        initialLetterView={oneVenue ? 'groom' : letterView ?? 'groom'}
+        askLetterView={!oneVenue && letterView == null}
         initialPersonalInvite={personalInvite}
         initialGuestRsvp={guestRsvp}
         backgroundPlateUrls={backgroundPlateUrls}
