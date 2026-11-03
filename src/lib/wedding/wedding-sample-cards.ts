@@ -133,7 +133,8 @@ function moonSamplePositionY(shape: WeddingMoonShape): number {
 }
 
 function leafSamplePositionY(paper: WeddingGateToneId): number {
-  if (paper === 'lotus') return 42
+  // Lá phong vàng: mép trên giữ nguyên để khuyết giữa lá không cắt trán chú rể.
+  if (paper === 'lotus') return 0
   return 22
 }
 
