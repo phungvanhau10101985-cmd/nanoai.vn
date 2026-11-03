@@ -19,6 +19,11 @@ import { deductUserCredits } from '@/lib/music/deduct-user-credits'
 import { normalizeTemplateTheme } from '@/lib/partner-website/template/default-landing-v1'
 import { resolveShopThemeColors } from '@/lib/partner-website/template/partner-website-theme-tokens'
 import {
+  holidayCodeFromCampaignKey,
+  partnerHolidayBannerArt,
+  partnerHolidayBannerHeadline,
+} from '@/lib/partner-website/promotions/partner-holiday-schedule'
+import {
   buildPartnerMarketingBannerPrompt,
   fallbackPartnerMarketingBannerCopy,
   newPartnerMarketingBannerRegularCampaignKey,
@@ -92,7 +97,9 @@ export async function generatePartnerMarketingBannerCopy(input: {
           ? `sale kho thanh lý, giảm thật ${input.discountPercent}%, hàng hoàn trong kho`
           : input.kind === 'regular'
             ? `banner cửa hàng thường, không ghi ngày sale hay phần trăm giảm`
-            : `sinh nhật khách ngày ${label}, quà giảm giá ${input.discountPercent}%`
+            : input.kind === 'holiday'
+              ? `banner ngày lễ, chỉ tên dịp, không ghi ngày tháng năm hay phần trăm`
+              : `sinh nhật khách ngày ${label}, quà giảm giá ${input.discountPercent}%`
     const prompt =
       'Bạn là copywriter thương mại điện tử. ' +
       `Sáng tác nội dung mới cho banner ${campaign}. Đây là lần tạo phiên bản ${input.version}. ` +
@@ -205,10 +212,22 @@ export async function generatePartnerMarketingBanner(input: {
   const day = Number.isFinite(input.day) ? Number(input.day) : 0
   const month = Number.isFinite(input.month) ? Number(input.month) : 0
   const key =
-    input.kind === 'regular'
-      ? String(input.campaignKey ?? '').trim() || newPartnerMarketingBannerRegularCampaignKey()
-      : partnerMarketingBannerCampaignKey(input.kind, day, month, input.discountPercent)
-  if (!input.force && input.kind !== 'regular') {
+    input.kind === 'holiday'
+      ? String(input.campaignKey ?? '').trim() || partnerMarketingBannerCampaignKey(input.kind, day, month, input.discountPercent)
+      : input.kind === 'regular'
+        ? String(input.campaignKey ?? '').trim() || newPartnerMarketingBannerRegularCampaignKey()
+        : partnerMarketingBannerCampaignKey(input.kind, day, month, input.discountPercent)
+  if (!input.force && input.kind === 'holiday') {
+    const existingHoliday = await findLatestPartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: 'holiday',
+      campaignKey: key,
+    })
+    if (existingHoliday?.status === 'ready' && existingHoliday.image_url && existingHoliday.is_active) {
+      return { ok: true, asset: existingHoliday }
+    }
+  }
+  if (!input.force && input.kind !== 'regular' && input.kind !== 'holiday') {
     const existing = await findActivePartnerMarketingBannerFromPg({
       partnerId: input.partnerId,
       kind: input.kind,
@@ -321,7 +340,7 @@ export async function generatePartnerMarketingBanner(input: {
   })
   const version = (latest?.version ?? 0) + 1
   const brand = await loadPartnerMarketingBannerBrand(input.partnerId)
-  const copy = await generatePartnerMarketingBannerCopy({
+  let copy = await generatePartnerMarketingBannerCopy({
     kind: input.kind,
     day,
     month,
@@ -329,6 +348,14 @@ export async function generatePartnerMarketingBanner(input: {
     version,
     apiKey,
   })
+  if (input.kind === 'holiday') {
+    const holidayCode = holidayCodeFromCampaignKey(key)
+    copy = {
+      verse: partnerHolidayBannerHeadline(holidayCode || ''),
+      cta: copy.cta,
+      art_direction: partnerHolidayBannerArt(holidayCode || '') || copy.art_direction,
+    }
+  }
   const prompt = buildPartnerMarketingBannerPrompt({
     kind: input.kind,
     day,
@@ -341,7 +368,8 @@ export async function generatePartnerMarketingBanner(input: {
     partnerId: input.partnerId,
     kind: input.kind,
     campaignKey: key,
-    dateKey: partnerMarketingBannerDateKeyForKind(input.kind, day, month),
+    dateKey:
+      input.kind === 'holiday' ? key : partnerMarketingBannerDateKeyForKind(input.kind, day, month),
     discountPercent: input.discountPercent,
     prompt,
     model: priced.engine === 'gpt' ? 'gpt-image-2' : GEMINI_3_PRO_IMAGE.model,

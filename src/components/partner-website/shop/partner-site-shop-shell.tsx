@@ -150,6 +150,7 @@ import {
 } from '@/lib/partner-website/shop/strip-partner-live-hoist-hosts'
 import { PartnerSiteAccountNavLayout } from '@/components/partner-website/shop/partner-site-account-nav-layout'
 import { PartnerSiteSaleCalendarBanner } from '@/components/partner-website/shop/partner-site-sale-calendar-banner'
+import { PartnerSiteHolidayTheme } from '@/components/partner-website/shop/partner-site-holiday-theme'
 import { PartnerSiteContactChannelsFab } from '@/components/partner-website/shop/partner-site-contact-channels-fab'
 import { PartnerSiteLiveDeviceCookieSync } from '@/components/partner-website/shop/partner-site-live-device-cookie-sync'
 import { partnerSitePageShowsAccountNav } from '@/lib/partner-website/shop/partner-site-account-nav'
@@ -1176,6 +1177,7 @@ function PartnerSiteShopShellInner({
       </header>
       </>
       )}
+      <PartnerSiteHolidayTheme siteSlug={siteSlug} locale={locale} />
       <PartnerSiteSaleCalendarBanner
         siteSlug={siteSlug}
         locale={locale}

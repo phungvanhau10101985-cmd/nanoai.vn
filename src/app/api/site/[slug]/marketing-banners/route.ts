@@ -17,6 +17,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ slug: s
     locale: shop.site.locale,
     linkedUserId: visitor.thread.linkedUserId,
     guestAccountId: visitor.thread.guestAccountId,
+    previewToken: request.nextUrl.searchParams.get('preview_token'),
+    previewCode: request.nextUrl.searchParams.get('preview_holiday'),
   })
   return jsonSitePersonalization(
     request,

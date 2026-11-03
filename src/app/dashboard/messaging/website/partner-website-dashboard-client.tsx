@@ -35,6 +35,7 @@ import { PartnerWebsiteLeadsPanel } from '@/components/partner-website/partner-w
 import { PartnerWebsiteCategoriesPanel } from '@/components/partner-website/partner-website-categories-panel'
 import { PartnerWebsiteReviewsQaPanel } from '@/components/partner-website/partner-website-reviews-qa-panel'
 import { PartnerWebsitePromotionsPanel } from '@/components/partner-website/partner-website-promotions-panel'
+import { PartnerHolidayThemeSettingsPanel } from '@/components/partner-website/partner-holiday-theme-settings-panel'
 import { PartnerWebsiteCustomersPanel } from '@/components/partner-website/partner-website-customers-panel'
 import { PartnerWebsiteStaticPagesPanel } from '@/components/partner-website/partner-website-static-pages-panel'
 import { PartnerWebsiteLandingsPanel } from '@/components/partner-website/partner-website-landings-panel'
@@ -1095,6 +1096,16 @@ export function PartnerWebsiteDashboardClient({
               onToast={(message, variant) =>
                 toast({ title: message, variant: variant === 'destructive' ? 'destructive' : 'default' })
               }
+            />
+            </div>
+
+            <div className={sectionWrapClass('partner-website-holiday-theme')}>
+            <PartnerHolidayThemeSettingsPanel
+              locale={locale}
+              t={t}
+              partnerId={partnerId}
+              siteSlug={website?.siteSlug}
+              sectionId="partner-website-holiday-theme"
             />
             </div>
 

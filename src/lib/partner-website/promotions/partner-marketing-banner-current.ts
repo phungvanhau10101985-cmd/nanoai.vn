@@ -10,6 +10,7 @@ import {
 import {
   findActivePartnerMarketingBannerByKindFromPg,
   findActivePartnerMarketingBannerFromPg,
+  findLatestPartnerMarketingBannerFromPg,
   findTestPartnerBirthdayBannerFromPg,
   listActiveRegularPartnerMarketingBannersFromPg,
   type PartnerMarketingBannerAssetRow,
@@ -160,6 +161,8 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
   locale?: WebLocale
   linkedUserId?: string | null
   guestAccountId?: string | null
+  previewToken?: string | null
+  previewCode?: string | null
 }): Promise<PartnerMarketingBannerPublicItem[]> {
   let birthdayItem: PartnerMarketingBannerPublicItem | null = null
   const locale = input.locale ?? 'vi'
@@ -259,8 +262,39 @@ export async function resolveCurrentPartnerMarketingBanners(input: {
     }
   }
 
+  let holidayItem: PartnerMarketingBannerPublicItem | null = null
+  const { resolvePartnerHolidayPublicState } = await import(
+    '@/lib/partner-website/promotions/partner-holiday-theme'
+  )
+  const { partnerHolidayBannerCampaignKey } = await import(
+    '@/lib/partner-website/promotions/partner-holiday-schedule'
+  )
+  const holiday = await resolvePartnerHolidayPublicState({
+    partnerId: input.partnerId,
+    locale,
+    previewToken: input.previewToken,
+    previewCode: input.previewCode,
+    canSeeAdminPreview: false,
+  })
+  if (holiday.activeTheme) {
+    const asset = await findLatestPartnerMarketingBannerFromPg({
+      partnerId: input.partnerId,
+      kind: 'holiday',
+      campaignKey: partnerHolidayBannerCampaignKey(holiday.activeTheme),
+    })
+    holidayItem =
+      asset?.status === 'ready' && asset.image_url
+        ? toPublicItem(asset, {
+            siteSlug: input.siteSlug,
+            eventLabel: holiday.look?.kicker ?? holiday.activeTheme,
+          })
+        : null
+  }
+  if (sale.kind === 'holiday') saleItem = null
+
   return composePartnerMarketingBannerSlides({
     birthday: birthdayItem,
+    holiday: holidayItem,
     sale: saleItem,
     warehouse: publicSlides.warehouse,
     regulars: publicSlides.regulars,

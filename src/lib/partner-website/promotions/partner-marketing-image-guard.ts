@@ -20,6 +20,7 @@ export function partnerMarketingImageKindLabel(kind: string): string {
   if (kind === 'sale') return 'banner sale ngày trùng tháng'
   if (kind === 'warehouse') return 'banner sale kho'
   if (kind === 'regular') return 'banner thường'
+  if (kind === 'holiday') return 'banner ngày lễ'
   if (kind === 'sale-icon') return 'icon sale'
   return 'ảnh khuyến mãi'
 }

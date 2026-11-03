@@ -15,7 +15,14 @@ export async function applyPartnerSaleParityToCatalogRows(
   discountPercent: number
 }> {
   const config = await fetchPartnerSaleCalendarConfigFromPg(partnerId)
-  const state = resolvePartnerSaleCalendarState({ settings: config })
+  const calendar = resolvePartnerSaleCalendarState({ settings: config })
+  const { applyPartnerHolidaySaleToCalendar } = await import(
+    '@/lib/partner-website/promotions/partner-holiday-theme'
+  )
+  const state = await applyPartnerHolidaySaleToCalendar({
+    partnerId,
+    fallback: calendar,
+  })
   const mapped = rows.map((row) => {
     const listPrice = catalogFeedPriceAmount(row)
     if (listPrice == null || listPrice <= 0) return row

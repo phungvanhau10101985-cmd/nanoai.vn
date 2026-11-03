@@ -26,6 +26,8 @@ export type PartnerSaleCalendarState = {
   eventLabel: string
   eventDate: string | null
   countdownTo: string | null
+  kind?: 'calendar' | 'holiday'
+  holidayCode?: string | null
 }
 
 type LocalYmd = { year: number; month: number; day: number }
@@ -118,6 +120,16 @@ function saleCountdownTo(phase: PartnerSaleCalendarState['phase'], saleDate: Loc
 }
 
 /** Exclusive end of a local calendar day (23:59:59.999 in `timezone`). */
+export function partnerLocalDateStartIso(
+  ymd: string,
+  timezone: string = PARTNER_SALE_DEFAULT_TIMEZONE
+): string | null {
+  const value = parseYmd(ymd)
+  if (!value) return null
+  const tz = validTimezone(timezone)
+  return localMidnightUtc(value, tz).toISOString()
+}
+
 export function partnerLocalDateEndIso(
   ymd: string,
   timezone: string = PARTNER_SALE_DEFAULT_TIMEZONE

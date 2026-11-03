@@ -14,6 +14,7 @@ import { buildPartnerSitePaperTileBootstrapScript } from '@/lib/partner-website/
 import { buildPartnerSiteBirthGenderPromptScript } from '@/lib/partner-website/shop/build-partner-site-birth-gender-prompt-script'
 import { buildPartnerSitePwaInstallPromptScript } from '@/lib/partner-website/shop/build-partner-site-pwa-install-prompt-script'
 import { buildPartnerSaleCalendarBootstrapScript } from '@/lib/partner-website/shop/build-partner-sale-calendar-bootstrap-script'
+import { buildPartnerHolidayThemeBootstrapScript } from '@/lib/partner-website/shop/build-partner-holiday-theme-bootstrap-script'
 import { buildPartnerMarketingBannerBootstrapScript } from '@/lib/partner-website/shop/build-partner-marketing-banner-bootstrap-script'
 import { buildPartnerSiteNewsletterBootstrapScript } from '@/lib/partner-website/shop/build-partner-site-newsletter-bootstrap-script'
 import { buildPartnerSiteShopTrackingBridgeScript } from '@/lib/partner-website/shop/build-partner-site-shop-tracking-bridge-script'
@@ -24,9 +25,9 @@ import { buildPartnerShopCdnImageRetryScript } from '@/lib/partner-website/shop/
 import { buildPartnerSiteAgentTreeScript } from '@/lib/partner-website/shop/partner-site-agent-tree'
 
 const PW_RUNTIME_SCRIPT_RE =
-  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|pwa-install-prompt-bootstrap|sale-calendar-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry|agent-tree)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
+  /<script\b[^>]*(?:\bdata-pw-(?:chat-bridge|search-bootstrap|catalog-bootstrap|outfit-bootstrap|pdp-bootstrap|shop-actions-bootstrap|chrome-toggle-bootstrap|personalization-bootstrap|slider-bootstrap|paper-tile-bootstrap|birth-gender-prompt-bootstrap|pwa-install-prompt-bootstrap|sale-calendar-bootstrap|holiday-theme-bootstrap|marketing-banner-bootstrap|newsletter-bootstrap|shop-track-bridge|header-toggle|lp-buy|cdn-image-retry|agent-tree)\b|\bid=["']pw-logo-home-link["'])[^>]*>[\s\S]*?<\/script>/gi
 const PW_RUNTIME_STYLE_RE =
-  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css)\b[^>]*>[\s\S]*?<\/style>/gi
+  /<style\b[^>]*\bdata-pw-(?:chrome-toggle-css|search-image-css|marketing-banner-css|catalog-first-paint-css|holiday-theme-css)\b[^>]*>[\s\S]*?<\/style>/gi
 
 /**
  * Card media img / card face CSS sets `visibility:visible`, so hiding only the grid
@@ -210,6 +211,7 @@ export function injectPartnerShopRuntimeScriptsIntoHtml(
   }
   out = appendBeforeBody(out, buildPartnerSiteShopActionsBootstrapScript({ siteSlug, locale }))
   out = appendBeforeBody(out, buildPartnerSaleCalendarBootstrapScript({ siteSlug, locale }))
+  out = appendBeforeBody(out, buildPartnerHolidayThemeBootstrapScript({ siteSlug, locale }))
   if (hooks.marketingBanner) {
     out = injectMarketingBannerRuntime(out, buildPartnerMarketingBannerBootstrapScript({ siteSlug, locale }))
   }

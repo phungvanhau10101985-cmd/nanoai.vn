@@ -4,7 +4,7 @@ import {
   partnerSiteProductsPath,
 } from '@/lib/partner-website/shop/partner-site-shop-paths'
 
-export const PARTNER_MARKETING_BANNER_KINDS = ['sale', 'birthday', 'warehouse', 'regular'] as const
+export const PARTNER_MARKETING_BANNER_KINDS = ['sale', 'birthday', 'warehouse', 'regular', 'holiday'] as const
 export type PartnerMarketingBannerKind = (typeof PARTNER_MARKETING_BANNER_KINDS)[number]
 
 export const PARTNER_MARKETING_BANNER_SLIDE_ORDER = [
@@ -40,6 +40,7 @@ export function partnerMarketingBannerCampaignKey(
   month: number,
   discountPercent: number
 ): string {
+  if (kind === 'holiday') return `holiday-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
   if (kind === 'warehouse') return `warehouse-p${partnerMarketingBannerPctKey(discountPercent)}`
   if (kind === 'regular') return `regular-${partnerMarketingBannerPctKey(discountPercent)}`
   return `${kind}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-p${partnerMarketingBannerPctKey(discountPercent)}`
@@ -72,6 +73,7 @@ export function partnerMarketingBannerDateKeyForKind(
   day: number,
   month: number
 ): string {
+  if (kind === 'holiday') return 'holiday'
   if (kind === 'warehouse') return PARTNER_MARKETING_BANNER_WAREHOUSE_DATE_KEY
   if (kind === 'regular') return PARTNER_MARKETING_BANNER_REGULAR_DATE_KEY
   return partnerMarketingBannerDateKey(day, month)
@@ -82,6 +84,7 @@ export const PARTNER_RECOMMENDED_GRID_ANCHOR = 'pw-grid-recommended'
 
 export function partnerMarketingBannerPublicHref(kind: PartnerMarketingBannerKind, siteSlug: string): string {
   if (kind === 'warehouse') return partnerSiteKhoSalePath(siteSlug)
+  if (kind === 'holiday') return partnerSiteProductsPath(siteSlug)
   if (kind === 'birthday') return `${partnerSiteHomePath(siteSlug)}#${PARTNER_RECOMMENDED_GRID_ANCHOR}`
   return partnerSiteProductsPath(siteSlug)
 }
@@ -191,6 +194,11 @@ function fallbackCopy(
     { verse: 'Phong cách mới - diện liền đừng chờ', cta: 'MUA NGAY', art_direction: 'studio sang, ánh sáng mềm' },
     { verse: 'Bộ sưu tập đang chờ - vào xem liền', cta: 'KHÁM PHÁ NGAY', art_direction: 'lifestyle hiện đại, tương phản rõ' },
   ]
+  const holidayOptions: PartnerMarketingBannerCopy[] = [
+    { verse: 'Ngày lễ rộn ràng - chọn đồ an khang', cta: 'SẮM LỄ NGAY', art_direction: 'lễ hội cao cấp, ánh sáng ấm' },
+    { verse: 'Mùa lễ về shop - quà mới trao tay', cta: 'MUA QUÀ LỄ', art_direction: 'editorial lễ hội, sản phẩm nổi' },
+    { verse: 'Sắm lễ tinh tế - giao tận nhà', cta: 'XEM SHOP LỄ', art_direction: 'không khí lễ, màu ấm sang' },
+  ]
   const options =
     kind === 'birthday'
       ? birthdayOptions
@@ -198,7 +206,9 @@ function fallbackCopy(
         ? warehouseOptions
         : kind === 'regular'
           ? regularOptions
-          : saleOptions
+          : kind === 'holiday'
+            ? holidayOptions
+            : saleOptions
   return options[(day + month + version) % options.length]!
 }
 
@@ -272,6 +282,16 @@ export function buildPartnerMarketingBannerPrompt(input: {
       ' Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
     )
   }
+  if (input.kind === 'holiday') {
+    return (
+      shared +
+      ` Banner ngày lễ — BẮT BUỘC ghi nguyên văn tiêu đề: "${dynamic.verse}".` +
+      ` Không ghi ngày, tháng, năm, phần trăm giảm.` +
+      ` CTA dạng nút ghi nguyên văn: "${dynamic.cta}".` +
+      ` Định hướng mỹ thuật riêng: ${dynamic.art_direction}.` +
+      ' Đặt toàn bộ chữ quan trọng ở giữa ảnh và đủ lớn để đọc trên điện thoại.'
+    )
+  }
   return (
     shared +
     ` Bắt buộc ghi nguyên văn: "MỪNG SINH NHẬT ${label} - TẶNG ${pct}".` +
@@ -309,6 +329,13 @@ export function partnerMarketingBannerAlt(
     if (locale === 'ko') return '쇼핑몰 배너'
     return 'Banner cửa hàng'
   }
+  if (item.kind === 'holiday') {
+    if (locale === 'en') return 'Holiday banner'
+    if (locale === 'zh') return '节日横幅'
+    if (locale === 'ja') return '祝日バナー'
+    if (locale === 'ko') return '명절 배너'
+    return 'Banner ngày lễ'
+  }
   if (locale === 'en') return `Sale banner ${item.date_key}, ${pct} off`
   if (locale === 'zh') return `促销横幅 ${item.date_key}，减 ${pct}`
   if (locale === 'ja') return `セールバナー ${item.date_key}、${pct} オフ`
@@ -343,11 +370,12 @@ export type PartnerMarketingBannerPublicItem = {
 
 export function composePartnerMarketingBannerSlides(parts: {
   birthday?: PartnerMarketingBannerPublicItem | null
+  holiday?: PartnerMarketingBannerPublicItem | null
   sale?: PartnerMarketingBannerPublicItem | null
   warehouse?: PartnerMarketingBannerPublicItem | null
   regulars?: PartnerMarketingBannerPublicItem[]
 }): PartnerMarketingBannerPublicItem[] {
-  return [parts.birthday, parts.sale, parts.warehouse, ...(parts.regulars ?? [])].filter(
+  return [parts.birthday, parts.holiday, parts.sale, parts.warehouse, ...(parts.regulars ?? [])].filter(
     (item): item is PartnerMarketingBannerPublicItem => Boolean(item)
   )
 }

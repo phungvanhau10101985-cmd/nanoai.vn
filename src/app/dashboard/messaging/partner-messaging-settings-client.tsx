@@ -235,6 +235,8 @@ function websiteSectionPerm(sectionId: string): PartnerStaffPermKey | null {
       return 'website_static_pages'
     case 'partner-website-promotions':
       return 'website_promotions'
+    case 'partner-website-holiday-theme':
+      return 'website_promotions'
     case 'partner-website-landings':
       return 'website_landings'
     case 'partner-website-floating-cta':

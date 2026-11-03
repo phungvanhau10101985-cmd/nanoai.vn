@@ -244,9 +244,18 @@ export async function resolvePartnerStorefrontSaleCalendarFromPg(input: {
     rows.filter((row) => isSiteSaleTestActive(row)),
     input.visitorEmail
   )
-  return applyPartnerFeatureTestToSaleCalendar({
+  const base = applyPartnerFeatureTestToSaleCalendar({
     settings: config,
     testPhase: match?.siteSaleTestPhase ?? null,
+    at: input.at,
+  })
+  if (base.isTest) return base
+  const { applyPartnerHolidaySaleToCalendar } = await import(
+    '@/lib/partner-website/promotions/partner-holiday-theme'
+  )
+  return applyPartnerHolidaySaleToCalendar({
+    partnerId: input.partnerId,
+    fallback: base,
     at: input.at,
   })
 }

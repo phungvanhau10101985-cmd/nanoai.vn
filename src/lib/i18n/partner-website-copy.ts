@@ -984,6 +984,7 @@ export type PartnerWebsiteCopy = {
   qaAdminResizeCol: string
   qaAdminDelete: string
   promotionsTitle: string
+  holidayThemeTitle: string
   promotionsHint: string
   promotionsEmpty: string
   promotionsAddNew: string
@@ -2294,6 +2295,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminResizeCol: 'Kéo để thay đổi độ rộng cột',
     qaAdminDelete: 'Xóa',
     promotionsTitle: 'Trung tâm khuyến mãi',
+    holidayThemeTitle: 'Giao diện ngày lễ',
     promotionsHint: 'Quản lý lịch sale, voucher, khách hàng thân thiết, sinh nhật và remarketing.',
     promotionsEmpty: 'Chưa có voucher nào.',
     promotionsAddNew: 'Tạo voucher mới',
@@ -3622,6 +3624,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminResizeCol: 'Drag to resize column',
     qaAdminDelete: 'Delete',
     promotionsTitle: 'Sale Center',
+    holidayThemeTitle: 'Holiday theme',
     promotionsHint: 'Manage sale calendars, vouchers, loyalty, birthdays, and remarketing.',
     promotionsEmpty: 'No vouchers yet.',
     promotionsAddNew: 'Create voucher',
@@ -4926,6 +4929,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminResizeCol: '拖动以调整列宽',
     qaAdminDelete: '删除',
     promotionsTitle: '促销中心',
+    holidayThemeTitle: '节日界面',
     promotionsHint: '管理促销日历、优惠券、会员、生日和再营销。',
     promotionsEmpty: '暂无优惠券。',
     promotionsAddNew: '创建优惠券',
@@ -6231,6 +6235,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminResizeCol: 'ドラッグして列幅を変更',
     qaAdminDelete: '削除',
     promotionsTitle: 'セールセンター',
+    holidayThemeTitle: '祝日テーマ',
     promotionsHint: 'セール日程、クーポン、ロイヤルティ、誕生日、リマーケティングを管理します。',
     promotionsEmpty: 'クーポンはまだありません。',
     promotionsAddNew: 'クーポンを作成',
@@ -7543,6 +7548,7 @@ const COPY: Record<WebLocale, PartnerWebsiteCopy> = {
     qaAdminResizeCol: '끌어 열 너비 변경',
     qaAdminDelete: '삭제',
     promotionsTitle: '세일 센터',
+    holidayThemeTitle: '명절 테마',
     promotionsHint: '세일 일정, 쿠폰, 로열티, 생일 및 리마케팅을 관리합니다.',
     promotionsEmpty: '아직 쿠폰이 없습니다.',
     promotionsAddNew: '쿠폰 만들기',
