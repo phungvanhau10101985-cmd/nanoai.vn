@@ -163,12 +163,10 @@ mkdirSync(ORNAMENTS, { recursive: true })
 mkdirSync(PAPERS, { recursive: true })
 
 const envelope = await rawOf(join(COVERS, 'phong-bi-envelope.webp'))
-const cluster = await rawOf(join(ORNAMENTS, 'phong-bi-cluster.webp'))
 const paper = await rawOf(join(PAPERS, 'phong-bi-paper.jpg'))
 
 const paperMean = meanLum(envelope.data, (r, g, b, a) => a > 24 && !killMagenta(r, g, b))
-const petalMean = meanLum(cluster.data, isPetal)
-console.log(`paper mean ${paperMean.toFixed(1)} petal mean ${petalMean.toFixed(1)}`)
+console.log(`paper mean ${paperMean.toFixed(1)}`)
 const nightBlur = await sharp(join(PAPERS, 'phong-bi-paper.jpg')).greyscale().blur(14).raw().toBuffer()
 
 for (const tone of TONES) {
@@ -186,13 +184,8 @@ for (const tone of TONES) {
   const envelopeFile = join(COVERS, `phong-bi-${tone.id}.webp`)
   await sharp(envelopeWebp).toFile(envelopeFile)
 
-  const paintedPetal = paintPetal(cluster.data, tone.petal, tone.petalFloor)
-  const sprayFile = join(ORNAMENTS, `phong-bi-${tone.id}.webp`)
-  await sharp(paintedPetal.next, {
-    raw: { width: cluster.info.width, height: cluster.info.height, channels: 4 },
-  })
-    .webp({ quality: 86, alphaQuality: 100, effort: 4 })
-    .toFile(sprayFile)
+  // Hoa từng màu là ảnh chụp riêng (scripts/key-envelope-sprays.mjs).
+  // Nhuộm cánh từ bó đỏ đô làm cánh loãng và thủng.
 
   const sheet = tone.night
     ? tintNightSheet(paper.data, nightBlur, paper.info.width, paper.info.height, tone)
@@ -204,5 +197,5 @@ for (const tone of TONES) {
     .jpeg({ quality: 86 })
     .toFile(paperFile)
 
-  console.log(`${tone.id} envelope ${paintedPaper.n}px spray petals ${paintedPetal.n}px`)
+  console.log(`${tone.id} envelope ${paintedPaper.n}px`)
 }

@@ -2027,7 +2027,7 @@ export default function WeddingPublicClient({
                   )}
                 >
                   <WeddingCoverShellCard
-                    fitViewport={false}
+                    fitViewport
                     breathe={false}
                     namesFlyIn={card.effectsEnabled}
                     presetId={coverPresetId}

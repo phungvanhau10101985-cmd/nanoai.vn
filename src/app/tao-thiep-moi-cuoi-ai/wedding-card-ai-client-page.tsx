@@ -3078,6 +3078,7 @@ export default function WeddingCardAiClientPage() {
                       <div data-wedding-cover-column="" className="mx-auto w-full max-w-[min(26rem,calc(100%-1.5rem))]">
                     <WeddingCoverShellCard
                       key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
+                      fitViewport
                       presetId={coverPresetId}
                       aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
                       frameMode={coverFrameMode}
