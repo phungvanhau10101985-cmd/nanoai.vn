@@ -68,7 +68,7 @@ import { resolveWeddingDateIso, formatWeddingDateForDisplay } from '@/lib/weddin
 import { useVietQrBanks } from '@/hooks/use-vietqr-banks'
 import { resolveWeddingButtonColor } from '@/lib/wedding/wedding-button-colors'
 import { getWeddingTheme, weddingBackgroundStyle, weddingThemeIsDark, WEDDING_BG_OVERLAY } from '@/lib/wedding/wedding-theme'
-import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
+import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset, weddingCoverCentersOnStage, weddingCoverPhotoHead } from '@/lib/wedding/wedding-cover-presets'
 import { WeddingOrnamentAdminBar, WeddingOrnamentAdminLayer } from '@/components/wedding/wedding-ornament-admin'
 import { splitLibraryByRecommendation } from '@/lib/wedding/wedding-ai-library-match'
 import { WeddingBackgroundOrnamentLayer } from '@/components/wedding/wedding-background-ornament-layer'
@@ -3074,7 +3074,7 @@ export default function WeddingCardAiClientPage() {
                         <WeddingBackgroundOrnamentLayer ornaments={coverOrnaments} className="absolute inset-0 z-20" />
                       )}
                     </div>
-                    <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3', coverPresetId === 'song_hy' ? 'min-h-[844px] justify-center' : 'justify-start')}>
+                    <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3', weddingCoverCentersOnStage(coverPresetId) ? 'min-h-[844px] justify-center' : 'justify-start')}>
                       <div data-wedding-cover-column="" className="mx-auto w-full max-w-[min(26rem,calc(100%-1.5rem))]">
                     <WeddingCoverShellCard
                       key={`${coverFrameMode ?? 'shell'}-${coverPhotoOpen}-${coverFrameOpen}`}
@@ -3879,7 +3879,7 @@ export default function WeddingCardAiClientPage() {
                     >
                       <div className="flex w-full min-w-0 flex-col items-stretch gap-2 text-center">
                         {envelopeCover ? null : (
-                        <p className={cn('w-full text-[10px] uppercase tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
+                        <p className={cn('w-full uppercase', selectedTheme.contentCard === 'scallop' ? 'text-xs font-semibold tracking-[0.14em]' : 'text-[10px] tracking-[0.28em]', selectedTheme.accentText, selectedTheme.textGlow)}>
                           {occasionCopy.previewEyebrow}
                         </p>
                         )}
@@ -3931,12 +3931,12 @@ export default function WeddingCardAiClientPage() {
                           <Heart className={cn('mx-auto h-4 w-4 fill-current opacity-80', selectedTheme.accent, selectedTheme.textGlow)} />
                         )}
                         {card.loveQuote ? (
-                          <p className={cn('w-full text-balance font-serif text-[0.92rem] italic leading-6', selectedTheme.accentText, selectedTheme.textGlow)}>
+                          <p className={cn('w-full text-balance font-serif', selectedTheme.contentCard === 'scallop' ? 'text-base font-semibold not-italic leading-7' : 'text-[0.92rem] italic leading-6', selectedTheme.accentText, selectedTheme.textGlow)}>
                             “{card.loveQuote}”
                           </p>
                         ) : null}
                         {envelopeCover || !(heroStack || (coverFrameMode === 'none' && !coverPhotoPreviewUrl)) ? (
-                          <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[22rem]' : '')}>
+                          <div className={cn('mx-auto w-full', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? (weddingCoverPhotoHead(coverPresetId) === 'leaf' ? 'max-w-[32rem]' : 'max-w-[22rem]') : '')}>
                             <WeddingCoverShellCard
                               frameOnly
                               presetId={coverPresetId}
@@ -3975,9 +3975,10 @@ export default function WeddingCardAiClientPage() {
                           mapUrl={guestInviteLocationPreview.mapUrl}
                           viewMapLabel={txPublic.guestInviteViewMap}
                           personalInviteText={previewDemo.personalInvite || card.invitationText || occasionCopy.previewInviteFallback}
-                          personalInviteClassName={cn('text-xs leading-5', selectedTheme.mutedText, selectedTheme.textGlow)}
+                          personalInviteClassName={cn(selectedTheme.contentCard === 'scallop' ? 'text-sm font-semibold leading-6' : 'text-xs leading-5', selectedTheme.contentCard === 'scallop' ? selectedTheme.text : selectedTheme.mutedText, selectedTheme.textGlow)}
+                          plainBodyName={selectedTheme.contentCard === 'scallop'}
                           panelClassName={selectedTheme.panelStrong}
-                          cordiallyClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}
+                          cordiallyClassName={cn(selectedTheme.contentCard === 'scallop' ? 'text-sm font-semibold tracking-normal' : '', selectedTheme.contentCard === 'scallop' ? selectedTheme.text : selectedTheme.mutedText, selectedTheme.textGlow)}
                           nameClassName={cn(selectedTheme.text, selectedTheme.textGlowHeading)}
                           venueClassName={cn(selectedTheme.accentText, selectedTheme.textGlow)}
                           addressClassName={cn(selectedTheme.mutedText, selectedTheme.textGlow)}

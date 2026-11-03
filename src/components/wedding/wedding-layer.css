@@ -58,6 +58,30 @@ html[data-wedding-layout-preview] {
   --wedding-cover-photo-h: 12rem;
 }
 
+[data-cover-photo='fan'] {
+  height: 14.5rem;
+  --wedding-cover-photo-h: 14.5rem;
+}
+
+[data-cover-photo='moon'] {
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+[data-cover-photo='star'] {
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+[data-cover-photo='leaf'] {
+  height: auto;
+  aspect-ratio: 874 / 439;
+}
+
+[data-cover-photo='fill'] {
+  height: 100%;
+}
+
 [data-cover-photo='standard'] {
   height: 15rem;
   --wedding-cover-photo-h: 15rem;
@@ -102,6 +126,11 @@ html[data-wedding-layout-preview] {
   [data-cover-photo='tall'] {
     height: 18rem;
     --wedding-cover-photo-h: 18rem;
+  }
+
+  [data-cover-photo='fan'] {
+    height: 14.5rem;
+    --wedding-cover-photo-h: 14.5rem;
   }
 
   .wedding-album-frame {

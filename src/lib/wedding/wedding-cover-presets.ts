@@ -28,6 +28,288 @@ export type WeddingCoverPreset = {
   pairFrame?: 'thin' | 'none'
   /** Cách xếp hai ảnh. Thiếu thì đặt cạnh nhau. */
   pairArrange?: 'offset' | 'tilt' | 'locket' | 'print'
+  /** Đầu khung ảnh trên vỏ song hỷ. Thiếu là vòm. */
+  photoHead?: WeddingCoverPhotoHead
+  /** Màu cổng vòm. Thiếu là đỏ song hỷ. */
+  gateTone?: WeddingGateToneId
+}
+
+/** Vòm cửa, rẻ quạt, lá bầu dục nằm ngang, trăng tròn hoặc ngôi sao năm cánh. */
+export type WeddingCoverPhotoHead = 'arch' | 'fan' | 'leaf' | 'moon' | 'star'
+
+export type WeddingGateToneId = 'lacquer' | 'lotus' | 'pearl' | 'night' | 'sea'
+
+export type WeddingGateTone = {
+  card: string
+  ink: string
+  accent: string
+  muted: string
+  watermark: string
+  watermarkSoft: string
+  frame: string
+  glow: string
+  sealGlow: string
+  mark: string
+  pin: string
+  emptyFill: string
+  photoShadow: string
+  archShadow: string
+}
+
+/** Cổng vòm: đỏ son, sen vàng, ngọc trai, đêm và biển. */
+export const WEDDING_GATE_TONES: Record<WeddingGateToneId, WeddingGateTone> = {
+  lacquer: {
+    card: '#9b1c24',
+    ink: '#f6e2b0',
+    accent: '#f3d27a',
+    muted: '#e4d0a0',
+    watermark: 'rgba(122,18,24,0.55)',
+    watermarkSoft: 'rgba(122,18,24,0.4)',
+    frame: '#fff6ea',
+    glow: '0 0 48px rgba(180,36,44,0.42), 0 22px 50px rgba(0,0,0,0.38), 0 0 0 1px rgba(243,210,122,0.35)',
+    sealGlow: '0 0 18px rgba(243,210,122,0.35)',
+    mark: '囍',
+    pin: '#9b1c24',
+    emptyFill: 'rgba(122,18,24,0.35)',
+    photoShadow: '0 12px 28px rgba(20,0,6,0.38)',
+    archShadow: '0 16px 36px rgba(40,0,10,0.28)',
+  },
+  lotus: {
+    card: 'linear-gradient(180deg, #fff8ee 0%, #f6e7c4 100%)',
+    ink: '#3b2618',
+    accent: '#8a5a12',
+    muted: '#6b5340',
+    watermark: 'rgba(196,161,90,0.45)',
+    watermarkSoft: 'rgba(196,161,90,0.28)',
+    frame: '#fffaf3',
+    glow: '0 18px 40px rgba(90,60,20,0.16), 0 0 0 1px rgba(196,161,90,0.45)',
+    sealGlow: '0 0 16px rgba(196,161,90,0.35)',
+    mark: '❀',
+    pin: '#8a5a12',
+    emptyFill: 'rgba(255,248,230,0.72)',
+    photoShadow: '0 12px 28px rgba(90,60,20,0.22)',
+    archShadow: '0 16px 36px rgba(90,60,20,0.2)',
+  },
+  pearl: {
+    card: 'linear-gradient(180deg, #fff7f8 0%, #f8d5df 100%)',
+    ink: '#4a2c38',
+    accent: '#b05a78',
+    muted: '#7a4e5c',
+    watermark: 'rgba(196,92,122,0.28)',
+    watermarkSoft: 'rgba(196,92,122,0.18)',
+    frame: '#fffaf8',
+    glow: '0 18px 40px rgba(141,69,96,0.16), 0 0 0 1px rgba(196,92,122,0.35)',
+    sealGlow: '0 0 16px rgba(196,92,122,0.28)',
+    mark: '❀',
+    pin: '#b05a78',
+    emptyFill: 'rgba(255,248,250,0.72)',
+    photoShadow: '0 12px 28px rgba(120,50,70,0.2)',
+    archShadow: '0 16px 36px rgba(120,50,70,0.18)',
+  },
+  night: {
+    card: 'linear-gradient(180deg, #1a2d52 0%, #0c1830 100%)',
+    ink: '#f3e6c8',
+    accent: '#e6d3b3',
+    muted: '#d9c7a2',
+    watermark: 'rgba(230,211,179,0.16)',
+    watermarkSoft: 'rgba(230,211,179,0.1)',
+    frame: '#e6d3b3',
+    glow: '0 0 42px rgba(230,211,179,0.22), 0 22px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(230,211,179,0.4)',
+    sealGlow: '0 0 18px rgba(230,211,179,0.35)',
+    mark: '✦',
+    pin: '#0c1830',
+    emptyFill: 'rgba(12,24,48,0.45)',
+    photoShadow: '0 12px 28px rgba(0,0,0,0.45)',
+    archShadow: '0 16px 36px rgba(0,0,0,0.4)',
+  },
+  sea: {
+    card: 'linear-gradient(180deg, #f7fbfa 0%, #d5ebe6 100%)',
+    ink: '#1a3c48',
+    accent: '#0f766e',
+    muted: '#4d6a74',
+    watermark: 'rgba(15,118,110,0.22)',
+    watermarkSoft: 'rgba(15,118,110,0.14)',
+    frame: '#f7f1e6',
+    glow: '0 18px 40px rgba(26,60,72,0.16), 0 0 0 1px rgba(15,118,110,0.28)',
+    sealGlow: '0 0 16px rgba(15,118,110,0.22)',
+    mark: '◇',
+    pin: '#0f766e',
+    emptyFill: 'rgba(247,251,250,0.72)',
+    photoShadow: '0 12px 28px rgba(26,60,72,0.2)',
+    archShadow: '0 16px 36px rgba(26,60,72,0.18)',
+  },
+}
+
+/** Rẻ quạt mở: miệng rộng phía trên, nan gom về chốt dưới. */
+export const WEDDING_FAN_PHOTO_CLIP =
+  'polygon(50% 100%, 97.1% 74.1%, 95% 62.7%, 92.1% 51.9%, 88.5% 41.9%, 84.3% 32.8%, 79.5% 24.9%, 74.2% 18.3%, 68.5% 13%, 62.5% 9.1%, 56.3% 6.8%, 50% 6%, 43.7% 6.8%, 37.5% 9.1%, 31.5% 13%, 25.8% 18.3%, 20.5% 24.9%, 15.7% 32.8%, 11.5% 41.9%, 7.9% 51.9%, 5% 62.7%, 2.9% 74.1%)'
+
+/** Trăng tròn. Ô ảnh phải vuông thì vòng này khít mép. */
+export const WEDDING_MOON_PHOTO_CLIP = 'circle(50% at 50% 50%)'
+
+/** Ngôi sao năm cánh, lòng rộng để mặt và vai không bị cánh cắt. Ô ảnh phải vuông. */
+export const WEDDING_STAR_PHOTO_CLIP =
+  'polygon(50.00% 2.00%, 71.16% 20.88%, 95.65% 35.17%, 84.24% 61.12%, 78.21% 88.83%, 50.00% 86.00%, 21.79% 88.83%, 15.76% 61.12%, 4.35% 35.17%, 28.84% 20.88%)'
+
+export type WeddingLeafFrameAsset = {
+  src: string
+  mask: string
+  hole: { x: number; y: number; w: number; h: number }
+  aspect: string
+}
+
+/** Lá phong chụp thật, đục lỗ theo năm thùy. Sinh bởi scripts/build-maple-leaf-frame.mjs. */
+const MAPLE_LEAF_FRAME: WeddingLeafFrameAsset = {
+  src: '/wedding/covers/la-phong-frame.webp',
+  mask: '/wedding/covers/la-phong-mask.webp',
+  hole: { x: 7.17, y: 7.66, w: 87.37, h: 79.68 },
+  aspect: '1576 / 1540',
+}
+
+export const WEDDING_LEAF_FRAMES: Record<string, WeddingLeafFrameAsset> = {
+  'la-phong': MAPLE_LEAF_FRAME,
+  'la-bau-duc': MAPLE_LEAF_FRAME,
+  'la-bau-duc-sen': MAPLE_LEAF_FRAME,
+  'la-bau-duc-ngoc': MAPLE_LEAF_FRAME,
+  'la-bau-duc-xanh': MAPLE_LEAF_FRAME,
+}
+
+export const WEDDING_LEAF_FRAME = WEDDING_LEAF_FRAMES['la-bau-duc']
+
+export function weddingLeafFrameFor(presetId: string | null | undefined): WeddingLeafFrameAsset {
+  const key = String(presetId || '').trim().replace(/_/g, '-')
+  return WEDDING_LEAF_FRAMES[key] ?? WEDDING_LEAF_FRAME
+}
+
+export type WeddingMoonShape = 'moon' | 'star'
+
+export type WeddingMoonCard = {
+  backgroundId: string
+  coverId: string
+  shape: WeddingMoonShape
+  paper: WeddingGateToneId
+  label: Record<WebLocale, string>
+}
+
+const MOON_SHAPE_NAME: Record<WeddingMoonShape, Record<WebLocale, string>> = {
+  moon: { vi: 'Trăng tròn', en: 'full moon', zh: '圆月', ja: '満月', ko: '보름달' },
+  star: { vi: 'Ngôi sao', en: 'star', zh: '星', ja: '星', ko: '별' },
+}
+
+const MOON_PAPER_NAME: Record<WeddingGateToneId, Record<WebLocale, string>> = {
+  lacquer: { vi: 'đỏ', en: 'red', zh: '正红', ja: '赤', ko: '빨강' },
+  lotus: { vi: 'sen vàng', en: 'gold lotus', zh: '金莲', ja: '金の蓮', ko: '금련' },
+  pearl: { vi: 'ngọc trai', en: 'pearl', zh: '珍珠', ja: '真珠', ko: '진주' },
+  night: { vi: 'đêm vàng', en: 'gold night', zh: '夜金', ja: '金の夜', ko: '금빛 밤' },
+  sea: { vi: 'biển', en: 'seaside', zh: '海边', ja: '海辺', ko: '해변' },
+}
+
+const MOON_SHAPE_SLUG: Record<WeddingMoonShape, string> = {
+  moon: 'trang-tron',
+  star: 'ngoi-sao',
+}
+
+const MOON_PAPER_SLUG: Record<WeddingGateToneId, string> = {
+  lacquer: '',
+  lotus: '-sen',
+  pearl: '-ngoc',
+  night: '-dem',
+  sea: '-bien',
+}
+
+const MOON_PAPERS: readonly WeddingGateToneId[] = ['lacquer', 'lotus', 'pearl', 'night', 'sea']
+
+/** Bốn nền khách hay chọn. Khung ảnh là lá phong chụp thật, đục lỗ theo mép lá. */
+const LEAF_PAPERS = ['lacquer', 'lotus', 'pearl', 'sea'] as const
+
+const LEAF_SLUG: Record<(typeof LEAF_PAPERS)[number], string> = {
+  lacquer: 'la-bau-duc',
+  lotus: 'la-bau-duc-sen',
+  pearl: 'la-bau-duc-ngoc',
+  sea: 'la-bau-duc-xanh',
+}
+
+const LEAF_LABEL: Record<(typeof LEAF_PAPERS)[number], Record<WebLocale, string>> = {
+  lacquer: { vi: 'Lá phong đỏ', en: 'Red maple leaf', zh: '红枫叶', ja: '赤いカエデ', ko: '빨간 단풍잎' },
+  lotus: { vi: 'Lá phong vàng', en: 'Gold maple leaf', zh: '金枫叶', ja: '金のカエデ', ko: '금빛 단풍잎' },
+  pearl: { vi: 'Lá phong hồng', en: 'Blush maple leaf', zh: '粉枫叶', ja: '淡いカエデ', ko: '분홍 단풍잎' },
+  sea: { vi: 'Lá phong xanh', en: 'Sea maple leaf', zh: '海枫叶', ja: '海辺のカエデ', ko: '푸른 단풍잎' },
+}
+
+export type WeddingLeafCard = {
+  backgroundId: string
+  coverId: string
+  paper: WeddingGateToneId
+  label: Record<WebLocale, string>
+}
+
+export const WEDDING_LEAF_CARDS: readonly WeddingLeafCard[] = LEAF_PAPERS.map((paper) => {
+  const backgroundId = LEAF_SLUG[paper]
+  return {
+    backgroundId,
+    coverId: backgroundId.replace(/-/g, '_'),
+    paper,
+    label: LEAF_LABEL[paper],
+  }
+})
+
+function moonCardLabel(shape: WeddingMoonShape, paper: WeddingGateToneId): Record<WebLocale, string> {
+  const shapeName = MOON_SHAPE_NAME[shape]
+  const paperName = MOON_PAPER_NAME[paper]
+  const en = `${paperName.en} ${shapeName.en}`
+  return {
+    vi: `${shapeName.vi} ${paperName.vi}`,
+    en: en.charAt(0).toUpperCase() + en.slice(1),
+    zh: `${paperName.zh}${shapeName.zh}`,
+    ja: `${paperName.ja}の${shapeName.ja}`,
+    ko: `${paperName.ko} ${shapeName.ko}`,
+  }
+}
+
+/** Trăng tròn và ngôi sao, mỗi hình trên năm nền khách đang dùng. */
+export const WEDDING_MOON_CARDS: readonly WeddingMoonCard[] = (['moon', 'star'] as const).flatMap((shape) =>
+  MOON_PAPERS.map((paper) => {
+    const backgroundId = `${MOON_SHAPE_SLUG[shape]}${MOON_PAPER_SLUG[paper]}`
+    return {
+      backgroundId,
+      coverId: backgroundId.replace(/-/g, '_'),
+      shape,
+      paper,
+      label: moonCardLabel(shape, paper),
+    }
+  }),
+)
+
+const MOON_GATE_FACE: Record<WeddingGateToneId, { styleId: string; ornament: string; paper: string; accent: string; textClass: string }> = {
+  lacquer: { styleId: 'traditional_vietnamese', ornament: '囍', paper: '#9b1c24', accent: '#f3d27a', textClass: 'text-[#f6e2b0]' },
+  lotus: { styleId: 'luxury', ornament: '❀', paper: '#fff8ee', accent: '#8a5a12', textClass: 'text-[#3b2618]' },
+  pearl: { styleId: 'floral', ornament: '❀', paper: '#fff7f8', accent: '#b05a78', textClass: 'text-[#4a2c38]' },
+  night: { styleId: 'modern', ornament: '✦', paper: '#0c1830', accent: '#e6d3b3', textClass: 'text-[#f3e6c8]' },
+  sea: { styleId: 'minimal', ornament: '◇', paper: '#f4faf8', accent: '#0f766e', textClass: 'text-[#1a3c48]' },
+}
+
+function gateCover(
+  id: string,
+  gateTone: WeddingGateToneId,
+  styleId: string,
+  ornament: string,
+  paper: string,
+  accent: string,
+  textClass: string,
+  label: WeddingCoverPreset['label'],
+  photoHead?: 'fan' | 'leaf' | WeddingMoonShape,
+): WeddingCoverPreset {
+  return {
+    id,
+    layout: 'song_hy',
+    ...(photoHead ? { photoHead } : {}),
+    gateTone,
+    styleId,
+    tags: ['new'],
+    ornament,
+    thumbnail: { topBg: paper, bottomBg: paper, accent, textClass },
+    label,
+  }
 }
 
 function pairCover(
@@ -289,11 +571,91 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
       textClass: 'text-[#5c1a28]',
     },
     label: {
-      vi: 'Phong bì thư',
-      en: 'Letter envelope',
-      zh: '信封',
-      ja: '封筒',
-      ko: '편지 봉투',
+      vi: 'Phong bì đỏ đô',
+      en: 'Burgundy envelope',
+      zh: '酒红信封',
+      ja: 'バーガンディの封筒',
+      ko: '버건디 봉투',
+    },
+  },
+  {
+    id: 'phong_bi_hong',
+    layout: 'envelope',
+    styleId: 'floral',
+    tags: ['new'],
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#fff4f6',
+      bottomBg: '#fff4f6',
+      accent: '#a34762',
+      textClass: 'text-[#5c2a38]',
+    },
+    label: {
+      vi: 'Phong bì hồng',
+      en: 'Blush envelope',
+      zh: '粉信封',
+      ja: '淡いピンクの封筒',
+      ko: '블러시 봉투',
+    },
+  },
+  {
+    id: 'phong_bi_reu',
+    layout: 'envelope',
+    styleId: 'minimal',
+    tags: ['new'],
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#f4f8f0',
+      bottomBg: '#f4f8f0',
+      accent: '#5c6b40',
+      textClass: 'text-[#3e4f34]',
+    },
+    label: {
+      vi: 'Phong bì rêu',
+      en: 'Sage envelope',
+      zh: '苔绿信封',
+      ja: 'セージの封筒',
+      ko: '세이지 봉투',
+    },
+  },
+  {
+    id: 'phong_bi_dem',
+    layout: 'envelope',
+    styleId: 'modern',
+    tags: ['new'],
+    ornament: '✦',
+    thumbnail: {
+      topBg: '#0c1830',
+      bottomBg: '#0c1830',
+      accent: '#e6d3b3',
+      textClass: 'text-[#f3e6c8]',
+    },
+    label: {
+      vi: 'Phong bì đêm',
+      en: 'Navy envelope',
+      zh: '夜蓝信封',
+      ja: '紺の封筒',
+      ko: '네이비 봉투',
+    },
+  },
+  {
+    id: 'phong_bi_nga',
+    layout: 'envelope',
+    styleId: 'ethereal',
+    tags: ['new'],
+    ornament: '❀',
+    thumbnail: {
+      topBg: '#fffaf3',
+      bottomBg: '#fffaf3',
+      accent: '#8a5727',
+      textClass: 'text-[#3b2a22]',
+    },
+    label: {
+      vi: 'Phong bì ngà',
+      en: 'Ivory envelope',
+      zh: '象牙信封',
+      ja: '象牙色の封筒',
+      ko: '아이보리 봉투',
     },
   },
   {
@@ -677,6 +1039,59 @@ export const WEDDING_COVER_PRESETS: WeddingCoverPreset[] = [
     },
   },
   {
+    id: 're_quat',
+    layout: 'song_hy',
+    photoHead: 'fan',
+    styleId: 'traditional_vietnamese',
+    tags: ['new'],
+    ornament: '囍',
+    thumbnail: {
+      topBg: 'linear-gradient(180deg, #9b1c24 0%, #7a1520 100%)',
+      bottomBg: '#4e1018',
+      accent: '#f3d27a',
+      textClass: 'text-[#f6e2b0]',
+    },
+    label: {
+      vi: 'Rẻ quạt đỏ',
+      en: 'Red folding fan',
+      zh: '红折扇',
+      ja: '赤の扇',
+      ko: '붉은 부채',
+    },
+  },
+  gateCover('vom_sen', 'lotus', 'luxury', '❀', '#fff8ee', '#8a5a12', 'text-[#3b2618]', {
+    vi: 'Vòm sen vàng', en: 'Gold lotus arch', zh: '金莲拱门', ja: '金蓮のアーチ', ko: '금련 아치',
+  }),
+  gateCover('vom_ngoc', 'pearl', 'floral', '❀', '#fff7f8', '#b05a78', 'text-[#4a2c38]', {
+    vi: 'Vòm ngọc trai', en: 'Pearl arch', zh: '珍珠拱门', ja: '真珠のアーチ', ko: '진주 아치',
+  }),
+  gateCover('vom_dem', 'night', 'modern', '✦', '#0c1830', '#e6d3b3', 'text-[#f3e6c8]', {
+    vi: 'Vòm đêm vàng', en: 'Gold night arch', zh: '夜金拱门', ja: '金の夜のアーチ', ko: '금빛 밤 아치',
+  }),
+  gateCover('vom_bien', 'sea', 'minimal', '◇', '#f4faf8', '#0f766e', 'text-[#1a3c48]', {
+    vi: 'Vòm biển', en: 'Seaside arch', zh: '海边拱门', ja: '海辺のアーチ', ko: '해변 아치',
+  }),
+  gateCover('re_quat_sen', 'lotus', 'luxury', '❀', '#fff8ee', '#8a5a12', 'text-[#3b2618]', {
+    vi: 'Rẻ quạt sen vàng', en: 'Gold lotus fan', zh: '金莲折扇', ja: '金蓮の扇', ko: '금련 부채',
+  }, 'fan'),
+  gateCover('re_quat_ngoc', 'pearl', 'floral', '❀', '#fff7f8', '#b05a78', 'text-[#4a2c38]', {
+    vi: 'Rẻ quạt ngọc trai', en: 'Pearl fan', zh: '珍珠折扇', ja: '真珠の扇', ko: '진주 부채',
+  }, 'fan'),
+  gateCover('re_quat_dem', 'night', 'modern', '✦', '#0c1830', '#e6d3b3', 'text-[#f3e6c8]', {
+    vi: 'Rẻ quạt đêm vàng', en: 'Gold night fan', zh: '夜金折扇', ja: '金の夜の扇', ko: '금빛 밤 부채',
+  }, 'fan'),
+  gateCover('re_quat_bien', 'sea', 'minimal', '◇', '#f4faf8', '#0f766e', 'text-[#1a3c48]', {
+    vi: 'Rẻ quạt biển', en: 'Seaside fan', zh: '海边折扇', ja: '海辺の扇', ko: '해변 부채',
+  }, 'fan'),
+  ...WEDDING_MOON_CARDS.map((card) => {
+    const face = MOON_GATE_FACE[card.paper]
+    return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, card.shape)
+  }),
+  ...WEDDING_LEAF_CARDS.map((card) => {
+    const face = MOON_GATE_FACE[card.paper]
+    return gateCover(card.coverId, card.paper, face.styleId, face.ornament, face.paper, face.accent, face.textClass, card.label, 'leaf')
+  }),
+  {
     id: 'linen_polaroid',
     layout: 'composed',
     compositionId: 'linen_polaroid',
@@ -905,6 +1320,31 @@ export function findWeddingCoverPreset(id: string | null | undefined): WeddingCo
 
 export function getWeddingCoverPreset(id: string | null | undefined): WeddingCoverPreset {
   return findWeddingCoverPreset(id) ?? WEDDING_COVER_PRESETS[0]
+}
+
+/** Đầu khung ảnh. Vỏ song hỷ không ghi thì là vòm. */
+export function weddingCoverPhotoHead(id: string | null | undefined): WeddingCoverPhotoHead {
+  const head = findWeddingCoverPreset(id)?.photoHead
+  return head && head !== 'arch' ? head : 'arch'
+}
+
+/** Đường cắt ảnh của rẻ quạt, trăng tròn và ngôi sao. Lá dùng ảnh lá đục lỗ, không clip. Vòm không dùng clip. */
+export function weddingCoverPhotoClip(head: WeddingCoverPhotoHead | null | undefined): string | undefined {
+  if (head === 'fan') return WEDDING_FAN_PHOTO_CLIP
+  if (head === 'moon') return WEDDING_MOON_PHOTO_CLIP
+  if (head === 'star') return WEDDING_STAR_PHOTO_CLIP
+  return undefined
+}
+
+/** Màu cổng vòm. Vỏ không ghi thì là đỏ song hỷ. */
+export function weddingCoverGateTone(id: string | null | undefined): WeddingGateTone {
+  const key = findWeddingCoverPreset(id)?.gateTone
+  return WEDDING_GATE_TONES[key && key in WEDDING_GATE_TONES ? key : 'lacquer']
+}
+
+/** Vỏ đỏ song hỷ và rẻ quạt đứng giữa sân, không dồn lên đầu. */
+export function weddingCoverCentersOnStage(id: string | null | undefined): boolean {
+  return findWeddingCoverPreset(id)?.layout === 'song_hy'
 }
 
 export function labelForWeddingCoverPreset(locale: WebLocale, preset: WeddingCoverPreset): string {

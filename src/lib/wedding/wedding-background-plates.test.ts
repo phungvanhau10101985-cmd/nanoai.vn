@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
 import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
-import { findWeddingCoverPreset } from './wedding-cover-presets'
+import { findWeddingCoverPreset, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
 import { WEDDING_ORNAMENT_CATALOG } from './wedding-background-ornament-store'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
@@ -230,6 +230,21 @@ test('the envelope set uses palace paper and a letter cover', () => {
   assert.equal(preset.look.buttonColorId, 'burgundy')
   const frame = findWeddingCoverPreset('phong_bi')
   assert.equal(frame?.layout, 'envelope')
+  const colors = [
+    ['phong-bi-hong', 'phong_bi_hong', 'rose', 'phong-bi-hong-paper.jpg'],
+    ['phong-bi-reu', 'phong_bi_reu', 'olive', 'phong-bi-reu-paper.jpg'],
+    ['phong-bi-dem', 'phong_bi_dem', 'gold', 'phong-bi-dem-paper.jpg'],
+    ['phong-bi-nga', 'phong_bi_nga', 'bronze', 'phong-bi-nga-paper.jpg'],
+  ] as const
+  for (const [id, coverId, button, plate] of colors) {
+    const colorPreset = findWeddingBackgroundPreset(id)
+    assert.ok(colorPreset, id)
+    assert.equal(colorPreset.coverPresetId, coverId)
+    assert.equal(colorPreset.look.buttonColorId, button)
+    assert.equal(colorPreset.plates[0]?.endsWith(plate), true, id)
+    assert.equal(findWeddingCoverPreset(coverId)?.layout, 'envelope')
+  }
+  assert.equal(findWeddingBackgroundPreset('phong-bi-dem')?.look.surface, 'dark')
   const patch = weddingKitFramePatch(preset)
   assert.equal(patch.coverFrameMode, 'preset')
   assert.equal(patch.groomPortraitShellMode, 'none')
@@ -569,7 +584,9 @@ test('song hy red is a gate card on lacquer paper with cream reading cards', () 
   const theme = applyWeddingKitTheme(getWeddingTheme('traditional_vietnamese'), preset)
   assert.equal(theme.contentCard, 'scallop')
   assert.equal(theme.darkPaper, '#4e1018')
-  assert.equal(theme.text, 'text-[#7a1c28]')
+  assert.equal(theme.text, 'text-[#4a1218]')
+  assert.equal(theme.mutedText, 'text-[#5c241c]')
+  assert.equal(theme.textGlow, '')
   assert.equal(theme.pageBg, 'bg-[#4e1018]')
   const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
   assert.equal(weddingReadingPlate(preset, '/wedding/backgrounds/song-hy-do.svg', false), undefined)
@@ -593,4 +610,125 @@ test('song hy red is a gate card on lacquer paper with cream reading cards', () 
   assert.equal(saved.buttonColorId, 'cream')
   assert.equal(resolveShownCoverFrame(saved, preset.coverPresetId).presetId, 'song_hy')
   assert.equal(resolveShownPortraitShell(saved, 'groom', preset.coverPresetId), null)
+})
+
+test('the folding fan card keeps song hy paper and a fan photo head', () => {
+  const preset = findWeddingBackgroundPreset('re-quat')
+  assert.ok(preset)
+  assert.equal(preset.plates[0], '/wedding/backgrounds/song-hy-do.svg')
+  assert.equal(preset.coverPresetId, 're_quat')
+  assert.equal(preset.look.contentCard, 'scallop')
+  const cover = findWeddingCoverPreset('re_quat')
+  assert.equal(cover?.layout, 'song_hy')
+  assert.equal(cover?.photoHead, 'fan')
+  assert.equal(findWeddingCoverPreset('song_hy')?.photoHead, undefined)
+  const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+  assert.equal(saved.coverPresetId, 're_quat')
+  assert.equal(resolveShownCoverFrame(saved, preset.coverPresetId).presetId, 're_quat')
+})
+
+test('folding fans keep the fan head on lotus, pearl, night and sea papers', () => {
+  const cases = [
+    ['re-quat-sen', 're_quat_sen', 'lotus', '/wedding/backgrounds/sen-vang.jpg'],
+    ['re-quat-ngoc', 're_quat_ngoc', 'pearl', '/wedding/backgrounds/hong-ngoc-trai-1.jpg'],
+    ['re-quat-dem', 're_quat_dem', 'night', '/wedding/backgrounds/dem-vang-paper.jpg'],
+    ['re-quat-bien', 're_quat_bien', 'sea', '/wedding/backgrounds/bien-paper.jpg'],
+  ] as const
+  for (const [backgroundId, coverId, tone, plate] of cases) {
+    const preset = findWeddingBackgroundPreset(backgroundId)
+    assert.ok(preset, backgroundId)
+    assert.equal(preset.plates[0], plate)
+    assert.equal(preset.coverPresetId, coverId)
+    const cover = findWeddingCoverPreset(coverId)
+    assert.equal(cover?.layout, 'song_hy')
+    assert.equal(cover?.photoHead, 'fan')
+    assert.equal(cover?.gateTone, tone)
+    assert.equal(weddingCoverPhotoHead(coverId), 'fan')
+    const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+    assert.equal(saved.coverPresetId, coverId)
+  }
+})
+
+test('arch doorway heads keep the gate shape on other themes and papers', () => {
+  const cases = [
+    ['vom-sen', 'vom_sen', 'lotus', '/wedding/backgrounds/sen-vang.jpg'],
+    ['vom-ngoc', 'vom_ngoc', 'pearl', '/wedding/backgrounds/hong-ngoc-trai-1.jpg'],
+    ['vom-dem', 'vom_dem', 'night', '/wedding/backgrounds/dem-vang-paper.jpg'],
+    ['vom-bien', 'vom_bien', 'sea', '/wedding/backgrounds/bien-paper.jpg'],
+  ] as const
+  for (const [backgroundId, coverId, tone, plate] of cases) {
+    const preset = findWeddingBackgroundPreset(backgroundId)
+    assert.ok(preset, backgroundId)
+    assert.equal(preset.plates[0], plate)
+    assert.equal(preset.coverPresetId, coverId)
+    const cover = findWeddingCoverPreset(coverId)
+    assert.equal(cover?.layout, 'song_hy')
+    assert.equal(cover?.photoHead, undefined)
+    assert.equal(cover?.gateTone, tone)
+    assert.equal(weddingCoverPhotoHead(coverId), 'arch')
+    const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+    assert.equal(saved.coverPresetId, coverId)
+  }
+  assert.equal(findWeddingCoverPreset('song_hy')?.gateTone, undefined)
+  assert.equal(weddingCoverGateTone('song_hy').mark, '囍')
+  assert.equal(weddingCoverGateTone('vom_sen').card.includes('#fff8ee'), true)
+  assert.notEqual(weddingCoverGateTone('vom_dem').ink, weddingCoverGateTone('vom_bien').ink)
+})
+
+test('moon photo heads keep their shape on the papers people already use', () => {
+  const plates: Record<string, string> = {
+    lacquer: '/wedding/backgrounds/song-hy-do.svg',
+    lotus: '/wedding/backgrounds/sen-vang.jpg',
+    pearl: '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+    night: '/wedding/backgrounds/dem-vang-paper.jpg',
+    sea: '/wedding/backgrounds/bien-paper.jpg',
+  }
+  assert.equal(WEDDING_MOON_CARDS.length, 10)
+  for (const card of WEDDING_MOON_CARDS) {
+    const preset = findWeddingBackgroundPreset(card.backgroundId)
+    assert.ok(preset, card.backgroundId)
+    assert.equal(preset.plates[0], plates[card.paper], card.backgroundId)
+    assert.equal(preset.coverPresetId, card.coverId)
+    const cover = findWeddingCoverPreset(card.coverId)
+    assert.equal(cover?.layout, 'song_hy')
+    assert.equal(cover?.photoHead, card.shape)
+    assert.equal(cover?.gateTone, card.paper)
+    assert.equal(weddingCoverPhotoHead(card.coverId), card.shape)
+    assert.ok(weddingCoverPhotoClip(card.shape)?.length, card.shape)
+    const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+    assert.equal(saved.coverPresetId, card.coverId)
+  }
+  assert.equal(weddingCoverPhotoHead('song_hy'), 'arch')
+  assert.equal(weddingCoverPhotoHead('re_quat'), 'fan')
+  assert.equal(weddingCoverPhotoClip('arch'), undefined)
+  assert.equal(weddingCoverPhotoClip('moon'), 'circle(50% at 50% 50%)')
+})
+
+test('maple leaf frames sit on the papers people use most', () => {
+  const plates: Record<string, string> = {
+    lacquer: '/wedding/backgrounds/song-hy-do.svg',
+    lotus: '/wedding/backgrounds/sen-vang.jpg',
+    pearl: '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+    sea: '/wedding/backgrounds/bien-paper.jpg',
+  }
+  assert.equal(WEDDING_LEAF_CARDS.length, 4)
+  for (const card of WEDDING_LEAF_CARDS) {
+    const preset = findWeddingBackgroundPreset(card.backgroundId)
+    assert.ok(preset, card.backgroundId)
+    assert.equal(preset.plates[0], plates[card.paper], card.backgroundId)
+    assert.equal(preset.coverPresetId, card.coverId)
+    const cover = findWeddingCoverPreset(card.coverId)
+    assert.equal(cover?.layout, 'song_hy')
+    assert.equal(cover?.photoHead, 'leaf')
+    assert.equal(cover?.gateTone, card.paper)
+    assert.equal(weddingCoverPhotoHead(card.coverId), 'leaf')
+    assert.equal(weddingCoverPhotoClip('leaf'), undefined)
+    const leafFrame = weddingLeafFrameFor(card.coverId)
+    assert.ok(WEDDING_LEAF_FRAMES[card.backgroundId], card.backgroundId)
+    assert.equal(leafFrame.src, '/wedding/covers/la-phong-frame.webp')
+    assert.ok(leafFrame.hole.w >= 55 && leafFrame.hole.h >= 55)
+    assert.equal(WEDDING_LEAF_FRAME.src, '/wedding/covers/la-phong-frame.webp')
+    const saved = parseWeddingSectionConfig(mergeWeddingSectionConfig('{}', weddingReadyBackgroundSectionPatch(preset)))
+    assert.equal(saved.coverPresetId, card.coverId)
+  }
 })

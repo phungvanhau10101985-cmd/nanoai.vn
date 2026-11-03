@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox, type CoverFrameHoleMask } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
-import { getWeddingCoverPreset, type WeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
+import { getWeddingCoverPreset, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor, type WeddingCoverPhotoHead, type WeddingCoverPreset, type WeddingGateTone } from '@/lib/wedding/wedding-cover-presets'
 import { getOrnamentComposition, type OrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
 import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
@@ -601,28 +601,33 @@ function CoverPhoto(props: {
   breathe?: boolean
   /** Ảnh vỏ hiện từ từ lúc thiệp mở, cùng nhịp tên bay vào. */
   openSlowly?: boolean
-  /** standard = ảnh thường, tall = ảnh vòm, fit = vỏ rút trong một màn. */
-  box?: 'standard' | 'tall' | 'fit'
+  /** standard = ảnh thường, tall = ảnh vòm, fit = vỏ rút trong một màn, fan = rẻ quạt, leaf = lá thật đục lỗ, fill = lấp lỗ khung, moon = trăng tròn, star = ngôi sao. */
+  box?: 'standard' | 'tall' | 'fit' | 'fan' | 'leaf' | 'fill' | 'moon' | 'star'
+  frameStyle?: CSSProperties
 }) {
   if (!props.url.trim()) return null
   const objectPosition = props.objectPosition ?? '50% 50%'
   const scale = Math.max(1, Math.min(3, props.scale ?? 1))
   const boxScale = frameScaleOf(props.boxScale)
-  const photoBox = props.compact ? 'compact' : props.box ?? 'standard'
+  const aspect = props.box === 'leaf' || props.box === 'moon' || props.box === 'star'
+  const fill = props.box === 'fill'
+  const photoBox = fill ? 'fill' : !aspect && props.compact ? 'compact' : props.box ?? (props.compact ? 'compact' : 'standard')
   const photoHeight = photoBox === 'compact' ? '6rem' : 'var(--wedding-cover-photo-h, 15rem)'
   return (
-    <div className="flex w-full justify-center">
+    <div className={cn(fill ? 'h-full w-full' : 'flex w-full justify-center')}>
     <div
       data-cover-photo={photoBox}
       className={cn(
-        'w-full shrink-0 overflow-hidden shadow-md ring-1 ring-black/5',
-        props.compact ? 'rounded-lg' : 'rounded-2xl',
+        'w-full overflow-hidden',
+        fill ? 'h-full' : 'shrink-0 shadow-md ring-1 ring-black/5',
+        !fill && (props.compact ? 'rounded-lg' : 'rounded-2xl'),
         props.openSlowly && 'wedding-cover-photo-open',
         props.className,
       )}
       style={{
         width: `${frameWidthPercent(100, boxScale)}%`,
-        ...(boxScale === 1 ? {} : { height: `calc((${photoHeight}) * ${boxScale})` }),
+        ...(boxScale === 1 || aspect || fill ? {} : { height: `calc((${photoHeight}) * ${boxScale})` }),
+        ...props.frameStyle,
       }}
     >
       <div className={cn('h-full w-full', props.breathe && !props.compact && 'wedding-cover-breathe')}>
@@ -1060,11 +1065,13 @@ function CoverFrameViewport(props: {
 function CoverDevicePhotoControl(props: {
   label: string
   className?: string
+  style?: CSSProperties
   onFile: (file: File) => void
 }) {
   return (
     <WeddingDeviceFileInput
       className={props.className}
+      style={props.style}
       label={props.label}
       onFiles={(files) => {
         const file = files[0]
@@ -1892,47 +1899,188 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
   )
 }
 
-/** Bìa song hỷ: thẻ đỏ phát sáng, ấn vàng, tên thư pháp, nút kem. */
+function songHyFrameClass(head: WeddingCoverPhotoHead, compact?: boolean): string {
+  const width =
+    head === 'fan' ? (compact ? 'w-[9.5rem]' : 'w-[18rem]')
+    : head === 'leaf' ? (compact ? 'w-[min(100%,13.5rem)]' : 'w-[min(calc(100%+4rem),40rem)]')
+    : head === 'star' ? 'w-full'
+    : head === 'moon' ? (compact ? 'w-[6.75rem]' : 'w-[13.5rem]')
+    : compact ? 'w-[6.25rem]' : 'w-[11.25rem]'
+  return cn('mx-auto', compact ? 'mt-2' : 'mt-4', width)
+}
+
+function songHyPhotoBox(head: WeddingCoverPhotoHead, compact: boolean | undefined, place: 'cover' | 'inside'): 'compact' | 'fan' | 'fit' | 'tall' | 'leaf' | 'moon' | 'star' {
+  if (head === 'leaf' || head === 'moon' || head === 'star') return head
+  if (head === 'fan') return compact ? 'compact' : 'fan'
+  if (compact) return 'compact'
+  return place === 'inside' ? 'tall' : 'fit'
+}
+
+function SongHyLeafMount(props: { children: ReactNode; presetId?: string }) {
+  const frame = weddingLeafFrameFor(props.presetId)
+  return (
+    <div className="relative w-full" style={{ aspectRatio: frame.aspect, filter: 'drop-shadow(0 10px 18px rgba(40, 22, 8, 0.32))' }}>
+      <div
+        className="absolute inset-0 overflow-hidden"
+        style={{
+          WebkitMaskImage: `url("${frame.mask}")`,
+          maskImage: `url("${frame.mask}")`,
+          WebkitMaskSize: '100% 100%',
+          maskSize: '100% 100%',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat',
+          WebkitMaskPosition: 'center',
+          maskPosition: 'center',
+        }}
+      >
+        {props.children}
+      </div>
+      <img
+        src={frame.src}
+        alt=""
+        draggable={false}
+        className="pointer-events-none absolute inset-0 z-[1] h-full w-full select-none object-contain"
+      />
+    </div>
+  )
+}
+
+function SongHyPhotoMount(props: { head: WeddingCoverPhotoHead; tone: WeddingGateTone; children: ReactNode; presetId?: string }) {
+  if (props.head === 'leaf') return <SongHyLeafMount presetId={props.presetId}>{props.children}</SongHyLeafMount>
+  const clip = weddingCoverPhotoClip(props.head)
+  if (clip) {
+    return (
+      <div style={{ filter: `drop-shadow(${props.tone.photoShadow})` }}>
+        <div className="p-[5px]" style={{ background: props.tone.frame, clipPath: clip }}>
+          <div className="relative overflow-hidden" style={{ clipPath: clip }}>
+            {props.children}
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div className="overflow-hidden rounded-t-[999px] rounded-b-md border-[5px] border-solid" style={{ borderColor: props.tone.frame, background: props.tone.frame, boxShadow: props.tone.photoShadow }}>
+      {props.children}
+    </div>
+  )
+}
+
+/** Ảnh cặp đôi trên vỏ song hỷ: vòm, rẻ quạt, lá thật đục lỗ, trăng tròn hoặc ngôi sao, nằm dưới ấn. */
+function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
+  const compact = props.compact
+  const head = weddingCoverPhotoHead(props.presetId)
+  const tone = weddingCoverGateTone(props.presetId)
+  const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  const frame = songHyFrameClass(head, compact)
+  const clip = weddingCoverPhotoClip(head)
+  if (props.coverPhotoUrl) {
+    return (
+      <div className={frame}>
+        <FrameResizeChrome edit={props.frameScaleEdit}>
+          <CoverPhotoPan edit={props.coverPhotoEdit} className="relative">
+            <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId}>
+              <CoverPhoto
+                url={props.coverPhotoUrl}
+                alt={props.photoAlt}
+                compact={compact}
+                box={head === 'leaf' ? 'fill' : songHyPhotoBox(head, compact, 'cover')}
+                objectPosition={photo.position}
+                scale={photo.zoom}
+                boxScale={props.frameScale}
+                breathe={props.breathe}
+                openSlowly={props.namesFlyIn && !compact}
+                className="rounded-none shadow-none ring-0"
+              />
+            </SongHyPhotoMount>
+            {props.onChoosePhoto || props.onPhotoFile ? (
+              <CoverFrameActions
+                hasPhoto
+                onChoosePhoto={props.onChoosePhoto}
+                onPhotoFile={props.onPhotoFile}
+                onChooseFrame={props.onChooseFrame}
+                changePhotoLabel={props.changePhotoLabel}
+                chooseFrameLabel={props.chooseFrameLabel}
+                className="bottom-2 left-1/2"
+              />
+            ) : null}
+          </CoverPhotoPan>
+        </FrameResizeChrome>
+      </div>
+    )
+  }
+  if (!props.onPhotoFile && !props.onChoosePhoto) return null
+  const emptyClass = cn(
+    'flex h-full w-full items-center justify-center border border-dashed px-2 text-center text-[11px]',
+    head === 'fan' ? (compact ? 'h-24' : 'h-[14.5rem]') : head === 'leaf' ? '' : head === 'star' || head === 'moon' ? 'aspect-square' : 'aspect-[3/4]',
+    head === 'arch' && 'rounded-t-[999px] rounded-b-md',
+  )
+  const emptyStyle = { borderColor: tone.accent, background: tone.emptyFill, color: tone.ink }
+  const slot = props.onPhotoFile ? (
+    <CoverDevicePhotoControl label={props.choosePhotoLabel || ''} onFile={props.onPhotoFile} className={emptyClass} style={emptyStyle} />
+  ) : (
+    <button type="button" onClick={props.onChoosePhoto} className={emptyClass} style={emptyStyle}>
+      {props.choosePhotoLabel}
+    </button>
+  )
+  return (
+    <div className={frame}>
+      {head === 'leaf' ? <SongHyLeafMount presetId={props.presetId}>{slot}</SongHyLeafMount> : clip ? <div style={{ clipPath: clip }}>{slot}</div> : slot}
+    </div>
+  )
+}
+
+/** Bìa cổng vòm: ấn, ảnh cặp đôi, tên thư pháp. Màu theo chủ đề. */
 function SongHyCoverCard(props: WeddingCoverShellCardProps) {
   const { compact, theme } = props
+  const tone = weddingCoverGateTone(props.presetId)
   const intro = useCoverIntroOnce(Boolean(props.namesFlyIn && !compact))
+  const gateStyle = {
+    background: tone.card,
+    color: tone.ink,
+    boxShadow: tone.glow,
+    '--gate-ink': tone.ink,
+    '--gate-accent': tone.accent,
+    '--gate-muted': tone.muted,
+  } as CSSProperties
   return (
     <div
       ref={intro.rootRef}
       data-cover-theme={theme.id}
       className={cn(
-        'relative mx-auto w-full overflow-hidden text-center text-[#f6e2b0]',
-        'bg-[#9b1c24] shadow-[0_0_48px_rgba(180,36,44,0.42),0_22px_50px_rgba(0,0,0,0.38)] ring-1 ring-[#f3d27a]/35',
-        compact ? 'max-w-[200px] rounded-[1rem] px-3 py-4' : 'max-w-md rounded-[1.35rem] px-6 py-8 sm:rounded-[1.6rem] sm:px-8 sm:py-10',
+        'relative mx-auto w-full overflow-hidden text-center',
+        compact ? 'max-w-[200px] rounded-[1rem] px-3 py-4' : 'max-w-md rounded-[1.35rem] px-6 py-6 sm:rounded-[1.6rem] sm:px-8 sm:py-8',
         intro.hold && 'wedding-cover-hold',
       )}
+      style={gateStyle}
     >
       <WeddingGuestNameFontLink />
-      <span aria-hidden className={cn('pointer-events-none absolute font-serif leading-none text-[#7a1218]/55', compact ? '-left-2 top-2 text-5xl' : '-left-3 top-6 text-[7.5rem]')}>囍</span>
-      <span aria-hidden className={cn('pointer-events-none absolute font-serif leading-none text-[#7a1218]/40', compact ? '-right-2 bottom-2 text-4xl' : '-right-4 bottom-6 text-[6.5rem]')}>囍</span>
+      <span aria-hidden className={cn('pointer-events-none absolute font-serif leading-none', compact ? '-left-2 top-2 text-5xl' : '-left-3 top-6 text-[7.5rem]')} style={{ color: tone.watermark }}>{tone.mark}</span>
+      <span aria-hidden className={cn('pointer-events-none absolute font-serif leading-none', compact ? '-right-2 bottom-2 text-4xl' : '-right-4 bottom-6 text-[6.5rem]')} style={{ color: tone.watermarkSoft }}>{tone.mark}</span>
       <div className="relative">
-        <div className={cn('mx-auto flex items-center justify-center rounded-full border border-[#f3d27a] text-[#f6e2b0] shadow-[0_0_18px_rgba(243,210,122,0.35)]', compact ? 'h-8 w-8 text-sm' : 'h-14 w-14 text-[1.65rem]')}>囍</div>
+        <div className={cn('mx-auto flex items-center justify-center rounded-full border', compact ? 'h-8 w-8 text-sm' : 'h-12 w-12 text-[1.45rem]')} style={{ borderColor: tone.accent, color: tone.ink, boxShadow: tone.sealGlow }}>{tone.mark}</div>
+        <SongHyCoverPhoto {...props} />
         <WeddingCoupleNames
           groomName={props.groomName}
           brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
           className={cn(
-            'wedding-guest-name flex-col items-center gap-y-0 text-[#f6e2b0]',
+            'wedding-guest-name flex-col items-center gap-y-0 text-[var(--gate-ink)]',
             compact ? 'mt-2 text-lg leading-tight' : 'mt-4 text-[clamp(1.85rem,8cqi,2.85rem)] leading-none',
           )}
         />
         <div className={cn('mx-auto flex items-center justify-center', compact ? 'mt-2 gap-2' : 'mt-4 gap-3')} aria-hidden>
-          <span className="h-px w-8 bg-[#f6e2b0]/55 sm:w-12" />
-          <span className="text-[9px] text-[#f3d27a]">◆</span>
-          <span className="h-px w-8 bg-[#f6e2b0]/55 sm:w-12" />
+          <span className="h-px w-8 sm:w-12" style={{ background: tone.ink, opacity: 0.55 }} />
+          <span className="text-[9px]" style={{ color: tone.accent }}>◆</span>
+          <span className="h-px w-8 sm:w-12" style={{ background: tone.ink, opacity: 0.55 }} />
         </div>
         {!props.guestName ? (
-          <p className={cn('tracking-wide text-[#f6e2b0]', compact ? 'mt-1 text-[10px]' : 'mt-3 text-sm')}>
+          <p className={cn('tracking-wide text-[var(--gate-ink)]', compact ? 'mt-1 text-[10px]' : 'mt-3 text-sm')}>
             {props.weddingDate || props.dateFallback}
           </p>
         ) : null}
-        <p className={cn('text-[#f3d27a]', compact ? 'mt-1 text-[10px]' : 'mt-2 text-sm')}>{props.invitationLabel}</p>
+        <p className={cn('text-[var(--gate-accent)]', compact ? 'mt-1 text-[10px]' : 'mt-2 text-sm')}>{props.invitationLabel}</p>
         {props.guestName ? (
           <WeddingGuestInviteBlock
             className={cn(compact ? 'mt-2' : 'mt-3')}
@@ -1946,16 +2094,16 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
             mapUrl={props.mapUrl}
             viewMapLabel={props.viewMapLabel ?? ''}
             panelClassName="bg-transparent"
-            cordiallyClassName="text-[#e4d0a0]"
-            nameClassName="text-[#f6e2b0]"
-            venueClassName="text-[#f3d27a]"
-            addressClassName="text-[#e4d0a0]"
+            cordiallyClassName="text-[var(--gate-muted)]"
+            nameClassName="text-[var(--gate-ink)]"
+            venueClassName="text-[var(--gate-accent)]"
+            addressClassName="text-[var(--gate-muted)]"
             weddingThemeId={theme.id}
             buttonColor={props.buttonColor}
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
-            personalInviteClassName="text-[#e4d0a0]"
+            personalInviteClassName="text-[var(--gate-muted)]"
           />
         ) : null}
         <CoverActions
@@ -1975,40 +2123,134 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
 
 function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
   if (!props.coverPhotoUrl) return null
+  const head = weddingCoverPhotoHead(props.presetId)
+  const tone = weddingCoverGateTone(props.presetId)
   const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  const shot = (
+    <CoverPhoto
+      url={props.coverPhotoUrl}
+      alt={props.photoAlt}
+      objectPosition={photo.position}
+      scale={photo.zoom}
+      boxScale={props.frameScale}
+      box={head === 'leaf' ? 'fill' : songHyPhotoBox(head, false, 'inside')}
+      className={weddingCoverPhotoClip(head) ? 'rounded-none shadow-none ring-0' : 'rounded-t-[999px] rounded-b-md border-8 border-solid'}
+      frameStyle={weddingCoverPhotoClip(head) ? undefined : { borderColor: tone.frame, boxShadow: tone.archShadow }}
+    />
+  )
+  const innerWidth =
+    head === 'fan' ? 'w-[min(100%,18rem)]'
+    : head === 'leaf' ? 'w-[min(calc(100%+4rem),40rem)]'
+    : head === 'star' ? 'w-full'
+    : head === 'moon' ? 'w-[min(100%,13.5rem)]'
+    : 'w-full'
   return (
-    <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto w-full">
-      <CoverPhoto
-        url={props.coverPhotoUrl}
-        alt={props.photoAlt}
-        objectPosition={photo.position}
-        scale={photo.zoom}
-        boxScale={props.frameScale}
-        box="tall"
-        className="rounded-t-[999px] rounded-b-md border-8 border-[#fff6ea] shadow-[0_16px_36px_rgba(40,0,10,0.28)]"
-      />
+    <FrameResizeChrome edit={props.frameScaleEdit} className={cn('mx-auto', innerWidth)}>
+      {head === 'leaf' || weddingCoverPhotoClip(head) ? <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId}>{shot}</SongHyPhotoMount> : shot}
     </FrameResizeChrome>
   )
 }
 
-const ENVELOPE_SRC = '/wedding/covers/phong-bi-envelope.webp'
 const ENVELOPE_SEAL_SRC = '/wedding/covers/phong-bi-seal.webp'
-const ENVELOPE_SPRAY_SRC = '/wedding/backgrounds/ornaments/phong-bi-cluster.webp'
 
-/** Phong bì đỏ đô, ảnh lồng miệng thư, hoa chụp và dấu sáp trái tim. */
+type EnvelopeTone = {
+  paper: string
+  spray: string
+  ink: string
+  muted: string
+  accent: string
+  soft: string
+  label: string
+  glow: string
+  plate: string
+  panel: string
+}
+
+const ENVELOPE_TONES: Record<string, EnvelopeTone> = {
+  phong_bi: {
+    paper: '/wedding/covers/phong-bi-envelope.webp',
+    spray: '/wedding/backgrounds/ornaments/phong-bi-cluster.webp',
+    ink: '#4a1c28',
+    muted: '#8d5a68',
+    accent: '#6b2136',
+    soft: '#6e4452',
+    label: '#7a3a48',
+    glow: '0 0 10px #f7f1ea, 0 0 4px #f7f1ea, 0 1px 0 #fffaf6, 0 0 1px #fffaf6',
+    plate: 'rgba(247,241,234,0.8)',
+    panel: 'bg-white/55',
+  },
+  phong_bi_hong: {
+    paper: '/wedding/covers/phong-bi-hong.webp',
+    spray: '/wedding/backgrounds/ornaments/phong-bi-hong.webp',
+    ink: '#5c2a38',
+    muted: '#8a5362',
+    accent: '#a34762',
+    soft: '#7a3148',
+    label: '#8a5362',
+    glow: '0 0 10px #fff6f4, 0 0 4px #fff6f4, 0 1px 0 #fffaf6',
+    plate: 'rgba(255,246,244,0.82)',
+    panel: 'bg-white/55',
+  },
+  phong_bi_reu: {
+    paper: '/wedding/covers/phong-bi-reu.webp',
+    spray: '/wedding/backgrounds/ornaments/phong-bi-reu.webp',
+    ink: '#3e4f34',
+    muted: '#5c6b40',
+    accent: '#4d6244',
+    soft: '#3e4f34',
+    label: '#5c6b40',
+    glow: '0 0 10px #f7faf4, 0 0 4px #f7faf4, 0 1px 0 #fffaf6',
+    plate: 'rgba(247,250,244,0.84)',
+    panel: 'bg-white/55',
+  },
+  phong_bi_dem: {
+    paper: '/wedding/covers/phong-bi-dem.webp',
+    spray: '/wedding/backgrounds/ornaments/phong-bi-dem.webp',
+    ink: '#f3e6c8',
+    muted: '#d9c7a2',
+    accent: '#e6d3b3',
+    soft: '#e6d3b3',
+    label: '#d9c7a2',
+    glow: '0 1px 2px rgba(6,10,24,0.85)',
+    plate: 'rgba(12,24,48,0.55)',
+    panel: 'bg-black/30',
+  },
+  phong_bi_nga: {
+    paper: '/wedding/covers/phong-bi-nga.webp',
+    spray: '/wedding/backgrounds/ornaments/phong-bi-nga.webp',
+    ink: '#3b2a22',
+    muted: '#6e584c',
+    accent: '#8a5727',
+    soft: '#6b4318',
+    label: '#6e584c',
+    glow: '0 0 10px #fffaf3, 0 0 4px #fffaf3, 0 1px 0 #fffaf6',
+    plate: 'rgba(255,250,244,0.84)',
+    panel: 'bg-white/55',
+  },
+}
+
+function envelopeTone(presetId: string): EnvelopeTone {
+  return ENVELOPE_TONES[presetId] ?? ENVELOPE_TONES.phong_bi!
+}
+
+/** Phong bì, ảnh lồng miệng thư, hoa chụp và dấu sáp. Màu giấy theo vỏ. */
 function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
   const compact = props.compact
+  const tone = envelopeTone(props.presetId)
   const photoBox = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
+  // Ảnh mẫu phong bì ngà chừa tường phía trên đầu. Chỉ kéo ảnh demo, ảnh khách giữ 22%.
+  const ngaDemoPhoto = props.presetId === 'phong_bi_nga' && (props.coverPhotoUrl || '').startsWith('/wedding/samples/')
+  const restAnchor = ngaDemoPhoto ? '50% 48%' : '50% 22%'
   const photo = props.coverPhotoUrl ? (
     <img
       src={props.coverPhotoUrl}
       alt={props.photoAlt}
       draggable={false}
       className="h-full w-full select-none object-cover"
-      style={{ objectPosition: props.coverPhotoEdit ? photoBox.position : '50% 22%', transform: `scale(${photoBox.zoom})`, transformOrigin: '50% 22%' }}
+      style={{ objectPosition: props.coverPhotoEdit ? photoBox.position : restAnchor, transform: `scale(${photoBox.zoom})`, transformOrigin: restAnchor }}
     />
   ) : (
-    <div className="h-full w-full bg-[#efe4d8]" />
+    <div className="h-full w-full" style={{ backgroundColor: tone.plate }} />
   )
   const stage = (
     <div className="relative mx-auto w-[90%]">
@@ -2020,9 +2262,9 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
           {photo}
         </CoverPhotoPan>
       </div>
-      <img src={ENVELOPE_SRC} alt="" draggable={false} className="relative z-[2] w-full select-none" />
+      <img src={tone.paper} alt="" draggable={false} className="relative z-[2] w-full select-none" />
       <img
-        src={ENVELOPE_SPRAY_SRC}
+        src={tone.spray}
         alt=""
         draggable={false}
         className="pointer-events-none absolute z-[3] w-[56%] select-none"
@@ -2037,31 +2279,29 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
       />
     </div>
   )
-  const nameInk = {
-    color: '#4a1c28',
-    textShadow: '0 0 10px #f7f1ea, 0 0 4px #f7f1ea, 0 1px 0 #fffaf6, 0 0 1px #fffaf6',
-  }
+  const nameInk = { color: tone.ink, textShadow: tone.glow }
+  const softInk = { color: tone.soft, textShadow: tone.glow }
   const names = (
-    <div className={cn('relative text-[#4a1c28]', compact ? 'mt-2' : 'mt-5')}>
-      <div aria-hidden className="pointer-events-none absolute inset-x-[8%] -inset-y-3 rounded-full bg-[#f7f1ea]/80 blur-md" />
+    <div className={cn('relative', compact ? 'mt-2' : 'mt-5')} style={{ color: tone.ink }}>
+      <div aria-hidden className="pointer-events-none absolute inset-x-[8%] -inset-y-3 rounded-full blur-md" style={{ backgroundColor: tone.plate }} />
       <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.groomName}</p>
       {props.nameLayout === 'primary' && props.brideName.trim() ? (
-        <p className={cn('relative mt-1 font-serif italic leading-none text-[#6e4452]', compact ? 'text-sm' : 'text-base')} style={nameInk}>{props.brideName.trim()}</p>
+        <p className={cn('relative mt-1 font-serif italic leading-none', compact ? 'text-sm' : 'text-base')} style={softInk}>{props.brideName.trim()}</p>
       ) : props.nameLayout !== 'primary' && props.brideName ? (
         <>
-          <p className={cn('relative font-serif italic leading-none text-[#6e4452]', compact ? 'my-0.5 text-sm' : 'my-1 text-xl')} style={nameInk}>&</p>
+          <p className={cn('relative font-serif italic leading-none', compact ? 'my-0.5 text-sm' : 'my-1 text-xl')} style={{ color: tone.accent, textShadow: tone.glow }}>&</p>
           <p className={cn('relative font-serif leading-none', compact ? 'text-lg' : 'text-[clamp(1.7rem,8.5cqi,2.7rem)]')} style={nameInk}>{props.brideName}</p>
         </>
       ) : null}
     </div>
   )
   return (
-    <div className={cn('w-full text-center text-[#5c1a28] [container-type:inline-size]', props.frameOnly && 'py-2')}>
-      <p className={cn('uppercase tracking-[0.42em] text-[#7a3a48]', compact ? 'text-[8px]' : 'text-[11px]')}>{props.invitationLabel}</p>
+    <div className={cn('w-full text-center [container-type:inline-size]', props.frameOnly && 'py-2')} style={{ color: tone.ink }}>
+      <p className={cn('uppercase tracking-[0.42em]', compact ? 'text-[8px]' : 'text-[11px]')} style={{ color: tone.label }}>{props.invitationLabel}</p>
       <div className={compact ? 'mt-2' : 'mt-2'} style={{ paddingTop: compact ? '18%' : '36%' }}>{stage}</div>
       {names}
       {!props.frameOnly && !props.guestName ? (
-        <p className={cn('text-[#8d5a68]', compact ? 'mt-2 text-[10px]' : 'mt-3 text-sm')}>{props.weddingDate || props.dateFallback}</p>
+        <p className={cn(compact ? 'mt-2 text-[10px]' : 'mt-3 text-sm')} style={{ color: tone.muted }}>{props.weddingDate || props.dateFallback}</p>
       ) : null}
       {!props.frameOnly && props.guestName ? (
         <WeddingGuestInviteBlock
@@ -2075,17 +2315,17 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
           addressText={props.addressText}
           mapUrl={props.mapUrl}
           viewMapLabel={props.viewMapLabel ?? ''}
-          panelClassName="bg-white/55"
-          cordiallyClassName="text-[#8d5a68]"
-          nameClassName="text-[#5c1a28]"
-          venueClassName="text-[#6b2136]"
-          addressClassName="text-[#8d5a68]"
+          panelClassName={tone.panel}
+          cordiallyClassName="text-inherit"
+          nameClassName="text-inherit"
+          venueClassName="text-inherit"
+          addressClassName="text-inherit"
           weddingThemeId={props.theme.id}
           buttonColor={props.buttonColor}
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
-          personalInviteClassName="text-[#8d5a68]"
+          personalInviteClassName="text-inherit"
         />
       ) : null}
       {!props.frameOnly ? (
@@ -2190,6 +2430,12 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
     </div>
   )
   const frameScale = frameScaleOf(props.frameScale)
+  const lacquer = theme.contentCard === 'scallop'
+  const coverInk = lacquer ? 'text-[#fff6e4]' : theme.text
+  const coverMuted = lacquer ? 'text-[#f6e4b8]' : theme.mutedText
+  const coverAccent = lacquer ? 'text-[#f3d27a]' : theme.accent
+  const coverGlow = lacquer ? '[text-shadow:0_1px_2px_rgba(32,4,8,0.9)]' : theme.textGlow
+  const coverGlowHead = lacquer ? '[text-shadow:0_1px_3px_rgba(32,4,8,0.92)]' : theme.textGlowHeading
   const collage = (
     <FrameResizeChrome
       edit={props.frameScaleEdit}
@@ -2203,7 +2449,7 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
   return (
     <div className={cn('mx-auto w-full text-center', compact ? 'max-w-[210px]' : 'max-w-[22rem] sm:max-w-[26rem]')}>
       {collage}
-      <p className={cn('uppercase tracking-[0.22em]', compact ? 'mt-1 text-[8px]' : 'mt-2 text-[11px]', theme.mutedText, theme.textGlow)}>
+      <p className={cn('uppercase tracking-[0.16em]', lacquer ? 'font-semibold' : '', compact ? 'mt-1 text-[10px]' : 'mt-2 text-xs sm:text-sm', coverMuted, coverGlow)}>
         {props.invitationLabel}
       </p>
       <WeddingCoupleNames
@@ -2211,11 +2457,11 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
         brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
-        className={cn('font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-1 text-[clamp(1.05rem,8cqi,2.2rem)] leading-none', theme.text, theme.textGlowHeading)}
+        className={cn('font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-1 text-[clamp(1.15rem,8cqi,2.2rem)] leading-none', coverInk, coverGlowHead)}
       />
-      <div className={cn(theme.accent, theme.textGlow, compact ? 'my-0.5 text-base' : 'mt-0.5 text-2xl')}>{preset.ornament}</div>
+      <div className={cn(coverAccent, coverGlow, compact ? 'my-0.5 text-base' : 'mt-0.5 text-2xl')}>{preset.ornament}</div>
       {!props.guestName ? (
-        <p className={cn(compact ? 'text-[10px]' : 'text-xs sm:text-sm', theme.mutedText, theme.textGlow)}>{props.weddingDate || props.dateFallback}</p>
+        <p className={cn(compact ? 'text-[11px]' : 'text-sm', coverMuted, coverGlow)}>{props.weddingDate || props.dateFallback}</p>
       ) : (
         <WeddingGuestInviteBlock
           className="mt-0.5"
@@ -2229,16 +2475,16 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
           mapUrl={props.mapUrl}
           viewMapLabel={props.viewMapLabel ?? ''}
           panelClassName="bg-black/25"
-          cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
-          nameClassName={cn(theme.text, theme.textGlowHeading)}
-          venueClassName={cn(theme.accent, theme.textGlow)}
-          addressClassName={cn(theme.mutedText, theme.textGlow)}
+          cordiallyClassName={cn(lacquer && 'text-sm font-semibold', coverMuted, coverGlow)}
+          nameClassName={cn(coverInk, coverGlowHead)}
+          venueClassName={cn(coverAccent, coverGlow)}
+          addressClassName={cn(coverMuted, coverGlow)}
           weddingThemeId={theme.id}
           buttonColor={props.buttonColor}
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
-          personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
+          personalInviteClassName={cn(lacquer ? 'text-sm font-medium leading-6' : '', coverMuted, coverGlow)}
         />
       )}
       <CoverActions

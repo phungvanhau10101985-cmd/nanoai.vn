@@ -55,7 +55,7 @@ import { resolveWeddingShownOrnaments, weddingOrnamentLayoutKey, weddingOrnament
 import { publishWeddingOrnamentTruth, subscribeWeddingOrnamentTruth } from '@/lib/wedding/wedding-ornament-sync'
 import { readWeddingPreviewLook, WEDDING_PREVIEW_READY_MESSAGE, weddingPreviewLookToken } from '@/lib/wedding/wedding-preview-look'
 import { WeddingSectionCard } from '@/components/wedding/wedding-section-card'
-import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset } from '@/lib/wedding/wedding-cover-presets'
+import { DEFAULT_WEDDING_COVER_PRESET_ID, getWeddingCoverPreset, weddingCoverCentersOnStage, weddingCoverPhotoHead } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingSharedFrame } from '@/lib/wedding/wedding-shared-frame'
 import {
   parseWeddingSectionConfig,
@@ -1461,7 +1461,9 @@ export default function WeddingPublicClient({
   )
 
   const nameHighlightClass = cn('font-semibold', theme.accentText, theme.textGlowHeading)
-  const guestNameScriptClass = cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none', theme.text, theme.textGlowHeading)
+  const guestNameScriptClass = theme.contentCard === 'scallop'
+    ? nameHighlightClass
+    : cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none', theme.text, theme.textGlowHeading)
   const writeGuestName = useCallback(
     (text: string) => renderWeddingGuestName(text, guestDisplayName, guestNameScriptClass),
     [guestDisplayName, guestNameScriptClass],
@@ -2017,7 +2019,7 @@ export default function WeddingPublicClient({
                 />
               ) : null}
               </div>
-              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3 sm:px-4', coverPresetId === 'song_hy' ? 'justify-center' : 'justify-start', ornamentEditor && coverPreview && 'pointer-events-none')} style={coverPresetId === 'song_hy' ? { minHeight: coverDesignWidth >= WEDDING_DESKTOP_MIN_PX ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT } : undefined}>
+              <div data-wedding-sheet-content="" data-wedding-cover-pad="" className={cn('flex flex-col items-center px-3 pb-4 pt-3 sm:px-4', weddingCoverCentersOnStage(coverPresetId) ? 'justify-center' : 'justify-start', ornamentEditor && coverPreview && 'pointer-events-none')} style={weddingCoverCentersOnStage(coverPresetId) ? { minHeight: coverDesignWidth >= WEDDING_DESKTOP_MIN_PX ? WEDDING_DESKTOP_HEIGHT : WEDDING_MOBILE_HEIGHT } : undefined}>
                 <div
                   data-wedding-cover-column=""
                   className={cn(
@@ -2172,7 +2174,7 @@ export default function WeddingPublicClient({
         >
           <WeddingReadableGlass themeId={theme.id} className="w-full min-w-0 max-w-3xl rounded-[1.75rem] p-5 text-center sm:rounded-[2.25rem] sm:p-6">
             {envelopeCover ? null : (
-            <p className={cn('text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
+            <p className={cn(theme.contentCard === 'scallop' ? 'text-sm font-semibold uppercase tracking-[0.14em] sm:text-base sm:tracking-[0.18em]' : 'text-[11px] uppercase tracking-[0.28em] sm:text-xs sm:tracking-[0.4em]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-kicker', theme.accentText, theme.textGlow)}>{tx.invitation}</p>
             )}
             {envelopeCover || !heroStack ? null : (
               <WeddingStackedCouplePhotos
@@ -2223,12 +2225,12 @@ export default function WeddingPublicClient({
             )}
             <div>
             {withoutPartyAddress(card.loveQuote) && (
-              <p className={cn('mx-auto mt-4 max-w-lg font-serif text-lg italic leading-7 sm:mt-5 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
+              <p className={cn('mx-auto mt-4 max-w-lg font-serif sm:mt-5', theme.contentCard === 'scallop' ? 'text-xl font-semibold not-italic leading-8 sm:text-[1.65rem] sm:leading-9' : 'text-lg italic leading-7 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
                 “{writeGuestName(personalize(withoutPartyAddress(card.loveQuote)))}”
               </p>
             )}
             {envelopeCover || !(heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl)) ? (
-              <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? 'max-w-[32rem]' : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
+              <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? (weddingCoverPhotoHead(coverPresetId) === 'leaf' ? 'max-w-2xl' : 'max-w-[32rem]') : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
                 <WeddingCoverShellCard
                   frameOnly
                   presetId={coverPresetId}
@@ -2267,10 +2269,11 @@ export default function WeddingPublicClient({
                 mapUrl={guestBlockLocation.mapUrl}
                 viewMapLabel={tx.guestInviteViewMap}
                 personalInviteText={displayPersonalInvite || undefined}
-                personalInviteClassName={cn('max-w-xl text-sm leading-7 sm:text-base sm:leading-8', theme.mutedText, theme.textGlow)}
+                personalInviteClassName={cn('max-w-xl', theme.contentCard === 'scallop' ? 'text-base font-semibold leading-7 sm:text-lg sm:leading-8' : 'text-sm leading-7 sm:text-base sm:leading-8', theme.contentCard === 'scallop' ? theme.text : theme.mutedText, theme.textGlow)}
+                plainBodyName={theme.contentCard === 'scallop'}
                 scriptLines={contentVisible && card.effectsEnabled}
                 panelClassName={theme.panelStrong}
-                cordiallyClassName={cn(theme.mutedText, theme.textGlow)}
+                cordiallyClassName={cn(theme.contentCard === 'scallop' ? 'text-sm font-semibold tracking-normal sm:text-base' : '', theme.contentCard === 'scallop' ? theme.text : theme.mutedText, theme.textGlow)}
                 nameClassName={cn(theme.text, theme.textGlowHeading)}
                 venueClassName={cn(theme.accentText, theme.textGlow, 'tracking-wide')}
                 addressClassName={cn(theme.mutedText, theme.textGlow)}
@@ -2279,7 +2282,7 @@ export default function WeddingPublicClient({
               />
             ) : (
               <>
-                <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
+                <p className={cn('mx-auto mt-1 max-w-xl whitespace-pre-line', theme.contentCard === 'scallop' ? 'text-base font-medium leading-7 sm:text-lg sm:leading-8' : 'text-sm leading-7 sm:text-base sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite', theme.mutedText, theme.textGlow)}>
                   {writeGuestName(personalize(displayPersonalInvite || displayInvitationText || tx.defaultInvitation))}
                 </p>
                 {displayInvitationTextEn && !displayPersonalInvite ? (

@@ -119,7 +119,7 @@ export function WeddingSampleGallery(props: {
   )
 }
 
-/** Demo của loại thiệp đang mở. Mẫu đang dùng đứng đầu và được đánh dấu. */
+/** Demo của loại thiệp đang mở, một hàng ngang. Mẫu đang dùng đứng đầu và được đánh dấu. */
 export function WeddingSampleLookStrip(props: {
   locale: WebLocale
   samples: readonly WeddingSampleCard[]
@@ -130,7 +130,7 @@ export function WeddingSampleLookStrip(props: {
 }) {
   const shown = weddingSamplesWithActiveFirst(props.samples, props.activeId)
   return (
-    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+    <div className="flex w-full min-w-0 gap-2 overflow-x-auto pb-1">
       {shown.map((sample) => {
         const label = sampleLabel(props.locale, sample)
         const active = Boolean(props.activeId) && (props.activeId === sample.id || props.activeId === sample.backgroundPresetId)
@@ -142,7 +142,7 @@ export function WeddingSampleLookStrip(props: {
             aria-current={active ? 'true' : undefined}
             onClick={() => props.onOpen(sample)}
             className={cn(
-              'w-full overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed',
+              'w-[calc((100%-0.5rem)/2)] shrink-0 overflow-hidden rounded-xl border bg-[#fffaf2] text-left disabled:cursor-not-allowed sm:w-[calc((100%-1.5rem)/4)]',
               active ? 'ring-2 ring-rose-500' : 'hover:ring-2 hover:ring-rose-200',
             )}
           >

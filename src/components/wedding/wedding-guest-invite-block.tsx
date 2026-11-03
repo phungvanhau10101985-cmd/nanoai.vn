@@ -30,6 +30,8 @@ type Props = {
   addressClassName?: string
   personalInviteText?: string
   personalInviteClassName?: string
+  /** Tên trong câu mời giữ font của câu, chỉ đậm. Tên lớn phía trên vẫn thư pháp. */
+  plainBodyName?: boolean
   compact?: boolean
   /** Vỏ thiệp trên điện thoại: chữ và lề sát hơn để nút còn trong màn. */
   dense?: boolean
@@ -46,7 +48,10 @@ export function WeddingGuestInviteBlock(props: Props) {
   const mapsHref = resolveGuestInviteMapUrl(props.mapUrl ?? '', address)
   const mapColors = props.buttonColor ?? getWeddingMapButtonColors(props.weddingThemeId)
 
-  const guestNameClass = cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none', props.nameClassName)
+  const guestNameClass = cn(
+    props.plainBodyName ? 'font-semibold' : cn(WEDDING_GUEST_NAME_CLASS, 'text-[1.45em] leading-none'),
+    props.nameClassName,
+  )
 
   return (
     <div className={cn(props.className)}>

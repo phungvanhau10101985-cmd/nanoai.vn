@@ -60,13 +60,18 @@
   .wedding-song-hy-card,
   [data-wedding-paper='scallop'] [data-wedding-glass] {
     background: #fff6ea !important;
-    color: #7a1c28;
+    color: #4a1218;
     border: 1px solid rgba(184, 138, 74, 0.55);
     border-radius: 1.75rem;
     box-shadow:
       inset 0 0 0 5px #fff6ea,
       inset 0 0 0 6px rgba(184, 138, 74, 0.45),
       0 16px 36px rgba(40, 0, 10, 0.16);
+  }
+  [data-wedding-paper='scallop'] [data-wedding-glass] .wedding-guest-name {
+    font-weight: 700;
+    color: #4a1218;
+    text-shadow: none;
   }
   /* File input overlay - chọn ảnh hoạt động tốt trên mobile */
   .file-input-overlay {

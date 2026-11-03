@@ -6,6 +6,7 @@
  */
 import type { WeddingCard } from '@/lib/db/wedding-cards-pg'
 import { findWeddingBackgroundPreset, labelForWeddingBackgroundPreset, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingKitFramePatch, weddingReadyBackgroundSectionPatch, weddingThemeOpenCelebration } from '@/lib/wedding/wedding-background-presets'
+import { WEDDING_LEAF_CARDS, WEDDING_MOON_CARDS, type WeddingGateToneId, type WeddingMoonShape } from '@/lib/wedding/wedding-cover-presets'
 import { weddingOrnamentLayoutKey } from '@/lib/wedding/wedding-background-ornament-store'
 import { clearWeddingFrameChoice, mergeWeddingSectionConfig, parseWeddingSectionConfig, stringifyWeddingSectionConfig, withoutPrivateShell } from '@/lib/wedding/wedding-section-config'
 import type { WebLocale } from '@/lib/i18n/config'
@@ -41,6 +42,8 @@ export type WeddingSampleCard = {
   occasionKey?: string
   /** 0 giữ mép trên, để khung vuông không cắt trán. */
   coverPhotoPositionY?: number
+  /** Kéo mặt ngang trong khung. 50 là giữa. */
+  coverPhotoPositionX?: number
 }
 
 /** Khóa bố cục dùng chung của một thiệp mẫu. Quản trị sửa trên bản xem thử thì mọi khách của mẫu đó đọc khóa này. */
@@ -98,6 +101,59 @@ function librarySample(input: {
   }
 }
 
+const MOON_SAMPLE_PHOTO: Record<WeddingGateToneId, { folder: string; dressCode: string }> = {
+  lacquer: { folder: 'song-hy-do', dressCode: 'Trang phục lịch sự, tông đỏ, kem hoặc vàng.' },
+  lotus: { folder: 'sen-vang', dressCode: 'Trang phục lịch sự, tông kem, vàng hoặc trắng.' },
+  pearl: { folder: 'hong-ngoc-trai', dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.' },
+  night: { folder: 'ai-modern', dressCode: 'Trang phục lịch sự, tông đen, trắng hoặc vàng champagne.' },
+  sea: { folder: 'ai-minimal', dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh biển.' },
+}
+
+function moonSampleCards(): WeddingSampleCard[] {
+  return WEDDING_MOON_CARDS.map((card) => {
+    const photo = MOON_SAMPLE_PHOTO[card.paper]
+    const folder = `/wedding/samples/${photo.folder}`
+    const positionY = moonSamplePositionY(card.shape)
+    return {
+      id: card.backgroundId,
+      backgroundPresetId: card.backgroundId,
+      coverPhotoUrl: `${folder}/cover.png`,
+      groomImageUrl: `${folder}/groom.png`,
+      brideImageUrl: `${folder}/bride.png`,
+      albumImageUrls: [`${folder}/album-1.png`, `${folder}/album-2.png`],
+      dressCode: photo.dressCode,
+      coverPhotoPositionY: positionY,
+    }
+  })
+}
+
+function moonSamplePositionY(shape: WeddingMoonShape): number {
+  if (shape === 'star') return 8
+  return 18
+}
+
+function leafSamplePositionY(paper: WeddingGateToneId): number {
+  if (paper === 'lotus') return 42
+  return 22
+}
+
+function leafSampleCards(): WeddingSampleCard[] {
+  return WEDDING_LEAF_CARDS.map((card) => {
+    const photo = MOON_SAMPLE_PHOTO[card.paper]
+    const folder = `/wedding/samples/${photo.folder}`
+    return {
+      id: card.backgroundId,
+      backgroundPresetId: card.backgroundId,
+      coverPhotoUrl: `${folder}/cover.png`,
+      groomImageUrl: `${folder}/groom.png`,
+      brideImageUrl: `${folder}/bride.png`,
+      albumImageUrls: [`${folder}/album-1.png`, `${folder}/album-2.png`],
+      dressCode: photo.dressCode,
+      coverPhotoPositionY: leafSamplePositionY(card.paper),
+    }
+  })
+}
+
 export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
   {
     id: 'toi-gian-nau',
@@ -148,6 +204,98 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     dressCode: 'Trang phục lịch sự, tông đỏ, kem hoặc vàng.',
     coverPhotoPositionY: 0,
   },
+  {
+    id: 're-quat',
+    backgroundPresetId: 're-quat',
+    coverPhotoUrl: '/wedding/samples/song-hy-do/cover.png',
+    groomImageUrl: '/wedding/samples/song-hy-do/groom.png',
+    brideImageUrl: '/wedding/samples/song-hy-do/bride.png',
+    albumImageUrls: ['/wedding/samples/song-hy-do/album-1.png', '/wedding/samples/song-hy-do/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đỏ, kem hoặc vàng.',
+    coverPhotoPositionY: 18,
+  },
+  {
+    id: 're-quat-sen',
+    backgroundPresetId: 're-quat-sen',
+    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
+    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
+    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
+    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, vàng hoặc trắng.',
+    coverPhotoPositionY: 18,
+  },
+  {
+    id: 're-quat-ngoc',
+    backgroundPresetId: 're-quat-ngoc',
+    coverPhotoUrl: '/wedding/samples/hong-ngoc-trai/cover.png',
+    groomImageUrl: '/wedding/samples/hong-ngoc-trai/groom.png',
+    brideImageUrl: '/wedding/samples/hong-ngoc-trai/bride.png',
+    albumImageUrls: ['/wedding/samples/hong-ngoc-trai/album-1.png', '/wedding/samples/hong-ngoc-trai/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+    coverPhotoPositionY: 18,
+  },
+  {
+    id: 're-quat-dem',
+    backgroundPresetId: 're-quat-dem',
+    coverPhotoUrl: '/wedding/samples/ai-modern/cover.png',
+    groomImageUrl: '/wedding/samples/ai-modern/groom.png',
+    brideImageUrl: '/wedding/samples/ai-modern/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-modern/album-1.png', '/wedding/samples/ai-modern/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đen, trắng hoặc vàng champagne.',
+    coverPhotoPositionY: 18,
+  },
+  {
+    id: 're-quat-bien',
+    backgroundPresetId: 're-quat-bien',
+    coverPhotoUrl: '/wedding/samples/ai-minimal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-minimal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-minimal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-minimal/album-1.png', '/wedding/samples/ai-minimal/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh biển.',
+    coverPhotoPositionY: 18,
+  },
+  {
+    id: 'vom-sen',
+    backgroundPresetId: 'vom-sen',
+    coverPhotoUrl: '/wedding/samples/sen-vang/cover.png',
+    groomImageUrl: '/wedding/samples/sen-vang/groom.png',
+    brideImageUrl: '/wedding/samples/sen-vang/bride.png',
+    albumImageUrls: ['/wedding/samples/sen-vang/album-1.png', '/wedding/samples/sen-vang/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông kem, vàng hoặc trắng.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'vom-ngoc',
+    backgroundPresetId: 'vom-ngoc',
+    coverPhotoUrl: '/wedding/samples/hong-ngoc-trai/cover.png',
+    groomImageUrl: '/wedding/samples/hong-ngoc-trai/groom.png',
+    brideImageUrl: '/wedding/samples/hong-ngoc-trai/bride.png',
+    albumImageUrls: ['/wedding/samples/hong-ngoc-trai/album-1.png', '/wedding/samples/hong-ngoc-trai/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'vom-dem',
+    backgroundPresetId: 'vom-dem',
+    coverPhotoUrl: '/wedding/samples/ai-modern/cover.png',
+    groomImageUrl: '/wedding/samples/ai-modern/groom.png',
+    brideImageUrl: '/wedding/samples/ai-modern/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-modern/album-1.png', '/wedding/samples/ai-modern/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông đen, trắng hoặc vàng champagne.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'vom-bien',
+    backgroundPresetId: 'vom-bien',
+    coverPhotoUrl: '/wedding/samples/ai-minimal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-minimal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-minimal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-minimal/album-1.png', '/wedding/samples/ai-minimal/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh biển.',
+    coverPhotoPositionY: 0,
+  },
+  ...moonSampleCards(),
+  ...leafSampleCards(),
   {
     id: 'sen-vang',
     backgroundPresetId: 'sen-vang',
@@ -305,6 +453,46 @@ export const WEDDING_SAMPLE_CARDS: readonly WeddingSampleCard[] = [
     brideImageUrl: '/wedding/samples/do-dam/bride.png',
     albumImageUrls: ['/wedding/samples/do-dam/album-1.png', '/wedding/samples/do-dam/album-2.png'],
     dressCode: 'Trang phục lịch sự, tông đỏ đô, kem hoặc trắng.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'phong-bi-hong',
+    backgroundPresetId: 'phong-bi-hong',
+    coverPhotoUrl: '/wedding/samples/vuon-kinh-hong/cover.png',
+    groomImageUrl: '/wedding/samples/vuon-kinh-hong/groom.png',
+    brideImageUrl: '/wedding/samples/vuon-kinh-hong/bride.png',
+    albumImageUrls: ['/wedding/samples/vuon-kinh-hong/album-1.png', '/wedding/samples/vuon-kinh-hong/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông hồng phấn, kem hoặc trắng.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'phong-bi-reu',
+    backgroundPresetId: 'phong-bi-reu',
+    coverPhotoUrl: '/wedding/samples/to-duyen-xanh/cover.png',
+    groomImageUrl: '/wedding/samples/to-duyen-xanh/groom.png',
+    brideImageUrl: '/wedding/samples/to-duyen-xanh/bride.png',
+    albumImageUrls: ['/wedding/samples/to-duyen-xanh/album-1.png', '/wedding/samples/to-duyen-xanh/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông trắng, kem hoặc xanh rêu.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'phong-bi-dem',
+    backgroundPresetId: 'phong-bi-dem',
+    coverPhotoUrl: '/wedding/samples/ai-modern/cover.png',
+    groomImageUrl: '/wedding/samples/ai-modern/groom.png',
+    brideImageUrl: '/wedding/samples/ai-modern/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-modern/album-1.png', '/wedding/samples/ai-modern/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông xanh đêm, trắng hoặc vàng.',
+    coverPhotoPositionY: 0,
+  },
+  {
+    id: 'phong-bi-nga',
+    backgroundPresetId: 'phong-bi-nga',
+    coverPhotoUrl: '/wedding/samples/ai-ethereal/cover.png',
+    groomImageUrl: '/wedding/samples/ai-ethereal/groom.png',
+    brideImageUrl: '/wedding/samples/ai-ethereal/bride.png',
+    albumImageUrls: ['/wedding/samples/ai-ethereal/album-1.png', '/wedding/samples/ai-ethereal/album-2.png'],
+    dressCode: 'Trang phục lịch sự, tông ngà, kem hoặc trắng.',
     coverPhotoPositionY: 0,
   },
   {
@@ -831,6 +1019,18 @@ export function buildWeddingSampleDemoCard(sample: WeddingSampleCard): WeddingCa
       ...sectionPatch,
       coverPhotoUrl: sample.coverPhotoUrl,
       ...(typeof sample.coverPhotoPositionY === 'number' ? { coverPhotoPositionY: sample.coverPhotoPositionY } : {}),
+      ...(typeof sample.coverPhotoPositionX === 'number' ? { coverPhotoPositionX: sample.coverPhotoPositionX } : {}),
+      // Ảnh demo phong bì ngà chừa tường phía trên đầu. Kéo hai chân dung lên một chút.
+      ...(sample.id === 'phong-bi-nga'
+        ? {
+            groomPhotoPositionX: 50,
+            groomPhotoPositionY: 55,
+            groomPhotoScale: 1.25,
+            bridePhotoPositionX: 50,
+            bridePhotoPositionY: 55,
+            bridePhotoScale: 1.25,
+          }
+        : {}),
     }),
     albumImageUrls: [...sample.albumImageUrls],
     groomParents: facts.groomParents,

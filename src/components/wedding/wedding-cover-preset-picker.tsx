@@ -9,6 +9,9 @@ import {
   DEFAULT_WEDDING_COVER_PRESET_ID,
   labelForWeddingCoverPreset,
   WEDDING_COVER_PRESETS,
+  weddingCoverGateTone,
+  weddingCoverPhotoClip,
+  weddingLeafFrameFor,
   type WeddingCoverPresetTag,
 } from '@/lib/wedding/wedding-cover-presets'
 import { getOrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
@@ -46,11 +49,26 @@ export function CoverPresetThumbnail(props: { preset: (typeof WEDDING_COVER_PRES
     selected ? 'border-rose-500 ring-2 ring-rose-200' : 'border-slate-200 hover:border-rose-300',
   )
   if (preset.layout === 'song_hy') {
+    const tone = weddingCoverGateTone(preset.id)
     return (
       <div className={shell} style={{ background: preset.thumbnail.bottomBg }}>
-        <div className="absolute inset-x-[14%] top-[22%] bottom-[18%] rounded-lg bg-[#9b1c24] shadow-md ring-1 ring-[#f3d27a]/40">
-          <div className="mx-auto mt-3 h-4 w-4 rounded-full border border-[#f3d27a]" />
-          <div className={cn('mt-1 text-center font-serif text-[9px]', preset.thumbnail.textClass)}>A & B</div>
+        <div className="absolute inset-x-[14%] top-[12%] bottom-[12%] rounded-lg shadow-md" style={{ background: tone.card, boxShadow: tone.glow }}>
+          <div className="mx-auto mt-2 h-3 w-3 rounded-full border" style={{ borderColor: tone.accent }} />
+          {preset.photoHead === 'leaf' ? (
+            <img src={weddingLeafFrameFor(preset.id).src} alt="" draggable={false} className="mx-auto mt-1 h-10 w-10 object-contain" />
+          ) : (
+          <div
+            className={cn(
+              'mx-auto mt-1 border bg-[linear-gradient(180deg,#c45a62_0%,#f3d7c4_18%,#8a3038_100%)]',
+              preset.photoHead === 'fan' ? 'h-8 w-12'
+              : preset.photoHead === 'star' ? 'h-8 w-8'
+              : preset.photoHead === 'moon' ? 'h-8 w-8'
+              : 'h-9 w-7 rounded-t-full rounded-b-sm',
+            )}
+            style={{ borderColor: tone.frame, ...(weddingCoverPhotoClip(preset.photoHead) ? { clipPath: weddingCoverPhotoClip(preset.photoHead) } : {}) }}
+          />
+          )}
+          <div className="mt-0.5 text-center font-serif text-[9px]" style={{ color: tone.ink }}>A & B</div>
         </div>
       </div>
     )

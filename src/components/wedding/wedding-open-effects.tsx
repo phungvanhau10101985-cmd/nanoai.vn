@@ -538,7 +538,14 @@ const PATTERN_TWIN: Record<string, string> = {
 }
 
 function lookFor(themeId: string | undefined, lookId?: string): EffectLook {
-  const named = lookId === 'phong-bi-thu' ? 'do-dam' : lookId
+  const envelopeTwin: Record<string, string> = {
+    'phong-bi-thu': 'do-dam',
+    'phong-bi-hong': 'hoa-dao',
+    'phong-bi-reu': 'to-duyen-xanh',
+    'phong-bi-dem': 'dem-vang',
+    'phong-bi-nga': 'lua-ao-dai',
+  }
+  const named = (lookId && envelopeTwin[lookId]) || lookId
   const key = named ? PATTERN_TWIN[named] ?? named : named
   if (key && LOOKS[key]) return LOOKS[key]!
   const theme = themeId ? PATTERN_TWIN[themeId] ?? themeId : 'luxury'

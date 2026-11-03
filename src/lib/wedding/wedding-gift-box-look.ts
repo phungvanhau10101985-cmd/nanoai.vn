@@ -1,4 +1,5 @@
 /** Hộp mừng đi theo bộ nền. Nền đỏ giữ hộp son. Nền khác đổi màu, dấu niêm và hạt trang trí. */
+import { WEDDING_LEAF_CARDS, WEDDING_MOON_CARDS, type WeddingGateToneId } from '@/lib/wedding/wedding-cover-presets'
 import { WEDDING_SAMPLE_CARDS } from '@/lib/wedding/wedding-sample-cards'
 
 export type WeddingGiftBoxMark = 'double-happiness' | 'lotus' | 'leaf' | 'rose' | 'ring'
@@ -487,15 +488,47 @@ const DUONG: WeddingGiftBoxLook = {
   photo: '/wedding/gifts/duong-lam.webp',
 }
 
+const FAN_SEN: WeddingGiftBoxLook = { ...LOTUS, id: 're-quat-sen' }
+const FAN_NGOC: WeddingGiftBoxLook = { ...PEARL, id: 're-quat-ngoc' }
+const FAN_DEM: WeddingGiftBoxLook = { ...DEM, id: 're-quat-dem' }
+const FAN_BIEN: WeddingGiftBoxLook = { ...BIEN, id: 're-quat-bien' }
+
+const VOM_SEN: WeddingGiftBoxLook = { ...LOTUS, id: 'vom-sen' }
+const VOM_NGOC: WeddingGiftBoxLook = { ...PEARL, id: 'vom-ngoc' }
+const VOM_DEM: WeddingGiftBoxLook = { ...DEM, id: 'vom-dem' }
+const VOM_BIEN: WeddingGiftBoxLook = { ...BIEN, id: 'vom-bien' }
+
+const ENVELOPE_HONG: WeddingGiftBoxLook = { ...BLUSH, id: 'envelope-hong' }
+const ENVELOPE_REU: WeddingGiftBoxLook = { ...SAGE, id: 'envelope-reu' }
+const ENVELOPE_DEM: WeddingGiftBoxLook = { ...DEM, id: 'envelope-dem' }
+const ENVELOPE_NGA: WeddingGiftBoxLook = { ...LUA, id: 'envelope-nga' }
+
 const DAO_VAN: WeddingGiftBoxLook = { ...DAO, id: 'dao-van' }
 const BIEN_VAN: WeddingGiftBoxLook = { ...BIEN, id: 'bien-van' }
 const DEM_VAN: WeddingGiftBoxLook = { ...DEM, id: 'dem-van' }
 const LUA_VAN: WeddingGiftBoxLook = { ...LUA, id: 'lua-van' }
 
+const MOON_GIFT_BASE: Record<WeddingGateToneId, WeddingGiftBoxLook> = {
+  lacquer: SONG_HY,
+  lotus: LOTUS,
+  pearl: PEARL,
+  night: DEM,
+  sea: BIEN,
+}
+
 const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'long-phung-do': LACQUER,
   'do-son': LACQUER,
   'song-hy-do': SONG_HY,
+  're-quat': SONG_HY,
+  're-quat-sen': FAN_SEN,
+  're-quat-ngoc': FAN_NGOC,
+  're-quat-dem': FAN_DEM,
+  're-quat-bien': FAN_BIEN,
+  'vom-sen': VOM_SEN,
+  'vom-ngoc': VOM_NGOC,
+  'vom-dem': VOM_DEM,
+  'vom-bien': VOM_BIEN,
   'sen-vang': LOTUS,
   'hoa-moc-xanh': WOOD,
   'to-duyen-xanh': SAGE,
@@ -514,6 +547,10 @@ const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'lua-van': LUA_VAN,
   'do-dam': BURGUNDY,
   'phong-bi-thu': ENVELOPE_GIFT,
+  'phong-bi-hong': ENVELOPE_HONG,
+  'phong-bi-reu': ENVELOPE_REU,
+  'phong-bi-dem': ENVELOPE_DEM,
+  'phong-bi-nga': ENVELOPE_NGA,
   'chua-mot-cot': CHUA,
   'van-mieu': VAN_MIEU,
   'cho-ben-thanh': CHO,
@@ -521,6 +558,8 @@ const BY_PRESET: Record<string, WeddingGiftBoxLook> = {
   'lang-bac': LANG,
   'que-nghe-an': QUE,
   'duong-lam': DUONG,
+  ...Object.fromEntries(WEDDING_MOON_CARDS.map((card) => [card.backgroundId, { ...MOON_GIFT_BASE[card.paper], id: card.backgroundId }])),
+  ...Object.fromEntries(WEDDING_LEAF_CARDS.map((card) => [card.backgroundId, { ...MOON_GIFT_BASE[card.paper], id: card.backgroundId }])),
 }
 
 const BY_STYLE: Record<string, WeddingGiftBoxLook> = {

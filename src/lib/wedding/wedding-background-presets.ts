@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { WebLocale } from '@/lib/i18n/config'
 import type { WeddingButtonColorId } from '@/lib/wedding/wedding-button-colors'
-import { findWeddingCoverPreset, weddingCoverPresetFollowsBackground } from '@/lib/wedding/wedding-cover-presets'
+import { findWeddingCoverPreset, WEDDING_LEAF_CARDS, WEDDING_MOON_CARDS, weddingCoverPresetFollowsBackground, type WeddingGateToneId, type WeddingLeafCard, type WeddingMoonCard } from '@/lib/wedding/wedding-cover-presets'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 import {
   WEDDING_DESKTOP_HEIGHT,
@@ -541,13 +541,13 @@ const SONG_HY_LOOK: WeddingKitLook = {
   styleId: 'traditional_vietnamese',
   buttonColorId: 'cream',
   coverRsvpColorId: 'ivory',
-  ink: '#7a1c28',
-  muted: '#8d4a42',
-  accent: '#9a1c2c',
-  textClass: 'text-[#7a1c28]',
-  mutedClass: 'text-[#8d4a42]',
-  accentClass: 'text-[#9a1c2c]',
-  accentTextClass: 'text-[#6e1824]',
+  ink: '#4a1218',
+  muted: '#5c241c',
+  accent: '#6e1824',
+  textClass: 'text-[#4a1218]',
+  mutedClass: 'text-[#5c241c]',
+  accentClass: 'text-[#6e1824]',
+  accentTextClass: 'text-[#4a1218]',
   textPlate: 'rgba(255,246,234,0.94)',
   fontClass: 'wedding-font-formal',
   shareFont: FORMAL_FONT,
@@ -926,6 +926,46 @@ const LOTUS_LOOK: WeddingKitLook = {
   shareFont: SOFT_FONT,
 }
 
+const MOON_PAPER_KIT: Record<WeddingGateToneId, { plates: readonly string[]; ornaments: readonly WeddingBackgroundOrnament[]; look: WeddingKitLook }> = {
+  lacquer: { plates: ['/wedding/backgrounds/song-hy-do.svg'], ornaments: SONG_HY_ORNAMENTS, look: SONG_HY_LOOK },
+  lotus: { plates: ['/wedding/backgrounds/sen-vang.jpg'], ornaments: LOTUS_ORNAMENTS, look: LOTUS_LOOK },
+  pearl: {
+    plates: [
+      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
+    ],
+    ornaments: PEARL_ORNAMENTS,
+    look: PEARL_LOOK,
+  },
+  night: { plates: ['/wedding/backgrounds/dem-vang-paper.jpg'], ornaments: DEM_ORNAMENTS, look: DEM_LOOK },
+  sea: { plates: ['/wedding/backgrounds/bien-paper.jpg'], ornaments: BIEN_ORNAMENTS, look: BIEN_LOOK },
+}
+
+function moonBackgroundPreset(card: WeddingMoonCard): WeddingBackgroundPreset {
+  const kit = MOON_PAPER_KIT[card.paper]
+  return {
+    id: card.backgroundId,
+    plates: kit.plates,
+    ornaments: kit.ornaments,
+    coverPresetId: card.coverId,
+    look: kit.look,
+    label: card.label,
+  }
+}
+
+function leafBackgroundPreset(card: WeddingLeafCard): WeddingBackgroundPreset {
+  const kit = MOON_PAPER_KIT[card.paper]
+  return {
+    id: card.backgroundId,
+    plates: kit.plates,
+    ornaments: kit.ornaments,
+    coverPresetId: card.coverId,
+    look: kit.look,
+    label: card.label,
+  }
+}
+
 /**
  * Bộ nền có sẵn. Chọn một bộ là đổi nền, khung, hoa nổi, màu nút, màu chữ, nền chữ và kiểu chữ.
  * plates nằm dưới ảnh và chữ. ornaments là ảnh hoa nổi trên chữ.
@@ -1013,6 +1053,142 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
       ko: '쌍희 빨강',
     },
   },
+  {
+    id: 're-quat',
+    plates: ['/wedding/backgrounds/song-hy-do.svg'],
+    ornaments: SONG_HY_ORNAMENTS,
+    coverPresetId: 're_quat',
+    look: SONG_HY_LOOK,
+    label: {
+      vi: 'Rẻ quạt đỏ',
+      en: 'Red folding fan',
+      zh: '红折扇',
+      ja: '赤の扇',
+      ko: '붉은 부채',
+    },
+  },
+  {
+    id: 're-quat-sen',
+    plates: ['/wedding/backgrounds/sen-vang.jpg'],
+    ornaments: LOTUS_ORNAMENTS,
+    coverPresetId: 're_quat_sen',
+    look: LOTUS_LOOK,
+    label: {
+      vi: 'Rẻ quạt sen vàng',
+      en: 'Gold lotus fan',
+      zh: '金莲折扇',
+      ja: '金蓮の扇',
+      ko: '금련 부채',
+    },
+  },
+  {
+    id: 're-quat-ngoc',
+    plates: [
+      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
+    ],
+    ornaments: PEARL_ORNAMENTS,
+    coverPresetId: 're_quat_ngoc',
+    look: PEARL_LOOK,
+    label: {
+      vi: 'Rẻ quạt ngọc trai',
+      en: 'Pearl fan',
+      zh: '珍珠折扇',
+      ja: '真珠の扇',
+      ko: '진주 부채',
+    },
+  },
+  {
+    id: 're-quat-dem',
+    plates: ['/wedding/backgrounds/dem-vang-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 're_quat_dem',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Rẻ quạt đêm vàng',
+      en: 'Gold night fan',
+      zh: '夜金折扇',
+      ja: '金の夜の扇',
+      ko: '금빛 밤 부채',
+    },
+  },
+  {
+    id: 're-quat-bien',
+    plates: ['/wedding/backgrounds/bien-paper.jpg'],
+    ornaments: BIEN_ORNAMENTS,
+    coverPresetId: 're_quat_bien',
+    look: BIEN_LOOK,
+    label: {
+      vi: 'Rẻ quạt biển',
+      en: 'Seaside fan',
+      zh: '海边折扇',
+      ja: '海辺の扇',
+      ko: '해변 부채',
+    },
+  },
+  {
+    id: 'vom-sen',
+    plates: ['/wedding/backgrounds/sen-vang.jpg'],
+    ornaments: LOTUS_ORNAMENTS,
+    coverPresetId: 'vom_sen',
+    look: LOTUS_LOOK,
+    label: {
+      vi: 'Vòm sen vàng',
+      en: 'Gold lotus arch',
+      zh: '金莲拱门',
+      ja: '金蓮のアーチ',
+      ko: '금련 아치',
+    },
+  },
+  {
+    id: 'vom-ngoc',
+    plates: [
+      '/wedding/backgrounds/hong-ngoc-trai-1.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-wash.jpg',
+      '/wedding/backgrounds/hong-ngoc-trai-2.jpg',
+    ],
+    ornaments: PEARL_ORNAMENTS,
+    coverPresetId: 'vom_ngoc',
+    look: PEARL_LOOK,
+    label: {
+      vi: 'Vòm ngọc trai',
+      en: 'Pearl arch',
+      zh: '珍珠拱门',
+      ja: '真珠のアーチ',
+      ko: '진주 아치',
+    },
+  },
+  {
+    id: 'vom-dem',
+    plates: ['/wedding/backgrounds/dem-vang-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 'vom_dem',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Vòm đêm vàng',
+      en: 'Gold night arch',
+      zh: '夜金拱门',
+      ja: '金の夜のアーチ',
+      ko: '금빛 밤 아치',
+    },
+  },
+  {
+    id: 'vom-bien',
+    plates: ['/wedding/backgrounds/bien-paper.jpg'],
+    ornaments: BIEN_ORNAMENTS,
+    coverPresetId: 'vom_bien',
+    look: BIEN_LOOK,
+    label: {
+      vi: 'Vòm biển',
+      en: 'Seaside arch',
+      zh: '海边拱门',
+      ja: '海辺のアーチ',
+      ko: '해변 아치',
+    },
+  },
+  ...WEDDING_MOON_CARDS.map(moonBackgroundPreset),
+  ...WEDDING_LEAF_CARDS.map(leafBackgroundPreset),
   {
     id: 'sen-vang',
     plates: ['/wedding/backgrounds/sen-vang.jpg'],
@@ -1252,11 +1428,67 @@ export const WEDDING_BACKGROUND_PRESETS: WeddingBackgroundPreset[] = [
     coverPresetId: 'phong_bi',
     look: DO_DAM_LOOK,
     label: {
-      vi: 'Phong bì thư',
-      en: 'Letter envelope',
-      zh: '信封',
-      ja: '封筒',
-      ko: '편지 봉투',
+      vi: 'Phong bì đỏ đô',
+      en: 'Burgundy envelope',
+      zh: '酒红信封',
+      ja: 'バーガンディの封筒',
+      ko: '버건디 봉투',
+    },
+  },
+  {
+    id: 'phong-bi-hong',
+    plates: ['/wedding/backgrounds/phong-bi-hong-paper.jpg'],
+    ornaments: GARDEN_ORNAMENTS,
+    coverPresetId: 'phong_bi_hong',
+    look: DAO_LOOK,
+    label: {
+      vi: 'Phong bì hồng',
+      en: 'Blush envelope',
+      zh: '粉信封',
+      ja: '淡いピンクの封筒',
+      ko: '블러시 봉투',
+    },
+  },
+  {
+    id: 'phong-bi-reu',
+    plates: ['/wedding/backgrounds/phong-bi-reu-paper.jpg'],
+    ornaments: CALLA_ORNAMENTS,
+    coverPresetId: 'phong_bi_reu',
+    look: CALLA_LOOK,
+    label: {
+      vi: 'Phong bì rêu',
+      en: 'Sage envelope',
+      zh: '苔绿信封',
+      ja: 'セージの封筒',
+      ko: '세이지 봉투',
+    },
+  },
+  {
+    id: 'phong-bi-dem',
+    plates: ['/wedding/backgrounds/phong-bi-dem-paper.jpg'],
+    ornaments: DEM_ORNAMENTS,
+    coverPresetId: 'phong_bi_dem',
+    look: DEM_LOOK,
+    label: {
+      vi: 'Phong bì đêm',
+      en: 'Navy envelope',
+      zh: '夜蓝信封',
+      ja: '紺の封筒',
+      ko: '네이비 봉투',
+    },
+  },
+  {
+    id: 'phong-bi-nga',
+    plates: ['/wedding/backgrounds/phong-bi-nga-paper.jpg'],
+    ornaments: LUA_ORNAMENTS,
+    coverPresetId: 'phong_bi_nga',
+    look: LUA_LOOK,
+    label: {
+      vi: 'Phong bì ngà',
+      en: 'Ivory envelope',
+      zh: '象牙信封',
+      ja: '象牙色の封筒',
+      ko: '아이보리 봉투',
     },
   },
   {
@@ -1573,6 +1805,14 @@ export type WeddingThemeOpenCelebration = {
 
 const DEFAULT_THEME_OPEN: WeddingThemeOpenCelebration = { openBurstEffect: 'bloom', openFallEffect: 'petals' }
 
+const MOON_THEME_OPEN: Record<WeddingGateToneId, WeddingThemeOpenCelebration> = {
+  lacquer: { openBurstEffect: 'gold', openFallEffect: 'lanterns' },
+  lotus: { openBurstEffect: 'bloom', openFallEffect: 'gold' },
+  pearl: { openBurstEffect: 'butterflies', openFallEffect: 'petals' },
+  night: { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  sea: { openBurstEffect: 'petals', openFallEffect: 'none' },
+}
+
 /** Một kiểu bung và một kiểu rơi cho đúng chất chủ đề. */
 const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'toi-gian-nau': { openBurstEffect: 'stars', openFallEffect: 'none' },
@@ -1580,6 +1820,17 @@ const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'long-phung-do': { openBurstEffect: 'gold', openFallEffect: 'fireworks' },
   'do-son': { openBurstEffect: 'fireworks', openFallEffect: 'lanterns' },
   'song-hy-do': { openBurstEffect: 'gold', openFallEffect: 'lanterns' },
+  're-quat': { openBurstEffect: 'gold', openFallEffect: 'lanterns' },
+  're-quat-sen': { openBurstEffect: 'bloom', openFallEffect: 'gold' },
+  're-quat-ngoc': { openBurstEffect: 'butterflies', openFallEffect: 'petals' },
+  're-quat-dem': { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  're-quat-bien': { openBurstEffect: 'petals', openFallEffect: 'none' },
+  'vom-sen': { openBurstEffect: 'bloom', openFallEffect: 'gold' },
+  'vom-ngoc': { openBurstEffect: 'butterflies', openFallEffect: 'petals' },
+  'vom-dem': { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  'vom-bien': { openBurstEffect: 'petals', openFallEffect: 'none' },
+  ...Object.fromEntries(WEDDING_MOON_CARDS.map((card) => [card.backgroundId, MOON_THEME_OPEN[card.paper]])),
+  ...Object.fromEntries(WEDDING_LEAF_CARDS.map((card) => [card.backgroundId, MOON_THEME_OPEN[card.paper]])),
   'sen-vang': { openBurstEffect: 'bloom', openFallEffect: 'gold' },
   'hong-ngoc-trai': { openBurstEffect: 'butterflies', openFallEffect: 'petals' },
   'vuon-hong-troi': { openBurstEffect: 'butterflies', openFallEffect: 'stars' },
@@ -1596,6 +1847,10 @@ const THEME_OPEN: Record<string, WeddingThemeOpenCelebration> = {
   'lua-van': { openBurstEffect: 'petals', openFallEffect: 'none' },
   'do-dam': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'phong-bi-thu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
+  'phong-bi-hong': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
+  'phong-bi-reu': { openBurstEffect: 'bloom', openFallEffect: 'none' },
+  'phong-bi-dem': { openBurstEffect: 'stars', openFallEffect: 'gold' },
+  'phong-bi-nga': { openBurstEffect: 'petals', openFallEffect: 'none' },
   'chua-mot-cot': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
   'van-mieu': { openBurstEffect: 'petals', openFallEffect: 'petals' },
   'cho-ben-thanh': { openBurstEffect: 'bloom', openFallEffect: 'petals' },
@@ -1754,8 +2009,8 @@ export function applyWeddingKitTheme(theme: WeddingTheme, preset: WeddingBackgro
       panelStrong: plate,
       panelGlass: plate,
       panelUi: plate,
-      textGlow: '[text-shadow:0_1px_0_rgba(255,248,236,0.4)]',
-      textGlowHeading: '[text-shadow:0_1px_0_rgba(255,248,236,0.55)]',
+      textGlow: '',
+      textGlowHeading: '',
       nav: 'border-[#e8c87a]/30 bg-[#4e1018]/92 text-[#f6e4b8] shadow-[0_4px_24px_rgba(0,0,0,0.28)]',
       ring: 'ring-[#e8c87a]/35',
     }

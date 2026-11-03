@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 
@@ -15,6 +15,7 @@ const FILE_LAYER_Z = 260
 export function WeddingDeviceFileInput(props: {
   label: ReactNode
   className?: string
+  style?: CSSProperties
   accept?: string
   multiple?: boolean
   disabled?: boolean
@@ -133,6 +134,7 @@ export function WeddingDeviceFileInput(props: {
     <span
       ref={anchorRef}
       data-wedding-file-anchor=""
+      style={props.style}
       className={cn(
         'relative inline-flex shrink-0 cursor-pointer items-center justify-center',
         props.className,

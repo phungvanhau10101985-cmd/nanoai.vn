@@ -138,14 +138,14 @@ export function WeddingEventCalendarBlock({
 
   if (!dateIso && !eventDate) return null
 
-  const ink = onCreamPaper ? 'text-[#7a1c28]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink text-[#556b47]'
-  const inkSoft = onCreamPaper ? 'text-[#8d4038]' : onDarkPaper ? 'text-[#fff6e4]' : 'wedding-cal-ink-soft text-[#556b47]/85'
-  const labelInk = onCreamPaper ? 'text-[#6e2a32]' : onDarkPaper ? 'text-[#fff6e4]' : 'wedding-cal-ink-soft text-[#556b47]/80'
-  const strong = onCreamPaper ? 'text-[#5c121c]' : onDarkPaper ? 'text-[#fffaf0]' : 'wedding-cal-ink text-[#3d4a32]'
-  const line = onCreamPaper ? 'border-[#7a1c28]/40' : onDarkPaper ? 'border-[#f3d27a]/45' : 'border-[#556b47]/25'
+  const ink = onCreamPaper ? 'text-[#4a1218]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink text-[#556b47]'
+  const inkSoft = onCreamPaper ? 'text-[#5c241c]' : onDarkPaper ? 'text-[#fff6e4]' : 'wedding-cal-ink-soft text-[#556b47]/85'
+  const labelInk = onCreamPaper ? 'text-[#4a1218]' : onDarkPaper ? 'text-[#fff6e4]' : 'wedding-cal-ink-soft text-[#556b47]/80'
+  const strong = onCreamPaper ? 'text-[#3d1016]' : onDarkPaper ? 'text-[#fffaf0]' : 'wedding-cal-ink text-[#3d4a32]'
+  const line = onCreamPaper ? 'border-[#4a1218]/45' : onDarkPaper ? 'border-[#f3d27a]/45' : 'border-[#556b47]/25'
   const rule = onCreamPaper ? 'border-[#b48a4a]/80' : onDarkPaper ? 'border-[#f3d27a]/35' : 'border-[#556b47]/20'
-  const dayInk = onCreamPaper ? 'text-[#7a1c28]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink-soft text-[#556b47]/85'
-  const heartInk = onCreamPaper ? 'text-[#9a1c2c]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink text-[#556b47]'
+  const dayInk = onCreamPaper ? 'text-[#4a1218]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink-soft text-[#556b47]/85'
+  const heartInk = onCreamPaper ? 'text-[#6e1824]' : onDarkPaper ? 'text-[#fff0cc]' : 'wedding-cal-ink text-[#556b47]'
   const welcomeDisplay = receptionTime || tx.timePlaceholderDash
   const partyDisplay = partyTime || tx.timePlaceholderDash
   const mainPartyDisplay = partyTime || receptionTime || tx.timePlaceholderDash
@@ -200,7 +200,7 @@ export function WeddingEventCalendarBlock({
             <div className={cn('px-2 text-center', compact ? 'text-[10px]' : 'text-[11px] sm:text-xs')}>
               <p className="leading-snug">{banner.weekdayUpper}</p>
               {locale === 'vi' && enTx ? (
-                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#8d4038]' : 'opacity-75')}>
+                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#5c241c]' : 'opacity-75')}>
                   {formatBannerDateLine('en', eventDate!).weekdayUpper}
                 </p>
               ) : null}
@@ -218,7 +218,7 @@ export function WeddingEventCalendarBlock({
             <div className={cn('border-l px-2 text-center', line, compact ? 'text-[10px]' : 'text-[11px] sm:text-xs')}>
               <p className="leading-snug">{banner.monthUpper}</p>
               {locale === 'vi' && enTx ? (
-                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#8d4038]' : 'opacity-75')}>
+                <p className={cn('mt-0.5 text-[9px] font-normal normal-case sm:text-[10px]', onCreamPaper ? 'text-[#5c241c]' : 'opacity-75')}>
                   {formatBannerDateLine('en', eventDate!).monthUpper}
                 </p>
               ) : null}
