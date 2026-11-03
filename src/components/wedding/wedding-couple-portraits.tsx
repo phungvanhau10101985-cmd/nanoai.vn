@@ -3,6 +3,8 @@
 import { cn } from '@/lib/utils'
 import { albumPhotoFrameStyle, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame } from '@/lib/wedding/wedding-section-config'
 import { FrameEdgeGrips, FrameScaleDragBar, WeddingFramedPhoto, type FrameScaleEdit } from '@/components/wedding/wedding-cover-shell-card'
+import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
+import { centeredFrameBoxStyle } from '@/lib/wedding/wedding-section-config'
 import type { WeddingTheme } from '@/lib/wedding/wedding-theme'
 
 const PORTRAIT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
@@ -25,18 +27,19 @@ function Portrait(props: {
   choosePhotoLabel?: string
   chooseFrameLabel?: string
   onChoosePhoto?: () => void
+  onPhotoFile?: (file: File) => void
   onChooseFrame?: () => void
   frameScaleEdit?: FrameScaleEdit
 }) {
   const nameText = props.name.trim() || props.label
   const frameStyle = albumPhotoFrameStyle(props.frame)
-  const editable = Boolean(props.onChoosePhoto && props.onChooseFrame)
+  const editable = Boolean(props.onChoosePhoto || props.onPhotoFile || props.onChooseFrame)
   const frameScale = props.frameScale && props.frameScale > 0 ? props.frameScale : 1
   return (
-    <div className="flex w-full justify-center">
+    <div className="relative w-full min-w-0">
     <figure
-      className="group relative shrink-0"
-      style={{ width: `${Math.round(frameScale * 1000) / 10}%` }}
+      className="group relative"
+      style={centeredFrameBoxStyle(Math.round(frameScale * 1000) / 10)}
       onClick={editable ? () => props.onChooseFrame?.() : undefined}
     >
       <div className="relative">
@@ -84,10 +87,20 @@ function Portrait(props: {
         </p>
       </figcaption>
       {editable ? (
-        <div className="pointer-events-none absolute inset-0 z-[4] flex items-end justify-center gap-1.5 bg-gradient-to-t from-black/50 via-black/10 to-transparent p-2 opacity-0 transition group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100">
+        <div className="absolute inset-x-0 bottom-2 z-[4] flex justify-center gap-1.5 px-2">
+          {props.onPhotoFile ? (
+            <WeddingDeviceFileInput
+              className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
+              label={props.choosePhotoLabel ?? ''}
+              onFiles={(files) => {
+                const file = files[0]
+                if (file) props.onPhotoFile?.(file)
+              }}
+            />
+          ) : props.onChoosePhoto ? (
           <button
             type="button"
-            className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
+            className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
             onClick={(event) => {
               event.stopPropagation()
               props.onChoosePhoto?.()
@@ -95,9 +108,11 @@ function Portrait(props: {
           >
             {props.choosePhotoLabel}
           </button>
+          ) : null}
+          {props.onChooseFrame ? (
           <button
             type="button"
-            className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
+            className="rounded-full bg-white px-2.5 py-1 text-[10px] font-medium text-stone-800 shadow sm:text-[11px]"
             onClick={(event) => {
               event.stopPropagation()
               props.onChooseFrame?.()
@@ -105,6 +120,7 @@ function Portrait(props: {
           >
             {props.chooseFrameLabel}
           </button>
+          ) : null}
         </div>
       ) : null}
     </figure>
@@ -134,7 +150,10 @@ export function WeddingCouplePortraits(props: {
   choosePhotoLabel?: string
   chooseFrameLabel?: string
   onChoosePhoto?: (side: 'groom' | 'bride') => void
+  onPhotoFile?: (side: 'groom' | 'bride', file: File) => void
   onChooseFrame?: (side: 'groom' | 'bride') => void
+  /** Editor: hiện khung trống để chọn ảnh. */
+  showEmpty?: boolean
   /** Một thanh cỡ khung cho cả hai ảnh. */
   pairFrameScaleEdit?: FrameScaleEdit
   groomFrameScaleEdit?: FrameScaleEdit
@@ -142,10 +161,10 @@ export function WeddingCouplePortraits(props: {
 }) {
   const groomImageUrl = props.groomImageUrl.trim()
   const brideImageUrl = props.brideImageUrl.trim()
-  if (!groomImageUrl && !brideImageUrl) return null
+  if (!groomImageUrl && !brideImageUrl && !props.showEmpty) return null
   const showSecondary = props.layout === 'primary'
-    ? Boolean(brideImageUrl)
-    : Boolean(brideImageUrl || props.brideName.trim())
+    ? Boolean(brideImageUrl || props.showEmpty)
+    : Boolean(brideImageUrl || props.brideName.trim() || props.showEmpty)
   if (!showSecondary) {
     return (
       <div className={cn('mx-auto w-full max-w-[16rem]', props.className)}>
@@ -161,6 +180,7 @@ export function WeddingCouplePortraits(props: {
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
           frameScaleEdit={props.groomFrameScaleEdit}
         />
@@ -183,6 +203,7 @@ export function WeddingCouplePortraits(props: {
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
           frameScaleEdit={props.groomFrameScaleEdit ?? props.pairFrameScaleEdit}
         />
@@ -198,6 +219,7 @@ export function WeddingCouplePortraits(props: {
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
+          onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
           frameScaleEdit={props.brideFrameScaleEdit}
         />
@@ -220,6 +242,7 @@ export function WeddingCouplePortraits(props: {
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('groom') : undefined}
+          onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('groom', file) : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('groom') : undefined}
         />
         <span
@@ -245,6 +268,7 @@ export function WeddingCouplePortraits(props: {
           choosePhotoLabel={props.choosePhotoLabel}
           chooseFrameLabel={props.chooseFrameLabel}
           onChoosePhoto={props.onChoosePhoto ? () => props.onChoosePhoto?.('bride') : undefined}
+          onPhotoFile={props.onPhotoFile ? (file) => props.onPhotoFile?.('bride', file) : undefined}
           onChooseFrame={props.onChooseFrame ? () => props.onChooseFrame?.('bride') : undefined}
           frameScaleEdit={props.pairFrameScaleEdit ? undefined : props.brideFrameScaleEdit}
         />

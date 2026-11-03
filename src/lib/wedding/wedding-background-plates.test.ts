@@ -393,7 +393,7 @@ test('a ready background replaces the old frame so both columns share the new lo
   assert.equal(next.coverPresetId, preset.coverPresetId)
   assert.equal(next.coverAiFrameUrl, undefined)
   assert.equal(next.buttonColorId, preset.look.buttonColorId)
-  assert.equal(next.heroPhotoLayout, undefined)
+  assert.equal(next.heroPhotoLayout, 'single')
   assert.equal(weddingHeroPhotoLayout(preset), 'single')
   const shown = resolveShownCoverFrame(next, preset.coverPresetId, null)
   assert.equal(shown.mode, 'preset')

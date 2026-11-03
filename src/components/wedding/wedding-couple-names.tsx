@@ -31,6 +31,38 @@ function tightenCoupleName(el: HTMLHeadingElement) {
   }
 }
 
+export type WeddingCoupleNameEdit = {
+  value: string
+  onChange: (value: string) => void
+  onFocus?: () => void
+  label: string
+}
+
+function CoupleNameField(props: {
+  edit?: WeddingCoupleNameEdit
+  text: string
+  flyIn?: boolean
+  from?: 'left' | 'right'
+}) {
+  if (props.edit) {
+    return (
+      <input
+        aria-label={props.edit.label}
+        data-wedding-text={props.from === 'right' ? 'brideName' : 'groomName'}
+        value={props.edit.value}
+        onChange={(event) => props.edit?.onChange(event.target.value)}
+        onFocus={props.edit.onFocus}
+        className="min-w-[3rem] max-w-[46%] truncate bg-transparent text-center outline-none ring-1 ring-dashed ring-rose-300/90 [font:inherit] [color:inherit]"
+      />
+    )
+  }
+  return (
+    <span className={cn('inline-block max-w-full whitespace-nowrap', props.flyIn && (props.from === 'right' ? 'wedding-couple-from-right' : 'wedding-couple-from-left'))}>
+      {props.text}
+    </span>
+  )
+}
+
 /** Tên hiện bằng nét sâu theo chủ đề, gặp nhau ở dấu &. */
 export function WeddingCoupleNames(props: {
   groomName: string
@@ -41,9 +73,13 @@ export function WeddingCoupleNames(props: {
   /** reveal = chạy vào lúc cửa thiệp chính mở. opened = tên bay vào rồi từng câu hiện tiếp. */
   pace?: 'cover' | 'reveal' | 'opened'
   className?: string
+  groomEdit?: WeddingCoupleNameEdit
+  brideEdit?: WeddingCoupleNameEdit
 }) {
-  const groomName = props.groomName.trim()
-  const brideName = props.layout === 'primary' ? '' : props.brideName.trim()
+  const editing = Boolean(props.groomEdit || props.brideEdit)
+  const groomName = (props.groomEdit?.value ?? props.groomName).trim()
+  const brideName = props.layout === 'primary' ? '' : (props.brideEdit?.value ?? props.brideName).trim()
+  const flyIn = props.flyIn && !editing
   const ref = useRef<HTMLHeadingElement>(null)
   useLayoutEffect(() => {
     const el = ref.current
@@ -57,20 +93,24 @@ export function WeddingCoupleNames(props: {
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [groomName, brideName])
+  }, [brideName, editing, groomName])
 
   const frame = cn(
     'w-full min-w-0 max-w-full',
-    props.flyIn && props.pace === 'reveal' && 'wedding-couple-pace-reveal',
-    props.flyIn && props.pace === 'opened' && 'wedding-couple-pace-opened',
+    flyIn && props.pace === 'reveal' && 'wedding-couple-pace-reveal',
+    flyIn && props.pace === 'opened' && 'wedding-couple-pace-opened',
     props.className,
   )
   const fitStyle = { fontSize: coupleNameFallbackSize(groomName, brideName) }
 
-  if (!brideName) {
+  if (!brideName && !props.brideEdit) {
     return (
       <h1 ref={ref} className={cn('flex items-baseline justify-center', frame)} style={fitStyle}>
-        <span className={cn('inline-block max-w-full', props.flyIn ? 'whitespace-nowrap' : 'break-words', props.flyIn && 'wedding-couple-from-left')}>{groomName}</span>
+        {props.groomEdit ? (
+          <CoupleNameField edit={props.groomEdit} text={groomName} />
+        ) : (
+          <span className={cn('inline-block max-w-full', flyIn ? 'whitespace-nowrap' : 'break-words', flyIn && 'wedding-couple-from-left')}>{groomName}</span>
+        )}
       </h1>
     )
   }
@@ -80,9 +120,9 @@ export function WeddingCoupleNames(props: {
       className={cn('flex flex-nowrap items-baseline justify-center gap-x-[0.35em]', frame)}
       style={fitStyle}
     >
-      <span className={cn('inline-block max-w-full whitespace-nowrap', props.flyIn && 'wedding-couple-from-left')}>{groomName}</span>
-      <span className={cn('shrink-0', props.flyIn && 'wedding-couple-amp')}>&</span>
-      <span className={cn('inline-block max-w-full whitespace-nowrap', props.flyIn && 'wedding-couple-from-right')}>{brideName}</span>
+      <CoupleNameField edit={props.groomEdit} text={groomName} flyIn={flyIn} from="left" />
+      <span className={cn('shrink-0', flyIn && 'wedding-couple-amp')}>&</span>
+      <CoupleNameField edit={props.layout === 'primary' ? undefined : props.brideEdit} text={brideName} flyIn={flyIn} from="right" />
     </h1>
   )
 }

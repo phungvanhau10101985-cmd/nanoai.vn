@@ -30,6 +30,13 @@ type Props = {
   addressClassName?: string
   personalInviteText?: string
   personalInviteClassName?: string
+  /** Editor: sửa lời mời ngay trên khối thân mời. */
+  inviteEdit?: {
+    value: string
+    onChange: (value: string) => void
+    onFocus?: () => void
+    label: string
+  }
   /** Tên trong câu mời giữ font của câu, chỉ đậm. Tên lớn phía trên vẫn thư pháp. */
   plainBodyName?: boolean
   compact?: boolean
@@ -77,7 +84,20 @@ export function WeddingGuestInviteBlock(props: Props) {
         >
           {name}
         </p>
-        {props.personalInviteText?.trim() ? (
+        {props.inviteEdit ? (
+          <textarea
+            aria-label={props.inviteEdit.label}
+            data-wedding-text="invite"
+            value={props.inviteEdit.value}
+            onFocus={props.inviteEdit.onFocus}
+            onChange={(event) => props.inviteEdit?.onChange(event.target.value)}
+            rows={4}
+            className={cn(
+              'mx-auto mt-3 w-full max-w-prose resize-y rounded-xl border border-dashed border-rose-300 bg-white/80 px-2 py-1.5 text-center text-xs leading-6 text-stone-900 sm:text-sm',
+              props.personalInviteClassName,
+            )}
+          />
+        ) : props.personalInviteText?.trim() ? (
           <p
             className={cn(
               'mx-auto max-w-prose whitespace-pre-line text-center',

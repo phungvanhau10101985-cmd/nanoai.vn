@@ -91,7 +91,7 @@ import { normalizeWeddingDateToIso } from '@/lib/wedding/wedding-date-normalize'
 import { normalizeGuestInviteVenue } from '@/lib/wedding/wedding-guest-invite-venue'
 import { invitationComposeBrief, invitationComposeNamesReady } from '@/lib/wedding/invitation-compose'
 import { invitationOccasionShape, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
-import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readHeroPhotoLayout, readTextStyles, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
+import { applyClientWeddingSectionConfig, applyWeddingFrameChoice, clearWeddingFrameChoice, forgetPrivateDeviceShell, mergeWeddingSectionConfig, parseWeddingDeviceShell, parseWeddingSectionConfig, readHeroPhotoLayout, readTextStyles, resolveCoverPhotoUrl, stringifyWeddingSectionConfig } from '@/lib/wedding/wedding-section-config'
 import { requireGoogleApiKeyForUser } from '@/lib/ai/google-api-key-resolver'
 import {
   isWeddingPolishField,
@@ -600,8 +600,36 @@ export async function saveWeddingPreviewEdit(
     brideInviteReceptionTime?: string
     groomInviteWeddingDate?: string
     brideInviteWeddingDate?: string
+    loveQuote?: string
+    invitationText?: string
+    invitationTextEn?: string
+    dressCode?: string
+    eventTimeline?: string
+    groomParents?: string
+    brideParents?: string
+    groomHometown?: string
+    brideHometown?: string
+    mapUrl?: string
+    groomInviteMapUrl?: string
+    brideInviteMapUrl?: string
+    groomInviteContact?: string
+    brideInviteContact?: string
+    groomInvitePartyStartTime?: string
+    brideInvitePartyStartTime?: string
+    groomInviteEventTimeline?: string
+    brideInviteEventTimeline?: string
     sectionConfig?: string
     textStyles?: unknown
+    effectsEnabled?: boolean
+    rsvpEnabled?: boolean
+    giftQrEnabled?: boolean
+    giftQrImageUrl?: string
+    groomGiftBankId?: string
+    groomGiftAccountNo?: string
+    groomGiftAccountName?: string
+    brideGiftBankId?: string
+    brideGiftAccountNo?: string
+    brideGiftAccountName?: string
   },
 ) {
   const access = await assertWeddingCardOrnamentEditor(cardId)
@@ -625,7 +653,35 @@ export async function saveWeddingPreviewEdit(
     brideInviteReceptionTime: clipPreviewText(patch.brideInviteReceptionTime, 40),
     groomInviteWeddingDate: date(patch.groomInviteWeddingDate),
     brideInviteWeddingDate: date(patch.brideInviteWeddingDate),
+    loveQuote: clipPreviewText(patch.loveQuote, 500),
+    invitationText: clipPreviewText(patch.invitationText, 4000),
+    invitationTextEn: clipPreviewText(patch.invitationTextEn, 4000),
+    dressCode: clipPreviewText(patch.dressCode, 2000),
+    eventTimeline: clipPreviewText(patch.eventTimeline, 4000),
+    groomParents: clipPreviewText(patch.groomParents, 500),
+    brideParents: clipPreviewText(patch.brideParents, 500),
+    groomHometown: clipPreviewText(patch.groomHometown, 300),
+    brideHometown: clipPreviewText(patch.brideHometown, 300),
+    mapUrl: clipPreviewText(patch.mapUrl, 500),
+    groomInviteMapUrl: clipPreviewText(patch.groomInviteMapUrl, 500),
+    brideInviteMapUrl: clipPreviewText(patch.brideInviteMapUrl, 500),
+    groomInviteContact: clipPreviewText(patch.groomInviteContact, 200),
+    brideInviteContact: clipPreviewText(patch.brideInviteContact, 200),
+    groomInvitePartyStartTime: clipPreviewText(patch.groomInvitePartyStartTime, 40),
+    brideInvitePartyStartTime: clipPreviewText(patch.brideInvitePartyStartTime, 40),
+    groomInviteEventTimeline: clipPreviewText(patch.groomInviteEventTimeline, 4000),
+    brideInviteEventTimeline: clipPreviewText(patch.brideInviteEventTimeline, 4000),
     sectionConfig: previewSectionConfig(existing.sectionConfig, patch, access.templateEditor),
+    effectsEnabled: typeof patch.effectsEnabled === 'boolean' ? patch.effectsEnabled : undefined,
+    rsvpEnabled: typeof patch.rsvpEnabled === 'boolean' ? patch.rsvpEnabled : undefined,
+    giftQrEnabled: typeof patch.giftQrEnabled === 'boolean' ? patch.giftQrEnabled : undefined,
+    giftQrImageUrl: clipPreviewText(patch.giftQrImageUrl, 500),
+    groomGiftBankId: clipPreviewText(patch.groomGiftBankId, 20),
+    groomGiftAccountNo: clipPreviewText(patch.groomGiftAccountNo, 40),
+    groomGiftAccountName: clipPreviewText(patch.groomGiftAccountName, 120),
+    brideGiftBankId: clipPreviewText(patch.brideGiftBankId, 20),
+    brideGiftAccountNo: clipPreviewText(patch.brideGiftAccountNo, 40),
+    brideGiftAccountName: clipPreviewText(patch.brideGiftAccountName, 120),
   }
   try {
     const saved = await patchWeddingCardPreview(cardId, access.ownerUserId, next)
@@ -635,6 +691,83 @@ export async function saveWeddingPreviewEdit(
   }
   if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
   return { ok: true as const }
+}
+
+/** Kho nhạc và khung cho bản sửa trên xem thử. */
+export async function loadWeddingPreviewTools() {
+  const auth = await getUserForCreditAction()
+  if ('error' in auth) return { error: auth.error }
+  const [musicLibrary, frameLibrary] = await Promise.all([
+    listWeddingMusicLibrary(),
+    listWeddingCoverFrameLibrary(),
+  ])
+  return { musicLibrary, frameLibrary }
+}
+
+/** Ảnh vỏ, chân dung, album và nhạc ngay trên bản xem thử. */
+export async function saveWeddingPreviewMedia(formData: FormData) {
+  const cardId = clean(formData.get('cardId'), 80)
+  const access = await assertWeddingCardOrnamentEditor(cardId)
+  if ('error' in access) return { error: access.error }
+  const existing = await getWeddingCardForUser(cardId, access.ownerUserId)
+  if (!existing) return { error: 'denied' as const }
+  let sectionConfig = existing.sectionConfig
+  let groomImageUrl = existing.groomImageUrl
+  let brideImageUrl = existing.brideImageUrl
+  let albumImageUrls = existing.albumImageUrls
+  let musicUrl = existing.musicUrl
+  try {
+    const uploadedCover = await uploadWeddingReferenceImage(access.ownerUserId, cardId, 'cover', formData.get('coverImage'))
+    const uploadedGroom = await uploadWeddingReferenceImage(access.ownerUserId, cardId, 'groom', formData.get('groomImage'))
+    const uploadedBride = await uploadWeddingReferenceImage(access.ownerUserId, cardId, 'bride', formData.get('brideImage'))
+    if (uploadedCover) sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: uploadedCover })
+    else if (boolValue(formData.get('coverClear'))) sectionConfig = mergeWeddingSectionConfig(sectionConfig, { coverPhotoUrl: '' })
+    if (uploadedGroom) groomImageUrl = uploadedGroom
+    else if (boolValue(formData.get('groomImageClear'))) groomImageUrl = ''
+    if (uploadedBride) brideImageUrl = uploadedBride
+    else if (boolValue(formData.get('brideImageClear'))) brideImageUrl = ''
+    const albumField = formData.get('albumImageUrls')
+    if (typeof albumField === 'string') {
+      albumImageUrls = albumField
+        .split('\n')
+        .map((url) => url.trim())
+        .filter(Boolean)
+        .slice(0, 30)
+    }
+    const uploadedAlbum = await uploadWeddingAlbumImages(access.ownerUserId, cardId, formData.getAll('albumImages'))
+    if (uploadedAlbum.length) albumImageUrls = [...albumImageUrls, ...uploadedAlbum].slice(0, 30)
+    if (boolValue(formData.get('musicClear'))) {
+      musicUrl = ''
+    } else {
+      const libraryPick = clean(formData.get('musicLibraryUrl'), 2000)
+      if (libraryPick && (isWeddingMusicSeedUrl(libraryPick) || (await weddingMusicLibraryHasUrl(libraryPick)))) {
+        musicUrl = libraryPick
+      }
+    }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'unavailable' as const }
+  }
+  try {
+    const saved = await patchWeddingCardPreview(cardId, access.ownerUserId, {
+      sectionConfig,
+      groomImageUrl,
+      brideImageUrl,
+      albumImageUrls,
+      musicUrl,
+    })
+    if (!saved) return { error: 'unavailable' as const }
+  } catch {
+    return { error: 'unavailable' as const }
+  }
+  if (access.slug) revalidatePath(`/thiep-moi-cuoi/${access.slug}`)
+  return {
+    ok: true as const,
+    coverPhotoUrl: resolveCoverPhotoUrl(parseWeddingSectionConfig(sectionConfig)),
+    groomImageUrl,
+    brideImageUrl,
+    albumImageUrls,
+    musicUrl,
+  }
 }
 
 /** Thiệp đang sửa nhận nền, khung, hoa và màu của mẫu. Chữ và ảnh thật giữ nguyên. */

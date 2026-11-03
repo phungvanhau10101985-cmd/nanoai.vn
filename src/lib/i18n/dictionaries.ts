@@ -3963,6 +3963,18 @@ export type Dictionary = {
     previewMobile: string
     previewCover: string
     previewLetter: string
+    previewQuote: string
+    previewInvite: string
+    previewInviteEn: string
+    previewTimelineAdd: string
+    previewTimelineRemove: string
+    previewMapUrl: string
+    previewContact: string
+    previewPartyTime: string
+    previewAlbumLayout: string
+    previewGiftEnable: string
+    previewRsvpEnable: string
+    previewEffectsEnable: string
     previewDeviceHint: string
     previewColumnNote: string
     previewRefresh: string
@@ -8494,6 +8506,18 @@ export const VI_DICTIONARY: Dictionary = {
     previewMobile: 'Điện thoại',
     previewCover: 'Vỏ thiệp',
     previewLetter: 'Nội dung thiệp',
+    previewQuote: 'Câu quote',
+    previewInvite: 'Lời mời',
+    previewInviteEn: 'Lời mời tiếng Anh',
+    previewTimelineAdd: 'Thêm mục',
+    previewTimelineRemove: 'Xóa',
+    previewMapUrl: 'Link bản đồ',
+    previewContact: 'Liên hệ',
+    previewPartyTime: 'Giờ khai tiệc',
+    previewAlbumLayout: 'Kiểu album',
+    previewGiftEnable: 'Bật hộp mừng cưới',
+    previewRsvpEnable: 'Bật xác nhận tham dự',
+    previewEffectsEnable: 'Bật hiệu ứng thiệp',
     previewDeviceHint: 'Preview là bản điện thoại. Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu tới đó.',
     previewColumnNote: 'Chọn nền hoặc giao diện bên trái thì cột này đổi theo ngay. Sửa hoa văn tới đâu tự lưu vào thiệp này tới đó.',
     previewRefresh: 'Cập nhật preview',

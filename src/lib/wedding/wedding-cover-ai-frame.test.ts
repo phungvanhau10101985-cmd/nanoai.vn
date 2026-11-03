@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell, weddingFrameScalePercent } from './wedding-section-config'
+import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell, centeredFrameSlackPercent, weddingFrameScalePercent } from './wedding-section-config'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -179,6 +179,9 @@ test('frame size stays per photo and 120% is the 100% floor', () => {
   assert.equal(resolvePortraitFrameScale(parseWeddingSectionConfig('{}'), 'bride'), 1.2)
   assert.equal(weddingFrameScalePercent(1.2), 100)
   assert.equal(weddingFrameScalePercent(1.8), 150)
+  assert.equal(centeredFrameSlackPercent(100), 0)
+  assert.equal(centeredFrameSlackPercent(120), -10)
+  assert.equal(centeredFrameSlackPercent(80), 10)
   const saved = mergeWeddingSectionConfig('{"coverPresetId":"classic_red"}', {
     coverFrameScale: 1.25,
     groomPortraitFrameScale: 0.8,

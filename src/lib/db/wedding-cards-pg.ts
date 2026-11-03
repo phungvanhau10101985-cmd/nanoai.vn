@@ -583,7 +583,39 @@ export async function patchWeddingCardPreview(
     brideInviteReceptionTime?: string
     groomInviteWeddingDate?: string
     brideInviteWeddingDate?: string
+    loveQuote?: string
+    invitationText?: string
+    invitationTextEn?: string
+    dressCode?: string
+    eventTimeline?: string
+    groomParents?: string
+    brideParents?: string
+    groomHometown?: string
+    brideHometown?: string
+    mapUrl?: string
+    groomInviteMapUrl?: string
+    brideInviteMapUrl?: string
+    groomInviteContact?: string
+    brideInviteContact?: string
+    groomInvitePartyStartTime?: string
+    brideInvitePartyStartTime?: string
+    groomInviteEventTimeline?: string
+    brideInviteEventTimeline?: string
     sectionConfig?: string
+    groomImageUrl?: string
+    brideImageUrl?: string
+    albumImageUrls?: string[]
+    musicUrl?: string
+    effectsEnabled?: boolean
+    rsvpEnabled?: boolean
+    giftQrEnabled?: boolean
+    giftQrImageUrl?: string
+    groomGiftBankId?: string
+    groomGiftAccountNo?: string
+    groomGiftAccountName?: string
+    brideGiftBankId?: string
+    brideGiftAccountNo?: string
+    brideGiftAccountName?: string
   },
 ): Promise<WeddingCard | null> {
   requirePg()
@@ -610,9 +642,53 @@ export async function patchWeddingCardPreview(
   text('bride_invite_reception_time', patch.brideInviteReceptionTime)
   date('groom_invite_wedding_date', patch.groomInviteWeddingDate)
   date('bride_invite_wedding_date', patch.brideInviteWeddingDate)
+  text('love_quote', patch.loveQuote)
+  text('invitation_text', patch.invitationText)
+  text('invitation_text_en', patch.invitationTextEn)
+  text('dress_code', patch.dressCode)
+  text('event_timeline', patch.eventTimeline)
+  text('groom_parents', patch.groomParents)
+  text('bride_parents', patch.brideParents)
+  text('groom_hometown', patch.groomHometown)
+  text('bride_hometown', patch.brideHometown)
+  text('map_url', patch.mapUrl)
+  text('groom_invite_map_url', patch.groomInviteMapUrl)
+  text('bride_invite_map_url', patch.brideInviteMapUrl)
+  text('groom_invite_contact', patch.groomInviteContact)
+  text('bride_invite_contact', patch.brideInviteContact)
+  text('groom_invite_party_start_time', patch.groomInvitePartyStartTime)
+  text('bride_invite_party_start_time', patch.brideInvitePartyStartTime)
+  text('groom_invite_event_timeline', patch.groomInviteEventTimeline)
+  text('bride_invite_event_timeline', patch.brideInviteEventTimeline)
   text('section_config', patch.sectionConfig)
   if (patch.sectionConfig !== undefined) {
     sets[sets.length - 1] = `section_config = coalesce(nullif($${values.length}, '')::jsonb, '{}'::jsonb)`
+  }
+  text('groom_image_url', patch.groomImageUrl)
+  text('bride_image_url', patch.brideImageUrl)
+  text('music_url', patch.musicUrl)
+  text('gift_qr_image_url', patch.giftQrImageUrl)
+  text('groom_gift_bank_id', patch.groomGiftBankId)
+  text('groom_gift_account_no', patch.groomGiftAccountNo)
+  text('groom_gift_account_name', patch.groomGiftAccountName)
+  text('bride_gift_bank_id', patch.brideGiftBankId)
+  text('bride_gift_account_no', patch.brideGiftAccountNo)
+  text('bride_gift_account_name', patch.brideGiftAccountName)
+  const flag = (column: string, value: boolean | undefined) => {
+    if (value === undefined) return
+    values.push(value)
+    sets.push(`${column} = $${values.length}`)
+  }
+  flag('effects_enabled', patch.effectsEnabled)
+  flag('rsvp_enabled', patch.rsvpEnabled)
+  flag('gift_qr_enabled', patch.giftQrEnabled)
+  if (patch.musicUrl === '') {
+    sets.push('music_play_start_sec = null')
+    sets.push('music_play_end_sec = null')
+  }
+  if (patch.albumImageUrls) {
+    values.push(patch.albumImageUrls)
+    sets.push(`album_image_urls = $${values.length}::text[]`)
   }
   if (!sets.length) return getWeddingCardForUser(cardId, userId)
   sets.push(`updated_at = timezone('utc'::text, now())`)

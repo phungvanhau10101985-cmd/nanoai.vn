@@ -160,6 +160,15 @@ export function readHeroPhotoLayout(value: unknown): WeddingHeroPhotoLayout {
   return value === 'stack' ? 'stack' : 'single'
 }
 
+/** Bố cục đã chọn trên thiệp thắng bộ nền. Chưa chọn thì theo mẫu nền. */
+export function resolveShownHeroLayout(
+  config: Pick<WeddingSectionConfig, 'heroPhotoLayout'>,
+  fallback: WeddingHeroPhotoLayout,
+): WeddingHeroPhotoLayout {
+  if (config.heroPhotoLayout === 'stack' || config.heroPhotoLayout === 'single') return config.heroPhotoLayout
+  return fallback === 'stack' ? 'stack' : 'single'
+}
+
 /** Zoom và điểm neo của một ảnh album khi hiện trên thiệp. Gắn theo vị trí trong danh sách ảnh. */
 export type WeddingAlbumPhotoCrop = {
   index: number
@@ -206,6 +215,31 @@ export function clampWeddingFrameScale(value: number): number {
 /** 1.2 hiện là 100%. 1.8 hiện là 150%. */
 export function weddingFrameScalePercent(scale: number): number {
   return Math.round((clampWeddingFrameScale(scale) / WEDDING_FRAME_SCALE_MIN) * 100)
+}
+
+/** Khoảng trống mỗi bên để khung vẫn nằm giữa khi rộng hơn ô cha. Âm thì tràn ra ngoài. */
+export function centeredFrameSlackPercent(widthPercent: number): number {
+  if (!Number.isFinite(widthPercent)) return 0
+  return (100 - widthPercent) / 2
+}
+
+/**
+ * Rộng theo phần trăm ô cha, lề hai bên cùng một khoảng.
+ * 120% thì mỗi bên −10%: mép trái và mép phải tràn đều, không dồn sang phải.
+ */
+export function centeredFrameBoxStyle(widthPercent: number): {
+  width: string
+  marginLeft: string
+  marginRight: string
+  maxWidth: 'none'
+} {
+  const edge = `${centeredFrameSlackPercent(widthPercent)}%`
+  return {
+    width: `${widthPercent}%`,
+    marginLeft: edge,
+    marginRight: edge,
+    maxWidth: 'none',
+  }
 }
 
 function readFrameScale(value: unknown): number | undefined {
@@ -570,7 +604,7 @@ export function parseWeddingSectionConfig(raw: string | null | undefined): Weddi
       coverFrameChosen: obj.coverFrameChosen === true ? true : undefined,
       buttonColorId: isWeddingButtonColorId(obj.buttonColorId) ? obj.buttonColorId : undefined,
       coverRsvpColorId: isWeddingButtonColorId(obj.coverRsvpColorId) ? obj.coverRsvpColorId : undefined,
-      heroPhotoLayout: obj.heroPhotoLayout === 'stack' ? 'stack' : undefined,
+      heroPhotoLayout: obj.heroPhotoLayout === 'stack' ? 'stack' : obj.heroPhotoLayout === 'single' ? 'single' : undefined,
       ...readStackPlaceFields(obj),
       stackGroomFrameRotate: readStackFrameRotate(obj.stackGroomFrameRotate),
       stackBrideFrameRotate: readStackFrameRotate(obj.stackBrideFrameRotate),
@@ -635,7 +669,7 @@ export function stringifyWeddingSectionConfig(config: WeddingSectionConfig): str
   if (config.coverFrameChosen) payload.coverFrameChosen = true
   if (isWeddingButtonColorId(config.buttonColorId)) payload.buttonColorId = config.buttonColorId
   if (isWeddingButtonColorId(config.coverRsvpColorId)) payload.coverRsvpColorId = config.coverRsvpColorId
-  if (config.heroPhotoLayout === 'stack') payload.heroPhotoLayout = 'stack'
+  if (config.heroPhotoLayout === 'stack' || config.heroPhotoLayout === 'single') payload.heroPhotoLayout = config.heroPhotoLayout
   writeStackPlace(payload, config)
   writeStackRotate(payload, config)
   if (config.deviceShell?.desktop || config.deviceShell?.mobile) payload.deviceShell = config.deviceShell
@@ -893,6 +927,131 @@ export function applyWeddingFrameChoice(existingRaw: string | null | undefined, 
     next.coverAiFrameInk = client.coverAiFrameInk
   }
   return stringifyWeddingSectionConfig(next)
+}
+
+export type WeddingPreviewFrameChoice =
+  | { kind: 'kit' }
+  | { kind: 'none' }
+  | { kind: 'preset'; id: string }
+  | { kind: 'library'; item: { imageUrl: string; hole: WeddingCoverAiFrameHole; panel: string; ink?: 'dark' | 'light' } }
+
+function previewFrameChoiceClientRaw(
+  choice: Exclude<WeddingPreviewFrameChoice, { kind: 'kit' }>,
+  side: 'cover' | 'groom' | 'bride' | 'pair',
+): string {
+  const config: WeddingSectionConfig = {}
+  const portrait = (who: 'groom' | 'bride') => {
+    if (choice.kind === 'none') {
+      if (who === 'groom') {
+        config.groomPortraitFrameChosen = true
+        config.groomPortraitShellMode = 'none'
+      } else {
+        config.bridePortraitFrameChosen = true
+        config.bridePortraitShellMode = 'none'
+      }
+      return
+    }
+    if (choice.kind === 'preset') {
+      if (who === 'groom') {
+        config.groomPortraitFrameChosen = true
+        config.groomPortraitShellMode = 'preset'
+        config.groomPortraitShellPresetId = choice.id
+      } else {
+        config.bridePortraitFrameChosen = true
+        config.bridePortraitShellMode = 'preset'
+        config.bridePortraitShellPresetId = choice.id
+      }
+      return
+    }
+    if (who === 'groom') {
+      config.groomPortraitFrameChosen = true
+      config.groomPortraitShellMode = 'library'
+      config.groomPortraitShellUrl = choice.item.imageUrl
+      config.groomPortraitShellHole = choice.item.hole
+      config.groomPortraitShellPanel = choice.item.panel
+    } else {
+      config.bridePortraitFrameChosen = true
+      config.bridePortraitShellMode = 'library'
+      config.bridePortraitShellUrl = choice.item.imageUrl
+      config.bridePortraitShellHole = choice.item.hole
+      config.bridePortraitShellPanel = choice.item.panel
+    }
+  }
+  if (side === 'cover') {
+    if (choice.kind === 'none') {
+      config.coverFrameChosen = true
+      config.coverFrameMode = 'none'
+    } else if (choice.kind === 'preset') {
+      config.coverFrameChosen = true
+      config.coverFrameMode = 'preset'
+      config.coverPresetId = choice.id
+    } else {
+      config.coverFrameChosen = true
+      config.coverFrameMode = 'library'
+      config.coverAiFrameUrl = choice.item.imageUrl
+      config.coverAiFrameHole = choice.item.hole
+      config.coverAiFramePanel = choice.item.panel
+      config.coverAiFrameInk = choice.item.ink === 'light' ? 'light' : 'dark'
+    }
+  } else if (side === 'pair') {
+    portrait('groom')
+    portrait('bride')
+  } else {
+    portrait(side)
+  }
+  return stringifyWeddingSectionConfig(config)
+}
+
+/** Ghi khung khách chọn trên bản sửa. Theo nền thì gỡ lựa chọn riêng. */
+export function applyPreviewFrameChoice(
+  raw: string | null | undefined,
+  choice: WeddingPreviewFrameChoice,
+  side: 'cover' | 'groom' | 'bride' | 'pair',
+): string {
+  if (choice.kind === 'kit') return clearWeddingFrameChoice(raw, side)
+  return applyWeddingFrameChoice(raw, previewFrameChoiceClientRaw(choice, side))
+}
+
+export function weddingPreviewFrameSelectionKey(
+  config: WeddingSectionConfig,
+  side: 'cover' | 'groom' | 'bride',
+): string {
+  if (side === 'cover') {
+    if (!config.coverFrameChosen) return 'kit'
+    if (config.coverFrameMode === 'none') return 'none'
+    if (config.coverFrameMode === 'preset' && config.coverPresetId?.trim()) return config.coverPresetId.trim()
+    if ((config.coverFrameMode === 'library' || config.coverFrameMode === 'ai') && config.coverAiFrameUrl?.trim()) {
+      return `library:${config.coverAiFrameUrl.trim()}`
+    }
+    return 'kit'
+  }
+  const chosen = side === 'groom' ? config.groomPortraitFrameChosen : config.bridePortraitFrameChosen
+  const mode = side === 'groom' ? config.groomPortraitShellMode : config.bridePortraitShellMode
+  const presetId = side === 'groom' ? config.groomPortraitShellPresetId : config.bridePortraitShellPresetId
+  const url = side === 'groom' ? config.groomPortraitShellUrl : config.bridePortraitShellUrl
+  if (!chosen) return 'kit'
+  if (mode === 'none') return 'none'
+  if (mode === 'preset' && presetId?.trim()) return presetId.trim()
+  if (mode === 'library' && url?.trim()) return `library:${url.trim()}`
+  return 'kit'
+}
+
+export function weddingPortraitCropPatch(
+  side: 'groom' | 'bride',
+  patch: { positionX?: number; positionY?: number; scale?: number },
+): Partial<WeddingSectionConfig> {
+  if (side === 'groom') {
+    return {
+      ...(patch.positionX !== undefined ? { groomPhotoPositionX: patch.positionX } : {}),
+      ...(patch.positionY !== undefined ? { groomPhotoPositionY: patch.positionY } : {}),
+      ...(patch.scale !== undefined ? { groomPhotoScale: patch.scale } : {}),
+    }
+  }
+  return {
+    ...(patch.positionX !== undefined ? { bridePhotoPositionX: patch.positionX } : {}),
+    ...(patch.positionY !== undefined ? { bridePhotoPositionY: patch.positionY } : {}),
+    ...(patch.scale !== undefined ? { bridePhotoScale: patch.scale } : {}),
+  }
 }
 
 /** Bỏ lựa chọn riêng của một vị trí để vị trí đó theo khung mặc định của nền. */

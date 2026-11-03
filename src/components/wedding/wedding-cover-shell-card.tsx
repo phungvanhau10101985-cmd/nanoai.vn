@@ -12,10 +12,10 @@ import './wedding-cover-intro.css'
 import { getOrnamentComposition, type OrnamentComposition } from '@/lib/wedding/wedding-ornament-layouts'
 import { WeddingOrnamentStage } from '@/components/wedding/wedding-ornament-stage'
 import type { WeddingCoverFrameAsset } from '@/lib/wedding/wedding-cover-frame-assets'
-import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, clampWeddingFrameScale, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, centeredFrameBoxStyle, clampWeddingFrameScale, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingCoverFrameOpen, type WeddingCoverPhotoOpen, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingStackedCouplePhotos, type WeddingStackedFrameScaleEdit, type WeddingStackedNameEdit, type WeddingStackedPhotoEdit } from '@/components/wedding/wedding-stacked-couple-photos'
 import { WeddingReadableGlass } from '@/components/wedding/wedding-readable-glass'
-import { WeddingCoupleNames } from '@/components/wedding/wedding-couple-names'
+import { WeddingCoupleNames, type WeddingCoupleNameEdit } from '@/components/wedding/wedding-couple-names'
 import { WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
 import { WeddingGuestInviteBlock } from '@/components/wedding/wedding-guest-invite-block'
 import { WeddingSolidCtaButton } from '@/components/wedding/wedding-solid-cta-button'
@@ -85,6 +85,9 @@ type WeddingCoverShellCardProps = {
   brideName: string
   /** primary = một người. Vỏ hai ảnh và dấu & không dùng. */
   nameLayout?: 'pair' | 'primary'
+  /** Editor: bấm tên trên vỏ để sửa chữ. */
+  groomNameEdit?: WeddingCoupleNameEdit
+  brideNameEdit?: WeddingCoupleNameEdit
   weddingDate?: string | null
   weddingTimeText?: string
   guestName?: string
@@ -97,6 +100,12 @@ type WeddingCoverShellCardProps = {
   invitationLabel: string
   cordiallyInvitesLabel: string
   personalInviteText?: string
+  inviteEdit?: {
+    value: string
+    onChange: (value: string) => void
+    onFocus?: () => void
+    label: string
+  }
   openButtonLabel: string
   /** Màu nút Mở thiệp và nút bản đồ trên vỏ. */
   buttonColor?: WeddingButtonColor
@@ -189,6 +198,19 @@ function frameScaleOf(value: number | undefined) {
 
 function frameWidthPercent(base: number, scale: number) {
   return Math.round(base * scale * 10) / 10
+}
+
+/** Cỡ đang hiện 100% giữ đúng `minPercent`. Bấm to thì lớn hơn, vẫn tính từ giữa. */
+function frameWidthFromMin(minPercent: number, scale: number | undefined) {
+  return frameWidthPercent(minPercent, frameScaleOf(scale) / WEDDING_FRAME_SCALE_MIN)
+}
+
+function centeredWidthStyle(style: CSSProperties | undefined): { centered: boolean; style: CSSProperties } {
+  const raw = style?.width
+  if (typeof raw !== 'string' || !raw.endsWith('%')) return { centered: false, style: style ?? {} }
+  const widthPercent = Number.parseFloat(raw)
+  if (!Number.isFinite(widthPercent)) return { centered: false, style: style ?? {} }
+  return { centered: true, style: { ...style, ...centeredFrameBoxStyle(widthPercent) } }
 }
 
 function useFrameScaleDrag(edit: FrameScaleEdit, sign: number) {
@@ -323,8 +345,9 @@ export function FrameScaleDragBar(props: { edit: FrameScaleEdit; className?: str
 }
 
 function FrameResizeChrome(props: { edit?: FrameScaleEdit; className?: string; style?: CSSProperties; children: ReactNode }) {
+  const sized = centeredWidthStyle(props.style)
   const box = props.edit ? (
-    <div className={cn(props.className, props.style?.width != null && 'shrink-0')} style={props.style}>
+    <div className={cn(props.className, sized.centered && 'shrink-0')} style={sized.style}>
       <div className="relative">
         {props.children}
         <FrameEdgeGrips edit={props.edit} />
@@ -332,12 +355,12 @@ function FrameResizeChrome(props: { edit?: FrameScaleEdit; className?: string; s
       <FrameScaleDragBar edit={props.edit} />
     </div>
   ) : (
-    <div className={cn(props.className, props.style?.width != null && 'shrink-0')} style={props.style}>
+    <div className={cn(props.className, sized.centered && 'shrink-0')} style={sized.style}>
       {props.children}
     </div>
   )
-  if (props.style?.width == null) return box
-  return <div className="flex w-full justify-center">{box}</div>
+  if (!sized.centered) return box
+  return <div className="relative w-full">{box}</div>
 }
 
 function coverPhotoBox(edit: CoverPhotoEdit | undefined, objectPosition?: string, scale?: number) {
@@ -622,7 +645,7 @@ function CoverPhoto(props: {
   const portrait = !fill && !aspect && !props.compact && (photoBox === 'fit' || photoBox === 'standard' || photoBox === 'tall')
   const span = fill ? 100 : 86
   return (
-    <div className={cn(fill ? 'h-full w-full' : 'flex w-full justify-center')}>
+    <div className={cn(fill ? 'h-full w-full' : 'relative w-full')}>
     <div
       data-cover-photo={photoBox}
       className={cn(
@@ -633,7 +656,7 @@ function CoverPhoto(props: {
         props.className,
       )}
       style={{
-        width: `${frameWidthPercent(span, boxScale)}%`,
+        ...centeredFrameBoxStyle(frameWidthPercent(span, boxScale)),
         ...(portrait
           ? { height: 'auto', aspectRatio: '3 / 4' }
           : boxScale === 1 || aspect || fill || fluid
@@ -701,6 +724,8 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
         brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
         className={cn('shrink-0 font-serif font-semibold italic', compact ? 'mt-2 text-base leading-tight' : 'mt-1 text-[clamp(1.05rem,7cqi,2rem)] leading-none', theme.text, theme.textGlowHeading)}
       />
       <div className={cn(theme.accent, 'shrink-0', compact ? 'my-2 text-lg' : 'my-1 text-xl leading-none', props.namesFlyIn && !compact && 'wedding-couple-ornament', theme.textGlow)}>{theme.ornament}</div>
@@ -786,6 +811,7 @@ function GlassCoverCard(props: WeddingCoverShellCardProps) {
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
           personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
         />
       ) : null}
@@ -832,6 +858,8 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
           brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
           className={cn('font-serif font-semibold text-white', compact ? 'mt-1 text-sm' : 'mt-2 text-[clamp(1.05rem,8cqi,2.35rem)] leading-none sm:mt-3')}
         />
         <div className={cn('text-amber-300', compact ? 'my-1 text-base' : 'my-2 text-xl sm:my-3 sm:text-2xl', props.namesFlyIn && !compact && 'wedding-couple-ornament')}>{preset.ornament}</div>
@@ -918,6 +946,7 @@ function RedArchCoverCard(props: WeddingCoverShellCardProps) {
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
             personalInviteClassName={theme.mutedText}
           />
         ) : null}
@@ -1073,15 +1102,16 @@ function CoverFrameViewport(props: {
     : `${widthPercent}%`
   return (
     <div
-      className={cn('relative z-[12] mx-auto overflow-hidden', props.className)}
+      className={cn('relative z-[12] overflow-hidden', props.className)}
       style={
         props.slotFit
           ? fitInPhotoSlot(aspect, 1)
           : {
               aspectRatio: String(aspect),
-              width,
-              maxWidth: `${widthPercent}%`,
               height: 'auto',
+              ...(props.maxHeight
+                ? { width, maxWidth: `${widthPercent}%`, marginInline: 'auto' }
+                : centeredFrameBoxStyle(widthPercent)),
             }
       }
     >
@@ -1193,12 +1223,14 @@ export function WeddingFramedPhoto(props: {
   const photoFrame = holeMask?.box ?? props.hole
   const objectPosition = props.objectPosition ?? '50% 18%'
   const scale = Math.max(1, Math.min(3, props.scale ?? 1))
+  const passedScale = props.frameScale
+  const widthPercent = passedScale == null || passedScale <= 1 ? 100 : frameWidthFromMin(100, passedScale)
   return (
     <CoverFrameViewport
       className={cn(holeMask === undefined && 'opacity-0', props.className)}
       content={holeMask?.content}
       imageAspect={holeMask?.aspect}
-      widthPercent={frameWidthPercent(100, frameScaleOf(props.frameScale))}
+      widthPercent={widthPercent}
     >
       <div
         className="pointer-events-none absolute inset-0"
@@ -1418,6 +1450,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
           brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
           className={cn(
             'font-serif font-semibold',
             compact ? 'mt-1 text-sm leading-tight' : 'mt-0.5 text-[clamp(1rem,7cqi,1.85rem)] leading-none',
@@ -1430,8 +1464,8 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       </div>
       {plain || nestFrame ? null : (
         <CoverPhotoSlot>
-        <FrameResizeChrome edit={props.frameScaleEdit} className="w-full">
-          <div key={props.motionKey} ref={intro.rootRef} className={cn('relative max-w-full', frameMotion)} style={fitInPhotoSlot(3, 4)}>
+        <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(86, frameScale)}%` }}>
+          <div key={props.motionKey} ref={intro.rootRef} className={cn('relative w-full', frameMotion)} style={{ aspectRatio: '3 / 4' }}>
             {frameArt}
           </div>
         </FrameResizeChrome>
@@ -1441,9 +1475,10 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
         <CoverPhotoSlot>
           <FrameResizeChrome
             edit={props.frameScaleEdit}
-            className="w-full"
+            className="mx-auto"
+            style={{ width: `${frameWidthFromMin(86, frameScale)}%` }}
           >
-            <div key={props.motionKey} className={cn('relative max-w-full', photoMotion || 'wedding-cover-frame-settle')} style={fitInPhotoSlot(props.plainShape === 'portrait' ? 3 : 1, props.plainShape === 'portrait' ? 4 : 1)}>
+            <div key={props.motionKey} className={cn('relative w-full', photoMotion || 'wedding-cover-frame-settle')} style={{ aspectRatio: props.plainShape === 'portrait' ? '3 / 4' : '1 / 1' }}>
               <CoverPhotoPan
                 edit={props.coverPhotoUrl ? props.coverPhotoEdit : undefined}
                 className={cn('h-full w-full overflow-hidden', props.plainShape === 'portrait' ? 'rounded-2xl' : 'rounded-full', props.plainShape === 'portrait' && !props.coverPhotoUrl && 'border border-dashed border-[#e8c87a]/70')}
@@ -1478,14 +1513,13 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
       ) : null}
       {nestFrame ? (
         <CoverPhotoSlot>
-          <FrameResizeChrome edit={props.frameScaleEdit} className="grid w-full place-items-center">
+          <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(86, frameScale)}%` }}>
             <CoverFrameViewport
               key={props.motionKey}
-              className={cn(holeMask === undefined ? 'opacity-0' : frameMotion)}
+              className={cn('w-full', holeMask === undefined ? 'opacity-0' : frameMotion)}
               content={holeMask?.content}
               imageAspect={holeMask?.aspect}
               widthPercent={100}
-              slotFit
             >
               {frameArt}
             </CoverFrameViewport>
@@ -1518,6 +1552,7 @@ function FrameCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCov
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
             personalInviteClassName={mutedCls}
           />
         ) : null}
@@ -1562,6 +1597,8 @@ function StackCoverCard(props: WeddingCoverShellCardProps) {
           brideName={props.nameLayout === 'primary' ? '' : props.brideName}
           layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
           className={cn('shrink-0 font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-0.5 text-[clamp(1.05rem,7cqi,1.85rem)] leading-none', theme.text, theme.textGlowHeading)}
         />
         <WeddingStackedCouplePhotos
@@ -1638,6 +1675,7 @@ function StackCoverCard(props: WeddingCoverShellCardProps) {
             compact={compact}
             dense={props.fitViewport}
             personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
             personalInviteClassName={cn(theme.mutedText, theme.textGlow)}
           />
         ) : null}
@@ -1775,6 +1813,8 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
               flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
               className={cn(
                 'font-serif font-medium italic text-[#4a433c]',
                 compact ? 'mt-1 text-sm leading-tight' : props.fitViewport ? 'mt-1 text-[clamp(1.15rem,7cqi,1.9rem)] leading-none' : 'mt-1.5 text-[clamp(1.25rem,8cqi,2.2rem)] leading-none',
@@ -1806,6 +1846,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
                 compact={compact}
                 dense={props.fitViewport}
                 personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
                 personalInviteClassName="text-[#8a7e72]"
               />
             ) : null}
@@ -1889,6 +1930,8 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
             brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
             flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
             className={cn(
               'shrink-0 font-serif font-semibold text-stone-900',
               compact ? 'mt-1 text-sm leading-tight' : 'mt-0.5 text-[clamp(1.05rem,7cqi,1.85rem)] leading-none',
@@ -1945,6 +1988,7 @@ function ComposedCoverCard(props: WeddingCoverShellCardProps & { preset: Wedding
               compact={compact}
               dense={props.fitViewport}
               personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
               personalInviteClassName="text-stone-600"
             />
           ) : null}
@@ -1989,11 +2033,12 @@ function songHyPhotoBox(head: WeddingCoverPhotoHead, compact: boolean | undefine
   return place === 'inside' ? 'tall' : 'fit'
 }
 
-function SongHyLeafMount(props: { children: ReactNode; presetId?: string; fit?: boolean }) {
+function SongHyLeafMount(props: { children: ReactNode; presetId?: string; fit?: boolean; frameScale?: number; fillParent?: boolean }) {
   const frame = weddingLeafFrameFor(props.presetId)
   const [frameWidth, frameHeight] = leafFramePixels(frame.aspect)
+  const width = props.fillParent ? 100 : frameWidthFromMin(props.fit ? 86 : 100, props.frameScale)
   return (
-    <div className={props.fit ? 'relative mx-auto max-w-full' : 'relative mx-auto w-full'} style={props.fit ? { ...fitInPhotoSlot(frameWidth, frameHeight), filter: 'drop-shadow(0 10px 18px rgba(40, 22, 8, 0.32))' } : { aspectRatio: frame.aspect, filter: 'drop-shadow(0 10px 18px rgba(40, 22, 8, 0.32))' }}>
+    <div className="relative" style={{ ...centeredFrameBoxStyle(width), aspectRatio: `${frameWidth} / ${frameHeight}`, filter: 'drop-shadow(0 10px 18px rgba(40, 22, 8, 0.32))' }}>
       <div
         className="absolute inset-0 overflow-hidden"
         style={{
@@ -2019,19 +2064,17 @@ function SongHyLeafMount(props: { children: ReactNode; presetId?: string; fit?: 
   )
 }
 
-function SongHyPhotoMount(props: { head: WeddingCoverPhotoHead; tone: WeddingGateTone; children: ReactNode; presetId?: string; fit?: boolean; spread?: boolean; frameScale?: number }) {
-  if (props.head === 'leaf') return <SongHyLeafMount presetId={props.presetId} fit={props.fit}>{props.children}</SongHyLeafMount>
+function SongHyPhotoMount(props: { head: WeddingCoverPhotoHead; tone: WeddingGateTone; children: ReactNode; presetId?: string; fit?: boolean; spread?: boolean; frameScale?: number; fillParent?: boolean }) {
+  if (props.head === 'leaf') return <SongHyLeafMount presetId={props.presetId} fit={props.fit} frameScale={props.frameScale} fillParent={props.fillParent}>{props.children}</SongHyLeafMount>
   const clip = weddingCoverPhotoClip(props.head)
   if (clip) {
     const fan = props.head === 'fan'
     const spread = fan && props.spread
-    const fanScale = frameScaleOf(props.frameScale)
     const fanBox = fan
       ? {
           aspectRatio: WEDDING_FAN_PHOTO_RATIO,
-          width: `${frameWidthPercent(100 / WEDDING_FRAME_SCALE_MIN, fanScale)}%`,
-          height: 'auto',
-          marginInline: 'auto',
+          height: 'auto' as const,
+          ...centeredFrameBoxStyle(props.fillParent ? 100 : frameWidthFromMin(100, props.frameScale)),
         }
       : undefined
     const frame = (
@@ -2065,12 +2108,18 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
   const photo = coverPhotoBox(props.coverPhotoEdit, props.coverPhotoObjectPosition, props.coverPhotoScale)
   const frame = songHyFrameClass(head, compact)
   const clip = weddingCoverPhotoClip(head)
+  const frameOwned = head === 'fan' || head === 'leaf'
+  const ownedWidth = head === 'fan'
+    ? frameWidthFromMin(100, props.frameScale)
+    : head === 'leaf'
+      ? frameWidthFromMin(compact ? 100 : 86, props.frameScale)
+      : null
   if (props.coverPhotoUrl) {
     return (
       <div className={frame}>
-        <FrameResizeChrome edit={props.frameScaleEdit} className={compact ? undefined : 'w-full'}>
+        <FrameResizeChrome edit={props.frameScaleEdit} className={cn(!compact && 'mx-auto', ownedWidth == null && !compact && 'w-full')} style={ownedWidth != null ? { width: `${ownedWidth}%` } : undefined}>
           <CoverPhotoPan edit={props.coverPhotoEdit} className={compact ? 'relative' : 'relative w-full'}>
-            <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fit={!compact} spread={!compact && !props.frameScaleEdit} frameScale={props.frameScale}>
+            <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fit={!compact} spread={!compact && !props.frameScaleEdit} frameScale={frameOwned ? WEDDING_FRAME_SCALE_MIN : props.frameScale} fillParent={frameOwned}>
               <CoverPhoto
                 url={props.coverPhotoUrl}
                 alt={props.photoAlt}
@@ -2078,7 +2127,7 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
                 box={head === 'leaf' || head === 'fan' ? 'fill' : compact ? songHyPhotoBox(head, compact, 'cover') : 'fit'}
                 objectPosition={photo.position}
                 scale={photo.zoom}
-                boxScale={head === 'fan' ? 1 : props.frameScale}
+                boxScale={head === 'fan' || head === 'leaf' ? 1 : props.frameScale}
                 breathe={props.breathe}
                 openSlowly={props.namesFlyIn && !compact}
                 className="rounded-none shadow-none ring-0"
@@ -2116,7 +2165,7 @@ function SongHyCoverPhoto(props: WeddingCoverShellCardProps) {
   )
   return (
     <div className={frame}>
-      {head === 'leaf' ? <SongHyLeafMount presetId={props.presetId} fit={!compact}>{slot}</SongHyLeafMount> : head === 'fan' ? <SongHyPhotoMount head="fan" tone={tone} fit={!compact} spread={!compact && !props.frameScaleEdit} frameScale={props.frameScale}>{slot}</SongHyPhotoMount> : clip ? <div style={{ clipPath: clip }}>{slot}</div> : slot}
+      {head === 'leaf' ? <SongHyLeafMount presetId={props.presetId} fit={!compact} frameScale={props.frameScale}>{slot}</SongHyLeafMount> : head === 'fan' ? <SongHyPhotoMount head="fan" tone={tone} fit={!compact} spread={!compact && !props.frameScaleEdit} frameScale={props.frameScale}>{slot}</SongHyPhotoMount> : clip ? <div style={{ clipPath: clip }}>{slot}</div> : slot}
     </div>
   )
 }
@@ -2156,6 +2205,8 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
           brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
           flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
           className={cn(
             'wedding-guest-name shrink-0 text-[var(--gate-ink)]',
             compact ? 'mt-2 text-lg leading-tight' : 'mt-0.5 text-[clamp(1.05rem,5.2cqi,1.65rem)] leading-none',
@@ -2199,6 +2250,7 @@ function SongHyCoverCard(props: WeddingCoverShellCardProps) {
             compact={compact}
             dense={props.fitViewport || !compact}
             personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
             personalInviteClassName="text-[var(--gate-muted)]"
           />
         ) : null}
@@ -2228,29 +2280,26 @@ function SongHyArchPhoto(props: WeddingCoverShellCardProps) {
       alt={props.photoAlt}
       objectPosition={photo.position}
       scale={photo.zoom}
-      boxScale={head === 'fan' ? 1 : props.frameScale}
+      boxScale={head === 'fan' || head === 'leaf' ? 1 : props.frameScale}
       box={head === 'leaf' || head === 'fan' ? 'fill' : songHyPhotoBox(head, false, 'inside')}
       className={weddingCoverPhotoClip(head) ? 'rounded-none shadow-none ring-0' : 'rounded-t-[999px] rounded-b-md border-8 border-solid'}
       frameStyle={weddingCoverPhotoClip(head) ? undefined : { borderColor: tone.frame, boxShadow: tone.archShadow }}
     />
   )
-  if (head === 'fan') {
+  if (head === 'fan' || head === 'leaf') {
     return (
       <CoverPhotoSlot>
-          <div className="grid w-full place-items-center">
-          <FrameResizeChrome edit={props.frameScaleEdit} className="w-full">
-            <SongHyPhotoMount head="fan" tone={tone} fit frameScale={props.frameScale}>
-              {shot}
-            </SongHyPhotoMount>
-          </FrameResizeChrome>
-        </div>
+        <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto" style={{ width: `${frameWidthFromMin(head === 'fan' ? 100 : 86, props.frameScale)}%` }}>
+          <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} fillParent frameScale={WEDDING_FRAME_SCALE_MIN}>
+            {shot}
+          </SongHyPhotoMount>
+        </FrameResizeChrome>
       </CoverPhotoSlot>
     )
   }
-  const innerWidth = head === 'leaf' || head === 'fan' ? 'mx-auto w-[86%]' : 'w-full'
   return (
-    <FrameResizeChrome edit={props.frameScaleEdit} className={cn(head === 'leaf' ? null : 'mx-auto', innerWidth)}>
-      {head === 'leaf' || weddingCoverPhotoClip(head) ? <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId}>{shot}</SongHyPhotoMount> : shot}
+    <FrameResizeChrome edit={props.frameScaleEdit} className="mx-auto w-full">
+      {weddingCoverPhotoClip(head) ? <SongHyPhotoMount head={head} tone={tone} presetId={props.presetId} frameScale={props.frameScale}>{shot}</SongHyPhotoMount> : shot}
     </FrameResizeChrome>
   )
 }
@@ -2392,6 +2441,8 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
         brideName={props.brideName}
         layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
         className={cn('relative !flex-nowrap font-serif font-medium leading-none', compact ? 'text-sm' : 'text-[clamp(1.2rem,6.4cqi,1.85rem)]')}
       />
     </div>
@@ -2434,6 +2485,7 @@ function EnvelopeCoverCard(props: WeddingCoverShellCardProps) {
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
           personalInviteClassName="text-inherit"
         />
       ) : null}
@@ -2565,6 +2617,8 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
         brideName={props.nameLayout === 'primary' ? '' : props.brideName}
         layout={props.nameLayout}
         flyIn={props.namesFlyIn && !compact}
+        groomEdit={props.groomNameEdit}
+        brideEdit={props.nameLayout === 'primary' ? undefined : props.brideNameEdit}
         className={cn('shrink-0 font-serif font-semibold', compact ? 'mt-1 text-sm leading-tight' : 'mt-0.5 text-[clamp(1.05rem,7cqi,1.85rem)] leading-none', coverInk, coverGlowHead)}
       />
       <div className={cn('shrink-0', coverAccent, coverGlow, compact ? 'my-0.5 text-base' : 'text-xl leading-none')}>{preset.ornament}</div>
@@ -2593,6 +2647,7 @@ function PairCoverCard(props: WeddingCoverShellCardProps & { preset: WeddingCove
           compact={compact}
           dense={props.fitViewport}
           personalInviteText={props.personalInviteText}
+          inviteEdit={props.inviteEdit}
           personalInviteClassName={cn(lacquer ? 'text-sm font-medium leading-6' : '', coverMuted, coverGlow)}
         />
       )}

@@ -129,7 +129,9 @@ import {
   resolveStackPlace,
   clearWeddingFrameChoice,
   resolveShownCoverFrame,
+  resolveShownHeroLayout,
   resolveShownPortraitShell,
+  centeredFrameBoxStyle,
   clampWeddingFrameScale,
   weddingFrameScalePercent,
   WEDDING_FRAME_SCALE_MAX,
@@ -1144,7 +1146,7 @@ export default function WeddingCardAiClientPage() {
     partyTime: card.brideInvitePartyStartTime,
   })
   const oneVenue = cardStructure.venueLayout === 'one' || (cardStructure.venueLayout === 'optional-second' && !secondVenueOpen)
-  const heroStack = cardStructure.portraitLayout === 'pair' && weddingHeroPhotoLayout(readyBackground) === 'stack'
+  const heroStack = cardStructure.portraitLayout === 'pair' && resolveShownHeroLayout(sectionConfig, weddingHeroPhotoLayout(readyBackground)) === 'stack'
 
   const update = <K extends keyof WeddingCard>(key: K, value: WeddingCard[K]) => setCard((prev) => ({ ...prev, [key]: value }))
 
@@ -4583,8 +4585,8 @@ function ImageUploadField(props: {
         />
       ) : shell ? (
         <div className="mx-auto w-full max-w-sm">
-          <div className="flex w-full justify-center">
-          <div className="relative shrink-0" style={{ width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%` }}>
+          <div className="relative w-full">
+          <div className="relative" style={centeredFrameBoxStyle(Math.round((props.frameScale ?? 1) * 1000) / 10)}>
             <WeddingFramedPhoto
               frameSrc={shell.src}
               hole={shell.hole}
@@ -4601,13 +4603,13 @@ function ImageUploadField(props: {
         </div>
       ) : (
         <>
-        <div className="flex w-full justify-center">
+        <div className="relative w-full">
         <div
           className={cn(
-            'relative shrink-0 overflow-hidden rounded-xl',
+            'relative overflow-hidden rounded-xl',
             portrait ? 'aspect-[3/4] max-h-72' : 'h-36',
           )}
-          style={{ width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%` }}
+          style={centeredFrameBoxStyle(Math.round((props.frameScale ?? 1) * 1000) / 10)}
         >
           {previewUrl ? (
             <img
@@ -4681,15 +4683,14 @@ function CoverPhotoCropEditor(props: {
         </p>
       </div>
 
-      <div className="flex w-full justify-center">
+      <div className="relative w-full">
       <div
         ref={frameRef}
         className={cn(
-          'shrink-0',
           props.frameClassName ??
             'relative h-40 cursor-grab touch-none overflow-hidden rounded-2xl bg-black/5 shadow-inner ring-1 ring-black/10 active:cursor-grabbing sm:h-48',
         )}
-        style={{ touchAction: 'none', width: `${Math.round((props.frameScale ?? 1) * 1000) / 10}%`, maxWidth: 'none' }}
+        style={{ touchAction: 'none', ...centeredFrameBoxStyle(Math.round((props.frameScale ?? 1) * 1000) / 10) }}
         role="application"
         aria-label={props.ariaLabel ?? 'Căn ảnh vỏ thiệp'}
         onPointerDown={(event) => {

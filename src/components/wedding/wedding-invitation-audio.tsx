@@ -22,6 +22,7 @@ export type WeddingInvitationAudioHandle = {
   playFromUserGesture: () => void
   /** Bật/tắt phát (giữ vị trí currentTime khi tạm dừng). */
   togglePlayback: () => void
+  pausePlayback: () => void
   /** Giây tại playhead của thẻ audio (để đặt «bắt đầu phát» từ nút trong form chỉnh sửa). */
   getCurrentPlaybackTimeSec: () => number | null
 }
@@ -254,6 +255,9 @@ export const WeddingInvitationAudio = forwardRef<WeddingInvitationAudioHandle | 
           } else {
             el.pause()
           }
+        },
+        pausePlayback() {
+          audioRef.current?.pause()
         },
       }),
       [recomputeSegment],

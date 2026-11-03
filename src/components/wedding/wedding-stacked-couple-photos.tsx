@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
-import { albumPhotoFrameStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { albumPhotoFrameStyle, centeredFrameBoxStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 
 const DEFAULT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
@@ -305,6 +305,7 @@ function PhotoCard(props: {
 
   const toolbar = props.showToolbar === false || !props.edit ? null : (
     <div
+      data-wedding-frame-tools=""
       className="relative z-[6] flex flex-col items-center gap-1"
       style={{ transform: `rotate(${-props.tilt}deg)` }}
       onPointerDown={(event) => event.stopPropagation()}
@@ -342,7 +343,7 @@ function PhotoCard(props: {
   )
 
   return (
-    <div data-wedding-frame={props.frameId} className={cn(props.className)} style={{ width: `${props.widthPercent}%`, transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
+    <div data-wedding-frame={props.frameId} className={cn(props.className)} style={{ ...centeredFrameBoxStyle(props.widthPercent), transform: `rotate(${props.tilt}deg) scale(${props.visualScale ?? 1})`, transformOrigin: props.transformOrigin }} onPointerDown={props.onPointerDown}>
       {props.controlsEdge === 'top' && toolbar ? <div className="relative z-[6] mb-1">{toolbar}</div> : null}
       <div className={cn('relative', props.shell ? 'bg-transparent' : 'overflow-hidden rounded-2xl shadow-[0_16px_36px_rgba(20,4,8,0.32)]')}>
         <div
@@ -598,7 +599,7 @@ export function WeddingStackedCouplePhotos(props: {
   const stageRef = useRef<HTMLDivElement>(null)
   const [stageWidth, setStageWidth] = useState(240)
   const [lifted, setLifted] = useState<StackPlaceKey | null>(null)
-  const [pickedFrame, setPickedFrame] = useState<'first' | 'second' | null>(null)
+  const [pickedFrame, setPickedFrame] = useState<'first' | 'second' | null>(props.editTools ? 'first' : null)
   useEffect(() => {
     if (!pickedFrame) return
     const close = (event: PointerEvent) => {
@@ -758,6 +759,7 @@ export function WeddingStackedCouplePhotos(props: {
     const iconButton = 'flex h-11 w-11 items-center justify-center rounded-lg border bg-white disabled:opacity-30'
     return (
       <div
+        data-wedding-frame-tools=""
         className="flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
         onPointerDown={(event) => {
           const target = event.target
@@ -889,7 +891,7 @@ export function WeddingStackedCouplePhotos(props: {
         visualScale={1}
         transformOrigin={slot.side === 'first' ? 'right center' : 'left center'}
         shell={slot.side === 'first' ? (props.firstShell ?? props.frameShell) : (props.secondShell ?? props.frameShell)}
-        showToolbar={!toolsNode && tools && !props.onPlace && !props.onRotate && !props.frameScaleEdit}
+        showToolbar={Boolean(tools && slot.edit)}
         frameMove={toolsNode}
         frameId={slot.side}
         toolsSide={slot.side === 'second' ? 'end' : 'start'}
@@ -974,7 +976,7 @@ export function WeddingStackedCouplePhotos(props: {
               controlsEdge={both && slot.side === 'first' ? 'top' : 'bottom'}
               widthPercent={Math.round(base * sharedFrameScale)}
               shell={slot.side === 'first' ? (props.firstShell ?? props.frameShell) : (props.secondShell ?? props.frameShell)}
-              showToolbar={!toolsNode && tools && !props.onPlace && !props.onRotate && !props.frameScaleEdit}
+              showToolbar={Boolean(tools && slot.edit)}
               frameMove={toolsNode}
               frameId={slot.side}
               toolsSide={slot.side === 'second' ? 'end' : 'start'}
