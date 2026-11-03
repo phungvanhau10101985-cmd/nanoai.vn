@@ -77,12 +77,12 @@ export function WeddingCoupleNames(props: {
   return (
     <h1
       ref={ref}
-      className={cn('flex items-baseline justify-center gap-x-[0.35em]', props.flyIn ? 'flex-nowrap' : 'flex-wrap', frame)}
+      className={cn('flex flex-nowrap items-baseline justify-center gap-x-[0.35em]', frame)}
       style={fitStyle}
     >
-      <span className={cn('inline-block max-w-full', props.flyIn ? 'whitespace-nowrap' : 'break-words', props.flyIn && 'wedding-couple-from-left')}>{groomName}</span>
+      <span className={cn('inline-block max-w-full whitespace-nowrap', props.flyIn && 'wedding-couple-from-left')}>{groomName}</span>
       <span className={cn('shrink-0', props.flyIn && 'wedding-couple-amp')}>&</span>
-      <span className={cn('inline-block max-w-full', props.flyIn ? 'whitespace-nowrap' : 'break-words', props.flyIn && 'wedding-couple-from-right')}>{brideName}</span>
+      <span className={cn('inline-block max-w-full whitespace-nowrap', props.flyIn && 'wedding-couple-from-right')}>{brideName}</span>
     </h1>
   )
 }

@@ -140,9 +140,51 @@ export const WEDDING_GATE_TONES: Record<WeddingGateToneId, WeddingGateTone> = {
   },
 }
 
-/** Rẻ quạt mở: miệng rộng phía trên, nan gom về chốt dưới. */
-export const WEDDING_FAN_PHOTO_CLIP =
-  'polygon(50% 100%, 97.1% 74.1%, 95% 62.7%, 92.1% 51.9%, 88.5% 41.9%, 84.3% 32.8%, 79.5% 24.9%, 74.2% 18.3%, 68.5% 13%, 62.5% 9.1%, 56.3% 6.8%, 50% 6%, 43.7% 6.8%, 37.5% 9.1%, 31.5% 13%, 25.8% 18.3%, 20.5% 24.9%, 15.7% 32.8%, 11.5% 41.9%, 7.9% 51.9%, 5% 62.7%, 2.9% 74.1%)'
+/** Nan rẻ quạt, chốt dưới giữa. Cùng số điểm để xòe từ khép sang mở. */
+const WEDDING_FAN_ARC: ReadonlyArray<readonly [number, number]> = [
+  [50, 100],
+  [97.1, 74.1],
+  [95, 62.7],
+  [92.1, 51.9],
+  [88.5, 41.9],
+  [84.3, 32.8],
+  [79.5, 24.9],
+  [74.2, 18.3],
+  [68.5, 13],
+  [62.5, 9.1],
+  [56.3, 6.8],
+  [50, 6],
+  [43.7, 6.8],
+  [37.5, 9.1],
+  [31.5, 13],
+  [25.8, 18.3],
+  [20.5, 24.9],
+  [15.7, 32.8],
+  [11.5, 41.9],
+  [7.9, 51.9],
+  [5, 62.7],
+  [2.9, 74.1],
+]
+
+function weddingFanClip(spread: number): string {
+  const open = Math.min(1, Math.max(0, spread))
+  const points = WEDDING_FAN_ARC.map(([x, y]) => {
+    const sx = 50 + (x - 50) * open
+    const xText = Number.isInteger(sx) ? String(sx) : sx.toFixed(1)
+    const yText = Number.isInteger(y) ? String(y) : String(y)
+    return `${xText}% ${yText}%`
+  })
+  return `polygon(${points.join(', ')})`
+}
+
+/** Rẻ quạt mở hết: miệng rộng phía trên, nan gom về chốt dưới. */
+export const WEDDING_FAN_PHOTO_CLIP = weddingFanClip(1)
+
+/** Rẻ quạt vừa khép, trước khi xòe ra hai bên. */
+export const WEDDING_FAN_CLOSED_CLIP = weddingFanClip(0.22)
+
+/** Ô ảnh rẻ quạt nằm ngang để miệng quạt ăn ra hai bên. */
+export const WEDDING_FAN_PHOTO_RATIO = '200 / 108'
 
 /** Trăng tròn. Ô ảnh phải vuông thì vòng này khít mép. */
 export const WEDDING_MOON_PHOTO_CLIP = 'circle(50% at 50% 50%)'
@@ -174,7 +216,7 @@ export const WEDDING_LEAF_FRAMES: Record<string, WeddingLeafFrameAsset> = {
   'la-bau-duc-xanh': MAPLE_LEAF_FRAME,
 }
 
-export const WEDDING_LEAF_FRAME = WEDDING_LEAF_FRAMES['la-bau-duc']
+export const WEDDING_LEAF_FRAME = WEDDING_LEAF_FRAMES['la-phong']
 
 export function weddingLeafFrameFor(presetId: string | null | undefined): WeddingLeafFrameAsset {
   const key = String(presetId || '').trim().replace(/_/g, '-')

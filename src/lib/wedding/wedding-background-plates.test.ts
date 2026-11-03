@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { isWeddingButtonColorId } from './wedding-button-colors'
 import { WEDDING_BACKGROUND_PRESETS, applyWeddingKitTheme, findWeddingBackgroundPreset, findWeddingFrameForBackground, resolveWeddingChromeKit, weddingAiBackgroundKit, weddingAiKitSectionPatch, weddingHeroPhotoLayout, weddingKitFramePatch, weddingPairedFrameSectionPatch, weddingReadingPlate, weddingReadyBackgroundSectionPatch, weddingUsesPairedAiFrame } from './wedding-background-presets'
-import { findWeddingCoverPreset, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
+import { findWeddingCoverPreset, WEDDING_FAN_CLOSED_CLIP, WEDDING_FAN_PHOTO_CLIP, WEDDING_LEAF_CARDS, WEDDING_LEAF_FRAME, WEDDING_LEAF_FRAMES, WEDDING_MOON_CARDS, weddingCoverGateTone, weddingCoverPhotoClip, weddingCoverPhotoHead, weddingLeafFrameFor } from './wedding-cover-presets'
 import { WEDDING_ORNAMENT_CATALOG } from './wedding-background-ornament-store'
 import { getOrnamentComposition } from './wedding-ornament-layouts'
 import { weddingStyleIdFromPrompt } from './build-wedding-image-prompt'
@@ -700,6 +701,12 @@ test('moon photo heads keep their shape on the papers people already use', () =>
   }
   assert.equal(weddingCoverPhotoHead('song_hy'), 'arch')
   assert.equal(weddingCoverPhotoHead('re_quat'), 'fan')
+  assert.equal(weddingCoverPhotoClip('fan'), WEDDING_FAN_PHOTO_CLIP)
+  assert.equal(WEDDING_FAN_PHOTO_CLIP.split(',').length, WEDDING_FAN_CLOSED_CLIP.split(',').length)
+  assert.equal(WEDDING_FAN_CLOSED_CLIP.includes('97.1%'), false)
+  const fanMotion = readFileSync(new URL('../../components/wedding/wedding-cover-intro.css', import.meta.url), 'utf8')
+  assert.equal(fanMotion.includes(WEDDING_FAN_PHOTO_CLIP), true)
+  assert.equal(fanMotion.includes(WEDDING_FAN_CLOSED_CLIP), true)
   assert.equal(weddingCoverPhotoClip('arch'), undefined)
   assert.equal(weddingCoverPhotoClip('moon'), 'circle(50% at 50% 50%)')
 })

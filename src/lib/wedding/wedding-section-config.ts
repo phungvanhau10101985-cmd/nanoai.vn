@@ -72,7 +72,7 @@ export type WeddingSectionConfig = {
   coverPhotoPositionY?: number
   /** Cover photo zoom scale, 1-3. */
   coverPhotoScale?: number
-  /** Cỡ khung ảnh trên vỏ, 0.6–1.4. 1 = cỡ mặc định. */
+  /** Cỡ khung ảnh trên vỏ. 1.2 = 100% trên thanh, là mức nhỏ nhất. */
   coverFrameScale?: number
   /** Kiểu vuốt album trên thiệp. */
   albumLayoutId?: string
@@ -86,12 +86,12 @@ export type WeddingSectionConfig = {
   groomPhotoPositionY?: number
   /** Zoom ảnh chú rể, 1–3. */
   groomPhotoScale?: number
-  /** Cỡ khung ảnh chú rể, 0.6–1.4. 1 = cỡ mặc định. */
+  /** Cỡ khung ảnh chú rể. 1.2 = 100% trên thanh, là mức nhỏ nhất. */
   groomPortraitFrameScale?: number
   bridePhotoPositionX?: number
   bridePhotoPositionY?: number
   bridePhotoScale?: number
-  /** Cỡ khung ảnh cô dâu, 0.6–1.4. 1 = cỡ mặc định. */
+  /** Cỡ khung ảnh cô dâu. 1.2 = 100% trên thanh, là mức nhỏ nhất. */
   bridePortraitFrameScale?: number
   /** Khách tự chọn khung chú rể. Không có thì khung theo nền. */
   groomPortraitFrameChosen?: boolean
@@ -189,12 +189,23 @@ function readScale(value: unknown): number | undefined {
   return Math.max(1, Math.min(3, Math.round(num * 100) / 100))
 }
 
-/** Khung ảnh to nhỏ quanh cỡ mặc định. Ảnh bên trong vẫn zoom riêng. */
-export const WEDDING_FRAME_SCALE_MIN = 0.6
+/**
+ * Khung ảnh chỉ phóng to từ cỡ đang gọi là 120%.
+ * Số 120 trên thanh trở thành 100, kích thước giữ nguyên. Không nhỏ hơn được.
+ */
+export const WEDDING_FRAME_SCALE_MIN = 1.2
 export const WEDDING_FRAME_SCALE_MAX = 1.8
+/** Một nấc trên thanh = 5 điểm phần trăm. */
+export const WEDDING_FRAME_SCALE_STEP = 0.06
 
 export function clampWeddingFrameScale(value: number): number {
-  return Math.max(WEDDING_FRAME_SCALE_MIN, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(value * 100) / 100))
+  const num = Number.isFinite(value) ? value : WEDDING_FRAME_SCALE_MIN
+  return Math.max(WEDDING_FRAME_SCALE_MIN, Math.min(WEDDING_FRAME_SCALE_MAX, Math.round(num * 100) / 100))
+}
+
+/** 1.2 hiện là 100%. 1.8 hiện là 150%. */
+export function weddingFrameScalePercent(scale: number): number {
+  return Math.round((clampWeddingFrameScale(scale) / WEDDING_FRAME_SCALE_MIN) * 100)
 }
 
 function readFrameScale(value: unknown): number | undefined {
@@ -205,7 +216,7 @@ function readFrameScale(value: unknown): number | undefined {
 
 function writeFrameScale(payload: WeddingSectionConfig, key: 'coverFrameScale' | 'groomPortraitFrameScale' | 'bridePortraitFrameScale', value: number | undefined) {
   const scale = readFrameScale(value)
-  if (scale === undefined || scale === 1) return
+  if (scale === undefined || scale === WEDDING_FRAME_SCALE_MIN) return
   payload[key] = scale
 }
 
@@ -706,14 +717,14 @@ function writePortraitCrop(payload: WeddingSectionConfig, side: 'groom' | 'bride
   payload[scaleKey] = frame.scale
 }
 
-/** Cỡ khung vỏ. Chưa chỉnh thì 1. */
+/** Cỡ khung vỏ. Chưa chỉnh thì mức 100% (số 120 cũ). */
 export function resolveCoverFrameScale(config: WeddingSectionConfig): number {
-  return readFrameScale(config.coverFrameScale) ?? 1
+  return readFrameScale(config.coverFrameScale) ?? WEDDING_FRAME_SCALE_MIN
 }
 
-/** Cỡ khung chân dung. Chưa chỉnh thì 1. */
+/** Cỡ khung chân dung. Chưa chỉnh thì mức 100% (số 120 cũ). */
 export function resolvePortraitFrameScale(config: WeddingSectionConfig, side: 'groom' | 'bride'): number {
-  return readFrameScale(side === 'groom' ? config.groomPortraitFrameScale : config.bridePortraitFrameScale) ?? 1
+  return readFrameScale(side === 'groom' ? config.groomPortraitFrameScale : config.bridePortraitFrameScale) ?? WEDDING_FRAME_SCALE_MIN
 }
 
 /** Ảnh chân dung chưa căn: mặt ở khoảng 18% từ mép trên, zoom 1. */

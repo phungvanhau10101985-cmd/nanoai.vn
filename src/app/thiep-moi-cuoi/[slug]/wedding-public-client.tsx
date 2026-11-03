@@ -567,6 +567,7 @@ export default function WeddingPublicClient({
   const [houseAskOpen, setHouseAskOpen] = useState(false)
   const coverPreview = editorStack === 'cover'
   const [opened, setOpened] = useState(captureStill || (layoutPreview && !coverPreview))
+  const [coverGate, setCoverGate] = useState(!(captureStill || (layoutPreview && !coverPreview)))
   const [coverDesignWidth, setCoverDesignWidth] = useState(WEDDING_MOBILE_WIDTH)
   const [coverCard, setCoverCard] = useState(ornamentMobile)
   const [coverShared, setCoverShared] = useState(ornamentSharedMobile)
@@ -740,9 +741,11 @@ export default function WeddingPublicClient({
     return () => window.removeEventListener('message', onMessage)
   }, [editorStack, ornamentEditor])
   const shownSectionRef = useRef(sectionConfig)
+  const sectionRawRef = useRef(displayedSectionRaw)
   const pageBackgroundRef = useRef(pageBackground)
   const previewLookTokenRef = useRef('')
   shownSectionRef.current = sectionConfig
+  sectionRawRef.current = displayedSectionRaw
   pageBackgroundRef.current = pageBackground
   previewLookOnRef.current = previewLookOn
   previewLookTokenRef.current = weddingPreviewLookToken({
@@ -767,6 +770,10 @@ export default function WeddingPublicClient({
         masterImageUrl: pageBackgroundRef.current,
       })
       const sameLook = previewLookOnRef.current && weddingPreviewLookToken(look) === previewLookTokenRef.current
+      if (look.sectionConfig !== sectionRawRef.current) {
+        sectionRawRef.current = look.sectionConfig
+        setSectionRaw(look.sectionConfig)
+      }
       if (!sameLook) {
         setPreviewLookOn(true)
         setSectionRaw(look.sectionConfig)
@@ -1168,6 +1175,13 @@ export default function WeddingPublicClient({
     }
     openInvitation()
   }
+
+  useEffect(() => {
+    if (!opened || !coverGate) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const timer = window.setTimeout(() => setCoverGate(false), reduced ? 0 : 520)
+    return () => window.clearTimeout(timer)
+  }, [coverGate, opened])
 
   const openInvitation = () => {
     if (doorStarted.current || opened) return
@@ -1970,9 +1984,9 @@ export default function WeddingPublicClient({
         className={cn('relative z-0', layoutPreview ? 'min-h-0' : 'min-h-screen', (hostPreview || sampleDemo) && 'mx-auto max-w-full shadow-2xl', theme.pageBg, theme.text, kitSurface.className)}
         style={{ ...kitSurface.style, ...(readingPlate ? { ['--wedding-reading-plate' as string]: readingPlate } : {}), width: sampleDemo || hostPreview ? (viewDevice === 'desktop' ? (sampleDemo ? 'min(100vw, 90rem)' : 'min(72rem, calc(100vw - 3rem))') : `${WEDDING_MOBILE_WIDTH}px`) : undefined }}
       >
-        {!opened && (
+        {coverGate && (
           <>
-            <div className={cn(coverPreview && 'relative z-10 overflow-x-clip')} ref={coverPreview ? coverScrollRef : undefined}>
+            <div className={cn(coverPreview && 'relative z-10 overflow-x-clip', opened && 'pointer-events-none wedding-cover-leave')} ref={coverPreview ? coverScrollRef : undefined}>
               <FittedCoverFrame
                 active={!coverPreview}
                 contain={hostPreview}
@@ -2224,12 +2238,39 @@ export default function WeddingPublicClient({
             <div className={cn('mt-1 mb-0 text-3xl leading-none sm:text-4xl', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-ornament', theme.accent, theme.textGlow)}>{theme.ornament}</div>
             )}
             <div>
+            {envelopeCover ? (
+              <div className={cn('mx-auto mt-1 w-full max-w-[32rem]', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-shell')}>
+                <WeddingCoverShellCard
+                  frameOnly
+                  presetId={coverPresetId}
+                  aiFrame={coverFrameMode === 'preset' || coverFrameMode === 'none' ? null : coverAiFrame}
+                  frameMode={coverFrameMode}
+                  coverPhotoUrl={displayCoverPhotoUrl}
+                  coverPhotoObjectPosition={coverPhotoObjectPosition}
+                  coverPhotoScale={coverPhotoScale}
+                  frameScale={resolveCoverFrameScale(sectionConfig)}
+                  groomName={card.groomName}
+                  brideName={card.brideName}
+                  nameLayout={cardStructure.nameLayout}
+                  theme={theme}
+                  invitationLabel={tx.invitation}
+                  cordiallyInvitesLabel={tx.cordiallyInvites}
+                  openButtonLabel={tx.openInvitation}
+                  dateFallback={tx.dateFallback}
+                  photoAlt={tx.coverPhotoAlt}
+                  pairLeftUrl={groomPhotoUrl}
+                  pairRightUrl={cardStructure.portraitLayout === 'pair' ? bridePhotoUrl : ''}
+                  pairLeftCrop={resolvePortraitPhotoFrame(sectionConfig, 'groom')}
+                  pairRightCrop={resolvePortraitPhotoFrame(sectionConfig, 'bride')}
+                />
+              </div>
+            ) : null}
             {withoutPartyAddress(card.loveQuote) && (
               <p className={cn('mx-auto mt-4 max-w-lg font-serif sm:mt-5', theme.contentCard === 'scallop' ? 'text-xl font-semibold not-italic leading-8 sm:text-[1.65rem] sm:leading-9' : 'text-lg italic leading-7 sm:text-xl sm:leading-8', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-quote', theme.accentText, theme.textGlow)}>
                 “{writeGuestName(personalize(withoutPartyAddress(card.loveQuote)))}”
               </p>
             )}
-            {envelopeCover || !(heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl)) ? (
+            {!envelopeCover && !(heroStack || (coverFrameMode === 'none' && !displayCoverPhotoUrl)) ? (
               <div className={cn('mx-auto mt-6 w-full sm:mt-7', coverFrameMode === 'preset' || coverFrameMode === 'library' || coverFrameMode === 'ai' || coverFrameMode === 'none' ? (weddingCoverPhotoHead(coverPresetId) === 'leaf' ? 'max-w-2xl' : 'max-w-[32rem]') : '', contentVisible && card.effectsEnabled && 'wedding-open-line wedding-open-invite')}>
                 <WeddingCoverShellCard
                   frameOnly

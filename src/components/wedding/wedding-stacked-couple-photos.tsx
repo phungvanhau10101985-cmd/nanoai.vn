@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from '@/lib/wedding/cover-frame-hole-mask'
 import type { CoverFrameHolePct } from '@/lib/wedding/measure-cover-frame-hole'
 import { WEDDING_GUEST_NAME_CLASS, WeddingGuestNameFontLink } from '@/components/wedding/wedding-guest-name-font'
-import { albumPhotoFrameStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
+import { albumPhotoFrameStyle, STACK_BRIDE_FRAME_ROTATE, STACK_FRAME_ROTATE_MAX, STACK_FRAME_ROTATE_MIN, STACK_GROOM_FRAME_ROTATE, WEDDING_FRAME_SCALE_MAX, WEDDING_FRAME_SCALE_MIN, WEDDING_FRAME_SCALE_STEP, weddingFrameScalePercent, type WeddingAlbumPhotoFrame, type WeddingPortraitShellFrame, type WeddingStackPlace } from '@/lib/wedding/wedding-section-config'
 import { WeddingDeviceFileInput } from '@/components/wedding/wedding-device-file-input'
 
 const DEFAULT_FRAME: WeddingAlbumPhotoFrame = { x: 50, y: 18, scale: 1 }
@@ -588,11 +588,11 @@ export function WeddingStackedCouplePhotos(props: {
   const showSecond = visible.some((slot) => slot.side === 'second')
   const both = visible.length === 2
   const named = Boolean(props.firstNameEdit || props.secondNameEdit || props.firstName?.trim() || props.secondName?.trim())
-  const base = props.compact ? 72 : 74
+  const base = 92
   const firstSlot = visible.find((slot) => slot.side === 'first')
   const secondSlot = visible.find((slot) => slot.side === 'second')
   const sharedFrameScale = clampFrameScale(props.frameScaleEdit?.scale ?? props.frameScale ?? 1)
-  const photoShare = Math.min(74, Math.round(48 * sharedFrameScale))
+  const photoShare = Math.min(86, Math.round(72 * sharedFrameScale))
   const shellMask = useStackHoleMask(props.frameShell?.src ?? '', props.frameShell?.hole ?? EMPTY_HOLE)
   const frameAspect = visualFrameAspect(shellMask)
   const stageRef = useRef<HTMLDivElement>(null)
@@ -755,7 +755,7 @@ export function WeddingStackedCouplePhotos(props: {
     const crop = edit?.crop
     if (!props.onPlace && !rotate && !choose && !props.frameScaleEdit && !edit) return null
     const hold = (event: React.PointerEvent<HTMLElement>) => event.stopPropagation()
-    const iconButton = 'flex h-11 w-11 items-center justify-center rounded-lg border bg-white'
+    const iconButton = 'flex h-11 w-11 items-center justify-center rounded-lg border bg-white disabled:opacity-30'
     return (
       <div
         className="flex w-max flex-col gap-1 rounded-xl border border-rose-200 bg-white/95 p-1 shadow-lg"
@@ -779,9 +779,10 @@ export function WeddingStackedCouplePhotos(props: {
             <button
               type="button"
               aria-label={props.frameScaleEdit.zoomInLabel}
-              className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-700 text-white"
+              className="flex h-11 w-11 items-center justify-center rounded-lg bg-rose-700 text-white disabled:opacity-30"
               onPointerDown={hold}
-              onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale + 0.05))}
+              disabled={sharedFrameScale >= WEDDING_FRAME_SCALE_MAX}
+              onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale + WEDDING_FRAME_SCALE_STEP))}
             >
               <ZoomIn className="h-6 w-6" />
             </button>
@@ -792,7 +793,8 @@ export function WeddingStackedCouplePhotos(props: {
               aria-label={props.frameScaleEdit.zoomOutLabel}
               className={iconButton}
               onPointerDown={hold}
-              onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale - 0.05))}
+              disabled={sharedFrameScale <= WEDDING_FRAME_SCALE_MIN}
+              onClick={() => props.frameScaleEdit?.onChange(clampFrameScale(sharedFrameScale - WEDDING_FRAME_SCALE_STEP))}
             >
               <ZoomOut className="h-6 w-6" />
             </button>
@@ -823,7 +825,7 @@ export function WeddingStackedCouplePhotos(props: {
         {rotate || props.frameScaleEdit ? (
           <div className="flex items-center justify-center gap-3 px-1 text-xs font-semibold tabular-nums text-stone-700">
             {rotate ? <span>{rotate.degrees}°</span> : null}
-            {props.frameScaleEdit ? <span>{Math.round(sharedFrameScale * 100)}%</span> : null}
+            {props.frameScaleEdit ? <span>{weddingFrameScalePercent(sharedFrameScale)}%</span> : null}
           </div>
         ) : null}
         {choose ? (
@@ -896,7 +898,7 @@ export function WeddingStackedCouplePhotos(props: {
   }
   if (visible.length === 0) return null
   return (
-    <div className={cn('relative mx-auto w-full', named ? (props.compact ? 'max-w-full' : 'max-w-[26rem]') : props.compact ? 'max-w-[13rem]' : 'max-w-[20rem]', props.className)}>
+    <div className={cn('relative mx-auto w-[86%] max-w-full', props.className)}>
       {named ? <WeddingGuestNameFontLink /> : null}
       {both && named && firstSlot && secondSlot ? (
         <div>
@@ -904,14 +906,14 @@ export function WeddingStackedCouplePhotos(props: {
           <div ref={stageRef} className="relative w-full" style={{ height: stageHeight, marginTop: displayBleedTop ? -displayBleedTop : undefined, marginBottom: displayBleedBottom ? -displayBleedBottom : undefined }}>
             <div
               className={cn('absolute', props.onPlace && 'touch-none')}
-              style={{ left: `${place.stackGroomFrameX}%`, top: `${place.stackGroomFrameY}%`, width: `${photoShare}%`, zIndex: lifted === 'groomFrame' || pickedFrame === 'first' ? 50 : 2, cursor: props.onPlace ? 'grab' : undefined }}
+              style={{ left: `${Math.min(place.stackGroomFrameX, Math.max(0, 100 - photoShare))}%`, top: `${place.stackGroomFrameY}%`, width: `${photoShare}%`, zIndex: lifted === 'groomFrame' || pickedFrame === 'first' ? 50 : 2, cursor: props.onPlace ? 'grab' : undefined }}
               onPointerDown={(event) => startPlaceDrag('groomFrame', event)}
             >
               {card(firstSlot, 'top')}
             </div>
             <div
               className={cn('absolute', props.onPlace && 'touch-none')}
-              style={{ left: `${place.stackBrideFrameX}%`, top: `${place.stackBrideFrameY}%`, width: `${photoShare}%`, zIndex: lifted === 'brideFrame' || pickedFrame === 'second' ? 50 : 3, cursor: props.onPlace ? 'grab' : undefined }}
+              style={{ left: `${Math.min(place.stackBrideFrameX, Math.max(0, 100 - photoShare))}%`, top: `${place.stackBrideFrameY}%`, width: `${photoShare}%`, zIndex: lifted === 'brideFrame' || pickedFrame === 'second' ? 50 : 3, cursor: props.onPlace ? 'grab' : undefined }}
               onPointerDown={(event) => startPlaceDrag('brideFrame', event)}
             >
               {card(secondSlot, 'bottom')}

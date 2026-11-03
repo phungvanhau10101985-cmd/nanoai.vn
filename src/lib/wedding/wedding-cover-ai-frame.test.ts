@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { buildCoverFrameHoleMask, clearCoverFrameHole, measureCoverFrameContentBox } from './cover-frame-hole-mask'
 import { buildWeddingCoverFramePrompt } from './build-wedding-cover-frame-prompt'
 import { measureCoverFrameHole } from './measure-cover-frame-hole'
-import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell } from './wedding-section-config'
+import { coverPhotoUrlUnlessBackground, mergeWeddingSectionConfig, parseWeddingSectionConfig, resolveCoverAiFrame, resolveCoverFrameMode, resolveCoverFrameOpen, resolveCoverFrameScale, resolveCoverPhotoOpen, resolveOpenBurstEffect, resolveOpenFallEffect, resolveOpenFallSeconds, resolvePortraitFrameScale, resolvePortraitShell, weddingFrameScalePercent } from './wedding-section-config'
 
 test('cover frame prompt keeps one flat canvas so the logo mask can open the center', () => {
   const prompt = buildWeddingCoverFramePrompt({
@@ -174,20 +174,23 @@ test('section config keeps an AI frame and drops it when the url is cleared', ()
   assert.equal(parseWeddingSectionConfig(cleared).coverPresetId, 'classic_red')
 })
 
-test('frame size stays per photo and defaults to the original size', () => {
-  assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig('{}')), 1)
-  assert.equal(resolvePortraitFrameScale(parseWeddingSectionConfig('{}'), 'bride'), 1)
+test('frame size stays per photo and 120% is the 100% floor', () => {
+  assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig('{}')), 1.2)
+  assert.equal(resolvePortraitFrameScale(parseWeddingSectionConfig('{}'), 'bride'), 1.2)
+  assert.equal(weddingFrameScalePercent(1.2), 100)
+  assert.equal(weddingFrameScalePercent(1.8), 150)
   const saved = mergeWeddingSectionConfig('{"coverPresetId":"classic_red"}', {
     coverFrameScale: 1.25,
     groomPortraitFrameScale: 0.8,
-    bridePortraitFrameScale: 1,
+    bridePortraitFrameScale: 1.2,
   })
   const parsed = parseWeddingSectionConfig(saved)
   assert.equal(parsed.coverPresetId, 'classic_red')
   assert.equal(resolveCoverFrameScale(parsed), 1.25)
-  assert.equal(resolvePortraitFrameScale(parsed, 'groom'), 0.8)
-  assert.equal(resolvePortraitFrameScale(parsed, 'bride'), 1)
+  assert.equal(resolvePortraitFrameScale(parsed, 'groom'), 1.2)
+  assert.equal(resolvePortraitFrameScale(parsed, 'bride'), 1.2)
   assert.equal(JSON.parse(saved).bridePortraitFrameScale, undefined)
+  assert.equal(JSON.parse(saved).groomPortraitFrameScale, undefined)
   const clamped = mergeWeddingSectionConfig(saved, { coverFrameScale: 9 })
   assert.equal(resolveCoverFrameScale(parseWeddingSectionConfig(clamped)), 1.8)
 })

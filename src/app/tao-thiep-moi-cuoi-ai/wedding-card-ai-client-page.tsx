@@ -131,6 +131,10 @@ import {
   resolveShownCoverFrame,
   resolveShownPortraitShell,
   clampWeddingFrameScale,
+  weddingFrameScalePercent,
+  WEDDING_FRAME_SCALE_MAX,
+  WEDDING_FRAME_SCALE_MIN,
+  WEDDING_FRAME_SCALE_STEP,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
   type WeddingOpenBurstEffect,
@@ -4431,13 +4435,13 @@ function FrameSizeControl(props: {
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>{props.label}</span>
-        <span>{Math.round(props.value * 100)}%</span>
+        <span>{weddingFrameScalePercent(props.value)}%</span>
       </div>
       <Input
         type="range"
-        min={String(0.6)}
-        max={String(1.4)}
-        step="0.05"
+        min={String(WEDDING_FRAME_SCALE_MIN)}
+        max={String(WEDDING_FRAME_SCALE_MAX)}
+        step={String(WEDDING_FRAME_SCALE_STEP)}
         value={props.value}
         onChange={(event) => setScale(Number(event.target.value))}
       />

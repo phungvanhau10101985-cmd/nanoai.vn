@@ -48,6 +48,7 @@ test('maple leaf frames keep a veined rim and a leaf-shaped hole', async () => {
   assert.ok(ids.length >= 4)
   for (const id of ids) {
     const frame = WEDDING_LEAF_FRAMES[id]
+    assert.equal(frame.src, '/wedding/covers/la-phong-frame.webp')
     const file = path.join(process.cwd(), 'public', frame.src.replace(/^\//, ''))
     const maskFile = path.join(process.cwd(), 'public', frame.mask.replace(/^\//, ''))
     assert.equal(existsSync(file), true, frame.src)

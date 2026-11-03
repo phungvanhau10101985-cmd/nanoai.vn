@@ -70,7 +70,7 @@ export function WeddingGuestInviteBlock(props: Props) {
           className={cn(
             WEDDING_GUEST_NAME_CLASS,
             'mt-1 break-words',
-            props.compact ? 'text-[1.65rem]' : props.dense ? 'text-[1.7rem] leading-none sm:text-[2rem]' : 'text-[2.15rem] sm:text-[2.55rem]',
+            props.compact ? 'text-[1.65rem]' : props.dense ? 'text-[1.35rem] leading-none' : 'text-[2.15rem] sm:text-[2.55rem]',
             props.scriptLines && 'wedding-open-guest-name',
             props.nameClassName,
           )}
@@ -81,8 +81,8 @@ export function WeddingGuestInviteBlock(props: Props) {
           <p
             className={cn(
               'mx-auto max-w-prose whitespace-pre-line text-center',
-              props.dense ? 'mt-1.5' : 'mt-3',
-              props.compact ? 'text-[11px] leading-relaxed' : props.dense ? 'text-[13px] leading-5' : 'text-xs leading-6 sm:text-sm',
+              props.dense ? 'mt-1' : 'mt-3',
+              props.compact ? 'text-[11px] leading-relaxed' : props.dense ? 'text-[12px] leading-snug' : 'text-xs leading-6 sm:text-sm',
               props.scriptLines && 'wedding-open-line wedding-open-invite-body',
               props.personalInviteClassName ?? props.cordiallyClassName,
             )}
