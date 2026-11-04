@@ -109,7 +109,6 @@ import { WeddingSideInviteSettingsPanel } from './khach-moi/wedding-side-invite-
 import {
   mergeWeddingSectionConfig,
   parseWeddingSectionConfig,
-  type WeddingSectionConfig,
   resolveCoverAiFrame,
   remapAlbumPhotoCrops,
   resolveAlbumPhotoFrame,
@@ -134,10 +133,6 @@ import {
   resolveShownPortraitShell,
   centeredFrameBoxStyle,
   clampWeddingFrameScale,
-  weddingFrameScalePercent,
-  WEDDING_FRAME_SCALE_MAX,
-  WEDDING_FRAME_SCALE_MIN,
-  WEDDING_FRAME_SCALE_STEP,
   shiftAlbumPhotoCropsAfterRemove,
   upsertAlbumPhotoCrop,
   type WeddingOpenBurstEffect,
@@ -4461,40 +4456,6 @@ export default function WeddingCardAiClientPage() {
       {previewFab}
     </>
     </WeddingCreditTopUpProvider>
-  )
-}
-
-function FrameSizeControl(props: {
-  label: string
-  zoomOutLabel: string
-  zoomInLabel: string
-  value: number
-  onChange: (scale: number) => void
-}) {
-  const setScale = (value: number) => props.onChange(clampWeddingFrameScale(value))
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>{props.label}</span>
-        <span>{weddingFrameScalePercent(props.value)}%</span>
-      </div>
-      <Input
-        type="range"
-        min={String(WEDDING_FRAME_SCALE_MIN)}
-        max={String(WEDDING_FRAME_SCALE_MAX)}
-        step={String(WEDDING_FRAME_SCALE_STEP)}
-        value={props.value}
-        onChange={(event) => setScale(Number(event.target.value))}
-      />
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={() => setScale(props.value - 0.1)}>
-          {props.zoomOutLabel}
-        </Button>
-        <Button type="button" variant="outline" size="sm" onClick={() => setScale(props.value + 0.1)}>
-          {props.zoomInLabel}
-        </Button>
-      </div>
-    </div>
   )
 }
 

@@ -38,7 +38,6 @@ import {
   invitationShowsSecondVenue,
 } from '@/lib/wedding/invitation-occasion'
 import { WeddingInvitationShareActions } from '@/components/wedding/wedding-invitation-share-actions'
-import type { WebLocale } from '@/lib/i18n/config'
 import { getDictionary } from '@/lib/i18n/dictionaries'
 import { readWebLocaleFromDocumentCookie } from '@/lib/i18n/read-web-locale-cookie'
 import { shouldShowPublicGiftBoxForSide } from '@/lib/wedding/wedding-gift-vietqr'
@@ -574,7 +573,6 @@ export default function WeddingPublicClient({
   ornamentSharedMobile = null,
   ornamentLetterMobile = null,
   ornamentLetterSharedMobile = null,
-  ornamentLayoutKey = '',
   ornamentEditor = false,
   hostEditor = false,
   templateEditor = false,

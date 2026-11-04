@@ -1945,7 +1945,8 @@ export function weddingUsesPairedAiFrame(section: {
 }
 
 /** Một khung của chủ đề. Bố cục hai khung chồng không còn. */
-export function weddingHeroPhotoLayout(_preset: Pick<WeddingBackgroundPreset, 'heroPhotoLayout'> | null | undefined): 'single' | 'stack' {
+export function weddingHeroPhotoLayout(preset: Pick<WeddingBackgroundPreset, 'heroPhotoLayout'> | null | undefined): 'single' | 'stack' {
+  void preset
   return 'single'
 }
 

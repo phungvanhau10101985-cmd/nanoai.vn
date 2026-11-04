@@ -5,7 +5,7 @@ import {
   resolveDeepSeekChatModel,
 } from '@/lib/deepseek-api'
 import { invitationComposeBrief } from '@/lib/wedding/invitation-compose'
-import { invitationEditorCopy, normalizeInvitationOccasion } from '@/lib/wedding/invitation-occasion'
+import { invitationEditorCopy } from '@/lib/wedding/invitation-occasion'
 
 export const WEDDING_POLISH_FIELDS = [
   'coupleIntro',

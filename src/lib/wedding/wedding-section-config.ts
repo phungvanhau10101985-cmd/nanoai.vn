@@ -157,15 +157,18 @@ export type WeddingTextStyle = {
 export type WeddingHeroPhotoLayout = 'single' | 'stack'
 
 /** Bố cục hai khung chồng đã bỏ. Mọi giá trị đọc ra đều là một khung của chủ đề. */
-export function readHeroPhotoLayout(_value: unknown): WeddingHeroPhotoLayout {
+export function readHeroPhotoLayout(value: unknown): WeddingHeroPhotoLayout {
+  void value
   return 'single'
 }
 
 /** Vỏ và nội dung dùng một khung của giao diện đang chọn. */
 export function resolveShownHeroLayout(
-  _config: Pick<WeddingSectionConfig, 'heroPhotoLayout'>,
-  _fallback: WeddingHeroPhotoLayout,
+  config: Pick<WeddingSectionConfig, 'heroPhotoLayout'>,
+  fallback: WeddingHeroPhotoLayout,
 ): WeddingHeroPhotoLayout {
+  void config
+  void fallback
   return 'single'
 }
 
@@ -862,8 +865,9 @@ export function resolveShownPortraitShell(
   config: WeddingSectionConfig,
   side: 'groom' | 'bride',
   kitPresetId?: string,
-  _shared?: WeddingSharedFrame | null,
+  shared?: WeddingSharedFrame | null,
 ): WeddingPortraitShellFrame | null {
+  void shared
   const kitPreset = findWeddingCoverPreset(kitPresetId ?? '')
   if (kitPreset?.frame) return { src: kitPreset.frame.src, hole: kitPreset.frame.hole, panel: kitPreset.frame.panel }
   if (kitPreset && weddingCoverPresetFollowsBackground(kitPreset)) return null
@@ -876,12 +880,13 @@ export function resolveShownPortraitShell(
 export function resolveShownCoverFrame(
   config: WeddingSectionConfig,
   kitPresetId?: string,
-  _shared?: WeddingSharedFrame | null,
+  shared?: WeddingSharedFrame | null,
 ): {
   mode: WeddingCoverFrameMode
   presetId: string
   library?: { src: string; hole: WeddingCoverAiFrameHole; panel: string; ink: 'dark' | 'light' } | null
 } {
+  void shared
   const kit = kitPresetId?.trim()
   if (kit && weddingCoverPresetFollowsBackground(findWeddingCoverPreset(kit))) {
     return { mode: 'preset', presetId: kit }
