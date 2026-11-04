@@ -126,6 +126,7 @@ export type PartnerWebsitePublicRow = {
   zaloOaId?: string | null
   zaloPersonalUrl?: string | null
   zaloOpen?: string | null
+  zaloFloatEnabled?: boolean | null
   zaloCustomHtml?: string | null
   isPublished?: boolean
 }

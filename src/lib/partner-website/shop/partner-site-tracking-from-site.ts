@@ -28,6 +28,7 @@ export function partnerSiteTrackingFromPublicRow(site: PartnerWebsitePublicRow):
     zaloOaId: site.zaloOaId?.trim() || null,
     zaloPersonalUrl: site.zaloPersonalUrl?.trim() || null,
     zaloOpen: site.zaloOpen === 'oa' || site.zaloOpen === 'personal' ? site.zaloOpen : null,
+    zaloFloatEnabled: site.zaloFloatEnabled !== false,
     zaloCustomHtml: site.zaloCustomHtml || null,
   }
 }

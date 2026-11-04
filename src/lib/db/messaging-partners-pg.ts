@@ -81,6 +81,7 @@ function isMissingPartnerProfileColumnError(e: unknown): boolean {
     msg.includes('zalo_oa_id') ||
     msg.includes('zalo_personal_url') ||
     msg.includes('zalo_open') ||
+    msg.includes('zalo_float_enabled') ||
     msg.includes('zalo_custom_html')
   )
 }
@@ -418,6 +419,7 @@ export type MessagingPartnerShopTrackingExtras = {
   zalo_oa_id: string | null
   zalo_personal_url: string | null
   zalo_open: string | null
+  zalo_float_enabled: boolean
   zalo_custom_html: string | null
 }
 
@@ -439,15 +441,18 @@ const EMPTY_SHOP_TRACKING_EXTRAS: MessagingPartnerShopTrackingExtras = {
   zalo_oa_id: null,
   zalo_personal_url: null,
   zalo_open: null,
+  zalo_float_enabled: true,
   zalo_custom_html: null,
 }
 
 export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
-  partnerId: string
+  partnerId: string,
+  options?: { includeZaloFloat?: boolean }
 ): Promise<MessagingPartnerShopTrackingExtras> {
   if (!isPgConfigured()) return EMPTY_SHOP_TRACKING_EXTRAS
   const pid = safeUuid(partnerId)
   if (!pid) return EMPTY_SHOP_TRACKING_EXTRAS
+  const includeZaloFloat = options?.includeZaloFloat !== false
   try {
     const row = await pgQueryOne<{
       ads_conversion_pdp: string | null
@@ -467,6 +472,7 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
       zalo_oa_id: string | null
       zalo_personal_url: string | null
       zalo_open: string | null
+      zalo_float_enabled: boolean | null
       zalo_custom_html: string | null
     }>(
       `select nullif(trim(coalesce(ads_conversion_pdp, '')), '') as ads_conversion_pdp,
@@ -486,6 +492,7 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
               nullif(trim(coalesce(zalo_oa_id, '')), '') as zalo_oa_id,
               nullif(trim(coalesce(zalo_personal_url, '')), '') as zalo_personal_url,
               nullif(trim(coalesce(zalo_open, '')), '') as zalo_open,
+              ${includeZaloFloat ? 'coalesce(zalo_float_enabled, true)' : 'true'} as zalo_float_enabled,
               nullif(zalo_custom_html, '') as zalo_custom_html
        from public.messaging_partners where id = $1::uuid limit 1`,
       [pid]
@@ -510,9 +517,14 @@ export async function fetchMessagingPartnerShopTrackingExtrasFromPg(
       zalo_oa_id: row.zalo_oa_id,
       zalo_personal_url: row.zalo_personal_url,
       zalo_open: row.zalo_open === 'oa' || row.zalo_open === 'personal' ? row.zalo_open : null,
+      zalo_float_enabled: row.zalo_float_enabled !== false,
       zalo_custom_html: row.zalo_custom_html,
     }
   } catch (e) {
+    const missing = String((e as { message?: string }).message ?? '')
+    if (includeZaloFloat && isMissingPartnerProfileColumnError(e) && missing.includes('zalo_float_enabled')) {
+      return fetchMessagingPartnerShopTrackingExtrasFromPg(partnerId, { includeZaloFloat: false })
+    }
     if (isMissingPartnerProfileColumnError(e)) return EMPTY_SHOP_TRACKING_EXTRAS
     console.warn('[fetchMessagingPartnerShopTrackingExtrasFromPg]', e)
     return EMPTY_SHOP_TRACKING_EXTRAS
@@ -559,6 +571,10 @@ export async function updateMessagingPartnerShopTrackingExtrasForOwnerFromPg(par
   if ('zalo_oa_id' in p) add('zalo_oa_id', p.zalo_oa_id ?? null)
   if ('zalo_personal_url' in p) add('zalo_personal_url', p.zalo_personal_url ?? null)
   if ('zalo_open' in p) add('zalo_open', p.zalo_open === 'oa' ? 'oa' : p.zalo_open === 'personal' ? 'personal' : null)
+  if ('zalo_float_enabled' in p) {
+    values.push(p.zalo_float_enabled !== false)
+    sets.push(`zalo_float_enabled = $${values.length}`)
+  }
   if ('zalo_custom_html' in p) add('zalo_custom_html', p.zalo_custom_html ?? null)
   if (p.update_tiktok_events_api_token) add('tiktok_events_api_token', p.tiktok_events_api_token ?? null)
   if (!sets.length) return true

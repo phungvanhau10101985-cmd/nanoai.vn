@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { useRegisterStepUpShop, useStepUpOtp } from '@/components/auth/step-up-otp-provider'
 import { isStepUpRequiredError } from '@/lib/auth/step-up-otp-shared'
@@ -635,6 +636,7 @@ export function PartnerMessagingSettingsClient({
   const [zaloOaId, setZaloOaId] = useState('')
   const [zaloPersonalUrl, setZaloPersonalUrl] = useState('')
   const [zaloOpen, setZaloOpen] = useState<'personal' | 'oa'>('personal')
+  const [zaloFloatEnabled, setZaloFloatEnabled] = useState(true)
   const [zaloCustomHtml, setZaloCustomHtml] = useState('')
   const [tiktokEventsApiToken, setTiktokEventsApiToken] = useState('')
   const [tiktokEventsApiConfigured, setTiktokEventsApiConfigured] = useState(false)
@@ -1361,6 +1363,7 @@ export function PartnerMessagingSettingsClient({
       setZaloOaId((res.zaloOaId ?? '').trim())
       setZaloPersonalUrl((res.zaloPersonalUrl ?? '').trim())
       setZaloOpen(res.zaloOpen === 'oa' ? 'oa' : 'personal')
+      setZaloFloatEnabled(res.zaloFloatEnabled !== false)
       setZaloCustomHtml(res.zaloCustomHtml ?? '')
       setTiktokEventsApiConfigured(Boolean(res.tiktokEventsApiConfigured))
       setTiktokEventsApiToken('')
@@ -2114,6 +2117,7 @@ export function PartnerMessagingSettingsClient({
           zaloOaId,
           zaloPersonalUrl,
           zaloOpen,
+          zaloFloatEnabled,
           zaloCustomHtml,
           tiktokEventsApiToken,
         })
@@ -3929,6 +3933,20 @@ export function PartnerMessagingSettingsClient({
                 <p className="text-[11px] text-muted-foreground leading-relaxed">{t.shopChatWidgetsHint}</p>
                 <SettingsDataRoleBox role="inbound" copy={roleCopy}>
                   <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3 rounded-md border border-border/70 bg-background px-3 py-2">
+                      <div className="space-y-1">
+                        <Label htmlFor="zalo-float-enabled" className="text-xs font-medium">
+                          {t.shopZaloFloatLabel}
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">{t.shopZaloFloatHint}</p>
+                      </div>
+                      <Switch
+                        id="zalo-float-enabled"
+                        checked={zaloFloatEnabled}
+                        onCheckedChange={setZaloFloatEnabled}
+                        aria-label={t.shopZaloFloatLabel}
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-medium">{t.shopZaloOpenLabel}</Label>
                       <Select value={zaloOpen} onValueChange={(v) => setZaloOpen(v === 'oa' ? 'oa' : 'personal')}>

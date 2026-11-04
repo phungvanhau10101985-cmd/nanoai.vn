@@ -97,11 +97,15 @@ export function buildPartnerShopChatWidgetsHtml(input: {
   zaloOaId?: string | null
   zaloPersonalUrl?: string | null
   zaloOpen?: string | null
+  /** false hides the corner float. The personal number still opens in-page message buttons. */
+  zaloFloatEnabled?: boolean | null
   zaloCustomHtml?: string | null
 }): string {
   const mode = resolveZaloOpenMode(input.zaloOpen, input.zaloPersonalUrl)
-  const zalo =
-    mode === 'personal'
+  const floatOn = input.zaloFloatEnabled !== false
+  const zalo = !floatOn
+    ? ''
+    : mode === 'personal'
       ? buildZaloPersonalButtonHtml(input.zaloPersonalUrl)
       : buildZaloOaWidgetHtml(input.zaloOaId)
   const parts = [

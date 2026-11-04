@@ -639,15 +639,19 @@ const EN_DICTIONARY: Dictionary = {
     shopTrackingExtrasSaveButton: 'Save Ads labels / verify / HTML',
     shopChatWidgetsTitle: 'Zalo and Facebook chat',
     shopChatWidgetsHint:
-      'Enter an ID or phone only. The Zalo OA widget and Facebook chat sit at the end of the page. A personal Zalo number is not a script — the contact button opens zalo.me.',
+      'Choose whether in-page Zalo buttons open a personal number or the Official Account. The corner float has its own switch. The personal number still opens message buttons on the page.',
     shopFacebookChatPageLabel: 'Facebook chat plugin (Page ID)',
     shopFacebookChatPageHint: 'Page ID digits only. Do not paste a script.',
     shopFacebookChatPagePlaceholder: 'Example: 123456789012345',
     shopZaloOpenLabel: 'Zalo button opens',
     shopZaloOpenPersonal: 'Personal Zalo — number or link below',
     shopZaloOpenOa: 'Zalo Official Account widget',
-    shopZaloOpenPersonalHint: 'The Zalo button opens the personal number. The OA widget stays off.',
+    shopZaloOpenPersonalHint:
+      'In-page message buttons open the personal number, including the deposit explanation. The OA widget stays off.',
     shopZaloOpenOaHint: 'The Zalo button opens the Official Account. The personal number is not used.',
+    shopZaloFloatLabel: 'Floating Zalo button',
+    shopZaloFloatHint:
+      'On shows the corner «Nhắn Zalo» button. Off hides only that float. The personal number still opens in-page message buttons.',
     shopZaloOaLabel: 'Zalo Official Account chat widget',
     shopZaloOaHint: 'OA ID digits only. Do not paste a script.',
     shopZaloOaPlaceholder: 'OA ID',
@@ -5194,6 +5198,9 @@ const ZH_DICTIONARY: Dictionary = {
     shopCustomHtmlBodyOpenLabel: 'Body 开头',
     shopCustomHtmlBodyCloseLabel: 'Body 结尾',
     shopTrackingExtrasSaveButton: '保存 Ads 标签 / 验证 / HTML',
+    shopZaloFloatLabel: '网页上的浮动 Zalo 按钮',
+    shopZaloFloatHint:
+      '开启时在屏幕角落显示「Nhắn Zalo」。关闭只隐藏这个浮动按钮。个人号码仍用于页面上的咨询按钮，包括定金说明。',
     shopTiktokEventsTokenLabel: 'TikTok Events API token',
     shopTiktokEventsTokenHint: '仅保存，暂不服务端发送（与 188 相同）。上方 TikTok Pixel 仍会在店铺页面触发。',
     shopTiktokEventsTokenPlaceholder: '粘贴 Events API token',
@@ -9601,6 +9608,9 @@ const JA_DICTIONARY: Dictionary = {
     shopCustomHtmlBodyOpenLabel: 'Body 先頭',
     shopCustomHtmlBodyCloseLabel: 'Body 末尾',
     shopTrackingExtrasSaveButton: 'Ads ラベル / 確認 / HTML を保存',
+    shopZaloFloatLabel: 'ウェブ上のフローティング Zalo ボタン',
+    shopZaloFloatHint:
+      'オンで画面の隅に「Nhắn Zalo」を表示します。オフはそのフローティングボタンだけを隠します。個人番号はページ内の相談ボタン（デポジット説明を含む）に残ります。',
     shopTiktokEventsTokenLabel: 'TikTok Events API token',
     shopTiktokEventsTokenHint: '保存のみでサーバー送信はまだしません（188 と同じ）。上の TikTok Pixel は店舗で発火します。',
     shopTiktokEventsTokenPlaceholder: 'Events API token を貼り付け',
@@ -14094,6 +14104,9 @@ const KO_DICTIONARY: Dictionary = {
     shopCustomHtmlBodyOpenLabel: 'Body 시작',
     shopCustomHtmlBodyCloseLabel: 'Body 끝',
     shopTrackingExtrasSaveButton: 'Ads 라벨 / 인증 / HTML 저장',
+    shopZaloFloatLabel: '웹의 떠 있는 Zalo 버튼',
+    shopZaloFloatHint:
+      '켜면 화면 모서리에 «Nhắn Zalo»가 보입니다. 끄면 그 떠 있는 버튼만 숨깁니다. 개인 번호는 페이지 안 문의 버튼(보증금 설명 포함)에 그대로 씁니다.',
     shopTiktokEventsTokenLabel: 'TikTok Events API 토큰',
     shopTiktokEventsTokenHint: '저장만 하며 서버 전송은 아직 없습니다(188과 동일). 위의 TikTok Pixel은 상점에서 발사됩니다.',
     shopTiktokEventsTokenPlaceholder: 'Events API 토큰 붙여넣기',

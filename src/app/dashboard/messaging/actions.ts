@@ -788,6 +788,7 @@ export async function getPartnerMessagingShopTrackingExtras(partnerId: string) {
     zaloOaId: extras.zalo_oa_id,
     zaloPersonalUrl: extras.zalo_personal_url,
     zaloOpen: extras.zalo_open === 'oa' ? 'oa' : extras.zalo_personal_url ? 'personal' : extras.zalo_open === 'personal' ? 'personal' : 'oa',
+    zaloFloatEnabled: extras.zalo_float_enabled !== false,
     zaloCustomHtml: extras.zalo_custom_html,
     tiktokEventsApiConfigured: Boolean(extras.tiktok_events_api_token),
   }
@@ -831,6 +832,7 @@ export async function savePartnerMessagingShopTrackingExtras(
     zaloOaId?: string
     zaloPersonalUrl?: string
     zaloOpen?: string
+    zaloFloatEnabled?: boolean
     zaloCustomHtml?: string
     tiktokEventsApiToken?: string
   }
@@ -903,6 +905,7 @@ export async function savePartnerMessagingShopTrackingExtras(
       zalo_oa_id: zaloOaId,
       zalo_personal_url: zaloPersonalUrl,
       zalo_open: input.zaloOpen === 'oa' ? 'oa' : 'personal',
+      zalo_float_enabled: input.zaloFloatEnabled !== false,
       zalo_custom_html: zaloCustomHtml || null,
       update_tiktok_events_api_token: updateTiktok,
       tiktok_events_api_token: updateTiktok ? tiktokTok : null,

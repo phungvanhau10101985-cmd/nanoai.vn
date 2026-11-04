@@ -170,6 +170,7 @@ export async function PartnerSiteVisualHtmlScreen({
     site.zaloOaId || '',
     site.zaloPersonalUrl || '',
     site.zaloOpen || '',
+    site.zaloFloatEnabled === false ? '0' : '1',
     String(site.zaloCustomHtml?.length || 0),
   ].join('|')
   const [liveCategoryBind, liveMarketingBanners, liveBrand] = await Promise.all([

@@ -695,6 +695,8 @@ export type Dictionary = {
     shopZaloOpenOa: string
     shopZaloOpenPersonalHint: string
     shopZaloOpenOaHint: string
+    shopZaloFloatLabel: string
+    shopZaloFloatHint: string
     shopZaloOaLabel: string
     shopZaloOaHint: string
     shopZaloOaPlaceholder: string
@@ -5226,12 +5228,15 @@ export const VI_DICTIONARY: Dictionary = {
     shopTrackingExtrasSaveButton: 'Lưu thẻ Ads / xác minh / HTML',
     shopChatWidgetsTitle: 'Zalo và chat Facebook',
     shopChatWidgetsHint:
-      'Chọn nút Zalo trên shop mở số cá nhân hay Official Account. Widget OA chỉ hiện khi chọn Official Account.',
+      'Chọn nút Zalo trên trang mở số cá nhân hay Official Account. Nút nổi góc màn hình bật tắt riêng. Số cá nhân vẫn dùng cho nút nhắn trên trang.',
     shopZaloOpenLabel: 'Bấm nút Zalo thì mở',
     shopZaloOpenPersonal: 'Zalo cá nhân — số hoặc link ở dưới',
     shopZaloOpenOa: 'Zalo Official Account — widget OA',
-    shopZaloOpenPersonalHint: 'Nút Zalo và «Nhắn Zalo» mở số cá nhân. Widget OA tắt.',
+    shopZaloOpenPersonalHint: 'Nút nhắn trên trang mở số cá nhân, kể cả chỗ giải thích đặt cọc. Widget OA tắt.',
     shopZaloOpenOaHint: 'Nút Zalo mở Official Account. Số cá nhân không được mở khi khách bấm.',
+    shopZaloFloatLabel: 'Nút Zalo nổi trên web',
+    shopZaloFloatHint:
+      'Bật thì hiện nút «Nhắn Zalo» góc màn hình. Tắt thì ẩn nút nổi. Số Zalo cá nhân vẫn giữ cho nút nhắn trên trang.',
     shopFacebookChatPageLabel: 'Facebook — Chat plugin (Page ID)',
     shopFacebookChatPageHint: 'Chỉ nhập Page ID (số). Không dán script.',
     shopFacebookChatPagePlaceholder: 'Ví dụ: 123456789012345',

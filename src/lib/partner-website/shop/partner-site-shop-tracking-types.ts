@@ -33,6 +33,7 @@ export type PartnerSiteShopTrackingConfig = {
   zaloOaId?: string | null
   zaloPersonalUrl?: string | null
   zaloOpen?: string | null
+  zaloFloatEnabled?: boolean | null
   zaloCustomHtml?: string | null
 }
 

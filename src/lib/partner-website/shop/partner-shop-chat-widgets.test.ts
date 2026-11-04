@@ -55,3 +55,27 @@ test('a saved personal number opens that chat and hides the OA widget', () => {
     'https://zalo.me/99887766'
   )
 })
+
+test('turning the float off hides the corner button and keeps the personal chat link', () => {
+  const html = buildPartnerShopChatWidgetsHtml({
+    zaloOpen: 'personal',
+    zaloOaId: '99887766',
+    zaloPersonalUrl: '0968659836',
+    zaloFloatEnabled: false,
+  })
+  assert.equal(html, '')
+  assert.equal(
+    resolvePartnerShopZaloClickUrl({
+      zaloOpen: 'personal',
+      zaloPersonalUrl: '0968659836',
+      zaloOaId: '99887766',
+    }),
+    'https://zalo.me/0968659836'
+  )
+  const oa = buildPartnerShopChatWidgetsHtml({
+    zaloOpen: 'oa',
+    zaloOaId: '99887766',
+    zaloFloatEnabled: false,
+  })
+  assert.doesNotMatch(oa, /zalo-chat-widget/)
+})

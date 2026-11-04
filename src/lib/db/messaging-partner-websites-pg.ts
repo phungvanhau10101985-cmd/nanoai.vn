@@ -447,6 +447,7 @@ export async function fetchPublishedPartnerWebsiteBySlugPg(
       zaloOaId: extras.zalo_oa_id,
       zaloPersonalUrl: extras.zalo_personal_url,
       zaloOpen: extras.zalo_open,
+      zaloFloatEnabled: extras.zalo_float_enabled !== false,
       zaloCustomHtml: extras.zalo_custom_html,
     })
 
