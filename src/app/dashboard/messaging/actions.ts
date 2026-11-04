@@ -1006,6 +1006,7 @@ export async function getMessagingWorkspacePaymentSettings(partnerId: string) {
     default_deposit_amount: 0,
     high_unit_price_deposit_threshold_vnd: 3_000_000,
     high_unit_price_min_deposit_percent: 30,
+    min_deposit_amount_vnd: 100_000,
     notify_email: user.email?.trim() || '',
     require_payment_proof: true,
     sepay_enabled: false,
@@ -1140,6 +1141,7 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
   shippingCarrierLabel?: string
   highUnitPriceDepositThresholdVnd?: number | null
   highUnitPriceMinDepositPercent?: number | null
+  minDepositAmountVnd?: number | null
 }) {
   const auth = await requireUser()
   if ('error' in auth) return { error: auth.error }
@@ -1190,6 +1192,10 @@ export async function saveMessagingWorkspacePaymentSettings(input: {
       input.highUnitPriceMinDepositPercent == null
         ? 30
         : Math.max(0, Math.min(100, Math.round(Number(input.highUnitPriceMinDepositPercent) || 0))),
+    minDepositAmountVnd:
+      input.minDepositAmountVnd == null
+        ? 100_000
+        : Math.max(100_000, Math.min(50_000_000, Math.round(Number(input.minDepositAmountVnd) || 0))),
   })
   if (!ok) return { error: 'Khong luu duoc cai dat thanh toan.' }
   revalidateMessagingDashboard()

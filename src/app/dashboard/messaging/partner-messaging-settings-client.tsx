@@ -593,6 +593,7 @@ export function PartnerMessagingSettingsClient({
   const [paymentDepositAmount, setPaymentDepositAmount] = useState('0')
   const [paymentHighUnitPriceThreshold, setPaymentHighUnitPriceThreshold] = useState('3000000')
   const [paymentHighUnitPriceMinPercent, setPaymentHighUnitPriceMinPercent] = useState('30')
+  const [paymentMinDepositAmount, setPaymentMinDepositAmount] = useState('100000')
   const [paymentRequireProof, setPaymentRequireProof] = useState(true)
   const [paymentSePayEnabled, setPaymentSePayEnabled] = useState(false)
   const [paymentSePayBankCode, setPaymentSePayBankCode] = useState('')
@@ -1387,6 +1388,9 @@ export function PartnerMessagingSettingsClient({
           setPaymentHighUnitPriceMinPercent(
             String(Math.max(0, Math.min(100, Math.round(Number(res.settings.high_unit_price_min_deposit_percent ?? 30) || 0))))
           )
+          setPaymentMinDepositAmount(
+            String(Math.max(100000, Math.round(Number(res.settings.min_deposit_amount_vnd ?? 100000) || 0)))
+          )
           setPaymentRequireProof(res.settings.require_payment_proof !== false)
           setPaymentSePayEnabled(Boolean(res.settings.sepay_enabled))
           setPaymentSePayBankCode(res.settings.sepay_bank_code || '')
@@ -1425,6 +1429,7 @@ export function PartnerMessagingSettingsClient({
               0,
               Math.min(100, Math.round(Number(res.settings.high_unit_price_min_deposit_percent ?? 30) || 0))
             ),
+            minDepositAmountVnd: Math.max(100000, Math.round(Number(res.settings.min_deposit_amount_vnd ?? 100000) || 0)),
             requirePaymentProof: res.settings.require_payment_proof !== false,
             sepayEnabled: Boolean(res.settings.sepay_enabled),
             sepayBankCode: res.settings.sepay_bank_code || '',
@@ -2194,6 +2199,7 @@ export function PartnerMessagingSettingsClient({
         defaultDepositAmount: Math.max(0, Math.round(Number(paymentDepositAmount) || 0)),
         highUnitPriceDepositThresholdVnd: Math.max(0, Math.round(Number(paymentHighUnitPriceThreshold) || 0)),
         highUnitPriceMinDepositPercent: Math.max(0, Math.min(100, Math.round(Number(paymentHighUnitPriceMinPercent) || 0))),
+        minDepositAmountVnd: Math.max(100000, Math.round(Number(paymentMinDepositAmount) || 0)),
         requirePaymentProof: paymentRequireProof,
         sepayEnabled: paymentSePayEnabled,
         sepayBankCode: paymentSePayBankCode,
@@ -2220,6 +2226,7 @@ export function PartnerMessagingSettingsClient({
       paymentDepositPercent,
       paymentHighUnitPriceMinPercent,
       paymentHighUnitPriceThreshold,
+      paymentMinDepositAmount,
       paymentNotifyEmail,
       paymentRequireProof,
       paymentSePayAccountNumber,
@@ -2257,6 +2264,7 @@ export function PartnerMessagingSettingsClient({
             0,
             Math.min(100, Math.round(Number(paymentHighUnitPriceMinPercent) || 0))
           ),
+          minDepositAmountVnd: Math.max(100000, Math.round(Number(paymentMinDepositAmount) || 0)),
           notifyEmail: paymentNotifyEmail,
           requirePaymentProof: paymentRequireProof,
           sepayEnabled: paymentSePayEnabled,
@@ -2301,6 +2309,7 @@ export function PartnerMessagingSettingsClient({
       paymentDepositPercent,
       paymentHighUnitPriceMinPercent,
       paymentHighUnitPriceThreshold,
+      paymentMinDepositAmount,
       paymentNotifyEmail,
       paymentRequireProof,
       paymentSePayAccountNumber,
@@ -4085,7 +4094,7 @@ export function PartnerMessagingSettingsClient({
                 </div>
                 {paymentDepositMode === 'percent' ? (
                   <div className="space-y-2">
-                    <Label className="text-xs font-medium">Dat coc theo % (0-100)</Label>
+                    <Label className="text-xs font-medium">Cọc đơn dưới mốc (%) (0-100)</Label>
                     <Input
                       className="h-9 text-sm"
                       value={paymentDepositPercent}
@@ -4125,10 +4134,20 @@ export function PartnerMessagingSettingsClient({
                     inputMode="numeric"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-medium">Cọc tối thiểu (đ)</Label>
+                  <Input
+                    className="h-9 text-sm"
+                    value={paymentMinDepositAmount}
+                    onChange={(e) => setPaymentMinDepositAmount(e.target.value.replace(/[^\d]/g, '').slice(0, 9))}
+                    placeholder="100000"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
               <p className="text-[11px] text-muted-foreground">{t.paymentHighUnitPriceDepositHint}</p>
               <p className="text-[11px] text-muted-foreground">
-                Luu y: Bat hay tat dat coc nam o tung san pham (cot Can dat coc). O nay chi chon muc tien. Tien dat coc phai nho hon hoac bang tong tien don hang. Neu vuot, he thong se fallback ve 20% gia tri don. Coc theo % da luu, toi thieu 100.000d; don nho hon muc do thi coc bang tien hang.
+                Bật hay tắt cọc nằm ở từng sản phẩm (cột Cần đặt cọc). Đơn dưới mốc dùng % «Cọc đơn dưới mốc». Đơn từ mốc dùng đúng % «Cọc đơn từ mốc». Nếu tiền theo % thấp hơn cọc tối thiểu thì lấy cọc tối thiểu, nhưng không vượt tiền hàng. Cọc tối thiểu không thấp hơn 100.000đ.
               </p>
               <label className="inline-flex items-center gap-2 text-xs text-muted-foreground">
                 <input

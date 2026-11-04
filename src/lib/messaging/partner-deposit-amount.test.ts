@@ -32,6 +32,12 @@ describe('resolvePercentDepositAmount', () => {
   it('charges nothing at 0 percent', () => {
     assert.equal(resolvePercentDepositAmount(250_000, 0), 0)
   })
+
+  it('uses a saved floor above 100_000', () => {
+    assert.equal(resolvePercentDepositAmount(1_000_000, 10, 150_000), 150_000)
+    assert.equal(resolvePercentDepositAmount(2_000_000, 10, 150_000), 200_000)
+    assert.equal(resolvePercentDepositAmount(80_000, 10, 150_000), 80_000)
+  })
 })
 
 describe('high unit price deposit floor', () => {
@@ -67,7 +73,7 @@ describe('high unit price deposit floor', () => {
     )
   })
 
-  it('keeps a higher shop percent', () => {
+  it('uses the high-order percent even when the shop percent is higher', () => {
     assert.equal(
       partialDepositPercentForPrices({
         shopPercent: 50,
@@ -75,7 +81,16 @@ describe('high unit price deposit floor', () => {
         thresholdVnd: 3_000_000,
         minPercent: 30,
       }),
-      50
+      30
+    )
+    assert.equal(
+      partialDepositPercentForPrices({
+        shopPercent: 40,
+        unitPrices: [4_000_000],
+        thresholdVnd: 3_000_000,
+        minPercent: 25,
+      }),
+      25
     )
   })
 

@@ -238,6 +238,7 @@ async function postCartQuote(request: NextRequest, ctx: { params: Promise<{ slug
     shopDepositFixed: paymentSettings?.default_deposit_amount ?? 0,
     highUnitPriceDepositThresholdVnd: paymentSettings?.high_unit_price_deposit_threshold_vnd,
     highUnitPriceMinDepositPercent: paymentSettings?.high_unit_price_min_deposit_percent,
+    minDepositAmountVnd: paymentSettings?.min_deposit_amount_vnd,
   })
   const checkoutSplit = {
     orderCount: Math.max(1, checkoutPlans.length),

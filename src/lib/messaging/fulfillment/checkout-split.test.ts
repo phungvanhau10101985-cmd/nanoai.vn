@@ -217,7 +217,7 @@ describe('buildCheckoutSplitPlans', () => {
     assert.equal(plans[0].requiredAmount, 1_200_000)
   })
 
-  it('keeps a shop percent that is already above the floor', () => {
+  it('uses the high-order percent even when the shop percent is higher', () => {
     const plans = buildCheckoutSplitPlans({
       lines: [line({ fulfillmentSource: 'vietnam', lineSubtotal: 4_000_000, unitPrice: 4_000_000, depositRequired: true })],
       totalDiscount: 0,
@@ -225,9 +225,10 @@ describe('buildCheckoutSplitPlans', () => {
       shopDepositMode: 'percent',
       shopDepositPercent: 50,
       shopDepositFixed: 0,
+      highUnitPriceMinDepositPercent: 30,
     })
-    assert.equal(plans[0].depositPercent, 50)
-    assert.equal(plans[0].requiredAmount, 2_000_000)
+    assert.equal(plans[0].depositPercent, 30)
+    assert.equal(plans[0].requiredAmount, 1_200_000)
   })
 
   it('does not apply the floor to clearance warehouse lines', () => {

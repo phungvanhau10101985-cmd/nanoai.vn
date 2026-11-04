@@ -40,6 +40,12 @@ export async function GET(_request: Request, ctx: { params: Promise<{ slug: stri
     depositPolicy: {
       mode: paymentSettings?.default_deposit_mode ?? 'percent',
       percent: Math.max(0, Math.min(100, Math.round(paymentSettings?.default_deposit_percent ?? 30))),
+      highOrderAmount: Math.max(0, Math.round(paymentSettings?.high_unit_price_deposit_threshold_vnd ?? 3_000_000)),
+      highOrderPercent: Math.max(
+        0,
+        Math.min(100, Math.round(paymentSettings?.high_unit_price_min_deposit_percent ?? 30))
+      ),
+      minAmount: Math.max(100_000, Math.round(paymentSettings?.min_deposit_amount_vnd ?? 100_000)),
       fixedAmount: Math.max(0, Math.round(paymentSettings?.default_deposit_amount ?? 0)),
     },
     googleCustomerReviewsMerchantId: gcrMerchantId,

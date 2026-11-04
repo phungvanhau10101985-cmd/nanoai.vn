@@ -1,7 +1,9 @@
 import { getPgPool, isPgConfigured } from '@/lib/db/pool'
 import {
+  clampPartnerMinDepositAmount,
   DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND,
   DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT,
+  PARTNER_MIN_DEPOSIT_VND,
 } from '@/lib/messaging/partner-deposit-amount'
 import { sqlPartnerMpActorHasPerm } from '@/lib/db/messaging-partner-access-sql'
 import { pgQuery, pgQueryOne } from '@/lib/db/pg-query'
@@ -59,9 +61,11 @@ export type PartnerPaymentSettingsRow = {
   ewallet_qr_url: string
   /** M1.4 — display-only carrier label. */
   shipping_carrier_label: string
-  /** Tiền hàng của đơn từ mức này trở lên thì khách cọc ít nhất `high_unit_price_min_deposit_percent` trên cả đơn. 0 = tắt. */
+  /** Tiền hàng của đơn từ mức này trở lên thì khách cọc đúng `high_unit_price_min_deposit_percent`. 0 = tắt. */
   high_unit_price_deposit_threshold_vnd: number
   high_unit_price_min_deposit_percent: number
+  /** Sàn tiền cọc theo %. Không thấp hơn 100.000đ. */
+  min_deposit_amount_vnd: number
   updated_at: string
 }
 
@@ -205,6 +209,14 @@ function isMissingHighUnitPriceColumnError(e: unknown): boolean {
 }
 
 let paymentSettingsHighUnitPriceColumnsReady: boolean | null = null
+let paymentSettingsMinDepositColumnReady: boolean | null = null
+
+function isMissingMinDepositColumnError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const err = e as { code?: string; message?: string }
+  if (String(err.code ?? '') !== '42703') return false
+  return String(err.message ?? '').toLowerCase().includes('min_deposit_amount_vnd')
+}
 
 function isLegacyDepositPercentConstraintError(e: unknown): boolean {
   if (!e || typeof e !== 'object') return false
@@ -381,9 +393,13 @@ export function parseVndAmountFromText(raw: string): number {
 export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Promise<PartnerPaymentSettingsRow | null> {
   if (!isPgConfigured()) return null
   const includeHighUnitPrice = paymentSettingsHighUnitPriceColumnsReady !== false
+  const includeMinDeposit = paymentSettingsMinDepositColumnReady !== false
   const highUnitPriceSelect = includeHighUnitPrice
     ? `coalesce(high_unit_price_deposit_threshold_vnd, ${DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND}) as high_unit_price_deposit_threshold_vnd,
               coalesce(high_unit_price_min_deposit_percent, ${DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT}) as high_unit_price_min_deposit_percent,`
+    : ''
+  const minDepositSelect = includeMinDeposit
+    ? `coalesce(min_deposit_amount_vnd, ${PARTNER_MIN_DEPOSIT_VND}) as min_deposit_amount_vnd,`
     : ''
   try {
     const row = await pgQueryOne<Record<string, unknown>>(
@@ -407,6 +423,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
               coalesce(ewallet_qr_url, '') as ewallet_qr_url,
               coalesce(shipping_carrier_label, '') as shipping_carrier_label,
               ${highUnitPriceSelect}
+              ${minDepositSelect}
               updated_at
        from public.messaging_partner_payment_settings
        where partner_id = $1::uuid
@@ -414,6 +431,7 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
       [partnerId]
     )
     if (includeHighUnitPrice) paymentSettingsHighUnitPriceColumnsReady = true
+    if (includeMinDeposit) paymentSettingsMinDepositColumnReady = true
     if (!row) return null
     return {
       partner_id: String(row.partner_id),
@@ -459,11 +477,16 @@ export async function fetchPartnerPaymentSettingsFromPg(partnerId: string): Prom
         row.high_unit_price_min_deposit_percent == null
           ? DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT
           : clampPercent(row.high_unit_price_min_deposit_percent, DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT),
+      min_deposit_amount_vnd: clampPartnerMinDepositAmount(row.min_deposit_amount_vnd),
       updated_at: String(row.updated_at ?? ''),
     }
   } catch (e) {
     if (isMissingHighUnitPriceColumnError(e) && paymentSettingsHighUnitPriceColumnsReady !== false) {
       paymentSettingsHighUnitPriceColumnsReady = false
+      return fetchPartnerPaymentSettingsFromPg(partnerId)
+    }
+    if (isMissingMinDepositColumnError(e) && paymentSettingsMinDepositColumnReady !== false) {
+      paymentSettingsMinDepositColumnReady = false
       return fetchPartnerPaymentSettingsFromPg(partnerId)
     }
     if (isMissingPaymentSettingsTableError(e)) return null
@@ -500,8 +523,11 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
   shippingCarrierLabel?: string
   highUnitPriceDepositThresholdVnd?: number | null
   highUnitPriceMinDepositPercent?: number | null
+  minDepositAmountVnd?: number | null
 }): Promise<boolean> {
   if (!isPgConfigured()) return false
+  const includeMinDeposit = paymentSettingsMinDepositColumnReady !== false
+  const minDepositAmount = clampPartnerMinDepositAmount(input.minDepositAmountVnd)
   try {
     await pgQuery(
       `insert into public.messaging_partner_payment_settings (
@@ -512,6 +538,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          ewallet_enabled, ewallet_provider_label, ewallet_account_name, ewallet_account_number, ewallet_qr_url,
          shipping_carrier_label,
          high_unit_price_deposit_threshold_vnd, high_unit_price_min_deposit_percent,
+         ${includeMinDeposit ? 'min_deposit_amount_vnd,' : ''}
          updated_at
        ) values (
          $1::uuid, $2, $3, $4, $5, $6, $7, $8, $9,
@@ -520,6 +547,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          $19, $20, $21, $22, $23,
          $24,
          $25::numeric, $26,
+         ${includeMinDeposit ? '$27::integer,' : ''}
          now()
        )
        on conflict (partner_id) do update set
@@ -548,6 +576,7 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
          shipping_carrier_label = excluded.shipping_carrier_label,
          high_unit_price_deposit_threshold_vnd = excluded.high_unit_price_deposit_threshold_vnd,
          high_unit_price_min_deposit_percent = excluded.high_unit_price_min_deposit_percent,
+         ${includeMinDeposit ? 'min_deposit_amount_vnd = excluded.min_deposit_amount_vnd,' : ''}
          updated_at = now()`,
       [
         input.partnerId,
@@ -580,14 +609,20 @@ export async function upsertPartnerPaymentSettingsFromPg(input: {
         input.highUnitPriceMinDepositPercent == null
           ? DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT
           : clampPercent(input.highUnitPriceMinDepositPercent, DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT),
+        ...(includeMinDeposit ? [minDepositAmount] : []),
       ]
     )
     if (paymentSettingsHighUnitPriceColumnsReady !== true) paymentSettingsHighUnitPriceColumnsReady = true
+    if (includeMinDeposit) paymentSettingsMinDepositColumnReady = true
     return true
   } catch (e) {
     if (isMissingHighUnitPriceColumnError(e)) {
       paymentSettingsHighUnitPriceColumnsReady = false
       console.warn('[upsertPartnerPaymentSettingsFromPg] missing high unit price columns')
+    }
+    if (isMissingMinDepositColumnError(e) && paymentSettingsMinDepositColumnReady !== false) {
+      paymentSettingsMinDepositColumnReady = false
+      return upsertPartnerPaymentSettingsFromPg(input)
     }
     if (isMissingPaymentSettingsTableError(e)) return false
     console.warn('[upsertPartnerPaymentSettingsFromPg]', e)

@@ -8,7 +8,7 @@ import {
 import { selectOptimizedFulfillmentOutcome } from '@/lib/messaging/fulfillment/optimized-fulfillment-runtime'
 import {
   clampPartnerDepositPercent,
-  PARTNER_MIN_DEPOSIT_VND,
+  clampPartnerMinDepositAmount,
   readHighUnitPriceDepositSettings,
   resolvePercentDepositAmount,
   orderValueMeetsDepositFloor,
@@ -47,9 +47,11 @@ export type CheckoutSplitPlanInput = {
   shopDepositMode: 'none' | 'percent' | 'fixed_amount'
   shopDepositPercent: number
   shopDepositFixed: number
-  /** Trần giá trị đơn. Bỏ trống = 3.000.000đ / cọc tối thiểu 30% trên cả đơn. 0 = tắt. */
+  /** Mốc giá trị hàng. Bỏ trống = 3.000.000đ và cọc 30% từ mốc đó. 0 = tắt luật đơn lớn. */
   highUnitPriceDepositThresholdVnd?: number | null
   highUnitPriceMinDepositPercent?: number | null
+  /** Sàn tiền cọc. Bỏ trống = 100.000đ. Không thấp hơn 100.000đ. */
+  minDepositAmountVnd?: number | null
 }
 
 export function groupCheckoutLines<T extends CheckoutSplitLine>(lines: T[]): Record<PartnerFulfillmentSource, T[]> {
@@ -83,6 +85,7 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
     thresholdVnd: input.highUnitPriceDepositThresholdVnd,
     minPercent: input.highUnitPriceMinDepositPercent,
   })
+  const minDepositAmount = clampPartnerMinDepositAmount(input.minDepositAmountVnd)
   const plans = sources.map((source, index) => {
     const lines = grouped[source]
     const subtotal = lines.reduce((sum, row) => sum + Math.max(0, Math.round(row.lineSubtotal)), 0)
@@ -95,6 +98,7 @@ export function buildCheckoutSplitPlans(input: CheckoutSplitPlanInput): Checkout
       shopDepositMode: input.shopDepositMode,
       shopDepositPercent: input.shopDepositPercent,
       highUnitPrice,
+      minDepositAmount,
     })
     return {
       source,
@@ -151,13 +155,14 @@ type GroupDeposit = {
   flaggedPayable: number
 }
 
-/** Cọc theo cờ sản phẩm, và nâng lên % tối thiểu khi tiền hàng của đơn chạm trần. Kho thanh lý không tính vào đơn và không cọc. */
+/** Dưới mốc: % shop trên dòng bật cọc. Từ mốc: đúng % đơn lớn trên cả tiền hàng. Kho thanh lý không tính. */
 function resolveGroupDeposit(input: {
   lines: CheckoutSplitLine[]
   discount: number
   shopDepositMode: 'none' | 'percent' | 'fixed_amount'
   shopDepositPercent: number
   highUnitPrice: HighUnitPriceDepositSettings
+  minDepositAmount: number
 }): GroupDeposit {
   const regular = input.lines
     .map((row, index) => ({ row, index }))
@@ -171,7 +176,10 @@ function resolveGroupDeposit(input: {
   }
   const lineDiscounts = allocateIntegerTotal(Math.max(0, Math.round(input.discount)), weights, keys)
   const orderGoods = regular.reduce((sum, { row }) => sum + Math.max(0, Math.round(row.lineSubtotal)), 0)
-  const floorPct = orderValueMeetsDepositFloor(orderGoods, input.highUnitPrice) ? input.highUnitPrice.minPercent : 0
+  const discountedGoods = Math.max(0, orderGoods - Math.max(0, Math.round(input.discount)))
+  const floorPct = orderValueMeetsDepositFloor(discountedGoods, input.highUnitPrice)
+    ? input.highUnitPrice.minPercent
+    : 0
   let depositPayable = 0
   let flaggedPayable = 0
   let highPayable = 0
@@ -190,7 +198,7 @@ function resolveGroupDeposit(input: {
       continue
     }
     const shopPct = row.depositRequired ? clampPartnerDepositPercent(input.shopDepositPercent, 0) : 0
-    const pct = Math.max(shopPct, floorPct)
+    const pct = floorPct > 0 ? floorPct : shopPct
     if (pct <= 0 || payable <= 0) continue
     depositPayable += payable
     raw += pct >= 100 ? payable : Math.ceil((payable * pct) / 100)
@@ -199,7 +207,10 @@ function resolveGroupDeposit(input: {
   }
 
   if (input.shopDepositMode === 'fixed_amount') {
-    const floorAmount = highPayable > 0 ? resolvePercentDepositAmount(highPayable, input.highUnitPrice.minPercent) : 0
+    const floorAmount =
+      highPayable > 0
+        ? resolvePercentDepositAmount(highPayable, input.highUnitPrice.minPercent, input.minDepositAmount)
+        : 0
     return {
       depositPayable,
       flaggedPayable,
@@ -213,8 +224,11 @@ function resolveGroupDeposit(input: {
   }
   const requiredAmount =
     percents.size === 1
-      ? resolvePercentDepositAmount(depositPayable, policyPercent)
-      : Math.min(depositPayable, Math.max(raw, Math.min(PARTNER_MIN_DEPOSIT_VND, depositPayable)))
+      ? resolvePercentDepositAmount(depositPayable, policyPercent, input.minDepositAmount)
+      : Math.min(
+          depositPayable,
+          Math.max(raw, Math.min(input.minDepositAmount, depositPayable))
+        )
   return {
     depositPayable,
     flaggedPayable,

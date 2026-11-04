@@ -1,7 +1,8 @@
-/** Trần cọc theo % — không phải ô cài đặt riêng. Số % vẫn lấy từ Cài đặt thanh toán. */
+/** Sàn tiền cọc một phần. Shop sửa trong Cài đặt thanh toán, không thấp hơn 100.000đ. */
 export const PARTNER_MIN_DEPOSIT_VND = 100_000
+export const PARTNER_MIN_DEPOSIT_CEILING = 50_000_000
 
-/** Giá trị đơn (tiền hàng) từ mức này trở lên thì khách cọc ít nhất % bên dưới. Shop sửa trong Cài đặt thanh toán. */
+/** Giá trị đơn (tiền hàng) từ mức này trở lên thì khách cọc đúng % «từ mốc». Shop sửa trong Cài đặt thanh toán. */
 export const DEFAULT_HIGH_UNIT_PRICE_DEPOSIT_THRESHOLD_VND = 3_000_000
 export const DEFAULT_HIGH_UNIT_PRICE_MIN_DEPOSIT_PERCENT = 30
 
@@ -40,7 +41,7 @@ export function unitPriceMeetsDepositFloor(unitPrice: number, settings: HighUnit
 }
 
 /**
- * % cọc một phần khách được chọn: % shop, hoặc cao hơn khi tiền hàng của đơn chạm trần.
+ * % cọc một phần. Dưới mốc dùng % shop. Từ mốc trở lên dùng đúng % đơn lớn, không lấy số lớn hơn.
  * Cộng các dòng (đơn giá × số lượng). Ba món 1 triệu vẫn là đơn 3 triệu.
  */
 export function partialDepositPercentForPrices(input: {
@@ -57,7 +58,7 @@ export function partialDepositPercentForPrices(input: {
   const shop = clampPartnerDepositPercent(input.shopPercent, 0)
   const orderValue = input.unitPrices.reduce((sum, price) => sum + Math.max(0, Math.round(Number(price) || 0)), 0)
   if (!orderValueMeetsDepositFloor(orderValue, rule)) return shop
-  return Math.max(shop, rule.minPercent)
+  return clampPartnerDepositPercent(rule.minPercent, 0)
 }
 
 export function clampPartnerDepositPercent(value: unknown, fallback = 0): number {
@@ -67,15 +68,28 @@ export function clampPartnerDepositPercent(value: unknown, fallback = 0): number
   return Math.max(0, Math.min(100, raw))
 }
 
+export function clampPartnerMinDepositAmount(value: unknown, fallback = PARTNER_MIN_DEPOSIT_VND): number {
+  const n = Math.round(Number(value))
+  const raw = Number.isFinite(n) ? n : Math.round(Number(fallback))
+  if (!Number.isFinite(raw) || raw < PARTNER_MIN_DEPOSIT_VND) return PARTNER_MIN_DEPOSIT_VND
+  if (raw > PARTNER_MIN_DEPOSIT_CEILING) return PARTNER_MIN_DEPOSIT_CEILING
+  return raw
+}
+
 /**
  * Cọc theo % đã lưu. Dưới 100.000đ thì nâng lên 100.000đ, nhưng không vượt tiền hàng.
  * 100% = cả tiền hàng. 0% hoặc đơn trống = 0.
  */
-export function resolvePercentDepositAmount(payable: number, percent: number): number {
+export function resolvePercentDepositAmount(
+  payable: number,
+  percent: number,
+  minAmount: number = PARTNER_MIN_DEPOSIT_VND
+): number {
   const base = Math.max(0, Math.round(Number(payable) || 0))
   const p = clampPartnerDepositPercent(percent, 0)
   if (base <= 0 || p <= 0) return 0
   if (p >= 100) return base
   const raw = Math.ceil((base * p) / 100)
-  return Math.min(base, Math.max(raw, PARTNER_MIN_DEPOSIT_VND))
+  const floor = clampPartnerMinDepositAmount(minAmount)
+  return Math.min(base, Math.max(raw, floor))
 }

@@ -414,6 +414,7 @@ function resolveRequiredAmountByDepositRule(input: {
   mode: 'none' | 'percent' | 'fixed_amount'
   percent: number
   fixedAmount: number
+  minAmount?: number | null
 }): { requiredAmount: number; appliedPercent: number; fallbackApplied: boolean } {
   const subtotal = Math.max(0, Math.round(input.subtotal || 0))
   if (subtotal <= 0) return { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
@@ -428,7 +429,11 @@ function resolveRequiredAmountByDepositRule(input: {
     return { requiredAmount: fixed, appliedPercent: clampPercent(pct, 0), fallbackApplied: false }
   }
   const p = clampPercent(input.percent, 0)
-  return { requiredAmount: resolvePercentDepositAmount(subtotal, p), appliedPercent: p, fallbackApplied: false }
+  return {
+    requiredAmount: resolvePercentDepositAmount(subtotal, p, input.minAmount ?? undefined),
+    appliedPercent: p,
+    fallbackApplied: false,
+  }
 }
 
 /**
@@ -777,20 +782,14 @@ export async function createOrderDraftFromProductPick(input: {
   const calc = productWantsDeposit
     ? resolveRequiredAmountByDepositRule({
         subtotal,
-        mode: settingsMode,
-        percent: Math.max(depositPercent, floorPercent),
+        mode: floorPercent > 0 ? 'percent' : settingsMode,
+        percent: floorPercent > 0 ? floorPercent : depositPercent,
         fixedAmount: depositAmount,
+        minAmount: settings?.min_deposit_amount_vnd,
       })
     : { requiredAmount: 0, appliedPercent: 0, fallbackApplied: false }
-  let depositAppliedPercent = calc.appliedPercent
-  let depositRequiredAmount = calc.requiredAmount
-  if (floorPercent > 0) {
-    const floorAmount = resolvePercentDepositAmount(subtotal, floorPercent)
-    if (depositRequiredAmount < floorAmount) {
-      depositRequiredAmount = floorAmount
-      depositAppliedPercent = Math.max(depositAppliedPercent, floorPercent)
-    }
-  }
+  const depositAppliedPercent = calc.appliedPercent
+  const depositRequiredAmount = calc.requiredAmount
   const draft = await insertPartnerOrderDraftFromPg({
     partnerId: input.partnerId,
     conversationId: conv.conversationId,
@@ -994,18 +993,10 @@ export async function completeOrderCheckout(input: {
     shopDepositFixed: normalizeMoney(settings.default_deposit_amount ?? 0),
     highUnitPriceDepositThresholdVnd: settings.high_unit_price_deposit_threshold_vnd,
     highUnitPriceMinDepositPercent: settings.high_unit_price_min_deposit_percent,
+    minDepositAmountVnd: settings.min_deposit_amount_vnd,
   })[0]
   const expectedAmount = checkoutPlan?.requiredAmount ?? 0
   const depositPercent = checkoutPlan?.depositPercent ?? 0
-  const calc = resolveRequiredAmountByDepositRule({
-    subtotal: payableSubtotal,
-    mode:
-      settings.default_deposit_mode === 'none' || settings.default_deposit_mode === 'fixed_amount'
-        ? settings.default_deposit_mode
-        : 'percent',
-    percent: clampPercent(settings.default_deposit_percent ?? 30, 30),
-    fixedAmount: normalizeMoney(settings.default_deposit_amount ?? 0),
-  })
   const paymentMethod = resolvePaymentMethodForCheckout({
     requested: input.form.paymentMethod,
     requiredAmount: expectedAmount,
@@ -1168,7 +1159,6 @@ export async function completeOrderCheckout(input: {
           orderShippingFeeSummaryLine(updated) +
           `Cần đặt cọc trước: **${toVnd(updated.required_amount)}** (${updated.deposit_percent}%).\n` +
           `Còn thanh toán khi nhận hàng: **${toVnd(Math.max(0, updated.amount_after_discount - updated.required_amount) + updated.shipping_fee_amount)}**.\n` +
-          `${calc.fallbackApplied ? 'Lưu ý: Số tiền đặt cọc vượt giá trị đơn, hệ thống đã fallback về 20% giá trị đơn.\n' : ''}` +
           (updated.payment_method === 'ewallet'
             ? `Quét QR ví điện tử trong khối «Thanh toán» bên dưới, sau đó bấm nút gửi ảnh biên lai.`
             : useSepayQr
@@ -1431,6 +1421,7 @@ export async function completeCartCheckout(input: {
     shopDepositFixed: fixedAmount,
     highUnitPriceDepositThresholdVnd: settings.high_unit_price_deposit_threshold_vnd,
     highUnitPriceMinDepositPercent: settings.high_unit_price_min_deposit_percent,
+    minDepositAmountVnd: settings.min_deposit_amount_vnd,
   })
   const primaryIndex = pickPrimaryCheckoutOrderIndex(plans)
   const checkoutGroupId = plans.length > 1 ? randomUUID() : null
@@ -1756,12 +1747,9 @@ export async function getProductPurchaseOptions(input: {
   let percent = clampPercent(settings?.default_deposit_percent ?? 30, 30)
   let fixedAmount = normalizeMoney(settings?.default_deposit_amount ?? 0)
   if (floorPercent > 0) {
-    const floorAmount = unitPrice > 0 ? resolvePercentDepositAmount(unitPrice, floorPercent) : 0
-    if (mode === 'none' || (mode === 'fixed_amount' && fixedAmount < floorAmount)) {
-      mode = 'percent'
-      fixedAmount = 0
-    }
-    percent = Math.max(percent, floorPercent)
+    mode = 'percent'
+    percent = floorPercent
+    fixedAmount = 0
   }
   const bdayPct = await resolveActiveBirthdayDiscountPercentForLinkedUser(
     input.partnerId,
@@ -2155,7 +2143,7 @@ export async function updateCartOrderDepositPercent(input: {
   const payable = Math.max(0, Math.round(existing.amount_after_discount || existing.subtotal_amount || 0))
   const ship = Math.max(0, Math.round(existing.shipping_fee_amount || 0))
   const requiredAmount =
-    percent >= 100 ? payable + ship : resolvePercentDepositAmount(payable, percent)
+    percent >= 100 ? payable + ship : resolvePercentDepositAmount(payable, percent, settings.min_deposit_amount_vnd)
   const qrUrl = buildOrderPaymentQrBySettings({
     amount: requiredAmount,
     paymentReference: existing.payment_reference,
